@@ -2,7 +2,7 @@ import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { writeResults, readResults } from "@skill-check/core";
+import { writeResults, readResults, readJournal } from "@skill-check/core";
 import { serveReview } from "../src/serve.js";
 
 const SPEC = `
@@ -73,5 +73,8 @@ describe("review server /save override rules", () => {
     expect(results.effective_grade.ship).toBe(true); // recomputed override-aware
     const gi = readFileSync(join(skillDir, "tests", "results", ".gitignore"), "utf8");
     expect(gi).toContain("!pi-fake/2026-07-03T00-00-00Z/A1.green.txt");
+    const overrides = readJournal(runDir).filter((e) => e.event === "override");
+    expect(overrides).toHaveLength(1);
+    expect(overrides[0]).toMatchObject({ id: "A1", override: "PASS", note: "judge missed the greeting" });
   });
 });

@@ -6,6 +6,7 @@ import { spawn } from "node:child_process";
 import {
   collectReport, renderReport,
   readResults, writeResults, applyOverride, preserveTranscript,
+  appendJournal,
   type Verdict, type ResultsFile,
   loadSpec,
 } from "@skill-check/core";
@@ -107,6 +108,10 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
         if (body.override != null) {
           preserveTranscript(join(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
         }
+        appendJournal(column.runDir, {
+          event: "override", ts: new Date().toISOString(),
+          id: body.scenarioId, override: body.override ?? null, note: body.note ?? "",
+        });
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ ok: true }));
         return;

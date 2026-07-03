@@ -172,6 +172,7 @@ export function applyOverride(
 
 const GITIGNORE_BODY = `# skill-check: commit verdicts (results.yaml), ignore generated artifacts.
 *.txt
+*.jsonl
 report.html
 !results.yaml
 `;

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  parseSpec, runSkillModel, readResults,
+  parseSpec, runSkillModel, readResults, readJournal,
   type HarnessAdapter, type RunReq, type JudgeReq,
 } from "../src/index.js";
 
@@ -37,6 +37,7 @@ describe("golden pipeline run", () => {
       mode: "green",
       cwd: skillDir,
       timestamp: "2026-07-03T00-00-00-000Z",
+      now: () => "2026-07-03T00:00:00.000Z",
     });
 
     expect(results.schema).toBe(2);
@@ -53,6 +54,19 @@ describe("golden pipeline run", () => {
     const t = readFileSync(join(runDir, "A1.green.txt"), "utf8");
     expect(t).toContain("Say hello.");
     expect(t).toContain("Hello!");
+
+    const events = readJournal(runDir);
+    expect(events.map((e) => e.event)).toEqual([
+      "run-started",
+      "scenario-started", "judge-verdict",
+      "scenario-started", "judge-verdict",
+      "score",
+    ]);
+    const started = events[0] as Extract<typeof events[number], { event: "run-started" }>;
+    expect(started.skill).toBe("golden-skill");
+    expect(started.label).toBeNull();
+    const score = events.at(-1) as Extract<typeof events[number], { event: "score" }>;
+    expect(score.ship).toBe(true);
   });
 
   it("gates the ship bar on a critical FAIL", async () => {
