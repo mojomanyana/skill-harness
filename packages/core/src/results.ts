@@ -1,5 +1,5 @@
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, appendFileSync } from "node:fs";
+import { join, relative } from "node:path";
 import yaml from "js-yaml";
 import { modelSlug, type ModelRef } from "./adapters/types.js";
 import { score, type ScenarioVerdict } from "./score.js";
@@ -155,6 +155,9 @@ export function applyOverride(
   override: Verdict | null,
   note: string
 ): ResultsFile {
+  if (override !== null && note.trim() === "") {
+    throw new Error(`override for \`${scenarioId}\` requires a note — say why the judge was wrong`);
+  }
   let found = false;
   const scenarios = results.scenarios.map((s) => {
     if (s.id !== scenarioId) return s;
@@ -173,11 +176,33 @@ report.html
 !results.yaml
 `;
 
-/** Write a results/.gitignore so transcripts + report are ignored but results.yaml is tracked. */
+/**
+ * Manage results/.gitignore: transcripts + reports ignored, results.yaml tracked.
+ * Rewrites a stale managed body (so new ignore rules roll out) while keeping any
+ * `!…` preservation lines added by preserveTranscript.
+ */
 export function ensureResultsGitignore(resultsRoot: string): void {
   mkdirSync(resultsRoot, { recursive: true });
   const giPath = join(resultsRoot, ".gitignore");
-  if (!existsSync(giPath)) {
-    writeFileSync(giPath, GITIGNORE_BODY, "utf8");
+  const existing = existsSync(giPath) ? readFileSync(giPath, "utf8") : "";
+  if (existing.startsWith(GITIGNORE_BODY)) return;
+  const preserved = existing
+    .split("\n")
+    .filter((l) => l.startsWith("!") && l.trim() !== "!results.yaml");
+  writeFileSync(giPath, GITIGNORE_BODY + preserved.map((l) => l + "\n").join(""), "utf8");
+}
+
+/**
+ * Un-gitignore one scenario's transcript (audit trail for an override).
+ * Appends `!<tag>/<ts>/<id>.<mode>.txt` to results/.gitignore, once.
+ */
+export function preserveTranscript(resultsRoot: string, runDir: string, scenarioId: string): void {
+  const file = readdirSync(runDir).find((f) => f.startsWith(`${scenarioId}.`) && f.endsWith(".txt"));
+  if (!file) return;
+  ensureResultsGitignore(resultsRoot);
+  const giPath = join(resultsRoot, ".gitignore");
+  const line = `!${relative(resultsRoot, join(runDir, file))}`;
+  if (!readFileSync(giPath, "utf8").split("\n").includes(line)) {
+    appendFileSync(giPath, line + "\n", "utf8");
   }
 }

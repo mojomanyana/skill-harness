@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import {
   collectReport, renderReport,
-  readResults, writeResults, applyOverride,
-  type Verdict,
+  readResults, writeResults, applyOverride, preserveTranscript,
+  type Verdict, type ResultsFile,
   loadSpec,
 } from "@skill-check/core";
 
@@ -46,7 +46,12 @@ function findTranscript(runDir: string, id: string): string | null {
   return any ? readFileSync(join(runDir, any), "utf8") : null;
 }
 
-export async function serveReview(opts: ServeOptions): Promise<void> {
+export interface ServeHandle {
+  port: number;
+  close: () => void;
+}
+
+export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
   const template = readFileSync(templatePath(), "utf8");
 
   const server = createServer(async (req, res) => {
@@ -85,13 +90,23 @@ export async function serveReview(opts: ServeOptions): Promise<void> {
           return;
         }
         const results = readResults(column.runDir);
-        const patched = applyOverride(results, body.scenarioId, body.override ?? null, body.note ?? "");
+        let patched: ResultsFile;
+        try {
+          patched = applyOverride(results, body.scenarioId, body.override ?? null, body.note ?? "");
+        } catch (e) {
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+          return;
+        }
         // writeResults recomputes effective_grade override-aware against the CURRENT
         // spec's ship bar — a saved override can never leave a stale grade. Only
         // green runs are scored (PR #1 finding: /save must not grade red/force runs).
         const spec = loadSpec(join(opts.skillDir, "tests", "specification.yaml"));
         const ctx = patched.mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
         writeResults(column.runDir, patched, ctx);
+        if (body.override != null) {
+          preserveTranscript(join(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
+        }
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ ok: true }));
         return;
@@ -114,6 +129,8 @@ export async function serveReview(opts: ServeOptions): Promise<void> {
   console.log(`  Ctrl-C to stop.\n`);
 
   if (opts.open !== false && !process.env.SKILL_CHECK_NO_OPEN) tryOpen(link);
+
+  return { port: port as number, close: () => server.close() };
 }
 
 export function tryOpen(url: string, cmd?: string): void {

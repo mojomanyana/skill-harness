@@ -1,5 +1,5 @@
 import { describe, test, expect, afterEach } from "vitest";
-import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import yaml from "js-yaml";
@@ -9,6 +9,7 @@ import {
   readResults,
   applyOverride,
   ensureResultsGitignore,
+  preserveTranscript,
   finalizeResults,
   migrateResults,
   effectiveVerdicts,
@@ -91,7 +92,60 @@ describe("applyOverride", () => {
   });
 
   test("throws for an unknown scenario id", () => {
-    expect(() => applyOverride(sample, "ZZ", "PASS", "")).toThrow(/ZZ/);
+    expect(() => applyOverride(sample, "ZZ", "PASS", "some note")).toThrow(/ZZ/);
+  });
+});
+
+describe("applyOverride requires a note", () => {
+  test("throws when setting an override with an empty note", () => {
+    expect(() => applyOverride(sample, "C1", "PASS", "")).toThrow(/requires a note/);
+    expect(() => applyOverride(sample, "C1", "PASS", "   ")).toThrow(/requires a note/);
+  });
+
+  test("clearing an override needs no note", () => {
+    const set = applyOverride(sample, "C1", "PASS", "why");
+    expect(() => applyOverride(set, "C1", null, "")).not.toThrow();
+  });
+});
+
+describe("preserveTranscript", () => {
+  test("appends a gitignore negation for the scenario transcript, idempotently", () => {
+    const root = tmp();
+    const runDir = join(root, "pi-fake", "2026-07-03T00-00-00Z");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "C1.green.txt"), "transcript", "utf8");
+    preserveTranscript(root, runDir, "C1");
+    preserveTranscript(root, runDir, "C1"); // twice — must not duplicate
+    const gi = readFileSync(join(root, ".gitignore"), "utf8");
+    const line = "!pi-fake/2026-07-03T00-00-00Z/C1.green.txt";
+    expect(gi.split("\n").filter((l) => l === line)).toHaveLength(1);
+  });
+
+  test("no transcript file → no-op", () => {
+    const root = tmp();
+    const runDir = join(root, "pi-fake", "ts");
+    mkdirSync(runDir, { recursive: true });
+    expect(() => preserveTranscript(root, runDir, "ZZ")).not.toThrow();
+  });
+});
+
+describe("ensureResultsGitignore migration", () => {
+  test("rewrites a stale body but keeps preservation lines", () => {
+    const root = tmp();
+    writeFileSync(join(root, ".gitignore"), "old body\n!results.yaml\n!pi-fake/ts/C1.green.txt\n", "utf8");
+    ensureResultsGitignore(root);
+    const gi = readFileSync(join(root, ".gitignore"), "utf8");
+    expect(gi).toMatch(/^# skill-check:/); // managed header restored
+    expect(gi).toContain("!pi-fake/ts/C1.green.txt"); // preservation kept
+    expect(gi).not.toContain("old body");
+  });
+
+  test("is a no-op when the managed body is current", () => {
+    const root = tmp();
+    ensureResultsGitignore(root);
+    const before = readFileSync(join(root, ".gitignore"), "utf8");
+    ensureResultsGitignore(root);
+    expect(readFileSync(join(root, ".gitignore"), "utf8")).toBe(before);
   });
 });
 

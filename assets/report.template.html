@@ -48,6 +48,7 @@
   pre.transcript { white-space: pre-wrap; word-break: break-word; background: #0b0d11; border: 1px solid var(--line); border-radius: 6px; padding: 10px; max-height: 42vh; overflow: auto; font: 12px/1.5 ui-monospace, monospace; }
   .saved { color: var(--pass); font-size: 12px; margin-left: 8px; opacity: 0; transition: opacity .2s; }
   .saved.show { opacity: 1; }
+  .saved.err { color: #b91c1c; opacity: 1; }
   .close { float: right; cursor: pointer; color: var(--dim); border: none; background: none; font-size: 18px; }
   .empty-state { color: var(--dim); padding: 40px; text-align: center; }
 </style>
@@ -166,14 +167,19 @@ async function openPanel(colIndex, scenarioId) {
 }
 
 async function save(col, scenarioId, cell) {
+  const s = document.getElementById("saved");
   try {
-    await fetch("/save", {
+    const r = await fetch("/save", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ col: col.index, scenarioId, override: cell.override, note: cell.note }),
     });
-    const s = document.getElementById("saved");
-    if (s) { s.classList.add("show"); setTimeout(() => s.classList.remove("show"), 1200); }
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}));
+      if (s) { s.textContent = body.error || "save failed"; s.classList.add("show", "err"); }
+      return; // keep the local toggle so typing a note then retriggers save
+    }
+    if (s) { s.textContent = "saved ✓"; s.classList.remove("err"); s.classList.add("show"); setTimeout(() => s.classList.remove("show"), 1200); }
   } catch (e) { console.error("save failed", e); }
   render();
 }
