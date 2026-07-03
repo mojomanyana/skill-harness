@@ -167,6 +167,22 @@ export async function cmdGrade(args: Args): Promise<void> {
   const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, { override: s.override, note: s.note }]));
   const mode = prev?.mode ?? "green";
 
+  // Fail fast before spending judge calls: re-grading rewrites the WHOLE
+  // results.yaml, so every scenario the run recorded must still have a
+  // transcript on disk. Only overridden transcripts survive a commit
+  // (audit-trail design), so grading a partial set would silently drop the
+  // rest and shrink the grade denominator. Refuse instead.
+  const expected = (prev?.scenarios ?? spec.scenarios).map((s) => s.id);
+  const missing = expected.filter((id) => !existsSync(join(runDir, `${id}.green.txt`)));
+  if (missing.length === expected.length) {
+    throw new Error(`no green transcripts in ${runDir} — nothing to re-grade`);
+  }
+  if (missing.length > 0) {
+    throw new Error(
+      `missing transcripts for ${missing.join(", ")} in ${runDir} — re-grading would drop recorded verdicts; re-run instead of grading`
+    );
+  }
+
   const scenarioResults: ScenarioResult[] = [];
   for (const scenario of spec.scenarios) {
     const tpath = join(runDir, `${scenario.id}.green.txt`);
@@ -179,6 +195,11 @@ export async function cmdGrade(args: Args): Promise<void> {
       event: "judge-verdict", ts: nowIso(),
       id: scenario.id, verdict: g.verdict, reason: g.reason, suspect: g.suspect,
     });
+    // Mirror run.ts: a suspect verdict also emits a misfire-flag, so journal
+    // consumers that scan for misfires see re-graded ones too.
+    if (g.suspect) {
+      appendJournal(runDir, { event: "misfire-flag", ts: nowIso(), id: scenario.id, reason: g.reason });
+    }
     const carry = overrides.get(scenario.id);
     scenarioResults.push({
       id: scenario.id,
@@ -188,13 +209,6 @@ export async function cmdGrade(args: Args): Promise<void> {
       override: carry?.override ?? null,
       note: carry?.note ?? "",
     });
-  }
-
-  // Re-grading only ever re-judges *.green.txt transcripts. A red/force run dir
-  // (or one whose transcripts were never preserved) has none — writing an empty
-  // scenario list would silently overwrite the recorded verdicts. Refuse instead.
-  if (scenarioResults.length === 0) {
-    throw new Error(`no green transcripts in ${runDir} — nothing to re-grade`);
   }
 
   const ctx = mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
@@ -208,14 +222,13 @@ export async function cmdGrade(args: Args): Promise<void> {
     mode,
     scenarios: scenarioResults,
   }, ctx);
+  const g = results.effective_grade;
   if (ctx) {
-    const g = results.effective_grade;
     appendJournal(runDir, {
       event: "score", ts: nowIso(),
       passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note,
     });
   }
-  const g = results.effective_grade;
   console.log(`\n  re-graded with ${judge.provider}:${judge.model} → ${g.letter} (${g.pct}%) ${g.ship ? "SHIP" : "NOT READY"}`);
 }
 

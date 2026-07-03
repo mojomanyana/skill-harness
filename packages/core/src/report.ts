@@ -9,6 +9,7 @@ export interface RunColumn {
   tag: string; // harness-modelslug dir name
   runDir: string; // absolute path (server-side only)
   timestamp: string;
+  mode: string; // red | green | force — non-green runs are not scored
   grade: ResultsFile["effective_grade"];
   judge: ResultsFile["judge"];
   cells: Record<string, { judge_verdict: string; judge_reason: string; suspect: boolean; override: string | null; note: string }>;
@@ -68,6 +69,7 @@ export function collectReport(skillDir: string): ReportData {
         tag: tagDir.split("/").pop()!,
         runDir,
         timestamp: r.timestamp,
+        mode: r.mode,
         grade: r.effective_grade,
         judge: r.judge,
         cells,
@@ -90,6 +92,7 @@ export function publicView(data: ReportData) {
       label: c.label,
       tag: c.tag,
       timestamp: c.timestamp,
+      mode: c.mode,
       grade: c.grade,
       judge: c.judge,
       cells: c.cells,

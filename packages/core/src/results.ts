@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, appendFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import yaml from "js-yaml";
 import { modelSlug, type ModelRef } from "./adapters/types.js";
 import { score, type ScenarioVerdict } from "./score.js";
@@ -201,16 +201,27 @@ export function ensureResultsGitignore(resultsRoot: string): void {
   writeFileSync(giPath, GITIGNORE_BODY + preserved.map((l) => l + "\n").join(""), "utf8");
 }
 
+/** The transcript file for a scenario in a run dir: prefer green, else any mode. Null if none. */
+export function findTranscriptFile(runDir: string, scenarioId: string): string | null {
+  if (!existsSync(runDir)) return null;
+  const green = `${scenarioId}.green.txt`;
+  if (existsSync(join(runDir, green))) return green;
+  return readdirSync(runDir).find((f) => f.startsWith(`${scenarioId}.`) && f.endsWith(".txt")) ?? null;
+}
+
 /**
  * Un-gitignore one scenario's transcript (audit trail for an override).
- * Appends `!<tag>/<ts>/<id>.<mode>.txt` to results/.gitignore, once.
+ * Appends `!<tag>/<ts>/<id>.<mode>.txt` to results/.gitignore, once. The path
+ * uses POSIX separators so the negation matches on Windows too (git ignore
+ * patterns are always forward-slashed).
  */
 export function preserveTranscript(resultsRoot: string, runDir: string, scenarioId: string): void {
-  const file = readdirSync(runDir).find((f) => f.startsWith(`${scenarioId}.`) && f.endsWith(".txt"));
+  const file = findTranscriptFile(runDir, scenarioId);
   if (!file) return;
   ensureResultsGitignore(resultsRoot);
   const giPath = join(resultsRoot, ".gitignore");
-  const line = `!${relative(resultsRoot, join(runDir, file))}`;
+  const rel = relative(resultsRoot, join(runDir, file)).split(sep).join("/");
+  const line = `!${rel}`;
   if (!readFileSync(giPath, "utf8").split("\n").includes(line)) {
     appendFileSync(giPath, line + "\n", "utf8");
   }

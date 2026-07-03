@@ -1,11 +1,11 @@
 import { createServer } from "node:http";
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import {
   collectReport, renderReport,
-  readResults, writeResults, applyOverride, preserveTranscript,
+  readResults, writeResults, applyOverride, preserveTranscript, findTranscriptFile,
   ensureResultsGitignore,
   appendJournal,
   type Verdict, type ResultsFile,
@@ -41,11 +41,8 @@ function readBody(req: import("node:http").IncomingMessage): Promise<string> {
 }
 
 function findTranscript(runDir: string, id: string): string | null {
-  if (!existsSync(runDir)) return null;
-  const preferred = join(runDir, `${id}.green.txt`);
-  if (existsSync(preferred)) return readFileSync(preferred, "utf8");
-  const any = readdirSync(runDir).find((f) => f.startsWith(`${id}.`) && f.endsWith(".txt"));
-  return any ? readFileSync(join(runDir, any), "utf8") : null;
+  const file = findTranscriptFile(runDir, id);
+  return file ? readFileSync(join(runDir, file), "utf8") : null;
 }
 
 export interface ServeHandle {

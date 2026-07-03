@@ -27,6 +27,7 @@
   .cell.ERROR { background: rgba(107,114,128,.22); }
   .cell.empty { color: var(--dim); cursor: default; font-weight: 400; }
   .cell .ov { display: block; font-size: 11px; color: var(--over); font-weight: 600; }
+  .cell .ov.unsaved { color: #b45309; font-style: italic; }
   .cell.sel { outline: 2px solid var(--accent); outline-offset: -2px; }
   .grade { font-size: 12px; color: var(--dim); font-weight: 500; margin-top: 4px; }
   .badge { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; }
@@ -101,8 +102,15 @@ function render() {
   let html = "<table><thead><tr><th class='scn'>scenario</th>";
   DATA.columns.forEach((col, i) => {
     const g = grades[i];
-    const badge = g.ship ? "<span class='badge ship'>SHIP</span>" : "<span class='badge no'>NOT READY</span>";
-    html += `<th><div>${escapeHtml(col.label)}</div><div class='grade'>${g.letter} (${g.pct}%) · ${g.passed}/${g.total} ${badge}</div></th>`;
+    let gradeHtml;
+    if (col.mode && col.mode !== "green") {
+      // Only green runs are scored; a red/force column has no ship grade.
+      gradeHtml = `<span class='badge no'>not scored (${escapeHtml(col.mode)})</span>`;
+    } else {
+      const badge = g.ship ? "<span class='badge ship'>SHIP</span>" : "<span class='badge no'>NOT READY</span>";
+      gradeHtml = `${g.letter} (${g.pct}%) · ${g.passed}/${g.total} ${badge}`;
+    }
+    html += `<th><div>${escapeHtml(col.label)}</div><div class='grade'>${gradeHtml}</div></th>`;
   });
   html += "</tr></thead><tbody>";
   for (const scn of DATA.scenarios) {
@@ -112,7 +120,9 @@ function render() {
       if (!cell) { html += `<td class='cell empty'>–</td>`; continue; }
       const v = effective(cell);
       const sel = selected && selected.colIndex === col.index && selected.scenarioId === scn.id ? " sel" : "";
-      const ov = cell.override ? `<span class='ov'>override</span>` : "";
+      const ov = cell.override
+        ? (cell._unsaved ? `<span class='ov unsaved'>unsaved</span>` : `<span class='ov'>override</span>`)
+        : "";
       html += `<td class='cell ${v}${sel}' data-col='${col.index}' data-id='${scn.id}'>${v}${ov}</td>`;
     });
     html += "</tr>";
@@ -168,6 +178,11 @@ async function openPanel(colIndex, scenarioId) {
 
 async function save(col, scenarioId, cell) {
   const s = document.getElementById("saved");
+  // Optimistic: mark the cell unsaved until the server confirms. On a rejected
+  // save (e.g. note-less override → 400) the marker stays, so the matrix never
+  // shows an override as persisted when results.yaml still has it null. The
+  // local toggle is kept so typing a note then retriggers save.
+  cell._unsaved = true;
   try {
     const r = await fetch("/save", {
       method: "POST",
@@ -177,9 +192,10 @@ async function save(col, scenarioId, cell) {
     if (!r.ok) {
       const body = await r.json().catch(() => ({}));
       if (s) { s.textContent = body.error || "save failed"; s.classList.add("show", "err"); }
-      return; // keep the local toggle so typing a note then retriggers save
+    } else {
+      cell._unsaved = false;
+      if (s) { s.textContent = "saved ✓"; s.classList.remove("err"); s.classList.add("show"); setTimeout(() => s.classList.remove("show"), 1200); }
     }
-    if (s) { s.textContent = "saved ✓"; s.classList.remove("err"); s.classList.add("show"); setTimeout(() => s.classList.remove("show"), 1200); }
   } catch (e) { console.error("save failed", e); }
   render();
 }

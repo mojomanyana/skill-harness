@@ -17,6 +17,45 @@ scenarios:
     checklist: ["greets the user"]
 `;
 
+const MULTI_SPEC = `
+skill: golden
+judge_persona: a friendly greeter judge.
+ship_bar: { total: 3, min_pass: 3 }
+critical: [A1]
+scenarios:
+  - id: A1
+    title: says hello
+    turns: ["Say hello."]
+    checklist: ["greets the user"]
+  - id: B1
+    title: holds
+    turns: ["Again."]
+    checklist: ["greets again"]
+  - id: C1
+    title: closes
+    turns: ["Bye."]
+    checklist: ["says goodbye"]
+`;
+
+function threeScenarioRun() {
+  const skillDir = tmp();
+  mkdirSync(join(skillDir, "tests"), { recursive: true });
+  writeFileSync(join(skillDir, "tests", "specification.yaml"), MULTI_SPEC, "utf8");
+  const runDir = join(skillDir, "tests", "results", "pi-fake", "2026-07-03T00-00-00Z");
+  mkdirSync(runDir, { recursive: true });
+  writeResults(runDir, {
+    skill: "golden", harness: "pi", model: "fireworks:fake",
+    judge: { provider: "claude-code", model: "opus" },
+    timestamp: "2026-07-03T00:00:00Z", label: null, mode: "green",
+    scenarios: [
+      { id: "A1", judge_verdict: "PASS", judge_reason: "greeted", suspect: false, override: null, note: "" },
+      { id: "B1", judge_verdict: "PASS", judge_reason: "again", suspect: false, override: null, note: "" },
+      { id: "C1", judge_verdict: "PASS", judge_reason: "bye", suspect: false, override: null, note: "" },
+    ],
+  }, { shipBar: { total: 3, min_pass: 3, no_critical_fail: true }, critical: ["A1"] });
+  return { runDir };
+}
+
 const tmps: string[] = [];
 function tmp() {
   const d = mkdtempSync(join(tmpdir(), "sc-grade-cmd-"));
@@ -49,6 +88,21 @@ describe("cmdGrade refuses to destroy a run with no green transcripts", () => {
 
     await expect(cmdGrade(args(runDir))).rejects.toThrow(/no green transcripts/);
 
+    expect(readFileSync(join(runDir, "results.yaml"), "utf8")).toBe(before);
+  });
+});
+
+describe("cmdGrade refuses to shrink a run when only some transcripts survive", () => {
+  test("rejects with /missing transcripts/ (before judging) and leaves results.yaml unchanged", async () => {
+    const { runDir } = threeScenarioRun();
+    // Simulate a committed run where only the overridden A1 transcript was
+    // preserved (un-gitignored); B1/C1 transcripts are absent after a fresh clone.
+    writeFileSync(join(runDir, "A1.green.txt"), "USER: Say hello.\nASSISTANT: Hi!", "utf8");
+    const before = readFileSync(join(runDir, "results.yaml"), "utf8");
+
+    await expect(cmdGrade(args(runDir))).rejects.toThrow(/missing transcripts for B1, C1/);
+
+    // Nothing overwritten: the recorded B1/C1 verdicts survive intact.
     expect(readFileSync(join(runDir, "results.yaml"), "utf8")).toBe(before);
   });
 });
