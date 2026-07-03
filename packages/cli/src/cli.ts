@@ -112,6 +112,7 @@ async function cmdRun(args: Args): Promise<void> {
 
   const mode = (flagStr(args, "mode", "green") as "red" | "green" | "force") || "green";
   const judge = parseModelRef(flagStr(args, "judge", DEFAULT_JUDGE)!);
+  const label = flagStr(args, "label") || null;
   const modelTokens = resolveModels(args);
 
   const skills =
@@ -140,6 +141,7 @@ async function cmdRun(args: Args): Promise<void> {
         mode,
         cwd: NEUTRAL_CWD,
         timestamp: nowIso(),
+        label,
         onProgress: (m) => console.log(m),
       });
       summaries.push(summary);
@@ -247,7 +249,7 @@ async function cmdAddTest(args: Args): Promise<void> {
 const HELP = `skill-check — test/optimize loop for agent skills (pi harness)
 
   run    <skill|all> --skills <root> [--model prov:model ...] [--models file]
-                     [--mode red|green|force] [--judge prov:model] [--harness pi]
+                     [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name]
   grade  <run-dir>   [--judge prov:model]      re-grade saved transcripts (neutral judge)
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]

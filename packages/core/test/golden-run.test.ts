@@ -38,10 +38,11 @@ describe("golden pipeline run", () => {
       cwd: skillDir,
       timestamp: "2026-07-03T00-00-00-000Z",
       now: () => "2026-07-03T00:00:00.000Z",
+      label: "round-1",
     });
 
     expect(results.schema).toBe(2);
-    expect(results.label).toBeNull();
+    expect(results.label).toBe("round-1");
     expect(results.mode).toBe("green");
     expect(results.effective_grade.passed).toBe(2);
     expect(results.effective_grade.ship).toBe(true);
@@ -64,7 +65,7 @@ describe("golden pipeline run", () => {
     ]);
     const started = events[0] as Extract<typeof events[number], { event: "run-started" }>;
     expect(started.skill).toBe("golden-skill");
-    expect(started.label).toBeNull();
+    expect(started.label).toBe("round-1");
     const score = events.at(-1) as Extract<typeof events[number], { event: "score" }>;
     expect(score.ship).toBe(true);
   });
