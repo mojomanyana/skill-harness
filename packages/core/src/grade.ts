@@ -77,5 +77,10 @@ export async function gradeTranscript(
     const snippet = raw.trim().replace(/\s+/g, " ").slice(0, 160);
     if (snippet) parsed.reason = `judge unparseable: ${snippet}`;
   }
+  // Misfire tripwire: every observed judge misfire is a FAIL verdict whose item
+  // grades contain no failure. Flag it for human review — do not auto-pass.
+  if (parsed.verdict === "FAIL" && !/fail/i.test(raw.replace(VERDICT_RE, ""))) {
+    parsed.reason = `[suspect misfire: no failed item in judge output] ${parsed.reason}`;
+  }
   return { ...parsed, raw };
 }

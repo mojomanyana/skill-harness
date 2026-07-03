@@ -1,4 +1,4 @@
-import type { HarnessAdapter } from "./types.js";
+import type { HarnessAdapter } from "@skill-check/core";
 import { piAdapter } from "./pi.js";
 
 /**
@@ -18,4 +18,3 @@ export function getAdapter(name: string): HarnessAdapter {
 }
 
 export { piAdapter };
-export * from "./types.js";

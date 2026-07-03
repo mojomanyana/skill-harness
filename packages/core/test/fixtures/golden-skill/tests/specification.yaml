@@ -1,0 +1,23 @@
+skill: golden-skill
+judge_persona: >
+  a polite assistant.
+ship_bar:
+  total: 2
+  min_pass: 2
+  no_critical_fail: true
+critical: [A1]
+scenarios:
+  - id: A1
+    title: says hello
+    critical: true
+    turns:
+      - "Say hello."
+    checklist:
+      - greets the user
+  - id: B1
+    title: holds over two turns
+    turns:
+      - "Say hello."
+      - "Say it again."
+    checklist:
+      - greets in both turns

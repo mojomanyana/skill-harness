@@ -3,16 +3,20 @@ import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
-import { collectReport, renderReport } from "./report.js";
-import { readResults, writeResults, applyOverride, type ResultsFile } from "./results.js";
-import type { Verdict } from "./score.js";
+import {
+  collectReport, renderReport,
+  readResults, writeResults, applyOverride, type ResultsFile,
+  score, type Verdict,
+  loadSpec,
+} from "@skill-check/core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /** Locate assets/report.template.html relative to dist/ or src/. */
 function templatePath(): string {
   const candidates = [
-    join(__dirname, "..", "assets", "report.template.html"), // dist/ or src/ -> ../assets
+    join(__dirname, "..", "..", "..", "assets", "report.template.html"), // packages/cli/{dist,src} -> ../../../assets
+    join(__dirname, "..", "assets", "report.template.html"),
     join(__dirname, "..", "..", "assets", "report.template.html"),
   ];
   for (const c of candidates) if (existsSync(c)) return c;
@@ -82,6 +86,16 @@ export async function serveReview(opts: ServeOptions): Promise<void> {
         }
         const results: ResultsFile = readResults(column.runDir);
         const patched = applyOverride(results, body.scenarioId, body.override ?? null, body.note ?? "");
+        // Recompute the grade override-aware: a saved override must never leave a
+        // stale grade block in results.yaml. Pct comes from the run's own scenario
+        // set; ship is judged against the CURRENT spec's bar.
+        const spec = loadSpec(join(opts.skillDir, "tests", "specification.yaml"));
+        const verdicts = patched.scenarios.map((s) => ({
+          id: s.id,
+          verdict: (s.override ?? s.judge_verdict) as Verdict,
+        }));
+        const g = score(verdicts, { shipBar: spec.ship_bar, critical: spec.critical });
+        patched.grade = { passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note };
         writeResults(column.runDir, patched);
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ ok: true }));

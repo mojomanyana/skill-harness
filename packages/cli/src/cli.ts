@@ -1,14 +1,16 @@
 import { readFileSync, existsSync, appendFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import yaml from "js-yaml";
-import { discover, resolveSkill } from "./discover.js";
-import { loadSpec, parseSpec } from "./spec.js";
-import { getAdapter } from "./adapters/index.js";
-import { parseModelRef } from "./adapters/types.js";
-import { runSkillModel, formatScorecard, type RunSummary } from "./run.js";
-import { buildJudgePrompt, gradeTranscript } from "./grade.js";
-import { score, type ScenarioVerdict } from "./score.js";
-import { readResults, writeResults, type ResultsFile } from "./results.js";
+import {
+  discover, resolveSkill,
+  loadSpec, parseSpec,
+  parseModelRef,
+  runSkillModel, formatScorecard, type RunSummary,
+  buildJudgePrompt, gradeTranscript,
+  score, type ScenarioVerdict,
+  readResults, writeResults, type ResultsFile,
+} from "@skill-check/core";
+import { getAdapter } from "@skill-check/adapters";
 import { serveReview } from "./serve.js";
 
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";

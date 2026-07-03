@@ -1,17 +1,15 @@
 {
     "compilerOptions": {
-        "target": "ES2022",
-        "module": "NodeNext",
-        "moduleResolution": "NodeNext",
-        "outDir": "dist",
-        "rootDir": "src",
-        "strict": true,
-        "esModuleInterop": true,
-        "skipLibCheck": true,
-        "declaration": false,
-        "sourceMap": true,
-        "resolveJsonModule": true
+        "baseUrl": ".",
+        "paths": {
+            "@skill-check/core": ["./packages/core/src/index.ts"],
+            "@skill-check/adapters": ["./packages/adapters/src/index.ts"]
+        }
     },
-    "include": ["src"],
-    "exclude": ["node_modules", "dist"]
+    "files": [],
+    "references": [
+        { "path": "packages/core" },
+        { "path": "packages/adapters" },
+        { "path": "packages/cli" }
+    ]
 }

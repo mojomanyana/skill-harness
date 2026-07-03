@@ -6,12 +6,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const distCli = join(here, "..", "dist", "cli.js");
+const distCli = join(here, "..", "packages", "cli", "dist", "cli.js");
 
 if (existsSync(distCli)) {
   await import(pathToFileURL(distCli).href);
 } else {
-  const srcCli = join(here, "..", "src", "cli.ts");
+  const srcCli = join(here, "..", "packages", "cli", "src", "cli.ts");
   const res = spawnSync("npx", ["tsx", srcCli, ...process.argv.slice(2)], {
     stdio: "inherit",
   });

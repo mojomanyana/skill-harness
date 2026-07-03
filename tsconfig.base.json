@@ -1,0 +1,15 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "sourceMap": true,
+        "resolveJsonModule": true,
+        "composite": true,
+        "declaration": true,
+        "tsBuildInfoFile": "${configDir}/dist/.tsbuildinfo"
+    }
+}
