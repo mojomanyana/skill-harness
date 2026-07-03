@@ -9,7 +9,7 @@ export interface RunColumn {
   tag: string; // harness-modelslug dir name
   runDir: string; // absolute path (server-side only)
   timestamp: string;
-  grade: ResultsFile["grade"];
+  grade: ResultsFile["effective_grade"];
   judge: ResultsFile["judge"];
   cells: Record<string, { judge_verdict: string; judge_reason: string; suspect: boolean; override: string | null; note: string }>;
 }
@@ -68,7 +68,7 @@ export function collectReport(skillDir: string): ReportData {
         tag: tagDir.split("/").pop()!,
         runDir,
         timestamp: r.timestamp,
-        grade: r.grade,
+        grade: r.effective_grade,
         judge: r.judge,
         cells,
       });

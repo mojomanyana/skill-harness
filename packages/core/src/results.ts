@@ -2,7 +2,9 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import yaml from "js-yaml";
 import { modelSlug, type ModelRef } from "./adapters/types.js";
+import { score, type ScenarioVerdict } from "./score.js";
 import type { Verdict } from "./score.js";
+import type { ShipBar } from "./spec.js";
 
 export interface ScenarioResult {
   id: string;
@@ -23,13 +25,24 @@ export interface GradeSummary {
 }
 
 export interface ResultsFile {
+  schema: 2;
   skill: string;
   harness: string;
   model: string; // provider:model token under test
   judge: { provider: string; model: string };
   timestamp: string;
-  grade: GradeSummary;
+  label: string | null; // run label, e.g. "round-3" — ends timestamp-dir archaeology
+  mode: string; // red | green | force
+  effective_grade: GradeSummary; // always override-aware; only finalizeResults writes it
   scenarios: ScenarioResult[];
+}
+
+/** Everything a caller may set. The grade is computed, never supplied. */
+export type ResultsDraft = Omit<ResultsFile, "schema" | "effective_grade">;
+
+export interface ScoreContext {
+  shipBar: ShipBar;
+  critical: string[];
 }
 
 /** Slugify an ISO timestamp into a filesystem-safe directory name. */
@@ -55,16 +68,84 @@ export function resultsPath(runDir: string): string {
   return join(runDir, "results.yaml");
 }
 
-/** Write results.yaml (creating the run dir). */
-export function writeResults(runDir: string, results: ResultsFile): void {
-  mkdirSync(runDir, { recursive: true });
-  writeFileSync(resultsPath(runDir), yaml.dump(results, { lineWidth: 100 }), "utf8");
+/** The verdict that counts: author override when present, else the judge's. */
+export function effectiveVerdicts(scenarios: ScenarioResult[]): ScenarioVerdict[] {
+  return scenarios.map((s) => ({ id: s.id, verdict: s.override ?? s.judge_verdict }));
 }
 
-/** Read results.yaml from a run dir. */
+/**
+ * The ONLY place effective_grade is computed. Every writer goes through here,
+ * so a persisted grade can never disagree with verdicts + overrides.
+ * ctx is null for unscored (red/force) runs.
+ */
+export function finalizeResults(draft: ResultsDraft, ctx: ScoreContext | null): ResultsFile {
+  let effective_grade: GradeSummary;
+  if (ctx) {
+    const s = score(effectiveVerdicts(draft.scenarios), { shipBar: ctx.shipBar, critical: ctx.critical });
+    effective_grade = { passed: s.passed, total: s.total, pct: s.pct, letter: s.letter, ship: s.ship, note: s.note };
+  } else {
+    effective_grade = { passed: 0, total: 0, pct: 0, letter: "-", ship: false, note: `mode=${draft.mode} (not scored)` };
+  }
+  return {
+    schema: 2,
+    skill: draft.skill,
+    harness: draft.harness,
+    model: draft.model,
+    judge: draft.judge,
+    timestamp: draft.timestamp,
+    label: draft.label,
+    mode: draft.mode,
+    effective_grade,
+    scenarios: draft.scenarios,
+  };
+}
+
+/** Finalize + persist results.yaml (creating the run dir). Returns what was written. */
+export function writeResults(runDir: string, draft: ResultsDraft, ctx: ScoreContext | null): ResultsFile {
+  const results = finalizeResults(draft, ctx);
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(resultsPath(runDir), yaml.dump(results, { lineWidth: 100 }), "utf8");
+  return results;
+}
+
+const SUSPECT_PREFIX_RE = /^\[suspect misfire[^\]]*\]\s*/;
+
+/** Read-only schema-1 → schema-2 migration. Never rewrites the file on disk. */
+export function migrateResults(raw: unknown): ResultsFile {
+  const o = raw as Record<string, unknown>;
+  if (o.schema === 2) return raw as ResultsFile;
+  const v1 = raw as {
+    skill: string; harness: string; model: string;
+    judge: { provider: string; model: string };
+    timestamp: string;
+    grade: GradeSummary;
+    scenarios: Array<Omit<ScenarioResult, "suspect">>;
+  };
+  const modeMatch = /^mode=(\w+)/.exec(v1.grade?.note ?? "");
+  return {
+    schema: 2,
+    skill: v1.skill,
+    harness: v1.harness,
+    model: v1.model,
+    judge: v1.judge,
+    timestamp: v1.timestamp,
+    label: null,
+    mode: modeMatch ? modeMatch[1] : "green",
+    // v1 grades may predate override-aware recompute; carried verbatim (read-only).
+    // Every v2 WRITE recomputes, so staleness cannot propagate.
+    effective_grade: v1.grade,
+    scenarios: (v1.scenarios ?? []).map((s) => ({
+      ...s,
+      suspect: SUSPECT_PREFIX_RE.test(s.judge_reason),
+      judge_reason: s.judge_reason.replace(SUSPECT_PREFIX_RE, ""),
+    })),
+  };
+}
+
+/** Read results.yaml from a run dir, migrating schema-1 files in memory. */
 export function readResults(runDir: string): ResultsFile {
   const text = readFileSync(resultsPath(runDir), "utf8");
-  return yaml.load(text) as ResultsFile;
+  return migrateResults(yaml.load(text));
 }
 
 /** Pure: return a copy with override + note applied to one scenario. */

@@ -7,8 +7,7 @@ import {
   parseModelRef,
   runSkillModel, formatScorecard, type RunSummary,
   buildJudgePrompt, gradeTranscript,
-  score, type ScenarioVerdict,
-  readResults, writeResults, type ResultsFile,
+  readResults, writeResults, type ScenarioResult,
 } from "@skill-check/core";
 import { getAdapter } from "@skill-check/adapters";
 import { serveReview } from "./serve.js";
@@ -165,8 +164,7 @@ async function cmdGrade(args: Args): Promise<void> {
   const prev = existsSync(join(runDir, "results.yaml")) ? readResults(runDir) : null;
   const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, { override: s.override, note: s.note }]));
 
-  const verdicts: ScenarioVerdict[] = [];
-  const scenarioResults = [];
+  const scenarioResults: ScenarioResult[] = [];
   for (const scenario of spec.scenarios) {
     const tpath = join(runDir, `${scenario.id}.green.txt`);
     if (!existsSync(tpath)) continue;
@@ -183,21 +181,20 @@ async function cmdGrade(args: Args): Promise<void> {
       override: carry?.override ?? null,
       note: carry?.note ?? "",
     });
-    verdicts.push({ id: scenario.id, verdict: g.verdict });
   }
 
-  const s = score(verdicts, { shipBar: spec.ship_bar, critical: spec.critical });
-  const results: ResultsFile = {
+  const results = writeResults(runDir, {
     skill: spec.skill,
     harness: prev?.harness ?? "pi",
     model: prev?.model ?? "unknown",
     judge: { provider: judge.provider, model: judge.model },
     timestamp: nowIso(),
-    grade: { passed: s.passed, total: s.total, pct: s.pct, letter: s.letter, ship: s.ship, note: s.note },
+    label: prev?.label ?? null,
+    mode: "green", // grade re-judges *.green.txt transcripts
     scenarios: scenarioResults,
-  };
-  writeResults(runDir, results);
-  console.log(`\n  re-graded with ${judge.provider}:${judge.model} → ${s.letter} (${s.pct}%) ${s.ship ? "SHIP" : "NOT READY"}`);
+  }, { shipBar: spec.ship_bar, critical: spec.critical });
+  const g = results.effective_grade;
+  console.log(`\n  re-graded with ${judge.provider}:${judge.model} → ${g.letter} (${g.pct}%) ${g.ship ? "SHIP" : "NOT READY"}`);
 }
 
 async function cmdReview(args: Args): Promise<void> {

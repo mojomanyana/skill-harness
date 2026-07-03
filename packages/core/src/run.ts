@@ -3,7 +3,6 @@ import { dirname } from "node:path";
 import type { Spec, Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef, RunMode } from "./adapters/types.js";
 import { buildJudgePrompt, gradeTranscript, judgeResemblesSubject } from "./grade.js";
-import { score, type ScenarioVerdict } from "./score.js";
 import {
   runDirFor,
   transcriptPath,
@@ -25,6 +24,7 @@ export interface RunOptions {
   mode: RunMode;
   cwd: string; // neutral cwd for the harness
   timestamp: string; // ISO, injected (Date.now is unavailable in some contexts)
+  label?: string | null; // recorded in results.yaml (schema 2)
   onProgress?: (msg: string) => void;
 }
 
@@ -50,7 +50,6 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   ensureResultsGitignore(dirname(dirname(runDir))); // .../tests/results/.gitignore
 
   const scenarioResults: ScenarioResult[] = [];
-  const verdicts: ScenarioVerdict[] = [];
 
   for (const scenario of spec.scenarios) {
     log(`  ${scenario.id} (${scenario.title}) …`);
@@ -80,25 +79,19 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
 
     log(`    → ${judge_verdict}${judge_reason ? `: ${judge_reason}` : ""}${suspect ? "  ⚠ suspect misfire" : ""}`);
     scenarioResults.push({ id: scenario.id, judge_verdict, judge_reason, suspect, override: null, note: "" });
-    // Only green-mode runs count toward the ship bar.
-    if (mode === "green") verdicts.push({ id: scenario.id, verdict: judge_verdict });
   }
 
-  const s = mode === "green" ? score(verdicts, { shipBar: spec.ship_bar, critical: spec.critical }) : null;
-
-  const results: ResultsFile = {
+  const ctx = mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
+  const results = writeResults(runDir, {
     skill: spec.skill,
     harness: adapter.name,
     model: opts.modelToken,
     judge: { provider: judge.provider, model: judge.model },
     timestamp,
-    grade: s
-      ? { passed: s.passed, total: s.total, pct: s.pct, letter: s.letter, ship: s.ship, note: s.note }
-      : { passed: 0, total: 0, pct: 0, letter: "-", ship: false, note: `mode=${mode} (not scored)` },
+    label: opts.label ?? null,
+    mode,
     scenarios: scenarioResults,
-  };
-
-  writeResults(runDir, results);
+  }, ctx);
   return { runDir, results };
 }
 
@@ -124,7 +117,7 @@ async function produceTranscript(
 /** A compact terminal scorecard for one run. */
 export function formatScorecard(summary: RunSummary): string {
   const { results } = summary;
-  const g = results.grade;
+  const g = results.effective_grade;
   const lines: string[] = [];
   lines.push(`── ${results.skill} · ${results.harness} · ${results.model} ──`);
   for (const s of results.scenarios) {

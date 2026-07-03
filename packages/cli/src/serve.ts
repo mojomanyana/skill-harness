@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import {
   collectReport, renderReport,
-  readResults, writeResults, applyOverride, type ResultsFile,
-  score, type Verdict,
+  readResults, writeResults, applyOverride,
+  type Verdict,
   loadSpec,
 } from "@skill-check/core";
 
@@ -84,19 +84,14 @@ export async function serveReview(opts: ServeOptions): Promise<void> {
           res.writeHead(404).end("unknown column");
           return;
         }
-        const results: ResultsFile = readResults(column.runDir);
+        const results = readResults(column.runDir);
         const patched = applyOverride(results, body.scenarioId, body.override ?? null, body.note ?? "");
-        // Recompute the grade override-aware: a saved override must never leave a
-        // stale grade block in results.yaml. Pct comes from the run's own scenario
-        // set; ship is judged against the CURRENT spec's bar.
+        // writeResults recomputes effective_grade override-aware against the CURRENT
+        // spec's ship bar — a saved override can never leave a stale grade. Only
+        // green runs are scored (PR #1 finding: /save must not grade red/force runs).
         const spec = loadSpec(join(opts.skillDir, "tests", "specification.yaml"));
-        const verdicts = patched.scenarios.map((s) => ({
-          id: s.id,
-          verdict: (s.override ?? s.judge_verdict) as Verdict,
-        }));
-        const g = score(verdicts, { shipBar: spec.ship_bar, critical: spec.critical });
-        patched.grade = { passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note };
-        writeResults(column.runDir, patched);
+        const ctx = patched.mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
+        writeResults(column.runDir, patched, ctx);
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ ok: true }));
         return;
