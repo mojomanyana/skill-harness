@@ -59,6 +59,7 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
 
     let judge_verdict: ScenarioResult["judge_verdict"];
     let judge_reason: string;
+    let suspect = false;
 
     if (gatePrefix) {
       // objective seeded gate failed → automatic FAIL, skip the judge
@@ -74,10 +75,11 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
       const g = await gradeTranscript(adapter, judge, prompt, cwd);
       judge_verdict = g.verdict;
       judge_reason = g.reason;
+      suspect = g.suspect;
     }
 
-    log(`    → ${judge_verdict}${judge_reason ? `: ${judge_reason}` : ""}`);
-    scenarioResults.push({ id: scenario.id, judge_verdict, judge_reason, override: null, note: "" });
+    log(`    → ${judge_verdict}${judge_reason ? `: ${judge_reason}` : ""}${suspect ? "  ⚠ suspect misfire" : ""}`);
+    scenarioResults.push({ id: scenario.id, judge_verdict, judge_reason, suspect, override: null, note: "" });
     // Only green-mode runs count toward the ship bar.
     if (mode === "green") verdicts.push({ id: scenario.id, verdict: judge_verdict });
   }
@@ -129,7 +131,8 @@ export function formatScorecard(summary: RunSummary): string {
     const v = s.override ?? s.judge_verdict;
     const mark = v === "PASS" ? "✓" : v === "FAIL" ? "✗" : "?";
     const ov = s.override ? " (override)" : "";
-    lines.push(`  ${mark} ${s.id}${ov}  ${s.judge_reason}`);
+    const susp = s.suspect ? " ⚠suspect" : "";
+    lines.push(`  ${mark} ${s.id}${ov}${susp}  ${s.judge_reason}`);
   }
   const ship = g.ship ? "SHIP" : "NOT READY";
   const note = g.note ? ` (${g.note})` : "";

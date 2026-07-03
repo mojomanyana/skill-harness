@@ -179,6 +179,7 @@ async function cmdGrade(args: Args): Promise<void> {
       id: scenario.id,
       judge_verdict: g.verdict,
       judge_reason: g.reason,
+      suspect: g.suspect,
       override: carry?.override ?? null,
       note: carry?.note ?? "",
     });

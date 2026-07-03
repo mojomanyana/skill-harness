@@ -138,6 +138,7 @@ async function openPanel(colIndex, scenarioId) {
     <h2>${scn.id} · ${escapeHtml(scn.title)}</h2>
     <div class="meta">${escapeHtml(col.label)} · judge ${escapeHtml(col.judge.provider + ":" + col.judge.model)}</div>
     <div class="reason"><b>judge:</b> ${cell.judge_verdict} — ${escapeHtml(cell.judge_reason || "(no reason)")}</div>
+    ${cell.suspect ? `<div class="reason" style="color:#b45309"><b>⚠ suspect:</b> judge listed no failed item — re-judge before trusting this FAIL</div>` : ""}
     <div class="toggle">
       <button data-v="PASS" class="PASS ${cell.override === 'PASS' ? 'active PASS' : ''}">PASS</button>
       <button data-v="FAIL" class="FAIL ${cell.override === 'FAIL' ? 'active FAIL' : ''}">FAIL</button>

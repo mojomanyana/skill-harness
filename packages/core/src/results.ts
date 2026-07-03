@@ -8,6 +8,7 @@ export interface ScenarioResult {
   id: string;
   judge_verdict: Verdict;
   judge_reason: string;
+  suspect: boolean; // judge-misfire tripwire fired (FAIL verdict, no failed item)
   override: Verdict | null; // author's call: null | PASS | FAIL (ERROR never used as override)
   note: string; // author's free-text note
 }
