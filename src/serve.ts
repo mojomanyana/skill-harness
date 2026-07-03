@@ -5,7 +5,8 @@ import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { collectReport, renderReport } from "./report.js";
 import { readResults, writeResults, applyOverride, type ResultsFile } from "./results.js";
-import type { Verdict } from "./score.js";
+import { score, type Verdict } from "./score.js";
+import { loadSpec } from "./spec.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -82,6 +83,16 @@ export async function serveReview(opts: ServeOptions): Promise<void> {
         }
         const results: ResultsFile = readResults(column.runDir);
         const patched = applyOverride(results, body.scenarioId, body.override ?? null, body.note ?? "");
+        // Recompute the grade override-aware: a saved override must never leave a
+        // stale grade block in results.yaml. Pct comes from the run's own scenario
+        // set; ship is judged against the CURRENT spec's bar.
+        const spec = loadSpec(join(opts.skillDir, "tests", "specification.yaml"));
+        const verdicts = patched.scenarios.map((s) => ({
+          id: s.id,
+          verdict: (s.override ?? s.judge_verdict) as Verdict,
+        }));
+        const g = score(verdicts, { shipBar: spec.ship_bar, critical: spec.critical });
+        patched.grade = { passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note };
         writeResults(column.runDir, patched);
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ ok: true }));
