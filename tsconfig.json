@@ -1,4 +1,11 @@
 {
+    "compilerOptions": {
+        "baseUrl": ".",
+        "paths": {
+            "@skill-check/core": ["./packages/core/src/index.ts"],
+            "@skill-check/adapters": ["./packages/adapters/src/index.ts"]
+        }
+    },
     "files": [],
     "references": [
         { "path": "packages/core" },

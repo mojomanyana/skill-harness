@@ -3,17 +3,20 @@ import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
-import { collectReport, renderReport } from "./report.js";
-import { readResults, writeResults, applyOverride, type ResultsFile } from "./results.js";
-import { score, type Verdict } from "./score.js";
-import { loadSpec } from "./spec.js";
+import {
+  collectReport, renderReport,
+  readResults, writeResults, applyOverride, type ResultsFile,
+  score, type Verdict,
+  loadSpec,
+} from "@skill-check/core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /** Locate assets/report.template.html relative to dist/ or src/. */
 function templatePath(): string {
   const candidates = [
-    join(__dirname, "..", "assets", "report.template.html"), // dist/ or src/ -> ../assets
+    join(__dirname, "..", "..", "..", "assets", "report.template.html"), // packages/cli/{dist,src} -> ../../../assets
+    join(__dirname, "..", "assets", "report.template.html"),
     join(__dirname, "..", "..", "assets", "report.template.html"),
   ];
   for (const c of candidates) if (existsSync(c)) return c;

@@ -5,22 +5,6 @@ import type { HarnessAdapter } from "../src/adapters/types.js";
 
 /**
  * Regression tests for bugs found during end-to-end validation.
- *
- * NOTE: the original third bug regression here ("tryOpen swallows a
- * missing-opener error") covers src/serve.ts, which has not moved into
- * @skill-check/core (it stays at the repo root pending Task 4's CLI move,
- * and imports ./report.js, which no longer resolves from src/ now that
- * report.ts lives in packages/core/src/). That test is intentionally left
- * out of this move — Task 4 should reinstate it (importing tryOpen from
- * wherever serve.ts lands, e.g. packages/cli/test/) alongside the CLI move:
- *
- *   describe("tryOpen swallows a missing-opener error (bug: server crashed on xdg-open ENOENT)", () => {
- *     test("calling with a nonexistent opener does not throw or crash", async () => {
- *       expect(() => tryOpen("http://127.0.0.1:9/", "sc-definitely-not-a-real-binary")).not.toThrow();
- *       await new Promise((r) => setTimeout(r, 50));
- *       expect(true).toBe(true);
- *     });
- *   });
  */
 
 // Bug 1: pi hung headless because exec inherited an open stdin. With stdin
