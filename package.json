@@ -1,24 +1,19 @@
 {
     "name": "skill-check",
-    "version": "0.0.1",
-    "description": "Portable, Pi-driven test/optimize loop for agent skills. Runs spec'd scenarios against a chosen harness + model, grades with an LLM judge, and serves an interactive review UI for verdict overrides + notes.",
+    "version": "0.0.2",
+    "description": "Portable test/optimize framework for agent skills: spec'd scenarios, LLM judge, review UI. Monorepo: core, adapters, cli.",
     "license": "MIT",
     "type": "module",
-    "bin": {
-        "skill-check": "./bin/skill-check.js"
-    },
+    "private": true,
+    "bin": { "skill-check": "./bin/skill-check.js" },
+    "workspaces": ["packages/*"],
     "scripts": {
-        "build": "tsc -p tsconfig.json",
-        "dev": "tsx src/cli.ts",
+        "build": "tsc -b packages/core packages/adapters packages/cli",
+        "dev": "tsx packages/cli/src/cli.ts",
         "test": "vitest run",
-        "typecheck": "tsc --noEmit"
+        "typecheck": "tsc -b packages/core packages/adapters packages/cli --noEmit"
     },
-    "engines": {
-        "node": ">=20"
-    },
-    "dependencies": {
-        "js-yaml": "^4.1.0"
-    },
+    "engines": { "node": ">=20" },
     "devDependencies": {
         "@types/js-yaml": "^4.0.9",
         "@types/node": "^22.0.0",
