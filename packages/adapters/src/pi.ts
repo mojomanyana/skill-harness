@@ -1,8 +1,8 @@
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { HarnessAdapter, RunReq, JudgeReq, RunMode } from "./types.js";
-import { exec, onPath } from "../util/exec.js";
+import type { HarnessAdapter, RunReq, JudgeReq, RunMode } from "@skill-check/core";
+import { exec, onPath } from "@skill-check/core";
 
 const PI_TIMEOUT_MS = Number(process.env.SKILL_CHECK_PI_TIMEOUT_MS ?? 300_000);
 
@@ -70,8 +70,21 @@ export const piAdapter: HarnessAdapter = {
     return parts.join("\n");
   },
 
-  /** Run the judge: no skills, no context files, no session, single prompt. */
+  /**
+   * Run the judge: no skills, no context files, no session, single prompt.
+   * Judge provider `claude-code` routes to the Claude Code CLI (`claude -p`),
+   * which authenticates via the user's Claude subscription (OAuth) instead of
+   * a provider API key.
+   */
   async judge(req: JudgeReq): Promise<string> {
+    if (req.model.provider === "claude-code") {
+      const args = ["-p", req.prompt, "--model", req.model.model];
+      const r = await exec("claude", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS });
+      if (r.stdout.trim().length === 0 && (r.code !== 0 || r.stderr.trim())) {
+        return `[judge error: claude exited ${r.code}] ${r.stderr.trim()}`;
+      }
+      return r.stdout;
+    }
     const args = [
       "--no-skills",
       "--no-context-files",
