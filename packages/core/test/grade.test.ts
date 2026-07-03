@@ -1,6 +1,7 @@
 import { describe, test, expect } from "vitest";
-import { buildJudgePrompt, parseVerdict, judgeResemblesSubject } from "../src/grade.js";
+import { buildJudgePrompt, parseVerdict, judgeResemblesSubject, gradeTranscript } from "../src/grade.js";
 import type { Scenario } from "../src/spec.js";
+import type { HarnessAdapter } from "../src/adapters/types.js";
 
 const scenario: Scenario = {
   id: "A1",
@@ -84,5 +85,38 @@ describe("judgeResemblesSubject", () => {
         { provider: "fireworks", model: "accounts/fireworks/models/deepseek-v4-pro" }
       )
     ).toBe(false);
+  });
+});
+
+function fakeJudge(raw: string): HarnessAdapter {
+  return { name: "pi", available: async () => true, run: async () => "", judge: async () => raw };
+}
+const judgeRef = { provider: "claude-code", model: "opus" };
+
+describe("gradeTranscript misfire tripwire → structured suspect flag", () => {
+  test("FAIL verdict with zero failed items is suspect, reason stays clean", async () => {
+    const r = await gradeTranscript(
+      fakeJudge("1. PASS — greets\n2. PASS — polite\nVERDICT: FAIL\nREASON: overall weak"),
+      judgeRef, "prompt", "/tmp"
+    );
+    expect(r.verdict).toBe("FAIL");
+    expect(r.suspect).toBe(true);
+    expect(r.reason).toBe("overall weak"); // no [suspect misfire…] prefix anymore
+  });
+
+  test("FAIL with a genuinely failed item is not suspect", async () => {
+    const r = await gradeTranscript(
+      fakeJudge("1. FAIL — rude\nVERDICT: FAIL\nREASON: no greeting"),
+      judgeRef, "prompt", "/tmp"
+    );
+    expect(r.suspect).toBe(false);
+  });
+
+  test("PASS is never suspect", async () => {
+    const r = await gradeTranscript(
+      fakeJudge("1. PASS — ok\nVERDICT: PASS\nREASON: fine"),
+      judgeRef, "prompt", "/tmp"
+    );
+    expect(r.suspect).toBe(false);
   });
 });

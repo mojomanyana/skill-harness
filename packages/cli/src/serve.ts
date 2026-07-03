@@ -1,12 +1,14 @@
 import { createServer } from "node:http";
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import {
   collectReport, renderReport,
-  readResults, writeResults, applyOverride, type ResultsFile,
-  score, type Verdict,
+  readResults, writeResults, applyOverride, preserveTranscript, findTranscriptFile,
+  ensureResultsGitignore,
+  appendJournal,
+  type Verdict, type ResultsFile,
   loadSpec,
 } from "@skill-check/core";
 
@@ -39,14 +41,16 @@ function readBody(req: import("node:http").IncomingMessage): Promise<string> {
 }
 
 function findTranscript(runDir: string, id: string): string | null {
-  if (!existsSync(runDir)) return null;
-  const preferred = join(runDir, `${id}.green.txt`);
-  if (existsSync(preferred)) return readFileSync(preferred, "utf8");
-  const any = readdirSync(runDir).find((f) => f.startsWith(`${id}.`) && f.endsWith(".txt"));
-  return any ? readFileSync(join(runDir, any), "utf8") : null;
+  const file = findTranscriptFile(runDir, id);
+  return file ? readFileSync(join(runDir, file), "utf8") : null;
 }
 
-export async function serveReview(opts: ServeOptions): Promise<void> {
+export interface ServeHandle {
+  port: number;
+  close: () => void;
+}
+
+export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
   const template = readFileSync(templatePath(), "utf8");
 
   const server = createServer(async (req, res) => {
@@ -84,19 +88,32 @@ export async function serveReview(opts: ServeOptions): Promise<void> {
           res.writeHead(404).end("unknown column");
           return;
         }
-        const results: ResultsFile = readResults(column.runDir);
-        const patched = applyOverride(results, body.scenarioId, body.override ?? null, body.note ?? "");
-        // Recompute the grade override-aware: a saved override must never leave a
-        // stale grade block in results.yaml. Pct comes from the run's own scenario
-        // set; ship is judged against the CURRENT spec's bar.
+        const results = readResults(column.runDir);
+        let patched: ResultsFile;
+        try {
+          patched = applyOverride(results, body.scenarioId, body.override ?? null, body.note ?? "");
+        } catch (e) {
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+          return;
+        }
+        // writeResults recomputes effective_grade override-aware against the CURRENT
+        // spec's ship bar — a saved override can never leave a stale grade. Only
+        // green runs are scored (PR #1 finding: /save must not grade red/force runs).
         const spec = loadSpec(join(opts.skillDir, "tests", "specification.yaml"));
-        const verdicts = patched.scenarios.map((s) => ({
-          id: s.id,
-          verdict: (s.override ?? s.judge_verdict) as Verdict,
-        }));
-        const g = score(verdicts, { shipBar: spec.ship_bar, critical: spec.critical });
-        patched.grade = { passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note };
-        writeResults(column.runDir, patched);
+        const ctx = patched.mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
+        writeResults(column.runDir, patched, ctx);
+        // Unconditional: a results root created before schema-2/journal.jsonl existed
+        // may still have a stale .gitignore body — every save (not just overrides)
+        // must roll it forward so journal.jsonl doesn't end up tracked.
+        ensureResultsGitignore(join(opts.skillDir, "tests", "results"));
+        if (body.override != null) {
+          preserveTranscript(join(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
+        }
+        appendJournal(column.runDir, {
+          event: "override", ts: new Date().toISOString(),
+          id: body.scenarioId, override: body.override ?? null, note: body.note ?? "",
+        });
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ ok: true }));
         return;
@@ -119,6 +136,8 @@ export async function serveReview(opts: ServeOptions): Promise<void> {
   console.log(`  Ctrl-C to stop.\n`);
 
   if (opts.open !== false && !process.env.SKILL_CHECK_NO_OPEN) tryOpen(link);
+
+  return { port: port as number, close: () => server.close() };
 }
 
 export function tryOpen(url: string, cmd?: string): void {

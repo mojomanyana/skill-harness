@@ -7,8 +7,7 @@ import {
   parseModelRef,
   runSkillModel, formatScorecard, type RunSummary,
   buildJudgePrompt, gradeTranscript,
-  score, type ScenarioVerdict,
-  readResults, writeResults, type ResultsFile,
+  readResults, writeResults, transcriptPath, appendJournal, type ScenarioResult,
 } from "@skill-check/core";
 import { getAdapter } from "@skill-check/adapters";
 import { serveReview } from "./serve.js";
@@ -113,6 +112,7 @@ async function cmdRun(args: Args): Promise<void> {
 
   const mode = (flagStr(args, "mode", "green") as "red" | "green" | "force") || "green";
   const judge = parseModelRef(flagStr(args, "judge", DEFAULT_JUDGE)!);
+  const label = flagStr(args, "label") || null;
   const modelTokens = resolveModels(args);
 
   const skills =
@@ -141,6 +141,7 @@ async function cmdRun(args: Args): Promise<void> {
         mode,
         cwd: NEUTRAL_CWD,
         timestamp: nowIso(),
+        label,
         onProgress: (m) => console.log(m),
       });
       summaries.push(summary);
@@ -151,7 +152,7 @@ async function cmdRun(args: Args): Promise<void> {
   console.log(`\nReview interactively:  skill-check review ${skills[0]?.name ?? "<skill>"} --skills ${root}`);
 }
 
-async function cmdGrade(args: Args): Promise<void> {
+export async function cmdGrade(args: Args): Promise<void> {
   const runDir = args._[0];
   if (!runDir || !existsSync(runDir)) throw new Error("usage: skill-check grade <run-dir> [--judge prov:model]");
   const judge = parseModelRef(flagStr(args, "judge", DEFAULT_JUDGE)!);
@@ -164,39 +165,74 @@ async function cmdGrade(args: Args): Promise<void> {
 
   const prev = existsSync(join(runDir, "results.yaml")) ? readResults(runDir) : null;
   const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, { override: s.override, note: s.note }]));
+  const mode = prev?.mode ?? "green";
 
-  const verdicts: ScenarioVerdict[] = [];
-  const scenarioResults = [];
-  for (const scenario of spec.scenarios) {
-    const tpath = join(runDir, `${scenario.id}.green.txt`);
-    if (!existsSync(tpath)) continue;
-    const transcript = readFileSync(tpath, "utf8");
+  // Re-grading rewrites the WHOLE results.yaml, so re-judge exactly the
+  // scenarios the run recorded (falling back to the spec for a run with no
+  // prior results). The guard and the loop iterate the SAME `targets` set, so
+  // they can't diverge: each target must still exist in the spec (for its
+  // checklist) AND have a transcript on disk — only overridden transcripts
+  // survive a commit (audit-trail design). Anything missing would silently drop
+  // a recorded verdict or shrink the grade denominator. Fail fast, before
+  // spending any judge calls.
+  const specById = new Map(spec.scenarios.map((s) => [s.id, s]));
+  const targets = (prev?.scenarios ?? spec.scenarios).map((s) => s.id);
+  const missing = targets.filter((id) => !specById.has(id) || !existsSync(transcriptPath(runDir, id, "green")));
+  if (missing.length === targets.length) {
+    throw new Error(`no green transcripts in ${runDir} — nothing to re-grade`);
+  }
+  if (missing.length > 0) {
+    throw new Error(
+      `cannot re-grade ${missing.join(", ")} in ${runDir} (transcript missing or scenario no longer in the spec) — re-run instead of grading`
+    );
+  }
+
+  const scenarioResults: ScenarioResult[] = [];
+  for (const id of targets) {
+    const scenario = specById.get(id)!; // guaranteed present by the guard above
+    const transcript = readFileSync(transcriptPath(runDir, id, "green"), "utf8");
     const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
     const g = await gradeTranscript(adapter, judge, prompt, NEUTRAL_CWD);
-    console.log(`  ${scenario.id} → ${g.verdict}: ${g.reason}`);
-    const carry = overrides.get(scenario.id);
+    console.log(`  ${id} → ${g.verdict}: ${g.reason}`);
+    appendJournal(runDir, {
+      event: "judge-verdict", ts: nowIso(),
+      id, verdict: g.verdict, reason: g.reason, suspect: g.suspect,
+    });
+    // Mirror run.ts: a suspect verdict also emits a misfire-flag, so journal
+    // consumers that scan for misfires see re-graded ones too.
+    if (g.suspect) {
+      appendJournal(runDir, { event: "misfire-flag", ts: nowIso(), id, reason: g.reason });
+    }
+    const carry = overrides.get(id);
     scenarioResults.push({
-      id: scenario.id,
+      id,
       judge_verdict: g.verdict,
       judge_reason: g.reason,
+      suspect: g.suspect,
       override: carry?.override ?? null,
       note: carry?.note ?? "",
     });
-    verdicts.push({ id: scenario.id, verdict: g.verdict });
   }
 
-  const s = score(verdicts, { shipBar: spec.ship_bar, critical: spec.critical });
-  const results: ResultsFile = {
+  const ctx = mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
+  const results = writeResults(runDir, {
     skill: spec.skill,
     harness: prev?.harness ?? "pi",
     model: prev?.model ?? "unknown",
     judge: { provider: judge.provider, model: judge.model },
     timestamp: nowIso(),
-    grade: { passed: s.passed, total: s.total, pct: s.pct, letter: s.letter, ship: s.ship, note: s.note },
+    label: prev?.label ?? null,
+    mode,
     scenarios: scenarioResults,
-  };
-  writeResults(runDir, results);
-  console.log(`\n  re-graded with ${judge.provider}:${judge.model} → ${s.letter} (${s.pct}%) ${s.ship ? "SHIP" : "NOT READY"}`);
+  }, ctx);
+  const g = results.effective_grade;
+  if (ctx) {
+    appendJournal(runDir, {
+      event: "score", ts: nowIso(),
+      passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note,
+    });
+  }
+  console.log(`\n  re-graded with ${judge.provider}:${judge.model} → ${g.letter} (${g.pct}%) ${g.ship ? "SHIP" : "NOT READY"}`);
 }
 
 async function cmdReview(args: Args): Promise<void> {
@@ -249,7 +285,7 @@ async function cmdAddTest(args: Args): Promise<void> {
 const HELP = `skill-check — test/optimize loop for agent skills (pi harness)
 
   run    <skill|all> --skills <root> [--model prov:model ...] [--models file]
-                     [--mode red|green|force] [--judge prov:model] [--harness pi]
+                     [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name]
   grade  <run-dir>   [--judge prov:model]      re-grade saved transcripts (neutral judge)
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]
@@ -279,7 +315,13 @@ export async function main(argv: string[]): Promise<void> {
   }
 }
 
-main(process.argv.slice(2)).catch((e) => {
-  console.error(`error: ${e instanceof Error ? e.message : e}`);
-  process.exitCode = 1;
-});
+// Skip dispatch under vitest: importing this module (e.g. to exercise cmdGrade
+// directly in tests) must not also run a CLI command against the test runner's
+// own argv. Real entrypoints (tsx on src/cli.ts, or the bin launcher importing
+// dist/cli.js) never set VITEST, so this leaves production invocation untouched.
+if (!process.env.VITEST) {
+  main(process.argv.slice(2)).catch((e) => {
+    console.error(`error: ${e instanceof Error ? e.message : e}`);
+    process.exitCode = 1;
+  });
+}

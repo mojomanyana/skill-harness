@@ -3,7 +3,6 @@ import { dirname } from "node:path";
 import type { Spec, Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef, RunMode } from "./adapters/types.js";
 import { buildJudgePrompt, gradeTranscript, judgeResemblesSubject } from "./grade.js";
-import { score, type ScenarioVerdict } from "./score.js";
 import {
   runDirFor,
   transcriptPath,
@@ -12,6 +11,7 @@ import {
   type ResultsFile,
   type ScenarioResult,
 } from "./results.js";
+import { appendJournal } from "./journal.js";
 import { runSeeded } from "./seeded.js";
 
 export interface RunOptions {
@@ -25,7 +25,9 @@ export interface RunOptions {
   mode: RunMode;
   cwd: string; // neutral cwd for the harness
   timestamp: string; // ISO, injected (Date.now is unavailable in some contexts)
+  label?: string | null; // recorded in results.yaml (schema 2)
   onProgress?: (msg: string) => void;
+  now?: () => string; // ISO clock for journal events (injectable — some hosts restrict wall-clock calls)
 }
 
 export interface RunSummary {
@@ -37,6 +39,7 @@ export interface RunSummary {
 export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   const { spec, skillDir, adapter, model, judge, mode, cwd, timestamp } = opts;
   const log = opts.onProgress ?? (() => {});
+  const now = opts.now ?? (() => new Date().toISOString());
 
   if (judgeResemblesSubject(judge, model)) {
     log(
@@ -49,16 +52,27 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   mkdirSync(runDir, { recursive: true });
   ensureResultsGitignore(dirname(dirname(runDir))); // .../tests/results/.gitignore
 
+  appendJournal(runDir, {
+    event: "run-started", ts: now(),
+    skill: spec.skill, harness: adapter.name, model: opts.modelToken,
+    judge: { provider: judge.provider, model: judge.model },
+    mode, label: opts.label ?? null,
+  });
+
   const scenarioResults: ScenarioResult[] = [];
-  const verdicts: ScenarioVerdict[] = [];
 
   for (const scenario of spec.scenarios) {
     log(`  ${scenario.id} (${scenario.title}) …`);
+    appendJournal(runDir, { event: "scenario-started", ts: now(), id: scenario.id, title: scenario.title });
     const { transcript, gatePrefix } = await produceTranscript(scenario, opts);
     writeFileSync(transcriptPath(runDir, scenario.id, mode), transcript, "utf8");
+    if (scenario.mode === "seeded") {
+      appendJournal(runDir, { event: "gate-result", ts: now(), id: scenario.id, ok: !gatePrefix, detail: gatePrefix ?? "" });
+    }
 
     let judge_verdict: ScenarioResult["judge_verdict"];
     let judge_reason: string;
+    let suspect = false;
 
     if (gatePrefix) {
       // objective seeded gate failed → automatic FAIL, skip the judge
@@ -74,29 +88,32 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
       const g = await gradeTranscript(adapter, judge, prompt, cwd);
       judge_verdict = g.verdict;
       judge_reason = g.reason;
+      suspect = g.suspect;
     }
 
-    log(`    → ${judge_verdict}${judge_reason ? `: ${judge_reason}` : ""}`);
-    scenarioResults.push({ id: scenario.id, judge_verdict, judge_reason, override: null, note: "" });
-    // Only green-mode runs count toward the ship bar.
-    if (mode === "green") verdicts.push({ id: scenario.id, verdict: judge_verdict });
+    log(`    → ${judge_verdict}${judge_reason ? `: ${judge_reason}` : ""}${suspect ? "  ⚠ suspect misfire" : ""}`);
+    scenarioResults.push({ id: scenario.id, judge_verdict, judge_reason, suspect, override: null, note: "" });
+    appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict: judge_verdict, reason: judge_reason, suspect });
+    if (suspect) {
+      appendJournal(runDir, { event: "misfire-flag", ts: now(), id: scenario.id, reason: judge_reason });
+    }
   }
 
-  const s = mode === "green" ? score(verdicts, { shipBar: spec.ship_bar, critical: spec.critical }) : null;
-
-  const results: ResultsFile = {
+  const ctx = mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
+  const results = writeResults(runDir, {
     skill: spec.skill,
     harness: adapter.name,
     model: opts.modelToken,
     judge: { provider: judge.provider, model: judge.model },
     timestamp,
-    grade: s
-      ? { passed: s.passed, total: s.total, pct: s.pct, letter: s.letter, ship: s.ship, note: s.note }
-      : { passed: 0, total: 0, pct: 0, letter: "-", ship: false, note: `mode=${mode} (not scored)` },
+    label: opts.label ?? null,
+    mode,
     scenarios: scenarioResults,
-  };
-
-  writeResults(runDir, results);
+  }, ctx);
+  if (ctx) {
+    const g = results.effective_grade;
+    appendJournal(runDir, { event: "score", ts: now(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
+  }
   return { runDir, results };
 }
 
@@ -122,14 +139,15 @@ async function produceTranscript(
 /** A compact terminal scorecard for one run. */
 export function formatScorecard(summary: RunSummary): string {
   const { results } = summary;
-  const g = results.grade;
+  const g = results.effective_grade;
   const lines: string[] = [];
   lines.push(`── ${results.skill} · ${results.harness} · ${results.model} ──`);
   for (const s of results.scenarios) {
     const v = s.override ?? s.judge_verdict;
     const mark = v === "PASS" ? "✓" : v === "FAIL" ? "✗" : "?";
     const ov = s.override ? " (override)" : "";
-    lines.push(`  ${mark} ${s.id}${ov}  ${s.judge_reason}`);
+    const susp = s.suspect ? " ⚠suspect" : "";
+    lines.push(`  ${mark} ${s.id}${ov}${susp}  ${s.judge_reason}`);
   }
   const ship = g.ship ? "SHIP" : "NOT READY";
   const note = g.note ? ` (${g.note})` : "";

@@ -9,9 +9,10 @@ export interface RunColumn {
   tag: string; // harness-modelslug dir name
   runDir: string; // absolute path (server-side only)
   timestamp: string;
-  grade: ResultsFile["grade"];
+  mode: string; // red | green | force — non-green runs are not scored
+  grade: ResultsFile["effective_grade"];
   judge: ResultsFile["judge"];
-  cells: Record<string, { judge_verdict: string; judge_reason: string; override: string | null; note: string }>;
+  cells: Record<string, { judge_verdict: string; judge_reason: string; suspect: boolean; override: string | null; note: string }>;
 }
 
 export interface ReportData {
@@ -57,6 +58,7 @@ export function collectReport(skillDir: string): ReportData {
         cells[s.id] = {
           judge_verdict: s.judge_verdict,
           judge_reason: s.judge_reason,
+          suspect: s.suspect ?? false, // schema-1 files lack the field until Task 2's migration
           override: s.override,
           note: s.note,
         };
@@ -67,7 +69,8 @@ export function collectReport(skillDir: string): ReportData {
         tag: tagDir.split("/").pop()!,
         runDir,
         timestamp: r.timestamp,
-        grade: r.grade,
+        mode: r.mode,
+        grade: r.effective_grade,
         judge: r.judge,
         cells,
       });
@@ -89,6 +92,7 @@ export function publicView(data: ReportData) {
       label: c.label,
       tag: c.tag,
       timestamp: c.timestamp,
+      mode: c.mode,
       grade: c.grade,
       judge: c.judge,
       cells: c.cells,

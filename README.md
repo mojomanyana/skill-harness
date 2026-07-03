@@ -115,7 +115,7 @@ scenarios:
 
 ```
 skill-check run    <skill|all> --skills <root> [--model prov:model ...] [--models file]
-                               [--mode red|green|force] [--judge prov:model] [--harness pi]
+                               [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name]
 skill-check grade  <run-dir>   [--judge prov:model]    # re-grade saved transcripts (neutral judge)
 skill-check review <skill>     --skills <root> [--port N]   # serve the interactive UI
 skill-check add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical]
@@ -143,6 +143,9 @@ skill-check run code-review --skills ../principal-pi-skills \
 # re-grade the saved transcripts with a different judge — no model re-runs (cheap de-confound)
 skill-check grade ../principal-pi-skills/ponytail/tests/results/pi-*/2026-*/ \
   --judge fireworks:accounts/fireworks/models/kimi-k2p7-code
+
+# name a run so results.yaml stops being timestamp archaeology
+skill-check run ponytail --skills ../principal-pi-skills --label round-3
 
 # open the interactive review (flip verdicts, add notes → saved to results.yaml)
 skill-check review ponytail --skills ../principal-pi-skills
@@ -190,11 +193,37 @@ Each run writes to the **target skills repo**:
   A1.green.txt     transcript            (gitignored)
   …
   results.yaml     verdicts + judge reasons + your overrides + notes   (committed)
+  journal.jsonl    machine-facing event stream for this run            (gitignored)
   report.html      generated review UI   (gitignored)
 ```
 
 A generated `results/.gitignore` keeps `results.yaml` tracked while ignoring the
-raw transcripts and report. Commit the durable verdicts; regenerate the rest.
+raw transcripts, journal, and report. Commit the durable verdicts; regenerate the rest.
+
+`results.yaml` is **schema 2**:
+
+- `effective_grade` is always override-aware — it's recomputed from the current
+  verdicts (judge, or your override where present) on every write, so a saved
+  grade can never disagree with what's on the page. Schema-1 files (from before
+  this) are still read fine — they're migrated in memory on load, never rewritten.
+- `label` carries the `--label` you ran with (`null` if you didn't pass one).
+- `mode` records which run mode (`red` / `green` / `force`) produced the file.
+- each scenario carries `suspect`: the judge-misfire tripwire fired (a `FAIL`
+  verdict with no failed checklist item) — a flag to look at, not a verdict change.
+
+**Overrides** (via `skill-check review`) **require a note** — you must say why the
+judge was wrong before an override is accepted. Saving one also un-gitignores
+that scenario's transcript, so the evidence behind the override stays in the
+audit trail alongside the note.
+
+`journal.jsonl` is a per-run, line-delimited event stream (`run-started`,
+`scenario-started`, `gate-result`, `judge-verdict`, `misfire-flag`, `score`,
+`override`) meant for tooling — trends, dashboards, future UI — rather than
+scraping terminal output. It's gitignored; only `results.yaml` is the durable
+record.
+
+Use `--label round-3` to name a run (baked into `results.yaml` and
+`journal.jsonl`) so you can tell runs apart by intent instead of timestamp.
 
 ---
 

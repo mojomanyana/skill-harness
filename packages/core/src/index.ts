@@ -4,6 +4,7 @@ export * from "./run.js";
 export * from "./grade.js";
 export * from "./score.js";
 export * from "./results.js";
+export * from "./journal.js";
 export * from "./seeded.js";
 export * from "./report.js";
 export * from "./adapters/types.js";

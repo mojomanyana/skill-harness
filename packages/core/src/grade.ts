@@ -60,6 +60,9 @@ export function judgeResemblesSubject(judge: ModelRef, subject: ModelRef): boole
 
 export interface GradeResult extends ParsedVerdict {
   raw: string;
+  /** True when the verdict is FAIL but no per-item FAIL appears in the judge's
+   * output — the observed ~2% misfire class. Recorded, never auto-passed. */
+  suspect: boolean;
 }
 
 /** Drive the judge for one transcript and parse the result. */
@@ -79,8 +82,6 @@ export async function gradeTranscript(
   }
   // Misfire tripwire: every observed judge misfire is a FAIL verdict whose item
   // grades contain no failure. Flag it for human review — do not auto-pass.
-  if (parsed.verdict === "FAIL" && !/fail/i.test(raw.replace(VERDICT_RE, ""))) {
-    parsed.reason = `[suspect misfire: no failed item in judge output] ${parsed.reason}`;
-  }
-  return { ...parsed, raw };
+  const suspect = parsed.verdict === "FAIL" && !/fail/i.test(raw.replace(VERDICT_RE, ""));
+  return { ...parsed, raw, suspect };
 }
