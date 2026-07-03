@@ -6,6 +6,7 @@ import { spawn } from "node:child_process";
 import {
   collectReport, renderReport,
   readResults, writeResults, applyOverride, preserveTranscript,
+  ensureResultsGitignore,
   appendJournal,
   type Verdict, type ResultsFile,
   loadSpec,
@@ -105,6 +106,10 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
         const spec = loadSpec(join(opts.skillDir, "tests", "specification.yaml"));
         const ctx = patched.mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
         writeResults(column.runDir, patched, ctx);
+        // Unconditional: a results root created before schema-2/journal.jsonl existed
+        // may still have a stale .gitignore body — every save (not just overrides)
+        // must roll it forward so journal.jsonl doesn't end up tracked.
+        ensureResultsGitignore(join(opts.skillDir, "tests", "results"));
         if (body.override != null) {
           preserveTranscript(join(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
         }

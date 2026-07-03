@@ -77,4 +77,24 @@ describe("review server /save override rules", () => {
     expect(overrides).toHaveLength(1);
     expect(overrides[0]).toMatchObject({ id: "A1", override: "PASS", note: "judge missed the greeting" });
   });
+
+  test("note-only save (no override) still upgrades a stale legacy .gitignore", async () => {
+    const giPath = join(skillDir, "tests", "results", ".gitignore");
+    writeFileSync(giPath, "old body\n", "utf8");
+    const r = await save({ col: 0, scenarioId: "A1", override: null, note: "x" });
+    expect(r.status).toBe(200);
+    const gi = readFileSync(giPath, "utf8");
+    expect(gi).toMatch(/^# skill-check:/);
+    expect(gi).toContain("*.jsonl");
+  });
+
+  test("unknown scenario id → 400, error mentions the id, results.yaml unchanged", async () => {
+    const before = readFileSync(join(runDir, "results.yaml"), "utf8");
+    const r = await save({ col: 0, scenarioId: "ZZ", override: "PASS", note: "why" });
+    expect(r.status).toBe(400);
+    const j = await r.json();
+    expect(j.ok).toBe(false);
+    expect(j.error).toMatch(/ZZ/);
+    expect(readFileSync(join(runDir, "results.yaml"), "utf8")).toBe(before);
+  });
 });

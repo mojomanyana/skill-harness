@@ -1,0 +1,54 @@
+import { describe, test, expect, afterEach } from "vitest";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { writeResults } from "@skill-check/core";
+import { cmdGrade } from "../src/cli.js";
+
+const SPEC = `
+skill: golden
+judge_persona: a friendly greeter judge.
+ship_bar: { total: 1, min_pass: 1 }
+critical: [A1]
+scenarios:
+  - id: A1
+    title: says hello
+    turns: ["Say hello."]
+    checklist: ["greets the user"]
+`;
+
+const tmps: string[] = [];
+function tmp() {
+  const d = mkdtempSync(join(tmpdir(), "sc-grade-cmd-"));
+  tmps.push(d);
+  return d;
+}
+afterEach(() => {
+  while (tmps.length) rmSync(tmps.pop()!, { recursive: true, force: true });
+});
+
+function args(runDir: string) {
+  return { _: [runDir], flags: {}, multi: {} };
+}
+
+describe("cmdGrade refuses to destroy a run with no green transcripts", () => {
+  test("rejects with /no green transcripts/ and leaves results.yaml unchanged", async () => {
+    const skillDir = tmp();
+    mkdirSync(join(skillDir, "tests"), { recursive: true });
+    writeFileSync(join(skillDir, "tests", "specification.yaml"), SPEC, "utf8");
+    const runDir = join(skillDir, "tests", "results", "pi-fake", "2026-07-03T00-00-00Z");
+    mkdirSync(runDir, { recursive: true });
+    // NOTE: no *.green.txt transcripts written for this run.
+    writeResults(runDir, {
+      skill: "golden", harness: "pi", model: "fireworks:fake",
+      judge: { provider: "claude-code", model: "opus" },
+      timestamp: "2026-07-03T00:00:00Z", label: null, mode: "green",
+      scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "greeted", suspect: false, override: null, note: "" }],
+    }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
+    const before = readFileSync(join(runDir, "results.yaml"), "utf8");
+
+    await expect(cmdGrade(args(runDir))).rejects.toThrow(/no green transcripts/);
+
+    expect(readFileSync(join(runDir, "results.yaml"), "utf8")).toBe(before);
+  });
+});

@@ -6,6 +6,10 @@ import type { Verdict } from "./score.js";
  * Machine-facing event stream for one run: one JSON object per line in
  * <runDir>/journal.jsonl. UI, trends, and debugging read ONLY this (never
  * scrape terminal output). `turn` events arrive with per-turn streaming (M4+).
+ *
+ * A re-grade (`skill-check grade`) appends a second wave of judge-verdict
+ * events and a new score event to the same journal — consumers take the LAST
+ * score event and the LAST judge-verdict per scenario id.
  */
 export type JournalEvent =
   | { event: "run-started"; ts: string; skill: string; harness: string; model: string;

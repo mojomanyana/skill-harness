@@ -216,6 +216,24 @@ scenarios:
   test("passes schema-2 docs through untouched", () => {
     expect(migrateResults(sample)).toEqual(sample);
   });
+
+  test("throws a targeted error for undefined input", () => {
+    expect(() => migrateResults(undefined)).toThrow(/empty or invalid/);
+  });
+
+  test("throws a targeted error for an empty-string (empty YAML) doc", () => {
+    expect(() => migrateResults(yaml.load(""))).toThrow(/empty or invalid/);
+  });
+
+  test("a v1 scenario missing judge_reason migrates instead of throwing", () => {
+    const doc = yaml.load(v1yaml) as Record<string, unknown>;
+    const scenarios = doc.scenarios as Array<Record<string, unknown>>;
+    delete scenarios[1].judge_reason;
+    const r = migrateResults(doc);
+    const c1 = r.scenarios.find((s) => s.id === "C1")!;
+    expect(c1.judge_reason).toBe("");
+    expect(c1.suspect).toBe(false);
+  });
 });
 
 describe("ensureResultsGitignore", () => {

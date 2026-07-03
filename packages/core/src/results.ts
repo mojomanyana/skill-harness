@@ -112,6 +112,9 @@ const SUSPECT_PREFIX_RE = /^\[suspect misfire[^\]]*\]\s*/;
 
 /** Read-only schema-1 → schema-2 migration. Never rewrites the file on disk. */
 export function migrateResults(raw: unknown): ResultsFile {
+  if (raw == null || typeof raw !== "object") {
+    throw new Error("empty or invalid results.yaml");
+  }
   const o = raw as Record<string, unknown>;
   if (o.schema === 2) return raw as ResultsFile;
   const v1 = raw as {
@@ -134,11 +137,16 @@ export function migrateResults(raw: unknown): ResultsFile {
     // v1 grades may predate override-aware recompute; carried verbatim (read-only).
     // Every v2 WRITE recomputes, so staleness cannot propagate.
     effective_grade: v1.grade,
-    scenarios: (v1.scenarios ?? []).map((s) => ({
-      ...s,
-      suspect: SUSPECT_PREFIX_RE.test(s.judge_reason),
-      judge_reason: s.judge_reason.replace(SUSPECT_PREFIX_RE, ""),
-    })),
+    scenarios: (v1.scenarios ?? []).map((s) => {
+      const reason = s.judge_reason ?? "";
+      return {
+        ...s,
+        override: s.override ?? null,
+        note: s.note ?? "",
+        suspect: SUSPECT_PREFIX_RE.test(reason),
+        judge_reason: reason.replace(SUSPECT_PREFIX_RE, ""),
+      };
+    }),
   };
 }
 

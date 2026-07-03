@@ -7,7 +7,7 @@ import {
   parseModelRef,
   runSkillModel, formatScorecard, type RunSummary,
   buildJudgePrompt, gradeTranscript,
-  readResults, writeResults, type ScenarioResult,
+  readResults, writeResults, appendJournal, type ScenarioResult,
 } from "@skill-check/core";
 import { getAdapter } from "@skill-check/adapters";
 import { serveReview } from "./serve.js";
@@ -152,7 +152,7 @@ async function cmdRun(args: Args): Promise<void> {
   console.log(`\nReview interactively:  skill-check review ${skills[0]?.name ?? "<skill>"} --skills ${root}`);
 }
 
-async function cmdGrade(args: Args): Promise<void> {
+export async function cmdGrade(args: Args): Promise<void> {
   const runDir = args._[0];
   if (!runDir || !existsSync(runDir)) throw new Error("usage: skill-check grade <run-dir> [--judge prov:model]");
   const judge = parseModelRef(flagStr(args, "judge", DEFAULT_JUDGE)!);
@@ -165,6 +165,7 @@ async function cmdGrade(args: Args): Promise<void> {
 
   const prev = existsSync(join(runDir, "results.yaml")) ? readResults(runDir) : null;
   const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, { override: s.override, note: s.note }]));
+  const mode = prev?.mode ?? "green";
 
   const scenarioResults: ScenarioResult[] = [];
   for (const scenario of spec.scenarios) {
@@ -174,6 +175,10 @@ async function cmdGrade(args: Args): Promise<void> {
     const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
     const g = await gradeTranscript(adapter, judge, prompt, NEUTRAL_CWD);
     console.log(`  ${scenario.id} → ${g.verdict}: ${g.reason}`);
+    appendJournal(runDir, {
+      event: "judge-verdict", ts: nowIso(),
+      id: scenario.id, verdict: g.verdict, reason: g.reason, suspect: g.suspect,
+    });
     const carry = overrides.get(scenario.id);
     scenarioResults.push({
       id: scenario.id,
@@ -185,6 +190,14 @@ async function cmdGrade(args: Args): Promise<void> {
     });
   }
 
+  // Re-grading only ever re-judges *.green.txt transcripts. A red/force run dir
+  // (or one whose transcripts were never preserved) has none — writing an empty
+  // scenario list would silently overwrite the recorded verdicts. Refuse instead.
+  if (scenarioResults.length === 0) {
+    throw new Error(`no green transcripts in ${runDir} — nothing to re-grade`);
+  }
+
+  const ctx = mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
   const results = writeResults(runDir, {
     skill: spec.skill,
     harness: prev?.harness ?? "pi",
@@ -192,9 +205,16 @@ async function cmdGrade(args: Args): Promise<void> {
     judge: { provider: judge.provider, model: judge.model },
     timestamp: nowIso(),
     label: prev?.label ?? null,
-    mode: "green", // grade re-judges *.green.txt transcripts
+    mode,
     scenarios: scenarioResults,
-  }, { shipBar: spec.ship_bar, critical: spec.critical });
+  }, ctx);
+  if (ctx) {
+    const g = results.effective_grade;
+    appendJournal(runDir, {
+      event: "score", ts: nowIso(),
+      passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note,
+    });
+  }
   const g = results.effective_grade;
   console.log(`\n  re-graded with ${judge.provider}:${judge.model} → ${g.letter} (${g.pct}%) ${g.ship ? "SHIP" : "NOT READY"}`);
 }
@@ -279,7 +299,13 @@ export async function main(argv: string[]): Promise<void> {
   }
 }
 
-main(process.argv.slice(2)).catch((e) => {
-  console.error(`error: ${e instanceof Error ? e.message : e}`);
-  process.exitCode = 1;
-});
+// Skip dispatch under vitest: importing this module (e.g. to exercise cmdGrade
+// directly in tests) must not also run a CLI command against the test runner's
+// own argv. Real entrypoints (tsx on src/cli.ts, or the bin launcher importing
+// dist/cli.js) never set VITEST, so this leaves production invocation untouched.
+if (!process.env.VITEST) {
+  main(process.argv.slice(2)).catch((e) => {
+    console.error(`error: ${e instanceof Error ? e.message : e}`);
+    process.exitCode = 1;
+  });
+}
