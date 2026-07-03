@@ -120,9 +120,11 @@ function render() {
       if (!cell) { html += `<td class='cell empty'>–</td>`; continue; }
       const v = effective(cell);
       const sel = selected && selected.colIndex === col.index && selected.scenarioId === scn.id ? " sel" : "";
-      const ov = cell.override
-        ? (cell._unsaved ? `<span class='ov unsaved'>unsaved</span>` : `<span class='ov'>override</span>`)
-        : "";
+      // _unsaved wins regardless of override value, so a failed *clear*
+      // (override → null) still shows the marker instead of looking persisted.
+      const ov = cell._unsaved
+        ? `<span class='ov unsaved'>unsaved</span>`
+        : (cell.override ? `<span class='ov'>override</span>` : "");
       html += `<td class='cell ${v}${sel}' data-col='${col.index}' data-id='${scn.id}'>${v}${ov}</td>`;
     });
     html += "</tr>";

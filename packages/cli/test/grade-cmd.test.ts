@@ -53,7 +53,7 @@ function threeScenarioRun() {
       { id: "C1", judge_verdict: "PASS", judge_reason: "bye", suspect: false, override: null, note: "" },
     ],
   }, { shipBar: { total: 3, min_pass: 3, no_critical_fail: true }, critical: ["A1"] });
-  return { runDir };
+  return { runDir, skillDir };
 }
 
 const tmps: string[] = [];
@@ -100,9 +100,28 @@ describe("cmdGrade refuses to shrink a run when only some transcripts survive", 
     writeFileSync(join(runDir, "A1.green.txt"), "USER: Say hello.\nASSISTANT: Hi!", "utf8");
     const before = readFileSync(join(runDir, "results.yaml"), "utf8");
 
-    await expect(cmdGrade(args(runDir))).rejects.toThrow(/missing transcripts for B1, C1/);
+    await expect(cmdGrade(args(runDir))).rejects.toThrow(/cannot re-grade B1, C1/);
 
     // Nothing overwritten: the recorded B1/C1 verdicts survive intact.
+    expect(readFileSync(join(runDir, "results.yaml"), "utf8")).toBe(before);
+  });
+});
+
+describe("cmdGrade refuses to drop a recorded scenario the spec no longer has", () => {
+  test("spec drift (B1 removed) → rejects, does not silently shrink results.yaml", async () => {
+    const { runDir, skillDir } = threeScenarioRun();
+    // All three transcripts are present on disk...
+    for (const id of ["A1", "B1", "C1"]) {
+      writeFileSync(join(runDir, `${id}.green.txt`), `USER: hi\nASSISTANT: ${id}`, "utf8");
+    }
+    // ...but the spec has since dropped B1. The recorded B1 verdict must not be
+    // silently discarded just because the loop iterates the current spec.
+    const SPEC_NO_B1 = MULTI_SPEC.replace(/  - id: B1\n    title: holds\n    turns: \["Again."\]\n    checklist: \["greets again"\]\n/, "");
+    writeFileSync(join(skillDir, "tests", "specification.yaml"), SPEC_NO_B1, "utf8");
+    const before = readFileSync(join(runDir, "results.yaml"), "utf8");
+
+    await expect(cmdGrade(args(runDir))).rejects.toThrow(/cannot re-grade B1/);
+
     expect(readFileSync(join(runDir, "results.yaml"), "utf8")).toBe(before);
   });
 });

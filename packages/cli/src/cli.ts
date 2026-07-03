@@ -7,7 +7,7 @@ import {
   parseModelRef,
   runSkillModel, formatScorecard, type RunSummary,
   buildJudgePrompt, gradeTranscript,
-  readResults, writeResults, appendJournal, type ScenarioResult,
+  readResults, writeResults, transcriptPath, appendJournal, type ScenarioResult,
 } from "@skill-check/core";
 import { getAdapter } from "@skill-check/adapters";
 import { serveReview } from "./serve.js";
@@ -167,42 +167,45 @@ export async function cmdGrade(args: Args): Promise<void> {
   const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, { override: s.override, note: s.note }]));
   const mode = prev?.mode ?? "green";
 
-  // Fail fast before spending judge calls: re-grading rewrites the WHOLE
-  // results.yaml, so every scenario the run recorded must still have a
-  // transcript on disk. Only overridden transcripts survive a commit
-  // (audit-trail design), so grading a partial set would silently drop the
-  // rest and shrink the grade denominator. Refuse instead.
-  const expected = (prev?.scenarios ?? spec.scenarios).map((s) => s.id);
-  const missing = expected.filter((id) => !existsSync(join(runDir, `${id}.green.txt`)));
-  if (missing.length === expected.length) {
+  // Re-grading rewrites the WHOLE results.yaml, so re-judge exactly the
+  // scenarios the run recorded (falling back to the spec for a run with no
+  // prior results). The guard and the loop iterate the SAME `targets` set, so
+  // they can't diverge: each target must still exist in the spec (for its
+  // checklist) AND have a transcript on disk — only overridden transcripts
+  // survive a commit (audit-trail design). Anything missing would silently drop
+  // a recorded verdict or shrink the grade denominator. Fail fast, before
+  // spending any judge calls.
+  const specById = new Map(spec.scenarios.map((s) => [s.id, s]));
+  const targets = (prev?.scenarios ?? spec.scenarios).map((s) => s.id);
+  const missing = targets.filter((id) => !specById.has(id) || !existsSync(transcriptPath(runDir, id, "green")));
+  if (missing.length === targets.length) {
     throw new Error(`no green transcripts in ${runDir} — nothing to re-grade`);
   }
   if (missing.length > 0) {
     throw new Error(
-      `missing transcripts for ${missing.join(", ")} in ${runDir} — re-grading would drop recorded verdicts; re-run instead of grading`
+      `cannot re-grade ${missing.join(", ")} in ${runDir} (transcript missing or scenario no longer in the spec) — re-run instead of grading`
     );
   }
 
   const scenarioResults: ScenarioResult[] = [];
-  for (const scenario of spec.scenarios) {
-    const tpath = join(runDir, `${scenario.id}.green.txt`);
-    if (!existsSync(tpath)) continue;
-    const transcript = readFileSync(tpath, "utf8");
+  for (const id of targets) {
+    const scenario = specById.get(id)!; // guaranteed present by the guard above
+    const transcript = readFileSync(transcriptPath(runDir, id, "green"), "utf8");
     const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
     const g = await gradeTranscript(adapter, judge, prompt, NEUTRAL_CWD);
-    console.log(`  ${scenario.id} → ${g.verdict}: ${g.reason}`);
+    console.log(`  ${id} → ${g.verdict}: ${g.reason}`);
     appendJournal(runDir, {
       event: "judge-verdict", ts: nowIso(),
-      id: scenario.id, verdict: g.verdict, reason: g.reason, suspect: g.suspect,
+      id, verdict: g.verdict, reason: g.reason, suspect: g.suspect,
     });
     // Mirror run.ts: a suspect verdict also emits a misfire-flag, so journal
     // consumers that scan for misfires see re-graded ones too.
     if (g.suspect) {
-      appendJournal(runDir, { event: "misfire-flag", ts: nowIso(), id: scenario.id, reason: g.reason });
+      appendJournal(runDir, { event: "misfire-flag", ts: nowIso(), id, reason: g.reason });
     }
-    const carry = overrides.get(scenario.id);
+    const carry = overrides.get(id);
     scenarioResults.push({
-      id: scenario.id,
+      id,
       judge_verdict: g.verdict,
       judge_reason: g.reason,
       suspect: g.suspect,
