@@ -203,9 +203,10 @@ raw transcripts and report. Commit the durable verdicts; regenerate the rest.
 ```bash
 npm test          # vitest unit tests for the engine
 npm run typecheck # tsc --noEmit
-npm run build     # emit dist/
+npm run build     # emit per-package dist/
 ```
 
 Adding another harness is the one extension point: implement `HarnessAdapter`
-(`src/adapters/types.ts`) and register it in `src/adapters/index.ts`. `--repeat N`
-/ majority-of-N for noisy models is parked for v2.
+(`packages/core/src/adapters/types.ts`) and register it in
+`packages/adapters/src/index.ts`. `--repeat N` / majority-of-N for noisy
+models is parked for v2.
