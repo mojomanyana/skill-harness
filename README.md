@@ -27,18 +27,17 @@ same scenarios across several models and compare them side by side.
 git clone https://github.com/mojomanyana/skill-check
 cd skill-check
 npm install          # install deps
-npm run build        # optional: emit dist/ (otherwise it runs via tsx in dev)
 ```
 
-Run the CLI either way:
+## Repo layout
 
-```bash
-npm run dev -- list --skills ../principal-pi-skills   # dev (tsx, no build)
-./bin/skill-check    list --skills ../principal-pi-skills   # built (uses dist/)
-```
+    packages/core/       engine: spec, discover, run, grade, score, results, seeded, report
+    packages/adapters/   pi harness + claude-code (subscription CLI) judge routing
+    packages/cli/        command surface (run/grade/review/add-test/list) + review UI server
+    bin/skill-check.js   launcher: packages/cli/dist if built, tsx fallback otherwise
 
-The launcher (`bin/skill-check`) uses `dist/` when present and falls back to `tsx`.
-The examples below use `skill-check` — substitute `npm run dev --` if you haven't built.
+Build: `npm run build` (tsc project references). Test: `npm test` (vitest workspace).
+The CLI surface and all commands are unchanged from v0.0.1.
 
 ---
 
@@ -176,6 +175,7 @@ skill-check add-test project-git --skills ../principal-pi-skills \
   same-family grading inflates scores. `skill-check` warns loudly when the judge
   resembles a subject model. (The default judge runs through pi's `anthropic`
   provider precisely so it stays distinct from a Fireworks subject.)
+- **Judge provider:** `claude-code:<model>` routes grading through the local claude CLI (Claude subscription OAuth) instead of a metered API key.
 - **Weak/stochastic models lie on a single run.** Re-run noisy critical scenarios
   before trusting a delta.
 
