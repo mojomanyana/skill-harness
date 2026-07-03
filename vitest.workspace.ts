@@ -1,1 +1,16 @@
-export default ["packages/*"];
+import { defineWorkspace } from "vitest/config";
+import { fileURLToPath } from "node:url";
+
+// Tests must exercise src, not stale dist (M1 deferral): alias the workspace
+// packages to their TypeScript entry points.
+const alias = {
+  "@skill-check/core": fileURLToPath(new URL("./packages/core/src/index.ts", import.meta.url)),
+  "@skill-check/adapters": fileURLToPath(new URL("./packages/adapters/src/index.ts", import.meta.url)),
+};
+
+export default defineWorkspace(
+  ["core", "adapters", "cli"].map((pkg) => ({
+    test: { name: pkg, root: `packages/${pkg}` },
+    resolve: { alias },
+  }))
+);
