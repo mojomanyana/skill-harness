@@ -107,6 +107,37 @@ describe("cmdGrade refuses to shrink a run when only some transcripts survive", 
   });
 });
 
+describe("cmdGrade on a --reps run", () => {
+  test("rejects with /reps run/ instead of the misleading 'no green transcripts'", async () => {
+    const skillDir = tmp();
+    mkdirSync(join(skillDir, "tests"), { recursive: true });
+    writeFileSync(join(skillDir, "tests", "specification.yaml"), SPEC, "utf8");
+    const runDir = join(skillDir, "tests", "results", "pi-fake", "2026-07-03T00-00-00Z");
+    mkdirSync(runDir, { recursive: true });
+    // A --reps 2 run: only rep-suffixed transcripts exist, no plain A1.green.txt.
+    writeFileSync(join(runDir, "A1.green.rep0.txt"), "USER: Say hello.\nASSISTANT: Hi!", "utf8");
+    writeFileSync(join(runDir, "A1.green.rep1.txt"), "USER: Say hello.\nASSISTANT: Hello!", "utf8");
+    writeResults(runDir, {
+      skill: "golden", harness: "pi", model: "fireworks:fake",
+      judge: { provider: "claude-code", model: "opus" },
+      timestamp: "2026-07-03T00:00:00Z", label: null, mode: "green",
+      scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "greeted", suspect: false, override: null, note: "" }],
+    }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
+    const before = readFileSync(join(runDir, "results.yaml"), "utf8");
+
+    let err: Error | undefined;
+    try {
+      await cmdGrade(args(runDir));
+    } catch (e) {
+      err = e as Error;
+    }
+    expect(err?.message).toMatch(/reps run/);
+    expect(err?.message).not.toMatch(/no green transcripts/);
+
+    expect(readFileSync(join(runDir, "results.yaml"), "utf8")).toBe(before);
+  });
+});
+
 describe("cmdGrade refuses to drop a recorded scenario the spec no longer has", () => {
   test("spec drift (B1 removed) → rejects, does not silently shrink results.yaml", async () => {
     const { runDir, skillDir } = threeScenarioRun();

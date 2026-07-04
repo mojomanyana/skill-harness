@@ -1,4 +1,4 @@
-import { readFileSync, existsSync, appendFileSync } from "node:fs";
+import { readFileSync, existsSync, appendFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import yaml from "js-yaml";
 import {
@@ -182,6 +182,25 @@ export async function cmdGrade(args: Args): Promise<void> {
   // spending any judge calls.
   const specById = new Map(spec.scenarios.map((s) => [s.id, s]));
   const targets = (prev?.scenarios ?? spec.scenarios).map((s) => s.id);
+
+  // Full rep-aware re-grade is deferred to a later milestone. A --reps N>1 run
+  // only ever writes rep-suffixed transcripts (`<id>.green.rep<k>.txt`), never
+  // the plain `<id>.green.txt` this command reads — so re-grading a reps run
+  // would otherwise misreport every scenario as having "no green transcripts".
+  // Detect that case and fail with an accurate message instead.
+  const entries = readdirSync(runDir);
+  const isRepsOnly = (id: string): boolean => {
+    if (existsSync(transcriptPath(runDir, id, "green"))) return false;
+    const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const repPattern = new RegExp(`^${escaped}\\.green\\.rep\\d+\\.txt$`);
+    return entries.some((e) => repPattern.test(e));
+  };
+  if (targets.some(isRepsOnly)) {
+    throw new Error(
+      `${runDir} is a --reps run (rep-suffixed transcripts); re-grading reps runs isn't supported yet — resolve suspect scenarios with an override in \`skill-check review\`, or re-run the skill`
+    );
+  }
+
   const missing = targets.filter((id) => !specById.has(id) || !existsSync(transcriptPath(runDir, id, "green")));
   if (missing.length === targets.length) {
     throw new Error(`no green transcripts in ${runDir} — nothing to re-grade`);

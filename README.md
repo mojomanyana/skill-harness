@@ -231,6 +231,10 @@ raw transcripts, journal, and report. Commit the durable verdicts; regenerate th
   disagree with its overall verdict) — marked `suspect`, excluded from the grade, and blocks
   SHIP until you re-judge it or set an override in the review UI.
 
+`skill-check grade` currently re-judges single-rep runs only; for a `--reps N>1` run it
+fails fast with an explanatory error — resolve `suspect` scenarios there via an override
+in `skill-check review`, or re-run the skill.
+
 **Overrides** (via `skill-check review`) **require a note** — you must say why the
 judge was wrong before an override is accepted. Saving one also un-gitignores
 that scenario's transcript, so the evidence behind the override stays in the

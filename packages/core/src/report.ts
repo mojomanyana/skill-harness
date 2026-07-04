@@ -58,7 +58,7 @@ export function collectReport(skillDir: string): ReportData {
         cells[s.id] = {
           judge_verdict: s.judge_verdict,
           judge_reason: s.judge_reason,
-          suspect: s.suspect ?? false, // schema-1 files lack the field until Task 2's migration
+          suspect: s.suspect ?? false, // suspect defaults false for older results that predate the field
           reps: s.reps,
           passes: s.passes,
           flakiness: s.flakiness,

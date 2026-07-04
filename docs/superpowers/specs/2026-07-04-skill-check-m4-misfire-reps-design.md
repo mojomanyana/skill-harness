@@ -127,7 +127,8 @@ unchanged (new fields are additive).
 
 ## Journal (`journal.ts`)
 
-`judge-verdict` and `misfire-flag` events gain an optional `rep?: number` (1-based);
+`judge-verdict` and `misfire-flag` events gain an optional `rep?: number` (0-based,
+matching the `rep<k>` transcript suffix);
 `run.ts` emits one `judge-verdict` per rep (and a `misfire-flag` per suspect rep).
 The aggregate lives in `results.yaml`; no new event types. Events without `rep`
 (N=1) are unchanged.
