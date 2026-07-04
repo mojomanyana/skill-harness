@@ -14,6 +14,7 @@ import {
 import { appendJournal } from "./journal.js";
 import { runSeeded } from "./seeded.js";
 import { createWorkspace } from "./workspace.js";
+import { runPool } from "./scheduler.js";
 
 export interface RunOptions {
   spec: Spec;
@@ -28,6 +29,7 @@ export interface RunOptions {
   label?: string | null; // recorded in results.yaml (schema 2)
   onProgress?: (msg: string) => void;
   now?: () => string; // ISO clock for journal events (injectable — some hosts restrict wall-clock calls)
+  concurrency?: number; // scenarios in flight at once; default 1 (sequential)
 }
 
 export interface RunSummary {
@@ -59,10 +61,10 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     mode, label: opts.label ?? null,
   });
 
-  const scenarioResults: ScenarioResult[] = [];
-  for (const scenario of spec.scenarios) {
-    scenarioResults.push(await runScenario(scenario, { ...opts, runDir, now, log }));
-  }
+  const tasks = spec.scenarios.map(
+    (scenario) => () => runScenario(scenario, { ...opts, runDir, now, log })
+  );
+  const scenarioResults = await runPool(tasks, opts.concurrency ?? 1);
 
   const ctx = mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
   const results = writeResults(runDir, {
