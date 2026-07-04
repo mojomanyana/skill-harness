@@ -229,6 +229,7 @@ describe("golden pipeline run", () => {
     const s = results.scenarios[0];
     expect(s.reps).toBe(3);
     expect(s.passes).toBeGreaterThanOrEqual(0);
+    expect(s.clean).toBe(3); // no misfires in this fixture — clean equals reps
     expect(typeof s.flakiness).toBe("number");
     // rep-suffixed transcripts exist
     expect(existsSync(join(runDir, `${s.id}.green.rep0.txt`))).toBe(true);
@@ -258,6 +259,7 @@ describe("golden pipeline run", () => {
     expect(s.judge_verdict).toBe("PASS");          // real verdict, NOT the "FAIL" placeholder
     expect(s.judge_reason).toBe("looks ok");        // real reason, NOT "1/1 reps misfired — re-judge"
     expect(s.reps).toBeUndefined();                 // N=1 omits reps fields
+    expect(s.clean).toBeUndefined();                // N=1 omits reps fields
     expect(results.effective_grade.ship).toBe(false); // suspect blocks ship
   });
 });

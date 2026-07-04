@@ -13,6 +13,7 @@ export interface RepAggregate {
   reason: string;
   passes: number; // PASSes among the clean (non-misfired) reps
   reps: number; // N
+  clean: number; // number of clean (non-misfired) reps — the real denominator for `passes`
   flakiness: number; // 0 = unanimous, 1 = even split; over clean reps
   suspect: boolean; // fewer than half the reps were clean
 }
@@ -31,12 +32,12 @@ export function aggregateReps(outcomes: RepOutcome[], threshold: number): RepAgg
 
   if (clean.length * 2 < reps) {
     // majority of reps misfired → untrustworthy
-    return { verdict: "FAIL", reason: `${reps - clean.length}/${reps} reps misfired — re-judge`, passes, reps, flakiness: 0, suspect: true };
+    return { verdict: "FAIL", reason: `${reps - clean.length}/${reps} reps misfired — re-judge`, passes, reps, clean: clean.length, flakiness: 0, suspect: true };
   }
 
   const passRate = passes / clean.length;
   const verdict: Verdict = passRate >= threshold ? "PASS" : "FAIL";
   const flakiness = 1 - Math.abs(2 * passRate - 1);
   const reason = reps === 1 ? outcomes[0].reason : `${passes}/${clean.length} reps passed (flaky ${flakiness.toFixed(2)})`;
-  return { verdict, reason, passes, reps, flakiness, suspect: false };
+  return { verdict, reason, passes, reps, clean: clean.length, flakiness, suspect: false };
 }

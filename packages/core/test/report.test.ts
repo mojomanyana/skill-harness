@@ -48,7 +48,7 @@ judge: {provider: fireworks, model: kimi}
 timestamp: '2026-06-25T12:00:00.000Z'
 grade: {passed: 2, total: 2, pct: 100, letter: A, ship: true, note: ''}
 scenarios:
-  - {id: A1, judge_verdict: PASS, judge_reason: points to max, override: null, note: '', reps: 5, passes: 4, flakiness: 0.4}
+  - {id: A1, judge_verdict: PASS, judge_reason: points to max, override: null, note: '', reps: 5, passes: 4, clean: 4, flakiness: 0.4}
   - {id: C2, judge_verdict: PASS, judge_reason: minimal, override: FAIL, note: 'I disagree'}
 `
   );
@@ -67,14 +67,16 @@ describe("collectReport", () => {
     expect(col.cells.C2.override).toBe("FAIL");
   });
 
-  test("collectReport surfaces reps/passes/flakiness on the cell", () => {
+  test("collectReport surfaces reps/passes/clean/flakiness on the cell", () => {
     const data = collectReport(seedSkill());
     const cell = data.columns[0].cells.A1;
     expect(cell.reps).toBe(5);
     expect(cell.passes).toBe(4);
+    expect(cell.clean).toBe(4);
     expect(cell.flakiness).toBe(0.4);
     // A cell with no reps recorded (N=1) leaves the fields undefined.
     expect(data.columns[0].cells.C2.reps).toBeUndefined();
+    expect(data.columns[0].cells.C2.clean).toBeUndefined();
   });
 
   test("carries shipBar + critical for client-side re-grading", () => {
@@ -94,7 +96,7 @@ describe("publicView", () => {
 });
 
 describe("publicView reps", () => {
-  test("surfaces reps/passes/flakiness on the cell payload unstripped", () => {
+  test("surfaces reps/passes/clean/flakiness on the cell payload unstripped", () => {
     const data: ReportData = {
       skill: "ponytail",
       shipBar: { total: 2, min_pass: 2, no_critical_fail: true },
@@ -117,6 +119,7 @@ describe("publicView reps", () => {
               suspect: true,
               reps: 5,
               passes: 4,
+              clean: 4,
               flakiness: 0.4,
               override: null,
               note: "",
@@ -129,9 +132,11 @@ describe("publicView reps", () => {
     const cell = view.columns[0].cells.A1;
     expect(cell.reps).toBe(5);
     expect(cell.passes).toBe(4);
+    expect(cell.clean).toBe(4);
     expect(cell.flakiness).toBe(0.4);
     const json = JSON.stringify(view);
     expect(json).toMatch(/"flakiness":0\.4/);
+    expect(json).toMatch(/"clean":4/);
   });
 });
 

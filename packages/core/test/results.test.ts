@@ -10,6 +10,8 @@ import {
   applyOverride,
   ensureResultsGitignore,
   preserveTranscript,
+  findTranscriptFile,
+  findTranscriptFiles,
   finalizeResults,
   migrateResults,
   effectiveVerdicts,
@@ -126,6 +128,65 @@ describe("preserveTranscript", () => {
     const runDir = join(root, "pi-fake", "ts");
     mkdirSync(runDir, { recursive: true });
     expect(() => preserveTranscript(root, runDir, "ZZ")).not.toThrow();
+  });
+
+  test("a --reps run un-gitignores EVERY rep transcript, not just one", () => {
+    const root = tmp();
+    const runDir = join(root, "pi-fake", "2026-07-03T00-00-00Z");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "C1.green.rep0.txt"), "rep0", "utf8");
+    writeFileSync(join(runDir, "C1.green.rep1.txt"), "rep1", "utf8");
+    writeFileSync(join(runDir, "C1.green.rep2.txt"), "rep2", "utf8");
+    writeFileSync(join(runDir, "A1.green.rep0.txt"), "other scenario", "utf8"); // must not be preserved
+    preserveTranscript(root, runDir, "C1");
+    preserveTranscript(root, runDir, "C1"); // idempotent
+    const gi = readFileSync(join(root, ".gitignore"), "utf8");
+    for (const rep of [0, 1, 2]) {
+      const line = `!pi-fake/2026-07-03T00-00-00Z/C1.green.rep${rep}.txt`;
+      expect(gi.split("\n").filter((l) => l === line)).toHaveLength(1);
+    }
+    expect(gi).not.toMatch(/A1\.green\.rep0\.txt/);
+  });
+});
+
+describe("findTranscriptFiles", () => {
+  test("returns all rep files for a scenario, sorted in numeric rep order", () => {
+    const root = tmp();
+    const runDir = join(root, "run");
+    mkdirSync(runDir, { recursive: true });
+    // write out of order to prove sorting, not readdir order, wins
+    writeFileSync(join(runDir, "C1.green.rep2.txt"), "2", "utf8");
+    writeFileSync(join(runDir, "C1.green.rep10.txt"), "10", "utf8");
+    writeFileSync(join(runDir, "C1.green.rep0.txt"), "0", "utf8");
+    writeFileSync(join(runDir, "C1.green.rep1.txt"), "1", "utf8");
+    writeFileSync(join(runDir, "A1.green.rep0.txt"), "other", "utf8"); // different scenario, excluded
+    const files = findTranscriptFiles(runDir, "C1");
+    expect(files).toEqual(["C1.green.rep0.txt", "C1.green.rep1.txt", "C1.green.rep2.txt", "C1.green.rep10.txt"]);
+  });
+
+  test("a plain <id>.<mode>.txt sorts before rep-suffixed files", () => {
+    const root = tmp();
+    const runDir = join(root, "run");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "C1.green.rep0.txt"), "0", "utf8");
+    writeFileSync(join(runDir, "C1.green.txt"), "plain", "utf8");
+    expect(findTranscriptFiles(runDir, "C1")).toEqual(["C1.green.txt", "C1.green.rep0.txt"]);
+  });
+
+  test("no run dir or no matches → empty array", () => {
+    expect(findTranscriptFiles(join(tmpdir(), "sc-nonexistent-xyz"), "C1")).toEqual([]);
+    const root = tmp();
+    expect(findTranscriptFiles(root, "ZZ")).toEqual([]);
+  });
+
+  test("findTranscriptFile (singular) is the first of findTranscriptFiles", () => {
+    const root = tmp();
+    const runDir = join(root, "run");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "C1.green.rep0.txt"), "0", "utf8");
+    writeFileSync(join(runDir, "C1.green.rep1.txt"), "1", "utf8");
+    expect(findTranscriptFile(runDir, "C1")).toBe(findTranscriptFiles(runDir, "C1")[0]);
+    expect(findTranscriptFile(runDir, "ZZ")).toBeNull();
   });
 });
 

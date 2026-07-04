@@ -92,7 +92,7 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     const agg = aggregateReps(group, threshold);
     return {
       id: scenario.id, judge_verdict: agg.verdict, judge_reason: agg.reason, suspect: agg.suspect,
-      reps: agg.reps, passes: agg.passes, flakiness: agg.flakiness, override: null, note: "",
+      reps: agg.reps, passes: agg.passes, clean: agg.clean, flakiness: agg.flakiness, override: null, note: "",
     };
   });
 
@@ -195,7 +195,8 @@ export function formatScorecard(summary: RunSummary): string {
     const mark = v === "PASS" ? "✓" : v === "FAIL" ? "✗" : "?";
     const ov = s.override ? " (override)" : "";
     const susp = s.suspect ? " ⚠suspect" : "";
-    const repInfo = s.reps ? `  [${s.passes}/${s.reps}${s.flakiness ? ` flaky ${s.flakiness.toFixed(2)}` : ""}]` : "";
+    const misfired = s.clean !== undefined && s.reps !== undefined && s.clean < s.reps ? ` · ${s.reps - s.clean} misfired` : "";
+    const repInfo = s.reps ? `  [${s.passes}/${s.clean}${misfired}${s.flakiness ? ` flaky ${s.flakiness.toFixed(2)}` : ""}]` : "";
     lines.push(`  ${mark} ${s.id}${ov}${susp}  ${s.judge_reason}${repInfo}`);
   }
   const ship = g.ship ? "SHIP" : "NOT READY";

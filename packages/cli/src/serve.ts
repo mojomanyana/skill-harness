@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import {
   collectReport, renderReport,
-  readResults, writeResults, applyOverride, preserveTranscript, findTranscriptFile,
+  readResults, writeResults, applyOverride, preserveTranscript, findTranscriptFiles,
   ensureResultsGitignore,
   appendJournal,
   type Verdict, type ResultsFile,
@@ -40,9 +40,12 @@ function readBody(req: import("node:http").IncomingMessage): Promise<string> {
   });
 }
 
+/** All of a scenario's transcripts, concatenated with a filename header per file for reps runs. */
 function findTranscript(runDir: string, id: string): string | null {
-  const file = findTranscriptFile(runDir, id);
-  return file ? readFileSync(join(runDir, file), "utf8") : null;
+  const files = findTranscriptFiles(runDir, id);
+  if (files.length === 0) return null;
+  if (files.length === 1) return readFileSync(join(runDir, files[0]), "utf8");
+  return files.map((f) => `===== ${f} =====\n${readFileSync(join(runDir, f), "utf8")}`).join("\n\n");
 }
 
 export interface ServeHandle {

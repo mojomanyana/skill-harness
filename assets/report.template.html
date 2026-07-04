@@ -132,7 +132,8 @@ function render() {
       const ov = cell._unsaved
         ? `<span class='ov unsaved'>unsaved</span>`
         : (cell.override ? `<span class='ov'>override</span>` : "");
-      const reps = cell.reps ? `<span class='reps'>${cell.passes}/${cell.reps}${cell.flakiness ? ` · flaky ${cell.flakiness.toFixed(2)}` : ""}</span>` : "";
+      const misfired = cell.clean != null && cell.clean < cell.reps ? ` · ${cell.reps - cell.clean} misfired` : "";
+      const reps = cell.reps ? `<span class='reps'>${cell.passes}/${cell.clean}${misfired}${cell.flakiness ? ` · flaky ${cell.flakiness.toFixed(2)}` : ""}</span>` : "";
       const suspectBadge = cell.suspect && !cell.override ? `<span class='ov suspect'>suspect</span>` : "";
       html += `<td class='cell ${v}${sel}' data-col='${col.index}' data-id='${scn.id}'>${v}${ov}${suspectBadge}${reps}</td>`;
     });

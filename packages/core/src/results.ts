@@ -15,6 +15,7 @@ export interface ScenarioResult {
   note: string; // author's free-text note
   reps?: number; // number of reps run (omitted / 1 for a single run)
   passes?: number; // PASSes among clean reps (reps runs only)
+  clean?: number; // number of clean (non-misfired) reps — the real denominator for `passes` (reps runs only)
   flakiness?: number; // 0 = unanimous, 1 = even split (reps runs only)
 }
 
@@ -209,28 +210,59 @@ export function ensureResultsGitignore(resultsRoot: string): void {
   writeFileSync(giPath, GITIGNORE_BODY + preserved.map((l) => l + "\n").join(""), "utf8");
 }
 
-/** The transcript file for a scenario in a run dir: prefer green, else any mode. Null if none. */
+const REP_SUFFIX_RE = /\.rep(\d+)\.txt$/;
+
+/**
+ * ALL transcript files for a scenario in a run dir, sorted deterministically:
+ * a plain `<id>.<mode>.txt` first (if present), then rep-suffixed files
+ * (`<id>.<mode>.rep<k>.txt`) in numeric rep order. Empty if the run dir or
+ * scenario has no transcripts.
+ */
+export function findTranscriptFiles(runDir: string, scenarioId: string): string[] {
+  if (!existsSync(runDir)) return [];
+  const files = readdirSync(runDir).filter((f) => f.startsWith(`${scenarioId}.`) && f.endsWith(".txt"));
+  const repOf = (f: string): number | null => {
+    const m = REP_SUFFIX_RE.exec(f);
+    return m ? Number(m[1]) : null;
+  };
+  return files.sort((a, b) => {
+    const ra = repOf(a);
+    const rb = repOf(b);
+    if (ra === null && rb === null) return a.localeCompare(b);
+    if (ra === null) return -1;
+    if (rb === null) return 1;
+    return ra - rb;
+  });
+}
+
+/** A single representative transcript file for a scenario in a run dir. Null if none. */
 export function findTranscriptFile(runDir: string, scenarioId: string): string | null {
-  if (!existsSync(runDir)) return null;
-  const green = `${scenarioId}.green.txt`;
-  if (existsSync(join(runDir, green))) return green;
-  return readdirSync(runDir).find((f) => f.startsWith(`${scenarioId}.`) && f.endsWith(".txt")) ?? null;
+  return findTranscriptFiles(runDir, scenarioId)[0] ?? null;
 }
 
 /**
- * Un-gitignore one scenario's transcript (audit trail for an override).
- * Appends `!<tag>/<ts>/<id>.<mode>.txt` to results/.gitignore, once. The path
- * uses POSIX separators so the negation matches on Windows too (git ignore
- * patterns are always forward-slashed).
+ * Un-gitignore ALL of a scenario's transcript files (audit trail for an
+ * override — a --reps run has one transcript per rep, and every rep that
+ * drove the verdict must survive a commit, not just an arbitrary one).
+ * Appends `!<tag>/<ts>/<id>.<mode>[.rep<k>].txt` to results/.gitignore for
+ * each, once. The path uses POSIX separators so the negation matches on
+ * Windows too (git ignore patterns are always forward-slashed).
  */
 export function preserveTranscript(resultsRoot: string, runDir: string, scenarioId: string): void {
-  const file = findTranscriptFile(runDir, scenarioId);
-  if (!file) return;
+  const files = findTranscriptFiles(runDir, scenarioId);
+  if (files.length === 0) return;
   ensureResultsGitignore(resultsRoot);
   const giPath = join(resultsRoot, ".gitignore");
-  const rel = relative(resultsRoot, join(runDir, file)).split(sep).join("/");
-  const line = `!${rel}`;
-  if (!readFileSync(giPath, "utf8").split("\n").includes(line)) {
-    appendFileSync(giPath, line + "\n", "utf8");
+  const existingLines = readFileSync(giPath, "utf8").split("\n");
+  const newLines: string[] = [];
+  for (const file of files) {
+    const rel = relative(resultsRoot, join(runDir, file)).split(sep).join("/");
+    const line = `!${rel}`;
+    if (!existingLines.includes(line) && !newLines.includes(line)) {
+      newLines.push(line);
+    }
+  }
+  if (newLines.length > 0) {
+    appendFileSync(giPath, newLines.map((l) => l + "\n").join(""), "utf8");
   }
 }
