@@ -61,9 +61,26 @@ export function judgeResemblesSubject(judge: ModelRef, subject: ModelRef): boole
 
 export interface GradeResult extends ParsedVerdict {
   raw: string;
-  /** True when the verdict is FAIL but no per-item FAIL appears in the judge's
-   * output — the observed ~2% misfire class. Recorded, never auto-passed. */
+  /** Judge misfire: the overall verdict disagrees with AND(per-item grades). Recorded, never auto-passed; blocks SHIP until re-judged or overridden. */
   suspect: boolean;
+}
+
+const ITEM_RE = /^\s*\d+[.)]\s*\**\s*(PASS|FAIL)\b/gim;
+
+/**
+ * Judge-misfire detector: parse the judge's per-checklist-item grades and assert
+ * the overall verdict equals AND(items). A mismatch in EITHER direction — verdict
+ * PASS with a FAILed item (false-pass), or verdict FAIL with every item PASSing
+ * (the observed ~2% false-fail class) — is a misfire. Fail-open: if no item lines
+ * parse, or the verdict is ERROR, return false (never block a run on a parse miss).
+ */
+export function detectMisfire(raw: string, verdict: Verdict): boolean {
+  if (verdict === "ERROR") return false;
+  const items = [...raw.matchAll(ITEM_RE)].map((m) => m[1].toUpperCase() === "PASS");
+  if (items.length === 0) return false; // fail-open
+  const andItems = items.every((ok) => ok);
+  const verdictBool = verdict === "PASS";
+  return verdictBool !== andItems;
 }
 
 /** Drive the judge for one transcript and parse the result. */
@@ -81,9 +98,7 @@ export async function gradeTranscript(
     const snippet = raw.trim().replace(/\s+/g, " ").slice(0, 160);
     if (snippet) parsed.reason = `judge unparseable: ${snippet}`;
   }
-  // Misfire tripwire: every observed judge misfire is a FAIL verdict whose item
-  // grades contain no failure. Flag it for human review — do not auto-pass.
-  const suspect = parsed.verdict === "FAIL" && !/fail/i.test(raw.replace(VERDICT_RE, ""));
+  const suspect = detectMisfire(raw, parsed.verdict);
   return { ...parsed, raw, suspect };
 }
 
