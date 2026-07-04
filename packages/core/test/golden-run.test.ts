@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, readFileSync, cpSync, readdirSync } from "node:fs";
+import { mkdtempSync, readFileSync, cpSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -124,29 +124,37 @@ describe("golden pipeline run", () => {
   });
 
   it("--parallel N produces the same results.yaml as sequential, and cleans up workspaces", async () => {
-    const run = async (concurrency: number, ts: string) => {
-      const skillDir = mkdtempSync(join(tmpdir(), "sc-golden-par-"));
-      cpSync(FIXTURE, skillDir, { recursive: true });
-      const specPath = join(skillDir, "tests", "specification.yaml");
-      const spec = parseSpec(readFileSync(specPath, "utf8"), specPath);
-      const { runDir } = await runSkillModel({
-        spec, skillDir, specPath, adapter: fakeAdapter,
-        model: { provider: "fireworks", model: "fake-model" },
-        modelToken: "fireworks:fake-model",
-        judge: { provider: "claude-code", model: "opus" },
-        mode: "green", timestamp: ts, now: () => "2026-07-04T00:00:00.000Z",
-        concurrency,
-      });
-      return readFileSync(join(runDir, "results.yaml"), "utf8");
-    };
-    const seq = await run(1, "2026-07-04T00-00-00-010Z");
-    const par = await run(2, "2026-07-04T00-00-00-011Z");
-    // Byte-identical except the timestamp line (distinct run dirs).
-    const strip = (s: string) => s.replace(/timestamp:.*/g, "timestamp: X");
-    expect(strip(par)).toBe(strip(seq));
+    const wsRoot = mkdtempSync(join(tmpdir(), "sc-ws-root-"));
+    const savedTmp = process.env.TMPDIR;
+    process.env.TMPDIR = wsRoot; // createWorkspace's mkdtemp(tmpdir()) now lands here, isolated from other test files
+    try {
+      const run = async (concurrency: number, ts: string) => {
+        const skillDir = mkdtempSync(join(tmpdir(), "sc-golden-par-"));
+        cpSync(FIXTURE, skillDir, { recursive: true });
+        const specPath = join(skillDir, "tests", "specification.yaml");
+        const spec = parseSpec(readFileSync(specPath, "utf8"), specPath);
+        const { runDir } = await runSkillModel({
+          spec, skillDir, specPath, adapter: fakeAdapter,
+          model: { provider: "fireworks", model: "fake-model" },
+          modelToken: "fireworks:fake-model",
+          judge: { provider: "claude-code", model: "opus" },
+          mode: "green", timestamp: ts, now: () => "2026-07-04T00:00:00.000Z",
+          concurrency,
+        });
+        return readFileSync(join(runDir, "results.yaml"), "utf8");
+      };
+      const seq = await run(1, "2026-07-04T00-00-00-010Z");
+      const par = await run(2, "2026-07-04T00-00-00-011Z");
+      const strip = (s: string) => s.replace(/timestamp:.*/g, "timestamp: X");
+      expect(strip(par)).toBe(strip(seq));
 
-    // No sc-ws-* workspace temp dirs survive.
-    const leaked = readdirSync(tmpdir()).filter((n) => n.startsWith("sc-ws-"));
-    expect(leaked).toEqual([]);
+      // Only this test's scenario workspaces land under wsRoot, so this scan is hermetic.
+      const leaked = readdirSync(wsRoot).filter((n) => n.startsWith("sc-ws-"));
+      expect(leaked).toEqual([]);
+    } finally {
+      if (savedTmp === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = savedTmp;
+      rmSync(wsRoot, { recursive: true, force: true });
+    }
   });
 });
