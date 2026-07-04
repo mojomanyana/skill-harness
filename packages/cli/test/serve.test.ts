@@ -98,3 +98,26 @@ describe("review server /save override rules", () => {
     expect(readFileSync(join(runDir, "results.yaml"), "utf8")).toBe(before);
   });
 });
+
+describe("review server /judge + /rejudge", () => {
+  test("GET /judge returns the raw judge output for a scenario", async () => {
+    // the fixture run dir written in beforeAll also gets a judge-raw artifact:
+    writeFileSync(join(runDir, "A1.green.judge.txt"), "1. PASS\nVERDICT: PASS\nREASON: ok", "utf8");
+    const r = await fetch(`${base}/judge?col=0&id=A1`);
+    expect(r.status).toBe(200);
+    expect(await r.text()).toMatch(/VERDICT: PASS/);
+  });
+
+  test("GET /judge 404s when no judge-raw artifact exists", async () => {
+    const r = await fetch(`${base}/judge?col=0&id=ZZ`);
+    expect(r.status).toBe(404);
+  });
+
+  test("POST /rejudge 404s for an unknown column", async () => {
+    const r = await fetch(`${base}/rejudge`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ col: 99, scenarioId: "A1" }),
+    });
+    expect(r.status).toBe(404);
+  });
+});
