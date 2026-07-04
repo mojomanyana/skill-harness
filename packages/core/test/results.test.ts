@@ -176,8 +176,8 @@ describe("effectiveVerdicts", () => {
   test("override wins over judge verdict", () => {
     const vs = effectiveVerdicts(applyOverride(sample, "C1", "PASS", "why").scenarios);
     expect(vs).toEqual([
-      { id: "A1", verdict: "PASS" },
-      { id: "C1", verdict: "PASS" },
+      { id: "A1", verdict: "PASS", suspect: false },
+      { id: "C1", verdict: "PASS", suspect: false },
     ]);
   });
 });
@@ -233,6 +233,33 @@ scenarios:
     const c1 = r.scenarios.find((s) => s.id === "C1")!;
     expect(c1.judge_reason).toBe("");
     expect(c1.suspect).toBe(false);
+  });
+});
+
+describe("effectiveVerdicts + finalizeResults with suspect", () => {
+  test("effectiveVerdicts marks suspect only when unresolved (no override)", () => {
+    const scenarios = [
+      { id: "A1", judge_verdict: "PASS", judge_reason: "", suspect: false, override: null, note: "" },
+      { id: "A2", judge_verdict: "FAIL", judge_reason: "", suspect: true, override: null, note: "" },
+      { id: "A3", judge_verdict: "FAIL", judge_reason: "", suspect: true, override: "PASS", note: "resolved" },
+    ] as const;
+    const vs = effectiveVerdicts(scenarios as any);
+    expect(vs.find((v) => v.id === "A2")!.suspect).toBe(true);
+    expect(vs.find((v) => v.id === "A3")!.suspect).toBeFalsy(); // override resolves it
+    expect(vs.find((v) => v.id === "A3")!.verdict).toBe("PASS");
+  });
+
+  test("an unresolved suspect blocks ship; an override resolves it", () => {
+    const susDraft = {
+      ...draft,
+      scenarios: [
+        { id: "A1", judge_verdict: "PASS", judge_reason: "", suspect: false, override: null, note: "" },
+        { id: "C1", judge_verdict: "FAIL", judge_reason: "", suspect: true, override: null, note: "" },
+      ],
+    };
+    expect(finalizeResults(susDraft, ctx).effective_grade.ship).toBe(false);
+    const resolved = applyOverride(finalizeResults(susDraft, ctx), "C1", "PASS", "looked, judge misfired");
+    expect(finalizeResults(resolved, ctx).effective_grade.ship).toBe(true);
   });
 });
 

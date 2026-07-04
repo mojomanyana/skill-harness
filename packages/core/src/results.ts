@@ -10,9 +10,12 @@ export interface ScenarioResult {
   id: string;
   judge_verdict: Verdict;
   judge_reason: string;
-  suspect: boolean; // judge-misfire tripwire fired (FAIL verdict, no failed item)
+  suspect: boolean; // judge misfire (verdict disagrees with AND(items)); majority-misfired over reps
   override: Verdict | null; // author's call: null | PASS | FAIL (ERROR never used as override)
   note: string; // author's free-text note
+  reps?: number; // number of reps run (omitted / 1 for a single run)
+  passes?: number; // PASSes among clean reps (reps runs only)
+  flakiness?: number; // 0 = unanimous, 1 = even split (reps runs only)
 }
 
 export interface GradeSummary {
@@ -55,9 +58,10 @@ export function runDirFor(skillDir: string, harness: string, model: ModelRef, ti
   return join(skillDir, "tests", "results", `${harness}-${modelSlug(model)}`, timestampSlug(timestamp));
 }
 
-/** Path of a transcript file within a run dir. */
-export function transcriptPath(runDir: string, scenarioId: string, mode: string): string {
-  return join(runDir, `${scenarioId}.${mode}.txt`);
+/** Path of a transcript file within a run dir. A rep index (for --reps N>1) is suffixed. */
+export function transcriptPath(runDir: string, scenarioId: string, mode: string, rep?: number): string {
+  const base = rep === undefined ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
+  return join(runDir, `${base}.txt`);
 }
 
 export function reportPath(runDir: string): string {
@@ -70,7 +74,11 @@ export function resultsPath(runDir: string): string {
 
 /** The verdict that counts: author override when present, else the judge's. */
 export function effectiveVerdicts(scenarios: ScenarioResult[]): ScenarioVerdict[] {
-  return scenarios.map((s) => ({ id: s.id, verdict: s.override ?? s.judge_verdict }));
+  return scenarios.map((s) => ({
+    id: s.id,
+    verdict: s.override ?? s.judge_verdict,
+    suspect: s.suspect && s.override == null, // an override resolves the misfire
+  }));
 }
 
 /**
