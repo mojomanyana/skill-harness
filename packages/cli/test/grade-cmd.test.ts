@@ -107,34 +107,41 @@ describe("cmdGrade refuses to shrink a run when only some transcripts survive", 
   });
 });
 
-describe("cmdGrade on a --reps run", () => {
-  test("rejects with /reps run/ instead of the misleading 'no green transcripts'", async () => {
-    const skillDir = tmp();
-    mkdirSync(join(skillDir, "tests"), { recursive: true });
-    writeFileSync(join(skillDir, "tests", "specification.yaml"), SPEC, "utf8");
-    const runDir = join(skillDir, "tests", "results", "pi-fake", "2026-07-03T00-00-00Z");
-    mkdirSync(runDir, { recursive: true });
-    // A --reps 2 run: only rep-suffixed transcripts exist, no plain A1.green.txt.
-    writeFileSync(join(runDir, "A1.green.rep0.txt"), "USER: Say hello.\nASSISTANT: Hi!", "utf8");
-    writeFileSync(join(runDir, "A1.green.rep1.txt"), "USER: Say hello.\nASSISTANT: Hello!", "utf8");
-    writeResults(runDir, {
-      skill: "golden", harness: "pi", model: "fireworks:fake",
-      judge: { provider: "claude-code", model: "opus" },
-      timestamp: "2026-07-03T00:00:00Z", label: null, mode: "green",
-      scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "greeted", suspect: false, override: null, note: "" }],
-    }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
-    const before = readFileSync(join(runDir, "results.yaml"), "utf8");
+function repsRunFixture() {
+  const skillDir = tmp();
+  mkdirSync(join(skillDir, "tests"), { recursive: true });
+  writeFileSync(join(skillDir, "tests", "specification.yaml"), SPEC, "utf8");
+  const runDir = join(skillDir, "tests", "results", "pi-fake", "2026-07-03T00-00-00Z");
+  mkdirSync(runDir, { recursive: true });
+  // A --reps 2 run: only rep-suffixed transcripts exist, no plain A1.green.txt.
+  writeFileSync(join(runDir, "A1.green.rep0.txt"), "USER: Say hello.\nASSISTANT: Hi!", "utf8");
+  writeFileSync(join(runDir, "A1.green.rep1.txt"), "USER: Say hello.\nASSISTANT: Hello!", "utf8");
+  writeResults(runDir, {
+    skill: "golden", harness: "pi", model: "fireworks:fake",
+    judge: { provider: "claude-code", model: "opus" },
+    timestamp: "2026-07-03T00:00:00Z", label: null, mode: "green",
+    scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "greeted", suspect: false, override: null, note: "", reps: 2, pass_threshold: 0.5 }],
+  }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
+  return { runDir, skillDir };
+}
 
+describe("cmdGrade on a --reps run", () => {
+  test("a --reps run is now re-gradable (no longer rejected)", async () => {
+    const { runDir } = repsRunFixture();
+    // No fake adapter is wired here: cmdGrade uses getAdapter("pi") internally,
+    // which shells out to a real harness — depending on the test env this may
+    // resolve (e.g. pi errors per-rep, still yielding a written results.yaml)
+    // or reject on the judge/harness call. Either outcome is fine; what we're
+    // proving is narrower: the old reps-run rejection is gone. The full
+    // rep-aware re-judge with a fake adapter is covered by regrade.test.ts
+    // (Task 4) — this test guards the CLI wiring, not the judge.
     let err: Error | undefined;
     try {
       await cmdGrade(args(runDir));
     } catch (e) {
       err = e as Error;
     }
-    expect(err?.message).toMatch(/reps run/);
-    expect(err?.message).not.toMatch(/no green transcripts/);
-
-    expect(readFileSync(join(runDir, "results.yaml"), "utf8")).toBe(before);
+    if (err) expect(err.message).not.toMatch(/reps run/);
   });
 });
 
