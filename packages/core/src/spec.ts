@@ -19,6 +19,8 @@ export interface Scenario {
   fixture?: string;
   assert?: SeededAssert;
   workspace: WorkspaceKind; // isolated-cwd kind; always populated (default "none")
+  reps?: number; // run this scenario N times (overrides --reps); positive integer
+  passThreshold?: number; // pass if pass-rate >= this (overrides --pass-threshold); 0..1
 }
 
 export interface ShipBar {
@@ -201,6 +203,19 @@ export function parseSpec(text: string, file: string): Spec {
     }
 
     scenario.workspace = resolveWorkspace(s.env, mode, scenario.fixture, id, file);
+
+    if (s.reps !== undefined) {
+      if (typeof s.reps !== "number" || !Number.isInteger(s.reps) || s.reps < 1) {
+        throw new SpecError(`scenario \`${id}\` \`reps\` must be a positive integer`, file);
+      }
+      scenario.reps = s.reps;
+    }
+    if (s.pass_threshold !== undefined) {
+      if (typeof s.pass_threshold !== "number" || s.pass_threshold < 0 || s.pass_threshold > 1) {
+        throw new SpecError(`scenario \`${id}\` \`pass_threshold\` must be a number in [0, 1]`, file);
+      }
+      scenario.passThreshold = s.pass_threshold;
+    }
 
     return scenario;
   });
