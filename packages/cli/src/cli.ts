@@ -113,6 +113,9 @@ async function cmdRun(args: Args): Promise<void> {
   const judge = parseModelRef(flagStr(args, "judge", DEFAULT_JUDGE)!);
   const label = flagStr(args, "label") || null;
   const parallel = Math.max(1, Number(flagStr(args, "parallel", "1")) || 1);
+  const reps = Math.max(1, Math.floor(Number(flagStr(args, "reps", "1")) || 1));
+  const ptRaw = Number(flagStr(args, "pass-threshold", "0.5"));
+  const passThreshold = Number.isFinite(ptRaw) && ptRaw >= 0 && ptRaw <= 1 ? ptRaw : 0.5;
   const modelTokens = resolveModels(args);
 
   const skills =
@@ -142,6 +145,8 @@ async function cmdRun(args: Args): Promise<void> {
         timestamp: nowIso(),
         label,
         concurrency: parallel,
+        reps,
+        passThreshold,
         onProgress: (m) => console.log(m),
       });
       summaries.push(summary);
@@ -285,7 +290,7 @@ async function cmdAddTest(args: Args): Promise<void> {
 const HELP = `skill-check — test/optimize loop for agent skills (pi harness)
 
   run    <skill|all> --skills <root> [--model prov:model ...] [--models file]
-                     [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N]
+                     [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
   grade  <run-dir>   [--judge prov:model]      re-grade saved transcripts (neutral judge)
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]
