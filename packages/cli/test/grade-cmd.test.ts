@@ -147,6 +147,7 @@ describe("cmdGrade on a --reps run", () => {
     expect(a1.judge_verdict).toBe("PASS"); // re-judged both reps → aggregated PASS
     expect(a1.reps).toBe(2);
     expect(readFileSync(join(runDir, "results.yaml"), "utf8")).not.toBe(before); // results updated
+    expect(after.timestamp).toBe("2026-07-03T00:00:00Z"); // re-grade preserves the run's original timestamp
   });
 });
 

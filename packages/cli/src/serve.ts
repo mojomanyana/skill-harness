@@ -57,7 +57,10 @@ function findTranscript(runDir: string, id: string): string | null {
 
 /** All of a scenario's judge-raw artifacts, concatenated with a header per rep. */
 function findJudgeRaw(runDir: string, id: string): string | null {
-  const files = findJudgeRawFiles(runDir, id, "green");
+  // Mode-agnostic (no mode arg): run.ts writes judge-raw for every mode
+  // (red/force too), and /transcript's findTranscript is mode-agnostic —
+  // the inspector must show a red/force run's judge output too.
+  const files = findJudgeRawFiles(runDir, id);
   if (files.length === 0) return null;
   if (files.length === 1) return readFileSync(join(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====\n${readFileSync(join(runDir, f), "utf8")}`).join("\n\n");

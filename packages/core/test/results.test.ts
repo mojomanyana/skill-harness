@@ -221,6 +221,28 @@ describe("judge-raw artifacts", () => {
     expect(findTranscriptFiles(dir, "A1")).toEqual(["A1.green.rep0.txt", "A1.green.rep1.txt"]);
     expect(findTranscriptFiles(dir, "A1", "green")).toEqual(["A1.green.rep0.txt", "A1.green.rep1.txt"]);
   });
+
+  // Load-bearing: regradeScenario pairs judge-raw to transcripts by file
+  // index, relying on numeric (not lexicographic) rep ordering. Lexicographic
+  // would sort "rep10" before "rep2" and silently mispair transcript↔judge
+  // for any scenario with 10+ reps.
+  test("rep sort is numeric, not lexicographic, for both transcripts and judge-raw", () => {
+    const dir = tmp();
+    // write out of numeric order to prove sorting, not readdir/write order, wins
+    writeFileSync(join(dir, "A1.green.rep10.txt"), "t10", "utf8");
+    writeFileSync(join(dir, "A1.green.rep0.txt"), "t0", "utf8");
+    writeFileSync(join(dir, "A1.green.rep2.txt"), "t2", "utf8");
+    writeFileSync(join(dir, "A1.green.rep10.judge.txt"), "j10", "utf8");
+    writeFileSync(join(dir, "A1.green.rep0.judge.txt"), "j0", "utf8");
+    writeFileSync(join(dir, "A1.green.rep2.judge.txt"), "j2", "utf8");
+
+    expect(findTranscriptFiles(dir, "A1")).toEqual([
+      "A1.green.rep0.txt", "A1.green.rep2.txt", "A1.green.rep10.txt",
+    ]);
+    expect(findJudgeRawFiles(dir, "A1", "green")).toEqual([
+      "A1.green.rep0.judge.txt", "A1.green.rep2.judge.txt", "A1.green.rep10.judge.txt",
+    ]);
+  });
 });
 
 describe("ensureResultsGitignore migration", () => {

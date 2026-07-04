@@ -177,15 +177,19 @@ async function cmdRun(args: Args): Promise<void> {
 export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
   const runDir = args._[0];
   if (!runDir || !existsSync(runDir)) throw new Error("usage: skill-check grade <run-dir> [--judge prov:model]");
-  const judge = parseModelRef(flagStr(args, "judge", DEFAULT_JUDGE)!);
 
   // spec lives at <runDir>/../../../specification.yaml  (results/<tag>/<ts> -> tests/)
   const testsDir = dirname(dirname(dirname(runDir)));
   const specPath = join(testsDir, "specification.yaml");
   const spec = loadSpec(specPath);
-  const adapter = adapterOverride ?? getAdapter("pi");
 
   const prev = existsSync(join(runDir, "results.yaml")) ? readResults(runDir) : null;
+  // Re-judge with the run's RECORDED judge + harness (parity with /rejudge) —
+  // an explicit --judge flag still wins; with no prior results, fall back to
+  // the CLI default.
+  const judgeFlag = flagStr(args, "judge");
+  const judge = judgeFlag ? parseModelRef(judgeFlag) : (prev?.judge ?? parseModelRef(DEFAULT_JUDGE));
+  const adapter = adapterOverride ?? getAdapter(prev?.harness ?? "pi");
   const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, { override: s.override, note: s.note }]));
   const mode = prev?.mode ?? "green";
 
