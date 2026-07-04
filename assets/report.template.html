@@ -69,27 +69,10 @@
 <script>
 const DATA = /*__DATA__*/null;
 
-function effective(cell) { return cell.override || cell.judge_verdict; }
-
-// Mirror of src/score.ts ship logic, recomputed live as overrides change.
-function gradeColumn(col) {
-  const sb = DATA.shipBar, crit = DATA.critical;
-  let passed = 0, total = 0, criticalFails = 0, bFails = 0, suspect = 0;
-  for (const scn of DATA.scenarios) {
-    const cell = col.cells[scn.id];
-    if (!cell) continue;
-    if (cell.suspect && !cell.override) { suspect++; continue; } // excluded, blocks ship
-    total++;
-    const v = effective(cell);
-    if (v === "PASS") { passed++; continue; }
-    if (crit.includes(scn.id)) criticalFails++;
-    if (/^B/i.test(scn.id)) bFails++;
-  }
-  const pct = total ? Math.round(passed * 100 / total) : 0;
-  const letter = pct >= 90 ? "A" : pct >= 80 ? "B" : pct >= 70 ? "C" : pct >= 60 ? "D" : "F";
-  const ship = total >= sb.total && passed >= sb.min_pass && (!sb.no_critical_fail || criticalFails === 0) && bFails === 0 && suspect === 0;
-  return { passed, total, pct, letter, ship, criticalFails, bFails, suspect };
-}
+// effective()/gradeColumn() are injected here from assets/report.grade.js —
+// the single, tested copy of the client scorer (mirrors src/score.ts). See
+// renderReport() in packages/core/src/report.ts for how the injection works.
+/*__GRADE__*/
 
 let selected = null; // { colIndex, scenarioId }
 
@@ -101,7 +84,7 @@ function render() {
     wrap.innerHTML = `<div class="empty-state">No runs yet for <b>${DATA.skill}</b>.<br>Run <code>skill-check run ${DATA.skill}</code> first.</div>`;
     return;
   }
-  const grades = DATA.columns.map(gradeColumn);
+  const grades = DATA.columns.map((col) => gradeColumn(col, DATA.shipBar, DATA.critical));
   let html = "<table><thead><tr><th class='scn'>scenario</th>";
   DATA.columns.forEach((col, i) => {
     const g = grades[i];

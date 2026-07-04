@@ -25,6 +25,11 @@ function templatePath(): string {
   throw new Error("cannot find assets/report.template.html");
 }
 
+/** assets/report.grade.js — the client scorer injected into the template (sibling of the template). */
+function gradeScriptPath(): string {
+  return join(dirname(templatePath()), "report.grade.js");
+}
+
 export interface ServeOptions {
   skillDir: string;
   skillName: string;
@@ -55,6 +60,7 @@ export interface ServeHandle {
 
 export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
   const template = readFileSync(templatePath(), "utf8");
+  const gradeScript = readFileSync(gradeScriptPath(), "utf8");
 
   const server = createServer(async (req, res) => {
     try {
@@ -63,7 +69,7 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
       if (req.method === "GET" && url.pathname === "/") {
         const data = collectReport(opts.skillDir);
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        res.end(renderReport(template, data));
+        res.end(renderReport(template, data, gradeScript));
         return;
       }
 

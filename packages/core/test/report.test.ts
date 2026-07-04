@@ -141,13 +141,17 @@ describe("publicView reps", () => {
 });
 
 describe("renderReport", () => {
-  test("injects DATA json and skill name, leaving no placeholder", () => {
+  test("injects DATA json, grade script, and skill name, leaving no placeholder", () => {
     const data = collectReport(seedSkill());
     const tmpl = readFileSync(join(process.cwd(), "assets", "report.template.html"), "utf8");
-    const html = renderReport(tmpl, data);
+    const gradeScript = readFileSync(join(process.cwd(), "assets", "report.grade.js"), "utf8");
+    const html = renderReport(tmpl, data, gradeScript);
     expect(html).not.toContain("/*__DATA__*/null");
+    expect(html).not.toContain("/*__GRADE__*/");
     expect(html).not.toContain("__SKILL__");
+    expect(html).not.toContain("export function"); // export stripped for inline <script> validity
     expect(html).toContain("const DATA = {");
+    expect(html).toContain("function gradeColumn(");
     expect(html).toContain("ponytail");
   });
 });

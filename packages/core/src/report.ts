@@ -104,10 +104,27 @@ export function publicView(data: ReportData) {
   };
 }
 
-/** Inject the run JSON into the template at the __DATA__ placeholder. */
-export function renderReport(template: string, data: ReportData): string {
+/**
+ * A bare inline <script> (no type="module") can't contain an `export`
+ * statement, but assets/report.grade.js is written as real ESM so it can also
+ * be imported directly (by Node, in the parity test). Strip the `export `
+ * keyword off each exported declaration so the leftover plain function
+ * declarations splice cleanly into the template's script scope.
+ */
+function stripExports(js: string): string {
+  return js.replace(/^export\s+/gm, "");
+}
+
+/**
+ * Inject the run JSON and the client-scorer module into the template, at the
+ * __DATA__ and __GRADE__ placeholders respectively. `gradeScript` is the raw
+ * contents of assets/report.grade.js (sibling of the template) — the single,
+ * score.ts-parity-tested copy of the client grading logic.
+ */
+export function renderReport(template: string, data: ReportData, gradeScript: string): string {
   const json = JSON.stringify(publicView(data));
   return template
     .replace("/*__DATA__*/null", json)
+    .replace("/*__GRADE__*/", stripExports(gradeScript))
     .replace("__SKILL__", data.skill);
 }
