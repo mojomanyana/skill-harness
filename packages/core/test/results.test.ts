@@ -12,6 +12,8 @@ import {
   preserveTranscript,
   findTranscriptFile,
   findTranscriptFiles,
+  judgeRawPath,
+  findJudgeRawFiles,
   finalizeResults,
   migrateResults,
   effectiveVerdicts,
@@ -199,6 +201,59 @@ describe("findTranscriptFiles", () => {
     expect(findTranscriptFiles(runDir, "A1", "green")).toEqual(["A1.green.rep0.txt", "A1.green.rep1.txt"]);
     // no mode: current behavior — plain (non-rep-suffixed) files sort first, then reps in numeric order.
     expect(findTranscriptFiles(runDir, "A1")).toEqual(["A1.red.txt", "A1.green.rep0.txt", "A1.green.rep1.txt"]);
+  });
+});
+
+describe("judge-raw artifacts", () => {
+  test("judgeRawPath names plain vs rep-suffixed files", () => {
+    expect(judgeRawPath("/r", "A1", "green")).toBe(join("/r", "A1.green.judge.txt"));
+    expect(judgeRawPath("/r", "A1", "green", 2)).toBe(join("/r", "A1.green.rep2.judge.txt"));
+  });
+
+  test("findJudgeRawFiles returns green judge files sorted; findTranscriptFiles excludes them", () => {
+    const dir = tmp();
+    writeFileSync(join(dir, "A1.green.rep0.txt"), "t0", "utf8");
+    writeFileSync(join(dir, "A1.green.rep1.txt"), "t1", "utf8");
+    writeFileSync(join(dir, "A1.green.rep0.judge.txt"), "j0", "utf8");
+    writeFileSync(join(dir, "A1.green.rep1.judge.txt"), "j1", "utf8");
+    expect(findJudgeRawFiles(dir, "A1", "green")).toEqual(["A1.green.rep0.judge.txt", "A1.green.rep1.judge.txt"]);
+    // the transcript glob must NOT pick up the .judge.txt files
+    expect(findTranscriptFiles(dir, "A1")).toEqual(["A1.green.rep0.txt", "A1.green.rep1.txt"]);
+    expect(findTranscriptFiles(dir, "A1", "green")).toEqual(["A1.green.rep0.txt", "A1.green.rep1.txt"]);
+  });
+
+  // Load-bearing: regradeScenario pairs judge-raw to transcripts by file
+  // index, relying on numeric (not lexicographic) rep ordering. Lexicographic
+  // would sort "rep10" before "rep2" and silently mispair transcript↔judge
+  // for any scenario with 10+ reps.
+  test("rep sort is numeric, not lexicographic, for both transcripts and judge-raw", () => {
+    const dir = tmp();
+    // write out of numeric order to prove sorting, not readdir/write order, wins
+    writeFileSync(join(dir, "A1.green.rep10.txt"), "t10", "utf8");
+    writeFileSync(join(dir, "A1.green.rep0.txt"), "t0", "utf8");
+    writeFileSync(join(dir, "A1.green.rep2.txt"), "t2", "utf8");
+    writeFileSync(join(dir, "A1.green.rep10.judge.txt"), "j10", "utf8");
+    writeFileSync(join(dir, "A1.green.rep0.judge.txt"), "j0", "utf8");
+    writeFileSync(join(dir, "A1.green.rep2.judge.txt"), "j2", "utf8");
+
+    expect(findTranscriptFiles(dir, "A1")).toEqual([
+      "A1.green.rep0.txt", "A1.green.rep2.txt", "A1.green.rep10.txt",
+    ]);
+    expect(findJudgeRawFiles(dir, "A1", "green")).toEqual([
+      "A1.green.rep0.judge.txt", "A1.green.rep2.judge.txt", "A1.green.rep10.judge.txt",
+    ]);
+  });
+});
+
+describe("findTranscriptFiles no-mode exclusion is suffix-anchored", () => {
+  test("a scenario id containing '.judge.' keeps its transcript but drops its judge-raw", () => {
+    const root = tmp();
+    const runDir = join(root, "run");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "pre.judge.check.green.txt"), "transcript", "utf8");
+    writeFileSync(join(runDir, "pre.judge.check.green.judge.txt"), "raw judge output", "utf8");
+    expect(findTranscriptFiles(runDir, "pre.judge.check")).toEqual(["pre.judge.check.green.txt"]);
+    expect(findJudgeRawFiles(runDir, "pre.judge.check")).toEqual(["pre.judge.check.green.judge.txt"]);
   });
 });
 

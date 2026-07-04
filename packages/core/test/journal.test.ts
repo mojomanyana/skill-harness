@@ -36,6 +36,17 @@ describe("journal append/read round-trip", () => {
     expect(readJournal(dir)).toHaveLength(2);
   });
 
+  test("readJournal skips a syntactically-valid line that isn't a journal event", () => {
+    const dir = tmp();
+    appendJournal(dir, { event: "scenario-started", ts: "t", id: "A1", title: "x" });
+    appendFileSync(journalPath(dir), JSON.stringify({ not: "an event" }) + "\n", "utf8");
+    appendFileSync(journalPath(dir), "42\n", "utf8"); // valid JSON, not an object
+    appendJournal(dir, { event: "misfire-flag", ts: "t", id: "A1", reason: "r" });
+    const events = readJournal(dir);
+    expect(events).toHaveLength(2); // only the two real events
+    expect(events.map((e) => e.event)).toEqual(["scenario-started", "misfire-flag"]);
+  });
+
   test("creates the run dir if needed", () => {
     const dir = join(tmp(), "does", "not", "exist");
     appendJournal(dir, { event: "scenario-started", ts: "t", id: "A1", title: "x" });

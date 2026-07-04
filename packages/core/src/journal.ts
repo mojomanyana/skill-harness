@@ -47,7 +47,11 @@ export function readJournal(runDir: string): JournalEvent[] {
   for (const line of readFileSync(p, "utf8").split("\n")) {
     if (!line.trim()) continue;
     try {
-      events.push(JSON.parse(line) as JournalEvent);
+      const ev = JSON.parse(line) as unknown;
+      if (ev && typeof ev === "object" && typeof (ev as { event?: unknown }).event === "string") {
+        events.push(ev as JournalEvent);
+      }
+      // else: valid JSON but not a journal event — skip
     } catch {
       /* tolerate a torn/corrupt line */
     }

@@ -10,7 +10,9 @@ import {
   appendJournal,
   type Verdict, type ResultsFile,
   loadSpec,
+  regradeScenario, findJudgeRawFiles,
 } from "@skill-check/core";
+import { getAdapter } from "@skill-check/adapters";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -35,6 +37,7 @@ export interface ServeOptions {
   skillName: string;
   port?: number;
   open?: boolean;
+  adapter?: import("@skill-check/core").HarnessAdapter; // test seam: overrides getAdapter(results.harness) in /rejudge
 }
 
 function readBody(req: import("node:http").IncomingMessage): Promise<string> {
@@ -48,6 +51,17 @@ function readBody(req: import("node:http").IncomingMessage): Promise<string> {
 /** All of a scenario's transcripts, concatenated with a filename header per file for reps runs. */
 function findTranscript(runDir: string, id: string): string | null {
   const files = findTranscriptFiles(runDir, id);
+  if (files.length === 0) return null;
+  if (files.length === 1) return readFileSync(join(runDir, files[0]), "utf8");
+  return files.map((f) => `===== ${f} =====\n${readFileSync(join(runDir, f), "utf8")}`).join("\n\n");
+}
+
+/** All of a scenario's judge-raw artifacts, concatenated with a header per rep. */
+function findJudgeRaw(runDir: string, id: string): string | null {
+  // Mode-agnostic (no mode arg): run.ts writes judge-raw for every mode
+  // (red/force too), and /transcript's findTranscript is mode-agnostic —
+  // the inspector must show a red/force run's judge output too.
+  const files = findJudgeRawFiles(runDir, id);
   if (files.length === 0) return null;
   if (files.length === 1) return readFileSync(join(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====\n${readFileSync(join(runDir, f), "utf8")}`).join("\n\n");
@@ -81,6 +95,68 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
         const text = column ? findTranscript(column.runDir, id) : null;
         res.writeHead(text ? 200 : 404, { "content-type": "text/plain; charset=utf-8" });
         res.end(text ?? "transcript not found");
+        return;
+      }
+
+      if (req.method === "GET" && url.pathname === "/judge") {
+        const col = Number(url.searchParams.get("col"));
+        const id = url.searchParams.get("id") ?? "";
+        const data = collectReport(opts.skillDir);
+        const column = data.columns.find((c) => c.index === col);
+        const text = column ? findJudgeRaw(column.runDir, id) : null;
+        res.writeHead(text ? 200 : 404, { "content-type": "text/plain; charset=utf-8" });
+        res.end(text ?? "judge output not captured");
+        return;
+      }
+
+      if (req.method === "POST" && url.pathname === "/rejudge") {
+        const body = JSON.parse((await readBody(req)) || "{}") as { col: number; scenarioId: string };
+        const data = collectReport(opts.skillDir);
+        const column = data.columns.find((c) => c.index === body.col);
+        if (!column) { res.writeHead(404).end("unknown column"); return; }
+        const results = readResults(column.runDir);
+        if (results.mode !== "green") {
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: "only green runs can be re-judged" }));
+          return;
+        }
+        const specPath = join(opts.skillDir, "tests", "specification.yaml");
+        const spec = loadSpec(specPath);
+        const scenario = spec.scenarios.find((s) => s.id === body.scenarioId);
+        if (!scenario) { res.writeHead(404).end("unknown scenario"); return; }
+        const adapter = opts.adapter ?? getAdapter(results.harness);
+        if (!(await adapter.available())) {
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: `harness \`${results.harness}\` is not on PATH` }));
+          return;
+        }
+        const prev = results.scenarios.find((s) => s.id === body.scenarioId);
+        if (!prev) { res.writeHead(404).end("scenario not in this run"); return; }
+        const threshold = prev?.pass_threshold ?? scenario.passThreshold ?? 0.5;
+        try {
+          const rr = await regradeScenario({
+            runDir: column.runDir, spec, scenario, adapter, judge: results.judge,
+            specDir: dirname(specPath), threshold,
+          });
+          const merged = results.scenarios.map((s) =>
+            s.id === body.scenarioId ? { ...rr, override: s.override, note: s.note } : s
+          );
+          const written = writeResults(column.runDir, {
+            skill: results.skill, harness: results.harness, model: results.model, judge: results.judge,
+            timestamp: results.timestamp, label: results.label, mode: results.mode, scenarios: merged,
+          }, { shipBar: spec.ship_bar, critical: spec.critical });
+          ensureResultsGitignore(join(opts.skillDir, "tests", "results"));
+          const g = written.effective_grade;
+          appendJournal(column.runDir, { event: "score", ts: new Date().toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: true, grade: g }));
+        } catch (e) {
+          // regradeScenario (or the write/journal that follows) failed — surface the
+          // real reason as JSON so the client's r.json().catch(()=>({})) sees body.error
+          // instead of falling through to the generic top-level 500 (text/plain).
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+        }
         return;
       }
 

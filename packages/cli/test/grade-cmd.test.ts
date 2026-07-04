@@ -2,7 +2,7 @@ import { describe, test, expect, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { writeResults } from "@skill-check/core";
+import { writeResults, readResults, type HarnessAdapter } from "@skill-check/core";
 import { cmdGrade } from "../src/cli.js";
 
 const SPEC = `
@@ -107,34 +107,47 @@ describe("cmdGrade refuses to shrink a run when only some transcripts survive", 
   });
 });
 
+function repsRunFixture() {
+  const skillDir = tmp();
+  mkdirSync(join(skillDir, "tests"), { recursive: true });
+  writeFileSync(join(skillDir, "tests", "specification.yaml"), SPEC, "utf8");
+  const runDir = join(skillDir, "tests", "results", "pi-fake", "2026-07-03T00-00-00Z");
+  mkdirSync(runDir, { recursive: true });
+  // A --reps 2 run: only rep-suffixed transcripts exist, no plain A1.green.txt.
+  writeFileSync(join(runDir, "A1.green.rep0.txt"), "USER: Say hello.\nASSISTANT: Hi!", "utf8");
+  writeFileSync(join(runDir, "A1.green.rep1.txt"), "USER: Say hello.\nASSISTANT: Hello!", "utf8");
+  writeResults(runDir, {
+    skill: "golden", harness: "pi", model: "fireworks:fake",
+    judge: { provider: "claude-code", model: "opus" },
+    timestamp: "2026-07-03T00:00:00Z", label: null, mode: "green",
+    scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "greeted", suspect: false, override: null, note: "", reps: 2, pass_threshold: 0.5 }],
+  }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
+  return { runDir, skillDir };
+}
+
 describe("cmdGrade on a --reps run", () => {
-  test("rejects with /reps run/ instead of the misleading 'no green transcripts'", async () => {
-    const skillDir = tmp();
-    mkdirSync(join(skillDir, "tests"), { recursive: true });
-    writeFileSync(join(skillDir, "tests", "specification.yaml"), SPEC, "utf8");
-    const runDir = join(skillDir, "tests", "results", "pi-fake", "2026-07-03T00-00-00Z");
-    mkdirSync(runDir, { recursive: true });
-    // A --reps 2 run: only rep-suffixed transcripts exist, no plain A1.green.txt.
-    writeFileSync(join(runDir, "A1.green.rep0.txt"), "USER: Say hello.\nASSISTANT: Hi!", "utf8");
-    writeFileSync(join(runDir, "A1.green.rep1.txt"), "USER: Say hello.\nASSISTANT: Hello!", "utf8");
-    writeResults(runDir, {
-      skill: "golden", harness: "pi", model: "fireworks:fake",
-      judge: { provider: "claude-code", model: "opus" },
-      timestamp: "2026-07-03T00:00:00Z", label: null, mode: "green",
-      scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "greeted", suspect: false, override: null, note: "" }],
-    }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
+  test("a --reps run is now re-gradable (no longer rejected)", async () => {
+    const { runDir } = repsRunFixture();
     const before = readFileSync(join(runDir, "results.yaml"), "utf8");
+    // Inject a fake judge so this test is hermetic: no `pi`/`claude` subprocess
+    // is ever spawned. This proves both that the old reps-run rejection is
+    // gone AND that a re-grade actually happens (aggregated verdict, updated
+    // results.yaml) — not just "didn't throw a specific message".
+    const fake: HarnessAdapter = {
+      name: "pi",
+      available: async () => true,
+      run: async () => "",
+      judge: async () => "1. PASS — ok\nVERDICT: PASS\nREASON: fine",
+    };
 
-    let err: Error | undefined;
-    try {
-      await cmdGrade(args(runDir));
-    } catch (e) {
-      err = e as Error;
-    }
-    expect(err?.message).toMatch(/reps run/);
-    expect(err?.message).not.toMatch(/no green transcripts/);
+    await cmdGrade(args(runDir), fake);
 
-    expect(readFileSync(join(runDir, "results.yaml"), "utf8")).toBe(before);
+    const after = readResults(runDir);
+    const a1 = after.scenarios.find((s) => s.id === "A1")!;
+    expect(a1.judge_verdict).toBe("PASS"); // re-judged both reps → aggregated PASS
+    expect(a1.reps).toBe(2);
+    expect(readFileSync(join(runDir, "results.yaml"), "utf8")).not.toBe(before); // results updated
+    expect(after.timestamp).toBe("2026-07-03T00:00:00Z"); // re-grade preserves the run's original timestamp
   });
 });
 

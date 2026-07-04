@@ -54,6 +54,12 @@
   .saved.err { color: #b91c1c; opacity: 1; }
   .close { float: right; cursor: pointer; color: var(--dim); border: none; background: none; font-size: 18px; }
   .empty-state { color: var(--dim); padding: 40px; text-align: center; }
+  #misfires { margin: 0 0 16px; }
+  .mf-title { font-weight: 600; margin-bottom: 6px; }
+  .mf-title.empty { color: var(--dim); font-weight: 400; }
+  .mf-row { padding: 4px 0; border-bottom: 1px solid var(--line, #eee); font-size: 13px; }
+  .rejudge { margin: 8px 0; }
+  .rejudge button { cursor: pointer; }
 </style>
 </head>
 <body>
@@ -62,7 +68,10 @@
   <span class="sub" id="subtitle"></span>
 </header>
 <main>
-  <div class="matrix-wrap" id="matrix"></div>
+  <div class="matrix-wrap">
+    <div id="misfires"></div>
+    <div id="matrix"></div>
+  </div>
   <aside id="aside"><div class="panel" id="panel"></div></aside>
 </main>
 
@@ -85,6 +94,28 @@ function render() {
     return;
   }
   const grades = DATA.columns.map((col) => gradeColumn(col, DATA.shipBar, DATA.critical));
+  const queue = [];
+  DATA.columns.forEach((col) => {
+    // A suspect cell in a red/force column can't be re-judged (/rejudge 400s
+    // "only green runs can be re-judged") — don't queue it. The matrix below
+    // still shows suspect badges for every column regardless of mode.
+    if (col.mode && col.mode !== "green") return;
+    for (const scn of DATA.scenarios) {
+      const cell = col.cells[scn.id];
+      if (cell && cell.suspect && !cell.override) queue.push({ col: col.index, id: scn.id, label: col.label, reason: cell.judge_reason });
+    }
+  });
+  const mf = document.getElementById("misfires");
+  if (mf) {
+    mf.innerHTML = queue.length
+      ? `<div class="mf-title">⚠ Misfire queue (${queue.length})</div>` + queue.map((q) =>
+          `<div class="mf-row" data-col="${q.col}" data-id="${escapeHtml(q.id)}"><b>${escapeHtml(q.id)}</b> · ${escapeHtml(q.label)} — ${escapeHtml(q.reason || "(no reason)")} <button class="mf-open">inspect</button></div>`
+        ).join("")
+      : `<div class="mf-title empty">No unresolved misfires.</div>`;
+    mf.querySelectorAll(".mf-row").forEach((row) => {
+      row.querySelector(".mf-open").onclick = () => openPanel(+row.dataset.col, row.dataset.id);
+    });
+  }
   let html = "<table><thead><tr><th class='scn'>scenario</th>";
   DATA.columns.forEach((col, i) => {
     const g = grades[i];
@@ -150,15 +181,31 @@ async function openPanel(colIndex, scenarioId) {
       <button data-v="FAIL" class="FAIL ${cell.override === 'FAIL' ? 'active FAIL' : ''}">FAIL</button>
       <button data-v="" class="JUDGE ${!cell.override ? 'active JUDGE' : ''}">use judge (${cell.judge_verdict})</button>
     </div>
+    <div class="rejudge"><button id="rejudgeBtn">Re-judge (${escapeHtml(col.judge.provider + ":" + col.judge.model)})</button> <span class="saved" id="rejudged"></span></div>
     <label class="fld">note <span class="saved" id="saved">saved ✓</span></label>
     <textarea id="note" placeholder="why you overrode / what to fix in SKILL.md">${escapeHtml(cell.note || "")}</textarea>
     <label class="fld">transcript</label>
     <pre class="transcript" id="transcript">loading…</pre>
+    <label class="fld">judge raw</label>
+    <pre class="transcript" id="judgeraw">loading…</pre>
   `;
   document.getElementById("closeBtn").onclick = () => { aside.classList.remove("open"); selected = null; render(); };
   panel.querySelectorAll(".toggle button").forEach((b) => {
     b.onclick = () => { cell.override = b.dataset.v || null; save(col, scenarioId, cell); openPanel(colIndex, scenarioId); };
   });
+  const rj = document.getElementById("rejudgeBtn");
+  if (rj) rj.onclick = async () => {
+    rj.disabled = true; rj.textContent = "re-judging…";
+    try {
+      const r = await fetch("/rejudge", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ col: colIndex, scenarioId }),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) { const s = document.getElementById("rejudged"); if (s) { s.textContent = body.error || "re-judge failed"; s.classList.add("show", "err"); } rj.disabled = false; rj.textContent = "Re-judge"; return; }
+      location.reload(); // re-judge rewrote results.yaml; reload the fresh matrix + grades
+    } catch (e) { rj.disabled = false; rj.textContent = "Re-judge"; }
+  };
   let t;
   document.getElementById("note").addEventListener("input", (e) => {
     cell.note = e.target.value;
@@ -169,6 +216,10 @@ async function openPanel(colIndex, scenarioId) {
     const r = await fetch(`/transcript?col=${colIndex}&id=${encodeURIComponent(scenarioId)}`);
     document.getElementById("transcript").textContent = r.ok ? await r.text() : "(transcript unavailable)";
   } catch { document.getElementById("transcript").textContent = "(transcript unavailable)"; }
+  try {
+    const jr = await fetch(`/judge?col=${colIndex}&id=${encodeURIComponent(scenarioId)}`);
+    document.getElementById("judgeraw").textContent = jr.ok ? await jr.text() : "(judge output not captured)";
+  } catch { document.getElementById("judgeraw").textContent = "(judge output not captured)"; }
 }
 
 async function save(col, scenarioId, cell) {

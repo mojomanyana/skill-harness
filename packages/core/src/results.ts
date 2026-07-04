@@ -17,6 +17,7 @@ export interface ScenarioResult {
   passes?: number; // PASSes among clean reps (reps runs only)
   clean?: number; // number of clean (non-misfired) reps — the real denominator for `passes` (reps runs only)
   flakiness?: number; // 0 = unanimous, 1 = even split (reps runs only)
+  pass_threshold?: number; // effective threshold used (reps runs only) — lets re-judge reproduce the aggregate
 }
 
 export interface GradeSummary {
@@ -210,7 +211,26 @@ export function ensureResultsGitignore(resultsRoot: string): void {
   writeFileSync(giPath, GITIGNORE_BODY + preserved.map((l) => l + "\n").join(""), "utf8");
 }
 
-const REP_SUFFIX_RE = /\.rep(\d+)\.txt$/;
+// Matches both transcript (`.rep<k>.txt`) and judge-raw (`.rep<k>.judge.txt`) rep suffixes.
+const REP_SUFFIX_RE = /\.rep(\d+)\.(?:judge\.)?txt$/;
+
+/** The rep index embedded in a transcript/judge-raw filename (`.rep<k>.`), or null for a plain (non-rep) file. */
+export function repIndexOf(filename: string): number | null {
+  const m = REP_SUFFIX_RE.exec(filename);
+  return m ? Number(m[1]) : null;
+}
+
+/** Sort transcript-like filenames: plain (no rep) first, then by numeric rep index. */
+function sortByRep(files: string[]): string[] {
+  return files.sort((a, b) => {
+    const ra = repIndexOf(a);
+    const rb = repIndexOf(b);
+    if (ra === null && rb === null) return a.localeCompare(b);
+    if (ra === null) return -1;
+    if (rb === null) return 1;
+    return ra - rb;
+  });
+}
 
 /**
  * ALL transcript files for a scenario in a run dir, sorted deterministically:
@@ -221,7 +241,8 @@ const REP_SUFFIX_RE = /\.rep(\d+)\.txt$/;
  * With `mode` given, only that mode's transcripts match (`<id>.<mode>.txt` /
  * `<id>.<mode>.rep<k>.txt`) — e.g. to detect a green-only condition without
  * false positives from a red/force transcript of the same scenario. Omitted,
- * behavior is unchanged: any `<id>.*.txt` regardless of mode.
+ * behavior is unchanged: any `<id>.*.txt` regardless of mode, excluding this
+ * scenario's judge-raw artifacts (`<id>.*.judge.txt` — see judgeRawPath).
  */
 export function findTranscriptFiles(runDir: string, scenarioId: string, mode?: string): string[] {
   if (!existsSync(runDir)) return [];
@@ -231,20 +252,25 @@ export function findTranscriptFiles(runDir: string, scenarioId: string, mode?: s
       ? new RegExp(`^${escapedId}\\.${mode}(\\.rep\\d+)?\\.txt$`)
       : null;
   const files = readdirSync(runDir).filter((f) =>
-    matcher ? matcher.test(f) : f.startsWith(`${scenarioId}.`) && f.endsWith(".txt")
+    matcher ? matcher.test(f) : f.startsWith(`${scenarioId}.`) && f.endsWith(".txt") && !f.endsWith(".judge.txt")
   );
-  const repOf = (f: string): number | null => {
-    const m = REP_SUFFIX_RE.exec(f);
-    return m ? Number(m[1]) : null;
-  };
-  return files.sort((a, b) => {
-    const ra = repOf(a);
-    const rb = repOf(b);
-    if (ra === null && rb === null) return a.localeCompare(b);
-    if (ra === null) return -1;
-    if (rb === null) return 1;
-    return ra - rb;
-  });
+  return sortByRep(files);
+}
+
+/** Path of a scenario's raw judge-output artifact within a run dir (rep-suffixed for reps). */
+export function judgeRawPath(runDir: string, scenarioId: string, mode: string, rep?: number): string {
+  const base = rep === undefined ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
+  return join(runDir, `${base}.judge.txt`);
+}
+
+/** A scenario's raw judge-output files, sorted (plain first, then numeric rep). Mode-scoped when given. */
+export function findJudgeRawFiles(runDir: string, scenarioId: string, mode?: string): string[] {
+  if (!existsSync(runDir)) return [];
+  const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = mode === undefined
+    ? new RegExp(`^${esc}\\..*\\.judge\\.txt$`)
+    : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.judge\\.txt$`);
+  return sortByRep(readdirSync(runDir).filter((f) => re.test(f)));
 }
 
 /** A single representative transcript file for a scenario in a run dir. Null if none. */

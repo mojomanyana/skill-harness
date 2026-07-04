@@ -6,8 +6,8 @@ import {
   loadSpec, parseSpec,
   parseModelRef,
   runSkillModel, formatScorecard, type RunSummary,
-  buildJudgePrompt, judgeInWorkspace,
-  readResults, writeResults, transcriptPath, findTranscriptFiles, appendJournal, type ScenarioResult,
+  readResults, writeResults, findTranscriptFiles, appendJournal, regradeScenario, type ScenarioResult,
+  type HarnessAdapter,
 } from "@skill-check/core";
 import { getAdapter } from "@skill-check/adapters";
 import { serveReview } from "./serve.js";
@@ -174,18 +174,22 @@ async function cmdRun(args: Args): Promise<void> {
   console.log(`\nReview interactively:  skill-check review ${skills[0]?.name ?? "<skill>"} --skills ${root}`);
 }
 
-export async function cmdGrade(args: Args): Promise<void> {
+export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
   const runDir = args._[0];
   if (!runDir || !existsSync(runDir)) throw new Error("usage: skill-check grade <run-dir> [--judge prov:model]");
-  const judge = parseModelRef(flagStr(args, "judge", DEFAULT_JUDGE)!);
 
   // spec lives at <runDir>/../../../specification.yaml  (results/<tag>/<ts> -> tests/)
   const testsDir = dirname(dirname(dirname(runDir)));
   const specPath = join(testsDir, "specification.yaml");
   const spec = loadSpec(specPath);
-  const adapter = getAdapter("pi");
 
   const prev = existsSync(join(runDir, "results.yaml")) ? readResults(runDir) : null;
+  // Re-judge with the run's RECORDED judge + harness (parity with /rejudge) —
+  // an explicit --judge flag still wins; with no prior results, fall back to
+  // the CLI default.
+  const judgeFlag = flagStr(args, "judge");
+  const judge = judgeFlag ? parseModelRef(judgeFlag) : (prev?.judge ?? parseModelRef(DEFAULT_JUDGE));
+  const adapter = adapterOverride ?? getAdapter(prev?.harness ?? "pi");
   const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, { override: s.override, note: s.note }]));
   const mode = prev?.mode ?? "green";
 
@@ -200,20 +204,7 @@ export async function cmdGrade(args: Args): Promise<void> {
   const specById = new Map(spec.scenarios.map((s) => [s.id, s]));
   const targets = (prev?.scenarios ?? spec.scenarios).map((s) => s.id);
 
-  // Full rep-aware re-grade is deferred to a later milestone. A --reps N>1 run
-  // only ever writes rep-suffixed transcripts (`<id>.green.rep<k>.txt`), never
-  // the plain `<id>.green.txt` this command reads — so re-grading a reps run
-  // would otherwise misreport every scenario as having "no green transcripts".
-  // Detect that case and fail with an accurate message instead.
-  const isRepsOnly = (id: string): boolean =>
-    !existsSync(transcriptPath(runDir, id, "green")) && findTranscriptFiles(runDir, id, "green").length > 0;
-  if (targets.some(isRepsOnly)) {
-    throw new Error(
-      `${runDir} is a --reps run (rep-suffixed transcripts); re-grading reps runs isn't supported yet — resolve suspect scenarios with an override in \`skill-check review\`, or re-run the skill`
-    );
-  }
-
-  const missing = targets.filter((id) => !specById.has(id) || !existsSync(transcriptPath(runDir, id, "green")));
+  const missing = targets.filter((id) => !specById.has(id) || findTranscriptFiles(runDir, id, "green").length === 0);
   if (missing.length === targets.length) {
     throw new Error(`no green transcripts in ${runDir} — nothing to re-grade`);
   }
@@ -226,28 +217,14 @@ export async function cmdGrade(args: Args): Promise<void> {
   const scenarioResults: ScenarioResult[] = [];
   for (const id of targets) {
     const scenario = specById.get(id)!; // guaranteed present by the guard above
-    const transcript = readFileSync(transcriptPath(runDir, id, "green"), "utf8");
-    const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
-    const g = await judgeInWorkspace(adapter, judge, prompt, testsDir);
-    console.log(`  ${id} → ${g.verdict}: ${g.reason}`);
-    appendJournal(runDir, {
-      event: "judge-verdict", ts: nowIso(),
-      id, verdict: g.verdict, reason: g.reason, suspect: g.suspect,
+    const prevScenario = prev?.scenarios.find((s) => s.id === id);
+    const threshold = prevScenario?.pass_threshold ?? scenario.passThreshold ?? 0.5;
+    const rr = await regradeScenario({
+      runDir, spec, scenario, adapter, judge, specDir: testsDir, threshold, now: nowIso,
     });
-    // Mirror run.ts: a suspect verdict also emits a misfire-flag, so journal
-    // consumers that scan for misfires see re-graded ones too.
-    if (g.suspect) {
-      appendJournal(runDir, { event: "misfire-flag", ts: nowIso(), id, reason: g.reason });
-    }
+    console.log(`  ${id} → ${rr.judge_verdict}: ${rr.judge_reason}`);
     const carry = overrides.get(id);
-    scenarioResults.push({
-      id,
-      judge_verdict: g.verdict,
-      judge_reason: g.reason,
-      suspect: g.suspect,
-      override: carry?.override ?? null,
-      note: carry?.note ?? "",
-    });
+    scenarioResults.push({ ...rr, override: carry?.override ?? null, note: carry?.note ?? "" });
   }
 
   const ctx = mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
@@ -256,7 +233,7 @@ export async function cmdGrade(args: Args): Promise<void> {
     harness: prev?.harness ?? "pi",
     model: prev?.model ?? "unknown",
     judge: { provider: judge.provider, model: judge.model },
-    timestamp: nowIso(),
+    timestamp: prev?.timestamp ?? nowIso(),
     label: prev?.label ?? null,
     mode,
     scenarios: scenarioResults,
