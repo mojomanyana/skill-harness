@@ -82,14 +82,18 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   flat.forEach((outcome, i) => grouped[owners[i]].push(outcome));
 
   const scenarioResults: ScenarioResult[] = spec.scenarios.map((scenario, si) => {
+    const group = grouped[si];
+    if (repCounts[si] === 1) {
+      // N=1: preserve the judge's real verdict/reason (byte-identical to M3); no reps fields.
+      const o = group[0];
+      return { id: scenario.id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, override: null, note: "" };
+    }
     const threshold = scenario.passThreshold ?? opts.passThreshold ?? 0.5;
-    const agg = aggregateReps(grouped[si], threshold);
-    const base: ScenarioResult = {
-      id: scenario.id, judge_verdict: agg.verdict, judge_reason: agg.reason,
-      suspect: agg.suspect, override: null, note: "",
+    const agg = aggregateReps(group, threshold);
+    return {
+      id: scenario.id, judge_verdict: agg.verdict, judge_reason: agg.reason, suspect: agg.suspect,
+      reps: agg.reps, passes: agg.passes, flakiness: agg.flakiness, override: null, note: "",
     };
-    // Only attach reps fields for N>1, so an N=1 run's results.yaml is byte-identical to M3.
-    return repCounts[si] > 1 ? { ...base, reps: agg.reps, passes: agg.passes, flakiness: agg.flakiness } : base;
   });
 
   const ctx = mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;

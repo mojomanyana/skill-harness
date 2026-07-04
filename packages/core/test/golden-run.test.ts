@@ -234,4 +234,30 @@ describe("golden pipeline run", () => {
     expect(existsSync(join(runDir, `${s.id}.green.rep0.txt`))).toBe(true);
     expect(existsSync(join(runDir, `${s.id}.green.rep2.txt`))).toBe(true);
   });
+
+  it("N=1 suspect: preserves the judge's real verdict/reason (no reps placeholder) and blocks ship", async () => {
+    const skillDir = mkdtempSync(join(tmpdir(), "sc-susp1-"));
+    cpSync(FIXTURE, skillDir, { recursive: true });
+    const specPath = join(skillDir, "tests", "specification.yaml");
+    const spec = parseSpec(readFileSync(specPath, "utf8"), specPath);
+    const misfireAdapter: HarnessAdapter = {
+      name: "pi",
+      available: async () => true,
+      run: async (req: RunReq) => req.turns.map((t) => `USER: ${t}\nASSISTANT: hi`).join("\n"),
+      // items say a FAIL exists but overall verdict is PASS → detectMisfire → suspect, real verdict PASS
+      judge: async () => "1. PASS — ok\n2. FAIL — missing\nVERDICT: PASS\nREASON: looks ok",
+    };
+    const { results } = await runSkillModel({
+      spec, skillDir, specPath, adapter: misfireAdapter,
+      model: { provider: "fireworks", model: "fake-model" }, modelToken: "fireworks:fake-model",
+      judge: { provider: "claude-code", model: "opus" }, mode: "green",
+      timestamp: "2026-07-04T00-00-00-060Z", now: () => "2026-07-04T00:00:00.000Z",
+    });
+    const s = results.scenarios[0];
+    expect(s.suspect).toBe(true);
+    expect(s.judge_verdict).toBe("PASS");          // real verdict, NOT the "FAIL" placeholder
+    expect(s.judge_reason).toBe("looks ok");        // real reason, NOT "1/1 reps misfired — re-judge"
+    expect(s.reps).toBeUndefined();                 // N=1 omits reps fields
+    expect(results.effective_grade.ship).toBe(false); // suspect blocks ship
+  });
 });
