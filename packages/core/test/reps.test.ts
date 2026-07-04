@@ -4,6 +4,7 @@ import { aggregateReps, type RepOutcome } from "../src/reps.js";
 const pass = (): RepOutcome => ({ verdict: "PASS", reason: "ok", suspect: false });
 const fail = (): RepOutcome => ({ verdict: "FAIL", reason: "nope", suspect: false });
 const susp = (): RepOutcome => ({ verdict: "FAIL", reason: "misfire", suspect: true });
+const err = (): RepOutcome => ({ verdict: "ERROR", reason: "judge unparseable", suspect: false });
 
 describe("aggregateReps", () => {
   test("single clean PASS → PASS, no reps inflation of flakiness", () => {
@@ -62,5 +63,18 @@ describe("aggregateReps", () => {
 
   test("all suspect → suspect", () => {
     expect(aggregateReps([susp(), susp()], 0.5)).toMatchObject({ suspect: true, verdict: "FAIL", clean: 0 });
+  });
+
+  test("all clean reps ERROR → aggregate verdict ERROR, not FAIL", () => {
+    const a = aggregateReps([err(), err(), err()], 0.5);
+    expect(a.verdict).toBe("ERROR");
+    expect(a.suspect).toBe(false);
+    expect(a.reason).toMatch(/errored/);
+  });
+
+  test("a mix of ERROR and PASS is not all-ERROR (ERROR counts as non-pass)", () => {
+    const a = aggregateReps([err(), pass(), pass()], 0.5); // 1/3 pass among clean
+    expect(a.verdict).toBe("FAIL"); // passRate 1/3 < 0.5
+    expect(a.passes).toBe(2);
   });
 });
