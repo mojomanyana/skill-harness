@@ -18,6 +18,22 @@ export interface RegradeOptions {
   now?: () => string;
 }
 
+/** Judge one saved transcript: write the judge-raw artifact, emit the per-rep journal events, return the outcome. */
+export async function judgeOneRep(opts: {
+  runDir: string; spec: Spec; scenario: Scenario; transcript: string;
+  adapter: HarnessAdapter; judge: ModelRef; specDir: string;
+  mode: string; rep: number | undefined; now: () => string;
+}): Promise<RepOutcome> {
+  const { runDir, spec, scenario, transcript, adapter, judge, specDir, mode, rep, now } = opts;
+  const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
+  const g = await judgeInWorkspace(adapter, judge, prompt, specDir);
+  writeFileSync(judgeRawPath(runDir, scenario.id, mode, rep), g.raw, "utf8");
+  const repField = rep === undefined ? {} : { rep };
+  appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict: g.verdict, reason: g.reason, suspect: g.suspect, ...repField });
+  if (g.suspect) appendJournal(runDir, { event: "misfire-flag", ts: now(), id: scenario.id, reason: g.reason, ...repField });
+  return { verdict: g.verdict, reason: g.reason, suspect: g.suspect };
+}
+
 /**
  * Re-judge a scenario's saved GREEN transcript(s) with `judge` — no harness
  * re-run. Rewrites the judge-raw artifact per rep, emits per-rep judge-verdict
@@ -27,21 +43,16 @@ export interface RegradeOptions {
 export async function regradeScenario(opts: RegradeOptions): Promise<ScenarioResult> {
   const now = opts.now ?? (() => new Date().toISOString());
   const files = findTranscriptFiles(opts.runDir, opts.scenario.id, "green");
-  if (files.length === 0) {
-    throw new Error(`no green transcripts for ${opts.scenario.id} in ${opts.runDir}`);
-  }
+  if (files.length === 0) throw new Error(`no green transcripts for ${opts.scenario.id} in ${opts.runDir}`);
   const repCount = files.length;
   const outcomes: RepOutcome[] = [];
-  for (let i = 0; i < files.length; i++) {
-    const rep = repIndexOf(files[i]) ?? undefined; // derived from the filename — not the loop index, which can skip a rep
-    const transcript = readFileSync(join(opts.runDir, files[i]), "utf8");
-    const prompt = buildJudgePrompt({ skill: opts.spec.skill, persona: opts.spec.judge_persona, scenario: opts.scenario, transcript });
-    const g = await judgeInWorkspace(opts.adapter, opts.judge, prompt, opts.specDir);
-    writeFileSync(judgeRawPath(opts.runDir, opts.scenario.id, "green", rep), g.raw, "utf8");
-    const repField = rep === undefined ? {} : { rep };
-    appendJournal(opts.runDir, { event: "judge-verdict", ts: now(), id: opts.scenario.id, verdict: g.verdict, reason: g.reason, suspect: g.suspect, ...repField });
-    if (g.suspect) appendJournal(opts.runDir, { event: "misfire-flag", ts: now(), id: opts.scenario.id, reason: g.reason, ...repField });
-    outcomes.push({ verdict: g.verdict, reason: g.reason, suspect: g.suspect });
+  for (const file of files) {
+    const rep = repIndexOf(file) ?? undefined;
+    const transcript = readFileSync(join(opts.runDir, file), "utf8");
+    outcomes.push(await judgeOneRep({
+      runDir: opts.runDir, spec: opts.spec, scenario: opts.scenario, transcript,
+      adapter: opts.adapter, judge: opts.judge, specDir: opts.specDir, mode: "green", rep, now,
+    }));
   }
   return outcomesToResult(opts.scenario.id, outcomes, repCount, opts.threshold);
 }
