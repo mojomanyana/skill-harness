@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { Spec, Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
 import { buildJudgePrompt, judgeInWorkspace } from "./grade.js";
-import { findTranscriptFiles, judgeRawPath, type ScenarioResult } from "./results.js";
+import { findTranscriptFiles, judgeRawPath, repIndexOf, type ScenarioResult } from "./results.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
 import { appendJournal } from "./journal.js";
 
@@ -33,7 +33,7 @@ export async function regradeScenario(opts: RegradeOptions): Promise<ScenarioRes
   const repCount = files.length;
   const outcomes: RepOutcome[] = [];
   for (let i = 0; i < files.length; i++) {
-    const rep = repCount > 1 ? i : undefined; // findTranscriptFiles(green) is sorted rep0..repN for reps runs
+    const rep = repIndexOf(files[i]) ?? undefined; // derived from the filename — not the loop index, which can skip a rep
     const transcript = readFileSync(join(opts.runDir, files[i]), "utf8");
     const prompt = buildJudgePrompt({ skill: opts.spec.skill, persona: opts.spec.judge_persona, scenario: opts.scenario, transcript });
     const g = await judgeInWorkspace(opts.adapter, opts.judge, prompt, opts.specDir);

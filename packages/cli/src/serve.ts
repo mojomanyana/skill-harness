@@ -131,6 +131,7 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
           return;
         }
         const prev = results.scenarios.find((s) => s.id === body.scenarioId);
+        if (!prev) { res.writeHead(404).end("scenario not in this run"); return; }
         const threshold = prev?.pass_threshold ?? scenario.passThreshold ?? 0.5;
         try {
           const rr = await regradeScenario({

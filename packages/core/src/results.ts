@@ -214,15 +214,17 @@ export function ensureResultsGitignore(resultsRoot: string): void {
 // Matches both transcript (`.rep<k>.txt`) and judge-raw (`.rep<k>.judge.txt`) rep suffixes.
 const REP_SUFFIX_RE = /\.rep(\d+)\.(?:judge\.)?txt$/;
 
+/** The rep index embedded in a transcript/judge-raw filename (`.rep<k>.`), or null for a plain (non-rep) file. */
+export function repIndexOf(filename: string): number | null {
+  const m = REP_SUFFIX_RE.exec(filename);
+  return m ? Number(m[1]) : null;
+}
+
 /** Sort transcript-like filenames: plain (no rep) first, then by numeric rep index. */
 function sortByRep(files: string[]): string[] {
-  const repOf = (f: string): number | null => {
-    const m = REP_SUFFIX_RE.exec(f);
-    return m ? Number(m[1]) : null;
-  };
   return files.sort((a, b) => {
-    const ra = repOf(a);
-    const rb = repOf(b);
+    const ra = repIndexOf(a);
+    const rb = repIndexOf(b);
     if (ra === null && rb === null) return a.localeCompare(b);
     if (ra === null) return -1;
     if (rb === null) return 1;
@@ -250,7 +252,7 @@ export function findTranscriptFiles(runDir: string, scenarioId: string, mode?: s
       ? new RegExp(`^${escapedId}\\.${mode}(\\.rep\\d+)?\\.txt$`)
       : null;
   const files = readdirSync(runDir).filter((f) =>
-    matcher ? matcher.test(f) : f.startsWith(`${scenarioId}.`) && f.endsWith(".txt") && !f.includes(".judge.")
+    matcher ? matcher.test(f) : f.startsWith(`${scenarioId}.`) && f.endsWith(".txt") && !f.endsWith(".judge.txt")
   );
   return sortByRep(files);
 }

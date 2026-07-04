@@ -57,6 +57,23 @@ describe("regradeScenario", () => {
     expect(existsSync(join(runDir, "A1.green.rep2.judge.txt"))).toBe(true);
   });
 
+  it("derives each rep from the filename, not the loop index, for non-contiguous reps", async () => {
+    const runDir = tmp();
+    // rep1 is missing (e.g. a killed run) — file INDEX 1 is rep2's file.
+    writeFileSync(join(runDir, "A1.green.rep0.txt"), "t0", "utf8");
+    writeFileSync(join(runDir, "A1.green.rep2.txt"), "t2", "utf8");
+    const spec = scenarioOf(SPEC);
+    await regradeScenario({
+      runDir, spec, scenario: spec.scenarios[0],
+      adapter: judgeAdapter("1. PASS — ok\nVERDICT: PASS\nREASON: fine"),
+      judge: { provider: "claude-code", model: "opus" }, specDir: runDir, threshold: 0.5,
+      now: () => "t",
+    });
+    expect(existsSync(join(runDir, "A1.green.rep0.judge.txt"))).toBe(true);
+    expect(existsSync(join(runDir, "A1.green.rep2.judge.txt"))).toBe(true);
+    expect(existsSync(join(runDir, "A1.green.rep1.judge.txt"))).toBe(false);
+  });
+
   it("throws when there are no green transcripts", async () => {
     const runDir = tmp();
     const spec = scenarioOf(SPEC);

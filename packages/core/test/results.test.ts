@@ -245,6 +245,18 @@ describe("judge-raw artifacts", () => {
   });
 });
 
+describe("findTranscriptFiles no-mode exclusion is suffix-anchored", () => {
+  test("a scenario id containing '.judge.' keeps its transcript but drops its judge-raw", () => {
+    const root = tmp();
+    const runDir = join(root, "run");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "pre.judge.check.green.txt"), "transcript", "utf8");
+    writeFileSync(join(runDir, "pre.judge.check.green.judge.txt"), "raw judge output", "utf8");
+    expect(findTranscriptFiles(runDir, "pre.judge.check")).toEqual(["pre.judge.check.green.txt"]);
+    expect(findJudgeRawFiles(runDir, "pre.judge.check")).toEqual(["pre.judge.check.green.judge.txt"]);
+  });
+});
+
 describe("ensureResultsGitignore migration", () => {
   test("rewrites a stale body but keeps preservation lines", () => {
     const root = tmp();

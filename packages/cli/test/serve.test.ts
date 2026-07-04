@@ -218,3 +218,76 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
     expect(readFileSync(join(redRunDir, "results.yaml"), "utf8")).toBeTruthy(); // unchanged run left intact
   });
 });
+
+// The spec may define a scenario that this particular run never exercised
+// (e.g. added after the run, or scoped out). /rejudge must 404 rather than
+// silently no-op after spending a real judge call.
+describe("review server /rejudge 404s a scenario not in this run's results", () => {
+  const SPEC_WITH_B1 = `
+skill: golden
+judge_persona: a friendly greeter judge.
+ship_bar: { total: 1, min_pass: 1 }
+critical: [A1]
+scenarios:
+  - id: A1
+    title: says hello
+    turns: ["Say hello."]
+    checklist: ["greets the user"]
+  - id: B1
+    title: says goodbye
+    turns: ["Say goodbye."]
+    checklist: ["says goodbye"]
+`;
+
+  let skillDir3: string;
+  let greenRunDir3: string;
+  let base3: string;
+  let close3: () => void;
+  let judgeCalls3 = 0;
+
+  const fakeAdapter3: HarnessAdapter = {
+    name: "pi",
+    available: async () => true,
+    run: async () => "",
+    judge: async () => {
+      judgeCalls3++;
+      return "1. PASS — ok\nVERDICT: PASS\nREASON: fine";
+    },
+  };
+
+  beforeAll(async () => {
+    skillDir3 = mkdtempSync(join(tmpdir(), "sc-serve-rejudge-missing-"));
+    mkdirSync(join(skillDir3, "tests"), { recursive: true });
+    writeFileSync(join(skillDir3, "tests", "specification.yaml"), SPEC_WITH_B1, "utf8");
+
+    // results.yaml only has A1 — B1 is in the spec but was never run.
+    greenRunDir3 = join(skillDir3, "tests", "results", "pi-fake", "2026-07-03T00-00-00Z");
+    mkdirSync(greenRunDir3, { recursive: true });
+    writeFileSync(join(greenRunDir3, "A1.green.txt"), "USER: Say hello.\nASSISTANT: Hi there!", "utf8");
+    writeResults(greenRunDir3, {
+      skill: "golden", harness: "pi", model: "fireworks:fake",
+      judge: { provider: "claude-code", model: "opus" },
+      timestamp: "2026-07-03T00:00:00Z", label: null, mode: "green",
+      scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "ok", suspect: false, override: null, note: "" }],
+    }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
+
+    const s = await serveReview({ skillDir: skillDir3, skillName: "golden", port: 0, open: false, adapter: fakeAdapter3 });
+    base3 = `http://127.0.0.1:${s.port}`;
+    close3 = s.close;
+  });
+
+  afterAll(() => {
+    close3?.();
+    rmSync(skillDir3, { recursive: true, force: true });
+  });
+
+  test("POST /rejudge 404s scenarioId not in this run's results, without calling the judge", async () => {
+    const before = judgeCalls3;
+    const r = await fetch(`${base3}/rejudge`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ col: 0, scenarioId: "B1" }),
+    });
+    expect(r.status).toBe(404);
+    expect(judgeCalls3).toBe(before); // no judge call spent on a scenario not in this run
+  });
+});
