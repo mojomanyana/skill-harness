@@ -188,6 +188,18 @@ describe("findTranscriptFiles", () => {
     expect(findTranscriptFile(runDir, "C1")).toBe(findTranscriptFiles(runDir, "C1")[0]);
     expect(findTranscriptFile(runDir, "ZZ")).toBeNull();
   });
+
+  test("optional mode param scopes matches to that mode only; omitted keeps all modes", () => {
+    const root = tmp();
+    const runDir = join(root, "run");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "A1.green.rep0.txt"), "0", "utf8");
+    writeFileSync(join(runDir, "A1.green.rep1.txt"), "1", "utf8");
+    writeFileSync(join(runDir, "A1.red.txt"), "red", "utf8");
+    expect(findTranscriptFiles(runDir, "A1", "green")).toEqual(["A1.green.rep0.txt", "A1.green.rep1.txt"]);
+    // no mode: current behavior — plain (non-rep-suffixed) files sort first, then reps in numeric order.
+    expect(findTranscriptFiles(runDir, "A1")).toEqual(["A1.red.txt", "A1.green.rep0.txt", "A1.green.rep1.txt"]);
+  });
 });
 
 describe("ensureResultsGitignore migration", () => {

@@ -217,10 +217,22 @@ const REP_SUFFIX_RE = /\.rep(\d+)\.txt$/;
  * a plain `<id>.<mode>.txt` first (if present), then rep-suffixed files
  * (`<id>.<mode>.rep<k>.txt`) in numeric rep order. Empty if the run dir or
  * scenario has no transcripts.
+ *
+ * With `mode` given, only that mode's transcripts match (`<id>.<mode>.txt` /
+ * `<id>.<mode>.rep<k>.txt`) — e.g. to detect a green-only condition without
+ * false positives from a red/force transcript of the same scenario. Omitted,
+ * behavior is unchanged: any `<id>.*.txt` regardless of mode.
  */
-export function findTranscriptFiles(runDir: string, scenarioId: string): string[] {
+export function findTranscriptFiles(runDir: string, scenarioId: string, mode?: string): string[] {
   if (!existsSync(runDir)) return [];
-  const files = readdirSync(runDir).filter((f) => f.startsWith(`${scenarioId}.`) && f.endsWith(".txt"));
+  const escapedId = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matcher =
+    mode !== undefined
+      ? new RegExp(`^${escapedId}\\.${mode}(\\.rep\\d+)?\\.txt$`)
+      : null;
+  const files = readdirSync(runDir).filter((f) =>
+    matcher ? matcher.test(f) : f.startsWith(`${scenarioId}.`) && f.endsWith(".txt")
+  );
   const repOf = (f: string): number | null => {
     const m = REP_SUFFIX_RE.exec(f);
     return m ? Number(m[1]) : null;

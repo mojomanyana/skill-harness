@@ -138,6 +138,36 @@ describe("cmdGrade on a --reps run", () => {
   });
 });
 
+describe("cmdGrade on a plain RED-mode run (no green transcripts at all)", () => {
+  test("rejects with /no green transcripts/ and NOT /reps run/", async () => {
+    const skillDir = tmp();
+    mkdirSync(join(skillDir, "tests"), { recursive: true });
+    writeFileSync(join(skillDir, "tests", "specification.yaml"), SPEC, "utf8");
+    const runDir = join(skillDir, "tests", "results", "pi-fake", "2026-07-03T00-00-00Z");
+    mkdirSync(runDir, { recursive: true });
+    // A plain single-rep RED run: only A1.red.txt exists — no green, no reps at all.
+    writeFileSync(join(runDir, "A1.red.txt"), "USER: Say hello.\nASSISTANT: Hi!", "utf8");
+    writeResults(runDir, {
+      skill: "golden", harness: "pi", model: "fireworks:fake",
+      judge: { provider: "claude-code", model: "opus" },
+      timestamp: "2026-07-03T00:00:00Z", label: null, mode: "red",
+      scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "greeted", suspect: false, override: null, note: "" }],
+    }, null);
+    const before = readFileSync(join(runDir, "results.yaml"), "utf8");
+
+    let err: Error | undefined;
+    try {
+      await cmdGrade(args(runDir));
+    } catch (e) {
+      err = e as Error;
+    }
+    expect(err?.message).toMatch(/no green transcripts/);
+    expect(err?.message).not.toMatch(/reps run/);
+
+    expect(readFileSync(join(runDir, "results.yaml"), "utf8")).toBe(before);
+  });
+});
+
 describe("cmdGrade refuses to drop a recorded scenario the spec no longer has", () => {
   test("spec drift (B1 removed) → rejects, does not silently shrink results.yaml", async () => {
     const { runDir, skillDir } = threeScenarioRun();

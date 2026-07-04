@@ -206,7 +206,7 @@ export async function cmdGrade(args: Args): Promise<void> {
   // would otherwise misreport every scenario as having "no green transcripts".
   // Detect that case and fail with an accurate message instead.
   const isRepsOnly = (id: string): boolean =>
-    !existsSync(transcriptPath(runDir, id, "green")) && findTranscriptFiles(runDir, id).length > 0;
+    !existsSync(transcriptPath(runDir, id, "green")) && findTranscriptFiles(runDir, id, "green").length > 0;
   if (targets.some(isRepsOnly)) {
     throw new Error(
       `${runDir} is a --reps run (rep-suffixed transcripts); re-grading reps runs isn't supported yet — resolve suspect scenarios with an override in \`skill-check review\`, or re-run the skill`
