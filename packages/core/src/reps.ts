@@ -40,7 +40,7 @@ export function aggregateReps(outcomes: RepOutcome[], threshold: number): RepAgg
     return { verdict: "ERROR", reason: `${errored}/${reps} reps errored`, passes: 0, reps, clean: clean.length, flakiness: 0, suspect: false };
   }
 
-  const passRate = Math.max(0, passes - errored) / clean.length;
+  const passRate = passes / clean.length;
   const verdict: Verdict = passRate >= threshold ? "PASS" : "FAIL";
   const flakiness = 1 - Math.abs(2 * passRate - 1);
   const reason = reps === 1 ? outcomes[0].reason : `${passes}/${clean.length} reps passed (flaky ${flakiness.toFixed(2)})`;

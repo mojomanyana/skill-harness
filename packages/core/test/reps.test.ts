@@ -72,9 +72,16 @@ describe("aggregateReps", () => {
     expect(a.reason).toMatch(/errored/);
   });
 
-  test("a mix of ERROR and PASS is not all-ERROR (ERROR counts as non-pass)", () => {
-    const a = aggregateReps([err(), pass(), pass()], 0.5); // 1/3 pass among clean
-    expect(a.verdict).toBe("FAIL"); // passRate 1/3 < 0.5
+  test("a mix of ERROR and PASS: ERROR counts as a non-pass in the rate (unchanged from before)", () => {
+    const a = aggregateReps([err(), pass(), pass()], 0.5); // clean=3, passes=2 → 2/3 = 0.67
+    expect(a.verdict).toBe("PASS"); // 0.67 >= 0.5
     expect(a.passes).toBe(2);
+    expect(a.reason).toMatch(/2\/3 reps passed/); // reason agrees with the verdict (no contradiction)
+  });
+
+  test("ERROR reps drag the pass-rate below threshold", () => {
+    const a = aggregateReps([err(), err(), pass()], 0.5); // clean=3, passes=1 → 1/3 = 0.33
+    expect(a.verdict).toBe("FAIL");
+    expect(a.passes).toBe(1);
   });
 });
