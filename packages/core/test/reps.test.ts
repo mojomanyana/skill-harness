@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { aggregateReps, type RepOutcome } from "../src/reps.js";
+import { aggregateReps, outcomesToResult, type RepOutcome } from "../src/reps.js";
 
 const pass = (): RepOutcome => ({ verdict: "PASS", reason: "ok", suspect: false });
 const fail = (): RepOutcome => ({ verdict: "FAIL", reason: "nope", suspect: false });
@@ -83,5 +83,22 @@ describe("aggregateReps", () => {
     const a = aggregateReps([err(), err(), pass()], 0.5); // clean=3, passes=1 → 1/3 = 0.33
     expect(a.verdict).toBe("FAIL");
     expect(a.passes).toBe(1);
+  });
+});
+
+describe("outcomesToResult", () => {
+  test("single rep → no reps fields (byte-identical to a plain run)", () => {
+    const r = outcomesToResult("A1", [pass()], 1, 0.5);
+    expect(r).toEqual({ id: "A1", judge_verdict: "PASS", judge_reason: "ok", suspect: false, override: null, note: "" });
+  });
+
+  test("multi rep → reps/passes/clean/flakiness + persisted pass_threshold", () => {
+    const r = outcomesToResult("A1", [pass(), pass(), fail()], 3, 0.6);
+    expect(r.reps).toBe(3);
+    expect(r.passes).toBe(2);
+    expect(r.clean).toBe(3);
+    expect(r.pass_threshold).toBe(0.6);
+    expect(r.judge_verdict).toBe("PASS"); // 2/3 = 0.67 >= 0.6
+    expect(r.override).toBeNull();
   });
 });

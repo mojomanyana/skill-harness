@@ -1,4 +1,5 @@
 import type { Verdict } from "./score.js";
+import type { ScenarioResult } from "./results.js";
 
 /** One rep's outcome (subject run + judge). */
 export interface RepOutcome {
@@ -45,4 +46,24 @@ export function aggregateReps(outcomes: RepOutcome[], threshold: number): RepAgg
   const flakiness = 1 - Math.abs(2 * passRate - 1);
   const reason = reps === 1 ? outcomes[0].reason : `${passes}/${clean.length} reps passed (flaky ${flakiness.toFixed(2)})`;
   return { verdict, reason, passes, reps, clean: clean.length, flakiness, suspect: false };
+}
+
+/**
+ * Collapse a scenario's rep outcomes into a ScenarioResult. N=1 preserves the
+ * single judge's verdict/reason with no reps fields (byte-identical to a plain
+ * run); N>1 aggregates and persists the effective threshold (so a later
+ * re-judge reproduces the same pass-rate). override/note are left empty for the
+ * caller to merge.
+ */
+export function outcomesToResult(id: string, outcomes: RepOutcome[], repCount: number, threshold: number): ScenarioResult {
+  if (repCount === 1) {
+    const o = outcomes[0];
+    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, override: null, note: "" };
+  }
+  const agg = aggregateReps(outcomes, threshold);
+  return {
+    id, judge_verdict: agg.verdict, judge_reason: agg.reason, suspect: agg.suspect,
+    reps: agg.reps, passes: agg.passes, clean: agg.clean, flakiness: agg.flakiness,
+    pass_threshold: threshold, override: null, note: "",
+  };
 }

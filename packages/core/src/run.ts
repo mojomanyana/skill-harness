@@ -16,7 +16,7 @@ import { appendJournal } from "./journal.js";
 import { runSeeded } from "./seeded.js";
 import { createWorkspace, type Workspace } from "./workspace.js";
 import { runPool } from "./scheduler.js";
-import { aggregateReps, type RepOutcome } from "./reps.js";
+import { outcomesToResult, type RepOutcome } from "./reps.js";
 
 export interface RunOptions {
   spec: Spec;
@@ -83,18 +83,8 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   flat.forEach((outcome, i) => grouped[owners[i]].push(outcome));
 
   const scenarioResults: ScenarioResult[] = spec.scenarios.map((scenario, si) => {
-    const group = grouped[si];
-    if (repCounts[si] === 1) {
-      // N=1: preserve the judge's real verdict/reason (byte-identical to M3); no reps fields.
-      const o = group[0];
-      return { id: scenario.id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, override: null, note: "" };
-    }
     const threshold = scenario.passThreshold ?? opts.passThreshold ?? 0.5;
-    const agg = aggregateReps(group, threshold);
-    return {
-      id: scenario.id, judge_verdict: agg.verdict, judge_reason: agg.reason, suspect: agg.suspect,
-      reps: agg.reps, passes: agg.passes, clean: agg.clean, flakiness: agg.flakiness, override: null, note: "",
-    };
+    return outcomesToResult(scenario.id, grouped[si], repCounts[si], threshold);
   });
 
   const ctx = mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;

@@ -17,6 +17,7 @@ export interface ScenarioResult {
   passes?: number; // PASSes among clean reps (reps runs only)
   clean?: number; // number of clean (non-misfired) reps — the real denominator for `passes` (reps runs only)
   flakiness?: number; // 0 = unanimous, 1 = even split (reps runs only)
+  pass_threshold?: number; // effective threshold used (reps runs only) — lets re-judge reproduce the aggregate
 }
 
 export interface GradeSummary {
