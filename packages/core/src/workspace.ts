@@ -3,6 +3,8 @@ import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 
+const GIT_TIMEOUT_MS = 30_000;
+
 /** How a scenario's working directory is prepared. */
 export type WorkspaceKind = "none" | "empty-git" | { fixture: string };
 
@@ -13,12 +15,12 @@ export interface Workspace {
 
 /** git init + a baseline commit, so a later `git diff --cached` shows only edits. */
 function gitBaseline(cwd: string): void {
-  execFileSync("git", ["init", "-q"], { cwd });
-  execFileSync("git", ["add", "-A"], { cwd });
+  execFileSync("git", ["init", "-q"], { cwd, timeout: GIT_TIMEOUT_MS });
+  execFileSync("git", ["add", "-A"], { cwd, timeout: GIT_TIMEOUT_MS });
   execFileSync(
     "git",
     ["-c", "user.email=sc@local", "-c", "user.name=skill-check", "commit", "-q", "--allow-empty", "-m", "baseline"],
-    { cwd }
+    { cwd, timeout: GIT_TIMEOUT_MS }
   );
 }
 

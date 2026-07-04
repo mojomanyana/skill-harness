@@ -6,9 +6,8 @@ import {
   loadSpec, parseSpec,
   parseModelRef,
   runSkillModel, formatScorecard, type RunSummary,
-  buildJudgePrompt, gradeTranscript,
+  buildJudgePrompt, judgeInWorkspace,
   readResults, writeResults, transcriptPath, appendJournal, type ScenarioResult,
-  createWorkspace,
 } from "@skill-check/core";
 import { getAdapter } from "@skill-check/adapters";
 import { serveReview } from "./serve.js";
@@ -193,13 +192,7 @@ export async function cmdGrade(args: Args): Promise<void> {
     const scenario = specById.get(id)!; // guaranteed present by the guard above
     const transcript = readFileSync(transcriptPath(runDir, id, "green"), "utf8");
     const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
-    const judgeWs = createWorkspace("none", { specDir: testsDir });
-    let g;
-    try {
-      g = await gradeTranscript(adapter, judge, prompt, judgeWs.cwd);
-    } finally {
-      judgeWs.cleanup();
-    }
+    const g = await judgeInWorkspace(adapter, judge, prompt, testsDir);
     console.log(`  ${id} → ${g.verdict}: ${g.reason}`);
     appendJournal(runDir, {
       event: "judge-verdict", ts: nowIso(),

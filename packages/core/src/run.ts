@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { Spec, Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef, RunMode } from "./adapters/types.js";
-import { buildJudgePrompt, gradeTranscript, judgeResemblesSubject } from "./grade.js";
+import { buildJudgePrompt, judgeInWorkspace, judgeResemblesSubject } from "./grade.js";
 import {
   runDirFor,
   transcriptPath,
@@ -97,7 +97,7 @@ async function runScenario(scenario: Scenario, ctx: RunOptions & ScenarioCtx): P
   appendJournal(runDir, { event: "scenario-started", ts: now(), id: scenario.id, title: scenario.title });
 
   let ws: Workspace | null = null;
-  let transcript: string;
+  let transcript = "";
   let gatePrefix: string | null = null;
   try {
     try {
@@ -121,7 +121,7 @@ async function runScenario(scenario: Scenario, ctx: RunOptions & ScenarioCtx): P
       }
     }
 
-    writeFileSync(transcriptPath(runDir, scenario.id, mode), transcript!, "utf8");
+    writeFileSync(transcriptPath(runDir, scenario.id, mode), transcript, "utf8");
     if (scenario.mode === "seeded") {
       appendJournal(runDir, { event: "gate-result", ts: now(), id: scenario.id, ok: !gatePrefix, detail: gatePrefix ?? "" });
     }
@@ -133,16 +133,11 @@ async function runScenario(scenario: Scenario, ctx: RunOptions & ScenarioCtx): P
       judge_verdict = "FAIL";
       judge_reason = gatePrefix;
     } else {
-      const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript: transcript! });
-      const judgeWs = createWorkspace("none", { specDir: dirname(ctx.specPath) });
-      try {
-        const g = await gradeTranscript(ctx.adapter, judge, prompt, judgeWs.cwd);
-        judge_verdict = g.verdict;
-        judge_reason = g.reason;
-        suspect = g.suspect;
-      } finally {
-        judgeWs.cleanup();
-      }
+      const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
+      const g = await judgeInWorkspace(ctx.adapter, judge, prompt, dirname(ctx.specPath));
+      judge_verdict = g.verdict;
+      judge_reason = g.reason;
+      suspect = g.suspect;
     }
 
     log(`  → ${scenario.id} ${judge_verdict}${judge_reason ? `: ${judge_reason}` : ""}${suspect ? "  ⚠ suspect misfire" : ""}`);

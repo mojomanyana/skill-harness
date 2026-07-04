@@ -1,5 +1,6 @@
+import { existsSync } from "node:fs";
 import { describe, test, expect } from "vitest";
-import { buildJudgePrompt, parseVerdict, judgeResemblesSubject, gradeTranscript } from "../src/grade.js";
+import { buildJudgePrompt, parseVerdict, judgeResemblesSubject, gradeTranscript, judgeInWorkspace } from "../src/grade.js";
 import type { Scenario } from "../src/spec.js";
 import type { HarnessAdapter } from "../src/adapters/types.js";
 
@@ -118,5 +119,25 @@ describe("gradeTranscript misfire tripwire → structured suspect flag", () => {
       judgeRef, "prompt", "/tmp"
     );
     expect(r.suspect).toBe(false);
+  });
+});
+
+describe("judgeInWorkspace", () => {
+  test("judges in a fresh throwaway dir and cleans it up afterward", async () => {
+    let seenCwd = "";
+    const adapter: HarnessAdapter = {
+      name: "pi",
+      available: async () => true,
+      run: async () => "",
+      judge: async ({ cwd }) => {
+        seenCwd = cwd;
+        return "VERDICT: PASS\nREASON: fine";
+      },
+    };
+    const r = await judgeInWorkspace(adapter, judgeRef, "prompt", "/tmp");
+    expect(r.verdict).toBe("PASS");
+    expect(seenCwd).not.toBe("/tmp");
+    expect(seenCwd.length).toBeGreaterThan(0);
+    expect(existsSync(seenCwd)).toBe(false); // cleaned up after grading
   });
 });

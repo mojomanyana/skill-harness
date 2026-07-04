@@ -1,6 +1,7 @@
 import type { Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
 import type { Verdict } from "./score.js";
+import { createWorkspace } from "./workspace.js";
 
 export interface JudgePromptInput {
   skill: string;
@@ -84,4 +85,23 @@ export async function gradeTranscript(
   // grades contain no failure. Flag it for human review — do not auto-pass.
   const suspect = parsed.verdict === "FAIL" && !/fail/i.test(raw.replace(VERDICT_RE, ""));
   return { ...parsed, raw, suspect };
+}
+
+/**
+ * Grade a transcript in a fresh, isolated, throwaway workspace — never the
+ * subject's scenario dir — so the judge can't ingest repo context the subject
+ * left behind (matters for CLI judges that read cwd, e.g. claude-code).
+ */
+export async function judgeInWorkspace(
+  adapter: HarnessAdapter,
+  judge: ModelRef,
+  prompt: string,
+  specDir: string
+): Promise<GradeResult> {
+  const ws = createWorkspace("none", { specDir });
+  try {
+    return await gradeTranscript(adapter, judge, prompt, ws.cwd);
+  } finally {
+    ws.cleanup();
+  }
 }
