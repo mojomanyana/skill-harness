@@ -15,7 +15,7 @@ import { serveReview } from "./serve.js";
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 const DEFAULT_JUDGE = "anthropic:claude-opus-4-8";
 
-interface Args {
+export interface Args {
   _: string[];
   flags: Record<string, string | true>;
   multi: Record<string, string[]>; // repeatable flags
@@ -51,7 +51,7 @@ function parseArgs(argv: string[]): Args {
   return { _, flags, multi };
 }
 
-function flagStr(args: Args, key: string, fallback?: string): string | undefined {
+export function flagStr(args: Args, key: string, fallback?: string): string | undefined {
   const v = args.flags[key];
   if (typeof v === "string") return v;
   if (v === true) return "";
@@ -75,6 +75,25 @@ function resolveModels(args: Args): string[] {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+/** Parse the run's reps + pass-threshold flags. Throws on an invalid provided value. */
+export function parseRunTuning(args: Args): { reps: number; passThreshold: number } {
+  let reps = 1;
+  const repsRaw = flagStr(args, "reps");
+  if (repsRaw !== undefined && repsRaw !== "") {
+    const n = Number(repsRaw);
+    if (!Number.isInteger(n) || n < 1) throw new Error(`--reps must be a positive integer (got \`${repsRaw}\`)`);
+    reps = n;
+  }
+  let passThreshold = 0.5;
+  const ptRaw = flagStr(args, "pass-threshold");
+  if (ptRaw !== undefined && ptRaw !== "") {
+    const t = Number(ptRaw);
+    if (!Number.isFinite(t) || t < 0 || t > 1) throw new Error(`--pass-threshold must be a number in [0, 1] (got \`${ptRaw}\`)`);
+    passThreshold = t;
+  }
+  return { reps, passThreshold };
 }
 
 // ---------------------------------------------------------------- commands
@@ -113,9 +132,7 @@ async function cmdRun(args: Args): Promise<void> {
   const judge = parseModelRef(flagStr(args, "judge", DEFAULT_JUDGE)!);
   const label = flagStr(args, "label") || null;
   const parallel = Math.max(1, Number(flagStr(args, "parallel", "1")) || 1);
-  const reps = Math.max(1, Math.floor(Number(flagStr(args, "reps", "1")) || 1));
-  const ptRaw = Number(flagStr(args, "pass-threshold", "0.5"));
-  const passThreshold = Number.isFinite(ptRaw) && ptRaw >= 0 && ptRaw <= 1 ? ptRaw : 0.5;
+  const { reps, passThreshold } = parseRunTuning(args);
   const modelTokens = resolveModels(args);
 
   const skills =
