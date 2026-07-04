@@ -139,7 +139,6 @@ async function cmdRun(args: Args): Promise<void> {
         modelToken: token,
         judge,
         mode,
-        cwd: NEUTRAL_CWD,
         timestamp: nowIso(),
         label,
         onProgress: (m) => console.log(m),

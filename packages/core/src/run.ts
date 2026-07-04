@@ -13,6 +13,7 @@ import {
 } from "./results.js";
 import { appendJournal } from "./journal.js";
 import { runSeeded } from "./seeded.js";
+import { createWorkspace } from "./workspace.js";
 
 export interface RunOptions {
   spec: Spec;
@@ -23,7 +24,6 @@ export interface RunOptions {
   modelToken: string; // original provider:model token (for results.yaml)
   judge: ModelRef;
   mode: RunMode;
-  cwd: string; // neutral cwd for the harness
   timestamp: string; // ISO, injected (Date.now is unavailable in some contexts)
   label?: string | null; // recorded in results.yaml (schema 2)
   onProgress?: (msg: string) => void;
@@ -37,7 +37,7 @@ export interface RunSummary {
 
 /** Run one skill against one model: run scenarios, grade, score, persist. */
 export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
-  const { spec, skillDir, adapter, model, judge, mode, cwd, timestamp } = opts;
+  const { spec, skillDir, adapter, model, judge, mode, timestamp } = opts;
   const log = opts.onProgress ?? (() => {});
   const now = opts.now ?? (() => new Date().toISOString());
 
@@ -60,43 +60,8 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   });
 
   const scenarioResults: ScenarioResult[] = [];
-
   for (const scenario of spec.scenarios) {
-    log(`  ${scenario.id} (${scenario.title}) …`);
-    appendJournal(runDir, { event: "scenario-started", ts: now(), id: scenario.id, title: scenario.title });
-    const { transcript, gatePrefix } = await produceTranscript(scenario, opts);
-    writeFileSync(transcriptPath(runDir, scenario.id, mode), transcript, "utf8");
-    if (scenario.mode === "seeded") {
-      appendJournal(runDir, { event: "gate-result", ts: now(), id: scenario.id, ok: !gatePrefix, detail: gatePrefix ?? "" });
-    }
-
-    let judge_verdict: ScenarioResult["judge_verdict"];
-    let judge_reason: string;
-    let suspect = false;
-
-    if (gatePrefix) {
-      // objective seeded gate failed → automatic FAIL, skip the judge
-      judge_verdict = "FAIL";
-      judge_reason = gatePrefix;
-    } else {
-      const prompt = buildJudgePrompt({
-        skill: spec.skill,
-        persona: spec.judge_persona,
-        scenario,
-        transcript,
-      });
-      const g = await gradeTranscript(adapter, judge, prompt, cwd);
-      judge_verdict = g.verdict;
-      judge_reason = g.reason;
-      suspect = g.suspect;
-    }
-
-    log(`    → ${judge_verdict}${judge_reason ? `: ${judge_reason}` : ""}${suspect ? "  ⚠ suspect misfire" : ""}`);
-    scenarioResults.push({ id: scenario.id, judge_verdict, judge_reason, suspect, override: null, note: "" });
-    appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict: judge_verdict, reason: judge_reason, suspect });
-    if (suspect) {
-      appendJournal(runDir, { event: "misfire-flag", ts: now(), id: scenario.id, reason: judge_reason });
-    }
+    scenarioResults.push(await runScenario(scenario, { ...opts, runDir, now, log }));
   }
 
   const ctx = mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
@@ -117,23 +82,71 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   return { runDir, results };
 }
 
-/** Produce a transcript for one scenario. Seeded scenarios run their gates first. */
-async function produceTranscript(
-  scenario: Scenario,
-  opts: RunOptions
-): Promise<{ transcript: string; gatePrefix: string | null }> {
-  if (scenario.mode === "seeded") {
-    const r = await runSeeded(scenario, opts);
-    return { transcript: r.transcript, gatePrefix: r.gateFailure };
+interface ScenarioCtx {
+  runDir: string;
+  now: () => string;
+  log: (msg: string) => void;
+}
+
+/** Run one scenario end-to-end in its own isolated workspace. */
+async function runScenario(scenario: Scenario, ctx: RunOptions & ScenarioCtx): Promise<ScenarioResult> {
+  const { spec, judge, mode, runDir, now, log } = ctx;
+  log(`  ${scenario.id} (${scenario.title}) …`);
+  appendJournal(runDir, { event: "scenario-started", ts: now(), id: scenario.id, title: scenario.title });
+
+  let ws: { cwd: string; cleanup(): void } | null = null;
+  let transcript: string;
+  let gatePrefix: string | null = null;
+  try {
+    try {
+      ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath) });
+    } catch (e) {
+      // A setup failure (e.g. missing fixture) is an objective FAIL, not an infra abort.
+      gatePrefix = e instanceof Error ? e.message : String(e);
+      transcript = `[workspace setup failed] ${gatePrefix}`;
+    }
+    if (ws) {
+      if (scenario.mode === "seeded") {
+        const r = await runSeeded(scenario, {
+          skillDir: ctx.skillDir, adapter: ctx.adapter, model: ctx.model, mode, cwd: ws.cwd,
+        });
+        transcript = r.transcript;
+        gatePrefix = r.gateFailure;
+      } else {
+        transcript = await ctx.adapter.run({
+          skillDir: ctx.skillDir, model: ctx.model, mode, turns: scenario.turns, cwd: ws.cwd,
+        });
+      }
+    }
+
+    writeFileSync(transcriptPath(runDir, scenario.id, mode), transcript!, "utf8");
+    if (scenario.mode === "seeded") {
+      appendJournal(runDir, { event: "gate-result", ts: now(), id: scenario.id, ok: !gatePrefix, detail: gatePrefix ?? "" });
+    }
+
+    let judge_verdict: ScenarioResult["judge_verdict"];
+    let judge_reason: string;
+    let suspect = false;
+    if (gatePrefix) {
+      judge_verdict = "FAIL";
+      judge_reason = gatePrefix;
+    } else {
+      const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript: transcript! });
+      const g = await gradeTranscript(ctx.adapter, judge, prompt, ws!.cwd);
+      judge_verdict = g.verdict;
+      judge_reason = g.reason;
+      suspect = g.suspect;
+    }
+
+    log(`  → ${scenario.id} ${judge_verdict}${judge_reason ? `: ${judge_reason}` : ""}${suspect ? "  ⚠ suspect misfire" : ""}`);
+    appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict: judge_verdict, reason: judge_reason, suspect });
+    if (suspect) {
+      appendJournal(runDir, { event: "misfire-flag", ts: now(), id: scenario.id, reason: judge_reason });
+    }
+    return { id: scenario.id, judge_verdict, judge_reason, suspect, override: null, note: "" };
+  } finally {
+    ws?.cleanup();
   }
-  const transcript = await opts.adapter.run({
-    skillDir: opts.skillDir,
-    model: opts.model,
-    mode: opts.mode,
-    turns: scenario.turns,
-    cwd: opts.cwd,
-  });
-  return { transcript, gatePrefix: null };
 }
 
 /** A compact terminal scorecard for one run. */

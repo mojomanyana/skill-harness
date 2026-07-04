@@ -35,7 +35,6 @@ describe("golden pipeline run", () => {
       modelToken: "fireworks:fake-model",
       judge: { provider: "claude-code", model: "opus" },
       mode: "green",
-      cwd: skillDir,
       timestamp: "2026-07-03T00-00-00-000Z",
       now: () => "2026-07-03T00:00:00.000Z",
       label: "round-1",
@@ -86,7 +85,7 @@ describe("golden pipeline run", () => {
       model: { provider: "fireworks", model: "fake-model" },
       modelToken: "fireworks:fake-model",
       judge: { provider: "claude-code", model: "opus" },
-      mode: "green", cwd: skillDir,
+      mode: "green",
       timestamp: "2026-07-03T00-00-00-001Z",
     });
     expect(results.effective_grade.ship).toBe(false);
@@ -116,7 +115,7 @@ describe("golden pipeline run", () => {
       model: { provider: "fireworks", model: "fake-model" },
       modelToken: "fireworks:fake-model",
       judge: { provider: "claude-code", model: "opus" },
-      mode: "green", cwd: skillDir,
+      mode: "green",
       timestamp: "2026-07-03T00-00-00-002Z",
     });
     expect(results.effective_grade.passed).toBeGreaterThanOrEqual(1); // min_pass satisfied
