@@ -7,6 +7,7 @@ import {
   parseModelRef,
   runSkillModel, formatScorecard, type RunSummary,
   readResults, writeResults, findTranscriptFiles, appendJournal, regradeScenario, type ScenarioResult,
+  type HarnessAdapter,
 } from "@skill-check/core";
 import { getAdapter } from "@skill-check/adapters";
 import { serveReview } from "./serve.js";
@@ -173,7 +174,7 @@ async function cmdRun(args: Args): Promise<void> {
   console.log(`\nReview interactively:  skill-check review ${skills[0]?.name ?? "<skill>"} --skills ${root}`);
 }
 
-export async function cmdGrade(args: Args): Promise<void> {
+export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
   const runDir = args._[0];
   if (!runDir || !existsSync(runDir)) throw new Error("usage: skill-check grade <run-dir> [--judge prov:model]");
   const judge = parseModelRef(flagStr(args, "judge", DEFAULT_JUDGE)!);
@@ -182,7 +183,7 @@ export async function cmdGrade(args: Args): Promise<void> {
   const testsDir = dirname(dirname(dirname(runDir)));
   const specPath = join(testsDir, "specification.yaml");
   const spec = loadSpec(specPath);
-  const adapter = getAdapter("pi");
+  const adapter = adapterOverride ?? getAdapter("pi");
 
   const prev = existsSync(join(runDir, "results.yaml")) ? readResults(runDir) : null;
   const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, { override: s.override, note: s.note }]));

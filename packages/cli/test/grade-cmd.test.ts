@@ -2,7 +2,7 @@ import { describe, test, expect, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { writeResults } from "@skill-check/core";
+import { writeResults, readResults, type HarnessAdapter } from "@skill-check/core";
 import { cmdGrade } from "../src/cli.js";
 
 const SPEC = `
@@ -128,20 +128,25 @@ function repsRunFixture() {
 describe("cmdGrade on a --reps run", () => {
   test("a --reps run is now re-gradable (no longer rejected)", async () => {
     const { runDir } = repsRunFixture();
-    // No fake adapter is wired here: cmdGrade uses getAdapter("pi") internally,
-    // which shells out to a real harness — depending on the test env this may
-    // resolve (e.g. pi errors per-rep, still yielding a written results.yaml)
-    // or reject on the judge/harness call. Either outcome is fine; what we're
-    // proving is narrower: the old reps-run rejection is gone. The full
-    // rep-aware re-judge with a fake adapter is covered by regrade.test.ts
-    // (Task 4) — this test guards the CLI wiring, not the judge.
-    let err: Error | undefined;
-    try {
-      await cmdGrade(args(runDir));
-    } catch (e) {
-      err = e as Error;
-    }
-    if (err) expect(err.message).not.toMatch(/reps run/);
+    const before = readFileSync(join(runDir, "results.yaml"), "utf8");
+    // Inject a fake judge so this test is hermetic: no `pi`/`claude` subprocess
+    // is ever spawned. This proves both that the old reps-run rejection is
+    // gone AND that a re-grade actually happens (aggregated verdict, updated
+    // results.yaml) — not just "didn't throw a specific message".
+    const fake: HarnessAdapter = {
+      name: "pi",
+      available: async () => true,
+      run: async () => "",
+      judge: async () => "1. PASS — ok\nVERDICT: PASS\nREASON: fine",
+    };
+
+    await cmdGrade(args(runDir), fake);
+
+    const after = readResults(runDir);
+    const a1 = after.scenarios.find((s) => s.id === "A1")!;
+    expect(a1.judge_verdict).toBe("PASS"); // re-judged both reps → aggregated PASS
+    expect(a1.reps).toBe(2);
+    expect(readFileSync(join(runDir, "results.yaml"), "utf8")).not.toBe(before); // results updated
   });
 });
 
