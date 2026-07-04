@@ -1,16 +1,13 @@
-import { cpSync, mkdtempSync, existsSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join, isAbsolute, resolve } from "node:path";
 import type { Scenario } from "./spec.js";
+import type { HarnessAdapter, ModelRef, RunMode } from "./adapters/types.js";
 import { exec } from "./util/exec.js";
 
-// Imported lazily-typed to avoid a circular import with run.ts.
 interface SeededOpts {
-  specPath: string;
   skillDir: string;
-  adapter: { run: (req: any) => Promise<string> };
-  model: { provider: string; model: string };
-  mode: "red" | "green" | "force";
+  adapter: HarnessAdapter;
+  model: ModelRef;
+  mode: RunMode;
+  cwd: string; // a workspace already prepared for this scenario (fixture + git baseline)
 }
 
 export interface SeededOutcome {
@@ -21,29 +18,14 @@ export interface SeededOutcome {
 const VITEST_TIMEOUT_MS = Number(process.env.SKILL_CHECK_VITEST_TIMEOUT_MS ?? 120_000);
 
 /**
- * Run a seeded scenario: copy the fixture into a throwaway git repo, let the
- * harness edit it, then evaluate objective gates (vitest pass + staged-diff
- * contains). A failed gate short-circuits to an auto-FAIL.
+ * Run a seeded scenario inside a caller-prepared workspace: let the harness edit
+ * the repo, then evaluate objective gates (staged-diff contains + optional vitest
+ * pass). A failed gate short-circuits to an auto-FAIL. Workspace creation (fixture
+ * copy + git baseline) and teardown are the caller's responsibility (run.ts).
  */
 export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<SeededOutcome> {
-  if (!scenario.fixture) {
-    throw new Error(`seeded scenario ${scenario.id} has no fixture`);
-  }
-  const specDir = dirname(opts.specPath);
-  const fixtureSrc = isAbsolute(scenario.fixture) ? scenario.fixture : resolve(specDir, scenario.fixture);
-  if (!existsSync(fixtureSrc)) {
-    return { transcript: `[fixture not found: ${fixtureSrc}]`, gateFailure: `fixture missing: ${scenario.fixture}` };
-  }
+  const repo = opts.cwd;
 
-  const repo = mkdtempSync(join(tmpdir(), `sc-seeded-${scenario.id}-`));
-  cpSync(fixtureSrc, repo, { recursive: true });
-
-  // Baseline commit so `git diff --cached` later shows only the harness's edits.
-  await git(repo, ["init", "-q"]);
-  await git(repo, ["add", "-A"]);
-  await git(repo, ["-c", "user.email=sc@local", "-c", "user.name=skill-check", "commit", "-q", "-m", "baseline"]);
-
-  // Let the harness work in the repo.
   const harnessOut = await opts.adapter.run({
     skillDir: opts.skillDir,
     model: opts.model,
@@ -81,8 +63,5 @@ function git(cwd: string, args: string[]) {
 }
 
 function indent(s: string): string {
-  return s
-    .split("\n")
-    .map((l) => `    ${l}`)
-    .join("\n");
+  return s.split("\n").map((l) => `    ${l}`).join("\n");
 }

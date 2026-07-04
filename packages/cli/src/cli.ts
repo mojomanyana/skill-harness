@@ -6,7 +6,7 @@ import {
   loadSpec, parseSpec,
   parseModelRef,
   runSkillModel, formatScorecard, type RunSummary,
-  buildJudgePrompt, gradeTranscript,
+  buildJudgePrompt, judgeInWorkspace,
   readResults, writeResults, transcriptPath, appendJournal, type ScenarioResult,
 } from "@skill-check/core";
 import { getAdapter } from "@skill-check/adapters";
@@ -14,7 +14,6 @@ import { serveReview } from "./serve.js";
 
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 const DEFAULT_JUDGE = "anthropic:claude-opus-4-8";
-const NEUTRAL_CWD = process.env.SKILL_CHECK_CWD ?? "/tmp";
 
 interface Args {
   _: string[];
@@ -113,6 +112,7 @@ async function cmdRun(args: Args): Promise<void> {
   const mode = (flagStr(args, "mode", "green") as "red" | "green" | "force") || "green";
   const judge = parseModelRef(flagStr(args, "judge", DEFAULT_JUDGE)!);
   const label = flagStr(args, "label") || null;
+  const parallel = Math.max(1, Number(flagStr(args, "parallel", "1")) || 1);
   const modelTokens = resolveModels(args);
 
   const skills =
@@ -139,9 +139,9 @@ async function cmdRun(args: Args): Promise<void> {
         modelToken: token,
         judge,
         mode,
-        cwd: NEUTRAL_CWD,
         timestamp: nowIso(),
         label,
+        concurrency: parallel,
         onProgress: (m) => console.log(m),
       });
       summaries.push(summary);
@@ -192,7 +192,7 @@ export async function cmdGrade(args: Args): Promise<void> {
     const scenario = specById.get(id)!; // guaranteed present by the guard above
     const transcript = readFileSync(transcriptPath(runDir, id, "green"), "utf8");
     const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
-    const g = await gradeTranscript(adapter, judge, prompt, NEUTRAL_CWD);
+    const g = await judgeInWorkspace(adapter, judge, prompt, testsDir);
     console.log(`  ${id} → ${g.verdict}: ${g.reason}`);
     appendJournal(runDir, {
       event: "judge-verdict", ts: nowIso(),
@@ -285,7 +285,7 @@ async function cmdAddTest(args: Args): Promise<void> {
 const HELP = `skill-check — test/optimize loop for agent skills (pi harness)
 
   run    <skill|all> --skills <root> [--model prov:model ...] [--models file]
-                     [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name]
+                     [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N]
   grade  <run-dir>   [--judge prov:model]      re-grade saved transcripts (neutral judge)
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import yaml from "js-yaml";
+import type { WorkspaceKind } from "./workspace.js";
 
 export type ScenarioMode = "inline" | "seeded";
 
@@ -17,6 +18,7 @@ export interface Scenario {
   checklist: string[];
   fixture?: string;
   assert?: SeededAssert;
+  workspace: WorkspaceKind; // isolated-cwd kind; always populated (default "none")
 }
 
 export interface ShipBar {
@@ -63,6 +65,39 @@ function assertStringList(v: unknown, id: string, field: string, file: string): 
         : ` — item #${i + 1} is not a string`;
     throw new SpecError(`scenario \`${id}\` \`${field}\` items must all be strings${hint}`, file);
   }
+}
+
+/** Resolve a scenario's `env.workspace` into a WorkspaceKind, applying defaults. */
+function resolveWorkspace(
+  env: unknown,
+  mode: ScenarioMode,
+  fixture: string | undefined,
+  id: string,
+  file: string
+): WorkspaceKind {
+  const raw = env && typeof env === "object" ? (env as Record<string, unknown>).workspace : undefined;
+  if (raw === undefined) {
+    // Default: a seeded scenario runs in its fixture repo; everything else is bare.
+    if (mode === "seeded" && fixture) return { fixture };
+    return "none";
+  }
+  if (raw === "none") {
+    if (mode === "seeded") {
+      throw new SpecError(
+        `seeded scenario \`${id}\` cannot use env.workspace: none — seeded gates need a git repo ` +
+          `(omit env to use its fixture, or use empty-git/fixture:<path>)`,
+        file
+      );
+    }
+    return raw;
+  }
+  if (raw === "empty-git") return raw;
+  if (typeof raw === "string" && raw.startsWith("fixture:")) {
+    const p = raw.slice("fixture:".length).trim();
+    if (!p) throw new SpecError(`scenario \`${id}\` env.workspace fixture path is empty`, file);
+    return { fixture: p };
+  }
+  throw new SpecError(`scenario \`${id}\` env.workspace must be none | empty-git | fixture:<path>`, file);
 }
 
 /** Parse + validate a specification.yaml from its raw text. `file` is used in error messages. */
@@ -143,6 +178,7 @@ export function parseSpec(text: string, file: string): Spec {
       mode,
       turns: s.turns,
       checklist: s.checklist,
+      workspace: "none",
     };
 
     if (mode === "seeded") {
@@ -163,6 +199,8 @@ export function parseSpec(text: string, file: string): Spec {
         scenario.assert = assertObj;
       }
     }
+
+    scenario.workspace = resolveWorkspace(s.env, mode, scenario.fixture, id, file);
 
     return scenario;
   });

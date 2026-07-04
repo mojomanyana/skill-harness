@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, readFileSync, cpSync } from "node:fs";
+import { mkdtempSync, readFileSync, cpSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
+import { join, dirname, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   parseSpec, runSkillModel, readResults, readJournal,
@@ -35,7 +35,6 @@ describe("golden pipeline run", () => {
       modelToken: "fireworks:fake-model",
       judge: { provider: "claude-code", model: "opus" },
       mode: "green",
-      cwd: skillDir,
       timestamp: "2026-07-03T00-00-00-000Z",
       now: () => "2026-07-03T00:00:00.000Z",
       label: "round-1",
@@ -86,7 +85,7 @@ describe("golden pipeline run", () => {
       model: { provider: "fireworks", model: "fake-model" },
       modelToken: "fireworks:fake-model",
       judge: { provider: "claude-code", model: "opus" },
-      mode: "green", cwd: skillDir,
+      mode: "green",
       timestamp: "2026-07-03T00-00-00-001Z",
     });
     expect(results.effective_grade.ship).toBe(false);
@@ -116,11 +115,90 @@ describe("golden pipeline run", () => {
       model: { provider: "fireworks", model: "fake-model" },
       modelToken: "fireworks:fake-model",
       judge: { provider: "claude-code", model: "opus" },
-      mode: "green", cwd: skillDir,
+      mode: "green",
       timestamp: "2026-07-03T00-00-00-002Z",
     });
     expect(results.effective_grade.passed).toBeGreaterThanOrEqual(1); // min_pass satisfied
     expect(results.effective_grade.ship).toBe(false);                 // gated by critical alone
     expect(results.effective_grade.note).toMatch(/critical/);
+  });
+
+  it("--parallel N produces the same results.yaml as sequential, and cleans up workspaces", async () => {
+    const wsRoot = mkdtempSync(join(tmpdir(), "sc-ws-root-"));
+    const savedTmp = process.env.TMPDIR;
+    process.env.TMPDIR = wsRoot; // createWorkspace's mkdtemp(tmpdir()) now lands here, isolated from other test files
+    try {
+      const run = async (concurrency: number, ts: string) => {
+        const skillDir = mkdtempSync(join(tmpdir(), "sc-golden-par-"));
+        cpSync(FIXTURE, skillDir, { recursive: true });
+        const specPath = join(skillDir, "tests", "specification.yaml");
+        const spec = parseSpec(readFileSync(specPath, "utf8"), specPath);
+        const { runDir } = await runSkillModel({
+          spec, skillDir, specPath, adapter: fakeAdapter,
+          model: { provider: "fireworks", model: "fake-model" },
+          modelToken: "fireworks:fake-model",
+          judge: { provider: "claude-code", model: "opus" },
+          mode: "green", timestamp: ts, now: () => "2026-07-04T00:00:00.000Z",
+          concurrency,
+        });
+        return readFileSync(join(runDir, "results.yaml"), "utf8");
+      };
+      const seq = await run(1, "2026-07-04T00-00-00-010Z");
+      const par = await run(2, "2026-07-04T00-00-00-011Z");
+      const strip = (s: string) => s.replace(/timestamp:.*/g, "timestamp: X");
+      expect(strip(par)).toBe(strip(seq));
+
+      // Only this test's scenario workspaces land under wsRoot, so this scan is hermetic.
+      const leaked = readdirSync(wsRoot).filter((n) => n.startsWith("sc-ws-"));
+      expect(leaked).toEqual([]);
+    } finally {
+      if (savedTmp === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = savedTmp;
+      rmSync(wsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("judges in a fresh neutral workspace, never the scenario's own cwd", async () => {
+    const skillDir = mkdtempSync(join(tmpdir(), "sc-golden-neutral-"));
+    cpSync(FIXTURE, skillDir, { recursive: true });
+    const specPath = join(skillDir, "tests", "specification.yaml");
+    const specText = readFileSync(specPath, "utf8");
+    // Single-scenario spec so there's exactly one harness cwd and one judge cwd to compare.
+    const spec = parseSpec(specText, specPath);
+    spec.scenarios = [spec.scenarios[0]];
+
+    const seenRunCwds: string[] = [];
+    const seenJudgeCwds: string[] = [];
+    const recordingAdapter: HarnessAdapter = {
+      name: "pi",
+      available: async () => true,
+      run: async (req: RunReq) => {
+        seenRunCwds.push(req.cwd);
+        return req.turns.map((t, i) => `>>> USER (turn ${i + 1}/${req.turns.length}):\n${t}\n\n<<< ASSISTANT:\nHello!\n`).join("\n");
+      },
+      judge: async (req: JudgeReq) => {
+        seenJudgeCwds.push(req.cwd);
+        return "1. PASS — greets\nVERDICT: PASS\nREASON: greeted politely";
+      },
+    };
+
+    await runSkillModel({
+      spec,
+      skillDir,
+      specPath,
+      adapter: recordingAdapter,
+      model: { provider: "fireworks", model: "fake-model" },
+      modelToken: "fireworks:fake-model",
+      judge: { provider: "claude-code", model: "opus" },
+      mode: "green",
+      timestamp: "2026-07-04T00-00-00-000Z",
+      now: () => "2026-07-04T00:00:00.000Z",
+    });
+
+    expect(seenRunCwds).toHaveLength(1);
+    expect(seenJudgeCwds).toHaveLength(1);
+    expect(seenRunCwds[0]).not.toBe(seenJudgeCwds[0]);
+    expect(isAbsolute(seenRunCwds[0])).toBe(true);
+    expect(isAbsolute(seenJudgeCwds[0])).toBe(true);
   });
 });

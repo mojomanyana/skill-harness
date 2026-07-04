@@ -5,6 +5,8 @@ export * from "./grade.js";
 export * from "./score.js";
 export * from "./results.js";
 export * from "./journal.js";
+export * from "./scheduler.js";
+export * from "./workspace.js";
 export * from "./seeded.js";
 export * from "./report.js";
 export * from "./adapters/types.js";

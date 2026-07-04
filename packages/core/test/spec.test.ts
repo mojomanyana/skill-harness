@@ -167,3 +167,93 @@ scenarios:
     expect(() => parseSpec(bad, "f.yaml")).toThrow(/A1.*fixture/s);
   });
 });
+
+describe("env: workspace parsing", () => {
+  const base = (extra: string) => `
+skill: demo
+judge_persona: a judge.
+ship_bar: { total: 1, min_pass: 1 }
+scenarios:
+  - id: A1
+    title: t
+    turns: ["hi"]
+    checklist: ["ok"]
+${extra}`;
+
+  test("defaults to none when env is absent", () => {
+    const spec = parseSpec(base(""), "spec.yaml");
+    expect(spec.scenarios[0].workspace).toBe("none");
+  });
+
+  test("parses workspace: empty-git", () => {
+    const spec = parseSpec(base("    env: { workspace: empty-git }\n"), "spec.yaml");
+    expect(spec.scenarios[0].workspace).toBe("empty-git");
+  });
+
+  test("parses workspace: fixture:<path> into a fixture ref", () => {
+    const spec = parseSpec(base("    env: { workspace: fixture:fixtures/x }\n"), "spec.yaml");
+    expect(spec.scenarios[0].workspace).toEqual({ fixture: "fixtures/x" });
+  });
+
+  test("a seeded scenario with a fixture defaults its workspace to that fixture", () => {
+    const text = `
+skill: demo
+judge_persona: a judge.
+ship_bar: { total: 1, min_pass: 1 }
+scenarios:
+  - id: S1
+    title: seeded
+    mode: seeded
+    fixture: fixtures/seed1
+    turns: ["edit it"]
+    checklist: ["edited"]
+`;
+    const spec = parseSpec(text, "spec.yaml");
+    expect(spec.scenarios[0].workspace).toEqual({ fixture: "fixtures/seed1" });
+  });
+
+  test("rejects an unknown workspace value", () => {
+    expect(() => parseSpec(base("    env: { workspace: banana }\n"), "spec.yaml"))
+      .toThrow(/env\.workspace must be/);
+  });
+
+  test("rejects an empty fixture path", () => {
+    expect(() => parseSpec(base("    env: { workspace: 'fixture:' }\n"), "spec.yaml"))
+      .toThrow(/fixture path is empty/);
+  });
+
+  test("rejects a seeded scenario with env.workspace: none", () => {
+    const text = `
+skill: demo
+judge_persona: a judge.
+ship_bar: { total: 1, min_pass: 1 }
+scenarios:
+  - id: S1
+    title: seeded
+    mode: seeded
+    fixture: fixtures/s1
+    env: { workspace: none }
+    turns: ["edit it"]
+    checklist: ["edited"]
+`;
+    expect(() => parseSpec(text, "spec.yaml")).toThrow(/cannot use env\.workspace: none/);
+  });
+
+  test("a seeded scenario can still explicitly override to a different fixture", () => {
+    const text = `
+skill: demo
+judge_persona: a judge.
+ship_bar: { total: 1, min_pass: 1 }
+scenarios:
+  - id: S1
+    title: seeded
+    mode: seeded
+    fixture: fixtures/s1
+    env: { workspace: 'fixture:fixtures/other' }
+    turns: ["edit it"]
+    checklist: ["edited"]
+`;
+    const spec = parseSpec(text, "spec.yaml");
+    expect(spec.scenarios[0].workspace).toEqual({ fixture: "fixtures/other" });
+  });
+});

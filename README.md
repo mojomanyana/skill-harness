@@ -115,7 +115,7 @@ scenarios:
 
 ```
 skill-check run    <skill|all> --skills <root> [--model prov:model ...] [--models file]
-                               [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name]
+                               [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N]
 skill-check grade  <run-dir>   [--judge prov:model]    # re-grade saved transcripts (neutral judge)
 skill-check review <skill>     --skills <root> [--port N]   # serve the interactive UI
 skill-check add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical]
@@ -164,6 +164,19 @@ skill-check add-test project-git --skills ../principal-pi-skills \
 | `green` | skill active (the real test) — counts toward the ship bar |
 | `red`   | baseline, **no** skill (the contrast case) |
 | `force` | skill body injected via system prompt (when auto-activation isn't available) |
+
+### Concurrency & workspaces
+
+**`--parallel N`** runs up to N scenarios (and their judges) concurrently; default is 1 (sequential).
+Use it to speed up large skills; keep it modest to respect provider rate limits.
+
+**Scenarios can declare their workspace** with `env: { workspace: none | empty-git | fixture:<path> }`:
+- `none` (default): a fresh isolated temp dir.
+- `empty-git`: a temp dir initialized as an empty git repo (for git-based scenarios).
+- `fixture:<path>`: copies a fixture directory (relative to the spec) and initializes it as a git repo.
+
+Each scenario runs in its own throwaway directory and never touches your home directory.
+Seeded scenarios automatically use their `fixture:` setting.
 
 ---
 
