@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, readFileSync, cpSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, cpSync, readdirSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -200,5 +200,38 @@ describe("golden pipeline run", () => {
     expect(seenRunCwds[0]).not.toBe(seenJudgeCwds[0]);
     expect(isAbsolute(seenRunCwds[0])).toBe(true);
     expect(isAbsolute(seenJudgeCwds[0])).toBe(true);
+  });
+
+  it("--reps N aggregates pass-rate, flakiness, and writes rep-suffixed transcripts", async () => {
+    const skillDir = mkdtempSync(join(tmpdir(), "sc-reps-"));
+    cpSync(FIXTURE, skillDir, { recursive: true });
+    const specPath = join(skillDir, "tests", "specification.yaml");
+    const spec = parseSpec(readFileSync(specPath, "utf8"), specPath);
+
+    // Judge alternates PASS/FAIL per call so a 3-rep run is flaky (2 PASS, 1 FAIL by call order).
+    let jc = 0;
+    const flakyAdapter: HarnessAdapter = {
+      name: "pi",
+      available: async () => true,
+      run: async (req: RunReq) => req.turns.map((t) => `USER: ${t}\nASSISTANT: hi`).join("\n"),
+      judge: async () => (jc++ % 3 === 2 ? "1. FAIL — off\nVERDICT: FAIL\nREASON: off" : "1. PASS — ok\nVERDICT: PASS\nREASON: ok"),
+    };
+
+    const { runDir, results } = await runSkillModel({
+      spec, skillDir, specPath, adapter: flakyAdapter,
+      model: { provider: "fireworks", model: "fake-model" },
+      modelToken: "fireworks:fake-model",
+      judge: { provider: "claude-code", model: "opus" },
+      mode: "green", timestamp: "2026-07-04T00-00-00-050Z", now: () => "2026-07-04T00:00:00.000Z",
+      reps: 3,
+    });
+
+    const s = results.scenarios[0];
+    expect(s.reps).toBe(3);
+    expect(s.passes).toBeGreaterThanOrEqual(0);
+    expect(typeof s.flakiness).toBe("number");
+    // rep-suffixed transcripts exist
+    expect(existsSync(join(runDir, `${s.id}.green.rep0.txt`))).toBe(true);
+    expect(existsSync(join(runDir, `${s.id}.green.rep2.txt`))).toBe(true);
   });
 });
