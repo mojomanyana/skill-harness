@@ -81,7 +81,17 @@ function resolveWorkspace(
     if (mode === "seeded" && fixture) return { fixture };
     return "none";
   }
-  if (raw === "none" || raw === "empty-git") return raw;
+  if (raw === "none") {
+    if (mode === "seeded") {
+      throw new SpecError(
+        `seeded scenario \`${id}\` cannot use env.workspace: none — seeded gates need a git repo ` +
+          `(omit env to use its fixture, or use empty-git/fixture:<path>)`,
+        file
+      );
+    }
+    return raw;
+  }
+  if (raw === "empty-git") return raw;
   if (typeof raw === "string" && raw.startsWith("fixture:")) {
     const p = raw.slice("fixture:".length).trim();
     if (!p) throw new SpecError(`scenario \`${id}\` env.workspace fixture path is empty`, file);

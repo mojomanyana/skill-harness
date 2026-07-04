@@ -221,4 +221,39 @@ scenarios:
     expect(() => parseSpec(base("    env: { workspace: 'fixture:' }\n"), "spec.yaml"))
       .toThrow(/fixture path is empty/);
   });
+
+  test("rejects a seeded scenario with env.workspace: none", () => {
+    const text = `
+skill: demo
+judge_persona: a judge.
+ship_bar: { total: 1, min_pass: 1 }
+scenarios:
+  - id: S1
+    title: seeded
+    mode: seeded
+    fixture: fixtures/s1
+    env: { workspace: none }
+    turns: ["edit it"]
+    checklist: ["edited"]
+`;
+    expect(() => parseSpec(text, "spec.yaml")).toThrow(/cannot use env\.workspace: none/);
+  });
+
+  test("a seeded scenario can still explicitly override to a different fixture", () => {
+    const text = `
+skill: demo
+judge_persona: a judge.
+ship_bar: { total: 1, min_pass: 1 }
+scenarios:
+  - id: S1
+    title: seeded
+    mode: seeded
+    fixture: fixtures/s1
+    env: { workspace: 'fixture:fixtures/other' }
+    turns: ["edit it"]
+    checklist: ["edited"]
+`;
+    const spec = parseSpec(text, "spec.yaml");
+    expect(spec.scenarios[0].workspace).toEqual({ fixture: "fixtures/other" });
+  });
 });

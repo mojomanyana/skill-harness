@@ -13,7 +13,7 @@ import {
 } from "./results.js";
 import { appendJournal } from "./journal.js";
 import { runSeeded } from "./seeded.js";
-import { createWorkspace } from "./workspace.js";
+import { createWorkspace, type Workspace } from "./workspace.js";
 import { runPool } from "./scheduler.js";
 
 export interface RunOptions {
@@ -96,7 +96,7 @@ async function runScenario(scenario: Scenario, ctx: RunOptions & ScenarioCtx): P
   log(`  ${scenario.id} (${scenario.title}) …`);
   appendJournal(runDir, { event: "scenario-started", ts: now(), id: scenario.id, title: scenario.title });
 
-  let ws: { cwd: string; cleanup(): void } | null = null;
+  let ws: Workspace | null = null;
   let transcript: string;
   let gatePrefix: string | null = null;
   try {
@@ -134,10 +134,15 @@ async function runScenario(scenario: Scenario, ctx: RunOptions & ScenarioCtx): P
       judge_reason = gatePrefix;
     } else {
       const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript: transcript! });
-      const g = await gradeTranscript(ctx.adapter, judge, prompt, ws!.cwd);
-      judge_verdict = g.verdict;
-      judge_reason = g.reason;
-      suspect = g.suspect;
+      const judgeWs = createWorkspace("none", { specDir: dirname(ctx.specPath) });
+      try {
+        const g = await gradeTranscript(ctx.adapter, judge, prompt, judgeWs.cwd);
+        judge_verdict = g.verdict;
+        judge_reason = g.reason;
+        suspect = g.suspect;
+      } finally {
+        judgeWs.cleanup();
+      }
     }
 
     log(`  → ${scenario.id} ${judge_verdict}${judge_reason ? `: ${judge_reason}` : ""}${suspect ? "  ⚠ suspect misfire" : ""}`);

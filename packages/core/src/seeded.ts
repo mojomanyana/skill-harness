@@ -1,4 +1,3 @@
-import { join } from "node:path";
 import type { Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef, RunMode } from "./adapters/types.js";
 import { exec } from "./util/exec.js";

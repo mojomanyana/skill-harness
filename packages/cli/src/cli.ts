@@ -8,13 +8,13 @@ import {
   runSkillModel, formatScorecard, type RunSummary,
   buildJudgePrompt, gradeTranscript,
   readResults, writeResults, transcriptPath, appendJournal, type ScenarioResult,
+  createWorkspace,
 } from "@skill-check/core";
 import { getAdapter } from "@skill-check/adapters";
 import { serveReview } from "./serve.js";
 
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 const DEFAULT_JUDGE = "anthropic:claude-opus-4-8";
-const NEUTRAL_CWD = process.env.SKILL_CHECK_CWD ?? "/tmp";
 
 interface Args {
   _: string[];
@@ -193,7 +193,13 @@ export async function cmdGrade(args: Args): Promise<void> {
     const scenario = specById.get(id)!; // guaranteed present by the guard above
     const transcript = readFileSync(transcriptPath(runDir, id, "green"), "utf8");
     const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
-    const g = await gradeTranscript(adapter, judge, prompt, NEUTRAL_CWD);
+    const judgeWs = createWorkspace("none", { specDir: testsDir });
+    let g;
+    try {
+      g = await gradeTranscript(adapter, judge, prompt, judgeWs.cwd);
+    } finally {
+      judgeWs.cleanup();
+    }
     console.log(`  ${id} → ${g.verdict}: ${g.reason}`);
     appendJournal(runDir, {
       event: "judge-verdict", ts: nowIso(),

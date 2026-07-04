@@ -88,6 +88,8 @@ scenarios:
   working unchanged**.
 - Validation in `parseSpec`: `workspace` must be `none`, `empty-git`, or
   `fixture:<non-empty path>`; a bad value throws a `SpecError` naming the scenario.
+- A `mode: seeded` scenario rejects an explicit `env: { workspace: none }` — its
+  gates (`git add -A` + `git diff --cached`, optional vitest) require a git repo.
 
 Parsed shape on `Scenario`: `workspace: WorkspaceKind` (always populated after
 parse — defaulted to `"none"`), so `run.ts` never re-derives the default.
@@ -124,9 +126,10 @@ export function runPool<T>(tasks: Array<() => Promise<T>>, concurrency: number):
   consumer reconstructs per-scenario order. `run-started` is emitted before the
   pool; `score` after.
 - Progress logs are prefixed with the scenario id (lines interleave at N>1).
-- The neutral-cwd constant is removed from the harness call path; the harness/judge
-  run in the scenario's workspace cwd. The judge (no skills, no repo needed) runs
-  in the same isolated cwd.
+- The neutral-cwd constant is removed from the harness call path; the harness runs
+  in the scenario's workspace cwd. The judge runs in its OWN separate, fresh
+  `none` workspace — never the scenario's, which may be a repo the subject just
+  mutated — preserving judge neutrality.
 
 ## CLI
 
