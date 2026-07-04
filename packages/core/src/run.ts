@@ -6,6 +6,7 @@ import { buildJudgePrompt, judgeInWorkspace, judgeResemblesSubject } from "./gra
 import {
   runDirFor,
   transcriptPath,
+  judgeRawPath,
   writeResults,
   ensureResultsGitignore,
   type ResultsFile,
@@ -168,6 +169,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
     } else {
       const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
       const g = await judgeInWorkspace(ctx.adapter, judge, prompt, dirname(ctx.specPath));
+      writeFileSync(judgeRawPath(runDir, scenario.id, mode, repCount > 1 ? rep : undefined), g.raw, "utf8");
       verdict = g.verdict;
       reason = g.reason;
       suspect = g.suspect;

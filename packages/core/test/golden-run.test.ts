@@ -55,6 +55,9 @@ describe("golden pipeline run", () => {
     expect(t).toContain("Say hello.");
     expect(t).toContain("Hello!");
 
+    // judge-raw persisted next to the transcript
+    expect(readFileSync(join(runDir, "A1.green.judge.txt"), "utf8")).toContain("VERDICT");
+
     const events = readJournal(runDir);
     expect(events.map((e) => e.event)).toEqual([
       "run-started",

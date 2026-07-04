@@ -210,29 +210,11 @@ export function ensureResultsGitignore(resultsRoot: string): void {
   writeFileSync(giPath, GITIGNORE_BODY + preserved.map((l) => l + "\n").join(""), "utf8");
 }
 
-const REP_SUFFIX_RE = /\.rep(\d+)\.txt$/;
+// Matches both transcript (`.rep<k>.txt`) and judge-raw (`.rep<k>.judge.txt`) rep suffixes.
+const REP_SUFFIX_RE = /\.rep(\d+)\.(?:judge\.)?txt$/;
 
-/**
- * ALL transcript files for a scenario in a run dir, sorted deterministically:
- * a plain `<id>.<mode>.txt` first (if present), then rep-suffixed files
- * (`<id>.<mode>.rep<k>.txt`) in numeric rep order. Empty if the run dir or
- * scenario has no transcripts.
- *
- * With `mode` given, only that mode's transcripts match (`<id>.<mode>.txt` /
- * `<id>.<mode>.rep<k>.txt`) — e.g. to detect a green-only condition without
- * false positives from a red/force transcript of the same scenario. Omitted,
- * behavior is unchanged: any `<id>.*.txt` regardless of mode.
- */
-export function findTranscriptFiles(runDir: string, scenarioId: string, mode?: string): string[] {
-  if (!existsSync(runDir)) return [];
-  const escapedId = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const matcher =
-    mode !== undefined
-      ? new RegExp(`^${escapedId}\\.${mode}(\\.rep\\d+)?\\.txt$`)
-      : null;
-  const files = readdirSync(runDir).filter((f) =>
-    matcher ? matcher.test(f) : f.startsWith(`${scenarioId}.`) && f.endsWith(".txt")
-  );
+/** Sort transcript-like filenames: plain (no rep) first, then by numeric rep index. */
+function sortByRep(files: string[]): string[] {
   const repOf = (f: string): number | null => {
     const m = REP_SUFFIX_RE.exec(f);
     return m ? Number(m[1]) : null;
@@ -245,6 +227,47 @@ export function findTranscriptFiles(runDir: string, scenarioId: string, mode?: s
     if (rb === null) return 1;
     return ra - rb;
   });
+}
+
+/**
+ * ALL transcript files for a scenario in a run dir, sorted deterministically:
+ * a plain `<id>.<mode>.txt` first (if present), then rep-suffixed files
+ * (`<id>.<mode>.rep<k>.txt`) in numeric rep order. Empty if the run dir or
+ * scenario has no transcripts.
+ *
+ * With `mode` given, only that mode's transcripts match (`<id>.<mode>.txt` /
+ * `<id>.<mode>.rep<k>.txt`) — e.g. to detect a green-only condition without
+ * false positives from a red/force transcript of the same scenario. Omitted,
+ * behavior is unchanged: any `<id>.*.txt` regardless of mode, excluding this
+ * scenario's judge-raw artifacts (`<id>.*.judge.txt` — see judgeRawPath).
+ */
+export function findTranscriptFiles(runDir: string, scenarioId: string, mode?: string): string[] {
+  if (!existsSync(runDir)) return [];
+  const escapedId = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matcher =
+    mode !== undefined
+      ? new RegExp(`^${escapedId}\\.${mode}(\\.rep\\d+)?\\.txt$`)
+      : null;
+  const files = readdirSync(runDir).filter((f) =>
+    matcher ? matcher.test(f) : f.startsWith(`${scenarioId}.`) && f.endsWith(".txt") && !f.includes(".judge.")
+  );
+  return sortByRep(files);
+}
+
+/** Path of a scenario's raw judge-output artifact within a run dir (rep-suffixed for reps). */
+export function judgeRawPath(runDir: string, scenarioId: string, mode: string, rep?: number): string {
+  const base = rep === undefined ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
+  return join(runDir, `${base}.judge.txt`);
+}
+
+/** A scenario's raw judge-output files, sorted (plain first, then numeric rep). Mode-scoped when given. */
+export function findJudgeRawFiles(runDir: string, scenarioId: string, mode?: string): string[] {
+  if (!existsSync(runDir)) return [];
+  const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = mode === undefined
+    ? new RegExp(`^${esc}\\..*\\.judge\\.txt$`)
+    : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.judge\\.txt$`);
+  return sortByRep(readdirSync(runDir).filter((f) => re.test(f)));
 }
 
 /** A single representative transcript file for a scenario in a run dir. Null if none. */

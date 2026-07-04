@@ -12,6 +12,8 @@ import {
   preserveTranscript,
   findTranscriptFile,
   findTranscriptFiles,
+  judgeRawPath,
+  findJudgeRawFiles,
   finalizeResults,
   migrateResults,
   effectiveVerdicts,
@@ -199,6 +201,25 @@ describe("findTranscriptFiles", () => {
     expect(findTranscriptFiles(runDir, "A1", "green")).toEqual(["A1.green.rep0.txt", "A1.green.rep1.txt"]);
     // no mode: current behavior — plain (non-rep-suffixed) files sort first, then reps in numeric order.
     expect(findTranscriptFiles(runDir, "A1")).toEqual(["A1.red.txt", "A1.green.rep0.txt", "A1.green.rep1.txt"]);
+  });
+});
+
+describe("judge-raw artifacts", () => {
+  test("judgeRawPath names plain vs rep-suffixed files", () => {
+    expect(judgeRawPath("/r", "A1", "green")).toBe(join("/r", "A1.green.judge.txt"));
+    expect(judgeRawPath("/r", "A1", "green", 2)).toBe(join("/r", "A1.green.rep2.judge.txt"));
+  });
+
+  test("findJudgeRawFiles returns green judge files sorted; findTranscriptFiles excludes them", () => {
+    const dir = tmp();
+    writeFileSync(join(dir, "A1.green.rep0.txt"), "t0", "utf8");
+    writeFileSync(join(dir, "A1.green.rep1.txt"), "t1", "utf8");
+    writeFileSync(join(dir, "A1.green.rep0.judge.txt"), "j0", "utf8");
+    writeFileSync(join(dir, "A1.green.rep1.judge.txt"), "j1", "utf8");
+    expect(findJudgeRawFiles(dir, "A1", "green")).toEqual(["A1.green.rep0.judge.txt", "A1.green.rep1.judge.txt"]);
+    // the transcript glob must NOT pick up the .judge.txt files
+    expect(findTranscriptFiles(dir, "A1")).toEqual(["A1.green.rep0.txt", "A1.green.rep1.txt"]);
+    expect(findTranscriptFiles(dir, "A1", "green")).toEqual(["A1.green.rep0.txt", "A1.green.rep1.txt"]);
   });
 });
 
