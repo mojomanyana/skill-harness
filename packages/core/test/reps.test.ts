@@ -45,6 +45,14 @@ describe("aggregateReps", () => {
     expect(a.suspect).toBe(false);
     expect(a.verdict).toBe("PASS");
     expect(a.passes).toBe(3);
+    expect(a.reason).toMatch(/3\/4 reps passed/); // denominator is clean.length, not reps
+  });
+
+  test("exactly half the reps clean → NOT suspect (boundary)", () => {
+    const a = aggregateReps([susp(), susp(), pass(), pass()], 0.5); // 2 clean of 4
+    expect(a.suspect).toBe(false);
+    expect(a.verdict).toBe("PASS"); // 2/2 clean passed
+    expect(a.passes).toBe(2);
   });
 
   test("all suspect → suspect", () => {
