@@ -12,7 +12,7 @@ export interface RunColumn {
   mode: string; // red | green | force — non-green runs are not scored
   grade: ResultsFile["effective_grade"];
   judge: ResultsFile["judge"];
-  cells: Record<string, { judge_verdict: string; judge_reason: string; suspect: boolean; override: string | null; note: string }>;
+  cells: Record<string, { judge_verdict: string; judge_reason: string; suspect: boolean; reps?: number; passes?: number; clean?: number; flakiness?: number; override: string | null; note: string }>;
 }
 
 export interface ReportData {
@@ -58,7 +58,11 @@ export function collectReport(skillDir: string): ReportData {
         cells[s.id] = {
           judge_verdict: s.judge_verdict,
           judge_reason: s.judge_reason,
-          suspect: s.suspect ?? false, // schema-1 files lack the field until Task 2's migration
+          suspect: s.suspect ?? false, // suspect defaults false for older results that predate the field
+          reps: s.reps,
+          passes: s.passes,
+          clean: s.clean,
+          flakiness: s.flakiness,
           override: s.override,
           note: s.note,
         };
@@ -100,10 +104,27 @@ export function publicView(data: ReportData) {
   };
 }
 
-/** Inject the run JSON into the template at the __DATA__ placeholder. */
-export function renderReport(template: string, data: ReportData): string {
+/**
+ * A bare inline <script> (no type="module") can't contain an `export`
+ * statement, but assets/report.grade.js is written as real ESM so it can also
+ * be imported directly (by Node, in the parity test). Strip the `export `
+ * keyword off each exported declaration so the leftover plain function
+ * declarations splice cleanly into the template's script scope.
+ */
+function stripExports(js: string): string {
+  return js.replace(/^export\s+/gm, "");
+}
+
+/**
+ * Inject the run JSON and the client-scorer module into the template, at the
+ * __DATA__ and __GRADE__ placeholders respectively. `gradeScript` is the raw
+ * contents of assets/report.grade.js (sibling of the template) — the single,
+ * score.ts-parity-tested copy of the client grading logic.
+ */
+export function renderReport(template: string, data: ReportData, gradeScript: string): string {
   const json = JSON.stringify(publicView(data));
   return template
     .replace("/*__DATA__*/null", json)
+    .replace("/*__GRADE__*/", stripExports(gradeScript))
     .replace("__SKILL__", data.skill);
 }

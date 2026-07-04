@@ -7,7 +7,7 @@ import {
   parseModelRef,
   runSkillModel, formatScorecard, type RunSummary,
   buildJudgePrompt, judgeInWorkspace,
-  readResults, writeResults, transcriptPath, appendJournal, type ScenarioResult,
+  readResults, writeResults, transcriptPath, findTranscriptFiles, appendJournal, type ScenarioResult,
 } from "@skill-check/core";
 import { getAdapter } from "@skill-check/adapters";
 import { serveReview } from "./serve.js";
@@ -15,7 +15,7 @@ import { serveReview } from "./serve.js";
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 const DEFAULT_JUDGE = "anthropic:claude-opus-4-8";
 
-interface Args {
+export interface Args {
   _: string[];
   flags: Record<string, string | true>;
   multi: Record<string, string[]>; // repeatable flags
@@ -51,7 +51,7 @@ function parseArgs(argv: string[]): Args {
   return { _, flags, multi };
 }
 
-function flagStr(args: Args, key: string, fallback?: string): string | undefined {
+export function flagStr(args: Args, key: string, fallback?: string): string | undefined {
   const v = args.flags[key];
   if (typeof v === "string") return v;
   if (v === true) return "";
@@ -75,6 +75,25 @@ function resolveModels(args: Args): string[] {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+/** Parse the run's reps + pass-threshold flags. Throws on an invalid provided value. */
+export function parseRunTuning(args: Args): { reps: number; passThreshold: number } {
+  let reps = 1;
+  const repsRaw = flagStr(args, "reps");
+  if (repsRaw !== undefined && repsRaw !== "") {
+    const n = Number(repsRaw);
+    if (!Number.isInteger(n) || n < 1) throw new Error(`--reps must be a positive integer (got \`${repsRaw}\`)`);
+    reps = n;
+  }
+  let passThreshold = 0.5;
+  const ptRaw = flagStr(args, "pass-threshold");
+  if (ptRaw !== undefined && ptRaw !== "") {
+    const t = Number(ptRaw);
+    if (!Number.isFinite(t) || t < 0 || t > 1) throw new Error(`--pass-threshold must be a number in [0, 1] (got \`${ptRaw}\`)`);
+    passThreshold = t;
+  }
+  return { reps, passThreshold };
 }
 
 // ---------------------------------------------------------------- commands
@@ -113,6 +132,7 @@ async function cmdRun(args: Args): Promise<void> {
   const judge = parseModelRef(flagStr(args, "judge", DEFAULT_JUDGE)!);
   const label = flagStr(args, "label") || null;
   const parallel = Math.max(1, Number(flagStr(args, "parallel", "1")) || 1);
+  const { reps, passThreshold } = parseRunTuning(args);
   const modelTokens = resolveModels(args);
 
   const skills =
@@ -142,6 +162,8 @@ async function cmdRun(args: Args): Promise<void> {
         timestamp: nowIso(),
         label,
         concurrency: parallel,
+        reps,
+        passThreshold,
         onProgress: (m) => console.log(m),
       });
       summaries.push(summary);
@@ -177,6 +199,20 @@ export async function cmdGrade(args: Args): Promise<void> {
   // spending any judge calls.
   const specById = new Map(spec.scenarios.map((s) => [s.id, s]));
   const targets = (prev?.scenarios ?? spec.scenarios).map((s) => s.id);
+
+  // Full rep-aware re-grade is deferred to a later milestone. A --reps N>1 run
+  // only ever writes rep-suffixed transcripts (`<id>.green.rep<k>.txt`), never
+  // the plain `<id>.green.txt` this command reads — so re-grading a reps run
+  // would otherwise misreport every scenario as having "no green transcripts".
+  // Detect that case and fail with an accurate message instead.
+  const isRepsOnly = (id: string): boolean =>
+    !existsSync(transcriptPath(runDir, id, "green")) && findTranscriptFiles(runDir, id, "green").length > 0;
+  if (targets.some(isRepsOnly)) {
+    throw new Error(
+      `${runDir} is a --reps run (rep-suffixed transcripts); re-grading reps runs isn't supported yet — resolve suspect scenarios with an override in \`skill-check review\`, or re-run the skill`
+    );
+  }
+
   const missing = targets.filter((id) => !specById.has(id) || !existsSync(transcriptPath(runDir, id, "green")));
   if (missing.length === targets.length) {
     throw new Error(`no green transcripts in ${runDir} — nothing to re-grade`);
@@ -285,7 +321,7 @@ async function cmdAddTest(args: Args): Promise<void> {
 const HELP = `skill-check — test/optimize loop for agent skills (pi harness)
 
   run    <skill|all> --skills <root> [--model prov:model ...] [--models file]
-                     [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N]
+                     [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
   grade  <run-dir>   [--judge prov:model]      re-grade saved transcripts (neutral judge)
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]

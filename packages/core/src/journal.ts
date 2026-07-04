@@ -8,16 +8,24 @@ import type { Verdict } from "./score.js";
  * scrape terminal output). `turn` events arrive with per-turn streaming (M4+).
  *
  * A re-grade (`skill-check grade`) appends a second wave of judge-verdict
- * events and a new score event to the same journal — consumers take the LAST
- * score event and the LAST judge-verdict per scenario id.
+ * events and a new score event to the same journal — for a single-rep run
+ * (or a re-grade of one), consumers take the LAST score event and the LAST
+ * judge-verdict per scenario id.
+ *
+ * That "last per id" rule does NOT apply to a `--reps N>1` run: it emits N
+ * `judge-verdict`/`misfire-flag` events per scenario id, one per rep
+ * (identified by the `rep` field), and no aggregate event. These per-rep
+ * events are not an aggregate — results.yaml holds the authoritative
+ * aggregated verdict/pass-rate for the scenario; taking the last per id
+ * would yield an arbitrary rep's verdict, not the aggregated one.
  */
 export type JournalEvent =
   | { event: "run-started"; ts: string; skill: string; harness: string; model: string;
       judge: { provider: string; model: string }; mode: string; label: string | null }
   | { event: "scenario-started"; ts: string; id: string; title: string }
-  | { event: "gate-result"; ts: string; id: string; ok: boolean; detail: string }
-  | { event: "judge-verdict"; ts: string; id: string; verdict: Verdict; reason: string; suspect: boolean }
-  | { event: "misfire-flag"; ts: string; id: string; reason: string }
+  | { event: "gate-result"; ts: string; id: string; ok: boolean; detail: string; rep?: number }
+  | { event: "judge-verdict"; ts: string; id: string; verdict: Verdict; reason: string; suspect: boolean; rep?: number }
+  | { event: "misfire-flag"; ts: string; id: string; reason: string; rep?: number }
   | { event: "score"; ts: string; passed: number; total: number; pct: number;
       letter: string; ship: boolean; note: string }
   | { event: "override"; ts: string; id: string; override: Verdict | null; note: string };

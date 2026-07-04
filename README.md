@@ -115,7 +115,7 @@ scenarios:
 
 ```
 skill-check run    <skill|all> --skills <root> [--model prov:model ...] [--models file]
-                               [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N]
+                               [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
 skill-check grade  <run-dir>   [--judge prov:model]    # re-grade saved transcripts (neutral judge)
 skill-check review <skill>     --skills <root> [--port N]   # serve the interactive UI
 skill-check add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical]
@@ -170,6 +170,12 @@ skill-check add-test project-git --skills ../principal-pi-skills \
 **`--parallel N`** runs up to N scenarios (and their judges) concurrently; default is 1 (sequential).
 Use it to speed up large skills; keep it modest to respect provider rate limits.
 
+**`--reps N`** runs each scenario N times (default 1). The scenario's verdict becomes a pass-rate
+and it **PASSes** at `--pass-threshold T` (default 0.5; ties pass). A per-scenario flakiness
+index is recorded. Combine with `--parallel` to keep N reps fast.
+
+**Per-scenario overrides:** `reps:` and `pass_threshold:` in `specification.yaml` override the run flags.
+
 **Scenarios can declare their workspace** with `env: { workspace: none | empty-git | fixture:<path> }`:
 - `none` (default): a fresh isolated temp dir.
 - `empty-git`: a temp dir initialized as an empty git repo (for git-based scenarios).
@@ -221,8 +227,13 @@ raw transcripts, journal, and report. Commit the durable verdicts; regenerate th
   this) are still read fine — they're migrated in memory on load, never rewritten.
 - `label` carries the `--label` you ran with (`null` if you didn't pass one).
 - `mode` records which run mode (`red` / `green` / `force`) produced the file.
-- each scenario carries `suspect`: the judge-misfire tripwire fired (a `FAIL`
-  verdict with no failed checklist item) — a flag to look at, not a verdict change.
+- each scenario carries `suspect`: the judge-misfire tripwire fired (its per-item grades
+  disagree with its overall verdict) — marked `suspect`, excluded from the grade, and blocks
+  SHIP until you re-judge it or set an override in the review UI.
+
+`skill-check grade` currently re-judges single-rep runs only; for a `--reps N>1` run it
+fails fast with an explanatory error — resolve `suspect` scenarios there via an override
+in `skill-check review`, or re-run the skill.
 
 **Overrides** (via `skill-check review`) **require a note** — you must say why the
 judge was wrong before an override is accepted. Saving one also un-gitignores

@@ -257,3 +257,38 @@ scenarios:
     expect(spec.scenarios[0].workspace).toEqual({ fixture: "fixtures/other" });
   });
 });
+
+describe("reps + pass_threshold parsing", () => {
+  const base = (extra: string) => `
+skill: demo
+judge_persona: a judge.
+ship_bar: { total: 1, min_pass: 1 }
+scenarios:
+  - id: A1
+    title: t
+    turns: ["hi"]
+    checklist: ["ok"]
+${extra}`;
+
+  test("absent → undefined", () => {
+    const s = parseSpec(base(""), "spec.yaml").scenarios[0];
+    expect(s.reps).toBeUndefined();
+    expect(s.passThreshold).toBeUndefined();
+  });
+
+  test("parses reps and pass_threshold", () => {
+    const s = parseSpec(base("    reps: 5\n    pass_threshold: 0.8\n"), "spec.yaml").scenarios[0];
+    expect(s.reps).toBe(5);
+    expect(s.passThreshold).toBe(0.8);
+  });
+
+  test("rejects non-positive-integer reps", () => {
+    expect(() => parseSpec(base("    reps: 0\n"), "spec.yaml")).toThrow(/reps/);
+    expect(() => parseSpec(base("    reps: 2.5\n"), "spec.yaml")).toThrow(/reps/);
+  });
+
+  test("rejects pass_threshold outside 0..1", () => {
+    expect(() => parseSpec(base("    pass_threshold: 1.5\n"), "spec.yaml")).toThrow(/pass_threshold/);
+    expect(() => parseSpec(base("    pass_threshold: -0.1\n"), "spec.yaml")).toThrow(/pass_threshold/);
+  });
+});

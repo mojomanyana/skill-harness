@@ -10,6 +10,8 @@ import {
   applyOverride,
   ensureResultsGitignore,
   preserveTranscript,
+  findTranscriptFile,
+  findTranscriptFiles,
   finalizeResults,
   migrateResults,
   effectiveVerdicts,
@@ -127,6 +129,77 @@ describe("preserveTranscript", () => {
     mkdirSync(runDir, { recursive: true });
     expect(() => preserveTranscript(root, runDir, "ZZ")).not.toThrow();
   });
+
+  test("a --reps run un-gitignores EVERY rep transcript, not just one", () => {
+    const root = tmp();
+    const runDir = join(root, "pi-fake", "2026-07-03T00-00-00Z");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "C1.green.rep0.txt"), "rep0", "utf8");
+    writeFileSync(join(runDir, "C1.green.rep1.txt"), "rep1", "utf8");
+    writeFileSync(join(runDir, "C1.green.rep2.txt"), "rep2", "utf8");
+    writeFileSync(join(runDir, "A1.green.rep0.txt"), "other scenario", "utf8"); // must not be preserved
+    preserveTranscript(root, runDir, "C1");
+    preserveTranscript(root, runDir, "C1"); // idempotent
+    const gi = readFileSync(join(root, ".gitignore"), "utf8");
+    for (const rep of [0, 1, 2]) {
+      const line = `!pi-fake/2026-07-03T00-00-00Z/C1.green.rep${rep}.txt`;
+      expect(gi.split("\n").filter((l) => l === line)).toHaveLength(1);
+    }
+    expect(gi).not.toMatch(/A1\.green\.rep0\.txt/);
+  });
+});
+
+describe("findTranscriptFiles", () => {
+  test("returns all rep files for a scenario, sorted in numeric rep order", () => {
+    const root = tmp();
+    const runDir = join(root, "run");
+    mkdirSync(runDir, { recursive: true });
+    // write out of order to prove sorting, not readdir order, wins
+    writeFileSync(join(runDir, "C1.green.rep2.txt"), "2", "utf8");
+    writeFileSync(join(runDir, "C1.green.rep10.txt"), "10", "utf8");
+    writeFileSync(join(runDir, "C1.green.rep0.txt"), "0", "utf8");
+    writeFileSync(join(runDir, "C1.green.rep1.txt"), "1", "utf8");
+    writeFileSync(join(runDir, "A1.green.rep0.txt"), "other", "utf8"); // different scenario, excluded
+    const files = findTranscriptFiles(runDir, "C1");
+    expect(files).toEqual(["C1.green.rep0.txt", "C1.green.rep1.txt", "C1.green.rep2.txt", "C1.green.rep10.txt"]);
+  });
+
+  test("a plain <id>.<mode>.txt sorts before rep-suffixed files", () => {
+    const root = tmp();
+    const runDir = join(root, "run");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "C1.green.rep0.txt"), "0", "utf8");
+    writeFileSync(join(runDir, "C1.green.txt"), "plain", "utf8");
+    expect(findTranscriptFiles(runDir, "C1")).toEqual(["C1.green.txt", "C1.green.rep0.txt"]);
+  });
+
+  test("no run dir or no matches → empty array", () => {
+    expect(findTranscriptFiles(join(tmpdir(), "sc-nonexistent-xyz"), "C1")).toEqual([]);
+    const root = tmp();
+    expect(findTranscriptFiles(root, "ZZ")).toEqual([]);
+  });
+
+  test("findTranscriptFile (singular) is the first of findTranscriptFiles", () => {
+    const root = tmp();
+    const runDir = join(root, "run");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "C1.green.rep0.txt"), "0", "utf8");
+    writeFileSync(join(runDir, "C1.green.rep1.txt"), "1", "utf8");
+    expect(findTranscriptFile(runDir, "C1")).toBe(findTranscriptFiles(runDir, "C1")[0]);
+    expect(findTranscriptFile(runDir, "ZZ")).toBeNull();
+  });
+
+  test("optional mode param scopes matches to that mode only; omitted keeps all modes", () => {
+    const root = tmp();
+    const runDir = join(root, "run");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "A1.green.rep0.txt"), "0", "utf8");
+    writeFileSync(join(runDir, "A1.green.rep1.txt"), "1", "utf8");
+    writeFileSync(join(runDir, "A1.red.txt"), "red", "utf8");
+    expect(findTranscriptFiles(runDir, "A1", "green")).toEqual(["A1.green.rep0.txt", "A1.green.rep1.txt"]);
+    // no mode: current behavior — plain (non-rep-suffixed) files sort first, then reps in numeric order.
+    expect(findTranscriptFiles(runDir, "A1")).toEqual(["A1.red.txt", "A1.green.rep0.txt", "A1.green.rep1.txt"]);
+  });
 });
 
 describe("ensureResultsGitignore migration", () => {
@@ -176,8 +249,8 @@ describe("effectiveVerdicts", () => {
   test("override wins over judge verdict", () => {
     const vs = effectiveVerdicts(applyOverride(sample, "C1", "PASS", "why").scenarios);
     expect(vs).toEqual([
-      { id: "A1", verdict: "PASS" },
-      { id: "C1", verdict: "PASS" },
+      { id: "A1", verdict: "PASS", suspect: false },
+      { id: "C1", verdict: "PASS", suspect: false },
     ]);
   });
 });
@@ -233,6 +306,33 @@ scenarios:
     const c1 = r.scenarios.find((s) => s.id === "C1")!;
     expect(c1.judge_reason).toBe("");
     expect(c1.suspect).toBe(false);
+  });
+});
+
+describe("effectiveVerdicts + finalizeResults with suspect", () => {
+  test("effectiveVerdicts marks suspect only when unresolved (no override)", () => {
+    const scenarios = [
+      { id: "A1", judge_verdict: "PASS", judge_reason: "", suspect: false, override: null, note: "" },
+      { id: "A2", judge_verdict: "FAIL", judge_reason: "", suspect: true, override: null, note: "" },
+      { id: "A3", judge_verdict: "FAIL", judge_reason: "", suspect: true, override: "PASS", note: "resolved" },
+    ] as const;
+    const vs = effectiveVerdicts(scenarios as any);
+    expect(vs.find((v) => v.id === "A2")!.suspect).toBe(true);
+    expect(vs.find((v) => v.id === "A3")!.suspect).toBeFalsy(); // override resolves it
+    expect(vs.find((v) => v.id === "A3")!.verdict).toBe("PASS");
+  });
+
+  test("an unresolved suspect blocks ship; an override resolves it", () => {
+    const susDraft = {
+      ...draft,
+      scenarios: [
+        { id: "A1", judge_verdict: "PASS", judge_reason: "", suspect: false, override: null, note: "" },
+        { id: "C1", judge_verdict: "FAIL", judge_reason: "", suspect: true, override: null, note: "" },
+      ],
+    };
+    expect(finalizeResults(susDraft, ctx).effective_grade.ship).toBe(false);
+    const resolved = applyOverride(finalizeResults(susDraft, ctx), "C1", "PASS", "looked, judge misfired");
+    expect(finalizeResults(resolved, ctx).effective_grade.ship).toBe(true);
   });
 });
 

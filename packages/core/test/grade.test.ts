@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { describe, test, expect } from "vitest";
-import { buildJudgePrompt, parseVerdict, judgeResemblesSubject, gradeTranscript, judgeInWorkspace } from "../src/grade.js";
+import { buildJudgePrompt, parseVerdict, judgeResemblesSubject, gradeTranscript, judgeInWorkspace, detectMisfire } from "../src/grade.js";
 import type { Scenario } from "../src/spec.js";
 import type { HarnessAdapter } from "../src/adapters/types.js";
 
@@ -119,6 +119,38 @@ describe("gradeTranscript misfire tripwire → structured suspect flag", () => {
       judgeRef, "prompt", "/tmp"
     );
     expect(r.suspect).toBe(false);
+  });
+});
+
+describe("detectMisfire (per-item vs verdict)", () => {
+  const items = (lines: string[], verdictLine: string) => [...lines, verdictLine].join("\n");
+
+  test("agreeing PASS (all items PASS, verdict PASS) is not suspect", () => {
+    expect(detectMisfire(items(["1. PASS — ok", "2. PASS — ok"], "VERDICT: PASS"), "PASS")).toBe(false);
+  });
+
+  test("agreeing FAIL (an item FAILs, verdict FAIL) is not suspect", () => {
+    expect(detectMisfire(items(["1. PASS — ok", "2. FAIL — nope"], "VERDICT: FAIL"), "FAIL")).toBe(false);
+  });
+
+  test("false-fail: all items PASS but verdict FAIL → suspect (the observed class)", () => {
+    expect(detectMisfire(items(["1. PASS — ok", "2. PASS — ok"], "VERDICT: FAIL"), "FAIL")).toBe(true);
+  });
+
+  test("false-pass: an item FAILs but verdict PASS → suspect", () => {
+    expect(detectMisfire(items(["1. PASS — ok", "2. FAIL — nope"], "VERDICT: PASS"), "PASS")).toBe(true);
+  });
+
+  test("unparseable items → fail-open (not suspect)", () => {
+    expect(detectMisfire("the judge rambled\nVERDICT: FAIL", "FAIL")).toBe(false);
+  });
+
+  test("ERROR verdict is never suspect, even with parsed all-pass items", () => {
+    expect(detectMisfire(items(["1. PASS — ok"], "garbage"), "ERROR")).toBe(false);
+  });
+
+  test("tolerates ) and lowercase: '1) pass' counts as an item", () => {
+    expect(detectMisfire(items(["1) pass — ok", "2) pass — ok"], "VERDICT: FAIL"), "FAIL")).toBe(true);
   });
 });
 

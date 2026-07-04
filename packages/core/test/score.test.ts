@@ -83,3 +83,40 @@ describe("score", () => {
     expect(r.ship).toBe(false);
   });
 });
+
+describe("suspect scoring", () => {
+  const bar = { total: 2, min_pass: 2, no_critical_fail: true };
+
+  test("suspect verdict is excluded from passed and total", () => {
+    const r = score(
+      [
+        { id: "A1", verdict: "PASS" },
+        { id: "A2", verdict: "PASS" },
+        { id: "A3", verdict: "FAIL", suspect: true },
+      ],
+      { shipBar: bar, critical: [] }
+    );
+    expect(r.total).toBe(2); // A3 excluded
+    expect(r.passed).toBe(2);
+    expect(r.suspectCount).toBe(1);
+  });
+
+  test("any suspect blocks ship and notes it", () => {
+    const r = score(
+      [
+        { id: "A1", verdict: "PASS" },
+        { id: "A2", verdict: "PASS" },
+        { id: "A3", verdict: "PASS", suspect: true },
+      ],
+      { shipBar: bar, critical: [] }
+    );
+    expect(r.ship).toBe(false);
+    expect(r.note).toMatch(/suspect/);
+  });
+
+  test("no suspects → suspectCount 0, unchanged behavior", () => {
+    const r = score([{ id: "A1", verdict: "PASS" }, { id: "A2", verdict: "PASS" }], { shipBar: bar, critical: [] });
+    expect(r.suspectCount).toBe(0);
+    expect(r.ship).toBe(true);
+  });
+});

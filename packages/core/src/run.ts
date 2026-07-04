@@ -15,6 +15,7 @@ import { appendJournal } from "./journal.js";
 import { runSeeded } from "./seeded.js";
 import { createWorkspace, type Workspace } from "./workspace.js";
 import { runPool } from "./scheduler.js";
+import { aggregateReps, type RepOutcome } from "./reps.js";
 
 export interface RunOptions {
   spec: Spec;
@@ -30,6 +31,8 @@ export interface RunOptions {
   onProgress?: (msg: string) => void;
   now?: () => string; // ISO clock for journal events (injectable — some hosts restrict wall-clock calls)
   concurrency?: number; // scenarios in flight at once; default 1 (sequential)
+  reps?: number; // run each scenario N times (default 1); per-scenario `reps:` overrides
+  passThreshold?: number; // pass if pass-rate >= this (default 0.5); per-scenario overrides
 }
 
 export interface RunSummary {
@@ -61,10 +64,37 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     mode, label: opts.label ?? null,
   });
 
-  const tasks = spec.scenarios.map(
-    (scenario) => () => runScenario(scenario, { ...opts, runDir, now, log })
-  );
-  const scenarioResults = await runPool(tasks, opts.concurrency ?? 1);
+  // scenario × rep tasks; runPool preserves input order so we can slice per scenario.
+  const repCounts = spec.scenarios.map((s) => s.reps ?? opts.reps ?? 1);
+  const owners: number[] = [];
+  const tasks: Array<() => Promise<RepOutcome>> = [];
+  spec.scenarios.forEach((scenario, si) => {
+    for (let k = 0; k < repCounts[si]; k++) {
+      const rep = k;
+      const total = repCounts[si];
+      owners.push(si);
+      tasks.push(() => runRep(scenario, rep, total, { ...opts, runDir, now, log }));
+    }
+  });
+  const flat = await runPool(tasks, opts.concurrency ?? 1);
+
+  const grouped: RepOutcome[][] = spec.scenarios.map(() => []);
+  flat.forEach((outcome, i) => grouped[owners[i]].push(outcome));
+
+  const scenarioResults: ScenarioResult[] = spec.scenarios.map((scenario, si) => {
+    const group = grouped[si];
+    if (repCounts[si] === 1) {
+      // N=1: preserve the judge's real verdict/reason (byte-identical to M3); no reps fields.
+      const o = group[0];
+      return { id: scenario.id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, override: null, note: "" };
+    }
+    const threshold = scenario.passThreshold ?? opts.passThreshold ?? 0.5;
+    const agg = aggregateReps(group, threshold);
+    return {
+      id: scenario.id, judge_verdict: agg.verdict, judge_reason: agg.reason, suspect: agg.suspect,
+      reps: agg.reps, passes: agg.passes, clean: agg.clean, flakiness: agg.flakiness, override: null, note: "",
+    };
+  });
 
   const ctx = mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
   const results = writeResults(runDir, {
@@ -90,11 +120,14 @@ interface ScenarioCtx {
   log: (msg: string) => void;
 }
 
-/** Run one scenario end-to-end in its own isolated workspace. */
-async function runScenario(scenario: Scenario, ctx: RunOptions & ScenarioCtx): Promise<ScenarioResult> {
+/** Run ONE rep of a scenario in its own isolated workspace. */
+async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: RunOptions & ScenarioCtx): Promise<RepOutcome> {
   const { spec, judge, mode, runDir, now, log } = ctx;
-  log(`  ${scenario.id} (${scenario.title}) …`);
-  appendJournal(runDir, { event: "scenario-started", ts: now(), id: scenario.id, title: scenario.title });
+  const repField = repCount > 1 ? { rep } : {};
+  if (rep === 0) {
+    log(`  ${scenario.id} (${scenario.title})${repCount > 1 ? ` ×${repCount}` : ""} …`);
+    appendJournal(runDir, { event: "scenario-started", ts: now(), id: scenario.id, title: scenario.title });
+  }
 
   let ws: Workspace | null = null;
   let transcript = "";
@@ -121,31 +154,31 @@ async function runScenario(scenario: Scenario, ctx: RunOptions & ScenarioCtx): P
       }
     }
 
-    writeFileSync(transcriptPath(runDir, scenario.id, mode), transcript, "utf8");
+    writeFileSync(transcriptPath(runDir, scenario.id, mode, repCount > 1 ? rep : undefined), transcript, "utf8");
     if (scenario.mode === "seeded") {
-      appendJournal(runDir, { event: "gate-result", ts: now(), id: scenario.id, ok: !gatePrefix, detail: gatePrefix ?? "" });
+      appendJournal(runDir, { event: "gate-result", ts: now(), id: scenario.id, ok: !gatePrefix, detail: gatePrefix ?? "", ...repField });
     }
 
-    let judge_verdict: ScenarioResult["judge_verdict"];
-    let judge_reason: string;
+    let verdict: ScenarioResult["judge_verdict"];
+    let reason: string;
     let suspect = false;
     if (gatePrefix) {
-      judge_verdict = "FAIL";
-      judge_reason = gatePrefix;
+      verdict = "FAIL";
+      reason = gatePrefix;
     } else {
       const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
       const g = await judgeInWorkspace(ctx.adapter, judge, prompt, dirname(ctx.specPath));
-      judge_verdict = g.verdict;
-      judge_reason = g.reason;
+      verdict = g.verdict;
+      reason = g.reason;
       suspect = g.suspect;
     }
 
-    log(`  → ${scenario.id} ${judge_verdict}${judge_reason ? `: ${judge_reason}` : ""}${suspect ? "  ⚠ suspect misfire" : ""}`);
-    appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict: judge_verdict, reason: judge_reason, suspect });
+    log(`  → ${scenario.id}${repCount > 1 ? `#${rep}` : ""} ${verdict}${reason ? `: ${reason}` : ""}${suspect ? "  ⚠ suspect" : ""}`);
+    appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
     if (suspect) {
-      appendJournal(runDir, { event: "misfire-flag", ts: now(), id: scenario.id, reason: judge_reason });
+      appendJournal(runDir, { event: "misfire-flag", ts: now(), id: scenario.id, reason, ...repField });
     }
-    return { id: scenario.id, judge_verdict, judge_reason, suspect, override: null, note: "" };
+    return { verdict, reason, suspect };
   } finally {
     ws?.cleanup();
   }
@@ -162,7 +195,9 @@ export function formatScorecard(summary: RunSummary): string {
     const mark = v === "PASS" ? "✓" : v === "FAIL" ? "✗" : "?";
     const ov = s.override ? " (override)" : "";
     const susp = s.suspect ? " ⚠suspect" : "";
-    lines.push(`  ${mark} ${s.id}${ov}${susp}  ${s.judge_reason}`);
+    const misfired = s.clean !== undefined && s.reps !== undefined && s.clean < s.reps ? ` · ${s.reps - s.clean} misfired` : "";
+    const repInfo = s.reps ? `  [${s.passes}/${s.clean}${misfired}${s.flakiness ? ` flaky ${s.flakiness.toFixed(2)}` : ""}]` : "";
+    lines.push(`  ${mark} ${s.id}${ov}${susp}  ${s.judge_reason}${repInfo}`);
   }
   const ship = g.ship ? "SHIP" : "NOT READY";
   const note = g.note ? ` (${g.note})` : "";
