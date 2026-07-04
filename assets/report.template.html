@@ -96,6 +96,10 @@ function render() {
   const grades = DATA.columns.map((col) => gradeColumn(col, DATA.shipBar, DATA.critical));
   const queue = [];
   DATA.columns.forEach((col) => {
+    // A suspect cell in a red/force column can't be re-judged (/rejudge 400s
+    // "only green runs can be re-judged") — don't queue it. The matrix below
+    // still shows suspect badges for every column regardless of mode.
+    if (col.mode && col.mode !== "green") return;
     for (const scn of DATA.scenarios) {
       const cell = col.cells[scn.id];
       if (cell && cell.suspect && !cell.override) queue.push({ col: col.index, id: scn.id, label: col.label, reason: cell.judge_reason });

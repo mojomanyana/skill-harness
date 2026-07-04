@@ -37,6 +37,7 @@ export interface ServeOptions {
   skillName: string;
   port?: number;
   open?: boolean;
+  adapter?: import("@skill-check/core").HarnessAdapter; // test seam: overrides getAdapter(results.harness) in /rejudge
 }
 
 function readBody(req: import("node:http").IncomingMessage): Promise<string> {
@@ -123,7 +124,7 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
         const spec = loadSpec(specPath);
         const scenario = spec.scenarios.find((s) => s.id === body.scenarioId);
         if (!scenario) { res.writeHead(404).end("unknown scenario"); return; }
-        const adapter = getAdapter(results.harness);
+        const adapter = opts.adapter ?? getAdapter(results.harness);
         if (!(await adapter.available())) {
           res.writeHead(400, { "content-type": "application/json" });
           res.end(JSON.stringify({ ok: false, error: `harness \`${results.harness}\` is not on PATH` }));
@@ -131,22 +132,30 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
         }
         const prev = results.scenarios.find((s) => s.id === body.scenarioId);
         const threshold = prev?.pass_threshold ?? scenario.passThreshold ?? 0.5;
-        const rr = await regradeScenario({
-          runDir: column.runDir, spec, scenario, adapter, judge: results.judge,
-          specDir: dirname(specPath), threshold,
-        });
-        const merged = results.scenarios.map((s) =>
-          s.id === body.scenarioId ? { ...rr, override: s.override, note: s.note } : s
-        );
-        const written = writeResults(column.runDir, {
-          skill: results.skill, harness: results.harness, model: results.model, judge: results.judge,
-          timestamp: results.timestamp, label: results.label, mode: results.mode, scenarios: merged,
-        }, { shipBar: spec.ship_bar, critical: spec.critical });
-        ensureResultsGitignore(join(opts.skillDir, "tests", "results"));
-        const g = written.effective_grade;
-        appendJournal(column.runDir, { event: "score", ts: new Date().toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({ ok: true, grade: g }));
+        try {
+          const rr = await regradeScenario({
+            runDir: column.runDir, spec, scenario, adapter, judge: results.judge,
+            specDir: dirname(specPath), threshold,
+          });
+          const merged = results.scenarios.map((s) =>
+            s.id === body.scenarioId ? { ...rr, override: s.override, note: s.note } : s
+          );
+          const written = writeResults(column.runDir, {
+            skill: results.skill, harness: results.harness, model: results.model, judge: results.judge,
+            timestamp: results.timestamp, label: results.label, mode: results.mode, scenarios: merged,
+          }, { shipBar: spec.ship_bar, critical: spec.critical });
+          ensureResultsGitignore(join(opts.skillDir, "tests", "results"));
+          const g = written.effective_grade;
+          appendJournal(column.runDir, { event: "score", ts: new Date().toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: true, grade: g }));
+        } catch (e) {
+          // regradeScenario (or the write/journal that follows) failed — surface the
+          // real reason as JSON so the client's r.json().catch(()=>({})) sees body.error
+          // instead of falling through to the generic top-level 500 (text/plain).
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+        }
         return;
       }
 
