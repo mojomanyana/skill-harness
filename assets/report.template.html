@@ -28,6 +28,8 @@
   .cell.empty { color: var(--dim); cursor: default; font-weight: 400; }
   .cell .ov { display: block; font-size: 11px; color: var(--over); font-weight: 600; }
   .cell .ov.unsaved { color: #b45309; font-style: italic; }
+  .cell .ov.suspect { color: #b45309; }
+  .cell .reps { display: block; font-size: 10px; color: var(--dim); }
   .cell.sel { outline: 2px solid var(--accent); outline-offset: -2px; }
   .grade { font-size: 12px; color: var(--dim); font-weight: 500; margin-top: 4px; }
   .badge { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; }
@@ -72,10 +74,11 @@ function effective(cell) { return cell.override || cell.judge_verdict; }
 // Mirror of src/score.ts ship logic, recomputed live as overrides change.
 function gradeColumn(col) {
   const sb = DATA.shipBar, crit = DATA.critical;
-  let passed = 0, total = 0, criticalFails = 0, bFails = 0;
+  let passed = 0, total = 0, criticalFails = 0, bFails = 0, suspect = 0;
   for (const scn of DATA.scenarios) {
     const cell = col.cells[scn.id];
     if (!cell) continue;
+    if (cell.suspect && !cell.override) { suspect++; continue; } // excluded, blocks ship
     total++;
     const v = effective(cell);
     if (v === "PASS") { passed++; continue; }
@@ -84,8 +87,8 @@ function gradeColumn(col) {
   }
   const pct = total ? Math.round(passed * 100 / total) : 0;
   const letter = pct >= 90 ? "A" : pct >= 80 ? "B" : pct >= 70 ? "C" : pct >= 60 ? "D" : "F";
-  const ship = total >= sb.total && passed >= sb.min_pass && (!sb.no_critical_fail || criticalFails === 0) && bFails === 0;
-  return { passed, total, pct, letter, ship, criticalFails, bFails };
+  const ship = total >= sb.total && passed >= sb.min_pass && (!sb.no_critical_fail || criticalFails === 0) && bFails === 0 && suspect === 0;
+  return { passed, total, pct, letter, ship, criticalFails, bFails, suspect };
 }
 
 let selected = null; // { colIndex, scenarioId }
@@ -106,9 +109,13 @@ function render() {
     if (col.mode && col.mode !== "green") {
       // Only green runs are scored; a red/force column has no ship grade.
       gradeHtml = `<span class='badge no'>not scored (${escapeHtml(col.mode)})</span>`;
+      if (g.suspect > 0) gradeHtml += ` — ${g.suspect} suspect`;
     } else {
+      // g.ship is already false whenever g.suspect > 0 (gradeColumn's suspect gate), so
+      // the NOT READY badge is forced automatically; we just surface the count here.
       const badge = g.ship ? "<span class='badge ship'>SHIP</span>" : "<span class='badge no'>NOT READY</span>";
-      gradeHtml = `${g.letter} (${g.pct}%) · ${g.passed}/${g.total} ${badge}`;
+      const suspectNote = g.suspect > 0 ? ` — ${g.suspect} suspect` : "";
+      gradeHtml = `${g.letter} (${g.pct}%) · ${g.passed}/${g.total}${suspectNote} ${badge}`;
     }
     html += `<th><div>${escapeHtml(col.label)}</div><div class='grade'>${gradeHtml}</div></th>`;
   });
@@ -125,7 +132,9 @@ function render() {
       const ov = cell._unsaved
         ? `<span class='ov unsaved'>unsaved</span>`
         : (cell.override ? `<span class='ov'>override</span>` : "");
-      html += `<td class='cell ${v}${sel}' data-col='${col.index}' data-id='${scn.id}'>${v}${ov}</td>`;
+      const reps = cell.reps ? `<span class='reps'>${cell.passes}/${cell.reps}${cell.flakiness ? ` · flaky ${cell.flakiness.toFixed(2)}` : ""}</span>` : "";
+      const suspectBadge = cell.suspect && !cell.override ? `<span class='ov suspect'>suspect</span>` : "";
+      html += `<td class='cell ${v}${sel}' data-col='${col.index}' data-id='${scn.id}'>${v}${ov}${suspectBadge}${reps}</td>`;
     });
     html += "</tr>";
   }

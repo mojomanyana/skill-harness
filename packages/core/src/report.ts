@@ -12,7 +12,7 @@ export interface RunColumn {
   mode: string; // red | green | force — non-green runs are not scored
   grade: ResultsFile["effective_grade"];
   judge: ResultsFile["judge"];
-  cells: Record<string, { judge_verdict: string; judge_reason: string; suspect: boolean; override: string | null; note: string }>;
+  cells: Record<string, { judge_verdict: string; judge_reason: string; suspect: boolean; reps?: number; passes?: number; flakiness?: number; override: string | null; note: string }>;
 }
 
 export interface ReportData {
@@ -59,6 +59,9 @@ export function collectReport(skillDir: string): ReportData {
           judge_verdict: s.judge_verdict,
           judge_reason: s.judge_reason,
           suspect: s.suspect ?? false, // schema-1 files lack the field until Task 2's migration
+          reps: s.reps,
+          passes: s.passes,
+          flakiness: s.flakiness,
           override: s.override,
           note: s.note,
         };

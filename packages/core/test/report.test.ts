@@ -2,7 +2,7 @@ import { describe, test, expect, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { collectReport, renderReport, publicView } from "../src/report.js";
+import { collectReport, renderReport, publicView, type ReportData } from "../src/report.js";
 
 const tmps: string[] = [];
 function tmp() {
@@ -48,7 +48,7 @@ judge: {provider: fireworks, model: kimi}
 timestamp: '2026-06-25T12:00:00.000Z'
 grade: {passed: 2, total: 2, pct: 100, letter: A, ship: true, note: ''}
 scenarios:
-  - {id: A1, judge_verdict: PASS, judge_reason: points to max, override: null, note: ''}
+  - {id: A1, judge_verdict: PASS, judge_reason: points to max, override: null, note: '', reps: 5, passes: 4, flakiness: 0.4}
   - {id: C2, judge_verdict: PASS, judge_reason: minimal, override: FAIL, note: 'I disagree'}
 `
   );
@@ -67,6 +67,16 @@ describe("collectReport", () => {
     expect(col.cells.C2.override).toBe("FAIL");
   });
 
+  test("collectReport surfaces reps/passes/flakiness on the cell", () => {
+    const data = collectReport(seedSkill());
+    const cell = data.columns[0].cells.A1;
+    expect(cell.reps).toBe(5);
+    expect(cell.passes).toBe(4);
+    expect(cell.flakiness).toBe(0.4);
+    // A cell with no reps recorded (N=1) leaves the fields undefined.
+    expect(data.columns[0].cells.C2.reps).toBeUndefined();
+  });
+
   test("carries shipBar + critical for client-side re-grading", () => {
     const data = collectReport(seedSkill());
     expect(data.shipBar.min_pass).toBe(2);
@@ -80,6 +90,48 @@ describe("publicView", () => {
     const view = JSON.stringify(publicView(data));
     expect(view).not.toMatch(/runDir/);
     expect(view).not.toMatch(/\/tmp\//);
+  });
+});
+
+describe("publicView reps", () => {
+  test("surfaces reps/passes/flakiness on the cell payload unstripped", () => {
+    const data: ReportData = {
+      skill: "ponytail",
+      shipBar: { total: 2, min_pass: 2, no_critical_fail: true },
+      critical: ["A1"],
+      scenarios: [{ id: "A1", title: "hand-rolled max", critical: true }],
+      columns: [
+        {
+          index: 0,
+          label: "fireworks:deepseek",
+          tag: "pi-fireworks-deepseek",
+          runDir: "/tmp/should-not-leak",
+          timestamp: "2026-06-25T12:00:00.000Z",
+          mode: "green",
+          grade: { passed: 0, total: 0, pct: 0, letter: "F", ship: false, note: "" },
+          judge: { provider: "fireworks", model: "kimi" },
+          cells: {
+            A1: {
+              judge_verdict: "FAIL",
+              judge_reason: "flaky",
+              suspect: true,
+              reps: 5,
+              passes: 4,
+              flakiness: 0.4,
+              override: null,
+              note: "",
+            },
+          },
+        },
+      ],
+    };
+    const view = publicView(data);
+    const cell = view.columns[0].cells.A1;
+    expect(cell.reps).toBe(5);
+    expect(cell.passes).toBe(4);
+    expect(cell.flakiness).toBe(0.4);
+    const json = JSON.stringify(view);
+    expect(json).toMatch(/"flakiness":0\.4/);
   });
 });
 
