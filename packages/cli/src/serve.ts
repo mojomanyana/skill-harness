@@ -11,6 +11,7 @@ import {
   type Verdict, type ResultsFile,
   loadSpec,
   regradeScenario, findJudgeRawFiles,
+  effectiveThreshold,
 } from "@skill-check/core";
 import { getAdapter } from "@skill-check/adapters";
 
@@ -132,7 +133,7 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
         }
         const prev = results.scenarios.find((s) => s.id === body.scenarioId);
         if (!prev) { res.writeHead(404).end("scenario not in this run"); return; }
-        const threshold = prev?.pass_threshold ?? scenario.passThreshold ?? 0.5;
+        const threshold = effectiveThreshold(prev, scenario);
         try {
           const rr = await regradeScenario({
             runDir: column.runDir, spec, scenario, adapter, judge: results.judge,

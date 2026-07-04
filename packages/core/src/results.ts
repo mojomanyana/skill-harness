@@ -4,7 +4,7 @@ import yaml from "js-yaml";
 import { modelSlug, type ModelRef } from "./adapters/types.js";
 import { score, type ScenarioVerdict } from "./score.js";
 import type { Verdict } from "./score.js";
-import type { ShipBar } from "./spec.js";
+import type { ShipBar, Scenario } from "./spec.js";
 
 export interface ScenarioResult {
   id: string;
@@ -40,6 +40,11 @@ export interface ResultsFile {
   mode: string; // red | green | force
   effective_grade: GradeSummary; // always override-aware; only finalizeResults writes it
   scenarios: ScenarioResult[];
+}
+
+/** The pass-threshold a re-grade uses: the run's persisted value, else the spec's per-scenario value, else 0.5. */
+export function effectiveThreshold(prevScenario: ScenarioResult | undefined, scenario: Scenario): number {
+  return prevScenario?.pass_threshold ?? scenario.passThreshold ?? 0.5;
 }
 
 /** Everything a caller may set. The grade is computed, never supplied. */
@@ -287,7 +292,7 @@ export function findTranscriptFile(runDir: string, scenarioId: string): string |
  * Windows too (git ignore patterns are always forward-slashed).
  */
 export function preserveTranscript(resultsRoot: string, runDir: string, scenarioId: string): void {
-  const files = findTranscriptFiles(runDir, scenarioId);
+  const files = [...findTranscriptFiles(runDir, scenarioId), ...findJudgeRawFiles(runDir, scenarioId)];
   if (files.length === 0) return;
   ensureResultsGitignore(resultsRoot);
   const giPath = join(resultsRoot, ".gitignore");
