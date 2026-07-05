@@ -2,7 +2,7 @@ import { describe, test, expect, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { writeResults, readResults, type HarnessAdapter } from "@skill-check/core";
+import { writeResults, readResults, type HarnessAdapter } from "@skill-harness/core";
 import { cmdGrade } from "../src/cli.js";
 
 const SPEC = `

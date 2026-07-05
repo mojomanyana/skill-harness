@@ -1,8 +1,8 @@
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { HarnessAdapter, RunReq, JudgeReq, RunMode } from "@skill-check/core";
-import { exec, onPath } from "@skill-check/core";
+import type { HarnessAdapter, RunReq, JudgeReq, RunMode } from "@skill-harness/core";
+import { exec, onPath } from "@skill-harness/core";
 
 const PI_TIMEOUT_MS = Number(process.env.SKILL_CHECK_PI_TIMEOUT_MS ?? 300_000);
 

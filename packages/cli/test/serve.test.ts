@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "nod
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeResults, readResults, readJournal, type HarnessAdapter } from "@skill-check/core";
+import { writeResults, readResults, readJournal, type HarnessAdapter } from "@skill-harness/core";
 import { serveReview } from "../src/serve.js";
 
 // packages/cli/test -> packages/cli -> packages -> repo root

@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock core's exec before importing the adapter.
-vi.mock("@skill-check/core", async (importOriginal) => {
-  const orig = await importOriginal<typeof import("@skill-check/core")>();
+vi.mock("@skill-harness/core", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("@skill-harness/core")>();
   return { ...orig, exec: vi.fn(), onPath: () => true };
 });
 
 import { piAdapter } from "../src/pi.js";
-import { exec } from "@skill-check/core";
+import { exec } from "@skill-harness/core";
 
 const mockedExec = vi.mocked(exec);
 

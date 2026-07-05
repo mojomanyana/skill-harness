@@ -1,4 +1,4 @@
-import type { HarnessAdapter } from "@skill-check/core";
+import type { HarnessAdapter } from "@skill-harness/core";
 import { piAdapter } from "./pi.js";
 
 /**

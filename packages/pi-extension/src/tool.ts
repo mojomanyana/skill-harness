@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import type { HarnessAdapter } from "@skill-check/core";
+import type { HarnessAdapter } from "@skill-harness/core";
 import type { ExtensionAPI } from "./commands.js";
 import { resolveSkillDir, runViaExtension, type Scorecard } from "./runner.js";
 

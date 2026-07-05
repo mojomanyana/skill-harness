@@ -9,8 +9,8 @@ import {
   readResults, regradeRun,
   lintSkill, type LintFinding,
   type HarnessAdapter,
-} from "@skill-check/core";
-import { getAdapter } from "@skill-check/adapters";
+} from "@skill-harness/core";
+import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
 
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";

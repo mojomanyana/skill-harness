@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { loadSpec, regradeRun, readResults, parseModelRef, type HarnessAdapter } from "@skill-check/core";
-import { getAdapter } from "@skill-check/adapters";
-import { serveReview, type ServeHandle } from "@skill-check/cli/serve";
+import { loadSpec, regradeRun, readResults, parseModelRef, type HarnessAdapter } from "@skill-harness/core";
+import { getAdapter } from "@skill-harness/adapters";
+import { serveReview, type ServeHandle } from "@skill-harness/cli/serve";
 import { resolveSkillDir, runViaExtension } from "./runner.js";
 
 /**
