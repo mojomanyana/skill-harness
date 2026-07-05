@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { readFileSync, existsSync, appendFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import yaml from "js-yaml";

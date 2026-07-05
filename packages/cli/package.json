@@ -4,7 +4,14 @@
     "type": "module",
     "license": "MIT",
     "main": "./dist/cli.js",
+    "bin": { "skill-harness": "./dist/cli.js" },
     "exports": { ".": "./dist/cli.js", "./serve": "./dist/serve.js" },
+    "files": ["dist", "assets"],
+    "repository": { "type": "git", "url": "git+https://github.com/mojomanyana/skill-harness.git" },
+    "publishConfig": { "access": "public" },
+    "scripts": {
+        "prepack": "rm -rf ./assets && cp -r ../../assets ./assets"
+    },
     "dependencies": {
         "@skill-harness/core": "0.0.2",
         "@skill-harness/adapters": "0.0.2"

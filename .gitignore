@@ -3,6 +3,7 @@ dist/
 *.log
 .DS_Store
 *.tsbuildinfo
+packages/cli/assets/
 
 # Scratch / local
 /tmp/
