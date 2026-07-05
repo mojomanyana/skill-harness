@@ -3,6 +3,8 @@ import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { regradeScenario, parseSpec, type HarnessAdapter, type JudgeReq } from "../src/index.js";
+import { judgeOneRep } from "../src/regrade.js";
+import { readJournal } from "../src/index.js";
 
 const tmps: string[] = [];
 function tmp() { const d = mkdtempSync(join(tmpdir(), "sc-regrade-")); tmps.push(d); return d; }
@@ -82,5 +84,41 @@ describe("regradeScenario", () => {
       adapter: judgeAdapter("VERDICT: PASS\nREASON: x"),
       judge: { provider: "claude-code", model: "opus" }, specDir: runDir, threshold: 0.5,
     })).rejects.toThrow(/no green transcripts/);
+  });
+});
+
+describe("judgeOneRep", () => {
+  it("judgeOneRep judges a transcript, writes judge-raw, journals, returns the outcome", async () => {
+    const runDir = tmp();
+    const spec = scenarioOf(SPEC);
+    const o = await judgeOneRep({
+      runDir, spec, scenario: spec.scenarios[0], transcript: "USER: hi\nASSISTANT: hello",
+      adapter: judgeAdapter("1. PASS — ok\nVERDICT: PASS\nREASON: fine"),
+      judge: { provider: "claude-code", model: "opus" }, specDir: runDir, mode: "green", rep: undefined, now: () => "t",
+    });
+    expect(o).toEqual({ verdict: "PASS", reason: "fine", suspect: false });
+    expect(readFileSync(join(runDir, "A1.green.judge.txt"), "utf8")).toMatch(/VERDICT: PASS/);
+    const jv = readJournal(runDir).filter((e) => e.event === "judge-verdict");
+    expect(jv).toHaveLength(1);
+    expect(jv[0]).toMatchObject({ id: "A1", verdict: "PASS" });
+  });
+
+  it("emits a misfire-flag alongside judge-verdict when the judge's verdict disagrees with its own items", async () => {
+    const runDir = tmp();
+    const spec = scenarioOf(SPEC);
+    // Item 2 FAILs but the overall verdict is PASS — detectMisfire flags this suspect.
+    const o = await judgeOneRep({
+      runDir, spec, scenario: spec.scenarios[0], transcript: "USER: hi\nASSISTANT: hello",
+      adapter: judgeAdapter("1. PASS — ok\n2. FAIL — missing\nVERDICT: PASS\nREASON: looks ok"),
+      judge: { provider: "claude-code", model: "opus" }, specDir: runDir, mode: "green", rep: undefined, now: () => "t",
+    });
+    expect(o).toEqual({ verdict: "PASS", reason: "looks ok", suspect: true });
+    const events = readJournal(runDir);
+    const jv = events.filter((e) => e.event === "judge-verdict");
+    const misfire = events.filter((e) => e.event === "misfire-flag");
+    expect(jv).toHaveLength(1);
+    expect(jv[0]).toMatchObject({ id: "A1", verdict: "PASS", suspect: true });
+    expect(misfire).toHaveLength(1);
+    expect(misfire[0]).toMatchObject({ id: "A1", reason: "looks ok" });
   });
 });

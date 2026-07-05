@@ -2,11 +2,10 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { Spec, Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef, RunMode } from "./adapters/types.js";
-import { buildJudgePrompt, judgeInWorkspace, judgeResemblesSubject } from "./grade.js";
+import { judgeResemblesSubject } from "./grade.js";
 import {
   runDirFor,
   transcriptPath,
-  judgeRawPath,
   writeResults,
   ensureResultsGitignore,
   type ResultsFile,
@@ -17,6 +16,7 @@ import { runSeeded } from "./seeded.js";
 import { createWorkspace, type Workspace } from "./workspace.js";
 import { runPool } from "./scheduler.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
+import { judgeOneRep } from "./regrade.js";
 
 export interface RunOptions {
   spec: Spec;
@@ -156,20 +156,16 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
     if (gatePrefix) {
       verdict = "FAIL";
       reason = gatePrefix;
+      // gate failures don't invoke the judge, but still record a judge-verdict event (as before)
+      appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
     } else {
-      const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
-      const g = await judgeInWorkspace(ctx.adapter, judge, prompt, dirname(ctx.specPath));
-      writeFileSync(judgeRawPath(runDir, scenario.id, mode, repCount > 1 ? rep : undefined), g.raw, "utf8");
-      verdict = g.verdict;
-      reason = g.reason;
-      suspect = g.suspect;
+      const o = await judgeOneRep({
+        runDir, spec, scenario, transcript, adapter: ctx.adapter, judge,
+        specDir: dirname(ctx.specPath), mode, rep: repCount > 1 ? rep : undefined, now,
+      });
+      verdict = o.verdict; reason = o.reason; suspect = o.suspect; // judgeOneRep already journaled (verdict + misfire)
     }
-
     log(`  → ${scenario.id}${repCount > 1 ? `#${rep}` : ""} ${verdict}${reason ? `: ${reason}` : ""}${suspect ? "  ⚠ suspect" : ""}`);
-    appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
-    if (suspect) {
-      appendJournal(runDir, { event: "misfire-flag", ts: now(), id: scenario.id, reason, ...repField });
-    }
     return { verdict, reason, suspect };
   } finally {
     ws?.cleanup();

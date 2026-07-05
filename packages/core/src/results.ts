@@ -4,7 +4,7 @@ import yaml from "js-yaml";
 import { modelSlug, type ModelRef } from "./adapters/types.js";
 import { score, type ScenarioVerdict } from "./score.js";
 import type { Verdict } from "./score.js";
-import type { ShipBar } from "./spec.js";
+import type { ShipBar, Scenario } from "./spec.js";
 
 export interface ScenarioResult {
   id: string;
@@ -40,6 +40,11 @@ export interface ResultsFile {
   mode: string; // red | green | force
   effective_grade: GradeSummary; // always override-aware; only finalizeResults writes it
   scenarios: ScenarioResult[];
+}
+
+/** The pass-threshold a re-grade uses: the run's persisted value, else the spec's per-scenario value, else 0.5. */
+export function effectiveThreshold(prevScenario: ScenarioResult | undefined, scenario: Scenario): number {
+  return prevScenario?.pass_threshold ?? scenario.passThreshold ?? 0.5;
 }
 
 /** Everything a caller may set. The grade is computed, never supplied. */
@@ -279,15 +284,17 @@ export function findTranscriptFile(runDir: string, scenarioId: string): string |
 }
 
 /**
- * Un-gitignore ALL of a scenario's transcript files (audit trail for an
- * override — a --reps run has one transcript per rep, and every rep that
- * drove the verdict must survive a commit, not just an arbitrary one).
- * Appends `!<tag>/<ts>/<id>.<mode>[.rep<k>].txt` to results/.gitignore for
- * each, once. The path uses POSIX separators so the negation matches on
- * Windows too (git ignore patterns are always forward-slashed).
+ * Un-gitignore ALL of a scenario's transcript AND judge-raw artifact files
+ * (audit trail for an override — a --reps run has one transcript (and one
+ * judge-raw file) per rep, and every rep that drove the verdict must survive
+ * a commit, not just an arbitrary one).
+ * Appends `!<tag>/<ts>/<id>.<mode>[.rep<k>].txt` (and the matching
+ * `.judge.txt`) to results/.gitignore for each, once. The path uses POSIX
+ * separators so the negation matches on Windows too (git ignore patterns are
+ * always forward-slashed).
  */
 export function preserveTranscript(resultsRoot: string, runDir: string, scenarioId: string): void {
-  const files = findTranscriptFiles(runDir, scenarioId);
+  const files = [...findTranscriptFiles(runDir, scenarioId), ...findJudgeRawFiles(runDir, scenarioId)];
   if (files.length === 0) return;
   ensureResultsGitignore(resultsRoot);
   const giPath = join(resultsRoot, ".gitignore");

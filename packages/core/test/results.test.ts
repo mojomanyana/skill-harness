@@ -17,6 +17,7 @@ import {
   finalizeResults,
   migrateResults,
   effectiveVerdicts,
+  effectiveThreshold,
   type ResultsDraft,
 } from "../src/results.js";
 
@@ -149,6 +150,26 @@ describe("preserveTranscript", () => {
     }
     expect(gi).not.toMatch(/A1\.green\.rep0\.txt/);
   });
+
+  test("preserveTranscript also un-gitignores the scenario's judge-raw artifacts", () => {
+    const root = tmp();
+    const runDir = join(root, "pi-fake", "2026-07-05T00-00-00Z");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "A1.green.txt"), "t", "utf8");
+    writeFileSync(join(runDir, "A1.green.judge.txt"), "j", "utf8");
+    preserveTranscript(root, runDir, "A1");
+    const gi = readFileSync(join(root, ".gitignore"), "utf8");
+    expect(gi).toContain("!pi-fake/2026-07-05T00-00-00Z/A1.green.txt");
+    expect(gi).toContain("!pi-fake/2026-07-05T00-00-00Z/A1.green.judge.txt");
+  });
+});
+
+describe("effectiveThreshold", () => {
+  const scn = (pt?: number) => ({ id: "A1", title: "t", critical: false, mode: "inline", turns: [], checklist: [], workspace: "none", passThreshold: pt } as any);
+  const prev = (pt?: number) => (pt === undefined ? undefined : ({ id: "A1", judge_verdict: "PASS", judge_reason: "", suspect: false, override: null, note: "", pass_threshold: pt } as any));
+  test("prev.pass_threshold wins", () => expect(effectiveThreshold(prev(0.8), scn(0.6))).toBe(0.8));
+  test("falls back to scenario.passThreshold", () => expect(effectiveThreshold(prev(undefined), scn(0.7))).toBe(0.7));
+  test("falls back to 0.5", () => expect(effectiveThreshold(undefined, scn(undefined))).toBe(0.5));
 });
 
 describe("findTranscriptFiles", () => {

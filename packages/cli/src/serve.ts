@@ -4,13 +4,14 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import {
-  collectReport, renderReport,
+  collectReport, renderReport, collectTrends,
   readResults, writeResults, applyOverride, preserveTranscript, findTranscriptFiles,
   ensureResultsGitignore,
   appendJournal,
   type Verdict, type ResultsFile,
   loadSpec,
   regradeScenario, findJudgeRawFiles,
+  effectiveThreshold,
 } from "@skill-check/core";
 import { getAdapter } from "@skill-check/adapters";
 
@@ -109,6 +110,13 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
         return;
       }
 
+      if (req.method === "GET" && url.pathname === "/trends") {
+        const data = collectTrends(opts.skillDir);
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify(data));
+        return;
+      }
+
       if (req.method === "POST" && url.pathname === "/rejudge") {
         const body = JSON.parse((await readBody(req)) || "{}") as { col: number; scenarioId: string };
         const data = collectReport(opts.skillDir);
@@ -132,7 +140,7 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
         }
         const prev = results.scenarios.find((s) => s.id === body.scenarioId);
         if (!prev) { res.writeHead(404).end("scenario not in this run"); return; }
-        const threshold = prev?.pass_threshold ?? scenario.passThreshold ?? 0.5;
+        const threshold = effectiveThreshold(prev, scenario);
         try {
           const rr = await regradeScenario({
             runDir: column.runDir, spec, scenario, adapter, judge: results.judge,

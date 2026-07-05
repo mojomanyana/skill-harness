@@ -97,6 +97,16 @@ describe("review server /save override rules", () => {
     expect(j.error).toMatch(/ZZ/);
     expect(readFileSync(join(runDir, "results.yaml"), "utf8")).toBe(before);
   });
+
+  test("GET /trends returns the run history JSON with no absolute paths", async () => {
+    const r = await fetch(`${base}/trends`);
+    expect(r.status).toBe(200);
+    const body = await r.json();
+    expect(Array.isArray(body.models)).toBe(true);
+    expect(body.models.length).toBeGreaterThanOrEqual(1);
+    expect(body.models[0].runs.length).toBeGreaterThanOrEqual(1);
+    expect(JSON.stringify(body)).not.toMatch(/\/tmp\//); // no absolute paths leaked
+  });
 });
 
 describe("review server /judge + /rejudge", () => {

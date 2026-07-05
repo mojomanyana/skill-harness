@@ -7,6 +7,7 @@ import {
   parseModelRef,
   runSkillModel, formatScorecard, type RunSummary,
   readResults, writeResults, findTranscriptFiles, appendJournal, regradeScenario, type ScenarioResult,
+  effectiveThreshold,
   type HarnessAdapter,
 } from "@skill-check/core";
 import { getAdapter } from "@skill-check/adapters";
@@ -218,7 +219,7 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
   for (const id of targets) {
     const scenario = specById.get(id)!; // guaranteed present by the guard above
     const prevScenario = prev?.scenarios.find((s) => s.id === id);
-    const threshold = prevScenario?.pass_threshold ?? scenario.passThreshold ?? 0.5;
+    const threshold = effectiveThreshold(prevScenario, scenario);
     const rr = await regradeScenario({
       runDir, spec, scenario, adapter, judge, specDir: testsDir, threshold, now: nowIso,
     });

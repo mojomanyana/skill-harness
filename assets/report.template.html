@@ -60,6 +60,24 @@
   .mf-row { padding: 4px 0; border-bottom: 1px solid var(--line, #eee); font-size: 13px; }
   .rejudge { margin: 8px 0; }
   .rejudge button { cursor: pointer; }
+  #trends-section { margin-top: 20px; }
+  #trends-toggle { cursor: pointer; font-weight: 600; background: none; border: none; font-size: 14px; }
+  .tmodel { margin: 12px 0; }
+  .tmodel-h { font-size: 13px; margin-bottom: 4px; }
+  .spark { vertical-align: middle; color: var(--dim, #888); }
+  table.tgrid { border-collapse: collapse; font-size: 12px; }
+  /* The trends grid is a compact read-only summary, not the interactive matrix
+     above — it deliberately opts out of the matrix's sticky-header/sticky-
+     first-column rules (`position: sticky`) so a future CSS consolidation
+     doesn't reintroduce the 094a219 bug (trends scrolling under a stuck header). */
+  .tgrid th, .tgrid td { padding: 2px 6px; text-align: center; position: static; }
+  .tgrid td.tscn { text-align: left; }
+  .tgrid td.tc.PASS { color: #16a34a; }
+  .tgrid td.tc.FAIL { color: #dc2626; }
+  .tgrid td.tc.ERROR { color: #a855f7; }
+  .tgrid td.tc.suspect { color: #b45309; }
+  .tgrid td.tc.absent { color: var(--dim, #bbb); }
+  .dim { color: var(--dim, #888); font-weight: 400; }
 </style>
 </head>
 <body>
@@ -71,6 +89,10 @@
   <div class="matrix-wrap">
     <div id="misfires"></div>
     <div id="matrix"></div>
+    <div id="trends-section">
+      <button id="trends-toggle">▸ Trends</button>
+      <div id="trends" hidden></div>
+    </div>
   </div>
   <aside id="aside"><div class="panel" id="panel"></div></aside>
 </main>
@@ -247,6 +269,66 @@ async function save(col, scenarioId, cell) {
 }
 
 function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+let trendsLoaded = false;
+document.getElementById("trends-toggle").onclick = async () => {
+  const box = document.getElementById("trends");
+  const btn = document.getElementById("trends-toggle");
+  const nowHidden = box.hasAttribute("hidden");
+  if (nowHidden) box.removeAttribute("hidden"); else box.setAttribute("hidden", "");
+  btn.textContent = (nowHidden ? "▾ Trends" : "▸ Trends");
+  if (nowHidden && !trendsLoaded) {
+    box.textContent = "loading…";
+    try {
+      const r = await fetch("/trends");
+      if (!r.ok) throw new Error(`trends fetch failed: ${r.status} ${await r.text().catch(() => "")}`);
+      renderTrends(await r.json());
+      trendsLoaded = true;
+    } catch (e) { console.error("trends load failed", e); box.textContent = "(trends unavailable)"; }
+  }
+};
+
+function sparkline(runs) {
+  if (!runs.length) return "";
+  const w = 8 * runs.length + 4, h = 24;
+  if (runs.length === 1) {
+    const cx = 4, cy = h - 2 - (runs[0].grade.pct / 100) * (h - 4);
+    return `<svg width="${w}" height="${h}" class="spark"><circle cx="${cx}" cy="${cy}" r="2" fill="currentColor"/></svg>`;
+  }
+  const pts = runs.map((r, i) => `${4 + i * 8},${h - 2 - (r.grade.pct / 100) * (h - 4)}`).join(" ");
+  return `<svg width="${w}" height="${h}" class="spark"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`;
+}
+
+function renderTrends(data) {
+  const box = document.getElementById("trends");
+  if (!data.models.length) { box.innerHTML = `<div class="empty-state">No runs yet.</div>`; return; }
+  const glyph = { PASS: "✓", FAIL: "✗", ERROR: "!" };
+  let html = "";
+  for (const m of data.models) {
+    const last = m.runs[m.runs.length - 1].grade;
+    const badge = last.ship ? "<span class='badge ship'>SHIP</span>" : "<span class='badge no'>NOT READY</span>";
+    const trunc = m.truncated ? ` <span class='dim'>(last ${m.runs.length})</span>` : "";
+    const skippedNote = m.skipped > 0 ? ` <span class='dim'>(${m.skipped} unreadable)</span>` : "";
+    html += `<div class="tmodel"><div class="tmodel-h">${escapeHtml(m.model)} — ${sparkline(m.runs)} ${last.letter} (${last.pct}%) ${badge}${trunc}${skippedNote}</div>`;
+    html += "<table class='tgrid'><thead><tr><th></th>";
+    for (const run of m.runs) html += `<th title="${escapeHtml(run.label || run.timestamp)}">${escapeHtml((run.label || run.timestamp).slice(0, 8))}</th>`;
+    html += "</tr></thead><tbody>";
+    for (const scn of data.scenarios) {
+      html += `<tr><td class='tscn'>${escapeHtml(scn.id)}</td>`;
+      for (const run of m.runs) {
+        const cell = run.cells[scn.id];
+        if (!cell) { html += `<td class='tc absent'>·</td>`; continue; }
+        const g = cell.suspect ? "?" : (glyph[cell.verdict] || "?");
+        const cls = escapeHtml(cell.suspect ? "suspect" : cell.verdict);
+        const title = `${run.label || run.timestamp}${cell.flakiness != null ? ` · flaky ${cell.flakiness.toFixed(2)}` : ""}`;
+        html += `<td class='tc ${cls}' title="${escapeHtml(title)}">${g}</td>`;
+      }
+      html += "</tr>";
+    }
+    html += "</tbody></table></div>";
+  }
+  box.innerHTML = html;
+}
 
 render();
 </script>
