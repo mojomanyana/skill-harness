@@ -1,4 +1,4 @@
-name: skill-check
+name: skill-harness
 description: Lint agent-skill specs (free, static — no model runs, no secrets)
 inputs:
   skills-root:
@@ -15,10 +15,10 @@ runs:
     - uses: actions/setup-node@v4
       with:
         node-version: "20"
-    - name: Build skill-check
+    - name: Build skill-harness
       shell: bash
       run: npm ci && npm run build
       working-directory: ${{ github.action_path }}
     - name: Lint skills
       shell: bash
-      run: node "${{ github.action_path }}/bin/skill-check.js" lint "${{ inputs.skill }}" --skills "${{ github.workspace }}/${{ inputs.skills-root }}"
+      run: node "${{ github.action_path }}/bin/skill-harness.js" lint "${{ inputs.skill }}" --skills "${{ github.workspace }}/${{ inputs.skills-root }}"

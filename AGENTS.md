@@ -1,8 +1,8 @@
-# AGENTS.md — skill-check
+# AGENTS.md — skill-harness
 
 Guidance for any coding agent (Claude Code, Codex, Cursor, pi, …) working in or with this repo.
 
-**What this is:** `skill-check` is a **test/optimize loop for agent skills**. Point it at a repo of skills; for any skill with a spec (`<skill>/tests/specification.yaml`) it runs each scenario on the `pi` harness, LLM-judges every transcript, scores it against a ship bar, opens an interactive review UI, and lets you re-run to measure a `SKILL.md` edit. It is **pi-only** (the `pi` CLI is the sole harness) and **multi-model**.
+**What this is:** `skill-harness` is a **test/optimize loop for agent skills**. Point it at a repo of skills; for any skill with a spec (`<skill>/tests/specification.yaml`) it runs each scenario on the `pi` harness, LLM-judges every transcript, scores it against a ship bar, opens an interactive review UI, and lets you re-run to measure a `SKILL.md` edit. It is **pi-only** (the `pi` CLI is the sole harness) and **multi-model**.
 
 **When to use it:** the user asks to test / grade / benchmark a skill, compare models on a skill, check whether a `SKILL.md` edit helped, review a scorecard, or add a test case. It is a **dev tool for measuring skills — not a shipped skill, and not for running a skill in production.**
 
@@ -12,7 +12,7 @@ Guidance for any coding agent (Claude Code, Codex, Cursor, pi, …) working in o
 npm install && npm run build      # Node ≥ 20; build produces packages/*/dist
 ```
 
-Invoke the CLI as `node bin/skill-check.js <cmd>`, `npm run dev -- <cmd>`, or (after `npm link`) `skill-check <cmd>`. The launcher runs the built `dist` if present, else falls back to `npx tsx`.
+Invoke the CLI as `node bin/skill-harness.js <cmd>`, `npm run dev -- <cmd>`, or (after `npm link`) `skill-harness <cmd>`. The launcher runs the built `dist` if present, else falls back to `npx tsx`.
 
 **Requirements for `run`:** `pi` on `PATH` with a provider configured for the subject model (e.g. Fireworks), and a judge (Anthropic API, or `claude-code:<model>` to judge on the Claude subscription with no metered key). `lint` and `list` need **none** of this.
 
@@ -45,20 +45,20 @@ Defaults: subject `fireworks:accounts/fireworks/models/deepseek-v4-pro` · judge
 A consumer skills-repo adds one workflow file to lint specs on every PR (free, static — no models/secrets):
 
 ```yaml
-name: skill-check
+name: skill-harness
 on: pull_request
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: mojomanyana/skill-check@v1   # until the first tagged release, pin to @main or a commit SHA
+      - uses: mojomanyana/skill-harness@v1   # until the first tagged release, pin to @main or a commit SHA
         with: { skills-root: ./skills }
 ```
 
 ## Pointers
 
-- **`SKILL.md`** — the pi front door (install via `pi install https://github.com/mojomanyana/skill-check`); drives the loop conversationally.
+- **`SKILL.md`** — the pi front door (install via `pi install https://github.com/mojomanyana/skill-harness`); drives the loop conversationally.
 - **`docs/USAGE.md`** — the step-by-step human walkthrough (setup → list → lint → run → review → grade → add-test).
 - **`README.md`** — overview, spec format, results schema.
 - Working on the codebase itself: `npm test` (vitest), `npm run typecheck`; the monorepo is `packages/core` (engine), `packages/adapters` (pi + claude-code judge), `packages/cli` (commands + review server), `packages/pi-extension` (the pi extension; its `dist/index.js` is a committed esbuild bundle — regenerate with `npm run build:ext` and commit it whenever the bundled core/cli source changes; a `bundle.test.ts` guard fails if it goes stale).

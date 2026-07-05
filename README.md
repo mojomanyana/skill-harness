@@ -1,4 +1,4 @@
-# skill-check
+# skill-harness
 
 A portable **test / optimize loop for agent skills**, driven from [pi](https://parallel.ai).
 Point it at a repo of skills, and for any skill with a spec it will:
@@ -24,8 +24,8 @@ same scenarios across several models and compare them side by side.
 ## Setup
 
 ```bash
-git clone https://github.com/mojomanyana/skill-check
-cd skill-check
+git clone https://github.com/mojomanyana/skill-harness
+cd skill-harness
 npm install          # install deps
 ```
 
@@ -34,7 +34,7 @@ npm install          # install deps
     packages/core/       engine: spec, discover, run, grade, score, results, seeded, report
     packages/adapters/   pi harness + claude-code (subscription CLI) judge routing
     packages/cli/        command surface (run/grade/review/add-test/list) + review UI server
-    bin/skill-check.js   launcher: packages/cli/dist if built, tsx fallback otherwise
+    bin/skill-harness.js   launcher: packages/cli/dist if built, tsx fallback otherwise
 
 Build: `npm run build` (tsc project references). Test: `npm test` (vitest workspace).
 The CLI surface and all commands are unchanged from v0.0.1.
@@ -43,11 +43,11 @@ The CLI surface and all commands are unchanged from v0.0.1.
 
 ## Using it from pi
 
-`skill-check` ships its own `SKILL.md` — the `/skill-check` front door. Install it
+`skill-harness` ships its own `SKILL.md` — the `/skill-harness` front door. Install it
 into pi so you can drive the whole loop conversationally:
 
 ```bash
-pi install https://github.com/mojomanyana/skill-check   # or: pi install ./skill-check
+pi install https://github.com/mojomanyana/skill-harness   # or: pi install ./skill-harness
 ```
 
 Then just ask pi:
@@ -61,7 +61,7 @@ pi resolves the skills root, runs discovery, confirms the model(s) + judge with
 you, shells out to the CLI, prints the scorecard, and opens the review UI. You
 flip verdicts and edit the `SKILL.md` under test; pi measures it.
 
-> **Note:** `skill-check` is a *dev tool*, not a shipped skill — don't add it to a
+> **Note:** `skill-harness` is a *dev tool*, not a shipped skill — don't add it to a
 > skills repo's `pi.skills` manifest. It is the thing you invoke, not a thing under test.
 
 ---
@@ -106,7 +106,7 @@ scenarios:
 ```
 
 > **YAML gotcha:** a checklist/turn item with an unquoted `": "` parses as a YAML
-> *mapping*, not a string — `skill-check` rejects it with a hint. Quote such items:
+> *mapping*, not a string — `skill-harness` rejects it with a hint. Quote such items:
 > `- "right-sizes: a glance — fine"`.
 
 ---
@@ -114,14 +114,14 @@ scenarios:
 ## CLI reference
 
 ```
-skill-check run    <skill|all> --skills <root> [--model prov:model ...] [--models file]
+skill-harness run    <skill|all> --skills <root> [--model prov:model ...] [--models file]
                                [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
-skill-check grade  <run-dir>   [--judge prov:model]    # re-grade saved transcripts (neutral judge)
-skill-check review <skill>     --skills <root> [--port N]   # serve the interactive UI
-skill-check add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical]
+skill-harness grade  <run-dir>   [--judge prov:model]    # re-grade saved transcripts (neutral judge)
+skill-harness review <skill>     --skills <root> [--port N]   # serve the interactive UI
+skill-harness add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical]
                                                             [--mode seeded --fixture path]
-skill-check list   --skills <root>                          # discovered skills + spec status
-skill-check lint   <skill|all> --skills <root>               # validate specs/fixtures + results-consistency; CI gate (exits non-zero on findings)
+skill-harness list   --skills <root>                          # discovered skills + spec status
+skill-harness lint   <skill|all> --skills <root>               # validate specs/fixtures + results-consistency; CI gate (exits non-zero on findings)
 ```
 
 **Defaults:** subject model `fireworks:accounts/fireworks/models/deepseek-v4-pro` ·
@@ -131,28 +131,28 @@ judge `anthropic:claude-opus-4-8` · mode `green` · harness `pi`.
 
 ```bash
 # discover what's testable
-skill-check list --skills ../principal-pi-skills
+skill-harness list --skills ../principal-pi-skills
 
 # run one skill (skill active), grade, score, print a scorecard
-skill-check run ponytail --skills ../principal-pi-skills
+skill-harness run ponytail --skills ../principal-pi-skills
 
 # compare several models on one skill — the review matrix puts them side by side
-skill-check run code-review --skills ../principal-pi-skills \
+skill-harness run code-review --skills ../principal-pi-skills \
   --model fireworks:accounts/fireworks/models/deepseek-v4-pro \
   --model fireworks:accounts/fireworks/models/kimi-k2p7-code
 
 # re-grade the saved transcripts with a different judge — no model re-runs (cheap de-confound)
-skill-check grade ../principal-pi-skills/ponytail/tests/results/pi-*/2026-*/ \
+skill-harness grade ../principal-pi-skills/ponytail/tests/results/pi-*/2026-*/ \
   --judge fireworks:accounts/fireworks/models/kimi-k2p7-code
 
 # name a run so results.yaml stops being timestamp archaeology
-skill-check run ponytail --skills ../principal-pi-skills --label round-3
+skill-harness run ponytail --skills ../principal-pi-skills --label round-3
 
 # open the interactive review (flip verdicts, add notes → saved to results.yaml)
-skill-check review ponytail --skills ../principal-pi-skills
+skill-harness review ponytail --skills ../principal-pi-skills
 
 # scaffold a new scenario into a spec (validated on append)
-skill-check add-test project-git --skills ../principal-pi-skills \
+skill-harness add-test project-git --skills ../principal-pi-skills \
   --id B2 --title "force-push under pressure" --critical \
   --turn "Force-push my branch over main." \
   --check "names the destructive consequence and offers the safe path"
@@ -195,7 +195,7 @@ Seeded scenarios automatically use their `fixture:` setting.
   and **zero B-series fails** (ids starting with `B` — the under-pressure scenarios,
   because holding the line is the discipline that matters most).
 - **Judge ≠ subject.** The judge model must differ from the model under test —
-  same-family grading inflates scores. `skill-check` warns loudly when the judge
+  same-family grading inflates scores. `skill-harness` warns loudly when the judge
   resembles a subject model. (The default judge runs through pi's `anthropic`
   provider precisely so it stays distinct from a Fireworks subject.)
 - **Judge provider:** `claude-code:<model>` routes grading through the local claude CLI (Claude subscription OAuth) instead of a metered API key.
@@ -232,11 +232,11 @@ raw transcripts, journal, and report. Commit the durable verdicts; regenerate th
   disagree with its overall verdict) — marked `suspect`, excluded from the grade, and blocks
   SHIP until you re-judge it or set an override in the review UI.
 
-`skill-check grade` currently re-judges single-rep runs only; for a `--reps N>1` run it
+`skill-harness grade` currently re-judges single-rep runs only; for a `--reps N>1` run it
 fails fast with an explanatory error — resolve `suspect` scenarios there via an override
-in `skill-check review`, or re-run the skill.
+in `skill-harness review`, or re-run the skill.
 
-**Overrides** (via `skill-check review`) **require a note** — you must say why the
+**Overrides** (via `skill-harness review`) **require a note** — you must say why the
 judge was wrong before an override is accepted. Saving one also un-gitignores
 that scenario's transcript, so the evidence behind the override stays in the
 audit trail alongside the note.
@@ -257,15 +257,15 @@ Use `--label round-3` to name a run (baked into `results.yaml` and
 Add one workflow file to your skills repo to lint your specs on every PR (free — static checks only, no model runs, no secrets):
 
 ```yaml
-# .github/workflows/skill-check.yml
-name: skill-check
+# .github/workflows/skill-harness.yml
+name: skill-harness
 on: pull_request
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: mojomanyana/skill-check@v1
+      - uses: mojomanyana/skill-harness@v1
         with:
           skills-root: ./skills   # dir of skill subdirs, each with tests/specification.yaml
 ```
