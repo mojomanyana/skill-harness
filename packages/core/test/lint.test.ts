@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { lintSkill } from "../src/lint.js";
@@ -51,10 +51,25 @@ describe("lintSkill static checks", () => {
     const d = skill(y, (dir) => mkdirSync(join(dir, "tests", "fixtures", "repo"), { recursive: true }));
     expect(lintSkill(d).some((x) => x.code === "fixture")).toBe(false);
   });
+  it("dangling symlink under tests/results/ does not throw (never-throws contract)", () => {
+    const d = skill(GOOD, (dir) => {
+      const resultsRoot = join(dir, "tests", "results");
+      mkdirSync(resultsRoot, { recursive: true });
+      symlinkSync("/nonexistent", join(resultsRoot, "badlink"));
+    });
+    expect(() => lintSkill(d)).not.toThrow();
+    expect(lintSkill(d)).toEqual([]);
+  });
 });
 
-function withRun(skillDir: string, scenarios: any[], tamper?: (r: any) => void) {
-  const runDir = join(skillDir, "tests", "results", "pi-fake", "2026-07-01T00-00-00Z");
+function withRun(
+  skillDir: string,
+  scenarios: any[],
+  tamper?: (r: any) => void,
+  tag = "pi-fake",
+  ts = "2026-07-01T00-00-00Z",
+) {
+  const runDir = join(skillDir, "tests", "results", tag, ts);
   mkdirSync(runDir, { recursive: true });
   // write a consistent results.yaml via the real writer:
   writeResults(runDir, {
@@ -96,6 +111,19 @@ describe("lintSkill results-consistency", () => {
     ]);
     writeFileSync(join(runDir, "A1.green.txt"), "transcript", "utf8");
     expect(lintSkill(d).some((x) => x.code === "consistency")).toBe(false);
+  });
+  it("schema-2 results.yaml with override key OMITTED (undefined) → no false consistency finding", () => {
+    const d = skill(GOOD);
+    withRun(d, clean, (r) => { delete r.scenarios[0].override; });
+    expect(lintSkill(d).some((x) => x.code === "consistency")).toBe(false);
+  });
+  it("consistency findings accumulate across multiple run dirs (different tag/timestamp)", () => {
+    const d = skill(GOOD);
+    withRun(d, clean, undefined, "pi-fake", "2026-07-01T00-00-00Z"); // consistent
+    withRun(d, clean, (r) => { r.effective_grade.pct = 0; r.effective_grade.ship = false; }, "pi-other", "2026-07-02T00-00-00Z"); // tampered
+    const findings = lintSkill(d).filter((x) => x.code === "consistency");
+    expect(findings.some((x) => /2026-07-02T00-00-00Z/.test(x.message))).toBe(true);
+    expect(findings.some((x) => /2026-07-01T00-00-00Z/.test(x.message))).toBe(false);
   });
   it("schema-1 results.yaml is skipped (no false-positive)", () => {
     const d = skill(GOOD);

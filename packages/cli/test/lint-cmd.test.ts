@@ -46,4 +46,15 @@ describe("cmdLint", () => {
     } finally { console.log = orig; }
     expect(lines.some((l) => l.startsWith("::error"))).toBe(true);
   });
+  it("emits NO ::error:: annotations when GITHUB_ACTIONS is unset", async () => {
+    const r = root(); mkSkill(r, "b", BAD);
+    const lines: string[] = [];
+    const spy = (m: any) => lines.push(String(m));
+    const orig = console.log; console.log = spy as any;
+    try {
+      delete process.env.GITHUB_ACTIONS;
+      await cmdLint(args(r));
+    } finally { console.log = orig; }
+    expect(lines.some((l) => l.startsWith("::error"))).toBe(false);
+  });
 });

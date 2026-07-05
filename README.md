@@ -270,7 +270,7 @@ jobs:
           skills-root: ./skills   # dir of skill subdirs, each with tests/specification.yaml
 ```
 
-`lint` validates spec schema, ship_bar sanity, critical-id existence, seeded-fixture paths, and results-consistency (for any committed `results.yaml`). Failures fail the check and annotate the PR inline. Your `tests/` folders are unchanged.
+`lint` validates spec schema, ship_bar sanity, critical-id existence, seeded-fixture paths, and results-consistency (for any committed `results.yaml`). Failures fail the check and report each finding as a GitHub error annotation in the run summary. Your `tests/` folders are unchanged.
 
 ---
 

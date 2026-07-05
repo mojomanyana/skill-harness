@@ -77,7 +77,7 @@ export function lintSkill(skillDir: string): LintFinding[] {
       findings.push({ skill, code: "consistency", message: `results.yaml effective_grade is stale in ${runDir} (recompute differs)` });
     }
     for (const s of r.scenarios) {
-      if (s.override !== null) {
+      if (s.override != null) {
         if (!s.note || !s.note.trim()) findings.push({ skill, scenario: s.id, code: "consistency", message: `override on ${s.id} has no note (${runDir})` });
         if (findTranscriptFiles(runDir, s.id, r.mode).length === 0) findings.push({ skill, scenario: s.id, code: "consistency", message: `override on ${s.id} has no preserved transcript (${runDir})` });
       }
@@ -86,16 +86,31 @@ export function lintSkill(skillDir: string): LintFinding[] {
   return findings;
 }
 
-/** All committed run dirs under a skill's tests/results (<tag>/<timestamp>/results.yaml). Empty if none. */
+/**
+ * All committed run dirs under a skill's tests/results (<tag>/<timestamp>/results.yaml).
+ * Empty if none. Never throws: unreadable/dangling entries (e.g. a broken symlink, or a
+ * TOCTOU removal between readdir and statSync) are skipped rather than propagated, so a
+ * single bad entry can't abort lintSkill's "never throws" contract.
+ */
 function enumerateRunDirs(resultsRoot: string): string[] {
   if (!existsSync(resultsRoot)) return [];
   const out: string[] = [];
-  for (const tag of readdirSync(resultsRoot)) {
+  let tags: string[];
+  try { tags = readdirSync(resultsRoot); } catch { return out; }
+  for (const tag of tags) {
     const tagDir = join(resultsRoot, tag);
-    if (!statSync(tagDir).isDirectory()) continue;
-    for (const ts of readdirSync(tagDir)) {
+    if (!existsSync(tagDir)) continue;
+    let isDir: boolean;
+    try { isDir = statSync(tagDir).isDirectory(); } catch { continue; }
+    if (!isDir) continue;
+    let timestamps: string[];
+    try { timestamps = readdirSync(tagDir); } catch { continue; }
+    for (const ts of timestamps) {
       const runDir = join(tagDir, ts);
-      if (statSync(runDir).isDirectory() && existsSync(join(runDir, "results.yaml"))) out.push(runDir);
+      if (!existsSync(runDir)) continue;
+      let runIsDir: boolean;
+      try { runIsDir = statSync(runDir).isDirectory(); } catch { continue; }
+      if (runIsDir && existsSync(join(runDir, "results.yaml"))) out.push(runDir);
     }
   }
   return out;
