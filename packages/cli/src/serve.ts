@@ -18,7 +18,8 @@ import { getAdapter } from "@skill-check/adapters";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /** Locate assets/report.template.html relative to dist/ or src/. */
-function templatePath(): string {
+function templatePath(assetsDir?: string): string {
+  if (assetsDir) return join(assetsDir, "report.template.html");
   const candidates = [
     join(__dirname, "..", "..", "..", "assets", "report.template.html"), // packages/cli/{dist,src} -> ../../../assets
     join(__dirname, "..", "assets", "report.template.html"),
@@ -29,8 +30,8 @@ function templatePath(): string {
 }
 
 /** assets/report.grade.js — the client scorer injected into the template (sibling of the template). */
-function gradeScriptPath(): string {
-  return join(dirname(templatePath()), "report.grade.js");
+function gradeScriptPath(assetsDir?: string): string {
+  return join(dirname(templatePath(assetsDir)), "report.grade.js");
 }
 
 export interface ServeOptions {
@@ -39,6 +40,7 @@ export interface ServeOptions {
   port?: number;
   open?: boolean;
   adapter?: import("@skill-check/core").HarnessAdapter; // test seam: overrides getAdapter(results.harness) in /rejudge
+  assetsDir?: string; // override the resolved assets dir (report.template.html + report.grade.js); defaults to templatePath()'s built-in resolution — needed so bundlers/embedders (e.g. the pi-extension) can point at a known-good assets location instead of relying on __dirname-relative lookup.
 }
 
 function readBody(req: import("node:http").IncomingMessage): Promise<string> {
@@ -74,8 +76,8 @@ export interface ServeHandle {
 }
 
 export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
-  const template = readFileSync(templatePath(), "utf8");
-  const gradeScript = readFileSync(gradeScriptPath(), "utf8");
+  const template = readFileSync(templatePath(opts.assetsDir), "utf8");
+  const gradeScript = readFileSync(gradeScriptPath(opts.assetsDir), "utf8");
 
   const server = createServer(async (req, res) => {
     try {
