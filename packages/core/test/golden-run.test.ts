@@ -252,7 +252,7 @@ describe("golden pipeline run", () => {
       // items say a FAIL exists but overall verdict is PASS → detectMisfire → suspect, real verdict PASS
       judge: async () => "1. PASS — ok\n2. FAIL — missing\nVERDICT: PASS\nREASON: looks ok",
     };
-    const { results } = await runSkillModel({
+    const { runDir, results } = await runSkillModel({
       spec, skillDir, specPath, adapter: misfireAdapter,
       model: { provider: "fireworks", model: "fake-model" }, modelToken: "fireworks:fake-model",
       judge: { provider: "claude-code", model: "opus" }, mode: "green",
@@ -266,6 +266,12 @@ describe("golden pipeline run", () => {
     expect(s.clean).toBeUndefined();                // N=1 omits reps fields
     expect(s.pass_threshold).toBeUndefined();       // N=1 omits reps fields
     expect(results.effective_grade.ship).toBe(false); // suspect blocks ship
+    // Proves the run.ts → judgeOneRep wiring actually journals the misfire for
+    // this scenario, not just that the returned ScenarioResult happens to be
+    // suspect. (The fixture has a second scenario that the same misfire-prone
+    // adapter also flags, so filter by id rather than asserting total count.)
+    const misfire = readJournal(runDir).filter((e) => e.event === "misfire-flag" && e.id === s.id);
+    expect(misfire).toHaveLength(1);
   });
 
   it("gate-failed scenario (workspace setup failure) still emits judge-verdict FAIL, without invoking the judge", async () => {
@@ -314,7 +320,7 @@ describe("golden pipeline run", () => {
     expect(existsSync(join(runDir, "G1.green.judge.txt"))).toBe(false);
 
     const jv = readJournal(runDir).filter((e) => e.event === "judge-verdict");
-    expect(jv).toHaveLength(1); // gate-failed branch still journals a judge-verdict (run.ts:160)
+    expect(jv).toHaveLength(1); // runRep's gate-failed branch still journals a judge-verdict
     expect(jv[0]).toMatchObject({ id: "G1", verdict: "FAIL", suspect: false });
   });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -71,17 +71,25 @@ describe("collectTrends", () => {
     expect(t.models[0].runs[0].label).toBeNull(); // schema-1 → label null after migration
   });
 
-  it("skips a run with a malformed results.yaml instead of throwing", () => {
-    const d = skill();
-    run(d, "2026-07-01T00:00:00Z", "PASS"); // one valid run
-    const badDir = join(d, "tests", "results", "pi-fake", "2026-07-02T00-00-00Z");
-    mkdirSync(badDir, { recursive: true });
-    writeFileSync(join(badDir, "results.yaml"), "", "utf8"); // empty/malformed — readResults throws
-    expect(() => collectTrends(d)).not.toThrow();
-    const t = collectTrends(d);
-    expect(t.models).toHaveLength(1);
-    expect(t.models[0].runs).toHaveLength(1); // the corrupt run is skipped, not surfaced
-    expect(t.models[0].runs[0].timestamp).toBe("2026-07-01T00:00:00Z");
+  it("skips a run with a malformed results.yaml instead of throwing, warns, and counts it", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const d = skill();
+      run(d, "2026-07-01T00:00:00Z", "PASS"); // one valid run
+      const badDir = join(d, "tests", "results", "pi-fake", "2026-07-02T00-00-00Z");
+      mkdirSync(badDir, { recursive: true });
+      writeFileSync(join(badDir, "results.yaml"), "", "utf8"); // empty/malformed — readResults throws
+      let t: ReturnType<typeof collectTrends>;
+      expect(() => { t = collectTrends(d); }).not.toThrow();
+      expect(t.models).toHaveLength(1);
+      expect(t.models[0].runs).toHaveLength(1); // the corrupt run is skipped, not surfaced
+      expect(t.models[0].runs[0].timestamp).toBe("2026-07-01T00:00:00Z");
+      expect(t.models[0].skipped).toBe(1); // the parse failure is counted
+      expect(warn).toHaveBeenCalledTimes(1); // and logged, not silent
+      expect(warn.mock.calls[0][0]).toMatch(/skipping unreadable run/);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("groups runs into one model per tag, sorted by tag, with round-tripped model/tag/grade", () => {
@@ -114,5 +122,20 @@ describe("collectTrends", () => {
     const t = collectTrends(d);
     expect(t.models[0].runs[0].cells.A1.suspect).toBe(true);
     expect(t.models[0].runs[0].cells.B1).toBeUndefined();
+  });
+
+  it("an override resolves a suspect misfire — cell matches the canonical effectiveVerdicts rule", () => {
+    const d = skill();
+    const runDir = join(d, "tests", "results", "pi-fake", "2026-07-01T00-00-00Z");
+    mkdirSync(runDir, { recursive: true });
+    writeResults(runDir, {
+      skill: "demo", harness: "pi", model: "fireworks:fake",
+      judge: { provider: "claude-code", model: "opus" }, timestamp: "2026-07-01T00:00:00Z", label: "r1", mode: "green",
+      scenarios: [{ id: "A1", judge_verdict: "FAIL", judge_reason: "", suspect: true, override: "PASS", note: "author call" }],
+    }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
+    const t = collectTrends(d);
+    const cell = t.models[0].runs[0].cells.A1;
+    expect(cell.verdict).toBe("PASS"); // override wins
+    expect(cell.suspect).toBe(false); // override resolves the misfire — must match effectiveVerdicts
   });
 });

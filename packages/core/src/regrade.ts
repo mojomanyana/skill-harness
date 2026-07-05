@@ -18,7 +18,7 @@ export interface RegradeOptions {
   now?: () => string;
 }
 
-/** Judge one saved transcript: write the judge-raw artifact, emit the per-rep journal events, return the outcome. */
+/** Judge one saved transcript: writes the judge-raw artifact, emits a `judge-verdict` journal event (plus `misfire-flag` when the verdict is suspect), and returns the outcome. */
 export async function judgeOneRep(opts: {
   runDir: string; spec: Spec; scenario: Scenario; transcript: string;
   adapter: HarnessAdapter; judge: ModelRef; specDir: string;

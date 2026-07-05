@@ -154,4 +154,17 @@ describe("renderReport", () => {
     expect(html).toContain("function gradeColumn(");
     expect(html).toContain("ponytail");
   });
+
+  test("renders the Trends UI section, fully substituted", () => {
+    const data = collectReport(seedSkill());
+    const tmpl = readFileSync(join(process.cwd(), "assets", "report.template.html"), "utf8");
+    const gradeScript = readFileSync(join(process.cwd(), "assets", "report.grade.js"), "utf8");
+    const html = renderReport(tmpl, data, gradeScript);
+    expect(html).toContain('id="trends-section"');
+    expect(html).toContain('id="trends-toggle"');
+    expect(html).toContain("renderTrends");
+    expect(html).toContain("sparkline");
+    expect(html).not.toContain("/*__DATA__*/null");
+    expect(html).not.toContain("/*__GRADE__*/");
+  });
 });
