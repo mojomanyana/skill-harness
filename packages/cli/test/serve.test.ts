@@ -1,9 +1,13 @@
 import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { writeResults, readResults, readJournal, type HarnessAdapter } from "@skill-check/core";
 import { serveReview } from "../src/serve.js";
+
+// packages/cli/test -> packages/cli -> packages -> repo root
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 const SPEC = `
 skill: golden
@@ -232,6 +236,40 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
 // The spec may define a scenario that this particular run never exercised
 // (e.g. added after the run, or scoped out). /rejudge must 404 rather than
 // silently no-op after spending a real judge call.
+describe("review server assetsDir option", () => {
+  test("serveReview honors an explicit assetsDir (real repo assets)", async () => {
+    const assetsDir = join(REPO_ROOT, "assets");
+    const h = await serveReview({ skillDir, skillName: "golden", port: 0, open: false, assetsDir });
+    const r = await fetch(`http://127.0.0.1:${h.port}/`);
+    expect(r.status).toBe(200);
+    expect(await r.text()).toContain('id="trends-section"');
+    h.close();
+  });
+
+  // The check above alone isn't discriminating: the default (built-in) template
+  // *also* contains id="trends-section", so it would pass even if assetsDir were
+  // silently ignored. Prove the option is actually threaded through by pointing
+  // at a fixture assetsDir whose template has a marker the built-in one lacks.
+  test("serveReview renders from a custom assetsDir, not the built-in default", async () => {
+    const customAssetsDir = mkdtempSync(join(tmpdir(), "sc-serve-assets-"));
+    const realTemplate = readFileSync(join(REPO_ROOT, "assets", "report.template.html"), "utf8");
+    const marker = "<!-- CUSTOM-ASSETS-DIR-MARKER -->";
+    writeFileSync(join(customAssetsDir, "report.template.html"), realTemplate + marker, "utf8");
+    writeFileSync(
+      join(customAssetsDir, "report.grade.js"),
+      readFileSync(join(REPO_ROOT, "assets", "report.grade.js"), "utf8"),
+      "utf8"
+    );
+
+    const h = await serveReview({ skillDir, skillName: "golden", port: 0, open: false, assetsDir: customAssetsDir });
+    const r = await fetch(`http://127.0.0.1:${h.port}/`);
+    expect(r.status).toBe(200);
+    expect(await r.text()).toContain(marker);
+    h.close();
+    rmSync(customAssetsDir, { recursive: true, force: true });
+  });
+});
+
 describe("review server /rejudge 404s a scenario not in this run's results", () => {
   const SPEC_WITH_B1 = `
 skill: golden

@@ -3,8 +3,8 @@ import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { regradeScenario, parseSpec, type HarnessAdapter, type JudgeReq } from "../src/index.js";
-import { judgeOneRep } from "../src/regrade.js";
-import { readJournal } from "../src/index.js";
+import { judgeOneRep, regradeRun } from "../src/regrade.js";
+import { readJournal, readResults, writeResults } from "../src/index.js";
 
 const tmps: string[] = [];
 function tmp() { const d = mkdtempSync(join(tmpdir(), "sc-regrade-")); tmps.push(d); return d; }
@@ -84,6 +84,34 @@ describe("regradeScenario", () => {
       adapter: judgeAdapter("VERDICT: PASS\nREASON: x"),
       judge: { provider: "claude-code", model: "opus" }, specDir: runDir, threshold: 0.5,
     })).rejects.toThrow(/no green transcripts/);
+  });
+});
+
+describe("regradeRun", () => {
+  it("regradeRun re-judges a run dir's green transcripts and rewrites results.yaml", async () => {
+    const runDir = tmp();
+    writeFileSync(join(runDir, "A1.green.txt"), "USER: hi\nASSISTANT: hello", "utf8");
+    const spec = scenarioOf(SPEC);
+    writeResults(runDir, {
+      skill: "demo", harness: "pi", model: "fireworks:fake",
+      judge: { provider: "claude-code", model: "opus" },
+      timestamp: "2026-07-03T00:00:00Z", label: null, mode: "green",
+      scenarios: [{ id: "A1", judge_verdict: "FAIL", judge_reason: "old", suspect: false, override: null, note: "keep me" }],
+    }, { shipBar: spec.ship_bar, critical: spec.critical ?? [] });
+
+    const out = await regradeRun({
+      runDir, spec,
+      adapter: judgeAdapter("1. PASS — ok\nVERDICT: PASS\nREASON: ok"),
+      judge: { provider: "claude-code", model: "opus" }, specDir: runDir, now: () => "t",
+    });
+
+    expect(out.scenarios[0].judge_verdict).toBe("PASS");
+    expect(out.scenarios[0].note).toBe("keep me"); // prior note carried over
+    expect(out.timestamp).toBe("2026-07-03T00:00:00Z"); // original timestamp preserved
+
+    const persisted = readResults(runDir);
+    expect(persisted.effective_grade).toEqual(out.effective_grade); // persisted
+    expect(persisted.scenarios[0].judge_verdict).toBe("PASS");
   });
 });
 

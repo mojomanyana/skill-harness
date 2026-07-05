@@ -4,7 +4,7 @@
     "type": "module",
     "license": "MIT",
     "main": "./dist/cli.js",
-    "exports": { ".": "./dist/cli.js" },
+    "exports": { ".": "./dist/cli.js", "./serve": "./dist/serve.js" },
     "dependencies": {
         "@skill-check/core": "0.0.2",
         "@skill-check/adapters": "0.0.2"

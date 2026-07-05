@@ -40,6 +40,7 @@ export const piAdapter: HarnessAdapter = {
   async run(req: RunReq): Promise<string> {
     const common = [
       "--no-context-files",
+      "--no-extensions",
       "--provider",
       req.model.provider,
       "--model",
@@ -88,6 +89,7 @@ export const piAdapter: HarnessAdapter = {
     const args = [
       "--no-skills",
       "--no-context-files",
+      "--no-extensions",
       "--no-session",
       "--provider",
       req.model.provider,
