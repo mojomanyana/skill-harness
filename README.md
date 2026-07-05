@@ -121,6 +121,7 @@ skill-check review <skill>     --skills <root> [--port N]   # serve the interact
 skill-check add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical]
                                                             [--mode seeded --fixture path]
 skill-check list   --skills <root>                          # discovered skills + spec status
+skill-check lint   <skill|all> --skills <root>               # validate specs/fixtures; CI gate (exits non-zero on findings)
 ```
 
 **Defaults:** subject model `fireworks:accounts/fireworks/models/deepseek-v4-pro` ·

@@ -7,6 +7,7 @@ import {
   parseModelRef,
   runSkillModel, formatScorecard, type RunSummary,
   readResults, regradeRun,
+  lintSkill, type LintFinding,
   type HarnessAdapter,
 } from "@skill-check/core";
 import { getAdapter } from "@skill-check/adapters";
@@ -244,6 +245,40 @@ async function cmdAddTest(args: Args): Promise<void> {
   console.log(`added scenario ${id} to ${skill.specPath}`);
 }
 
+export async function cmdLint(args: Args): Promise<void> {
+  const root = flagStr(args, "skills", process.cwd())!;
+  const target = args._[0] ?? "all";
+  let skillDirs: string[];
+  try {
+    skillDirs = target === "all"
+      ? discover(root).filter((s) => s.hasSpec).map((s) => s.dir)
+      : [resolveSkill(root, target).dir];
+  } catch (e) {
+    console.error(`error: ${e instanceof Error ? e.message : e}`);
+    process.exitCode = 1;
+    return;
+  }
+  if (skillDirs.length === 0) {
+    console.error(`no skills with a spec under ${root}`);
+    process.exitCode = 1;
+    return;
+  }
+  const gha = process.env.GITHUB_ACTIONS === "true";
+  const findings: LintFinding[] = [];
+  for (const dir of skillDirs) {
+    const f = lintSkill(dir);
+    findings.push(...f);
+    if (f.length === 0) console.log(`✓ ${dir}`);
+    else for (const x of f) {
+      const where = x.scenario ? `${dir}/${x.scenario}` : dir; // dir-based label, consistent with the ✓ line
+      console.log(`✗ ${where}: ${x.code} — ${x.message}`);
+      if (gha) console.log(`::error title=skill-check::${where}: ${x.code} — ${x.message}`);
+    }
+  }
+  console.log(`\n${skillDirs.length} skill(s), ${findings.length} finding(s)`);
+  process.exitCode = findings.length > 0 ? 1 : 0;
+}
+
 // ---------------------------------------------------------------- dispatch
 
 const HELP = `skill-check — test/optimize loop for agent skills (pi harness)
@@ -254,6 +289,7 @@ const HELP = `skill-check — test/optimize loop for agent skills (pi harness)
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]
   list   --skills <root>                        discovered skills + spec status
+  lint   <skill|all> --skills <root>           validate specs/fixtures (CI gate; exits non-zero on findings)
 
 defaults: model=${DEFAULT_MODEL}  judge=${DEFAULT_JUDGE}  mode=green  harness=pi`;
 
@@ -266,6 +302,7 @@ export async function main(argv: string[]): Promise<void> {
     case "review": return cmdReview(args);
     case "add-test": return cmdAddTest(args);
     case "list": return cmdList(args);
+    case "lint": return cmdLint(args);
     case undefined:
     case "help":
     case "--help":
