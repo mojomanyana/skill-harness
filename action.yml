@@ -1,0 +1,24 @@
+name: skill-check
+description: Lint agent-skill specs (free, static — no model runs, no secrets)
+inputs:
+  skills-root:
+    description: Path (relative to the consumer repo) to the skills root — a directory of skill subdirs each with tests/specification.yaml
+    default: skills
+    required: false
+  skill:
+    description: Skill name to lint, or "all"
+    default: all
+    required: false
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+    - name: Build skill-check
+      shell: bash
+      run: npm ci && npm run build
+      working-directory: ${{ github.action_path }}
+    - name: Lint skills
+      shell: bash
+      run: node "${{ github.action_path }}/bin/skill-check.js" lint "${{ inputs.skill }}" --skills "${{ github.workspace }}/${{ inputs.skills-root }}"

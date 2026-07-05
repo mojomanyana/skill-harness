@@ -252,6 +252,28 @@ Use `--label round-3` to name a run (baked into `results.yaml` and
 
 ---
 
+## CI
+
+Add one workflow file to your skills repo to lint your specs on every PR (free — static checks only, no model runs, no secrets):
+
+```yaml
+# .github/workflows/skill-check.yml
+name: skill-check
+on: pull_request
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mojomanyana/skill-check@v1
+        with:
+          skills-root: ./skills   # dir of skill subdirs, each with tests/specification.yaml
+```
+
+`lint` validates spec schema, ship_bar sanity, critical-id existence, seeded-fixture paths, and results-consistency (for any committed `results.yaml`). Failures fail the check and annotate the PR inline. Your `tests/` folders are unchanged.
+
+---
+
 ## Development
 
 ```bash
