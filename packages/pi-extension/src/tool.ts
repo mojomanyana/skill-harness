@@ -11,7 +11,7 @@ export const skillCheckRunTool = {
   parameters: Type.Object({
     skill: Type.Optional(Type.String({ description: "skill dir/name; defaults to the current project" })),
     model: Type.Optional(Type.String({ description: "provider:model token under test" })),
-    reps: Type.Optional(Type.Number({ description: "run each scenario N times" })),
+    reps: Type.Optional(Type.Number({ description: "run each scenario N times", minimum: 1, maximum: 20 })),
     mode: Type.Optional(Type.String({ description: "red | green | force" })),
   }),
   async execute(

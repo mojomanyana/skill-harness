@@ -18,17 +18,26 @@ export interface Scorecard {
   failedTranscripts: string[];
 }
 
-/** Explicit dir wins; else walk `cwd` upward until a `tests/specification.yaml` is found. */
+/**
+ * Explicit `arg` wins outright: it must resolve to a dir that itself contains
+ * `tests/specification.yaml` (no climbing) — a typo'd skill name fails loudly
+ * instead of silently resolving to an ancestor skill. With no `arg`, walk
+ * `cwd` upward until a `tests/specification.yaml` is found.
+ */
 export function resolveSkillDir(cwd: string, arg?: string): string {
-  const start = arg ? resolve(cwd, arg) : cwd;
-  let dir = start;
+  if (arg) {
+    const dir = resolve(cwd, arg);
+    if (existsSync(join(dir, "tests", "specification.yaml"))) return dir;
+    throw new Error(`no tests/specification.yaml found at ${dir}`);
+  }
+  let dir = cwd;
   for (;;) {
     if (existsSync(join(dir, "tests", "specification.yaml"))) return dir;
     const parent = dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
-  throw new Error(`no tests/specification.yaml found from ${start} upward`);
+  throw new Error(`no tests/specification.yaml found from ${cwd} upward`);
 }
 
 // Keep in sync with cli.ts DEFAULT_MODEL / DEFAULT_JUDGE (cli.ts:15-16).

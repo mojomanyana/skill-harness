@@ -1,5 +1,6 @@
-import { dirname, join } from "node:path";
-import { loadSpec, regradeRun, type HarnessAdapter } from "@skill-check/core";
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { loadSpec, regradeRun, readResults, parseModelRef, type HarnessAdapter } from "@skill-check/core";
 import { getAdapter } from "@skill-check/adapters";
 import { serveReview, type ServeHandle } from "@skill-check/cli/serve";
 import { resolveSkillDir, runViaExtension } from "./runner.js";
@@ -9,8 +10,11 @@ import { resolveSkillDir, runViaExtension } from "./runner.js";
  * `ExtensionAPI`/command-handler `ctx` — that package is a peer dependency
  * only (not installed in this workspace; see packages/pi-extension/package.json),
  * so importing its types here would fail module resolution under `tsc -b`.
- * Only the subset actually used is modeled; Task 7 (which bundles against the
- * real pi types via the build's externals) should reconcile/replace this.
+ * Only the subset actually used is modeled. This is intentional and
+ * permanent, not a placeholder pending Task 7: pi is never installed in this
+ * workspace, pi supplies the real `ExtensionAPI` type at runtime, and the
+ * esbuild bundle marks `@earendil-works/*` external (see build.mjs), so this
+ * structural type only needs to satisfy `tsc -b` here.
  */
 export interface ExtensionAPI {
   registerCommand(name: string, def: { description: string; handler: (args: string, ctx: CmdCtx) => Promise<void> }): void;
@@ -27,9 +31,9 @@ export interface CmdCtx {
   };
 }
 
-const USAGE = "usage: /skill-check run [skill] [--model p:m] [--reps N] [--mode red|green|force] | judge [run-dir] | review [skill]";
+const USAGE = "usage: /skill-check run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--judge p:m] | judge [run-dir] | review [skill]";
 
-/** Minimal arg tokenizer: subcommand + positional args + `--key value` flags. */
+/** Minimal arg tokenizer: subcommand + positional args + `--key value` flags. A flag with no following value (or one followed by another `--flag`) is left unset, so callers' `?? default` fallbacks apply. */
 function parse(argstr: string): { sub: string; positional: string[]; flags: Record<string, string> } {
   const tokens = argstr.trim().length ? argstr.trim().split(/\s+/) : [];
   const [sub = "", ...rest] = tokens;
@@ -39,8 +43,11 @@ function parse(argstr: string): { sub: string; positional: string[]; flags: Reco
     const tok = rest[i];
     if (tok.startsWith("--")) {
       const key = tok.slice(2);
-      const value = rest[++i] ?? "";
-      flags[key] = value;
+      const next = rest[i + 1];
+      if (next !== undefined && !next.startsWith("--")) {
+        flags[key] = next;
+        i++;
+      }
     } else {
       positional.push(tok);
     }
@@ -82,14 +89,20 @@ export async function handleSkillCheck(
   }
 
   if (sub === "judge") {
-    const runDir = positional[0] ?? ctx.cwd;
+    const runDir = resolve(ctx.cwd, positional[0] ?? ".");
     // derive the spec from the RUN DIR's own skill (results are at <skillDir>/tests/results/<tag>/<ts>/),
     // mirroring cmdGrade (cli.ts:183) — NOT from cwd, which could be a different skill.
     const testsDir = dirname(dirname(dirname(runDir))); // <skillDir>/tests
     const spec = loadSpec(join(testsDir, "specification.yaml"));
+    // Re-judge with the run's RECORDED judge + harness (parity with cmdGrade,
+    // cli.ts:186-192 — M6's whole premise is CLI/extension parity); an
+    // explicit --judge flag still wins, and a run with no prior results.yaml
+    // falls back to the default judge.
+    const prev = existsSync(join(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const judge = flags.judge ? parseModelRef(flags.judge) : (prev?.judge ?? { provider: "anthropic", model: "claude-opus-4-8" });
     const results = await regradeRun({
-      runDir, spec, adapter: adapter ?? getAdapter("pi"),
-      judge: { provider: "anthropic", model: "claude-opus-4-8" }, specDir: testsDir, now: nowIso,
+      runDir, spec, adapter: adapter ?? getAdapter(prev?.harness ?? "pi"),
+      judge, specDir: testsDir, now: nowIso,
     });
     say(ctx, `re-judged ${runDir}: ${results.effective_grade.letter} (${results.effective_grade.pct}%)`);
     return;

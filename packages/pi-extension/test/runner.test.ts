@@ -21,6 +21,17 @@ describe("resolveSkillDir", () => {
   it("throws a clear error when no spec is found", () => {
     expect(() => resolveSkillDir(mkdtempSync(join(tmpdir(), "sc-none-")))).toThrow(/specification\.yaml/);
   });
+  it("an explicit arg must itself contain tests/specification.yaml — it does not climb to an ancestor skill", () => {
+    const root = skillFixture(); // spec lives at <root>/sub/tests/specification.yaml
+    // "sub/tests" itself has no tests/specification.yaml (it IS the tests dir),
+    // so an explicit arg pointing at a typo'd/wrong dir must fail loudly
+    // instead of climbing up to <root>/sub.
+    expect(() => resolveSkillDir(root, "sub/tests")).toThrow(/specification\.yaml/);
+  });
+  it("an explicit arg resolves directly when it itself contains tests/specification.yaml", () => {
+    const root = skillFixture();
+    expect(resolveSkillDir(root, "sub")).toBe(join(root, "sub"));
+  });
 });
 
 describe("runViaExtension", () => {

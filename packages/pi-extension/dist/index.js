@@ -3,7 +3,8 @@ import { fileURLToPath as fileURLToPath2 } from "node:url";
 import { dirname as dirname5, join as join13 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
-import { dirname as dirname4, join as join12 } from "node:path";
+import { existsSync as existsSync11 } from "node:fs";
+import { dirname as dirname4, join as join12, resolve as resolve3 } from "node:path";
 
 // packages/core/dist/spec.js
 import { readFileSync } from "node:fs";
@@ -2899,7 +2900,7 @@ import { spawn } from "node:child_process";
 import { existsSync as existsSync5 } from "node:fs";
 import { join as join5, delimiter } from "node:path";
 function exec(cmd, args, opts = {}) {
-  return new Promise((resolve3, reject) => {
+  return new Promise((resolve4, reject) => {
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
       env: opts.env ?? process.env,
@@ -2925,7 +2926,7 @@ function exec(cmd, args, opts = {}) {
     child.on("close", (code) => {
       if (timer)
         clearTimeout(timer);
-      resolve3({ stdout, stderr, code });
+      resolve4({ stdout, stderr, code });
     });
   });
 }
@@ -3543,10 +3544,10 @@ function gradeScriptPath(assetsDir) {
   return join10(dirname2(templatePath(assetsDir)), "report.grade.js");
 }
 function readBody(req) {
-  return new Promise((resolve3) => {
+  return new Promise((resolve4) => {
     let b = "";
     req.on("data", (c) => b += c);
-    req.on("end", () => resolve3(b));
+    req.on("end", () => resolve4(b));
   });
 }
 function findTranscript(runDir, id) {
@@ -3711,7 +3712,7 @@ async function serveReview(opts) {
       res.end(`server error: ${e instanceof Error ? e.message : e}`);
     }
   });
-  await new Promise((resolve3) => server.listen(opts.port ?? 0, "127.0.0.1", resolve3));
+  await new Promise((resolve4) => server.listen(opts.port ?? 0, "127.0.0.1", resolve4));
   const addr = server.address();
   const port = typeof addr === "object" && addr ? addr.port : opts.port;
   const link = `http://127.0.0.1:${port}/`;
@@ -3740,15 +3741,19 @@ function tryOpen(url, cmd) {
 import { existsSync as existsSync10 } from "node:fs";
 import { dirname as dirname3, join as join11, resolve as resolve2 } from "node:path";
 function resolveSkillDir(cwd, arg) {
-  const start = arg ? resolve2(cwd, arg) : cwd;
-  let dir = start;
+  if (arg) {
+    const dir2 = resolve2(cwd, arg);
+    if (existsSync10(join11(dir2, "tests", "specification.yaml"))) return dir2;
+    throw new Error(`no tests/specification.yaml found at ${dir2}`);
+  }
+  let dir = cwd;
   for (; ; ) {
     if (existsSync10(join11(dir, "tests", "specification.yaml"))) return dir;
     const parent = dirname3(dir);
     if (parent === dir) break;
     dir = parent;
   }
-  throw new Error(`no tests/specification.yaml found from ${start} upward`);
+  throw new Error(`no tests/specification.yaml found from ${cwd} upward`);
 }
 var DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 var DEFAULT_JUDGE = "anthropic:claude-opus-4-8";
@@ -3787,7 +3792,7 @@ async function runViaExtension(opts) {
 }
 
 // packages/pi-extension/src/commands.ts
-var USAGE = "usage: /skill-check run [skill] [--model p:m] [--reps N] [--mode red|green|force] | judge [run-dir] | review [skill]";
+var USAGE = "usage: /skill-check run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--judge p:m] | judge [run-dir] | review [skill]";
 function parse(argstr) {
   const tokens = argstr.trim().length ? argstr.trim().split(/\s+/) : [];
   const [sub = "", ...rest] = tokens;
@@ -3797,8 +3802,11 @@ function parse(argstr) {
     const tok = rest[i];
     if (tok.startsWith("--")) {
       const key = tok.slice(2);
-      const value = rest[++i] ?? "";
-      flags[key] = value;
+      const next = rest[i + 1];
+      if (next !== void 0 && !next.startsWith("--")) {
+        flags[key] = next;
+        i++;
+      }
     } else {
       positional.push(tok);
     }
@@ -3835,14 +3843,16 @@ ${card.failedTranscripts.join("\n")}`);
     return;
   }
   if (sub === "judge") {
-    const runDir = positional[0] ?? ctx.cwd;
+    const runDir = resolve3(ctx.cwd, positional[0] ?? ".");
     const testsDir = dirname4(dirname4(dirname4(runDir)));
     const spec = loadSpec(join12(testsDir, "specification.yaml"));
+    const prev = existsSync11(join12(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? { provider: "anthropic", model: "claude-opus-4-8" };
     const results = await regradeRun({
       runDir,
       spec,
-      adapter: adapter ?? getAdapter("pi"),
-      judge: { provider: "anthropic", model: "claude-opus-4-8" },
+      adapter: adapter ?? getAdapter(prev?.harness ?? "pi"),
+      judge,
       specDir: testsDir,
       now: nowIso
     });
@@ -3894,7 +3904,7 @@ var skillCheckRunTool = {
   parameters: Type2.Object({
     skill: Type2.Optional(Type2.String({ description: "skill dir/name; defaults to the current project" })),
     model: Type2.Optional(Type2.String({ description: "provider:model token under test" })),
-    reps: Type2.Optional(Type2.Number({ description: "run each scenario N times" })),
+    reps: Type2.Optional(Type2.Number({ description: "run each scenario N times", minimum: 1, maximum: 20 })),
     mode: Type2.Optional(Type2.String({ description: "red | green | force" }))
   }),
   async execute(_id, params, _signal, onUpdate, ctx) {
