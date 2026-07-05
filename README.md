@@ -121,6 +121,7 @@ skill-check review <skill>     --skills <root> [--port N]   # serve the interact
 skill-check add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical]
                                                             [--mode seeded --fixture path]
 skill-check list   --skills <root>                          # discovered skills + spec status
+skill-check lint   <skill|all> --skills <root>               # validate specs/fixtures + results-consistency; CI gate (exits non-zero on findings)
 ```
 
 **Defaults:** subject model `fireworks:accounts/fireworks/models/deepseek-v4-pro` ·
@@ -248,6 +249,30 @@ record.
 
 Use `--label round-3` to name a run (baked into `results.yaml` and
 `journal.jsonl`) so you can tell runs apart by intent instead of timestamp.
+
+---
+
+## CI
+
+Add one workflow file to your skills repo to lint your specs on every PR (free — static checks only, no model runs, no secrets):
+
+```yaml
+# .github/workflows/skill-check.yml
+name: skill-check
+on: pull_request
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mojomanyana/skill-check@v1
+        with:
+          skills-root: ./skills   # dir of skill subdirs, each with tests/specification.yaml
+```
+
+> Until the first tagged release, pin to a commit SHA or `@main`.
+
+`lint` validates spec schema, ship_bar sanity, critical-id existence, fixture paths (seeded scenarios, or any scenario using `env.workspace: fixture:PATH`), and results-consistency (for any committed `results.yaml`). Failures fail the check and report each finding as a GitHub error annotation in the run summary. Your `tests/` folders are unchanged.
 
 ---
 
