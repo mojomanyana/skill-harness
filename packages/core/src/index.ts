@@ -11,5 +11,6 @@ export * from "./regrade.js";
 export * from "./workspace.js";
 export * from "./seeded.js";
 export * from "./report.js";
+export * from "./trends.js";
 export * from "./adapters/types.js";
 export * from "./util/exec.js";
