@@ -6,8 +6,7 @@ import {
   loadSpec, parseSpec,
   parseModelRef,
   runSkillModel, formatScorecard, type RunSummary,
-  readResults, writeResults, findTranscriptFiles, appendJournal, regradeScenario, type ScenarioResult,
-  effectiveThreshold,
+  readResults, regradeRun,
   type HarnessAdapter,
 } from "@skill-check/core";
 import { getAdapter } from "@skill-check/adapters";
@@ -191,61 +190,12 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
   const judgeFlag = flagStr(args, "judge");
   const judge = judgeFlag ? parseModelRef(judgeFlag) : (prev?.judge ?? parseModelRef(DEFAULT_JUDGE));
   const adapter = adapterOverride ?? getAdapter(prev?.harness ?? "pi");
-  const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, { override: s.override, note: s.note }]));
-  const mode = prev?.mode ?? "green";
 
-  // Re-grading rewrites the WHOLE results.yaml, so re-judge exactly the
-  // scenarios the run recorded (falling back to the spec for a run with no
-  // prior results). The guard and the loop iterate the SAME `targets` set, so
-  // they can't diverge: each target must still exist in the spec (for its
-  // checklist) AND have a transcript on disk — only overridden transcripts
-  // survive a commit (audit-trail design). Anything missing would silently drop
-  // a recorded verdict or shrink the grade denominator. Fail fast, before
-  // spending any judge calls.
-  const specById = new Map(spec.scenarios.map((s) => [s.id, s]));
-  const targets = (prev?.scenarios ?? spec.scenarios).map((s) => s.id);
-
-  const missing = targets.filter((id) => !specById.has(id) || findTranscriptFiles(runDir, id, "green").length === 0);
-  if (missing.length === targets.length) {
-    throw new Error(`no green transcripts in ${runDir} — nothing to re-grade`);
+  const results = await regradeRun({ runDir, spec, adapter, judge, specDir: testsDir, now: nowIso });
+  for (const s of results.scenarios) {
+    console.log(`  ${s.id} → ${s.judge_verdict}: ${s.judge_reason}`);
   }
-  if (missing.length > 0) {
-    throw new Error(
-      `cannot re-grade ${missing.join(", ")} in ${runDir} (transcript missing or scenario no longer in the spec) — re-run instead of grading`
-    );
-  }
-
-  const scenarioResults: ScenarioResult[] = [];
-  for (const id of targets) {
-    const scenario = specById.get(id)!; // guaranteed present by the guard above
-    const prevScenario = prev?.scenarios.find((s) => s.id === id);
-    const threshold = effectiveThreshold(prevScenario, scenario);
-    const rr = await regradeScenario({
-      runDir, spec, scenario, adapter, judge, specDir: testsDir, threshold, now: nowIso,
-    });
-    console.log(`  ${id} → ${rr.judge_verdict}: ${rr.judge_reason}`);
-    const carry = overrides.get(id);
-    scenarioResults.push({ ...rr, override: carry?.override ?? null, note: carry?.note ?? "" });
-  }
-
-  const ctx = mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
-  const results = writeResults(runDir, {
-    skill: spec.skill,
-    harness: prev?.harness ?? "pi",
-    model: prev?.model ?? "unknown",
-    judge: { provider: judge.provider, model: judge.model },
-    timestamp: prev?.timestamp ?? nowIso(),
-    label: prev?.label ?? null,
-    mode,
-    scenarios: scenarioResults,
-  }, ctx);
   const g = results.effective_grade;
-  if (ctx) {
-    appendJournal(runDir, {
-      event: "score", ts: nowIso(),
-      passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note,
-    });
-  }
   console.log(`\n  re-graded with ${judge.provider}:${judge.model} → ${g.letter} (${g.pct}%) ${g.ship ? "SHIP" : "NOT READY"}`);
 }
 
