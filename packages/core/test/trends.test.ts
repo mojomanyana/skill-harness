@@ -16,15 +16,16 @@ function skill() {
 }
 function run(
   skillDir: string, ts: string, verdict: "PASS" | "FAIL", override: "PASS" | "FAIL" | null = null,
-  opts: { tag?: string; model?: string } = {}
+  opts: { tag?: string; model?: string; mode?: string } = {}
 ) {
   const tag = opts.tag ?? "pi-fake";
   const model = opts.model ?? "fireworks:fake";
+  const mode = opts.mode ?? "green";
   const runDir = join(skillDir, "tests", "results", tag, ts.replace(/[:.]/g, "-"));
   mkdirSync(runDir, { recursive: true });
   writeResults(runDir, {
     skill: "demo", harness: "pi", model,
-    judge: { provider: "claude-code", model: "opus" }, timestamp: ts, label: `run-${ts}`, mode: "green",
+    judge: { provider: "claude-code", model: "opus" }, timestamp: ts, label: `run-${ts}`, mode,
     scenarios: [{ id: "A1", judge_verdict: verdict, judge_reason: "", suspect: false, override, note: "" }],
   }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
 }
@@ -122,6 +123,39 @@ describe("collectTrends", () => {
     const t = collectTrends(d);
     expect(t.models[0].runs[0].cells.A1.suspect).toBe(true);
     expect(t.models[0].runs[0].cells.B1).toBeUndefined();
+  });
+
+  it("excludes non-green (red/force) runs from the history — only scored runs appear", () => {
+    const d = skill();
+    run(d, "2026-07-01T00:00:00Z", "PASS");
+    run(d, "2026-07-02T00:00:00Z", "FAIL", null, { mode: "red" }); // unscored — must be excluded
+    run(d, "2026-07-03T00:00:00Z", "PASS");
+    const t = collectTrends(d);
+    expect(t.models).toHaveLength(1);
+    const m = t.models[0];
+    expect(m.runs.map((r) => r.timestamp)).toEqual(["2026-07-01T00:00:00Z", "2026-07-03T00:00:00Z"]);
+    expect(m.runs.some((r) => r.timestamp === "2026-07-02T00:00:00Z")).toBe(false); // red run absent
+    expect(m.skipped).toBe(0); // mode-excluded, not a skip
+    expect(m.model).toBe("fireworks:fake");
+  });
+
+  it("a tag with only non-green runs is omitted entirely — no model pushed", () => {
+    const d = skill();
+    run(d, "2026-07-01T00:00:00Z", "PASS", null, { mode: "red" });
+    run(d, "2026-07-02T00:00:00Z", "FAIL", null, { mode: "force" });
+    const t = collectTrends(d);
+    expect(t.models).toEqual([]);
+  });
+
+  it("filters to green before applying `limit` — a red run doesn't consume a window slot", () => {
+    const d = skill();
+    run(d, "2026-07-01T00:00:00Z", "PASS");
+    run(d, "2026-07-02T00:00:00Z", "FAIL", null, { mode: "red" });
+    run(d, "2026-07-03T00:00:00Z", "PASS");
+    run(d, "2026-07-04T00:00:00Z", "PASS");
+    const t = collectTrends(d, 3);
+    expect(t.models[0].runs).toHaveLength(3); // all 3 green runs kept, red doesn't steal a slot
+    expect(t.models[0].truncated).toBe(false);
   });
 
   it("an override resolves a suspect misfire — cell matches the canonical effectiveVerdicts rule", () => {

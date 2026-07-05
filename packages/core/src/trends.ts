@@ -35,10 +35,21 @@ function isDir(p: string): boolean {
  * rule: an override resolves a misfire) + reps flakiness. Read-only; no
  * absolute paths in the result.
  *
+ * Only scored (mode === "green") runs are included in the history — a
+ * red/force run has no real grade (`effective_grade` is a "not scored"
+ * placeholder; see run.ts) and would otherwise plot as a misleading 0% dip in
+ * the sparkline/grid. Non-green runs are deliberately excluded, which is
+ * distinct from `skipped`: a run's mode can only be known after reading its
+ * results.yaml, so every candidate run-dir in the tag is read (not just the
+ * most recent `limit`) before filtering to green and applying the `limit`
+ * window — trends is a bounded, on-demand, local view, so this extra read
+ * cost is acceptable. If a tag has zero green runs, it's omitted entirely.
+ *
  * A run whose `results.yaml` fails to parse (e.g. an interrupted non-atomic
  * write) is logged via `console.warn` and skipped — never surfaced or thrown —
  * and counted in that model's `skipped`. `truncated` reflects only the
- * run-count cap (more run-dirs existed than `limit`), not parse-skips.
+ * run-count cap on the green-run history (more green runs existed than
+ * `limit`), not parse-skips or mode-excluded runs.
  */
 export function collectTrends(skillDir: string, limit = 20): TrendData {
   const specPath = join(skillDir, "tests", "specification.yaml");
@@ -58,12 +69,14 @@ export function collectTrends(skillDir: string, limit = 20): TrendData {
         .filter((p) => isDir(p) && existsSync(join(p, "results.yaml")))
         .sort(); // timestamp-slug dir names ⇒ chronological ascending
       if (runDirs.length === 0) continue;
-      const truncated = runDirs.length > limit;
-      const kept = runDirs.slice(-limit); // most recent `limit`, newest last
-      const runs: TrendRun[] = [];
-      let model = "";
+
+      // Read every candidate run (mode isn't knowable from the dir name) and
+      // filter to green (scored) runs before applying the `limit` window —
+      // filtering after the slice would let red/force runs consume window
+      // slots, undercounting the green history even when more exists.
+      const greenRuns: ResultsFile[] = [];
       let skipped = 0;
-      for (const rd of kept) {
+      for (const rd of runDirs) {
         let r: ResultsFile;
         try {
           r = readResults(rd);
@@ -74,6 +87,16 @@ export function collectTrends(skillDir: string, limit = 20): TrendData {
           skipped++;
           continue;
         }
+        if (r.mode !== "green") continue; // not scored — deliberate exclusion, not a skip
+        greenRuns.push(r);
+      }
+      if (greenRuns.length === 0) continue;
+
+      const truncated = greenRuns.length > limit;
+      const kept = greenRuns.slice(-limit); // most recent `limit`, newest last
+      const runs: TrendRun[] = [];
+      let model = "";
+      for (const r of kept) {
         // effectiveVerdicts is the single source of truth for the
         // override-aware verdict/suspect rule (suspect = s.suspect &&
         // s.override == null — an override resolves the misfire); zip in
@@ -86,7 +109,6 @@ export function collectTrends(skillDir: string, limit = 20): TrendData {
         runs.push({ timestamp: r.timestamp, label: r.label, grade: r.effective_grade, cells });
         model = r.model; // last successfully-read run (kept is ascending) wins
       }
-      if (runs.length === 0) continue;
       models.push({ model, tag, runs, truncated, skipped });
     }
   }
