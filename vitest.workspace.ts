@@ -8,6 +8,8 @@ import { join } from "node:path";
 const alias = {
   "@skill-check/core": fileURLToPath(new URL("./packages/core/src/index.ts", import.meta.url)),
   "@skill-check/adapters": fileURLToPath(new URL("./packages/adapters/src/index.ts", import.meta.url)),
+  "@skill-check/cli/serve": fileURLToPath(new URL("./packages/cli/src/serve.ts", import.meta.url)),
+  "@skill-check/cli": fileURLToPath(new URL("./packages/cli/src/cli.ts", import.meta.url)),
 };
 
 const packagesDir = fileURLToPath(new URL("./packages", import.meta.url));

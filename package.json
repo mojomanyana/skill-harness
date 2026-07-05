@@ -8,10 +8,10 @@
     "bin": { "skill-check": "./bin/skill-check.js" },
     "workspaces": ["packages/*"],
     "scripts": {
-        "build": "tsc -b packages/core packages/adapters packages/cli",
+        "build": "tsc -b packages/core packages/adapters packages/cli packages/pi-extension",
         "dev": "tsx packages/cli/src/cli.ts",
         "test": "vitest run",
-        "typecheck": "tsc -b packages/core packages/adapters packages/cli --noEmit"
+        "typecheck": "tsc -b packages/core packages/adapters packages/cli packages/pi-extension --noEmit"
     },
     "engines": { "node": ">=20" },
     "devDependencies": {

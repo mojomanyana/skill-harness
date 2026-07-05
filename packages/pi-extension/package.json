@@ -1,0 +1,15 @@
+{
+  "name": "@skill-check/pi-extension",
+  "version": "0.0.2",
+  "type": "module",
+  "private": true,
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@skill-check/core": "0.0.2",
+    "@skill-check/adapters": "0.0.2",
+    "@skill-check/cli": "0.0.2"
+  }
+}
