@@ -4,7 +4,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import {
-  collectReport, renderReport,
+  collectReport, renderReport, collectTrends,
   readResults, writeResults, applyOverride, preserveTranscript, findTranscriptFiles,
   ensureResultsGitignore,
   appendJournal,
@@ -107,6 +107,13 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
         const text = column ? findJudgeRaw(column.runDir, id) : null;
         res.writeHead(text ? 200 : 404, { "content-type": "text/plain; charset=utf-8" });
         res.end(text ?? "judge output not captured");
+        return;
+      }
+
+      if (req.method === "GET" && url.pathname === "/trends") {
+        const data = collectTrends(opts.skillDir);
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify(data));
         return;
       }
 
