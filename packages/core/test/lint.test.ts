@@ -89,4 +89,30 @@ describe("lintSkill results-consistency", () => {
     withRun(d, [{ id: "A1", judge_verdict: "FAIL", judge_reason: "x", suspect: false, override: "PASS", note: "" }]);
     expect(lintSkill(d).some((x) => x.code === "consistency" && /override/.test(x.message) && /note/.test(x.message))).toBe(true);
   });
+  it("override WITH note and a preserved transcript → no consistency finding", () => {
+    const d = skill(GOOD);
+    const runDir = withRun(d, [
+      { id: "A1", judge_verdict: "FAIL", judge_reason: "x", suspect: false, override: "PASS", note: "resolved: looks fine" },
+    ]);
+    writeFileSync(join(runDir, "A1.green.txt"), "transcript", "utf8");
+    expect(lintSkill(d).some((x) => x.code === "consistency")).toBe(false);
+  });
+  it("schema-1 results.yaml is skipped (no false-positive)", () => {
+    const d = skill(GOOD);
+    const runDir = join(d, "tests", "results", "pi-fake", "2026-07-01T00-00-00Z");
+    mkdirSync(runDir, { recursive: true });
+    // Raw v1 shape (no `schema` key) per migrateResults in results.ts: top-level `grade`
+    // (not `effective_grade`), scenarios carry judge_verdict/override/note directly.
+    // The grade below is deliberately WRONG relative to a v2 recompute of the scenario
+    // (PASS should score ship:true/pct:100) — proving the schema-1 skip, not a lucky match.
+    const v1 = {
+      skill: "demo", harness: "pi", model: "fireworks:fake",
+      judge: { provider: "anthropic", model: "opus" },
+      timestamp: "2026-07-01T00:00:00Z",
+      grade: { passed: 0, total: 1, pct: 0, letter: "F", ship: false, note: "mode=green" },
+      scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "ok", override: null, note: "" }],
+    };
+    writeFileSync(join(runDir, "results.yaml"), yaml.dump(v1), "utf8");
+    expect(lintSkill(d).some((x) => x.code === "consistency")).toBe(false);
+  });
 });
