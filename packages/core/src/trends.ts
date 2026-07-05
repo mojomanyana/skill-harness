@@ -83,7 +83,7 @@ export function collectTrends(skillDir: string, limit = 20): TrendData {
         } catch (e) {
           // A corrupt/truncated results.yaml must not take down the whole
           // trends view — skip that run, but surface the failure.
-          console.warn(`skill-check trends: skipping unreadable run ${rd}: ${e instanceof Error ? e.message : e}`);
+          console.warn(`skill-harness trends: skipping unreadable run ${rd}: ${e instanceof Error ? e.message : e}`);
           skipped++;
           continue;
         }

@@ -30,7 +30,7 @@ export function exec(cmd: string, args: string[], opts: ExecOpts = {}): Promise<
     if (opts.timeoutMs) {
       timer = setTimeout(() => {
         child.kill("SIGKILL");
-        stderr += `\n[skill-check] killed after ${opts.timeoutMs}ms timeout`;
+        stderr += `\n[skill-harness] killed after ${opts.timeoutMs}ms timeout`;
       }, opts.timeoutMs);
     }
     child.stdout.on("data", (d) => (stdout += d.toString()));

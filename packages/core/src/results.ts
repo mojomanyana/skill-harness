@@ -193,7 +193,7 @@ export function applyOverride(
   return { ...results, scenarios };
 }
 
-const GITIGNORE_BODY = `# skill-check: commit verdicts (results.yaml), ignore generated artifacts.
+const GITIGNORE_BODY = `# skill-harness: commit verdicts (results.yaml), ignore generated artifacts.
 *.txt
 *.jsonl
 report.html

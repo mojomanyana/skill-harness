@@ -225,7 +225,7 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
   const addr = server.address();
   const port = typeof addr === "object" && addr ? addr.port : opts.port;
   const link = `http://127.0.0.1:${port}/`;
-  console.log(`\n  skill-check review · ${opts.skillName}`);
+  console.log(`\n  skill-harness review · ${opts.skillName}`);
   console.log(`  → ${link}`);
   console.log(`  flip verdicts + add notes in the browser; saves persist to results.yaml.`);
   console.log(`  Ctrl-C to stop.\n`);

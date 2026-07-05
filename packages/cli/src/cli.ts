@@ -123,7 +123,7 @@ async function cmdList(args: Args): Promise<void> {
 async function cmdRun(args: Args): Promise<void> {
   const root = flagStr(args, "skills", process.cwd())!;
   const target = args._[0];
-  if (!target) throw new Error("usage: skill-check run <skill|all> --skills <root>");
+  if (!target) throw new Error("usage: skill-harness run <skill|all> --skills <root>");
 
   const harnessName = flagStr(args, "harness", "pi")!;
   const adapter = getAdapter(harnessName);
@@ -172,12 +172,12 @@ async function cmdRun(args: Args): Promise<void> {
     }
   }
 
-  console.log(`\nReview interactively:  skill-check review ${skills[0]?.name ?? "<skill>"} --skills ${root}`);
+  console.log(`\nReview interactively:  skill-harness review ${skills[0]?.name ?? "<skill>"} --skills ${root}`);
 }
 
 export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
   const runDir = args._[0];
-  if (!runDir || !existsSync(runDir)) throw new Error("usage: skill-check grade <run-dir> [--judge prov:model]");
+  if (!runDir || !existsSync(runDir)) throw new Error("usage: skill-harness grade <run-dir> [--judge prov:model]");
 
   // spec lives at <runDir>/../../../specification.yaml  (results/<tag>/<ts> -> tests/)
   const testsDir = dirname(dirname(dirname(runDir)));
@@ -203,7 +203,7 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
 async function cmdReview(args: Args): Promise<void> {
   const root = flagStr(args, "skills", process.cwd())!;
   const target = args._[0];
-  if (!target) throw new Error("usage: skill-check review <skill> --skills <root>");
+  if (!target) throw new Error("usage: skill-harness review <skill> --skills <root>");
   const skill = resolveSkill(root, target);
   const port = Number(flagStr(args, "port", "0")) || 0;
   await serveReview({ skillDir: skill.dir, skillName: skill.name, port });
@@ -212,7 +212,7 @@ async function cmdReview(args: Args): Promise<void> {
 async function cmdAddTest(args: Args): Promise<void> {
   const root = flagStr(args, "skills", process.cwd())!;
   const target = args._[0];
-  if (!target) throw new Error("usage: skill-check add-test <skill> --skills <root> --id ... --title ... --turn ... --check ...");
+  if (!target) throw new Error("usage: skill-harness add-test <skill> --skills <root> --id ... --title ... --turn ... --check ...");
   const skill = resolveSkill(root, target);
   if (!skill.hasSpec) throw new Error(`${target} has no spec yet — create tests/specification.yaml first`);
 
@@ -275,7 +275,7 @@ export async function cmdLint(args: Args): Promise<void> {
     else for (const x of f) {
       const where = x.scenario ? `${dir}/${x.scenario}` : dir; // dir-based label, consistent with the ✓ line
       console.log(`✗ ${where}: ${x.code} — ${x.message}`);
-      if (gha) console.log(`::error title=skill-check::${where}: ${x.code} — ${x.message}`);
+      if (gha) console.log(`::error title=skill-harness::${where}: ${x.code} — ${x.message}`);
     }
   }
   console.log(`\n${skillDirs.length} skill(s), ${findings.length} finding(s)`);
@@ -284,7 +284,7 @@ export async function cmdLint(args: Args): Promise<void> {
 
 // ---------------------------------------------------------------- dispatch
 
-const HELP = `skill-check — test/optimize loop for agent skills (pi harness)
+const HELP = `skill-harness — test/optimize loop for agent skills (pi harness)
 
   run    <skill|all> --skills <root> [--model prov:model ...] [--models file]
                      [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]

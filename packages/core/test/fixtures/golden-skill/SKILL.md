@@ -1,6 +1,6 @@
 ---
 name: golden-skill
-description: Use when testing the skill-check pipeline itself.
+description: Use when testing the skill-harness pipeline itself.
 ---
 # Golden Skill
 Always answer politely.

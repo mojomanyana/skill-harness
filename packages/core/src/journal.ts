@@ -7,7 +7,7 @@ import type { Verdict } from "./score.js";
  * <runDir>/journal.jsonl. UI, trends, and debugging read ONLY this (never
  * scrape terminal output). `turn` events arrive with per-turn streaming (M4+).
  *
- * A re-grade (`skill-check grade`) appends a second wave of judge-verdict
+ * A re-grade (`skill-harness grade`) appends a second wave of judge-verdict
  * events and a new score event to the same journal — for a single-rep run
  * (or a re-grade of one), consumers take the LAST score event and the LAST
  * judge-verdict per scenario id.

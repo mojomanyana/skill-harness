@@ -6,7 +6,7 @@
     "type": "module",
     "private": true,
     "keywords": ["pi-package"],
-    "bin": { "skill-check": "./bin/skill-check.js" },
+    "bin": { "skill-harness": "./bin/skill-harness.js" },
     "workspaces": ["packages/*"],
     "scripts": {
         "build": "tsc -b packages/core packages/adapters packages/cli packages/pi-extension",

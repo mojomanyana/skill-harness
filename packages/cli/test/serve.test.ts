@@ -88,7 +88,7 @@ describe("review server /save override rules", () => {
     const r = await save({ col: 0, scenarioId: "A1", override: null, note: "x" });
     expect(r.status).toBe(200);
     const gi = readFileSync(giPath, "utf8");
-    expect(gi).toMatch(/^# skill-check:/);
+    expect(gi).toMatch(/^# skill-harness:/);
     expect(gi).toContain("*.jsonl");
   });
 

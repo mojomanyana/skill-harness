@@ -5,7 +5,7 @@ import { resolveSkillDir, runViaExtension, type Scorecard } from "./runner.js";
 
 export const skillCheckRunTool = {
   name: "skill_check_run",
-  label: "Run skill-check",
+  label: "Run skill-harness",
   description: "Run a skill's scenarios and return the scorecard (grade, per-scenario verdicts, failed transcripts). Use after editing a skill to validate it.",
   promptGuidelines: ["Use skill_check_run after editing a skill to validate it against its scenarios."],
   parameters: Type.Object({

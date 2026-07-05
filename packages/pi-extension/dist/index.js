@@ -2812,7 +2812,7 @@ function applyOverride(results, scenarioId, override, note) {
   }
   return { ...results, scenarios };
 }
-var GITIGNORE_BODY = `# skill-check: commit verdicts (results.yaml), ignore generated artifacts.
+var GITIGNORE_BODY = `# skill-harness: commit verdicts (results.yaml), ignore generated artifacts.
 *.txt
 *.jsonl
 report.html
@@ -2913,7 +2913,7 @@ function exec(cmd, args, opts = {}) {
       timer = setTimeout(() => {
         child.kill("SIGKILL");
         stderr += `
-[skill-check] killed after ${opts.timeoutMs}ms timeout`;
+[skill-harness] killed after ${opts.timeoutMs}ms timeout`;
       }, opts.timeoutMs);
     }
     child.stdout.on("data", (d) => stdout += d.toString());
@@ -3369,7 +3369,7 @@ function collectTrends(skillDir, limit = 20) {
         try {
           r = readResults(rd);
         } catch (e) {
-          console.warn(`skill-check trends: skipping unreadable run ${rd}: ${e instanceof Error ? e.message : e}`);
+          console.warn(`skill-harness trends: skipping unreadable run ${rd}: ${e instanceof Error ? e.message : e}`);
           skipped++;
           continue;
         }
@@ -3721,7 +3721,7 @@ async function serveReview(opts) {
   const port = typeof addr === "object" && addr ? addr.port : opts.port;
   const link = `http://127.0.0.1:${port}/`;
   console.log(`
-  skill-check review \xB7 ${opts.skillName}`);
+  skill-harness review \xB7 ${opts.skillName}`);
   console.log(`  \u2192 ${link}`);
   console.log(`  flip verdicts + add notes in the browser; saves persist to results.yaml.`);
   console.log(`  Ctrl-C to stop.
@@ -3796,7 +3796,7 @@ async function runViaExtension(opts) {
 }
 
 // packages/pi-extension/src/commands.ts
-var USAGE = "usage: /skill-check run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--judge p:m] | judge [run-dir] | review [skill]";
+var USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--judge p:m] | judge [run-dir] | review [skill]";
 function parse(argstr) {
   const tokens = argstr.trim().length ? argstr.trim().split(/\s+/) : [];
   const [sub = "", ...rest] = tokens;
@@ -3836,7 +3836,7 @@ async function handleSkillCheck(argstr, ctx, opts) {
       judge: flags.judge,
       timestamp: nowIso(),
       log: (m) => {
-        if (ctx.hasUI) ctx.ui.setStatus?.("skill-check", m);
+        if (ctx.hasUI) ctx.ui.setStatus?.("skill-harness", m);
       }
       // live footer only in TUI
     });
@@ -3886,7 +3886,7 @@ function closeReview() {
   reviewHandle = null;
 }
 function registerCommand(pi, assetsDir) {
-  pi.registerCommand("skill-check", {
+  pi.registerCommand("skill-harness", {
     description: "Run, judge, or review a skill's scenarios",
     handler: async (args, ctx) => {
       const h = await handleSkillCheck(args, ctx, { assetsDir });
@@ -3902,7 +3902,7 @@ function registerCommand(pi, assetsDir) {
 import { Type as Type2 } from "typebox";
 var skillCheckRunTool = {
   name: "skill_check_run",
-  label: "Run skill-check",
+  label: "Run skill-harness",
   description: "Run a skill's scenarios and return the scorecard (grade, per-scenario verdicts, failed transcripts). Use after editing a skill to validate it.",
   promptGuidelines: ["Use skill_check_run after editing a skill to validate it against its scenarios."],
   parameters: Type2.Object({

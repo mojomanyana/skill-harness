@@ -284,7 +284,7 @@ describe("ensureResultsGitignore migration", () => {
     writeFileSync(join(root, ".gitignore"), "old body\n!results.yaml\n!pi-fake/ts/C1.green.txt\n", "utf8");
     ensureResultsGitignore(root);
     const gi = readFileSync(join(root, ".gitignore"), "utf8");
-    expect(gi).toMatch(/^# skill-check:/); // managed header restored
+    expect(gi).toMatch(/^# skill-harness:/); // managed header restored
     expect(gi).toContain("!pi-fake/ts/C1.green.txt"); // preservation kept
     expect(gi).not.toContain("old body");
   });
