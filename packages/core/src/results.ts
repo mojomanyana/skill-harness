@@ -284,12 +284,14 @@ export function findTranscriptFile(runDir: string, scenarioId: string): string |
 }
 
 /**
- * Un-gitignore ALL of a scenario's transcript files (audit trail for an
- * override — a --reps run has one transcript per rep, and every rep that
- * drove the verdict must survive a commit, not just an arbitrary one).
- * Appends `!<tag>/<ts>/<id>.<mode>[.rep<k>].txt` to results/.gitignore for
- * each, once. The path uses POSIX separators so the negation matches on
- * Windows too (git ignore patterns are always forward-slashed).
+ * Un-gitignore ALL of a scenario's transcript AND judge-raw artifact files
+ * (audit trail for an override — a --reps run has one transcript (and one
+ * judge-raw file) per rep, and every rep that drove the verdict must survive
+ * a commit, not just an arbitrary one).
+ * Appends `!<tag>/<ts>/<id>.<mode>[.rep<k>].txt` (and the matching
+ * `.judge.txt`) to results/.gitignore for each, once. The path uses POSIX
+ * separators so the negation matches on Windows too (git ignore patterns are
+ * always forward-slashed).
  */
 export function preserveTranscript(resultsRoot: string, runDir: string, scenarioId: string): void {
   const files = [...findTranscriptFiles(runDir, scenarioId), ...findJudgeRawFiles(runDir, scenarioId)];

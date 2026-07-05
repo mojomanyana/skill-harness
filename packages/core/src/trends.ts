@@ -34,10 +34,10 @@ export function collectTrends(skillDir: string, limit = 20): TrendData {
   const models: TrendModel[] = [];
   if (existsSync(resultsRoot)) {
     const tags = readdirSync(resultsRoot)
-      .map((n) => join(resultsRoot, n))
-      .filter((p) => statSync(p).isDirectory())
+      .filter((n) => statSync(join(resultsRoot, n)).isDirectory())
       .sort();
-    for (const tagDir of tags) {
+    for (const tag of tags) {
+      const tagDir = join(resultsRoot, tag);
       const runDirs = readdirSync(tagDir)
         .map((n) => join(tagDir, n))
         .filter((p) => statSync(p).isDirectory() && existsSync(join(p, "results.yaml")))
@@ -45,16 +45,26 @@ export function collectTrends(skillDir: string, limit = 20): TrendData {
       if (runDirs.length === 0) continue;
       const truncated = runDirs.length > limit;
       const kept = runDirs.slice(-limit); // most recent `limit`, newest last
-      const runs: TrendRun[] = kept.map((rd) => {
-        const r = readResults(rd);
+      const runs: TrendRun[] = [];
+      let model = "";
+      for (const rd of kept) {
+        let r: ResultsFile;
+        try {
+          r = readResults(rd);
+        } catch {
+          // A corrupt/truncated results.yaml (e.g. an interrupted non-atomic
+          // write) must not take down the whole trends view — skip that run.
+          continue;
+        }
         const cells: Record<string, TrendCell> = {};
         for (const s of r.scenarios) {
           cells[s.id] = { verdict: s.override ?? s.judge_verdict, suspect: s.suspect ?? false, flakiness: s.flakiness };
         }
-        return { timestamp: r.timestamp, label: r.label, grade: r.effective_grade, cells };
-      });
-      const model = readResults(kept[kept.length - 1]).model;
-      models.push({ model, tag: tagDir.split("/").pop()!, runs, truncated });
+        runs.push({ timestamp: r.timestamp, label: r.label, grade: r.effective_grade, cells });
+        model = r.model; // last successfully-read run (kept is ascending) wins
+      }
+      if (runs.length === 0) continue;
+      models.push({ model, tag, runs, truncated });
     }
   }
   return { skill: spec.skill, scenarios, models };

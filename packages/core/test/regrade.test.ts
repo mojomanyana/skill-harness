@@ -102,4 +102,23 @@ describe("judgeOneRep", () => {
     expect(jv).toHaveLength(1);
     expect(jv[0]).toMatchObject({ id: "A1", verdict: "PASS" });
   });
+
+  it("emits a misfire-flag alongside judge-verdict when the judge's verdict disagrees with its own items", async () => {
+    const runDir = tmp();
+    const spec = scenarioOf(SPEC);
+    // Item 2 FAILs but the overall verdict is PASS — detectMisfire flags this suspect.
+    const o = await judgeOneRep({
+      runDir, spec, scenario: spec.scenarios[0], transcript: "USER: hi\nASSISTANT: hello",
+      adapter: judgeAdapter("1. PASS — ok\n2. FAIL — missing\nVERDICT: PASS\nREASON: looks ok"),
+      judge: { provider: "claude-code", model: "opus" }, specDir: runDir, mode: "green", rep: undefined, now: () => "t",
+    });
+    expect(o).toEqual({ verdict: "PASS", reason: "looks ok", suspect: true });
+    const events = readJournal(runDir);
+    const jv = events.filter((e) => e.event === "judge-verdict");
+    const misfire = events.filter((e) => e.event === "misfire-flag");
+    expect(jv).toHaveLength(1);
+    expect(jv[0]).toMatchObject({ id: "A1", verdict: "PASS", suspect: true });
+    expect(misfire).toHaveLength(1);
+    expect(misfire[0]).toMatchObject({ id: "A1", reason: "looks ok" });
+  });
 });
