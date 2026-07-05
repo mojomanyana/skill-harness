@@ -14,7 +14,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - run: npx vitest run
+      - run: npm test
       - run: npm run typecheck
   dogfood-lint:
     runs-on: ubuntu-latest

@@ -3400,7 +3400,7 @@ function collectTrends(skillDir, limit = 20) {
 
 // packages/core/dist/lint.js
 import { existsSync as existsSync9, statSync as statSync4, readdirSync as readdirSync5, readFileSync as readFileSync5 } from "node:fs";
-import { dirname as dirname2, isAbsolute as isAbsolute2, join as join9, resolve as resolve2 } from "node:path";
+import { basename, dirname as dirname2, isAbsolute as isAbsolute2, join as join9, resolve as resolve2 } from "node:path";
 
 // packages/adapters/dist/pi.js
 import { mkdtempSync as mkdtempSync2, readFileSync as readFileSync6 } from "node:fs";

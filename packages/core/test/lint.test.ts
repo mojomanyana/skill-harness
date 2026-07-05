@@ -37,6 +37,14 @@ describe("lintSkill static checks", () => {
     const f = lintSkill(skill(`skill: d\njudge_persona: j.\nship_bar: { total: 5, min_pass: 1 }\nscenarios:\n  - id: A1\n    title: t\n    turns: ["h"]\n    checklist: ["ok"]\n`));
     expect(f.some((x) => x.code === "ship_bar" && /total/.test(x.message))).toBe(true);
   });
+  it("ship_bar.total non-positive (0) → ship_bar finding", () => {
+    const f = lintSkill(skill(`skill: d\njudge_persona: j.\nship_bar: { total: 0, min_pass: 1 }\nscenarios:\n  - id: A1\n    title: t\n    turns: ["h"]\n    checklist: ["ok"]\n`));
+    expect(f.some((x) => x.code === "ship_bar" && /total must be >= 1/.test(x.message))).toBe(true);
+  });
+  it("ship_bar.min_pass non-positive (0) → ship_bar finding", () => {
+    const f = lintSkill(skill(`skill: d\njudge_persona: j.\nship_bar: { total: 1, min_pass: 0 }\nscenarios:\n  - id: A1\n    title: t\n    turns: ["h"]\n    checklist: ["ok"]\n`));
+    expect(f.some((x) => x.code === "ship_bar" && /min_pass must be >= 1/.test(x.message))).toBe(true);
+  });
   it("unknown critical id → critical finding", () => {
     const f = lintSkill(skill(`skill: d\njudge_persona: j.\nship_bar: { total: 1, min_pass: 1 }\ncritical: [ZZ]\nscenarios:\n  - id: A1\n    title: t\n    turns: ["h"]\n    checklist: ["ok"]\n`));
     expect(f.some((x) => x.code === "critical" && /ZZ/.test(x.message))).toBe(true);
@@ -124,6 +132,24 @@ describe("lintSkill results-consistency", () => {
     const findings = lintSkill(d).filter((x) => x.code === "consistency");
     expect(findings.some((x) => /2026-07-02T00-00-00Z/.test(x.message))).toBe(true);
     expect(findings.some((x) => /2026-07-01T00-00-00Z/.test(x.message))).toBe(false);
+  });
+  it("malformed schema-2 results.yaml (scenarios: null) → consistency finding, does not throw", () => {
+    const d = skill(GOOD);
+    const runDir = join(d, "tests", "results", "pi-fake", "2026-07-01T00-00-00Z");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "results.yaml"), yaml.dump({ schema: 2, scenarios: null }), "utf8");
+    expect(() => lintSkill(d)).not.toThrow();
+    const f = lintSkill(d);
+    expect(f.some((x) => x.code === "consistency" && /unreadable or malformed/.test(x.message))).toBe(true);
+  });
+  it("unparseable results.yaml (merge-conflict markers) → consistency finding, does not throw", () => {
+    const d = skill(GOOD);
+    const runDir = join(d, "tests", "results", "pi-fake", "2026-07-01T00-00-00Z");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "results.yaml"), "<<<<<<< HEAD\nfoo: 1\n=======\nfoo: 2\n>>>>>>> branch\n", "utf8");
+    expect(() => lintSkill(d)).not.toThrow();
+    const f = lintSkill(d);
+    expect(f.some((x) => x.code === "consistency" && /unreadable or malformed/.test(x.message))).toBe(true);
   });
   it("schema-1 results.yaml is skipped (no false-positive)", () => {
     const d = skill(GOOD);

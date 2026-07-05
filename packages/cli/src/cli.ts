@@ -245,6 +245,7 @@ async function cmdAddTest(args: Args): Promise<void> {
   console.log(`added scenario ${id} to ${skill.specPath}`);
 }
 
+/** Exit-code contract: 0 = clean (no findings), 1 = >=1 finding, or a resolution error (unknown skill/root, no skills with a spec). */
 export async function cmdLint(args: Args): Promise<void> {
   const root = flagStr(args, "skills", process.cwd())!;
   const target = args._[0] ?? "all";
@@ -266,7 +267,9 @@ export async function cmdLint(args: Args): Promise<void> {
   const gha = process.env.GITHUB_ACTIONS === "true";
   const findings: LintFinding[] = [];
   for (const dir of skillDirs) {
-    const f = lintSkill(dir);
+    let f: LintFinding[];
+    try { f = lintSkill(dir); }
+    catch (e) { f = [{ skill: dir, code: "lint-error", message: e instanceof Error ? e.message : String(e) }]; }
     findings.push(...f);
     if (f.length === 0) console.log(`✓ ${dir}`);
     else for (const x of f) {
@@ -289,7 +292,7 @@ const HELP = `skill-check — test/optimize loop for agent skills (pi harness)
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]
   list   --skills <root>                        discovered skills + spec status
-  lint   <skill|all> --skills <root>           validate specs/fixtures (CI gate; exits non-zero on findings)
+  lint   <skill|all> --skills <root>           validate specs/fixtures + results-consistency (CI gate; exits non-zero on findings)
 
 defaults: model=${DEFAULT_MODEL}  judge=${DEFAULT_JUDGE}  mode=green  harness=pi`;
 

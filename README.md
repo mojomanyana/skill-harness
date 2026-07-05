@@ -121,7 +121,7 @@ skill-check review <skill>     --skills <root> [--port N]   # serve the interact
 skill-check add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical]
                                                             [--mode seeded --fixture path]
 skill-check list   --skills <root>                          # discovered skills + spec status
-skill-check lint   <skill|all> --skills <root>               # validate specs/fixtures; CI gate (exits non-zero on findings)
+skill-check lint   <skill|all> --skills <root>               # validate specs/fixtures + results-consistency; CI gate (exits non-zero on findings)
 ```
 
 **Defaults:** subject model `fireworks:accounts/fireworks/models/deepseek-v4-pro` ·
@@ -270,7 +270,9 @@ jobs:
           skills-root: ./skills   # dir of skill subdirs, each with tests/specification.yaml
 ```
 
-`lint` validates spec schema, ship_bar sanity, critical-id existence, seeded-fixture paths, and results-consistency (for any committed `results.yaml`). Failures fail the check and report each finding as a GitHub error annotation in the run summary. Your `tests/` folders are unchanged.
+> Until the first tagged release, pin to a commit SHA or `@main`.
+
+`lint` validates spec schema, ship_bar sanity, critical-id existence, fixture paths (seeded scenarios, or any scenario using `env.workspace: fixture:PATH`), and results-consistency (for any committed `results.yaml`). Failures fail the check and report each finding as a GitHub error annotation in the run summary. Your `tests/` folders are unchanged.
 
 ---
 
