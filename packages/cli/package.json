@@ -1,6 +1,6 @@
 {
     "name": "@skill-harness/cli",
-    "version": "0.0.2",
+    "version": "0.1.0",
     "type": "module",
     "license": "MIT",
     "main": "./dist/cli.js",
@@ -13,7 +13,7 @@
         "prepack": "rm -rf ./assets && cp -r ../../assets ./assets"
     },
     "dependencies": {
-        "@skill-harness/core": "0.0.2",
-        "@skill-harness/adapters": "0.0.2"
+        "@skill-harness/core": "0.1.0",
+        "@skill-harness/adapters": "0.1.0"
     }
 }

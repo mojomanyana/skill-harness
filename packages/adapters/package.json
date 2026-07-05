@@ -1,6 +1,6 @@
 {
     "name": "@skill-harness/adapters",
-    "version": "0.0.2",
+    "version": "0.1.0",
     "type": "module",
     "license": "MIT",
     "main": "./dist/index.js",
@@ -9,5 +9,5 @@
     "files": ["dist"],
     "repository": { "type": "git", "url": "git+https://github.com/mojomanyana/skill-harness.git" },
     "publishConfig": { "access": "public" },
-    "dependencies": { "@skill-harness/core": "0.0.2" }
+    "dependencies": { "@skill-harness/core": "0.1.0" }
 }
