@@ -6,7 +6,7 @@
     "main": "./dist/cli.js",
     "bin": { "skill-harness": "./dist/cli.js" },
     "exports": { ".": "./dist/cli.js", "./serve": "./dist/serve.js" },
-    "files": ["dist", "assets"],
+    "files": ["dist/**/*.js", "dist/**/*.d.ts", "dist/**/*.map", "assets"],
     "repository": { "type": "git", "url": "git+https://github.com/mojomanyana/skill-harness.git" },
     "publishConfig": { "access": "public" },
     "scripts": {
