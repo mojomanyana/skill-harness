@@ -5,10 +5,12 @@
     "license": "MIT",
     "type": "module",
     "private": true,
+    "keywords": ["pi-package"],
     "bin": { "skill-check": "./bin/skill-check.js" },
     "workspaces": ["packages/*"],
     "scripts": {
         "build": "tsc -b packages/core packages/adapters packages/cli packages/pi-extension",
+        "build:ext": "node packages/pi-extension/build.mjs",
         "dev": "tsx packages/cli/src/cli.ts",
         "test": "vitest run",
         "typecheck": "tsc -b packages/core packages/adapters packages/cli packages/pi-extension --noEmit"
@@ -17,8 +19,13 @@
     "devDependencies": {
         "@types/js-yaml": "^4.0.9",
         "@types/node": "^22.0.0",
+        "esbuild": "^0.28.0",
         "tsx": "^4.19.0",
         "typescript": "^5.6.0",
         "vitest": "^2.1.0"
+    },
+    "pi": {
+        "extensions": ["packages/pi-extension/dist/index.js"],
+        "skills": ["./SKILL.md"]
     }
 }
