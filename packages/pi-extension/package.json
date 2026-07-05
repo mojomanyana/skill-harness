@@ -10,6 +10,7 @@
   "devDependencies": {
     "@skill-check/core": "0.0.2",
     "@skill-check/adapters": "0.0.2",
-    "@skill-check/cli": "0.0.2"
+    "@skill-check/cli": "0.0.2",
+    "typebox": "^1.1.38"
   }
 }

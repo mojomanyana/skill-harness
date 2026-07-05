@@ -14,6 +14,7 @@ import { resolveSkillDir, runViaExtension } from "./runner.js";
  */
 export interface ExtensionAPI {
   registerCommand(name: string, def: { description: string; handler: (args: string, ctx: CmdCtx) => Promise<void> }): void;
+  registerTool(tool: unknown): void;
 }
 
 export interface CmdCtx {
