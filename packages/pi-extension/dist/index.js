@@ -3399,11 +3399,11 @@ function collectTrends(skillDir, limit = 20) {
 }
 
 // packages/core/dist/lint.js
-import { existsSync as existsSync9, statSync as statSync4 } from "node:fs";
+import { existsSync as existsSync9, statSync as statSync4, readdirSync as readdirSync5, readFileSync as readFileSync5 } from "node:fs";
 import { dirname as dirname2, isAbsolute as isAbsolute2, join as join9, resolve as resolve2 } from "node:path";
 
 // packages/adapters/dist/pi.js
-import { mkdtempSync as mkdtempSync2, readFileSync as readFileSync5 } from "node:fs";
+import { mkdtempSync as mkdtempSync2, readFileSync as readFileSync6 } from "node:fs";
 import { tmpdir as tmpdir2 } from "node:os";
 import { join as join10 } from "node:path";
 var PI_TIMEOUT_MS = Number(process.env.SKILL_CHECK_PI_TIMEOUT_MS ?? 3e5);
@@ -3414,7 +3414,7 @@ function skillFlags(mode, skillDir) {
     case "green":
       return ["--skill", skillDir];
     case "force": {
-      const body = readFileSync5(join10(skillDir, "SKILL.md"), "utf8");
+      const body = readFileSync6(join10(skillDir, "SKILL.md"), "utf8");
       return ["--no-skills", "--append-system-prompt", body];
     }
   }
@@ -3525,7 +3525,7 @@ function getAdapter(name) {
 
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
-import { readFileSync as readFileSync6, existsSync as existsSync10 } from "node:fs";
+import { readFileSync as readFileSync7, existsSync as existsSync10 } from "node:fs";
 import { join as join11, dirname as dirname3 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn as spawn2 } from "node:child_process";
@@ -3559,22 +3559,22 @@ function findTranscript(runDir, id) {
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync6(join11(runDir, files[0]), "utf8");
+    return readFileSync7(join11(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync6(join11(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync7(join11(runDir, f), "utf8")}`).join("\n\n");
 }
 function findJudgeRaw(runDir, id) {
   const files = findJudgeRawFiles(runDir, id);
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync6(join11(runDir, files[0]), "utf8");
+    return readFileSync7(join11(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync6(join11(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync7(join11(runDir, f), "utf8")}`).join("\n\n");
 }
 async function serveReview(opts) {
-  const template = readFileSync6(templatePath(opts.assetsDir), "utf8");
-  const gradeScript = readFileSync6(gradeScriptPath(opts.assetsDir), "utf8");
+  const template = readFileSync7(templatePath(opts.assetsDir), "utf8");
+  const gradeScript = readFileSync7(gradeScriptPath(opts.assetsDir), "utf8");
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://localhost");
