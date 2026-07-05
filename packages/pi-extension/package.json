@@ -7,6 +7,10 @@
     "@earendil-works/pi-coding-agent": "*",
     "typebox": "*"
   },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": { "optional": true },
+    "typebox": { "optional": true }
+  },
   "devDependencies": {
     "@skill-check/core": "0.0.2",
     "@skill-check/adapters": "0.0.2",
