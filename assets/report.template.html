@@ -66,7 +66,8 @@
   .tmodel-h { font-size: 13px; margin-bottom: 4px; }
   .spark { vertical-align: middle; color: var(--dim, #888); }
   table.tgrid { border-collapse: collapse; font-size: 12px; }
-  .tgrid th, .tgrid td { padding: 2px 6px; text-align: center; }
+  .tgrid th, .tgrid td { padding: 2px 6px; text-align: center; position: static; }
+  .tgrid td.tscn { text-align: left; }
   .tgrid td.tc.PASS { color: #16a34a; }
   .tgrid td.tc.FAIL { color: #dc2626; }
   .tgrid td.tc.suspect { color: #b45309; }
@@ -272,11 +273,11 @@ document.getElementById("trends-toggle").onclick = async () => {
   if (nowHidden) box.removeAttribute("hidden"); else box.setAttribute("hidden", "");
   btn.textContent = (nowHidden ? "▾ Trends" : "▸ Trends");
   if (nowHidden && !trendsLoaded) {
-    trendsLoaded = true;
     box.textContent = "loading…";
     try {
       const r = await fetch("/trends");
       renderTrends(await r.json());
+      trendsLoaded = true;
     } catch (e) { box.textContent = "(trends unavailable)"; }
   }
 };
@@ -284,6 +285,10 @@ document.getElementById("trends-toggle").onclick = async () => {
 function sparkline(runs) {
   if (!runs.length) return "";
   const w = 8 * runs.length + 4, h = 24;
+  if (runs.length === 1) {
+    const cx = 4, cy = h - 2 - (runs[0].grade.pct / 100) * (h - 4);
+    return `<svg width="${w}" height="${h}" class="spark"><circle cx="${cx}" cy="${cy}" r="2" fill="currentColor"/></svg>`;
+  }
   const pts = runs.map((r, i) => `${4 + i * 8},${h - 2 - (r.grade.pct / 100) * (h - 4)}`).join(" ");
   return `<svg width="${w}" height="${h}" class="spark"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`;
 }
@@ -302,7 +307,7 @@ function renderTrends(data) {
     for (const run of m.runs) html += `<th title="${escapeHtml(run.label || run.timestamp)}">${escapeHtml((run.label || run.timestamp).slice(0, 8))}</th>`;
     html += "</tr></thead><tbody>";
     for (const scn of data.scenarios) {
-      html += `<tr><td class='scn'>${escapeHtml(scn.id)}</td>`;
+      html += `<tr><td class='tscn'>${escapeHtml(scn.id)}</td>`;
       for (const run of m.runs) {
         const cell = run.cells[scn.id];
         if (!cell) { html += `<td class='tc absent'>·</td>`; continue; }
