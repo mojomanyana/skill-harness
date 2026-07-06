@@ -87,3 +87,77 @@ scenarios:
 ${scenarioBlocks}
 `;
 }
+
+export function buildSuggestPrompt(skillName: string, skillMd: string): string {
+  return `You are drafting a test specification for an agent skill named "${skillName}".
+Below is its SKILL.md. Propose scenarios that check whether an agent following this
+skill behaves correctly, including at least one adversarial / under-pressure case.
+
+Return ONLY a JSON object (no prose, no markdown fences) with exactly this shape:
+{
+  "judge_persona": "<how a judge should role-play when grading transcripts>",
+  "ship_bar": { "total": <int>, "min_pass": <int>, "no_critical_fail": true },
+  "proposed_critical": ["<scenario id you think should gate the ship>", ...],
+  "scenarios": [
+    { "id": "A1", "title": "<short title>",
+      "turns": ["<the user's message>", "<optional follow-up turns>"],
+      "checklist": ["<an observable thing the response must do>", ...] }
+  ]
+}
+Use ids A1, A2, ... for baseline scenarios and B1, B2, ... for adversarial ones.
+Every scenario needs at least one turn and one checklist item.
+
+--- SKILL.md ---
+${skillMd}`;
+}
+
+function asStringArray(v: unknown, ctx: string): string[] {
+  if (!Array.isArray(v) || v.length === 0 || v.some((x) => typeof x !== "string")) {
+    throw new Error(`${ctx} must be a non-empty array of strings`);
+  }
+  return v as string[];
+}
+
+export function parseSuggestDraft(raw: string): SuggestDraft {
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start < 0 || end <= start) throw new Error("no JSON object in model output");
+  let obj: Record<string, unknown>;
+  try {
+    obj = JSON.parse(raw.slice(start, end + 1)) as Record<string, unknown>;
+  } catch (e) {
+    throw new Error(`model output is not valid JSON — ${(e as Error).message}`);
+  }
+
+  if (typeof obj.judge_persona !== "string" || !obj.judge_persona.trim()) {
+    throw new Error("judge_persona must be a non-empty string");
+  }
+  const sb = obj.ship_bar as Record<string, unknown> | undefined;
+  if (!sb || typeof sb.total !== "number" || typeof sb.min_pass !== "number") {
+    throw new Error("ship_bar must have numeric total and min_pass");
+  }
+  const proposed = Array.isArray(obj.proposed_critical)
+    ? (obj.proposed_critical.filter((x) => typeof x === "string") as string[])
+    : [];
+  if (!Array.isArray(obj.scenarios) || obj.scenarios.length === 0) {
+    throw new Error("scenarios must be a non-empty array");
+  }
+  const scenarios: DraftScenario[] = obj.scenarios.map((raw2, i) => {
+    const s = raw2 as Record<string, unknown>;
+    if (typeof s.id !== "string" || !s.id.trim()) throw new Error(`scenario #${i + 1} needs a string id`);
+    if (typeof s.title !== "string" || !s.title.trim()) throw new Error(`scenario ${s.id} needs a title`);
+    return {
+      id: s.id,
+      title: s.title,
+      turns: asStringArray(s.turns, `scenario ${s.id} turns`),
+      checklist: asStringArray(s.checklist, `scenario ${s.id} checklist`),
+    };
+  });
+
+  return {
+    judge_persona: obj.judge_persona,
+    ship_bar: { total: sb.total, min_pass: sb.min_pass, no_critical_fail: sb.no_critical_fail !== false },
+    proposed_critical: proposed,
+    scenarios,
+  };
+}

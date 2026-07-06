@@ -57,3 +57,46 @@ describe("renderDraftSpec", () => {
     expect(spec.scenarios[0].checklist[0]).toBe('says "ok"');
   });
 });
+
+import { buildSuggestPrompt, parseSuggestDraft } from "../src/scaffold.js";
+
+const GOOD_JSON = JSON.stringify({
+  judge_persona: "a fair reviewer.",
+  ship_bar: { total: 1, min_pass: 1, no_critical_fail: true },
+  proposed_critical: ["A1"],
+  scenarios: [{ id: "A1", title: "t", turns: ["hi"], checklist: ["greets"] }],
+});
+
+describe("buildSuggestPrompt", () => {
+  test("embeds the skill name and SKILL.md and asks for JSON", () => {
+    const p = buildSuggestPrompt("greeter", "# Greeter\nsay hi");
+    expect(p).toContain("greeter");
+    expect(p).toContain("say hi");
+    expect(p).toMatch(/JSON/);
+  });
+});
+
+describe("parseSuggestDraft", () => {
+  test("parses clean JSON", () => {
+    const d = parseSuggestDraft(GOOD_JSON);
+    expect(d.scenarios[0].id).toBe("A1");
+    expect(d.proposed_critical).toEqual(["A1"]);
+  });
+
+  test("tolerates markdown fences and surrounding prose", () => {
+    const wrapped = "Sure! Here you go:\n```json\n" + GOOD_JSON + "\n```\nHope that helps.";
+    expect(parseSuggestDraft(wrapped).scenarios.length).toBe(1);
+  });
+
+  test("throws when there is no JSON object", () => {
+    expect(() => parseSuggestDraft("I cannot help with that.")).toThrow(/no JSON object/);
+  });
+
+  test("throws on a malformed shape (scenario missing turns)", () => {
+    const bad = JSON.stringify({
+      judge_persona: "x", ship_bar: { total: 1, min_pass: 1, no_critical_fail: true },
+      proposed_critical: [], scenarios: [{ id: "A1", title: "t", checklist: ["c"] }],
+    });
+    expect(() => parseSuggestDraft(bad)).toThrow(/turns/);
+  });
+});
