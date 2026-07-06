@@ -2548,7 +2548,7 @@ var GIT_TIMEOUT_MS = 3e4;
 function gitBaseline(cwd) {
   execFileSync("git", ["init", "-q"], { cwd, timeout: GIT_TIMEOUT_MS });
   execFileSync("git", ["add", "-A"], { cwd, timeout: GIT_TIMEOUT_MS });
-  execFileSync("git", ["-c", "user.email=sc@local", "-c", "user.name=skill-check", "commit", "-q", "--allow-empty", "-m", "baseline"], { cwd, timeout: GIT_TIMEOUT_MS });
+  execFileSync("git", ["-c", "user.email=sh@local", "-c", "user.name=skill-harness", "commit", "-q", "--allow-empty", "-m", "baseline"], { cwd, timeout: GIT_TIMEOUT_MS });
 }
 function createWorkspace(kind, opts) {
   const cwd = mkdtempSync(join2(tmpdir(), "sc-ws-"));

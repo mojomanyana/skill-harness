@@ -1,6 +1,6 @@
 # skill-harness
 
-A portable **test / optimize loop for agent skills**, driven from [pi](https://parallel.ai).
+A portable **test / optimize loop for agent skills**, driven from [pi](https://pi.dev).
 Point it at a repo of skills, and for any skill with a spec it will:
 
 1. **run** each scenario against pi (a model of your choice, skill active),

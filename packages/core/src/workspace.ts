@@ -19,7 +19,7 @@ function gitBaseline(cwd: string): void {
   execFileSync("git", ["add", "-A"], { cwd, timeout: GIT_TIMEOUT_MS });
   execFileSync(
     "git",
-    ["-c", "user.email=sc@local", "-c", "user.name=skill-check", "commit", "-q", "--allow-empty", "-m", "baseline"],
+    ["-c", "user.email=sh@local", "-c", "user.name=skill-harness", "commit", "-q", "--allow-empty", "-m", "baseline"],
     { cwd, timeout: GIT_TIMEOUT_MS }
   );
 }

@@ -1,6 +1,6 @@
 # skill-harness
 
-A portable **test / optimize loop for agent skills**, driven from [pi](https://parallel.ai).
+A portable **test / optimize loop for agent skills**, driven from [pi](https://pi.dev).
 Point it at a repo of skills, and for any skill with a `tests/specification.yaml`
 spec it will run each scenario, LLM-judge the transcript, score it against a ship
 bar, and open an interactive review UI so you can measure a `SKILL.md` edit.
