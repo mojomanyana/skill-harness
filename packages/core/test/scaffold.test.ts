@@ -117,4 +117,25 @@ describe("parseSuggestDraft", () => {
     });
     expect(parseSuggestDraft(draft).proposed_critical).toEqual(["A1"]);
   });
+
+  test("throws on a duplicate scenario id", () => {
+    const bad = JSON.stringify({
+      judge_persona: "x", ship_bar: { total: 2, min_pass: 1, no_critical_fail: true },
+      proposed_critical: [],
+      scenarios: [
+        { id: "A1", title: "t", turns: ["hi"], checklist: ["c"] },
+        { id: "A1", title: "u", turns: ["ho"], checklist: ["d"] },
+      ],
+    });
+    expect(() => parseSuggestDraft(bad)).toThrow(/duplicate/);
+  });
+
+  test("throws when ship_bar.min_pass exceeds total", () => {
+    const bad = JSON.stringify({
+      judge_persona: "x", ship_bar: { total: 1, min_pass: 2, no_critical_fail: true },
+      proposed_critical: [],
+      scenarios: [{ id: "A1", title: "t", turns: ["hi"], checklist: ["c"] }],
+    });
+    expect(() => parseSuggestDraft(bad)).toThrow(/min_pass/);
+  });
 });

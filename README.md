@@ -70,6 +70,11 @@ flip verdicts and edit the `SKILL.md` under test; pi measures it.
 Discovery scans `<skills-root>/*/tests/specification.yaml`. A skill with that file
 next to its `SKILL.md` is testable; one without is listed as "no spec".
 
+No spec yet? Don't hand-write the YAML — scaffold it: `skill-harness init <skill>`
+writes a commented template (free, offline), or `skill-harness suggest <skill>`
+LLM-drafts scenarios and a checklist from the skill's own `SKILL.md` for you to
+review (spends tokens; see the command reference below).
+
 ```yaml
 skill: ponytail
 judge_persona: >          # how the judge should read the checklist

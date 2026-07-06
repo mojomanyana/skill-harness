@@ -140,16 +140,22 @@ export function parseSuggestDraft(raw: string): SuggestDraft {
   if (!sb || typeof sb.total !== "number" || typeof sb.min_pass !== "number") {
     throw new Error("ship_bar must have numeric total and min_pass");
   }
+  if (sb.min_pass > sb.total) {
+    throw new Error(`ship_bar.min_pass (${sb.min_pass}) cannot exceed total (${sb.total})`);
+  }
   const proposed = Array.isArray(obj.proposed_critical)
     ? (obj.proposed_critical.filter((x) => typeof x === "string" && SAFE_ID.test(x)) as string[])
     : [];
   if (!Array.isArray(obj.scenarios) || obj.scenarios.length === 0) {
     throw new Error("scenarios must be a non-empty array");
   }
+  const seen = new Set<string>();
   const scenarios: DraftScenario[] = obj.scenarios.map((raw2, i) => {
     const s = raw2 as Record<string, unknown>;
     if (typeof s.id !== "string" || !s.id.trim()) throw new Error(`scenario #${i + 1} needs a string id`);
     if (!SAFE_ID.test(s.id)) throw new Error(`scenario id \`${s.id}\` must be alphanumeric (A-Z a-z 0-9 _ -)`);
+    if (seen.has(s.id)) throw new Error(`duplicate scenario id \`${s.id}\``);
+    seen.add(s.id);
     if (typeof s.title !== "string" || !s.title.trim()) throw new Error(`scenario ${s.id} needs a title`);
     return {
       id: s.id,
