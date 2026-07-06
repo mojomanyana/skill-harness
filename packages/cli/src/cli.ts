@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-import { readFileSync, existsSync, appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { readFileSync, existsSync, appendFileSync, mkdirSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
 import yaml from "js-yaml";
 import {
   discover, resolveSkill,
@@ -17,6 +18,7 @@ import { serveReview } from "./serve.js";
 
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 const DEFAULT_JUDGE = "anthropic:claude-opus-4-8";
+const DEFAULT_SUGGEST_MODEL = "claude-code:claude-opus-4-8";
 
 export interface Args {
   _: string[];
@@ -263,6 +265,65 @@ export async function cmdInit(args: Args): Promise<void> {
   console.log(`wrote template ${skill.specPath} — fill it in, or run \`skill-harness suggest ${skill.name}\` to LLM-draft it.`);
 }
 
+export async function cmdSuggest(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
+  const root = flagStr(args, "skills", process.cwd())!;
+  const target = args._[0];
+  if (!target) throw new Error("usage: skill-harness suggest <skill> --skills <root> [--model prov:model] [--force]");
+
+  // Check for SKILL.md against the raw root/target path *before* resolveSkill:
+  // discover() only lists directories that already have a SKILL.md, so once a
+  // skill is missing one, resolveSkill's "no skill `x`" error would otherwise
+  // mask the more specific, actionable SKILL.md-not-found message below.
+  const skillMdPath = join(root, target, "SKILL.md");
+  if (!existsSync(skillMdPath)) {
+    throw new Error(`${skillMdPath} not found — suggest drafts from the skill's SKILL.md`);
+  }
+  const skill = resolveSkill(root, target);
+  const skillMd = readFileSync(skillMdPath, "utf8");
+
+  const force = flagStr(args, "force") !== undefined;
+  if (skill.hasSpec && !force && !isTemplateSpec(readFileSync(skill.specPath, "utf8"))) {
+    throw new Error(`${skill.specPath} already has real content — pass --force to overwrite`);
+  }
+
+  const model = parseModelRef(flagStr(args, "model", DEFAULT_SUGGEST_MODEL)!);
+  const adapter = adapterOverride ?? getAdapter("pi");
+  const cwd = mkdtempSync(join(tmpdir(), "sh-suggest-cwd-"));
+  try {
+    const basePrompt = buildSuggestPrompt(skill.name, skillMd);
+    let text: string | null = null;
+    let count = 0;
+    let lastErr = "";
+    for (let attempt = 0; attempt < 2 && text === null; attempt++) {
+      const prompt = attempt === 0
+        ? basePrompt
+        : `${basePrompt}\n\nYour previous reply was rejected: ${lastErr}. Return corrected JSON only.`;
+      const raw = await adapter.judge({ model, prompt, cwd });
+      if (!raw.trim() || raw.startsWith("[judge error")) {
+        throw new Error(`model ${model.provider}:${model.model} produced no output — ${raw.trim() || "is it installed and authenticated?"} (try --model fireworks:...)`);
+      }
+      try {
+        const draft = parseSuggestDraft(raw);
+        const candidate = renderDraftSpec(skill.name, draft);
+        parseSpec(candidate, skill.specPath); // validate before writing
+        text = candidate;
+        count = draft.scenarios.length;
+      } catch (e) {
+        lastErr = e instanceof Error ? e.message : String(e);
+      }
+    }
+    if (text === null) {
+      throw new Error(`could not get a valid spec from the model after 2 attempts (${lastErr}) — try \`skill-harness init ${skill.name}\` for a manual template`);
+    }
+    mkdirSync(dirname(skill.specPath), { recursive: true });
+    writeFileSync(skill.specPath, text, "utf8");
+    console.log(`drafted ${count} scenario(s) → ${skill.specPath}`);
+    console.log(`review it (especially the proposed critical set), then \`skill-harness run ${skill.name} --skills ${root}\``);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+}
+
 /** Exit-code contract: 0 = clean (no findings), 1 = >=1 finding, or a resolution error (unknown skill/root, no skills with a spec). */
 export async function cmdLint(args: Args): Promise<void> {
   const root = flagStr(args, "skills", process.cwd())!;
@@ -310,6 +371,7 @@ const HELP = `skill-harness — test/optimize loop for agent skills (pi harness)
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]
   init   <skill>     --skills <root> [--force]     scaffold a commented template spec (free, offline)
+  suggest <skill>    --skills <root> [--model prov:model] [--force]  LLM-draft a spec from SKILL.md (spends tokens)
   list   --skills <root>                        discovered skills + spec status
   lint   <skill|all> --skills <root>           validate specs/fixtures + results-consistency (CI gate; exits non-zero on findings)
 
@@ -324,6 +386,7 @@ export async function main(argv: string[]): Promise<void> {
     case "review": return cmdReview(args);
     case "add-test": return cmdAddTest(args);
     case "init": return cmdInit(args);
+    case "suggest": return cmdSuggest(args);
     case "list": return cmdList(args);
     case "lint": return cmdLint(args);
     case undefined:
