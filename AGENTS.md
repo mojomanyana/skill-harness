@@ -33,7 +33,7 @@ suggest <skill> --skills root [--model prov:model] [--force]  LLM-draft a spec f
 
 Defaults: subject `fireworks:accounts/fireworks/models/deepseek-v4-pro` · judge `anthropic:claude-opus-4-8` · mode `green` · harness `pi`.
 
-**Cost split an agent must respect:** `init`/`lint`/`list` are free static/offline commands. `run`/`grade`/**`suggest`** spend model tokens (suggest defaults to `claude-code:claude-opus-4-8`, no metered key) — confirm the skill + model with the user before running `suggest`.
+**Cost split an agent must respect:** `init`/`lint`/`list` are free static/offline commands (safe to run anytime, ideal for CI). `run`, `grade`, and `suggest` spend model tokens and need provider creds — **confirm the skill, model(s), and judge with the user before running any of them.** (`suggest` defaults to `claude-code:claude-opus-4-8`, which needs no metered key, but still spends the user's subscription.)
 
 ## Rules (do not violate)
 

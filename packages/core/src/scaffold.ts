@@ -122,14 +122,38 @@ function asStringArray(v: unknown, ctx: string): string[] {
   return v as string[];
 }
 
-export function parseSuggestDraft(raw: string): SuggestDraft {
+/** Extract the first complete top-level JSON object from a model reply, tolerating
+ *  surrounding prose or ```json fences — including trailing text that itself
+ *  contains braces (e.g. "…} Does {this} work?"). Scans brace depth while skipping
+ *  string contents, so the object ends at its own matching `}`, not the last `}`
+ *  anywhere in the reply. */
+function extractJsonObject(raw: string): string {
   const start = raw.indexOf("{");
-  const end = raw.lastIndexOf("}");
-  if (start < 0 || end <= start) throw new Error("no JSON object in model output");
+  if (start < 0) throw new Error("no JSON object in model output");
+  let depth = 0;
+  let inStr = false;
+  let escaped = false;
+  for (let i = start; i < raw.length; i++) {
+    const ch = raw[i];
+    if (inStr) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === "{") depth++;
+    else if (ch === "}" && --depth === 0) return raw.slice(start, i + 1);
+  }
+  throw new Error("no complete JSON object in model output");
+}
+
+export function parseSuggestDraft(raw: string): SuggestDraft {
   let obj: Record<string, unknown>;
   try {
-    obj = JSON.parse(raw.slice(start, end + 1)) as Record<string, unknown>;
+    obj = JSON.parse(extractJsonObject(raw)) as Record<string, unknown>;
   } catch (e) {
+    if (e instanceof Error && e.message.includes("JSON object in model output")) throw e;
     throw new Error(`model output is not valid JSON — ${(e as Error).message}`);
   }
 

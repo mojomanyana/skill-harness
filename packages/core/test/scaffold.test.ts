@@ -88,6 +88,11 @@ describe("parseSuggestDraft", () => {
     expect(parseSuggestDraft(wrapped).scenarios.length).toBe(1);
   });
 
+  test("stops at the object's own closing brace when trailing prose contains braces", () => {
+    const chatty = GOOD_JSON + "\nDoes wording like {this} work for you?";
+    expect(parseSuggestDraft(chatty).scenarios.length).toBe(1);
+  });
+
   test("throws when there is no JSON object", () => {
     expect(() => parseSuggestDraft("I cannot help with that.")).toThrow(/no JSON object/);
   });

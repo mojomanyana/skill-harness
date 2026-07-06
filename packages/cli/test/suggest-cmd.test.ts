@@ -83,9 +83,31 @@ describe("cmdSuggest", () => {
     expect(parseSpec(readFileSync(specPath, "utf8"), specPath).scenarios[0].id).toBe("A1");
   });
 
-  test("errors when the model produces no output", async () => {
+  test("refuses a sentinel-bearing but hand-edited template without --force", async () => {
+    const { root, specPath } = skillRoot();
+    mkdirSync(join(root, "greeter", "tests"), { recursive: true });
+    // Template kept its sentinel comment, but the user hand-edited the body.
+    writeFileSync(specPath, renderTemplateSpec("greeter") + '\n  - id: B1\n    title: mine\n    turns: ["x"]\n    checklist: ["y"]\n', "utf8");
+    const before = readFileSync(specPath, "utf8");
+    await expect(cmdSuggest(args(root, "greeter"), fakeAdapter([GOOD_JSON]))).rejects.toThrow(/--force/);
+    expect(readFileSync(specPath, "utf8")).toBe(before); // edits preserved
+  });
+
+  test("fails fast on a hard adapter error (no retry)", async () => {
     const { root } = skillRoot();
-    await expect(cmdSuggest(args(root, "greeter"), fakeAdapter(["[judge error: claude exited 127] not found"]))).rejects.toThrow(/no output|--model/);
+    await expect(cmdSuggest(args(root, "greeter"), fakeAdapter(["[judge error: claude exited 127] not found"]))).rejects.toThrow(/--model/);
+  });
+
+  test("retries a transient empty response, then succeeds", async () => {
+    const { root, specPath } = skillRoot();
+    await cmdSuggest(args(root, "greeter"), fakeAdapter(["", GOOD_JSON]));
+    expect(existsSync(specPath)).toBe(true);
+  });
+
+  test("two empty responses write nothing and throw", async () => {
+    const { root, specPath } = skillRoot();
+    await expect(cmdSuggest(args(root, "greeter"), fakeAdapter(["", ""]))).rejects.toThrow(/no output|could not get a valid spec/);
+    expect(existsSync(specPath)).toBe(false);
   });
 
   test("errors when SKILL.md is missing", async () => {

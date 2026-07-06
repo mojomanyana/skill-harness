@@ -249,6 +249,13 @@ async function cmdAddTest(args: Args): Promise<void> {
   console.log(`added scenario ${id} to ${skill.specPath}`);
 }
 
+/** Write a spec to disk, creating its tests/ dir. The single choke point for spec
+ *  writes (init/suggest) so a future atomic-write/backup/audit change lands in one place. */
+function writeSpecFile(specPath: string, text: string): void {
+  mkdirSync(dirname(specPath), { recursive: true });
+  writeFileSync(specPath, text, "utf8");
+}
+
 export async function cmdInit(args: Args): Promise<void> {
   const root = flagStr(args, "skills", process.cwd())!;
   const target = args._[0];
@@ -260,8 +267,7 @@ export async function cmdInit(args: Args): Promise<void> {
   }
   const text = renderTemplateSpec(skill.name);
   parseSpec(text, skill.specPath); // guard: the template must always be valid
-  mkdirSync(dirname(skill.specPath), { recursive: true });
-  writeFileSync(skill.specPath, text, "utf8");
+  writeSpecFile(skill.specPath, text);
   console.log(`wrote template ${skill.specPath} — fill it in, or run \`skill-harness suggest ${skill.name}\` to LLM-draft it.`);
 }
 
@@ -270,20 +276,24 @@ export async function cmdSuggest(args: Args, adapterOverride?: HarnessAdapter): 
   const target = args._[0];
   if (!target) throw new Error("usage: skill-harness suggest <skill> --skills <root> [--model prov:model] [--force]");
 
-  // Check for SKILL.md against the raw root/target path *before* resolveSkill:
-  // discover() only lists directories that already have a SKILL.md, so once a
-  // skill is missing one, resolveSkill's "no skill `x`" error would otherwise
-  // mask the more specific, actionable SKILL.md-not-found message below.
-  const skillMdPath = join(root, target, "SKILL.md");
-  if (!existsSync(skillMdPath)) {
-    throw new Error(`${skillMdPath} not found — suggest drafts from the skill's SKILL.md`);
-  }
+  // resolveSkill throws a SKILL.md-specific error when the directory exists but
+  // lacks one, so we don't reimplement that check here; a resolved skill always
+  // has a SKILL.md at skill.dir.
   const skill = resolveSkill(root, target);
-  const skillMd = readFileSync(skillMdPath, "utf8");
+  const skillMd = readFileSync(join(skill.dir, "SKILL.md"), "utf8");
 
+  // Overwrite without --force only when the target is absent or an *unedited*
+  // template. A file that still carries the sentinel but no longer matches the
+  // pristine template has been hand-edited — refuse it so we never clobber work.
   const force = flagStr(args, "force") !== undefined;
-  if (skill.hasSpec && !force && !isTemplateSpec(readFileSync(skill.specPath, "utf8"))) {
-    throw new Error(`${skill.specPath} already has real content — pass --force to overwrite`);
+  if (skill.hasSpec && !force) {
+    const existing = readFileSync(skill.specPath, "utf8");
+    if (existing !== renderTemplateSpec(skill.name)) {
+      const hint = isTemplateSpec(existing)
+        ? "looks like an edited template — pass --force to overwrite (or delete your edits)"
+        : "already has real content — pass --force to overwrite";
+      throw new Error(`${skill.specPath} ${hint}`);
+    }
   }
 
   const model = parseModelRef(flagStr(args, "model", DEFAULT_SUGGEST_MODEL)!);
@@ -299,8 +309,15 @@ export async function cmdSuggest(args: Args, adapterOverride?: HarnessAdapter): 
         ? basePrompt
         : `${basePrompt}\n\nYour previous reply was rejected: ${lastErr}. Return corrected JSON only.`;
       const raw = await adapter.judge({ model, prompt, cwd });
-      if (!raw.trim() || raw.startsWith("[judge error")) {
-        throw new Error(`model ${model.provider}:${model.model} produced no output — ${raw.trim() || "is it installed and authenticated?"} (try --model fireworks:...)`);
+      // A `[judge error` prefix is a hard adapter failure (auth, exec, credits) —
+      // retrying won't help, so fail fast with a model hint. An empty reply is
+      // treated as a transient miss and gets the same retry as a bad-JSON reply.
+      if (raw.startsWith("[judge error")) {
+        throw new Error(`model ${model.provider}:${model.model} failed — ${raw.trim()} (try --model fireworks:...)`);
+      }
+      if (!raw.trim()) {
+        lastErr = "model produced no output";
+        continue;
       }
       try {
         const draft = parseSuggestDraft(raw);
@@ -313,10 +330,9 @@ export async function cmdSuggest(args: Args, adapterOverride?: HarnessAdapter): 
       }
     }
     if (text === null) {
-      throw new Error(`could not get a valid spec from the model after 2 attempts (${lastErr}) — try \`skill-harness init ${skill.name}\` for a manual template`);
+      throw new Error(`could not get a valid spec from ${model.provider}:${model.model} after 2 attempts (${lastErr}) — try \`skill-harness init ${skill.name}\` for a manual template`);
     }
-    mkdirSync(dirname(skill.specPath), { recursive: true });
-    writeFileSync(skill.specPath, text, "utf8");
+    writeSpecFile(skill.specPath, text);
     console.log(`drafted ${count} scenario(s) → ${skill.specPath}`);
     console.log(`review it (especially the proposed critical set), then \`skill-harness run ${skill.name} --skills ${root}\``);
   } finally {
