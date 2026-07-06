@@ -6,11 +6,12 @@
     "main": "./dist/cli.js",
     "bin": { "skill-harness": "./dist/cli.js" },
     "exports": { ".": "./dist/cli.js", "./serve": "./dist/serve.js" },
-    "files": ["dist/**/*.js", "dist/**/*.d.ts", "dist/**/*.map", "assets"],
+    "files": ["dist/**/*.js", "dist/**/*.d.ts", "assets", "LICENSE"],
     "repository": { "type": "git", "url": "git+https://github.com/mojomanyana/skill-harness.git" },
     "publishConfig": { "access": "public" },
+    "engines": { "node": ">=20" },
     "scripts": {
-        "prepack": "rm -rf ./assets && cp -r ../../assets ./assets"
+        "prepack": "rm -rf ./assets && cp -r ../../assets ./assets && cp ../../LICENSE ./LICENSE"
     },
     "dependencies": {
         "@skill-harness/core": "0.1.0",

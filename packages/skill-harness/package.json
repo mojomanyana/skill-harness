@@ -4,8 +4,12 @@
   "description": "Test/optimize loop for agent skills (CLI).",
   "type": "module",
   "bin": { "skill-harness": "./bin.js" },
-  "files": ["bin.js"],
+  "files": ["bin.js", "LICENSE"],
   "dependencies": { "@skill-harness/cli": "0.1.0" },
   "repository": { "type": "git", "url": "git+https://github.com/mojomanyana/skill-harness.git" },
-  "license": "MIT"
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "prepack": "cp ../../LICENSE ./LICENSE"
+  }
 }

@@ -3,6 +3,11 @@ import type { HarnessAdapter } from "@skill-harness/core";
 import type { ExtensionAPI } from "./commands.js";
 import { resolveSkillDir, runViaExtension, type Scorecard } from "./runner.js";
 
+// NOTE: the export name, the tool's model-facing `name`, and `handleSkillCheck`
+// in commands.ts are intentionally NOT rebranded (only the `label` was). A tool
+// name is a stable API identifier, and pi-extension is private/git-install
+// (never published to npm), so renaming would break existing installs with no
+// npm-version boundary to cushion it. KEEP as skill_check_run.
 export const skillCheckRunTool = {
   name: "skill_check_run",
   label: "Run skill-harness",

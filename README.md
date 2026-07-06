@@ -37,7 +37,6 @@ npm install          # install deps
     bin/skill-harness.js   launcher: packages/cli/dist if built, tsx fallback otherwise
 
 Build: `npm run build` (tsc project references). Test: `npm test` (vitest workspace).
-The CLI surface and all commands are unchanged from v0.0.1.
 
 ---
 
@@ -286,5 +285,4 @@ npm run build     # emit per-package dist/
 
 Adding another harness is the one extension point: implement `HarnessAdapter`
 (`packages/core/src/adapters/types.ts`) and register it in
-`packages/adapters/src/index.ts`. `--repeat N` / majority-of-N for noisy
-models is parked for v2.
+`packages/adapters/src/index.ts`.

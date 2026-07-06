@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>skill-check · __SKILL__</title>
+<title>skill-harness · __SKILL__</title>
 <style>
   :root {
     --bg: #0f1115; --panel: #171a21; --line: #262b36; --fg: #e6e9ef; --dim: #9aa3b2;
@@ -82,7 +82,7 @@
 </head>
 <body>
 <header>
-  <h1>skill-check</h1>
+  <h1>skill-harness</h1>
   <span class="sub" id="subtitle"></span>
 </header>
 <main>
@@ -112,7 +112,7 @@ function render() {
     `${DATA.skill} · ${DATA.columns.length} model(s) · ship bar ${DATA.shipBar.min_pass}/${DATA.shipBar.total}, no critical fail`;
   const wrap = document.getElementById("matrix");
   if (!DATA.columns.length) {
-    wrap.innerHTML = `<div class="empty-state">No runs yet for <b>${DATA.skill}</b>.<br>Run <code>skill-check run ${DATA.skill}</code> first.</div>`;
+    wrap.innerHTML = `<div class="empty-state">No runs yet for <b>${DATA.skill}</b>.<br>Run <code>skill-harness run ${DATA.skill}</code> first.</div>`;
     return;
   }
   const grades = DATA.columns.map((col) => gradeColumn(col, DATA.shipBar, DATA.critical));
