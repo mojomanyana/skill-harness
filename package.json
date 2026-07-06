@@ -9,11 +9,11 @@
     "bin": { "skill-harness": "./bin/skill-harness.js" },
     "workspaces": ["packages/*"],
     "scripts": {
-        "build": "tsc -b packages/core packages/adapters packages/cli packages/pi-extension",
+        "build": "tsc -b packages/core packages/adapters packages/cli",
         "build:ext": "node packages/pi-extension/build.mjs",
         "dev": "tsx packages/cli/src/cli.ts",
         "test": "vitest run",
-        "typecheck": "tsc -b packages/core packages/adapters packages/cli packages/pi-extension --noEmit"
+        "typecheck": "tsc -b packages/core packages/adapters packages/cli && tsc --noEmit -p packages/pi-extension/tsconfig.json"
     },
     "engines": { "node": ">=20" },
     "devDependencies": {
