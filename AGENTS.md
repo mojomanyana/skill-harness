@@ -6,6 +6,8 @@ Guidance for any coding agent (Claude Code, Codex, Cursor, pi, …) working in o
 
 **When to use it:** the user asks to test / grade / benchmark a skill, compare models on a skill, check whether a `SKILL.md` edit helped, review a scorecard, or add a test case. It is a **dev tool for measuring skills — not a shipped skill, and not for running a skill in production.**
 
+**Working on the project itself?** Read `docs/ROADMAP.md` first — it holds the strategy, phased task list with checkboxes, and rules (e.g. every feature ships with a post draft; nothing in the run→grade→review loop ever gets paywalled). Pick up tasks from the current phase, top-down, and check them off with date + PR/commit.
+
 ## Setup
 
 ```bash
@@ -25,11 +27,13 @@ run   <skill|all> --skills root [--model prov:model ...] [--mode red|green|force
 grade <run-dir> [--judge prov:model]      re-score saved transcripts with a (different) judge — no model re-run
 review <skill> --skills root [--port N]   interactive matrix UI; flip verdicts + notes persist to results.yaml
 add-test <skill> --skills root --id ID --title T --turn "…" [--turn …] --check "…" [--check …] [--critical] [--mode seeded --fixture path]
+init  <skill> --skills root [--force]                    scaffold a commented template spec (free, offline)
+suggest <skill> --skills root [--model prov:model] [--force]  LLM-draft a spec from the skill's SKILL.md (spends tokens)
 ```
 
 Defaults: subject `fireworks:accounts/fireworks/models/deepseek-v4-pro` · judge `anthropic:claude-opus-4-8` · mode `green` · harness `pi`.
 
-**Cost split an agent must respect:** `lint`/`list` are free static checks (safe to run anytime, ideal for CI). `run` spends model tokens and needs provider creds — **confirm the skill, model(s), and judge with the user before running it.**
+**Cost split an agent must respect:** `init`/`lint`/`list` are free static/offline commands (safe to run anytime, ideal for CI). `run`, `grade`, and `suggest` spend model tokens and need provider creds — **confirm the skill, model(s), and judge with the user before running any of them.** (`suggest` defaults to `claude-code:claude-opus-4-8`, which needs no metered key, but still spends the user's subscription.)
 
 ## Rules (do not violate)
 

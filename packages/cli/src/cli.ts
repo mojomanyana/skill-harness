@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-import { readFileSync, existsSync, appendFileSync } from "node:fs";
+import { readFileSync, existsSync, appendFileSync, mkdirSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
 import yaml from "js-yaml";
 import {
   discover, resolveSkill,
@@ -10,12 +11,14 @@ import {
   readResults, regradeRun,
   lintSkill, type LintFinding,
   type HarnessAdapter,
+  renderTemplateSpec, isTemplateSpec, renderDraftSpec, buildSuggestPrompt, parseSuggestDraft,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
 
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 const DEFAULT_JUDGE = "anthropic:claude-opus-4-8";
+const DEFAULT_SUGGEST_MODEL = "claude-code:claude-opus-4-8";
 
 export interface Args {
   _: string[];
@@ -246,6 +249,97 @@ async function cmdAddTest(args: Args): Promise<void> {
   console.log(`added scenario ${id} to ${skill.specPath}`);
 }
 
+/** Write a spec to disk, creating its tests/ dir. The single choke point for spec
+ *  writes (init/suggest) so a future atomic-write/backup/audit change lands in one place. */
+function writeSpecFile(specPath: string, text: string): void {
+  mkdirSync(dirname(specPath), { recursive: true });
+  writeFileSync(specPath, text, "utf8");
+}
+
+export async function cmdInit(args: Args): Promise<void> {
+  const root = flagStr(args, "skills", process.cwd())!;
+  const target = args._[0];
+  if (!target) throw new Error("usage: skill-harness init <skill> --skills <root> [--force]");
+  const skill = resolveSkill(root, target);
+  const force = flagStr(args, "force") !== undefined;
+  if (skill.hasSpec && !force) {
+    throw new Error(`${skill.specPath} exists — edit it, or pass --force to overwrite`);
+  }
+  const text = renderTemplateSpec(skill.name);
+  parseSpec(text, skill.specPath); // guard: the template must always be valid
+  writeSpecFile(skill.specPath, text);
+  console.log(`wrote template ${skill.specPath} — fill it in, or run \`skill-harness suggest ${skill.name}\` to LLM-draft it.`);
+}
+
+export async function cmdSuggest(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
+  const root = flagStr(args, "skills", process.cwd())!;
+  const target = args._[0];
+  if (!target) throw new Error("usage: skill-harness suggest <skill> --skills <root> [--model prov:model] [--force]");
+
+  // resolveSkill throws a SKILL.md-specific error when the directory exists but
+  // lacks one, so we don't reimplement that check here; a resolved skill always
+  // has a SKILL.md at skill.dir.
+  const skill = resolveSkill(root, target);
+  const skillMd = readFileSync(join(skill.dir, "SKILL.md"), "utf8");
+
+  // Overwrite without --force only when the target is absent or an *unedited*
+  // template. A file that still carries the sentinel but no longer matches the
+  // pristine template has been hand-edited — refuse it so we never clobber work.
+  const force = flagStr(args, "force") !== undefined;
+  if (skill.hasSpec && !force) {
+    const existing = readFileSync(skill.specPath, "utf8");
+    if (existing !== renderTemplateSpec(skill.name)) {
+      const hint = isTemplateSpec(existing)
+        ? "looks like an edited template — pass --force to overwrite (or delete your edits)"
+        : "already has real content — pass --force to overwrite";
+      throw new Error(`${skill.specPath} ${hint}`);
+    }
+  }
+
+  const model = parseModelRef(flagStr(args, "model", DEFAULT_SUGGEST_MODEL)!);
+  const adapter = adapterOverride ?? getAdapter("pi");
+  const cwd = mkdtempSync(join(tmpdir(), "sh-suggest-cwd-"));
+  try {
+    const basePrompt = buildSuggestPrompt(skill.name, skillMd);
+    let text: string | null = null;
+    let count = 0;
+    let lastErr = "";
+    for (let attempt = 0; attempt < 2 && text === null; attempt++) {
+      const prompt = attempt === 0
+        ? basePrompt
+        : `${basePrompt}\n\nYour previous reply was rejected: ${lastErr}. Return corrected JSON only.`;
+      const raw = await adapter.judge({ model, prompt, cwd });
+      // A `[judge error` prefix is a hard adapter failure (auth, exec, credits) —
+      // retrying won't help, so fail fast with a model hint. An empty reply is
+      // treated as a transient miss and gets the same retry as a bad-JSON reply.
+      if (raw.startsWith("[judge error")) {
+        throw new Error(`model ${model.provider}:${model.model} failed — ${raw.trim()} (try --model fireworks:...)`);
+      }
+      if (!raw.trim()) {
+        lastErr = "model produced no output";
+        continue;
+      }
+      try {
+        const draft = parseSuggestDraft(raw);
+        const candidate = renderDraftSpec(skill.name, draft);
+        parseSpec(candidate, skill.specPath); // validate before writing
+        text = candidate;
+        count = draft.scenarios.length;
+      } catch (e) {
+        lastErr = e instanceof Error ? e.message : String(e);
+      }
+    }
+    if (text === null) {
+      throw new Error(`could not get a valid spec from ${model.provider}:${model.model} after 2 attempts (${lastErr}) — try \`skill-harness init ${skill.name}\` for a manual template`);
+    }
+    writeSpecFile(skill.specPath, text);
+    console.log(`drafted ${count} scenario(s) → ${skill.specPath}`);
+    console.log(`review it (especially the proposed critical set), then \`skill-harness run ${skill.name} --skills ${root}\``);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+}
+
 /** Exit-code contract: 0 = clean (no findings), 1 = >=1 finding, or a resolution error (unknown skill/root, no skills with a spec). */
 export async function cmdLint(args: Args): Promise<void> {
   const root = flagStr(args, "skills", process.cwd())!;
@@ -292,6 +386,8 @@ const HELP = `skill-harness — test/optimize loop for agent skills (pi harness)
   grade  <run-dir>   [--judge prov:model]      re-grade saved transcripts (neutral judge)
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]
+  init   <skill>     --skills <root> [--force]     scaffold a commented template spec (free, offline)
+  suggest <skill>    --skills <root> [--model prov:model] [--force]  LLM-draft a spec from SKILL.md (spends tokens)
   list   --skills <root>                        discovered skills + spec status
   lint   <skill|all> --skills <root>           validate specs/fixtures + results-consistency (CI gate; exits non-zero on findings)
 
@@ -305,6 +401,8 @@ export async function main(argv: string[]): Promise<void> {
     case "grade": return cmdGrade(args);
     case "review": return cmdReview(args);
     case "add-test": return cmdAddTest(args);
+    case "init": return cmdInit(args);
+    case "suggest": return cmdSuggest(args);
     case "list": return cmdList(args);
     case "lint": return cmdLint(args);
     case undefined:

@@ -30,10 +30,18 @@ export function discover(root: string): DiscoveredSkill[] {
   return skills;
 }
 
-/** Resolve a single skill by name; throws a helpful error if absent or specless. */
+/**
+ * Resolve a single skill by name; throws a helpful error if absent or specless.
+ * A directory that exists but lacks a SKILL.md gets a specific error (rather than
+ * the generic "no skill") so callers don't reimplement the SKILL.md existence check.
+ */
 export function resolveSkill(root: string, name: string): DiscoveredSkill {
   const skill = discover(root).find((s) => s.name === name);
   if (!skill) {
+    const dir = join(root, name);
+    if (existsSync(dir) && statSync(dir).isDirectory() && !existsSync(join(dir, "SKILL.md"))) {
+      throw new Error(`skill \`${name}\` has no SKILL.md (looked in ${dir})`);
+    }
     throw new Error(`no skill \`${name}\` under ${root}`);
   }
   return skill;
