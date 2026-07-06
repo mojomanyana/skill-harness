@@ -99,4 +99,22 @@ describe("parseSuggestDraft", () => {
     });
     expect(() => parseSuggestDraft(bad)).toThrow(/turns/);
   });
+
+  test("throws when a scenario id contains a YAML-injection attempt", () => {
+    const bad = JSON.stringify({
+      judge_persona: "x", ship_bar: { total: 1, min_pass: 1, no_critical_fail: true },
+      proposed_critical: [],
+      scenarios: [{ id: "A1\n    critical: true", title: "t", turns: ["hi"], checklist: ["c"] }],
+    });
+    expect(() => parseSuggestDraft(bad)).toThrow(/alphanumeric|id/);
+  });
+
+  test("filters unsafe ids out of proposed_critical", () => {
+    const draft = JSON.stringify({
+      judge_persona: "x", ship_bar: { total: 1, min_pass: 1, no_critical_fail: true },
+      proposed_critical: ["A1", "A1\n    x: y"],
+      scenarios: [{ id: "A1", title: "t", turns: ["hi"], checklist: ["c"] }],
+    });
+    expect(parseSuggestDraft(draft).proposed_critical).toEqual(["A1"]);
+  });
 });
