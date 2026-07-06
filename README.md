@@ -33,7 +33,7 @@ npm install          # install deps
 
     packages/core/       engine: spec, discover, run, grade, score, results, seeded, report
     packages/adapters/   pi harness + claude-code (subscription CLI) judge routing
-    packages/cli/        command surface (run/grade/review/add-test/list) + review UI server
+    packages/cli/        command surface (run/grade/review/add-test/init/suggest/list) + review UI server
     bin/skill-harness.js   launcher: packages/cli/dist if built, tsx fallback otherwise
 
 Build: `npm run build` (tsc project references). Test: `npm test` (vitest workspace).
@@ -119,6 +119,8 @@ skill-harness grade  <run-dir>   [--judge prov:model]    # re-grade saved transc
 skill-harness review <skill>     --skills <root> [--port N]   # serve the interactive UI
 skill-harness add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical]
                                                             [--mode seeded --fixture path]
+skill-harness init   <skill>     --skills <root> [--force]     # scaffold a commented template spec (free, offline)
+skill-harness suggest <skill>    --skills <root> [--model prov:model] [--force]  # LLM-draft a spec from SKILL.md (spends tokens)
 skill-harness list   --skills <root>                          # discovered skills + spec status
 skill-harness lint   <skill|all> --skills <root>               # validate specs/fixtures + results-consistency; CI gate (exits non-zero on findings)
 ```

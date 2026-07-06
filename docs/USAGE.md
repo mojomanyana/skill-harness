@@ -26,6 +26,15 @@ Invoke the CLI three ways:
 
 Examples below use `node bin/skill-harness.js` against the bundled fixture skill (`packages/core/test/fixtures/golden-skill`) so you can reproduce them with no external skills repo.
 
+## Scaffolding a spec
+
+New skill with no spec? Two ways to get a `tests/specification.yaml`:
+
+- `skill-harness init <skill> --skills <root>` — writes a commented template to fill in. Free, offline.
+- `skill-harness suggest <skill> --skills <root>` — reads the skill's `SKILL.md` and LLM-drafts scenarios, a checklist, and a *proposed* critical set for you to review. Spends model tokens; defaults to `claude-code:claude-opus-4-8` (no metered key if the `claude` CLI is signed in). Override with `--model prov:model`.
+
+`suggest` never marks scenarios critical for you and never auto-runs — review the draft (especially the proposed critical set commented at the top), then `run`.
+
 ## 2. Discover testable skills
 
 A skill is testable when `<skill>/tests/specification.yaml` exists next to its `SKILL.md`. Discovery scans `<root>/*/tests/specification.yaml`.
