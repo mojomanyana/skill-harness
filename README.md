@@ -269,7 +269,7 @@ jobs:
           skills-root: ./skills   # dir of skill subdirs, each with tests/specification.yaml
 ```
 
-> Until the first tagged release, pin to a commit SHA or `@main`.
+> `@v1` tracks the latest stable major release; pin a commit SHA to lock an exact version.
 
 `lint` validates spec schema, ship_bar sanity, critical-id existence, fixture paths (seeded scenarios, or any scenario using `env.workspace: fixture:PATH`), and results-consistency (for any committed `results.yaml`). Failures fail the check and report each finding as a GitHub error annotation in the run summary. Your `tests/` folders are unchanged.
 

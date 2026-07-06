@@ -112,7 +112,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: mojomanyana/skill-harness@v1   # until the first tagged release, pin to @main or a commit SHA
+      - uses: mojomanyana/skill-harness@v1   # v1 = stable major tag (moves forward); pin a commit SHA to lock
         with:
           skills-root: ./skills            # dir of skill subdirs, each with tests/specification.yaml
 ```
