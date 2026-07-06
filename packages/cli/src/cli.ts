@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, existsSync, appendFileSync } from "node:fs";
+import { readFileSync, existsSync, appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import yaml from "js-yaml";
 import {
@@ -10,6 +10,7 @@ import {
   readResults, regradeRun,
   lintSkill, type LintFinding,
   type HarnessAdapter,
+  renderTemplateSpec, isTemplateSpec, renderDraftSpec, buildSuggestPrompt, parseSuggestDraft,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
@@ -246,6 +247,22 @@ async function cmdAddTest(args: Args): Promise<void> {
   console.log(`added scenario ${id} to ${skill.specPath}`);
 }
 
+export async function cmdInit(args: Args): Promise<void> {
+  const root = flagStr(args, "skills", process.cwd())!;
+  const target = args._[0];
+  if (!target) throw new Error("usage: skill-harness init <skill> --skills <root> [--force]");
+  const skill = resolveSkill(root, target);
+  const force = flagStr(args, "force") !== undefined;
+  if (skill.hasSpec && !force) {
+    throw new Error(`${skill.specPath} exists — edit it, or pass --force to overwrite`);
+  }
+  const text = renderTemplateSpec(skill.name);
+  parseSpec(text, skill.specPath); // guard: the template must always be valid
+  mkdirSync(dirname(skill.specPath), { recursive: true });
+  writeFileSync(skill.specPath, text, "utf8");
+  console.log(`wrote template ${skill.specPath} — fill it in, or run \`skill-harness suggest ${skill.name}\` to LLM-draft it.`);
+}
+
 /** Exit-code contract: 0 = clean (no findings), 1 = >=1 finding, or a resolution error (unknown skill/root, no skills with a spec). */
 export async function cmdLint(args: Args): Promise<void> {
   const root = flagStr(args, "skills", process.cwd())!;
@@ -292,6 +309,7 @@ const HELP = `skill-harness — test/optimize loop for agent skills (pi harness)
   grade  <run-dir>   [--judge prov:model]      re-grade saved transcripts (neutral judge)
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]
+  init   <skill>     --skills <root> [--force]     scaffold a commented template spec (free, offline)
   list   --skills <root>                        discovered skills + spec status
   lint   <skill|all> --skills <root>           validate specs/fixtures + results-consistency (CI gate; exits non-zero on findings)
 
@@ -305,6 +323,7 @@ export async function main(argv: string[]): Promise<void> {
     case "grade": return cmdGrade(args);
     case "review": return cmdReview(args);
     case "add-test": return cmdAddTest(args);
+    case "init": return cmdInit(args);
     case "list": return cmdList(args);
     case "lint": return cmdLint(args);
     case undefined:
