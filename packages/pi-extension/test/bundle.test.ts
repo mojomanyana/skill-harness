@@ -5,7 +5,7 @@ import { buildOptions } from "../build.mjs";
 
 // The committed packages/pi-extension/dist/index.js is the ONLY thing `pi
 // install git:` loads (no build step on install), but the suite aliases
-// @skill-check/* to src and `build:ext` is a manual step — a forgotten
+// @skill-harness/* to src and `build:ext` is a manual step — a forgotten
 // rebuild would ship stale code silently. Guard against that by rebuilding
 // with the exact same esbuild options in memory (no disk write) and diffing
 // against the committed bundle.

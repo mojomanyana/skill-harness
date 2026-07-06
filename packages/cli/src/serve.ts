@@ -12,8 +12,8 @@ import {
   loadSpec,
   regradeScenario, findJudgeRawFiles,
   effectiveThreshold,
-} from "@skill-check/core";
-import { getAdapter } from "@skill-check/adapters";
+} from "@skill-harness/core";
+import { getAdapter } from "@skill-harness/adapters";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -39,7 +39,7 @@ export interface ServeOptions {
   skillName: string;
   port?: number;
   open?: boolean;
-  adapter?: import("@skill-check/core").HarnessAdapter; // test seam: overrides getAdapter(results.harness) in /rejudge
+  adapter?: import("@skill-harness/core").HarnessAdapter; // test seam: overrides getAdapter(results.harness) in /rejudge
   assetsDir?: string; // override the resolved assets dir (report.template.html + report.grade.js); defaults to templatePath()'s built-in resolution — needed so bundlers/embedders (e.g. the pi-extension) can point at a known-good assets location instead of relying on __dirname-relative lookup.
 }
 
@@ -225,7 +225,7 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
   const addr = server.address();
   const port = typeof addr === "object" && addr ? addr.port : opts.port;
   const link = `http://127.0.0.1:${port}/`;
-  console.log(`\n  skill-check review · ${opts.skillName}`);
+  console.log(`\n  skill-harness review · ${opts.skillName}`);
   console.log(`  → ${link}`);
   console.log(`  flip verdicts + add notes in the browser; saves persist to results.yaml.`);
   console.log(`  Ctrl-C to stop.\n`);

@@ -3,6 +3,11 @@ dist/
 *.log
 .DS_Store
 *.tsbuildinfo
+packages/cli/assets/
+packages/core/LICENSE
+packages/adapters/LICENSE
+packages/cli/LICENSE
+packages/skill-harness/LICENSE
 
 # Scratch / local
 /tmp/

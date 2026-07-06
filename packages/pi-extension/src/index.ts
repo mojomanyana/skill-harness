@@ -4,7 +4,7 @@ import { registerCommand, closeReview, type ExtensionAPI } from "./commands.js";
 import { registerTool } from "./tool.js";
 
 /**
- * pi extension entry point. Registers the `/skill-check` command and the
+ * pi extension entry point. Registers the `/skill-harness` command and the
  * `skill_check_run` tool, and wires up review-server cleanup on shutdown.
  *
  * `assetsDir` is computed relative to THIS module's location so it resolves

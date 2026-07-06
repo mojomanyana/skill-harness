@@ -2,8 +2,8 @@
     "compilerOptions": {
         "baseUrl": ".",
         "paths": {
-            "@skill-check/core": ["./packages/core/src/index.ts"],
-            "@skill-check/adapters": ["./packages/adapters/src/index.ts"]
+            "@skill-harness/core": ["./packages/core/src/index.ts"],
+            "@skill-harness/adapters": ["./packages/adapters/src/index.ts"]
         }
     },
     "files": [],

@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "nod
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeResults, readResults, readJournal, type HarnessAdapter } from "@skill-check/core";
+import { writeResults, readResults, readJournal, type HarnessAdapter } from "@skill-harness/core";
 import { serveReview } from "../src/serve.js";
 
 // packages/cli/test -> packages/cli -> packages -> repo root
@@ -88,7 +88,7 @@ describe("review server /save override rules", () => {
     const r = await save({ col: 0, scenarioId: "A1", override: null, note: "x" });
     expect(r.status).toBe(200);
     const gi = readFileSync(giPath, "utf8");
-    expect(gi).toMatch(/^# skill-check:/);
+    expect(gi).toMatch(/^# skill-harness:/);
     expect(gi).toContain("*.jsonl");
   });
 

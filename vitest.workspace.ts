@@ -6,10 +6,10 @@ import { join } from "node:path";
 // Tests must exercise src, not stale dist (M1 deferral): alias the workspace
 // packages to their TypeScript entry points.
 const alias = {
-  "@skill-check/core": fileURLToPath(new URL("./packages/core/src/index.ts", import.meta.url)),
-  "@skill-check/adapters": fileURLToPath(new URL("./packages/adapters/src/index.ts", import.meta.url)),
-  "@skill-check/cli/serve": fileURLToPath(new URL("./packages/cli/src/serve.ts", import.meta.url)),
-  "@skill-check/cli": fileURLToPath(new URL("./packages/cli/src/cli.ts", import.meta.url)),
+  "@skill-harness/core": fileURLToPath(new URL("./packages/core/src/index.ts", import.meta.url)),
+  "@skill-harness/adapters": fileURLToPath(new URL("./packages/adapters/src/index.ts", import.meta.url)),
+  "@skill-harness/cli/serve": fileURLToPath(new URL("./packages/cli/src/serve.ts", import.meta.url)),
+  "@skill-harness/cli": fileURLToPath(new URL("./packages/cli/src/cli.ts", import.meta.url)),
 };
 
 const packagesDir = fileURLToPath(new URL("./packages", import.meta.url));

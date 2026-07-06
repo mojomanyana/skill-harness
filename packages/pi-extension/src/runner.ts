@@ -7,8 +7,8 @@ import {
   findTranscriptFiles,
   parseModelRef,
   type HarnessAdapter,
-} from "@skill-check/core";
-import { getAdapter } from "@skill-check/adapters";
+} from "@skill-harness/core";
+import { getAdapter } from "@skill-harness/adapters";
 
 export interface Scorecard {
   skill: string;

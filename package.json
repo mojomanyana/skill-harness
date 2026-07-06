@@ -1,12 +1,12 @@
 {
-    "name": "skill-check",
-    "version": "0.0.2",
+    "name": "skill-harness-monorepo",
+    "version": "0.1.0",
     "description": "Portable test/optimize framework for agent skills: spec'd scenarios, LLM judge, review UI. Monorepo: core, adapters, cli.",
     "license": "MIT",
     "type": "module",
     "private": true,
     "keywords": ["pi-package"],
-    "bin": { "skill-check": "./bin/skill-check.js" },
+    "bin": { "skill-harness": "./bin/skill-harness.js" },
     "workspaces": ["packages/*"],
     "scripts": {
         "build": "tsc -b packages/core packages/adapters packages/cli packages/pi-extension",

@@ -1,12 +1,20 @@
 {
-    "name": "@skill-check/cli",
-    "version": "0.0.2",
+    "name": "@skill-harness/cli",
+    "version": "0.1.0",
     "type": "module",
     "license": "MIT",
     "main": "./dist/cli.js",
+    "bin": { "skill-harness": "./dist/cli.js" },
     "exports": { ".": "./dist/cli.js", "./serve": "./dist/serve.js" },
+    "files": ["dist/**/*.js", "dist/**/*.d.ts", "assets", "LICENSE"],
+    "repository": { "type": "git", "url": "git+https://github.com/mojomanyana/skill-harness.git" },
+    "publishConfig": { "access": "public" },
+    "engines": { "node": ">=20" },
+    "scripts": {
+        "prepack": "rm -rf ./assets && cp -r ../../assets ./assets && cp ../../LICENSE ./LICENSE"
+    },
     "dependencies": {
-        "@skill-check/core": "0.0.2",
-        "@skill-check/adapters": "0.0.2"
+        "@skill-harness/core": "0.1.0",
+        "@skill-harness/adapters": "0.1.0"
     }
 }

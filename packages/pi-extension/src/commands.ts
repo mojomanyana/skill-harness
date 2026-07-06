@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { loadSpec, regradeRun, readResults, parseModelRef, type HarnessAdapter } from "@skill-check/core";
-import { getAdapter } from "@skill-check/adapters";
-import { serveReview, type ServeHandle } from "@skill-check/cli/serve";
+import { loadSpec, regradeRun, readResults, parseModelRef, type HarnessAdapter } from "@skill-harness/core";
+import { getAdapter } from "@skill-harness/adapters";
+import { serveReview, type ServeHandle } from "@skill-harness/cli/serve";
 import { resolveSkillDir, runViaExtension } from "./runner.js";
 
 /**
@@ -31,7 +31,7 @@ export interface CmdCtx {
   };
 }
 
-const USAGE = "usage: /skill-check run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--judge p:m] | judge [run-dir] | review [skill]";
+const USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--judge p:m] | judge [run-dir] | review [skill]";
 
 /** Minimal arg tokenizer: subcommand + positional args + `--key value` flags. A flag with no following value (or one followed by another `--flag`) is left unset, so callers' `?? default` fallbacks apply. */
 function parse(argstr: string): { sub: string; positional: string[]; flags: Record<string, string> } {
@@ -80,7 +80,7 @@ export async function handleSkillCheck(
       adapter,
       judge: flags.judge,
       timestamp: nowIso(),
-      log: (m) => { if (ctx.hasUI) ctx.ui.setStatus?.("skill-check", m); }, // live footer only in TUI
+      log: (m) => { if (ctx.hasUI) ctx.ui.setStatus?.("skill-harness", m); }, // live footer only in TUI
     });
     say(ctx, `${card.skill} ${card.grade.letter} (${card.grade.pct}%) ${card.grade.ship ? "SHIP" : "NOT READY"}`, card.grade.ship ? "info" : "warning");
     for (const s of card.scenarios) say(ctx, `  ${s.id}: ${s.suspect ? "?" : s.verdict}`);
@@ -131,7 +131,7 @@ export function closeReview(): void {
 }
 
 export function registerCommand(pi: ExtensionAPI, assetsDir?: string): void {
-  pi.registerCommand("skill-check", {
+  pi.registerCommand("skill-harness", {
     description: "Run, judge, or review a skill's scenarios",
     handler: async (args, ctx) => {
       const h = await handleSkillCheck(args, ctx, { assetsDir });

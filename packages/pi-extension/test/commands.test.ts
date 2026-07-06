@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
-import { readResults, writeResults, type HarnessAdapter } from "@skill-check/core";
+import { readResults, writeResults, type HarnessAdapter } from "@skill-harness/core";
 import { handleSkillCheck } from "../src/commands.js";
 
 function skillFixture(): string {
