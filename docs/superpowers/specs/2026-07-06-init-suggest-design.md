@@ -33,7 +33,9 @@ in core so it is testable without the CLI or an LLM:
 - `renderTemplateSpec(skillName: string): string`
   A commented, empty-but-valid spec: one example scenario `A1`, every field
   (`judge_persona`, `ship_bar`, `critical`, scenario `turns`/`checklist`/`mode`/
-  `critical`) explained inline in comments. Used by `init`.
+  `critical`) explained inline in comments. Used by `init`. Its **first line is a
+  sentinel comment** (see "Template sentinel" below) that marks the file as an
+  unadopted template.
 
 - `renderDraftSpec(skillName: string, draft: SuggestDraft): string`
   Renders the *same file shape*, populated from a validated draft object:
@@ -43,6 +45,22 @@ in core so it is testable without the CLI or an LLM:
     `critical: []` is written live-empty so nothing the model guessed can silently
     gate a ship (AGENTS.md rule 2: a critical-id fail blocks SHIP).
   - Each scenario rendered with its turns + checklist.
+  - Does **not** carry the template sentinel — a drafted spec is "real", so a
+    second `suggest` will not silently overwrite it.
+
+### Template sentinel
+
+`renderTemplateSpec` emits a fixed first line:
+
+```
+# skill-harness: generated template — `suggest` will overwrite this file while
+# this line is present; delete it once you start editing by hand.
+```
+
+A stable substring of it (e.g. `skill-harness: generated template`) is the
+detection token. `suggest` uses its presence to decide whether a spec is an
+unadopted template (safe to overwrite) or real work (refuse without `--force`).
+The line is a plain YAML comment, so it never affects `parseSpec`.
 
 - `SuggestDraft` type (in `scaffold.ts` or alongside): the structured shape the LLM
   must return — `{ judge_persona, ship_bar {total,min_pass,no_critical_fail},
@@ -83,8 +101,12 @@ Default model: `claude-code:claude-opus-4-8` (drafts on the Claude subscription 
 `claude-code` provider). Override with `--model prov:model`.
 
 1. `resolveSkill` → skill dir. Read `<dir>/SKILL.md`; error if missing.
-2. Collision check identical to `init` (refuse-if-exists + `--force`). A user picks
-   one of `init`/`suggest`; running both without `--force` is a refusal, not a merge.
+2. Collision check: overwrite without `--force` if the target is **absent** or
+   still carries the **template sentinel** (a freshly-`init`'d, unadopted template).
+   Refuse (asking for `--force`) if the file exists and lacks the sentinel — i.e. a
+   hand-edited spec or a spec `suggest` already drafted. This makes the natural
+   `init` → glance → `suggest` flow work with no flag, while never clobbering real
+   work. `--force` overwrites regardless.
 3. Build the drafting prompt: the SKILL.md text + instructions to return **JSON**
    matching `SuggestDraft` (scenarios with turns/checklist, proposed critical ids,
    ship_bar, judge_persona). JSON parses far more reliably than freeform YAML and
@@ -110,12 +132,16 @@ Default model: `claude-code:claude-opus-4-8` (drafts on the Claude subscription 
 `packages/core` — `scaffold.test.ts`:
 - `renderTemplateSpec(name)` round-trips through `parseSpec` (valid spec).
 - `renderDraftSpec(name, draft)` round-trips; asserts `critical: []` is live-empty,
-  the proposed set appears as a comment, and `# REVIEW:` markers are present.
+  the proposed set appears as a comment, `# REVIEW:` markers are present, and the
+  output does **not** contain the template sentinel.
+- `renderTemplateSpec` output contains the sentinel; `renderDraftSpec` does not.
 
 `packages/cli` — command tests with a **stub adapter** injected (same seam as
 `cmdGrade`'s `adapterOverride`; the stub's `judge` returns canned JSON):
 - `suggest`: happy path writes a valid spec; invalid-JSON-then-valid retry succeeds;
-  invalid-twice writes nothing; collision refused; `--force` overwrites.
+  invalid-twice writes nothing; overwrites a sentinel-bearing template with no
+  `--force`; refuses a sentinel-less (hand-edited/already-drafted) spec without
+  `--force`; `--force` overwrites regardless.
 - `init`: writes template; refuses on collision; `--force` overwrites; creates
   `tests/` if absent.
 
