@@ -41,3 +41,49 @@ scenarios:
 export function isTemplateSpec(text: string): boolean {
   return text.includes(TEMPLATE_SENTINEL);
 }
+
+export interface DraftScenario {
+  id: string;
+  title: string;
+  turns: string[];
+  checklist: string[];
+}
+
+export interface SuggestDraft {
+  judge_persona: string;
+  ship_bar: { total: number; min_pass: number; no_critical_fail: boolean };
+  proposed_critical: string[];
+  scenarios: DraftScenario[];
+}
+
+/** Render a populated spec from an LLM draft. Strings are JSON-encoded (valid YAML
+ *  flow scalars) so colons/quotes never break the file. Carries no sentinel. */
+export function renderDraftSpec(skillName: string, draft: SuggestDraft): string {
+  const scenarioBlocks = draft.scenarios
+    .map((s) => {
+      const turns = s.turns.map((t) => `      - ${JSON.stringify(t)}`).join("\n");
+      const checks = s.checklist.map((c) => `      - ${JSON.stringify(c)}`).join("\n");
+      return `  - id: ${s.id}\n    title: ${JSON.stringify(s.title)}\n    turns:\n${turns}\n    checklist:\n${checks}`;
+    })
+    .join("\n");
+  const proposed = draft.proposed_critical.length
+    ? `# proposed critical: [${draft.proposed_critical.join(", ")}] — move ids into \`critical: []\` below after review.`
+    : `# proposed critical: (none) — mark any ship-gating scenarios in \`critical: []\` below.`;
+  return `skill: ${skillName}
+
+# REVIEW: does this judge persona fit the skill? Edit freely.
+judge_persona: ${JSON.stringify(draft.judge_persona)}
+
+# REVIEW: tune the ship bar before your first run.
+ship_bar:
+  total: ${draft.ship_bar.total}
+  min_pass: ${draft.ship_bar.min_pass}
+  no_critical_fail: ${draft.ship_bar.no_critical_fail}
+
+${proposed}
+critical: []
+
+scenarios:
+${scenarioBlocks}
+`;
+}

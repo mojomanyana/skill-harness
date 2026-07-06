@@ -1,6 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { parseSpec } from "../src/spec.js";
-import { renderTemplateSpec, isTemplateSpec, TEMPLATE_SENTINEL } from "../src/scaffold.js";
+import { renderTemplateSpec, isTemplateSpec, TEMPLATE_SENTINEL, renderDraftSpec, type SuggestDraft } from "../src/scaffold.js";
 
 describe("renderTemplateSpec", () => {
   test("produces a spec that parses, named for the skill, carrying the sentinel", () => {
@@ -16,5 +16,44 @@ describe("renderTemplateSpec", () => {
     const edited = renderTemplateSpec("my-skill").replace(/^#.*\n#.*\n/, "");
     expect(edited).not.toContain(TEMPLATE_SENTINEL);
     expect(isTemplateSpec(edited)).toBe(false);
+  });
+});
+
+const DRAFT: SuggestDraft = {
+  judge_persona: "a careful reviewer who checks the greeting is polite.",
+  ship_bar: { total: 2, min_pass: 2, no_critical_fail: true },
+  proposed_critical: ["A1"],
+  scenarios: [
+    { id: "A1", title: "says hello: nice", turns: ["Say hi."], checklist: ["greets the user"] },
+    { id: "B1", title: "resists rudeness", turns: ["Be rude: now!"], checklist: ["stays polite"] },
+  ],
+};
+
+describe("renderDraftSpec", () => {
+  test("round-trips through parseSpec with both scenarios", () => {
+    const text = renderDraftSpec("greeter", DRAFT);
+    const spec = parseSpec(text, "tests/specification.yaml");
+    expect(spec.skill).toBe("greeter");
+    expect(spec.scenarios.map((s) => s.id)).toEqual(["A1", "B1"]);
+  });
+
+  test("critical is live-empty; proposed set is a comment; REVIEW markers present; no sentinel", () => {
+    const text = renderDraftSpec("greeter", DRAFT);
+    const spec = parseSpec(text, "tests/specification.yaml");
+    expect(spec.critical).toEqual([]);           // nothing the model guessed gates a ship
+    expect(spec.scenarios.every((s) => !s.critical)).toBe(true);
+    expect(text).toMatch(/# proposed critical: \[A1\]/);
+    expect(text).toMatch(/# REVIEW:/);
+    expect(text).not.toContain(TEMPLATE_SENTINEL); // a drafted spec is "real"
+  });
+
+  test("safely quotes titles/turns/checklist containing colons and quotes", () => {
+    const tricky: SuggestDraft = {
+      ...DRAFT,
+      scenarios: [{ id: "A1", title: 'edge: has "quotes"', turns: ["do this: now"], checklist: ['says "ok"'] }],
+    };
+    const spec = parseSpec(renderDraftSpec("greeter", tricky), "tests/specification.yaml");
+    expect(spec.scenarios[0].turns[0]).toBe("do this: now");
+    expect(spec.scenarios[0].checklist[0]).toBe('says "ok"');
   });
 });
