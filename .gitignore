@@ -12,3 +12,6 @@ packages/skill-harness/LICENSE
 # Scratch / local
 /tmp/
 *.local
+
+# never commit npm auth (a stray ${NPM_TOKEN} .npmrc keeps appearing here)
+.npmrc
