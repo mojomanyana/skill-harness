@@ -1,6 +1,6 @@
 {
     "name": "@skill-harness/cli",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "skill-harness CLI — run, grade, review, and lint agent-skill scenarios on the pi harness",
     "type": "module",
     "license": "MIT",
@@ -34,7 +34,7 @@
         "prepack": "rm -rf ./assets && cp -r ../../assets ./assets && cp ../../LICENSE ./LICENSE"
     },
     "dependencies": {
-        "@skill-harness/core": "0.1.1",
-        "@skill-harness/adapters": "0.1.1"
+        "@skill-harness/core": "0.1.2",
+        "@skill-harness/adapters": "0.1.2"
     }
 }
