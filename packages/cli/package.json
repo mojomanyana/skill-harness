@@ -1,6 +1,7 @@
 {
     "name": "@skill-harness/cli",
-    "version": "0.1.0",
+    "version": "0.1.1",
+    "description": "skill-harness CLI — run, grade, review, and lint agent-skill scenarios on the pi harness",
     "type": "module",
     "license": "MIT",
     "main": "./dist/cli.js",
@@ -11,11 +12,13 @@
         ".": "./dist/cli.js",
         "./serve": "./dist/serve.js"
     },
+    "keywords": ["agent-skills", "skill", "llm", "testing", "eval", "grading", "pi", "ci", "harness"],
     "files": [
         "dist/**/*.js",
         "dist/**/*.d.ts",
         "assets",
-        "LICENSE"
+        "LICENSE",
+        "README.md"
     ],
     "repository": {
         "type": "git",
@@ -31,7 +34,7 @@
         "prepack": "rm -rf ./assets && cp -r ../../assets ./assets && cp ../../LICENSE ./LICENSE"
     },
     "dependencies": {
-        "@skill-harness/core": "0.1.0",
-        "@skill-harness/adapters": "0.1.0"
+        "@skill-harness/core": "0.1.1",
+        "@skill-harness/adapters": "0.1.1"
     }
 }

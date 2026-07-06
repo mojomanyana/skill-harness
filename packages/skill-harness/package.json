@@ -1,17 +1,19 @@
 {
   "name": "skill-harness",
-  "version": "0.1.0",
-  "description": "Test/optimize loop for agent skills (CLI).",
+  "version": "0.1.1",
+  "description": "Test/optimize loop for agent skills — run spec'd scenarios on pi, LLM-judge, score, review, re-run",
   "type": "module",
+  "keywords": ["agent-skills", "skill", "llm", "testing", "eval", "grading", "pi", "ci", "harness"],
   "bin": {
     "skill-harness": "bin.js"
   },
   "files": [
     "bin.js",
-    "LICENSE"
+    "LICENSE",
+    "README.md"
   ],
   "dependencies": {
-    "@skill-harness/cli": "0.1.0"
+    "@skill-harness/cli": "0.1.1"
   },
   "repository": {
     "type": "git",

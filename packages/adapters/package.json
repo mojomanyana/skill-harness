@@ -1,17 +1,19 @@
 {
     "name": "@skill-harness/adapters",
-    "version": "0.1.0",
+    "version": "0.1.1",
+    "description": "skill-harness harness adapters — pi runner + claude-code judge routing (internal API)",
     "type": "module",
     "license": "MIT",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "exports": { ".": "./dist/index.js" },
-    "files": ["dist/**/*.js", "dist/**/*.d.ts", "LICENSE"],
+    "keywords": ["agent-skills", "skill", "llm", "testing", "eval", "grading", "pi", "ci", "harness"],
+    "files": ["dist/**/*.js", "dist/**/*.d.ts", "LICENSE", "README.md"],
     "repository": { "type": "git", "url": "git+https://github.com/mojomanyana/skill-harness.git" },
     "publishConfig": { "access": "public" },
     "engines": { "node": ">=20" },
     "scripts": {
         "prepack": "cp ../../LICENSE ./LICENSE"
     },
-    "dependencies": { "@skill-harness/core": "0.1.0" }
+    "dependencies": { "@skill-harness/core": "0.1.1" }
 }
