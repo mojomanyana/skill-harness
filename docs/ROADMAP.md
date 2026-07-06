@@ -150,5 +150,9 @@ Do not announce paid plans before ~2,000 stars + visible CI adoption.
 |---|---|---|---|
 | GitHub stars | 0 | 500 | 1,000 |
 | External issue-filers | 0 | 20 | 40 |
-| npm weekly downloads | ~0 | 100 | 500 |
+| npm weekly downloads | ~0 (registry has no stats yet) | 100 | 500 |
 | Repos using the Action | 1 (self) | 5 | 20 |
+
+_Last measured 2026-07-06 (GitHub API + npm downloads API). Still at baseline —
+Sprint 1.1 (`init` + `suggest`) has shipped to the branch/PR but this is pre-launch,
+so no distribution movement is expected yet. Phase 2 launch is what moves these._
