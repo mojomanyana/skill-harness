@@ -188,6 +188,22 @@ index is recorded. Combine with `--parallel` to keep N reps fast.
 - `empty-git`: a temp dir initialized as an empty git repo (for git-based scenarios).
 - `fixture:<path>`: copies a fixture directory (relative to the spec) and initializes it as a git repo.
 
+Every git workspace is `git init -b main` plus a baseline commit, so the branch name is
+`main` regardless of the host's `init.defaultBranch`, and a later `git diff --cached`
+shows only the agent's edits.
+
+**Starting from a dirty tree.** A fixture may carry an `_uncommitted/` subdirectory. Its
+contents are copied over the workspace *after* the baseline commit, so those paths land as
+uncommitted modifications (or untracked files) instead of history. That's what a scenario
+like "I fixed the typo — commit it" needs: the fix present in the tree, absent from the
+log. The `_uncommitted/` directory itself never appears in the workspace.
+
+```
+fixtures/typo-fix/
+  README.md                  # -> the baseline commit ("Teh project")
+  _uncommitted/README.md     # -> applied after   ("The project")  => dirty tree
+```
+
 Each scenario runs in its own throwaway directory and never touches your home directory.
 Seeded scenarios automatically use their `fixture:` setting.
 

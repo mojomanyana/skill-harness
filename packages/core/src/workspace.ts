@@ -13,9 +13,21 @@ export interface Workspace {
   cleanup(): void; // remove the temp dir; idempotent, always safe to call
 }
 
-/** git init + a baseline commit, so a later `git diff --cached` shows only edits. */
+/**
+ * A fixture subdirectory copied over the workspace AFTER the baseline commit, so its
+ * files land as uncommitted changes. Lets a scenario start from a dirty tree — "I fixed
+ * the typo, commit it" needs the fix present but not yet in history. Never committed,
+ * and the marker directory itself never appears in the workspace.
+ */
+const UNCOMMITTED_DIR = "_uncommitted";
+
+/**
+ * git init + a baseline commit, so a later `git diff --cached` shows only edits.
+ * Pinned to `main`: the host's init.defaultBranch is not ours to depend on, and
+ * scenarios say things like "I'm on the main branch".
+ */
 function gitBaseline(cwd: string): void {
-  execFileSync("git", ["init", "-q"], { cwd, timeout: GIT_TIMEOUT_MS });
+  execFileSync("git", ["init", "-q", "-b", "main"], { cwd, timeout: GIT_TIMEOUT_MS });
   execFileSync("git", ["add", "-A"], { cwd, timeout: GIT_TIMEOUT_MS });
   execFileSync(
     "git",
@@ -28,7 +40,9 @@ function gitBaseline(cwd: string): void {
  * Create an isolated temp-dir working directory for one scenario. `none` is an
  * empty dir (no git); `empty-git` initialises a clean repo; `{ fixture }` copies
  * the fixture (relative paths resolve against `specDir`) then initialises a repo
- * with a baseline commit. Child processes run here, never in the user's home.
+ * with a baseline commit. A fixture may carry an `_uncommitted/` subdirectory,
+ * applied after that commit to start the scenario from a dirty tree. Child
+ * processes run here, never in the user's home.
  */
 export function createWorkspace(kind: WorkspaceKind, opts: { specDir: string }): Workspace {
   const cwd = mkdtempSync(join(tmpdir(), "sc-ws-"));
@@ -41,8 +55,14 @@ export function createWorkspace(kind: WorkspaceKind, opts: { specDir: string }):
     } else {
       const src = isAbsolute(kind.fixture) ? kind.fixture : resolve(opts.specDir, kind.fixture);
       if (!existsSync(src)) throw new Error(`fixture not found: ${src}`);
-      cpSync(src, cwd, { recursive: true });
+      const uncommitted = join(src, UNCOMMITTED_DIR);
+      const hasUncommitted = existsSync(uncommitted);
+      cpSync(src, cwd, {
+        recursive: true,
+        filter: (from) => from !== uncommitted, // committed baseline only
+      });
       gitBaseline(cwd);
+      if (hasUncommitted) cpSync(uncommitted, cwd, { recursive: true });
     }
   } catch (e) {
     cleanup(); // never leak a temp dir on a setup failure
