@@ -43,9 +43,9 @@ function gitBaseline(cwd: string): void {
  * Create an isolated temp-dir working directory for one scenario. `none` is an
  * empty dir (no git); `empty-git` initialises a clean repo; `{ fixture }` copies
  * the fixture (relative paths resolve against `specDir`) then initialises a repo
- * with a baseline commit. A fixture may carry an `_uncommitted/` subdirectory,
- * applied after that commit to start the scenario from a dirty tree. Child
- * processes run here, never in the user's home.
+ * with a baseline commit. A fixture may carry top-level `_staged/` and
+ * `_uncommitted/` subdirectories, applied after that commit to start the scenario
+ * from a dirty tree. Child processes run here, never in the user's home.
  */
 export function createWorkspace(kind: WorkspaceKind, opts: { specDir: string }): Workspace {
   const cwd = mkdtempSync(join(tmpdir(), "sc-ws-"));
