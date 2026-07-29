@@ -97,6 +97,49 @@ describe("createWorkspace", () => {
     expect(git(ws.cwd, "ls-files")).not.toContain("payments.ts");
   });
 
+  test("fixture `_staged/`: applied after the baseline and added to the index", () => {
+    const src = fixtureDir();
+    writeFileSync(join(src, "validate.ts"), "export const ok = 1;\n", "utf8");
+    mkdirSync(join(src, "_staged"), { recursive: true });
+    writeFileSync(join(src, "_staged", "validate.ts"), "export const ok = 2;\n", "utf8");
+
+    const ws = createWorkspace({ fixture: src }, { specDir: "/nonexistent" });
+    tmps.push(ws.cwd);
+
+    // staged, not committed: shows in --cached, and HEAD still has the original
+    expect(git(ws.cwd, "diff", "--cached", "--name-only").trim()).toBe("validate.ts");
+    expect(git(ws.cwd, "show", "HEAD:validate.ts")).toBe("export const ok = 1;\n");
+    expect(git(ws.cwd, "status", "--porcelain").trim()).toBe("M  validate.ts");
+    expect(existsSync(join(ws.cwd, "_staged"))).toBe(false);
+  });
+
+  test("fixture `_staged/`: stages brand-new files too", () => {
+    const src = fixtureDir();
+    writeFileSync(join(src, "README.md"), "docs\n", "utf8");
+    mkdirSync(join(src, "_staged"), { recursive: true });
+    writeFileSync(join(src, "_staged", "added.ts"), "export const x = 1;\n", "utf8");
+
+    const ws = createWorkspace({ fixture: src }, { specDir: "/nonexistent" });
+    tmps.push(ws.cwd);
+    expect(git(ws.cwd, "status", "--porcelain").trim()).toBe("A  added.ts");
+  });
+
+  test("fixture: `_staged/` and `_uncommitted/` compose in one workspace", () => {
+    const src = fixtureDir();
+    writeFileSync(join(src, "a.txt"), "1\n", "utf8");
+    writeFileSync(join(src, "b.txt"), "1\n", "utf8");
+    mkdirSync(join(src, "_staged"), { recursive: true });
+    writeFileSync(join(src, "_staged", "a.txt"), "2\n", "utf8");
+    mkdirSync(join(src, "_uncommitted"), { recursive: true });
+    writeFileSync(join(src, "_uncommitted", "b.txt"), "2\n", "utf8");
+
+    const ws = createWorkspace({ fixture: src }, { specDir: "/nonexistent" });
+    tmps.push(ws.cwd);
+    const status = git(ws.cwd, "status", "--porcelain");
+    expect(status).toContain("M  a.txt"); // staged
+    expect(status).toContain(" M b.txt"); // unstaged
+  });
+
   test("fixture with only `_uncommitted/`: baseline is empty, changes stay uncommitted", () => {
     const src = fixtureDir();
     mkdirSync(join(src, "_uncommitted"), { recursive: true });

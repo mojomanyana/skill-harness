@@ -14,12 +14,15 @@ export interface Workspace {
 }
 
 /**
- * A fixture subdirectory copied over the workspace AFTER the baseline commit, so its
- * files land as uncommitted changes. Lets a scenario start from a dirty tree — "I fixed
- * the typo, commit it" needs the fix present but not yet in history. Never committed,
- * and the marker directory itself never appears in the workspace.
+ * Fixture subdirectories copied over the workspace AFTER the baseline commit, so their
+ * files land as pending changes rather than history. Lets a scenario start from a dirty
+ * tree — "I fixed the typo, commit it" needs the fix present but not yet committed, and
+ * "commit my staged changes" needs a populated index. `_staged/` contents are added to
+ * the index, `_uncommitted/` contents are left unstaged; a fixture may use either or
+ * both. Neither marker directory ever appears in the workspace.
  */
 const UNCOMMITTED_DIR = "_uncommitted";
+const STAGED_DIR = "_staged";
 
 /**
  * git init + a baseline commit, so a later `git diff --cached` shows only edits.
@@ -55,14 +58,18 @@ export function createWorkspace(kind: WorkspaceKind, opts: { specDir: string }):
     } else {
       const src = isAbsolute(kind.fixture) ? kind.fixture : resolve(opts.specDir, kind.fixture);
       if (!existsSync(src)) throw new Error(`fixture not found: ${src}`);
-      const uncommitted = join(src, UNCOMMITTED_DIR);
-      const hasUncommitted = existsSync(uncommitted);
+      const pending = [STAGED_DIR, UNCOMMITTED_DIR].map((d) => join(src, d));
       cpSync(src, cwd, {
         recursive: true,
-        filter: (from) => from !== uncommitted, // committed baseline only
+        filter: (from) => !pending.includes(from), // committed baseline only
       });
       gitBaseline(cwd);
-      if (hasUncommitted) cpSync(uncommitted, cwd, { recursive: true });
+      const [staged, uncommitted] = pending;
+      if (existsSync(staged)) {
+        cpSync(staged, cwd, { recursive: true });
+        execFileSync("git", ["add", "-A"], { cwd, timeout: GIT_TIMEOUT_MS });
+      }
+      if (existsSync(uncommitted)) cpSync(uncommitted, cwd, { recursive: true });
     }
   } catch (e) {
     cleanup(); // never leak a temp dir on a setup failure

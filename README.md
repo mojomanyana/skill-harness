@@ -192,16 +192,18 @@ Every git workspace is `git init -b main` plus a baseline commit, so the branch 
 `main` regardless of the host's `init.defaultBranch`, and a later `git diff --cached`
 shows only the agent's edits.
 
-**Starting from a dirty tree.** A fixture may carry an `_uncommitted/` subdirectory. Its
-contents are copied over the workspace *after* the baseline commit, so those paths land as
-uncommitted modifications (or untracked files) instead of history. That's what a scenario
-like "I fixed the typo — commit it" needs: the fix present in the tree, absent from the
-log. The `_uncommitted/` directory itself never appears in the workspace.
+**Starting from a dirty tree.** A fixture may carry `_uncommitted/` and `_staged/`
+subdirectories. Their contents are copied over the workspace *after* the baseline commit,
+so those paths land as pending changes instead of history: `_uncommitted/` stays unstaged,
+`_staged/` is added to the index. That's what scenarios like "I fixed the typo — commit
+it" and "commit my staged changes" need. Use either or both; neither marker directory ever
+appears in the workspace.
 
 ```
 fixtures/typo-fix/
   README.md                  # -> the baseline commit ("Teh project")
-  _uncommitted/README.md     # -> applied after   ("The project")  => dirty tree
+  _uncommitted/README.md     # -> applied after   ("The project")  => unstaged edit
+  _staged/CHANGELOG.md       # -> applied after, then git add      => staged edit
 ```
 
 Each scenario runs in its own throwaway directory and never touches your home directory.
