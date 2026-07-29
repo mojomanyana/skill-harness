@@ -2545,8 +2545,10 @@ import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { isAbsolute, join as join2, resolve } from "node:path";
 var GIT_TIMEOUT_MS = 3e4;
+var UNCOMMITTED_DIR = "_uncommitted";
+var STAGED_DIR = "_staged";
 function gitBaseline(cwd) {
-  execFileSync("git", ["init", "-q"], { cwd, timeout: GIT_TIMEOUT_MS });
+  execFileSync("git", ["init", "-q", "-b", "main"], { cwd, timeout: GIT_TIMEOUT_MS });
   execFileSync("git", ["add", "-A"], { cwd, timeout: GIT_TIMEOUT_MS });
   execFileSync("git", ["-c", "user.email=sh@local", "-c", "user.name=skill-harness", "commit", "-q", "--allow-empty", "-m", "baseline"], { cwd, timeout: GIT_TIMEOUT_MS });
 }
@@ -2561,8 +2563,20 @@ function createWorkspace(kind, opts) {
       const src = isAbsolute(kind.fixture) ? kind.fixture : resolve(opts.specDir, kind.fixture);
       if (!existsSync2(src))
         throw new Error(`fixture not found: ${src}`);
-      cpSync(src, cwd, { recursive: true });
+      const pending = [STAGED_DIR, UNCOMMITTED_DIR].map((d) => join2(src, d));
+      cpSync(src, cwd, {
+        recursive: true,
+        filter: (from) => !pending.includes(from)
+        // committed baseline only
+      });
       gitBaseline(cwd);
+      const [staged, uncommitted] = pending;
+      if (existsSync2(staged)) {
+        cpSync(staged, cwd, { recursive: true });
+        execFileSync("git", ["add", "-A"], { cwd, timeout: GIT_TIMEOUT_MS });
+      }
+      if (existsSync2(uncommitted))
+        cpSync(uncommitted, cwd, { recursive: true });
     }
   } catch (e) {
     cleanup();

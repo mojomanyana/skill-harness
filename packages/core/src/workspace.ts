@@ -13,9 +13,24 @@ export interface Workspace {
   cleanup(): void; // remove the temp dir; idempotent, always safe to call
 }
 
-/** git init + a baseline commit, so a later `git diff --cached` shows only edits. */
+/**
+ * Fixture subdirectories copied over the workspace AFTER the baseline commit, so their
+ * files land as pending changes rather than history. Lets a scenario start from a dirty
+ * tree — "I fixed the typo, commit it" needs the fix present but not yet committed, and
+ * "commit my staged changes" needs a populated index. `_staged/` contents are added to
+ * the index, `_uncommitted/` contents are left unstaged; a fixture may use either or
+ * both. Neither marker directory ever appears in the workspace.
+ */
+const UNCOMMITTED_DIR = "_uncommitted";
+const STAGED_DIR = "_staged";
+
+/**
+ * git init + a baseline commit, so a later `git diff --cached` shows only edits.
+ * Pinned to `main`: the host's init.defaultBranch is not ours to depend on, and
+ * scenarios say things like "I'm on the main branch".
+ */
 function gitBaseline(cwd: string): void {
-  execFileSync("git", ["init", "-q"], { cwd, timeout: GIT_TIMEOUT_MS });
+  execFileSync("git", ["init", "-q", "-b", "main"], { cwd, timeout: GIT_TIMEOUT_MS });
   execFileSync("git", ["add", "-A"], { cwd, timeout: GIT_TIMEOUT_MS });
   execFileSync(
     "git",
@@ -28,7 +43,9 @@ function gitBaseline(cwd: string): void {
  * Create an isolated temp-dir working directory for one scenario. `none` is an
  * empty dir (no git); `empty-git` initialises a clean repo; `{ fixture }` copies
  * the fixture (relative paths resolve against `specDir`) then initialises a repo
- * with a baseline commit. Child processes run here, never in the user's home.
+ * with a baseline commit. A fixture may carry top-level `_staged/` and
+ * `_uncommitted/` subdirectories, applied after that commit to start the scenario
+ * from a dirty tree. Child processes run here, never in the user's home.
  */
 export function createWorkspace(kind: WorkspaceKind, opts: { specDir: string }): Workspace {
   const cwd = mkdtempSync(join(tmpdir(), "sc-ws-"));
@@ -41,8 +58,18 @@ export function createWorkspace(kind: WorkspaceKind, opts: { specDir: string }):
     } else {
       const src = isAbsolute(kind.fixture) ? kind.fixture : resolve(opts.specDir, kind.fixture);
       if (!existsSync(src)) throw new Error(`fixture not found: ${src}`);
-      cpSync(src, cwd, { recursive: true });
+      const pending = [STAGED_DIR, UNCOMMITTED_DIR].map((d) => join(src, d));
+      cpSync(src, cwd, {
+        recursive: true,
+        filter: (from) => !pending.includes(from), // committed baseline only
+      });
       gitBaseline(cwd);
+      const [staged, uncommitted] = pending;
+      if (existsSync(staged)) {
+        cpSync(staged, cwd, { recursive: true });
+        execFileSync("git", ["add", "-A"], { cwd, timeout: GIT_TIMEOUT_MS });
+      }
+      if (existsSync(uncommitted)) cpSync(uncommitted, cwd, { recursive: true });
     }
   } catch (e) {
     cleanup(); // never leak a temp dir on a setup failure
