@@ -4,7 +4,7 @@ import { dirname as dirname6, join as join14 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
 import { existsSync as existsSync12 } from "node:fs";
-import { dirname as dirname5, join as join13, resolve as resolve4 } from "node:path";
+import { dirname as dirname5, join as join13, resolve as resolve5 } from "node:path";
 
 // packages/core/dist/spec.js
 import { readFileSync } from "node:fs";
@@ -2415,6 +2415,18 @@ function resolveWorkspace(env, mode, fixture, id, file) {
   }
   throw new SpecError(`scenario \`${id}\` env.workspace must be none | empty-git | fixture:<path>`, file);
 }
+function resolveRemote(env, workspace, id, file) {
+  const raw = env && typeof env === "object" ? env.remote : void 0;
+  if (raw === void 0)
+    return false;
+  if (typeof raw !== "boolean") {
+    throw new SpecError(`scenario \`${id}\` env.remote must be true or false`, file);
+  }
+  if (raw && workspace === "none") {
+    throw new SpecError(`scenario \`${id}\` sets env.remote but has no repo to attach it to \u2014 use env.workspace: empty-git or fixture:<path>`, file);
+  }
+  return raw;
+}
 function parseSpec(text, file) {
   let doc;
   try {
@@ -2483,7 +2495,8 @@ function parseSpec(text, file) {
       mode,
       turns: s.turns,
       checklist: s.checklist,
-      workspace: "none"
+      workspace: "none",
+      remote: false
     };
     if (mode === "seeded") {
       if (typeof s.fixture !== "string" || s.fixture.length === 0) {
@@ -2505,6 +2518,16 @@ function parseSpec(text, file) {
       }
     }
     scenario.workspace = resolveWorkspace(s.env, mode, scenario.fixture, id, file);
+    scenario.remote = resolveRemote(s.env, scenario.workspace, id, file);
+    if (s.system_prompt_file !== void 0) {
+      if (typeof s.system_prompt_file !== "string" || !s.system_prompt_file.trim()) {
+        throw new SpecError(`scenario \`${id}\` \`system_prompt_file\` must be a non-empty string`, file);
+      }
+      if (scenario.turns.length !== 1) {
+        throw new SpecError(`scenario \`${id}\` uses system_prompt_file, so it must have exactly one turn (got ${scenario.turns.length}) \u2014 an agent definition is single-shot by contract`, file);
+      }
+      scenario.systemPromptFile = s.system_prompt_file.trim();
+    }
     if (s.reps !== void 0) {
       if (typeof s.reps !== "number" || !Number.isInteger(s.reps) || s.reps < 1) {
         throw new SpecError(`scenario \`${id}\` \`reps\` must be a positive integer`, file);
@@ -2537,7 +2560,7 @@ import { join } from "node:path";
 
 // packages/core/dist/run.js
 import { mkdirSync as mkdirSync3, writeFileSync as writeFileSync3 } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, resolve as resolve2 } from "node:path";
 
 // packages/core/dist/workspace.js
 import { cpSync, existsSync as existsSync2, mkdtempSync, readdirSync as readdirSync2, rmSync } from "node:fs";
@@ -2559,13 +2582,27 @@ function gitBaseline(cwd) {
   execFileSync("git", ["add", "-A"], { cwd, timeout: GIT_TIMEOUT_MS });
   execFileSync("git", ["-c", "user.email=sh@local", "-c", "user.name=skill-harness", "commit", "-q", "--allow-empty", "-m", "baseline"], { cwd, timeout: GIT_TIMEOUT_MS });
 }
+function addLocalRemote(cwd) {
+  const bare = mkdtempSync(join2(tmpdir(), "sc-remote-")) + ".git";
+  execFileSync("git", ["init", "-q", "--bare", "-b", "main", bare], { timeout: GIT_TIMEOUT_MS });
+  execFileSync("git", ["remote", "add", "origin", bare], { cwd, timeout: GIT_TIMEOUT_MS });
+  execFileSync("git", ["push", "-q", "-u", "origin", "main"], { cwd, timeout: GIT_TIMEOUT_MS });
+  return bare;
+}
 function createWorkspace(kind, opts) {
   const cwd = mkdtempSync(join2(tmpdir(), "sc-ws-"));
-  const cleanup = () => rmSync(cwd, { recursive: true, force: true });
+  let bare = null;
+  const cleanup = () => {
+    rmSync(cwd, { recursive: true, force: true });
+    if (bare)
+      rmSync(bare, { recursive: true, force: true });
+  };
   try {
     if (kind === "none") {
     } else if (kind === "empty-git") {
       gitBaseline(cwd);
+      if (opts.remote)
+        bare = addLocalRemote(cwd);
     } else {
       const src = isAbsolute(kind.fixture) ? kind.fixture : resolve(opts.specDir, kind.fixture);
       if (!existsSync2(src))
@@ -2578,6 +2615,8 @@ function createWorkspace(kind, opts) {
         // committed baseline only
       });
       gitBaseline(cwd);
+      if (opts.remote)
+        bare = addLocalRemote(cwd);
       const [staged, uncommitted] = pending;
       if (existsSync2(staged)) {
         cpSync(staged, cwd, { recursive: true });
@@ -2938,7 +2977,7 @@ import { spawn } from "node:child_process";
 import { existsSync as existsSync5 } from "node:fs";
 import { join as join5, delimiter } from "node:path";
 function exec(cmd, args, opts = {}) {
-  return new Promise((resolve5, reject) => {
+  return new Promise((resolve6, reject) => {
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
       env: opts.env ?? process.env,
@@ -2964,7 +3003,7 @@ function exec(cmd, args, opts = {}) {
     child.on("close", (code) => {
       if (timer)
         clearTimeout(timer);
-      resolve5({ stdout, stderr, code });
+      resolve6({ stdout, stderr, code });
     });
   });
 }
@@ -3238,7 +3277,7 @@ async function runRep(scenario, rep, repCount, ctx) {
   let gatePrefix = null;
   try {
     try {
-      ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath) });
+      ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath), remote: scenario.remote });
     } catch (e) {
       gatePrefix = e instanceof Error ? e.message : String(e);
       transcript = `[workspace setup failed] ${gatePrefix}`;
@@ -3260,7 +3299,9 @@ async function runRep(scenario, rep, repCount, ctx) {
           model: ctx.model,
           mode,
           turns: scenario.turns,
-          cwd: ws.cwd
+          cwd: ws.cwd,
+          // resolved like fixtures: relative to the spec's dir
+          systemPromptFile: scenario.systemPromptFile ? resolve2(dirname(ctx.specPath), scenario.systemPromptFile) : void 0
         });
       }
     }
@@ -3438,7 +3479,7 @@ function collectTrends(skillDir, limit = 20) {
 
 // packages/core/dist/lint.js
 import { existsSync as existsSync9, statSync as statSync4, readdirSync as readdirSync6, readFileSync as readFileSync5 } from "node:fs";
-import { basename, dirname as dirname2, isAbsolute as isAbsolute2, join as join9, resolve as resolve2 } from "node:path";
+import { basename, dirname as dirname2, isAbsolute as isAbsolute2, join as join9, resolve as resolve3 } from "node:path";
 
 // packages/adapters/dist/pi.js
 import { mkdtempSync as mkdtempSync2, readFileSync as readFileSync6 } from "node:fs";
@@ -3482,7 +3523,7 @@ var piAdapter = {
       "--model",
       req.model.model
     ];
-    const flags = skillFlags(req.mode, req.skillDir);
+    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync6(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
     const total = req.turns.length;
     const parts = [];
     if (total === 1) {
@@ -3586,10 +3627,10 @@ function gradeScriptPath(assetsDir) {
   return join11(dirname3(templatePath(assetsDir)), "report.grade.js");
 }
 function readBody(req) {
-  return new Promise((resolve5) => {
+  return new Promise((resolve6) => {
     let b = "";
     req.on("data", (c) => b += c);
-    req.on("end", () => resolve5(b));
+    req.on("end", () => resolve6(b));
   });
 }
 function findTranscript(runDir, id) {
@@ -3754,7 +3795,7 @@ async function serveReview(opts) {
       res.end(`server error: ${e instanceof Error ? e.message : e}`);
     }
   });
-  await new Promise((resolve5) => server.listen(opts.port ?? 0, "127.0.0.1", resolve5));
+  await new Promise((resolve6) => server.listen(opts.port ?? 0, "127.0.0.1", resolve6));
   const addr = server.address();
   const port = typeof addr === "object" && addr ? addr.port : opts.port;
   const link = `http://127.0.0.1:${port}/`;
@@ -3781,10 +3822,10 @@ function tryOpen(url, cmd) {
 
 // packages/pi-extension/src/runner.ts
 import { existsSync as existsSync11 } from "node:fs";
-import { dirname as dirname4, join as join12, resolve as resolve3 } from "node:path";
+import { dirname as dirname4, join as join12, resolve as resolve4 } from "node:path";
 function resolveSkillDir(cwd, arg) {
   if (arg) {
-    const dir2 = resolve3(cwd, arg);
+    const dir2 = resolve4(cwd, arg);
     if (existsSync11(join12(dir2, "tests", "specification.yaml"))) return dir2;
     throw new Error(`no tests/specification.yaml found at ${dir2}`);
   }
@@ -3885,7 +3926,7 @@ ${card.failedTranscripts.join("\n")}`);
     return;
   }
   if (sub === "judge") {
-    const runDir = resolve4(ctx.cwd, positional[0] ?? ".");
+    const runDir = resolve5(ctx.cwd, positional[0] ?? ".");
     const testsDir = dirname5(dirname5(dirname5(runDir)));
     const spec = loadSpec(join13(testsDir, "specification.yaml"));
     const prev = existsSync12(join13(runDir, "results.yaml")) ? readResults(runDir) : null;

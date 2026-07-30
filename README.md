@@ -206,6 +206,20 @@ fixtures/typo-fix/
   _staged/CHANGELOG.md       # -> applied after, then git add      => staged edit
 ```
 
+**A real remote.** `env: { remote: true }` (with `empty-git` or a fixture) initialises a bare
+repo in its own temp dir, wires it as `origin`, and pushes the baseline, so `main` tracks
+`origin/main` and push/fetch/diverged-upstream work with no network. Without it a git
+fixture has no upstream at all, and a model reasonably reads that as "solo throwaway repo"
+— which is why a scenario like git-ops A4 passed or failed depending on the run. Both temp
+dirs are removed on cleanup. Requesting a remote without a repo is a spec error.
+
+**Testing an agent definition, not a skill.** `system_prompt_file: <path>` (relative to the
+spec, like fixtures) runs that markdown file AS the system prompt with no skill activated —
+the shape a subagent definition actually runs in. Such a scenario must declare exactly one
+turn: a subagent has no turn two, so testing one across several would measure conversation
+armor the single-shot contract deliberately drops. `lint` fails if the file is missing,
+since silently falling back to skill activation would measure the wrong artifact.
+
 Each scenario runs in its own throwaway directory and never touches your home directory.
 Seeded scenarios automatically use their `fixture:` setting.
 

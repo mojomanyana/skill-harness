@@ -46,7 +46,10 @@ export const piAdapter: HarnessAdapter = {
       "--model",
       req.model.model,
     ];
-    const flags = skillFlags(req.mode, req.skillDir);
+    // An agent-file run IS the system prompt: no skill activation, whatever the mode.
+    const flags = req.systemPromptFile
+      ? ["--no-skills", "--append-system-prompt", readFileSync(req.systemPromptFile, "utf8")]
+      : skillFlags(req.mode, req.skillDir);
     const total = req.turns.length;
     const parts: string[] = [];
 
