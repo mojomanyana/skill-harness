@@ -32,19 +32,41 @@ export interface ParsedVerdict {
   reason: string;
 }
 
-const VERDICT_RE = /VERDICT\**\s*:?\s*\**\s*(PASS|FAIL)/i;
-const REASON_RE = /REASON\**\s*:?\s*\**\s*(.*)$/im;
+// Both anchor to the start of a line and REQUIRE the colon. Without those anchors the
+// reason pattern matched any word containing "reason" — git-ops GLM C1 stored
+// "able given no repo present.", a fragment of "Reasonable" in the judge's prose, which
+// then read as a FAIL-verdict-with-passing-reason misfire that never happened.
+const VERDICT_RE = /^\s*\**\s*VERDICT\**\s*:\s*\**\s*(PASS|FAIL)/gim;
+const REASON_RE = /^\s*\**\s*REASON\**\s*:\s*\**\s*(.*)$/gim;
 
-/** Parse a judge's raw output into a verdict + reason. Unparseable → ERROR. */
+/**
+ * Parse a judge's raw output into a verdict + reason.
+ *
+ * Judges sometimes emit MORE than one verdict block (a first pass, then a restated
+ * conclusion). Every block is read, never just the first:
+ *   - all blocks agree  → that verdict, with the reason from the LAST block (the
+ *     judge's final word) in full
+ *   - blocks disagree   → JUDGE-AMBIGUOUS, which counts as a non-pass and carries both
+ *     verdicts in the reason so a rejudge can be queued. Silently taking either one
+ *     would be inventing a grade the judge did not give.
+ * Unparseable → ERROR.
+ */
 export function parseVerdict(out: string): ParsedVerdict {
-  const vm = out.match(VERDICT_RE);
-  if (!vm) {
+  const verdicts = [...out.matchAll(VERDICT_RE)].map((m) => m[1].toUpperCase() as "PASS" | "FAIL");
+  if (verdicts.length === 0) {
     return { verdict: "ERROR", reason: "judge produced no parseable verdict" };
   }
-  const verdict = vm[1].toUpperCase() as Verdict;
-  const rm = out.match(REASON_RE);
-  const reason = rm ? rm[1].trim() : "";
-  return { verdict, reason };
+  const reasons = [...out.matchAll(REASON_RE)].map((m) => m[1].trim());
+  const reason = reasons.length > 0 ? reasons[reasons.length - 1] : "";
+
+  const unique = [...new Set(verdicts)];
+  if (unique.length > 1) {
+    return {
+      verdict: "JUDGE-AMBIGUOUS",
+      reason: `judge emitted conflicting verdicts (${verdicts.join(", ")}) — needs rejudge; last reason: ${reason}`,
+    };
+  }
+  return { verdict: unique[0], reason };
 }
 
 /**
@@ -76,12 +98,30 @@ const ITEM_RE = /^\s*\d+[.)]\s*\**\s*(PASS|FAIL)\b/gim;
  */
 export function detectMisfire(raw: string, verdict: Verdict): boolean {
   if (verdict === "ERROR") return false;
+  // Conflicting verdicts are suspect by construction — there is no consistent grade.
+  if (verdict === "JUDGE-AMBIGUOUS") return true;
   const items = [...raw.matchAll(ITEM_RE)].map((m) => m[1].toUpperCase() === "PASS");
-  if (items.length === 0) return false; // fail-open
+  if (items.length === 0) {
+    // No item lines to cross-check, so fall back to the verdict-vs-reason shape: a FAIL
+    // whose reason says everything passed is the misfire class from REVIEW-FINDINGS
+    // finding 2. Deliberately narrow — an earlier version of this tripwire fired on
+    // terse genuine FAILs, so it requires an explicitly total claim ("all items ...
+    // pass", "every item ... satisfied") and no negation anywhere in the reason.
+    if (verdict === "FAIL") {
+      const reason = (raw.match(REASON_LINE_RE)?.[1] ?? "").trim();
+      const totalPass = /\b(all|every)\b[^.]*\b(pass(es|ed)?|satisf(y|ies|ied)|hold(s)?|met)\b/i.test(reason);
+      const negated = /\b(not|no|n't|fails?|failed|missing|except|but|however)\b/i.test(reason);
+      return totalPass && !negated;
+    }
+    return false; // fail-open
+  }
   const andItems = items.every((ok) => ok);
   const verdictBool = verdict === "PASS";
   return verdictBool !== andItems;
 }
+
+// Non-global twin of REASON_RE: matchAll needs /g, a single .match() must not have it.
+const REASON_LINE_RE = /^\s*\**\s*REASON\**\s*:\s*\**\s*(.*)$/im;
 
 /** Drive the judge for one transcript and parse the result. */
 export async function gradeTranscript(
