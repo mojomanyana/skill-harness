@@ -2540,13 +2540,20 @@ import { mkdirSync as mkdirSync3, writeFileSync as writeFileSync3 } from "node:f
 import { dirname } from "node:path";
 
 // packages/core/dist/workspace.js
-import { cpSync, existsSync as existsSync2, mkdtempSync, rmSync } from "node:fs";
+import { cpSync, existsSync as existsSync2, mkdtempSync, readdirSync as readdirSync2, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { isAbsolute, join as join2, resolve } from "node:path";
 var GIT_TIMEOUT_MS = 3e4;
 var UNCOMMITTED_DIR = "_uncommitted";
 var STAGED_DIR = "_staged";
+var MARKERS = [STAGED_DIR, UNCOMMITTED_DIR];
+function assertKnownMarkers(src) {
+  const suspects = readdirSync2(src, { withFileTypes: true }).filter((e) => e.isDirectory() && /^_[A-Za-z]/.test(e.name) && !MARKERS.includes(e.name)).map((e) => e.name);
+  if (suspects.length > 0) {
+    throw new Error(`fixture ${src}: unknown marker director${suspects.length > 1 ? "ies" : "y"} ${suspects.map((s) => `\`${s}/\``).join(", ")} \u2014 known markers are ${MARKERS.map((m) => `\`${m}/\``).join(" and ")}. Rename it, or move it deeper if it is ordinary content.`);
+  }
+}
 function gitBaseline(cwd) {
   execFileSync("git", ["init", "-q", "-b", "main"], { cwd, timeout: GIT_TIMEOUT_MS });
   execFileSync("git", ["add", "-A"], { cwd, timeout: GIT_TIMEOUT_MS });
@@ -2563,6 +2570,7 @@ function createWorkspace(kind, opts) {
       const src = isAbsolute(kind.fixture) ? kind.fixture : resolve(opts.specDir, kind.fixture);
       if (!existsSync2(src))
         throw new Error(`fixture not found: ${src}`);
+      assertKnownMarkers(src);
       const pending = [STAGED_DIR, UNCOMMITTED_DIR].map((d) => join2(src, d));
       cpSync(src, cwd, {
         recursive: true,
@@ -2601,17 +2609,23 @@ Grade each checklist item PASS or FAIL with a <=12-word justification quoting th
 VERDICT: PASS      (only if EVERY item passed)   \u2014 or \u2014   VERDICT: FAIL
 REASON: <15 words or fewer>`;
 }
-var VERDICT_RE = /VERDICT\**\s*:?\s*\**\s*(PASS|FAIL)/i;
-var REASON_RE = /REASON\**\s*:?\s*\**\s*(.*)$/im;
+var VERDICT_RE = /^\s*\**\s*VERDICT\**\s*:\s*\**\s*(PASS|FAIL)/gim;
+var REASON_RE = /^\s*\**\s*REASON\**\s*:\s*\**\s*(.*)$/gim;
 function parseVerdict(out) {
-  const vm = out.match(VERDICT_RE);
-  if (!vm) {
+  const verdicts = [...out.matchAll(VERDICT_RE)].map((m) => m[1].toUpperCase());
+  if (verdicts.length === 0) {
     return { verdict: "ERROR", reason: "judge produced no parseable verdict" };
   }
-  const verdict = vm[1].toUpperCase();
-  const rm = out.match(REASON_RE);
-  const reason = rm ? rm[1].trim() : "";
-  return { verdict, reason };
+  const reasons = [...out.matchAll(REASON_RE)].map((m) => m[1].trim());
+  const reason = reasons.length > 0 ? reasons[reasons.length - 1] : "";
+  const unique = [...new Set(verdicts)];
+  if (unique.length > 1) {
+    return {
+      verdict: "JUDGE-AMBIGUOUS",
+      reason: `judge emitted conflicting verdicts (${verdicts.join(", ")}) \u2014 needs rejudge; last reason: ${reason}`
+    };
+  }
+  return { verdict: unique[0], reason };
 }
 function judgeResemblesSubject(judge, subject) {
   if (judge.provider !== subject.provider)
@@ -2624,13 +2638,23 @@ var ITEM_RE = /^\s*\d+[.)]\s*\**\s*(PASS|FAIL)\b/gim;
 function detectMisfire(raw, verdict) {
   if (verdict === "ERROR")
     return false;
+  if (verdict === "JUDGE-AMBIGUOUS")
+    return true;
   const items = [...raw.matchAll(ITEM_RE)].map((m) => m[1].toUpperCase() === "PASS");
-  if (items.length === 0)
+  if (items.length === 0) {
+    if (verdict === "FAIL") {
+      const reason = (raw.match(REASON_LINE_RE)?.[1] ?? "").trim();
+      const totalPass = /\b(all|every)\b[^.]*\b(pass(es|ed)?|satisf(y|ies|ied)|hold(s)?|met)\b/i.test(reason);
+      const negated = /\b(not|no|n't|fails?|failed|missing|except|but|however)\b/i.test(reason);
+      return totalPass && !negated;
+    }
     return false;
+  }
   const andItems = items.every((ok) => ok);
   const verdictBool = verdict === "PASS";
   return verdictBool !== andItems;
 }
+var REASON_LINE_RE = /^\s*\**\s*REASON\**\s*:\s*\**\s*(.*)$/im;
 async function gradeTranscript(adapter, judge, prompt, cwd) {
   const raw = await adapter.judge({ model: judge, prompt, cwd });
   const parsed = parseVerdict(raw);
@@ -2652,7 +2676,7 @@ async function judgeInWorkspace(adapter, judge, prompt, specDir) {
 }
 
 // packages/core/dist/results.js
-import { mkdirSync, readFileSync as readFileSync2, writeFileSync, existsSync as existsSync3, readdirSync as readdirSync2, appendFileSync } from "node:fs";
+import { mkdirSync, readFileSync as readFileSync2, writeFileSync, existsSync as existsSync3, readdirSync as readdirSync3, appendFileSync } from "node:fs";
 import { join as join3, relative, sep } from "node:path";
 
 // packages/core/dist/adapters/types.js
@@ -2864,7 +2888,7 @@ function findTranscriptFiles(runDir, scenarioId, mode) {
     return [];
   const escapedId = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const matcher = mode !== void 0 ? new RegExp(`^${escapedId}\\.${mode}(\\.rep\\d+)?\\.txt$`) : null;
-  const files = readdirSync2(runDir).filter((f) => matcher ? matcher.test(f) : f.startsWith(`${scenarioId}.`) && f.endsWith(".txt") && !f.endsWith(".judge.txt"));
+  const files = readdirSync3(runDir).filter((f) => matcher ? matcher.test(f) : f.startsWith(`${scenarioId}.`) && f.endsWith(".txt") && !f.endsWith(".judge.txt"));
   return sortByRep(files);
 }
 function judgeRawPath(runDir, scenarioId, mode, rep) {
@@ -2876,7 +2900,7 @@ function findJudgeRawFiles(runDir, scenarioId, mode) {
     return [];
   const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.judge\\.txt$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.judge\\.txt$`);
-  return sortByRep(readdirSync2(runDir).filter((f) => re.test(f)));
+  return sortByRep(readdirSync3(runDir).filter((f) => re.test(f)));
 }
 function preserveTranscript(resultsRoot, runDir, scenarioId) {
   const files = [...findTranscriptFiles(runDir, scenarioId), ...findJudgeRawFiles(runDir, scenarioId)];
@@ -3276,12 +3300,12 @@ async function runRep(scenario, rep, repCount, ctx) {
 }
 
 // packages/core/dist/report.js
-import { existsSync as existsSync7, readdirSync as readdirSync3, statSync as statSync2 } from "node:fs";
+import { existsSync as existsSync7, readdirSync as readdirSync4, statSync as statSync2 } from "node:fs";
 import { join as join7 } from "node:path";
 function latestRunDir(tagDir) {
   if (!statSync2(tagDir).isDirectory())
     return null;
-  const runs = readdirSync3(tagDir).map((n) => join7(tagDir, n)).filter((p) => statSync2(p).isDirectory() && existsSync7(join7(p, "results.yaml"))).sort();
+  const runs = readdirSync4(tagDir).map((n) => join7(tagDir, n)).filter((p) => statSync2(p).isDirectory() && existsSync7(join7(p, "results.yaml"))).sort();
   return runs.length ? runs[runs.length - 1] : null;
 }
 function collectReport(skillDir) {
@@ -3291,7 +3315,7 @@ function collectReport(skillDir) {
   const resultsRoot = join7(skillDir, "tests", "results");
   const columns = [];
   if (existsSync7(resultsRoot)) {
-    const tags = readdirSync3(resultsRoot).map((n) => join7(resultsRoot, n)).filter((p) => statSync2(p).isDirectory()).sort();
+    const tags = readdirSync4(resultsRoot).map((n) => join7(resultsRoot, n)).filter((p) => statSync2(p).isDirectory()).sort();
     for (const tagDir of tags) {
       const runDir = latestRunDir(tagDir);
       if (!runDir)
@@ -3354,7 +3378,7 @@ function renderReport(template, data, gradeScript) {
 }
 
 // packages/core/dist/trends.js
-import { existsSync as existsSync8, readdirSync as readdirSync4, statSync as statSync3 } from "node:fs";
+import { existsSync as existsSync8, readdirSync as readdirSync5, statSync as statSync3 } from "node:fs";
 import { join as join8 } from "node:path";
 function isDir(p) {
   try {
@@ -3370,10 +3394,10 @@ function collectTrends(skillDir, limit = 20) {
   const resultsRoot = join8(skillDir, "tests", "results");
   const models = [];
   if (existsSync8(resultsRoot)) {
-    const tags = readdirSync4(resultsRoot).filter((n) => isDir(join8(resultsRoot, n))).sort();
+    const tags = readdirSync5(resultsRoot).filter((n) => isDir(join8(resultsRoot, n))).sort();
     for (const tag of tags) {
       const tagDir = join8(resultsRoot, tag);
-      const runDirs = readdirSync4(tagDir).map((n) => join8(tagDir, n)).filter((p) => isDir(p) && existsSync8(join8(p, "results.yaml"))).sort();
+      const runDirs = readdirSync5(tagDir).map((n) => join8(tagDir, n)).filter((p) => isDir(p) && existsSync8(join8(p, "results.yaml"))).sort();
       if (runDirs.length === 0)
         continue;
       const greenRuns = [];
@@ -3413,7 +3437,7 @@ function collectTrends(skillDir, limit = 20) {
 }
 
 // packages/core/dist/lint.js
-import { existsSync as existsSync9, statSync as statSync4, readdirSync as readdirSync5, readFileSync as readFileSync5 } from "node:fs";
+import { existsSync as existsSync9, statSync as statSync4, readdirSync as readdirSync6, readFileSync as readFileSync5 } from "node:fs";
 import { basename, dirname as dirname2, isAbsolute as isAbsolute2, join as join9, resolve as resolve2 } from "node:path";
 
 // packages/adapters/dist/pi.js

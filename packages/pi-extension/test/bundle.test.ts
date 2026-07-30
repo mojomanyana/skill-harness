@@ -3,6 +3,21 @@ import { readFileSync } from "node:fs";
 import { build } from "esbuild";
 import { buildOptions } from "../build.mjs";
 
+// build:ext bundles @skill-harness/core, which resolves through packages/core/dist.
+// Run it before `tsc -b` and esbuild inlines a stale core — and the freshness test
+// above still passes, because the in-memory rebuild reads the same stale dist. Both
+// sides agree on the wrong input. That is how a bundle missing `_staged/` support got
+// committed (caught by CI, which builds from clean, not by the local suite).
+// The ordering therefore has to be encoded in the script, not remembered.
+describe("build:ext ordering", () => {
+  it("build:ext depends on the compiler build, so it can never bundle a stale core", () => {
+    const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+    const ext: string = pkg.scripts["build:ext"];
+    expect(ext).toMatch(/npm run build(\s|&|$)/);
+    expect(ext.indexOf("npm run build")).toBeLessThan(ext.indexOf("build.mjs"));
+  });
+});
+
 // The committed packages/pi-extension/dist/index.js is the ONLY thing `pi
 // install git:` loads (no build step on install), but the suite aliases
 // @skill-harness/* to src and `build:ext` is a manual step — a forgotten
