@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdtempSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
@@ -23,6 +23,30 @@ export interface Workspace {
  */
 const UNCOMMITTED_DIR = "_uncommitted";
 const STAGED_DIR = "_staged";
+const MARKERS = [STAGED_DIR, UNCOMMITTED_DIR];
+
+/**
+ * A misspelled marker (`_uncommited/`) used to be copied into the baseline commit as a
+ * literal directory: the tree came up clean, the scenario silently measured the opposite
+ * of its intent, and nothing reported it. Any top-level `_name/` is therefore treated as
+ * a marker claim and must be a real one.
+ *
+ * Only a SINGLE leading underscore counts, so `__tests__` and `__pycache__` — ordinary
+ * directories a fixture may legitimately contain — are not marker claims. Nested
+ * `pkg/_staged/` is likewise ordinary content: markers are top-level only.
+ */
+function assertKnownMarkers(src: string): void {
+  const suspects = readdirSync(src, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && /^_[A-Za-z]/.test(e.name) && !MARKERS.includes(e.name))
+    .map((e) => e.name);
+  if (suspects.length > 0) {
+    throw new Error(
+      `fixture ${src}: unknown marker director${suspects.length > 1 ? "ies" : "y"} ` +
+        `${suspects.map((s) => `\`${s}/\``).join(", ")} — known markers are ` +
+        `${MARKERS.map((m) => `\`${m}/\``).join(" and ")}. Rename it, or move it deeper if it is ordinary content.`
+    );
+  }
+}
 
 /**
  * git init + a baseline commit, so a later `git diff --cached` shows only edits.
@@ -58,6 +82,7 @@ export function createWorkspace(kind: WorkspaceKind, opts: { specDir: string }):
     } else {
       const src = isAbsolute(kind.fixture) ? kind.fixture : resolve(opts.specDir, kind.fixture);
       if (!existsSync(src)) throw new Error(`fixture not found: ${src}`);
+      assertKnownMarkers(src);
       const pending = [STAGED_DIR, UNCOMMITTED_DIR].map((d) => join(src, d));
       cpSync(src, cwd, {
         recursive: true,
