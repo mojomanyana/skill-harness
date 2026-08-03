@@ -100,12 +100,20 @@ export function lintSkill(skillDir: string): LintFinding[] {
       const raw = yaml.load(readFileSync(resultsPath(runDir), "utf8")) as { schema?: unknown };
       if (raw?.schema !== 2) continue; // schema-1 intentionally skipped — no finding
       const r = readResults(runDir);
+      // A run whose scenario set no longer matches the spec predates a spec reshape
+      // (scenarios added/removed). Its grade was computed against the OLD ship bar and
+      // cannot be meaningfully recomputed against the new one — recomputing would flag
+      // every historical run each time a spec grows. Staleness (source_hashes) is the
+      // mechanism that says "re-run"; consistency only polices runs the current spec
+      // can actually re-score. Override/transcript rules below still apply.
+      const specIds = new Set(spec.scenarios.map((sc) => sc.id));
+      const sameSet = r.scenarios.length === specIds.size && r.scenarios.every((sc) => specIds.has(sc.id));
       const ctx: ScoreContext | null = r.mode === "green" && !r.partial ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
-      const recomputed = finalizeResults(
+      const recomputed = !sameSet ? null : finalizeResults(
         { skill: r.skill, harness: r.harness, model: r.model, judge: r.judge, timestamp: r.timestamp, label: r.label, mode: r.mode, partial: r.partial, source_hashes: r.source_hashes, scenarios: r.scenarios },
         ctx,
       ).effective_grade;
-      if (JSON.stringify(recomputed) !== JSON.stringify(r.effective_grade)) {
+      if (recomputed && JSON.stringify(recomputed) !== JSON.stringify(r.effective_grade)) {
         findings.push({ skill, code: "consistency", message: `results.yaml effective_grade is stale in ${runDir} (recompute differs)` });
       }
       for (const s of r.scenarios) {
