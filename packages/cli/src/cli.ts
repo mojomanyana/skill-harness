@@ -138,6 +138,8 @@ async function cmdRun(args: Args): Promise<void> {
   const label = flagStr(args, "label") || null;
   const parallel = Math.max(1, Number(flagStr(args, "parallel", "1")) || 1);
   const { reps, passThreshold } = parseRunTuning(args);
+  const onlyRaw = flagStr(args, "only");
+  const only = onlyRaw ? onlyRaw.split(",").map((x) => x.trim()).filter(Boolean) : undefined;
   const modelTokens = resolveModels(args);
 
   const skills =
@@ -169,6 +171,7 @@ async function cmdRun(args: Args): Promise<void> {
         concurrency: parallel,
         reps,
         passThreshold,
+        only,
         onProgress: (m) => console.log(m),
       });
       summaries.push(summary);
@@ -196,7 +199,10 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
   const judge = judgeFlag ? parseModelRef(judgeFlag) : (prev?.judge ?? parseModelRef(DEFAULT_JUDGE));
   const adapter = adapterOverride ?? getAdapter(prev?.harness ?? "pi");
 
-  const results = await regradeRun({ runDir, spec, adapter, judge, specDir: testsDir, now: nowIso });
+  const results = await regradeRun({
+    runDir, spec, adapter, judge, specDir: testsDir, now: nowIso,
+    onlySuspect: args.flags["suspect-only"] === true || args.flags["suspect-only"] === "true",
+  });
   for (const s of results.scenarios) {
     console.log(`  ${s.id} → ${s.judge_verdict}: ${s.judge_reason}`);
   }
@@ -381,9 +387,9 @@ export async function cmdLint(args: Args): Promise<void> {
 
 const HELP = `skill-harness — test/optimize loop for agent skills (pi harness)
 
-  run    <skill|all> --skills <root> [--model prov:model ...] [--models file]
+  run    <skill|all> --skills <root> [--model prov:model ...] [--models file] [--only A1,D2]
                      [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
-  grade  <run-dir>   [--judge prov:model]      re-grade saved transcripts (neutral judge)
+  grade  <run-dir>   [--judge prov:model] [--suspect-only]   re-grade saved transcripts (neutral judge)
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]
   init   <skill>     --skills <root> [--force]     scaffold a commented template spec (free, offline)

@@ -38,6 +38,15 @@ export interface ResultsFile {
   timestamp: string;
   label: string | null; // run label, e.g. "round-3" — ends timestamp-dir archaeology
   mode: string; // red | green | force
+  /** True for an `--only`-filtered run: a scenario subset, never ship-graded, never a release run. */
+  partial?: boolean;
+  /**
+   * sha256 of every source file this run measured: SKILL.md plus each distinct
+   * system_prompt_file. Lint compares the newest run's hashes against the current
+   * files — a mismatch means the published result describes text that no longer
+   * exists (the stale-scorecard class this field exists to kill).
+   */
+  source_hashes?: Record<string, string>;
   effective_grade: GradeSummary; // always override-aware; only finalizeResults writes it
   scenarios: ScenarioResult[];
 }
@@ -99,7 +108,8 @@ export function finalizeResults(draft: ResultsDraft, ctx: ScoreContext | null): 
     const s = score(effectiveVerdicts(draft.scenarios), { shipBar: ctx.shipBar, critical: ctx.critical });
     effective_grade = { passed: s.passed, total: s.total, pct: s.pct, letter: s.letter, ship: s.ship, note: s.note };
   } else {
-    effective_grade = { passed: 0, total: 0, pct: 0, letter: "-", ship: false, note: `mode=${draft.mode} (not scored)` };
+    const why = draft.partial ? "partial run (--only) — not scored" : `mode=${draft.mode} (not scored)`;
+    effective_grade = { passed: 0, total: 0, pct: 0, letter: "-", ship: false, note: why };
   }
   return {
     schema: 2,
@@ -110,6 +120,8 @@ export function finalizeResults(draft: ResultsDraft, ctx: ScoreContext | null): 
     timestamp: draft.timestamp,
     label: draft.label,
     mode: draft.mode,
+    ...(draft.partial ? { partial: true } : {}),
+    ...(draft.source_hashes ? { source_hashes: draft.source_hashes } : {}),
     effective_grade,
     scenarios: draft.scenarios,
   };

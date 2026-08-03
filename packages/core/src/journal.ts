@@ -26,6 +26,7 @@ export type JournalEvent =
   | { event: "gate-result"; ts: string; id: string; ok: boolean; detail: string; rep?: number }
   | { event: "judge-verdict"; ts: string; id: string; verdict: Verdict; reason: string; suspect: boolean; rep?: number }
   | { event: "misfire-flag"; ts: string; id: string; reason: string; rep?: number }
+  | { event: "empty-response-retry"; ts: string; id: string; attempt: number; rep?: number }
   | { event: "score"; ts: string; passed: number; total: number; pct: number;
       letter: string; ship: boolean; note: string }
   | { event: "override"; ts: string; id: string; override: Verdict | null; note: string };

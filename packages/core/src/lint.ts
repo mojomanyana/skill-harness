@@ -1,10 +1,11 @@
 import { existsSync, statSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+import { createHash } from "node:crypto";
 import yaml from "js-yaml";
 import { loadSpec, SpecError } from "./spec.js";
 import { readResults, finalizeResults, findTranscriptFiles, resultsPath, type ScoreContext } from "./results.js";
 
-export type LintCode = "spec" | "ship_bar" | "critical" | "fixture" | "consistency" | "lint-error";
+export type LintCode = "spec" | "ship_bar" | "critical" | "fixture" | "consistency" | "stale" | "lint-error";
 
 export interface LintFinding {
   readonly skill: string; // skill name (basename of the dir when the spec fails to parse)
@@ -99,9 +100,9 @@ export function lintSkill(skillDir: string): LintFinding[] {
       const raw = yaml.load(readFileSync(resultsPath(runDir), "utf8")) as { schema?: unknown };
       if (raw?.schema !== 2) continue; // schema-1 intentionally skipped — no finding
       const r = readResults(runDir);
-      const ctx: ScoreContext | null = r.mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
+      const ctx: ScoreContext | null = r.mode === "green" && !r.partial ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
       const recomputed = finalizeResults(
-        { skill: r.skill, harness: r.harness, model: r.model, judge: r.judge, timestamp: r.timestamp, label: r.label, mode: r.mode, scenarios: r.scenarios },
+        { skill: r.skill, harness: r.harness, model: r.model, judge: r.judge, timestamp: r.timestamp, label: r.label, mode: r.mode, partial: r.partial, source_hashes: r.source_hashes, scenarios: r.scenarios },
         ctx,
       ).effective_grade;
       if (JSON.stringify(recomputed) !== JSON.stringify(r.effective_grade)) {
@@ -117,7 +118,61 @@ export function lintSkill(skillDir: string): LintFinding[] {
       findings.push({ skill, code: "consistency", message: `results.yaml unreadable or malformed in ${runDir}: ${e instanceof Error ? e.message : String(e)}` });
     }
   }
+  // staleness — the newest FULL (non-partial) run per model tag recorded sha256 hashes of
+  // every source file it measured. If any of those files has changed since, the committed
+  // result describes text that no longer exists — exactly how three regressions hid behind
+  // a 100%-SHIP table for four weeks. Runs predating source_hashes are skipped silently
+  // (no retroactive noise); partial runs never count as coverage.
+  for (const tagDir of enumerateTagDirs(resultsRoot)) {
+    // Newest FULL run: partial (--only) runs are iteration artifacts and never count as
+    // coverage — a fresh partial must not silence a stale full run underneath it.
+    let full: { runDir: string; r: import("./results.js").ResultsFile } | null = null;
+    for (const runDir of runDirsNewestFirst(tagDir)) {
+      try {
+        const r = readResults(runDir);
+        if (r.partial) continue;
+        full = { runDir, r };
+        break;
+      } catch { break; } // unreadable → the consistency block already reports it
+    }
+    const hashes = full?.r.source_hashes;
+    if (!full || !hashes) continue; // predates source_hashes → silent
+    {
+      const newest = full.runDir;
+      for (const [key, recorded] of Object.entries(hashes)) {
+        const abs = key === "SKILL.md" ? join(skillDir, "SKILL.md") : resolve(specDir, key);
+        const current = fileSha256(abs);
+        if (current === null) {
+          findings.push({ skill, code: "stale", message: `${key} no longer exists but the newest ${basename(tagDir)} run measured it (${newest})` });
+        } else if (current !== recorded) {
+          findings.push({ skill, code: "stale", message: `${key} changed since the newest ${basename(tagDir)} run (${newest}) — results are stale; re-run before publishing` });
+        }
+      }
+    }
+  }
+
   return findings;
+}
+
+function fileSha256(p: string): string | null {
+  try { return createHash("sha256").update(readFileSync(p)).digest("hex"); } catch { return null; }
+}
+
+/** Model-tag dirs under tests/results (each holds timestamped run dirs). */
+function enumerateTagDirs(resultsRoot: string): string[] {
+  if (!existsSync(resultsRoot)) return [];
+  try {
+    return readdirSync(resultsRoot).map((t) => join(resultsRoot, t)).filter(isDir);
+  } catch { return []; }
+}
+
+/** Timestamped run dirs holding a results.yaml, newest first (ISO slugs sort lexicographically). */
+function runDirsNewestFirst(tagDir: string): string[] {
+  let timestamps: string[];
+  try { timestamps = readdirSync(tagDir); } catch { return []; }
+  return timestamps.sort().reverse()
+    .map((ts) => join(tagDir, ts))
+    .filter((d) => isDir(d) && existsSync(join(d, "results.yaml")));
 }
 
 /**
