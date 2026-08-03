@@ -67,6 +67,12 @@ export interface RegradeRunOptions {
   judge: ModelRef;
   specDir: string; // fixtures/neutral cwd base for the judge workspace
   now?: () => string;
+  /**
+   * Re-judge ONLY scenarios whose stored verdict is untrustworthy — suspect (misfire) or
+   * JUDGE-AMBIGUOUS. Everything else is carried verbatim: their transcripts were judged
+   * cleanly, so spending judge calls on them buys nothing.
+   */
+  onlySuspect?: boolean;
 }
 
 /**
@@ -97,7 +103,18 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
   // a recorded verdict or shrink the grade denominator. Fail fast, before
   // spending any judge calls.
   const specById = new Map(spec.scenarios.map((s) => [s.id, s]));
-  const targets = (prev?.scenarios ?? spec.scenarios).map((s) => s.id);
+  const recorded = prev?.scenarios ?? spec.scenarios.map((s) => ({ id: s.id } as ScenarioResult));
+  let targets = recorded.map((s) => s.id);
+  if (opts.onlySuspect) {
+    if (!prev) throw new Error(`--suspect-only needs a prior results.yaml in ${runDir}`);
+    targets = prev.scenarios
+      .filter((s) => s.suspect || s.judge_verdict === "JUDGE-AMBIGUOUS")
+      .map((s) => s.id);
+    if (targets.length === 0) {
+      // Nothing untrustworthy — a no-op, not an error. Return the file as-is.
+      return prev;
+    }
+  }
 
   const missing = targets.filter((id) => !specById.has(id) || findTranscriptFiles(runDir, id, "green").length === 0);
   if (missing.length === targets.length) {
@@ -109,8 +126,14 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     );
   }
 
+  const targetSet = new Set(targets);
   const scenarioResults: ScenarioResult[] = [];
-  for (const id of targets) {
+  for (const rec of recorded) {
+    const id = rec.id;
+    if (!targetSet.has(id)) {
+      scenarioResults.push(rec); // clean verdict, carried verbatim (onlySuspect)
+      continue;
+    }
     const scenario = specById.get(id)!; // guaranteed present by the guard above
     const prevScenario = prev?.scenarios.find((s) => s.id === id);
     const threshold = effectiveThreshold(prevScenario, scenario);
@@ -121,7 +144,7 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     scenarioResults.push({ ...rr, override: carry?.override ?? null, note: carry?.note ?? "" });
   }
 
-  const ctx = mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
+  const ctx = mode === "green" && !prev?.partial ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
   const results = writeResults(runDir, {
     skill: spec.skill,
     harness: prev?.harness ?? "pi",
@@ -130,6 +153,10 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     timestamp: prev?.timestamp ?? now(),
     label: prev?.label ?? null,
     mode,
+    // A re-grade judges the SAVED transcripts, which were produced by the OLD text —
+    // the recorded hashes stay, keeping an honestly-stale run honestly stale.
+    partial: prev?.partial,
+    source_hashes: prev?.source_hashes,
     scenarios: scenarioResults,
   }, ctx);
   const g = results.effective_grade;

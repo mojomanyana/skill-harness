@@ -181,6 +181,25 @@ Use it to speed up large skills; keep it modest to respect provider rate limits.
 and it **PASSes** at `--pass-threshold T` (default 0.5; ties pass). A per-scenario flakiness
 index is recorded. Combine with `--parallel` to keep N reps fast.
 
+**`--only A1,D2`** runs a scenario subset — the iteration tool (re-testing two D-scenarios must
+not cost an 18-scenario run). The result is marked `partial: true`, is **never ship-graded**,
+and never counts as staleness coverage; a typo'd id fails before anything runs.
+
+**Empty responses are infra, not behavior.** A blank assistant turn (the shape a model/harness
+timeout leaves) is retried once in a fresh workspace; if it happens again the scenario is
+`ERROR` — it still blocks SHIP, but it is never handed to the judge, because grading an empty
+reply produces a confident FAIL about behavior that never happened.
+
+**Staleness is machine-checked.** Every full run records `source_hashes` — sha256 of SKILL.md
+and each `system_prompt_file` it measured. `lint` compares the newest full run per model
+against the current files and fails with `stale` when they differ: a published result must
+describe text that still exists. Runs predating the field are silent (no retroactive noise);
+partial runs never count as coverage.
+
+**`grade <run-dir> --suspect-only`** re-judges only untrustworthy verdicts (misfire-suspect or
+`JUDGE-AMBIGUOUS`), carrying clean ones verbatim — the rejudge path for ambiguity without
+re-spending the whole run's judge calls. With nothing suspect it is a no-op.
+
 **Per-scenario overrides:** `reps:` and `pass_threshold:` in `specification.yaml` override the run flags.
 
 **Scenarios can declare their workspace** with `env: { workspace: none | empty-git | fixture:<path> }`:

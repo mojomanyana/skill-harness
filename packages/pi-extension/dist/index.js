@@ -2559,7 +2559,8 @@ import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 // packages/core/dist/run.js
-import { mkdirSync as mkdirSync3, writeFileSync as writeFileSync3 } from "node:fs";
+import { mkdirSync as mkdirSync3, writeFileSync as writeFileSync3, readFileSync as readFileSync5 } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, resolve as resolve2 } from "node:path";
 
 // packages/core/dist/workspace.js
@@ -2814,7 +2815,8 @@ function finalizeResults(draft, ctx) {
     const s = score(effectiveVerdicts(draft.scenarios), { shipBar: ctx.shipBar, critical: ctx.critical });
     effective_grade = { passed: s.passed, total: s.total, pct: s.pct, letter: s.letter, ship: s.ship, note: s.note };
   } else {
-    effective_grade = { passed: 0, total: 0, pct: 0, letter: "-", ship: false, note: `mode=${draft.mode} (not scored)` };
+    const why = draft.partial ? "partial run (--only) \u2014 not scored" : `mode=${draft.mode} (not scored)`;
+    effective_grade = { passed: 0, total: 0, pct: 0, letter: "-", ship: false, note: why };
   }
   return {
     schema: 2,
@@ -2825,6 +2827,8 @@ function finalizeResults(draft, ctx) {
     timestamp: draft.timestamp,
     label: draft.label,
     mode: draft.mode,
+    ...draft.partial ? { partial: true } : {},
+    ...draft.source_hashes ? { source_hashes: draft.source_hashes } : {},
     effective_grade,
     scenarios: draft.scenarios
   };
@@ -3155,7 +3159,16 @@ async function regradeRun(opts) {
   const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, { override: s.override, note: s.note }]));
   const mode = prev?.mode ?? "green";
   const specById = new Map(spec.scenarios.map((s) => [s.id, s]));
-  const targets = (prev?.scenarios ?? spec.scenarios).map((s) => s.id);
+  const recorded = prev?.scenarios ?? spec.scenarios.map((s) => ({ id: s.id }));
+  let targets = recorded.map((s) => s.id);
+  if (opts.onlySuspect) {
+    if (!prev)
+      throw new Error(`--suspect-only needs a prior results.yaml in ${runDir}`);
+    targets = prev.scenarios.filter((s) => s.suspect || s.judge_verdict === "JUDGE-AMBIGUOUS").map((s) => s.id);
+    if (targets.length === 0) {
+      return prev;
+    }
+  }
   const missing = targets.filter((id) => !specById.has(id) || findTranscriptFiles(runDir, id, "green").length === 0);
   if (missing.length === targets.length) {
     throw new Error(`no green transcripts in ${runDir} \u2014 nothing to re-grade`);
@@ -3163,8 +3176,14 @@ async function regradeRun(opts) {
   if (missing.length > 0) {
     throw new Error(`cannot re-grade ${missing.join(", ")} in ${runDir} (transcript missing or scenario no longer in the spec) \u2014 re-run instead of grading`);
   }
+  const targetSet = new Set(targets);
   const scenarioResults = [];
-  for (const id of targets) {
+  for (const rec of recorded) {
+    const id = rec.id;
+    if (!targetSet.has(id)) {
+      scenarioResults.push(rec);
+      continue;
+    }
     const scenario = specById.get(id);
     const prevScenario = prev?.scenarios.find((s) => s.id === id);
     const threshold = effectiveThreshold(prevScenario, scenario);
@@ -3181,7 +3200,7 @@ async function regradeRun(opts) {
     const carry = overrides.get(id);
     scenarioResults.push({ ...rr, override: carry?.override ?? null, note: carry?.note ?? "" });
   }
-  const ctx = mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
+  const ctx = mode === "green" && !prev?.partial ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
   const results = writeResults(runDir, {
     skill: spec.skill,
     harness: prev?.harness ?? "pi",
@@ -3190,6 +3209,10 @@ async function regradeRun(opts) {
     timestamp: prev?.timestamp ?? now(),
     label: prev?.label ?? null,
     mode,
+    // A re-grade judges the SAVED transcripts, which were produced by the OLD text —
+    // the recorded hashes stay, keeping an honestly-stale run honestly stale.
+    partial: prev?.partial,
+    source_hashes: prev?.source_hashes,
     scenarios: scenarioResults
   }, ctx);
   const g = results.effective_grade;
@@ -3209,11 +3232,44 @@ async function regradeRun(opts) {
 }
 
 // packages/core/dist/run.js
+function sha256(path) {
+  try {
+    return createHash("sha256").update(readFileSync5(path)).digest("hex");
+  } catch {
+    return null;
+  }
+}
+function sourceHashes(skillDir, specPath, scenarios) {
+  const hashes = {};
+  const skillMd = sha256(resolve2(skillDir, "SKILL.md"));
+  if (skillMd)
+    hashes["SKILL.md"] = skillMd;
+  for (const s of scenarios) {
+    if (s.systemPromptFile && !(s.systemPromptFile in hashes)) {
+      const h = sha256(resolve2(dirname(specPath), s.systemPromptFile));
+      if (h)
+        hashes[s.systemPromptFile] = h;
+    }
+  }
+  return hashes;
+}
 async function runSkillModel(opts) {
   const { spec, skillDir, adapter, model, judge, mode, timestamp } = opts;
   const log = opts.onProgress ?? (() => {
   });
   const now = opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
+  let scenarios = spec.scenarios;
+  const partial = Boolean(opts.only && opts.only.length > 0);
+  if (partial) {
+    const known = new Set(spec.scenarios.map((s) => s.id));
+    const unknown = opts.only.filter((id) => !known.has(id));
+    if (unknown.length > 0) {
+      throw new Error(`--only names unknown scenario id(s) ${unknown.join(", ")} \u2014 spec has: ${[...known].join(", ")}`);
+    }
+    const wanted = new Set(opts.only);
+    scenarios = spec.scenarios.filter((s) => wanted.has(s.id));
+    log(`  --only ${opts.only.join(",")} \u2014 partial run, will not be ship-graded`);
+  }
   if (judgeResemblesSubject(judge, model)) {
     log(`  \u26A0 judge (${judge.provider}:${judge.model}) resembles the model under test (${model.provider}:${model.model}) \u2014 verdicts may be inflated. Use a distinct judge.`);
   }
@@ -3230,10 +3286,10 @@ async function runSkillModel(opts) {
     mode,
     label: opts.label ?? null
   });
-  const repCounts = spec.scenarios.map((s) => s.reps ?? opts.reps ?? 1);
+  const repCounts = scenarios.map((s) => s.reps ?? opts.reps ?? 1);
   const owners = [];
   const tasks = [];
-  spec.scenarios.forEach((scenario, si) => {
+  scenarios.forEach((scenario, si) => {
     for (let k = 0; k < repCounts[si]; k++) {
       const rep = k;
       const total = repCounts[si];
@@ -3242,13 +3298,13 @@ async function runSkillModel(opts) {
     }
   });
   const flat = await runPool(tasks, opts.concurrency ?? 1);
-  const grouped = spec.scenarios.map(() => []);
+  const grouped = scenarios.map(() => []);
   flat.forEach((outcome, i) => grouped[owners[i]].push(outcome));
-  const scenarioResults = spec.scenarios.map((scenario, si) => {
+  const scenarioResults = scenarios.map((scenario, si) => {
     const threshold = scenario.passThreshold ?? opts.passThreshold ?? 0.5;
     return outcomesToResult(scenario.id, grouped[si], repCounts[si], threshold);
   });
-  const ctx = mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
+  const ctx = mode === "green" && !partial ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
   const results = writeResults(runDir, {
     skill: spec.skill,
     harness: adapter.name,
@@ -3257,6 +3313,8 @@ async function runSkillModel(opts) {
     timestamp,
     label: opts.label ?? null,
     mode,
+    ...partial ? { partial: true } : {},
+    source_hashes: sourceHashes(skillDir, opts.specPath, scenarios),
     scenarios: scenarioResults
   }, ctx);
   if (ctx) {
@@ -3264,6 +3322,15 @@ async function runSkillModel(opts) {
     appendJournal(runDir, { event: "score", ts: now(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
   }
   return { runDir, results };
+}
+function hasEmptyAssistantTurn(transcript) {
+  const sections = transcript.split(/^<<< ASSISTANT:\s*$/m).slice(1);
+  if (sections.length === 0)
+    return false;
+  return sections.some((sec) => {
+    const body = sec.split(/^(?:>>> |=== SEEDED GATES ===|\[pi exited )/m)[0];
+    return body.trim() === "";
+  });
 }
 async function runRep(scenario, rep, repCount, ctx) {
   const { spec, judge, mode, runDir, now, log } = ctx;
@@ -3282,27 +3349,39 @@ async function runRep(scenario, rep, repCount, ctx) {
       gatePrefix = e instanceof Error ? e.message : String(e);
       transcript = `[workspace setup failed] ${gatePrefix}`;
     }
+    let noResponse = false;
     if (ws) {
-      if (scenario.mode === "seeded") {
-        const r = await runSeeded(scenario, {
-          skillDir: ctx.skillDir,
-          adapter: ctx.adapter,
-          model: ctx.model,
-          mode,
-          cwd: ws.cwd
-        });
-        transcript = r.transcript;
-        gatePrefix = r.gateFailure;
-      } else {
-        transcript = await ctx.adapter.run({
-          skillDir: ctx.skillDir,
-          model: ctx.model,
-          mode,
-          turns: scenario.turns,
-          cwd: ws.cwd,
-          // resolved like fixtures: relative to the spec's dir
-          systemPromptFile: scenario.systemPromptFile ? resolve2(dirname(ctx.specPath), scenario.systemPromptFile) : void 0
-        });
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (attempt > 0) {
+          appendJournal(runDir, { event: "empty-response-retry", ts: now(), id: scenario.id, attempt, ...repField });
+          log(`  ${scenario.id}${repCount > 1 ? `#${rep}` : ""} empty response \u2014 retrying once`);
+          ws.cleanup();
+          ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath), remote: scenario.remote });
+        }
+        if (scenario.mode === "seeded") {
+          const r = await runSeeded(scenario, {
+            skillDir: ctx.skillDir,
+            adapter: ctx.adapter,
+            model: ctx.model,
+            mode,
+            cwd: ws.cwd
+          });
+          transcript = r.transcript;
+          gatePrefix = r.gateFailure;
+        } else {
+          transcript = await ctx.adapter.run({
+            skillDir: ctx.skillDir,
+            model: ctx.model,
+            mode,
+            turns: scenario.turns,
+            cwd: ws.cwd,
+            // resolved like fixtures: relative to the spec's dir
+            systemPromptFile: scenario.systemPromptFile ? resolve2(dirname(ctx.specPath), scenario.systemPromptFile) : void 0
+          });
+        }
+        noResponse = hasEmptyAssistantTurn(transcript);
+        if (!noResponse)
+          break;
       }
     }
     writeFileSync3(transcriptPath(runDir, scenario.id, mode, repCount > 1 ? rep : void 0), transcript, "utf8");
@@ -3312,7 +3391,11 @@ async function runRep(scenario, rep, repCount, ctx) {
     let verdict;
     let reason;
     let suspect = false;
-    if (gatePrefix) {
+    if (noResponse) {
+      verdict = "ERROR";
+      reason = "model produced no response after a retry (harness timeout?) \u2014 infra, not skill behavior";
+      appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
+    } else if (gatePrefix) {
       verdict = "FAIL";
       reason = gatePrefix;
       appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
@@ -3478,11 +3561,12 @@ function collectTrends(skillDir, limit = 20) {
 }
 
 // packages/core/dist/lint.js
-import { existsSync as existsSync9, statSync as statSync4, readdirSync as readdirSync6, readFileSync as readFileSync5 } from "node:fs";
+import { existsSync as existsSync9, statSync as statSync4, readdirSync as readdirSync6, readFileSync as readFileSync6 } from "node:fs";
 import { basename, dirname as dirname2, isAbsolute as isAbsolute2, join as join9, resolve as resolve3 } from "node:path";
+import { createHash as createHash2 } from "node:crypto";
 
 // packages/adapters/dist/pi.js
-import { mkdtempSync as mkdtempSync2, readFileSync as readFileSync6 } from "node:fs";
+import { mkdtempSync as mkdtempSync2, readFileSync as readFileSync7 } from "node:fs";
 import { tmpdir as tmpdir2 } from "node:os";
 import { join as join10 } from "node:path";
 var PI_TIMEOUT_MS = Number(process.env.SKILL_CHECK_PI_TIMEOUT_MS ?? 3e5);
@@ -3493,7 +3577,7 @@ function skillFlags(mode, skillDir) {
     case "green":
       return ["--skill", skillDir];
     case "force": {
-      const body = readFileSync6(join10(skillDir, "SKILL.md"), "utf8");
+      const body = readFileSync7(join10(skillDir, "SKILL.md"), "utf8");
       return ["--no-skills", "--append-system-prompt", body];
     }
   }
@@ -3523,7 +3607,7 @@ var piAdapter = {
       "--model",
       req.model.model
     ];
-    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync6(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
+    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync7(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
     const total = req.turns.length;
     const parts = [];
     if (total === 1) {
@@ -3604,7 +3688,7 @@ function getAdapter(name) {
 
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
-import { readFileSync as readFileSync7, existsSync as existsSync10 } from "node:fs";
+import { readFileSync as readFileSync8, existsSync as existsSync10 } from "node:fs";
 import { join as join11, dirname as dirname3 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn as spawn2 } from "node:child_process";
@@ -3638,22 +3722,22 @@ function findTranscript(runDir, id) {
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync7(join11(runDir, files[0]), "utf8");
+    return readFileSync8(join11(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync7(join11(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync8(join11(runDir, f), "utf8")}`).join("\n\n");
 }
 function findJudgeRaw(runDir, id) {
   const files = findJudgeRawFiles(runDir, id);
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync7(join11(runDir, files[0]), "utf8");
+    return readFileSync8(join11(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync7(join11(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync8(join11(runDir, f), "utf8")}`).join("\n\n");
 }
 async function serveReview(opts) {
-  const template = readFileSync7(templatePath(opts.assetsDir), "utf8");
-  const gradeScript = readFileSync7(gradeScriptPath(opts.assetsDir), "utf8");
+  const template = readFileSync8(templatePath(opts.assetsDir), "utf8");
+  const gradeScript = readFileSync8(gradeScriptPath(opts.assetsDir), "utf8");
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://localhost");
