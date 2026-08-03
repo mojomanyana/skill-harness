@@ -170,3 +170,34 @@ describe("lintSkill results-consistency", () => {
     expect(lintSkill(d).some((x) => x.code === "consistency")).toBe(false);
   });
 });
+
+describe("consistency vs spec growth", () => {
+  it("a run predating a spec reshape (different scenario set) is not consistency-flagged", async () => {
+    const { mkdtempSync, cpSync, readFileSync: rf, writeFileSync: wf } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join: j, dirname: dn } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const { parseSpec, runSkillModel } = await import("../src/index.js");
+    const here = dn(fileURLToPath(import.meta.url));
+    const skillDir = mkdtempSync(j(tmpdir(), "sc-growth-"));
+    cpSync(j(here, "fixtures", "golden-skill"), skillDir, { recursive: true });
+    const specPath = j(skillDir, "tests", "specification.yaml");
+    const spec = parseSpec(rf(specPath, "utf8"), specPath);
+    await runSkillModel({
+      spec, skillDir, specPath,
+      adapter: { name: "pi", available: async () => true,
+        run: async (r) => r.turns.map((t) => `>>> USER:\n${t}\n\n<<< ASSISTANT:\nHello!\n`).join("\n"),
+        judge: async () => "1. PASS ok\nVERDICT: PASS\nREASON: fine" },
+      model: { provider: "fireworks", model: "fake" }, modelToken: "fireworks:fake",
+      judge: { provider: "claude-code", model: "opus" },
+      mode: "green", timestamp: "2026-08-03T03-00-00-000Z", now: () => "2026-08-03T03:00:00.000Z", label: "pre-growth",
+    });
+    // grow the spec: add a scenario + raise the bar
+    const grown = rf(specPath, "utf8")
+      .replace("total: 2", "total: 3").replace("min_pass: 2", "min_pass: 3")
+      + '\n  - id: A9\n    title: new one\n    turns: ["go"]\n    checklist: ["does it"]\n';
+    wf(specPath, grown);
+    const findings = lintSkill(skillDir).filter((f) => f.code === "consistency");
+    expect(findings).toEqual([]);
+  });
+});
