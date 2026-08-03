@@ -19,6 +19,8 @@ export interface Scenario {
   fixture?: string;
   assert?: SeededAssert;
   workspace: WorkspaceKind; // isolated-cwd kind; always populated (default "none")
+  remote: boolean; // env.remote: wire a local bare `origin` so the fixture has a real upstream
+  systemPromptFile?: string; // system_prompt_file: run this md file AS the system prompt (agents/<name>.md)
   reps?: number; // run this scenario N times (overrides --reps); positive integer
   passThreshold?: number; // pass if pass-rate >= this (overrides --pass-threshold); 0..1
 }
@@ -102,6 +104,27 @@ function resolveWorkspace(
   throw new SpecError(`scenario \`${id}\` env.workspace must be none | empty-git | fixture:<path>`, file);
 }
 
+/**
+ * Resolve `env.remote`. A remote needs a repo to attach to, so it is only meaningful
+ * with empty-git or a fixture — asking for one on a bare cwd is an authoring mistake,
+ * not something to silently ignore.
+ */
+function resolveRemote(env: unknown, workspace: WorkspaceKind, id: string, file: string): boolean {
+  const raw = env && typeof env === "object" ? (env as Record<string, unknown>).remote : undefined;
+  if (raw === undefined) return false;
+  if (typeof raw !== "boolean") {
+    throw new SpecError(`scenario \`${id}\` env.remote must be true or false`, file);
+  }
+  if (raw && workspace === "none") {
+    throw new SpecError(
+      `scenario \`${id}\` sets env.remote but has no repo to attach it to — ` +
+        `use env.workspace: empty-git or fixture:<path>`,
+      file
+    );
+  }
+  return raw;
+}
+
 /** Parse + validate a specification.yaml from its raw text. `file` is used in error messages. */
 export function parseSpec(text: string, file: string): Spec {
   let doc: unknown;
@@ -181,6 +204,7 @@ export function parseSpec(text: string, file: string): Spec {
       turns: s.turns,
       checklist: s.checklist,
       workspace: "none",
+      remote: false,
     };
 
     if (mode === "seeded") {
@@ -203,6 +227,22 @@ export function parseSpec(text: string, file: string): Spec {
     }
 
     scenario.workspace = resolveWorkspace(s.env, mode, scenario.fixture, id, file);
+    scenario.remote = resolveRemote(s.env, scenario.workspace, id, file);
+    if (s.system_prompt_file !== undefined) {
+      if (typeof s.system_prompt_file !== "string" || !s.system_prompt_file.trim()) {
+        throw new SpecError(`scenario \`${id}\` \`system_prompt_file\` must be a non-empty string`, file);
+      }
+      // A subagent has no turn two. Testing an agent file across multiple turns would
+      // measure conversation armor the single-shot contract deliberately drops.
+      if (scenario.turns.length !== 1) {
+        throw new SpecError(
+          `scenario \`${id}\` uses system_prompt_file, so it must have exactly one turn ` +
+            `(got ${scenario.turns.length}) — an agent definition is single-shot by contract`,
+          file
+        );
+      }
+      scenario.systemPromptFile = s.system_prompt_file.trim();
+    }
 
     if (s.reps !== undefined) {
       if (typeof s.reps !== "number" || !Number.isInteger(s.reps) || s.reps < 1) {

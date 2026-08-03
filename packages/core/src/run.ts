@@ -1,5 +1,5 @@
 import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import type { Spec, Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef, RunMode } from "./adapters/types.js";
 import { judgeResemblesSubject } from "./grade.js";
@@ -125,7 +125,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
   let gatePrefix: string | null = null;
   try {
     try {
-      ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath) });
+      ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath), remote: scenario.remote });
     } catch (e) {
       // A setup failure (e.g. missing fixture) is an objective FAIL, not an infra abort.
       gatePrefix = e instanceof Error ? e.message : String(e);
@@ -141,6 +141,10 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
       } else {
         transcript = await ctx.adapter.run({
           skillDir: ctx.skillDir, model: ctx.model, mode, turns: scenario.turns, cwd: ws.cwd,
+          // resolved like fixtures: relative to the spec's dir
+          systemPromptFile: scenario.systemPromptFile
+            ? resolve(dirname(ctx.specPath), scenario.systemPromptFile)
+            : undefined,
         });
       }
     }

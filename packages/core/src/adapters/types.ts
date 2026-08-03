@@ -31,6 +31,12 @@ export interface RunReq {
   mode: RunMode;
   turns: string[]; // 1 = single-turn; N = multi-turn (carry conversation)
   cwd: string; // neutral dir to run in (avoid repo context bleed)
+  /**
+   * Abs path to a markdown file to use AS the system prompt, instead of activating
+   * skillDir as a skill. Used to test a subagent definition (agents/<name>.md) in the
+   * single-shot shape it actually runs in; overrides `mode`'s skill flags.
+   */
+  systemPromptFile?: string;
 }
 
 /** A judge request: single prompt, no skills, no session. */

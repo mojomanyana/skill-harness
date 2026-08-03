@@ -1,5 +1,5 @@
 import { describe, test, expect, afterEach } from "vitest";
-import { mkdtempSync, writeFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -161,5 +161,131 @@ describe("createWorkspace", () => {
   test("missing fixture throws and leaves no temp dir", () => {
     expect(() => createWorkspace({ fixture: "/nope/does-not-exist" }, { specDir: "/nonexistent" }))
       .toThrow(/fixture not found/);
+  });
+});
+
+describe("createWorkspace — fixture marker validation", () => {
+  // A misspelled marker used to be copied into the baseline commit as a literal
+  // directory: the tree came up clean, the scenario silently measured the opposite of
+  // its intent, and nothing said a word. Unknown markers are now a hard error.
+  test("a typo'd marker fails the run instead of folding into the baseline", () => {
+    const src = fixtureDir();
+    writeFileSync(join(src, "README.md"), "docs\n", "utf8");
+    mkdirSync(join(src, "_uncommited"), { recursive: true }); // one 'm'
+    writeFileSync(join(src, "_uncommited", "README.md"), "fixed\n", "utf8");
+
+    expect(() => createWorkspace({ fixture: src }, { specDir: "/nonexistent" }))
+      .toThrow(/_uncommited/);
+  });
+
+  test("the error names the fixture and the known markers", () => {
+    const src = fixtureDir();
+    mkdirSync(join(src, "_stage"), { recursive: true });
+    let msg = "";
+    try {
+      createWorkspace({ fixture: src }, { specDir: "/nonexistent" });
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    expect(msg).toContain(src);
+    expect(msg).toContain("_staged");
+    expect(msg).toContain("_uncommitted");
+  });
+
+  test("no temp dir is leaked when a marker is rejected", () => {
+    const src = fixtureDir();
+    mkdirSync(join(src, "_bogus"), { recursive: true });
+    const before = readdirSync(tmpdir()).filter((d) => d.startsWith("sc-ws-")).length;
+    expect(() => createWorkspace({ fixture: src }, { specDir: "/nonexistent" })).toThrow();
+    const after = readdirSync(tmpdir()).filter((d) => d.startsWith("sc-ws-")).length;
+    expect(after).toBe(before);
+  });
+
+  test("double-underscore dirs are NOT markers — __tests__ copies normally", () => {
+    const src = fixtureDir();
+    mkdirSync(join(src, "__tests__"), { recursive: true });
+    writeFileSync(join(src, "__tests__", "a.test.ts"), "test('x',()=>{})\n", "utf8");
+    const ws = createWorkspace({ fixture: src }, { specDir: "/nonexistent" });
+    tmps.push(ws.cwd);
+    expect(existsSync(join(ws.cwd, "__tests__", "a.test.ts"))).toBe(true);
+    expect(git(ws.cwd, "ls-files")).toContain("__tests__/a.test.ts");
+  });
+
+  test("a nested _staged/ deeper in the tree is left alone", () => {
+    const src = fixtureDir();
+    mkdirSync(join(src, "pkg", "_staged"), { recursive: true });
+    writeFileSync(join(src, "pkg", "_staged", "keep.txt"), "x\n", "utf8");
+    const ws = createWorkspace({ fixture: src }, { specDir: "/nonexistent" });
+    tmps.push(ws.cwd);
+    expect(git(ws.cwd, "ls-files")).toContain("pkg/_staged/keep.txt");
+  });
+});
+
+describe("createWorkspace — local remote (env.remote)", () => {
+  // A4 fails ~2 of 3 runs because its fixture has no remote: the model reads a missing
+  // upstream as "solo throwaway" and commits to main. A bare repo wired as origin makes
+  // "shared work" true instead of asserted, with zero network dependency.
+  test("wires a bare origin with an upstream-tracking main", () => {
+    const src = fixtureDir();
+    writeFileSync(join(src, "README.md"), "docs\n", "utf8");
+    const ws = createWorkspace({ fixture: src }, { specDir: "/nonexistent", remote: true });
+    tmps.push(ws.cwd);
+
+    expect(git(ws.cwd, "remote").trim()).toBe("origin");
+    expect(git(ws.cwd, "rev-parse", "--abbrev-ref", "main@{upstream}").trim()).toBe("origin/main");
+    // the baseline is actually ON the remote, so "diverged upstream" is constructible
+    expect(git(ws.cwd, "rev-parse", "HEAD").trim()).toBe(git(ws.cwd, "rev-parse", "origin/main").trim());
+  });
+
+  test("push and fetch work offline against the bare origin", () => {
+    const src = fixtureDir();
+    writeFileSync(join(src, "a.txt"), "1\n", "utf8");
+    const ws = createWorkspace({ fixture: src }, { specDir: "/nonexistent", remote: true });
+    tmps.push(ws.cwd);
+
+    writeFileSync(join(ws.cwd, "a.txt"), "2\n", "utf8");
+    git(ws.cwd, "-c", "user.email=t@local", "-c", "user.name=t", "commit", "-aqm", "second");
+    git(ws.cwd, "push", "-q", "origin", "main");
+    expect(git(ws.cwd, "rev-parse", "origin/main").trim()).toBe(git(ws.cwd, "rev-parse", "HEAD").trim());
+    expect(() => git(ws.cwd, "fetch", "-q", "origin")).not.toThrow();
+  });
+
+  test("pending changes still land after the remote is wired", () => {
+    const src = fixtureDir();
+    writeFileSync(join(src, "README.md"), "Teh\n", "utf8");
+    mkdirSync(join(src, "_uncommitted"), { recursive: true });
+    writeFileSync(join(src, "_uncommitted", "README.md"), "The\n", "utf8");
+    const ws = createWorkspace({ fixture: src }, { specDir: "/nonexistent", remote: true });
+    tmps.push(ws.cwd);
+
+    expect(git(ws.cwd, "status", "--porcelain")).toContain("README.md");
+    expect(git(ws.cwd, "remote").trim()).toBe("origin");
+    // the uncommitted edit is NOT on the remote
+    expect(git(ws.cwd, "show", "origin/main:README.md")).toBe("Teh\n");
+  });
+
+  test("empty-git also supports a remote", () => {
+    const ws = createWorkspace("empty-git", { specDir: "/nonexistent", remote: true });
+    tmps.push(ws.cwd);
+    expect(git(ws.cwd, "remote").trim()).toBe("origin");
+  });
+
+  test("cleanup removes the bare origin too, not just the workspace", () => {
+    const src = fixtureDir();
+    writeFileSync(join(src, "a.txt"), "1\n", "utf8");
+    const ws = createWorkspace({ fixture: src }, { specDir: "/nonexistent", remote: true });
+    const originPath = git(ws.cwd, "remote", "get-url", "origin").trim();
+    expect(existsSync(originPath)).toBe(true);
+    ws.cleanup();
+    expect(existsSync(ws.cwd)).toBe(false);
+    expect(existsSync(originPath)).toBe(false);
+  });
+
+  test("no remote by default — existing behaviour unchanged", () => {
+    const src = fixtureDir();
+    writeFileSync(join(src, "a.txt"), "1\n", "utf8");
+    const ws = createWorkspace({ fixture: src }, { specDir: "/nonexistent" });
+    tmps.push(ws.cwd);
+    expect(git(ws.cwd, "remote").trim()).toBe("");
   });
 });

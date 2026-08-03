@@ -292,3 +292,56 @@ ${extra}`;
     expect(() => parseSpec(base("    pass_threshold: -0.1\n"), "spec.yaml")).toThrow(/pass_threshold/);
   });
 });
+
+describe("env.remote + system_prompt_file", () => {
+  const base = (extra: string) => `
+skill: t
+judge_persona: a tester.
+ship_bar: { total: 1, min_pass: 1 }
+scenarios:
+  - id: A1
+    title: t
+    turns: ["go"]
+    checklist: ["does the thing"]
+${extra}
+`;
+
+  test("env.remote: true parses and defaults to false", () => {
+    const withRemote = base("    env:\n      remote: true\n      workspace: empty-git");
+    expect(parseSpec(withRemote, "f").scenarios[0].remote).toBe(true);
+    expect(parseSpec(base(""), "f").scenarios[0].remote).toBe(false);
+  });
+
+  test("env.remote on a bare cwd is an authoring error, not silently ignored", () => {
+    expect(() => parseSpec(base("    env:\n      remote: true\n      workspace: none"), "f"))
+      .toThrow(/no repo to attach it to/);
+  });
+
+  test("env.remote must be a boolean", () => {
+    expect(() => parseSpec(base('    env:\n      remote: "yes"'), "f")).toThrow(/must be true or false/);
+  });
+
+  test("system_prompt_file parses", () => {
+    const sc = parseSpec(base("    system_prompt_file: ../../agents/plan.md"), "f").scenarios[0];
+    expect(sc.systemPromptFile).toBe("../../agents/plan.md");
+  });
+
+  test("an agent-file scenario must be single-turn — a subagent has no turn two", () => {
+    const multi = `
+skill: t
+judge_persona: a tester.
+ship_bar: { total: 1, min_pass: 1 }
+scenarios:
+  - id: A1
+    title: t
+    system_prompt_file: ../../agents/plan.md
+    turns: ["go", "again"]
+    checklist: ["does the thing"]
+`;
+    expect(() => parseSpec(multi, "f")).toThrow(/single-shot by contract/);
+  });
+
+  test("system_prompt_file must be a non-empty string", () => {
+    expect(() => parseSpec(base("    system_prompt_file: '   '"), "f")).toThrow(/non-empty string/);
+  });
+});

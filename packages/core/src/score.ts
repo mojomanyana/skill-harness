@@ -1,6 +1,10 @@
 import type { ShipBar } from "./spec.js";
 
-export type Verdict = "PASS" | "FAIL" | "ERROR";
+/**
+ * "JUDGE-AMBIGUOUS": the judge emitted conflicting verdicts for one transcript. It is
+ * never a pass and never silently resolved — it marks the run for a rejudge.
+ */
+export type Verdict = "PASS" | "FAIL" | "ERROR" | "JUDGE-AMBIGUOUS";
 
 export interface ScenarioVerdict {
   id: string;

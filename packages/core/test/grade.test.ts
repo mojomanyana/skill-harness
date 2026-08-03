@@ -173,3 +173,84 @@ describe("judgeInWorkspace", () => {
     expect(existsSync(seenCwd)).toBe(false); // cleaned up after grading
   });
 });
+
+describe("parseVerdict — the GLM C1 regression class", () => {
+  // The stored reason for git-ops GLM C1 was "able given no repo present." — a
+  // fragment of the word "Reasonable" in the judge's prose. REASON_RE was
+  // case-insensitive with an OPTIONAL colon, so any word containing "reason"
+  // matched and captured the rest of that line. It looked like a judge misfire
+  // (FAIL-verdict-with-passing-reason) and was not one.
+  test("prose containing 'Reasonable' does not become the reason", () => {
+    const out = [
+      "**Item 1:** correctly detects no repo. Reasonable given no repo present.",
+      "**Item 2:** adds unsolicited ceremony.",
+      "VERDICT: FAIL",
+      "REASON: adds atomic-commit notes for a one-word typo fix",
+    ].join("\n");
+    const r = parseVerdict(out);
+    expect(r.verdict).toBe("FAIL");
+    expect(r.reason).toBe("adds atomic-commit notes for a one-word typo fix");
+    expect(r.reason).not.toContain("able given");
+  });
+
+  test("'my reasoning follows' in prose is not mistaken for a REASON line", () => {
+    const out = "My reasoning follows below.\n1. PASS ok\nVERDICT: PASS\nREASON: all items hold";
+    expect(parseVerdict(out).reason).toBe("all items hold");
+  });
+
+  test("two agreeing VERDICT blocks keep the verdict and the final full reason", () => {
+    const out = [
+      "VERDICT: FAIL",
+      "REASON: first pass wording",
+      "",
+      "Item 1: PASS",
+      "Item 2: FAIL",
+      "",
+      "VERDICT: FAIL",
+      "REASON: over-ceremony on a trivial one-word fix, branch dance imposed",
+    ].join("\n");
+    const r = parseVerdict(out);
+    expect(r.verdict).toBe("FAIL");
+    // the judge's final word, untruncated
+    expect(r.reason).toBe("over-ceremony on a trivial one-word fix, branch dance imposed");
+  });
+
+  test("disagreeing VERDICT blocks are JUDGE-AMBIGUOUS, never silently resolved", () => {
+    const out = "VERDICT: PASS\nREASON: looks fine\n\nOn reflection:\nVERDICT: FAIL\nREASON: swallows the error";
+    const r = parseVerdict(out);
+    expect(r.verdict).toBe("JUDGE-AMBIGUOUS");
+    expect(r.reason).toMatch(/PASS/);
+    expect(r.reason).toMatch(/FAIL/);
+  });
+
+  test("a JUDGE-AMBIGUOUS verdict never counts as a pass", () => {
+    expect(parseVerdict("VERDICT: PASS\n\nVERDICT: FAIL").verdict).not.toBe("PASS");
+  });
+
+  test("reason may be empty without swallowing later prose", () => {
+    const r = parseVerdict("VERDICT: PASS\nREASON:");
+    expect(r.verdict).toBe("PASS");
+    expect(r.reason).toBe("");
+  });
+});
+
+describe("detectMisfire — verdict vs reason (REVIEW-FINDINGS finding 2)", () => {
+  test("FAIL whose reason reads as fully passing is flagged", () => {
+    const raw = "1. PASS a\n2. PASS b\nVERDICT: FAIL\nREASON: all checklist items are satisfied";
+    expect(detectMisfire(raw, "FAIL")).toBe(true);
+  });
+
+  test("terse genuine FAIL is NOT flagged (the earlier false-positive class)", () => {
+    const raw = "1. FAIL missing test\nVERDICT: FAIL\nREASON: no test";
+    expect(detectMisfire(raw, "FAIL")).toBe(false);
+  });
+
+  test("FAIL whose reason merely mentions a passing item is NOT flagged", () => {
+    const raw = "1. PASS a\n2. FAIL b\nVERDICT: FAIL\nREASON: item 1 passes but item 2 swallows the error";
+    expect(detectMisfire(raw, "FAIL")).toBe(false);
+  });
+
+  test("JUDGE-AMBIGUOUS is inherently suspect", () => {
+    expect(detectMisfire("VERDICT: PASS\nVERDICT: FAIL", "JUDGE-AMBIGUOUS")).toBe(true);
+  });
+});

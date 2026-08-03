@@ -7,6 +7,7 @@ import {
   findTranscriptFiles,
   parseModelRef,
   type HarnessAdapter,
+  type Verdict,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 
@@ -14,7 +15,7 @@ export interface Scorecard {
   skill: string;
   model: string;
   grade: { pct: number; letter: string; ship: boolean };
-  scenarios: { id: string; verdict: "PASS" | "FAIL" | "ERROR"; suspect: boolean }[];
+  scenarios: { id: string; verdict: Verdict; suspect: boolean }[];
   failedTranscripts: string[];
 }
 

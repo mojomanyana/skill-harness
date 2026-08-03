@@ -19,6 +19,10 @@ function isDir(p: string): boolean {
   try { return statSync(p).isDirectory(); } catch { return false; }
 }
 
+function isFile(p: string): boolean {
+  try { return statSync(p).isFile(); } catch { return false; }
+}
+
 /**
  * Validate one skill's spec + fixtures statically (and results-consistency when
  * committed results exist — see the consistency block). Never throws: a bad spec
@@ -69,6 +73,16 @@ export function lintSkill(skillDir: string): LintFinding[] {
       if (!isDir(abs)) {
         findings.push({ skill, scenario: s.id, code: "fixture", message: `fixture not found: ${fx}` });
       }
+    }
+  }
+
+  // system_prompt_file must exist — an agent-file scenario silently falling back to
+  // skill activation would measure the wrong artifact entirely.
+  for (const s of spec.scenarios) {
+    if (!s.systemPromptFile) continue;
+    const abs = isAbsolute(s.systemPromptFile) ? s.systemPromptFile : resolve(specDir, s.systemPromptFile);
+    if (!isFile(abs)) {
+      findings.push({ skill, scenario: s.id, code: "fixture", message: `system_prompt_file not found: ${s.systemPromptFile}` });
     }
   }
 
