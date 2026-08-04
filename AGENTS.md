@@ -66,9 +66,14 @@ release, so you get new checks as they ship; any release tag (`@vX.Y.Z`) freezes
 There is deliberately **no `@v1`**: `lint` is a CI gate, so a release that adds a
 check turns a passing repo red, and a "stable major that moves forward" would
 promise precisely what a linter cannot deliver. `@latest` makes no such promise —
-it says only "newest release", which is true. Pin when you want to choose *when*
-new checks land, which is why `principal-pi-skills` pins. (A `results.yaml`
-written by version X also needs version ≥ X to lint — see `PUBLISHING.md`.)
+it says only "newest release", which is true.
+
+Pin when you want to choose *when* new checks land: worth it once a repo's
+scorecard is a published claim, so that a red CI means "my skills changed" rather
+than "the harness changed under me", and so an old CI run stays reproducible.
+`@latest` is the better default while a repo is still iterating, and it keeps CI
+at least as new as whatever wrote the committed `results.yaml` — a file written
+by version X needs version ≥ X to lint (see `PUBLISHING.md`).
 
 ## Pointers
 

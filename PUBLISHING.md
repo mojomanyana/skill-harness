@@ -109,9 +109,16 @@ one bogus `stale` finding per key — so a repo whose CI pins an older version w
 fail on a results file it cannot understand.
 
 The rule: **a `results.yaml` written by version X needs version ≥ X to lint.**
-When a release changes what `source_hashes` records, bump the pin in every
-consuming repo as part of that release. Today that is one repo:
-`principal-pi-skills`, whose workflow pins `v0.2.1` explicitly.
+When a release changes what `source_hashes` records, every consuming repo needs a
+reader that new.
+
+A repo tracking `@latest` gets that automatically **once the release is tagged** —
+which is the one ordering trap left: results produced by a local checkout of
+`main` that is ahead of the newest tag can out-run CI. Either tag the release
+before committing results generated from it, or generate them from the released
+tag.
+
+A repo on an exact pin needs that pin bumped as part of the release.
 
 This is deliberately handled by documentation rather than a schema bump: the
 schema-1→2 migration precedent exists for *shape* changes, and adding key kinds
@@ -139,10 +146,15 @@ honour. `latest` moves just as much but promises only "the newest release", whic
 is true, and the docs tell consumers to pin a release tag when they want to
 choose *when* new checks land.
 
-Consumers that pin need their pin bumped as part of the release. Today that is
-`principal-pi-skills` (`.github/workflows/ci.yml`, the `ref:` on the
-skill-harness checkout) — bump it, then re-run the skills whose results the new
-version invalidates.
+Consumers that pin need their pin bumped as part of the release
+(`.github/workflows/ci.yml`, the `ref:` on the skill-harness checkout). Consumers
+tracking `@latest` — `principal-pi-skills` as of 0.3.0 — need nothing, but the
+release reaches their CI the moment the tag moves, so **push the tag when you are
+ready for that gate to change**, not mid-flight on unrelated work.
+
+Either way, re-run the skills whose results the new version invalidates: a
+release that changes what a gate measures leaves the committed scorecard
+describing the old measurement.
 
 ## Verification performed before the 0.2.1 update to this runbook (2026-08-04)
 
