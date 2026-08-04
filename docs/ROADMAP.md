@@ -57,8 +57,11 @@ fresh machine; demo GIF recorded; 5 popular external skills graded in a public e
 - [ ] Fresh-machine quickstart run-through; fix everything >10 min. Metric: ≤10 min.
 
 ### Sprint 1.2 — Make it demoable
-- [ ] Surface red-vs-green as an explicit **lift** column in results + report
+- [x] Surface red-vs-green as an explicit **lift** column in results + report
       ("does this skill do anything?" — neutralizes the rival's best feature)
+      (2026-08-04) — `core/lift.ts`, derived on read (never persisted, so it can't go
+      stale); scorecard `LIFT:` line + per-column/per-cell markers in the review UI;
+      `inconclusive` class keeps ERROR/misfire noise out of the number
 - [ ] Flagship example: public repo (or `examples/`) with specs for ~5 popular skills
       (superpowers, anthropics/skills candidates), multi-model results committed
 - [ ] 30-second demo GIF: edit SKILL.md → re-run → grade C→A. Store under `assets/` or link from README

@@ -13,6 +13,7 @@ import {
   type ScenarioResult,
 } from "./results.js";
 import { appendJournal } from "./journal.js";
+import { liftHeadline, type Lift } from "./lift.js";
 import { runSeeded } from "./seeded.js";
 import { createWorkspace, type Workspace } from "./workspace.js";
 import { runPool } from "./scheduler.js";
@@ -265,7 +266,15 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
 }
 
 /** A compact terminal scorecard for one run. */
-export function formatScorecard(summary: RunSummary): string {
+/**
+ * The human-facing scorecard for one run.
+ *
+ * `lift` is the red-vs-green comparison for this model when a red baseline
+ * exists. Passing it for a green run turns the scorecard from "the skill scored
+ * B" into "the skill *did* this much" — without a baseline the grade alone can't
+ * distinguish a skill that works from a model that never needed it.
+ */
+export function formatScorecard(summary: RunSummary, lift?: Lift): string {
   const { results } = summary;
   const g = results.effective_grade;
   const lines: string[] = [];
@@ -282,5 +291,11 @@ export function formatScorecard(summary: RunSummary): string {
   const ship = g.ship ? "SHIP" : "NOT READY";
   const note = g.note ? ` (${g.note})` : "";
   lines.push(`  GRADE: ${g.letter} (${g.pct}%) — ${g.passed}/${g.total} — ${ship}${note}`);
+  if (lift) {
+    lines.push(`  LIFT:  ${liftHeadline(lift)}  (vs red baseline ${lift.redTimestamp})`);
+  } else if (results.mode === "green") {
+    // The grade alone can't answer "does this skill do anything?", so say how.
+    lines.push(`  LIFT:  no red baseline — run with --mode red to measure what the skill adds`);
+  }
   return lines.join("\n");
 }

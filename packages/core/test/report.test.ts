@@ -124,6 +124,80 @@ describe("rendered report is valid JavaScript", () => {
     const html = renderReport(readTemplate(), collectReport(skillDir), readGradeScript());
     expect(compileInlineScripts(html)).toBeGreaterThan(0);
   });
+
+  test("it still parses with lift data present", () => {
+    const skillDir = seedSkill();
+    const redDir = join(skillDir, "tests", "results", "pi-fireworks-deepseek", "2026-06-25T11-00-00-000Z");
+    mkdirSync(redDir, { recursive: true });
+    writeFileSync(
+      join(redDir, "results.yaml"),
+      `schema: 2
+skill: ponytail
+harness: pi
+model: fireworks:deepseek
+judge: {provider: fireworks, model: kimi}
+timestamp: '2026-06-25T11:00:00.000Z'
+label: null
+mode: red
+effective_grade: {passed: 0, total: 0, pct: 0, letter: '-', ship: false, note: ''}
+scenarios:
+  - {id: A1, judge_verdict: FAIL, judge_reason: b, suspect: false, override: null, note: ''}
+  - {id: C2, judge_verdict: PASS, judge_reason: b, suspect: false, override: null, note: ''}
+`
+    );
+    const html = renderReport(readTemplate(), collectReport(skillDir), readGradeScript());
+    expect(compileInlineScripts(html)).toBeGreaterThan(0);
+    expect(html).toMatch(/lift/);
+  });
+});
+
+describe("collectReport lift", () => {
+  /** Add a red baseline run to a seeded skill, under the same model tag. */
+  function addRedRun(skillDir: string, a1: string, c2: string): void {
+    const redDir = join(skillDir, "tests", "results", "pi-fireworks-deepseek", "2026-06-25T11-00-00-000Z");
+    mkdirSync(redDir, { recursive: true });
+    writeFileSync(
+      join(redDir, "results.yaml"),
+      `schema: 2
+skill: ponytail
+harness: pi
+model: fireworks:deepseek
+judge: {provider: fireworks, model: kimi}
+timestamp: '2026-06-25T11:00:00.000Z'
+label: null
+mode: red
+effective_grade: {passed: 0, total: 0, pct: 0, letter: '-', ship: false, note: 'mode=red (not scored)'}
+scenarios:
+  - {id: A1, judge_verdict: ${a1}, judge_reason: baseline, suspect: false, override: null, note: ''}
+  - {id: C2, judge_verdict: ${c2}, judge_reason: baseline, suspect: false, override: null, note: ''}
+`
+    );
+  }
+
+  test("attaches lift to the column once a red baseline exists", () => {
+    const skillDir = seedSkill();
+    addRedRun(skillDir, "FAIL", "PASS");
+    const col = collectReport(skillDir).columns[0];
+    // green: A1 PASS, C2 PASS-but-overridden-to-FAIL
+    expect(col.lift).toBeDefined();
+    expect(col.lift!.gained).toBe(1); // A1: FAIL -> PASS
+    expect(col.lift!.regressed).toBe(1); // C2: PASS -> effective FAIL via override
+    expect(col.liftHeadline).toMatch(/gained/);
+  });
+
+  test("leaves lift undefined with no red baseline — never a fabricated zero", () => {
+    const col = collectReport(seedSkill()).columns[0];
+    expect(col.lift).toBeUndefined();
+    expect(col.liftHeadline).toBeUndefined();
+  });
+
+  test("publicView carries lift through without leaking paths", () => {
+    const skillDir = seedSkill();
+    addRedRun(skillDir, "FAIL", "FAIL");
+    const view = publicView(collectReport(skillDir));
+    expect(view.columns[0].lift!.gained).toBe(1);
+    expect(JSON.stringify(view)).not.toMatch(/\/tmp\//);
+  });
 });
 
 describe("publicView", () => {

@@ -77,6 +77,29 @@ node bin/skill-harness.js run golden-skill --skills packages/core/test/fixtures 
 
 The scorecard shows each scenario's verdict, the letter grade + %, and **SHIP / NOT READY**. A critical-id fail or any under-pressure (`B*`) fail blocks SHIP even if the pass count clears the bar.
 
+## 4b. Lift — does the skill actually do anything?
+
+A grade on its own can't tell you whether the skill helped. A capable model may pass your scenarios with the skill switched off entirely, and you'd read the resulting `A` as proof the `SKILL.md` works. **Lift** is the fix: run the same scenarios with the skill off, then compare.
+
+```bash
+node bin/skill-harness.js run golden-skill --skills <root> --mode red     # baseline, skill off
+node bin/skill-harness.js run golden-skill --skills <root> --mode green   # skill active
+```
+
+The green scorecard then ends with a `LIFT:` line, and the review UI shows it per model column with `↑ skill` / `↓ skill` markers on the scenarios that changed:
+
+```
+  GRADE: B (80%) — 4/5 — NOT READY
+  LIFT:  +2 net (3 gained, 1 regressed) · 1 inconclusive  (vs red baseline 2026-08-04T…)
+```
+
+- **gained** — failed without the skill, passes with it. This is the skill working.
+- **regressed** — passed without the skill, fails with it. The skill actively hurt here.
+- **kept** — passed either way. The model never needed the skill for this one.
+- **inconclusive** — an `ERROR` or an unresolved judge misfire on either side. Deliberately *not* counted as a gain: an ERROR is a harness failure, not evidence the skill-less agent couldn't do the task, and counting it would let infrastructure noise inflate your lift.
+
+Lift is computed from whatever runs are on disk, so a baseline recorded weeks ago still counts, and it needs no re-run to appear. Only scenarios present in **both** runs are compared. With no red run at all, the report says `no red baseline` rather than showing a zero — "not measured" and "measured no effect" are different claims.
+
 ## 5. Review — flip verdicts, read transcripts
 
 ```bash

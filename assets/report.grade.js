@@ -75,3 +75,55 @@ export function gradeColumn(col, shipBar, critical) {
 
   return { passed, total, pct, letter, ship, criticalFails, bFails, suspect };
 }
+
+/**
+ * Red-vs-green class for ONE scenario — mirrors `classify` in
+ * packages/core/src/lift.ts exactly. Kept in the client because the author
+ * flips green verdicts live in this UI: a server-computed class would freeze at
+ * page load and could show "gained" beside a cell the author just marked FAIL.
+ *
+ * `liftCell` supplies the red side (verdict + redSuspect, from the baseline run,
+ * which this view never edits); `greenCell` is the live report cell, so its
+ * override and suspect state are read through the same effective()/suspect rule
+ * the grader uses.
+ */
+export function liftClass(liftCell, greenCell) {
+  const conclusive = (verdict, suspect) =>
+    !suspect && verdict !== "ERROR" && verdict !== "JUDGE-AMBIGUOUS";
+
+  const redOk = conclusive(liftCell.red, liftCell.redSuspect);
+  const greenOk = conclusive(effective(greenCell), !!greenCell.suspect && !greenCell.override);
+  if (!redOk || !greenOk) return "inconclusive";
+
+  const redPass = liftCell.red === "PASS";
+  const greenPass = effective(greenCell) === "PASS";
+  if (redPass && greenPass) return "kept";
+  if (!redPass && greenPass) return "gained";
+  if (redPass && !greenPass) return "regressed";
+  return "both-fail";
+}
+
+/**
+ * Aggregate a column's lift over the live cells — mirrors computeLift's counters
+ * in packages/core/src/lift.ts. Only scenarios the baseline also covered are
+ * counted, matching the server's intersection rule.
+ */
+export function liftSummary(col) {
+  const out = { gained: 0, regressed: 0, kept: 0, bothFail: 0, inconclusive: 0, compared: 0, redPassed: 0, greenPassed: 0, delta: 0 };
+  if (!col.lift) return null;
+  for (const id of Object.keys(col.lift.cells)) {
+    const greenCell = col.cells[id];
+    if (!greenCell) continue;
+    const liftCell = col.lift.cells[id];
+    const cls = liftClass(liftCell, greenCell);
+    out.compared++;
+    if (cls === "both-fail") out.bothFail++;
+    else out[cls]++;
+    if (cls !== "inconclusive") {
+      if (liftCell.red === "PASS") out.redPassed++;
+      if (effective(greenCell) === "PASS") out.greenPassed++;
+    }
+  }
+  out.delta = out.greenPassed - out.redPassed;
+  return out;
+}

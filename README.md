@@ -172,6 +172,34 @@ skill-harness add-test project-git --skills ../principal-pi-skills \
 | `red`   | baseline, **no** skill (the contrast case) |
 | `force` | skill body injected via system prompt (when auto-activation isn't available) |
 
+### Lift — red vs green
+
+A letter grade can't tell you whether the skill did anything: a strong model may
+pass your scenarios with the skill switched off, and that `A` looks identical to
+a skill that works. Run both modes and `skill-harness` reports the difference as
+**lift** — on the scorecard, and per model column in the review UI:
+
+```
+  GRADE: B (80%) — 4/5 — NOT READY
+  LIFT:  +2 net (3 gained, 1 regressed) · 1 inconclusive
+```
+
+| class | meaning |
+|---|---|
+| **gained** | failed without the skill, passes with it — the skill working |
+| **regressed** | passed without the skill, fails with it — the skill hurt |
+| **kept** | passed either way — the model never needed the skill here |
+| **inconclusive** | `ERROR` or an unresolved judge misfire on either side |
+
+`inconclusive` is the load-bearing one: an `ERROR` is a harness failure, not
+evidence that the skill-less agent couldn't do the task, so it is never counted
+as a gain. Without it, flaky infrastructure reads as skill value.
+
+Lift is derived from the runs already on disk — an old baseline still counts, and
+nothing needs re-running for it to appear. Only scenarios present in both runs are
+compared, and a skill with no red run reports `no red baseline` rather than a
+zero, because "not measured" is a different claim from "measured no effect".
+
 ### Concurrency & workspaces
 
 **`--parallel N`** runs up to N scenarios (and their judges) concurrently; default is 1 (sequential).
