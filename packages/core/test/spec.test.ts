@@ -345,3 +345,57 @@ scenarios:
     expect(() => parseSpec(base("    system_prompt_file: '   '"), "f")).toThrow(/non-empty string/);
   });
 });
+
+describe("assert.diff_excludes / assert.post_test (additive seeded gates)", () => {
+  const seeded = (assertBlock: string) => `
+skill: t
+judge_persona: a tester.
+ship_bar: { total: 1, min_pass: 1 }
+scenarios:
+  - id: A2
+    title: scope discipline
+    mode: seeded
+    fixture: fixtures/A2
+    turns: ["fix sliceRange"]
+    checklist: ["left lastIndex alone"]
+    assert:
+${assertBlock}
+`;
+
+  test("parses diff_excludes and post_test", () => {
+    const sc = parseSpec(
+      seeded(`      diff_contains: ["sliceRange"]\n      diff_excludes: ["lastIndex"]\n      post_test: post/A2.test.ts`),
+      "f"
+    ).scenarios[0];
+    expect(sc.assert?.diff_contains).toEqual(["sliceRange"]);
+    expect(sc.assert?.diff_excludes).toEqual(["lastIndex"]);
+    expect(sc.assert?.post_test).toBe("post/A2.test.ts");
+  });
+
+  test("both fields are optional — an existing spec parses unchanged", () => {
+    // Rule 5: additive only. A spec written before these fields existed must keep
+    // producing exactly the assert object it did before.
+    const sc = parseSpec(seeded(`      vitest: true\n      diff_contains: ["x"]`), "f").scenarios[0];
+    expect(sc.assert).toEqual({ vitest: true, diff_contains: ["x"] });
+    expect(sc.assert?.diff_excludes).toBeUndefined();
+    expect(sc.assert?.post_test).toBeUndefined();
+  });
+
+  test("diff_excludes must be strings", () => {
+    expect(() => parseSpec(seeded(`      diff_excludes: [3]`), "f")).toThrow(/`assert.diff_excludes` must be strings/);
+  });
+
+  test("an empty diff_excludes needle is rejected — it would match every diff", () => {
+    expect(() => parseSpec(seeded(`      diff_excludes: [""]`), "f")).toThrow(/would match every diff/);
+  });
+
+  test("a needle both required and forbidden is an authoring error, not a permanent failure", () => {
+    expect(() =>
+      parseSpec(seeded(`      diff_contains: ["a", "b"]\n      diff_excludes: ["b"]`), "f")
+    ).toThrow(/both[\s\S]*could never pass/);
+  });
+
+  test("post_test must be a non-empty path", () => {
+    expect(() => parseSpec(seeded(`      post_test: '  '`), "f")).toThrow(/`assert.post_test` must be a non-empty path/);
+  });
+});

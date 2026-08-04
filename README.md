@@ -120,9 +120,35 @@ scenarios:
     assert:
       vitest: true                  # `vitest run` in the temp repo must pass
       diff_contains: ["describe(", "withdraw"]   # staged git diff must contain these
+      diff_excludes: ["lastIndex"]  # ... and must NOT touch these
+      post_test: post/S1.test.ts    # our test, copied in after the agent finishes
     checklist:
       - writes a covering test that passes
 ```
+
+### Seeded gates (`assert`)
+
+All four are optional and independent. Each one that fails short-circuits the
+scenario to a FAIL without spending a judge call.
+
+| Gate | What it proves |
+|---|---|
+| `vitest: true` | `vitest run` passes in the temp repo. Grades the model's **own** tests, so a weak test the model wrote and passed still counts as green. |
+| `diff_contains: [str]` | Each needle appears somewhere in the staged diff. A keyword check — it proves a name was written, not that it behaves. |
+| `diff_excludes: [str]` | No needle appears in the diff's **changed lines**. Makes scope discipline ("fix `sliceRange`, leave `lastIndex` alone") objective instead of inferring it from the model's prose. |
+| `post_test: <path>` | A test file **you** wrote, copied into the workspace *after* the agent finishes and run on its own. The model never sees it, so it cannot be gamed, and it needs no judge. |
+
+`diff_excludes` deliberately matches only added/removed lines, never context lines
+or `+++`/`---` file headers. A unified diff carries context around every hunk, so
+an untouched function near the edit site appears in the diff verbatim — matching
+the raw text would fail every model that changed exactly the right thing.
+
+`post_test` is the complement to `vitest`, not a replacement: `vitest` asks "did
+the model's own tests pass?", `post_test` asks "does the code do what the task
+required?". The file is copied in after the diff is captured, so it never appears
+in the diff or in the judged transcript. A `post_test` path that doesn't exist
+fails the scenario with a message saying it is a spec error rather than model
+behavior — and `skill-harness lint` catches it for free, before you spend a run.
 
 > **YAML gotcha:** a checklist/turn item with an unquoted `": "` parses as a YAML
 > *mapping*, not a string — `skill-harness` rejects it with a hint. Quote such items:

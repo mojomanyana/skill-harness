@@ -222,6 +222,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
         if (scenario.mode === "seeded") {
           const r = await runSeeded(scenario, {
             skillDir: ctx.skillDir, adapter: ctx.adapter, model: ctx.model, mode, cwd: ws.cwd,
+            specDir: dirname(ctx.specPath), // assert.post_test resolves like a fixture
           });
           transcript = r.transcript;
           gatePrefix = r.gateFailure;

@@ -1,10 +1,10 @@
 // packages/pi-extension/src/index.ts
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname as dirname6, join as join16 } from "node:path";
+import { dirname as dirname6, join as join17 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
-import { existsSync as existsSync14 } from "node:fs";
-import { dirname as dirname5, join as join15, resolve as resolve5 } from "node:path";
+import { existsSync as existsSync15 } from "node:fs";
+import { dirname as dirname5, join as join16, resolve as resolve6 } from "node:path";
 
 // packages/core/dist/spec.js
 import { readFileSync } from "node:fs";
@@ -2514,6 +2514,25 @@ function parseSpec(text, file) {
           }
           assertObj.diff_contains = a.diff_contains;
         }
+        if (a.diff_excludes !== void 0) {
+          if (!isStringArray(a.diff_excludes)) {
+            throw new SpecError(`seeded scenario \`${id}\` \`assert.diff_excludes\` must be strings`, file);
+          }
+          if (a.diff_excludes.some((n) => n === "")) {
+            throw new SpecError(`seeded scenario \`${id}\` \`assert.diff_excludes\` contains an empty string \u2014 it would match every diff`, file);
+          }
+          assertObj.diff_excludes = a.diff_excludes;
+        }
+        const both = (assertObj.diff_contains ?? []).filter((n) => (assertObj.diff_excludes ?? []).includes(n));
+        if (both.length > 0) {
+          throw new SpecError(`seeded scenario \`${id}\` lists ${both.map((n) => JSON.stringify(n)).join(", ")} in both \`assert.diff_contains\` and \`assert.diff_excludes\` \u2014 the gate could never pass`, file);
+        }
+        if (a.post_test !== void 0) {
+          if (typeof a.post_test !== "string" || !a.post_test.trim()) {
+            throw new SpecError(`seeded scenario \`${id}\` \`assert.post_test\` must be a non-empty path`, file);
+          }
+          assertObj.post_test = a.post_test.trim();
+        }
         scenario.assert = assertObj;
       }
     }
@@ -2561,7 +2580,7 @@ import { join } from "node:path";
 // packages/core/dist/run.js
 import { mkdirSync as mkdirSync3, writeFileSync as writeFileSync3, readFileSync as readFileSync5 } from "node:fs";
 import { createHash } from "node:crypto";
-import { dirname, resolve as resolve2 } from "node:path";
+import { dirname, resolve as resolve3 } from "node:path";
 
 // packages/core/dist/workspace.js
 import { cpSync, existsSync as existsSync2, mkdtempSync, readdirSync as readdirSync2, rmSync } from "node:fs";
@@ -3112,12 +3131,16 @@ function collectLift(skillDir) {
   return lifts;
 }
 
+// packages/core/dist/seeded.js
+import { copyFileSync, existsSync as existsSync7 } from "node:fs";
+import { extname, isAbsolute as isAbsolute2, join as join7, resolve as resolve2 } from "node:path";
+
 // packages/core/dist/util/exec.js
 import { spawn } from "node:child_process";
 import { existsSync as existsSync6 } from "node:fs";
 import { join as join6, delimiter } from "node:path";
 function exec(cmd, args, opts = {}) {
-  return new Promise((resolve6, reject) => {
+  return new Promise((resolve7, reject) => {
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
       env: opts.env ?? process.env,
@@ -3143,7 +3166,7 @@ function exec(cmd, args, opts = {}) {
     child.on("close", (code) => {
       if (timer)
         clearTimeout(timer);
-      resolve6({ stdout, stderr, code });
+      resolve7({ stdout, stderr, code });
     });
   });
 }
@@ -3191,7 +3214,11 @@ function envFlag(suffix) {
 }
 
 // packages/core/dist/seeded.js
+var POST_TEST_BASE = "skill-harness.post";
 var VITEST_TIMEOUT_MS = envNum("VITEST_TIMEOUT_MS", 12e4);
+function changedLines(diff) {
+  return diff.split("\n").filter((l) => (l.startsWith("+") || l.startsWith("-")) && !l.startsWith("+++") && !l.startsWith("---")).join("\n");
+}
 var DIFF_MAX_BYTES = envNum("DIFF_MAX_BYTES", 64e3);
 function capDiff(diff, maxBytes = DIFF_MAX_BYTES) {
   const total = Buffer.byteLength(diff, "utf8");
@@ -3223,6 +3250,7 @@ async function runSeeded(scenario, opts) {
   const diff = (await git(repo, ["diff", "--cached"])).stdout;
   const parts = [harnessOut, "", "=== SEEDED GATES ==="];
   let gateFailure = null;
+  const runVitest = opts.runVitest ?? ((args, cwd) => exec("npx", ["vitest", "run", ...args], { cwd, timeoutMs: VITEST_TIMEOUT_MS }));
   const wantDiff = scenario.assert?.diff_contains ?? [];
   for (const needle of wantDiff) {
     const ok = diff.includes(needle);
@@ -3230,13 +3258,45 @@ async function runSeeded(scenario, opts) {
     if (!ok && !gateFailure)
       gateFailure = `staged diff missing ${JSON.stringify(needle)}`;
   }
+  const excludes = scenario.assert?.diff_excludes ?? [];
+  if (excludes.length > 0) {
+    const changed = changedLines(diff);
+    for (const needle of excludes) {
+      const ok = !changed.includes(needle);
+      parts.push(`  diff_excludes ${JSON.stringify(needle)}: ${ok ? "OK" : "PRESENT"}`);
+      if (!ok && !gateFailure)
+        gateFailure = `staged diff touches forbidden ${JSON.stringify(needle)}`;
+    }
+  }
   if (scenario.assert?.vitest) {
-    const v = await exec("npx", ["vitest", "run"], { cwd: repo, timeoutMs: VITEST_TIMEOUT_MS });
+    const v = await runVitest([], repo);
     const passed = v.code === 0;
     parts.push(`  vitest run: ${passed ? "PASS" : `FAIL (exit ${v.code})`}`);
     parts.push(indent(v.stdout.trim() || v.stderr.trim()));
     if (!passed && !gateFailure)
       gateFailure = `vitest failed (exit ${v.code})`;
+  }
+  const postTest = scenario.assert?.post_test;
+  if (postTest) {
+    const src = isAbsolute2(postTest) ? postTest : resolve2(opts.specDir, postTest);
+    if (!existsSync7(src)) {
+      const msg = `post_test file not found: ${postTest} \u2014 spec error, not model behavior`;
+      parts.push(`  post_test: ERROR (${msg})`);
+      if (!gateFailure)
+        gateFailure = msg;
+    } else {
+      const dest = join7(repo, `${POST_TEST_BASE}.test${extname(src) || ".ts"}`);
+      copyFileSync(src, dest);
+      const v = await runVitest([POST_TEST_BASE], repo);
+      const out = v.stdout + v.stderr;
+      const notCollected = /No test files found/i.test(out);
+      const passed = v.code === 0 && !notCollected;
+      parts.push(notCollected ? `  post_test: ERROR (${postTest} was copied in but vitest collected no tests \u2014 check the fixture's include patterns)` : `  post_test ${JSON.stringify(postTest)}: ${passed ? "PASS" : `FAIL (exit ${v.code})`}`);
+      parts.push(indent(v.stdout.trim() || v.stderr.trim()));
+      if (!passed && !gateFailure) {
+        gateFailure = notCollected ? `post_test ${JSON.stringify(postTest)} was never collected by vitest \u2014 spec/fixture error, not model behavior` : `post_test ${JSON.stringify(postTest)} failed (exit ${v.code})`;
+      }
+    }
   }
   parts.push("", "=== STAGED DIFF ===");
   parts.push(diff.trim() === "" ? "  (empty \u2014 the model left no staged changes)" : capDiff(diff));
@@ -3307,8 +3367,8 @@ function outcomesToResult(id, outcomes, repCount, threshold) {
 }
 
 // packages/core/dist/regrade.js
-import { readFileSync as readFileSync4, writeFileSync as writeFileSync2, existsSync as existsSync7 } from "node:fs";
-import { join as join7 } from "node:path";
+import { readFileSync as readFileSync4, writeFileSync as writeFileSync2, existsSync as existsSync8 } from "node:fs";
+import { join as join8 } from "node:path";
 async function judgeOneRep(opts) {
   const { runDir, spec, scenario, transcript, adapter, judge, specDir, mode, rep, now } = opts;
   const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
@@ -3329,7 +3389,7 @@ async function regradeScenario(opts) {
   const outcomes = [];
   for (const file of files) {
     const rep = repIndexOf(file) ?? void 0;
-    const transcript = readFileSync4(join7(opts.runDir, file), "utf8");
+    const transcript = readFileSync4(join8(opts.runDir, file), "utf8");
     outcomes.push(await judgeOneRep({
       runDir: opts.runDir,
       spec: opts.spec,
@@ -3348,7 +3408,7 @@ async function regradeScenario(opts) {
 async function regradeRun(opts) {
   const { runDir, spec, adapter, judge, specDir } = opts;
   const now = opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
-  const prev = existsSync7(join7(runDir, "results.yaml")) ? readResults(runDir) : null;
+  const prev = existsSync8(join8(runDir, "results.yaml")) ? readResults(runDir) : null;
   const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, { override: s.override, note: s.note }]));
   const mode = prev?.mode ?? "green";
   const specById = new Map(spec.scenarios.map((s) => [s.id, s]));
@@ -3434,12 +3494,12 @@ function sha256(path) {
 }
 function sourceHashes(skillDir, specPath, scenarios) {
   const hashes = {};
-  const skillMd = sha256(resolve2(skillDir, "SKILL.md"));
+  const skillMd = sha256(resolve3(skillDir, "SKILL.md"));
   if (skillMd)
     hashes["SKILL.md"] = skillMd;
   for (const s of scenarios) {
     if (s.systemPromptFile && !(s.systemPromptFile in hashes)) {
-      const h = sha256(resolve2(dirname(specPath), s.systemPromptFile));
+      const h = sha256(resolve3(dirname(specPath), s.systemPromptFile));
       if (h)
         hashes[s.systemPromptFile] = h;
     }
@@ -3558,7 +3618,9 @@ async function runRep(scenario, rep, repCount, ctx) {
             adapter: ctx.adapter,
             model: ctx.model,
             mode,
-            cwd: ws.cwd
+            cwd: ws.cwd,
+            specDir: dirname(ctx.specPath)
+            // assert.post_test resolves like a fixture
           });
           transcript = r.transcript;
           gatePrefix = r.gateFailure;
@@ -3571,7 +3633,7 @@ async function runRep(scenario, rep, repCount, ctx) {
             turns: scenario.turns,
             cwd: ws.cwd,
             // resolved like fixtures: relative to the spec's dir
-            systemPromptFile: scenario.systemPromptFile ? resolve2(dirname(ctx.specPath), scenario.systemPromptFile) : void 0
+            systemPromptFile: scenario.systemPromptFile ? resolve3(dirname(ctx.specPath), scenario.systemPromptFile) : void 0
           });
         }
         noResponse = hasEmptyAssistantTurn(transcript);
@@ -3623,27 +3685,27 @@ async function runRep(scenario, rep, repCount, ctx) {
 }
 
 // packages/core/dist/rescore.js
-import { existsSync as existsSync8 } from "node:fs";
-import { join as join8 } from "node:path";
+import { existsSync as existsSync9 } from "node:fs";
+import { join as join9 } from "node:path";
 
 // packages/core/dist/report.js
-import { existsSync as existsSync9, readdirSync as readdirSync5, statSync as statSync3 } from "node:fs";
-import { join as join9 } from "node:path";
+import { existsSync as existsSync10, readdirSync as readdirSync5, statSync as statSync3 } from "node:fs";
+import { join as join10 } from "node:path";
 function latestRunDir(tagDir) {
   if (!statSync3(tagDir).isDirectory())
     return null;
-  const runs = readdirSync5(tagDir).map((n) => join9(tagDir, n)).filter((p) => statSync3(p).isDirectory() && existsSync9(join9(p, "results.yaml"))).sort();
+  const runs = readdirSync5(tagDir).map((n) => join10(tagDir, n)).filter((p) => statSync3(p).isDirectory() && existsSync10(join10(p, "results.yaml"))).sort();
   return runs.length ? runs[runs.length - 1] : null;
 }
 function collectReport(skillDir) {
-  const specPath = join9(skillDir, "tests", "specification.yaml");
+  const specPath = join10(skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const scenarios = spec.scenarios.map((s) => ({ id: s.id, title: s.title, critical: s.critical }));
-  const resultsRoot = join9(skillDir, "tests", "results");
+  const resultsRoot = join10(skillDir, "tests", "results");
   const liftByTag = new Map(collectLift(skillDir).map((l) => [l.tag, l]));
   const columns = [];
-  if (existsSync9(resultsRoot)) {
-    const tags = readdirSync5(resultsRoot).map((n) => join9(resultsRoot, n)).filter((p) => statSync3(p).isDirectory()).sort();
+  if (existsSync10(resultsRoot)) {
+    const tags = readdirSync5(resultsRoot).map((n) => join10(resultsRoot, n)).filter((p) => statSync3(p).isDirectory()).sort();
     for (const tagDir of tags) {
       const runDir = latestRunDir(tagDir);
       if (!runDir)
@@ -3711,8 +3773,8 @@ function renderReport(template, data, gradeScript) {
 }
 
 // packages/core/dist/trends.js
-import { existsSync as existsSync10, readdirSync as readdirSync6, statSync as statSync4 } from "node:fs";
-import { join as join10 } from "node:path";
+import { existsSync as existsSync11, readdirSync as readdirSync6, statSync as statSync4 } from "node:fs";
+import { join as join11 } from "node:path";
 function isDir2(p) {
   try {
     return statSync4(p).isDirectory();
@@ -3721,16 +3783,16 @@ function isDir2(p) {
   }
 }
 function collectTrends(skillDir, limit = 20) {
-  const specPath = join10(skillDir, "tests", "specification.yaml");
+  const specPath = join11(skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const scenarios = spec.scenarios.map((s) => ({ id: s.id, title: s.title, critical: s.critical }));
-  const resultsRoot = join10(skillDir, "tests", "results");
+  const resultsRoot = join11(skillDir, "tests", "results");
   const models = [];
-  if (existsSync10(resultsRoot)) {
-    const tags = readdirSync6(resultsRoot).filter((n) => isDir2(join10(resultsRoot, n))).sort();
+  if (existsSync11(resultsRoot)) {
+    const tags = readdirSync6(resultsRoot).filter((n) => isDir2(join11(resultsRoot, n))).sort();
     for (const tag of tags) {
-      const tagDir = join10(resultsRoot, tag);
-      const runDirs = readdirSync6(tagDir).map((n) => join10(tagDir, n)).filter((p) => isDir2(p) && existsSync10(join10(p, "results.yaml"))).sort();
+      const tagDir = join11(resultsRoot, tag);
+      const runDirs = readdirSync6(tagDir).map((n) => join11(tagDir, n)).filter((p) => isDir2(p) && existsSync11(join11(p, "results.yaml"))).sort();
       if (runDirs.length === 0)
         continue;
       const greenRuns = [];
@@ -3770,14 +3832,14 @@ function collectTrends(skillDir, limit = 20) {
 }
 
 // packages/core/dist/lint.js
-import { existsSync as existsSync11, statSync as statSync5, readdirSync as readdirSync7, readFileSync as readFileSync6 } from "node:fs";
-import { basename, dirname as dirname2, isAbsolute as isAbsolute2, join as join11, resolve as resolve3 } from "node:path";
+import { existsSync as existsSync12, statSync as statSync5, readdirSync as readdirSync7, readFileSync as readFileSync6 } from "node:fs";
+import { basename, dirname as dirname2, isAbsolute as isAbsolute3, join as join12, resolve as resolve4 } from "node:path";
 import { createHash as createHash2 } from "node:crypto";
 
 // packages/adapters/dist/pi.js
 import { mkdtempSync as mkdtempSync2, readFileSync as readFileSync7 } from "node:fs";
 import { tmpdir as tmpdir2 } from "node:os";
-import { join as join12 } from "node:path";
+import { join as join13 } from "node:path";
 var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
 function skillFlags(mode, skillDir) {
   switch (mode) {
@@ -3786,7 +3848,7 @@ function skillFlags(mode, skillDir) {
     case "green":
       return ["--skill", skillDir];
     case "force": {
-      const body = readFileSync7(join12(skillDir, "SKILL.md"), "utf8");
+      const body = readFileSync7(join13(skillDir, "SKILL.md"), "utf8");
       return ["--no-skills", "--append-system-prompt", body];
     }
   }
@@ -3832,7 +3894,7 @@ ${r.stderr.trim()}
 `);
       return parts.join("\n");
     }
-    const session = mkdtempSync2(join12(tmpdir2(), "sc-pi-session-"));
+    const session = mkdtempSync2(join13(tmpdir2(), "sc-pi-session-"));
     for (let i = 0; i < total; i++) {
       const turnFlags = i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common, ...turnFlags, "-p", req.turns[i]];
@@ -3897,33 +3959,33 @@ function getAdapter(name) {
 
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
-import { readFileSync as readFileSync8, existsSync as existsSync12 } from "node:fs";
-import { join as join13, dirname as dirname3 } from "node:path";
+import { readFileSync as readFileSync8, existsSync as existsSync13 } from "node:fs";
+import { join as join14, dirname as dirname3 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn as spawn2 } from "node:child_process";
 var __dirname = dirname3(fileURLToPath(import.meta.url));
 function templatePath(assetsDir) {
   if (assetsDir)
-    return join13(assetsDir, "report.template.html");
+    return join14(assetsDir, "report.template.html");
   const candidates = [
-    join13(__dirname, "..", "..", "..", "assets", "report.template.html"),
+    join14(__dirname, "..", "..", "..", "assets", "report.template.html"),
     // packages/cli/{dist,src} -> ../../../assets
-    join13(__dirname, "..", "assets", "report.template.html"),
-    join13(__dirname, "..", "..", "assets", "report.template.html")
+    join14(__dirname, "..", "assets", "report.template.html"),
+    join14(__dirname, "..", "..", "assets", "report.template.html")
   ];
   for (const c of candidates)
-    if (existsSync12(c))
+    if (existsSync13(c))
       return c;
   throw new Error("cannot find assets/report.template.html");
 }
 function gradeScriptPath(assetsDir) {
-  return join13(dirname3(templatePath(assetsDir)), "report.grade.js");
+  return join14(dirname3(templatePath(assetsDir)), "report.grade.js");
 }
 function readBody(req) {
-  return new Promise((resolve6) => {
+  return new Promise((resolve7) => {
     let b = "";
     req.on("data", (c) => b += c);
-    req.on("end", () => resolve6(b));
+    req.on("end", () => resolve7(b));
   });
 }
 function findTranscript(runDir, id) {
@@ -3931,18 +3993,18 @@ function findTranscript(runDir, id) {
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync8(join13(runDir, files[0]), "utf8");
+    return readFileSync8(join14(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync8(join13(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync8(join14(runDir, f), "utf8")}`).join("\n\n");
 }
 function findJudgeRaw(runDir, id) {
   const files = findJudgeRawFiles(runDir, id);
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync8(join13(runDir, files[0]), "utf8");
+    return readFileSync8(join14(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync8(join13(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync8(join14(runDir, f), "utf8")}`).join("\n\n");
 }
 async function serveReview(opts) {
   const template = readFileSync8(templatePath(opts.assetsDir), "utf8");
@@ -3996,7 +4058,7 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: "only green runs can be re-judged" }));
           return;
         }
-        const specPath = join13(opts.skillDir, "tests", "specification.yaml");
+        const specPath = join14(opts.skillDir, "tests", "specification.yaml");
         const spec = loadSpec(specPath);
         const scenario = spec.scenarios.find((s) => s.id === body.scenarioId);
         if (!scenario) {
@@ -4036,7 +4098,7 @@ async function serveReview(opts) {
             mode: results.mode,
             scenarios: merged
           }, { shipBar: spec.ship_bar, critical: spec.critical });
-          ensureResultsGitignore(join13(opts.skillDir, "tests", "results"));
+          ensureResultsGitignore(join14(opts.skillDir, "tests", "results"));
           const g = written.effective_grade;
           appendJournal(column.runDir, { event: "score", ts: (/* @__PURE__ */ new Date()).toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
           res.writeHead(200, { "content-type": "application/json" });
@@ -4064,12 +4126,12 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
           return;
         }
-        const spec = loadSpec(join13(opts.skillDir, "tests", "specification.yaml"));
+        const spec = loadSpec(join14(opts.skillDir, "tests", "specification.yaml"));
         const ctx = patched.mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
         writeResults(column.runDir, patched, ctx);
-        ensureResultsGitignore(join13(opts.skillDir, "tests", "results"));
+        ensureResultsGitignore(join14(opts.skillDir, "tests", "results"));
         if (body.override != null) {
-          preserveTranscript(join13(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
+          preserveTranscript(join14(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
         }
         appendJournal(column.runDir, {
           event: "override",
@@ -4088,7 +4150,7 @@ async function serveReview(opts) {
       res.end(`server error: ${e instanceof Error ? e.message : e}`);
     }
   });
-  await new Promise((resolve6) => server.listen(opts.port ?? 0, "127.0.0.1", resolve6));
+  await new Promise((resolve7) => server.listen(opts.port ?? 0, "127.0.0.1", resolve7));
   const addr = server.address();
   const port = typeof addr === "object" && addr ? addr.port : opts.port;
   const link = `http://127.0.0.1:${port}/`;
@@ -4114,17 +4176,17 @@ function tryOpen(url, cmd) {
 }
 
 // packages/pi-extension/src/runner.ts
-import { existsSync as existsSync13 } from "node:fs";
-import { dirname as dirname4, join as join14, resolve as resolve4 } from "node:path";
+import { existsSync as existsSync14 } from "node:fs";
+import { dirname as dirname4, join as join15, resolve as resolve5 } from "node:path";
 function resolveSkillDir(cwd, arg) {
   if (arg) {
-    const dir2 = resolve4(cwd, arg);
-    if (existsSync13(join14(dir2, "tests", "specification.yaml"))) return dir2;
+    const dir2 = resolve5(cwd, arg);
+    if (existsSync14(join15(dir2, "tests", "specification.yaml"))) return dir2;
     throw new Error(`no tests/specification.yaml found at ${dir2}`);
   }
   let dir = cwd;
   for (; ; ) {
-    if (existsSync13(join14(dir, "tests", "specification.yaml"))) return dir;
+    if (existsSync14(join15(dir, "tests", "specification.yaml"))) return dir;
     const parent = dirname4(dir);
     if (parent === dir) break;
     dir = parent;
@@ -4134,7 +4196,7 @@ function resolveSkillDir(cwd, arg) {
 var DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 var DEFAULT_JUDGE = "anthropic:claude-opus-4-8";
 async function runViaExtension(opts) {
-  const specPath = join14(opts.skillDir, "tests", "specification.yaml");
+  const specPath = join15(opts.skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const modelToken = opts.model ?? DEFAULT_MODEL;
   const model = parseModelRef(modelToken);
@@ -4157,7 +4219,7 @@ async function runViaExtension(opts) {
   });
   const g = summary.results.effective_grade;
   const verdicts = effectiveVerdicts(summary.results.scenarios);
-  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join14(summary.runDir, f)));
+  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join15(summary.runDir, f)));
   return {
     skill: summary.results.skill,
     model: summary.results.model,
@@ -4219,10 +4281,10 @@ ${card.failedTranscripts.join("\n")}`);
     return;
   }
   if (sub === "judge") {
-    const runDir = resolve5(ctx.cwd, positional[0] ?? ".");
+    const runDir = resolve6(ctx.cwd, positional[0] ?? ".");
     const testsDir = dirname5(dirname5(dirname5(runDir)));
-    const spec = loadSpec(join15(testsDir, "specification.yaml"));
-    const prev = existsSync14(join15(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const spec = loadSpec(join16(testsDir, "specification.yaml"));
+    const prev = existsSync15(join16(runDir, "results.yaml")) ? readResults(runDir) : null;
     const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? { provider: "anthropic", model: "claude-opus-4-8" };
     const results = await regradeRun({
       runDir,
@@ -4237,7 +4299,7 @@ ${card.failedTranscripts.join("\n")}`);
   }
   if (sub === "review") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const spec = loadSpec(join15(skillDir, "tests", "specification.yaml"));
+    const spec = loadSpec(join16(skillDir, "tests", "specification.yaml"));
     const handle = await serveReview({
       skillDir,
       skillName: spec.skill,
@@ -4307,7 +4369,7 @@ function registerTool(pi) {
 
 // packages/pi-extension/src/index.ts
 function index_default(pi) {
-  const assetsDir = join16(dirname6(fileURLToPath2(import.meta.url)), "..", "..", "..", "assets");
+  const assetsDir = join17(dirname6(fileURLToPath2(import.meta.url)), "..", "..", "..", "assets");
   registerCommand(pi, assetsDir);
   registerTool(pi);
   pi.on("session_shutdown", async () => {

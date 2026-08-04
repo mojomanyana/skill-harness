@@ -77,6 +77,18 @@ export function lintSkill(skillDir: string): LintFinding[] {
     }
   }
 
+  // assert.post_test must exist. A post-test that isn't there fails its scenario at
+  // run time with a "spec error" message, but that costs a full model run to discover
+  // — and lint is the free, offline gate that exists to catch it first.
+  for (const s of spec.scenarios) {
+    const pt = s.assert?.post_test;
+    if (!pt) continue;
+    const abs = isAbsolute(pt) ? pt : resolve(specDir, pt);
+    if (!isFile(abs)) {
+      findings.push({ skill, scenario: s.id, code: "fixture", message: `assert.post_test not found: ${pt}` });
+    }
+  }
+
   // system_prompt_file must exist — an agent-file scenario silently falling back to
   // skill activation would measure the wrong artifact entirely.
   for (const s of spec.scenarios) {

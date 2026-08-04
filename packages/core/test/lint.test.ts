@@ -59,6 +59,31 @@ describe("lintSkill static checks", () => {
     const d = skill(y, (dir) => mkdirSync(join(dir, "tests", "fixtures", "repo"), { recursive: true }));
     expect(lintSkill(d).some((x) => x.code === "fixture")).toBe(false);
   });
+  it("assert.post_test missing → fixture finding (free lint beats a paid run)", () => {
+    // A missing post-test fails its scenario at run time, but only after a full
+    // model run has been paid for. lint is the offline gate that catches it first.
+    const y = `skill: d\njudge_persona: j.\nship_bar: { total: 1, min_pass: 1 }\nscenarios:\n  - id: A1\n    title: t\n    mode: seeded\n    fixture: fixtures/repo\n    turns: ["h"]\n    checklist: ["ok"]\n    assert:\n      post_test: post/A1.test.ts\n`;
+    const d = skill(y, (dir) => mkdirSync(join(dir, "tests", "fixtures", "repo"), { recursive: true }));
+    const f = lintSkill(d);
+    expect(f.some((x) => x.code === "fixture" && x.scenario === "A1" && /post_test not found/.test(x.message))).toBe(true);
+  });
+  it("assert.post_test present → no finding", () => {
+    const y = `skill: d\njudge_persona: j.\nship_bar: { total: 1, min_pass: 1 }\nscenarios:\n  - id: A1\n    title: t\n    mode: seeded\n    fixture: fixtures/repo\n    turns: ["h"]\n    checklist: ["ok"]\n    assert:\n      post_test: post/A1.test.ts\n`;
+    const d = skill(y, (dir) => {
+      mkdirSync(join(dir, "tests", "fixtures", "repo"), { recursive: true });
+      mkdirSync(join(dir, "tests", "post"), { recursive: true });
+      writeFileSync(join(dir, "tests", "post", "A1.test.ts"), "// hidden gate\n", "utf8");
+    });
+    expect(lintSkill(d).some((x) => x.code === "fixture")).toBe(false);
+  });
+  it("a post_test directory is not a file → still a finding", () => {
+    const y = `skill: d\njudge_persona: j.\nship_bar: { total: 1, min_pass: 1 }\nscenarios:\n  - id: A1\n    title: t\n    mode: seeded\n    fixture: fixtures/repo\n    turns: ["h"]\n    checklist: ["ok"]\n    assert:\n      post_test: post\n`;
+    const d = skill(y, (dir) => {
+      mkdirSync(join(dir, "tests", "fixtures", "repo"), { recursive: true });
+      mkdirSync(join(dir, "tests", "post"), { recursive: true });
+    });
+    expect(lintSkill(d).some((x) => x.code === "fixture" && /post_test not found/.test(x.message))).toBe(true);
+  });
   it("dangling symlink under tests/results/ does not throw (never-throws contract)", () => {
     const d = skill(GOOD, (dir) => {
       const resultsRoot = join(dir, "tests", "results");
