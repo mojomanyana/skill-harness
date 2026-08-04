@@ -43,4 +43,4 @@ each other.
 
 - Repo + full docs: https://github.com/mojomanyana/skill-harness
 - Step-by-step usage: [`docs/USAGE.md`](https://github.com/mojomanyana/skill-harness/blob/main/docs/USAGE.md)
-- CI Action (free spec lint on every PR): `uses: mojomanyana/skill-harness@v1`
+- CI Action (free spec lint on every PR): `uses: mojomanyana/skill-harness@latest` (or pin a version tag to freeze)

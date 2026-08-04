@@ -56,9 +56,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: mojomanyana/skill-harness@v1   # v1 = stable major tag (moves forward); pin a commit SHA to lock
+      - uses: mojomanyana/skill-harness@latest   # newest release; pin a version tag to freeze — see below
         with: { skills-root: ./skills }
 ```
+
+**Two refs, and the choice is a real one.** `@latest` is a tag moved to each
+release, so you get new checks as they ship; any release tag (`@vX.Y.Z`) freezes.
+
+There is deliberately **no `@v1`**: `lint` is a CI gate, so a release that adds a
+check turns a passing repo red, and a "stable major that moves forward" would
+promise precisely what a linter cannot deliver. `@latest` makes no such promise —
+it says only "newest release", which is true. Pin when you want to choose *when*
+new checks land, which is why `principal-pi-skills` pins. (A `results.yaml`
+written by version X also needs version ≥ X to lint — see `PUBLISHING.md`.)
 
 ## Pointers
 

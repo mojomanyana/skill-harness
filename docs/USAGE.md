@@ -161,9 +161,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: mojomanyana/skill-harness@v1   # v1 = stable major tag (moves forward); pin a commit SHA to lock
+      - uses: mojomanyana/skill-harness@latest   # newest release; pin a version tag to freeze
         with:
           skills-root: ./skills            # dir of skill subdirs, each with tests/specification.yaml
 ```
+
+`@latest` is a tag moved to each release, so you pick up new checks as they ship.
+Pin a release tag (`@vX.Y.Z`) or a commit SHA to freeze instead — worth doing
+once a scorecard matters, since `lint` is a gate and a release that adds a check
+turns a green repo red. There is deliberately no `@v1`: a moving *major* tag
+would claim a stability a linter can't offer, while `@latest` claims only to be
+the newest release.
 
 Their `tests/` folders are unchanged; the check is free/static (no `pi`, no secrets). Metered model runs in CI (manual trigger) are a separate, later tier.
