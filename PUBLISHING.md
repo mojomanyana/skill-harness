@@ -182,3 +182,21 @@ describing the old measurement.
 
 For the 0.2.1 release these were re-confirmed against the bumped tree, and the
 publish itself was run (see the `v0.2.1` tag).
+
+For 0.3.0 (published 2026-08-04) all of the above were re-run against the bumped
+tree — build clean, four exact `0.3.0` inter-package pins, pack contents unchanged
+in shape (core 49 files, adapters 7, cli 9 incl. the two `assets/` files, unscoped
+4). Two notes for next time:
+
+- **This release inverted the runbook's order** — merge and tag happened first and
+  the publish came days later, leaving the registry on 0.2.1 while `main` and the
+  `v0.3.0`/`latest` tags said 0.3.0. Nothing broke, because a consumer tracking the
+  git `@latest` tag reads the repo rather than the registry, but for the window in
+  between `npm i -g skill-harness` served code older than the docs described.
+  Publish first, as written above.
+- **`npm view <pkg> version` lags the publish.** Immediately after `+ skill-harness@0.3.0`
+  it still reported 0.2.1, because `view` reads `dist-tags` and that document is
+  CDN-cached; the version was already in `npm view <pkg> versions`. Re-query with
+  `--prefer-online` (or a throwaway `--cache` dir) before concluding the dist-tag
+  failed to move — it resolved on its own within a minute here, and
+  `npm dist-tag add` was not needed.

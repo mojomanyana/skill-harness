@@ -59,10 +59,11 @@ fresh machine; demo GIF recorded; 5 popular external skills graded in a public e
 - [x] Fresh-machine quickstart run-through; fix everything >10 min. Metric: ≤10 min.
       (2026-08-04) — **41s** from fresh clone to a graded skill (~14x headroom); nothing in
       the source path needs fixing. Full measurements + repro in
-      `docs/quickstart-verification.md`. **Caveat: source path only.** The npm path is
-      broken for onboarding until 0.2.0 ships — `latest` is 0.1.2, which has no `init` and
-      no `suggest` (`unknown command`), so an npm user must hand-write the spec. Publishing
-      0.2.0 is the highest-leverage onboarding fix left and needs no code.
+      `docs/quickstart-verification.md`. The npm path was the caveat here — `latest` was
+      0.1.2, with no `init` and no `suggest`, so an npm user had to hand-write the spec.
+      **Closed 2026-08-04**: 0.3.0 is published for all four packages and `latest` serves
+      it; verified by installing the published tarball into a clean prefix and confirming
+      `init`/`suggest`/`lint` are in `--help`. Both paths now onboard.
 
 ### Sprint 1.2 — Make it demoable
 - [x] Surface red-vs-green as an explicit **lift** column in results + report
