@@ -78,6 +78,48 @@ npm i -g skill-harness && skill-harness --help
 npx @skill-harness/cli lint --help
 ```
 
+## After publishing — land the release on `main`, then move `v1`
+
+**Both steps are mandatory.** Skipping either leaves the repo disagreeing with
+what it ships. This has now been missed on two releases in a row (`v0.2.0` and
+`v0.2.1` were both tagged on an unmerged `release-*` branch), which is why it is
+part of the runbook rather than folklore.
+
+### 1. Merge the release branch to `main`
+
+The version bump lives on `release-<version>`, and the `v<version>` tag points at
+its tip. Until that branch reaches `main`, a fresh clone of `main` reports an
+older version than the registry serves:
+
+```bash
+gh pr create --base main --head release-0.2.1 \
+  --title "chore(release): 0.2.1" --body "Version bump + runbook; published to npm."
+gh pr merge --merge   # or fast-forward main if there is nothing to reconcile
+```
+
+### 2. Move the `v1` tag to the new release commit
+
+`action.yml` is consumed as `uses: mojomanyana/skill-harness@v1`, and the docs
+(`AGENTS.md`, `README.md`, `docs/USAGE.md`,
+`packages/skill-harness/README.md`) advertise `v1` as a **moving** stable major
+tag, in the usual GitHub Actions style (`actions/checkout@v4`). The Action's
+major tag is a separate versioning axis from the npm package version — `v1` is
+the first stable line of the *Action*, not a claim that the packages are 1.x.
+
+A moving tag that does not move is worse than no tag: `v1` sat on the rebrand
+commit for 37 commits, so anyone following the documented CI snippet was gating
+their repo on pre-0.2.0 code. Move it as the last step of every release, from
+`main`, after the merge above:
+
+```bash
+git checkout main && git pull
+git tag -f v1 && git push -f origin v1
+git rev-list -n1 v1   # sanity: should equal the tip of main
+```
+
+Consumers who want to lock an exact version pin the release tag (`@v0.2.1`) or a
+commit SHA instead — that is what `principal-pi-skills` CI does.
+
 ## Verification performed before the 0.2.1 update to this runbook (2026-08-04)
 
 - `npm run build` from the repo root succeeded and left the tree clean.
