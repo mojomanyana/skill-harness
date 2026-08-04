@@ -40,6 +40,13 @@ beat() { [[ $DELAY == 0 ]] || sleep "$DELAY"; }
 # from here.
 say() { printf '\n\033[1;32m$\033[0m %s\n' "$*"; beat; }
 
+# A title card before anything runs. Frame 1 of a recording is the still that
+# GitHub and link previews show, and a bare prompt makes a poor one — this also
+# bookends the closing line.
+printf '\033[1;36m  skill-harness\033[0m — the TDD loop for Agent Skills\n'
+printf '\033[2m  free, offline commands only — no API key, nothing mocked\033[0m\n'
+beat
+
 # ── 1. what is even testable here? ───────────────────────────────────────────
 say "skill-harness list --skills ."
 "$HARNESS" list --skills "$SKILLS" </dev/null
