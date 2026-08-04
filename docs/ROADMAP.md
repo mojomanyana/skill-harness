@@ -65,7 +65,10 @@ fresh machine; demo GIF recorded; 5 popular external skills graded in a public e
 - [ ] Flagship example: public repo (or `examples/`) with specs for ~5 popular skills
       (superpowers, anthropics/skills candidates), multi-model results committed
 - [ ] 30-second demo GIF: edit SKILL.md → re-run → grade C→A. Store under `assets/` or link from README
-- [ ] README top: positioning sentence + GIF + 3-command quickstart above the fold
+- [x] README top: positioning sentence + GIF + 3-command quickstart above the fold
+      (2026-08-04) — positioning sentence, install + 3 commands, differentiators list;
+      contributor material (git clone, repo layout) moved down into Development. GIF
+      still outstanding: a commented slot is in place at the top for it to drop into
 
 ## PHASE 2 — Launch & first 100 fans (weeks 5–10)
 
