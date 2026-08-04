@@ -1,14 +1,37 @@
-# Publishing skill-harness (0.3.1)
+# Publishing skill-harness (0.3.2)
 
 This is the npm-publish runbook. It is **user-run** — the agent that prepared this
 repo does not publish. Run these commands yourself with your own npm auth.
 
-The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`, `0.3.0`. This repo is at
-`0.3.1`, so these commands publish a **new version over an existing line** — the
-`@skill-harness` scope is already claimed, and `latest` moves to 0.3.1 as each
+The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`, `0.3.0`, `0.3.1`. This repo is
+at `0.3.2`, so these commands publish a **new version over an existing line** — the
+`@skill-harness` scope is already claimed, and `latest` moves to 0.3.2 as each
 package lands.
 
-**0.3.1 is a patch and nobody on 0.3.0 is affected by the bugs it fixes.** Two
+**0.3.2 is a patch, and it changes what `lift` prints.** One thing changed:
+
+- `computeLift` no longer compares two verdicts that were produced by different
+  aggregations. A `--reps 1` red baseline against a `--reps 3` green run paired a
+  single draw with a majority-of-3: on a scenario the model passes half the time
+  that manufactures a `gained` a quarter of the time, and the mirror case (lucky
+  single-draw red `PASS`, 2-of-3 green `FAIL`) manufactures a `regressed`. Such
+  cells are now excluded and reported as `aggregationMismatch`, and the review UI
+  says `lift not comparable` instead of the false `no red baseline`.
+
+  `Lift` gains a required `aggregationMismatch` field — additive for anything
+  *reading* a `Lift`, breaking only for code constructing one as a literal, exactly
+  as `modeInsensitive` was in 0.3.1. **Nobody can have hit the old behavior**: it
+  needs a red baseline, and the only one ever recorded is the two-scenario
+  `golden-skill` fixture, run at 1 rep on both sides.
+
+Patch rather than minor for the same three reasons 0.3.1 was: no `lint` check was
+added, no `source_hashes` key kind appeared, and no repo that passes on 0.3.1 can
+fail on 0.3.2. A published *lift number* can change — but only in the direction of
+refusing to state one, and only where the two runs were never comparable.
+
+### 0.3.1, kept for context
+
+**0.3.1 was a patch and nobody on 0.3.0 was affected by the bugs it fixed.** Two
 things changed:
 
 - `computeLift` no longer compares mode-insensitive scenarios — the ones with
@@ -26,12 +49,10 @@ things changed:
   taken the cli tarball from 20.1 kB to 511 kB. **0.3.0's published tarball is
   unaffected** — it was packed before the GIF existed.
 
-So this release exists to stop the repo disagreeing with the registry, not because
-anyone is broken. It takes the patch rather than the minor because no `lint` check
-was added, no results-schema key kind appeared, and no repo that passes on 0.3.0
-can fail on 0.3.1 — the three things that made 0.3.0 a minor.
+That release existed to stop the repo disagreeing with the registry, not because
+anyone was broken.
 
-### Previous release, kept for context
+### 0.3.0, kept for context
 
 0.3.0 was a **behaviour-breaking release for CI consumers**, which is why it took
 the minor rather than the patch: `lint` gained the `fixture-marker`,
@@ -70,13 +91,13 @@ Run from the **repo root** (npm workspaces `-w` flag, verified with npm 11.9.0 /
 Node 24.14.0 — this repo's `engines.node` requires >=20, which ships npm >=10,
 so `-w` should work on any supported install). Each step must land on the
 registry before the next, since each package's `package.json` pins an exact
-`@skill-harness/*@0.3.1` dependency (npm will fail to resolve it otherwise):
+`@skill-harness/*@0.3.2` dependency (npm will fail to resolve it otherwise):
 
 ```bash
 npm publish -w @skill-harness/core --access public
 npm publish -w @skill-harness/adapters --access public
 npm publish -w @skill-harness/cli --access public     # prepack stages assets/report.* into the tarball
-npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.3.1
+npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.3.2
 ```
 
 `@skill-harness/core` and `@skill-harness/adapters` publish exactly the `dist/`
@@ -105,7 +126,7 @@ ships to pi users via `pi install git:...`, not the npm registry.
 ## Verify after publishing
 
 ```bash
-npm view skill-harness version            # expect 0.3.1
+npm view skill-harness version            # expect 0.3.2
 npm i -g skill-harness && skill-harness --help
 npx @skill-harness/cli lint --help
 ```
@@ -123,8 +144,8 @@ The version bump lives on `release-<version>`. Until that branch reaches `main`,
 a fresh clone of `main` reports a different version than the registry serves:
 
 ```bash
-gh pr create --base main --head release-0.3.1 \
-  --title "chore(release): 0.3.1" --body "Version bump + runbook."
+gh pr create --base main --head release-0.3.2 \
+  --title "chore(release): 0.3.2" --body "Version bump + runbook."
 gh pr merge --merge   # or fast-forward main if there is nothing to reconcile
 ```
 
@@ -157,7 +178,7 @@ lockstep.
 
 ```bash
 git checkout main && git pull
-git tag v0.3.1 && git push origin v0.3.1     # the immutable release tag
+git tag v0.3.2 && git push origin v0.3.2     # the immutable release tag
 git tag -f latest && git push -f origin latest   # the ref the docs point at
 ```
 
@@ -280,3 +301,43 @@ Two process failures around it are worth not repeating:
   the four published packages are built by `tsc`, not this bundle. The stale artifact
   was what pi users get from `pi install git:...`, which is why `latest` was moved
   forward to `cdfcaba` while `v0.3.1` stayed on the published tree.
+
+## Verification performed for 0.3.2 (prepared 2026-08-05, unpublished at time of writing)
+
+Prepared on `release-0.3.2`. The publish itself is still the user's step — this
+section records what was checked so the publish is the only unverified part.
+
+- **Bumped versions and pins in one sweep**, per the note 0.3.1 left behind: a
+  single `sed 's/"0.3.1"/"0.3.2"/g'` across the root and all five package manifests
+  catches the `version` fields *and* the `@skill-harness/*` pins in `adapters`,
+  `cli`, `skill-harness` and `pi-extension`'s `devDependencies` together, which is
+  what `npm version --workspaces` fails to do. Verified: 12 occurrences moved, none
+  left at 0.3.1.
+- **`SKILL.md`'s frontmatter `version:` is a sixth place the version lives**, and no
+  previous release note mentioned it — it was still `0.3.1` on a tree bumped
+  everywhere else. It is the manifest pi reads when the harness is installed as a
+  skill, so a stale value misreports the installed version to the agent using it.
+  Bump it with the manifests, and confirm with
+  `grep -rn '0\.3\.1' --include='*.md' --include='*.json' . | grep -v node_modules`
+  before committing: the only hits left should be historical prose (this runbook's
+  context sections, `docs/ROADMAP.md`, `docs/posts/`).
+- `grep -c 'registry.npmjs.org/@skill-harness' package-lock.json` → **0** after
+  `npm install`, so the workspace satisfies its own pins and nothing resolves to a
+  published tarball.
+- Reproduced CI before committing: `npm ci && npm run build && npm test` — 516
+  tests pass, `npm run typecheck` clean, and the tree afterwards contained *only*
+  the manifest/lockfile changes. That last part matters: it confirms
+  `packages/pi-extension/dist/index.js` is already fresh (the bundle embeds no
+  version string, so a patch bump does not stale it) and that the bundle-freshness
+  test was really exercised against a clean `node_modules`.
+- `npm pack --dry-run` re-run for all four publishable packages. Shape unchanged
+  from 0.3.1 — core 49 files / 66.8 kB, adapters 7 / 3.1 kB, cli 9 / 20.5 kB (both
+  `assets/report.*` flat, not nested), unscoped 4 / 2.3 kB. The small core/cli
+  growth is the `aggregationMismatch` code plus `liftNoneBadge` in
+  `assets/report.grade.js`.
+- **Read CI's conclusion without a pipe**, the guard 0.3.1 added after a red release
+  commit was merged on a `tail`-masked exit status:
+
+  ```bash
+  gh run view <id> --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
+  ```
