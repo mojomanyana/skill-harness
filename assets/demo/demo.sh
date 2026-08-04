@@ -27,7 +27,9 @@ if ! command -v "$HARNESS" >/dev/null; then
   exit 1
 fi
 
-SCRATCH="$(mktemp -d)"
+# Short template on purpose: lint prints absolute paths, and the default
+# `mktemp -d` name eats half the frame width in a recording.
+SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/sh-demo-XXXX")"
 trap 'rm -rf "$SCRATCH"' EXIT
 
 beat() { [[ $DELAY == 0 ]] || sleep "$DELAY"; }

@@ -30,15 +30,34 @@ TDD-loop demo. If that matters more than reproducibility, record it after a real
 
 ## Recording it
 
-Any screen recorder over a terminal works; the script's `DEMO_DELAY` (default 1.2s) sets
-the beat between steps, so no editing is needed.
+`./assets/demo/record.sh` rebuilds `assets/demo.gif` headlessly in about a minute — no
+display, no screen capture, no interactive terminal:
 
-For a headless render instead, `vhs` or `asciinema` + `agg` both work — but note that
-neither installs on this machine as it stands: `cargo` is 1.75 (apt, no rustup) and the
-current `asciinema` and `agg` both need `edition2024`, while `pip` is externally managed
-per PEP 668. Either upgrade the Rust toolchain, or just screen-record it — the script
-exists so that a manual take is a single pass.
+```
+script(1)          runs demo.sh under a real pty, logging output + real inter-write delays
+script2cast.mjs    converts that pair to asciicast v2
+agg                renders the cast to GIF
+```
 
-Suggested terminal setup: 100×30, a dark theme, and a font large enough to read at GitHub's
-README width (the four lint findings are long lines, so a smaller font is what usually
-makes a demo GIF unreadable).
+Nothing about the timing is synthesised — the delays are what the commands actually took,
+which is why it needs a pty rather than a pipe. `COLS`/`ROWS` (default 110×24) set the
+frame; `DEMO_DELAY` (default 1.2s) sets the beat between steps.
+
+`agg` is fetched as a prebuilt release binary rather than built, deliberately: building
+`agg`, `asciinema` or `vhs` from source needs a Rust toolchain with `edition2024`, and this
+machine has cargo 1.75 from apt with no rustup (and `pip` is PEP-668 managed, so the Python
+route is closed too). The prebuilt binary sidesteps all of that. Pass `AGG=/path/to/agg` to
+use your own.
+
+Two details worth keeping if you change the pipeline:
+
+- **`stty` inside the pty**, not `COLUMNS`/`LINES` — the programs ask the tty, so a
+  non-interactive parent otherwise leaves it at 80×24 and wraps differently than the cast
+  header claims.
+- **The final frame is held by a write, not a sleep.** `script`'s timing log records
+  writes only, so a silent `sleep` adds nothing to the cast; the pause ends with
+  `printf '\033[?25l'`, which costs no visible output and stops the cursor blinking over
+  the last frame.
+
+To record by hand instead, any screen recorder over a terminal works — the script is
+built so a manual take is a single pass with no editing.

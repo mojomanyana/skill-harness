@@ -4,10 +4,12 @@
 agents who want proof a skill works — and keeps working — without trusting a raw
 LLM judge or standing up an eval platform.
 
-<!-- DEMO GIF SLOT: 30s — edit SKILL.md → re-run → grade C→A.
-     Drop it at assets/demo.gif and replace this comment with:
-     ![skill-harness demo](assets/demo.gif)
-     Tracked as a Phase 1 Sprint 1.2 task in docs/ROADMAP.md. -->
+![skill-harness demo: discover 7 skills, lint them offline, break one fixture marker and
+watch the gate catch it, then re-score two committed runs 93% → 100%](assets/demo.gif)
+
+<sub>17s, no API key, nothing mocked — every command above is free and offline, and the
+grade movement is two runs already committed to a public repo. Re-record it with
+`assets/demo/record.sh`.</sub>
 
 ## Quickstart
 

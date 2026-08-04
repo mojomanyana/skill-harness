@@ -45,9 +45,10 @@
 **Goal:** a stranger goes from zero to a graded skill in under 10 minutes.
 **Exit criteria:** `init` + spec-generation shipped ✅; quickstart verified ≤10 min on a
 fresh machine ✅ (41s); a public example with multi-model results committed ✅
-(`principal-pi-skills`, 7 skills × 3 models); demo GIF recorded ⬜ — **the only one left**.
-Reworded 2026-08-04: "5 popular *external* skills" moved to Phase 2, where its value
-(credibility, warm leads) actually lives. See the Sprint 1.2 entry for why.
+(`principal-pi-skills`, 7 skills × 3 models); demo GIF recorded ✅ (2026-08-05).
+**All four met — Phase 1 is closed.** Reworded 2026-08-04: "5 popular *external* skills"
+moved to Phase 2, where its value (credibility, warm leads) actually lives. See the
+Sprint 1.2 entry for why. Phase 2 is now unblocked; nothing in it is started.
 
 ### Sprint 1.1 — Ship & smooth the funnel
 - [x] Publish 0.1.0 to npm (done)
@@ -112,17 +113,17 @@ Reworded 2026-08-04: "5 popular *external* skills" moved to Phase 2, where its v
       tool-wrappers needing live credentials — poor fit for reproducible committed
       results). Every process-oriented pi corpus found has under 20 stars, so "popular
       *and* pi-native *and* testable" does not currently exist as a set
-- [ ] 30-second demo GIF. **Script written and tested — only the screen recording is
-      left** (2026-08-05): `assets/demo/demo.sh`, one take, `DEMO_DELAY` sets the beat.
-      Three beats: `list` (7 skills) → `lint` green, then one dropped `t` in a fixture
-      marker yields 4 findings and exit 1 → `rescore` on two committed runs showing
-      `git-ops` 93% → 100%. **Deliberately not** "edit SKILL.md → re-run → grade C→A": a
-      live re-run spends subject+judge tokens and takes minutes, so the demo uses only
-      free/offline commands and takes its grade movement from runs already on disk. Trade:
-      no skill visibly *improving*, but every frame is reproducible by a viewer at zero
-      cost against a public repo. Recording is a manual step — `vhs`/`asciinema`+`agg`
-      would render it headlessly but neither installs here (cargo 1.75, no rustup, both
-      need `edition2024`; `pip` is PEP-668 managed). See `assets/demo/README.md`
+- [x] Demo GIF — **recorded and in the README** (2026-08-05): `assets/demo.gif`, 17s,
+      453K, 110×24. Three beats: `list` (7 skills) → `lint` green, then one dropped `t` in
+      a fixture marker yields 4 findings and exit 1 → `rescore` on two committed runs
+      showing `git-ops` 93% → 100%. **Deliberately not** "edit SKILL.md → re-run → grade
+      C→A": a live re-run spends subject+judge tokens and takes minutes. Trade: no skill
+      visibly *improving*, but every frame is free for a viewer to reproduce against a
+      public repo, and no frame depends on a model reply that would differ on a second
+      take. Rebuild with `assets/demo/record.sh` — headless via `script(1)` → asciicast →
+      prebuilt `agg`, with real pty timings (no synthesised delays). Toolchain note:
+      building `agg`/`asciinema`/`vhs` needs Rust with `edition2024` and this box has
+      cargo 1.75 from apt with no rustup, hence the prebuilt binary
 - [x] README top: positioning sentence + GIF + 3-command quickstart above the fold
       (2026-08-04) — positioning sentence, install + 3 commands, differentiators list;
       contributor material (git clone, repo layout) moved down into Development. GIF
