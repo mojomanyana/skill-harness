@@ -1,9 +1,9 @@
 import { existsSync, statSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
-import { createHash } from "node:crypto";
 import yaml from "js-yaml";
 import { loadSpec, SpecError } from "./spec.js";
 import { readResults, finalizeResults, findTranscriptFiles, resultsPath, type ScoreContext } from "./results.js";
+import { currentHashFor, describeSourceKey, scenarioIdForKey } from "./sources.js";
 
 export type LintCode = "spec" | "ship_bar" | "critical" | "fixture" | "consistency" | "stale" | "lint-error";
 
@@ -139,10 +139,12 @@ export function lintSkill(skillDir: string): LintFinding[] {
     }
   }
   // staleness — the newest FULL (non-partial) run per model tag recorded sha256 hashes of
-  // every source file it measured. If any of those files has changed since, the committed
-  // result describes text that no longer exists — exactly how three regressions hid behind
-  // a 100%-SHIP table for four weeks. Runs predating source_hashes are skipped silently
-  // (no retroactive noise); partial runs never count as coverage.
+  // every source it measured: SKILL.md, agent files, each scenario's definition and each
+  // fixture tree. If any has changed since, the committed result describes inputs that no
+  // longer exist — exactly how three regressions hid behind a 100%-SHIP table for four
+  // weeks, and how a swapped fixture went unreported by a "7 skills, 0 findings" lint.
+  // Runs predating source_hashes (or predating a given key kind) are skipped silently — no
+  // retroactive noise; partial runs never count as coverage.
   for (const tagDir of enumerateTagDirs(resultsRoot)) {
     // Newest FULL run: partial (--only) runs are iteration artifacts and never count as
     // coverage — a fresh partial must not silence a stale full run underneath it.
@@ -159,23 +161,24 @@ export function lintSkill(skillDir: string): LintFinding[] {
     if (!full || !hashes) continue; // predates source_hashes → silent
     {
       const newest = full.runDir;
+      const ctx = { skillDir, specDir, scenarios: spec.scenarios };
       for (const [key, recorded] of Object.entries(hashes)) {
-        const abs = key === "SKILL.md" ? join(skillDir, "SKILL.md") : resolve(specDir, key);
-        const current = fileSha256(abs);
+        const current = currentHashFor(key, ctx);
+        // undefined = the key names a scenario the spec no longer has. That is a
+        // reshape, not staleness — same stance as the scenario-set check above.
+        if (current === undefined) continue;
+        const what = describeSourceKey(key);
+        const scenario = scenarioIdForKey(key, spec.scenarios);
         if (current === null) {
-          findings.push({ skill, code: "stale", message: `${key} no longer exists but the newest ${basename(tagDir)} run measured it (${newest})` });
+          findings.push({ skill, scenario, code: "stale", message: `${what} no longer exists but the newest ${basename(tagDir)} run measured it (${newest})` });
         } else if (current !== recorded) {
-          findings.push({ skill, code: "stale", message: `${key} changed since the newest ${basename(tagDir)} run (${newest}) — results are stale; re-run before publishing` });
+          findings.push({ skill, scenario, code: "stale", message: `${what} changed since the newest ${basename(tagDir)} run (${newest}) — results are stale; re-run before publishing` });
         }
       }
     }
   }
 
   return findings;
-}
-
-function fileSha256(p: string): string | null {
-  try { return createHash("sha256").update(readFileSync(p)).digest("hex"); } catch { return null; }
 }
 
 /** Model-tag dirs under tests/results (each holds timestamped run dirs). */

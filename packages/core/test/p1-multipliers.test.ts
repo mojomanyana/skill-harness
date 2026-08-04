@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, readFileSync, cpSync, writeFileSync, appendFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, cpSync, writeFileSync, appendFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -169,11 +169,127 @@ describe("source_hashes + lint staleness", () => {
 
   it("runs predating source_hashes stay silent (no retroactive noise)", async () => {
     const { skillDir, summary } = await runWith(adapter);
-    // strip the field, as an old results.yaml would be
+    // strip the whole block, as an old results.yaml would be
     const p = join(summary.runDir, "results.yaml");
-    writeFileSync(p, readFileSync(p, "utf8").split("\n").filter((l) => !/^source_hashes:|^ {2}SKILL.md:/.test(l)).join("\n"));
+    const kept = readFileSync(p, "utf8").split("\n").filter((l) => !/^source_hashes:|^ {2}\S+:\s*[0-9a-f]{64}$/.test(l));
+    writeFileSync(p, kept.join("\n"));
     appendFileSync(join(skillDir, "SKILL.md"), "\nedited\n");
     expect(lintSkill(skillDir).filter((f) => f.code === "stale")).toEqual([]);
+  });
+});
+
+// ─── source_hashes covers the spec and its fixtures ──────────────────────────
+
+describe("source_hashes covers scenario definitions and fixture trees", () => {
+  const adapter: HarnessAdapter = { name: "pi", available: async () => true, run: okRun(), judge: passJudge() };
+
+  /** Rewrite the golden spec, replacing `from` with `to`. */
+  function editSpec(skillDir: string, from: string, to: string): void {
+    const p = join(skillDir, "tests", "specification.yaml");
+    const text = readFileSync(p, "utf8");
+    if (!text.includes(from)) throw new Error(`test setup: ${JSON.stringify(from)} not in spec`);
+    writeFileSync(p, text.replace(from, to), "utf8");
+  }
+
+  it("records a digest per scenario", async () => {
+    const { summary } = await runWith(adapter);
+    const h = summary.results.source_hashes!;
+    expect(h["scenario:A1"]).toMatch(/^[0-9a-f]{64}$/);
+    expect(h["scenario:B1"]).toMatch(/^[0-9a-f]{64}$/);
+    expect(h["scenario:A1"]).not.toBe(h["scenario:B1"]);
+  });
+
+  it("editing a checklist marks THAT scenario stale — the case lint used to miss", async () => {
+    const { skillDir } = await runWith(adapter);
+    editSpec(skillDir, "greets the user", "greets the user warmly, by name");
+    const stale = lintSkill(skillDir).filter((f) => f.code === "stale");
+    expect(stale).toHaveLength(1);
+    expect(stale[0].scenario).toBe("A1"); // per-scenario, not skill-wide
+    expect(stale[0].message).toMatch(/scenario `A1`/);
+    expect(stale[0].message).toMatch(/re-run/);
+  });
+
+  it("editing one scenario leaves the others alone", async () => {
+    const { skillDir } = await runWith(adapter);
+    editSpec(skillDir, "greets in both turns", "greets in both turns, politely");
+    const stale = lintSkill(skillDir).filter((f) => f.code === "stale");
+    expect(stale.map((f) => f.scenario)).toEqual(["B1"]);
+  });
+
+  it("adding a NEW scenario marks nothing stale — a reshape is not staleness", async () => {
+    // Hashing specification.yaml as one file would flag every historical run here.
+    // Nothing already measured changed, so nothing is stale.
+    const { skillDir } = await runWith(adapter);
+    const p = join(skillDir, "tests", "specification.yaml");
+    appendFileSync(p, `  - id: C1\n    title: new\n    turns:\n      - "hi"\n    checklist:\n      - "responds"\n`);
+    expect(lintSkill(skillDir).filter((f) => f.code === "stale")).toEqual([]);
+  });
+
+  it("removing a measured scenario is a reshape too — silent, not stale", async () => {
+    const { skillDir } = await runWith(adapter);
+    editSpec(skillDir, `  - id: B1\n    title: holds over two turns\n    turns:\n      - "Say hello."\n      - "Say it again."\n    checklist:\n      - greets in both turns\n`, "");
+    expect(lintSkill(skillDir).filter((f) => f.code === "stale")).toEqual([]);
+  });
+
+  it("reformatting the spec without changing meaning marks nothing stale", async () => {
+    // The digest is built from the PARSED scenario, so YAML formatting is not
+    // measured — otherwise reindenting a file would demand a re-run.
+    const { skillDir } = await runWith(adapter);
+    editSpec(skillDir, "    checklist:\n      - greets the user", "    checklist:\n      - 'greets the user'");
+    expect(lintSkill(skillDir).filter((f) => f.code === "stale")).toEqual([]);
+  });
+
+  it("swapping a fixture file marks its scenario stale", async () => {
+    // The demonstrated miss: a fixture file was replaced in the skills repo and
+    // `lint all` still reported 0 findings, because fixtures were never hashed.
+    const seeded = `skill: golden-skill\njudge_persona: a judge.\nship_bar: { total: 1, min_pass: 1 }\nscenarios:\n  - id: A1\n    title: seeded\n    mode: seeded\n    fixture: fixtures/A1\n    turns: ["edit it"]\n    checklist: ["edited"]\n`;
+    const { skillDir, specPath } = freshSkill();
+    writeFileSync(specPath, seeded, "utf8");
+    mkdirSync(join(skillDir, "tests", "fixtures", "A1"), { recursive: true });
+    const fx = join(skillDir, "tests", "fixtures", "A1", "ranges.ts");
+    writeFileSync(fx, "export const a = 1;\n", "utf8");
+
+    const spec = parseSpec(readFileSync(specPath, "utf8"), specPath);
+    const summary = await runSkillModel({
+      spec, skillDir, specPath, adapter,
+      model: { provider: "fireworks", model: "fake" }, modelToken: "fireworks:fake",
+      judge: { provider: "claude-code", model: "opus" },
+      mode: "green", timestamp: "2026-08-03T00-00-00-000Z", now: () => "2026-08-03T00:00:00.000Z",
+      label: "fx",
+    });
+    expect(summary.results.source_hashes!["fixture:fixtures/A1"]).toMatch(/^[0-9a-f]{64}$/);
+    expect(lintSkill(skillDir).filter((f) => f.code === "stale")).toEqual([]);
+
+    writeFileSync(fx, "export const a = 2;\n", "utf8"); // what the scenario measures changed
+    const stale = lintSkill(skillDir).filter((f) => f.code === "stale");
+    expect(stale).toHaveLength(1);
+    expect(stale[0].scenario).toBe("A1");
+    expect(stale[0].message).toMatch(/fixture `fixtures\/A1`/);
+  });
+
+  it("adding a file to a fixture dir marks it stale", async () => {
+    const seeded = `skill: golden-skill\njudge_persona: a judge.\nship_bar: { total: 1, min_pass: 1 }\nscenarios:\n  - id: A9\n    title: seeded\n    mode: seeded\n    fixture: fixtures/A9\n    turns: ["edit it"]\n    checklist: ["edited"]\n`;
+    const { skillDir, specPath } = freshSkill();
+    writeFileSync(specPath, seeded, "utf8");
+    mkdirSync(join(skillDir, "tests", "fixtures", "A9"), { recursive: true });
+    writeFileSync(join(skillDir, "tests", "fixtures", "A9", "a.ts"), "1\n", "utf8");
+
+    const spec = parseSpec(readFileSync(specPath, "utf8"), specPath);
+    await runSkillModel({
+      spec, skillDir, specPath, adapter,
+      model: { provider: "fireworks", model: "fake" }, modelToken: "fireworks:fake",
+      judge: { provider: "claude-code", model: "opus" },
+      mode: "green", timestamp: "2026-08-03T00-00-00-000Z", now: () => "2026-08-03T00:00:00.000Z",
+      label: "fx",
+    });
+    expect(lintSkill(skillDir).filter((f) => f.code === "stale")).toEqual([]);
+
+    // A whole new sub-tree, the second half of the demonstrated miss.
+    mkdirSync(join(skillDir, "tests", "fixtures", "A9", "nested"), { recursive: true });
+    writeFileSync(join(skillDir, "tests", "fixtures", "A9", "nested", "b.ts"), "2\n", "utf8");
+    const stale = lintSkill(skillDir).filter((f) => f.code === "stale");
+    expect(stale).toHaveLength(1);
+    expect(stale[0].message).toMatch(/fixture `fixtures\/A9`/);
   });
 });
 

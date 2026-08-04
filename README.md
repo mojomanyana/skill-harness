@@ -378,6 +378,23 @@ truncated.
 - each scenario carries `suspect`: the judge-misfire tripwire fired (its per-item grades
   disagree with its overall verdict) — marked `suspect`, excluded from the grade, and blocks
   SHIP until you re-judge it or set an override in the review UI.
+- `source_hashes` records a sha256 of **everything the run measured**, so `lint` can prove a
+  published result still describes the current inputs:
+
+  | key | covers |
+  |---|---|
+  | `SKILL.md` | the skill text |
+  | `scenario:<id>` | one scenario's definition — turns, checklist, gates, criticality |
+  | `fixture:<path>` | every file under one fixture dir, including `_staged/`/`_uncommitted/` |
+  | `<relative path>` | a `system_prompt_file` |
+
+  Scenario digests are **per-scenario and built from the parsed spec**, not from
+  `specification.yaml` as a whole. Editing A1's checklist marks A1 stale and leaves A2 alone;
+  *adding* a scenario marks nothing stale, because nothing already measured changed; and
+  reindenting the YAML marks nothing stale, because formatting isn't what a run measures.
+  A recorded scenario that no longer exists in the spec is a reshape, not staleness, and is
+  ignored. Runs recorded before a given key kind existed simply don't carry it and are never
+  retroactively flagged.
 
 `skill-harness grade` currently re-judges single-rep runs only; for a `--reps N>1` run it
 fails fast with an explanatory error — resolve `suspect` scenarios there via an override

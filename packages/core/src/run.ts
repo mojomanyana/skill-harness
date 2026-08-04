@@ -1,7 +1,7 @@
-import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
-import { createHash } from "node:crypto";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { Spec, Scenario } from "./spec.js";
+import { sourceHashes } from "./sources.js";
 import type { HarnessAdapter, ModelRef, RunMode } from "./adapters/types.js";
 import { judgeResemblesSubject } from "./grade.js";
 import {
@@ -48,33 +48,6 @@ export interface RunOptions {
 export interface RunSummary {
   runDir: string;
   results: ResultsFile;
-}
-
-/** sha256 of a file, or null when it doesn't exist — missing sources are lint's problem, not run's. */
-function sha256(path: string): string | null {
-  try {
-    return createHash("sha256").update(readFileSync(path)).digest("hex");
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Hash every source file this run measures: SKILL.md + each distinct
- * system_prompt_file (agents/<name>.md). Recorded in results.yaml so lint can prove
- * a published result still describes the current text.
- */
-function sourceHashes(skillDir: string, specPath: string, scenarios: Scenario[]): Record<string, string> {
-  const hashes: Record<string, string> = {};
-  const skillMd = sha256(resolve(skillDir, "SKILL.md"));
-  if (skillMd) hashes["SKILL.md"] = skillMd;
-  for (const s of scenarios) {
-    if (s.systemPromptFile && !(s.systemPromptFile in hashes)) {
-      const h = sha256(resolve(dirname(specPath), s.systemPromptFile));
-      if (h) hashes[s.systemPromptFile] = h;
-    }
-  }
-  return hashes;
 }
 
 /** Run one skill against one model: run scenarios, grade, score, persist. */
@@ -150,7 +123,9 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     label: opts.label ?? null,
     mode,
     ...(partial ? { partial: true } : {}),
-    source_hashes: sourceHashes(skillDir, opts.specPath, scenarios),
+    // Only the scenarios this run actually measured: a --only run must not claim
+    // coverage of scenarios it skipped.
+    source_hashes: sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios }),
     scenarios: scenarioResults,
   }, ctx);
   if (ctx) {

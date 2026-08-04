@@ -41,10 +41,13 @@ export interface ResultsFile {
   /** True for an `--only`-filtered run: a scenario subset, never ship-graded, never a release run. */
   partial?: boolean;
   /**
-   * sha256 of every source file this run measured: SKILL.md plus each distinct
-   * system_prompt_file. Lint compares the newest run's hashes against the current
-   * files — a mismatch means the published result describes text that no longer
-   * exists (the stale-scorecard class this field exists to kill).
+   * sha256 of every source this run measured: SKILL.md, each distinct
+   * system_prompt_file, each scenario's definition (`scenario:<id>`) and each
+   * fixture tree (`fixture:<path>`). Lint compares the newest run's hashes against
+   * the current sources — a mismatch means the published result describes inputs
+   * that no longer exist (the stale-scorecard class this field exists to kill).
+   * See sources.ts for the key scheme; runs recorded before a key kind existed
+   * simply don't carry it, and are never retroactively flagged.
    */
   source_hashes?: Record<string, string>;
   effective_grade: GradeSummary; // always override-aware; only finalizeResults writes it
