@@ -196,6 +196,15 @@ against the current files and fails with `stale` when they differ: a published r
 describe text that still exists. Runs predating the field are silent (no retroactive noise);
 partial runs never count as coverage.
 
+**`rescore <run-dir>...`** re-collapses saved reps against the *current* spec thresholds —
+no model calls, no judge calls, free. Reps are the measurement (`passes` of `clean`); a
+threshold is policy. When the policy changes, recompute the old measurements under it and
+record what moved, rather than reconciling two numbers in prose. Only reps-bearing
+scenarios move; single-rep verdicts, `ERROR` and `JUDGE-AMBIGUOUS` are carried verbatim
+(no rate to re-apply), and overrides/notes/suspect flags are preserved — this changes the
+collapse rule, never what the judge said. Every re-score journals a `rescore` event with
+the verdicts that moved.
+
 **`grade <run-dir> --suspect-only`** re-judges only untrustworthy verdicts (misfire-suspect or
 `JUDGE-AMBIGUOUS`), carrying clean ones verbatim — the rejudge path for ambiguity without
 re-spending the whole run's judge calls. With nothing suspect it is a no-op.

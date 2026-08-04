@@ -8,6 +8,7 @@ export * from "./journal.js";
 export * from "./scheduler.js";
 export * from "./reps.js";
 export * from "./regrade.js";
+export * from "./rescore.js";
 export * from "./workspace.js";
 export * from "./seeded.js";
 export * from "./report.js";
