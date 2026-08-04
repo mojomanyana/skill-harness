@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync, existsSync, appendFileSync, mkdirSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import yaml from "js-yaml";
 import {
@@ -12,6 +12,8 @@ import {
   lintSkill, type LintFinding,
   type HarnessAdapter,
   renderTemplateSpec, isTemplateSpec, renderDraftSpec, buildSuggestPrompt, parseSuggestDraft,
+  rescoreRun,
+  specPathForRunDir,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
@@ -184,7 +186,10 @@ async function cmdRun(args: Args): Promise<void> {
 
 export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
   const runDir = args._[0];
-  if (!runDir || !existsSync(runDir)) throw new Error("usage: skill-harness grade <run-dir> [--judge prov:model]");
+  if (!runDir) throw new Error("usage: skill-harness grade <run-dir> [--judge prov:model] [--suspect-only]");
+  if (!existsSync(runDir)) {
+    throw new Error(`run dir not found: ${resolve(runDir)} (relative paths resolve against the cwd)`);
+  }
 
   // spec lives at <runDir>/../../../specification.yaml  (results/<tag>/<ts> -> tests/)
   const testsDir = dirname(dirname(dirname(runDir)));
@@ -208,6 +213,32 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
   }
   const g = results.effective_grade;
   console.log(`\n  re-graded with ${judge.provider}:${judge.model} → ${g.letter} (${g.pct}%) ${g.ship ? "SHIP" : "NOT READY"}`);
+}
+
+/**
+ * Re-score saved runs against the current spec's thresholds — no model or judge calls.
+ * Reps are the measurement; thresholds are policy. When policy changes, recompute rather
+ * than reconcile two numbers in prose.
+ */
+async function cmdRescore(args: Args): Promise<void> {
+  const runDirs = args._;
+  if (runDirs.length === 0) throw new Error("usage: skill-harness rescore <run-dir> [<run-dir> ...]");
+  let moved = 0;
+  for (const raw of runDirs) {
+    const runDir = resolve(raw);
+    if (!existsSync(runDir)) throw new Error(`run dir not found: ${runDir} (relative paths resolve against the cwd)`);
+    const spec = loadSpec(specPathForRunDir(runDir));
+    const { results, changes } = rescoreRun({ runDir, spec, now: nowIso });
+    const g = results.effective_grade;
+    console.log(`\n${results.skill} · ${results.model}`);
+    for (const c of changes) {
+      console.log(`  ${c.id}: ${c.from} → ${c.to}  (${c.passes}/${c.clean} @ threshold ${c.toThreshold})`);
+    }
+    if (changes.length === 0) console.log("  (no verdict changed)");
+    moved += changes.length;
+    console.log(`  → ${g.letter} (${g.pct}%) ${g.passed}/${g.total} ${g.ship ? "SHIP" : "NOT READY"}`);
+  }
+  console.log(`\n${runDirs.length} run(s) re-scored, ${moved} verdict(s) moved.`);
 }
 
 async function cmdReview(args: Args): Promise<void> {
@@ -390,6 +421,7 @@ const HELP = `skill-harness — test/optimize loop for agent skills (pi harness)
   run    <skill|all> --skills <root> [--model prov:model ...] [--models file] [--only A1,D2]
                      [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
   grade  <run-dir>   [--judge prov:model] [--suspect-only]   re-grade saved transcripts (neutral judge)
+  rescore <run-dir>...                          re-score saved reps vs current spec thresholds (free)
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]
   init   <skill>     --skills <root> [--force]     scaffold a commented template spec (free, offline)
@@ -405,6 +437,7 @@ export async function main(argv: string[]): Promise<void> {
   switch (cmd) {
     case "run": return cmdRun(args);
     case "grade": return cmdGrade(args);
+    case "rescore": return cmdRescore(args);
     case "review": return cmdReview(args);
     case "add-test": return cmdAddTest(args);
     case "init": return cmdInit(args);
