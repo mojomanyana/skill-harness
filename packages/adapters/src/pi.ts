@@ -2,9 +2,9 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { HarnessAdapter, RunReq, JudgeReq, RunMode } from "@skill-harness/core";
-import { exec, onPath } from "@skill-harness/core";
+import { exec, onPath, envNum } from "@skill-harness/core";
 
-const PI_TIMEOUT_MS = Number(process.env.SKILL_CHECK_PI_TIMEOUT_MS ?? 300_000);
+const PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 300_000);
 
 /** Skill-activation flags for a given run mode. */
 function skillFlags(mode: RunMode, skillDir: string): string[] {

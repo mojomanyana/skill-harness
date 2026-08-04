@@ -53,7 +53,9 @@ fresh machine; demo GIF recorded; 5 popular external skills graded in a public e
 - [x] `skill-harness suggest <skill>` (or `init --draft`) — LLM-drafts a spec from the
       skill's own SKILL.md: scenarios, checklist, proposed critical set; human edits
       before first run. **Single most important task of the phase.** (2026-07-06, feat/init-suggest)
-- [ ] Rename `SKILL_CHECK_*` env vars to `SKILL_HARNESS_*` with back-compat fallback
+- [x] Rename `SKILL_CHECK_*` env vars to `SKILL_HARNESS_*` with back-compat fallback
+      (2026-08-04) — one `core/util/env.ts` resolver (new name wins, legacy warns once),
+      all 3 sites moved, documented in USAGE.md for the first time
 - [ ] Fresh-machine quickstart run-through; fix everything >10 min. Metric: ≤10 min.
 
 ### Sprint 1.2 — Make it demoable

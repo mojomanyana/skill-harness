@@ -16,4 +16,5 @@ export * from "./trends.js";
 export * from "./lint.js";
 export * from "./adapters/types.js";
 export * from "./util/exec.js";
+export * from "./util/env.js";
 export * from "./scaffold.js";

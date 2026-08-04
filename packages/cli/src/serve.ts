@@ -12,6 +12,7 @@ import {
   loadSpec,
   regradeScenario, findJudgeRawFiles,
   effectiveThreshold,
+  envFlag,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 
@@ -230,7 +231,7 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
   console.log(`  flip verdicts + add notes in the browser; saves persist to results.yaml.`);
   console.log(`  Ctrl-C to stop.\n`);
 
-  if (opts.open !== false && !process.env.SKILL_CHECK_NO_OPEN) tryOpen(link);
+  if (opts.open !== false && !envFlag("NO_OPEN")) tryOpen(link);
 
   return { port: port as number, close: () => server.close() };
 }

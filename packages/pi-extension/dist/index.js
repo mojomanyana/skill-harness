@@ -3017,8 +3017,45 @@ function onPath(bin) {
   return dirs.some((d) => d && exts.some((ext) => existsSync5(join5(d, bin + ext))));
 }
 
+// packages/core/dist/util/env.js
+var NEW_PREFIX = "SKILL_HARNESS_";
+var LEGACY_PREFIX = "SKILL_CHECK_";
+var warned = /* @__PURE__ */ new Set();
+function warnOnce(key, message) {
+  if (warned.has(key))
+    return;
+  warned.add(key);
+  process.stderr.write(`skill-harness: ${message}
+`);
+}
+function readEnv(suffix) {
+  const fresh = process.env[NEW_PREFIX + suffix];
+  if (fresh)
+    return fresh;
+  const legacy = process.env[LEGACY_PREFIX + suffix];
+  if (legacy) {
+    warnOnce(`legacy:${suffix}`, `${LEGACY_PREFIX}${suffix} is the pre-rename name and still honored; rename it to ${NEW_PREFIX}${suffix}.`);
+    return legacy;
+  }
+  return void 0;
+}
+function envNum(suffix, fallback) {
+  const raw = readEnv(suffix);
+  if (raw === void 0)
+    return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    warnOnce(`malformed:${suffix}`, `${NEW_PREFIX}${suffix}=${JSON.stringify(raw)} is not a positive number; using ${fallback}.`);
+    return fallback;
+  }
+  return n;
+}
+function envFlag(suffix) {
+  return readEnv(suffix) !== void 0;
+}
+
 // packages/core/dist/seeded.js
-var VITEST_TIMEOUT_MS = Number(process.env.SKILL_CHECK_VITEST_TIMEOUT_MS ?? 12e4);
+var VITEST_TIMEOUT_MS = envNum("VITEST_TIMEOUT_MS", 12e4);
 async function runSeeded(scenario, opts) {
   const repo = opts.cwd;
   const harnessOut = await opts.adapter.run({
@@ -3573,7 +3610,7 @@ import { createHash as createHash2 } from "node:crypto";
 import { mkdtempSync as mkdtempSync2, readFileSync as readFileSync7 } from "node:fs";
 import { tmpdir as tmpdir2 } from "node:os";
 import { join as join11 } from "node:path";
-var PI_TIMEOUT_MS = Number(process.env.SKILL_CHECK_PI_TIMEOUT_MS ?? 3e5);
+var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
 function skillFlags(mode, skillDir) {
   switch (mode) {
     case "red":
@@ -3893,7 +3930,7 @@ async function serveReview(opts) {
   console.log(`  flip verdicts + add notes in the browser; saves persist to results.yaml.`);
   console.log(`  Ctrl-C to stop.
 `);
-  if (opts.open !== false && !process.env.SKILL_CHECK_NO_OPEN)
+  if (opts.open !== false && !envFlag("NO_OPEN"))
     tryOpen(link);
   return { port, close: () => server.close() };
 }
