@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Script } from "node:vm";
 import { collectReport, renderReport, publicView, type ReportData } from "../src/report.js";
+import { collectLift } from "../src/lift.js";
 
 const readTemplate = () => readFileSync(join(process.cwd(), "assets", "report.template.html"), "utf8");
 const readGradeScript = () => readFileSync(join(process.cwd(), "assets", "report.grade.js"), "utf8");
@@ -187,6 +188,42 @@ scenarios:
 
   test("leaves lift undefined with no red baseline — never a fabricated zero", () => {
     const col = collectReport(seedSkill()).columns[0];
+    expect(col.lift).toBeUndefined();
+    expect(col.liftHeadline).toBeUndefined();
+  });
+
+  /**
+   * Regression: a column is the tag's LATEST run, which is not necessarily the
+   * green one — recording a red baseline AFTER a green run makes red newest. The
+   * review UI recomputes lift from the column's cells, so attaching a lift to a
+   * red column had it compare red against red and report "no effect" for a skill
+   * that gained every scenario.
+   */
+  test("does not attach lift to a column that is not the green run", () => {
+    const skillDir = seedSkill();
+    // seedSkill's run is 12:00 green; add a NEWER red run at 13:00
+    const redDir = join(skillDir, "tests", "results", "pi-fireworks-deepseek", "2026-06-25T13-00-00-000Z");
+    mkdirSync(redDir, { recursive: true });
+    writeFileSync(
+      join(redDir, "results.yaml"),
+      `schema: 2
+skill: ponytail
+harness: pi
+model: fireworks:deepseek
+judge: {provider: fireworks, model: kimi}
+timestamp: '2026-06-25T13:00:00.000Z'
+label: null
+mode: red
+effective_grade: {passed: 0, total: 0, pct: 0, letter: '-', ship: false, note: ''}
+scenarios:
+  - {id: A1, judge_verdict: FAIL, judge_reason: b, suspect: false, override: null, note: ''}
+  - {id: C2, judge_verdict: FAIL, judge_reason: b, suspect: false, override: null, note: ''}
+`
+    );
+    const col = collectReport(skillDir).columns[0];
+    expect(col.mode).toBe("red"); // the newest run really is the red one
+    // A lift IS computable for this tag, but not against THIS column's cells.
+    expect(collectLift(skillDir)).toHaveLength(1);
     expect(col.lift).toBeUndefined();
     expect(col.liftHeadline).toBeUndefined();
   });

@@ -291,7 +291,10 @@ export function formatScorecard(summary: RunSummary, lift?: Lift): string {
   const ship = g.ship ? "SHIP" : "NOT READY";
   const note = g.note ? ` (${g.note})` : "";
   lines.push(`  GRADE: ${g.letter} (${g.pct}%) — ${g.passed}/${g.total} — ${ship}${note}`);
-  if (lift) {
+  // Lift is a statement about a green run. On a red run the caller may still have
+  // a lift in hand (a green run exists in the same tag), but printing it under a
+  // baseline scorecard reads as if the baseline itself gained something.
+  if (lift && results.mode === "green") {
     lines.push(`  LIFT:  ${liftHeadline(lift)}  (vs red baseline ${lift.redTimestamp})`);
   } else if (results.mode === "green") {
     // The grade alone can't answer "does this skill do anything?", so say how.

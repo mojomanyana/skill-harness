@@ -307,3 +307,50 @@ describe("formatScorecard lift line", () => {
     expect(out).not.toMatch(/LIFT/);
   });
 });
+
+// Regression tests for defects found in review of this feature.
+describe("lift never claims 'no effect' when it measured nothing", () => {
+  test("all-inconclusive says nothing conclusive, not no-effect", () => {
+    const lift = computeLift(
+      finalizeResults(draft("red", [["A1", "ERROR"], ["A2", "ERROR"]]), null),
+      finalizeResults(draft("green", [["A1", "ERROR"], ["A2", "ERROR"]]), null),
+    );
+    const headline = liftHeadline(lift);
+    expect(headline).toMatch(/nothing conclusive/i);
+    expect(headline).not.toMatch(/no measured effect/i);
+  });
+
+  // The nastiest shape: the skill may be doing everything, but the baseline
+  // errored out, so there is no evidence either way. Reporting "no effect" here
+  // actively misrepresents a skill that works.
+  test("a wholly-errored red baseline is not evidence of no effect", () => {
+    const lift = computeLift(
+      finalizeResults(draft("red", [["A1", "ERROR"]]), null),
+      finalizeResults(draft("green", [["A1", "PASS"]]), null),
+    );
+    expect(liftHeadline(lift)).not.toMatch(/no measured effect/i);
+    expect(liftHeadline(lift)).toMatch(/nothing conclusive/i);
+  });
+
+  test("both-fail is still a real measurement, so it keeps saying no effect", () => {
+    const lift = computeLift(
+      finalizeResults(draft("red", [["A1", "FAIL"]]), null),
+      finalizeResults(draft("green", [["A1", "FAIL"]]), null),
+    );
+    expect(liftHeadline(lift)).toMatch(/no measured effect/i);
+  });
+});
+
+describe("formatScorecard does not print lift under a red baseline", () => {
+  test("a red run stays silent even when a lift is available", () => {
+    const lift = computeLift(
+      finalizeResults(draft("red", [["A1", "FAIL"]]), null),
+      finalizeResults(draft("green", [["A1", "PASS"]]), null),
+    );
+    const redSummary = {
+      runDir: "/tmp/x",
+      results: finalizeResults(draft("red", [["A1", "FAIL"]]), null),
+    };
+    expect(formatScorecard(redSummary, lift)).not.toMatch(/LIFT/);
+  });
+});

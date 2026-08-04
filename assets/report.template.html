@@ -169,9 +169,13 @@ function render() {
     if (ls && ls.compared > 0) {
       const moved = ls.gained > 0 || ls.regressed > 0;
       const cls = !moved ? "flat" : ls.delta > 0 ? "up" : ls.delta < 0 ? "down" : "flat";
-      const body = moved
-        ? `lift ${ls.delta > 0 ? "+" : ""}${ls.delta} · ${ls.gained}↑ ${ls.regressed}↓`
-        : `lift 0 · no effect`;
+      // All-inconclusive is no measurement, not a zero effect — don't claim "no
+      // effect" when nothing was measurable (mirrors liftHeadline in lift.ts).
+      const body = ls.compared === ls.inconclusive
+        ? `lift — nothing conclusive`
+        : moved
+          ? `lift ${ls.delta > 0 ? "+" : ""}${ls.delta} · ${ls.gained}↑ ${ls.regressed}↓`
+          : `lift 0 · no effect`;
       const inc = ls.inconclusive > 0 ? ` · ${ls.inconclusive} inconclusive` : "";
       const part = col.lift.partial ? " · partial" : "";
       html += `<th><div>${escapeHtml(col.label)}</div><div class='grade'>${gradeHtml}</div>` +

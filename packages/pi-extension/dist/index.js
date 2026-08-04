@@ -3039,6 +3039,10 @@ function computeLift(red, green) {
 function liftHeadline(lift) {
   if (lift.compared === 0)
     return "no shared scenarios to compare";
+  const conclusive2 = lift.compared - lift.inconclusive;
+  if (conclusive2 === 0) {
+    return `nothing conclusive to compare (${lift.inconclusive} inconclusive \u2014 fix the harness/judge, then re-run)`;
+  }
   const segments = [];
   if (lift.gained === 0 && lift.regressed === 0) {
     segments.push(lift.kept > 0 ? `no measured effect (${lift.kept} passed without the skill too)` : "no measured effect");
@@ -3616,7 +3620,8 @@ function collectReport(skillDir) {
         };
       }
       const tag = tagDir.split("/").pop();
-      const lift = liftByTag.get(tag);
+      const tagLift = liftByTag.get(tag);
+      const lift = tagLift && tagLift.greenTimestamp === r.timestamp ? tagLift : void 0;
       columns.push({
         index: columns.length,
         label: r.model,

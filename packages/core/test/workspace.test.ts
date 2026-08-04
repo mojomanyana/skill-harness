@@ -195,10 +195,26 @@ describe("createWorkspace — fixture marker validation", () => {
   test("no temp dir is leaked when a marker is rejected", () => {
     const src = fixtureDir();
     mkdirSync(join(src, "_bogus"), { recursive: true });
-    const before = readdirSync(tmpdir()).filter((d) => d.startsWith("sc-ws-")).length;
-    expect(() => createWorkspace({ fixture: src }, { specDir: "/nonexistent" })).toThrow();
-    const after = readdirSync(tmpdir()).filter((d) => d.startsWith("sc-ws-")).length;
-    expect(after).toBe(before);
+
+    // This assertion counts `sc-ws-*` dirs in the temp root, but vitest runs test
+    // FILES in parallel processes and golden-run/seeded also call createWorkspace,
+    // which mkdtemps `sc-ws-` into the SAME shared system temp. A concurrent
+    // create/remove between the two readdirSync calls failed this spuriously
+    // (~1 run in 8). os.tmpdir() re-reads TMPDIR on every call, so pointing it at
+    // a private dir makes the count observe only this test's own activity.
+    const isolated = mkdtempSync(join(tmpdir(), "sc-leakcheck-"));
+    tmps.push(isolated);
+    const prevTmpdir = process.env.TMPDIR;
+    process.env.TMPDIR = isolated;
+    try {
+      const before = readdirSync(isolated).filter((d) => d.startsWith("sc-ws-")).length;
+      expect(() => createWorkspace({ fixture: src }, { specDir: "/nonexistent" })).toThrow();
+      const after = readdirSync(isolated).filter((d) => d.startsWith("sc-ws-")).length;
+      expect(after).toBe(before);
+    } finally {
+      if (prevTmpdir === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = prevTmpdir;
+    }
   });
 
   test("double-underscore dirs are NOT markers — __tests__ copies normally", () => {

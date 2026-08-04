@@ -18,6 +18,10 @@ export interface RunColumn {
    * Red-vs-green lift for this model, when the tag has both a red baseline and a
    * green run. Undefined means "never measured" — which is not the same claim as
    * a zero lift, so the report must not render a 0 for it.
+   *
+   * Only set when THIS column is the green run the lift was computed from (see
+   * collectReport): the review UI recomputes lift from the column's live cells,
+   * which is only valid if those cells are the green side of the comparison.
    */
   lift?: Lift;
   liftHeadline?: string;
@@ -78,7 +82,15 @@ export function collectReport(skillDir: string): ReportData {
         };
       }
       const tag = tagDir.split("/").pop()!;
-      const lift = liftByTag.get(tag);
+      // A column is the tag's LATEST run, which is not necessarily the green one —
+      // record a red baseline after a green run and the newest run in the tag is
+      // red. The review UI recomputes lift from `cells` (so author overrides move
+      // it live), so attaching a lift to a column whose cells are the RED run
+      // would have it compare red against red and report "no effect" for a skill
+      // that in fact gained every scenario. Attach only when this column IS the
+      // green side of the comparison.
+      const tagLift = liftByTag.get(tag);
+      const lift = tagLift && tagLift.greenTimestamp === r.timestamp ? tagLift : undefined;
       columns.push({
         index: columns.length,
         label: r.model,

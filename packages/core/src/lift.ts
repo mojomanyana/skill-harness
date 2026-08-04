@@ -124,6 +124,14 @@ export function computeLift(red: ResultsFile, green: ResultsFile): Lift {
 export function liftHeadline(lift: Lift): string {
   if (lift.compared === 0) return "no shared scenarios to compare";
 
+  // Everything inconclusive is NOT "no effect" — it is no measurement. Saying
+  // "no measured effect" here would be the same not-measured/measured-no-effect
+  // conflation this module refuses to make when a red baseline is missing.
+  const conclusive = lift.compared - lift.inconclusive;
+  if (conclusive === 0) {
+    return `nothing conclusive to compare (${lift.inconclusive} inconclusive — fix the harness/judge, then re-run)`;
+  }
+
   const segments: string[] = [];
   if (lift.gained === 0 && lift.regressed === 0) {
     segments.push(
