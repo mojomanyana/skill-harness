@@ -43,8 +43,11 @@
 ## PHASE 1 — Publishable & Provable (weeks 1–4)
 
 **Goal:** a stranger goes from zero to a graded skill in under 10 minutes.
-**Exit criteria:** `init` + spec-generation shipped; quickstart verified ≤10 min on a
-fresh machine; demo GIF recorded; 5 popular external skills graded in a public example.
+**Exit criteria:** `init` + spec-generation shipped ✅; quickstart verified ≤10 min on a
+fresh machine ✅ (41s); a public example with multi-model results committed ✅
+(`principal-pi-skills`, 7 skills × 3 models); demo GIF recorded ⬜ — **the only one left**.
+Reworded 2026-08-04: "5 popular *external* skills" moved to Phase 2, where its value
+(credibility, warm leads) actually lives. See the Sprint 1.2 entry for why.
 
 ### Sprint 1.1 — Ship & smooth the funnel
 - [x] Publish 0.1.0 to npm (done)
@@ -70,9 +73,39 @@ fresh machine; demo GIF recorded; 5 popular external skills graded in a public e
       ("does this skill do anything?" — neutralizes the rival's best feature)
       (2026-08-04) — `core/lift.ts`, derived on read (never persisted, so it can't go
       stale); scorecard `LIFT:` line + per-column/per-cell markers in the review UI;
-      `inconclusive` class keeps ERROR/misfire noise out of the number
-- [ ] Flagship example: public repo (or `examples/`) with specs for ~5 popular skills
-      (superpowers, anthropics/skills candidates), multi-model results committed
+      `inconclusive` class keeps ERROR/misfire noise out of the number.
+      **Shipped but never exercised on real data** (found 2026-08-04): all 82 committed
+      `results.yaml` in `principal-pi-skills` are `mode: green` — there is not one
+      red-mode run anywhere, so no `lift` has ever been computed outside unit tests.
+      Measuring it costs a full second pass (~426 rep-executions for 5 skills × 2 models
+      at `--reps 3`), which is why it is parked rather than done. Two things to fix first,
+      both free:
+      - **`lift` silently compares mode-insensitive scenarios.** `pi.ts` treats an
+        agent-file run as *the* system prompt — "no skill activation, whatever the mode" —
+        so the 6 `system_prompt_file` scenarios (`debug`/`plan`/`review` D1+D2) are
+        byte-identical in red and green. `computeLift` classes them `kept`/`both-fail` and
+        folds them into the denominator, understating lift with cells where the skill was
+        loaded on *both* sides. Needs a `mode-insensitive` class or an exclusion reported
+        like `greenOnly`/`redOnly` already are
+      - Red runs at the same `--reps` as green, or the two sides aggregate under different
+        majority policies and the comparison is not like-for-like
+- [x] Flagship example: **`mojomanyana/principal-pi-skills`** — public, 7 pi skills, 88
+      scenarios × 3 models × 3 reps, every `results.yaml` committed, ~104 runs mapped in
+      `RESULTS-MANIFEST.md` (2026-08-04) — linked from README as the worked example. It
+      already exceeded "~5 skills, multi-model results committed"; the gap was only that
+      nothing here pointed at it, and README's example block cited two skills
+      (`ponytail`, `code-review`) that never existed in that repo
+- [ ] **External** skills, moved to Phase 2 — deliberately dropped from Phase 1. Grading
+      someone else's skills buys credibility and warm leads (every tested author is a
+      lead), which is *distribution*, not validation, so it belongs beside the findings
+      post. Shrink to 2–3 skills. Corpus survey done 2026-08-04: pi ships no skills of
+      its own and its docs recommend exactly two corpora — `anthropics/skills` (166k
+      stars, but no SPDX license detected and the document skills are explicitly
+      source-available, so **fetch at a pinned SHA, never vendor**) and
+      `badlogic/pi-skills` (2.3k, MIT, by pi's author, but all eight skills are
+      tool-wrappers needing live credentials — poor fit for reproducible committed
+      results). Every process-oriented pi corpus found has under 20 stars, so "popular
+      *and* pi-native *and* testable" does not currently exist as a set
 - [ ] 30-second demo GIF: edit SKILL.md → re-run → grade C→A. Store under `assets/` or link from README
 - [x] README top: positioning sentence + GIF + 3-command quickstart above the fold
       (2026-08-04) — positioning sentence, install + 3 commands, differentiators list;

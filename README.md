@@ -186,23 +186,42 @@ skill-harness lint   <skill|all> --skills <root>               # validate specs/
 **Defaults:** subject model `fireworks:accounts/fireworks/models/deepseek-v4-pro` ·
 judge `anthropic:claude-opus-4-8` · mode `green` · harness `pi`.
 
-### Examples
+### Worked example — a real skills repo, graded in public
+
+[**mojomanyana/principal-pi-skills**](https://github.com/mojomanyana/principal-pi-skills)
+is seven pi skills tested with this harness, with every `results.yaml` committed:
+**88 scenarios × 3 models × 3 reps**, 528 rep-executions in the release round plus 264
+more against a third model that the skills were never tuned against.
+[`RESULTS-MANIFEST.md`](https://github.com/mojomanyana/principal-pi-skills/blob/main/RESULTS-MANIFEST.md)
+maps all ~104 runs to the round that produced them, so a superseded number stays
+readable instead of being quietly overwritten.
+
+It is worth reading for the parts a scorecard usually hides:
+
+- **Per-cell pass rates, not single draws** — `build` A1 fails on all three models, which
+  says the scenario found something in the skill rather than something about a model.
+- **Judge audits that moved verdicts in both directions** — a rewritten checklist turned
+  one 7-7 deadlocked transcript into 7-0, promoting `architect` C2 on one model and
+  failing it on another, withdrawing an earlier correction. Recorded, not smoothed over.
+- **Re-runs that invalidate their own history** — `git-ops` A9 had been measuring a
+  model's reaction to an empty directory rather than its conflict-marker discipline; the
+  reseeded scenario moved DeepSeek from 93% to 100%, and the old rows say so.
 
 ```bash
 # discover what's testable
 skill-harness list --skills ../principal-pi-skills
 
 # run one skill (skill active), grade, score, print a scorecard
-skill-harness run ponytail --skills ../principal-pi-skills
+skill-harness run build --skills ../principal-pi-skills
 
 # compare several models on one skill — the review matrix puts them side by side
-skill-harness run code-review --skills ../principal-pi-skills \
+skill-harness run git-ops --skills ../principal-pi-skills \
   --model fireworks:accounts/fireworks/models/deepseek-v4-pro \
-  --model fireworks:accounts/fireworks/models/kimi-k2p7-code
+  --model fireworks:accounts/fireworks/models/kimi-k3
 
 # re-grade the saved transcripts with a different judge — no model re-runs (cheap de-confound)
-skill-harness grade ../principal-pi-skills/ponytail/tests/results/pi-*/2026-*/ \
-  --judge fireworks:accounts/fireworks/models/kimi-k2p7-code
+skill-harness grade ../principal-pi-skills/build/tests/results/pi-*/2026-*/ \
+  --judge fireworks:accounts/fireworks/models/kimi-k3
 
 # name a run so results.yaml stops being timestamp archaeology
 skill-harness run ponytail --skills ../principal-pi-skills --label round-3
