@@ -389,6 +389,13 @@ ${assertBlock}
     expect(() => parseSpec(seeded(`      diff_excludes: [""]`), "f")).toThrow(/would match every diff/);
   });
 
+  test("an empty diff_contains needle is rejected too — the silent direction", () => {
+    // The asymmetry that existed here was backwards by severity: an empty
+    // diff_excludes fails forever and gets investigated; an empty diff_contains
+    // passes on every diff, including an empty one, and nobody ever looks.
+    expect(() => parseSpec(seeded(`      diff_contains: [""]`), "f")).toThrow(/could never fail/);
+  });
+
   test("a needle both required and forbidden is an authoring error, not a permanent failure", () => {
     expect(() =>
       parseSpec(seeded(`      diff_contains: ["a", "b"]\n      diff_excludes: ["b"]`), "f")

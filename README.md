@@ -128,15 +128,17 @@ scenarios:
 
 ### Seeded gates (`assert`)
 
-All four are optional and independent. Each one that fails short-circuits the
-scenario to a FAIL without spending a judge call.
+All four are optional. Each one that fails makes the scenario a FAIL without
+spending a judge call. They are independent in effect, with one cross-check at
+parse time: a needle listed in both `diff_contains` and `diff_excludes` is
+rejected as an authoring error, since that gate could never pass.
 
 | Gate | What it proves |
 |---|---|
 | `vitest: true` | `vitest run` passes in the temp repo. Grades the model's **own** tests, so a weak test the model wrote and passed still counts as green. |
 | `diff_contains: [str]` | Each needle appears somewhere in the staged diff. A keyword check — it proves a name was written, not that it behaves. |
 | `diff_excludes: [str]` | No needle appears in the diff's **changed lines**. Makes scope discipline ("fix `sliceRange`, leave `lastIndex` alone") objective instead of inferring it from the model's prose. |
-| `post_test: <path>` | A test file **you** wrote, copied into the workspace *after* the agent finishes and run on its own. The model never sees it, so it cannot be gamed, and it needs no judge. |
+| `post_test: <path>` | A test file **you** wrote, copied into the workspace *after* the agent finishes and run on its own. The model never sees it, so it cannot write code shaped to pass it, and it needs no judge. |
 
 `diff_excludes` deliberately matches only added/removed lines, never context lines
 or `+++`/`---` file headers. A unified diff carries context around every hunk, so
@@ -146,9 +148,17 @@ the raw text would fail every model that changed exactly the right thing.
 `post_test` is the complement to `vitest`, not a replacement: `vitest` asks "did
 the model's own tests pass?", `post_test` asks "does the code do what the task
 required?". The file is copied in after the diff is captured, so it never appears
-in the diff or in the judged transcript. A `post_test` path that doesn't exist
-fails the scenario with a message saying it is a spec error rather than model
-behavior — and `skill-harness lint` catches it for free, before you spend a run.
+in the diff and never reaches a judge.
+
+The gate demands positive evidence that assertions ran — it reports a spec error
+rather than a pass when the hidden tests are all `.skip`/`.todo`, when vitest
+collects nothing, or when no summary can be parsed. (Vitest exits **zero** for a
+fully-skipped file, so a gate keyed on the exit code alone would have reported
+PASS having executed nothing.) A `post_test` path that is missing or is not a
+readable file likewise fails the scenario as a spec error, never as model
+behavior — and `skill-harness lint` catches that one for free, before you spend a
+run. Note the model owns the workspace, including `vitest.config.ts`: the gate is
+unguessable, not tamper-proof.
 
 > **YAML gotcha:** a checklist/turn item with an unquoted `": "` parses as a YAML
 > *mapping*, not a string — `skill-harness` rejects it with a hint. Quote such items:
@@ -259,11 +269,13 @@ timeout leaves) is retried once in a fresh workspace; if it happens again the sc
 `ERROR` — it still blocks SHIP, but it is never handed to the judge, because grading an empty
 reply produces a confident FAIL about behavior that never happened.
 
-**Staleness is machine-checked.** Every full run records `source_hashes` — sha256 of SKILL.md
-and each `system_prompt_file` it measured. `lint` compares the newest full run per model
-against the current files and fails with `stale` when they differ: a published result must
-describe text that still exists. Runs predating the field are silent (no retroactive noise);
-partial runs never count as coverage.
+**Staleness is machine-checked.** Every full run records `source_hashes` — a sha256 of
+everything it measured: SKILL.md, each `system_prompt_file`, each scenario's *definition*,
+each `post_test`, and every file in each fixture tree ([details](#results--git-policy)).
+`lint` compares the newest full run per model against the current sources and fails with
+`stale` when they differ, including when the newest run never measured a scenario the spec
+now defines: a published result must describe inputs that still exist. Runs predating a key
+kind are silent (no retroactive noise); partial runs never count as coverage.
 
 **`rescore <run-dir>...`** re-collapses saved reps against the *current* spec thresholds —
 no model calls, no judge calls, free. Reps are the measurement (`passes` of `clean`); a
@@ -396,15 +408,20 @@ truncated.
   | `SKILL.md` | the skill text |
   | `scenario:<id>` | one scenario's definition — turns, checklist, gates, criticality |
   | `fixture:<path>` | every file under one fixture dir, including `_staged/`/`_uncommitted/` |
-  | `<relative path>` | a `system_prompt_file` |
+  | `<relative path>` | a `system_prompt_file`, or an `assert.post_test` file's contents |
+
+  A source that could not be read when the run was recorded is stored as
+  `unreadable` rather than omitted, and always reports stale — an omitted key
+  would never be compared again for the life of that result.
 
   Scenario digests are **per-scenario and built from the parsed spec**, not from
-  `specification.yaml` as a whole. Editing A1's checklist marks A1 stale and leaves A2 alone;
-  *adding* a scenario marks nothing stale, because nothing already measured changed; and
-  reindenting the YAML marks nothing stale, because formatting isn't what a run measures.
+  `specification.yaml` as a whole. Editing A1's checklist marks A1 stale and leaves A2 alone,
+  and reindenting the YAML marks nothing stale, because formatting isn't what a run measures.
   A recorded scenario that no longer exists in the spec is a reshape, not staleness, and is
-  ignored. Runs recorded before a given key kind existed simply don't carry it and are never
-  retroactively flagged.
+  ignored — but a scenario the spec defines that the newest full run never measured *is*
+  reported, or renaming a scenario would leave a SHIP scorecard looking current. Runs
+  recorded before a given key kind existed simply don't carry it and are never retroactively
+  flagged.
 
 `skill-harness grade` currently re-judges single-rep runs only; for a `--reps N>1` run it
 fails fast with an explanatory error — resolve `suspect` scenarios there via an override

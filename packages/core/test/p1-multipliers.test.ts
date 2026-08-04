@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, readFileSync, cpSync, writeFileSync, appendFileSync, mkdirSync } from "node:fs";
+import { mkdtempSync, readFileSync, cpSync, writeFileSync, appendFileSync, mkdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -178,6 +178,78 @@ describe("source_hashes + lint staleness", () => {
   });
 });
 
+// ─── the staged-diff artifact actually reaches disk ──────────────────────────
+
+describe("seeded runs persist the staged diff as a run artifact", () => {
+  /**
+   * A seeded skill whose fake harness writes a marker file into the workspace.
+   * `bigBytes` makes that file exceed the diff cap, to exercise truncation against
+   * the real default (the cap is resolved once at module load, like the other
+   * timeout vars, so it cannot be moved from inside a test).
+   */
+  async function seededRun(reps?: number, bigBytes = 0) {
+    const { skillDir, specPath } = freshSkill();
+    writeFileSync(
+      specPath,
+      `skill: golden-skill\njudge_persona: a judge.\nship_bar: { total: 1, min_pass: 1 }\nscenarios:\n  - id: A1\n    title: seeded\n    mode: seeded\n    fixture: fixtures/A1\n    turns: ["edit it"]\n    checklist: ["edited"]\n`,
+      "utf8"
+    );
+    mkdirSync(join(skillDir, "tests", "fixtures", "A1"), { recursive: true });
+    writeFileSync(join(skillDir, "tests", "fixtures", "A1", "seed.ts"), "export const a = 1;\n", "utf8");
+
+    const editing: HarnessAdapter = {
+      name: "pi", available: async () => true,
+      run: async (req: RunReq) => {
+        const filler = bigBytes > 0 ? Array.from({ length: bigBytes }, (_, i) => `export const f${i} = ${i};`).join("\n") : "";
+        writeFileSync(join(req.cwd, "added.ts"), `export const UNIQUE_MARKER = 42;\n${filler}\n`, "utf8");
+        return ">>> USER:\ngo\n\n<<< ASSISTANT:\nDone.\n";
+      },
+      judge: passJudge(),
+    };
+    const spec = parseSpec(readFileSync(specPath, "utf8"), specPath);
+    const summary = await runSkillModel({
+      spec, skillDir, specPath, adapter: editing,
+      model: { provider: "fireworks", model: "fake" }, modelToken: "fireworks:fake",
+      judge: { provider: "claude-code", model: "opus" },
+      mode: "green", timestamp: "2026-08-03T00-00-00-000Z", now: () => "2026-08-03T00:00:00.000Z",
+      label: "diff", ...(reps ? { reps } : {}),
+    });
+    return { skillDir, summary };
+  }
+
+  it("writes <id>.<mode>.diff.txt containing the model's actual change", async () => {
+    // Nothing else asserts this file exists: deleting the write in run.ts left the
+    // whole suite green, while the artifact is the only post-hoc evidence of what
+    // a seeded verdict was about (the workspace is destroyed after every rep).
+    const { summary } = await seededRun();
+    const p = join(summary.runDir, "A1.green.diff.txt");
+    expect(existsSync(p)).toBe(true);
+    const saved = readFileSync(p, "utf8");
+    expect(saved).toContain("UNIQUE_MARKER");
+    expect(saved).toContain("added.ts");
+  });
+
+  it("writes one diff per rep, never clobbering them into a single file", async () => {
+    const { summary } = await seededRun(2);
+    expect(existsSync(join(summary.runDir, "A1.green.rep0.diff.txt"))).toBe(true);
+    expect(existsSync(join(summary.runDir, "A1.green.rep1.diff.txt"))).toBe(true);
+    expect(existsSync(join(summary.runDir, "A1.green.diff.txt"))).toBe(false);
+  });
+
+  it("saves the diff UNCAPPED even when the judge's copy is truncated", async () => {
+    // The artifact's entire purpose is being the complete record; persisting the
+    // capped copy would silently make it useless for exactly the large diffs where
+    // it matters most. 4000 lines comfortably exceeds the 64KB default.
+    const { summary } = await seededRun(undefined, 4000);
+    const saved = readFileSync(join(summary.runDir, "A1.green.diff.txt"), "utf8");
+    const transcript = readFileSync(join(summary.runDir, "A1.green.txt"), "utf8");
+    expect(transcript).toContain("diff truncated");   // the judge's copy is cut …
+    expect(saved).not.toContain("diff truncated");    // … the artifact is not
+    expect(saved).toContain("f3999");                 // including its very last line
+    expect(saved.length).toBeGreaterThan(transcript.length);
+  });
+});
+
 // ─── source_hashes covers the spec and its fixtures ──────────────────────────
 
 describe("source_hashes covers scenario definitions and fixture trees", () => {
@@ -216,13 +288,75 @@ describe("source_hashes covers scenario definitions and fixture trees", () => {
     expect(stale.map((f) => f.scenario)).toEqual(["B1"]);
   });
 
-  it("adding a NEW scenario marks nothing stale — a reshape is not staleness", async () => {
-    // Hashing specification.yaml as one file would flag every historical run here.
-    // Nothing already measured changed, so nothing is stale.
+  it("adding a new scenario leaves the MEASURED ones alone, and flags only the coverage gap", async () => {
+    // Two properties at once. Hashing specification.yaml as one file would flag
+    // every already-measured scenario here — that must not happen, and doesn't.
+    // But the newest full run genuinely did not measure C1, and the published
+    // grade therefore covers a different scenario set than the spec defines, so
+    // exactly one coverage finding is right.
+    //
+    // An earlier version of this test asserted total silence. That was wrong: with
+    // nothing checking for unmeasured scenarios, RENAMING a scenario was invisible
+    // (the old key reads as "not comparable", the new one was never recorded), so
+    // a 100%/SHIP scorecard survived an arbitrary spec rewrite reporting zero
+    // findings. See the rename test below.
     const { skillDir } = await runWith(adapter);
     const p = join(skillDir, "tests", "specification.yaml");
     appendFileSync(p, `  - id: C1\n    title: new\n    turns:\n      - "hi"\n    checklist:\n      - "responds"\n`);
+    const stale = lintSkill(skillDir).filter((f) => f.code === "stale");
+    expect(stale.map((f) => f.scenario)).toEqual(["C1"]);
+    expect(stale[0].message).toMatch(/did not measure scenario `C1`/);
+  });
+
+  it("RENAMING a scenario cannot leave a SHIP scorecard looking current", async () => {
+    // The hole this closes: rename A1 -> A1x and rewrite its checklist. The
+    // recorded `scenario:A1` key resolves to "not comparable" (a reshape), and
+    // without a coverage check nothing looks at A1x at all — so the committed
+    // results.yaml keeps its grade and lint reports clean.
+    const { skillDir, summary } = await runWith(adapter);
+    expect(summary.results.effective_grade.ship).toBe(true);
+    const p = join(skillDir, "tests", "specification.yaml");
+    writeFileSync(
+      p,
+      readFileSync(p, "utf8").replace("- id: A1", "- id: A1x").replace("greets the user", "does something entirely different"),
+      "utf8"
+    );
+    const stale = lintSkill(skillDir).filter((f) => f.code === "stale");
+    expect(stale.map((f) => f.scenario)).toEqual(["A1x"]);
+    expect(stale[0].message).toMatch(/did not measure scenario `A1x`/);
+  });
+
+  it("a source that could not be hashed at run time is reported, not silently dropped", async () => {
+    // lint only ever iterates the keys a run recorded, so omitting an unreadable
+    // source removes it from checking for the life of that result — the fixture
+    // could then be swapped wholesale and lint would still say 0 findings.
+    const { skillDir, summary } = await runWith(adapter);
+    const p = join(summary.runDir, "results.yaml");
+    writeFileSync(p, readFileSync(p, "utf8").replace(/^ {2}SKILL\.md: [0-9a-f]{64}$/m, "  SKILL.md: unreadable"), "utf8");
+    const stale = lintSkill(skillDir).filter((f) => f.code === "stale");
+    expect(stale).toHaveLength(1);
+    expect(stale[0].message).toMatch(/could not be read when the newest .* run was recorded/);
+    expect(stale[0].message).toMatch(/never verified; re-run/);
+  });
+
+  it("stays silent for a 0.2.1-era run that recorded only bare-path keys", async () => {
+    // The realistic upgrade case: source_hashes present, but predating the
+    // scenario:/fixture: key kinds. Those must not be synthesised or demanded
+    // retroactively, or every already-published scorecard flips to stale at once.
+    const { skillDir, summary } = await runWith(adapter);
+    const p = join(summary.runDir, "results.yaml");
+    const oldStyle = readFileSync(p, "utf8")
+      .split("\n")
+      .filter((l) => !/^ {2}(scenario|fixture):/.test(l))
+      .join("\n");
+    writeFileSync(p, oldStyle, "utf8");
     expect(lintSkill(skillDir).filter((f) => f.code === "stale")).toEqual([]);
+
+    // …and the bare-path key it DID record still works exactly as before.
+    appendFileSync(join(skillDir, "SKILL.md"), "\nedited\n");
+    const stale = lintSkill(skillDir).filter((f) => f.code === "stale");
+    expect(stale).toHaveLength(1);
+    expect(stale[0].message).toContain("SKILL.md");
   });
 
   it("removing a measured scenario is a reshape too — silent, not stale", async () => {

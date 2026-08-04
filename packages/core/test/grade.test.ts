@@ -42,6 +42,30 @@ describe("buildJudgePrompt", () => {
     expect(p).toMatch(/do not establish that the required behavior exists/);
   });
 
+  test("a seeded transcript with NO diff section gets no diff guidance", () => {
+    // The regression this guards. Gating on scenario.mode instead of on the
+    // transcript told the judge its "primary evidence" was at the end of a
+    // transcript that has none, and that the gate lines above prove nothing —
+    // while the standing instruction is "be skeptical, mark FAIL if unclear".
+    // Every seeded transcript saved before this feature existed is this shape, and
+    // `grade` is the command the docs recommend as the CHEAP de-confounding step
+    // before spending on a re-run, so it would have swept historical seeded
+    // scenarios to FAIL on absent evidence and written the verdicts back.
+    const savedBeforeThisFeature = [
+      ">>> USER:\nAdd withdraw", "", "<<< ASSISTANT:\nI added withdraw; it rejects overdrafts.",
+      "", "=== SEEDED GATES ===", '  diff_contains "withdraw": OK', "  vitest run: PASS",
+    ].join("\n");
+    const p = buildJudgePrompt({
+      skill: "build",
+      persona: "a careful reviewer",
+      scenario: { ...scenario, mode: "seeded", fixture: "f" },
+      transcript: savedBeforeThisFeature,
+    });
+    expect(p).not.toContain("STAGED DIFF");
+    expect(p).not.toMatch(/primary evidence/);
+    expect(p).not.toMatch(/do not establish that the required behavior exists/);
+  });
+
   test("an inline prompt is byte-identical to before the diff guidance existed", () => {
     // Inline scenarios have no diff, so their prompt must not move: every inline
     // verdict already published stays comparable with new ones.

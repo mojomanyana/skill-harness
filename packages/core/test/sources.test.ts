@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, renameSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { dirSha256, scenarioDigest, sourceHashes, currentHashFor } from "../src/sources.js";
+import { dirSha256, scenarioDigest, sourceHashes, currentHashFor, scenarioIdForKey, UNREADABLE } from "../src/sources.js";
 import type { Scenario } from "../src/spec.js";
 
 const tmps: string[] = [];
@@ -141,6 +141,56 @@ describe("sourceHashes / currentHashFor round-trip", () => {
     const { skillDir, specDir } = skillWithFixture();
     rmSync(join(specDir, "fixtures", "A1"), { recursive: true, force: true });
     expect(currentHashFor("fixture:fixtures/A1", { skillDir, specDir, scenarios: [seeded] })).toBeNull();
+  });
+
+  it("records post_test CONTENTS, not just its path", () => {
+    // The post-test IS the gate, and it lives outside the fixture tree by
+    // convention — so neither the fixture digest nor the scenario digest (which
+    // holds only the path string) covers it. Tightening an assertion inside it
+    // changes what the scorecard measured.
+    const { skillDir, specDir } = skillWithFixture();
+    mkdirSync(join(specDir, "post"), { recursive: true });
+    const pt = join(specDir, "post", "A1.test.ts");
+    writeFileSync(pt, "expect(withdraw(200)).toThrow()\n", "utf8");
+    const s = scenario({ mode: "seeded", assert: { post_test: "post/A1.test.ts" } });
+    const ctx = { skillDir, specDir, scenarios: [s] };
+
+    const recorded = sourceHashes(ctx);
+    expect(recorded["post/A1.test.ts"]).toMatch(/^[0-9a-f]{64}$/);
+    expect(currentHashFor("post/A1.test.ts", ctx)).toBe(recorded["post/A1.test.ts"]);
+
+    writeFileSync(pt, "expect(withdraw(200)).toThrow(/insufficient/)\n", "utf8");
+    expect(currentHashFor("post/A1.test.ts", ctx)).not.toBe(recorded["post/A1.test.ts"]);
+  });
+
+  it("records UNREADABLE rather than dropping a source it could not hash", () => {
+    // Omission is the one unacceptable outcome: lint only iterates the keys a run
+    // recorded, so a dropped source is never compared again for the life of that
+    // result — the fixture could be swapped wholesale and lint would say clean.
+    const { skillDir, specDir } = skillWithFixture();
+    rmSync(join(specDir, "fixtures", "A1"), { recursive: true, force: true });
+    const recorded = sourceHashes({ skillDir, specDir, scenarios: [seeded] });
+    expect(recorded["fixture:fixtures/A1"]).toBe(UNREADABLE);
+  });
+
+  it("treats a key kind from a NEWER skill-harness as not-comparable, not as deleted", () => {
+    // Falling through to the path branch resolved `agent:foo` as a filename, found
+    // nothing, and reported a confident "no longer exists" about a source that is
+    // fine — a wrong finding produced purely by reading a newer results.yaml.
+    const { skillDir, specDir } = skillWithFixture();
+    expect(currentHashFor("agent:foo", { skillDir, specDir, scenarios: [seeded] })).toBeUndefined();
+  });
+
+  it("scenarioIdForKey attributes a fixture only when exactly one scenario owns it", () => {
+    const a = scenario({ mode: "seeded", workspace: { fixture: "fixtures/A1" } });
+    const b = scenario({ id: "A2", mode: "seeded", workspace: { fixture: "fixtures/A1" } });
+    const c = scenario({ id: "A3", mode: "seeded", workspace: { fixture: "fixtures/A3" } });
+    expect(scenarioIdForKey("fixture:fixtures/A3", [a, b, c])).toBe("A3");
+    // Shared: naming one of them would misdirect the re-run to a scenario that is
+    // no more (or less) affected than the others.
+    expect(scenarioIdForKey("fixture:fixtures/A1", [a, b, c])).toBeUndefined();
+    expect(scenarioIdForKey("scenario:A2", [a, b, c])).toBe("A2");
+    expect(scenarioIdForKey("SKILL.md", [a, b, c])).toBeUndefined();
   });
 
   it("two scenarios sharing one fixture record it once", () => {

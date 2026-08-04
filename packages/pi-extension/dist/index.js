@@ -3,7 +3,7 @@ import { fileURLToPath as fileURLToPath2 } from "node:url";
 import { dirname as dirname6, join as join18 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
-import { existsSync as existsSync15 } from "node:fs";
+import { existsSync as existsSync14 } from "node:fs";
 import { dirname as dirname5, join as join17, resolve as resolve7 } from "node:path";
 
 // packages/core/dist/spec.js
@@ -2512,6 +2512,9 @@ function parseSpec(text, file) {
           if (!isStringArray(a.diff_contains)) {
             throw new SpecError(`seeded scenario \`${id}\` \`assert.diff_contains\` must be strings`, file);
           }
+          if (a.diff_contains.some((n) => n === "")) {
+            throw new SpecError(`seeded scenario \`${id}\` \`assert.diff_contains\` contains an empty string \u2014 it would match every diff, so the gate could never fail`, file);
+          }
           assertObj.diff_contains = a.diff_contains;
         }
         if (a.diff_excludes !== void 0) {
@@ -2587,6 +2590,7 @@ import { readFileSync as readFileSync2, readdirSync as readdirSync2 } from "node
 import { isAbsolute, join as join2, resolve } from "node:path";
 var SCENARIO_PREFIX = "scenario:";
 var FIXTURE_PREFIX = "fixture:";
+var UNREADABLE = "unreadable";
 function fileSha256(path) {
   try {
     return createHash("sha256").update(readFileSync2(path)).digest("hex");
@@ -2627,20 +2631,26 @@ function walk(dir, prefix = "") {
   return out;
 }
 function scenarioDigest(s) {
+  const { id, title, critical, mode, turns, checklist, fixture, assert, workspace, remote, systemPromptFile, reps, passThreshold, ...restScenario } = s;
+  const _scenarioExhaustive = restScenario;
+  void _scenarioExhaustive;
+  const { vitest, diff_contains, diff_excludes, post_test, ...restAssert } = assert ?? {};
+  const _assertExhaustive = restAssert;
+  void _assertExhaustive;
   const canonical = JSON.stringify([
-    s.id,
-    s.title,
-    s.critical,
-    s.mode,
-    s.turns,
-    s.checklist,
-    s.fixture ?? null,
-    s.assert ? [s.assert.vitest ?? null, s.assert.diff_contains ?? null, s.assert.diff_excludes ?? null, s.assert.post_test ?? null] : null,
-    s.workspace,
-    s.remote,
-    s.systemPromptFile ?? null,
-    s.reps ?? null,
-    s.passThreshold ?? null
+    id,
+    title,
+    critical,
+    mode,
+    turns,
+    checklist,
+    fixture ?? null,
+    assert ? [vitest ?? null, diff_contains ?? null, diff_excludes ?? null, post_test ?? null] : null,
+    workspace,
+    remote,
+    systemPromptFile ?? null,
+    reps ?? null,
+    passThreshold ?? null
   ]);
   return createHash("sha256").update(canonical).digest("hex");
 }
@@ -2652,21 +2662,19 @@ function effectiveFixture(s) {
 }
 function sourceHashes(ctx) {
   const hashes = {};
-  const skillMd = fileSha256(resolve(ctx.skillDir, "SKILL.md"));
-  if (skillMd)
-    hashes["SKILL.md"] = skillMd;
+  hashes["SKILL.md"] = fileSha256(resolve(ctx.skillDir, "SKILL.md")) ?? UNREADABLE;
   for (const s of ctx.scenarios) {
     hashes[SCENARIO_PREFIX + s.id] = scenarioDigest(s);
     if (s.systemPromptFile && !(s.systemPromptFile in hashes)) {
-      const h = fileSha256(resolve(ctx.specDir, s.systemPromptFile));
-      if (h)
-        hashes[s.systemPromptFile] = h;
+      hashes[s.systemPromptFile] = fileSha256(resolve(ctx.specDir, s.systemPromptFile)) ?? UNREADABLE;
+    }
+    const pt = s.assert?.post_test;
+    if (pt && !(pt in hashes)) {
+      hashes[pt] = fileSha256(isAbsolute(pt) ? pt : resolve(ctx.specDir, pt)) ?? UNREADABLE;
     }
     const fx = effectiveFixture(s);
     if (fx && !(FIXTURE_PREFIX + fx in hashes)) {
-      const h = dirSha256(fixtureAbs(ctx.specDir, fx));
-      if (h)
-        hashes[FIXTURE_PREFIX + fx] = h;
+      hashes[FIXTURE_PREFIX + fx] = dirSha256(fixtureAbs(ctx.specDir, fx)) ?? UNREADABLE;
     }
   }
   return hashes;
@@ -2746,13 +2754,14 @@ function createWorkspace(kind, opts) {
 }
 
 // packages/core/dist/grade.js
+var STAGED_DIFF_HEADING = "=== STAGED DIFF ===";
 var SEEDED_DIFF_GUIDANCE = `
 This transcript ends with a "=== STAGED DIFF ===" section: the actual code the assistant wrote, as \`git diff --cached\`. It is the primary evidence. Grade what the diff shows the code DOES, not what the assistant's prose claims it does \u2014 a confident description of behavior the diff does not implement is a FAIL, and behavior the diff plainly implements passes even if the assistant described it poorly or not at all. The "=== SEEDED GATES ===" lines above it are keyword and test-run checks only; they do not establish that the required behavior exists. If the diff is marked truncated, judge only what you can see and never infer that cut-off code is missing.
 `;
 function buildJudgePrompt(input) {
   const { skill, persona, scenario, transcript } = input;
   const numbered = scenario.checklist.map((c, i) => `${i + 1}. ${c}`).join("\n");
-  const diffGuidance = scenario.mode === "seeded" ? SEEDED_DIFF_GUIDANCE : "";
+  const diffGuidance = scenario.mode === "seeded" && transcript.includes(STAGED_DIFF_HEADING) ? SEEDED_DIFF_GUIDANCE : "";
   return `You are grading ONE response from an AI assistant using a "${skill}" skill \u2014 ${persona} Judge it ONLY against the checklist below \u2014 do not add requirements beyond it.
 
 CHECKLIST (every numbered item must hold for a PASS):
@@ -3225,7 +3234,7 @@ function collectLift(skillDir) {
 }
 
 // packages/core/dist/seeded.js
-import { copyFileSync, existsSync as existsSync7 } from "node:fs";
+import { copyFileSync, statSync as statSync3 } from "node:fs";
 import { extname, isAbsolute as isAbsolute3, join as join8, resolve as resolve3 } from "node:path";
 
 // packages/core/dist/util/exec.js
@@ -3310,7 +3319,23 @@ function envFlag(suffix) {
 var POST_TEST_BASE = "skill-harness.post";
 var VITEST_TIMEOUT_MS = envNum("VITEST_TIMEOUT_MS", 12e4);
 function changedLines(diff) {
-  return diff.split("\n").filter((l) => (l.startsWith("+") || l.startsWith("-")) && !l.startsWith("+++") && !l.startsWith("---")).join("\n");
+  const out = [];
+  let inHunk = false;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("@@")) {
+      inHunk = true;
+      continue;
+    }
+    if (line.startsWith("diff --git ")) {
+      inHunk = false;
+      continue;
+    }
+    if (!inHunk)
+      continue;
+    if (line.startsWith("+") || line.startsWith("-"))
+      out.push(line);
+  }
+  return out.join("\n");
 }
 var DIFF_MAX_BYTES = envNum("DIFF_MAX_BYTES", 64e3);
 function capDiff(diff, maxBytes = DIFF_MAX_BYTES) {
@@ -3320,11 +3345,17 @@ function capDiff(diff, maxBytes = DIFF_MAX_BYTES) {
   const kept = [];
   let used = 0;
   for (const line of diff.split("\n")) {
-    const cost = Buffer.byteLength(line, "utf8") + 1;
+    const cost = Buffer.byteLength(line, "utf8") + (kept.length > 0 ? 1 : 0);
     if (used + cost > maxBytes)
       break;
     kept.push(line);
     used += cost;
+  }
+  if (kept.length === 0) {
+    const head = Buffer.from(diff, "utf8").subarray(0, maxBytes).toString("utf8");
+    const clean = head.endsWith("\uFFFD") ? head.slice(0, -1) : head;
+    kept.push(clean);
+    used = Buffer.byteLength(clean, "utf8");
   }
   const omitted = total - used;
   return kept.join("\n") + `
@@ -3339,11 +3370,20 @@ async function runSeeded(scenario, opts) {
     turns: scenario.turns,
     cwd: repo
   });
-  await git(repo, ["add", "-A"]);
-  const diff = (await git(repo, ["diff", "--cached"])).stdout;
   const parts = [harnessOut, "", "=== SEEDED GATES ==="];
   let gateFailure = null;
   const runVitest = opts.runVitest ?? ((args, cwd) => exec("npx", ["vitest", "run", ...args], { cwd, timeoutMs: VITEST_TIMEOUT_MS }));
+  const add = await git(repo, ["add", "-A"]);
+  const show = await git(repo, ["diff", "--cached"]);
+  const diff = show.stdout;
+  const gitFailure = [add, show].find((r) => r.code !== 0);
+  if (gitFailure) {
+    const why = gitFailure.code === null ? "timed out and was killed" : `exited ${gitFailure.code}`;
+    const msg = `staged diff could not be captured \u2014 git ${why} \u2014 infrastructure, not model behavior` + (gitFailure.stderr.trim() ? `: ${gitFailure.stderr.trim().split("\n")[0]}` : "");
+    parts.push(`  staged diff: ERROR (${msg})`);
+    gateFailure = msg;
+    return finish(parts, gateFailure, diff);
+  }
   const wantDiff = scenario.assert?.diff_contains ?? [];
   for (const needle of wantDiff) {
     const ok = diff.includes(needle);
@@ -3363,43 +3403,97 @@ async function runSeeded(scenario, opts) {
   }
   if (scenario.assert?.vitest) {
     const v = await runVitest([], repo);
+    const killed = v.code === null;
     const passed = v.code === 0;
-    parts.push(`  vitest run: ${passed ? "PASS" : `FAIL (exit ${v.code})`}`);
-    parts.push(indent(v.stdout.trim() || v.stderr.trim()));
-    if (!passed && !gateFailure)
-      gateFailure = `vitest failed (exit ${v.code})`;
+    parts.push(killed ? `  vitest run: ERROR (timed out after ${VITEST_TIMEOUT_MS}ms \u2014 infrastructure, not model behavior)` : `  vitest run: ${passed ? "PASS" : `FAIL (exit ${v.code})`}`);
+    parts.push(indent(bothStreams(v)));
+    if (!passed && !gateFailure) {
+      gateFailure = killed ? `vitest timed out after ${VITEST_TIMEOUT_MS}ms \u2014 infrastructure, not model behavior` : `vitest failed (exit ${v.code})`;
+    }
   }
   const postTest = scenario.assert?.post_test;
   if (postTest) {
     const src = isAbsolute3(postTest) ? postTest : resolve3(opts.specDir, postTest);
-    if (!existsSync7(src)) {
-      const msg = `post_test file not found: ${postTest} \u2014 spec error, not model behavior`;
+    if (!isReadableFile(src)) {
+      const msg = `post_test is not a readable file: ${postTest} \u2014 spec error, not model behavior`;
       parts.push(`  post_test: ERROR (${msg})`);
       if (!gateFailure)
         gateFailure = msg;
     } else {
       const dest = join8(repo, `${POST_TEST_BASE}.test${extname(src) || ".ts"}`);
-      copyFileSync(src, dest);
-      const v = await runVitest([POST_TEST_BASE], repo);
-      const out = v.stdout + v.stderr;
-      const notCollected = /No test files found/i.test(out);
-      const passed = v.code === 0 && !notCollected;
-      parts.push(notCollected ? `  post_test: ERROR (${postTest} was copied in but vitest collected no tests \u2014 check the fixture's include patterns)` : `  post_test ${JSON.stringify(postTest)}: ${passed ? "PASS" : `FAIL (exit ${v.code})`}`);
-      parts.push(indent(v.stdout.trim() || v.stderr.trim()));
-      if (!passed && !gateFailure) {
-        gateFailure = notCollected ? `post_test ${JSON.stringify(postTest)} was never collected by vitest \u2014 spec/fixture error, not model behavior` : `post_test ${JSON.stringify(postTest)} failed (exit ${v.code})`;
+      try {
+        copyFileSync(src, dest);
+      } catch (e) {
+        const msg = `post_test could not be copied into the workspace (${e instanceof Error ? e.message : String(e)}) \u2014 infrastructure, not model behavior`;
+        parts.push(`  post_test: ERROR (${msg})`);
+        if (!gateFailure)
+          gateFailure = msg;
+        return finish(parts, gateFailure, diff);
       }
+      const v = await runVitest([POST_TEST_BASE], repo);
+      const out = `${v.stdout}
+${v.stderr}`;
+      const tally = vitestTally(out);
+      const notCollected = /^\s*No test files found/im.test(out);
+      const killed = v.code === null;
+      let problem = null;
+      if (killed) {
+        problem = `post_test ${JSON.stringify(postTest)} timed out after ${VITEST_TIMEOUT_MS}ms \u2014 infrastructure, not model behavior`;
+      } else if (notCollected) {
+        problem = `post_test ${JSON.stringify(postTest)} was never collected by vitest \u2014 spec/fixture error, not model behavior`;
+      } else if (tally === null) {
+        problem = `post_test ${JSON.stringify(postTest)} produced no parseable vitest summary (exit ${v.code}) \u2014 cannot confirm it ran`;
+      } else if (v.code !== 0 || tally.failed > 0) {
+        problem = `post_test ${JSON.stringify(postTest)} failed (exit ${v.code})`;
+      } else if (tally.skipped > 0 || tally.todo > 0) {
+        problem = `post_test ${JSON.stringify(postTest)} has ${tally.skipped + tally.todo} skipped/todo test(s) \u2014 a hidden gate must actually run; spec error, not model behavior`;
+      } else if (tally.passed === 0) {
+        problem = `post_test ${JSON.stringify(postTest)} ran no assertions \u2014 spec error, not model behavior`;
+      }
+      parts.push(problem === null ? `  post_test ${JSON.stringify(postTest)}: PASS (${tally.passed} assertion-bearing test(s))` : `  post_test ${JSON.stringify(postTest)}: ${v.code === 0 && !killed ? "ERROR" : "FAIL"} (${problem})`);
+      parts.push(indent(bothStreams(v)));
+      if (problem && !gateFailure)
+        gateFailure = problem;
     }
   }
-  parts.push("", "=== STAGED DIFF ===");
-  parts.push(diff.trim() === "" ? "  (empty \u2014 the model left no staged changes)" : capDiff(diff));
-  return { transcript: parts.join("\n"), gateFailure, diff };
+  return finish(parts, gateFailure, diff);
 }
 function git(cwd, args) {
   return exec("git", args, { cwd, timeoutMs: 3e4 });
 }
 function indent(s) {
   return s.split("\n").map((l) => `    ${l}`).join("\n");
+}
+function isReadableFile(p) {
+  try {
+    return statSync3(p).isFile();
+  } catch {
+    return false;
+  }
+}
+function bothStreams(v) {
+  const o = v.stdout.trim();
+  const e = v.stderr.trim();
+  if (o && e)
+    return `${o}
+[stderr]
+${e}`;
+  return o || e;
+}
+function finish(parts, gateFailure, diff) {
+  parts.push("", "=== STAGED DIFF ===");
+  parts.push(diff.trim() === "" ? "  (empty \u2014 the model left no staged changes)" : capDiff(diff));
+  return { transcript: parts.join("\n"), gateFailure, diff };
+}
+function vitestTally(out) {
+  const line = /^\s*Tests\s+(.+)$/m.exec(out);
+  if (!line)
+    return null;
+  const read = (word) => {
+    const m = new RegExp(`(\\d+)\\s+${word}`).exec(line[1]);
+    return m ? Number(m[1]) : 0;
+  };
+  return { passed: read("passed"), failed: read("failed"), skipped: read("skipped"), todo: read("todo") };
 }
 
 // packages/core/dist/scheduler.js
@@ -3460,7 +3554,7 @@ function outcomesToResult(id, outcomes, repCount, threshold) {
 }
 
 // packages/core/dist/regrade.js
-import { readFileSync as readFileSync5, writeFileSync as writeFileSync2, existsSync as existsSync8 } from "node:fs";
+import { readFileSync as readFileSync5, writeFileSync as writeFileSync2, existsSync as existsSync7 } from "node:fs";
 import { join as join9 } from "node:path";
 async function judgeOneRep(opts) {
   const { runDir, spec, scenario, transcript, adapter, judge, specDir, mode, rep, now } = opts;
@@ -3501,7 +3595,7 @@ async function regradeScenario(opts) {
 async function regradeRun(opts) {
   const { runDir, spec, adapter, judge, specDir } = opts;
   const now = opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
-  const prev = existsSync8(join9(runDir, "results.yaml")) ? readResults(runDir) : null;
+  const prev = existsSync7(join9(runDir, "results.yaml")) ? readResults(runDir) : null;
   const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, { override: s.override, note: s.note }]));
   const mode = prev?.mode ?? "green";
   const specById = new Map(spec.scenarios.map((s) => [s.id, s]));
@@ -3759,16 +3853,16 @@ async function runRep(scenario, rep, repCount, ctx) {
 }
 
 // packages/core/dist/rescore.js
-import { existsSync as existsSync9 } from "node:fs";
+import { existsSync as existsSync8 } from "node:fs";
 import { join as join10 } from "node:path";
 
 // packages/core/dist/report.js
-import { existsSync as existsSync10, readdirSync as readdirSync6, statSync as statSync3 } from "node:fs";
+import { existsSync as existsSync9, readdirSync as readdirSync6, statSync as statSync4 } from "node:fs";
 import { join as join11 } from "node:path";
 function latestRunDir(tagDir) {
-  if (!statSync3(tagDir).isDirectory())
+  if (!statSync4(tagDir).isDirectory())
     return null;
-  const runs = readdirSync6(tagDir).map((n) => join11(tagDir, n)).filter((p) => statSync3(p).isDirectory() && existsSync10(join11(p, "results.yaml"))).sort();
+  const runs = readdirSync6(tagDir).map((n) => join11(tagDir, n)).filter((p) => statSync4(p).isDirectory() && existsSync9(join11(p, "results.yaml"))).sort();
   return runs.length ? runs[runs.length - 1] : null;
 }
 function collectReport(skillDir) {
@@ -3778,8 +3872,8 @@ function collectReport(skillDir) {
   const resultsRoot = join11(skillDir, "tests", "results");
   const liftByTag = new Map(collectLift(skillDir).map((l) => [l.tag, l]));
   const columns = [];
-  if (existsSync10(resultsRoot)) {
-    const tags = readdirSync6(resultsRoot).map((n) => join11(resultsRoot, n)).filter((p) => statSync3(p).isDirectory()).sort();
+  if (existsSync9(resultsRoot)) {
+    const tags = readdirSync6(resultsRoot).map((n) => join11(resultsRoot, n)).filter((p) => statSync4(p).isDirectory()).sort();
     for (const tagDir of tags) {
       const runDir = latestRunDir(tagDir);
       if (!runDir)
@@ -3847,11 +3941,11 @@ function renderReport(template, data, gradeScript) {
 }
 
 // packages/core/dist/trends.js
-import { existsSync as existsSync11, readdirSync as readdirSync7, statSync as statSync4 } from "node:fs";
+import { existsSync as existsSync10, readdirSync as readdirSync7, statSync as statSync5 } from "node:fs";
 import { join as join12 } from "node:path";
 function isDir2(p) {
   try {
-    return statSync4(p).isDirectory();
+    return statSync5(p).isDirectory();
   } catch {
     return false;
   }
@@ -3862,11 +3956,11 @@ function collectTrends(skillDir, limit = 20) {
   const scenarios = spec.scenarios.map((s) => ({ id: s.id, title: s.title, critical: s.critical }));
   const resultsRoot = join12(skillDir, "tests", "results");
   const models = [];
-  if (existsSync11(resultsRoot)) {
+  if (existsSync10(resultsRoot)) {
     const tags = readdirSync7(resultsRoot).filter((n) => isDir2(join12(resultsRoot, n))).sort();
     for (const tag of tags) {
       const tagDir = join12(resultsRoot, tag);
-      const runDirs = readdirSync7(tagDir).map((n) => join12(tagDir, n)).filter((p) => isDir2(p) && existsSync11(join12(p, "results.yaml"))).sort();
+      const runDirs = readdirSync7(tagDir).map((n) => join12(tagDir, n)).filter((p) => isDir2(p) && existsSync10(join12(p, "results.yaml"))).sort();
       if (runDirs.length === 0)
         continue;
       const greenRuns = [];
@@ -3906,7 +4000,7 @@ function collectTrends(skillDir, limit = 20) {
 }
 
 // packages/core/dist/lint.js
-import { existsSync as existsSync12, statSync as statSync5, readdirSync as readdirSync8, readFileSync as readFileSync6 } from "node:fs";
+import { existsSync as existsSync11, statSync as statSync6, readdirSync as readdirSync8, readFileSync as readFileSync6 } from "node:fs";
 import { basename, dirname as dirname2, isAbsolute as isAbsolute4, join as join13, resolve as resolve5 } from "node:path";
 
 // packages/adapters/dist/pi.js
@@ -4032,7 +4126,7 @@ function getAdapter(name) {
 
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
-import { readFileSync as readFileSync8, existsSync as existsSync13 } from "node:fs";
+import { readFileSync as readFileSync8, existsSync as existsSync12 } from "node:fs";
 import { join as join15, dirname as dirname3 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn as spawn2 } from "node:child_process";
@@ -4047,7 +4141,7 @@ function templatePath(assetsDir) {
     join15(__dirname, "..", "..", "assets", "report.template.html")
   ];
   for (const c of candidates)
-    if (existsSync13(c))
+    if (existsSync12(c))
       return c;
   throw new Error("cannot find assets/report.template.html");
 }
@@ -4249,17 +4343,17 @@ function tryOpen(url, cmd) {
 }
 
 // packages/pi-extension/src/runner.ts
-import { existsSync as existsSync14 } from "node:fs";
+import { existsSync as existsSync13 } from "node:fs";
 import { dirname as dirname4, join as join16, resolve as resolve6 } from "node:path";
 function resolveSkillDir(cwd, arg) {
   if (arg) {
     const dir2 = resolve6(cwd, arg);
-    if (existsSync14(join16(dir2, "tests", "specification.yaml"))) return dir2;
+    if (existsSync13(join16(dir2, "tests", "specification.yaml"))) return dir2;
     throw new Error(`no tests/specification.yaml found at ${dir2}`);
   }
   let dir = cwd;
   for (; ; ) {
-    if (existsSync14(join16(dir, "tests", "specification.yaml"))) return dir;
+    if (existsSync13(join16(dir, "tests", "specification.yaml"))) return dir;
     const parent = dirname4(dir);
     if (parent === dir) break;
     dir = parent;
@@ -4357,7 +4451,7 @@ ${card.failedTranscripts.join("\n")}`);
     const runDir = resolve7(ctx.cwd, positional[0] ?? ".");
     const testsDir = dirname5(dirname5(dirname5(runDir)));
     const spec = loadSpec(join17(testsDir, "specification.yaml"));
-    const prev = existsSync15(join17(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const prev = existsSync14(join17(runDir, "results.yaml")) ? readResults(runDir) : null;
     const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? { provider: "anthropic", model: "claude-opus-4-8" };
     const results = await regradeRun({
       runDir,

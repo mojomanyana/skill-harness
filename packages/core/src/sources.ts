@@ -22,9 +22,11 @@ import type { Scenario } from "./spec.js";
  * | `fixture:<path>` | every file under one fixture dir |
  * | anything else | a file path resolved against the spec's dir (`system_prompt_file`) |
  *
- * The prefixed forms cannot collide with a relative path key, because a
- * `system_prompt_file` is a path and `:` is not a path separator here. Old
- * results carrying only bare-path keys keep resolving exactly as before.
+ * Separation from bare-path keys is conventional, not guaranteed: `scenario:A1`
+ * is a legal POSIX filename, so nothing stops someone naming an agent file that.
+ * In practice `system_prompt_file` and `post_test` values are ordinary relative
+ * paths, and a `<name>:` prefix is reserved for this scheme. Old results carrying
+ * only bare-path keys keep resolving exactly as before.
  *
  * ## Why per-scenario, not one hash of specification.yaml
  *
@@ -41,6 +43,20 @@ import type { Scenario } from "./spec.js";
  */
 export const SCENARIO_PREFIX = "scenario:";
 export const FIXTURE_PREFIX = "fixture:";
+
+/**
+ * Recorded in place of a hash when a source existed but could not be read.
+ *
+ * Omitting it instead — which is what an early version did — is the worst
+ * available option: `lint` only ever iterates the keys a run recorded, so a
+ * source dropped at record time is never compared again for the life of that
+ * result. A fixture briefly unreadable during a run could then be replaced
+ * wholesale and `lint` would still report 0 findings, which is verbatim the miss
+ * this module was written to close.
+ *
+ * Not valid sha256 hex, so it can never equal a real digest and always surfaces.
+ */
+export const UNREADABLE = "unreadable";
 
 /** sha256 of a file, or null when it doesn't exist / isn't readable. */
 export function fileSha256(path: string): string | null {
@@ -108,22 +124,38 @@ function walk(dir: string, prefix = ""): string[] {
  * believes was tested.
  */
 export function scenarioDigest(s: Scenario): string {
+  // Destructured, with the remainder pinned to `Record<string, never>`, so that
+  // adding a field to `Scenario` or `SeededAssert` FAILS THE BUILD here instead of
+  // silently escaping the digest. A field nobody remembered to add is a permanent
+  // staleness blind spot — edit it and every published result still looks current,
+  // which is precisely the bug this module exists to kill. This PR added two
+  // SeededAssert fields and remembered both; that only proves the discipline works
+  // while someone is looking, so the compiler now does the looking.
+  const {
+    id, title, critical, mode, turns, checklist, fixture, assert,
+    workspace, remote, systemPromptFile, reps, passThreshold, ...restScenario
+  } = s;
+  const _scenarioExhaustive: Record<string, never> = restScenario;
+  void _scenarioExhaustive;
+
+  const { vitest, diff_contains, diff_excludes, post_test, ...restAssert } = assert ?? {};
+  const _assertExhaustive: Record<string, never> = restAssert;
+  void _assertExhaustive;
+
   const canonical = JSON.stringify([
-    s.id,
-    s.title,
-    s.critical,
-    s.mode,
-    s.turns,
-    s.checklist,
-    s.fixture ?? null,
-    s.assert
-      ? [s.assert.vitest ?? null, s.assert.diff_contains ?? null, s.assert.diff_excludes ?? null, s.assert.post_test ?? null]
-      : null,
-    s.workspace,
-    s.remote,
-    s.systemPromptFile ?? null,
-    s.reps ?? null,
-    s.passThreshold ?? null,
+    id,
+    title,
+    critical,
+    mode,
+    turns,
+    checklist,
+    fixture ?? null,
+    assert ? [vitest ?? null, diff_contains ?? null, diff_excludes ?? null, post_test ?? null] : null,
+    workspace,
+    remote,
+    systemPromptFile ?? null,
+    reps ?? null,
+    passThreshold ?? null,
   ]);
   return createHash("sha256").update(canonical).digest("hex");
 }
@@ -133,8 +165,16 @@ function fixtureAbs(specDir: string, fixture: string): string {
   return isAbsolute(fixture) ? fixture : resolve(specDir, fixture);
 }
 
-/** The fixture path a scenario actually runs in, or undefined. Mirrors lint's effective-workspace rule. */
-function effectiveFixture(s: Scenario): string | undefined {
+/**
+ * The fixture path a scenario actually runs in, or undefined.
+ *
+ * The EFFECTIVE workspace fixture, which is not always `scenario.fixture`: an
+ * inline scenario with `env.workspace: fixture:PATH` sets `workspace.fixture`
+ * and leaves `scenario.fixture` unset. Exported and shared with lint, which
+ * needs the identical rule — a second copy of this expression is how the hashed
+ * set and the checked set drift apart.
+ */
+export function effectiveFixture(s: Scenario): string | undefined {
   return typeof s.workspace === "object" && s.workspace !== null ? s.workspace.fixture : undefined;
 }
 
@@ -153,21 +193,30 @@ export interface SourceContext {
 export function sourceHashes(ctx: SourceContext): Record<string, string> {
   const hashes: Record<string, string> = {};
 
-  const skillMd = fileSha256(resolve(ctx.skillDir, "SKILL.md"));
-  if (skillMd) hashes["SKILL.md"] = skillMd;
+  // UNREADABLE rather than omission on every branch below: a source we failed to
+  // hash must stay visible to lint, not vanish from the record. See UNREADABLE.
+  hashes["SKILL.md"] = fileSha256(resolve(ctx.skillDir, "SKILL.md")) ?? UNREADABLE;
 
   for (const s of ctx.scenarios) {
     hashes[SCENARIO_PREFIX + s.id] = scenarioDigest(s);
 
     if (s.systemPromptFile && !(s.systemPromptFile in hashes)) {
-      const h = fileSha256(resolve(ctx.specDir, s.systemPromptFile));
-      if (h) hashes[s.systemPromptFile] = h;
+      hashes[s.systemPromptFile] = fileSha256(resolve(ctx.specDir, s.systemPromptFile)) ?? UNREADABLE;
+    }
+
+    // The post-test IS the gate on a post_test scenario, and it lives outside the
+    // fixture tree by convention (`fixture: fixtures/A1`, `post_test: post/A1.test.ts`),
+    // so neither the fixture digest nor the scenario digest — which holds only the
+    // path string — covers its contents. Tightening an assertion in it changes what
+    // the scorecard measured; without this it would change nothing lint can see.
+    const pt = s.assert?.post_test;
+    if (pt && !(pt in hashes)) {
+      hashes[pt] = fileSha256(isAbsolute(pt) ? pt : resolve(ctx.specDir, pt)) ?? UNREADABLE;
     }
 
     const fx = effectiveFixture(s);
     if (fx && !(FIXTURE_PREFIX + fx in hashes)) {
-      const h = dirSha256(fixtureAbs(ctx.specDir, fx));
-      if (h) hashes[FIXTURE_PREFIX + fx] = h;
+      hashes[FIXTURE_PREFIX + fx] = dirSha256(fixtureAbs(ctx.specDir, fx)) ?? UNREADABLE;
     }
   }
   return hashes;
@@ -185,7 +234,7 @@ export function sourceHashes(ctx: SourceContext): Record<string, string> {
  * from drifting: a new key kind is defined once, for both sides.
  */
 export function currentHashFor(key: string, ctx: SourceContext): string | null | undefined {
-  if (key === "SKILL.md") return fileSha256(join(ctx.skillDir, "SKILL.md"));
+  if (key === "SKILL.md") return fileSha256(resolve(ctx.skillDir, "SKILL.md"));
 
   if (key.startsWith(SCENARIO_PREFIX)) {
     const id = key.slice(SCENARIO_PREFIX.length);
@@ -197,7 +246,13 @@ export function currentHashFor(key: string, ctx: SourceContext): string | null |
     return dirSha256(fixtureAbs(ctx.specDir, key.slice(FIXTURE_PREFIX.length)));
   }
 
-  return fileSha256(resolve(ctx.specDir, key)); // system_prompt_file
+  // A prefixed key this version doesn't know is written by a NEWER skill-harness.
+  // Falling through to the path branch would resolve `agent:foo` as a filename,
+  // find nothing, and report a confident "agent:foo no longer exists" — a wrong
+  // finding about a source that is fine. Not comparable is the honest answer.
+  if (/^[a-z][a-z0-9-]*:/.test(key)) return undefined;
+
+  return fileSha256(resolve(ctx.specDir, key)); // system_prompt_file, post_test
 }
 
 /** Human label for a recorded key, used in lint messages. */

@@ -10,17 +10,27 @@ export interface JudgePromptInput {
   transcript: string;
 }
 
+/** The heading runSeeded writes above the staged diff. Gating on this exact string is what keeps the guidance honest — see below. */
+export const STAGED_DIFF_HEADING = "=== STAGED DIFF ===";
+
 /**
- * Seeded-only addendum pointing the judge at the code.
+ * Addendum pointing the judge at the code, added only when the code is actually there.
  *
  * A seeded transcript ends with the staged diff, and without this the judge
  * weighs the model's prose about its work equally with the work itself — which
  * is how six reps that all passed the objective gates split PASS/FAIL purely on
  * whether the model wrote "rejects overdrafts" or "subtracts amount".
  *
- * Deliberately scoped to seeded scenarios: an inline scenario has no diff, so
- * its prompt stays byte-identical and inline verdicts remain comparable with
- * every result already published.
+ * Gated on the transcript CONTAINING the diff section, not on `scenario.mode`.
+ * The first sentence is a factual claim about the transcript, and every seeded
+ * transcript saved before this feature existed lacks that section — so keying
+ * off the mode would tell the judge its primary evidence is at the end of a
+ * transcript that has none, while also telling it the gate lines prove nothing.
+ * That is a sweep of FAILs justified by absent evidence, and it would land
+ * squarely on `grade`, the command AGENTS.md rule 4 recommends as the *cheap*
+ * de-confounding step before re-running. Inline scenarios have no diff either,
+ * so their prompt stays byte-identical and every published inline verdict
+ * remains comparable.
  */
 const SEEDED_DIFF_GUIDANCE = `
 This transcript ends with a "=== STAGED DIFF ===" section: the actual code the assistant wrote, as \`git diff --cached\`. It is the primary evidence. Grade what the diff shows the code DOES, not what the assistant's prose claims it does — a confident description of behavior the diff does not implement is a FAIL, and behavior the diff plainly implements passes even if the assistant described it poorly or not at all. The "=== SEEDED GATES ===" lines above it are keyword and test-run checks only; they do not establish that the required behavior exists. If the diff is marked truncated, judge only what you can see and never infer that cut-off code is missing.
@@ -30,7 +40,8 @@ This transcript ends with a "=== STAGED DIFF ===" section: the actual code the a
 export function buildJudgePrompt(input: JudgePromptInput): string {
   const { skill, persona, scenario, transcript } = input;
   const numbered = scenario.checklist.map((c, i) => `${i + 1}. ${c}`).join("\n");
-  const diffGuidance = scenario.mode === "seeded" ? SEEDED_DIFF_GUIDANCE : "";
+  const diffGuidance =
+    scenario.mode === "seeded" && transcript.includes(STAGED_DIFF_HEADING) ? SEEDED_DIFF_GUIDANCE : "";
   return `You are grading ONE response from an AI assistant using a "${skill}" skill — ${persona} Judge it ONLY against the checklist below — do not add requirements beyond it.
 
 CHECKLIST (every numbered item must hold for a PASS):

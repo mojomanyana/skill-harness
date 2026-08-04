@@ -1,9 +1,9 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { rmSync, writeFileSync, readFileSync, existsSync, mkdtempSync } from "node:fs";
+import { rmSync, writeFileSync, readFileSync, existsSync, mkdtempSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createWorkspace } from "../src/workspace.js";
-import { runSeeded, capDiff, changedLines } from "../src/seeded.js";
+import { runSeeded, capDiff, changedLines, vitestTally } from "../src/seeded.js";
 import type { Scenario } from "../src/spec.js";
 import type { HarnessAdapter, RunReq } from "../src/adapters/types.js";
 
@@ -219,8 +219,29 @@ describe("assert.post_test", () => {
 
     // It must still fail — a silently skipped gate is worse than a loud one — but
     // the message has to point at the spec, not at the model.
-    expect(r.gateFailure).toMatch(/post_test file not found/);
+    expect(r.gateFailure).toMatch(/post_test is not a readable file/);
     expect(r.gateFailure).toMatch(/spec error, not model behavior/);
+  });
+
+  it("a post_test that is a DIRECTORY degrades the scenario, never the whole run", async () => {
+    // existsSync() is true for a directory and copyFileSync then throws EISDIR.
+    // That rejection escaped runSeeded, and runRep guards only workspace setup, so
+    // it reached runSkillModel and writeResults never ran — one spec typo
+    // (`post_test: post`) discarded every scenario already completed in a paid run.
+    const fixture = mkdtempSync(join(tmpdir(), "sc-seed-src-")); tmps.push(fixture);
+    writeFileSync(join(fixture, "seed.txt"), "seed", "utf8");
+    const ws = createWorkspace({ fixture }, { specDir: "/x" }); tmps.push(ws.cwd);
+    const specDir = mkdtempSync(join(tmpdir(), "sc-spec-")); tmps.push(specDir);
+    mkdirSync(join(specDir, "post"));
+
+    const r = await runSeeded(postScenario("post"), {
+      skillDir: "/x", adapter: editingAdapter("MARKER"),
+      model: { provider: "fireworks", model: "fake" }, mode: "green", cwd: ws.cwd, specDir,
+    });
+
+    expect(r.gateFailure).toMatch(/post_test is not a readable file/);
+    expect(r.gateFailure).toMatch(/spec error, not model behavior/);
+    expect(r.transcript).toContain("=== STAGED DIFF ==="); // still a complete transcript
   });
 
   /** A workspace + a spec dir holding a real post-test file. */
@@ -237,7 +258,24 @@ describe("assert.post_test", () => {
     return { ws, specDir };
   }
 
-  const fakeVitest = (run: { code: number; stdout?: string; stderr?: string }) =>
+  /**
+   * A vitest double emitting a realistic summary line, because the gate now
+   * requires positive evidence that assertions ran — see `vitestTally`. A double
+   * that returned only an exit code would let the gate's own vacuous-pass
+   * protection go untested.
+   */
+  const summary = (t: { passed?: number; failed?: number; skipped?: number; todo?: number }) => {
+    const bits = [
+      t.failed ? `${t.failed} failed` : "",
+      t.passed ? `${t.passed} passed` : "",
+      t.skipped ? `${t.skipped} skipped` : "",
+      t.todo ? `${t.todo} todo` : "",
+    ].filter(Boolean);
+    const total = (t.passed ?? 0) + (t.failed ?? 0) + (t.skipped ?? 0) + (t.todo ?? 0);
+    return ` Test Files  1 passed (1)\n      Tests  ${bits.join(" | ")} (${total})\n`;
+  };
+
+  const fakeVitest = (run: { code: number | null; stdout?: string; stderr?: string }) =>
     async () => ({ code: run.code, stdout: run.stdout ?? "", stderr: run.stderr ?? "" });
 
   it("copies the post_test in AFTER the diff is captured, so it never pollutes the diff", async () => {
@@ -247,7 +285,7 @@ describe("assert.post_test", () => {
     const r = await runSeeded(postScenario("hidden.test.ts"), {
       skillDir: "/x", adapter: editingAdapter("MARKER"),
       model: { provider: "fireworks", model: "fake" }, mode: "green", cwd: ws.cwd, specDir,
-      runVitest: async (args, cwd) => { calls.push({ args, cwd }); return { code: 0, stdout: "1 passed", stderr: "" }; },
+      runVitest: async (args, cwd) => { calls.push({ args, cwd }); return { code: 0, stdout: summary({ passed: 1 }), stderr: "" }; },
     });
 
     expect(r.gateFailure).toBeNull();
@@ -267,7 +305,7 @@ describe("assert.post_test", () => {
     const r = await runSeeded(postScenario("hidden.test.ts"), {
       skillDir: "/x", adapter: editingAdapter("MARKER"),
       model: { provider: "fireworks", model: "fake" }, mode: "green", cwd: ws.cwd, specDir,
-      runVitest: fakeVitest({ code: 1, stdout: "1 failed" }),
+      runVitest: fakeVitest({ code: 1, stdout: summary({ failed: 1 }) }),
     });
     expect(r.gateFailure).toMatch(/post_test "hidden\.test\.ts" failed \(exit 1\)/);
     expect(r.transcript).toContain('post_test "hidden.test.ts": FAIL');
@@ -285,7 +323,70 @@ describe("assert.post_test", () => {
     });
     expect(r.gateFailure).toMatch(/never collected by vitest/);
     expect(r.gateFailure).toMatch(/spec\/fixture error, not model behavior/);
-    expect(r.transcript).toContain("collected no tests");
+  });
+
+  it("REFUSES to pass when every hidden test is skipped — exit 0 is not evidence", async () => {
+    // Verified against real vitest 2.1: a `.skip`'d post-test exits ZERO and prints
+    // "Tests  1 skipped". Keying the gate off the exit code therefore reported PASS
+    // for a hidden gate that executed no assertions — the exact vacuous-gate shape
+    // post_test exists to prevent, and invisible because a passing gate produces
+    // output nobody reads.
+    const { ws, specDir } = postTestSetup();
+    const r = await runSeeded(postScenario("hidden.test.ts"), {
+      skillDir: "/x", adapter: editingAdapter("MARKER"),
+      model: { provider: "fireworks", model: "fake" }, mode: "green", cwd: ws.cwd, specDir,
+      runVitest: fakeVitest({ code: 0, stdout: summary({ skipped: 1 }) }),
+    });
+    expect(r.gateFailure).toMatch(/skipped\/todo test/);
+    expect(r.gateFailure).toMatch(/spec error, not model behavior/);
+  });
+
+  it("REFUSES to pass when the summary reports zero tests", async () => {
+    const { ws, specDir } = postTestSetup();
+    const r = await runSeeded(postScenario("hidden.test.ts"), {
+      skillDir: "/x", adapter: editingAdapter("MARKER"),
+      model: { provider: "fireworks", model: "fake" }, mode: "green", cwd: ws.cwd, specDir,
+      runVitest: fakeVitest({ code: 0, stdout: " Test Files  1 passed (1)\n      Tests   (0)\n" }),
+    });
+    expect(r.gateFailure).toMatch(/ran no assertions/);
+  });
+
+  it("REFUSES to pass when no vitest summary can be parsed at all", async () => {
+    const { ws, specDir } = postTestSetup();
+    const r = await runSeeded(postScenario("hidden.test.ts"), {
+      skillDir: "/x", adapter: editingAdapter("MARKER"),
+      model: { provider: "fireworks", model: "fake" }, mode: "green", cwd: ws.cwd, specDir,
+      runVitest: fakeVitest({ code: 0, stdout: "something unrecognisable" }),
+    });
+    expect(r.gateFailure).toMatch(/no parseable vitest summary/);
+  });
+
+  it("calls a timeout infrastructure, not a model failure", async () => {
+    // exec SIGKILLs at the timeout and the child closes with code === null.
+    const { ws, specDir } = postTestSetup();
+    const r = await runSeeded(postScenario("hidden.test.ts"), {
+      skillDir: "/x", adapter: editingAdapter("MARKER"),
+      model: { provider: "fireworks", model: "fake" }, mode: "green", cwd: ws.cwd, specDir,
+      runVitest: fakeVitest({ code: null, stdout: "partial output", stderr: "[skill-harness] killed after 120000ms timeout" }),
+    });
+    expect(r.gateFailure).toMatch(/timed out/);
+    expect(r.gateFailure).toMatch(/infrastructure, not model behavior/);
+    // stderr must survive: `stdout || stderr` used to discard the kill notice.
+    expect(r.transcript).toContain("killed after 120000ms timeout");
+  });
+
+  it("does not fire the never-collected check on model output that merely mentions it", async () => {
+    // The unanchored regex also matched this string appearing anywhere in test
+    // output or a model-authored console.log, flipping a genuine pass into a
+    // phantom "your fixture is broken".
+    const { ws, specDir } = postTestSetup();
+    const r = await runSeeded(postScenario("hidden.test.ts"), {
+      skillDir: "/x", adapter: editingAdapter("MARKER"),
+      model: { provider: "fireworks", model: "fake" }, mode: "green", cwd: ws.cwd, specDir,
+      runVitest: fakeVitest({ code: 0, stdout: `stdout: log("No test files found")\n${summary({ passed: 2 })}` }),
+    });
+    expect(r.gateFailure).toBeNull();
+    expect(r.transcript).toContain("post_test \"hidden.test.ts\": PASS (2 assertion-bearing test(s))");
   });
 
   it("runs the model's own tests and the hidden test as separate gates", async () => {
@@ -298,7 +399,7 @@ describe("assert.post_test", () => {
     await runSeeded(scenario, {
       skillDir: "/x", adapter: editingAdapter("MARKER"),
       model: { provider: "fireworks", model: "fake" }, mode: "green", cwd: ws.cwd, specDir,
-      runVitest: async (args) => { calls.push(args); return { code: 0, stdout: "ok", stderr: "" }; },
+      runVitest: async (args) => { calls.push(args); return { code: 0, stdout: summary({ passed: 1 }), stderr: "" }; },
     });
     // `vitest: true` grades the model's own tests; post_test grades ours. They are
     // orthogonal, so both invocations must happen.
@@ -318,6 +419,33 @@ describe("changedLines", () => {
     "+export function sliceRange(){ return 1 }",
     " export function alsoUntouched(){}",
   ].join("\n");
+
+  it("keeps a changed line whose own content starts with -- or ++", () => {
+    // The prefix filter could not tell `--- a/x.ts` (a header) from a removed line
+    // whose source text begins with `--` (a SQL/Lua comment, a YAML `---`), nor
+    // `+++ b/x.ts` from an added `++counter;` at column zero. Both vanished, and
+    // diff_excludes then reported OK for a diff that touched the forbidden symbol
+    // — a false PASS on an objective gate.
+    const tricky = [
+      "diff --git a/notes.md b/notes.md",
+      "--- a/notes.md",
+      "+++ b/notes.md",
+      "@@ -1,4 +1,4 @@",
+      " context",
+      "----",                    // removed a line whose content is `---`
+      "--- lastIndex comment",   // removed a line whose content starts with `--`
+      "+++lastIndexHack();",     // added a line whose content starts with `++`
+      "+normal",
+    ].join("\n");
+    const out = changedLines(tricky);
+    expect(out).toContain("----");
+    expect(out).toContain("lastIndex comment");
+    expect(out).toContain("lastIndexHack");
+    expect(out).toContain("+normal");
+    expect(out).not.toContain("a/notes.md"); // the real headers are still gone
+    expect(out).not.toContain("b/notes.md");
+    expect(out).not.toContain("context");
+  });
 
   it("keeps only added and removed lines", () => {
     expect(changedLines(DIFF)).toBe(
@@ -367,5 +495,61 @@ describe("capDiff", () => {
   it("does not truncate at exactly the cap", () => {
     const exact = "a".repeat(50);
     expect(capDiff(exact, 50)).toBe(exact);
+  });
+
+  it("budgets in BYTES, not characters, for multibyte content", () => {
+    // Every other case here is ASCII, where byteLength and .length agree — so
+    // swapping Buffer.byteLength for .length would pass them all while embedding a
+    // CJK diff at ~3x the intended budget, overflowing the judge context the cap
+    // exists to protect.
+    const cjk = Array.from({ length: 30 }, (_, i) => `+日本語テスト行 ${i}`).join("\n");
+    const out = capDiff(cjk, 120);
+    const body = out.slice(0, out.indexOf("[… diff truncated"));
+    expect(Buffer.byteLength(body, "utf8")).toBeLessThanOrEqual(120);
+    expect(body.length).toBeLessThan(Buffer.byteLength(body, "utf8")); // proves it is multibyte
+    expect(body).not.toContain("�"); // no character was split
+  });
+
+  it("reports the omitted byte count exactly", () => {
+    // `used` must count only the separators join() actually emits (n-1 for n
+    // lines). Counting one per line under-reported every truncation by a byte —
+    // small, but the marker's credibility is the entire point of the marker.
+    const diff = "aaaa\nbbbb\ncccc\ndddd";
+    const out = capDiff(diff, 10);
+    const body = out.slice(0, out.indexOf("\n[… diff truncated"));
+    const total = Buffer.byteLength(diff, "utf8");
+    const omitted = total - Buffer.byteLength(body, "utf8");
+    expect(out).toContain(`${omitted} of ${total} bytes omitted`);
+  });
+
+  it("still shows the judge something when one line exceeds the whole cap", () => {
+    // A minified bundle or a lockfile line. Keeping nothing handed the judge a
+    // marker with zero code under it, while the judge prompt simultaneously tells
+    // it not to infer absence — a guaranteed non-answer.
+    const oneLine = "+" + "x".repeat(500);
+    const out = capDiff(oneLine, 100);
+    expect(out.startsWith("+xxx")).toBe(true);
+    expect(out).toContain("diff truncated");
+    expect(Buffer.byteLength(out.split("\n[… diff truncated")[0], "utf8")).toBeLessThanOrEqual(100);
+  });
+
+  it("does not split a multibyte character when truncating an oversized single line", () => {
+    const out = capDiff("+" + "日".repeat(200), 50);
+    expect(out).not.toContain("�");
+    expect(Buffer.from(out, "utf8").toString("utf8")).toBe(out);
+  });
+});
+
+describe("vitestTally", () => {
+  it("parses the shapes vitest actually emits", () => {
+    expect(vitestTally(" Test Files  1 passed (1)\n      Tests  3 passed (3)\n")).toEqual({ passed: 3, failed: 0, skipped: 0, todo: 0 });
+    expect(vitestTally("      Tests  1 failed | 2 passed (3)")).toEqual({ passed: 2, failed: 1, skipped: 0, todo: 0 });
+    expect(vitestTally("      Tests  1 skipped (1)")).toEqual({ passed: 0, failed: 0, skipped: 1, todo: 0 });
+    expect(vitestTally("      Tests  1 passed | 1 todo (2)")).toEqual({ passed: 1, failed: 0, skipped: 0, todo: 1 });
+  });
+
+  it("returns null when there is no summary line to trust", () => {
+    expect(vitestTally("")).toBeNull();
+    expect(vitestTally("No test files found, exiting with code 1")).toBeNull();
   });
 });

@@ -1,8 +1,8 @@
-import { copyFileSync, existsSync } from "node:fs";
+import { copyFileSync, statSync } from "node:fs";
 import { extname, isAbsolute, join, resolve } from "node:path";
 import type { Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef, RunMode } from "./adapters/types.js";
-import { exec } from "./util/exec.js";
+import { exec, type ExecResult } from "./util/exec.js";
 import { envNum } from "./util/env.js";
 
 interface SeededOpts {
@@ -23,19 +23,29 @@ interface SeededOpts {
   runVitest?: (args: string[], cwd: string) => Promise<VitestRun>;
 }
 
-export interface VitestRun {
-  code: number;
-  stdout: string;
-  stderr: string;
-}
+/**
+ * Result of one vitest invocation — deliberately `ExecResult`, not a narrower
+ * shape of its own.
+ *
+ * An earlier version declared `code: number`. That narrowing was a lie the
+ * compiler happened not to catch (the default's inferred type silently widened
+ * it back), and it is unrepresentable in practice: `exec` SIGKILLs on timeout
+ * and a signal-killed child closes with `code === null`. Declaring non-null
+ * would have made the vitest gate's timeout path — the one an injected double
+ * most needs to reproduce — impossible to express in a test.
+ */
+export type VitestRun = ExecResult;
 
 /**
- * Filename the post-test is copied to, at the workspace root.
+ * Filename STEM the post-test is copied to at the workspace root; the extension
+ * (`.test.ts`) is appended at the copy site, which is the part that decides
+ * whether vitest collects it at all.
  *
  * Harness-owned rather than the author's basename, for two reasons: it cannot
- * collide with a fixture file by accident, and a model cannot shadow the check
- * by creating a file at the path it guesses we will use — the copy happens after
- * the model is done and overwrites unconditionally.
+ * collide with a fixture file by accident, and a model cannot shadow the check by
+ * creating a *file* at the path it guesses we will use — the copy happens after
+ * the model is done and overwrites unconditionally. (A *directory* there makes
+ * the copy fail; that is handled as an infrastructure error, not a model FAIL.)
  */
 const POST_TEST_BASE = "skill-harness.post";
 
@@ -59,14 +69,32 @@ const VITEST_TIMEOUT_MS = envNum("VITEST_TIMEOUT_MS", 120_000);
  * diff would fail the scenario for every model that fixed the right thing, which is
  * worse than the prose-dependent item it replaces.
  *
- * `+++`/`---` file headers are excluded too: a path containing the needle would
- * otherwise trip the gate on every hunk of that file.
+ * Classification is HUNK-AWARE rather than prefix-based, because `+++`/`---` are
+ * only headers *outside* a hunk. Filtering on those prefixes anywhere would eat a
+ * changed line whose own source text starts with `++` or `--` — `++counter;` at
+ * column zero, a removed SQL/Lua `-- comment`, a YAML `---` separator. Those
+ * became `+++counter;` and `--- comment` once the diff marker was prepended, were
+ * read as headers, and vanished: `diff_excludes` then reported OK for a diff that
+ * touched the forbidden symbol. A false PASS on an objective gate is worse than
+ * the subjective check it replaced, so the parse follows the format instead of
+ * guessing from prefixes.
  */
 export function changedLines(diff: string): string {
-  return diff
-    .split("\n")
-    .filter((l) => (l.startsWith("+") || l.startsWith("-")) && !l.startsWith("+++") && !l.startsWith("---"))
-    .join("\n");
+  const out: string[] = [];
+  let inHunk = false;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("@@")) {
+      inHunk = true; // a hunk header opens the region where +/- mean "changed"
+      continue;
+    }
+    if (line.startsWith("diff --git ")) {
+      inHunk = false; // a new file section closes it; its ---/+++ are headers again
+      continue;
+    }
+    if (!inHunk) continue; // index/mode/---/+++ preamble lines
+    if (line.startsWith("+") || line.startsWith("-")) out.push(line);
+  }
+  return out.join("\n");
 }
 
 /**
@@ -91,15 +119,33 @@ export function capDiff(diff: string, maxBytes: number = DIFF_MAX_BYTES): string
   const total = Buffer.byteLength(diff, "utf8");
   if (total <= maxBytes) return diff;
 
-  // Accumulate whole lines until the next one would exceed the budget.
+  // Accumulate whole lines until the next one would exceed the budget. `used`
+  // counts the separators actually emitted by join() — n lines carry n-1 of
+  // them — so the omitted figure in the marker is exact rather than one byte
+  // short. This file's whole thesis is telling the judge accurately what it was
+  // not shown, so an off-by-one here is a small lie in the wrong place.
   const kept: string[] = [];
   let used = 0;
   for (const line of diff.split("\n")) {
-    const cost = Buffer.byteLength(line, "utf8") + 1; // +1 for the newline
+    const cost = Buffer.byteLength(line, "utf8") + (kept.length > 0 ? 1 : 0);
     if (used + cost > maxBytes) break;
     kept.push(line);
     used += cost;
   }
+
+  // A single line longer than the whole budget (a minified bundle, a lockfile,
+  // a generated blob) would otherwise keep nothing at all and hand the judge a
+  // marker with zero code under it. Show a byte-safe prefix instead: some
+  // evidence beats none, and the marker still says what was cut.
+  if (kept.length === 0) {
+    const head = Buffer.from(diff, "utf8").subarray(0, maxBytes).toString("utf8");
+    // toString() on a boundary-split multibyte sequence yields U+FFFD; drop a
+    // trailing one rather than show the judge a corrupted character.
+    const clean = head.endsWith("�") ? head.slice(0, -1) : head;
+    kept.push(clean);
+    used = Buffer.byteLength(clean, "utf8");
+  }
+
   const omitted = total - used;
   return (
     kept.join("\n") +
@@ -111,9 +157,16 @@ export function capDiff(diff: string, maxBytes: number = DIFF_MAX_BYTES): string
 
 /**
  * Run a seeded scenario inside a caller-prepared workspace: let the harness edit
- * the repo, then evaluate objective gates (staged-diff contains + optional vitest
- * pass). A failed gate short-circuits to an auto-FAIL. Workspace creation (fixture
- * copy + git baseline) and teardown are the caller's responsibility (run.ts).
+ * the repo, then evaluate the objective gates it declares — `diff_contains`,
+ * `diff_excludes`, `vitest` and `post_test`. Every gate that is configured runs;
+ * the FIRST failure is what `gateFailure` reports, and a non-null `gateFailure`
+ * makes the scenario an auto-FAIL that never reaches the judge.
+ *
+ * Returns the full staged diff alongside the transcript: the caller persists it
+ * as a run artifact, and a size-capped copy is appended to the transcript under
+ * `=== STAGED DIFF ===` so the judge grades the code rather than the model's
+ * description of it. Workspace creation (fixture copy + git baseline) and
+ * teardown are the caller's responsibility (run.ts).
  */
 export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<SeededOutcome> {
   const repo = opts.cwd;
@@ -126,14 +179,33 @@ export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<S
     cwd: repo,
   });
 
-  await git(repo, ["add", "-A"]);
-  const diff = (await git(repo, ["diff", "--cached"])).stdout;
-
   const parts: string[] = [harnessOut, "", "=== SEEDED GATES ==="];
   let gateFailure: string | null = null;
-  const runVitest =
+  const runVitest: NonNullable<SeededOpts["runVitest"]> =
     opts.runVitest ??
-    ((args: string[], cwd: string) => exec("npx", ["vitest", "run", ...args], { cwd, timeoutMs: VITEST_TIMEOUT_MS }));
+    ((args, cwd) => exec("npx", ["vitest", "run", ...args], { cwd, timeoutMs: VITEST_TIMEOUT_MS }));
+
+  // `exec` never throws on a non-zero exit and, on timeout, SIGKILLs the child and
+  // resolves with whatever stdout accumulated (code === null). Ignoring that here
+  // let a truncated or failed capture flow into every downstream consumer as
+  // evidence: diff_contains FAILs blamed on the model, diff_excludes silently
+  // passing, the transcript asserting "the model left no staged changes", and a
+  // partial diff persisted as the "complete" artifact — under the cap, so the
+  // truncation marker never fires. A capture we cannot trust is infrastructure,
+  // and must say so instead of being graded.
+  const add = await git(repo, ["add", "-A"]);
+  const show = await git(repo, ["diff", "--cached"]);
+  const diff = show.stdout;
+  const gitFailure = [add, show].find((r) => r.code !== 0);
+  if (gitFailure) {
+    const why = gitFailure.code === null ? "timed out and was killed" : `exited ${gitFailure.code}`;
+    const msg =
+      `staged diff could not be captured — git ${why} — infrastructure, not model behavior` +
+      (gitFailure.stderr.trim() ? `: ${gitFailure.stderr.trim().split("\n")[0]}` : "");
+    parts.push(`  staged diff: ERROR (${msg})`);
+    gateFailure = msg;
+    return finish(parts, gateFailure, diff);
+  }
 
   const wantDiff = scenario.assert?.diff_contains ?? [];
   for (const needle of wantDiff) {
@@ -158,20 +230,36 @@ export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<S
 
   if (scenario.assert?.vitest) {
     const v = await runVitest([], repo);
+    // code === null means exec SIGKILLed it at the timeout. That is infrastructure,
+    // not a failing test, and must not be reported as the model's fault.
+    const killed = v.code === null;
     const passed = v.code === 0;
-    parts.push(`  vitest run: ${passed ? "PASS" : `FAIL (exit ${v.code})`}`);
-    parts.push(indent(v.stdout.trim() || v.stderr.trim()));
-    if (!passed && !gateFailure) gateFailure = `vitest failed (exit ${v.code})`;
+    parts.push(
+      killed
+        ? `  vitest run: ERROR (timed out after ${VITEST_TIMEOUT_MS}ms — infrastructure, not model behavior)`
+        : `  vitest run: ${passed ? "PASS" : `FAIL (exit ${v.code})`}`
+    );
+    parts.push(indent(bothStreams(v)));
+    if (!passed && !gateFailure) {
+      gateFailure = killed
+        ? `vitest timed out after ${VITEST_TIMEOUT_MS}ms — infrastructure, not model behavior`
+        : `vitest failed (exit ${v.code})`;
+    }
   }
 
   const postTest = scenario.assert?.post_test;
   if (postTest) {
     const src = isAbsolute(postTest) ? postTest : resolve(opts.specDir, postTest);
-    if (!existsSync(src)) {
-      // A missing post-test is a spec bug, not model behavior. It still fails the
-      // scenario (a silently skipped gate is worse than a loud one), but the message
-      // has to say whose fault it is so nobody reads it as "the model broke the test".
-      const msg = `post_test file not found: ${postTest} — spec error, not model behavior`;
+    // statSync().isFile(), not existsSync: a DIRECTORY "exists", and copyFileSync
+    // then throws EISDIR. That rejection escapes runSeeded, and runRep guards only
+    // workspace setup — so it reaches runSkillModel, writeResults never runs, and a
+    // paid multi-scenario run loses every scenario already completed. One spec typo
+    // (`post_test: post` for `post/A1.test.ts`) must cost a scenario, not a run.
+    if (!isReadableFile(src)) {
+      // Not model behavior. It still fails the scenario — a silently skipped gate is
+      // worse than a loud one — but the message says whose fault it is so nobody
+      // reads it as "the model broke the test".
+      const msg = `post_test is not a readable file: ${postTest} — spec error, not model behavior`;
       parts.push(`  post_test: ERROR (${msg})`);
       if (!gateFailure) gateFailure = msg;
     } else {
@@ -180,39 +268,66 @@ export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<S
       // "skill-harness.post.ts" — a file vitest does not collect as a test at all,
       // which would have made the gate silently vacuous.
       const dest = join(repo, `${POST_TEST_BASE}.test${extname(src) || ".ts"}`);
-      copyFileSync(src, dest);
-      const v = await runVitest([POST_TEST_BASE], repo);
-      const out = v.stdout + v.stderr;
-      // Vitest exits non-zero when it finds nothing to run, which would otherwise
-      // read as "the model's code failed the hidden test" when in fact the test was
-      // never executed — the fixture's `include` patterns didn't cover the root.
-      const notCollected = /No test files found/i.test(out);
-      const passed = v.code === 0 && !notCollected;
-      parts.push(
-        notCollected
-          ? `  post_test: ERROR (${postTest} was copied in but vitest collected no tests — check the fixture's include patterns)`
-          : `  post_test ${JSON.stringify(postTest)}: ${passed ? "PASS" : `FAIL (exit ${v.code})`}`
-      );
-      parts.push(indent(v.stdout.trim() || v.stderr.trim()));
-      if (!passed && !gateFailure) {
-        gateFailure = notCollected
-          ? `post_test ${JSON.stringify(postTest)} was never collected by vitest — spec/fixture error, not model behavior`
-          : `post_test ${JSON.stringify(postTest)} failed (exit ${v.code})`;
+      try {
+        copyFileSync(src, dest);
+      } catch (e) {
+        // Permissions, a race, a full disk. Same reasoning as the branch above:
+        // degrade this scenario, never take the whole run down with it.
+        const msg =
+          `post_test could not be copied into the workspace ` +
+          `(${e instanceof Error ? e.message : String(e)}) — infrastructure, not model behavior`;
+        parts.push(`  post_test: ERROR (${msg})`);
+        if (!gateFailure) gateFailure = msg;
+        return finish(parts, gateFailure, diff);
       }
+      const v = await runVitest([POST_TEST_BASE], repo);
+      const out = `${v.stdout}\n${v.stderr}`;
+
+      // This gate must never pass without positive evidence that assertions ran.
+      // Absence-of-failure is not enough: a `.skip`/`.todo` left in the file exits
+      // ZERO and prints "Tests  1 skipped", so keying off the exit code reported
+      // PASS for a hidden gate that executed nothing — the exact vacuous-gate
+      // shape post_test exists to prevent, and one nobody would ever notice
+      // because a passing gate produces output no one reads.
+      const tally = vitestTally(out);
+      // Anchored to line start: the unanchored form also matched this string
+      // appearing anywhere in test output or a model-authored console.log, which
+      // would flip a genuine pass into a phantom "fixture is broken". The exact
+      // wording is vitest's ("No test files found, exiting with code 1", verified
+      // against 2.1.9) — recheck it when the vitest major changes.
+      const notCollected = /^\s*No test files found/im.test(out);
+      const killed = v.code === null;
+
+      let problem: string | null = null;
+      if (killed) {
+        problem = `post_test ${JSON.stringify(postTest)} timed out after ${VITEST_TIMEOUT_MS}ms — infrastructure, not model behavior`;
+      } else if (notCollected) {
+        problem = `post_test ${JSON.stringify(postTest)} was never collected by vitest — spec/fixture error, not model behavior`;
+      } else if (tally === null) {
+        problem = `post_test ${JSON.stringify(postTest)} produced no parseable vitest summary (exit ${v.code}) — cannot confirm it ran`;
+      } else if (v.code !== 0 || tally.failed > 0) {
+        // A real failure is checked BEFORE the vacuity conditions below: a run
+        // where everything failed also has zero passes, and reporting that as
+        // "ran no assertions" would point the author at their spec instead of at
+        // the model's code, which is the actual news.
+        problem = `post_test ${JSON.stringify(postTest)} failed (exit ${v.code})`;
+      } else if (tally.skipped > 0 || tally.todo > 0) {
+        problem = `post_test ${JSON.stringify(postTest)} has ${tally.skipped + tally.todo} skipped/todo test(s) — a hidden gate must actually run; spec error, not model behavior`;
+      } else if (tally.passed === 0) {
+        problem = `post_test ${JSON.stringify(postTest)} ran no assertions — spec error, not model behavior`;
+      }
+
+      parts.push(
+        problem === null
+          ? `  post_test ${JSON.stringify(postTest)}: PASS (${tally!.passed} assertion-bearing test(s))`
+          : `  post_test ${JSON.stringify(postTest)}: ${v.code === 0 && !killed ? "ERROR" : "FAIL"} (${problem})`
+      );
+      parts.push(indent(bothStreams(v)));
+      if (problem && !gateFailure) gateFailure = problem;
     }
   }
 
-  // The code itself, last — the gates above only prove that keywords appeared.
-  // Without this section a seeded checklist item about what the code *does* is
-  // graded from the model's own description of its work.
-  parts.push("", "=== STAGED DIFF ===");
-  parts.push(
-    diff.trim() === ""
-      ? "  (empty — the model left no staged changes)"
-      : capDiff(diff)
-  );
-
-  return { transcript: parts.join("\n"), gateFailure, diff };
+  return finish(parts, gateFailure, diff);
 }
 
 function git(cwd: string, args: string[]) {
@@ -221,4 +336,65 @@ function git(cwd: string, args: string[]) {
 
 function indent(s: string): string {
   return s.split("\n").map((l) => `    ${l}`).join("\n");
+}
+
+/** True only for a regular file we can stat. Never throws — a directory, a dangling symlink or EACCES all read as "not usable". */
+function isReadableFile(p: string): boolean {
+  try {
+    return statSync(p).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Both streams, labelled.
+ *
+ * The previous `stdout.trim() || stderr.trim()` dropped stderr entirely whenever
+ * stdout was non-empty — which it always is once vitest prints its banner. That
+ * discarded exactly the diagnostics worth keeping, including exec's own
+ * `[skill-harness] killed after …ms timeout` notice, leaving a transcript that
+ * showed partial test output and an unexplained failure.
+ */
+function bothStreams(v: VitestRun): string {
+  const o = v.stdout.trim();
+  const e = v.stderr.trim();
+  if (o && e) return `${o}\n[stderr]\n${e}`;
+  return o || e;
+}
+
+/** Append the staged diff and return the outcome. Every exit path goes through here, so the judge always sees the same sections in the same order. */
+function finish(parts: string[], gateFailure: string | null, diff: string): SeededOutcome {
+  // The code itself, last — the gates above only prove that keywords appeared.
+  // Without this section a seeded checklist item about what the code *does* is
+  // graded from the model's own description of its work.
+  parts.push("", "=== STAGED DIFF ===");
+  parts.push(diff.trim() === "" ? "  (empty — the model left no staged changes)" : capDiff(diff));
+  return { transcript: parts.join("\n"), gateFailure, diff };
+}
+
+export interface VitestTally {
+  passed: number;
+  failed: number;
+  skipped: number;
+  todo: number;
+}
+
+/**
+ * Parse vitest's `Tests  N passed | M skipped (T)` summary line.
+ *
+ * Used to require positive evidence that a hidden `post_test` actually executed
+ * assertions, rather than trusting a zero exit code — which vitest also returns
+ * when every test in the file is skipped. Returns null when no summary line is
+ * present, which the caller treats as "cannot confirm it ran" rather than as a
+ * pass.
+ */
+export function vitestTally(out: string): VitestTally | null {
+  const line = /^\s*Tests\s+(.+)$/m.exec(out);
+  if (!line) return null;
+  const read = (word: string): number => {
+    const m = new RegExp(`(\\d+)\\s+${word}`).exec(line[1]);
+    return m ? Number(m[1]) : 0;
+  };
+  return { passed: read("passed"), failed: read("failed"), skipped: read("skipped"), todo: read("todo") };
 }

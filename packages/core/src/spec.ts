@@ -235,6 +235,16 @@ export function parseSpec(text: string, file: string): Spec {
           if (!isStringArray(a.diff_contains)) {
             throw new SpecError(`seeded scenario \`${id}\` \`assert.diff_contains\` must be strings`, file);
           }
+          if (a.diff_contains.some((n) => n === "")) {
+            // Every string contains "", so an empty positive needle makes the gate
+            // pass on ANY diff, including an empty one. This is the more dangerous
+            // twin of the diff_excludes check below: that one fails forever and gets
+            // investigated, this one passes forever and nobody ever looks.
+            throw new SpecError(
+              `seeded scenario \`${id}\` \`assert.diff_contains\` contains an empty string — it would match every diff, so the gate could never fail`,
+              file
+            );
+          }
           assertObj.diff_contains = a.diff_contains;
         }
         if (a.diff_excludes !== undefined) {

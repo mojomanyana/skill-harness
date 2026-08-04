@@ -3,7 +3,7 @@ import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import yaml from "js-yaml";
 import { loadSpec, SpecError } from "./spec.js";
 import { readResults, finalizeResults, findTranscriptFiles, resultsPath, type ScoreContext } from "./results.js";
-import { currentHashFor, describeSourceKey, scenarioIdForKey } from "./sources.js";
+import { currentHashFor, describeSourceKey, scenarioIdForKey, effectiveFixture, SCENARIO_PREFIX, UNREADABLE } from "./sources.js";
 import { MARKERS, unknownMarkerDirs, suggestMarker } from "./workspace.js";
 
 export type LintCode = "spec" | "ship_bar" | "critical" | "fixture" | "fixture-marker" | "consistency" | "stale" | "lint-error";
@@ -69,7 +69,7 @@ export function lintSkill(skillDir: string): LintFinding[] {
   // relative to the spec's dir, matching workspace.ts resolve(specDir, fixture) where specDir = <skillDir>/tests.
   const specDir = dirname(specPath);
   for (const s of spec.scenarios) {
-    const fx = typeof s.workspace === "object" && s.workspace !== null ? s.workspace.fixture : undefined;
+    const fx = effectiveFixture(s); // shared with sources.ts so hashing and linting can't drift
     if (fx) {
       const abs = isAbsolute(fx) ? fx : resolve(specDir, fx);
       if (!isDir(abs)) {
@@ -81,7 +81,20 @@ export function lintSkill(skillDir: string): LintFinding[] {
         // it is where an author should meet this. The set flagged here is exactly the
         // set workspace.ts refuses, so lint can never bless a fixture the runtime then
         // rejects.
-        for (const dir of unknownMarkerDirs(abs)) {
+        // try/catch because lintSkill's contract is "never throws": isDir() proves the
+        // path stats, not that it can be read, and an EACCES on readdir would escape
+        // to cli.ts, which replaces this skill's ENTIRE finding list with one
+        // lint-error — silently discarding the staleness and consistency checks below.
+        let markers: string[] = [];
+        try {
+          markers = unknownMarkerDirs(abs);
+        } catch (e) {
+          findings.push({
+            skill, scenario: s.id, code: "fixture",
+            message: `fixture ${fx} could not be read: ${e instanceof Error ? e.message : String(e)}`,
+          });
+        }
+        for (const dir of markers) {
           const guess = suggestMarker(dir);
           findings.push({
             skill,
@@ -184,16 +197,37 @@ export function lintSkill(skillDir: string): LintFinding[] {
       const newest = full.runDir;
       const ctx = { skillDir, specDir, scenarios: spec.scenarios };
       for (const [key, recorded] of Object.entries(hashes)) {
-        const current = currentHashFor(key, ctx);
-        // undefined = the key names a scenario the spec no longer has. That is a
-        // reshape, not staleness — same stance as the scenario-set check above.
-        if (current === undefined) continue;
         const what = describeSourceKey(key);
         const scenario = scenarioIdForKey(key, spec.scenarios);
+        // The run itself failed to hash this source, so it was never verified and
+        // no comparison here can establish anything about it.
+        if (recorded === UNREADABLE) {
+          findings.push({ skill, scenario, code: "stale", message: `${what} could not be read when the newest ${basename(tagDir)} run was recorded (${newest}) — that source was never verified; re-run` });
+          continue;
+        }
+        const current = currentHashFor(key, ctx);
+        // undefined = not comparable: a scenario the spec no longer has (a reshape,
+        // per the scenario-set check above), or a key kind written by a newer
+        // skill-harness than this one.
+        if (current === undefined) continue;
         if (current === null) {
           findings.push({ skill, scenario, code: "stale", message: `${what} no longer exists but the newest ${basename(tagDir)} run measured it (${newest})` });
         } else if (current !== recorded) {
           findings.push({ skill, scenario, code: "stale", message: `${what} changed since the newest ${basename(tagDir)} run (${newest}) — results are stale; re-run before publishing` });
+        }
+      }
+
+      // Coverage: a scenario the spec defines that the newest full run never
+      // measured. Without this, RENAMING a scenario is invisible — the old key
+      // resolves to "not comparable" and the new one was never recorded — so a
+      // 100%/SHIP scorecard survives an arbitrary spec rewrite reporting zero
+      // findings. Gated on the run having recorded scenario keys at all, so runs
+      // predating the key kind stay silent like every other pre-existing run.
+      if (Object.keys(hashes).some((k) => k.startsWith(SCENARIO_PREFIX))) {
+        for (const s of spec.scenarios) {
+          if (!(SCENARIO_PREFIX + s.id in hashes)) {
+            findings.push({ skill, scenario: s.id, code: "stale", message: `the newest ${basename(tagDir)} run (${newest}) did not measure scenario \`${s.id}\` — the published result covers a different scenario set than the spec; re-run before publishing` });
+          }
         }
       }
     }

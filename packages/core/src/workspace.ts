@@ -33,9 +33,10 @@ export const MARKERS = [STAGED_DIR, UNCOMMITTED_DIR];
  * of its intent, and nothing reported it. Any top-level `_name/` is therefore treated as
  * a marker claim and must be a real one.
  *
- * Only a SINGLE leading underscore counts, so `__tests__` and `__pycache__` — ordinary
- * directories a fixture may legitimately contain — are not marker claims. Nested
- * `pkg/_staged/` is likewise ordinary content: markers are top-level only.
+ * The predicate is `_` followed by a LETTER, so `__tests__` and `__pycache__` — ordinary
+ * directories a fixture may legitimately contain — are not marker claims, and neither are
+ * oddities like `_2fa/` or `_-tmp/`, which no marker could plausibly be mistaken for.
+ * Nested `pkg/_staged/` is likewise ordinary content: markers are top-level only.
  *
  * Exported so `lint` can report the same set this module refuses to run. If the two
  * disagreed, lint would hand out a clean bill of health for a fixture the runtime then

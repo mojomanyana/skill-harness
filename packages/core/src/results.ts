@@ -235,7 +235,7 @@ export function ensureResultsGitignore(resultsRoot: string): void {
 // staged-diff (`.rep<k>.diff.txt`) rep suffixes.
 const REP_SUFFIX_RE = /\.rep(\d+)\.(?:judge\.|diff\.)?txt$/;
 
-/** The rep index embedded in a transcript/judge-raw filename (`.rep<k>.`), or null for a plain (non-rep) file. */
+/** The rep index embedded in a transcript / judge-raw / staged-diff filename (`.rep<k>.`), or null for a plain (non-rep) file. */
 export function repIndexOf(filename: string): number | null {
   const m = REP_SUFFIX_RE.exec(filename);
   return m ? Number(m[1]) : null;
