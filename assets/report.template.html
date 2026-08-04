@@ -160,7 +160,11 @@ function render() {
     html += `<tr><td class='scn'>${scn.id}${scn.critical ? "<span class='crit' title='critical'>⚠</span>" : ""}<div class='grade'>${escapeHtml(scn.title)}</div></td>`;
     DATA.columns.forEach((col) => {
       const cell = col.cells[scn.id];
-      if (!cell) { html += `<td class='cell empty'>–</td>`; continue; }
+      // `return`, not `continue`: this is a forEach callback, so `continue` is a
+      // SyntaxError that takes the entire inline script — the whole review UI —
+      // down with it. Guarded by report.test.ts's "rendered report is valid
+      // JavaScript".
+      if (!cell) { html += `<td class='cell empty'>–</td>`; return; }
       const v = effective(cell);
       const sel = selected && selected.colIndex === col.index && selected.scenarioId === scn.id ? " sel" : "";
       // _unsaved wins regardless of override value, so a failed *clear*

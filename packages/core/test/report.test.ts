@@ -2,7 +2,11 @@ import { describe, test, expect, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Script } from "node:vm";
 import { collectReport, renderReport, publicView, type ReportData } from "../src/report.js";
+
+const readTemplate = () => readFileSync(join(process.cwd(), "assets", "report.template.html"), "utf8");
+const readGradeScript = () => readFileSync(join(process.cwd(), "assets", "report.grade.js"), "utf8");
 
 const tmps: string[] = [];
 function tmp() {
@@ -83,6 +87,42 @@ describe("collectReport", () => {
     const data = collectReport(seedSkill());
     expect(data.shipBar.min_pass).toBe(2);
     expect(data.critical).toEqual(["A1"]);
+  });
+});
+
+describe("rendered report is valid JavaScript", () => {
+  /**
+   * Compile (never execute) every inline <script> in the rendered report.
+   *
+   * This guard exists because a `continue` inside a `forEach` callback shipped in
+   * the template through 0.1.x and 0.2.0: a SyntaxError that takes down the whole
+   * inline script, so `review` served a page whose matrix never rendered. Every
+   * test around it passed, because they all asserted on the HTML *string* —
+   * nothing ever asked whether the JavaScript could parse.
+   */
+  function compileInlineScripts(html: string): number {
+    const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    expect(scripts.length).toBeGreaterThan(0);
+    for (const src of scripts) {
+      // `new Script` compiles as a top-level script, so an illegal continue (or a
+      // stray top-level return) throws exactly as it would in the browser.
+      // Nothing is executed, so no DOM is needed.
+      new Script(src);
+    }
+    return scripts.length;
+  }
+
+  test("the template's inline script parses", () => {
+    const html = renderReport(readTemplate(), collectReport(seedSkill()), readGradeScript());
+    expect(compileInlineScripts(html)).toBeGreaterThan(0);
+  });
+
+  test("it parses with no runs at all (empty columns)", () => {
+    const skillDir = tmp();
+    mkdirSync(join(skillDir, "tests"), { recursive: true });
+    writeFileSync(join(skillDir, "tests", "specification.yaml"), SPEC);
+    const html = renderReport(readTemplate(), collectReport(skillDir), readGradeScript());
+    expect(compileInlineScripts(html)).toBeGreaterThan(0);
   });
 });
 
