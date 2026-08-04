@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync, existsSync, appendFileSync, mkdirSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import yaml from "js-yaml";
 import {
@@ -14,6 +14,7 @@ import {
   renderTemplateSpec, isTemplateSpec, renderDraftSpec, buildSuggestPrompt, parseSuggestDraft,
   rescoreRun,
   specPathForRunDir,
+  collectLift,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
@@ -177,7 +178,11 @@ async function cmdRun(args: Args): Promise<void> {
         onProgress: (m) => console.log(m),
       });
       summaries.push(summary);
-      console.log("\n" + formatScorecard(summary) + "\n");
+      // Lift is derived from what's on disk, so it picks up a red baseline from
+      // any earlier run — the tag dir (<harness>-<modelslug>) is the join key.
+      const tag = basename(dirname(summary.runDir));
+      const lift = collectLift(skill.dir).find((l) => l.tag === tag);
+      console.log("\n" + formatScorecard(summary, lift) + "\n");
     }
   }
 

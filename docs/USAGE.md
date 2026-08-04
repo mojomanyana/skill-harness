@@ -77,6 +77,29 @@ node bin/skill-harness.js run golden-skill --skills packages/core/test/fixtures 
 
 The scorecard shows each scenario's verdict, the letter grade + %, and **SHIP / NOT READY**. A critical-id fail or any under-pressure (`B*`) fail blocks SHIP even if the pass count clears the bar.
 
+## 4b. Lift — does the skill actually do anything?
+
+A grade on its own can't tell you whether the skill helped. A capable model may pass your scenarios with the skill switched off entirely, and you'd read the resulting `A` as proof the `SKILL.md` works. **Lift** is the fix: run the same scenarios with the skill off, then compare.
+
+```bash
+node bin/skill-harness.js run golden-skill --skills <root> --mode red     # baseline, skill off
+node bin/skill-harness.js run golden-skill --skills <root> --mode green   # skill active
+```
+
+The green scorecard then ends with a `LIFT:` line, and the review UI shows it per model column with `↑ skill` / `↓ skill` markers on the scenarios that changed:
+
+```
+  GRADE: B (80%) — 4/5 — NOT READY
+  LIFT:  +2 net (3 gained, 1 regressed) · 1 inconclusive  (vs red baseline 2026-08-04T…)
+```
+
+- **gained** — failed without the skill, passes with it. This is the skill working.
+- **regressed** — passed without the skill, fails with it. The skill actively hurt here.
+- **kept** — passed either way. The model never needed the skill for this one.
+- **inconclusive** — an `ERROR` or an unresolved judge misfire on either side. Deliberately *not* counted as a gain: an ERROR is a harness failure, not evidence the skill-less agent couldn't do the task, and counting it would let infrastructure noise inflate your lift.
+
+Lift is computed from whatever runs are on disk, so a baseline recorded weeks ago still counts, and it needs no re-run to appear. Only scenarios present in **both** runs are compared. With no red run at all, the report says `no red baseline` rather than showing a zero — "not measured" and "measured no effect" are different claims.
+
 ## 5. Review — flip verdicts, read transcripts
 
 ```bash
@@ -108,6 +131,22 @@ Appends a scenario to the skill's `specification.yaml`. Gather the fields conver
 ## 8. The optimize loop
 
 Edit the `SKILL.md` under test → re-`run` → compare the new scorecard to the old `results.yaml`. Report the **per-scenario delta**, not just the letter grade. Don't trust one run on a weak/stochastic model — re-run noisy scenarios (`--reps`).
+
+## Environment variables
+
+All optional — the defaults are what you want unless a slow model or a headless
+box says otherwise.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `SKILL_HARNESS_PI_TIMEOUT_MS` | `300000` (5 min) | Per-scenario ceiling on one `pi` invocation. Raise it for slow/thinking models; a hit shows up as an `ERROR`, not a `FAIL`. |
+| `SKILL_HARNESS_VITEST_TIMEOUT_MS` | `120000` (2 min) | Ceiling on the `vitest` objective gate inside a seeded scenario. |
+| `SKILL_HARNESS_NO_OPEN` | unset | Any non-empty value stops `review` from launching a browser. Set it on headless/CI boxes and over SSH. |
+
+These were named `SKILL_CHECK_*` in 0.1.x. The old names still work, and using one
+prints a one-time notice telling you the new spelling; they may be dropped in a
+future major. A value that isn't a positive number is reported and ignored in
+favour of the default, rather than becoming a `NaN` timeout.
 
 ## CI (consumer repos)
 

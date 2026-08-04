@@ -53,16 +53,30 @@ fresh machine; demo GIF recorded; 5 popular external skills graded in a public e
 - [x] `skill-harness suggest <skill>` (or `init --draft`) — LLM-drafts a spec from the
       skill's own SKILL.md: scenarios, checklist, proposed critical set; human edits
       before first run. **Single most important task of the phase.** (2026-07-06, feat/init-suggest)
-- [ ] Rename `SKILL_CHECK_*` env vars to `SKILL_HARNESS_*` with back-compat fallback
-- [ ] Fresh-machine quickstart run-through; fix everything >10 min. Metric: ≤10 min.
+- [x] Rename `SKILL_CHECK_*` env vars to `SKILL_HARNESS_*` with back-compat fallback
+      (2026-08-04) — one `core/util/env.ts` resolver (new name wins, legacy warns once),
+      all 3 sites moved, documented in USAGE.md for the first time
+- [x] Fresh-machine quickstart run-through; fix everything >10 min. Metric: ≤10 min.
+      (2026-08-04) — **41s** from fresh clone to a graded skill (~14x headroom); nothing in
+      the source path needs fixing. Full measurements + repro in
+      `docs/quickstart-verification.md`. **Caveat: source path only.** The npm path is
+      broken for onboarding until 0.2.0 ships — `latest` is 0.1.2, which has no `init` and
+      no `suggest` (`unknown command`), so an npm user must hand-write the spec. Publishing
+      0.2.0 is the highest-leverage onboarding fix left and needs no code.
 
 ### Sprint 1.2 — Make it demoable
-- [ ] Surface red-vs-green as an explicit **lift** column in results + report
+- [x] Surface red-vs-green as an explicit **lift** column in results + report
       ("does this skill do anything?" — neutralizes the rival's best feature)
+      (2026-08-04) — `core/lift.ts`, derived on read (never persisted, so it can't go
+      stale); scorecard `LIFT:` line + per-column/per-cell markers in the review UI;
+      `inconclusive` class keeps ERROR/misfire noise out of the number
 - [ ] Flagship example: public repo (or `examples/`) with specs for ~5 popular skills
       (superpowers, anthropics/skills candidates), multi-model results committed
 - [ ] 30-second demo GIF: edit SKILL.md → re-run → grade C→A. Store under `assets/` or link from README
-- [ ] README top: positioning sentence + GIF + 3-command quickstart above the fold
+- [x] README top: positioning sentence + GIF + 3-command quickstart above the fold
+      (2026-08-04) — positioning sentence, install + 3 commands, differentiators list;
+      contributor material (git clone, repo layout) moved down into Development. GIF
+      still outstanding: a commented slot is in place at the top for it to drop into
 
 ## PHASE 2 — Launch & first 100 fans (weeks 5–10)
 
@@ -89,6 +103,9 @@ fresh machine; demo GIF recorded; 5 popular external skills graded in a public e
 ### Sprint 2.3 — Judge-reliability essay
 - [ ] Deep-dive post on misfire detection with real numbers from our runs
       ("your LLM judge contradicts itself and you'd never know")
+      — **draft exists**: `docs/posts/2026-08-04-judge-contradicts-itself.md` (2026-08-04).
+      Still blocked on the numbers: pull actual misfire/AMBIGUOUS/ERROR rates out of the
+      release-1 journals (528 rep-executions) and lead with the rate, per rule 3.
 - Metric: 3 unsolicited mentions by others.
 
 ## PHASE 3 — Generalize to the Agent Skills standard (months 3–5)

@@ -35,6 +35,14 @@
   .badge { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; }
   .badge.ship { background: var(--pass); color: #fff; }
   .badge.no { background: var(--fail); color: #fff; }
+  /* red-vs-green lift: what the skill itself changed */
+  .lift { font-size: 11px; margin-top: 3px; font-weight: 600; }
+  .lift.up { color: var(--pass); }
+  .lift.down { color: var(--fail); }
+  .lift.flat, .lift.none { color: var(--dim); font-weight: 500; }
+  .cell .lm { display: block; font-size: 10px; font-weight: 700; }
+  .cell .lm.up { color: var(--pass); }
+  .cell .lm.down { color: var(--fail); }
   aside { width: 0; transition: width .15s ease; overflow: hidden; border-left: 1px solid var(--line); background: var(--panel); }
   aside.open { width: 460px; }
   .panel { width: 460px; padding: 16px 18px; }
@@ -153,14 +161,43 @@ function render() {
       const suspectNote = g.suspect > 0 ? ` — ${g.suspect} suspect` : "";
       gradeHtml = `${g.letter} (${g.pct}%) · ${g.passed}/${g.total}${suspectNote} ${badge}`;
     }
-    html += `<th><div>${escapeHtml(col.label)}</div><div class='grade'>${gradeHtml}</div></th>`;
+    // Lift answers "does this skill do anything?", which the grade alone cannot:
+    // a column can score A because the model never needed the skill. Recomputed
+    // from the live cells (see liftSummary) so overrides move it immediately.
+    const ls = liftSummary(col);
+    let liftHtml = "";
+    if (ls && ls.compared > 0) {
+      const moved = ls.gained > 0 || ls.regressed > 0;
+      const cls = !moved ? "flat" : ls.delta > 0 ? "up" : ls.delta < 0 ? "down" : "flat";
+      // All-inconclusive is no measurement, not a zero effect — don't claim "no
+      // effect" when nothing was measurable (mirrors liftHeadline in lift.ts).
+      const body = ls.compared === ls.inconclusive
+        ? `lift — nothing conclusive`
+        : moved
+          ? `lift ${ls.delta > 0 ? "+" : ""}${ls.delta} · ${ls.gained}↑ ${ls.regressed}↓`
+          : `lift 0 · no effect`;
+      const inc = ls.inconclusive > 0 ? ` · ${ls.inconclusive} inconclusive` : "";
+      const part = col.lift.partial ? " · partial" : "";
+      html += `<th><div>${escapeHtml(col.label)}</div><div class='grade'>${gradeHtml}</div>` +
+        `<div class='lift ${cls}' title='vs red baseline ${escapeHtml(col.lift.redTimestamp)} — ${ls.kept} passed without the skill too'>${body}${inc}${part}</div></th>`;
+      return;
+    }
+    if (col.mode === "green") {
+      // "not measured" is a different claim from "measured no effect" — say which.
+      liftHtml = `<div class='lift none' title='run the same scenarios with --mode red to get a baseline'>no red baseline</div>`;
+    }
+    html += `<th><div>${escapeHtml(col.label)}</div><div class='grade'>${gradeHtml}</div>${liftHtml}</th>`;
   });
   html += "</tr></thead><tbody>";
   for (const scn of DATA.scenarios) {
     html += `<tr><td class='scn'>${scn.id}${scn.critical ? "<span class='crit' title='critical'>⚠</span>" : ""}<div class='grade'>${escapeHtml(scn.title)}</div></td>`;
     DATA.columns.forEach((col) => {
       const cell = col.cells[scn.id];
-      if (!cell) { html += `<td class='cell empty'>–</td>`; continue; }
+      // `return`, not `continue`: this is a forEach callback, so `continue` is a
+      // SyntaxError that takes the entire inline script — the whole review UI —
+      // down with it. Guarded by report.test.ts's "rendered report is valid
+      // JavaScript".
+      if (!cell) { html += `<td class='cell empty'>–</td>`; return; }
       const v = effective(cell);
       const sel = selected && selected.colIndex === col.index && selected.scenarioId === scn.id ? " sel" : "";
       // _unsaved wins regardless of override value, so a failed *clear*
@@ -171,7 +208,17 @@ function render() {
       const misfired = cell.clean != null && cell.clean < cell.reps ? ` · ${cell.reps - cell.clean} misfired` : "";
       const reps = cell.reps ? `<span class='reps'>${cell.passes}/${cell.clean}${misfired}${cell.flakiness ? ` · flaky ${cell.flakiness.toFixed(2)}` : ""}</span>` : "";
       const suspectBadge = cell.suspect && !cell.override ? `<span class='ov suspect'>suspect</span>` : "";
-      html += `<td class='cell ${v}${sel}' data-col='${col.index}' data-id='${scn.id}'>${v}${ov}${suspectBadge}${reps}</td>`;
+      // Per-cell lift marker: only the two classes that mean the skill changed
+      // the outcome. kept/both-fail/inconclusive are left unmarked — marking
+      // every cell would bury the signal this column exists to show.
+      const lc = col.lift && col.lift.cells[scn.id] ? liftClass(col.lift.cells[scn.id], cell) : null;
+      const liftMark =
+        lc === "gained"
+          ? `<span class='lm up' title='red baseline ${col.lift.cells[scn.id].red} → PASS with the skill'>↑ skill</span>`
+          : lc === "regressed"
+            ? `<span class='lm down' title='red baseline PASS → ${effective(cell)} with the skill'>↓ skill</span>`
+            : "";
+      html += `<td class='cell ${v}${sel}' data-col='${col.index}' data-id='${scn.id}'>${v}${ov}${suspectBadge}${liftMark}${reps}</td>`;
     });
     html += "</tr>";
   }

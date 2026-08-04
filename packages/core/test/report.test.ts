@@ -2,7 +2,12 @@ import { describe, test, expect, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Script } from "node:vm";
 import { collectReport, renderReport, publicView, type ReportData } from "../src/report.js";
+import { collectLift } from "../src/lift.js";
+
+const readTemplate = () => readFileSync(join(process.cwd(), "assets", "report.template.html"), "utf8");
+const readGradeScript = () => readFileSync(join(process.cwd(), "assets", "report.grade.js"), "utf8");
 
 const tmps: string[] = [];
 function tmp() {
@@ -83,6 +88,152 @@ describe("collectReport", () => {
     const data = collectReport(seedSkill());
     expect(data.shipBar.min_pass).toBe(2);
     expect(data.critical).toEqual(["A1"]);
+  });
+});
+
+describe("rendered report is valid JavaScript", () => {
+  /**
+   * Compile (never execute) every inline <script> in the rendered report.
+   *
+   * This guard exists because a `continue` inside a `forEach` callback shipped in
+   * the template through 0.1.x and 0.2.0: a SyntaxError that takes down the whole
+   * inline script, so `review` served a page whose matrix never rendered. Every
+   * test around it passed, because they all asserted on the HTML *string* —
+   * nothing ever asked whether the JavaScript could parse.
+   */
+  function compileInlineScripts(html: string): number {
+    const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    expect(scripts.length).toBeGreaterThan(0);
+    for (const src of scripts) {
+      // `new Script` compiles as a top-level script, so an illegal continue (or a
+      // stray top-level return) throws exactly as it would in the browser.
+      // Nothing is executed, so no DOM is needed.
+      new Script(src);
+    }
+    return scripts.length;
+  }
+
+  test("the template's inline script parses", () => {
+    const html = renderReport(readTemplate(), collectReport(seedSkill()), readGradeScript());
+    expect(compileInlineScripts(html)).toBeGreaterThan(0);
+  });
+
+  test("it parses with no runs at all (empty columns)", () => {
+    const skillDir = tmp();
+    mkdirSync(join(skillDir, "tests"), { recursive: true });
+    writeFileSync(join(skillDir, "tests", "specification.yaml"), SPEC);
+    const html = renderReport(readTemplate(), collectReport(skillDir), readGradeScript());
+    expect(compileInlineScripts(html)).toBeGreaterThan(0);
+  });
+
+  test("it still parses with lift data present", () => {
+    const skillDir = seedSkill();
+    const redDir = join(skillDir, "tests", "results", "pi-fireworks-deepseek", "2026-06-25T11-00-00-000Z");
+    mkdirSync(redDir, { recursive: true });
+    writeFileSync(
+      join(redDir, "results.yaml"),
+      `schema: 2
+skill: ponytail
+harness: pi
+model: fireworks:deepseek
+judge: {provider: fireworks, model: kimi}
+timestamp: '2026-06-25T11:00:00.000Z'
+label: null
+mode: red
+effective_grade: {passed: 0, total: 0, pct: 0, letter: '-', ship: false, note: ''}
+scenarios:
+  - {id: A1, judge_verdict: FAIL, judge_reason: b, suspect: false, override: null, note: ''}
+  - {id: C2, judge_verdict: PASS, judge_reason: b, suspect: false, override: null, note: ''}
+`
+    );
+    const html = renderReport(readTemplate(), collectReport(skillDir), readGradeScript());
+    expect(compileInlineScripts(html)).toBeGreaterThan(0);
+    expect(html).toMatch(/lift/);
+  });
+});
+
+describe("collectReport lift", () => {
+  /** Add a red baseline run to a seeded skill, under the same model tag. */
+  function addRedRun(skillDir: string, a1: string, c2: string): void {
+    const redDir = join(skillDir, "tests", "results", "pi-fireworks-deepseek", "2026-06-25T11-00-00-000Z");
+    mkdirSync(redDir, { recursive: true });
+    writeFileSync(
+      join(redDir, "results.yaml"),
+      `schema: 2
+skill: ponytail
+harness: pi
+model: fireworks:deepseek
+judge: {provider: fireworks, model: kimi}
+timestamp: '2026-06-25T11:00:00.000Z'
+label: null
+mode: red
+effective_grade: {passed: 0, total: 0, pct: 0, letter: '-', ship: false, note: 'mode=red (not scored)'}
+scenarios:
+  - {id: A1, judge_verdict: ${a1}, judge_reason: baseline, suspect: false, override: null, note: ''}
+  - {id: C2, judge_verdict: ${c2}, judge_reason: baseline, suspect: false, override: null, note: ''}
+`
+    );
+  }
+
+  test("attaches lift to the column once a red baseline exists", () => {
+    const skillDir = seedSkill();
+    addRedRun(skillDir, "FAIL", "PASS");
+    const col = collectReport(skillDir).columns[0];
+    // green: A1 PASS, C2 PASS-but-overridden-to-FAIL
+    expect(col.lift).toBeDefined();
+    expect(col.lift!.gained).toBe(1); // A1: FAIL -> PASS
+    expect(col.lift!.regressed).toBe(1); // C2: PASS -> effective FAIL via override
+    expect(col.liftHeadline).toMatch(/gained/);
+  });
+
+  test("leaves lift undefined with no red baseline — never a fabricated zero", () => {
+    const col = collectReport(seedSkill()).columns[0];
+    expect(col.lift).toBeUndefined();
+    expect(col.liftHeadline).toBeUndefined();
+  });
+
+  /**
+   * Regression: a column is the tag's LATEST run, which is not necessarily the
+   * green one — recording a red baseline AFTER a green run makes red newest. The
+   * review UI recomputes lift from the column's cells, so attaching a lift to a
+   * red column had it compare red against red and report "no effect" for a skill
+   * that gained every scenario.
+   */
+  test("does not attach lift to a column that is not the green run", () => {
+    const skillDir = seedSkill();
+    // seedSkill's run is 12:00 green; add a NEWER red run at 13:00
+    const redDir = join(skillDir, "tests", "results", "pi-fireworks-deepseek", "2026-06-25T13-00-00-000Z");
+    mkdirSync(redDir, { recursive: true });
+    writeFileSync(
+      join(redDir, "results.yaml"),
+      `schema: 2
+skill: ponytail
+harness: pi
+model: fireworks:deepseek
+judge: {provider: fireworks, model: kimi}
+timestamp: '2026-06-25T13:00:00.000Z'
+label: null
+mode: red
+effective_grade: {passed: 0, total: 0, pct: 0, letter: '-', ship: false, note: ''}
+scenarios:
+  - {id: A1, judge_verdict: FAIL, judge_reason: b, suspect: false, override: null, note: ''}
+  - {id: C2, judge_verdict: FAIL, judge_reason: b, suspect: false, override: null, note: ''}
+`
+    );
+    const col = collectReport(skillDir).columns[0];
+    expect(col.mode).toBe("red"); // the newest run really is the red one
+    // A lift IS computable for this tag, but not against THIS column's cells.
+    expect(collectLift(skillDir)).toHaveLength(1);
+    expect(col.lift).toBeUndefined();
+    expect(col.liftHeadline).toBeUndefined();
+  });
+
+  test("publicView carries lift through without leaking paths", () => {
+    const skillDir = seedSkill();
+    addRedRun(skillDir, "FAIL", "FAIL");
+    const view = publicView(collectReport(skillDir));
+    expect(view.columns[0].lift!.gained).toBe(1);
+    expect(JSON.stringify(view)).not.toMatch(/\/tmp\//);
   });
 });
 

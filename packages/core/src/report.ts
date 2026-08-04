@@ -2,6 +2,7 @@ import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { loadSpec, type ShipBar } from "./spec.js";
 import { readResults, type ResultsFile } from "./results.js";
+import { collectLift, liftHeadline, type Lift } from "./lift.js";
 
 export interface RunColumn {
   index: number;
@@ -13,6 +14,17 @@ export interface RunColumn {
   grade: ResultsFile["effective_grade"];
   judge: ResultsFile["judge"];
   cells: Record<string, { judge_verdict: string; judge_reason: string; suspect: boolean; reps?: number; passes?: number; clean?: number; flakiness?: number; override: string | null; note: string }>;
+  /**
+   * Red-vs-green lift for this model, when the tag has both a red baseline and a
+   * green run. Undefined means "never measured" — which is not the same claim as
+   * a zero lift, so the report must not render a 0 for it.
+   *
+   * Only set when THIS column is the green run the lift was computed from (see
+   * collectReport): the review UI recomputes lift from the column's live cells,
+   * which is only valid if those cells are the green side of the comparison.
+   */
+  lift?: Lift;
+  liftHeadline?: string;
 }
 
 export interface ReportData {
@@ -43,6 +55,8 @@ export function collectReport(skillDir: string): ReportData {
   const scenarios = spec.scenarios.map((s) => ({ id: s.id, title: s.title, critical: s.critical }));
 
   const resultsRoot = join(skillDir, "tests", "results");
+  // Lift is keyed by model tag, the same key columns are built from.
+  const liftByTag = new Map(collectLift(skillDir).map((l) => [l.tag, l]));
   const columns: RunColumn[] = [];
   if (existsSync(resultsRoot)) {
     const tags = readdirSync(resultsRoot)
@@ -67,16 +81,27 @@ export function collectReport(skillDir: string): ReportData {
           note: s.note,
         };
       }
+      const tag = tagDir.split("/").pop()!;
+      // A column is the tag's LATEST run, which is not necessarily the green one —
+      // record a red baseline after a green run and the newest run in the tag is
+      // red. The review UI recomputes lift from `cells` (so author overrides move
+      // it live), so attaching a lift to a column whose cells are the RED run
+      // would have it compare red against red and report "no effect" for a skill
+      // that in fact gained every scenario. Attach only when this column IS the
+      // green side of the comparison.
+      const tagLift = liftByTag.get(tag);
+      const lift = tagLift && tagLift.greenTimestamp === r.timestamp ? tagLift : undefined;
       columns.push({
         index: columns.length,
         label: r.model,
-        tag: tagDir.split("/").pop()!,
+        tag,
         runDir,
         timestamp: r.timestamp,
         mode: r.mode,
         grade: r.effective_grade,
         judge: r.judge,
         cells,
+        ...(lift ? { lift, liftHeadline: liftHeadline(lift) } : {}),
       });
     }
   }
@@ -100,6 +125,7 @@ export function publicView(data: ReportData) {
       grade: c.grade,
       judge: c.judge,
       cells: c.cells,
+      ...(c.lift ? { lift: c.lift, liftHeadline: c.liftHeadline } : {}),
     })),
   };
 }

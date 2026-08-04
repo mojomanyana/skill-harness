@@ -1,6 +1,7 @@
 import type { Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef, RunMode } from "./adapters/types.js";
 import { exec } from "./util/exec.js";
+import { envNum } from "./util/env.js";
 
 interface SeededOpts {
   skillDir: string;
@@ -15,7 +16,7 @@ export interface SeededOutcome {
   gateFailure: string | null; // non-null => objective gate failed (auto-FAIL, skip judge)
 }
 
-const VITEST_TIMEOUT_MS = Number(process.env.SKILL_CHECK_VITEST_TIMEOUT_MS ?? 120_000);
+const VITEST_TIMEOUT_MS = envNum("VITEST_TIMEOUT_MS", 120_000);
 
 /**
  * Run a seeded scenario inside a caller-prepared workspace: let the harness edit

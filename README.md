@@ -1,6 +1,29 @@
 # skill-harness
 
-A portable **test / optimize loop for agent skills**, driven from [pi](https://pi.dev).
+**The TDD loop for Agent Skills.** For developers shipping `SKILL.md`-powered
+agents who want proof a skill works — and keeps working — without trusting a raw
+LLM judge or standing up an eval platform.
+
+<!-- DEMO GIF SLOT: 30s — edit SKILL.md → re-run → grade C→A.
+     Drop it at assets/demo.gif and replace this comment with:
+     ![skill-harness demo](assets/demo.gif)
+     Tracked as a Phase 1 Sprint 1.2 task in docs/ROADMAP.md. -->
+
+## Quickstart
+
+```bash
+npm i -g skill-harness
+skill-harness suggest my-skill --skills ./skills   # LLM-drafts a spec from the skill's own SKILL.md
+skill-harness run     my-skill --skills ./skills   # run every scenario, judge it, score it
+skill-harness review  my-skill --skills ./skills   # flip verdicts in a local UI; saves to results.yaml
+```
+
+No spec yet and don't want to spend tokens? `skill-harness init my-skill` writes a
+commented template instead — free and offline. Already have runs? `lint` and
+`list` need no models and no API keys at all.
+
+## What it does
+
 Point it at a repo of skills, and for any skill with a spec it will:
 
 1. **run** each scenario against pi (a model of your choice, skill active),
@@ -13,32 +36,24 @@ Point it at a repo of skills, and for any skill with a spec it will:
 It is **pi-only** (the `pi` CLI is the sole harness) and **multi-model** — run the
 same scenarios across several models and compare them side by side.
 
----
+**What makes the numbers trustworthy**, and what an eval platform generally won't
+give you:
+
+- **[Lift](#lift--red-vs-green)** — red vs green, so you find out whether the model
+  would have passed without your skill anyway
+- **Judge-misfire quarantine** — a verdict the judge contradicted itself on is
+  quarantined, not counted, and it blocks SHIP until a human resolves it
+- **Judge ≠ subject guard** — same-family grading inflates scores, so it warns
+- **Seeded objective gates** — git diff + real `vitest` runs, not just opinion
+- **Human overrides with mandatory audit notes** — the author owns the verdict
 
 ## Requirements
 
 - **Node ≥ 20**
 - **`pi` on your `PATH`** (`pi --version`) with at least one provider configured
   (e.g. Fireworks for the model under test, Anthropic for the judge).
-
-## Setup
-
-```bash
-git clone https://github.com/mojomanyana/skill-harness
-cd skill-harness
-npm install          # install deps
-```
-
-## Repo layout
-
-    packages/core/       engine: spec, discover, run, grade, score, results, seeded, report
-    packages/adapters/   pi harness + claude-code (subscription CLI) judge routing
-    packages/cli/        command surface (run/grade/review/add-test/init/suggest/list) + review UI server
-    bin/skill-harness.js   launcher: packages/cli/dist if built, tsx fallback otherwise
-
-Build: `npm run build` (tsc project references). Test: `npm test` (vitest workspace).
-
----
+- `run`, `grade`, and `suggest` spend model tokens. `init`, `lint`, and `list`
+  are free, offline, and safe in CI.
 
 ## Using it from pi
 
@@ -171,6 +186,34 @@ skill-harness add-test project-git --skills ../principal-pi-skills \
 | `green` | skill active (the real test) — counts toward the ship bar |
 | `red`   | baseline, **no** skill (the contrast case) |
 | `force` | skill body injected via system prompt (when auto-activation isn't available) |
+
+### Lift — red vs green
+
+A letter grade can't tell you whether the skill did anything: a strong model may
+pass your scenarios with the skill switched off, and that `A` looks identical to
+a skill that works. Run both modes and `skill-harness` reports the difference as
+**lift** — on the scorecard, and per model column in the review UI:
+
+```
+  GRADE: B (80%) — 4/5 — NOT READY
+  LIFT:  +2 net (3 gained, 1 regressed) · 1 inconclusive
+```
+
+| class | meaning |
+|---|---|
+| **gained** | failed without the skill, passes with it — the skill working |
+| **regressed** | passed without the skill, fails with it — the skill hurt |
+| **kept** | passed either way — the model never needed the skill here |
+| **inconclusive** | `ERROR` or an unresolved judge misfire on either side |
+
+`inconclusive` is the load-bearing one: an `ERROR` is a harness failure, not
+evidence that the skill-less agent couldn't do the task, so it is never counted
+as a gain. Without it, flaky infrastructure reads as skill value.
+
+Lift is derived from the runs already on disk — an old baseline still counts, and
+nothing needs re-running for it to appear. Only scenarios present in both runs are
+compared, and a skill with no red run reports `no red baseline` rather than a
+zero, because "not measured" is a different claim from "measured no effect".
 
 ### Concurrency & workspaces
 
@@ -344,10 +387,26 @@ jobs:
 
 ## Development
 
+Working on `skill-harness` itself (rather than using it):
+
+```bash
+git clone https://github.com/mojomanyana/skill-harness
+cd skill-harness
+npm install
+npm run build     # emit per-package dist/
+```
+
+### Repo layout
+
+    packages/core/       engine: spec, discover, run, grade, score, results, seeded, lift, report
+    packages/adapters/   pi harness + claude-code (subscription CLI) judge routing
+    packages/cli/        command surface (run/grade/review/add-test/init/suggest/list) + review UI server
+    bin/skill-harness.js   launcher: packages/cli/dist if built, tsx fallback otherwise
+
 ```bash
 npm test          # vitest unit tests for the engine
 npm run typecheck # tsc --noEmit
-npm run build     # emit per-package dist/
+npm run build     # emit per-package dist/ (tsc project references)
 ```
 
 Adding another harness is the one extension point: implement `HarnessAdapter`
