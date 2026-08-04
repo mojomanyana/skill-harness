@@ -78,6 +78,40 @@ fresh machine; demo GIF recorded; 5 popular external skills graded in a public e
       contributor material (git clone, repo layout) moved down into Development. GIF
       still outstanding: a commented slot is in place at the top for it to drop into
 
+### Sprint 1.3 — Measurement integrity (protect "seeded objective gates")
+
+Not new scope: these repair the differentiator Phase 1 already claims. Found by
+re-reading the tree against release-1's committed results.
+
+- [x] Release hygiene: land 0.2.1 on `main`; make the `v1` tag's advertised
+      "moves forward" contract true (2026-08-04, PR #26) — both were runbook
+      omissions, now mandatory post-publish steps in `PUBLISHING.md`
+- [x] Seeded runs show the judge the staged diff, and save it as a run artifact
+      (2026-08-04, PR #27) — `runSeeded` computed the diff, gated on it and threw
+      it away, so seeded checklist items about code behavior were graded from the
+      model's self-description; `build` A1's six reps passed identical gates and
+      split PASS/FAIL purely on phrasing. Capped copy in the transcript with an
+      explicit truncation marker; uncapped `.diff.txt` beside it
+- [x] `assert.diff_excludes` + `assert.post_test` — additive seeded gates
+      (2026-08-04, PR #28) — a negative needle makes scope discipline objective
+      (matched on *changed* lines only, or context would fail correct models);
+      a post-test the model never sees checks required behavior with no judge
+- [x] `source_hashes` covers scenario definitions + fixture trees
+      (2026-08-04, PR #29) — the staleness lint was checking the instructions and
+      ignoring the test; a swapped fixture left `lint all` reporting 0 findings.
+      Per-scenario digests, not a whole-file spec hash, so spec *growth* flags
+      nothing. **Forward-looking**: runs recorded before this carry no fixture
+      hashes and stay silent, so published scorecards need a re-run to become
+      checkable
+- [x] Lint reports a mistyped fixture marker (2026-08-04, PR #30) — the runtime
+      already refused `_uncommited/` (2026-07-30); this moves the discovery to the
+      free offline CI gate, sharing one implementation so lint can never bless a
+      fixture `run` rejects
+- [ ] **Re-measure**: the committed scorecards predate all of the above. Seeded
+      verdicts were graded without the diff and cannot be fixed by `grade` (saved
+      transcripts don't contain it) — they need fresh runs. See the re-measurement
+      note handed to the skills-repo owner (2026-08-04)
+
 ## PHASE 2 — Launch & first 100 fans (weeks 5–10)
 
 **Goal:** exist in the heads of everyone who writes skills.
@@ -104,8 +138,16 @@ fresh machine; demo GIF recorded; 5 popular external skills graded in a public e
 - [ ] Deep-dive post on misfire detection with real numbers from our runs
       ("your LLM judge contradicts itself and you'd never know")
       — **draft exists**: `docs/posts/2026-08-04-judge-contradicts-itself.md` (2026-08-04).
-      Still blocked on the numbers: pull actual misfire/AMBIGUOUS/ERROR rates out of the
-      release-1 journals (528 rep-executions) and lead with the rate, per rule 3.
+      **No longer blocked on the numbers** (2026-08-04): re-judging saved transcripts
+      holds the subject constant, so movement is the judge — **1 disagreement in 57
+      judgments across 12 rep-cells (~2%)**, 45 judge calls, zero model spend. Write-up:
+      `principal-pi-skills/docs/judge-variance-2026-08-04.md`. Model and judge variance
+      are separable: `git-ops` A4's 2/3 is the *model* (same rep fails 4/4), while A9's
+      published FAIL was a 1-in-7 *minority judge draw* — the difference between
+      `git-ops`/DeepSeek reading 93% and 100%. Implied practice + candidate feature:
+      judge a non-unanimous cell twice before publishing; unanimous cells reproduced
+      perfectly. Numbers are cited in the draft's owner-notes, not folded into the body —
+      this is Phase 2 and Phase 1's exit criteria are unmet, so nothing launches yet.
 - Metric: 3 unsolicited mentions by others.
 
 ## PHASE 3 — Generalize to the Agent Skills standard (months 3–5)

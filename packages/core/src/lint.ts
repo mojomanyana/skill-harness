@@ -1,11 +1,12 @@
 import { existsSync, statSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
-import { createHash } from "node:crypto";
 import yaml from "js-yaml";
 import { loadSpec, SpecError } from "./spec.js";
 import { readResults, finalizeResults, findTranscriptFiles, resultsPath, type ScoreContext } from "./results.js";
+import { currentHashFor, describeSourceKey, scenarioIdForKey, effectiveFixture, SCENARIO_PREFIX, UNREADABLE } from "./sources.js";
+import { MARKERS, unknownMarkerDirs, suggestMarker } from "./workspace.js";
 
-export type LintCode = "spec" | "ship_bar" | "critical" | "fixture" | "consistency" | "stale" | "lint-error";
+export type LintCode = "spec" | "ship_bar" | "critical" | "fixture" | "fixture-marker" | "consistency" | "stale" | "lint-error";
 
 export interface LintFinding {
   readonly skill: string; // skill name (basename of the dir when the spec fails to parse)
@@ -68,12 +69,57 @@ export function lintSkill(skillDir: string): LintFinding[] {
   // relative to the spec's dir, matching workspace.ts resolve(specDir, fixture) where specDir = <skillDir>/tests.
   const specDir = dirname(specPath);
   for (const s of spec.scenarios) {
-    const fx = typeof s.workspace === "object" && s.workspace !== null ? s.workspace.fixture : undefined;
+    const fx = effectiveFixture(s); // shared with sources.ts so hashing and linting can't drift
     if (fx) {
       const abs = isAbsolute(fx) ? fx : resolve(specDir, fx);
       if (!isDir(abs)) {
         findings.push({ skill, scenario: s.id, code: "fixture", message: `fixture not found: ${fx}` });
+      } else {
+        // A mistyped fixture marker (`_uncommited/`) is rejected at run time by
+        // createWorkspace — but only once a run has been started, where it surfaces as
+        // a scenario FAIL among real results. lint is free, offline and runs in CI, so
+        // it is where an author should meet this. The set flagged here is exactly the
+        // set workspace.ts refuses, so lint can never bless a fixture the runtime then
+        // rejects.
+        // try/catch because lintSkill's contract is "never throws": isDir() proves the
+        // path stats, not that it can be read, and an EACCES on readdir would escape
+        // to cli.ts, which replaces this skill's ENTIRE finding list with one
+        // lint-error — silently discarding the staleness and consistency checks below.
+        let markers: string[] = [];
+        try {
+          markers = unknownMarkerDirs(abs);
+        } catch (e) {
+          findings.push({
+            skill, scenario: s.id, code: "fixture",
+            message: `fixture ${fx} could not be read: ${e instanceof Error ? e.message : String(e)}`,
+          });
+        }
+        for (const dir of markers) {
+          const guess = suggestMarker(dir);
+          findings.push({
+            skill,
+            scenario: s.id,
+            code: "fixture-marker",
+            message:
+              `fixture ${fx} has unknown top-level marker directory \`${dir}/\`` +
+              (guess ? ` — did you mean \`${guess}/\`?` : "") +
+              ` Known markers are ${MARKERS.map((m) => `\`${m}/\``).join(" and ")};` +
+              ` rename it, or move it deeper if it is ordinary content.`,
+          });
+        }
       }
+    }
+  }
+
+  // assert.post_test must exist. A post-test that isn't there fails its scenario at
+  // run time with a "spec error" message, but that costs a full model run to discover
+  // — and lint is the free, offline gate that exists to catch it first.
+  for (const s of spec.scenarios) {
+    const pt = s.assert?.post_test;
+    if (!pt) continue;
+    const abs = isAbsolute(pt) ? pt : resolve(specDir, pt);
+    if (!isFile(abs)) {
+      findings.push({ skill, scenario: s.id, code: "fixture", message: `assert.post_test not found: ${pt}` });
     }
   }
 
@@ -127,10 +173,12 @@ export function lintSkill(skillDir: string): LintFinding[] {
     }
   }
   // staleness — the newest FULL (non-partial) run per model tag recorded sha256 hashes of
-  // every source file it measured. If any of those files has changed since, the committed
-  // result describes text that no longer exists — exactly how three regressions hid behind
-  // a 100%-SHIP table for four weeks. Runs predating source_hashes are skipped silently
-  // (no retroactive noise); partial runs never count as coverage.
+  // every source it measured: SKILL.md, agent files, each scenario's definition and each
+  // fixture tree. If any has changed since, the committed result describes inputs that no
+  // longer exist — exactly how three regressions hid behind a 100%-SHIP table for four
+  // weeks, and how a swapped fixture went unreported by a "7 skills, 0 findings" lint.
+  // Runs predating source_hashes (or predating a given key kind) are skipped silently — no
+  // retroactive noise; partial runs never count as coverage.
   for (const tagDir of enumerateTagDirs(resultsRoot)) {
     // Newest FULL run: partial (--only) runs are iteration artifacts and never count as
     // coverage — a fresh partial must not silence a stale full run underneath it.
@@ -147,23 +195,45 @@ export function lintSkill(skillDir: string): LintFinding[] {
     if (!full || !hashes) continue; // predates source_hashes → silent
     {
       const newest = full.runDir;
+      const ctx = { skillDir, specDir, scenarios: spec.scenarios };
       for (const [key, recorded] of Object.entries(hashes)) {
-        const abs = key === "SKILL.md" ? join(skillDir, "SKILL.md") : resolve(specDir, key);
-        const current = fileSha256(abs);
+        const what = describeSourceKey(key);
+        const scenario = scenarioIdForKey(key, spec.scenarios);
+        // The run itself failed to hash this source, so it was never verified and
+        // no comparison here can establish anything about it.
+        if (recorded === UNREADABLE) {
+          findings.push({ skill, scenario, code: "stale", message: `${what} could not be read when the newest ${basename(tagDir)} run was recorded (${newest}) — that source was never verified; re-run` });
+          continue;
+        }
+        const current = currentHashFor(key, ctx);
+        // undefined = not comparable: a scenario the spec no longer has (a reshape,
+        // per the scenario-set check above), or a key kind written by a newer
+        // skill-harness than this one.
+        if (current === undefined) continue;
         if (current === null) {
-          findings.push({ skill, code: "stale", message: `${key} no longer exists but the newest ${basename(tagDir)} run measured it (${newest})` });
+          findings.push({ skill, scenario, code: "stale", message: `${what} no longer exists but the newest ${basename(tagDir)} run measured it (${newest})` });
         } else if (current !== recorded) {
-          findings.push({ skill, code: "stale", message: `${key} changed since the newest ${basename(tagDir)} run (${newest}) — results are stale; re-run before publishing` });
+          findings.push({ skill, scenario, code: "stale", message: `${what} changed since the newest ${basename(tagDir)} run (${newest}) — results are stale; re-run before publishing` });
+        }
+      }
+
+      // Coverage: a scenario the spec defines that the newest full run never
+      // measured. Without this, RENAMING a scenario is invisible — the old key
+      // resolves to "not comparable" and the new one was never recorded — so a
+      // 100%/SHIP scorecard survives an arbitrary spec rewrite reporting zero
+      // findings. Gated on the run having recorded scenario keys at all, so runs
+      // predating the key kind stay silent like every other pre-existing run.
+      if (Object.keys(hashes).some((k) => k.startsWith(SCENARIO_PREFIX))) {
+        for (const s of spec.scenarios) {
+          if (!(SCENARIO_PREFIX + s.id in hashes)) {
+            findings.push({ skill, scenario: s.id, code: "stale", message: `the newest ${basename(tagDir)} run (${newest}) did not measure scenario \`${s.id}\` — the published result covers a different scenario set than the spec; re-run before publishing` });
+          }
         }
       }
     }
   }
 
   return findings;
-}
-
-function fileSha256(p: string): string | null {
-  try { return createHash("sha256").update(readFileSync(p)).digest("hex"); } catch { return null; }
 }
 
 /** Model-tag dirs under tests/results (each holds timestamped run dirs). */

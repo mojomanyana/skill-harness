@@ -7,6 +7,21 @@ export type ScenarioMode = "inline" | "seeded";
 export interface SeededAssert {
   vitest?: boolean;
   diff_contains?: string[];
+  /**
+   * Needles that must NOT appear in the staged diff. The negative twin of
+   * diff_contains: it makes a scope-discipline requirement ("fix sliceRange, do
+   * not touch lastIndex") objective instead of something the judge has to infer
+   * from the model's prose.
+   */
+  diff_excludes?: string[];
+  /**
+   * A test file copied into the workspace AFTER the agent finishes, then run.
+   * The model never sees it, so it cannot write code shaped to pass it — this
+   * checks the behavior the task actually required. Orthogonal to `vitest`,
+   * which runs the model's OWN tests and therefore grades a claim the model
+   * gets to make about itself.
+   */
+  post_test?: string;
 }
 
 export interface Scenario {
@@ -220,7 +235,47 @@ export function parseSpec(text: string, file: string): Spec {
           if (!isStringArray(a.diff_contains)) {
             throw new SpecError(`seeded scenario \`${id}\` \`assert.diff_contains\` must be strings`, file);
           }
+          if (a.diff_contains.some((n) => n === "")) {
+            // Every string contains "", so an empty positive needle makes the gate
+            // pass on ANY diff, including an empty one. This is the more dangerous
+            // twin of the diff_excludes check below: that one fails forever and gets
+            // investigated, this one passes forever and nobody ever looks.
+            throw new SpecError(
+              `seeded scenario \`${id}\` \`assert.diff_contains\` contains an empty string — it would match every diff, so the gate could never fail`,
+              file
+            );
+          }
           assertObj.diff_contains = a.diff_contains;
+        }
+        if (a.diff_excludes !== undefined) {
+          if (!isStringArray(a.diff_excludes)) {
+            throw new SpecError(`seeded scenario \`${id}\` \`assert.diff_excludes\` must be strings`, file);
+          }
+          if (a.diff_excludes.some((n) => n === "")) {
+            // "" is in every string, so the gate could never pass — and the failure
+            // would read as a mysterious diff problem rather than a spec typo.
+            throw new SpecError(
+              `seeded scenario \`${id}\` \`assert.diff_excludes\` contains an empty string — it would match every diff`,
+              file
+            );
+          }
+          assertObj.diff_excludes = a.diff_excludes;
+        }
+        // A needle required AND forbidden can never pass. Catching it here turns a
+        // scenario that always fails for an invisible reason into an authoring error.
+        const both = (assertObj.diff_contains ?? []).filter((n) => (assertObj.diff_excludes ?? []).includes(n));
+        if (both.length > 0) {
+          throw new SpecError(
+            `seeded scenario \`${id}\` lists ${both.map((n) => JSON.stringify(n)).join(", ")} in both ` +
+              `\`assert.diff_contains\` and \`assert.diff_excludes\` — the gate could never pass`,
+            file
+          );
+        }
+        if (a.post_test !== undefined) {
+          if (typeof a.post_test !== "string" || !a.post_test.trim()) {
+            throw new SpecError(`seeded scenario \`${id}\` \`assert.post_test\` must be a non-empty path`, file);
+          }
+          assertObj.post_test = a.post_test.trim();
         }
         scenario.assert = assertObj;
       }

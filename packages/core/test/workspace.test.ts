@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync 
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createWorkspace } from "../src/workspace.js";
+import { createWorkspace, suggestMarker, unknownMarkerDirs } from "../src/workspace.js";
 
 function git(cwd: string, ...args: string[]): string {
   return execFileSync("git", args, { cwd, encoding: "utf8" });
@@ -234,6 +234,39 @@ describe("createWorkspace — fixture marker validation", () => {
     const ws = createWorkspace({ fixture: src }, { specDir: "/nonexistent" });
     tmps.push(ws.cwd);
     expect(git(ws.cwd, "ls-files")).toContain("pkg/_staged/keep.txt");
+  });
+});
+
+describe("suggestMarker", () => {
+  test("resolves the misspellings people actually make", () => {
+    expect(suggestMarker("_uncommited")).toBe("_uncommitted");   // dropped letter
+    expect(suggestMarker("_uncommmitted")).toBe("_uncommitted"); // doubled letter
+    expect(suggestMarker("_Staged")).toBe("_staged");            // case only
+    expect(suggestMarker("_stagd")).toBe("_staged");             // transposition-ish
+  });
+
+  test("returns null rather than guessing at an unrelated name", () => {
+    // A confident wrong suggestion ("did you mean _staged?" for `_helpers/`) is
+    // worse than none — it sends the author to rename a legitimate directory.
+    expect(suggestMarker("_helpers")).toBeNull();
+    expect(suggestMarker("_fixtures")).toBeNull();
+  });
+});
+
+describe("unknownMarkerDirs", () => {
+  test("returns only top-level single-underscore non-markers, sorted", () => {
+    const src = fixtureDir();
+    for (const d of ["_uncommited", "_staged", "__tests__", "_alpha", "normal"]) {
+      mkdirSync(join(src, d), { recursive: true });
+    }
+    mkdirSync(join(src, "pkg", "_nested"), { recursive: true });
+    expect(unknownMarkerDirs(src)).toEqual(["_alpha", "_uncommited"]);
+  });
+
+  test("a file named like a marker is not a marker claim", () => {
+    const src = fixtureDir();
+    writeFileSync(join(src, "_uncommited"), "not a dir\n", "utf8");
+    expect(unknownMarkerDirs(src)).toEqual([]);
   });
 });
 

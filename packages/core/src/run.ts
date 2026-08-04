@@ -1,12 +1,13 @@
-import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
-import { createHash } from "node:crypto";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { Spec, Scenario } from "./spec.js";
+import { sourceHashes } from "./sources.js";
 import type { HarnessAdapter, ModelRef, RunMode } from "./adapters/types.js";
 import { judgeResemblesSubject } from "./grade.js";
 import {
   runDirFor,
   transcriptPath,
+  diffPath,
   writeResults,
   ensureResultsGitignore,
   type ResultsFile,
@@ -47,33 +48,6 @@ export interface RunOptions {
 export interface RunSummary {
   runDir: string;
   results: ResultsFile;
-}
-
-/** sha256 of a file, or null when it doesn't exist — missing sources are lint's problem, not run's. */
-function sha256(path: string): string | null {
-  try {
-    return createHash("sha256").update(readFileSync(path)).digest("hex");
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Hash every source file this run measures: SKILL.md + each distinct
- * system_prompt_file (agents/<name>.md). Recorded in results.yaml so lint can prove
- * a published result still describes the current text.
- */
-function sourceHashes(skillDir: string, specPath: string, scenarios: Scenario[]): Record<string, string> {
-  const hashes: Record<string, string> = {};
-  const skillMd = sha256(resolve(skillDir, "SKILL.md"));
-  if (skillMd) hashes["SKILL.md"] = skillMd;
-  for (const s of scenarios) {
-    if (s.systemPromptFile && !(s.systemPromptFile in hashes)) {
-      const h = sha256(resolve(dirname(specPath), s.systemPromptFile));
-      if (h) hashes[s.systemPromptFile] = h;
-    }
-  }
-  return hashes;
 }
 
 /** Run one skill against one model: run scenarios, grade, score, persist. */
@@ -149,7 +123,9 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     label: opts.label ?? null,
     mode,
     ...(partial ? { partial: true } : {}),
-    source_hashes: sourceHashes(skillDir, opts.specPath, scenarios),
+    // Only the scenarios this run actually measured: a --only run must not claim
+    // coverage of scenarios it skipped.
+    source_hashes: sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios }),
     scenarios: scenarioResults,
   }, ctx);
   if (ctx) {
@@ -194,6 +170,10 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
   let ws: Workspace | null = null;
   let transcript = "";
   let gatePrefix: string | null = null;
+  // Null until a seeded rep actually reaches its gates: a workspace-setup failure
+  // produces no diff, and writing an empty artifact there would misreport "the
+  // model changed nothing" for a rep that never ran.
+  let stagedDiff: string | null = null;
   try {
     try {
       ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath), remote: scenario.remote });
@@ -217,9 +197,11 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
         if (scenario.mode === "seeded") {
           const r = await runSeeded(scenario, {
             skillDir: ctx.skillDir, adapter: ctx.adapter, model: ctx.model, mode, cwd: ws.cwd,
+            specDir: dirname(ctx.specPath), // assert.post_test resolves like a fixture
           });
           transcript = r.transcript;
           gatePrefix = r.gateFailure;
+          stagedDiff = r.diff; // a retry replaces the aborted attempt's diff, as it should
         } else {
           transcript = await ctx.adapter.run({
             skillDir: ctx.skillDir, model: ctx.model, mode, turns: scenario.turns, cwd: ws.cwd,
@@ -234,8 +216,16 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
       }
     }
 
-    writeFileSync(transcriptPath(runDir, scenario.id, mode, repCount > 1 ? rep : undefined), transcript, "utf8");
+    const repSuffix = repCount > 1 ? rep : undefined;
+    writeFileSync(transcriptPath(runDir, scenario.id, mode, repSuffix), transcript, "utf8");
     if (scenario.mode === "seeded") {
+      // The workspace is torn down in the `finally` below, so this is the only
+      // chance to keep what the model actually wrote. Persisted uncapped (the
+      // transcript's copy is capped for the judge) and for every rep, pass or
+      // fail — a gate failure is exactly when you want to read the diff.
+      if (stagedDiff !== null) {
+        writeFileSync(diffPath(runDir, scenario.id, mode, repSuffix), stagedDiff, "utf8");
+      }
       appendJournal(runDir, { event: "gate-result", ts: now(), id: scenario.id, ok: !gatePrefix, detail: gatePrefix ?? "", ...repField });
     }
 

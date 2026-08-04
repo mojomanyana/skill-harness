@@ -14,6 +14,8 @@ import {
   findTranscriptFiles,
   judgeRawPath,
   findJudgeRawFiles,
+  diffPath,
+  findDiffFiles,
   finalizeResults,
   migrateResults,
   effectiveVerdicts,
@@ -161,6 +163,59 @@ describe("preserveTranscript", () => {
     const gi = readFileSync(join(root, ".gitignore"), "utf8");
     expect(gi).toContain("!pi-fake/2026-07-05T00-00-00Z/A1.green.txt");
     expect(gi).toContain("!pi-fake/2026-07-05T00-00-00Z/A1.green.judge.txt");
+  });
+
+  test("preserveTranscript un-gitignores staged diffs — an override's evidence on a seeded scenario", () => {
+    const root = tmp();
+    const runDir = join(root, "pi-fake", "2026-08-04T00-00-00Z");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "A1.green.rep0.txt"), "t", "utf8");
+    writeFileSync(join(runDir, "A1.green.rep0.judge.txt"), "j", "utf8");
+    writeFileSync(join(runDir, "A1.green.rep0.diff.txt"), "d", "utf8");
+    writeFileSync(join(runDir, "B2.green.rep0.diff.txt"), "other", "utf8"); // must not be preserved
+    preserveTranscript(root, runDir, "A1");
+    preserveTranscript(root, runDir, "A1"); // idempotent
+    const gi = readFileSync(join(root, ".gitignore"), "utf8");
+    const line = "!pi-fake/2026-08-04T00-00-00Z/A1.green.rep0.diff.txt";
+    expect(gi.split("\n").filter((l) => l === line)).toHaveLength(1);
+    expect(gi).not.toMatch(/B2\.green\.rep0\.diff\.txt/);
+  });
+});
+
+describe("diffPath / findDiffFiles", () => {
+  test("names plain vs rep-suffixed files, mirroring judgeRawPath", () => {
+    expect(diffPath("/r", "A1", "green")).toBe(join("/r", "A1.green.diff.txt"));
+    expect(diffPath("/r", "A1", "green", 2)).toBe(join("/r", "A1.green.rep2.diff.txt"));
+  });
+
+  test("findDiffFiles sorts by rep and is mode-scoped", () => {
+    const dir = tmp();
+    writeFileSync(join(dir, "A1.green.rep1.diff.txt"), "d1", "utf8");
+    writeFileSync(join(dir, "A1.green.rep0.diff.txt"), "d0", "utf8");
+    writeFileSync(join(dir, "A1.red.diff.txt"), "dr", "utf8");
+    expect(findDiffFiles(dir, "A1", "green")).toEqual(["A1.green.rep0.diff.txt", "A1.green.rep1.diff.txt"]);
+    expect(findDiffFiles(dir, "A1")).toEqual(["A1.red.diff.txt", "A1.green.rep0.diff.txt", "A1.green.rep1.diff.txt"]);
+  });
+
+  test("a diff artifact is never mistaken for a transcript", () => {
+    // .diff.txt shares the .txt extension on purpose (results/.gitignore's `*.txt`
+    // covers it), so the transcript finder has to exclude it explicitly — otherwise
+    // the review UI and the re-judge path would feed a raw diff to the judge as if
+    // it were a transcript.
+    const dir = tmp();
+    writeFileSync(join(dir, "A1.green.rep0.txt"), "transcript", "utf8");
+    writeFileSync(join(dir, "A1.green.rep0.diff.txt"), "diff", "utf8");
+    writeFileSync(join(dir, "A1.green.rep0.judge.txt"), "judge", "utf8");
+    expect(findTranscriptFiles(dir, "A1")).toEqual(["A1.green.rep0.txt"]);
+    expect(findTranscriptFiles(dir, "A1", "green")).toEqual(["A1.green.rep0.txt"]);
+  });
+
+  test("a scenario legitimately named *.diff keeps its own transcript", () => {
+    // The exclusion is suffix-anchored, like the judge-raw one: a scenario id that
+    // merely ends in ".diff" must not lose its transcript to it.
+    const dir = tmp();
+    writeFileSync(join(dir, "pre.diff.green.txt"), "t", "utf8");
+    expect(findTranscriptFiles(dir, "pre.diff")).toEqual(["pre.diff.green.txt"]);
   });
 });
 

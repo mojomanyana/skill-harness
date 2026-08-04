@@ -14,6 +14,7 @@ export * from "./seeded.js";
 export * from "./report.js";
 export * from "./trends.js";
 export * from "./lint.js";
+export * from "./sources.js";
 export * from "./lift.js";
 export * from "./adapters/types.js";
 export * from "./util/exec.js";

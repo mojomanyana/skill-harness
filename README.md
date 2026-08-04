@@ -120,9 +120,47 @@ scenarios:
     assert:
       vitest: true                  # `vitest run` in the temp repo must pass
       diff_contains: ["describe(", "withdraw"]   # staged git diff must contain these
+      diff_excludes: ["lastIndex"]  # ... and must NOT touch these
+      post_test: post/S1.test.ts    # our test, copied in after the agent finishes
     checklist:
       - writes a covering test that passes
 ```
+
+### Seeded gates (`assert`)
+
+All four are optional. Each one that fails makes the scenario a FAIL without
+spending a judge call. They are independent in effect, with one cross-check at
+parse time: a needle listed in both `diff_contains` and `diff_excludes` is
+rejected as an authoring error, since that gate could never pass.
+
+| Gate | What it proves |
+|---|---|
+| `vitest: true` | `vitest run` passes in the temp repo. Grades the model's **own** tests, so a weak test the model wrote and passed still counts as green. |
+| `diff_contains: [str]` | Each needle appears in the diff's **changed lines**. A keyword check — it proves the model wrote a name, not that the name behaves. |
+| `diff_excludes: [str]` | No needle appears in the diff's **changed lines**. Makes scope discipline ("fix `sliceRange`, leave `lastIndex` alone") objective instead of inferring it from the model's prose. |
+| `post_test: <path>` | A test file **you** wrote, copied into the workspace *after* the agent finishes and run on its own. The model never sees it, so it cannot write code shaped to pass it, and it needs no judge. |
+
+Both needle gates deliberately match only added/removed lines, never context
+lines or `+++`/`---` file headers. A unified diff carries context around every
+hunk, so an untouched symbol near the edit site appears in the diff verbatim.
+Matching that text would fail every model that changed exactly the right thing
+(for `diff_excludes`) and pass models that changed nothing relevant (for
+`diff_contains`) — the second being the quieter and more dangerous of the two.
+
+`post_test` is the complement to `vitest`, not a replacement: `vitest` asks "did
+the model's own tests pass?", `post_test` asks "does the code do what the task
+required?". The file is copied in after the diff is captured, so it never appears
+in the diff and never reaches a judge.
+
+The gate demands positive evidence that assertions ran — it reports a spec error
+rather than a pass when the hidden tests are all `.skip`/`.todo`, when vitest
+collects nothing, or when no summary can be parsed. (Vitest exits **zero** for a
+fully-skipped file, so a gate keyed on the exit code alone would have reported
+PASS having executed nothing.) A `post_test` path that is missing or is not a
+readable file likewise fails the scenario as a spec error, never as model
+behavior — and `skill-harness lint` catches that one for free, before you spend a
+run. Note the model owns the workspace, including `vitest.config.ts`: the gate is
+unguessable, not tamper-proof.
 
 > **YAML gotcha:** a checklist/turn item with an unquoted `": "` parses as a YAML
 > *mapping*, not a string — `skill-harness` rejects it with a hint. Quote such items:
@@ -233,11 +271,13 @@ timeout leaves) is retried once in a fresh workspace; if it happens again the sc
 `ERROR` — it still blocks SHIP, but it is never handed to the judge, because grading an empty
 reply produces a confident FAIL about behavior that never happened.
 
-**Staleness is machine-checked.** Every full run records `source_hashes` — sha256 of SKILL.md
-and each `system_prompt_file` it measured. `lint` compares the newest full run per model
-against the current files and fails with `stale` when they differ: a published result must
-describe text that still exists. Runs predating the field are silent (no retroactive noise);
-partial runs never count as coverage.
+**Staleness is machine-checked.** Every full run records `source_hashes` — a sha256 of
+everything it measured: SKILL.md, each `system_prompt_file`, each scenario's *definition*,
+each `post_test`, and every file in each fixture tree ([details](#results--git-policy)).
+`lint` compares the newest full run per model against the current sources and fails with
+`stale` when they differ, including when the newest run never measured a scenario the spec
+now defines: a published result must describe inputs that still exist. Runs predating a key
+kind are silent (no retroactive noise); partial runs never count as coverage.
 
 **`rescore <run-dir>...`** re-collapses saved reps against the *current* spec thresholds —
 no model calls, no judge calls, free. Reps are the measurement (`passes` of `clean`); a
@@ -276,6 +316,16 @@ fixtures/typo-fix/
   _uncommitted/README.md     # -> applied after   ("The project")  => unstaged edit
   _staged/CHANGELOG.md       # -> applied after, then git add      => staged edit
 ```
+
+**Marker names are checked.** A typo — `_uncommited/`, one `t` — would once have been
+copied into the baseline commit as an ordinary directory, leaving the scenario measuring
+the opposite of its intent with nothing to show for it. Any *top-level* `_name/` is now
+read as a marker claim: `skill-harness lint` reports it (free, offline, in CI, with a
+"did you mean?" when it's a near-miss) and `run` refuses the fixture outright. Both use
+the same rule, so lint can never bless a fixture the runtime rejects. Two carve-outs, so
+ordinary content is left alone: only a *single* leading underscore counts (`__tests__/`
+and `__pycache__/` copy normally), and markers are top-level only (`pkg/_staged/` is
+ordinary content).
 
 **A real remote.** `env: { remote: true }` (with `empty-git` or a fixture) initialises a bare
 repo in its own temp dir, wires it as `origin`, and pushes the baseline, so `main` tracks
@@ -319,7 +369,9 @@ Each run writes to the **target skills repo**:
 
 ```
 <skill>/tests/results/<harness>-<model-slug>/<timestamp>/
-  A1.green.txt     transcript            (gitignored)
+  A1.green.txt        transcript            (gitignored)
+  A1.green.judge.txt  raw judge output      (gitignored)
+  A1.green.diff.txt   staged diff — seeded scenarios only   (gitignored)
   …
   results.yaml     verdicts + judge reasons + your overrides + notes   (committed)
   journal.jsonl    machine-facing event stream for this run            (gitignored)
@@ -328,6 +380,16 @@ Each run writes to the **target skills repo**:
 
 A generated `results/.gitignore` keeps `results.yaml` tracked while ignoring the
 raw transcripts, journal, and report. Commit the durable verdicts; regenerate the rest.
+
+**`<id>.<mode>[.rep<k>].diff.txt`** is the `git diff --cached` a seeded scenario
+produced — the code the model actually wrote. The scenario workspace is destroyed
+after every rep, so without this artifact a seeded verdict cannot be audited after
+the fact. It is saved for every rep, whether the gates passed or failed, and a
+(size-capped) copy is included in the transcript the judge grades, so a seeded
+checklist item about what the code *does* is graded from the code rather than from
+the model's description of it. Cap the judge's copy with
+`SKILL_HARNESS_DIFF_MAX_BYTES` (default 64000); the artifact on disk is never
+truncated.
 
 `results.yaml` is **schema 2**:
 
@@ -340,6 +402,28 @@ raw transcripts, journal, and report. Commit the durable verdicts; regenerate th
 - each scenario carries `suspect`: the judge-misfire tripwire fired (its per-item grades
   disagree with its overall verdict) — marked `suspect`, excluded from the grade, and blocks
   SHIP until you re-judge it or set an override in the review UI.
+- `source_hashes` records a sha256 of **everything the run measured**, so `lint` can prove a
+  published result still describes the current inputs:
+
+  | key | covers |
+  |---|---|
+  | `SKILL.md` | the skill text |
+  | `scenario:<id>` | one scenario's definition — turns, checklist, gates, criticality |
+  | `fixture:<path>` | every file under one fixture dir, including `_staged/`/`_uncommitted/` |
+  | `<relative path>` | a `system_prompt_file`, or an `assert.post_test` file's contents |
+
+  A source that could not be read when the run was recorded is stored as
+  `unreadable` rather than omitted, and always reports stale — an omitted key
+  would never be compared again for the life of that result.
+
+  Scenario digests are **per-scenario and built from the parsed spec**, not from
+  `specification.yaml` as a whole. Editing A1's checklist marks A1 stale and leaves A2 alone,
+  and reindenting the YAML marks nothing stale, because formatting isn't what a run measures.
+  A recorded scenario that no longer exists in the spec is a reshape, not staleness, and is
+  ignored — but a scenario the spec defines that the newest full run never measured *is*
+  reported, or renaming a scenario would leave a SHIP scorecard looking current. Runs
+  recorded before a given key kind existed simply don't carry it and are never retroactively
+  flagged.
 
 `skill-harness grade` currently re-judges single-rep runs only; for a `--reps N>1` run it
 fails fast with an explanatory error — resolve `suspect` scenarios there via an override
@@ -347,8 +431,8 @@ in `skill-harness review`, or re-run the skill.
 
 **Overrides** (via `skill-harness review`) **require a note** — you must say why the
 judge was wrong before an override is accepted. Saving one also un-gitignores
-that scenario's transcript, so the evidence behind the override stays in the
-audit trail alongside the note.
+that scenario's transcript, raw judge output and staged diff, so the evidence
+behind the override stays in the audit trail alongside the note.
 
 `journal.jsonl` is a per-run, line-delimited event stream (`run-started`,
 `scenario-started`, `gate-result`, `judge-verdict`, `misfire-flag`, `score`,
