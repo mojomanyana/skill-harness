@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { readResults, effectiveVerdicts, type ResultsFile } from "./results.js";
+import { readResults, effectiveVerdicts, type ResultsFile, type ScenarioResult } from "./results.js";
 import { loadSpec } from "./spec.js";
 import type { Verdict } from "./score.js";
 
@@ -50,9 +50,52 @@ export interface Lift {
    * `LiftOptions.modeInsensitive`.
    */
   modeInsensitive: string[];
+  /**
+   * Ids both runs covered whose two verdicts were produced by different
+   * aggregations, so the comparison is not like-for-like. Excluded rather than
+   * compared: see `comparableAggregation`.
+   */
+  aggregationMismatch: LiftAggregationMismatch[];
   /** True when either side was an `--only` run, so coverage is a subset by construction. */
   partial: boolean;
   cells: Record<string, LiftCell>;
+}
+
+/**
+ * How one side produced a scenario's verdict: over how many reps, and under which
+ * majority threshold (null when no aggregation happened).
+ */
+export interface AggregationShape {
+  reps: number;
+  threshold: number | null;
+}
+
+export interface LiftAggregationMismatch {
+  id: string;
+  red: AggregationShape;
+  green: AggregationShape;
+}
+
+function aggregationShape(s: ScenarioResult): AggregationShape {
+  const reps = s.reps ?? 1;
+  // At one rep `outcomesToResult` keeps the single judge verdict and never calls
+  // `aggregateReps`, so a `pass_threshold` sitting beside it was applied to
+  // nothing. Normalizing it away keeps a stray field from faking a mismatch.
+  return { reps, threshold: reps > 1 ? s.pass_threshold ?? null : null };
+}
+
+/**
+ * Whether two verdicts were produced the same way, and so mean the same thing.
+ *
+ * A one-rep verdict is a single draw; a three-rep verdict is a majority over
+ * three. Across that gap `red FAIL -> green PASS` can be sampling alone, and
+ * `gained` would be reporting the harness's own asymmetry as skill value — the
+ * inverse of the `modeInsensitive` error, and pointing the number the *other*
+ * way. The threshold counts too: 1-of-3 versus 3-of-3 is a different majority
+ * policy at the same N, so the aggregate is not the same measurement.
+ */
+function comparableAggregation(red: AggregationShape, green: AggregationShape): boolean {
+  return red.reps === green.reps && red.threshold === green.threshold;
 }
 
 /** A verdict that carries real evidence about the task, rather than about the harness or the judge. */
@@ -103,6 +146,8 @@ export function computeLift(red: ResultsFile, green: ResultsFile, opts: LiftOpti
   const insensitive = new Set(opts.modeInsensitive ?? []);
   const redV = new Map(effectiveVerdicts(red.scenarios).map((v) => [v.id, { verdict: v.verdict, suspect: v.suspect ?? false }]));
   const greenV = new Map(effectiveVerdicts(green.scenarios).map((v) => [v.id, { verdict: v.verdict, suspect: v.suspect ?? false }]));
+  const redShape = new Map(red.scenarios.map((s) => [s.id, aggregationShape(s)]));
+  const greenShape = new Map(green.scenarios.map((s) => [s.id, aggregationShape(s)]));
 
   const cells: Record<string, LiftCell> = {};
   const counts = { gained: 0, regressed: 0, kept: 0, "both-fail": 0, inconclusive: 0 };
@@ -112,11 +157,21 @@ export function computeLift(red: ResultsFile, green: ResultsFile, opts: LiftOpti
   // Green order drives display order (it is the run the author is looking at),
   // restricted to ids the red baseline also covered.
   const modeInsensitive: string[] = [];
+  const aggregationMismatch: LiftAggregationMismatch[] = [];
   for (const [id, g] of greenV) {
     const r = redV.get(id);
     if (!r) continue;
     if (insensitive.has(id)) {
       modeInsensitive.push(id);
+      continue;
+    }
+    // Checked before classification, and reported separately, for the reason
+    // modeInsensitive is: there is no honest bucket for two verdicts that were
+    // not measured the same way.
+    const rShape = redShape.get(id) ?? { reps: 1, threshold: null };
+    const gShape = greenShape.get(id) ?? { reps: 1, threshold: null };
+    if (!comparableAggregation(rShape, gShape)) {
+      aggregationMismatch.push({ id, red: rShape, green: gShape });
       continue;
     }
     const cls = classify(r, g);
@@ -145,9 +200,35 @@ export function computeLift(red: ResultsFile, green: ResultsFile, opts: LiftOpti
     greenOnly: [...greenV.keys()].filter((id) => !redV.has(id)),
     redOnly: [...redV.keys()].filter((id) => !greenV.has(id)),
     modeInsensitive,
+    aggregationMismatch,
     partial: Boolean(red.partial || green.partial),
     cells,
   };
+}
+
+function reps(n: number): string {
+  return n === 1 ? "1 rep" : `${n} reps`;
+}
+
+/** What differs between the two sides, in the words of the flag that caused it. */
+function describeMismatch(ms: LiftAggregationMismatch[]): string {
+  const distinct = new Set(
+    ms.map((m) =>
+      m.red.reps !== m.green.reps
+        ? `red ${reps(m.red.reps)} vs ${reps(m.green.reps)}`
+        : `red pass threshold ${m.red.threshold} vs ${m.green.threshold}`,
+    ),
+  );
+  return distinct.size === 1 ? [...distinct][0] : "red and green aggregated differently";
+}
+
+/** The one command that would make the comparison measurable. */
+function mismatchRemedy(ms: LiftAggregationMismatch[]): string {
+  const greenReps = new Set(ms.map((m) => m.green.reps));
+  if (greenReps.size === 1 && ms.every((m) => m.red.reps !== m.green.reps)) {
+    return `re-run the baseline with --reps ${[...greenReps][0]}`;
+  }
+  return "re-measure both sides the same way";
 }
 
 /** One line for a human: what the skill did, and what it cost. */
@@ -155,8 +236,16 @@ export function liftHeadline(lift: Lift): string {
   if (lift.compared === 0) {
     // Excluded-but-shared is not the same as never-shared. Claiming the runs had
     // no scenario in common would hide the reason the lift is empty.
-    if (lift.modeInsensitive.length > 0) {
-      return `nothing comparable (${lift.modeInsensitive.length} shared, all run identically in both modes)`;
+    const mismatched = lift.aggregationMismatch.length;
+    const insensitive = lift.modeInsensitive.length;
+    if (mismatched > 0 && insensitive > 0) {
+      return `nothing comparable (${insensitive} run identically in both modes, ${mismatched} ${describeMismatch(lift.aggregationMismatch)})`;
+    }
+    if (mismatched > 0) {
+      return `nothing comparable (${mismatched} shared, ${describeMismatch(lift.aggregationMismatch)} — ${mismatchRemedy(lift.aggregationMismatch)})`;
+    }
+    if (insensitive > 0) {
+      return `nothing comparable (${insensitive} shared, all run identically in both modes)`;
     }
     return "no shared scenarios to compare";
   }
@@ -183,6 +272,9 @@ export function liftHeadline(lift: Lift): string {
   if (lift.inconclusive > 0) segments.push(`${lift.inconclusive} inconclusive`);
   if (lift.modeInsensitive.length > 0) {
     segments.push(`${lift.modeInsensitive.length} not comparable (same run in both modes)`);
+  }
+  if (lift.aggregationMismatch.length > 0) {
+    segments.push(`${lift.aggregationMismatch.length} not comparable (${describeMismatch(lift.aggregationMismatch)})`);
   }
   if (lift.partial) segments.push("partial run");
   return segments.join(" · ");

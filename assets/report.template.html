@@ -182,9 +182,11 @@ function render() {
         `<div class='lift ${cls}' title='vs red baseline ${escapeHtml(col.lift.redTimestamp)} — ${ls.kept} passed without the skill too'>${body}${inc}${part}</div></th>`;
       return;
     }
-    if (col.mode === "green") {
-      // "not measured" is a different claim from "measured no effect" — say which.
-      liftHtml = `<div class='lift none' title='run the same scenarios with --mode red to get a baseline'>no red baseline</div>`;
+    // "not measured" is a different claim from "measured no effect" — and an
+    // unusable baseline is a third (see liftNoneBadge).
+    const none = liftNoneBadge(col);
+    if (none) {
+      liftHtml = `<div class='lift none' title='${escapeHtml(none.title)}'>${escapeHtml(none.text)}</div>`;
     }
     html += `<th><div>${escapeHtml(col.label)}</div><div class='grade'>${gradeHtml}</div>${liftHtml}</th>`;
   });

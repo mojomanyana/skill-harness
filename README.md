@@ -264,10 +264,16 @@ a skill that works. Run both modes and `skill-harness` reports the difference as
 | **regressed** | passed without the skill, fails with it — the skill hurt |
 | **kept** | passed either way — the model never needed the skill here |
 | **inconclusive** | `ERROR` or an unresolved judge misfire on either side |
+| **not comparable** | the harness ran it identically in both modes, or the two sides aggregated differently — excluded, never reclassified |
 
 `inconclusive` is the load-bearing one: an `ERROR` is a harness failure, not
 evidence that the skill-less agent couldn't do the task, so it is never counted
 as a gain. Without it, flaky infrastructure reads as skill value.
+
+Run the baseline at the same `--reps` as green. A one-rep verdict is a single draw
+and a three-rep verdict is a majority over three; comparing across that gap turns
+sampling into apparent skill value, so those cells are excluded and the headline
+says what to re-run.
 
 Lift is derived from the runs already on disk — an old baseline still counts, and
 nothing needs re-running for it to appear. Only scenarios present in both runs are
