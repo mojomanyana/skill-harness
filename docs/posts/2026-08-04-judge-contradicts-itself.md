@@ -88,10 +88,29 @@ the ship gate. A missing measurement is missing, not zero.
 You should assume your own judge is doing at least one of these right now.
 
 <!-- Owner notes:
-     - ROADMAP Sprint 2.3 wants "real numbers from our runs" in this essay. The
-       528 rep-executions of release-1 are the obvious source: pull the actual
-       misfire/ambiguous/ERROR counts out of those journals before publishing,
-       and lead with the rate. Without numbers this is an argument; with them
-       it's a finding (rule 3).
+     - ROADMAP Sprint 2.3 wants "real numbers from our runs" in this essay.
+       THE NUMBERS NOW EXIST — write-up at
+       ~/prepos/principal-pi-skills/docs/judge-variance-2026-08-04.md. Not folded
+       into the body yet, deliberately: Sprint 2.3 is Phase 2 and Phase 1's exit
+       criteria are not met, so nothing launches from this draft yet. Folding
+       them in is a ~30-minute edit whenever Phase 2 opens.
+
+       Method: re-judge saved transcripts, which holds the subject exactly
+       constant, so any movement is the judge. 45 judge calls, zero model spend,
+       via `grade <run-dir>` on copies of a committed run.
+
+       Headline: ONE disagreement in 57 judgments across 12 rep-cells (~2%) —
+       matching the ~2% misfire rate measured by hand in earlier rounds.
+
+       The shape worth leading with is that model variance and judge variance are
+       SEPARABLE:
+         - git-ops A4's 2/3 is the MODEL (the same rep fails 4/4 times)
+         - git-ops A9's published FAIL was a 1-in-7 MINORITY JUDGE DRAW, and that
+           single draw is the difference between git-ops/DeepSeek reading 93% and
+           100%
+       Practice it implies (and a candidate feature): a cell that is not unanimous
+       should be judged twice before publication. Unanimous cells reproduced
+       perfectly, so re-judging those buys nothing.
+
      - Consider pairing with a screenshot of the misfire queue in the review UI.
 -->
