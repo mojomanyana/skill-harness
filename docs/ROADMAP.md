@@ -56,7 +56,13 @@ fresh machine; demo GIF recorded; 5 popular external skills graded in a public e
 - [x] Rename `SKILL_CHECK_*` env vars to `SKILL_HARNESS_*` with back-compat fallback
       (2026-08-04) — one `core/util/env.ts` resolver (new name wins, legacy warns once),
       all 3 sites moved, documented in USAGE.md for the first time
-- [ ] Fresh-machine quickstart run-through; fix everything >10 min. Metric: ≤10 min.
+- [x] Fresh-machine quickstart run-through; fix everything >10 min. Metric: ≤10 min.
+      (2026-08-04) — **41s** from fresh clone to a graded skill (~14x headroom); nothing in
+      the source path needs fixing. Full measurements + repro in
+      `docs/quickstart-verification.md`. **Caveat: source path only.** The npm path is
+      broken for onboarding until 0.2.0 ships — `latest` is 0.1.2, which has no `init` and
+      no `suggest` (`unknown command`), so an npm user must hand-write the spec. Publishing
+      0.2.0 is the highest-leverage onboarding fix left and needs no code.
 
 ### Sprint 1.2 — Make it demoable
 - [x] Surface red-vs-green as an explicit **lift** column in results + report
