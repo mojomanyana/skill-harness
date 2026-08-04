@@ -97,6 +97,24 @@ gh pr create --base main --head release-0.2.1 \
 gh pr merge --merge   # or fast-forward main if there is nothing to reconcile
 ```
 
+### 1b. Bump consumer pins when the results format grows
+
+`results.yaml` stays **schema 2**, but `source_hashes` gained new key *kinds*
+(`scenario:<id>`, `fixture:<path>`) after 0.2.1. An older skill-harness reading a
+newer results file resolves those keys as file paths, finds nothing, and reports
+one bogus `stale` finding per key — so a repo whose CI pins an older version will
+fail on a results file it cannot understand.
+
+The rule: **a `results.yaml` written by version X needs version ≥ X to lint.**
+When a release changes what `source_hashes` records, bump the pin in every
+consuming repo as part of that release. Today that is one repo:
+`principal-pi-skills`, whose workflow pins `v0.2.1` explicitly.
+
+This is deliberately handled by documentation rather than a schema bump: the
+schema-1→2 migration precedent exists for *shape* changes, and adding key kinds
+is not one. Revisit if there is ever a consumer that cannot be upgraded in
+lockstep.
+
 ### 2. Move the `v1` tag to the new release commit
 
 `action.yml` is consumed as `uses: mojomanyana/skill-harness@v1`, and the docs

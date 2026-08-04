@@ -119,6 +119,55 @@ describe("runSeeded shows the judge the code, not just the model's prose about i
   });
 });
 
+describe("assert.diff_contains reads changed lines, not context", () => {
+  it("does not pass on a needle that was already in the fixture", async () => {
+    // Modelled on the real `build` A4: its fixture's baseline already contains
+    // both of its needles (`ok` in `{ ok: true; value: T }`, `divide` inside
+    // `divideByZero`), so matching the raw diff let any edit near those lines
+    // satisfy the gate whether or not the model wrote either token. Every
+    // published A4 result recorded that as an objective pass.
+    const fixture = mkdtempSync(join(tmpdir(), "sc-seed-src-")); tmps.push(fixture);
+    writeFileSync(
+      join(fixture, "math.ts"),
+      "export type Result<T> = { ok: true; value: T } | { ok: false; error: DivideByZero };\nexport function add() {}\n",
+      "utf8"
+    );
+    const ws = createWorkspace({ fixture }, { specDir: "/x" }); tmps.push(ws.cwd);
+
+    // The model appends an unrelated line: it never writes `ok` itself, but the
+    // Result type sits in the hunk's context.
+    const unrelated: HarnessAdapter = {
+      name: "pi", available: async () => true,
+      run: async (req: RunReq) => {
+        writeFileSync(join(req.cwd, "math.ts"),
+          "export type Result<T> = { ok: true; value: T } | { ok: false; error: DivideByZero };\nexport function add() {}\nexport function unrelated() {}\n", "utf8");
+        return "<<< ASSISTANT: done";
+      },
+      judge: async () => "VERDICT: PASS",
+    };
+
+    const r = await runSeeded(seededScenario("ok"), {
+      skillDir: "/x", adapter: unrelated,
+      model: { provider: "fireworks", model: "fake" }, mode: "green", cwd: ws.cwd, specDir: "/x",
+    });
+
+    expect(r.diff).toContain("ok"); // it IS in the diff, as context …
+    expect(r.gateFailure).toMatch(/missing "ok"/); // … and no longer counts
+  });
+
+  it("passes when the model actually writes the needle", async () => {
+    const fixture = mkdtempSync(join(tmpdir(), "sc-seed-src-")); tmps.push(fixture);
+    writeFileSync(join(fixture, "seed.txt"), "seed", "utf8");
+    const ws = createWorkspace({ fixture }, { specDir: "/x" }); tmps.push(ws.cwd);
+
+    const r = await runSeeded(seededScenario("MARKER"), {
+      skillDir: "/x", adapter: editingAdapter("MARKER"),
+      model: { provider: "fireworks", model: "fake" }, mode: "green", cwd: ws.cwd, specDir: "/x",
+    });
+    expect(r.gateFailure).toBeNull();
+  });
+});
+
 describe("assert.diff_excludes", () => {
   const excludesScenario = (contains: string[], excludes: string[]): Scenario => ({
     id: "A2", title: "scope discipline", critical: false, mode: "seeded",

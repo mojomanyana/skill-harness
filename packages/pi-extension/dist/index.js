@@ -3384,22 +3384,18 @@ async function runSeeded(scenario, opts) {
     gateFailure = msg;
     return finish(parts, gateFailure, diff);
   }
-  const wantDiff = scenario.assert?.diff_contains ?? [];
-  for (const needle of wantDiff) {
-    const ok = diff.includes(needle);
+  const changed = changedLines(diff);
+  for (const needle of scenario.assert?.diff_contains ?? []) {
+    const ok = changed.includes(needle);
     parts.push(`  diff_contains ${JSON.stringify(needle)}: ${ok ? "OK" : "MISSING"}`);
     if (!ok && !gateFailure)
       gateFailure = `staged diff missing ${JSON.stringify(needle)}`;
   }
-  const excludes = scenario.assert?.diff_excludes ?? [];
-  if (excludes.length > 0) {
-    const changed = changedLines(diff);
-    for (const needle of excludes) {
-      const ok = !changed.includes(needle);
-      parts.push(`  diff_excludes ${JSON.stringify(needle)}: ${ok ? "OK" : "PRESENT"}`);
-      if (!ok && !gateFailure)
-        gateFailure = `staged diff touches forbidden ${JSON.stringify(needle)}`;
-    }
+  for (const needle of scenario.assert?.diff_excludes ?? []) {
+    const ok = !changed.includes(needle);
+    parts.push(`  diff_excludes ${JSON.stringify(needle)}: ${ok ? "OK" : "PRESENT"}`);
+    if (!ok && !gateFailure)
+      gateFailure = `staged diff touches forbidden ${JSON.stringify(needle)}`;
   }
   if (scenario.assert?.vitest) {
     const v = await runVitest([], repo);

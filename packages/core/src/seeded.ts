@@ -207,25 +207,32 @@ export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<S
     return finish(parts, gateFailure, diff);
   }
 
-  const wantDiff = scenario.assert?.diff_contains ?? [];
-  for (const needle of wantDiff) {
-    const ok = diff.includes(needle);
+  // BOTH needle gates read the changed lines only, never context. A unified diff
+  // carries three lines of context per hunk, so an untouched symbol near the edit
+  // site appears verbatim in the diff text — and matching that means neither gate
+  // is answering the question it was asked.
+  //
+  // The positive gate is the one this was measured on. `build` A4 asserts
+  // diff_contains ["divide", "ok"], and its fixture's baseline already contains
+  // both — `ok` in `{ ok: true; value: T }`, `divide` inside `divideByZero` — so
+  // any edit near those lines satisfied the gate whether or not the model wrote
+  // either token. Every published A4 result recorded that as an objective pass.
+  // Read against changed lines it means what the checklist means: the model
+  // returned a Result.
+  const changed = changedLines(diff);
+
+  for (const needle of scenario.assert?.diff_contains ?? []) {
+    const ok = changed.includes(needle);
     parts.push(`  diff_contains ${JSON.stringify(needle)}: ${ok ? "OK" : "MISSING"}`);
     if (!ok && !gateFailure) gateFailure = `staged diff missing ${JSON.stringify(needle)}`;
   }
 
   // Scope discipline, stated as a fact about the diff rather than inferred from
-  // whether the model remembered to say "I left lastIndex alone". Matched against
-  // CHANGED lines only — see changedLines(): context lines mention code the model
-  // never touched, and a negative needle must not fire on those.
-  const excludes = scenario.assert?.diff_excludes ?? [];
-  if (excludes.length > 0) {
-    const changed = changedLines(diff);
-    for (const needle of excludes) {
-      const ok = !changed.includes(needle);
-      parts.push(`  diff_excludes ${JSON.stringify(needle)}: ${ok ? "OK" : "PRESENT"}`);
-      if (!ok && !gateFailure) gateFailure = `staged diff touches forbidden ${JSON.stringify(needle)}`;
-    }
+  // whether the model remembered to say "I left lastIndex alone".
+  for (const needle of scenario.assert?.diff_excludes ?? []) {
+    const ok = !changed.includes(needle);
+    parts.push(`  diff_excludes ${JSON.stringify(needle)}: ${ok ? "OK" : "PRESENT"}`);
+    if (!ok && !gateFailure) gateFailure = `staged diff touches forbidden ${JSON.stringify(needle)}`;
   }
 
   if (scenario.assert?.vitest) {

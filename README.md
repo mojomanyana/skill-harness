@@ -136,14 +136,16 @@ rejected as an authoring error, since that gate could never pass.
 | Gate | What it proves |
 |---|---|
 | `vitest: true` | `vitest run` passes in the temp repo. Grades the model's **own** tests, so a weak test the model wrote and passed still counts as green. |
-| `diff_contains: [str]` | Each needle appears somewhere in the staged diff. A keyword check — it proves a name was written, not that it behaves. |
+| `diff_contains: [str]` | Each needle appears in the diff's **changed lines**. A keyword check — it proves the model wrote a name, not that the name behaves. |
 | `diff_excludes: [str]` | No needle appears in the diff's **changed lines**. Makes scope discipline ("fix `sliceRange`, leave `lastIndex` alone") objective instead of inferring it from the model's prose. |
 | `post_test: <path>` | A test file **you** wrote, copied into the workspace *after* the agent finishes and run on its own. The model never sees it, so it cannot write code shaped to pass it, and it needs no judge. |
 
-`diff_excludes` deliberately matches only added/removed lines, never context lines
-or `+++`/`---` file headers. A unified diff carries context around every hunk, so
-an untouched function near the edit site appears in the diff verbatim — matching
-the raw text would fail every model that changed exactly the right thing.
+Both needle gates deliberately match only added/removed lines, never context
+lines or `+++`/`---` file headers. A unified diff carries context around every
+hunk, so an untouched symbol near the edit site appears in the diff verbatim.
+Matching that text would fail every model that changed exactly the right thing
+(for `diff_excludes`) and pass models that changed nothing relevant (for
+`diff_contains`) — the second being the quieter and more dangerous of the two.
 
 `post_test` is the complement to `vitest`, not a replacement: `vitest` asks "did
 the model's own tests pass?", `post_test` asks "does the code do what the task
