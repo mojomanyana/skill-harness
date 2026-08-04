@@ -1,13 +1,19 @@
 {
     "name": "skill-harness-monorepo",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "description": "Portable test/optimize framework for agent skills: spec'd scenarios, LLM judge, review UI. Monorepo: core, adapters, cli.",
     "license": "MIT",
     "type": "module",
     "private": true,
-    "keywords": ["pi-package"],
-    "bin": { "skill-harness": "./bin/skill-harness.js" },
-    "workspaces": ["packages/*"],
+    "keywords": [
+        "pi-package"
+    ],
+    "bin": {
+        "skill-harness": "./bin/skill-harness.js"
+    },
+    "workspaces": [
+        "packages/*"
+    ],
     "scripts": {
         "build": "tsc -b packages/core packages/adapters packages/cli",
         "build:ext": "npm run build && node packages/pi-extension/build.mjs",
@@ -15,7 +21,9 @@
         "test": "vitest run",
         "typecheck": "tsc -b packages/core packages/adapters packages/cli && tsc --noEmit -p packages/pi-extension/tsconfig.json"
     },
-    "engines": { "node": ">=20" },
+    "engines": {
+        "node": ">=20"
+    },
     "devDependencies": {
         "@types/js-yaml": "^4.0.9",
         "@types/node": "^22.0.0",
@@ -25,7 +33,11 @@
         "vitest": "^2.1.0"
     },
     "pi": {
-        "extensions": ["packages/pi-extension/dist/index.js"],
-        "skills": ["./SKILL.md"]
+        "extensions": [
+            "packages/pi-extension/dist/index.js"
+        ],
+        "skills": [
+            "./SKILL.md"
+        ]
     }
 }

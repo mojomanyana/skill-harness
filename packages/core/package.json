@@ -1,19 +1,45 @@
 {
     "name": "@skill-harness/core",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "description": "skill-harness engine — spec, discover, run, LLM-judge grade, score, results (internal API)",
     "type": "module",
     "license": "MIT",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
-    "exports": { ".": "./dist/index.js" },
-    "keywords": ["agent-skills", "skill", "llm", "testing", "eval", "grading", "pi", "ci", "harness"],
-    "files": ["dist/**/*.js", "dist/**/*.d.ts", "LICENSE", "README.md"],
-    "repository": { "type": "git", "url": "git+https://github.com/mojomanyana/skill-harness.git" },
-    "publishConfig": { "access": "public" },
-    "engines": { "node": ">=20" },
+    "exports": {
+        ".": "./dist/index.js"
+    },
+    "keywords": [
+        "agent-skills",
+        "skill",
+        "llm",
+        "testing",
+        "eval",
+        "grading",
+        "pi",
+        "ci",
+        "harness"
+    ],
+    "files": [
+        "dist/**/*.js",
+        "dist/**/*.d.ts",
+        "LICENSE",
+        "README.md"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/mojomanyana/skill-harness.git"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "engines": {
+        "node": ">=20"
+    },
     "scripts": {
         "prepack": "cp ../../LICENSE ./LICENSE"
     },
-    "dependencies": { "js-yaml": "^4.1.0" }
+    "dependencies": {
+        "js-yaml": "^4.1.0"
+    }
 }

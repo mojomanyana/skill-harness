@@ -1,14 +1,38 @@
-# Publishing skill-harness (0.3.0)
+# Publishing skill-harness (0.3.1)
 
 This is the npm-publish runbook. It is **user-run** — the agent that prepared this
 repo does not publish. Run these commands yourself with your own npm auth.
 
-The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`. This repo is at `0.3.0`, so
-these commands publish a **new version over an existing line** — the
-`@skill-harness` scope is already claimed, and `latest` moves to 0.3.0 as each
+The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`, `0.3.0`. This repo is at
+`0.3.1`, so these commands publish a **new version over an existing line** — the
+`@skill-harness` scope is already claimed, and `latest` moves to 0.3.1 as each
 package lands.
 
-0.3.0 is a **behaviour-breaking release for CI consumers**, which is why it takes
+**0.3.1 is a patch and nobody on 0.3.0 is affected by the bugs it fixes.** Two
+things changed:
+
+- `computeLift` no longer compares mode-insensitive scenarios — the ones with
+  `system_prompt_file`, which `pi` runs with `--no-skills --append-system-prompt`
+  *whatever the mode*, so red and green were the same run. They were classed
+  `kept`, which reads as evidence against the skill when the skill in fact
+  produced that red-side pass, so every such scenario pushed lift **down**. It
+  changes `lift` output, and `Lift` gains a required `modeInsensitive` field —
+  additive for anything reading a `Lift`, breaking only for code constructing one
+  as a literal. **Nobody can have hit this**: it needs a red-mode run, and no
+  red-mode run exists in any known corpus.
+- `@skill-harness/cli`'s `prepack` copies `assets/report.*` rather than all of
+  `assets/`. A demo GIF landed in `assets/` after 0.3.0 was cut, which would have
+  taken the cli tarball from 20.1 kB to 511 kB. **0.3.0's published tarball is
+  unaffected** — it was packed before the GIF existed.
+
+So this release exists to stop the repo disagreeing with the registry, not because
+anyone is broken. It takes the patch rather than the minor because no `lint` check
+was added, no results-schema key kind appeared, and no repo that passes on 0.3.0
+can fail on 0.3.1 — the three things that made 0.3.0 a minor.
+
+### Previous release, kept for context
+
+0.3.0 was a **behaviour-breaking release for CI consumers**, which is why it took
 the minor rather than the patch: `lint` gained the `fixture-marker`,
 `post_test`-existence and scenario-coverage checks (a repo that passed on 0.2.1
 can fail on 0.3.0), `assert.diff_contains` now matches the diff's changed lines
@@ -45,22 +69,25 @@ Run from the **repo root** (npm workspaces `-w` flag, verified with npm 11.9.0 /
 Node 24.14.0 — this repo's `engines.node` requires >=20, which ships npm >=10,
 so `-w` should work on any supported install). Each step must land on the
 registry before the next, since each package's `package.json` pins an exact
-`@skill-harness/*@0.3.0` dependency (npm will fail to resolve it otherwise):
+`@skill-harness/*@0.3.1` dependency (npm will fail to resolve it otherwise):
 
 ```bash
 npm publish -w @skill-harness/core --access public
 npm publish -w @skill-harness/adapters --access public
-npm publish -w @skill-harness/cli --access public     # prepack packages assets/ into the tarball
-npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.3.0
+npm publish -w @skill-harness/cli --access public     # prepack stages assets/report.* into the tarball
+npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.3.1
 ```
 
 `@skill-harness/core` and `@skill-harness/adapters` publish exactly the `dist/`
 that `npm run build` produced above — there is no per-package build hook to fall
 back on, which is why the build step is mandatory rather than a nicety.
 `@skill-harness/cli`'s `prepack` script
-(`rm -rf ./assets && cp -r ../../assets ./assets`) runs automatically as part
-of `npm publish`/`npm pack` and stages the review-UI assets
-(`assets/report.template.html`, `assets/report.grade.js`) into its tarball.
+(`rm -rf ./assets && mkdir -p ./assets && cp ../../assets/report.* ./assets/`)
+runs automatically as part of `npm publish`/`npm pack` and stages the review-UI
+assets (`assets/report.template.html`, `assets/report.grade.js`) into its tarball.
+It copies `report.*` rather than all of `assets/` deliberately: `assets/` also
+holds the README's demo GIF and the scripts that record it, and `cp -r` put half
+a megabyte of them in the tarball (0.3.1 fixed that).
 
 If `-w` doesn't work with your npm version, publish per-package instead:
 
@@ -77,7 +104,7 @@ ships to pi users via `pi install git:...`, not the npm registry.
 ## Verify after publishing
 
 ```bash
-npm view skill-harness version            # expect 0.3.0
+npm view skill-harness version            # expect 0.3.1
 npm i -g skill-harness && skill-harness --help
 npx @skill-harness/cli lint --help
 ```
@@ -95,8 +122,8 @@ The version bump lives on `release-<version>`. Until that branch reaches `main`,
 a fresh clone of `main` reports a different version than the registry serves:
 
 ```bash
-gh pr create --base main --head release-0.3.0 \
-  --title "chore(release): 0.3.0" --body "Version bump + runbook."
+gh pr create --base main --head release-0.3.1 \
+  --title "chore(release): 0.3.1" --body "Version bump + runbook."
 gh pr merge --merge   # or fast-forward main if there is nothing to reconcile
 ```
 
@@ -129,7 +156,7 @@ lockstep.
 
 ```bash
 git checkout main && git pull
-git tag v0.3.0 && git push origin v0.3.0     # the immutable release tag
+git tag v0.3.1 && git push origin v0.3.1     # the immutable release tag
 git tag -f latest && git push -f origin latest   # the ref the docs point at
 ```
 
@@ -200,3 +227,25 @@ in shape (core 49 files, adapters 7, cli 9 incl. the two `assets/` files, unscop
   `--prefer-online` (or a throwaway `--cache` dir) before concluding the dist-tag
   failed to move — it resolved on its own within a minute here, and
   `npm dist-tag add` was not needed.
+
+## Verification performed for 0.3.1 (2026-08-05, publish not yet run)
+
+- `npm run build:ext` clean; 505 tests pass; `npm pack --dry-run` re-run for all
+  four packages: core 49 files / 65.7 kB, adapters 7 / 3.1 kB, cli 9 / 20.1 kB,
+  unscoped 4 / 2.3 kB — same shape as 0.3.0, cli back to its pre-GIF size.
+- **`npm version --workspaces` does not update inter-package pins.** It bumped all
+  five `version` fields to 0.3.1 and left every `@skill-harness/*` dependency
+  pinned at `0.3.0`, so `cli@0.3.1` would have shipped depending on `core@0.3.0` —
+  a new version number in front of the old, buggy code. Pins were corrected by
+  hand in `adapters`, `cli`, `skill-harness` **and `pi-extension`'s
+  `devDependencies`**, which is easy to miss because it is the one package that is
+  never published.
+- **That mismatch also poisons the lockfile.** With versions at 0.3.1 and pins at
+  0.3.0, `npm install` cannot satisfy the pins from the workspace, so it silently
+  downloads the *published* 0.3.0 tarballs into nested `node_modules` — meaning
+  build and tests run against the released code, not the local tree. Fixed by
+  correcting the pins, deleting the nested `@skill-harness` dirs and reinstalling;
+  verify with `grep -c 'registry.npmjs.org/@skill-harness' package-lock.json`,
+  which must be **0**.
+- Next release: bump versions and pins together (`npm version --workspaces`
+  followed by a pin sweep), then re-run that grep before building.
