@@ -89,10 +89,14 @@ components disagreed about what a mode *means*, and nothing forced them to
 reconcile. The adapter's own comment described the behavior accurately, in the
 file where it was true.
 
-The reason it was still an open hole when I found it: **lift has never run on
-real data.** Every committed result in my corpus is `mode: green` — not one
-red-mode run exists, so this metric has only ever executed against unit tests.
-The bug was reachable the whole time and nothing was reaching it.
+The reason it was still an open hole when I found it: lift has barely been run.
+It has had exactly one red baseline against a real model — a two-scenario test
+fixture, which passed both ways and produced a correct `no measured effect`.
+Neither scenario used `system_prompt_file`, so the bug sat one spec feature away
+from the only place the metric had ever pointed. In the skills repo I actually
+care about, all 82 committed results are `mode: green`: no red baseline at all,
+so no lift, so nothing to be wrong about yet.
 
 Which is its own lesson, and a less comfortable one than the fix. A feature with
-tests, docs and a post announcing it is not a feature that has been *used*.
+tests, docs and a post announcing it is not a feature that has been *used* — and
+"the tests pass" says nothing about the paths the tests were never pointed at.

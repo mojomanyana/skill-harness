@@ -25,7 +25,13 @@ bundled `golden-skill` fixture copied into a temp skills root.
 Nothing in the source path needs fixing for the ≤10 min metric. It has ~14x
 headroom, and a slower model or a bigger spec still leaves room.
 
-## The blocker: the npm path does not work at all
+## The blocker: the npm path did not work at all — RESOLVED 2026-08-05
+
+> Everything in this section was true when measured on 2026-08-04 and is kept as the
+> record of why publishing was urgent. It is **no longer the case**: 0.2.1, 0.3.0 and
+> 0.3.1 have all shipped, `latest` serves **0.3.1**, and a fresh
+> `npm i -g skill-harness` was verified to carry `init`, `suggest` and `lint`. Both
+> the clone path and the npm path onboard now.
 
 The measurement above is the **clone** path. The README's quickstart — and what a
 stranger who finds the project actually does — is `npm i -g skill-harness`. That
@@ -50,6 +56,13 @@ The published version's review UI is also non-functional (see the
 **So: ≤10 min is verified for source installs and unverified-in-practice for npm
 installs, until 0.2.0 is published.** Publishing is the single highest-leverage
 onboarding fix available right now; it needs no code. See `PUBLISHING.md`.
+
+**Update 2026-08-05:** published, and re-verified against the registry rather than
+the clone — `npm i -g skill-harness` now installs 0.3.1, and `--help` lists `init`,
+`suggest` and `lint`. The review-UI script fix shipped in the same line. The ≤10 min
+metric has not been re-timed on the npm path; the source-path 41s stands, and the npm
+path removes the clone and build steps rather than adding any, so it is not expected
+to be slower.
 
 ## Side finding: the fixture skill has zero lift
 

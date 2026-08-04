@@ -84,9 +84,11 @@ the mechanism works rather than merely not erroring: `build`/kimi-k3 → 9 scena
 
 ## Commands
 
-`principal-pi-skills` tracks `@latest`, and the git `latest` tag now points at
-`f661a1d` (0.3.0 + docs). npm serves 0.3.0 for all four packages as of today, so
-`npx @skill-harness/cli` is also 0.3.0. Run from the repo root:
+`principal-pi-skills` tracks `@latest`, and the git `latest` tag points at `cdfcaba`
+(0.3.1). npm serves **0.3.1** for all four packages as of 2026-08-05, so
+`npx @skill-harness/cli` is also 0.3.1. Either release is new enough for everything
+below — 0.3.1 only adds a `lift` fix, and `lift` plays no part in these runs. Run
+from the repo root:
 
 ```bash
 DS=fireworks:accounts/fireworks/models/deepseek-v4-pro

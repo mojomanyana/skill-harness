@@ -18,8 +18,9 @@ things changed:
   produced that red-side pass, so every such scenario pushed lift **down**. It
   changes `lift` output, and `Lift` gains a required `modeInsensitive` field —
   additive for anything reading a `Lift`, breaking only for code constructing one
-  as a literal. **Nobody can have hit this**: it needs a red-mode run, and no
-  red-mode run exists in any known corpus.
+  as a literal. **Nobody can have hit this**: it needs a red-mode run on a spec with
+  `system_prompt_file` scenarios. The only red baseline ever recorded is the
+  two-scenario `golden-skill` fixture, and neither scenario uses that field.
 - `@skill-harness/cli`'s `prepack` copies `assets/report.*` rather than all of
   `assets/`. A demo GIF landed in `assets/` after 0.3.0 was cut, which would have
   taken the cli tarball from 20.1 kB to 511 kB. **0.3.0's published tarball is
@@ -228,7 +229,7 @@ in shape (core 49 files, adapters 7, cli 9 incl. the two `assets/` files, unscop
   failed to move — it resolved on its own within a minute here, and
   `npm dist-tag add` was not needed.
 
-## Verification performed for 0.3.1 (2026-08-05, publish not yet run)
+## Verification performed for 0.3.1 (published 2026-08-05)
 
 - `npm run build:ext` clean; 505 tests pass; `npm pack --dry-run` re-run for all
   four packages: core 49 files / 65.7 kB, adapters 7 / 3.1 kB, cli 9 / 20.1 kB,
@@ -249,3 +250,33 @@ in shape (core 49 files, adapters 7, cli 9 incl. the two `assets/` files, unscop
   which must be **0**.
 - Next release: bump versions and pins together (`npm version --workspaces`
   followed by a pin sweep), then re-run that grep before building.
+
+### What went wrong anyway, and the two guards that would have caught it
+
+The publish itself was clean and all four packages verified from a fresh install.
+Two process failures around it are worth not repeating:
+
+- **CI was red on the release commit and the release was merged regardless.** The
+  status was read from `gh run watch … | tail -3; echo $?`, which reports **`tail`'s**
+  exit status, not `gh`'s — it prints `exit=0` whatever the run did. Read the
+  conclusion instead, and never through a pipe:
+
+  ```bash
+  gh run view <id> --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
+  ```
+
+- **The failing test was the pi-extension bundle-freshness check, and it was right.**
+  `dist/index.js` had been built while duplicate `@skill-harness/*` copies were still
+  in nested `node_modules` (fallout from the version/pin mismatch above). esbuild
+  inlines each copy separately, so the committed bundle was 5418 lines where a clean
+  rebuild is 4574. Checking the *lockfile* was not enough — the duplicates were on
+  disk. Before committing a bundle, reproduce CI:
+
+  ```bash
+  npm ci && npm run build && npm test     # npm ci wipes node_modules; npm install does not
+  ```
+
+  Fixed in `cdfcaba`. npm was never affected: `pi-extension` is `private: true` and
+  the four published packages are built by `tsc`, not this bundle. The stale artifact
+  was what pi users get from `pi install git:...`, which is why `latest` was moved
+  forward to `cdfcaba` while `v0.3.1` stayed on the published tree.

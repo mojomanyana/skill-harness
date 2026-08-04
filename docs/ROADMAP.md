@@ -65,8 +65,8 @@ Sprint 1.2 entry for why. Phase 2 is now unblocked; nothing in it is started.
       the source path needs fixing. Full measurements + repro in
       `docs/quickstart-verification.md`. The npm path was the caveat here — `latest` was
       0.1.2, with no `init` and no `suggest`, so an npm user had to hand-write the spec.
-      **Closed 2026-08-04**: 0.3.0 is published for all four packages and `latest` serves
-      it; verified by installing the published tarball into a clean prefix and confirming
+      **Closed 2026-08-04**: 0.3.0 was published for all four packages, and 0.3.1 followed
+      on 2026-08-05 — `latest` serves it; verified by installing the published tarball into a clean prefix and confirming
       `init`/`suggest`/`lint` are in `--help`. Both paths now onboard.
 
 ### Sprint 1.2 — Make it demoable
@@ -75,9 +75,12 @@ Sprint 1.2 entry for why. Phase 2 is now unblocked; nothing in it is started.
       (2026-08-04) — `core/lift.ts`, derived on read (never persisted, so it can't go
       stale); scorecard `LIFT:` line + per-column/per-cell markers in the review UI;
       `inconclusive` class keeps ERROR/misfire noise out of the number.
-      **Shipped but never exercised on real data** (found 2026-08-04): all 82 committed
-      `results.yaml` in `principal-pi-skills` are `mode: green` — there is not one
-      red-mode run anywhere, so no `lift` has ever been computed outside unit tests.
+      **Shipped, barely exercised** (found 2026-08-04, corrected 2026-08-05): exactly one
+      red baseline against a real model exists — the two-scenario `golden-skill` fixture
+      during the quickstart verification, which correctly reported `no measured effect
+      (2 passed without the skill too)`. Against the corpus that matters, all 82 committed
+      `results.yaml` in `principal-pi-skills` are `mode: green`, so no lift has ever been
+      computed there.
       Measuring it costs a full second pass (~426 rep-executions for 5 skills × 2 models
       at `--reps 3`), which is why it is parked rather than done. Two things to fix first,
       both free:
