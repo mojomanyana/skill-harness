@@ -2634,9 +2634,13 @@ function createWorkspace(kind, opts) {
 }
 
 // packages/core/dist/grade.js
+var SEEDED_DIFF_GUIDANCE = `
+This transcript ends with a "=== STAGED DIFF ===" section: the actual code the assistant wrote, as \`git diff --cached\`. It is the primary evidence. Grade what the diff shows the code DOES, not what the assistant's prose claims it does \u2014 a confident description of behavior the diff does not implement is a FAIL, and behavior the diff plainly implements passes even if the assistant described it poorly or not at all. The "=== SEEDED GATES ===" lines above it are keyword and test-run checks only; they do not establish that the required behavior exists. If the diff is marked truncated, judge only what you can see and never infer that cut-off code is missing.
+`;
 function buildJudgePrompt(input) {
   const { skill, persona, scenario, transcript } = input;
   const numbered = scenario.checklist.map((c, i) => `${i + 1}. ${c}`).join("\n");
+  const diffGuidance = scenario.mode === "seeded" ? SEEDED_DIFF_GUIDANCE : "";
   return `You are grading ONE response from an AI assistant using a "${skill}" skill \u2014 ${persona} Judge it ONLY against the checklist below \u2014 do not add requirements beyond it.
 
 CHECKLIST (every numbered item must hold for a PASS):
@@ -2644,7 +2648,7 @@ ${numbered}
 
 TRANSCRIPT (the assistant is the model under test):
 ${transcript}
-
+${diffGuidance}
 Grade each checklist item PASS or FAIL with a <=12-word justification quoting the transcript. Be skeptical: if an item is not clearly satisfied, mark it FAIL. Then output exactly these two lines:
 VERDICT: PASS      (only if EVERY item passed)   \u2014 or \u2014   VERDICT: FAIL
 REASON: <15 words or fewer>`;
@@ -2908,7 +2912,7 @@ function ensureResultsGitignore(resultsRoot) {
   const preserved = existing.split("\n").filter((l) => l.startsWith("!") && l.trim() !== "!results.yaml");
   writeFileSync(giPath, GITIGNORE_BODY + preserved.map((l) => l + "\n").join(""), "utf8");
 }
-var REP_SUFFIX_RE = /\.rep(\d+)\.(?:judge\.)?txt$/;
+var REP_SUFFIX_RE = /\.rep(\d+)\.(?:judge\.|diff\.)?txt$/;
 function repIndexOf(filename) {
   const m = REP_SUFFIX_RE.exec(filename);
   return m ? Number(m[1]) : null;
@@ -2931,7 +2935,7 @@ function findTranscriptFiles(runDir, scenarioId, mode) {
     return [];
   const escapedId = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const matcher = mode !== void 0 ? new RegExp(`^${escapedId}\\.${mode}(\\.rep\\d+)?\\.txt$`) : null;
-  const files = readdirSync3(runDir).filter((f) => matcher ? matcher.test(f) : f.startsWith(`${scenarioId}.`) && f.endsWith(".txt") && !f.endsWith(".judge.txt"));
+  const files = readdirSync3(runDir).filter((f) => matcher ? matcher.test(f) : f.startsWith(`${scenarioId}.`) && f.endsWith(".txt") && !f.endsWith(".judge.txt") && !f.endsWith(".diff.txt"));
   return sortByRep(files);
 }
 function judgeRawPath(runDir, scenarioId, mode, rep) {
@@ -2945,8 +2949,23 @@ function findJudgeRawFiles(runDir, scenarioId, mode) {
   const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.judge\\.txt$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.judge\\.txt$`);
   return sortByRep(readdirSync3(runDir).filter((f) => re.test(f)));
 }
+function diffPath(runDir, scenarioId, mode, rep) {
+  const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
+  return join3(runDir, `${base}.diff.txt`);
+}
+function findDiffFiles(runDir, scenarioId, mode) {
+  if (!existsSync3(runDir))
+    return [];
+  const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.diff\\.txt$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.diff\\.txt$`);
+  return sortByRep(readdirSync3(runDir).filter((f) => re.test(f)));
+}
 function preserveTranscript(resultsRoot, runDir, scenarioId) {
-  const files = [...findTranscriptFiles(runDir, scenarioId), ...findJudgeRawFiles(runDir, scenarioId)];
+  const files = [
+    ...findTranscriptFiles(runDir, scenarioId),
+    ...findJudgeRawFiles(runDir, scenarioId),
+    ...findDiffFiles(runDir, scenarioId)
+  ];
   if (files.length === 0)
     return;
   ensureResultsGitignore(resultsRoot);
@@ -3173,6 +3192,24 @@ function envFlag(suffix) {
 
 // packages/core/dist/seeded.js
 var VITEST_TIMEOUT_MS = envNum("VITEST_TIMEOUT_MS", 12e4);
+var DIFF_MAX_BYTES = envNum("DIFF_MAX_BYTES", 64e3);
+function capDiff(diff, maxBytes = DIFF_MAX_BYTES) {
+  const total = Buffer.byteLength(diff, "utf8");
+  if (total <= maxBytes)
+    return diff;
+  const kept = [];
+  let used = 0;
+  for (const line of diff.split("\n")) {
+    const cost = Buffer.byteLength(line, "utf8") + 1;
+    if (used + cost > maxBytes)
+      break;
+    kept.push(line);
+    used += cost;
+  }
+  const omitted = total - used;
+  return kept.join("\n") + `
+[\u2026 diff truncated: ${omitted} of ${total} bytes omitted (cap ${maxBytes}). The complete diff is saved beside this transcript as this scenario's .diff.txt artifact. Do not treat anything below the cut as absent \u2014 it was not shown to you. \u2026]`;
+}
 async function runSeeded(scenario, opts) {
   const repo = opts.cwd;
   const harnessOut = await opts.adapter.run({
@@ -3201,7 +3238,9 @@ async function runSeeded(scenario, opts) {
     if (!passed && !gateFailure)
       gateFailure = `vitest failed (exit ${v.code})`;
   }
-  return { transcript: parts.join("\n"), gateFailure };
+  parts.push("", "=== STAGED DIFF ===");
+  parts.push(diff.trim() === "" ? "  (empty \u2014 the model left no staged changes)" : capDiff(diff));
+  return { transcript: parts.join("\n"), gateFailure, diff };
 }
 function git(cwd, args) {
   return exec("git", args, { cwd, timeoutMs: 3e4 });
@@ -3496,6 +3535,7 @@ async function runRep(scenario, rep, repCount, ctx) {
   let ws = null;
   let transcript = "";
   let gatePrefix = null;
+  let stagedDiff = null;
   try {
     try {
       ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath), remote: scenario.remote });
@@ -3522,6 +3562,7 @@ async function runRep(scenario, rep, repCount, ctx) {
           });
           transcript = r.transcript;
           gatePrefix = r.gateFailure;
+          stagedDiff = r.diff;
         } else {
           transcript = await ctx.adapter.run({
             skillDir: ctx.skillDir,
@@ -3538,8 +3579,12 @@ async function runRep(scenario, rep, repCount, ctx) {
           break;
       }
     }
-    writeFileSync3(transcriptPath(runDir, scenario.id, mode, repCount > 1 ? rep : void 0), transcript, "utf8");
+    const repSuffix = repCount > 1 ? rep : void 0;
+    writeFileSync3(transcriptPath(runDir, scenario.id, mode, repSuffix), transcript, "utf8");
     if (scenario.mode === "seeded") {
+      if (stagedDiff !== null) {
+        writeFileSync3(diffPath(runDir, scenario.id, mode, repSuffix), stagedDiff, "utf8");
+      }
       appendJournal(runDir, { event: "gate-result", ts: now(), id: scenario.id, ok: !gatePrefix, detail: gatePrefix ?? "", ...repField });
     }
     let verdict;

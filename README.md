@@ -319,7 +319,9 @@ Each run writes to the **target skills repo**:
 
 ```
 <skill>/tests/results/<harness>-<model-slug>/<timestamp>/
-  A1.green.txt     transcript            (gitignored)
+  A1.green.txt        transcript            (gitignored)
+  A1.green.judge.txt  raw judge output      (gitignored)
+  A1.green.diff.txt   staged diff — seeded scenarios only   (gitignored)
   …
   results.yaml     verdicts + judge reasons + your overrides + notes   (committed)
   journal.jsonl    machine-facing event stream for this run            (gitignored)
@@ -328,6 +330,16 @@ Each run writes to the **target skills repo**:
 
 A generated `results/.gitignore` keeps `results.yaml` tracked while ignoring the
 raw transcripts, journal, and report. Commit the durable verdicts; regenerate the rest.
+
+**`<id>.<mode>[.rep<k>].diff.txt`** is the `git diff --cached` a seeded scenario
+produced — the code the model actually wrote. The scenario workspace is destroyed
+after every rep, so without this artifact a seeded verdict cannot be audited after
+the fact. It is saved for every rep, whether the gates passed or failed, and a
+(size-capped) copy is included in the transcript the judge grades, so a seeded
+checklist item about what the code *does* is graded from the code rather than from
+the model's description of it. Cap the judge's copy with
+`SKILL_HARNESS_DIFF_MAX_BYTES` (default 64000); the artifact on disk is never
+truncated.
 
 `results.yaml` is **schema 2**:
 
@@ -347,8 +359,8 @@ in `skill-harness review`, or re-run the skill.
 
 **Overrides** (via `skill-harness review`) **require a note** — you must say why the
 judge was wrong before an override is accepted. Saving one also un-gitignores
-that scenario's transcript, so the evidence behind the override stays in the
-audit trail alongside the note.
+that scenario's transcript, raw judge output and staged diff, so the evidence
+behind the override stays in the audit trail alongside the note.
 
 `journal.jsonl` is a per-run, line-delimited event stream (`run-started`,
 `scenario-started`, `gate-result`, `judge-verdict`, `misfire-flag`, `score`,

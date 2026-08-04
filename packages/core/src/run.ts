@@ -7,6 +7,7 @@ import { judgeResemblesSubject } from "./grade.js";
 import {
   runDirFor,
   transcriptPath,
+  diffPath,
   writeResults,
   ensureResultsGitignore,
   type ResultsFile,
@@ -194,6 +195,10 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
   let ws: Workspace | null = null;
   let transcript = "";
   let gatePrefix: string | null = null;
+  // Null until a seeded rep actually reaches its gates: a workspace-setup failure
+  // produces no diff, and writing an empty artifact there would misreport "the
+  // model changed nothing" for a rep that never ran.
+  let stagedDiff: string | null = null;
   try {
     try {
       ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath), remote: scenario.remote });
@@ -220,6 +225,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
           });
           transcript = r.transcript;
           gatePrefix = r.gateFailure;
+          stagedDiff = r.diff; // a retry replaces the aborted attempt's diff, as it should
         } else {
           transcript = await ctx.adapter.run({
             skillDir: ctx.skillDir, model: ctx.model, mode, turns: scenario.turns, cwd: ws.cwd,
@@ -234,8 +240,16 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
       }
     }
 
-    writeFileSync(transcriptPath(runDir, scenario.id, mode, repCount > 1 ? rep : undefined), transcript, "utf8");
+    const repSuffix = repCount > 1 ? rep : undefined;
+    writeFileSync(transcriptPath(runDir, scenario.id, mode, repSuffix), transcript, "utf8");
     if (scenario.mode === "seeded") {
+      // The workspace is torn down in the `finally` below, so this is the only
+      // chance to keep what the model actually wrote. Persisted uncapped (the
+      // transcript's copy is capped for the judge) and for every rep, pass or
+      // fail — a gate failure is exactly when you want to read the diff.
+      if (stagedDiff !== null) {
+        writeFileSync(diffPath(runDir, scenario.id, mode, repSuffix), stagedDiff, "utf8");
+      }
       appendJournal(runDir, { event: "gate-result", ts: now(), id: scenario.id, ok: !gatePrefix, detail: gatePrefix ?? "", ...repField });
     }
 

@@ -142,6 +142,7 @@ box says otherwise.
 | `SKILL_HARNESS_PI_TIMEOUT_MS` | `300000` (5 min) | Per-scenario ceiling on one `pi` invocation. Raise it for slow/thinking models; a hit shows up as an `ERROR`, not a `FAIL`. |
 | `SKILL_HARNESS_VITEST_TIMEOUT_MS` | `120000` (2 min) | Ceiling on the `vitest` objective gate inside a seeded scenario. |
 | `SKILL_HARNESS_NO_OPEN` | unset | Any non-empty value stops `review` from launching a browser. Set it on headless/CI boxes and over SSH. |
+| `SKILL_HARNESS_DIFF_MAX_BYTES` | `64000` | Byte cap on the staged diff embedded in a seeded scenario's judged transcript, so a huge diff can't overflow the judge's context. Truncation is marked inline; the `.diff.txt` artifact on disk is never capped. |
 
 These were named `SKILL_CHECK_*` in 0.1.x. The old names still work, and using one
 prints a one-time notice telling you the new spelling; they may be dropped in a

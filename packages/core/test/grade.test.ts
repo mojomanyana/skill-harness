@@ -29,6 +29,41 @@ describe("buildJudgePrompt", () => {
     expect(p).toMatch(/VERDICT:\s*PASS/);
     expect(p).toMatch(/REASON:/);
   });
+
+  test("a seeded scenario's prompt tells the judge to grade the diff over the prose", () => {
+    const p = buildJudgePrompt({
+      skill: "build",
+      persona: "a careful reviewer",
+      scenario: { ...scenario, mode: "seeded", fixture: "f" },
+      transcript: "…\n=== STAGED DIFF ===\n+withdraw()",
+    });
+    expect(p).toContain("=== STAGED DIFF ===");
+    expect(p).toMatch(/Grade what the diff shows the code DOES/);
+    expect(p).toMatch(/do not establish that the required behavior exists/);
+  });
+
+  test("an inline prompt is byte-identical to before the diff guidance existed", () => {
+    // Inline scenarios have no diff, so their prompt must not move: every inline
+    // verdict already published stays comparable with new ones.
+    const p = buildJudgePrompt({
+      skill: "ponytail", persona: "p", scenario, transcript: "T",
+    });
+    expect(p).not.toContain("STAGED DIFF");
+    expect(p).toBe(
+      `You are grading ONE response from an AI assistant using a "ponytail" skill — p Judge it ONLY against the checklist below — do not add requirements beyond it.
+
+CHECKLIST (every numbered item must hold for a PASS):
+1. points to the builtin max
+2. says to delete the loop
+
+TRANSCRIPT (the assistant is the model under test):
+T
+
+Grade each checklist item PASS or FAIL with a <=12-word justification quoting the transcript. Be skeptical: if an item is not clearly satisfied, mark it FAIL. Then output exactly these two lines:
+VERDICT: PASS      (only if EVERY item passed)   — or —   VERDICT: FAIL
+REASON: <15 words or fewer>`
+    );
+  });
 });
 
 describe("parseVerdict", () => {

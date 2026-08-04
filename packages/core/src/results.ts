@@ -228,8 +228,9 @@ export function ensureResultsGitignore(resultsRoot: string): void {
   writeFileSync(giPath, GITIGNORE_BODY + preserved.map((l) => l + "\n").join(""), "utf8");
 }
 
-// Matches both transcript (`.rep<k>.txt`) and judge-raw (`.rep<k>.judge.txt`) rep suffixes.
-const REP_SUFFIX_RE = /\.rep(\d+)\.(?:judge\.)?txt$/;
+// Matches transcript (`.rep<k>.txt`), judge-raw (`.rep<k>.judge.txt`) and
+// staged-diff (`.rep<k>.diff.txt`) rep suffixes.
+const REP_SUFFIX_RE = /\.rep(\d+)\.(?:judge\.|diff\.)?txt$/;
 
 /** The rep index embedded in a transcript/judge-raw filename (`.rep<k>.`), or null for a plain (non-rep) file. */
 export function repIndexOf(filename: string): number | null {
@@ -259,7 +260,10 @@ function sortByRep(files: string[]): string[] {
  * `<id>.<mode>.rep<k>.txt`) — e.g. to detect a green-only condition without
  * false positives from a red/force transcript of the same scenario. Omitted,
  * behavior is unchanged: any `<id>.*.txt` regardless of mode, excluding this
- * scenario's judge-raw artifacts (`<id>.*.judge.txt` — see judgeRawPath).
+ * scenario's sibling artifacts, which share the `.txt` extension deliberately
+ * (so `results/.gitignore`'s `*.txt` covers them all): judge-raw output
+ * (`<id>.*.judge.txt` — see judgeRawPath) and the staged diff
+ * (`<id>.*.diff.txt` — see diffPath).
  */
 export function findTranscriptFiles(runDir: string, scenarioId: string, mode?: string): string[] {
   if (!existsSync(runDir)) return [];
@@ -269,7 +273,12 @@ export function findTranscriptFiles(runDir: string, scenarioId: string, mode?: s
       ? new RegExp(`^${escapedId}\\.${mode}(\\.rep\\d+)?\\.txt$`)
       : null;
   const files = readdirSync(runDir).filter((f) =>
-    matcher ? matcher.test(f) : f.startsWith(`${scenarioId}.`) && f.endsWith(".txt") && !f.endsWith(".judge.txt")
+    matcher
+      ? matcher.test(f)
+      : f.startsWith(`${scenarioId}.`) &&
+        f.endsWith(".txt") &&
+        !f.endsWith(".judge.txt") &&
+        !f.endsWith(".diff.txt")
   );
   return sortByRep(files);
 }
@@ -290,23 +299,56 @@ export function findJudgeRawFiles(runDir: string, scenarioId: string, mode?: str
   return sortByRep(readdirSync(runDir).filter((f) => re.test(f)));
 }
 
+/**
+ * Path of a seeded scenario's staged-diff artifact within a run dir (rep-suffixed
+ * for reps).
+ *
+ * The diff is the only record of what the model actually *did* — the workspace is
+ * torn down after every rep, so without this a seeded verdict cannot be audited
+ * after the fact. Named `<id>.<mode>[.rep<k>].diff.txt` so it sorts beside its
+ * transcript and is covered by the `*.txt` rule in results/.gitignore: diffs are
+ * generated evidence, ignored like transcripts, not committed like results.yaml.
+ */
+export function diffPath(runDir: string, scenarioId: string, mode: string, rep?: number): string {
+  const base = rep === undefined ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
+  return join(runDir, `${base}.diff.txt`);
+}
+
+/** A scenario's staged-diff files, sorted (plain first, then numeric rep). Mode-scoped when given. */
+export function findDiffFiles(runDir: string, scenarioId: string, mode?: string): string[] {
+  if (!existsSync(runDir)) return [];
+  const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = mode === undefined
+    ? new RegExp(`^${esc}\\..*\\.diff\\.txt$`)
+    : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.diff\\.txt$`);
+  return sortByRep(readdirSync(runDir).filter((f) => re.test(f)));
+}
+
 /** A single representative transcript file for a scenario in a run dir. Null if none. */
 export function findTranscriptFile(runDir: string, scenarioId: string): string | null {
   return findTranscriptFiles(runDir, scenarioId)[0] ?? null;
 }
 
 /**
- * Un-gitignore ALL of a scenario's transcript AND judge-raw artifact files
- * (audit trail for an override — a --reps run has one transcript (and one
- * judge-raw file) per rep, and every rep that drove the verdict must survive
- * a commit, not just an arbitrary one).
+ * Un-gitignore ALL of a scenario's transcript, judge-raw AND staged-diff
+ * artifact files (audit trail for an override — a --reps run has one of each
+ * per rep, and every rep that drove the verdict must survive a commit, not just
+ * an arbitrary one).
  * Appends `!<tag>/<ts>/<id>.<mode>[.rep<k>].txt` (and the matching
- * `.judge.txt`) to results/.gitignore for each, once. The path uses POSIX
- * separators so the negation matches on Windows too (git ignore patterns are
- * always forward-slashed).
+ * `.judge.txt` / `.diff.txt`) to results/.gitignore for each, once. The path
+ * uses POSIX separators so the negation matches on Windows too (git ignore
+ * patterns are always forward-slashed).
+ *
+ * The diff belongs here for the same reason the judge-raw output does: an
+ * override says the judge got it wrong, and on a seeded scenario the evidence
+ * for that claim is the code the model wrote.
  */
 export function preserveTranscript(resultsRoot: string, runDir: string, scenarioId: string): void {
-  const files = [...findTranscriptFiles(runDir, scenarioId), ...findJudgeRawFiles(runDir, scenarioId)];
+  const files = [
+    ...findTranscriptFiles(runDir, scenarioId),
+    ...findJudgeRawFiles(runDir, scenarioId),
+    ...findDiffFiles(runDir, scenarioId),
+  ];
   if (files.length === 0) return;
   ensureResultsGitignore(resultsRoot);
   const giPath = join(resultsRoot, ".gitignore");
