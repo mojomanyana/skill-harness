@@ -51,11 +51,24 @@ scenarios:
     checklist: ["does it again"]
 `;
 
+/** Same two scenarios plus D1, which runs as its own system prompt in every mode. */
+const SPEC_WITH_AGENT_FILE = `${SPEC}
+  - id: D1
+    title: delegated
+    turns: ["delegate it"]
+    checklist: ["delegates it"]
+    system_prompt_file: agents/review.md
+`;
+
 /** A red and a green run under one model tag, in that chronological order. */
-function skillWithRuns(redCells: Cell[] | null, greenCells: Cell[] | null, opts: { partialGreen?: boolean } = {}): string {
+function skillWithRuns(
+  redCells: Cell[] | null,
+  greenCells: Cell[] | null,
+  opts: { partialGreen?: boolean; spec?: string } = {},
+): string {
   const skillDir = mkdtempSync(join(tmpdir(), "sh-lift-"));
   mkdirSync(join(skillDir, "tests"), { recursive: true });
-  writeFileSync(join(skillDir, "tests", "specification.yaml"), SPEC, "utf8");
+  writeFileSync(join(skillDir, "tests", "specification.yaml"), opts.spec ?? SPEC, "utf8");
   const tag = join(skillDir, "tests", "results", "pi-fake");
   if (redCells) {
     writeResults(join(tag, "2026-08-04T00-00-00Z"), draft("red", redCells), null);
@@ -338,6 +351,85 @@ describe("lift never claims 'no effect' when it measured nothing", () => {
       finalizeResults(draft("green", [["A1", "FAIL"]]), null),
     );
     expect(liftHeadline(lift)).toMatch(/no measured effect/i);
+  });
+});
+
+describe("mode-insensitive scenarios are not comparable", () => {
+  // pi.ts: an agent-file run IS the system prompt — "no skill activation, whatever
+  // the mode" — so a system_prompt_file scenario runs identically in red and green.
+  // Counting it as `kept` would credit the red side with a pass the skill produced.
+  test("a system_prompt_file scenario is excluded from the comparison, not classed kept", () => {
+    const lift = computeLift(
+      finalizeResults(draft("red", [["A1", "FAIL"], ["D1", "PASS"]]), null),
+      finalizeResults(draft("green", [["A1", "PASS"], ["D1", "PASS"]]), null),
+      { modeInsensitive: ["D1"] },
+    );
+    expect(lift.modeInsensitive).toEqual(["D1"]);
+    expect(lift.cells.D1).toBeUndefined();
+    expect(lift.kept).toBe(0);
+    expect(lift.compared).toBe(1);
+    expect(lift.gained).toBe(1);
+  });
+
+  test("an excluded scenario does not inflate redPassed, which is what understated lift", () => {
+    const lift = computeLift(
+      finalizeResults(draft("red", [["A1", "FAIL"], ["D1", "PASS"]]), null),
+      finalizeResults(draft("green", [["A1", "PASS"], ["D1", "PASS"]]), null),
+      { modeInsensitive: ["D1"] },
+    );
+    expect(lift.redPassed).toBe(0);
+    expect(lift.greenPassed).toBe(1);
+    expect(lift.delta).toBe(1);
+  });
+
+  test("with no opts every scenario is still compared — the default is unchanged", () => {
+    const lift = computeLift(
+      finalizeResults(draft("red", [["A1", "FAIL"], ["D1", "PASS"]]), null),
+      finalizeResults(draft("green", [["A1", "PASS"], ["D1", "PASS"]]), null),
+    );
+    expect(lift.modeInsensitive).toEqual([]);
+    expect(lift.compared).toBe(2);
+  });
+
+  test("collectLift reads system_prompt_file out of the spec", () => {
+    const skillDir = skillWithRuns([["A1", "FAIL"], ["D1", "PASS"]], [["A1", "PASS"], ["D1", "PASS"]], {
+      spec: SPEC_WITH_AGENT_FILE,
+    });
+    const [lift] = collectLift(skillDir);
+    expect(lift.modeInsensitive).toEqual(["D1"]);
+    expect(lift.compared).toBe(1);
+  });
+
+  test("the headline says how many were not comparable, rather than hiding them", () => {
+    const lift = computeLift(
+      finalizeResults(draft("red", [["A1", "FAIL"], ["D1", "PASS"]]), null),
+      finalizeResults(draft("green", [["A1", "PASS"], ["D1", "PASS"]]), null),
+      { modeInsensitive: ["D1"] },
+    );
+    expect(liftHeadline(lift)).toMatch(/1 not comparable/i);
+  });
+
+  test("a lift whose every shared scenario is mode-insensitive reports no comparison", () => {
+    const lift = computeLift(
+      finalizeResults(draft("red", [["D1", "PASS"]]), null),
+      finalizeResults(draft("green", [["D1", "PASS"]]), null),
+      { modeInsensitive: ["D1"] },
+    );
+    expect(lift.compared).toBe(0);
+  });
+
+  // "no shared scenarios" would be false — the runs share D1, it just cannot be
+  // compared. Saying so is the same distinction `inconclusive` protects: not
+  // measured and measured-no-effect are different claims.
+  test("all-excluded says why, rather than claiming the runs shared nothing", () => {
+    const lift = computeLift(
+      finalizeResults(draft("red", [["D1", "PASS"]]), null),
+      finalizeResults(draft("green", [["D1", "PASS"]]), null),
+      { modeInsensitive: ["D1"] },
+    );
+    expect(liftHeadline(lift)).not.toMatch(/no shared scenarios/i);
+    expect(liftHeadline(lift)).toMatch(/nothing comparable/i);
+    expect(liftHeadline(lift)).toMatch(/both modes/i);
   });
 });
 

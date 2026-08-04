@@ -3135,17 +3135,23 @@ function classify(red, green) {
     return "regressed";
   return "both-fail";
 }
-function computeLift(red, green) {
+function computeLift(red, green, opts = {}) {
+  const insensitive = new Set(opts.modeInsensitive ?? []);
   const redV = new Map(effectiveVerdicts(red.scenarios).map((v) => [v.id, { verdict: v.verdict, suspect: v.suspect ?? false }]));
   const greenV = new Map(effectiveVerdicts(green.scenarios).map((v) => [v.id, { verdict: v.verdict, suspect: v.suspect ?? false }]));
   const cells = {};
   const counts = { gained: 0, regressed: 0, kept: 0, "both-fail": 0, inconclusive: 0 };
   let redPassed = 0;
   let greenPassed = 0;
+  const modeInsensitive = [];
   for (const [id, g] of greenV) {
     const r = redV.get(id);
     if (!r)
       continue;
+    if (insensitive.has(id)) {
+      modeInsensitive.push(id);
+      continue;
+    }
     const cls = classify(r, g);
     cells[id] = { red: r.verdict, redSuspect: r.suspect, green: g.verdict, class: cls };
     counts[cls]++;
@@ -3172,13 +3178,18 @@ function computeLift(red, green) {
     delta: greenPassed - redPassed,
     greenOnly: [...greenV.keys()].filter((id) => !redV.has(id)),
     redOnly: [...redV.keys()].filter((id) => !greenV.has(id)),
+    modeInsensitive,
     partial: Boolean(red.partial || green.partial),
     cells
   };
 }
 function liftHeadline(lift) {
-  if (lift.compared === 0)
+  if (lift.compared === 0) {
+    if (lift.modeInsensitive.length > 0) {
+      return `nothing comparable (${lift.modeInsensitive.length} shared, all run identically in both modes)`;
+    }
     return "no shared scenarios to compare";
+  }
   const conclusive2 = lift.compared - lift.inconclusive;
   if (conclusive2 === 0) {
     return `nothing conclusive to compare (${lift.inconclusive} inconclusive \u2014 fix the harness/judge, then re-run)`;
@@ -3192,6 +3203,9 @@ function liftHeadline(lift) {
   }
   if (lift.inconclusive > 0)
     segments.push(`${lift.inconclusive} inconclusive`);
+  if (lift.modeInsensitive.length > 0) {
+    segments.push(`${lift.modeInsensitive.length} not comparable (same run in both modes)`);
+  }
   if (lift.partial)
     segments.push("partial run");
   return segments.join(" \xB7 ");
@@ -3203,10 +3217,21 @@ function isDir(p) {
     return false;
   }
 }
+function modeInsensitiveIds(skillDir) {
+  const specPath = join6(skillDir, "tests", "specification.yaml");
+  if (!existsSync5(specPath))
+    return [];
+  try {
+    return loadSpec(specPath).scenarios.filter((s) => s.systemPromptFile).map((s) => s.id);
+  } catch {
+    return [];
+  }
+}
 function collectLift(skillDir) {
   const resultsRoot = join6(skillDir, "tests", "results");
   if (!existsSync5(resultsRoot))
     return [];
+  const modeInsensitive = modeInsensitiveIds(skillDir);
   const lifts = [];
   for (const tag of readdirSync5(resultsRoot).filter((n) => isDir(join6(resultsRoot, n))).sort()) {
     const tagDir = join6(resultsRoot, tag);
@@ -3228,7 +3253,7 @@ function collectLift(skillDir) {
     }
     if (!red || !green)
       continue;
-    lifts.push({ ...computeLift(red, green), tag });
+    lifts.push({ ...computeLift(red, green, { modeInsensitive }), tag });
   }
   return lifts;
 }

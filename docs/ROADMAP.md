@@ -80,13 +80,19 @@ Reworded 2026-08-04: "5 popular *external* skills" moved to Phase 2, where its v
       Measuring it costs a full second pass (~426 rep-executions for 5 skills × 2 models
       at `--reps 3`), which is why it is parked rather than done. Two things to fix first,
       both free:
-      - **`lift` silently compares mode-insensitive scenarios.** `pi.ts` treats an
-        agent-file run as *the* system prompt — "no skill activation, whatever the mode" —
-        so the 6 `system_prompt_file` scenarios (`debug`/`plan`/`review` D1+D2) are
-        byte-identical in red and green. `computeLift` classes them `kept`/`both-fail` and
-        folds them into the denominator, understating lift with cells where the skill was
-        loaded on *both* sides. Needs a `mode-insensitive` class or an exclusion reported
-        like `greenOnly`/`redOnly` already are
+      - [x] **`lift` silently compared mode-insensitive scenarios** — fixed 2026-08-05.
+        `pi.ts` treats an agent-file run as *the* system prompt — "no skill activation,
+        whatever the mode" — so the 6 `system_prompt_file` scenarios
+        (`debug`/`plan`/`review` D1+D2) are byte-identical in red and green.
+        `computeLift` classed them `kept`/`both-fail`, which reads as evidence against
+        the skill when in fact the skill was loaded on *both* sides — so every agent-file
+        scenario moved lift **down**, 7% of the headline pointing the wrong way. Now
+        excluded before classification and reported separately (`modeInsensitive`, like
+        `greenOnly`/`redOnly`), because there is no honest bucket for "we ran the same
+        thing twice". Ids come from the spec, not `results.yaml`, so it works on runs
+        already published. The all-excluded case no longer claims "no shared scenarios".
+        The review UI needed no change — `liftSummary` iterates `lift.cells`, so the
+        exclusion propagates. Post: `docs/posts/2026-08-05-comparing-a-run-against-itself.md`
       - Red runs at the same `--reps` as green, or the two sides aggregate under different
         majority policies and the comparison is not like-for-like
 - [x] Flagship example: **`mojomanyana/principal-pi-skills`** — public, 7 pi skills, 88
