@@ -40,7 +40,7 @@ beforeAll(async () => {
     scenarios: [{ id: "A1", judge_verdict: "FAIL", judge_reason: "no greeting", suspect: false, override: null, note: "" }],
   }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
 
-  process.env.SKILL_CHECK_NO_OPEN = "1";
+  process.env.SKILL_HARNESS_NO_OPEN = "1";
   const s = await serveReview({ skillDir, skillName: "golden", port: 0, open: false });
   base = `http://127.0.0.1:${s.port}`;
   close = s.close;
