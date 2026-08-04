@@ -1,16 +1,20 @@
-# Publishing skill-harness (0.2.1)
+# Publishing skill-harness (0.3.0)
 
 This is the npm-publish runbook. It is **user-run** — the agent that prepared this
 repo does not publish. Run these commands yourself with your own npm auth.
 
-The registry has `0.1.0`, `0.1.1`, `0.1.2`. This repo is at `0.2.1`, so these
-commands publish a **new version over an existing line** — the `@skill-harness`
-scope is already claimed by the 0.1.x publishes, and `latest` moves to 0.2.1 as
-each package lands.
+The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`. This repo is at `0.3.0`, so
+these commands publish a **new version over an existing line** — the
+`@skill-harness` scope is already claimed, and `latest` moves to 0.3.0 as each
+package lands.
 
-`0.2.0` was tagged but never published, so 0.2.1 is the first release carrying
-everything since 0.1.2 — including the fix for the review UI, which did not work
-in any published version.
+0.3.0 is a **behaviour-breaking release for CI consumers**, which is why it takes
+the minor rather than the patch: `lint` gained the `fixture-marker`,
+`post_test`-existence and scenario-coverage checks (a repo that passed on 0.2.1
+can fail on 0.3.0), `assert.diff_contains` now matches the diff's changed lines
+rather than its raw text, and `source_hashes` records new key kinds that older
+versions cannot read. Seeded results produced before 0.3.0 were graded without
+the judge seeing the diff and need re-running, not re-grading.
 
 ## Prereq
 
@@ -41,13 +45,13 @@ Run from the **repo root** (npm workspaces `-w` flag, verified with npm 11.9.0 /
 Node 24.14.0 — this repo's `engines.node` requires >=20, which ships npm >=10,
 so `-w` should work on any supported install). Each step must land on the
 registry before the next, since each package's `package.json` pins an exact
-`@skill-harness/*@0.2.1` dependency (npm will fail to resolve it otherwise):
+`@skill-harness/*@0.3.0` dependency (npm will fail to resolve it otherwise):
 
 ```bash
 npm publish -w @skill-harness/core --access public
 npm publish -w @skill-harness/adapters --access public
 npm publish -w @skill-harness/cli --access public     # prepack packages assets/ into the tarball
-npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.2.1
+npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.3.0
 ```
 
 `@skill-harness/core` and `@skill-harness/adapters` publish exactly the `dist/`
@@ -73,27 +77,26 @@ ships to pi users via `pi install git:...`, not the npm registry.
 ## Verify after publishing
 
 ```bash
-npm view skill-harness version            # expect 0.2.1
+npm view skill-harness version            # expect 0.3.0
 npm i -g skill-harness && skill-harness --help
 npx @skill-harness/cli lint --help
 ```
 
-## After publishing — land the release on `main`, then move `v1`
+## After publishing — land the release on `main`, then tag it
 
-**Both steps are mandatory.** Skipping either leaves the repo disagreeing with
-what it ships. This has now been missed on two releases in a row (`v0.2.0` and
-`v0.2.1` were both tagged on an unmerged `release-*` branch), which is why it is
-part of the runbook rather than folklore.
+**Every step below is mandatory.** Skipping one leaves the repo disagreeing with
+what it ships. This was missed on two releases in a row (`v0.2.0` and `v0.2.1`
+were both tagged on an unmerged `release-*` branch), which is why it is part of
+the runbook rather than folklore.
 
 ### 1. Merge the release branch to `main`
 
-The version bump lives on `release-<version>`, and the `v<version>` tag points at
-its tip. Until that branch reaches `main`, a fresh clone of `main` reports an
-older version than the registry serves:
+The version bump lives on `release-<version>`. Until that branch reaches `main`,
+a fresh clone of `main` reports a different version than the registry serves:
 
 ```bash
-gh pr create --base main --head release-0.2.1 \
-  --title "chore(release): 0.2.1" --body "Version bump + runbook; published to npm."
+gh pr create --base main --head release-0.3.0 \
+  --title "chore(release): 0.3.0" --body "Version bump + runbook."
 gh pr merge --merge   # or fast-forward main if there is nothing to reconcile
 ```
 
@@ -115,28 +118,31 @@ schema-1→2 migration precedent exists for *shape* changes, and adding key kind
 is not one. Revisit if there is ever a consumer that cannot be upgraded in
 lockstep.
 
-### 2. Move the `v1` tag to the new release commit
-
-`action.yml` is consumed as `uses: mojomanyana/skill-harness@v1`, and the docs
-(`AGENTS.md`, `README.md`, `docs/USAGE.md`,
-`packages/skill-harness/README.md`) advertise `v1` as a **moving** stable major
-tag, in the usual GitHub Actions style (`actions/checkout@v4`). The Action's
-major tag is a separate versioning axis from the npm package version — `v1` is
-the first stable line of the *Action*, not a claim that the packages are 1.x.
-
-A moving tag that does not move is worse than no tag: `v1` sat on the rebrand
-commit for 37 commits, so anyone following the documented CI snippet was gating
-their repo on pre-0.2.0 code. Move it as the last step of every release, from
-`main`, after the merge above:
+### 2. Tag the release, and move `latest`
 
 ```bash
 git checkout main && git pull
-git tag -f v1 && git push -f origin v1
-git rev-list -n1 v1   # sanity: should equal the tip of main
+git tag v0.3.0 && git push origin v0.3.0     # the immutable release tag
+git tag -f latest && git push -f origin latest   # the ref the docs point at
 ```
 
-Consumers who want to lock an exact version pin the release tag (`@v0.2.1`) or a
-commit SHA instead — that is what `principal-pi-skills` CI does.
+Moving `latest` is what keeps `AGENTS.md`, both READMEs and `docs/USAGE.md` free
+of version numbers — they say `@latest`, so a release needs no doc edits at all.
+Only this file names concrete versions.
+
+**There is deliberately no `v1`.** It existed until 0.3.0 and was removed. The
+usual case for a moving *major* tag (`actions/checkout@v4`) assumes behaviour
+inside the major is compatible. `lint` is a **gate**: every release that adds a
+check makes a repo that passed yesterday fail today — 0.3.0 added three. A tag
+promising "stable major, moves forward" advertises a stability a linter cannot
+honour. `latest` moves just as much but promises only "the newest release", which
+is true, and the docs tell consumers to pin a release tag when they want to
+choose *when* new checks land.
+
+Consumers that pin need their pin bumped as part of the release. Today that is
+`principal-pi-skills` (`.github/workflows/ci.yml`, the `ref:` on the
+skill-harness checkout) — bump it, then re-run the skills whose results the new
+version invalidates.
 
 ## Verification performed before the 0.2.1 update to this runbook (2026-08-04)
 

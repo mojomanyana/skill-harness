@@ -458,14 +458,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: mojomanyana/skill-harness@v1
+      - uses: mojomanyana/skill-harness@latest
         with:
           skills-root: ./skills   # dir of skill subdirs, each with tests/specification.yaml
 ```
 
-> `@v1` tracks the latest stable major release; pin a commit SHA to lock an exact version.
+> **`@latest`** is a tag moved to each release: you get new checks as they ship.
+> **Pin a release tag** (`@vX.Y.Z`) or a commit SHA to freeze instead — do that
+> when you want to choose *when* new checks land.
+>
+> There is deliberately no `@v1`. `lint` is a gate, so any release that adds a
+> check turns a passing repo red; a "stable major that moves forward" would
+> promise a stability a linter can't honour, whereas `@latest` promises only
+> "newest release", which is true. A `results.yaml` written by version X also
+> needs version ≥ X to lint.
 
-`lint` validates spec schema, ship_bar sanity, critical-id existence, fixture paths (seeded scenarios, or any scenario using `env.workspace: fixture:PATH`), and results-consistency (for any committed `results.yaml`). Failures fail the check and report each finding as a GitHub error annotation in the run summary. Your `tests/` folders are unchanged.
+`lint` validates spec schema, ship_bar sanity, critical-id existence, fixture paths (seeded scenarios, or any scenario using `env.workspace: fixture:PATH`), fixture marker names, and results-consistency + staleness (for any committed `results.yaml`). Failures fail the check and report each finding as a GitHub error annotation in the run summary. Your `tests/` folders are unchanged.
 
 ---
 
