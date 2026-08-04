@@ -108,10 +108,21 @@ re-reading the tree against release-1's committed results.
       already refused `_uncommited/` (2026-07-30); this moves the discovery to the
       free offline CI gate, sharing one implementation so lint can never bless a
       fixture `run` rejects
-- [ ] **Re-measure**: the committed scorecards predate all of the above. Seeded
-      verdicts were graded without the diff and cannot be fixed by `grade` (saved
-      transcripts don't contain it) — they need fresh runs. See the re-measurement
-      note handed to the skills-repo owner (2026-08-04)
+- [ ] **Re-measure** — scoped down to 4 cells and handed off (2026-08-04):
+      `docs/re-measurement-2026-08-04.md`. The earlier wording here ("the committed
+      scorecards predate all of the above") was broader than the evidence: the three
+      verdict-moving changes touch `mode: seeded` scenarios only, and just `build`
+      (8 of 9 seeded) and `debug` (5 of 8) have any. Those 4 cells (both models) were
+      graded without the judge seeing the diff and need fresh **full** runs — `grade`
+      can't repair them, since pre-`f6a5f6c` transcripts don't contain the diff.
+      `architect`/`decide`/`plan`/`review` have **zero** seeded scenarios, so their
+      verdicts stand; `git-ops` was already re-measured post-fix (`release-2-gitops`).
+      Not ours to execute — `principal-pi-skills` is read-only from here and `run`
+      writes into it.
+      **Separate, lower-priority**: 12 of the 14 current cells carry no
+      `scenario:`/`fixture:` hashes, so `lint all` reporting 0 findings against that
+      tree means "nothing provably stale", not "fresh". Fixing that is ~500
+      rep-executions of hygiene, and buys detectability rather than corrected numbers
 
 ## PHASE 2 — Launch & first 100 fans (weeks 5–10)
 
