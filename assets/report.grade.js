@@ -127,3 +127,24 @@ export function liftSummary(col) {
   out.delta = out.greenPassed - out.redPassed;
   return out;
 }
+
+/**
+ * The lift badge for a column with nothing to show in the number: `{text, title}`,
+ * or null when the column should carry no badge at all.
+ *
+ * A *missing* baseline and an *unusable* one are different facts. Nothing is
+ * comparable when every shared scenario ran identically in both modes, or when the
+ * two sides aggregated differently (red at 1 rep vs green at 3) — a red baseline
+ * exists, and "no red baseline" would send the author off to re-run the one thing
+ * they already have. The server's headline already states which it is and what to
+ * re-run, so it becomes the tooltip verbatim.
+ */
+export function liftNoneBadge(col) {
+  if (col.lift) {
+    return { text: "lift not comparable", title: col.liftHeadline || "nothing in the red baseline could be compared" };
+  }
+  if (col.mode === "green") {
+    return { text: "no red baseline", title: "run the same scenarios with --mode red to get a baseline" };
+  }
+  return null;
+}

@@ -153,7 +153,13 @@ scenarios:
 });
 
 describe("collectReport lift", () => {
-  /** Add a red baseline run to a seeded skill, under the same model tag. */
+  /**
+   * Add a red baseline run to a seeded skill, under the same model tag.
+   *
+   * A1 is aggregated over 5 reps because seedSkill's green A1 is: lift excludes a
+   * pair whose two sides aggregated differently, so a 1-rep baseline here would
+   * (correctly) refuse to compare the cell these tests are about.
+   */
   function addRedRun(skillDir: string, a1: string, c2: string): void {
     const redDir = join(skillDir, "tests", "results", "pi-fireworks-deepseek", "2026-06-25T11-00-00-000Z");
     mkdirSync(redDir, { recursive: true });
@@ -169,7 +175,7 @@ label: null
 mode: red
 effective_grade: {passed: 0, total: 0, pct: 0, letter: '-', ship: false, note: 'mode=red (not scored)'}
 scenarios:
-  - {id: A1, judge_verdict: ${a1}, judge_reason: baseline, suspect: false, override: null, note: ''}
+  - {id: A1, judge_verdict: ${a1}, judge_reason: baseline, suspect: false, override: null, note: '', reps: 5, passes: 0, clean: 4, flakiness: 0}
   - {id: C2, judge_verdict: ${c2}, judge_reason: baseline, suspect: false, override: null, note: ''}
 `
     );

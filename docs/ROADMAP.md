@@ -82,8 +82,9 @@ Sprint 1.2 entry for why. Phase 2 is now unblocked; nothing in it is started.
       `results.yaml` in `principal-pi-skills` are `mode: green`, so no lift has ever been
       computed there.
       Measuring it costs a full second pass (~426 rep-executions for 5 skills × 2 models
-      at `--reps 3`), which is why it is parked rather than done. Two things to fix first,
-      both free:
+      at `--reps 3`), which is why it is parked rather than done. Both free prerequisites
+      are now closed (2026-08-05) — what remains is only the spend, and note the second one
+      means the baseline pass has to be `--reps 3` too, not a cheap single-rep control:
       - [x] **`lift` silently compared mode-insensitive scenarios** — fixed 2026-08-05.
         `pi.ts` treats an agent-file run as *the* system prompt — "no skill activation,
         whatever the mode" — so the 6 `system_prompt_file` scenarios
@@ -97,8 +98,22 @@ Sprint 1.2 entry for why. Phase 2 is now unblocked; nothing in it is started.
         already published. The all-excluded case no longer claims "no shared scenarios".
         The review UI needed no change — `liftSummary` iterates `lift.cells`, so the
         exclusion propagates. Post: `docs/posts/2026-08-05-comparing-a-run-against-itself.md`
-      - Red runs at the same `--reps` as green, or the two sides aggregate under different
-        majority policies and the comparison is not like-for-like
+      - [x] **Red runs at the same `--reps` as green** — fixed 2026-08-05. `computeLift`
+        compared verdicts without looking at how either was produced, so a `--reps 1`
+        baseline against a `--reps 3` green paired one draw with a majority-of-3: on a
+        scenario the model passes half the time that manufactures a `gained` a quarter of
+        the time, and a `regressed` on the lucky-red/minority-green side. Fix reads an
+        `AggregationShape` (`reps` + applied `pass_threshold`) off both sides and excludes
+        the pair when they differ — same policy as `modeInsensitive`, reported as
+        `aggregationMismatch`, never reclassified. Threshold is part of it: 1-of-3 vs
+        3-of-3 is a different majority policy at the same N. A stray `pass_threshold` on a
+        1-rep cell is normalized away, since `outcomesToResult` never aggregates there.
+        Headline names the mismatch and the remedy (`re-run the baseline with --reps 3`).
+        Also fixed one layer up: the review UI's badge fell through to "no red baseline"
+        whenever nothing was comparable, which is false and sends the author to re-run the
+        one run they already have — now `lift not comparable` with the headline as tooltip
+        (`liftNoneBadge` in `assets/report.grade.js`, parity-tested). Three states, not two.
+        Post: `docs/posts/2026-08-05-one-draw-against-a-majority.md`
 - [x] Flagship example: **`mojomanyana/principal-pi-skills`** — public, 7 pi skills, 88
       scenarios × 3 models × 3 reps, every `results.yaml` committed, ~104 runs mapped in
       `RESULTS-MANIFEST.md` (2026-08-04) — linked from README as the worked example. It

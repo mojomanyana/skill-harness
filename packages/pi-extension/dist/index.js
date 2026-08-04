@@ -2631,7 +2631,7 @@ function walk(dir, prefix = "") {
   return out;
 }
 function scenarioDigest(s) {
-  const { id, title, critical, mode, turns, checklist, fixture, assert, workspace, remote, systemPromptFile, reps, passThreshold, ...restScenario } = s;
+  const { id, title, critical, mode, turns, checklist, fixture, assert, workspace, remote, systemPromptFile, reps: reps2, passThreshold, ...restScenario } = s;
   const _scenarioExhaustive = restScenario;
   void _scenarioExhaustive;
   const { vitest, diff_contains, diff_excludes, post_test, ...restAssert } = assert ?? {};
@@ -2649,7 +2649,7 @@ function scenarioDigest(s) {
     workspace,
     remote,
     systemPromptFile ?? null,
-    reps ?? null,
+    reps2 ?? null,
     passThreshold ?? null
   ]);
   return createHash("sha256").update(canonical).digest("hex");
@@ -3119,6 +3119,13 @@ function appendJournal(runDir, e) {
 // packages/core/dist/lift.js
 import { existsSync as existsSync5, readdirSync as readdirSync5, statSync as statSync2 } from "node:fs";
 import { join as join6 } from "node:path";
+function aggregationShape(s) {
+  const reps2 = s.reps ?? 1;
+  return { reps: reps2, threshold: reps2 > 1 ? s.pass_threshold ?? null : null };
+}
+function comparableAggregation(red, green) {
+  return red.reps === green.reps && red.threshold === green.threshold;
+}
 function conclusive(verdict, suspect) {
   return !suspect && verdict !== "ERROR" && verdict !== "JUDGE-AMBIGUOUS";
 }
@@ -3139,17 +3146,26 @@ function computeLift(red, green, opts = {}) {
   const insensitive = new Set(opts.modeInsensitive ?? []);
   const redV = new Map(effectiveVerdicts(red.scenarios).map((v) => [v.id, { verdict: v.verdict, suspect: v.suspect ?? false }]));
   const greenV = new Map(effectiveVerdicts(green.scenarios).map((v) => [v.id, { verdict: v.verdict, suspect: v.suspect ?? false }]));
+  const redShape = new Map(red.scenarios.map((s) => [s.id, aggregationShape(s)]));
+  const greenShape = new Map(green.scenarios.map((s) => [s.id, aggregationShape(s)]));
   const cells = {};
   const counts = { gained: 0, regressed: 0, kept: 0, "both-fail": 0, inconclusive: 0 };
   let redPassed = 0;
   let greenPassed = 0;
   const modeInsensitive = [];
+  const aggregationMismatch = [];
   for (const [id, g] of greenV) {
     const r = redV.get(id);
     if (!r)
       continue;
     if (insensitive.has(id)) {
       modeInsensitive.push(id);
+      continue;
+    }
+    const rShape = redShape.get(id) ?? { reps: 1, threshold: null };
+    const gShape = greenShape.get(id) ?? { reps: 1, threshold: null };
+    if (!comparableAggregation(rShape, gShape)) {
+      aggregationMismatch.push({ id, red: rShape, green: gShape });
       continue;
     }
     const cls = classify(r, g);
@@ -3179,14 +3195,37 @@ function computeLift(red, green, opts = {}) {
     greenOnly: [...greenV.keys()].filter((id) => !redV.has(id)),
     redOnly: [...redV.keys()].filter((id) => !greenV.has(id)),
     modeInsensitive,
+    aggregationMismatch,
     partial: Boolean(red.partial || green.partial),
     cells
   };
 }
+function reps(n) {
+  return n === 1 ? "1 rep" : `${n} reps`;
+}
+function describeMismatch(ms) {
+  const distinct = new Set(ms.map((m) => m.red.reps !== m.green.reps ? `red ${reps(m.red.reps)} vs ${reps(m.green.reps)}` : `red pass threshold ${m.red.threshold} vs ${m.green.threshold}`));
+  return distinct.size === 1 ? [...distinct][0] : "red and green aggregated differently";
+}
+function mismatchRemedy(ms) {
+  const greenReps = new Set(ms.map((m) => m.green.reps));
+  if (greenReps.size === 1 && ms.every((m) => m.red.reps !== m.green.reps)) {
+    return `re-run the baseline with --reps ${[...greenReps][0]}`;
+  }
+  return "re-measure both sides the same way";
+}
 function liftHeadline(lift) {
   if (lift.compared === 0) {
-    if (lift.modeInsensitive.length > 0) {
-      return `nothing comparable (${lift.modeInsensitive.length} shared, all run identically in both modes)`;
+    const mismatched = lift.aggregationMismatch.length;
+    const insensitive = lift.modeInsensitive.length;
+    if (mismatched > 0 && insensitive > 0) {
+      return `nothing comparable (${insensitive} run identically in both modes, ${mismatched} ${describeMismatch(lift.aggregationMismatch)})`;
+    }
+    if (mismatched > 0) {
+      return `nothing comparable (${mismatched} shared, ${describeMismatch(lift.aggregationMismatch)} \u2014 ${mismatchRemedy(lift.aggregationMismatch)})`;
+    }
+    if (insensitive > 0) {
+      return `nothing comparable (${insensitive} shared, all run identically in both modes)`;
     }
     return "no shared scenarios to compare";
   }
@@ -3205,6 +3244,9 @@ function liftHeadline(lift) {
     segments.push(`${lift.inconclusive} inconclusive`);
   if (lift.modeInsensitive.length > 0) {
     segments.push(`${lift.modeInsensitive.length} not comparable (same run in both modes)`);
+  }
+  if (lift.aggregationMismatch.length > 0) {
+    segments.push(`${lift.aggregationMismatch.length} not comparable (${describeMismatch(lift.aggregationMismatch)})`);
   }
   if (lift.partial)
     segments.push("partial run");
@@ -3537,21 +3579,21 @@ async function runPool(tasks, concurrency) {
 
 // packages/core/dist/reps.js
 function aggregateReps(outcomes, threshold) {
-  const reps = outcomes.length;
+  const reps2 = outcomes.length;
   const clean = outcomes.filter((o) => !o.suspect);
   const passes = clean.filter((o) => o.verdict === "PASS").length;
-  if (clean.length * 2 < reps) {
-    return { verdict: "FAIL", reason: `${reps - clean.length}/${reps} reps misfired \u2014 re-judge`, passes, reps, clean: clean.length, flakiness: 0, suspect: true };
+  if (clean.length * 2 < reps2) {
+    return { verdict: "FAIL", reason: `${reps2 - clean.length}/${reps2} reps misfired \u2014 re-judge`, passes, reps: reps2, clean: clean.length, flakiness: 0, suspect: true };
   }
   const errored = clean.filter((o) => o.verdict === "ERROR").length;
   if (clean.length > 0 && errored === clean.length) {
-    return { verdict: "ERROR", reason: `${errored}/${reps} reps errored`, passes: 0, reps, clean: clean.length, flakiness: 0, suspect: false };
+    return { verdict: "ERROR", reason: `${errored}/${reps2} reps errored`, passes: 0, reps: reps2, clean: clean.length, flakiness: 0, suspect: false };
   }
   const passRate = passes / clean.length;
   const verdict = passRate >= threshold ? "PASS" : "FAIL";
   const flakiness = 1 - Math.abs(2 * passRate - 1);
-  const reason = reps === 1 ? outcomes[0].reason : `${passes}/${clean.length} reps passed (flaky ${flakiness.toFixed(2)})`;
-  return { verdict, reason, passes, reps, clean: clean.length, flakiness, suspect: false };
+  const reason = reps2 === 1 ? outcomes[0].reason : `${passes}/${clean.length} reps passed (flaky ${flakiness.toFixed(2)})`;
+  return { verdict, reason, passes, reps: reps2, clean: clean.length, flakiness, suspect: false };
 }
 function outcomesToResult(id, outcomes, repCount, threshold) {
   if (repCount === 1) {

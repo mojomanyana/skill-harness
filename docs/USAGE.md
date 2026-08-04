@@ -97,8 +97,15 @@ The green scorecard then ends with a `LIFT:` line, and the review UI shows it pe
 - **regressed** — passed without the skill, fails with it. The skill actively hurt here.
 - **kept** — passed either way. The model never needed the skill for this one.
 - **inconclusive** — an `ERROR` or an unresolved judge misfire on either side. Deliberately *not* counted as a gain: an ERROR is a harness failure, not evidence the skill-less agent couldn't do the task, and counting it would let infrastructure noise inflate your lift.
+- **not comparable** — dropped *before* classification and named in the headline instead, in two cases. Either the harness ran the scenario identically in both modes (a `system_prompt_file` scenario is its own system prompt, so the skill is loaded on the red side too), or the two sides were aggregated differently — a red baseline at `--reps 1` against a green run at `--reps 3`, or the same reps under different pass thresholds. Both would otherwise be a number that describes the harness rather than the skill.
 
-Lift is computed from whatever runs are on disk, so a baseline recorded weeks ago still counts, and it needs no re-run to appear. Only scenarios present in **both** runs are compared. With no red run at all, the report says `no red baseline` rather than showing a zero — "not measured" and "measured no effect" are different claims.
+**Run the baseline the same way you ran green.** A one-rep verdict is a single draw and a three-rep verdict is a majority over three, so `red FAIL → green PASS` across that gap can be sampling alone. Mismatched cells are excluded and the headline tells you what to re-run:
+
+```
+  LIFT:  nothing comparable (5 shared, red 1 rep vs 3 reps — re-run the baseline with --reps 3)
+```
+
+Lift is computed from whatever runs are on disk, so a baseline recorded weeks ago still counts, and it needs no re-run to appear. Only scenarios present in **both** runs are compared. With no red run at all, the report says `no red baseline` rather than showing a zero — "not measured" and "measured no effect" are different claims, and a baseline that exists but cannot be used is a third (`lift not comparable`).
 
 ## 5. Review — flip verdicts, read transcripts
 

@@ -433,6 +433,102 @@ describe("mode-insensitive scenarios are not comparable", () => {
   });
 });
 
+/** The aggregation shape of a `--reps N` cell — only the fields a lift comparison reads. */
+function agg(n: number, threshold = 0.5): Partial<ScenarioResult> {
+  return { reps: n, pass_threshold: threshold };
+}
+
+describe("cells aggregated differently on the two sides are not comparable", () => {
+  // A one-rep red verdict is a single draw; a three-rep green verdict is a
+  // majority. "red FAIL -> green PASS" across that gap can be sampling alone, so
+  // counting it as `gained` reports the harness's own asymmetry as skill value.
+  test("red at 1 rep vs green at 3 is excluded, not classed gained", () => {
+    const lift = computeLift(
+      finalizeResults(draft("red", [["A1", "FAIL"]]), null),
+      finalizeResults(draft("green", [["A1", "PASS", agg(3)]]), null),
+    );
+    expect(lift.aggregationMismatch).toEqual([
+      { id: "A1", red: { reps: 1, threshold: null }, green: { reps: 3, threshold: 0.5 } },
+    ]);
+    expect(lift.cells.A1).toBeUndefined();
+    expect(lift.gained).toBe(0);
+    expect(lift.compared).toBe(0);
+  });
+
+  test("an excluded cell moves neither side's pass count nor the delta", () => {
+    const lift = computeLift(
+      finalizeResults(draft("red", [["A1", "PASS"], ["A2", "FAIL"]]), null),
+      finalizeResults(draft("green", [["A1", "PASS", agg(3)], ["A2", "PASS"]]), null),
+    );
+    expect(lift.compared).toBe(1);
+    expect(lift.redPassed).toBe(0);
+    expect(lift.greenPassed).toBe(1);
+    expect(lift.delta).toBe(1);
+  });
+
+  test("equal reps and equal threshold compare as before", () => {
+    const lift = computeLift(
+      finalizeResults(draft("red", [["A1", "FAIL", agg(3)]]), null),
+      finalizeResults(draft("green", [["A1", "PASS", agg(3)]]), null),
+    );
+    expect(lift.aggregationMismatch).toEqual([]);
+    expect(lift.gained).toBe(1);
+  });
+
+  // Same rep count, different majority policy: green needed 1 of 3 to pass where
+  // red needed 3 of 3. Like-for-like is about the whole aggregation, not just N.
+  test("the same reps under different pass thresholds is still a mismatch", () => {
+    const lift = computeLift(
+      finalizeResults(draft("red", [["A1", "FAIL", agg(3, 1)]]), null),
+      finalizeResults(draft("green", [["A1", "PASS", agg(3, 0.34)]]), null),
+    );
+    expect(lift.aggregationMismatch).toHaveLength(1);
+    expect(lift.compared).toBe(0);
+  });
+
+  // A single rep never goes through aggregateReps, so a threshold recorded beside
+  // it was not applied to anything. Excluding on it would refuse a comparison
+  // that is in fact like-for-like.
+  test("a threshold is ignored where neither side aggregated anything", () => {
+    const lift = computeLift(
+      finalizeResults(draft("red", [["A1", "FAIL"]]), null),
+      finalizeResults(draft("green", [["A1", "PASS", { pass_threshold: 0.5 }]]), null),
+    );
+    expect(lift.aggregationMismatch).toEqual([]);
+    expect(lift.gained).toBe(1);
+  });
+
+  test("the headline names the mismatch instead of quietly dropping the cell", () => {
+    const lift = computeLift(
+      finalizeResults(draft("red", [["A1", "FAIL"], ["A2", "FAIL"]]), null),
+      finalizeResults(draft("green", [["A1", "PASS"], ["A2", "PASS", agg(3)]]), null),
+    );
+    expect(liftHeadline(lift)).toMatch(/1 not comparable/i);
+    expect(liftHeadline(lift)).toMatch(/1 rep vs 3 reps/i);
+  });
+
+  // "no measured effect" would be a claim about the skill. There is no measurement
+  // here at all — the same not-measured/measured-no-effect line `inconclusive`
+  // and `modeInsensitive` both hold.
+  test("all-excluded says what to re-run, rather than reporting no effect", () => {
+    const lift = computeLift(
+      finalizeResults(draft("red", [["A1", "FAIL"]]), null),
+      finalizeResults(draft("green", [["A1", "PASS", agg(3)]]), null),
+    );
+    const headline = liftHeadline(lift);
+    expect(headline).not.toMatch(/no measured effect|no shared scenarios/i);
+    expect(headline).toMatch(/nothing comparable/i);
+    expect(headline).toMatch(/--reps 3/);
+  });
+
+  test("collectLift surfaces the mismatch on runs read off disk", () => {
+    const skillDir = skillWithRuns([["A1", "FAIL"], ["A2", "FAIL"]], [["A1", "PASS", agg(3)], ["A2", "PASS", agg(3)]]);
+    const [lift] = collectLift(skillDir);
+    expect(lift.aggregationMismatch.map((m) => m.id)).toEqual(["A1", "A2"]);
+    expect(lift.compared).toBe(0);
+  });
+});
+
 describe("formatScorecard does not print lift under a red baseline", () => {
   test("a red run stays silent even when a lift is available", () => {
     const lift = computeLift(

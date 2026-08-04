@@ -1,11 +1,11 @@
 import { describe, test, expect } from "vitest";
-import { computeLift } from "../src/lift.js";
+import { computeLift, liftHeadline } from "../src/lift.js";
 import { finalizeResults, type ResultsDraft, type ScenarioResult } from "../src/results.js";
 import type { Verdict } from "../src/score.js";
 // assets/report.grade.js is the exact module injected into report.template.html.
 // Imported directly (plain ESM, no bundler) so this test guards the real thing —
 // the same arrangement grade-column-parity.test.ts uses for gradeColumn.
-import { liftClass, liftSummary } from "../../../assets/report.grade.js";
+import { liftClass, liftSummary, liftNoneBadge } from "../../../assets/report.grade.js";
 
 interface CellFixture {
   id: string;
@@ -115,6 +115,33 @@ describe("report.grade.js liftSummary matches computeLift aggregates (drift guar
       });
     });
   }
+});
+
+describe("liftNoneBadge distinguishes a missing baseline from an unusable one", () => {
+  // The UI used to fall through to "no red baseline" whenever nothing was
+  // comparable — which is false, and hides the one thing the viewer needs to know:
+  // a baseline exists and why it could not be used.
+  test("a baseline that produced no comparable cell reports why, not 'no red baseline'", () => {
+    const red = finalizeResults(draft("red", [scenario("A1", "FAIL")]), null);
+    const green = finalizeResults(
+      draft("green", [{ ...scenario("A1", "PASS"), reps: 3, pass_threshold: 0.5 }]),
+      null,
+    );
+    const lift = computeLift(red, green);
+    const badge = liftNoneBadge({ mode: "green", lift, liftHeadline: liftHeadline(lift) });
+    expect(badge.text).not.toMatch(/no red baseline/i);
+    expect(badge.title).toMatch(/--reps 3/);
+  });
+
+  test("a green column with no baseline at all still says so", () => {
+    const badge = liftNoneBadge({ mode: "green" });
+    expect(badge.text).toMatch(/no red baseline/i);
+    expect(badge.title).toMatch(/--mode red/);
+  });
+
+  test("an unscored column with no baseline shows no lift badge", () => {
+    expect(liftNoneBadge({ mode: "red" })).toBeNull();
+  });
 });
 
 describe("liftSummary edge cases", () => {
