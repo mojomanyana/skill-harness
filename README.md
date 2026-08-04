@@ -303,6 +303,16 @@ fixtures/typo-fix/
   _staged/CHANGELOG.md       # -> applied after, then git add      => staged edit
 ```
 
+**Marker names are checked.** A typo — `_uncommited/`, one `t` — would once have been
+copied into the baseline commit as an ordinary directory, leaving the scenario measuring
+the opposite of its intent with nothing to show for it. Any *top-level* `_name/` is now
+read as a marker claim: `skill-harness lint` reports it (free, offline, in CI, with a
+"did you mean?" when it's a near-miss) and `run` refuses the fixture outright. Both use
+the same rule, so lint can never bless a fixture the runtime rejects. Two carve-outs, so
+ordinary content is left alone: only a *single* leading underscore counts (`__tests__/`
+and `__pycache__/` copy normally), and markers are top-level only (`pkg/_staged/` is
+ordinary content).
+
 **A real remote.** `env: { remote: true }` (with `empty-git` or a fixture) initialises a bare
 repo in its own temp dir, wires it as `origin`, and pushes the baseline, so `main` tracks
 `origin/main` and push/fetch/diverged-upstream work with no network. Without it a git

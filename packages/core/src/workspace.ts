@@ -23,9 +23,11 @@ export interface Workspace {
  */
 const UNCOMMITTED_DIR = "_uncommitted";
 const STAGED_DIR = "_staged";
-const MARKERS = [STAGED_DIR, UNCOMMITTED_DIR];
+export const MARKERS = [STAGED_DIR, UNCOMMITTED_DIR];
 
 /**
+ * Top-level directories in a fixture that claim to be markers but aren't one.
+ *
  * A misspelled marker (`_uncommited/`) used to be copied into the baseline commit as a
  * literal directory: the tree came up clean, the scenario silently measured the opposite
  * of its intent, and nothing reported it. Any top-level `_name/` is therefore treated as
@@ -34,11 +36,58 @@ const MARKERS = [STAGED_DIR, UNCOMMITTED_DIR];
  * Only a SINGLE leading underscore counts, so `__tests__` and `__pycache__` — ordinary
  * directories a fixture may legitimately contain — are not marker claims. Nested
  * `pkg/_staged/` is likewise ordinary content: markers are top-level only.
+ *
+ * Exported so `lint` can report the same set this module refuses to run. If the two
+ * disagreed, lint would hand out a clean bill of health for a fixture the runtime then
+ * rejects — which is worse than not checking at all.
  */
-function assertKnownMarkers(src: string): void {
-  const suspects = readdirSync(src, { withFileTypes: true })
+export function unknownMarkerDirs(src: string): string[] {
+  return readdirSync(src, { withFileTypes: true })
     .filter((e) => e.isDirectory() && /^_[A-Za-z]/.test(e.name) && !MARKERS.includes(e.name))
-    .map((e) => e.name);
+    .map((e) => e.name)
+    .sort();
+}
+
+/**
+ * The known marker a misspelling was probably reaching for, or null.
+ *
+ * Case-insensitive within an edit distance of 2 — enough for `_uncommited` (one
+ * dropped `t`), `_Staged` (case) and `_uncommmitted` (doubled letter), while
+ * `_fixtures` or `_helpers` correctly suggest nothing rather than a confident
+ * wrong guess.
+ */
+export function suggestMarker(name: string): string | null {
+  let best: string | null = null;
+  let bestDistance = 3;
+  for (const m of MARKERS) {
+    const d = editDistance(name.toLowerCase(), m.toLowerCase());
+    if (d < bestDistance) {
+      bestDistance = d;
+      best = m;
+    }
+  }
+  return best;
+}
+
+/** Levenshtein distance, iterative single-row. */
+function editDistance(a: string, b: string): number {
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const curr = [i];
+    for (let j = 1; j <= b.length; j++) {
+      curr[j] = Math.min(
+        prev[j] + 1,
+        curr[j - 1] + 1,
+        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+    }
+    prev = curr;
+  }
+  return prev[b.length];
+}
+
+function assertKnownMarkers(src: string): void {
+  const suspects = unknownMarkerDirs(src);
   if (suspects.length > 0) {
     throw new Error(
       `fixture ${src}: unknown marker director${suspects.length > 1 ? "ies" : "y"} ` +

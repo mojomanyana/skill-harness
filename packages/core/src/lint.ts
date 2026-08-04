@@ -4,8 +4,9 @@ import yaml from "js-yaml";
 import { loadSpec, SpecError } from "./spec.js";
 import { readResults, finalizeResults, findTranscriptFiles, resultsPath, type ScoreContext } from "./results.js";
 import { currentHashFor, describeSourceKey, scenarioIdForKey } from "./sources.js";
+import { MARKERS, unknownMarkerDirs, suggestMarker } from "./workspace.js";
 
-export type LintCode = "spec" | "ship_bar" | "critical" | "fixture" | "consistency" | "stale" | "lint-error";
+export type LintCode = "spec" | "ship_bar" | "critical" | "fixture" | "fixture-marker" | "consistency" | "stale" | "lint-error";
 
 export interface LintFinding {
   readonly skill: string; // skill name (basename of the dir when the spec fails to parse)
@@ -73,6 +74,26 @@ export function lintSkill(skillDir: string): LintFinding[] {
       const abs = isAbsolute(fx) ? fx : resolve(specDir, fx);
       if (!isDir(abs)) {
         findings.push({ skill, scenario: s.id, code: "fixture", message: `fixture not found: ${fx}` });
+      } else {
+        // A mistyped fixture marker (`_uncommited/`) is rejected at run time by
+        // createWorkspace — but only once a run has been started, where it surfaces as
+        // a scenario FAIL among real results. lint is free, offline and runs in CI, so
+        // it is where an author should meet this. The set flagged here is exactly the
+        // set workspace.ts refuses, so lint can never bless a fixture the runtime then
+        // rejects.
+        for (const dir of unknownMarkerDirs(abs)) {
+          const guess = suggestMarker(dir);
+          findings.push({
+            skill,
+            scenario: s.id,
+            code: "fixture-marker",
+            message:
+              `fixture ${fx} has unknown top-level marker directory \`${dir}/\`` +
+              (guess ? ` — did you mean \`${guess}/\`?` : "") +
+              ` Known markers are ${MARKERS.map((m) => `\`${m}/\``).join(" and ")};` +
+              ` rename it, or move it deeper if it is ordinary content.`,
+          });
+        }
       }
     }
   }
