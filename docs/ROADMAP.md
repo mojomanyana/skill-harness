@@ -106,7 +106,17 @@ Reworded 2026-08-04: "5 popular *external* skills" moved to Phase 2, where its v
       tool-wrappers needing live credentials — poor fit for reproducible committed
       results). Every process-oriented pi corpus found has under 20 stars, so "popular
       *and* pi-native *and* testable" does not currently exist as a set
-- [ ] 30-second demo GIF: edit SKILL.md → re-run → grade C→A. Store under `assets/` or link from README
+- [ ] 30-second demo GIF. **Script written and tested — only the screen recording is
+      left** (2026-08-05): `assets/demo/demo.sh`, one take, `DEMO_DELAY` sets the beat.
+      Three beats: `list` (7 skills) → `lint` green, then one dropped `t` in a fixture
+      marker yields 4 findings and exit 1 → `rescore` on two committed runs showing
+      `git-ops` 93% → 100%. **Deliberately not** "edit SKILL.md → re-run → grade C→A": a
+      live re-run spends subject+judge tokens and takes minutes, so the demo uses only
+      free/offline commands and takes its grade movement from runs already on disk. Trade:
+      no skill visibly *improving*, but every frame is reproducible by a viewer at zero
+      cost against a public repo. Recording is a manual step — `vhs`/`asciinema`+`agg`
+      would render it headlessly but neither installs here (cargo 1.75, no rustup, both
+      need `edition2024`; `pip` is PEP-668 managed). See `assets/demo/README.md`
 - [x] README top: positioning sentence + GIF + 3-command quickstart above the fold
       (2026-08-04) — positioning sentence, install + 3 commands, differentiators list;
       contributor material (git clone, repo layout) moved down into Development. GIF
