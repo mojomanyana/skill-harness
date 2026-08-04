@@ -103,6 +103,9 @@ fresh machine; demo GIF recorded; 5 popular external skills graded in a public e
 ### Sprint 2.3 — Judge-reliability essay
 - [ ] Deep-dive post on misfire detection with real numbers from our runs
       ("your LLM judge contradicts itself and you'd never know")
+      — **draft exists**: `docs/posts/2026-08-04-judge-contradicts-itself.md` (2026-08-04).
+      Still blocked on the numbers: pull actual misfire/AMBIGUOUS/ERROR rates out of the
+      release-1 journals (528 rep-executions) and lead with the rate, per rule 3.
 - Metric: 3 unsolicited mentions by others.
 
 ## PHASE 3 — Generalize to the Agent Skills standard (months 3–5)
