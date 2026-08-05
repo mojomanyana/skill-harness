@@ -263,22 +263,30 @@ describe("source_hashes covers scenario definitions and fixture trees", () => {
     writeFileSync(p, text.replace(from, to), "utf8");
   }
 
-  it("records a digest per scenario", async () => {
+  it("records a digest per scenario, per facet", async () => {
     const { summary } = await runWith(adapter);
     const h = summary.results.source_hashes!;
-    expect(h["scenario:A1"]).toMatch(/^[0-9a-f]{64}$/);
-    expect(h["scenario:B1"]).toMatch(/^[0-9a-f]{64}$/);
-    expect(h["scenario:A1"]).not.toBe(h["scenario:B1"]);
+    for (const key of ["stimulus:A1", "rubric:A1", "policy:A1", "stimulus:B1", "rubric:B1", "policy:B1"]) {
+      expect(h[key], key).toMatch(/^[0-9a-f]{64}$/);
+    }
+    expect(h["stimulus:A1"]).not.toBe(h["stimulus:B1"]);
+    // Facets of the same scenario are distinct hashes, or the split would be cosmetic.
+    expect(h["stimulus:A1"]).not.toBe(h["rubric:A1"]);
   });
 
-  it("editing a checklist marks THAT scenario stale — the case lint used to miss", async () => {
+  // The headline of the 0.4.0 split. Before it, this same edit said "re-run", which
+  // for a real corpus meant paying a full model pass to correct a checklist — the
+  // pressure that keeps known-bad rubrics in place.
+  it("editing a checklist marks the RUBRIC stale, and names the free remedy", async () => {
     const { skillDir } = await runWith(adapter);
     editSpec(skillDir, "greets the user", "greets the user warmly, by name");
     const stale = lintSkill(skillDir).filter((f) => f.code === "stale");
     expect(stale).toHaveLength(1);
     expect(stale[0].scenario).toBe("A1"); // per-scenario, not skill-wide
-    expect(stale[0].message).toMatch(/scenario `A1`/);
-    expect(stale[0].message).toMatch(/re-run/);
+    expect(stale[0].message).toMatch(/rubric for `A1`/);
+    expect(stale[0].message).toMatch(/re-grade/);
+    expect(stale[0].message).toMatch(/judge-only|no model spend/);
+    expect(stale[0].message).not.toMatch(/\bre-run\b/);
   });
 
   it("editing one scenario leaves the others alone", async () => {

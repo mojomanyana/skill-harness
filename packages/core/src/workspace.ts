@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
@@ -99,12 +99,49 @@ function assertKnownMarkers(src: string): void {
 }
 
 /**
+ * Paths a *tool* creates during a run, excluded from the workspace repo so they never
+ * reach the captured diff.
+ *
+ * `runSeeded` records what the model did as `git add -A` + `git diff --cached`, which
+ * cannot distinguish the model's edits from vitest's cache. Measured in all four
+ * `post-diff-remeasure-full` runs of the reference corpus: every diff carried
+ * `node_modules/.vite/vitest/<sha>/results.json`, whose contents are test file paths
+ * and `"failed":false` booleans. No gate there was affected, but the channel runs both
+ * ways — a `diff_contains` needle matching a test filename can pass for free, and a
+ * `diff_excludes` needle can false-fail on a path string — and it pads every diff the
+ * judge reads.
+ */
+const TOOL_ARTIFACTS = ["node_modules/", "coverage/", ".vitest/"];
+
+/**
+ * Exclude tool artifacts via `.git/info/exclude`, deliberately not a `.gitignore`.
+ *
+ * `.git/info/exclude` is not a worktree file, so: it cannot contaminate a scenario
+ * that is *about* `.gitignore`, the model can neither read nor delete it, a fixture's
+ * own `.gitignore` is left byte-identical, and it applies to every git call in the
+ * workspace rather than to the ones someone remembered to add a pathspec to.
+ */
+function excludeToolArtifacts(cwd: string): void {
+  const excludeFile = join(cwd, ".git", "info", "exclude");
+  const existing = existsSync(excludeFile) ? readFileSync(excludeFile, "utf8") : "";
+  const nl = existing.length > 0 && !existing.endsWith("\n") ? "\n" : "";
+  appendFileSync(
+    excludeFile,
+    `${nl}# skill-harness: tool output, never the model's work\n${TOOL_ARTIFACTS.join("\n")}\n`,
+    "utf8",
+  );
+}
+
+/**
  * git init + a baseline commit, so a later `git diff --cached` shows only edits.
  * Pinned to `main`: the host's init.defaultBranch is not ours to depend on, and
  * scenarios say things like "I'm on the main branch".
  */
 function gitBaseline(cwd: string): void {
   execFileSync("git", ["init", "-q", "-b", "main"], { cwd, timeout: GIT_TIMEOUT_MS });
+  // Before the baseline `add -A`, so a fixture that ships a stray node_modules/ does
+  // not commit it either.
+  excludeToolArtifacts(cwd);
   execFileSync("git", ["add", "-A"], { cwd, timeout: GIT_TIMEOUT_MS });
   execFileSync(
     "git",

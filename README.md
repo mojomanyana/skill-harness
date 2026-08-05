@@ -41,6 +41,10 @@ same scenarios across several models and compare them side by side.
 **What makes the numbers trustworthy**, and what an eval platform generally won't
 give you:
 
+- **Remedy-aware staleness** — a published result knows what it measured, split four
+  ways: edit a checklist and lint says *re-grade* (judge only); change a threshold and it
+  says *rescore* (free); fix a `diff_contains` needle and it says *regate* (free, from the
+  saved diffs). Only a changed stimulus costs a re-run.
 - **[Lift](#lift--red-vs-green)** — red vs green, so you find out whether the model
   would have passed without your skill anyway
 - **Judge-misfire quarantine** — a verdict the judge contradicted itself on is

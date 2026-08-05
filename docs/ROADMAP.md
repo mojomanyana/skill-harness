@@ -238,30 +238,51 @@ make truth cheap to restore.
         old default was reachable, never taken. The regrade path is latent, and the
         guard exists for the three paths that remain.
       - Post: `docs/posts/2026-08-05-a-default-that-cannot-bill-you.md`
-- [ ] **Items 1 + 2 — split the staleness identity, and `regate`** (the design change).
-      One `scenario:<id>` digest covers stimulus, rubric and policy together, so
-      lint's only remedy for any drift is "re-run". Split into `stimulus:` (→ `run`),
-      `rubric:` (→ `grade`, judge-only), `policy:` (→ `rescore`, free) and `gates:`
-      (→ `regate`, free + judge-on-flip), each lint message naming its cheapest
-      honest remedy. `regate` re-evaluates needle gates against the saved `.diff.txt`
-      artifacts: measured at **9 judge calls instead of 81 rep-executions** for the
-      C2 needle fix. Migration is half-built already — `currentHashFor` returns
-      undefined for unknown prefixed keys, so new kinds degrade silently on old
-      readers.
-- [ ] **Item 3 — workspace hygiene**: `git add -A` in `runSeeded` stages vitest's
-      `node_modules/.vite` cache into the captured diff. No gate in the corpus was
-      affected, but the channel is live both ways (a needle matching a test filename
-      passes for free; `diff_excludes` can false-fail on a path string) and it pads
-      every diff the judge reads. Fix at workspace materialization: append
-      `node_modules/` to `<repo>/.git/info/exclude` — invisible to the model, applies
-      to every git call, fixtures unchanged.
-- [ ] **Item 4.3 — downgrade tripwire**: `run`/`grade`/`lint` compare their own
-      version against the newest `harness_version` in the tree they touch. Older tool
-      + newer records ⇒ `run` refuses, `grade`/`lint` warn loudly. Inert until fresh
-      runs carry the field, like `source_hashes` was. Measured near-miss it kills: a
-      stale global **0.1.0** would have spent ~102 rep-executions grading without the
-      diff — the exact defect being re-measured — and every number would have looked
-      plausible.
+- [x] **Items 1 + 2 — split the staleness identity, and `regate`** (2026-08-05, the
+      design change). `scenario:<id>` hashed stimulus + rubric + policy + gates together,
+      so lint's only remedy for any drift was "re-run" — and correcting a rubric
+      therefore cost model spend. Now four keys, each naming the cheapest honest remedy
+      in the finding itself: `stimulus:` → `run`, `rubric:` (+ `rubric:__persona`) →
+      `grade` (judge-only), `policy:` → `rescore` (free), `gates:` → `regate` (free +
+      one judge call per flipped rep). Strictness unchanged; only the price of getting
+      back to fresh moved.
+      - `facets()` keeps the exhaustive-destructure guard, so a new `Scenario`/
+        `SeededAssert` field fails the build until someone assigns it a bucket — and a
+        wrong bucket is worse than none, since it would promise `rescore` where the
+        transcripts are actually invalid.
+      - `scenarioDigest` is now **read-only and frozen** at the 0.3.x field set: it is a
+        stored-hash format, and every scorecard published before 0.4.0 recorded it.
+        Deleting it would turn "no findings" into "no comparison" for the whole corpus,
+        silently. Legacy keys still resolve; their remedy admits it cannot tell which
+        facet moved.
+      - Refresh rules: `grade` rewrites only the `rubric:` keys it actually judged
+        (`--suspect-only` must not certify the rubrics it skipped) plus the persona;
+        `rescore` rewrites `policy:`; `regate` rewrites `gates:`; `run` rewrites all.
+        `regrade.ts`'s doctrine narrowed from "recorded hashes stay" to "recorded
+        *stimulus* hashes stay".
+      - `regate` reuses `evaluateNeedleGates` (extracted from `runSeeded`, one
+        implementation so a regated verdict cannot disagree with a fresh run) and
+        re-reads a rep's **saved judge-raw artifact** when its gate state did not change
+        — free and exact, instead of re-asking. Only a gate-fail → gate-pass flip costs
+        a judge call; the CLI prints the count. `vitest`/`post_test` scenarios are
+        refused, not half-regated.
+      - Post: `docs/posts/2026-08-05-the-gate-that-charged-you-to-fix-a-typo.md`
+- [x] **Item 3 — workspace hygiene** (2026-08-05). `git add -A` staged vitest's
+      `node_modules/.vite` cache into every captured diff. Fixed at workspace
+      materialization by appending `node_modules/`, `coverage/`, `.vitest/` to
+      `<repo>/.git/info/exclude` — not a worktree file, so it cannot contaminate a
+      scenario *about* `.gitignore`, the model cannot read or delete it, a fixture's own
+      `.gitignore` stays byte-identical, and it applies to every git call rather than the
+      ones someone remembered to annotate. Written before the baseline `add -A`, so a
+      fixture shipping a stray `node_modules/` does not commit it either.
+- [x] **Item 4.3 — downgrade tripwire** (2026-08-05). `newestRecordedVersion` scans a
+      results tree for the highest `harness_version`; `run` refuses when that exceeds the
+      running version (its numbers would not be comparable), while `grade` warns and
+      `lint` reports a `consistency` finding — both are how someone diagnoses this, and
+      blocking the diagnosis is the wrong trade. Version comparison is numeric per
+      component, because `"0.10.0" < "0.9.0"` lexically would fire the tripwire backwards
+      exactly once, on the release where it mattered. Inert on pre-0.3.3 trees, which
+      record no version and are never retro-labelled.
 
 ## PHASE 2 — Launch & first 100 fans (weeks 5–10)
 

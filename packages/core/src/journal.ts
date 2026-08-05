@@ -28,6 +28,13 @@ export type JournalEvent =
   | { event: "misfire-flag"; ts: string; id: string; reason: string; rep?: number }
   | { event: "empty-response-retry"; ts: string; id: string; attempt: number; rep?: number }
   | { event: "rescore"; ts: string; changed: string[]; passed: number; total: number; pct: number; ship: boolean }
+  /**
+   * A regate: needle gates re-evaluated against the saved staged diffs. `judge_calls`
+   * is on the record because regate is advertised as free apart from the reps whose
+   * gate verdict flipped — a claim the journal should be able to settle. `skipped`
+   * names scenarios it could not regate (vitest/post_test, or missing diff artifacts).
+   */
+  | { event: "regate"; ts: string; scenarios: string[]; changed: string[]; judge_calls: number; skipped?: string[] }
   | { event: "score"; ts: string; passed: number; total: number; pct: number;
       letter: string; ship: boolean; note: string }
   | { event: "override"; ts: string; id: string; override: Verdict | null; note: string };

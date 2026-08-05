@@ -97,6 +97,44 @@ export function changedLines(diff: string): string {
   return out.join("\n");
 }
 
+/** Whether a scenario declares any needle gate at all. */
+export function hasNeedleGates(scenario: Scenario): boolean {
+  return (scenario.assert?.diff_contains?.length ?? 0) > 0 || (scenario.assert?.diff_excludes?.length ?? 0) > 0;
+}
+
+/**
+ * Evaluate `diff_contains` / `diff_excludes` against a staged diff: the trailer lines
+ * to report, and the first failure (null when every needle is satisfied).
+ *
+ * A **pure function of the diff**, which is what makes `regate` possible — the saved
+ * `.diff.txt` artifact holds everything these gates need, so correcting a needle never
+ * requires re-running the model. Shared with `regate` deliberately: two copies of this
+ * loop would let a regated verdict disagree with what a fresh run would have produced,
+ * which is the same drift the fixture-marker check refuses between lint and runtime.
+ *
+ * Both gates read the CHANGED lines only, never context — see `changedLines`.
+ */
+export function evaluateNeedleGates(scenario: Scenario, diff: string): { lines: string[]; failure: string | null } {
+  const changed = changedLines(diff);
+  const lines: string[] = [];
+  let failure: string | null = null;
+
+  for (const needle of scenario.assert?.diff_contains ?? []) {
+    const ok = changed.includes(needle);
+    lines.push(`  diff_contains ${JSON.stringify(needle)}: ${ok ? "OK" : "MISSING"}`);
+    if (!ok && !failure) failure = `staged diff missing ${JSON.stringify(needle)}`;
+  }
+
+  // Scope discipline, stated as a fact about the diff rather than inferred from
+  // whether the model remembered to say "I left lastIndex alone".
+  for (const needle of scenario.assert?.diff_excludes ?? []) {
+    const ok = !changed.includes(needle);
+    lines.push(`  diff_excludes ${JSON.stringify(needle)}: ${ok ? "OK" : "PRESENT"}`);
+    if (!ok && !failure) failure = `staged diff touches forbidden ${JSON.stringify(needle)}`;
+  }
+  return { lines, failure };
+}
+
 /**
  * Byte cap on the diff copy embedded in the judged transcript. The judge prompt
  * is a single request, so an unbounded diff (a fixture-wide refactor, a
@@ -219,21 +257,9 @@ export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<S
   // either token. Every published A4 result recorded that as an objective pass.
   // Read against changed lines it means what the checklist means: the model
   // returned a Result.
-  const changed = changedLines(diff);
-
-  for (const needle of scenario.assert?.diff_contains ?? []) {
-    const ok = changed.includes(needle);
-    parts.push(`  diff_contains ${JSON.stringify(needle)}: ${ok ? "OK" : "MISSING"}`);
-    if (!ok && !gateFailure) gateFailure = `staged diff missing ${JSON.stringify(needle)}`;
-  }
-
-  // Scope discipline, stated as a fact about the diff rather than inferred from
-  // whether the model remembered to say "I left lastIndex alone".
-  for (const needle of scenario.assert?.diff_excludes ?? []) {
-    const ok = !changed.includes(needle);
-    parts.push(`  diff_excludes ${JSON.stringify(needle)}: ${ok ? "OK" : "PRESENT"}`);
-    if (!ok && !gateFailure) gateFailure = `staged diff touches forbidden ${JSON.stringify(needle)}`;
-  }
+  const needles = evaluateNeedleGates(scenario, diff);
+  parts.push(...needles.lines);
+  if (needles.failure && !gateFailure) gateFailure = needles.failure;
 
   if (scenario.assert?.vitest) {
     const v = await runVitest([], repo);

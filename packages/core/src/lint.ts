@@ -3,7 +3,8 @@ import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import yaml from "js-yaml";
 import { loadSpec, SpecError } from "./spec.js";
 import { readResults, finalizeResults, findTranscriptFiles, resultsPath, type ScoreContext } from "./results.js";
-import { currentHashFor, describeSourceKey, scenarioIdForKey, effectiveFixture, SCENARIO_PREFIX, UNREADABLE } from "./sources.js";
+import { currentHashFor, describeSourceKey, remedyForKey, scenarioIdForKey, effectiveFixture, SCENARIO_PREFIX, STIMULUS_PREFIX, UNREADABLE } from "./sources.js";
+import { downgradeWarning } from "./downgrade.js";
 import { MARKERS, unknownMarkerDirs, suggestMarker } from "./workspace.js";
 
 export type LintCode = "spec" | "ship_bar" | "critical" | "fixture" | "fixture-marker" | "consistency" | "stale" | "lint-error";
@@ -42,6 +43,17 @@ export function lintSkill(skillDir: string): LintFinding[] {
     return [{ skill: basename(skillDir), code: "spec", message }];
   }
   const skill = spec.skill;
+
+  // A lint from an older tool than the records it is checking cannot be trusted to
+  // check them: a 0.1.0 binary reported 38 spurious `consistency` findings against
+  // partial runs that 0.3.x handles correctly, and it cannot read source-hash key
+  // kinds added after it shipped. Reported as a finding (so CI sees it) rather than
+  // thrown, because refusing to lint is worse than linting with a caveat, and it is
+  // one of the few ways this situation announces itself at all.
+  const stale = downgradeWarning(skillDir);
+  if (stale) {
+    findings.push({ skill, code: "consistency", message: stale.replace(/^warning: /, "") });
+  }
 
   // ship_bar sanity
   if (spec.ship_bar.total < 1) {
@@ -195,7 +207,7 @@ export function lintSkill(skillDir: string): LintFinding[] {
     if (!full || !hashes) continue; // predates source_hashes → silent
     {
       const newest = full.runDir;
-      const ctx = { skillDir, specDir, scenarios: spec.scenarios };
+      const ctx = { skillDir, specDir, scenarios: spec.scenarios, judgePersona: spec.judge_persona };
       for (const [key, recorded] of Object.entries(hashes)) {
         const what = describeSourceKey(key);
         const scenario = scenarioIdForKey(key, spec.scenarios);
@@ -213,7 +225,12 @@ export function lintSkill(skillDir: string): LintFinding[] {
         if (current === null) {
           findings.push({ skill, scenario, code: "stale", message: `${what} no longer exists but the newest ${basename(tagDir)} run measured it (${newest})` });
         } else if (current !== recorded) {
-          findings.push({ skill, scenario, code: "stale", message: `${what} changed since the newest ${basename(tagDir)} run (${newest}) — results are stale; re-run before publishing` });
+          // The remedy is per key kind, and it is the whole point of the split: a
+          // rubric edit is re-gradeable from saved transcripts, a policy edit is a
+          // free rescore, a needle edit is a free regate. Only stimulus drift costs
+          // model spend. One message saying "re-run" for all four is what made
+          // correcting a known-bad rubric expensive enough to skip.
+          findings.push({ skill, scenario, code: "stale", message: `${what} changed since the newest ${basename(tagDir)} run (${newest}) — results are stale; ${remedyForKey(key)}` });
         }
       }
 
@@ -223,9 +240,15 @@ export function lintSkill(skillDir: string): LintFinding[] {
       // 100%/SHIP scorecard survives an arbitrary spec rewrite reporting zero
       // findings. Gated on the run having recorded scenario keys at all, so runs
       // predating the key kind stay silent like every other pre-existing run.
-      if (Object.keys(hashes).some((k) => k.startsWith(SCENARIO_PREFIX))) {
+      // Either key kind counts as "this run recorded per-scenario hashes": 0.4.0+ runs
+      // carry `stimulus:<id>`, older ones the combined `scenario:<id>`. Checking only
+      // the legacy prefix would silently drop coverage checking for every new run.
+      const scenarioKeyPrefix = Object.keys(hashes).some((k) => k.startsWith(STIMULUS_PREFIX))
+        ? STIMULUS_PREFIX
+        : SCENARIO_PREFIX;
+      if (Object.keys(hashes).some((k) => k.startsWith(scenarioKeyPrefix))) {
         for (const s of spec.scenarios) {
-          if (!(SCENARIO_PREFIX + s.id in hashes)) {
+          if (!(scenarioKeyPrefix + s.id in hashes)) {
             findings.push({ skill, scenario: s.id, code: "stale", message: `the newest ${basename(tagDir)} run (${newest}) did not measure scenario \`${s.id}\` — the published result covers a different scenario set than the spec; re-run before publishing` });
           }
         }

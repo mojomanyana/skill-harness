@@ -24,7 +24,9 @@ Invoke the CLI as `node bin/skill-harness.js <cmd>`, `npm run dev -- <cmd>`, or 
 list  <--skills root>                     which skills have a spec (● testable · ○ no spec · ✗ invalid)
 lint  <skill|all> --skills root           validate specs/fixtures + results-consistency — CI gate, no models, no keys; exits non-zero on findings
 run   <skill|all> --skills root [--model prov:model ...] [--mode red|green|force] [--judge prov:model] [--reps N] [--pass-threshold T] [--label name] [--parallel N]
-grade <run-dir> [--judge prov:model]      re-score saved transcripts with a (different) judge — no model re-run
+grade <run-dir> [--judge prov:model]      re-judge saved transcripts with a (different) judge — no model re-run
+rescore <run-dir>...                      re-score saved reps against current spec thresholds — free, offline
+regate <run-dir>...                       re-evaluate diff_contains/diff_excludes against the SAVED diffs — free, except one judge call per rep whose gate verdict flips
 review <skill> --skills root [--port N]   interactive matrix UI; flip verdicts + notes persist to results.yaml
 add-test <skill> --skills root --id ID --title T --turn "…" [--turn …] --check "…" [--check …] [--critical] [--mode seeded --fixture path]
 init  <skill> --skills root [--force]                    scaffold a commented template spec (free, offline)
@@ -37,7 +39,9 @@ Defaults: subject `fireworks:accounts/fireworks/models/deepseek-v4-pro` · judge
 
 `skill-harness --version` (or `-v`) prints the running version — check it before trusting numbers from a global install, and note that every run banner and `results.yaml` records `harness_version`.
 
-**Cost split an agent must respect:** `init`/`lint`/`list` are free static/offline commands (safe to run anytime, ideal for CI). `run`, `grade`, and `suggest` spend model tokens and need provider creds — **confirm the skill, model(s), and judge with the user before running any of them.** (`suggest` and the default judge both run on `claude-code:claude-opus-4-8`: no metered key, but they do spend the user's subscription. A `--judge anthropic:…` run bills an API key — say so before running it.)
+**Cost split an agent must respect:** `init`/`lint`/`list`/`rescore` are free static/offline commands (safe to run anytime, ideal for CI). `regate` is free too, *except* that a rep whose gate flips from fail to pass must be judged — it prints the count, and you must say so before running it. `grade` spends judge tokens only. `run` and `suggest` spend model tokens and need provider creds — **confirm the skill, model(s), and judge with the user before running any of them.**
+
+**Match the remedy to the drift — lint tells you which.** A `stale` finding names the cheapest honest fix: `stimulus:` → `run` (costs tokens), `rubric:` → `grade` (judge only), `policy:` → `rescore` (free), `gates:` → `regate` (free). Never reach for `run` when lint asked for one of the other three; that is exactly the waste the split exists to remove. (`suggest` and the default judge both run on `claude-code:claude-opus-4-8`: no metered key, but they do spend the user's subscription. A `--judge anthropic:…` run bills an API key — say so before running it.)
 
 ## Rules (do not violate)
 

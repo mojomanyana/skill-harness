@@ -3,6 +3,29 @@ import { join } from "node:path";
 import type { Spec } from "./spec.js";
 import { readResults, writeResults, type ResultsFile, type ScenarioResult } from "./results.js";
 import { appendJournal } from "./journal.js";
+import { policyDigest, POLICY_PREFIX } from "./sources.js";
+
+/**
+ * Refresh the `policy:` keys a run recorded, since a rescore has just re-applied the
+ * current policy to every rep it holds.
+ *
+ * Unlike a re-grade, this needs no id list: `rescoreRun` walks every recorded
+ * scenario, and the ones it carries verbatim (single-rep, ERROR, JUDGE-AMBIGUOUS) are
+ * carried *because the current threshold cannot change their verdict* — they are
+ * scored under today's policy too. Only keys the run already carried are touched, so
+ * this never fabricates coverage.
+ */
+function refreshPolicyHashes(
+  recorded: Record<string, string> | undefined,
+  spec: Spec,
+): Record<string, string> | undefined {
+  if (!recorded) return undefined;
+  const next = { ...recorded };
+  for (const s of spec.scenarios) {
+    if (POLICY_PREFIX + s.id in next) next[POLICY_PREFIX + s.id] = policyDigest(s);
+  }
+  return next;
+}
 
 export interface RescoreOptions {
   runDir: string;
@@ -68,7 +91,13 @@ export function rescoreRun(opts: RescoreOptions): RescoreResult {
   const results = writeResults(opts.runDir, {
     skill: prev.skill, harness: prev.harness, model: prev.model, judge: prev.judge,
     timestamp: prev.timestamp, label: prev.label, mode: prev.mode,
-    partial: prev.partial, source_hashes: prev.source_hashes, scenarios,
+    partial: prev.partial,
+    // A rescore re-applies the CURRENT policy (thresholds, critical set) to the
+    // recorded reps, so `policy:` drift is genuinely resolved by having run this —
+    // that is what makes `rescore` the honest remedy lint names for it. Stimulus,
+    // rubric and gate hashes are untouched: none of them was re-evaluated here.
+    source_hashes: refreshPolicyHashes(prev.source_hashes, opts.spec),
+    scenarios,
   }, ctx);
 
   appendJournal(opts.runDir, {

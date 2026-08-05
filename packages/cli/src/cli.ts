@@ -13,11 +13,14 @@ import {
   type HarnessAdapter,
   renderTemplateSpec, isTemplateSpec, renderDraftSpec, buildSuggestPrompt, parseSuggestDraft,
   rescoreRun,
+  regateRun,
   specPathForRunDir,
   collectLift,
   HARNESS_VERSION,
   defaultJudge,
   assertJudgeAllowed,
+  assertNotDowngraded,
+  downgradeWarning,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
@@ -176,6 +179,9 @@ export async function cmdRun(args: Args): Promise<void> {
       console.log(`skip ${skill.name}: no spec`);
       continue;
     }
+    // A run from an older tool than the records already here would produce numbers
+    // that look comparable and are not. Checked per skill, before its first token.
+    assertNotDowngraded(skill.dir, "run");
     const spec = loadSpec(skill.specPath);
     for (const token of modelTokens) {
       const model = parseModelRef(token);
@@ -240,6 +246,12 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
   });
   const adapter = adapterOverride ?? getAdapter(prev?.harness ?? "pi");
 
+  // Warn rather than refuse: re-grading is cheap, it writes no new measurement of the
+  // model, and it is one of the ways someone diagnoses a stale install in the first
+  // place. Blocking the diagnosis would be the wrong trade.
+  const stale = downgradeWarning(dirname(testsDir));
+  if (stale) console.error(stale);
+
   const results = await regradeRun({
     runDir, spec, adapter, judge, specDir: testsDir, now: nowIso,
     onlySuspect: flagBool(args, "suspect-only"),
@@ -275,6 +287,50 @@ async function cmdRescore(args: Args): Promise<void> {
     console.log(`  → ${g.letter} (${g.pct}%) ${g.passed}/${g.total} ${g.ship ? "SHIP" : "NOT READY"}`);
   }
   console.log(`\n${runDirs.length} run(s) re-scored, ${moved} verdict(s) moved.`);
+}
+
+/**
+ * Re-evaluate needle gates against the saved staged diffs — free, except for the reps
+ * whose gate verdict flips from fail to pass, which the judge never saw and must now
+ * be shown. Prints the cost before making those calls.
+ */
+export async function cmdRegate(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
+  const runDirs = args._;
+  if (runDirs.length === 0) throw new Error("usage: skill-harness regate <run-dir> [<run-dir> ...] [--judge prov:model]");
+
+  const judgeFlag = flagStr(args, "judge");
+  let moved = 0;
+  let calls = 0;
+  for (const raw of runDirs) {
+    const runDir = resolve(raw);
+    if (!existsSync(runDir)) throw new Error(`run dir not found: ${runDir} (relative paths resolve against the cwd)`);
+    const specPath = specPathForRunDir(runDir);
+    const spec = loadSpec(specPath);
+    const prev = readResults(runDir);
+    const judge = judgeFlag ? parseModelRef(judgeFlag) : (prev.judge ?? parseModelRef(defaultJudge()));
+    assertJudgeAllowed(judge, {
+      source: judgeFlag ? "--judge" : "the run's recorded judge",
+      allowMetered: flagBool(args, "allow-metered-judge"),
+    });
+
+    const { results, changes, judgeCalls } = await regateRun({
+      runDir, spec, specDir: dirname(specPath),
+      adapter: adapterOverride ?? getAdapter(prev.harness ?? "pi"),
+      judge, now: nowIso,
+    });
+    const g = results.effective_grade;
+    console.log(`\n${results.skill} · ${results.model}`);
+    for (const c of changes) {
+      console.log(`  ${c.id}: ${c.from} → ${c.to}  (gate ${c.gate}${c.judged ? ", re-judged from the saved transcript" : ", no judge call"})`);
+    }
+    if (changes.length === 0) console.log("  (no verdict changed)");
+    console.log(`  → ${g.letter} (${g.pct}%) ${g.passed}/${g.total} ${g.ship ? "SHIP" : "NOT READY"}`);
+    moved += changes.length;
+    calls += judgeCalls;
+  }
+  // The cost line matters: regate is advertised as free, and it is — except for the
+  // flipped reps, which it must not spend silently.
+  console.log(`\n${runDirs.length} run(s) re-gated, ${moved} verdict(s) moved, ${calls} judge call(s) (no model re-runs).`);
 }
 
 async function cmdReview(args: Args): Promise<void> {
@@ -467,6 +523,7 @@ export function help(): string {
                      [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
   grade  <run-dir>   [--judge prov:model] [--suspect-only]   re-grade saved transcripts (neutral judge)
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (free)
+  regate <run-dir>...  [--judge prov:model]     re-evaluate diff needles against the saved diffs (free; judges only reps whose gate flipped)
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]
   init   <skill>     --skills <root> [--force]     scaffold a commented template spec (free, offline)
@@ -488,6 +545,7 @@ export async function main(argv: string[]): Promise<void> {
     case "run": return cmdRun(args);
     case "grade": return cmdGrade(args);
     case "rescore": return cmdRescore(args);
+    case "regate": return cmdRegate(args);
     case "review": return cmdReview(args);
     case "add-test": return cmdAddTest(args);
     case "init": return cmdInit(args);

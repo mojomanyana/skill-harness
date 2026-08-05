@@ -9,6 +9,37 @@ import {
 } from "./results.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
 import { appendJournal } from "./journal.js";
+import { rubricDigest, personaDigest, RUBRIC_PREFIX, PERSONA_KEY } from "./sources.js";
+
+/**
+ * Carry a run's recorded hashes forward, refreshing only the `rubric:` keys this
+ * re-grade actually judged under (plus the persona, which applies to all of them).
+ *
+ * Everything else is preserved deliberately: the transcripts were produced by the old
+ * stimulus, so a stimulus hash must stay stale until someone re-runs. `--suspect-only`
+ * is why this takes an id list rather than refreshing every rubric key — a re-grade
+ * that touched two scenarios must not certify the rubric of the twelve it skipped.
+ *
+ * No hashes recorded (a pre-`source_hashes` run) stays that way: inventing hashes for
+ * a run that never recorded any would claim a coverage it does not have.
+ */
+export function refreshRubricHashes(
+  recorded: Record<string, string> | undefined,
+  spec: Spec,
+  judgedIds: string[],
+): Record<string, string> | undefined {
+  if (!recorded) return undefined;
+  const next = { ...recorded };
+  const specById = new Map(spec.scenarios.map((s) => [s.id, s]));
+  for (const id of judgedIds) {
+    const s = specById.get(id);
+    // Only refresh a key the run already carried: adding one for a scenario whose
+    // rubric was never hashed would fabricate coverage.
+    if (s && RUBRIC_PREFIX + id in next) next[RUBRIC_PREFIX + id] = rubricDigest(s);
+  }
+  if (PERSONA_KEY in next) next[PERSONA_KEY] = personaDigest(spec.judge_persona);
+  return next;
+}
 
 export interface RegradeOptions {
   runDir: string;
@@ -154,9 +185,14 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     label: prev?.label ?? null,
     mode,
     // A re-grade judges the SAVED transcripts, which were produced by the OLD text —
-    // the recorded hashes stay, keeping an honestly-stale run honestly stale.
+    // the recorded **stimulus** hashes stay, keeping an honestly-stale run honestly
+    // stale. The rubric hashes are a different matter: this re-grade applied the
+    // CURRENT checklist and persona to those transcripts, so "the verdicts reflect
+    // today's rubric" is now a true statement about the record, and the hashes should
+    // say so. Doctrine narrowed 0.4.0, from "recorded hashes stay" to "recorded
+    // *stimulus* hashes stay" — see refreshRubricHashes.
     partial: prev?.partial,
-    source_hashes: prev?.source_hashes,
+    source_hashes: refreshRubricHashes(prev?.source_hashes, spec, targets),
     scenarios: scenarioResults,
   }, ctx);
   const g = results.effective_grade;

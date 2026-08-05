@@ -41,8 +41,46 @@ import type { Scenario } from "./spec.js";
  * reindenting the YAML or reordering scenarios is correctly a no-op, while
  * changing a single checklist word is correctly a change.
  */
+/**
+ * The pre-0.4.0 combined key: one digest over a scenario's stimulus, rubric, policy
+ * and gates together. Still read (runs recorded with it must keep comparing), never
+ * written. See `scenarioDigest`.
+ */
 export const SCENARIO_PREFIX = "scenario:";
 export const FIXTURE_PREFIX = "fixture:";
+
+/**
+ * The split: three (four, with gates) digests per scenario, each mapped to the
+ * cheapest tool that can honestly restore freshness.
+ *
+ * | key | contents | drift means | remedy |
+ * |---|---|---|---|
+ * | `stimulus:<id>` | mode, turns, workspace, remote, agent-file path, fixture path, `assert.vitest`, `post_test` path | the transcripts answer a different question | `run` (model + judge) |
+ * | `rubric:<id>` | title, checklist | transcripts fine, verdicts wrong | `grade` (judge only) |
+ * | `policy:<id>` | critical, reps, pass_threshold | only the scoring moved | `rescore` (free) |
+ * | `gates:<id>` | `diff_contains`, `diff_excludes` | needle wrong, behavior fine | `regate` (free; judges only flipped reps) |
+ * | `rubric:__persona` | spec-level `judge_persona` | every verdict in the skill | `grade` per model |
+ *
+ * Why this matters more than it looks: with one key, lint had exactly one remedy for
+ * any drift — "re-run" — so **correcting a rubric cost model spend**. Measured on the
+ * reference corpus, two parked branches (one needle, one checklist rewrite) demanded
+ * 135 rep-executions to restore freshness while producing zero new information about
+ * the models. A gate that charges that much to fix a known-bad rubric is pressure to
+ * leave the rubric in place, which inverts the point of having a gate.
+ *
+ * The strictness is unchanged: every edit still marks something stale. Only the price
+ * of getting back to fresh changed.
+ */
+export const STIMULUS_PREFIX = "stimulus:";
+export const RUBRIC_PREFIX = "rubric:";
+export const POLICY_PREFIX = "policy:";
+export const GATES_PREFIX = "gates:";
+
+/**
+ * The spec-level rubric key. `__persona` cannot collide with a scenario id: ids are
+ * validated as `[A-Za-z][A-Za-z0-9_-]*`, so none can begin with an underscore.
+ */
+export const PERSONA_KEY = `${RUBRIC_PREFIX}__persona`;
 
 /**
  * Recorded in place of a hash when a source existed but could not be read.
@@ -123,14 +161,17 @@ function walk(dir: string, prefix = ""): string[] {
  * block a ship; `title` is included because it is what a reader of the scorecard
  * believes was tested.
  */
-export function scenarioDigest(s: Scenario): string {
-  // Destructured, with the remainder pinned to `Record<string, never>`, so that
-  // adding a field to `Scenario` or `SeededAssert` FAILS THE BUILD here instead of
-  // silently escaping the digest. A field nobody remembered to add is a permanent
-  // staleness blind spot — edit it and every published result still looks current,
-  // which is precisely the bug this module exists to kill. This PR added two
-  // SeededAssert fields and remembered both; that only proves the discipline works
-  // while someone is looking, so the compiler now does the looking.
+/**
+ * A scenario's fields, sorted into the four buckets, as canonical JSON.
+ *
+ * One function so the exhaustive-destructure trick below covers all four digests at
+ * once: adding a field to `Scenario` or `SeededAssert` fails the build **here** until
+ * someone decides which bucket — and therefore which remedy — it belongs to. A field
+ * nobody assigned is a permanent staleness blind spot, and a field assigned to the
+ * wrong bucket is worse than that: it would tell a user `rescore` is enough when the
+ * transcripts are actually invalid.
+ */
+function facets(s: Scenario): { stimulus: string; rubric: string; policy: string; gates: string | null } {
   const {
     id, title, critical, mode, turns, checklist, fixture, assert,
     workspace, remote, systemPromptFile, reps, passThreshold, ...restScenario
@@ -142,20 +183,77 @@ export function scenarioDigest(s: Scenario): string {
   const _assertExhaustive: Record<string, never> = restAssert;
   void _assertExhaustive;
 
+  const hasGates = diff_contains !== undefined || diff_excludes !== undefined;
+  return {
+    // `vitest` and the `post_test` PATH are stimulus, not gates: both change what the
+    // run executes in the workspace, and neither can be re-evaluated from a saved
+    // diff. (`post_test`'s CONTENTS get their own file-path key, hashed separately.)
+    stimulus: JSON.stringify([
+      id, mode, turns, workspace, remote, systemPromptFile ?? null,
+      fixture ?? null, vitest ?? null, post_test ?? null,
+    ]),
+    rubric: JSON.stringify([id, title, checklist]),
+    policy: JSON.stringify([id, critical, reps ?? null, passThreshold ?? null]),
+    gates: hasGates ? JSON.stringify([id, diff_contains ?? null, diff_excludes ?? null]) : null,
+  };
+}
+
+function sha(canonical: string): string {
+  return createHash("sha256").update(canonical).digest("hex");
+}
+
+export function stimulusDigest(s: Scenario): string {
+  return sha(facets(s).stimulus);
+}
+
+export function rubricDigest(s: Scenario): string {
+  return sha(facets(s).rubric);
+}
+
+export function policyDigest(s: Scenario): string {
+  return sha(facets(s).policy);
+}
+
+/** Null when the scenario declares no needle gates — no key is recorded for it. */
+export function gatesDigest(s: Scenario): string | null {
+  const g = facets(s).gates;
+  return g === null ? null : sha(g);
+}
+
+/** The spec-level judge persona, which is rubric for every scenario at once. */
+export function personaDigest(persona: string): string {
+  return sha(JSON.stringify(["__persona", persona]));
+}
+
+/**
+ * The pre-0.4.0 combined digest: everything about a scenario in one hash.
+ *
+ * **Read-only now** — `sourceHashes` writes the four split keys instead. Kept because
+ * `lint` must still compare runs that recorded `scenario:<id>`, and those runs are
+ * every scorecard published before 0.4.0. Deleting it would turn "no findings" into
+ * "no comparison" for the entire existing corpus, silently.
+ *
+ * Its bytes must therefore never change again: this is a stored-hash format, not an
+ * implementation detail. The facet digests take new fields; this one is frozen at the
+ * 0.3.x field set, which is why it does not go through `facets()`.
+ */
+export function scenarioDigest(s: Scenario): string {
   const canonical = JSON.stringify([
-    id,
-    title,
-    critical,
-    mode,
-    turns,
-    checklist,
-    fixture ?? null,
-    assert ? [vitest ?? null, diff_contains ?? null, diff_excludes ?? null, post_test ?? null] : null,
-    workspace,
-    remote,
-    systemPromptFile ?? null,
-    reps ?? null,
-    passThreshold ?? null,
+    s.id,
+    s.title,
+    s.critical,
+    s.mode,
+    s.turns,
+    s.checklist,
+    s.fixture ?? null,
+    s.assert
+      ? [s.assert.vitest ?? null, s.assert.diff_contains ?? null, s.assert.diff_excludes ?? null, s.assert.post_test ?? null]
+      : null,
+    s.workspace,
+    s.remote,
+    s.systemPromptFile ?? null,
+    s.reps ?? null,
+    s.passThreshold ?? null,
   ]);
   return createHash("sha256").update(canonical).digest("hex");
 }
@@ -182,6 +280,13 @@ export interface SourceContext {
   skillDir: string;
   specDir: string; // dirname(specPath)
   scenarios: Scenario[];
+  /**
+   * The spec's `judge_persona`. Required rather than optional: an optional field that
+   * silently disables the `rubric:__persona` comparison is the blind-spot shape this
+   * module exists to prevent, and making it required lets the compiler find every
+   * caller instead of leaving one quietly un-checked.
+   */
+  judgePersona: string;
 }
 
 /**
@@ -197,8 +302,17 @@ export function sourceHashes(ctx: SourceContext): Record<string, string> {
   // hash must stay visible to lint, not vanish from the record. See UNREADABLE.
   hashes["SKILL.md"] = fileSha256(resolve(ctx.skillDir, "SKILL.md")) ?? UNREADABLE;
 
+  hashes[PERSONA_KEY] = personaDigest(ctx.judgePersona);
+
   for (const s of ctx.scenarios) {
-    hashes[SCENARIO_PREFIX + s.id] = scenarioDigest(s);
+    // Split, not combined: each facet's drift has a different cheapest remedy, and a
+    // single key could only ever name the most expensive one. The legacy
+    // `scenario:<id>` key is deliberately NOT written any more — see scenarioDigest.
+    hashes[STIMULUS_PREFIX + s.id] = stimulusDigest(s);
+    hashes[RUBRIC_PREFIX + s.id] = rubricDigest(s);
+    hashes[POLICY_PREFIX + s.id] = policyDigest(s);
+    const gates = gatesDigest(s);
+    if (gates !== null) hashes[GATES_PREFIX + s.id] = gates;
 
     if (s.systemPromptFile && !(s.systemPromptFile in hashes)) {
       hashes[s.systemPromptFile] = fileSha256(resolve(ctx.specDir, s.systemPromptFile)) ?? UNREADABLE;
@@ -236,10 +350,25 @@ export function sourceHashes(ctx: SourceContext): Record<string, string> {
 export function currentHashFor(key: string, ctx: SourceContext): string | null | undefined {
   if (key === "SKILL.md") return fileSha256(resolve(ctx.skillDir, "SKILL.md"));
 
-  if (key.startsWith(SCENARIO_PREFIX)) {
-    const id = key.slice(SCENARIO_PREFIX.length);
-    const s = ctx.scenarios.find((x) => x.id === id);
-    return s ? scenarioDigest(s) : undefined; // removed → reshape, not stale
+  if (key === PERSONA_KEY) return personaDigest(ctx.judgePersona);
+
+  // Facet keys, and the legacy combined key, all resolve per scenario id. A removed
+  // scenario is a reshape, not staleness, on every kind.
+  const facetResolvers: Array<[string, (s: Scenario) => string | null]> = [
+    [STIMULUS_PREFIX, stimulusDigest],
+    [RUBRIC_PREFIX, rubricDigest],
+    [POLICY_PREFIX, policyDigest],
+    [GATES_PREFIX, gatesDigest],
+    [SCENARIO_PREFIX, scenarioDigest],
+  ];
+  for (const [prefix, digest] of facetResolvers) {
+    if (!key.startsWith(prefix)) continue;
+    const s = ctx.scenarios.find((x) => x.id === key.slice(prefix.length));
+    if (!s) return undefined; // removed → reshape, not stale
+    // gatesDigest returns null when the scenario no longer declares needles. That is
+    // a real change (the gate the run recorded is gone), so null — "no longer
+    // exists" — is the honest answer rather than "not comparable".
+    return digest(s);
   }
 
   if (key.startsWith(FIXTURE_PREFIX)) {
@@ -257,13 +386,51 @@ export function currentHashFor(key: string, ctx: SourceContext): string | null |
 
 /** Human label for a recorded key, used in lint messages. */
 export function describeSourceKey(key: string): string {
+  if (key === PERSONA_KEY) return "the judge persona";
+  if (key.startsWith(STIMULUS_PREFIX)) return `the stimulus for \`${key.slice(STIMULUS_PREFIX.length)}\``;
+  if (key.startsWith(RUBRIC_PREFIX)) return `the rubric for \`${key.slice(RUBRIC_PREFIX.length)}\``;
+  if (key.startsWith(POLICY_PREFIX)) return `the scoring policy for \`${key.slice(POLICY_PREFIX.length)}\``;
+  if (key.startsWith(GATES_PREFIX)) return `the gates for \`${key.slice(GATES_PREFIX.length)}\``;
   if (key.startsWith(SCENARIO_PREFIX)) return `scenario \`${key.slice(SCENARIO_PREFIX.length)}\``;
   if (key.startsWith(FIXTURE_PREFIX)) return `fixture \`${key.slice(FIXTURE_PREFIX.length)}\``;
   return key;
 }
 
+/**
+ * The cheapest command that honestly restores freshness for this key kind.
+ *
+ * This string is the feature. Before the split, lint's only remedy was "re-run", so a
+ * one-word checklist fix cost a full model pass — pressure to leave a known-bad rubric
+ * in place. Naming the actual remedy is what converts that into a free command.
+ */
+export function remedyForKey(key: string): string {
+  if (key === PERSONA_KEY) {
+    return "re-grade each model's saved transcripts (`grade <run-dir>`) — judge-only, no model spend";
+  }
+  if (key.startsWith(RUBRIC_PREFIX)) {
+    return "re-grade from the saved transcripts (`grade <run-dir>`) — judge-only, no model spend";
+  }
+  if (key.startsWith(POLICY_PREFIX)) {
+    return "re-score the saved reps (`rescore <run-dir>`) — free, offline";
+  }
+  if (key.startsWith(GATES_PREFIX)) {
+    return "re-evaluate the needles against the saved diffs (`regate <run-dir>`) — free, and it judges only the reps whose gate verdict flipped";
+  }
+  // A pre-split run recorded one hash over stimulus + rubric + policy + gates, so
+  // which of them moved is genuinely unknowable from the record. Naming a cheap
+  // remedy here would be a guess dressed as a fact.
+  if (key.startsWith(SCENARIO_PREFIX)) {
+    return "re-run — this run predates the stimulus/rubric/policy split, so which part changed cannot be told from what it recorded";
+  }
+  return "re-run"; // stimulus:, SKILL.md, fixture:, agent files, post_test contents
+}
+
 /** The scenario id a key belongs to, for per-scenario lint findings. Undefined for skill-wide keys. */
 export function scenarioIdForKey(key: string, scenarios: Scenario[]): string | undefined {
+  if (key === PERSONA_KEY) return undefined; // spec-level: belongs to no single scenario
+  for (const p of [STIMULUS_PREFIX, RUBRIC_PREFIX, POLICY_PREFIX, GATES_PREFIX]) {
+    if (key.startsWith(p)) return key.slice(p.length);
+  }
   if (key.startsWith(SCENARIO_PREFIX)) return key.slice(SCENARIO_PREFIX.length);
   if (key.startsWith(FIXTURE_PREFIX)) {
     const fx = key.slice(FIXTURE_PREFIX.length);
