@@ -16,7 +16,7 @@ npm install && npm run build      # Node ≥ 20; build produces packages/*/dist
 
 Invoke the CLI as `node bin/skill-harness.js <cmd>`, `npm run dev -- <cmd>`, or (after `npm link`) `skill-harness <cmd>`. The launcher runs the built `dist` if present, else falls back to `npx tsx`.
 
-**Requirements for `run`:** `pi` on `PATH` with a provider configured for the subject model (e.g. Fireworks), and a judge (Anthropic API, or `claude-code:<model>` to judge on the Claude subscription with no metered key). `lint` and `list` need **none** of this.
+**Requirements for `run`:** `pi` on `PATH` with a provider configured for the subject model (e.g. Fireworks), and a judge — by default the `claude` CLI signed into a Claude subscription (`claude-code:<model>`, no metered key); `anthropic:<model>` uses an API key instead. `lint` and `list` need **none** of this.
 
 ## Commands
 
@@ -31,9 +31,11 @@ init  <skill> --skills root [--force]                    scaffold a commented te
 suggest <skill> --skills root [--model prov:model] [--force]  LLM-draft a spec from the skill's SKILL.md (spends tokens)
 ```
 
-Defaults: subject `fireworks:accounts/fireworks/models/deepseek-v4-pro` · judge `anthropic:claude-opus-4-8` · mode `green` · harness `pi`.
+Defaults: subject `fireworks:accounts/fireworks/models/deepseek-v4-pro` · judge `claude-code:claude-opus-4-8` · mode `green` · harness `pi`. `SKILL_HARNESS_JUDGE` overrides the judge default for a repo or a shell; `--judge` beats both.
 
-**Cost split an agent must respect:** `init`/`lint`/`list` are free static/offline commands (safe to run anytime, ideal for CI). `run`, `grade`, and `suggest` spend model tokens and need provider creds — **confirm the skill, model(s), and judge with the user before running any of them.** (`suggest` defaults to `claude-code:claude-opus-4-8`, which needs no metered key, but still spends the user's subscription.)
+`skill-harness --version` (or `-v`) prints the running version — check it before trusting numbers from a global install, and note that every run banner and `results.yaml` records `harness_version`.
+
+**Cost split an agent must respect:** `init`/`lint`/`list` are free static/offline commands (safe to run anytime, ideal for CI). `run`, `grade`, and `suggest` spend model tokens and need provider creds — **confirm the skill, model(s), and judge with the user before running any of them.** (`suggest` and the default judge both run on `claude-code:claude-opus-4-8`: no metered key, but they do spend the user's subscription. A `--judge anthropic:…` run bills an API key — say so before running it.)
 
 ## Rules (do not violate)
 

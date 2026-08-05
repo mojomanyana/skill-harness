@@ -192,6 +192,61 @@ re-reading the tree against release-1's committed results.
       tree means "nothing provably stale", not "fresh". Fixing that is ~500
       rep-executions of hygiene, and buys detectability rather than corrected numbers
 
+### Sprint 1.4 — Third-pass work order (owner-supplied, 2026-08-05)
+
+Source: `~/prepos/skill-harness-work-order.md`, written against `main = 96de023`
+(0.3.2) by the owner of `principal-pi-skills`, with every item measured against real
+runs there. **North star it states, binding on prioritization:** one principal
+engineer steers while skills and subagents do the work — so the harness's job is
+measurement the engineer never has to second-guess, and a loop cheap enough that a
+found defect gets *fixed* rather than documented around.
+
+Its headline: the 0.3.0 staleness gate is now strong enough that **it charges model
+spend to correct a rubric**, which is pressure to leave known-bad rubrics in place.
+Two branches there are parked on exactly that — 135 rep-executions to restore
+freshness while learning nothing new about the models. **Do not weaken the gate**;
+make truth cheap to restore.
+
+- [x] **Item 5 + 4.1 + 4.2 — record corrections, version identity** (2026-08-05):
+      - The `@latest` claim about `principal-pi-skills` was false on both surfaces —
+        its CI pins `ref: v0.3.0` deliberately, and its `package.json` names the
+        harness nowhere. Corrected in `PUBLISHING.md` and
+        `docs/re-measurement-2026-08-04.md`; that repo *is* the pinning example.
+      - Judge default moved off the metered API to `claude-code:claude-opus-4-8`
+        (Claude subscription, OAuth) — it had billed a corpus once by accident. A
+        default may not be able to spend money. `SKILL_HARNESS_JUDGE` sets policy
+        once per repo/shell; `--judge` still wins; the three duplicated judge
+        defaults collapsed into core's `defaultJudge()`.
+      - `--version` / `-v` / `version` (was `unknown command`, exit 1), the version
+        on the run banner, and `harness_version` stamped by `finalizeResults` — the
+        one funnel every writer passes through, so `run`/`grade`/`rescore`/override
+        all record provenance. Older runs carry none and are never retro-labelled.
+      - Post: `docs/posts/2026-08-05-a-default-that-cannot-bill-you.md`
+- [ ] **Items 1 + 2 — split the staleness identity, and `regate`** (the design change).
+      One `scenario:<id>` digest covers stimulus, rubric and policy together, so
+      lint's only remedy for any drift is "re-run". Split into `stimulus:` (→ `run`),
+      `rubric:` (→ `grade`, judge-only), `policy:` (→ `rescore`, free) and `gates:`
+      (→ `regate`, free + judge-on-flip), each lint message naming its cheapest
+      honest remedy. `regate` re-evaluates needle gates against the saved `.diff.txt`
+      artifacts: measured at **9 judge calls instead of 81 rep-executions** for the
+      C2 needle fix. Migration is half-built already — `currentHashFor` returns
+      undefined for unknown prefixed keys, so new kinds degrade silently on old
+      readers.
+- [ ] **Item 3 — workspace hygiene**: `git add -A` in `runSeeded` stages vitest's
+      `node_modules/.vite` cache into the captured diff. No gate in the corpus was
+      affected, but the channel is live both ways (a needle matching a test filename
+      passes for free; `diff_excludes` can false-fail on a path string) and it pads
+      every diff the judge reads. Fix at workspace materialization: append
+      `node_modules/` to `<repo>/.git/info/exclude` — invisible to the model, applies
+      to every git call, fixtures unchanged.
+- [ ] **Item 4.3 — downgrade tripwire**: `run`/`grade`/`lint` compare their own
+      version against the newest `harness_version` in the tree they touch. Older tool
+      + newer records ⇒ `run` refuses, `grade`/`lint` warn loudly. Inert until fresh
+      runs carry the field, like `source_hashes` was. Measured near-miss it kills: a
+      stale global **0.1.0** would have spent ~102 rep-executions grading without the
+      diff — the exact defect being re-measured — and every number would have looked
+      plausible.
+
 ## PHASE 2 — Launch & first 100 fans (weeks 5–10)
 
 **Goal:** exist in the heads of everyone who writes skills.

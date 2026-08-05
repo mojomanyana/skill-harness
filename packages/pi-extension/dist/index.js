@@ -2909,6 +2909,11 @@ function score(verdicts, input) {
   return { passed, total, pct, letter, ship, criticalFails, bSeriesFails, suspectCount, note };
 }
 
+// packages/core/dist/version.js
+import { createRequire } from "node:module";
+var require2 = createRequire(import.meta.url);
+var HARNESS_VERSION = require2("../package.json").version;
+
 // packages/core/dist/results.js
 function effectiveThreshold(prevScenario, scenario) {
   return prevScenario?.pass_threshold ?? scenario.passThreshold ?? 0.5;
@@ -2945,6 +2950,10 @@ function finalizeResults(draft, ctx) {
   }
   return {
     schema: 2,
+    // Stamped here, the single place every writer passes through, so `run`,
+    // `grade`, `rescore` and the review UI's override save all record which tool
+    // produced the record they leave behind.
+    harness_version: HARNESS_VERSION,
     skill: draft.skill,
     harness: draft.harness,
     model: draft.model,
@@ -4066,6 +4075,12 @@ function collectTrends(skillDir, limit = 20) {
 import { existsSync as existsSync11, statSync as statSync6, readdirSync as readdirSync8, readFileSync as readFileSync6 } from "node:fs";
 import { basename, dirname as dirname2, isAbsolute as isAbsolute4, join as join13, resolve as resolve5 } from "node:path";
 
+// packages/core/dist/defaults.js
+var BAKED_DEFAULT_JUDGE = "claude-code:claude-opus-4-8";
+function defaultJudge() {
+  return readEnv("JUDGE") ?? BAKED_DEFAULT_JUDGE;
+}
+
 // packages/adapters/dist/pi.js
 import { mkdtempSync as mkdtempSync2, readFileSync as readFileSync7 } from "node:fs";
 import { tmpdir as tmpdir2 } from "node:os";
@@ -4424,13 +4439,12 @@ function resolveSkillDir(cwd, arg) {
   throw new Error(`no tests/specification.yaml found from ${cwd} upward`);
 }
 var DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
-var DEFAULT_JUDGE = "anthropic:claude-opus-4-8";
 async function runViaExtension(opts) {
   const specPath = join16(opts.skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const modelToken = opts.model ?? DEFAULT_MODEL;
   const model = parseModelRef(modelToken);
-  const judge = parseModelRef(opts.judge ?? DEFAULT_JUDGE);
+  const judge = parseModelRef(opts.judge ?? defaultJudge());
   const adapter = opts.adapter ?? getAdapter("pi");
   const mode = opts.mode ?? "green";
   const summary = await runSkillModel({
@@ -4515,7 +4529,7 @@ ${card.failedTranscripts.join("\n")}`);
     const testsDir = dirname5(dirname5(dirname5(runDir)));
     const spec = loadSpec(join17(testsDir, "specification.yaml"));
     const prev = existsSync14(join17(runDir, "results.yaml")) ? readResults(runDir) : null;
-    const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? { provider: "anthropic", model: "claude-opus-4-8" };
+    const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? parseModelRef(defaultJudge());
     const results = await regradeRun({
       runDir,
       spec,

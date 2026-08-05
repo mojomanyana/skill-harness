@@ -186,7 +186,14 @@ skill-harness lint   <skill|all> --skills <root>               # validate specs/
 ```
 
 **Defaults:** subject model `fireworks:accounts/fireworks/models/deepseek-v4-pro` ·
-judge `anthropic:claude-opus-4-8` · mode `green` · harness `pi`.
+judge `claude-code:claude-opus-4-8` · mode `green` · harness `pi`.
+
+The judge default is Opus **on your Claude subscription** (`claude-code` shells out to
+`claude -p`, OAuth), not a metered API key — a default must not be able to spend money
+nobody asked for. `--judge anthropic:claude-opus-4-8` opts into the metered API, whose
+rate limits a large `--reps` run may need; `SKILL_HARNESS_JUDGE` sets it once for a
+repo or a shell. `skill-harness --version` prints the running version, and every run
+banner and `results.yaml` now records it.
 
 ### Worked example — a real skills repo, graded in public
 
@@ -382,9 +389,11 @@ Seeded scenarios automatically use their `fixture:` setting.
   because holding the line is the discipline that matters most).
 - **Judge ≠ subject.** The judge model must differ from the model under test —
   same-family grading inflates scores. `skill-harness` warns loudly when the judge
-  resembles a subject model. (The default judge runs through pi's `anthropic`
-  provider precisely so it stays distinct from a Fireworks subject.)
-- **Judge provider:** `claude-code:<model>` routes grading through the local claude CLI (Claude subscription OAuth) instead of a metered API key.
+  resembles a subject model. (The default judge is Claude, precisely so it stays
+  distinct from a Fireworks subject.)
+- **Judge provider:** `claude-code:<model>` — the default — routes grading through the
+  local `claude` CLI on a Claude subscription (OAuth). `anthropic:<model>` uses a
+  metered API key instead: higher rate limits, real per-token cost.
 - **Weak/stochastic models lie on a single run.** Re-run noisy critical scenarios
   before trusting a delta.
 

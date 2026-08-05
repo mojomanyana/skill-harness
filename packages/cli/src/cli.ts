@@ -15,12 +15,16 @@ import {
   rescoreRun,
   specPathForRunDir,
   collectLift,
+  HARNESS_VERSION,
+  defaultJudge,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
 
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
-const DEFAULT_JUDGE = "anthropic:claude-opus-4-8";
+// The judge default lives in core (`defaultJudge()`), which resolves
+// SKILL_HARNESS_JUDGE over a baked value — it was duplicated in three places
+// before, and the pi extension's copy could disagree with this one.
 const DEFAULT_SUGGEST_MODEL = "claude-code:claude-opus-4-8";
 
 export interface Args {
@@ -137,7 +141,7 @@ async function cmdRun(args: Args): Promise<void> {
   if (!(await adapter.available())) throw new Error(`harness \`${harnessName}\` is not on PATH`);
 
   const mode = (flagStr(args, "mode", "green") as "red" | "green" | "force") || "green";
-  const judge = parseModelRef(flagStr(args, "judge", DEFAULT_JUDGE)!);
+  const judge = parseModelRef(flagStr(args, "judge", defaultJudge())!);
   const label = flagStr(args, "label") || null;
   const parallel = Math.max(1, Number(flagStr(args, "parallel", "1")) || 1);
   const { reps, passThreshold } = parseRunTuning(args);
@@ -159,7 +163,10 @@ async function cmdRun(args: Args): Promise<void> {
     const spec = loadSpec(skill.specPath);
     for (const token of modelTokens) {
       const model = parseModelRef(token);
-      console.log(`\n▶ ${spec.skill} · ${harnessName}:${token} · mode=${mode} · judge=${judge.provider}:${judge.model}`);
+      // The version is on the banner because a stale global install is otherwise
+      // invisible: a 0.1.0 binary grades a 0.3.x corpus, produces plausible
+      // numbers, and nothing on screen says which tool made them.
+      console.log(`\n▶ ${spec.skill} · ${harnessName}:${token} · mode=${mode} · judge=${judge.provider}:${judge.model} · skill-harness ${HARNESS_VERSION}`);
       const summary = await runSkillModel({
         spec,
         skillDir: skill.dir,
@@ -206,7 +213,7 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
   // an explicit --judge flag still wins; with no prior results, fall back to
   // the CLI default.
   const judgeFlag = flagStr(args, "judge");
-  const judge = judgeFlag ? parseModelRef(judgeFlag) : (prev?.judge ?? parseModelRef(DEFAULT_JUDGE));
+  const judge = judgeFlag ? parseModelRef(judgeFlag) : (prev?.judge ?? parseModelRef(defaultJudge()));
   const adapter = adapterOverride ?? getAdapter(prev?.harness ?? "pi");
 
   const results = await regradeRun({
@@ -421,7 +428,16 @@ export async function cmdLint(args: Args): Promise<void> {
 
 // ---------------------------------------------------------------- dispatch
 
-const HELP = `skill-harness — test/optimize loop for agent skills (pi harness)
+/**
+ * The help text, rendered per call rather than frozen at module load.
+ *
+ * The `defaults:` line reports the judge that the *next* command will actually
+ * use, which `SKILL_HARNESS_JUDGE` can change after this module was imported. A
+ * help screen that prints a default the tool won't use is worse than one that
+ * prints none.
+ */
+export function help(): string {
+  return `skill-harness ${HARNESS_VERSION} — test/optimize loop for agent skills (pi harness)
 
   run    <skill|all> --skills <root> [--model prov:model ...] [--models file] [--only A1,D2]
                      [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
@@ -434,7 +450,12 @@ const HELP = `skill-harness — test/optimize loop for agent skills (pi harness)
   list   --skills <root>                        discovered skills + spec status
   lint   <skill|all> --skills <root>           validate specs/fixtures + results-consistency (CI gate; exits non-zero on findings)
 
-defaults: model=${DEFAULT_MODEL}  judge=${DEFAULT_JUDGE}  mode=green  harness=pi`;
+  version  print ${HARNESS_VERSION} and exit (also --version / -v)
+
+defaults: model=${DEFAULT_MODEL}  judge=${defaultJudge()}  mode=green  harness=pi
+  the judge default is Opus on your Claude subscription (\`claude-code\` → \`claude -p\`), not a
+  metered API key. Set SKILL_HARNESS_JUDGE to change it for a repo or a shell; --judge wins over both.`;
+}
 
 export async function main(argv: string[]): Promise<void> {
   const cmd = argv[0];
@@ -449,15 +470,22 @@ export async function main(argv: string[]): Promise<void> {
     case "suggest": return cmdSuggest(args);
     case "list": return cmdList(args);
     case "lint": return cmdLint(args);
+    case "version":
+    case "--version":
+    case "-v":
+      // Bare version, one line, nothing else: this is what a script or a confused
+      // user greps to find out whether the binary on PATH is the one they think.
+      console.log(HARNESS_VERSION);
+      return;
     case undefined:
     case "help":
     case "--help":
     case "-h":
-      console.log(HELP);
+      console.log(help());
       return;
     default:
       console.error(`unknown command: ${cmd}\n`);
-      console.log(HELP);
+      console.log(help());
       process.exitCode = 1;
   }
 }

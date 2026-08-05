@@ -196,10 +196,21 @@ is true, and the docs tell consumers to pin a release tag when they want to
 choose *when* new checks land.
 
 Consumers that pin need their pin bumped as part of the release
-(`.github/workflows/ci.yml`, the `ref:` on the skill-harness checkout). Consumers
-tracking `@latest` — `principal-pi-skills` as of 0.3.0 — need nothing, but the
-release reaches their CI the moment the tag moves, so **push the tag when you are
-ready for that gate to change**, not mid-flight on unrelated work.
+(`.github/workflows/ci.yml`, the `ref:` on the skill-harness checkout).
+`principal-pi-skills` **is** that case, and deliberately: its CI checks out
+`ref: v0.3.0` at an exact pin, so a red build there means the skills changed rather
+than the harness underneath them. Moving `latest` reaches its CI not at all — the
+owner bumps the pin as its own commit, per release, and re-runs the affected skills
+in the same PR.
+
+Corrected 2026-08-05: `88c8ccd` and the 0.3.1 notes called that repo an `@latest`
+tracker. It never was, on either surface — its workflow pins, and its `package.json`
+contains no skill-harness reference at all. The pin-vs-latest *guidance* those commits
+added is right and stays; only the example was wrong.
+
+For a repo that genuinely tracks `@latest`, the release reaches CI the moment the tag
+moves, so **push the tag when you are ready for that gate to change**, not mid-flight
+on unrelated work.
 
 Either way, re-run the skills whose results the new version invalidates: a
 release that changes what a gate measures leaves the committed scorecard
