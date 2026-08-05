@@ -4081,6 +4081,27 @@ function defaultJudge() {
   return readEnv("JUDGE") ?? BAKED_DEFAULT_JUDGE;
 }
 
+// packages/core/dist/judge-policy.js
+var FREE_JUDGE_PROVIDERS = /* @__PURE__ */ new Set(["claude-code", "ollama", "lmstudio", "llamacpp", "local"]);
+function isMeteredJudge(judge) {
+  return !FREE_JUDGE_PROVIDERS.has(judge.provider);
+}
+function allowMeteredJudge() {
+  return envFlag("ALLOW_METERED_JUDGE");
+}
+function assertJudgeAllowed(judge, opts) {
+  if (!isMeteredJudge(judge))
+    return;
+  if (opts.allowMetered || allowMeteredJudge())
+    return;
+  const token = `${judge.provider}:${judge.model}`;
+  throw new Error(`refusing to judge with ${token}: \`${judge.provider}\` bills a per-token API key, and it came from ${opts.source}.
+  Judging is meant to cost nothing you did not ask for.
+  \u2022 judge on your Claude subscription instead:  --judge ${BAKED_DEFAULT_JUDGE}
+  \u2022 allow the metered API for this command:     --allow-metered-judge
+  \u2022 allow it for this repo or shell:            export SKILL_HARNESS_ALLOW_METERED_JUDGE=1`);
+}
+
 // packages/adapters/dist/pi.js
 import { mkdtempSync as mkdtempSync2, readFileSync as readFileSync7 } from "node:fs";
 import { tmpdir as tmpdir2 } from "node:os";
@@ -4445,6 +4466,9 @@ async function runViaExtension(opts) {
   const modelToken = opts.model ?? DEFAULT_MODEL;
   const model = parseModelRef(modelToken);
   const judge = parseModelRef(opts.judge ?? defaultJudge());
+  assertJudgeAllowed(judge, {
+    source: opts.judge ? "the judge argument" : "the default judge (SKILL_HARNESS_JUDGE or the baked value)"
+  });
   const adapter = opts.adapter ?? getAdapter("pi");
   const mode = opts.mode ?? "green";
   const summary = await runSkillModel({
@@ -4530,6 +4554,9 @@ ${card.failedTranscripts.join("\n")}`);
     const spec = loadSpec(join17(testsDir, "specification.yaml"));
     const prev = existsSync14(join17(runDir, "results.yaml")) ? readResults(runDir) : null;
     const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? parseModelRef(defaultJudge());
+    assertJudgeAllowed(judge, {
+      source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge"
+    });
     const results = await regradeRun({
       runDir,
       spec,

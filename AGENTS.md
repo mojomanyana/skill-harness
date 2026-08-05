@@ -33,6 +33,8 @@ suggest <skill> --skills root [--model prov:model] [--force]  LLM-draft a spec f
 
 Defaults: subject `fireworks:accounts/fireworks/models/deepseek-v4-pro` · judge `claude-code:claude-opus-4-8` · mode `green` · harness `pi`. `SKILL_HARNESS_JUDGE` overrides the judge default for a repo or a shell; `--judge` beats both.
 
+**A metered judge is refused, not warned about.** `run` and `grade` fail fast — before any subject tokens are spent — if the judge would bill a per-token API, no matter where it came from (`--judge`, `SKILL_HARNESS_JUDGE`, or the judge a run recorded, which `grade` reuses by default). Opt in deliberately with `--allow-metered-judge`, or `SKILL_HARNESS_ALLOW_METERED_JUDGE=1` for a repo/shell. Non-billing providers are allow-listed: `claude-code` (Claude subscription) and local runtimes (`ollama`, `lmstudio`, `llamacpp`, `local`). Anything else — including a provider nobody has classified — is assumed to charge. This applies to the **judge only**: paying to run the model under test is what a run is.
+
 `skill-harness --version` (or `-v`) prints the running version — check it before trusting numbers from a global install, and note that every run banner and `results.yaml` records `harness_version`.
 
 **Cost split an agent must respect:** `init`/`lint`/`list` are free static/offline commands (safe to run anytime, ideal for CI). `run`, `grade`, and `suggest` spend model tokens and need provider creds — **confirm the skill, model(s), and judge with the user before running any of them.** (`suggest` and the default judge both run on `claude-code:claude-opus-4-8`: no metered key, but they do spend the user's subscription. A `--judge anthropic:…` run bills an API key — say so before running it.)

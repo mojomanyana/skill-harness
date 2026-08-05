@@ -25,6 +25,27 @@ key. The API path is still there — `--judge anthropic:claude-opus-4-8` — bec
 API key has rate limits a large `--reps` run actually needs. But it is now something
 you *ask for*.
 
+Changing a default is not the same as closing the hole, though, and I nearly stopped
+at the default. Three paths still reached a metered API: `--judge anthropic:…`, an
+env var set or mistyped to a metered provider, and — the interesting one — `grade`,
+which re-judges with the judge the run *recorded*. A `results.yaml` naming a metered
+judge spends on every later regrade with no flag typed by anyone. So the tool now
+**refuses** a metered judge outright unless you opt in per command
+(`--allow-metered-judge`) or per repo (`SKILL_HARNESS_ALLOW_METERED_JUDGE`). A
+warning would have been the wrong shape: it scrolls past inside a run's progress
+output, and by then the money is spent.
+
+The allow-list is providers that *cannot* bill (`claude-code`, plus local runtimes
+like `ollama`) rather than a deny-list of known-paid ones, because an unclassified
+provider should be assumed to charge. Being wrong in that direction costs one extra
+flag; being wrong in the other direction costs money.
+
+One honest note on scope, since it is the kind of claim that would have made a better
+story than the truth: I assumed the regrade path was live in my own corpus and went
+to check. All ~140 committed `results.yaml` there record `claude-code` — the metered
+default was reachable and never actually taken. The guard is for the paths that
+remain, not for an archive that was already safe.
+
 The principle I'd extract: **a default may not be able to spend money.** If the
 convenient path costs, make the costing path explicit and leave the default on the
 account the user already pays for.

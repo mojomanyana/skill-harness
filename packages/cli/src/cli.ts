@@ -17,6 +17,7 @@ import {
   collectLift,
   HARNESS_VERSION,
   defaultJudge,
+  assertJudgeAllowed,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
@@ -68,6 +69,12 @@ export function flagStr(args: Args, key: string, fallback?: string): string | un
   if (typeof v === "string") return v;
   if (v === true) return "";
   return fallback;
+}
+
+/** A boolean flag: bare `--flag`, or an explicit `--flag=true` / `--flag=1`. */
+export function flagBool(args: Args, key: string): boolean {
+  const v = args.flags[key];
+  return v === true || v === "true" || v === "1";
 }
 
 function resolveModels(args: Args): string[] {
@@ -131,17 +138,26 @@ async function cmdList(args: Args): Promise<void> {
   console.log(`\n● = testable · ○ = no spec yet · ✗ = spec present but invalid`);
 }
 
-async function cmdRun(args: Args): Promise<void> {
+export async function cmdRun(args: Args): Promise<void> {
   const root = flagStr(args, "skills", process.cwd())!;
   const target = args._[0];
   if (!target) throw new Error("usage: skill-harness run <skill|all> --skills <root>");
+
+  // Judge policy is checked first, ahead of the harness/PATH check and long before
+  // any subject tokens are spent: a refusal that arrives after the model has been
+  // paid for is a worse version of the problem it exists to prevent.
+  const judgeFlagRun = flagStr(args, "judge");
+  const judge = parseModelRef(judgeFlagRun ?? defaultJudge());
+  assertJudgeAllowed(judge, {
+    source: judgeFlagRun ? "--judge" : "the default judge (SKILL_HARNESS_JUDGE or the baked value)",
+    allowMetered: flagBool(args, "allow-metered-judge"),
+  });
 
   const harnessName = flagStr(args, "harness", "pi")!;
   const adapter = getAdapter(harnessName);
   if (!(await adapter.available())) throw new Error(`harness \`${harnessName}\` is not on PATH`);
 
   const mode = (flagStr(args, "mode", "green") as "red" | "green" | "force") || "green";
-  const judge = parseModelRef(flagStr(args, "judge", defaultJudge())!);
   const label = flagStr(args, "label") || null;
   const parallel = Math.max(1, Number(flagStr(args, "parallel", "1")) || 1);
   const { reps, passThreshold } = parseRunTuning(args);
@@ -214,11 +230,19 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
   // the CLI default.
   const judgeFlag = flagStr(args, "judge");
   const judge = judgeFlag ? parseModelRef(judgeFlag) : (prev?.judge ?? parseModelRef(defaultJudge()));
+  // A regrade reuses the judge the run RECORDED, so a run that names a metered judge
+  // bills on every later regrade with no flag typed anywhere. Latent rather than live
+  // in the reference corpus (all ~140 committed runs there record `claude-code`), but
+  // it is the one path where the cost decision was made by a file, not a person.
+  assertJudgeAllowed(judge, {
+    source: judgeFlag ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge",
+    allowMetered: flagBool(args, "allow-metered-judge"),
+  });
   const adapter = adapterOverride ?? getAdapter(prev?.harness ?? "pi");
 
   const results = await regradeRun({
     runDir, spec, adapter, judge, specDir: testsDir, now: nowIso,
-    onlySuspect: args.flags["suspect-only"] === true || args.flags["suspect-only"] === "true",
+    onlySuspect: flagBool(args, "suspect-only"),
   });
   for (const s of results.scenarios) {
     console.log(`  ${s.id} → ${s.judge_verdict}: ${s.judge_reason}`);

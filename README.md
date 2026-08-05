@@ -190,9 +190,13 @@ judge `claude-code:claude-opus-4-8` · mode `green` · harness `pi`.
 
 The judge default is Opus **on your Claude subscription** (`claude-code` shells out to
 `claude -p`, OAuth), not a metered API key — a default must not be able to spend money
-nobody asked for. `--judge anthropic:claude-opus-4-8` opts into the metered API, whose
-rate limits a large `--reps` run may need; `SKILL_HARNESS_JUDGE` sets it once for a
-repo or a shell. `skill-harness --version` prints the running version, and every run
+nobody asked for. Stronger than a default: a metered judge is **refused** unless you
+say so, whether it arrived via `--judge`, via `SKILL_HARNESS_JUDGE`, or from the judge
+a run recorded (which `grade` reuses). Opt in per command with `--allow-metered-judge`
+or per repo with `SKILL_HARNESS_ALLOW_METERED_JUDGE=1` — an API key's rate limits are
+worth having for a large `--reps` run, but you choose it. Free providers are
+allow-listed (`claude-code` and local runtimes like `ollama`); anything unclassified is
+assumed to bill. `skill-harness --version` prints the running version, and every run
 banner and `results.yaml` now records it.
 
 ### Worked example — a real skills repo, graded in public

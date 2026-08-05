@@ -67,7 +67,8 @@ Runs every scenario on `pi` (skill active in `green` mode), grades each transcri
 ```bash
 node bin/skill-harness.js run golden-skill --skills packages/core/test/fixtures \
   --model fireworks:accounts/fireworks/models/deepseek-v4-pro \
-  --judge claude-code:opus            # judge on the Claude subscription (no metered key)
+  --judge claude-code:opus            # judge on the Claude subscription (no metered key) — the default
+  --judge anthropic:claude-opus-4-8 --allow-metered-judge   # deliberately use a metered API key
 ```
 
 - `--model prov:model` repeats for multi-model comparison (or `--models <file>`).

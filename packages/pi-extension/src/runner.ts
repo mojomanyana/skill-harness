@@ -7,6 +7,7 @@ import {
   findTranscriptFiles,
   parseModelRef,
   defaultJudge,
+  assertJudgeAllowed,
   type HarnessAdapter,
   type Verdict,
 } from "@skill-harness/core";
@@ -63,6 +64,9 @@ export async function runViaExtension(opts: {
   const modelToken = opts.model ?? DEFAULT_MODEL;
   const model = parseModelRef(modelToken);
   const judge = parseModelRef(opts.judge ?? defaultJudge());
+  assertJudgeAllowed(judge, {
+    source: opts.judge ? "the judge argument" : "the default judge (SKILL_HARNESS_JUDGE or the baked value)",
+  });
   const adapter = opts.adapter ?? getAdapter("pi");
   const mode = opts.mode ?? "green";
   const summary = await runSkillModel({

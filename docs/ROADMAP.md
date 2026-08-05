@@ -221,6 +221,22 @@ make truth cheap to restore.
         on the run banner, and `harness_version` stamped by `finalizeResults` — the
         one funnel every writer passes through, so `run`/`grade`/`rescore`/override
         all record provenance. Older runs carry none and are never retro-labelled.
+      - **Beyond the work order, at the user's request (2026-08-05):** a metered judge
+        is now *refused*, not merely un-defaulted. `assertJudgeAllowed` gates `run` and
+        `grade` in both the CLI and the extension, whatever the judge's origin —
+        `--judge`, `SKILL_HARNESS_JUDGE`, or the judge a run recorded (which `grade`
+        reuses). Opt-in is explicit: `--allow-metered-judge` per command,
+        `SKILL_HARNESS_ALLOW_METERED_JUDGE` per repo/shell. Allow-list of
+        non-billing providers (`claude-code` + local runtimes), so an unclassified
+        provider is assumed to charge; judge only, since paying for the subject model is
+        what a run *is*. Checked in `run` before the harness/PATH check, so the refusal
+        cannot arrive after tokens are spent.
+      - **Claim corrected while implementing it:** the rationale first written here and
+        in the code said every pre-0.3.3 run recorded the old metered default, so
+        re-grading an archive would bill. False — all ~140 committed `results.yaml` in
+        `principal-pi-skills` record `provider: claude-code` (checked 2026-08-05). The
+        old default was reachable, never taken. The regrade path is latent, and the
+        guard exists for the three paths that remain.
       - Post: `docs/posts/2026-08-05-a-default-that-cannot-bill-you.md`
 - [ ] **Items 1 + 2 — split the staleness identity, and `regate`** (the design change).
       One `scenario:<id>` digest covers stimulus, rubric and policy together, so

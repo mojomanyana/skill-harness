@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { loadSpec, regradeRun, readResults, parseModelRef, defaultJudge, type HarnessAdapter } from "@skill-harness/core";
+import { loadSpec, regradeRun, readResults, parseModelRef, defaultJudge, assertJudgeAllowed, type HarnessAdapter } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview, type ServeHandle } from "@skill-harness/cli/serve";
 import { resolveSkillDir, runViaExtension } from "./runner.js";
@@ -100,6 +100,9 @@ export async function handleSkillCheck(
     // falls back to the default judge.
     const prev = existsSync(join(runDir, "results.yaml")) ? readResults(runDir) : null;
     const judge = flags.judge ? parseModelRef(flags.judge) : (prev?.judge ?? parseModelRef(defaultJudge()));
+    assertJudgeAllowed(judge, {
+      source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge",
+    });
     const results = await regradeRun({
       runDir, spec, adapter: adapter ?? getAdapter(prev?.harness ?? "pi"),
       judge, specDir: testsDir, now: nowIso,
