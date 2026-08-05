@@ -41,6 +41,10 @@ same scenarios across several models and compare them side by side.
 **What makes the numbers trustworthy**, and what an eval platform generally won't
 give you:
 
+- **Remedy-aware staleness** — a published result knows what it measured, split four
+  ways: edit a checklist and lint says *re-grade* (judge only); change a threshold and it
+  says *rescore* (free); fix a `diff_contains` needle and it says *regate* (free, from the
+  saved diffs). Only a changed stimulus costs a re-run.
 - **[Lift](#lift--red-vs-green)** — red vs green, so you find out whether the model
   would have passed without your skill anyway
 - **Judge-misfire quarantine** — a verdict the judge contradicted itself on is
@@ -186,7 +190,18 @@ skill-harness lint   <skill|all> --skills <root>               # validate specs/
 ```
 
 **Defaults:** subject model `fireworks:accounts/fireworks/models/deepseek-v4-pro` ·
-judge `anthropic:claude-opus-4-8` · mode `green` · harness `pi`.
+judge `claude-code:claude-opus-4-8` · mode `green` · harness `pi`.
+
+The judge default is Opus **on your Claude subscription** (`claude-code` shells out to
+`claude -p`, OAuth), not a metered API key — a default must not be able to spend money
+nobody asked for. Stronger than a default: a metered judge is **refused** unless you
+say so, whether it arrived via `--judge`, via `SKILL_HARNESS_JUDGE`, or from the judge
+a run recorded (which `grade` reuses). Opt in per command with `--allow-metered-judge`
+or per repo with `SKILL_HARNESS_ALLOW_METERED_JUDGE=1` — an API key's rate limits are
+worth having for a large `--reps` run, but you choose it. Free providers are
+allow-listed (`claude-code` and local runtimes like `ollama`); anything unclassified is
+assumed to bill. `skill-harness --version` prints the running version, and every run
+banner and `results.yaml` now records it.
 
 ### Worked example — a real skills repo, graded in public
 
@@ -382,9 +397,11 @@ Seeded scenarios automatically use their `fixture:` setting.
   because holding the line is the discipline that matters most).
 - **Judge ≠ subject.** The judge model must differ from the model under test —
   same-family grading inflates scores. `skill-harness` warns loudly when the judge
-  resembles a subject model. (The default judge runs through pi's `anthropic`
-  provider precisely so it stays distinct from a Fireworks subject.)
-- **Judge provider:** `claude-code:<model>` routes grading through the local claude CLI (Claude subscription OAuth) instead of a metered API key.
+  resembles a subject model. (The default judge is Claude, precisely so it stays
+  distinct from a Fireworks subject.)
+- **Judge provider:** `claude-code:<model>` — the default — routes grading through the
+  local `claude` CLI on a Claude subscription (OAuth). `anthropic:<model>` uses a
+  metered API key instead: higher rate limits, real per-token cost.
 - **Weak/stochastic models lie on a single run.** Re-run noisy critical scenarios
   before trusting a delta.
 

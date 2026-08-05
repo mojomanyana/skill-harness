@@ -6,6 +6,8 @@ import {
   effectiveVerdicts,
   findTranscriptFiles,
   parseModelRef,
+  defaultJudge,
+  assertJudgeAllowed,
   type HarnessAdapter,
   type Verdict,
 } from "@skill-harness/core";
@@ -41,9 +43,10 @@ export function resolveSkillDir(cwd: string, arg?: string): string {
   throw new Error(`no tests/specification.yaml found from ${cwd} upward`);
 }
 
-// Keep in sync with cli.ts DEFAULT_MODEL / DEFAULT_JUDGE (cli.ts:15-16).
+// Keep in sync with cli.ts DEFAULT_MODEL. The judge default is NOT duplicated here
+// any more — it comes from core's `defaultJudge()`, so this extension and the CLI
+// cannot drift into billing different providers for the same missing flag.
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
-const DEFAULT_JUDGE = "anthropic:claude-opus-4-8";
 
 export async function runViaExtension(opts: {
   skillDir: string;
@@ -60,7 +63,10 @@ export async function runViaExtension(opts: {
   const spec = loadSpec(specPath);
   const modelToken = opts.model ?? DEFAULT_MODEL;
   const model = parseModelRef(modelToken);
-  const judge = parseModelRef(opts.judge ?? DEFAULT_JUDGE);
+  const judge = parseModelRef(opts.judge ?? defaultJudge());
+  assertJudgeAllowed(judge, {
+    source: opts.judge ? "the judge argument" : "the default judge (SKILL_HARNESS_JUDGE or the baked value)",
+  });
   const adapter = opts.adapter ?? getAdapter("pi");
   const mode = opts.mode ?? "green";
   const summary = await runSkillModel({

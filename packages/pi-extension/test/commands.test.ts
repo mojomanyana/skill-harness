@@ -99,7 +99,10 @@ describe("handleSkillCheck", () => {
       skill: "demo",
       harness: "pi",
       model: "fireworks:accounts/fireworks/models/deepseek-v4-pro",
-      judge: { provider: "fireworks", model: "custom-judge-model" },
+      // The provider is incidental to what this test asserts (which judge gets
+      // *chosen*), but it has to be a non-metered one: a metered judge inherited
+      // from a run's record is refused outright now — see assertJudgeAllowed.
+      judge: { provider: "ollama", model: "custom-judge-model" },
       timestamp: "2026-07-05T00:00:00Z",
       label: null,
       mode: "green",
@@ -110,7 +113,7 @@ describe("handleSkillCheck", () => {
     await handleSkillCheck(`judge ${runDir}`, ctx, { adapter: fakeAdapter });
 
     const results = readResults(runDir);
-    expect(results.judge).toEqual({ provider: "fireworks", model: "custom-judge-model" });
+    expect(results.judge).toEqual({ provider: "ollama", model: "custom-judge-model" });
   });
 
   it("judge honors an explicit --judge flag over the run's recorded judge", async () => {
@@ -122,7 +125,7 @@ describe("handleSkillCheck", () => {
       skill: "demo",
       harness: "pi",
       model: "fireworks:accounts/fireworks/models/deepseek-v4-pro",
-      judge: { provider: "fireworks", model: "custom-judge-model" },
+      judge: { provider: "ollama", model: "custom-judge-model" },
       timestamp: "2026-07-05T00:00:00Z",
       label: null,
       mode: "green",
@@ -130,10 +133,10 @@ describe("handleSkillCheck", () => {
     }, { shipBar: { total: 1, min_pass: 1 }, critical: [] });
     const ctx = fakeCtx(skillDir);
 
-    await handleSkillCheck(`judge ${runDir} --judge fireworks:another-judge-model`, ctx, { adapter: fakeAdapter });
+    await handleSkillCheck(`judge ${runDir} --judge ollama:another-judge-model`, ctx, { adapter: fakeAdapter });
 
     const results = readResults(runDir);
-    expect(results.judge).toEqual({ provider: "fireworks", model: "another-judge-model" });
+    expect(results.judge).toEqual({ provider: "ollama", model: "another-judge-model" });
   });
 
   it("judge resolves a relative run-dir against ctx.cwd, not process.cwd()", async () => {

@@ -1,6 +1,6 @@
 ---
 name: skill-harness
-version: 0.3.2
+version: 0.4.0
 description: >
   Use to test, grade, and optimize an agent skill against a spec. Triggers:
   "test the <skill> skill", "/skill-harness", "run the skill bench", "grade these
@@ -27,7 +27,10 @@ lie on weak/stochastic models; re-run before trusting a delta.
 2. **Confirm the run.** Ask the user: which skill (or `all`), which model(s) under
    test, and the judge. Offer the defaults:
    - subject model: `fireworks:accounts/fireworks/models/deepseek-v4-pro`
-   - judge: `anthropic:claude-opus-4-8` (distinct from the subject)
+   - judge: `claude-code:claude-opus-4-8` (distinct from the subject; runs on the
+     user's Claude subscription, not a metered key). A metered judge is **refused**
+     unless the user opts in with `--allow-metered-judge` — never add that flag on
+     their behalf; ask. `SKILL_HARNESS_JUDGE` sets the default once per repo/shell.
    - mode: `green` (skill active). `red` = baseline contrast; `force` = inject body.
    `--model` repeats for multi-model comparison (or `--models <file>`).
 3. **Run + grade.** `skill-harness run <skill> --skills <root> --model <m> [--model <m2>]

@@ -192,6 +192,98 @@ re-reading the tree against release-1's committed results.
       tree means "nothing provably stale", not "fresh". Fixing that is ~500
       rep-executions of hygiene, and buys detectability rather than corrected numbers
 
+### Sprint 1.4 — Third-pass work order (owner-supplied, 2026-08-05)
+
+Source: `~/prepos/skill-harness-work-order.md`, written against `main = 96de023`
+(0.3.2) by the owner of `principal-pi-skills`, with every item measured against real
+runs there. **North star it states, binding on prioritization:** one principal
+engineer steers while skills and subagents do the work — so the harness's job is
+measurement the engineer never has to second-guess, and a loop cheap enough that a
+found defect gets *fixed* rather than documented around.
+
+Its headline: the 0.3.0 staleness gate is now strong enough that **it charges model
+spend to correct a rubric**, which is pressure to leave known-bad rubrics in place.
+Two branches there are parked on exactly that — 135 rep-executions to restore
+freshness while learning nothing new about the models. **Do not weaken the gate**;
+make truth cheap to restore.
+
+- [x] **Item 5 + 4.1 + 4.2 — record corrections, version identity** (2026-08-05):
+      - The `@latest` claim about `principal-pi-skills` was false on both surfaces —
+        its CI pins `ref: v0.3.0` deliberately, and its `package.json` names the
+        harness nowhere. Corrected in `PUBLISHING.md` and
+        `docs/re-measurement-2026-08-04.md`; that repo *is* the pinning example.
+      - Judge default moved off the metered API to `claude-code:claude-opus-4-8`
+        (Claude subscription, OAuth) — it had billed a corpus once by accident. A
+        default may not be able to spend money. `SKILL_HARNESS_JUDGE` sets policy
+        once per repo/shell; `--judge` still wins; the three duplicated judge
+        defaults collapsed into core's `defaultJudge()`.
+      - `--version` / `-v` / `version` (was `unknown command`, exit 1), the version
+        on the run banner, and `harness_version` stamped by `finalizeResults` — the
+        one funnel every writer passes through, so `run`/`grade`/`rescore`/override
+        all record provenance. Older runs carry none and are never retro-labelled.
+      - **Beyond the work order, at the user's request (2026-08-05):** a metered judge
+        is now *refused*, not merely un-defaulted. `assertJudgeAllowed` gates `run` and
+        `grade` in both the CLI and the extension, whatever the judge's origin —
+        `--judge`, `SKILL_HARNESS_JUDGE`, or the judge a run recorded (which `grade`
+        reuses). Opt-in is explicit: `--allow-metered-judge` per command,
+        `SKILL_HARNESS_ALLOW_METERED_JUDGE` per repo/shell. Allow-list of
+        non-billing providers (`claude-code` + local runtimes), so an unclassified
+        provider is assumed to charge; judge only, since paying for the subject model is
+        what a run *is*. Checked in `run` before the harness/PATH check, so the refusal
+        cannot arrive after tokens are spent.
+      - **Claim corrected while implementing it:** the rationale first written here and
+        in the code said every pre-0.3.3 run recorded the old metered default, so
+        re-grading an archive would bill. False — all ~140 committed `results.yaml` in
+        `principal-pi-skills` record `provider: claude-code` (checked 2026-08-05). The
+        old default was reachable, never taken. The regrade path is latent, and the
+        guard exists for the three paths that remain.
+      - Post: `docs/posts/2026-08-05-a-default-that-cannot-bill-you.md`
+- [x] **Items 1 + 2 — split the staleness identity, and `regate`** (2026-08-05, the
+      design change). `scenario:<id>` hashed stimulus + rubric + policy + gates together,
+      so lint's only remedy for any drift was "re-run" — and correcting a rubric
+      therefore cost model spend. Now four keys, each naming the cheapest honest remedy
+      in the finding itself: `stimulus:` → `run`, `rubric:` (+ `rubric:__persona`) →
+      `grade` (judge-only), `policy:` → `rescore` (free), `gates:` → `regate` (free +
+      one judge call per flipped rep). Strictness unchanged; only the price of getting
+      back to fresh moved.
+      - `facets()` keeps the exhaustive-destructure guard, so a new `Scenario`/
+        `SeededAssert` field fails the build until someone assigns it a bucket — and a
+        wrong bucket is worse than none, since it would promise `rescore` where the
+        transcripts are actually invalid.
+      - `scenarioDigest` is now **read-only and frozen** at the 0.3.x field set: it is a
+        stored-hash format, and every scorecard published before 0.4.0 recorded it.
+        Deleting it would turn "no findings" into "no comparison" for the whole corpus,
+        silently. Legacy keys still resolve; their remedy admits it cannot tell which
+        facet moved.
+      - Refresh rules: `grade` rewrites only the `rubric:` keys it actually judged
+        (`--suspect-only` must not certify the rubrics it skipped) plus the persona;
+        `rescore` rewrites `policy:`; `regate` rewrites `gates:`; `run` rewrites all.
+        `regrade.ts`'s doctrine narrowed from "recorded hashes stay" to "recorded
+        *stimulus* hashes stay".
+      - `regate` reuses `evaluateNeedleGates` (extracted from `runSeeded`, one
+        implementation so a regated verdict cannot disagree with a fresh run) and
+        re-reads a rep's **saved judge-raw artifact** when its gate state did not change
+        — free and exact, instead of re-asking. Only a gate-fail → gate-pass flip costs
+        a judge call; the CLI prints the count. `vitest`/`post_test` scenarios are
+        refused, not half-regated.
+      - Post: `docs/posts/2026-08-05-the-gate-that-charged-you-to-fix-a-typo.md`
+- [x] **Item 3 — workspace hygiene** (2026-08-05). `git add -A` staged vitest's
+      `node_modules/.vite` cache into every captured diff. Fixed at workspace
+      materialization by appending `node_modules/`, `coverage/`, `.vitest/` to
+      `<repo>/.git/info/exclude` — not a worktree file, so it cannot contaminate a
+      scenario *about* `.gitignore`, the model cannot read or delete it, a fixture's own
+      `.gitignore` stays byte-identical, and it applies to every git call rather than the
+      ones someone remembered to annotate. Written before the baseline `add -A`, so a
+      fixture shipping a stray `node_modules/` does not commit it either.
+- [x] **Item 4.3 — downgrade tripwire** (2026-08-05). `newestRecordedVersion` scans a
+      results tree for the highest `harness_version`; `run` refuses when that exceeds the
+      running version (its numbers would not be comparable), while `grade` warns and
+      `lint` reports a `consistency` finding — both are how someone diagnoses this, and
+      blocking the diagnosis is the wrong trade. Version comparison is numeric per
+      component, because `"0.10.0" < "0.9.0"` lexically would fire the tripwire backwards
+      exactly once, on the release where it mattered. Inert on pre-0.3.3 trees, which
+      record no version and are never retro-labelled.
+
 ## PHASE 2 — Launch & first 100 fans (weeks 5–10)
 
 **Goal:** exist in the heads of everyone who writes skills.

@@ -29,7 +29,7 @@ headroom, and a slower model or a bigger spec still leaves room.
 
 > Everything in this section was true when measured on 2026-08-04 and is kept as the
 > record of why publishing was urgent. It is **no longer the case**: 0.2.1, 0.3.0 and
-> 0.3.1 have all shipped, `latest` serves **0.3.1**, and a fresh
+> 0.3.1 and 0.3.2 have all shipped, `latest` serves **0.3.2** (2026-08-05), and a fresh
 > `npm i -g skill-harness` was verified to carry `init`, `suggest` and `lint`. Both
 > the clone path and the npm path onboard now.
 

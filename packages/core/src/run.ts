@@ -125,7 +125,7 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     ...(partial ? { partial: true } : {}),
     // Only the scenarios this run actually measured: a --only run must not claim
     // coverage of scenarios it skipped.
-    source_hashes: sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios }),
+    source_hashes: sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios, judgePersona: spec.judge_persona }),
     scenarios: scenarioResults,
   }, ctx);
   if (ctx) {

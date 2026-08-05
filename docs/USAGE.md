@@ -67,7 +67,8 @@ Runs every scenario on `pi` (skill active in `green` mode), grades each transcri
 ```bash
 node bin/skill-harness.js run golden-skill --skills packages/core/test/fixtures \
   --model fireworks:accounts/fireworks/models/deepseek-v4-pro \
-  --judge claude-code:opus            # judge on the Claude subscription (no metered key)
+  --judge claude-code:opus            # judge on the Claude subscription (no metered key) — the default
+  --judge anthropic:claude-opus-4-8 --allow-metered-judge   # deliberately use a metered API key
 ```
 
 - `--model prov:model` repeats for multi-model comparison (or `--models <file>`).
@@ -106,6 +107,76 @@ The green scorecard then ends with a `LIFT:` line, and the review UI shows it pe
 ```
 
 Lift is computed from whatever runs are on disk, so a baseline recorded weeks ago still counts, and it needs no re-run to appear. Only scenarios present in **both** runs are compared. With no red run at all, the report says `no red baseline` rather than showing a zero — "not measured" and "measured no effect" are different claims, and a baseline that exists but cannot be used is a third (`lift not comparable`).
+
+## 4c. Staleness — and the cheapest honest way back
+
+Every run records a sha256 of what it measured, and `lint` compares those against the
+current sources. What changed decides **which command restores freshness**, and only one
+of the four costs model tokens:
+
+| what drifted | recorded as | remedy | cost |
+|---|---|---|---|
+| turns, mode, fixture path, `assert.vitest`, agent file, `SKILL.md`, fixture contents | `stimulus:<id>` (+ path keys) | `run` | subject + judge |
+| a checklist item, a title, `judge_persona` | `rubric:<id>`, `rubric:__persona` | `grade <run-dir>` | judge only |
+| `critical`, `reps`, `pass_threshold` | `policy:<id>` | `rescore <run-dir>` | free, offline |
+| a `diff_contains` / `diff_excludes` needle | `gates:<id>` | `regate <run-dir>` | free + one judge call per flipped rep |
+
+The lint message names the remedy, so you never have to work it out:
+
+```
+✗ golden/A1: stale — the rubric for `A1` changed since the newest pi-deepseek run
+  (…) — results are stale; re-grade from the saved transcripts (`grade <run-dir>`)
+  — judge-only, no model spend
+```
+
+Before this split, every one of those said "re-run" — which meant correcting a one-word
+checklist mistake cost a full model pass, and that is pressure to leave a known-bad
+rubric in place. The gate is exactly as strict as it was; only the price of getting back
+to fresh changed.
+
+### `regate` — fix a needle without re-running anything
+
+`diff_contains` / `diff_excludes` are pure functions of the staged diff, and every seeded
+rep saves its diff as an artifact. So a wrong needle is answerable from what is already
+on disk:
+
+```bash
+skill-harness regate tests/results/pi-deepseek-v4-pro/2026-08-05T…
+```
+
+Per rep, one of four things happens — and only the last one costs anything:
+
+- gate still fails → `FAIL` with the corrected reason (free)
+- gate now fails where it passed → `FAIL`, no judge call (the gate is objective)
+- gate passed before and still passes → the rep's saved judgement is re-read from its
+  judge-raw artifact (free, and exact — it does not re-ask)
+- gate blocked the rep before and now passes → judged now, because no judgement of that
+  rep exists anywhere (one judge call)
+
+Measured on a real needle fix: **9 judge calls instead of 81 rep-executions across three
+models.** The command prints the judge-call count, so a "free" operation never spends
+silently.
+
+**Limits.** `assert.vitest` and `assert.post_test` need the workspace and cannot be
+re-evaluated from any artifact — a scenario carrying either needs a `run`, and `regate`
+says so rather than half-working. Diff and judge-raw artifacts are gitignored, so regate
+works wherever the run dirs live (the machine that ran it, or CI that just did).
+
+The regenerated `=== SEEDED GATES ===` trailer is harness-generated annotation appended
+after the model's turns, not model output; the pre-regate transcript is kept beside it as
+`…​.pre-regate.txt` so the audit trail does not rest on that distinction.
+
+## 4d. Which harness produced a number
+
+`results.yaml` records `harness_version`, and the run banner and `--version` both print
+it. `schema` cannot answer this: 0.2.1 → 0.3.0 kept `schema: 2` while changing what a
+verdict *means*.
+
+That enables a tripwire. If a results tree holds records written by a **newer**
+skill-harness than the one you are running, `run` refuses (its numbers would not be
+comparable) while `grade` and `lint` warn and continue — they are how you diagnose it. A
+stale global install is otherwise invisible: a 0.1.0 binary grading a 0.3.x corpus
+produces entirely plausible numbers.
 
 ## 5. Review — flip verdicts, read transcripts
 

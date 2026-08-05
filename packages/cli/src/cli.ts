@@ -13,14 +13,22 @@ import {
   type HarnessAdapter,
   renderTemplateSpec, isTemplateSpec, renderDraftSpec, buildSuggestPrompt, parseSuggestDraft,
   rescoreRun,
+  regateRun,
   specPathForRunDir,
   collectLift,
+  HARNESS_VERSION,
+  defaultJudge,
+  assertJudgeAllowed,
+  assertNotDowngraded,
+  downgradeWarning,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
 
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
-const DEFAULT_JUDGE = "anthropic:claude-opus-4-8";
+// The judge default lives in core (`defaultJudge()`), which resolves
+// SKILL_HARNESS_JUDGE over a baked value — it was duplicated in three places
+// before, and the pi extension's copy could disagree with this one.
 const DEFAULT_SUGGEST_MODEL = "claude-code:claude-opus-4-8";
 
 export interface Args {
@@ -64,6 +72,12 @@ export function flagStr(args: Args, key: string, fallback?: string): string | un
   if (typeof v === "string") return v;
   if (v === true) return "";
   return fallback;
+}
+
+/** A boolean flag: bare `--flag`, or an explicit `--flag=true` / `--flag=1`. */
+export function flagBool(args: Args, key: string): boolean {
+  const v = args.flags[key];
+  return v === true || v === "true" || v === "1";
 }
 
 function resolveModels(args: Args): string[] {
@@ -127,17 +141,26 @@ async function cmdList(args: Args): Promise<void> {
   console.log(`\n● = testable · ○ = no spec yet · ✗ = spec present but invalid`);
 }
 
-async function cmdRun(args: Args): Promise<void> {
+export async function cmdRun(args: Args): Promise<void> {
   const root = flagStr(args, "skills", process.cwd())!;
   const target = args._[0];
   if (!target) throw new Error("usage: skill-harness run <skill|all> --skills <root>");
+
+  // Judge policy is checked first, ahead of the harness/PATH check and long before
+  // any subject tokens are spent: a refusal that arrives after the model has been
+  // paid for is a worse version of the problem it exists to prevent.
+  const judgeFlagRun = flagStr(args, "judge");
+  const judge = parseModelRef(judgeFlagRun ?? defaultJudge());
+  assertJudgeAllowed(judge, {
+    source: judgeFlagRun ? "--judge" : "the default judge (SKILL_HARNESS_JUDGE or the baked value)",
+    allowMetered: flagBool(args, "allow-metered-judge"),
+  });
 
   const harnessName = flagStr(args, "harness", "pi")!;
   const adapter = getAdapter(harnessName);
   if (!(await adapter.available())) throw new Error(`harness \`${harnessName}\` is not on PATH`);
 
   const mode = (flagStr(args, "mode", "green") as "red" | "green" | "force") || "green";
-  const judge = parseModelRef(flagStr(args, "judge", DEFAULT_JUDGE)!);
   const label = flagStr(args, "label") || null;
   const parallel = Math.max(1, Number(flagStr(args, "parallel", "1")) || 1);
   const { reps, passThreshold } = parseRunTuning(args);
@@ -156,10 +179,16 @@ async function cmdRun(args: Args): Promise<void> {
       console.log(`skip ${skill.name}: no spec`);
       continue;
     }
+    // A run from an older tool than the records already here would produce numbers
+    // that look comparable and are not. Checked per skill, before its first token.
+    assertNotDowngraded(skill.dir, "run");
     const spec = loadSpec(skill.specPath);
     for (const token of modelTokens) {
       const model = parseModelRef(token);
-      console.log(`\n▶ ${spec.skill} · ${harnessName}:${token} · mode=${mode} · judge=${judge.provider}:${judge.model}`);
+      // The version is on the banner because a stale global install is otherwise
+      // invisible: a 0.1.0 binary grades a 0.3.x corpus, produces plausible
+      // numbers, and nothing on screen says which tool made them.
+      console.log(`\n▶ ${spec.skill} · ${harnessName}:${token} · mode=${mode} · judge=${judge.provider}:${judge.model} · skill-harness ${HARNESS_VERSION}`);
       const summary = await runSkillModel({
         spec,
         skillDir: skill.dir,
@@ -206,12 +235,26 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
   // an explicit --judge flag still wins; with no prior results, fall back to
   // the CLI default.
   const judgeFlag = flagStr(args, "judge");
-  const judge = judgeFlag ? parseModelRef(judgeFlag) : (prev?.judge ?? parseModelRef(DEFAULT_JUDGE));
+  const judge = judgeFlag ? parseModelRef(judgeFlag) : (prev?.judge ?? parseModelRef(defaultJudge()));
+  // A regrade reuses the judge the run RECORDED, so a run that names a metered judge
+  // bills on every later regrade with no flag typed anywhere. Latent rather than live
+  // in the reference corpus (all ~140 committed runs there record `claude-code`), but
+  // it is the one path where the cost decision was made by a file, not a person.
+  assertJudgeAllowed(judge, {
+    source: judgeFlag ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge",
+    allowMetered: flagBool(args, "allow-metered-judge"),
+  });
   const adapter = adapterOverride ?? getAdapter(prev?.harness ?? "pi");
+
+  // Warn rather than refuse: re-grading is cheap, it writes no new measurement of the
+  // model, and it is one of the ways someone diagnoses a stale install in the first
+  // place. Blocking the diagnosis would be the wrong trade.
+  const stale = downgradeWarning(dirname(testsDir));
+  if (stale) console.error(stale);
 
   const results = await regradeRun({
     runDir, spec, adapter, judge, specDir: testsDir, now: nowIso,
-    onlySuspect: args.flags["suspect-only"] === true || args.flags["suspect-only"] === "true",
+    onlySuspect: flagBool(args, "suspect-only"),
   });
   for (const s of results.scenarios) {
     console.log(`  ${s.id} → ${s.judge_verdict}: ${s.judge_reason}`);
@@ -244,6 +287,50 @@ async function cmdRescore(args: Args): Promise<void> {
     console.log(`  → ${g.letter} (${g.pct}%) ${g.passed}/${g.total} ${g.ship ? "SHIP" : "NOT READY"}`);
   }
   console.log(`\n${runDirs.length} run(s) re-scored, ${moved} verdict(s) moved.`);
+}
+
+/**
+ * Re-evaluate needle gates against the saved staged diffs — free, except for the reps
+ * whose gate verdict flips from fail to pass, which the judge never saw and must now
+ * be shown. Prints the cost before making those calls.
+ */
+export async function cmdRegate(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
+  const runDirs = args._;
+  if (runDirs.length === 0) throw new Error("usage: skill-harness regate <run-dir> [<run-dir> ...] [--judge prov:model]");
+
+  const judgeFlag = flagStr(args, "judge");
+  let moved = 0;
+  let calls = 0;
+  for (const raw of runDirs) {
+    const runDir = resolve(raw);
+    if (!existsSync(runDir)) throw new Error(`run dir not found: ${runDir} (relative paths resolve against the cwd)`);
+    const specPath = specPathForRunDir(runDir);
+    const spec = loadSpec(specPath);
+    const prev = readResults(runDir);
+    const judge = judgeFlag ? parseModelRef(judgeFlag) : (prev.judge ?? parseModelRef(defaultJudge()));
+    assertJudgeAllowed(judge, {
+      source: judgeFlag ? "--judge" : "the run's recorded judge",
+      allowMetered: flagBool(args, "allow-metered-judge"),
+    });
+
+    const { results, changes, judgeCalls } = await regateRun({
+      runDir, spec, specDir: dirname(specPath),
+      adapter: adapterOverride ?? getAdapter(prev.harness ?? "pi"),
+      judge, now: nowIso,
+    });
+    const g = results.effective_grade;
+    console.log(`\n${results.skill} · ${results.model}`);
+    for (const c of changes) {
+      console.log(`  ${c.id}: ${c.from} → ${c.to}  (gate ${c.gate}${c.judged ? ", re-judged from the saved transcript" : ", no judge call"})`);
+    }
+    if (changes.length === 0) console.log("  (no verdict changed)");
+    console.log(`  → ${g.letter} (${g.pct}%) ${g.passed}/${g.total} ${g.ship ? "SHIP" : "NOT READY"}`);
+    moved += changes.length;
+    calls += judgeCalls;
+  }
+  // The cost line matters: regate is advertised as free, and it is — except for the
+  // flipped reps, which it must not spend silently.
+  console.log(`\n${runDirs.length} run(s) re-gated, ${moved} verdict(s) moved, ${calls} judge call(s) (no model re-runs).`);
 }
 
 async function cmdReview(args: Args): Promise<void> {
@@ -421,12 +508,22 @@ export async function cmdLint(args: Args): Promise<void> {
 
 // ---------------------------------------------------------------- dispatch
 
-const HELP = `skill-harness — test/optimize loop for agent skills (pi harness)
+/**
+ * The help text, rendered per call rather than frozen at module load.
+ *
+ * The `defaults:` line reports the judge that the *next* command will actually
+ * use, which `SKILL_HARNESS_JUDGE` can change after this module was imported. A
+ * help screen that prints a default the tool won't use is worse than one that
+ * prints none.
+ */
+export function help(): string {
+  return `skill-harness ${HARNESS_VERSION} — test/optimize loop for agent skills (pi harness)
 
   run    <skill|all> --skills <root> [--model prov:model ...] [--models file] [--only A1,D2]
                      [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
   grade  <run-dir>   [--judge prov:model] [--suspect-only]   re-grade saved transcripts (neutral judge)
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (free)
+  regate <run-dir>...  [--judge prov:model]     re-evaluate diff needles against the saved diffs (free; judges only reps whose gate flipped)
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]
   init   <skill>     --skills <root> [--force]     scaffold a commented template spec (free, offline)
@@ -434,7 +531,12 @@ const HELP = `skill-harness — test/optimize loop for agent skills (pi harness)
   list   --skills <root>                        discovered skills + spec status
   lint   <skill|all> --skills <root>           validate specs/fixtures + results-consistency (CI gate; exits non-zero on findings)
 
-defaults: model=${DEFAULT_MODEL}  judge=${DEFAULT_JUDGE}  mode=green  harness=pi`;
+  version  print ${HARNESS_VERSION} and exit (also --version / -v)
+
+defaults: model=${DEFAULT_MODEL}  judge=${defaultJudge()}  mode=green  harness=pi
+  the judge default is Opus on your Claude subscription (\`claude-code\` → \`claude -p\`), not a
+  metered API key. Set SKILL_HARNESS_JUDGE to change it for a repo or a shell; --judge wins over both.`;
+}
 
 export async function main(argv: string[]): Promise<void> {
   const cmd = argv[0];
@@ -443,21 +545,29 @@ export async function main(argv: string[]): Promise<void> {
     case "run": return cmdRun(args);
     case "grade": return cmdGrade(args);
     case "rescore": return cmdRescore(args);
+    case "regate": return cmdRegate(args);
     case "review": return cmdReview(args);
     case "add-test": return cmdAddTest(args);
     case "init": return cmdInit(args);
     case "suggest": return cmdSuggest(args);
     case "list": return cmdList(args);
     case "lint": return cmdLint(args);
+    case "version":
+    case "--version":
+    case "-v":
+      // Bare version, one line, nothing else: this is what a script or a confused
+      // user greps to find out whether the binary on PATH is the one they think.
+      console.log(HARNESS_VERSION);
+      return;
     case undefined:
     case "help":
     case "--help":
     case "-h":
-      console.log(HELP);
+      console.log(help());
       return;
     default:
       console.error(`unknown command: ${cmd}\n`);
-      console.log(HELP);
+      console.log(help());
       process.exitCode = 1;
   }
 }

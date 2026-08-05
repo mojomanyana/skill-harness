@@ -1,33 +1,59 @@
-# Publishing skill-harness (0.3.2)
+# Publishing skill-harness (0.4.0)
 
 This is the npm-publish runbook. It is **user-run** — the agent that prepared this
 repo does not publish. Run these commands yourself with your own npm auth.
 
-The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`, `0.3.0`, `0.3.1`. This repo is
-at `0.3.2`, so these commands publish a **new version over an existing line** — the
-`@skill-harness` scope is already claimed, and `latest` moves to 0.3.2 as each
+The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`, `0.3.0`, `0.3.1`, `0.3.2`. This
+repo is at `0.4.0`, so these commands publish a **new version over an existing line** —
+the `@skill-harness` scope is already claimed, and `latest` moves to 0.4.0 as each
 package lands.
 
-**0.3.2 is a patch, and it changes what `lift` prints.** One thing changed:
+**0.4.0 takes the minor, and consumers pinning an exact version must bump.** It changes
+what `results.yaml` records and adds a `lint` finding, which are two of the three reasons
+0.3.0 was a minor:
 
-- `computeLift` no longer compares two verdicts that were produced by different
-  aggregations. A `--reps 1` red baseline against a `--reps 3` green run paired a
-  single draw with a majority-of-3: on a scenario the model passes half the time
-  that manufactures a `gained` a quarter of the time, and the mirror case (lucky
-  single-draw red `PASS`, 2-of-3 green `FAIL`) manufactures a `regressed`. Such
-  cells are now excluded and reported as `aggregationMismatch`, and the review UI
-  says `lift not comparable` instead of the false `no red baseline`.
+- **`source_hashes` gains four key kinds** and stops writing one. `scenario:<id>` (one
+  digest over stimulus + rubric + policy + gates) is replaced by `stimulus:<id>`,
+  `rubric:<id>`, `policy:<id>`, `gates:<id>` and a spec-level `rubric:__persona`. An
+  older reader resolves unknown prefixed keys as "not comparable" — that forward-compat
+  branch has been there since 0.3.0 — so **an older skill-harness will not false-flag a
+  0.4.0 results file, but it also cannot check it**, and its coverage check silently
+  stops applying. The rule stands: *a `results.yaml` written by version X needs version
+  ≥ X to lint.*
+- **A new `consistency` finding**: linting a tree whose records were written by a newer
+  harness than the running one now reports it. A repo whose CI pins an old version and
+  whose results are produced locally from a newer one will start failing — correctly,
+  and that is the point.
+- **`lint` messages changed shape.** A `stale` finding now names the cheapest honest
+  remedy (`re-grade`, `rescore`, `regate`, or `re-run`) instead of always saying
+  "re-run". Anything grepping those messages needs updating; the `code` values are
+  unchanged.
+- **A metered judge is refused** unless `--allow-metered-judge` /
+  `SKILL_HARNESS_ALLOW_METERED_JUDGE` is set, and the default judge moved from
+  `anthropic:claude-opus-4-8` to `claude-code:claude-opus-4-8` (Claude subscription).
+  **This breaks any CI that relied on an ANTHROPIC_API_KEY judge by default** — add the
+  flag, or set the env var, deliberately.
+- **New command `regate`**, and `--version` / `-v`. `results.yaml` gains
+  `harness_version`. Captured diffs no longer contain `node_modules/`, `coverage/` or
+  `.vitest/`, so a `diff_contains` needle matching a test filename that used to pass for
+  free will now correctly fail.
 
-  `Lift` gains a required `aggregationMismatch` field — additive for anything
-  *reading* a `Lift`, breaking only for code constructing one as a literal, exactly
-  as `modeInsensitive` was in 0.3.1. **Nobody can have hit the old behavior**: it
-  needs a red baseline, and the only one ever recorded is the two-scenario
-  `golden-skill` fixture, run at 1 rep on both sides.
+**Consumer checklist for this release** (`principal-pi-skills` and anything else pinning):
 
-Patch rather than minor for the same three reasons 0.3.1 was: no `lint` check was
-added, no `source_hashes` key kind appeared, and no repo that passes on 0.3.1 can
-fail on 0.3.2. A published *lift number* can change — but only in the direction of
-refusing to state one, and only where the two runs were never comparable.
+1. Bump the pin (`.github/workflows/ci.yml`, the `ref:` on the skill-harness checkout)
+   to `v0.4.0` in the same PR as any results produced by it.
+2. If CI judged with an API key by default, add `--allow-metered-judge` or switch to
+   `claude-code:`.
+3. Re-run nothing for correctness — no gate's *verdict* semantics changed. But note that
+   pre-0.4.0 runs carry only legacy `scenario:` keys, so their lint remedy will say
+   "re-run" where a 0.4.0 run would have said "re-grade"; a re-run converts that.
+
+### 0.3.2, kept for context
+
+0.3.2 was a patch: `computeLift` stopped comparing two verdicts produced by different
+aggregations (a `--reps 1` baseline against a `--reps 3` green paired one draw with a
+majority-of-3), and the review UI stopped claiming "no red baseline" when a baseline
+existed but nothing in it was comparable.
 
 ### 0.3.1, kept for context
 
@@ -91,13 +117,13 @@ Run from the **repo root** (npm workspaces `-w` flag, verified with npm 11.9.0 /
 Node 24.14.0 — this repo's `engines.node` requires >=20, which ships npm >=10,
 so `-w` should work on any supported install). Each step must land on the
 registry before the next, since each package's `package.json` pins an exact
-`@skill-harness/*@0.3.2` dependency (npm will fail to resolve it otherwise):
+`@skill-harness/*@0.4.0` dependency (npm will fail to resolve it otherwise):
 
 ```bash
 npm publish -w @skill-harness/core --access public
 npm publish -w @skill-harness/adapters --access public
 npm publish -w @skill-harness/cli --access public     # prepack stages assets/report.* into the tarball
-npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.3.2
+npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.4.0
 ```
 
 `@skill-harness/core` and `@skill-harness/adapters` publish exactly the `dist/`
@@ -126,7 +152,7 @@ ships to pi users via `pi install git:...`, not the npm registry.
 ## Verify after publishing
 
 ```bash
-npm view skill-harness version            # expect 0.3.2
+npm view skill-harness version            # expect 0.4.0
 npm i -g skill-harness && skill-harness --help
 npx @skill-harness/cli lint --help
 ```
@@ -144,8 +170,8 @@ The version bump lives on `release-<version>`. Until that branch reaches `main`,
 a fresh clone of `main` reports a different version than the registry serves:
 
 ```bash
-gh pr create --base main --head release-0.3.2 \
-  --title "chore(release): 0.3.2" --body "Version bump + runbook."
+gh pr create --base main --head release-0.4.0 \
+  --title "chore(release): 0.4.0" --body "Version bump + runbook."
 gh pr merge --merge   # or fast-forward main if there is nothing to reconcile
 ```
 
@@ -178,7 +204,7 @@ lockstep.
 
 ```bash
 git checkout main && git pull
-git tag v0.3.2 && git push origin v0.3.2     # the immutable release tag
+git tag v0.4.0 && git push origin v0.4.0     # the immutable release tag
 git tag -f latest && git push -f origin latest   # the ref the docs point at
 ```
 
@@ -196,10 +222,21 @@ is true, and the docs tell consumers to pin a release tag when they want to
 choose *when* new checks land.
 
 Consumers that pin need their pin bumped as part of the release
-(`.github/workflows/ci.yml`, the `ref:` on the skill-harness checkout). Consumers
-tracking `@latest` — `principal-pi-skills` as of 0.3.0 — need nothing, but the
-release reaches their CI the moment the tag moves, so **push the tag when you are
-ready for that gate to change**, not mid-flight on unrelated work.
+(`.github/workflows/ci.yml`, the `ref:` on the skill-harness checkout).
+`principal-pi-skills` **is** that case, and deliberately: its CI checks out
+`ref: v0.3.0` at an exact pin, so a red build there means the skills changed rather
+than the harness underneath them. Moving `latest` reaches its CI not at all — the
+owner bumps the pin as its own commit, per release, and re-runs the affected skills
+in the same PR.
+
+Corrected 2026-08-05: `88c8ccd` and the 0.3.1 notes called that repo an `@latest`
+tracker. It never was, on either surface — its workflow pins, and its `package.json`
+contains no skill-harness reference at all. The pin-vs-latest *guidance* those commits
+added is right and stays; only the example was wrong.
+
+For a repo that genuinely tracks `@latest`, the release reaches CI the moment the tag
+moves, so **push the tag when you are ready for that gate to change**, not mid-flight
+on unrelated work.
 
 Either way, re-run the skills whose results the new version invalidates: a
 release that changes what a gate measures leaves the committed scorecard
@@ -341,3 +378,21 @@ section records what was checked so the publish is the only unverified part.
   ```bash
   gh run view <id> --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
   ```
+
+## Verification performed for 0.4.0 (prepared 2026-08-05, unpublished at time of writing)
+
+- Versions **and** pins bumped in one `sed` sweep across the root and all five manifests,
+  plus `SKILL.md`'s frontmatter `version:` (the sixth home 0.3.2 discovered).
+  `grep -c 'registry.npmjs.org/@skill-harness' package-lock.json` → **0**.
+- CI reproduced from a clean install: `npm ci && npm run build && npm run build:ext &&
+  npm test` — **591 tests pass**; `npm run typecheck` clean; `lint all` against the golden
+  fixture reports 0 findings.
+- `--version` prints the bumped value; `--help` header carries it; the `defaults:` line
+  shows `claude-code:claude-opus-4-8`.
+- **`regate` is in `--help` and refuses cleanly with no args.** Its unit suite covers the
+  four per-rep cases, the gates-hash refresh, transcript regeneration + `.pre-regate.txt`
+  preservation, the `vitest`/`post_test` refusal, and the missing-artifact refusal.
+- `npm pack --dry-run` re-run for all four: core **59 files / 84.5 kB** (was 49 / 66.8 —
+  the five new core modules: `regate`, `downgrade`, `version`, `defaults`,
+  `judge-policy`), adapters 7 / 3.1 kB, cli 9 / 22.4 kB (both `assets/report.*` flat),
+  unscoped 4 / 2.3 kB. Check the count against this rather than against 0.3.x's 49.

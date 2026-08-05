@@ -124,9 +124,13 @@ describe("sourceHashes / currentHashFor round-trip", () => {
 
   it("every recorded key resolves to the same hash while nothing changes", () => {
     const { skillDir, specDir } = skillWithFixture();
-    const ctx = { skillDir, specDir, scenarios: [seeded] };
+    const ctx = { skillDir, specDir, scenarios: [seeded], judgePersona: "a judge." };
     const recorded = sourceHashes(ctx);
-    expect(Object.keys(recorded).sort()).toEqual(["SKILL.md", "fixture:fixtures/A1", "scenario:A1"]);
+    // 0.4.0 splits the one `scenario:` key into the four facet keys, each with its
+    // own remedy, plus the spec-level persona.
+    expect(Object.keys(recorded).sort()).toEqual([
+      "SKILL.md", "fixture:fixtures/A1", "policy:A1", "rubric:__persona", "rubric:A1", "stimulus:A1",
+    ].sort());
     for (const [key, value] of Object.entries(recorded)) {
       expect(currentHashFor(key, ctx)).toBe(value);
     }
@@ -134,13 +138,13 @@ describe("sourceHashes / currentHashFor round-trip", () => {
 
   it("a removed scenario resolves to undefined — not comparable, so lint stays quiet", () => {
     const { skillDir, specDir } = skillWithFixture();
-    expect(currentHashFor("scenario:GONE", { skillDir, specDir, scenarios: [seeded] })).toBeUndefined();
+    expect(currentHashFor("stimulus:GONE", { skillDir, specDir, scenarios: [seeded], judgePersona: "a judge." })).toBeUndefined();
   });
 
   it("a deleted fixture resolves to null — a real 'no longer exists' finding", () => {
     const { skillDir, specDir } = skillWithFixture();
     rmSync(join(specDir, "fixtures", "A1"), { recursive: true, force: true });
-    expect(currentHashFor("fixture:fixtures/A1", { skillDir, specDir, scenarios: [seeded] })).toBeNull();
+    expect(currentHashFor("fixture:fixtures/A1", { skillDir, specDir, scenarios: [seeded], judgePersona: "a judge." })).toBeNull();
   });
 
   it("records post_test CONTENTS, not just its path", () => {
@@ -153,7 +157,7 @@ describe("sourceHashes / currentHashFor round-trip", () => {
     const pt = join(specDir, "post", "A1.test.ts");
     writeFileSync(pt, "expect(withdraw(200)).toThrow()\n", "utf8");
     const s = scenario({ mode: "seeded", assert: { post_test: "post/A1.test.ts" } });
-    const ctx = { skillDir, specDir, scenarios: [s] };
+    const ctx = { skillDir, specDir, scenarios: [s], judgePersona: "a judge." };
 
     const recorded = sourceHashes(ctx);
     expect(recorded["post/A1.test.ts"]).toMatch(/^[0-9a-f]{64}$/);
@@ -169,7 +173,7 @@ describe("sourceHashes / currentHashFor round-trip", () => {
     // result — the fixture could be swapped wholesale and lint would say clean.
     const { skillDir, specDir } = skillWithFixture();
     rmSync(join(specDir, "fixtures", "A1"), { recursive: true, force: true });
-    const recorded = sourceHashes({ skillDir, specDir, scenarios: [seeded] });
+    const recorded = sourceHashes({ skillDir, specDir, scenarios: [seeded], judgePersona: "a judge." });
     expect(recorded["fixture:fixtures/A1"]).toBe(UNREADABLE);
   });
 
@@ -178,7 +182,7 @@ describe("sourceHashes / currentHashFor round-trip", () => {
     // nothing, and reported a confident "no longer exists" about a source that is
     // fine — a wrong finding produced purely by reading a newer results.yaml.
     const { skillDir, specDir } = skillWithFixture();
-    expect(currentHashFor("agent:foo", { skillDir, specDir, scenarios: [seeded] })).toBeUndefined();
+    expect(currentHashFor("agent:foo", { skillDir, specDir, scenarios: [seeded], judgePersona: "a judge." })).toBeUndefined();
   });
 
   it("scenarioIdForKey attributes a fixture only when exactly one scenario owns it", () => {
@@ -189,16 +193,18 @@ describe("sourceHashes / currentHashFor round-trip", () => {
     // Shared: naming one of them would misdirect the re-run to a scenario that is
     // no more (or less) affected than the others.
     expect(scenarioIdForKey("fixture:fixtures/A1", [a, b, c])).toBeUndefined();
-    expect(scenarioIdForKey("scenario:A2", [a, b, c])).toBe("A2");
+    expect(scenarioIdForKey("scenario:A2", [a, b, c])).toBe("A2"); // legacy key still attributed
+    expect(scenarioIdForKey("rubric:A2", [a, b, c])).toBe("A2");
+    expect(scenarioIdForKey("rubric:__persona", [a, b, c])).toBeUndefined(); // spec-level
     expect(scenarioIdForKey("SKILL.md", [a, b, c])).toBeUndefined();
   });
 
   it("two scenarios sharing one fixture record it once", () => {
     const { skillDir, specDir } = skillWithFixture();
     const b = scenario({ id: "A2", mode: "seeded", fixture: "fixtures/A1", workspace: { fixture: "fixtures/A1" } });
-    const recorded = sourceHashes({ skillDir, specDir, scenarios: [seeded, b] });
+    const recorded = sourceHashes({ skillDir, specDir, scenarios: [seeded, b], judgePersona: "a judge." });
     expect(Object.keys(recorded).filter((k) => k.startsWith("fixture:"))).toEqual(["fixture:fixtures/A1"]);
-    expect(recorded["scenario:A1"]).toBeDefined();
-    expect(recorded["scenario:A2"]).toBeDefined();
+    expect(recorded["stimulus:A1"]).toBeDefined();
+    expect(recorded["stimulus:A2"]).toBeDefined();
   });
 });

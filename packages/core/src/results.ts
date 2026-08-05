@@ -3,6 +3,7 @@ import { join, relative, sep } from "node:path";
 import yaml from "js-yaml";
 import { modelSlug, type ModelRef } from "./adapters/types.js";
 import { score, type ScenarioVerdict } from "./score.js";
+import { HARNESS_VERSION } from "./version.js";
 import type { Verdict } from "./score.js";
 import type { ShipBar, Scenario } from "./spec.js";
 
@@ -31,6 +32,16 @@ export interface GradeSummary {
 
 export interface ResultsFile {
   schema: 2;
+  /**
+   * The harness version that wrote this file — provenance for the numbers in it.
+   *
+   * Optional because runs recorded before the field existed do not have one, and
+   * inventing a version for them would fabricate provenance. Not part of `schema`:
+   * 0.2.1 → 0.3.0 kept `schema: 2` while changing what a verdict means, which is
+   * exactly the drift `schema` cannot express. Written by `finalizeResults`, so no
+   * writer can forget it.
+   */
+  harness_version?: string;
   skill: string;
   harness: string;
   model: string; // provider:model token under test
@@ -116,6 +127,10 @@ export function finalizeResults(draft: ResultsDraft, ctx: ScoreContext | null): 
   }
   return {
     schema: 2,
+    // Stamped here, the single place every writer passes through, so `run`,
+    // `grade`, `rescore` and the review UI's override save all record which tool
+    // produced the record they leave behind.
+    harness_version: HARNESS_VERSION,
     skill: draft.skill,
     harness: draft.harness,
     model: draft.model,
