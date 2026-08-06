@@ -462,7 +462,7 @@ section records what was checked so the publish is the only unverified part.
   gh run view <id> --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
   ```
 
-## Verification performed for 0.6.0 (prepared 2026-08-06, unpublished at time of writing)
+## Verification performed for 0.6.0 (published 2026-08-06)
 
 - Versions **and** pins bumped across the root and all five manifests plus `SKILL.md`'s
   frontmatter `version:`. `grep -c 'registry.npmjs.org/@skill-harness' package-lock.json`
@@ -487,6 +487,11 @@ section records what was checked so the publish is the only unverified part.
 - `npm pack --dry-run` for all four: core **63 files / 103.6 kB** (one new module,
   `stability`), adapters 7 / 4.3 kB, cli 9 / 24.9 kB, unscoped 4 / 2.3 kB.
 - `packages/pi-extension/dist/index.js` regenerated with `npm run build:ext` and committed.
+- **After publishing:** all four packages report `0.6.0`, `dist-tags.latest` moved (the
+  unscoped package again lagged the scoped three by under a minute — expected, see 0.5.0).
+  From a clean temp dir, `npx skill-harness@0.6.0 stability plan --skills <corpus>` prints
+  the three real boundary cells, so the published tarball carries the new module and its
+  CLI wiring. Tags `v0.6.0` and `latest` both point at the merge commit `d6dbc18`.
 
 ## Verification performed for 0.5.0 (published 2026-08-06)
 
