@@ -1,6 +1,6 @@
 ---
 name: skill-harness
-version: 0.5.0
+version: 0.6.0
 description: >
   Use to test, grade, and optimize an agent skill against a spec. Triggers:
   "test the <skill> skill", "/skill-harness", "run the skill bench", "grade these
@@ -42,13 +42,19 @@ lie on weak/stochastic models; re-run before trusting a delta.
 3. **Run + grade.** `skill-harness run <skill> --skills <root> --model <m> [--model <m2>]
    [--judge <prov:model>]`. This runs every scenario, grades each transcript, writes
    `results.yaml`, and prints a scorecard per model. Heed any judge≈subject warning.
-4. **Review.** `skill-harness review <skill> --skills <root>` opens an interactive
+4. **Check what one run is worth.** `skill-harness stability <skill> --skills <root>`
+   (free, offline) lists scenarios whose verdict flipped between runs of the same skill ×
+   model × mode. `flakiness 0.00` cannot see this — it compares reps inside ONE run — so
+   before you report a per-scenario delta, say whether that cell is a boundary cell. The
+   fix is `--reps N` on it, never a spec edit; `lint` reports these as notes that do not
+   fail the gate.
+5. **Review.** `skill-harness review <skill> --skills <root>` opens an interactive
    matrix (model × scenario). Tell the user to click cells, read transcripts, flip
    verdicts, and add notes — saves persist to `results.yaml`. Ctrl-C to stop.
-5. **Add a test.** `skill-harness add-test <skill> --skills <root> --id <ID> --title <T>
+6. **Add a test.** `skill-harness add-test <skill> --skills <root> --id <ID> --title <T>
    --turn "<turn>" [--turn ...] --check "<item>" [--check ...] [--critical]
    [--mode seeded --fixture <path>]`. Gather the fields conversationally first.
-6. **Optimize.** The user edits `<skill>/SKILL.md` → re-run → compare the new
+7. **Optimize.** The user edits `<skill>/SKILL.md` → re-run → compare the new
    scorecard to the old `results.yaml`. Report the per-scenario delta, not just the
    letter grade.
 

@@ -43,6 +43,8 @@
   .cell .lm { display: block; font-size: 10px; font-weight: 700; }
   .cell .lm.up { color: var(--pass); }
   .cell .lm.down { color: var(--fail); }
+  /* Amber, like the suspect badge: both mean "this verdict is worth less than it looks". */
+  .cell .lm.flip { color: #b45309; }
   aside { width: 0; transition: width .15s ease; overflow: hidden; border-left: 1px solid var(--line); background: var(--panel); }
   aside.open { width: 460px; }
   .panel { width: 460px; padding: 16px 18px; }
@@ -220,7 +222,15 @@ function render() {
           : lc === "regressed"
             ? `<span class='lm down' title='red baseline PASS → ${effective(cell)} with the skill'>↓ skill</span>`
             : "";
-      html += `<td class='cell ${v}${sel}' data-col='${col.index}' data-id='${scn.id}'>${v}${ov}${suspectBadge}${liftMark}${reps}</td>`;
+      // Run-over-run marker. Only on cells that actually flipped, and deliberately
+      // NOT folded into the flakiness number beside it: `flaky 0.00` is a within-run
+      // measure, and the case this exists for is a cell that was unanimous in every
+      // run and still landed on a different side each time.
+      const st = cell.stability;
+      const stabMark = st
+        ? `<span class='lm flip' title='${escapeHtml(st.note)}'>⇄ ${st.flips}/${st.compared}</span>`
+        : "";
+      html += `<td class='cell ${v}${sel}' data-col='${col.index}' data-id='${scn.id}'>${v}${ov}${suspectBadge}${liftMark}${stabMark}${reps}</td>`;
     });
     html += "</tr>";
   }
@@ -247,6 +257,7 @@ async function openPanel(colIndex, scenarioId) {
     <div class="meta">${escapeHtml(col.label)} · mode ${escapeHtml(col.mode || "green")} · judge ${escapeHtml(col.judge.provider + ":" + col.judge.model)}</div>
     <div class="reason"><b>judge:</b> ${cell.judge_verdict} — ${escapeHtml(cell.judge_reason || "(no reason)")}</div>
     ${cell.suspect ? `<div class="reason" style="color:#b45309"><b>⚠ suspect:</b> judge listed no failed item — re-judge before trusting this FAIL</div>` : ""}
+    ${cell.stability ? `<div class="reason" style="color:#b45309"><b>⇄ boundary cell:</b> ${escapeHtml(cell.stability.note)}</div>` : ""}
     <div class="toggle">
       <button data-v="PASS" class="PASS ${cell.override === 'PASS' ? 'active PASS' : ''}">PASS</button>
       <button data-v="FAIL" class="FAIL ${cell.override === 'FAIL' ? 'active FAIL' : ''}">FAIL</button>

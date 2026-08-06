@@ -1,14 +1,49 @@
-# Publishing skill-harness (0.5.0)
+# Publishing skill-harness (0.6.0)
 
 This is the npm-publish runbook. It is **user-run** — the agent that prepared this
 repo does not publish. Run these commands yourself with your own npm auth.
 
-The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`, `0.3.0`, `0.3.1`, `0.3.2`, `0.4.0`.
-This repo is at `0.5.0`, so these commands publish a **new version over an existing
-line** — the `@skill-harness` scope is already claimed, and `latest` moves to 0.5.0 as
-each package lands.
+The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`, `0.3.0`, `0.3.1`, `0.3.2`, `0.4.0`,
+`0.5.0`. This repo is at `0.6.0`, so these commands publish a **new version over an
+existing line** — the `@skill-harness` scope is already claimed, and `latest` moves to
+0.6.0 as each package lands.
 
-**0.5.0 takes the minor: a mode that was never scored now scores, so committed numbers
+**0.6.0 takes the minor: a new command, a new `lint` code, and a new severity concept.**
+Nothing about a verdict, a grade or `results.yaml` changed — this release only *reads*.
+
+- **New command `stability <skill|all>`** — run-over-run verdict flips per scenario ×
+  model tag × delivery mode, derived from committed history. Free and offline (no model,
+  no judge, no harness), and it exits 0 whatever it finds.
+- **`lint` gains `info` findings, and its exit code now counts only gate-failing ones.**
+  `LintFinding` gains an optional `severity` (absent = `error`, so every existing code
+  behaves exactly as before) and a new code `stability` carries `severity: "info"`.
+  Consequences for a consumer: `lint` prints `ℹ` lines and `::notice` annotations it did
+  not print before, the summary line reads `N finding(s), M note(s) (do not fail the
+  gate)`, and **a repo whose CI failed only because of stability notes would now pass** —
+  which cannot happen in practice, since the code is new. Anything parsing lint output
+  should key on `severity`/the `✗` vs `ℹ` prefix rather than on line count.
+- **`collectTrends` is unchanged in shape**, but its history walk moved into a new
+  exported `collectScoredRuns` (one walker, shared with stability). `TrendData` is
+  byte-identical for the same tree.
+- **`RunColumn.cells[id]` gains an optional `stability`** object (flips, compared,
+  volatility, note) — present only on cells that flipped. Additive; the review UI reads
+  it for a `⇄` marker and tooltip.
+- **`formatScorecard(summary, lift?, stability?)`** takes a third optional argument. Old
+  two-argument calls behave as before.
+- No `results.yaml` change at all: stability is derived on read, never stored, so it works
+  retroactively on history recorded by every earlier version.
+
+**Consumer checklist for this release:**
+
+1. Bump the pin to `v0.6.0` when you want the notes (`.github/workflows/ci.yml`).
+2. Run `stability <skill> --skills <root>` once over the existing corpus — it costs
+   nothing and needs no new runs.
+3. Do not "fix" a boundary-cell note. The remedy is `--reps N` on that scenario, or an
+   override with a note once you have decided which side is right.
+
+### 0.5.0, kept for context
+
+**0.5.0 took the minor: a mode that was never scored now scores, so committed numbers
 change.** Nothing about a *verdict* changed; what changed is which runs get a grade.
 
 - **`force` runs are scored.** `green` and `force` both deliver the skill, so both are
@@ -165,13 +200,13 @@ Run from the **repo root** (npm workspaces `-w` flag, verified with npm 11.9.0 /
 Node 24.14.0 — this repo's `engines.node` requires >=20, which ships npm >=10,
 so `-w` should work on any supported install). Each step must land on the
 registry before the next, since each package's `package.json` pins an exact
-`@skill-harness/*@0.5.0` dependency (npm will fail to resolve it otherwise):
+`@skill-harness/*@0.6.0` dependency (npm will fail to resolve it otherwise):
 
 ```bash
 npm publish -w @skill-harness/core --access public
 npm publish -w @skill-harness/adapters --access public
 npm publish -w @skill-harness/cli --access public     # prepack stages assets/report.* into the tarball
-npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.5.0
+npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.6.0
 ```
 
 `@skill-harness/core` and `@skill-harness/adapters` publish exactly the `dist/`
@@ -200,7 +235,7 @@ ships to pi users via `pi install git:...`, not the npm registry.
 ## Verify after publishing
 
 ```bash
-npm view skill-harness version            # expect 0.5.0
+npm view skill-harness version            # expect 0.6.0
 npm i -g skill-harness && skill-harness --help
 npx @skill-harness/cli lint --help
 ```
@@ -218,8 +253,8 @@ The version bump lives on `release-<version>`. Until that branch reaches `main`,
 a fresh clone of `main` reports a different version than the registry serves:
 
 ```bash
-gh pr create --base main --head release-0.5.0 \
-  --title "chore(release): 0.5.0" --body "Version bump + runbook."
+gh pr create --base main --head release-0.6.0 \
+  --title "chore(release): 0.6.0" --body "Version bump + runbook."
 gh pr merge --merge   # or fast-forward main if there is nothing to reconcile
 ```
 
@@ -252,7 +287,7 @@ lockstep.
 
 ```bash
 git checkout main && git pull
-git tag v0.5.0 && git push origin v0.5.0     # the immutable release tag
+git tag v0.6.0 && git push origin v0.6.0     # the immutable release tag
 git tag -f latest && git push -f origin latest   # the ref the docs point at
 ```
 
@@ -426,6 +461,32 @@ section records what was checked so the publish is the only unverified part.
   ```bash
   gh run view <id> --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
   ```
+
+## Verification performed for 0.6.0 (prepared 2026-08-06, unpublished at time of writing)
+
+- Versions **and** pins bumped across the root and all five manifests plus `SKILL.md`'s
+  frontmatter `version:`. `grep -c 'registry.npmjs.org/@skill-harness' package-lock.json`
+  → **0**.
+- CI reproduced from a clean install: `npm ci && npm run build && npm run build:ext &&
+  npm test` — **662 tests pass** (50 files); `npm run typecheck` clean; `lint all` against
+  the golden fixture reports 0 findings and exits 0; `--version` → `0.6.0`; `stability` is
+  in `--help`.
+- **Validated against the real corpus, read-only.** `stability all --skills
+  ~/prepos/principal-pi-skills` reports **6 boundary cells across 7 skills** — including
+  the reported `plan`/DS A5 case (`PASS!→FAIL!`, both runs unanimous, labelled as across a
+  SKILL.md edit) and a second one nobody had noticed (`plan`/glm C2, `FAIL!→PASS→FAIL`,
+  2 flips in 2 steps). `plan`/DS D1 correctly comes back as **not** a flip: its
+  `../../agents/plan.md` changed between the runs, and the note says so. Six notes over a
+  ~140-run corpus is the signal-to-noise this only pays for if it stays rare.
+  `collectReport` on the same tree attaches the `⇄` marker to exactly those cells.
+- New suites: `packages/core/test/stability.test.ts` (22 — flip/volatility/path, the
+  unanimous-flip flag, every rejection reason, mode and tag isolation, the three states,
+  the scorecard and review-matrix surfaces) and
+  `packages/cli/test/stability-cmd.test.ts` (8 — the command's output, `--all`, the
+  `--window` guard, and lint's `ℹ`/`::notice`/exit-0 behavior).
+- `npm pack --dry-run` for all four: core **63 files / 103.6 kB** (one new module,
+  `stability`), adapters 7 / 4.3 kB, cli 9 / 24.9 kB, unscoped 4 / 2.3 kB.
+- `packages/pi-extension/dist/index.js` regenerated with `npm run build:ext` and committed.
 
 ## Verification performed for 0.5.0 (published 2026-08-06)
 

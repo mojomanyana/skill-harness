@@ -1,10 +1,10 @@
 // packages/pi-extension/src/index.ts
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname as dirname6, join as join21 } from "node:path";
+import { dirname as dirname6, join as join22 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
 import { existsSync as existsSync17 } from "node:fs";
-import { dirname as dirname5, join as join20, resolve as resolve9 } from "node:path";
+import { dirname as dirname5, join as join21, resolve as resolve9 } from "node:path";
 
 // packages/core/dist/spec.js
 import { readFileSync } from "node:fs";
@@ -2588,6 +2588,7 @@ import { dirname, resolve as resolve5 } from "node:path";
 import { createHash } from "node:crypto";
 import { readFileSync as readFileSync2, readdirSync as readdirSync2 } from "node:fs";
 import { isAbsolute, join as join2, resolve as resolve2 } from "node:path";
+var SCENARIO_PREFIX = "scenario:";
 var FIXTURE_PREFIX = "fixture:";
 var STIMULUS_PREFIX = "stimulus:";
 var RUBRIC_PREFIX = "rubric:";
@@ -2711,6 +2712,42 @@ function sourceHashes(ctx) {
     }
   }
   return hashes;
+}
+function describeSourceKey(key) {
+  if (key === PERSONA_KEY)
+    return "the judge persona";
+  if (key.startsWith(STIMULUS_PREFIX))
+    return `the stimulus for \`${key.slice(STIMULUS_PREFIX.length)}\``;
+  if (key.startsWith(RUBRIC_PREFIX))
+    return `the rubric for \`${key.slice(RUBRIC_PREFIX.length)}\``;
+  if (key.startsWith(POLICY_PREFIX))
+    return `the scoring policy for \`${key.slice(POLICY_PREFIX.length)}\``;
+  if (key.startsWith(GATES_PREFIX))
+    return `the gates for \`${key.slice(GATES_PREFIX.length)}\``;
+  if (key.startsWith(SCENARIO_PREFIX))
+    return `scenario \`${key.slice(SCENARIO_PREFIX.length)}\``;
+  if (key.startsWith(FIXTURE_PREFIX))
+    return `fixture \`${key.slice(FIXTURE_PREFIX.length)}\``;
+  return key;
+}
+var SKILL_KEY = "SKILL.md";
+function scenarioSourceKeys(s) {
+  const keys = [
+    STIMULUS_PREFIX + s.id,
+    RUBRIC_PREFIX + s.id,
+    SCENARIO_PREFIX + s.id
+    // legacy combined (pre-0.4.0 runs)
+  ];
+  if (gatesDigest(s) !== null)
+    keys.push(GATES_PREFIX + s.id);
+  if (s.systemPromptFile)
+    keys.push(s.systemPromptFile);
+  if (s.assert?.post_test)
+    keys.push(s.assert.post_test);
+  const fx = effectiveFixture(s);
+  if (fx)
+    keys.push(FIXTURE_PREFIX + fx);
+  return keys;
 }
 
 // packages/core/dist/workspace.js
@@ -3295,8 +3332,8 @@ function liftHeadline(lift) {
     }
     return "no shared scenarios to compare";
   }
-  const conclusive2 = lift.compared - lift.inconclusive;
-  if (conclusive2 === 0) {
+  const conclusive3 = lift.compared - lift.inconclusive;
+  if (conclusive3 === 0) {
     return `nothing conclusive to compare (${lift.inconclusive} inconclusive \u2014 fix the harness/judge, then re-run)`;
   }
   const segments = [];
@@ -3897,6 +3934,241 @@ function canaryFailure(skillName, result, cliVersion) {
   What the model said instead: ${result.detail || "(nothing)"}`;
 }
 
+// packages/core/dist/stability.js
+import { join as join12 } from "node:path";
+
+// packages/core/dist/trends.js
+import { existsSync as existsSync8, readdirSync as readdirSync6, statSync as statSync4 } from "node:fs";
+import { join as join11 } from "node:path";
+function isDir2(p) {
+  try {
+    return statSync4(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+function collectScoredRuns(skillDir) {
+  const resultsRoot = join11(skillDir, "tests", "results");
+  if (!existsSync8(resultsRoot))
+    return [];
+  const groups = [];
+  const tags = readdirSync6(resultsRoot).filter((n) => isDir2(join11(resultsRoot, n))).sort();
+  for (const tag of tags) {
+    const tagDir = join11(resultsRoot, tag);
+    const runDirs = readdirSync6(tagDir).map((n) => join11(tagDir, n)).filter((p) => isDir2(p) && existsSync8(join11(p, "results.yaml"))).sort();
+    if (runDirs.length === 0)
+      continue;
+    const byMode = /* @__PURE__ */ new Map();
+    let skipped = 0;
+    for (const rd of runDirs) {
+      let r;
+      try {
+        r = readResults(rd);
+      } catch (e) {
+        console.warn(`skill-harness: skipping unreadable run ${rd}: ${e instanceof Error ? e.message : e}`);
+        skipped++;
+        continue;
+      }
+      if (!isScoredMode(r.mode))
+        continue;
+      (byMode.get(r.mode) ?? byMode.set(r.mode, []).get(r.mode)).push(r);
+    }
+    for (const [mode, runs] of byMode) {
+      groups.push({ tag, mode, model: runs[runs.length - 1].model, runs, skipped });
+    }
+  }
+  return groups;
+}
+function collectTrends(skillDir, limit = 20) {
+  const specPath = join11(skillDir, "tests", "specification.yaml");
+  const spec = loadSpec(specPath);
+  const scenarios = spec.scenarios.map((s) => ({ id: s.id, title: s.title, critical: s.critical }));
+  const models = [];
+  for (const group of collectScoredRuns(skillDir)) {
+    const truncated = group.runs.length > limit;
+    const kept = group.runs.slice(-limit);
+    const runs = [];
+    for (const r of kept) {
+      const verdicts = effectiveVerdicts(r.scenarios);
+      const cells = {};
+      r.scenarios.forEach((s, i) => {
+        cells[s.id] = { verdict: verdicts[i].verdict, suspect: verdicts[i].suspect ?? false, flakiness: s.flakiness };
+      });
+      runs.push({ timestamp: r.timestamp, label: r.label, grade: r.effective_grade, cells });
+    }
+    models.push({ model: group.model, tag: group.tag, mode: group.mode, runs, truncated, skipped: group.skipped });
+  }
+  return { skill: spec.skill, scenarios, models };
+}
+
+// packages/core/dist/stability.js
+var DEFAULT_WINDOW = 5;
+function conclusive2(v) {
+  return !v.suspect && v.verdict !== "ERROR" && v.verdict !== "JUDGE-AMBIGUOUS";
+}
+function pointFor(r, s, verdict) {
+  const reps2 = s.reps ?? 1;
+  return {
+    timestamp: r.timestamp,
+    label: r.label,
+    verdict,
+    overridden: s.override != null,
+    partial: Boolean(r.partial),
+    reps: reps2,
+    unanimous: reps2 > 1 && s.flakiness === 0
+  };
+}
+function shapeOf(s) {
+  const reps2 = s.reps ?? 1;
+  return JSON.stringify([reps2, reps2 > 1 ? s.pass_threshold ?? null : null]);
+}
+function compareSources(a, b, keys) {
+  if (!a || !b)
+    return { shared: 0, changed: [] };
+  let shared = 0;
+  const changed = [];
+  for (const key of keys) {
+    const va = a[key];
+    const vb = b[key];
+    if (va === void 0 || vb === void 0)
+      continue;
+    shared++;
+    if (va !== vb)
+      changed.push(describeSourceKey(key));
+  }
+  return { shared, changed };
+}
+function stabilityForScenario(group, scenario, window) {
+  const relevant = group.runs.filter((r) => r.scenarios.some((s) => s.id === scenario.id));
+  const kept = relevant.slice(-window);
+  const keys = [...scenarioSourceKeys(scenario), PERSONA_KEY];
+  const points = [];
+  const raw = [];
+  for (const r of kept) {
+    const i = r.scenarios.findIndex((s2) => s2.id === scenario.id);
+    const s = r.scenarios[i];
+    const eff = effectiveVerdicts(r.scenarios)[i];
+    points.push(pointFor(r, s, eff.verdict));
+    raw.push({ r, s, ok: conclusive2(eff) });
+  }
+  const pairs = [];
+  for (let i = 1; i < raw.length; i++) {
+    const prev = raw[i - 1];
+    const cur = raw[i];
+    const from = points[i - 1];
+    const to = points[i];
+    const skillChanged = prev.r.source_hashes?.[SKILL_KEY] !== void 0 && cur.r.source_hashes?.[SKILL_KEY] !== void 0 && prev.r.source_hashes[SKILL_KEY] !== cur.r.source_hashes[SKILL_KEY];
+    const base = { from, to, flipped: false, skillChanged, changedSources: [], unanimousFlip: false };
+    if (!prev.ok || !cur.ok) {
+      pairs.push({ ...base, status: "inconclusive" });
+      continue;
+    }
+    if (shapeOf(prev.s) !== shapeOf(cur.s)) {
+      pairs.push({ ...base, status: "aggregation" });
+      continue;
+    }
+    const src = compareSources(prev.r.source_hashes, cur.r.source_hashes, keys);
+    if (src.shared === 0) {
+      pairs.push({ ...base, status: "unverified" });
+      continue;
+    }
+    if (src.changed.length > 0) {
+      pairs.push({ ...base, status: "sources", changedSources: src.changed });
+      continue;
+    }
+    const flipped2 = from.verdict !== to.verdict;
+    pairs.push({
+      ...base,
+      status: "compared",
+      flipped: flipped2,
+      unanimousFlip: flipped2 && from.unanimous && to.unanimous
+    });
+  }
+  const compared = pairs.filter((p) => p.status === "compared").length;
+  const flipped = pairs.filter((p) => p.status === "compared" && p.flipped);
+  return {
+    id: scenario.id,
+    title: scenario.title,
+    critical: scenario.critical,
+    tag: group.tag,
+    mode: group.mode,
+    model: group.model,
+    points,
+    pairs,
+    compared,
+    flips: flipped.length,
+    flipsAcrossSkillEdit: flipped.filter((p) => p.skillChanged).length,
+    unanimousFlips: flipped.filter((p) => p.unanimousFlip).length,
+    volatility: compared === 0 ? null : flipped.length / compared,
+    // "unmeasured" is a third state on purpose: a scenario with one run, or with no
+    // comparable pair, has NOT been shown to be stable. Collapsing it into "stable"
+    // would turn absence of evidence into evidence — the same conflation lift.ts
+    // refuses when it reports "no red baseline" instead of a zero.
+    state: compared === 0 ? "unmeasured" : flipped.length > 0 ? "boundary" : "stable"
+  };
+}
+function stabilityFrom(groups, spec, opts = {}) {
+  const window = Math.max(2, opts.window ?? DEFAULT_WINDOW);
+  const out = [];
+  for (const group of groups) {
+    for (const scenario of spec.scenarios) {
+      out.push(stabilityForScenario(group, scenario, window));
+    }
+  }
+  return out;
+}
+function collectStability(skillDir, opts = {}) {
+  const spec = loadSpec(join12(skillDir, "tests", "specification.yaml"));
+  return stabilityFrom(collectScoredRuns(skillDir), spec, opts);
+}
+function boundaryCells(all) {
+  return all.filter((s) => s.state === "boundary");
+}
+function verdictPath(s) {
+  const label = (p) => `${p.verdict}${p.unanimous ? "!" : ""}${p.overridden ? "(override)" : ""}`;
+  let out = s.points.length > 0 ? label(s.points[0]) : "";
+  s.pairs.forEach((pair, i) => {
+    out += `${pair.status === "compared" ? "\u2192" : "\u22EF"}${label(s.points[i + 1])}`;
+  });
+  return out;
+}
+function stabilityNote(s) {
+  if (s.state === "boundary") {
+    const parts = [
+      `${s.id} flipped its verdict in ${s.flips} of ${s.compared} comparable run-to-run step(s) (${verdictPath(s)})`
+    ];
+    if (s.unanimousFlips > 0) {
+      parts.push(`${s.unanimousFlips === s.flips ? "each flip was" : `${s.unanimousFlips} flip(s) were`} between runs that were INTERNALLY UNANIMOUS (flakiness 0.00) \u2014 within-run reps cannot see this`);
+    }
+    if (s.flipsAcrossSkillEdit === s.flips && s.flips > 0) {
+      parts.push(`SKILL.md changed across ${s.flips === 1 ? "that step" : "those steps"}, while this scenario's own stimulus and rubric did not \u2014 so it is either a side effect of that edit or a boundary cell, and the record cannot say which`);
+    } else if (s.flipsAcrossSkillEdit > 0) {
+      parts.push(`${s.flipsAcrossSkillEdit} of them across a SKILL.md edit`);
+    } else {
+      parts.push(`on unchanged skill text \u2014 treat a single run of this cell as one draw, not a measurement`);
+    }
+    return parts.join("; ");
+  }
+  if (s.state === "stable") {
+    return `${s.id} held its verdict across ${s.compared} comparable run-to-run step(s) (${verdictPath(s)})`;
+  }
+  const why = /* @__PURE__ */ new Map();
+  for (const p of s.pairs)
+    if (p.status !== "compared")
+      why.set(p.status, (why.get(p.status) ?? 0) + 1);
+  const reasons = [...why.entries()].map(([status, n]) => `${n} ${REJECTION[status]}`);
+  const changed = [...new Set(s.pairs.flatMap((p) => p.changedSources))];
+  const detail = changed.length > 0 ? ` (${changed.join(", ")} changed \u2014 an edit, not a flip)` : "";
+  return s.points.length < 2 ? `${s.id} has ${s.points.length} run in this mode \u2014 no run-over-run comparison exists yet` : `${s.id} has no comparable run-to-run step: ${reasons.join(", ")}${detail}`;
+}
+var REJECTION = {
+  compared: "compared",
+  inconclusive: "step(s) with an ERROR or unresolved misfire",
+  aggregation: "step(s) aggregated differently (reps or pass threshold)",
+  sources: "step(s) where the scenario's own sources changed",
+  unverified: "step(s) whose recorded hashes cannot be compared"
+};
+
 // packages/core/dist/run.js
 async function runSkillModel(opts) {
   const { spec, skillDir, adapter, model, judge, mode, timestamp } = opts;
@@ -4117,35 +4389,46 @@ async function runRep(scenario, rep, repCount, ctx) {
 }
 
 // packages/core/dist/rescore.js
-import { existsSync as existsSync8 } from "node:fs";
-import { join as join11 } from "node:path";
+import { existsSync as existsSync9 } from "node:fs";
+import { join as join13 } from "node:path";
 
 // packages/core/dist/report.js
-import { existsSync as existsSync9, readdirSync as readdirSync6, statSync as statSync4 } from "node:fs";
-import { join as join12 } from "node:path";
+import { existsSync as existsSync10, readdirSync as readdirSync7, statSync as statSync5 } from "node:fs";
+import { join as join14 } from "node:path";
 function latestRunDir(tagDir) {
-  if (!statSync4(tagDir).isDirectory())
+  if (!statSync5(tagDir).isDirectory())
     return null;
-  const runs = readdirSync6(tagDir).map((n) => join12(tagDir, n)).filter((p) => statSync4(p).isDirectory() && existsSync9(join12(p, "results.yaml"))).sort();
+  const runs = readdirSync7(tagDir).map((n) => join14(tagDir, n)).filter((p) => statSync5(p).isDirectory() && existsSync10(join14(p, "results.yaml"))).sort();
   return runs.length ? runs[runs.length - 1] : null;
 }
 function collectReport(skillDir) {
-  const specPath = join12(skillDir, "tests", "specification.yaml");
+  const specPath = join14(skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const scenarios = spec.scenarios.map((s) => ({ id: s.id, title: s.title, critical: s.critical }));
-  const resultsRoot = join12(skillDir, "tests", "results");
+  const resultsRoot = join14(skillDir, "tests", "results");
   const liftByTag = new Map(collectLift(skillDir).map((l) => [l.tag, l]));
+  const boundaryByCell = new Map(boundaryCells(collectStability(skillDir)).map((c) => [`${c.tag}\0${c.mode}\0${c.id}`, c]));
   const columns = [];
-  if (existsSync9(resultsRoot)) {
-    const tags = readdirSync6(resultsRoot).map((n) => join12(resultsRoot, n)).filter((p) => statSync4(p).isDirectory()).sort();
+  if (existsSync10(resultsRoot)) {
+    const tags = readdirSync7(resultsRoot).map((n) => join14(resultsRoot, n)).filter((p) => statSync5(p).isDirectory()).sort();
     for (const tagDir of tags) {
       const runDir = latestRunDir(tagDir);
       if (!runDir)
         continue;
       const r = readResults(runDir);
+      const tagName = tagDir.split("/").pop();
       const cells = {};
       for (const s of r.scenarios) {
+        const boundary = boundaryByCell.get(`${tagName}\0${r.mode}\0${s.id}`);
         cells[s.id] = {
+          ...boundary ? {
+            stability: {
+              flips: boundary.flips,
+              compared: boundary.compared,
+              volatility: boundary.volatility,
+              note: stabilityNote(boundary)
+            }
+          } : {},
           judge_verdict: s.judge_verdict,
           judge_reason: s.judge_reason,
           suspect: s.suspect ?? false,
@@ -4158,7 +4441,7 @@ function collectReport(skillDir) {
           note: s.note
         };
       }
-      const tag = tagDir.split("/").pop();
+      const tag = tagName;
       const tagLift = liftByTag.get(tag);
       const lift = tagLift && tagLift.greenTimestamp === r.timestamp ? tagLift : void 0;
       columns.push({
@@ -4204,74 +4487,13 @@ function renderReport(template, data, gradeScript) {
   return template.replace("/*__DATA__*/null", json).replace("/*__GRADE__*/", stripExports(gradeScript)).replace("__SKILL__", data.skill);
 }
 
-// packages/core/dist/trends.js
-import { existsSync as existsSync10, readdirSync as readdirSync7, statSync as statSync5 } from "node:fs";
-import { join as join13 } from "node:path";
-function isDir2(p) {
-  try {
-    return statSync5(p).isDirectory();
-  } catch {
-    return false;
-  }
-}
-function collectTrends(skillDir, limit = 20) {
-  const specPath = join13(skillDir, "tests", "specification.yaml");
-  const spec = loadSpec(specPath);
-  const scenarios = spec.scenarios.map((s) => ({ id: s.id, title: s.title, critical: s.critical }));
-  const resultsRoot = join13(skillDir, "tests", "results");
-  const models = [];
-  if (existsSync10(resultsRoot)) {
-    const tags = readdirSync7(resultsRoot).filter((n) => isDir2(join13(resultsRoot, n))).sort();
-    for (const tag of tags) {
-      const tagDir = join13(resultsRoot, tag);
-      const runDirs = readdirSync7(tagDir).map((n) => join13(tagDir, n)).filter((p) => isDir2(p) && existsSync10(join13(p, "results.yaml"))).sort();
-      if (runDirs.length === 0)
-        continue;
-      const byMode = /* @__PURE__ */ new Map();
-      let skipped = 0;
-      for (const rd of runDirs) {
-        let r;
-        try {
-          r = readResults(rd);
-        } catch (e) {
-          console.warn(`skill-harness trends: skipping unreadable run ${rd}: ${e instanceof Error ? e.message : e}`);
-          skipped++;
-          continue;
-        }
-        if (!isScoredMode(r.mode))
-          continue;
-        (byMode.get(r.mode) ?? byMode.set(r.mode, []).get(r.mode)).push(r);
-      }
-      if (byMode.size === 0)
-        continue;
-      for (const [mode, scoredRuns] of byMode) {
-        const truncated = scoredRuns.length > limit;
-        const kept = scoredRuns.slice(-limit);
-        const runs = [];
-        let model = "";
-        for (const r of kept) {
-          const verdicts = effectiveVerdicts(r.scenarios);
-          const cells = {};
-          r.scenarios.forEach((s, i) => {
-            cells[s.id] = { verdict: verdicts[i].verdict, suspect: verdicts[i].suspect ?? false, flakiness: s.flakiness };
-          });
-          runs.push({ timestamp: r.timestamp, label: r.label, grade: r.effective_grade, cells });
-          model = r.model;
-        }
-        models.push({ model, tag, mode, runs, truncated, skipped });
-      }
-    }
-  }
-  return { skill: spec.skill, scenarios, models };
-}
-
 // packages/core/dist/lint.js
 import { existsSync as existsSync12, statSync as statSync7, readdirSync as readdirSync9, readFileSync as readFileSync8 } from "node:fs";
-import { basename, dirname as dirname2, isAbsolute as isAbsolute4, join as join15, resolve as resolve6 } from "node:path";
+import { basename, dirname as dirname2, isAbsolute as isAbsolute4, join as join16, resolve as resolve6 } from "node:path";
 
 // packages/core/dist/downgrade.js
 import { existsSync as existsSync11, readdirSync as readdirSync8, statSync as statSync6 } from "node:fs";
-import { join as join14 } from "node:path";
+import { join as join15 } from "node:path";
 
 // packages/core/dist/defaults.js
 var BAKED_DEFAULT_JUDGE = "claude-code:claude-opus-4-8";
@@ -4302,16 +4524,16 @@ function assertJudgeAllowed(judge, opts) {
 
 // packages/core/dist/regate.js
 import { existsSync as existsSync13, readFileSync as readFileSync9, renameSync, writeFileSync as writeFileSync4 } from "node:fs";
-import { join as join16 } from "node:path";
+import { join as join17 } from "node:path";
 
 // packages/adapters/dist/pi.js
 import { existsSync as existsSync14, mkdtempSync as mkdtempSync2, readFileSync as readFileSync10, statSync as statSync8 } from "node:fs";
 import { tmpdir as tmpdir2 } from "node:os";
-import { join as join17, resolve as resolve7 } from "node:path";
+import { join as join18, resolve as resolve7 } from "node:path";
 var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
 function requireSkillDir(skillDir, mode) {
   const abs = resolve7(skillDir);
-  const md = join17(abs, "SKILL.md");
+  const md = join18(abs, "SKILL.md");
   const isDir3 = existsSync14(abs) && statSync8(abs).isDirectory();
   if (!isDir3 || !existsSync14(md)) {
     throw new Error(`mode=${mode} needs a skill directory with a SKILL.md, but ${abs} ${isDir3 ? "has none" : "is not a directory"}` + (abs === skillDir ? "" : ` (given \`${skillDir}\`, resolved against ${process.cwd()})`) + ` \u2014 pi accepts \`--skill <nonexistent>\` silently (exit 0, a normal answer, no skill in context), so this run would measure a model with no skill and report it as a result.`);
@@ -4325,7 +4547,7 @@ function skillFlags(mode, skillDir) {
     case "green":
       return ["--skill", requireSkillDir(skillDir, mode)];
     case "force": {
-      const body = readFileSync10(join17(requireSkillDir(skillDir, mode), "SKILL.md"), "utf8");
+      const body = readFileSync10(join18(requireSkillDir(skillDir, mode), "SKILL.md"), "utf8");
       return ["--no-skills", "--append-system-prompt", body];
     }
   }
@@ -4390,7 +4612,7 @@ ${r.stderr.trim()}
 `);
       return parts.join("\n");
     }
-    const session = mkdtempSync2(join17(tmpdir2(), "sc-pi-session-"));
+    const session = mkdtempSync2(join18(tmpdir2(), "sc-pi-session-"));
     for (let i = 0; i < total; i++) {
       const turnFlags = i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common, ...turnFlags, "-p", req.turns[i]];
@@ -4456,18 +4678,18 @@ function getAdapter(name) {
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
 import { readFileSync as readFileSync11, existsSync as existsSync15 } from "node:fs";
-import { join as join18, dirname as dirname3 } from "node:path";
+import { join as join19, dirname as dirname3 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn as spawn2 } from "node:child_process";
 var __dirname = dirname3(fileURLToPath(import.meta.url));
 function templatePath(assetsDir) {
   if (assetsDir)
-    return join18(assetsDir, "report.template.html");
+    return join19(assetsDir, "report.template.html");
   const candidates = [
-    join18(__dirname, "..", "..", "..", "assets", "report.template.html"),
+    join19(__dirname, "..", "..", "..", "assets", "report.template.html"),
     // packages/cli/{dist,src} -> ../../../assets
-    join18(__dirname, "..", "assets", "report.template.html"),
-    join18(__dirname, "..", "..", "assets", "report.template.html")
+    join19(__dirname, "..", "assets", "report.template.html"),
+    join19(__dirname, "..", "..", "assets", "report.template.html")
   ];
   for (const c of candidates)
     if (existsSync15(c))
@@ -4475,7 +4697,7 @@ function templatePath(assetsDir) {
   throw new Error("cannot find assets/report.template.html");
 }
 function gradeScriptPath(assetsDir) {
-  return join18(dirname3(templatePath(assetsDir)), "report.grade.js");
+  return join19(dirname3(templatePath(assetsDir)), "report.grade.js");
 }
 function readBody(req) {
   return new Promise((resolve10) => {
@@ -4489,18 +4711,18 @@ function findTranscript(runDir, id) {
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync11(join18(runDir, files[0]), "utf8");
+    return readFileSync11(join19(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync11(join18(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync11(join19(runDir, f), "utf8")}`).join("\n\n");
 }
 function findJudgeRaw(runDir, id) {
   const files = findJudgeRawFiles(runDir, id);
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync11(join18(runDir, files[0]), "utf8");
+    return readFileSync11(join19(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync11(join18(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync11(join19(runDir, f), "utf8")}`).join("\n\n");
 }
 async function serveReview(opts) {
   const template = readFileSync11(templatePath(opts.assetsDir), "utf8");
@@ -4554,7 +4776,7 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be re-judged here \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
           return;
         }
-        const specPath = join18(opts.skillDir, "tests", "specification.yaml");
+        const specPath = join19(opts.skillDir, "tests", "specification.yaml");
         const spec = loadSpec(specPath);
         const scenario = spec.scenarios.find((s) => s.id === body.scenarioId);
         if (!scenario) {
@@ -4604,7 +4826,7 @@ async function serveReview(opts) {
             // the same doctrine `grade` follows (see refreshRubricHashes).
             source_hashes: refreshRubricHashes(results.source_hashes, spec, [body.scenarioId])
           }, scoreContextFor(results, spec));
-          ensureResultsGitignore(join18(opts.skillDir, "tests", "results"));
+          ensureResultsGitignore(join19(opts.skillDir, "tests", "results"));
           const g = written.effective_grade;
           appendJournal(column.runDir, { event: "score", ts: (/* @__PURE__ */ new Date()).toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
           res.writeHead(200, { "content-type": "application/json" });
@@ -4632,11 +4854,11 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
           return;
         }
-        const spec = loadSpec(join18(opts.skillDir, "tests", "specification.yaml"));
+        const spec = loadSpec(join19(opts.skillDir, "tests", "specification.yaml"));
         writeResults(column.runDir, patched, scoreContextFor(patched, spec));
-        ensureResultsGitignore(join18(opts.skillDir, "tests", "results"));
+        ensureResultsGitignore(join19(opts.skillDir, "tests", "results"));
         if (body.override != null) {
-          preserveTranscript(join18(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
+          preserveTranscript(join19(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
         }
         appendJournal(column.runDir, {
           event: "override",
@@ -4682,16 +4904,16 @@ function tryOpen(url, cmd) {
 
 // packages/pi-extension/src/runner.ts
 import { existsSync as existsSync16 } from "node:fs";
-import { dirname as dirname4, join as join19, resolve as resolve8 } from "node:path";
+import { dirname as dirname4, join as join20, resolve as resolve8 } from "node:path";
 function resolveSkillDir(cwd, arg) {
   if (arg) {
     const dir2 = resolve8(cwd, arg);
-    if (existsSync16(join19(dir2, "tests", "specification.yaml"))) return dir2;
+    if (existsSync16(join20(dir2, "tests", "specification.yaml"))) return dir2;
     throw new Error(`no tests/specification.yaml found at ${dir2}`);
   }
   let dir = cwd;
   for (; ; ) {
-    if (existsSync16(join19(dir, "tests", "specification.yaml"))) return dir;
+    if (existsSync16(join20(dir, "tests", "specification.yaml"))) return dir;
     const parent = dirname4(dir);
     if (parent === dir) break;
     dir = parent;
@@ -4700,7 +4922,7 @@ function resolveSkillDir(cwd, arg) {
 }
 var DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 async function runViaExtension(opts) {
-  const specPath = join19(opts.skillDir, "tests", "specification.yaml");
+  const specPath = join20(opts.skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const modelToken = opts.model ?? DEFAULT_MODEL;
   const model = parseModelRef(modelToken);
@@ -4727,7 +4949,7 @@ async function runViaExtension(opts) {
   });
   const g = summary.results.effective_grade;
   const verdicts = effectiveVerdicts(summary.results.scenarios);
-  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join19(summary.runDir, f)));
+  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join20(summary.runDir, f)));
   return {
     skill: summary.results.skill,
     model: summary.results.model,
@@ -4796,8 +5018,8 @@ ${card.failedTranscripts.join("\n")}`);
   if (sub === "judge") {
     const runDir = resolve9(ctx.cwd, positional[0] ?? ".");
     const testsDir = dirname5(dirname5(dirname5(runDir)));
-    const spec = loadSpec(join20(testsDir, "specification.yaml"));
-    const prev = existsSync17(join20(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const spec = loadSpec(join21(testsDir, "specification.yaml"));
+    const prev = existsSync17(join21(runDir, "results.yaml")) ? readResults(runDir) : null;
     const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? parseModelRef(defaultJudge());
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge"
@@ -4815,7 +5037,7 @@ ${card.failedTranscripts.join("\n")}`);
   }
   if (sub === "review") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const spec = loadSpec(join20(skillDir, "tests", "specification.yaml"));
+    const spec = loadSpec(join21(skillDir, "tests", "specification.yaml"));
     const handle = await serveReview({
       skillDir,
       skillName: spec.skill,
@@ -4887,7 +5109,7 @@ function registerTool(pi) {
 
 // packages/pi-extension/src/index.ts
 function index_default(pi) {
-  const assetsDir = join21(dirname6(fileURLToPath2(import.meta.url)), "..", "..", "..", "assets");
+  const assetsDir = join22(dirname6(fileURLToPath2(import.meta.url)), "..", "..", "..", "assets");
   registerCommand(pi, assetsDir);
   registerTool(pi);
   pi.on("session_shutdown", async () => {

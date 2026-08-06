@@ -5,15 +5,36 @@ import { loadSpec, SpecError } from "./spec.js";
 import { readResults, finalizeResults, findTranscriptFiles, resultsPath, scoreContextFor } from "./results.js";
 import { currentHashFor, describeSourceKey, remedyForKey, scenarioIdForKey, effectiveFixture, SCENARIO_PREFIX, STIMULUS_PREFIX, UNREADABLE } from "./sources.js";
 import { downgradeWarning } from "./downgrade.js";
+import { collectScoredRuns } from "./trends.js";
+import { boundaryCells, stabilityFrom, stabilityNote } from "./stability.js";
 import { MARKERS, unknownMarkerDirs, suggestMarker } from "./workspace.js";
 
-export type LintCode = "spec" | "ship_bar" | "critical" | "fixture" | "fixture-marker" | "consistency" | "stale" | "lint-error";
+export type LintCode = "spec" | "ship_bar" | "critical" | "fixture" | "fixture-marker" | "consistency" | "stale" | "stability" | "lint-error";
+
+/**
+ * How much a finding means.
+ *
+ * `error` (the default, and every code that existed through 0.5.0) fails the gate.
+ * `info` reports something a reader should know that is NOT a defect: a boundary cell
+ * is a statement about how much one run of a scenario is worth, not a broken spec, and
+ * turning it red would make "this cell needs more reps" indistinguishable from "your
+ * fixture is missing". Omitted rather than written on every finding so the shape stays
+ * backward-compatible for anything already reading this list.
+ */
+export type LintSeverity = "error" | "info";
 
 export interface LintFinding {
   readonly skill: string; // skill name (basename of the dir when the spec fails to parse)
   readonly scenario?: string;
   readonly code: LintCode;
   readonly message: string;
+  /** Absent means `error` — only findings that must not fail CI carry this. */
+  readonly severity?: LintSeverity;
+}
+
+/** True when a finding fails the gate. The single place the exit-code rule lives. */
+export function failsGate(f: LintFinding): boolean {
+  return (f.severity ?? "error") === "error";
 }
 
 /** True if `p` exists and is a directory. Never throws (TOCTOU-safe: a race or dangling
@@ -261,6 +282,29 @@ export function lintSkill(skillDir: string): LintFinding[] {
         }
       }
     }
+  }
+
+  // Run-over-run stability — INFO, never a gate failure. Derived from committed
+  // history at zero cost, and it answers a question no single results.yaml can: a
+  // scenario can be internally unanimous in every run and still land on a different
+  // side each time. Measured in the reference corpus: two consecutive full runs, one
+  // 3/3 PASS and the next 0/3 FAIL, each `flakiness 0.00`.
+  //
+  // In lint because that is where a repo already looks, and free because it reads what
+  // is on disk. Wrapped: lintSkill must never throw, and a stability read touches every
+  // run file in the tree.
+  try {
+    for (const cell of boundaryCells(stabilityFrom(collectScoredRuns(skillDir), spec))) {
+      findings.push({
+        skill, scenario: cell.id, code: "stability", severity: "info",
+        message: `${cell.tag} mode=${cell.mode}: ${stabilityNote(cell)}`,
+      });
+    }
+  } catch (e) {
+    findings.push({
+      skill, code: "stability", severity: "info",
+      message: `run-over-run stability could not be derived: ${e instanceof Error ? e.message : String(e)}`,
+    });
   }
 
   return findings;
