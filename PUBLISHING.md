@@ -427,7 +427,7 @@ section records what was checked so the publish is the only unverified part.
   gh run view <id> --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
   ```
 
-## Verification performed for 0.5.0 (prepared 2026-08-06, unpublished at time of writing)
+## Verification performed for 0.5.0 (published 2026-08-06)
 
 - Versions **and** pins bumped across the root and all five manifests plus `SKILL.md`'s
   frontmatter `version:`. `grep -c 'registry.npmjs.org/@skill-harness' package-lock.json`
@@ -453,6 +453,12 @@ section records what was checked so the publish is the only unverified part.
   unscoped 4 / 2.3 kB.
 - `packages/pi-extension/dist/index.js` regenerated with `npm run build:ext` and committed
   (`bundle.test.ts` is what fails if it goes stale — it did, once, before this step).
+- **After publishing:** all four packages report `0.5.0` on the registry and
+  `dist-tags.latest` moved (the unscoped `skill-harness` lagged the scoped three by about
+  a minute — worth knowing before assuming a failed publish). `npx skill-harness@0.5.0
+  --version` → `0.5.0` from a clean temp dir, and `npx skill-harness@0.5.0 lint` runs
+  against a real skill tree. Tags `v0.5.0` and `latest` both point at the merge commit
+  `ac6030e` on `main`.
 
 ## Verification performed for 0.4.0 (prepared 2026-08-05, published)
 
