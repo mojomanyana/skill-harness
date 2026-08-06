@@ -72,7 +72,8 @@ node bin/skill-harness.js run golden-skill --skills packages/core/test/fixtures 
 ```
 
 - `--model prov:model` repeats for multi-model comparison (or `--models <file>`).
-- `--mode green` (default; skill active) · `red` (baseline, skill off) · `force` (inject SKILL.md body).
+- `--mode green` (default; the harness activates the skill) · `force` (SKILL.md as the system prompt) · `red` (baseline, skill off). **Green and force are both scored**; red is the control and never gets a grade. See §4e for which one to publish.
+- `--canary` (green only) spends one extra call proving the skill reached the model, and aborts the run if it didn't.
 - `--reps N` runs each scenario N times (flakiness); `--pass-threshold T` sets the pass-rate bar.
 - **Judge ≠ subject** — never put the judge model in the set under test; heed any judge≈subject warning.
 
@@ -168,15 +169,69 @@ after the model's turns, not model output; the pre-regate transcript is kept bes
 
 ## 4d. Which harness produced a number
 
-`results.yaml` records `harness_version`, and the run banner and `--version` both print
-it. `schema` cannot answer this: 0.2.1 → 0.3.0 kept `schema: 2` while changing what a
-verdict *means*.
+`results.yaml` records `harness_version` (this tool) and `harness_cli_version` (the
+harness CLI it drove — `pi --version`), and the run banner and `--version` both print the
+former. `schema` cannot answer either question: 0.2.1 → 0.3.0 kept `schema: 2` while
+changing what a verdict *means*.
+
+`harness_cli_version` exists because of §4e: a pi upgrade changed what green mode
+measures, and the two waves it invalidated are indistinguishable from valid ones in the
+committed artifacts, because nothing recorded which pi ran. It is written by `run` only —
+`grade`, `rescore` and `regate` carry it forward untouched, since re-deciding a verdict
+does not re-deliver a skill.
 
 That enables a tripwire. If a results tree holds records written by a **newer**
 skill-harness than the one you are running, `run` refuses (its numbers would not be
 comparable) while `grade` and `lint` warn and continue — they are how you diagnose it. A
 stale global install is otherwise invisible: a 0.1.0 binary grading a 0.3.x corpus
 produces entirely plausible numbers.
+
+## 4e. Green or force — and why it matters more than it sounds
+
+| mode | how the skill arrives | scored? | can it degrade silently? |
+|---|---|---|---|
+| `green` | `pi --skill <dir>` — the harness activates it | yes | **yes** — see below |
+| `force` | `pi --append-system-prompt <SKILL.md>` | yes | no |
+| `red` | not at all (`--no-skills`) | no — it is the control | n/a |
+
+**The measured failure.** pi 0.80.x wrapped a `--skill` prompt with the skill body. pi
+0.83.0 delivers it by *progressive disclosure*: only the skill's description is always in
+context, and the instructions load on demand — which pi's own docs note "models don't
+always do". pi also accepts a **nonexistent** `--skill` path silently (exit 0, a normal
+answer). Green mode therefore stopped putting one corpus's skills in front of the model,
+and two full waves ran before anyone noticed: the affected skill scored ≈ its own
+no-skill baseline while looking entirely plausible. The only tell was a contradictory
+failure mix — over-ceremony and capitulation at once — that no single skill edit produces.
+
+**What the harness does about it now.**
+
+- the pi adapter **refuses** a skill dir with no `SKILL.md` rather than letting pi swallow
+  the flag, and resolves the path first (a relative `--skills .` used to hand a child
+  process a path that meant nothing in its cwd);
+- every run records `harness_cli_version`;
+- `--canary` spends one probe before the wave — "list the `## ` headings of your
+  instructions" — and aborts if the reply doesn't contain them. It proves the body is
+  *reachable*; under progressive disclosure nothing can prove the model read it on every
+  later turn, which is exactly why the next bullet exists;
+- `--mode force` is delivery that no pi version has made conditional. If a scorecard is
+  going to be published, this is the mode to publish.
+
+**Don't pool the two.** Placement is not a formatting detail: on identical skill text,
+moving green → force took one skill's discipline scenario from 0/3 to 3/3 while dropping
+another skill's right-sizing scenario from 3/3 to 0/3. Stronger adherence lifts discipline
+scenarios and breaks right-sizing governors at the same time. The review UI keeps one
+trend series per mode for that reason, and a lift says which delivery it measured.
+
+**Scoring force runs you already have.** Force was unscored before 0.5.0, so runs recorded
+by 0.4.x read `effective_grade: not scored`. Nothing needs re-measuring — the rep data is
+on disk:
+
+```bash
+node bin/skill-harness.js rescore <run-dir> [<run-dir> ...]   # free, offline, no judge
+```
+
+`lint` flags those runs as `consistency — effective_grade is stale … rescore (free,
+offline)` until you do.
 
 ## 5. Review — flip verdicts, read transcripts
 
@@ -192,7 +247,7 @@ Opens a local matrix UI (model × scenario). Click cells to read transcripts + r
 node bin/skill-harness.js grade <run-dir> --judge claude-code:opus
 ```
 
-Re-scores the **saved transcripts** of a prior run with a (possibly different) judge — no model re-runs. Use it to de-confound a suspicious result before a fresh `run`.
+Re-scores the **saved transcripts** of a prior run with a (possibly different) judge — no model re-runs. Use it to de-confound a suspicious result before a fresh `run`. It reads the transcripts of the run's own mode, so a force run and a red baseline are both re-gradable, and a force run comes back scored.
 
 ## 7. Add a test case
 

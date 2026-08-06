@@ -161,6 +161,7 @@ export async function cmdRun(args: Args): Promise<void> {
   if (!(await adapter.available())) throw new Error(`harness \`${harnessName}\` is not on PATH`);
 
   const mode = (flagStr(args, "mode", "green") as "red" | "green" | "force") || "green";
+  const canary = flagBool(args, "canary");
   const label = flagStr(args, "label") || null;
   const parallel = Math.max(1, Number(flagStr(args, "parallel", "1")) || 1);
   const { reps, passThreshold } = parseRunTuning(args);
@@ -204,6 +205,7 @@ export async function cmdRun(args: Args): Promise<void> {
         reps,
         passThreshold,
         only,
+        canary,
         onProgress: (m) => console.log(m),
       });
       summaries.push(summary);
@@ -521,6 +523,7 @@ export function help(): string {
 
   run    <skill|all> --skills <root> [--model prov:model ...] [--models file] [--only A1,D2]
                      [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
+                     [--canary]  green only: spend ONE probe proving the skill reached the model, and abort the run if it did not
   grade  <run-dir>   [--judge prov:model] [--suspect-only]   re-grade saved transcripts (neutral judge)
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (free)
   regate <run-dir>...  [--judge prov:model]     re-evaluate diff needles against the saved diffs (free; judges only reps whose gate flipped)
@@ -534,6 +537,9 @@ export function help(): string {
   version  print ${HARNESS_VERSION} and exit (also --version / -v)
 
 defaults: model=${DEFAULT_MODEL}  judge=${defaultJudge()}  mode=green  harness=pi
+  green and force are both scored; red is the unscored baseline. green delivery depends on the
+  harness version (pi >= 0.83.0 discloses only the skill's description and loads the body on demand),
+  so --mode force is the delivery that cannot silently degrade — and --canary proves green per run.
   the judge default is Opus on your Claude subscription (\`claude-code\` → \`claude -p\`), not a
   metered API key. Set SKILL_HARNESS_JUDGE to change it for a repo or a shell; --judge wins over both.`;
 }

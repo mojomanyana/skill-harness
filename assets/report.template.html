@@ -126,10 +126,10 @@ function render() {
   const grades = DATA.columns.map((col) => gradeColumn(col, DATA.shipBar, DATA.critical));
   const queue = [];
   DATA.columns.forEach((col) => {
-    // A suspect cell in a red/force column can't be re-judged (/rejudge 400s
-    // "only green runs can be re-judged") — don't queue it. The matrix below
-    // still shows suspect badges for every column regardless of mode.
-    if (col.mode && col.mode !== "green") return;
+    // A suspect cell in a red column can't be re-judged from here (/rejudge 400s
+    // for an unscored baseline) — don't queue it. The matrix below still shows
+    // suspect badges for every column regardless of mode.
+    if (col.mode && col.mode !== "green" && col.mode !== "force") return;
     for (const scn of DATA.scenarios) {
       const cell = col.cells[scn.id];
       if (cell && cell.suspect && !cell.override) queue.push({ col: col.index, id: scn.id, label: col.label, reason: cell.judge_reason });
@@ -150,8 +150,8 @@ function render() {
   DATA.columns.forEach((col, i) => {
     const g = grades[i];
     let gradeHtml;
-    if (col.mode && col.mode !== "green") {
-      // Only green runs are scored; a red/force column has no ship grade.
+    if (col.mode && col.mode !== "green" && col.mode !== "force") {
+      // Green and force are scored; a red baseline column has no ship grade.
       gradeHtml = `<span class='badge no'>not scored (${escapeHtml(col.mode)})</span>`;
       if (g.suspect > 0) gradeHtml += ` — ${g.suspect} suspect`;
     } else {
@@ -244,7 +244,7 @@ async function openPanel(colIndex, scenarioId) {
   panel.innerHTML = `
     <button class="close" id="closeBtn">×</button>
     <h2>${scn.id} · ${escapeHtml(scn.title)}</h2>
-    <div class="meta">${escapeHtml(col.label)} · judge ${escapeHtml(col.judge.provider + ":" + col.judge.model)}</div>
+    <div class="meta">${escapeHtml(col.label)} · mode ${escapeHtml(col.mode || "green")} · judge ${escapeHtml(col.judge.provider + ":" + col.judge.model)}</div>
     <div class="reason"><b>judge:</b> ${cell.judge_verdict} — ${escapeHtml(cell.judge_reason || "(no reason)")}</div>
     ${cell.suspect ? `<div class="reason" style="color:#b45309"><b>⚠ suspect:</b> judge listed no failed item — re-judge before trusting this FAIL</div>` : ""}
     <div class="toggle">
@@ -358,7 +358,12 @@ function renderTrends(data) {
     const badge = last.ship ? "<span class='badge ship'>SHIP</span>" : "<span class='badge no'>NOT READY</span>";
     const trunc = m.truncated ? ` <span class='dim'>(last ${m.runs.length})</span>` : "";
     const skippedNote = m.skipped > 0 ? ` <span class='dim'>(${m.skipped} unreadable)</span>` : "";
-    html += `<div class="tmodel"><div class="tmodel-h">${escapeHtml(m.model)} — ${sparkline(m.runs)} ${last.letter} (${last.pct}%) ${badge}${trunc}${skippedNote}</div>`;
+    // The mode is part of the series identity, not decoration: a tag that moved
+    // from green to force delivery has TWO series here, and the same skill text
+    // scores differently under each — so an unlabelled pair of sparklines would
+    // read as one history that jumped.
+    const modeNote = m.mode ? ` <span class='dim'>${escapeHtml(m.mode)}</span>` : "";
+    html += `<div class="tmodel"><div class="tmodel-h">${escapeHtml(m.model)}${modeNote} — ${sparkline(m.runs)} ${last.letter} (${last.pct}%) ${badge}${trunc}${skippedNote}</div>`;
     html += "<table class='tgrid'><thead><tr><th></th>";
     for (const run of m.runs) html += `<th title="${escapeHtml(run.label || run.timestamp)}">${escapeHtml((run.label || run.timestamp).slice(0, 8))}</th>`;
     html += "</tr></thead><tbody>";

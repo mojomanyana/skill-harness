@@ -143,7 +143,9 @@ export function liftNoneBadge(col) {
   if (col.lift) {
     return { text: "lift not comparable", title: col.liftHeadline || "nothing in the red baseline could be compared" };
   }
-  if (col.mode === "green") {
+  // Green and force are both skill-delivered, so both can be missing a baseline.
+  // A red column is the baseline and gets no badge at all.
+  if (col.mode === "green" || col.mode === "force") {
     return { text: "no red baseline", title: "run the same scenarios with --mode red to get a baseline" };
   }
   return null;

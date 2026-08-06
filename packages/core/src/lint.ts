@@ -2,7 +2,7 @@ import { existsSync, statSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import yaml from "js-yaml";
 import { loadSpec, SpecError } from "./spec.js";
-import { readResults, finalizeResults, findTranscriptFiles, resultsPath, type ScoreContext } from "./results.js";
+import { readResults, finalizeResults, findTranscriptFiles, resultsPath, scoreContextFor } from "./results.js";
 import { currentHashFor, describeSourceKey, remedyForKey, scenarioIdForKey, effectiveFixture, SCENARIO_PREFIX, STIMULUS_PREFIX, UNREADABLE } from "./sources.js";
 import { downgradeWarning } from "./downgrade.js";
 import { MARKERS, unknownMarkerDirs, suggestMarker } from "./workspace.js";
@@ -166,13 +166,20 @@ export function lintSkill(skillDir: string): LintFinding[] {
       // can actually re-score. Override/transcript rules below still apply.
       const specIds = new Set(spec.scenarios.map((sc) => sc.id));
       const sameSet = r.scenarios.length === specIds.size && r.scenarios.every((sc) => specIds.has(sc.id));
-      const ctx: ScoreContext | null = r.mode === "green" && !r.partial ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
+      const ctx = scoreContextFor(r, spec);
       const recomputed = !sameSet ? null : finalizeResults(
         { skill: r.skill, harness: r.harness, model: r.model, judge: r.judge, timestamp: r.timestamp, label: r.label, mode: r.mode, partial: r.partial, source_hashes: r.source_hashes, scenarios: r.scenarios },
         ctx,
       ).effective_grade;
       if (recomputed && JSON.stringify(recomputed) !== JSON.stringify(r.effective_grade)) {
-        findings.push({ skill, code: "consistency", message: `results.yaml effective_grade is stale in ${runDir} (recompute differs)` });
+        // The remedy is named because this finding now has a benign, expected cause
+        // as well as a suspicious one: a force run recorded before 0.5.0 carries a
+        // "not scored" placeholder, and today's policy scores it (see SCORED_MODES).
+        // `rescore` is free and offline, so the fix is never a reason to re-measure.
+        findings.push({
+          skill, code: "consistency",
+          message: `results.yaml effective_grade is stale in ${runDir} (recompute differs) — re-apply the current scoring policy: rescore (free, offline)`,
+        });
       }
       for (const s of r.scenarios) {
         if (s.override != null) {

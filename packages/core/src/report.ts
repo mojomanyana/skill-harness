@@ -10,18 +10,19 @@ export interface RunColumn {
   tag: string; // harness-modelslug dir name
   runDir: string; // absolute path (server-side only)
   timestamp: string;
-  mode: string; // red | green | force — non-green runs are not scored
+  mode: string; // red | green | force — green and force are scored, red is the unscored baseline
   grade: ResultsFile["effective_grade"];
   judge: ResultsFile["judge"];
   cells: Record<string, { judge_verdict: string; judge_reason: string; suspect: boolean; reps?: number; passes?: number; clean?: number; flakiness?: number; override: string | null; note: string }>;
   /**
-   * Red-vs-green lift for this model, when the tag has both a red baseline and a
-   * green run. Undefined means "never measured" — which is not the same claim as
-   * a zero lift, so the report must not render a 0 for it.
+   * Baseline-vs-skill lift for this model, when the tag has both a red baseline and
+   * a skill-delivered run (green or force). Undefined means "never measured" —
+   * which is not the same claim as a zero lift, so the report must not render a 0
+   * for it.
    *
-   * Only set when THIS column is the green run the lift was computed from (see
+   * Only set when THIS column is the skill-side run the lift was computed from (see
    * collectReport): the review UI recomputes lift from the column's live cells,
-   * which is only valid if those cells are the green side of the comparison.
+   * which is only valid if those cells are the skill side of the comparison.
    */
   lift?: Lift;
   liftHeadline?: string;
@@ -82,13 +83,14 @@ export function collectReport(skillDir: string): ReportData {
         };
       }
       const tag = tagDir.split("/").pop()!;
-      // A column is the tag's LATEST run, which is not necessarily the green one —
-      // record a red baseline after a green run and the newest run in the tag is
-      // red. The review UI recomputes lift from `cells` (so author overrides move
+      // A column is the tag's LATEST run, which is not necessarily the skill-side
+      // one — record a red baseline after a green run and the newest run in the tag
+      // is red. The review UI recomputes lift from `cells` (so author overrides move
       // it live), so attaching a lift to a column whose cells are the RED run
       // would have it compare red against red and report "no effect" for a skill
       // that in fact gained every scenario. Attach only when this column IS the
-      // green side of the comparison.
+      // skill side of the comparison — matched on the timestamp, which also keeps a
+      // green column from borrowing a force run's lift and vice versa.
       const tagLift = liftByTag.get(tag);
       const lift = tagLift && tagLift.greenTimestamp === r.timestamp ? tagLift : undefined;
       columns.push({

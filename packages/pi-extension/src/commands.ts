@@ -31,7 +31,7 @@ export interface CmdCtx {
   };
 }
 
-const USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--judge p:m] | judge [run-dir] | review [skill]";
+const USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] | review [skill]";
 
 /** Minimal arg tokenizer: subcommand + positional args + `--key value` flags. A flag with no following value (or one followed by another `--flag`) is left unset, so callers' `?? default` fallbacks apply. */
 function parse(argstr: string): { sub: string; positional: string[]; flags: Record<string, string> } {
@@ -47,6 +47,11 @@ function parse(argstr: string): { sub: string; positional: string[]; flags: Reco
       if (next !== undefined && !next.startsWith("--")) {
         flags[key] = next;
         i++;
+      } else {
+        // A bare `--flag` is presence, recorded as "". It used to be dropped
+        // entirely, which silently ignored boolean flags like `--canary` — the
+        // worst outcome for a flag whose whole job is to refuse a bad run.
+        flags[key] = "";
       }
     } else {
       positional.push(tok);
@@ -74,11 +79,14 @@ export async function handleSkillCheck(
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
     const card = await runViaExtension({
       skillDir,
-      model: flags.model,
+      // `|| undefined`: a valueless `--model` / `--mode` must fall back to the
+      // default rather than pass "" down as if it were a token.
+      model: flags.model || undefined,
       reps: flags.reps ? Number(flags.reps) : undefined,
-      mode: flags.mode as "red" | "green" | "force" | undefined,
+      mode: (flags.mode || undefined) as "red" | "green" | "force" | undefined,
+      canary: flags.canary !== undefined && flags.canary !== "false",
       adapter,
-      judge: flags.judge,
+      judge: flags.judge || undefined,
       timestamp: nowIso(),
       log: (m) => { if (ctx.hasUI) ctx.ui.setStatus?.("skill-harness", m); }, // live footer only in TUI
     });

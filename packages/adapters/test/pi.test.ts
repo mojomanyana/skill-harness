@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 // Mock core's exec before importing the adapter.
 vi.mock("@skill-harness/core", async (importOriginal) => {
@@ -11,6 +14,13 @@ import { exec } from "@skill-harness/core";
 
 const mockedExec = vi.mocked(exec);
 
+/** A real skill dir on disk — the adapter refuses one that isn't there (see requireSkillDir). */
+function fakeSkill(body = "---\nname: s\ndescription: d\n---\n\n## Do the thing\n"): string {
+  const dir = mkdtempSync(join(tmpdir(), "sc-skill-"));
+  writeFileSync(join(dir, "SKILL.md"), body, "utf8");
+  return dir;
+}
+
 beforeEach(() => {
   mockedExec.mockReset();
   mockedExec.mockResolvedValue({ code: 0, stdout: "USER: hi\nASSISTANT: ok\nVERDICT: PASS", stderr: "" });
@@ -19,7 +29,7 @@ beforeEach(() => {
 describe("pi adapter nested-run safety", () => {
   it("green-mode subject run passes --no-extensions and still --skill", async () => {
     await piAdapter.run({
-      skillDir: "/s",
+      skillDir: fakeSkill(),
       model: { provider: "fireworks", model: "x" },
       mode: "green",
       turns: ["hi"],
@@ -43,17 +53,85 @@ describe("pi adapter nested-run safety", () => {
   });
 });
 
+describe("skill-delivery tripwire", () => {
+  // pi 0.83.0, verified: `pi --skill /nonexistent -p "hi"` answers normally and exits
+  // 0. So the only thing standing between a mistyped path and a whole wave of
+  // naked-model results that look plausible is this check.
+  it("refuses a missing skill dir in green mode instead of measuring a naked model", async () => {
+    await expect(piAdapter.run({
+      skillDir: join(tmpdir(), "sc-not-here-at-all"),
+      model: { provider: "fireworks", model: "x" },
+      mode: "green",
+      turns: ["hi"],
+      cwd: "/tmp",
+    })).rejects.toThrow(/needs a skill directory with a SKILL.md/);
+    expect(mockedExec).not.toHaveBeenCalled();
+  });
+
+  it("refuses a dir with no SKILL.md, and says which path it resolved", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sc-empty-skill-"));
+    await expect(piAdapter.run({
+      skillDir: dir, model: { provider: "fireworks", model: "x" }, mode: "green",
+      turns: ["hi"], cwd: "/tmp",
+    })).rejects.toThrow(new RegExp(`${dir} has none`));
+  });
+
+  it("resolves a relative skill dir before handing it to pi (the child runs in another cwd)", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sc-skills-root-"));
+    mkdirSync(join(root, "build"));
+    writeFileSync(join(root, "build", "SKILL.md"), "---\nname: build\n---\n## Ship it\n", "utf8");
+    const cwd = process.cwd();
+    try {
+      process.chdir(root);
+      await piAdapter.run({
+        skillDir: "build", // what `--skills .` used to produce
+        model: { provider: "fireworks", model: "x" }, mode: "green",
+        turns: ["hi"], cwd: "/tmp",
+      });
+    } finally {
+      process.chdir(cwd);
+    }
+    const [, args] = mockedExec.mock.calls[0];
+    const passed = args[args.indexOf("--skill") + 1];
+    expect(passed).toBe(join(root, "build"));
+  });
+
+  it("force mode is checked too — an absent SKILL.md is not a silent empty system prompt", async () => {
+    await expect(piAdapter.run({
+      skillDir: join(tmpdir(), "sc-not-here-either"),
+      model: { provider: "fireworks", model: "x" }, mode: "force",
+      turns: ["hi"], cwd: "/tmp",
+    })).rejects.toThrow(/mode=force needs a skill directory/);
+  });
+});
+
+describe("harness CLI version", () => {
+  it("reports what `pi --version` printed", async () => {
+    mockedExec.mockResolvedValueOnce({ code: 0, stdout: "0.83.0\n", stderr: "" });
+    expect(await piAdapter.version!()).toBe("0.83.0");
+  });
+
+  it("tolerates a `pi 1.2.3` shape", async () => {
+    mockedExec.mockResolvedValueOnce({ code: 0, stdout: "pi version 1.2.3\n", stderr: "" });
+    expect(await piAdapter.version!()).toBe("1.2.3");
+  });
+
+  it("is null when pi cannot say — provenance is never guessed", async () => {
+    mockedExec.mockResolvedValueOnce({ code: 1, stdout: "", stderr: "unknown flag" });
+    expect(await piAdapter.version!()).toBeNull();
+    mockedExec.mockRejectedValueOnce(new Error("ENOENT"));
+    expect(await piAdapter.version!()).toBeNull();
+  });
+});
+
 describe("agent-file runs", () => {
   it("uses the file as the system prompt and activates no skill", async () => {
-    const { mkdtempSync, writeFileSync } = await import("node:fs");
-    const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
     const dir = mkdtempSync(join(tmpdir(), "sc-agentfile-"));
     const file = join(dir, "plan.md");
     writeFileSync(file, "# Plan agent\nYou are single-shot.", "utf8");
 
     await piAdapter.run({
-      skillDir: "/s",
+      skillDir: "/does/not/exist", // an agent-file run never touches the skill dir
       model: { provider: "fireworks", model: "x" },
       mode: "green", // deliberately green: the agent file must win over skill activation
       turns: ["plan this"],

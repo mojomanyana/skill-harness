@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 export interface DiscoveredSkill {
   name: string; // directory name
@@ -12,15 +12,23 @@ export interface DiscoveredSkill {
  * Scan a skills root. A "skill" is any immediate subdirectory containing a
  * SKILL.md. It is testable iff `<skill>/tests/specification.yaml` exists.
  * Returns skills sorted by name (testable or not).
+ *
+ * `dir` and `specPath` are ABSOLUTE, whatever `root` was. They are handed to child
+ * processes that run in a neutral cwd of the harness's choosing (`pi --skill
+ * <dir>`), so a relative `--skills .` used to produce a path that resolved to
+ * nothing over there — and pi accepts a nonexistent `--skill` path silently, exit 0
+ * and a normal answer. The adapter refuses such a path too (see requireSkillDir),
+ * but the honest fix is here, where the path is built.
  */
 export function discover(root: string): DiscoveredSkill[] {
-  if (!existsSync(root) || !statSync(root).isDirectory()) {
+  const absRoot = resolve(root);
+  if (!existsSync(absRoot) || !statSync(absRoot).isDirectory()) {
     throw new Error(`skills root is not a directory: ${root}`);
   }
   const skills: DiscoveredSkill[] = [];
-  for (const name of readdirSync(root)) {
+  for (const name of readdirSync(absRoot)) {
     if (name.startsWith(".")) continue;
-    const dir = join(root, name);
+    const dir = join(absRoot, name);
     if (!statSync(dir).isDirectory()) continue;
     if (!existsSync(join(dir, "SKILL.md"))) continue;
     const specPath = join(dir, "tests", "specification.yaml");
@@ -38,7 +46,7 @@ export function discover(root: string): DiscoveredSkill[] {
 export function resolveSkill(root: string, name: string): DiscoveredSkill {
   const skill = discover(root).find((s) => s.name === name);
   if (!skill) {
-    const dir = join(root, name);
+    const dir = join(resolve(root), name);
     if (existsSync(dir) && statSync(dir).isDirectory() && !existsSync(join(dir, "SKILL.md"))) {
       throw new Error(`skill \`${name}\` has no SKILL.md (looked in ${dir})`);
     }

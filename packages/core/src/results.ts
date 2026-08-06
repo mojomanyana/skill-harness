@@ -42,13 +42,44 @@ export interface ResultsFile {
    * writer can forget it.
    */
   harness_version?: string;
+  /**
+   * The version of the harness CLI that produced the transcripts — `pi --version`
+   * for `harness: pi`.
+   *
+   * Provenance for the *delivery*, not for the tool: pi 0.80.x wrapped a `--skill`
+   * prompt with the skill body, pi 0.83.0 switched to progressive disclosure, and
+   * that upgrade silently changed what `--mode green` measured. Two waves of runs
+   * in the reference corpus are indistinguishable from a naked-model baseline, and
+   * the incident is invisible in the artifacts precisely because nothing recorded
+   * which pi ran.
+   *
+   * Written only by `run` (the command that actually invokes the harness) and
+   * carried verbatim by every rewriter — `grade`/`rescore`/`regate` re-decide
+   * verdicts, they do not re-deliver the skill, so re-stamping this field with
+   * today's pi would attribute the old transcripts to a version that never
+   * produced them. Optional: runs recorded before the field existed have none, and
+   * an adapter that cannot report a version writes none rather than guessing.
+   */
+  harness_cli_version?: string;
+  /**
+   * `pass` when this run proved, before spending the wave, that the skill body was
+   * reachable in the model's context (see canary.ts). Absent means the probe was
+   * not asked for — never that it failed, because a failed canary aborts the run
+   * and no results.yaml is written.
+   *
+   * Only green runs can carry it: red delivers nothing by design and force delivers
+   * through the system prompt. It is provenance for the *validity* of a green run,
+   * which is why it lives here rather than only in the journal — `journal.jsonl` is
+   * gitignored, and this claim has to survive a commit.
+   */
+  delivery_canary?: "pass";
   skill: string;
   harness: string;
   model: string; // provider:model token under test
   judge: { provider: string; model: string };
   timestamp: string;
   label: string | null; // run label, e.g. "round-3" — ends timestamp-dir archaeology
-  mode: string; // red | green | force
+  mode: string; // red | green | force — green and force are scored (see SCORED_MODES); red is the control
   /** True for an `--only`-filtered run: a scenario subset, never ship-graded, never a release run. */
   partial?: boolean;
   /**
@@ -63,6 +94,58 @@ export interface ResultsFile {
   source_hashes?: Record<string, string>;
   effective_grade: GradeSummary; // always override-aware; only finalizeResults writes it
   scenarios: ScenarioResult[];
+}
+
+/**
+ * The run modes whose results carry a real grade: the ones where the skill under
+ * test was actually delivered to the model.
+ *
+ * `green` activates the skill through the harness's own mechanism (`pi --skill`);
+ * `force` puts SKILL.md in the system prompt. Both are measurements OF THE SKILL,
+ * so both are scored against the ship bar. `red` is the control — the model with
+ * no skill — and scoring it would produce a ship grade for the thing the skill is
+ * measured against.
+ *
+ * Force was unscored until 0.5.0, when it stopped being an escape hatch and became
+ * a deployment: on pi 0.83.0 `--skill` switched to progressive disclosure (the
+ * description is in context, the body loads on demand — "models don't always do
+ * this"), so skill-as-system-prompt is the delivery a corpus can actually rely on.
+ * Ten committed force runs in the reference corpus read `not scored` for exactly
+ * that reason. Scored directly rather than behind a spec flag or a `--score-force`
+ * opt-in: "was the skill in front of the model?" is a property of the mode, not a
+ * per-repo preference, and a second knob would just be a second thing to forget.
+ *
+ * Consequence to expect, and it is the intended one: a force run recorded before
+ * 0.5.0 carries a "not scored" placeholder grade that a recompute now disagrees
+ * with, so `lint` flags it as stale and `rescore` (free) writes the real grade.
+ *
+ * The two modes are NOT interchangeable measurements of the same thing — placement
+ * changes behavior in both directions (measured on identical skill text: `build` A1
+ * 0/3 → 3/3, `plan` C2 3/3 → 0/3). Anything that plots or compares runs over time
+ * therefore keeps the epochs apart rather than pooling them; see trends.ts.
+ */
+export const SCORED_MODES: readonly string[] = ["green", "force"];
+
+/** Whether a run in this mode delivered the skill, and so has a grade worth computing. */
+export function isScoredMode(mode: string): boolean {
+  return SCORED_MODES.includes(mode);
+}
+
+/**
+ * The one place "does this run get a grade?" is decided: the scoring mode gate plus
+ * the `--only` partial gate, in one predicate every writer shares.
+ *
+ * Before 0.5.0 this ternary was open-coded in seven places (run, grade, rescore,
+ * regate, lint, and both review-server writers) — which is how force runs came to
+ * be unscored in all seven at once, and how any future mode would have had to be
+ * remembered seven times.
+ */
+export function scoreContextFor(
+  run: { mode: string; partial?: boolean },
+  spec: { ship_bar: ShipBar; critical: string[] },
+): ScoreContext | null {
+  if (!isScoredMode(run.mode) || run.partial) return null;
+  return { shipBar: spec.ship_bar, critical: spec.critical };
 }
 
 /** The pass-threshold a re-grade uses: the run's persisted value, else the spec's per-scenario value, else 0.5. */
@@ -131,6 +214,10 @@ export function finalizeResults(draft: ResultsDraft, ctx: ScoreContext | null): 
     // `grade`, `rescore` and the review UI's override save all record which tool
     // produced the record they leave behind.
     harness_version: HARNESS_VERSION,
+    // Omitted rather than written as null when absent: a run whose adapter could
+    // not report a version must not look like one that reported "nothing".
+    ...(draft.harness_cli_version ? { harness_cli_version: draft.harness_cli_version } : {}),
+    ...(draft.delivery_canary ? { delivery_canary: draft.delivery_canary } : {}),
     skill: draft.skill,
     harness: draft.harness,
     model: draft.model,

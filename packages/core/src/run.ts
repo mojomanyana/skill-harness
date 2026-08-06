@@ -10,6 +10,8 @@ import {
   diffPath,
   writeResults,
   ensureResultsGitignore,
+  scoreContextFor,
+  isScoredMode,
   type ResultsFile,
   type ScenarioResult,
 } from "./results.js";
@@ -20,6 +22,7 @@ import { createWorkspace, type Workspace } from "./workspace.js";
 import { runPool } from "./scheduler.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
 import { judgeOneRep } from "./regrade.js";
+import { runDeliveryCanary, canaryFailure, type CanaryResult } from "./canary.js";
 
 export interface RunOptions {
   spec: Spec;
@@ -43,6 +46,13 @@ export interface RunOptions {
    * ship-graded: a subset passing says nothing about the ship bar.
    */
   only?: string[];
+  /**
+   * Green mode only: spend ONE probe up front proving the skill reaches the model,
+   * and abort the run if it doesn't (see canary.ts). Off by default — it costs a
+   * rep, and the deterministic half of this failure class (a skill dir that isn't
+   * there) is already refused by the adapter for free.
+   */
+  canary?: boolean;
 }
 
 export interface RunSummary {
@@ -84,12 +94,51 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   mkdirSync(runDir, { recursive: true });
   ensureResultsGitignore(dirname(dirname(runDir))); // .../tests/results/.gitignore
 
+  // Which harness CLI delivered the skill, asked once per run and recorded with the
+  // numbers. A pi upgrade (0.80.x → 0.83.0) silently changed what green mode
+  // measures, and the incident was invisible in the artifacts because nothing wrote
+  // this down. Never fatal: `null` means the adapter couldn't say.
+  const harnessCliVersion = (await adapter.version?.()) ?? null;
+
   appendJournal(runDir, {
     event: "run-started", ts: now(),
     skill: spec.skill, harness: adapter.name, model: opts.modelToken,
+    harness_cli_version: harnessCliVersion,
     judge: { provider: judge.provider, model: judge.model },
     mode, label: opts.label ?? null,
   });
+
+  // The canary spends one probe before the wave, so a run that isn't measuring the
+  // skill dies for the price of a rep instead of producing a plausible scorecard.
+  // Green only: red delivers nothing by design, and force delivers through the
+  // system prompt, which needs no probe.
+  let canaryStatus: "pass" | null = null;
+  if (opts.canary && mode !== "green") {
+    // Ignoring a flag silently is a small version of the bug this whole feature is
+    // about. Say it, and say why it isn't needed.
+    log(`  --canary ignored in mode=${mode} — ${mode === "force" ? "the system prompt delivers the skill unconditionally" : "a baseline delivers no skill by design"}`);
+  }
+  if (opts.canary && mode === "green") {
+    const probeCwd = createWorkspace("none", { specDir: dirname(opts.specPath) });
+    let canary: CanaryResult;
+    try {
+      canary = await runDeliveryCanary({
+        adapter, model, skillDir, skillName: spec.skill, cwd: probeCwd.cwd,
+      });
+    } finally {
+      probeCwd.cleanup();
+    }
+    appendJournal(runDir, {
+      event: "delivery-canary", ts: now(),
+      status: canary.status, anchor: canary.anchor, detail: canary.detail,
+    });
+    if (canary.status === "fail") throw new Error(canaryFailure(spec.skill, canary, harnessCliVersion));
+    if (canary.status === "skipped") log(`  ⚠ delivery canary skipped — ${canary.detail}`);
+    else {
+      canaryStatus = "pass";
+      log(`  ✓ delivery canary — the model quoted its skill instructions back (\`${canary.anchor}\`)`);
+    }
+  }
 
   // scenario × rep tasks; runPool preserves input order so we can slice per scenario.
   const repCounts = scenarios.map((s) => s.reps ?? opts.reps ?? 1);
@@ -113,10 +162,12 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     return outcomesToResult(scenario.id, grouped[si], repCounts[si], threshold);
   });
 
-  const ctx = mode === "green" && !partial ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
+  const ctx = scoreContextFor({ mode, partial }, spec);
   const results = writeResults(runDir, {
     skill: spec.skill,
     harness: adapter.name,
+    harness_cli_version: harnessCliVersion ?? undefined,
+    delivery_canary: canaryStatus ?? undefined,
     model: opts.modelToken,
     judge: { provider: judge.provider, model: judge.model },
     timestamp,
@@ -281,14 +332,26 @@ export function formatScorecard(summary: RunSummary, lift?: Lift): string {
   const ship = g.ship ? "SHIP" : "NOT READY";
   const note = g.note ? ` (${g.note})` : "";
   lines.push(`  GRADE: ${g.letter} (${g.pct}%) — ${g.passed}/${g.total} — ${ship}${note}`);
-  // Lift is a statement about a green run. On a red run the caller may still have
-  // a lift in hand (a green run exists in the same tag), but printing it under a
-  // baseline scorecard reads as if the baseline itself gained something.
-  if (lift && results.mode === "green") {
+  // Lift is a statement about a skill-delivered run (green or force). On a red run
+  // the caller may still have a lift in hand (a scored run exists in the same tag),
+  // but printing it under a baseline scorecard reads as if the baseline itself
+  // gained something.
+  if (lift && isScoredMode(results.mode)) {
     lines.push(`  LIFT:  ${liftHeadline(lift)}  (vs red baseline ${lift.redTimestamp})`);
-  } else if (results.mode === "green") {
+  } else if (isScoredMode(results.mode)) {
     // The grade alone can't answer "does this skill do anything?", so say how.
     lines.push(`  LIFT:  no red baseline — run with --mode red to measure what the skill adds`);
+  }
+  // Said on the scorecard, not just in the docs: the one thing that can invalidate
+  // a green number is invisible in the number. `harness_cli_version` is recorded
+  // beside the verdicts so a reader can tell which pi produced them.
+  if (results.mode === "green" && !results.delivery_canary) {
+    lines.push(
+      `  NOTE:  green delivery is harness-version-dependent` +
+        (results.harness_cli_version ? ` (${results.harness} ${results.harness_cli_version})` : "") +
+        ` — on pi ≥ 0.83.0 \`--skill\` only discloses the description and the body loads on demand.` +
+        ` Use --mode force for delivery that cannot silently degrade, or --canary to prove it per run.`,
+    );
   }
   return lines.join("\n");
 }

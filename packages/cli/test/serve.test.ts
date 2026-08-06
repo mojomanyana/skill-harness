@@ -144,6 +144,7 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
   let skillDir2: string;
   let greenRunDir: string;
   let redRunDir: string;
+  let forceRunDir: string;
   let base2: string;
   let close2: () => void;
   let judgeCalls = 0;
@@ -186,6 +187,19 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
       scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "n/a", suspect: false, override: null, note: "" }],
     }, null);
 
+    // Column 2 ("pi-forced" sorts last): a FORCE run with its own transcript.
+    forceRunDir = join(skillDir2, "tests", "results", "pi-forced", "2026-07-03T00-00-00Z");
+    mkdirSync(forceRunDir, { recursive: true });
+    writeFileSync(join(forceRunDir, "A1.force.txt"), "USER: Say hello.\nASSISTANT: Hi there!", "utf8");
+    writeResults(forceRunDir, {
+      skill: "golden", harness: "pi", model: "fireworks:fake",
+      harness_cli_version: "0.83.0",
+      judge: { provider: "claude-code", model: "opus" },
+      timestamp: "2026-07-03T00:00:00Z", label: null, mode: "force",
+      source_hashes: { "SKILL.md": "abc" },
+      scenarios: [{ id: "A1", judge_verdict: "FAIL", judge_reason: "old", suspect: false, override: null, note: "" }],
+    }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
+
     const s = await serveReview({ skillDir: skillDir2, skillName: "golden", port: 0, open: false, adapter: fakeAdapter });
     base2 = `http://127.0.0.1:${s.port}`;
     close2 = s.close;
@@ -218,7 +232,7 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
     expect(after.effective_grade.ship).toBe(true); // no longer blocked by the suspect
   });
 
-  test("non-green 400: a red-mode run rejects /rejudge before touching the adapter", async () => {
+  test("unscored 400: a red-mode run rejects /rejudge before touching the adapter", async () => {
     const before = judgeCalls;
     const r = await fetch(`${base2}/rejudge`, {
       method: "POST", headers: { "content-type": "application/json" },
@@ -227,9 +241,31 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
     expect(r.status).toBe(400);
     const body = await r.json();
     expect(body.ok).toBe(false);
-    expect(body.error).toMatch(/only green runs/);
+    expect(body.error).toMatch(/only scored runs \(green\/force\)/);
     expect(judgeCalls).toBe(before); // mode guard short-circuits before the adapter is ever used
     expect(readFileSync(join(redRunDir, "results.yaml"), "utf8")).toBeTruthy(); // unchanged run left intact
+  });
+
+  // Column 2 is a FORCE run: skill-as-system-prompt is a scored measurement since
+  // 0.5.0, so the UI must re-judge it (and score it) exactly like a green one —
+  // reading its `.force.txt` transcripts, not looking for green ones that don't exist.
+  test("a force-mode run re-judges from its own transcripts and gets a real grade", async () => {
+    const before = judgeCalls;
+    const r = await fetch(`${base2}/rejudge`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ col: 2, scenarioId: "A1" }),
+    });
+    expect(r.status).toBe(200);
+    const body = await r.json();
+    expect(body.ok).toBe(true);
+    expect(judgeCalls).toBe(before + 1);
+    const after = readResults(forceRunDir);
+    expect(after.scenarios[0].judge_verdict).toBe("PASS");
+    expect(after.effective_grade.ship).toBe(true);
+    expect(after.effective_grade.note).not.toMatch(/not scored/);
+    // Provenance and the staleness gate survive a UI re-judge.
+    expect(after.harness_cli_version).toBe("0.83.0");
+    expect(after.source_hashes).toEqual({ "SKILL.md": "abc" });
   });
 });
 

@@ -7,7 +7,7 @@ import { evaluateNeedleGates, hasNeedleGates } from "./seeded.js";
 import { judgeOneRep } from "./regrade.js";
 import {
   readResults, writeResults, diffPath, transcriptPath, judgeRawPath, repIndexOf,
-  findDiffFiles, effectiveThreshold,
+  findDiffFiles, effectiveThreshold, scoreContextFor,
   type ResultsFile, type ScenarioResult,
 } from "./results.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
@@ -69,8 +69,8 @@ function rewriteTranscript(path: string, gateLines: string[]): void {
 }
 
 /** Recover a rep's judge verdict from its saved judge-raw artifact — free, and exact. */
-function verdictFromSavedJudgement(runDir: string, id: string, rep: number | undefined): RepOutcome | null {
-  const path = judgeRawPath(runDir, id, "green", rep);
+function verdictFromSavedJudgement(runDir: string, id: string, mode: string, rep: number | undefined): RepOutcome | null {
+  const path = judgeRawPath(runDir, id, mode, rep);
   if (!existsSync(path)) return null;
   const raw = readFileSync(path, "utf8");
   const parsed = parseVerdict(raw);
@@ -109,6 +109,10 @@ function verdictFromSavedJudgement(runDir: string, id: string, rep: number | und
 export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
   const now = opts.now ?? (() => new Date().toISOString());
   const prev = readResults(opts.runDir);
+  // The run's own mode names its artifacts (`<id>.<mode>[.rep<k>].diff.txt`). Read
+  // from the record rather than assumed green: force runs are scored measurements
+  // too, and looking for green artifacts under a force run finds nothing at all.
+  const mode = prev.mode;
   const specById = new Map(opts.spec.scenarios.map((s) => [s.id, s]));
 
   // Why a scenario cannot be regated, collected rather than thrown one at a time: a
@@ -126,7 +130,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
       );
       continue;
     }
-    if (findDiffFiles(opts.runDir, s.id, "green").length === 0) {
+    if (findDiffFiles(opts.runDir, s.id, mode).length === 0) {
       blocked.push(`${s.id}: no staged-diff artifact on disk (\`.diff.txt\` is gitignored — regate needs the run dir that produced it)`);
       continue;
     }
@@ -151,7 +155,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
       continue;
     }
 
-    const diffFiles = findDiffFiles(opts.runDir, scenario.id, "green");
+    const diffFiles = findDiffFiles(opts.runDir, scenario.id, mode);
     const outcomes: RepOutcome[] = [];
     // Per scenario, not run-wide: with several regated scenarios, a global counter
     // would report every change as "re-judged" because some other scenario was.
@@ -162,7 +166,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
       const diff = readFileSync(join(opts.runDir, file), "utf8");
       const gate = evaluateNeedleGates(scenario, diff);
 
-      const tPath = transcriptPath(opts.runDir, scenario.id, "green", rep);
+      const tPath = transcriptPath(opts.runDir, scenario.id, mode, rep);
       const before = existsSync(tPath) ? readFileSync(tPath, "utf8") : "";
       const oldGateFailed = GATE_FAILED_RE.test(before.slice(before.indexOf(TRAILER)));
 
@@ -179,7 +183,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
       if (!oldGateFailed) {
         // The judge already saw this rep. Its verdict is on disk — re-read it rather
         // than paying to ask the same question again.
-        const saved = verdictFromSavedJudgement(opts.runDir, scenario.id, rep);
+        const saved = verdictFromSavedJudgement(opts.runDir, scenario.id, mode, rep);
         outcomes.push(saved ?? { verdict: rec.judge_verdict, reason: rec.judge_reason, suspect: rec.suspect });
         continue;
       }
@@ -188,7 +192,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
       outcomes.push(await judgeOneRep({
         runDir: opts.runDir, spec: opts.spec, scenario, transcript,
         adapter: opts.adapter, judge: opts.judge, specDir: opts.specDir,
-        mode: "green", rep, now,
+        mode, rep, now,
       }));
       judgeCalls++;
       judgedHere++;
@@ -210,12 +214,12 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
     }
   }
 
-  const ctx = prev.mode === "green" && !prev.partial
-    ? { shipBar: opts.spec.ship_bar, critical: opts.spec.critical }
-    : null;
+  const ctx = scoreContextFor(prev, opts.spec);
 
   const results = writeResults(opts.runDir, {
     skill: prev.skill, harness: prev.harness, model: prev.model,
+    // Carried verbatim: a regate re-reads saved diffs, it never re-runs the harness.
+    harness_cli_version: prev.harness_cli_version, delivery_canary: prev.delivery_canary,
     judge: { provider: opts.judge.provider, model: opts.judge.model },
     timestamp: prev.timestamp, label: prev.label, mode: prev.mode, partial: prev.partial,
     // Only the `gates:` keys of the scenarios actually re-evaluated. Stimulus, rubric

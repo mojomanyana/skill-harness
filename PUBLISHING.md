@@ -1,14 +1,62 @@
-# Publishing skill-harness (0.4.0)
+# Publishing skill-harness (0.5.0)
 
 This is the npm-publish runbook. It is **user-run** — the agent that prepared this
 repo does not publish. Run these commands yourself with your own npm auth.
 
-The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`, `0.3.0`, `0.3.1`, `0.3.2`. This
-repo is at `0.4.0`, so these commands publish a **new version over an existing line** —
-the `@skill-harness` scope is already claimed, and `latest` moves to 0.4.0 as each
-package lands.
+The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`, `0.3.0`, `0.3.1`, `0.3.2`, `0.4.0`.
+This repo is at `0.5.0`, so these commands publish a **new version over an existing
+line** — the `@skill-harness` scope is already claimed, and `latest` moves to 0.5.0 as
+each package lands.
 
-**0.4.0 takes the minor, and consumers pinning an exact version must bump.** It changes
+**0.5.0 takes the minor: a mode that was never scored now scores, so committed numbers
+change.** Nothing about a *verdict* changed; what changed is which runs get a grade.
+
+- **`force` runs are scored.** `green` and `force` both deliver the skill, so both are
+  graded against the ship bar; `red` remains the unscored control. Every force run
+  recorded by ≤ 0.4.x carries an `effective_grade` placeholder (`mode=force (not
+  scored)`) that a 0.5.0 recompute disagrees with, so **`lint` reports one
+  `consistency — effective_grade is stale` finding per such run** until they are
+  re-scored. `rescore <run-dir>` fixes it: free, offline, no judge, no model.
+- **`grade` / `regate` / the review UI's re-judge now read the run's OWN mode's
+  artifacts** (`<id>.force.txt`, `<id>.force.diff.txt`) instead of assuming green. A
+  force or red run that previously failed with "nothing to re-grade" now works — and a
+  red run re-graded this way stays unscored.
+- **`results.yaml` gains two optional fields.** `harness_cli_version` (what `pi
+  --version` said) and `delivery_canary: pass` (green + `--canary` only). Older readers
+  ignore unknown top-level keys, but the standing rule still applies: *a `results.yaml`
+  written by version X needs version ≥ X to lint.*
+- **`trends` splits a model tag by mode.** `TrendModel` gains `mode`, and a tag holding
+  both green and force history yields two series instead of one pooled sparkline.
+  Anything consuming `/trends` JSON by index needs to key on `mode` as well as `tag`.
+- **`Lift` gains `mode`, and its skill side is the newest scored run** (green *or*
+  force) rather than the newest green one. A corpus that moved to force delivery gets
+  its lift back; a corpus with both sees the newer delivery. Field names (`greenPassed`,
+  `greenTimestamp`, `cells[].green`) are unchanged on purpose — they mean "the
+  skill-active side", and renaming them would break every published report asset.
+- **The pi adapter refuses a skill dir with no `SKILL.md`** and resolves relative paths
+  before exec. A run that used to silently measure a naked model (pi accepts a
+  nonexistent `--skill` path with exit 0) now fails loudly at the first scenario.
+  `discover()` also returns absolute `dir`/`specPath` now.
+- **New flag `run --canary`** (green only): one probe proving the skill reached the
+  model, aborting the run if it did not. Off by default — it costs a rep.
+- **The pi extension's flag parser records bare flags.** `--canary` (and any future
+  valueless flag) used to be dropped silently; a valueless `--model` / `--mode` /
+  `--judge` still falls back to the default rather than passing `""` down.
+
+**Consumer checklist for this release** (`principal-pi-skills` and anything else pinning):
+
+1. Bump the pin (`.github/workflows/ci.yml`, the `ref:` on the skill-harness checkout)
+   to `v0.5.0` in the same PR as any results produced by it.
+2. `rescore` every committed force run once, in one commit, to convert the
+   `not scored` placeholders into real grades — free, and it clears the new lint
+   findings. Re-run nothing.
+3. If a published scorecard mixes green-epoch and force-epoch numbers, split them: the
+   same skill text scores differently under each delivery (measured: `build` A1 0/3 →
+   3/3, `plan` C2 3/3 → 0/3).
+
+### 0.4.0, kept for context
+
+**0.4.0 took the minor, and consumers pinning an exact version must bump.** It changes
 what `results.yaml` records and adds a `lint` finding, which are two of the three reasons
 0.3.0 was a minor:
 
@@ -117,13 +165,13 @@ Run from the **repo root** (npm workspaces `-w` flag, verified with npm 11.9.0 /
 Node 24.14.0 — this repo's `engines.node` requires >=20, which ships npm >=10,
 so `-w` should work on any supported install). Each step must land on the
 registry before the next, since each package's `package.json` pins an exact
-`@skill-harness/*@0.4.0` dependency (npm will fail to resolve it otherwise):
+`@skill-harness/*@0.5.0` dependency (npm will fail to resolve it otherwise):
 
 ```bash
 npm publish -w @skill-harness/core --access public
 npm publish -w @skill-harness/adapters --access public
 npm publish -w @skill-harness/cli --access public     # prepack stages assets/report.* into the tarball
-npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.4.0
+npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.5.0
 ```
 
 `@skill-harness/core` and `@skill-harness/adapters` publish exactly the `dist/`
@@ -152,7 +200,7 @@ ships to pi users via `pi install git:...`, not the npm registry.
 ## Verify after publishing
 
 ```bash
-npm view skill-harness version            # expect 0.4.0
+npm view skill-harness version            # expect 0.5.0
 npm i -g skill-harness && skill-harness --help
 npx @skill-harness/cli lint --help
 ```
@@ -170,8 +218,8 @@ The version bump lives on `release-<version>`. Until that branch reaches `main`,
 a fresh clone of `main` reports a different version than the registry serves:
 
 ```bash
-gh pr create --base main --head release-0.4.0 \
-  --title "chore(release): 0.4.0" --body "Version bump + runbook."
+gh pr create --base main --head release-0.5.0 \
+  --title "chore(release): 0.5.0" --body "Version bump + runbook."
 gh pr merge --merge   # or fast-forward main if there is nothing to reconcile
 ```
 
@@ -204,7 +252,7 @@ lockstep.
 
 ```bash
 git checkout main && git pull
-git tag v0.4.0 && git push origin v0.4.0     # the immutable release tag
+git tag v0.5.0 && git push origin v0.5.0     # the immutable release tag
 git tag -f latest && git push -f origin latest   # the ref the docs point at
 ```
 
@@ -379,7 +427,34 @@ section records what was checked so the publish is the only unverified part.
   gh run view <id> --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")'
   ```
 
-## Verification performed for 0.4.0 (prepared 2026-08-05, unpublished at time of writing)
+## Verification performed for 0.5.0 (prepared 2026-08-06, unpublished at time of writing)
+
+- Versions **and** pins bumped across the root and all five manifests plus `SKILL.md`'s
+  frontmatter `version:`. `grep -c 'registry.npmjs.org/@skill-harness' package-lock.json`
+  → **0**.
+- CI reproduced from a clean install: `npm ci && npm run build && npm run build:ext &&
+  npm test` — **632 tests pass** (48 files); `npm run typecheck` clean; `lint all` against
+  the golden fixture reports 0 findings. `--version` prints `0.5.0`; the `--help` header
+  and `defaults:` block carry the new scored-mode/delivery paragraph.
+- **The 0b workflow was rehearsed against real committed data, without touching the other
+  repo.** One `release-2-force` run dir from `principal-pi-skills` (`plan`, glm-5p2,
+  2026-08-05T13-46-47Z) was copied to a scratch tree and rescored with the built CLI:
+  `mode=force (not scored)` → `B (83%) 10/12 NOT READY`, `0 verdict(s) moved`,
+  `label: release-2-force` and the absent `harness_cli_version` both preserved (a rescore
+  must not invent provenance a run never had). `lint` on the same copy reports exactly one
+  `consistency … rescore (free, offline)` finding per unscored force run, and none after.
+- New suites: `packages/core/test/force-scoring.test.ts` (12 tests — the scoring-mode
+  truth table, run/rescore/grade/regate on force runs, the lint remedy, red-vs-force
+  lift) and `packages/core/test/canary.test.ts` (16 — anchor selection, pass/fail/skip,
+  abort-before-spend, the version record). `pi.test.ts` gained the delivery tripwire and
+  `pi --version` cases; `trends.test.ts` the per-mode series.
+- `npm pack --dry-run` for all four: core **61 files / 93.9 kB** (was 59 / 84.5 — one new
+  module, `canary`), adapters 7 / 4.3 kB, cli 9 / 23.3 kB (both `assets/report.*` flat),
+  unscoped 4 / 2.3 kB.
+- `packages/pi-extension/dist/index.js` regenerated with `npm run build:ext` and committed
+  (`bundle.test.ts` is what fails if it goes stale — it did, once, before this step).
+
+## Verification performed for 0.4.0 (prepared 2026-08-05, published)
 
 - Versions **and** pins bumped in one `sed` sweep across the root and all five manifests,
   plus `SKILL.md`'s frontmatter `version:` (the sixth home 0.3.2 discovered).
