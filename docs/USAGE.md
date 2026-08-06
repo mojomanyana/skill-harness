@@ -49,7 +49,7 @@ skills under packages/core/test/fixtures:
 
 ## 3. Lint — the free CI gate (no models, no keys)
 
-Validates spec schema, ship-bar sanity, critical-id existence, fixture paths, and results-consistency (for any committed `results.yaml`). **Exits non-zero on any finding** — this is what CI gates on.
+Validates spec schema, ship-bar sanity, critical-id existence, fixture paths, and results-consistency (for any committed `results.yaml`). **Exits non-zero on any gate-failing finding** — this is what CI gates on. It also prints `info` **notes** (`ℹ`), which report something worth knowing that is not a defect — today: run-over-run boundary cells (§4f). Notes never change the exit code.
 
 ```
 $ node bin/skill-harness.js lint all --skills packages/core/test/fixtures
@@ -58,7 +58,7 @@ $ node bin/skill-harness.js lint all --skills packages/core/test/fixtures
 1 skill(s), 0 finding(s)          # exit code 0
 ```
 
-A failing skill prints `✗ <dir>[/<scenario>]: <code> — <message>` and exits 1 (and emits `::error` GitHub annotations under `GITHUB_ACTIONS`).
+A failing skill prints `✗ <dir>[/<scenario>]: <code> — <message>` and exits 1 (and emits `::error` GitHub annotations under `GITHUB_ACTIONS`). A note prints `ℹ` and emits `::notice`; the summary line counts them separately (`0 finding(s), 1 note(s) (do not fail the gate)`).
 
 ## 4. Run + grade — the core loop (spends model tokens)
 
@@ -74,6 +74,7 @@ node bin/skill-harness.js run golden-skill --skills packages/core/test/fixtures 
 - `--model prov:model` repeats for multi-model comparison (or `--models <file>`).
 - `--mode green` (default; the harness activates the skill) · `force` (SKILL.md as the system prompt) · `red` (baseline, skill off). **Green and force are both scored**; red is the control and never gets a grade. See §4e for which one to publish.
 - `--canary` (green only) spends one extra call proving the skill reached the model, and aborts the run if it didn't.
+- After the run, the scorecard flags any scenario that flipped its verdict since the last comparable run (§4f) — one run of such a cell is one draw, whatever its flakiness said.
 - `--reps N` runs each scenario N times (flakiness); `--pass-threshold T` sets the pass-rate bar.
 - **Judge ≠ subject** — never put the judge model in the set under test; heed any judge≈subject warning.
 
@@ -233,6 +234,68 @@ node bin/skill-harness.js rescore <run-dir> [<run-dir> ...]   # free, offline, n
 `lint` flags those runs as `consistency — effective_grade is stale … rescore (free,
 offline)` until you do.
 
+## 4f. Stability — is one run of this cell worth anything?
+
+`--reps N` gives you `flaky 0.00`, and it is easy to read that as "settled". It is not:
+flakiness is a **within-run** number. Measured on two consecutive full force runs of the
+reference corpus, nothing relevant edited in between:
+
+| scenario | 2026-08-05 | 2026-08-06 | flakiness |
+|---|---|---|---|
+| `A5` | 3/3 PASS | 0/3 FAIL | `0.00` both runs |
+| `D1` | 1/3 FAIL | 3/3 PASS | `0.00` in the second |
+
+Unanimous, twice, in opposite directions. A scenario on a behavioural boundary does that,
+and no single `results.yaml` can show it, because the evidence lives across files.
+
+```bash
+node bin/skill-harness.js stability golden-skill --skills packages/core/test/fixtures [--window 5] [--all]
+```
+
+Free and offline: it reads committed `results.yaml` files and computes. Per model tag ×
+delivery mode (never pooled — placement moves verdicts), each scenario lands in one of
+three states:
+
+| state | means |
+|---|---|
+| `boundary` | flipped at least once across a comparable step — one run of it is one draw |
+| `stable` | held its verdict across every comparable step in the window |
+| `unmeasured` | one run, or no comparable step — **not** the same claim as stable |
+
+Read the path as `PASS!→FAIL!`: `→` a step that counted, `⋯` a step that did not, `!` a
+run whose reps were unanimous.
+
+**An edit is not a flip.** A step is only counted when the recorded `source_hashes` show
+the scenario's own stimulus, rubric, gates, fixture and judge persona were identical, and
+when both runs aggregated the same way. Everything else is reported *with its reason*
+rather than dropped:
+
+```
+D1 has no comparable run-to-run step: 1 step(s) where the scenario's own sources changed
+  (../../agents/plan.md changed — an edit, not a flip)
+```
+
+`SKILL.md` is deliberately not one of those gates: in the case above the skill text *had*
+changed — an edit aimed at a different scenario — while A5's own stimulus and rubric were
+byte-identical, so gating on it would have hidden the finding. That flip is reported with
+both readings named, because the record cannot say which is true:
+
+```
+⇄ CRITICAL A5 flipped its verdict in 1 of 1 comparable run-to-run step(s) (PASS!→FAIL!);
+  each flip was between runs that were INTERNALLY UNANIMOUS (flakiness 0.00) — within-run
+  reps cannot see this; SKILL.md changed across that step, while this scenario's own
+  stimulus and rubric did not — so it is either a side effect of that edit or a boundary
+  cell, and the record cannot say which
+```
+
+It also shows up without being asked for: a `⇄` line under a fresh run's scorecard, a
+`⇄ n/m` marker on the review-matrix cell with the note as its tooltip, and a `lint` note.
+
+**Notes never fail the gate.** `lint` prints stability findings with severity `info`
+(`ℹ`, and `::notice` in GitHub Actions); the skill keeps its `✓` and the exit code counts
+only gate-failing findings. A boundary cell is not a broken spec — the remedy is `--reps`
+on that scenario, or an override with a note once you have decided which side is right.
+
 ## 5. Review — flip verdicts, read transcripts
 
 ```bash
@@ -264,6 +327,8 @@ Appends a scenario to the skill's `specification.yaml`. Gather the fields conver
 ## 8. The optimize loop
 
 Edit the `SKILL.md` under test → re-`run` → compare the new scorecard to the old `results.yaml`. Report the **per-scenario delta**, not just the letter grade. Don't trust one run on a weak/stochastic model — re-run noisy scenarios (`--reps`).
+
+Before you attribute a delta to your edit, check `stability` (§4f): a cell that flips between runs on unchanged text will also flip across an edit, and reading that as "my change did this" is the mistake the whole section exists to prevent.
 
 ## Environment variables
 

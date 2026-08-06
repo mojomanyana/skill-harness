@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { loadSpec, type ShipBar } from "./spec.js";
 import { readResults, type ResultsFile } from "./results.js";
 import { collectLift, liftHeadline, type Lift } from "./lift.js";
+import { boundaryCells, collectStability, stabilityNote } from "./stability.js";
 
 export interface RunColumn {
   index: number;
@@ -13,7 +14,18 @@ export interface RunColumn {
   mode: string; // red | green | force — green and force are scored, red is the unscored baseline
   grade: ResultsFile["effective_grade"];
   judge: ResultsFile["judge"];
-  cells: Record<string, { judge_verdict: string; judge_reason: string; suspect: boolean; reps?: number; passes?: number; clean?: number; flakiness?: number; override: string | null; note: string }>;
+  cells: Record<string, {
+    judge_verdict: string; judge_reason: string; suspect: boolean;
+    reps?: number; passes?: number; clean?: number; flakiness?: number;
+    override: string | null; note: string;
+    /**
+     * Run-over-run history for this cell, derived from the tag's other runs in the
+     * SAME mode. Present only for a cell that flipped (`state: "boundary"`) — a
+     * marker on every cell would bury the one signal it exists to show, and the
+     * per-cell `flakiness` beside it is a within-run number that cannot see this.
+     */
+    stability?: { flips: number; compared: number; volatility: number | null; note: string };
+  }>;
   /**
    * Baseline-vs-skill lift for this model, when the tag has both a red baseline and
    * a skill-delivered run (green or force). Undefined means "never measured" —
@@ -58,6 +70,11 @@ export function collectReport(skillDir: string): ReportData {
   const resultsRoot = join(skillDir, "tests", "results");
   // Lift is keyed by model tag, the same key columns are built from.
   const liftByTag = new Map(collectLift(skillDir).map((l) => [l.tag, l]));
+  // Stability is keyed by tag + mode + scenario: a column shows one delivery mode, and
+  // green and force histories are never one series (placement moves verdicts).
+  const boundaryByCell = new Map(
+    boundaryCells(collectStability(skillDir)).map((c) => [`${c.tag}\u0000${c.mode}\u0000${c.id}`, c]),
+  );
   const columns: RunColumn[] = [];
   if (existsSync(resultsRoot)) {
     const tags = readdirSync(resultsRoot)
@@ -68,9 +85,19 @@ export function collectReport(skillDir: string): ReportData {
       const runDir = latestRunDir(tagDir);
       if (!runDir) continue;
       const r = readResults(runDir);
+      const tagName = tagDir.split("/").pop()!;
       const cells: RunColumn["cells"] = {};
       for (const s of r.scenarios) {
+        const boundary = boundaryByCell.get(`${tagName}\u0000${r.mode}\u0000${s.id}`);
         cells[s.id] = {
+          ...(boundary
+            ? {
+                stability: {
+                  flips: boundary.flips, compared: boundary.compared,
+                  volatility: boundary.volatility, note: stabilityNote(boundary),
+                },
+              }
+            : {}),
           judge_verdict: s.judge_verdict,
           judge_reason: s.judge_reason,
           suspect: s.suspect ?? false, // suspect defaults false for older results that predate the field
@@ -82,7 +109,7 @@ export function collectReport(skillDir: string): ReportData {
           note: s.note,
         };
       }
-      const tag = tagDir.split("/").pop()!;
+      const tag = tagName;
       // A column is the tag's LATEST run, which is not necessarily the skill-side
       // one — record a red baseline after a green run and the newest run in the tag
       // is red. The review UI recomputes lift from `cells` (so author overrides move

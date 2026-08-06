@@ -9,13 +9,14 @@ import {
   parseModelRef,
   runSkillModel, formatScorecard, type RunSummary,
   readResults, regradeRun,
-  lintSkill, type LintFinding,
+  lintSkill, failsGate, type LintFinding,
   type HarnessAdapter,
   renderTemplateSpec, isTemplateSpec, renderDraftSpec, buildSuggestPrompt, parseSuggestDraft,
   rescoreRun,
   regateRun,
   specPathForRunDir,
   collectLift,
+  collectStability, boundaryCells, stabilityNote, PATH_LEGEND,
   HARNESS_VERSION,
   defaultJudge,
   assertJudgeAllowed,
@@ -213,7 +214,11 @@ export async function cmdRun(args: Args): Promise<void> {
       // any earlier run — the tag dir (<harness>-<modelslug>) is the join key.
       const tag = basename(dirname(summary.runDir));
       const lift = collectLift(skill.dir).find((l) => l.tag === tag);
-      console.log("\n" + formatScorecard(summary, lift) + "\n");
+      // Stability is derived from history INCLUDING the run just written, and scoped to
+      // this tag + mode: another model's flips under this model's scorecard would be a
+      // worse error than not reporting them at all.
+      const stability = collectStability(skill.dir).filter((c) => c.tag === tag && c.mode === summary.results.mode);
+      console.log("\n" + formatScorecard(summary, lift, stability) + "\n");
     }
   }
 
@@ -333,6 +338,68 @@ export async function cmdRegate(args: Args, adapterOverride?: HarnessAdapter): P
   // The cost line matters: regate is advertised as free, and it is — except for the
   // flipped reps, which it must not spend silently.
   console.log(`\n${runDirs.length} run(s) re-gated, ${moved} verdict(s) moved, ${calls} judge call(s) (no model re-runs).`);
+}
+
+/**
+ * Run-over-run verdict stability, derived from committed results. Free and offline: it
+ * reads results.yaml files and computes — no model, no judge, no harness.
+ *
+ * Exits 0 whatever it finds. A boundary cell is not a defect in the skill or in the
+ * spec; it is a statement about how much one run of that cell is worth. Making it a
+ * gate would turn "this needs more reps" into "your build is broken".
+ */
+async function cmdStability(args: Args): Promise<void> {
+  const root = flagStr(args, "skills", process.cwd())!;
+  const target = args._[0] ?? "all";
+  const windowRaw = flagStr(args, "window");
+  const window = windowRaw ? Number(windowRaw) : undefined;
+  if (windowRaw !== undefined && (!Number.isInteger(window) || (window as number) < 2)) {
+    throw new Error(`--window must be an integer >= 2 (got \`${windowRaw}\`) — one run has no run-over-run step`);
+  }
+  const showAll = flagBool(args, "all");
+
+  const skills = target === "all" ? discover(root).filter((s) => s.hasSpec) : [resolveSkill(root, target)];
+  if (skills.length === 0) throw new Error(`no skills with a spec under ${root}`);
+
+  let boundaries = 0;
+  for (const skill of skills) {
+    const all = collectStability(skill.dir, { window });
+    if (all.length === 0) {
+      console.log(`\n${skill.name}: no scored runs yet — stability needs at least two runs of the same skill × model × mode`);
+      continue;
+    }
+    // One block per model tag × delivery mode: green and force are different
+    // deliveries of the same text, so their histories are never one series.
+    const groups = new Map<string, typeof all>();
+    for (const s of all) {
+      const key = `${s.tag} · mode=${s.mode}`;
+      (groups.get(key) ?? groups.set(key, []).get(key)!).push(s);
+    }
+    console.log(`\n── ${skill.name} ──`);
+    for (const [key, cells] of groups) {
+      const runs = Math.max(...cells.map((c) => c.points.length));
+      console.log(`  ${key}  (${runs} run(s) in the window)`);
+      const boundary = boundaryCells(cells);
+      boundaries += boundary.length;
+      for (const s of boundary) {
+        console.log(`    ⇄ ${s.critical ? "CRITICAL " : ""}${stabilityNote(s)}`);
+      }
+      if (showAll) {
+        for (const s of cells) {
+          if (s.state !== "boundary") console.log(`    ${s.state === "stable" ? "=" : "?"} ${stabilityNote(s)}`);
+        }
+      } else {
+        const stable = cells.filter((c) => c.state === "stable").length;
+        const unmeasured = cells.filter((c) => c.state === "unmeasured").length;
+        console.log(`    ${stable} held their verdict · ${unmeasured} with no comparable step (--all to list them)`);
+      }
+    }
+  }
+  console.log(`\n${boundaries} boundary cell(s). ${PATH_LEGEND}`);
+  if (boundaries > 0) {
+    console.log(`A boundary cell is worth re-running with more reps (--reps) before you trust one run of it;`);
+    console.log(`within-run flakiness cannot see this, because it only ever looks at one run.`);
+  }
 }
 
 async function cmdReview(args: Args): Promise<void> {
@@ -471,7 +538,15 @@ export async function cmdSuggest(args: Args, adapterOverride?: HarnessAdapter): 
   }
 }
 
-/** Exit-code contract: 0 = clean (no findings), 1 = >=1 finding, or a resolution error (unknown skill/root, no skills with a spec). */
+/**
+ * Exit-code contract: 0 = no gate-failing findings, 1 = >=1 of them, or a resolution
+ * error (unknown skill/root, no skills with a spec).
+ *
+ * `info` findings (run-over-run stability notes) print and annotate but never fail the
+ * gate: a boundary cell says how much one run of a scenario is worth, which is not a
+ * defect in the spec, the fixtures or the results. A linter that reddens CI for it would
+ * teach everyone to stop reading it.
+ */
 export async function cmdLint(args: Args): Promise<void> {
   const root = flagStr(args, "skills", process.cwd())!;
   const target = args._[0] ?? "all";
@@ -497,15 +572,18 @@ export async function cmdLint(args: Args): Promise<void> {
     try { f = lintSkill(dir); }
     catch (e) { f = [{ skill: dir, code: "lint-error", message: e instanceof Error ? e.message : String(e) }]; }
     findings.push(...f);
-    if (f.length === 0) console.log(`✓ ${dir}`);
-    else for (const x of f) {
+    if (f.filter(failsGate).length === 0) console.log(`✓ ${dir}`);
+    for (const x of f) {
       const where = x.scenario ? `${dir}/${x.scenario}` : dir; // dir-based label, consistent with the ✓ line
-      console.log(`✗ ${where}: ${x.code} — ${x.message}`);
-      if (gha) console.log(`::error title=skill-harness::${where}: ${x.code} — ${x.message}`);
+      const fails = failsGate(x);
+      console.log(`${fails ? "✗" : "ℹ"} ${where}: ${x.code} — ${x.message}`);
+      if (gha) console.log(`::${fails ? "error" : "notice"} title=skill-harness::${where}: ${x.code} — ${x.message}`);
     }
   }
-  console.log(`\n${skillDirs.length} skill(s), ${findings.length} finding(s)`);
-  process.exitCode = findings.length > 0 ? 1 : 0;
+  const gating = findings.filter(failsGate).length;
+  const notes = findings.length - gating;
+  console.log(`\n${skillDirs.length} skill(s), ${gating} finding(s)${notes > 0 ? `, ${notes} note(s) (do not fail the gate)` : ""}`);
+  process.exitCode = gating > 0 ? 1 : 0;
 }
 
 // ---------------------------------------------------------------- dispatch
@@ -527,6 +605,7 @@ export function help(): string {
   grade  <run-dir>   [--judge prov:model] [--suspect-only]   re-grade saved transcripts (neutral judge)
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (free)
   regate <run-dir>...  [--judge prov:model]     re-evaluate diff needles against the saved diffs (free; judges only reps whose gate flipped)
+  stability <skill|all> --skills <root> [--window N] [--all]  run-over-run verdict flips per scenario (free, offline)
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]
   init   <skill>     --skills <root> [--force]     scaffold a commented template spec (free, offline)
@@ -552,6 +631,7 @@ export async function main(argv: string[]): Promise<void> {
     case "grade": return cmdGrade(args);
     case "rescore": return cmdRescore(args);
     case "regate": return cmdRegate(args);
+    case "stability": return cmdStability(args);
     case "review": return cmdReview(args);
     case "add-test": return cmdAddTest(args);
     case "init": return cmdInit(args);

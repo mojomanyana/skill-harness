@@ -44,6 +44,75 @@ function isDir(p: string): boolean {
   }
 }
 
+/** One model tag's scored run history in ONE delivery mode, chronologically ascending. */
+export interface ScoredRunGroup {
+  tag: string; // <harness>-<modelslug> dir name
+  mode: string; // green | force — never red, and never two modes in one group
+  model: string; // provider:model token, from the newest run read
+  runs: ResultsFile[];
+  /** Runs in this tag whose results.yaml could not be parsed (per tag, not per mode). */
+  skipped: number;
+}
+
+/**
+ * Walk `<skillDir>/tests/results/` and group every SCORED run by model tag × delivery
+ * mode, chronologically (timestamp-slug dir names sort correctly).
+ *
+ * The single history reader: `collectTrends` renders it, `collectStability` derives
+ * run-over-run flips from it. Two walkers over the same tree is how "which runs count"
+ * drifts — the mistake that had force runs excluded from scoring in seven places at
+ * once (see SCORED_MODES).
+ *
+ * Red runs are excluded: a baseline has no grade, and pairing it with anything would
+ * compare a skill-off run to a skill-on one. Green and force are never pooled into one
+ * group — placement moves verdicts, so a green run and a force run of the same scenario
+ * are two measurements, not two samples.
+ *
+ * A run whose `results.yaml` fails to parse (e.g. an interrupted non-atomic write) is
+ * logged via `console.warn`, skipped, and counted in `skipped` — never thrown, because
+ * one torn file must not take down a whole read-only view.
+ */
+export function collectScoredRuns(skillDir: string): ScoredRunGroup[] {
+  const resultsRoot = join(skillDir, "tests", "results");
+  if (!existsSync(resultsRoot)) return [];
+  const groups: ScoredRunGroup[] = [];
+  const tags = readdirSync(resultsRoot)
+    .filter((n) => isDir(join(resultsRoot, n)))
+    .sort();
+  for (const tag of tags) {
+    const tagDir = join(resultsRoot, tag);
+    const runDirs = readdirSync(tagDir)
+      .map((n) => join(tagDir, n))
+      .filter((p) => isDir(p) && existsSync(join(p, "results.yaml")))
+      .sort(); // timestamp-slug dir names ⇒ chronological ascending
+    if (runDirs.length === 0) continue;
+
+    // Every candidate run is read: a run's mode is not knowable from its dir name, so
+    // filtering has to happen after the read. Bucketed by mode in first-seen order.
+    const byMode = new Map<string, ResultsFile[]>();
+    let skipped = 0;
+    for (const rd of runDirs) {
+      let r: ResultsFile;
+      try {
+        r = readResults(rd);
+      } catch (e) {
+        console.warn(`skill-harness: skipping unreadable run ${rd}: ${e instanceof Error ? e.message : e}`);
+        skipped++;
+        continue;
+      }
+      if (!isScoredMode(r.mode)) continue; // baseline — deliberate exclusion, not a skip
+      (byMode.get(r.mode) ?? byMode.set(r.mode, []).get(r.mode)!).push(r);
+    }
+    for (const [mode, runs] of byMode) {
+      // `skipped` is per tag (an unreadable run has no knowable mode), so a tag with
+      // two series reports the same count on both — the alternative is attributing a
+      // parse failure to a mode nobody could read.
+      groups.push({ tag, mode, model: runs[runs.length - 1].model, runs, skipped });
+    }
+  }
+  return groups;
+}
+
 /**
  * Per model-tag, read the full run history (not just the latest) from
  * <skillDir>/tests/results/, chronologically (timestamp-slug dir names sort
@@ -76,67 +145,23 @@ export function collectTrends(skillDir: string, limit = 20): TrendData {
   const spec = loadSpec(specPath);
   const scenarios = spec.scenarios.map((s) => ({ id: s.id, title: s.title, critical: s.critical }));
 
-  const resultsRoot = join(skillDir, "tests", "results");
   const models: TrendModel[] = [];
-  if (existsSync(resultsRoot)) {
-    const tags = readdirSync(resultsRoot)
-      .filter((n) => isDir(join(resultsRoot, n)))
-      .sort();
-    for (const tag of tags) {
-      const tagDir = join(resultsRoot, tag);
-      const runDirs = readdirSync(tagDir)
-        .map((n) => join(tagDir, n))
-        .filter((p) => isDir(p) && existsSync(join(p, "results.yaml")))
-        .sort(); // timestamp-slug dir names ⇒ chronological ascending
-      if (runDirs.length === 0) continue;
-
-      // Read every candidate run (mode isn't knowable from the dir name) and
-      // filter to scored runs before applying the `limit` window — filtering
-      // after the slice would let red runs consume window slots, undercounting
-      // the history even when more exists. Bucketed by mode, in first-seen
-      // order, so each delivery epoch gets its own series and its own window.
-      const byMode = new Map<string, ResultsFile[]>();
-      let skipped = 0;
-      for (const rd of runDirs) {
-        let r: ResultsFile;
-        try {
-          r = readResults(rd);
-        } catch (e) {
-          // A corrupt/truncated results.yaml must not take down the whole
-          // trends view — skip that run, but surface the failure.
-          console.warn(`skill-harness trends: skipping unreadable run ${rd}: ${e instanceof Error ? e.message : e}`);
-          skipped++;
-          continue;
-        }
-        if (!isScoredMode(r.mode)) continue; // baseline — deliberate exclusion, not a skip
-        (byMode.get(r.mode) ?? byMode.set(r.mode, []).get(r.mode)!).push(r);
-      }
-      if (byMode.size === 0) continue;
-
-      for (const [mode, scoredRuns] of byMode) {
-        const truncated = scoredRuns.length > limit;
-        const kept = scoredRuns.slice(-limit); // most recent `limit`, newest last
-        const runs: TrendRun[] = [];
-        let model = "";
-        for (const r of kept) {
-          // effectiveVerdicts is the single source of truth for the
-          // override-aware verdict/suspect rule (suspect = s.suspect &&
-          // s.override == null — an override resolves the misfire); zip in
-          // flakiness from the matching ScenarioResult.
-          const verdicts = effectiveVerdicts(r.scenarios);
-          const cells: Record<string, TrendCell> = {};
-          r.scenarios.forEach((s, i) => {
-            cells[s.id] = { verdict: verdicts[i].verdict, suspect: verdicts[i].suspect ?? false, flakiness: s.flakiness };
-          });
-          runs.push({ timestamp: r.timestamp, label: r.label, grade: r.effective_grade, cells });
-          model = r.model; // last successfully-read run (kept is ascending) wins
-        }
-        // `skipped` is per tag (an unreadable run has no knowable mode), so a tag with
-        // two series reports the same count on both — the alternative is attributing a
-        // parse failure to a mode nobody could read.
-        models.push({ model, tag, mode, runs, truncated, skipped });
-      }
+  for (const group of collectScoredRuns(skillDir)) {
+    const truncated = group.runs.length > limit;
+    const kept = group.runs.slice(-limit); // most recent `limit`, newest last
+    const runs: TrendRun[] = [];
+    for (const r of kept) {
+      // effectiveVerdicts is the single source of truth for the override-aware
+      // verdict/suspect rule (suspect = s.suspect && s.override == null — an override
+      // resolves the misfire); zip in flakiness from the matching ScenarioResult.
+      const verdicts = effectiveVerdicts(r.scenarios);
+      const cells: Record<string, TrendCell> = {};
+      r.scenarios.forEach((s, i) => {
+        cells[s.id] = { verdict: verdicts[i].verdict, suspect: verdicts[i].suspect ?? false, flakiness: s.flakiness };
+      });
+      runs.push({ timestamp: r.timestamp, label: r.label, grade: r.effective_grade, cells });
     }
+    models.push({ model: group.model, tag: group.tag, mode: group.mode, runs, truncated, skipped: group.skipped });
   }
   return { skill: spec.skill, scenarios, models };
 }

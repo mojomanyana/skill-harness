@@ -338,6 +338,40 @@ The addendum at the top of `~/prepos/skill-harness-work-order.md`, ranked above 
         would have been accepted and ignored.
       - Post: `docs/posts/2026-08-06-the-same-skill-text-scored-twice.md`
 
+### Sprint 1.6 — Run-over-run stability (owner-supplied finding, 2026-08-06)
+
+Released as **0.6.0** (2026-08-06). One item, optional in priority, high in value.
+
+- [x] **Surface run-over-run verdict stability per scenario** (2026-08-06). The finding:
+      `plan`/DS A5 and D1 swapped UNANIMOUS verdicts between two consecutive full force
+      runs — A5 3/3 → 0/3, D1 1/3 → 3/3, each run internally `flakiness 0.00`. Within-run
+      flakiness quantifies rep variance and says nothing about run-over-run stability, so
+      the most confident-looking output the tool produces was the least trustworthy.
+      `stability.ts` derives it on read (nothing persisted — a fact about a SET of runs
+      cached inside one run is wrong the moment the next lands, the same argument
+      `lift.ts` makes), and `collectScoredRuns` was extracted from `trends.ts` so there is
+      **one** history walker rather than two definitions of "which runs count".
+      Surfaces: a free `stability` command, a `⇄` line on a fresh run's scorecard, a
+      `⇄ n/m` marker + tooltip on the review-matrix cell, and a `lint` note.
+      **Two design calls worth keeping straight.** (a) *An edit is not a flip*: a step is
+      counted only when the recorded `source_hashes` prove the scenario's own stimulus,
+      rubric, gates, fixture and persona identical AND both runs aggregated the same way;
+      rejected steps are reported with their reason, which is how D1's flip turned out to
+      be an `agents/plan.md` edit rather than instability. (b) *`SKILL.md` is deliberately
+      NOT one of those gates* — A5's flip happened across a skill edit aimed at another
+      scenario, so gating on it would have hidden the finding; that flip is reported
+      naming both readings (edit side-effect vs boundary cell) because the record cannot
+      settle it. Third state `unmeasured` is load-bearing: one run has not been *shown*
+      to be stable.
+      **New idea: lint severity.** A boundary cell is not a defect, so its finding is
+      `severity: "info"` (`ℹ`, `::notice`) and the exit code counts only gate-failing
+      findings. A linter that reddens CI for "this cell needs more reps" teaches people
+      to delete the scenario or stop reading the output.
+      Named `volatility` rather than the `stability` the order suggested, for one reason:
+      it sits next to `flakiness` in the same row, and `stability: 0.00` would have to
+      mean "perfectly stable" — mixed polarity in one line of output is a footgun.
+      - Post: `docs/posts/2026-08-06-flakiness-zero-is-not-stability.md`
+
 ## PHASE 2 — Launch & first 100 fans (weeks 5–10)
 
 **Goal:** exist in the heads of everyone who writes skills.

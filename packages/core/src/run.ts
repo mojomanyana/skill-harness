@@ -23,6 +23,7 @@ import { runPool } from "./scheduler.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
 import { judgeOneRep } from "./regrade.js";
 import { runDeliveryCanary, canaryFailure, type CanaryResult } from "./canary.js";
+import { boundaryCells, stabilityNote, type ScenarioStability } from "./stability.js";
 
 export interface RunOptions {
   spec: Spec;
@@ -314,8 +315,15 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
  * exists. Passing it for a green run turns the scorecard from "the skill scored
  * B" into "the skill *did* this much" — without a baseline the grade alone can't
  * distinguish a skill that works from a model that never needed it.
+ *
+ * `stability` is the run-over-run half of the same argument, and it is derived from
+ * history rather than from this run: a cell that flipped its verdict between the last
+ * two runs of this skill × model × mode is worth less than the ✓ beside it suggests,
+ * and this run's own `flaky 0.00` cannot say so — it only ever looked at one run. Pass
+ * the cells for THIS tag and mode; anything else would report another model's history
+ * under this model's scorecard.
  */
-export function formatScorecard(summary: RunSummary, lift?: Lift): string {
+export function formatScorecard(summary: RunSummary, lift?: Lift, stability?: ScenarioStability[]): string {
   const { results } = summary;
   const g = results.effective_grade;
   const lines: string[] = [];
@@ -352,6 +360,12 @@ export function formatScorecard(summary: RunSummary, lift?: Lift): string {
         ` — on pi ≥ 0.83.0 \`--skill\` only discloses the description and the body loads on demand.` +
         ` Use --mode force for delivery that cannot silently degrade, or --canary to prove it per run.`,
     );
+  }
+  // Boundary cells last, because they qualify the verdicts above: a ✓ on a cell that
+  // flipped between the last two runs is one draw, whatever its rep count said.
+  const ran = new Set(results.scenarios.map((s) => s.id));
+  for (const s of boundaryCells(stability ?? []).filter((c) => ran.has(c.id))) {
+    lines.push(`  ⇄ ${stabilityNote(s)}`);
   }
   return lines.join("\n");
 }

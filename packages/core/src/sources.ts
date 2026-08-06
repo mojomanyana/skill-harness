@@ -425,6 +425,46 @@ export function remedyForKey(key: string): string {
   return "re-run"; // stimulus:, SKILL.md, fixture:, agent files, post_test contents
 }
 
+/** The skill-text key. Skill-wide: it belongs to every scenario at once. */
+export const SKILL_KEY = "SKILL.md";
+
+/**
+ * Every recorded key whose drift could change THIS scenario's verdict — excluding the
+ * two skill-wide ones (`SKILL.md`, `rubric:__persona`), which callers handle
+ * separately because they move every scenario at once.
+ *
+ * Written for run-over-run comparison (see stability.ts): "did these two runs ask this
+ * scenario the same question, judged by the same rubric?" is answerable from the
+ * recorded hashes, and only if you know which keys belong to the scenario. Derived
+ * from the spec rather than from the key strings, because the path-shaped keys
+ * (`system_prompt_file`, `post_test`) carry no scenario id at all.
+ *
+ * `policy:<id>` is deliberately NOT here. Its `reps`/`pass_threshold` half is already
+ * compared as an *aggregation* shape (1 draw vs a majority of 3 is the comparison a
+ * hash cannot express), and its `critical` half changes whether a verdict can block a
+ * ship, never what the verdict is. Including it would report a critical-set edit as
+ * "these runs measured different things", which is false.
+ *
+ * Both key generations are returned: 0.4.0+ runs carry the split facet keys, older
+ * ones the combined `scenario:<id>`. A caller comparing two runs must not treat a
+ * combined digest and a split one as comparable — they hash different byte layouts —
+ * so it compares only keys BOTH runs recorded, and treats "no shared key" as
+ * unverifiable rather than unchanged.
+ */
+export function scenarioSourceKeys(s: Scenario): string[] {
+  const keys = [
+    STIMULUS_PREFIX + s.id,
+    RUBRIC_PREFIX + s.id,
+    SCENARIO_PREFIX + s.id, // legacy combined (pre-0.4.0 runs)
+  ];
+  if (gatesDigest(s) !== null) keys.push(GATES_PREFIX + s.id);
+  if (s.systemPromptFile) keys.push(s.systemPromptFile); // the agent file IS the stimulus
+  if (s.assert?.post_test) keys.push(s.assert.post_test); // its contents are the gate
+  const fx = effectiveFixture(s);
+  if (fx) keys.push(FIXTURE_PREFIX + fx);
+  return keys;
+}
+
 /** The scenario id a key belongs to, for per-scenario lint findings. Undefined for skill-wide keys. */
 export function scenarioIdForKey(key: string, scenarios: Scenario[]): string | undefined {
   if (key === PERSONA_KEY) return undefined; // spec-level: belongs to no single scenario

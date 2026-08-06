@@ -45,6 +45,8 @@ give you:
   ways: edit a checklist and lint says *re-grade* (judge only); change a threshold and it
   says *rescore* (free); fix a `diff_contains` needle and it says *regate* (free, from the
   saved diffs). Only a changed stimulus costs a re-run.
+- **[Stability](#stability--run-over-run-verdict-flips)** — which cells flipped their verdict
+  between runs, which within-run flakiness cannot see.
 - **[Lift](#lift--baseline-vs-skill)** — baseline vs skill, so you find out whether the model
   would have passed without your skill anyway
 - **Judge-misfire quarantine** — a verdict the judge contradicted itself on is
@@ -179,6 +181,7 @@ unguessable, not tamper-proof.
 ```
 skill-harness run    <skill|all> --skills <root> [--model prov:model ...] [--models file]
                                [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T] [--canary]
+skill-harness stability <skill|all> --skills <root> [--window N] [--all]  # run-over-run verdict flips (free, offline)
 skill-harness grade  <run-dir>   [--judge prov:model]    # re-grade saved transcripts (neutral judge)
 skill-harness review <skill>     --skills <root> [--port N]   # serve the interactive UI
 skill-harness add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical]
@@ -323,6 +326,73 @@ zero, because "not measured" is a different claim from "measured no effect".
 The skill side is whichever delivered mode ran most recently (green or force); the
 baseline is `--no-skills` either way, so red-vs-force is as valid a comparison as
 red-vs-green, and the reported lift says which delivery it measured.
+
+### Stability — run-over-run verdict flips
+
+`flakiness` is a **within-run** number: how much the reps of one run disagreed. It
+cannot see the failure below, measured in the reference corpus on two consecutive
+full runs of unchanged text:
+
+| scenario | run of 08-05 | run of 08-06 | within-run flakiness |
+|---|---|---|---|
+| `A5` | **3/3 PASS** | **0/3 FAIL** | `0.00` in both |
+| `D1` | 1/3 FAIL | **3/3 PASS** | `0.00` in the second |
+
+Two unanimous runs, opposite verdicts. A scenario sitting on a behavioural boundary
+can be unanimous inside every run and still land on a different side each time — and
+then `flaky 0.00` reads as confidence when it is the opposite.
+
+```bash
+skill-harness stability <skill|all> --skills <root> [--window N] [--all]   # free, offline
+```
+
+```
+  pi-…-deepseek-v4-pro · mode=force  (3 run(s) in the window)
+    ⇄ CRITICAL A5 flipped its verdict in 1 of 1 comparable run-to-run step(s) (PASS!→FAIL!);
+      each flip was between runs that were INTERNALLY UNANIMOUS (flakiness 0.00) — within-run
+      reps cannot see this; SKILL.md changed across that step, while this scenario's own
+      stimulus and rubric did not — so it is either a side effect of that edit or a boundary
+      cell, and the record cannot say which
+    9 held their verdict · 2 with no comparable step (--all to list them)
+```
+
+`→` is a step this comparison counted, `⋯` a step it rejected, `!` a run whose reps were
+unanimous. It also appears where you actually read results: a `⇄ n/m` marker on the
+review matrix cell (with the note as its tooltip), a `⇄` line under the fresh run's
+scorecard, and a `lint` **note**.
+
+**An edit is not a flip.** A verdict that moved because the scenario changed is a
+different question being asked, not an unstable answer — so a step is only counted when
+the recorded `source_hashes` prove the scenario's own stimulus, rubric, gates, fixture
+and persona were identical, and when both runs aggregated the same way (a single draw
+versus a majority of three is not the same measurement). Rejected steps are reported
+with their reason rather than dropped:
+
+```
+D1 has no comparable run-to-run step: 1 step(s) where the scenario's own sources changed
+  (../../agents/plan.md changed — an edit, not a flip)
+```
+
+`SKILL.md` is deliberately **not** one of those gates. In the measured case above the
+skill text *had* changed — an edit aimed at a different scenario — while A5's own
+stimulus and rubric were byte-identical. Excluding that step would have hidden the
+finding; instead the note says what the record supports and no more: either a side
+effect of that edit, or a boundary cell.
+
+Three states, and the third is load-bearing: `stable` (held across N comparable steps),
+`boundary` (flipped), and **`unmeasured`** — one run, or no comparable step. A scenario
+with one run has not been shown to be stable, and saying so would turn absence of
+evidence into evidence.
+
+**It never fails a build.** A boundary cell is a statement about how much one run of that
+cell is worth, not a defect in the spec or the results, so `lint` reports it with
+severity `info` (`ℹ`, and `::notice` in GitHub Actions), the skill keeps its `✓`, and the
+exit code stays 0. The remedy is `--reps` on that scenario, or an override with a note
+once you have decided which side is right.
+
+Derived on read from committed history — like lift, never stored in `results.yaml`, since
+a fact about a *set* of runs would be wrong the moment the next run lands. It therefore
+works retroactively on history recorded by every earlier version, and costs nothing.
 
 ### Concurrency & workspaces
 
