@@ -1,10 +1,10 @@
 // packages/pi-extension/src/index.ts
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname as dirname6, join as join20 } from "node:path";
+import { dirname as dirname6, join as join21 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
-import { existsSync as existsSync16 } from "node:fs";
-import { dirname as dirname5, join as join19, resolve as resolve7 } from "node:path";
+import { existsSync as existsSync17 } from "node:fs";
+import { dirname as dirname5, join as join20, resolve as resolve9 } from "node:path";
 
 // packages/core/dist/spec.js
 import { readFileSync } from "node:fs";
@@ -2578,16 +2578,16 @@ function loadSpec(file) {
 
 // packages/core/dist/discover.js
 import { existsSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 // packages/core/dist/run.js
 import { mkdirSync as mkdirSync3, writeFileSync as writeFileSync3 } from "node:fs";
-import { dirname, resolve as resolve4 } from "node:path";
+import { dirname, resolve as resolve5 } from "node:path";
 
 // packages/core/dist/sources.js
 import { createHash } from "node:crypto";
 import { readFileSync as readFileSync2, readdirSync as readdirSync2 } from "node:fs";
-import { isAbsolute, join as join2, resolve } from "node:path";
+import { isAbsolute, join as join2, resolve as resolve2 } from "node:path";
 var FIXTURE_PREFIX = "fixture:";
 var STIMULUS_PREFIX = "stimulus:";
 var RUBRIC_PREFIX = "rubric:";
@@ -2682,14 +2682,14 @@ function personaDigest(persona) {
   return sha(JSON.stringify(["__persona", persona]));
 }
 function fixtureAbs(specDir, fixture) {
-  return isAbsolute(fixture) ? fixture : resolve(specDir, fixture);
+  return isAbsolute(fixture) ? fixture : resolve2(specDir, fixture);
 }
 function effectiveFixture(s) {
   return typeof s.workspace === "object" && s.workspace !== null ? s.workspace.fixture : void 0;
 }
 function sourceHashes(ctx) {
   const hashes = {};
-  hashes["SKILL.md"] = fileSha256(resolve(ctx.skillDir, "SKILL.md")) ?? UNREADABLE;
+  hashes["SKILL.md"] = fileSha256(resolve2(ctx.skillDir, "SKILL.md")) ?? UNREADABLE;
   hashes[PERSONA_KEY] = personaDigest(ctx.judgePersona);
   for (const s of ctx.scenarios) {
     hashes[STIMULUS_PREFIX + s.id] = stimulusDigest(s);
@@ -2699,11 +2699,11 @@ function sourceHashes(ctx) {
     if (gates !== null)
       hashes[GATES_PREFIX + s.id] = gates;
     if (s.systemPromptFile && !(s.systemPromptFile in hashes)) {
-      hashes[s.systemPromptFile] = fileSha256(resolve(ctx.specDir, s.systemPromptFile)) ?? UNREADABLE;
+      hashes[s.systemPromptFile] = fileSha256(resolve2(ctx.specDir, s.systemPromptFile)) ?? UNREADABLE;
     }
     const pt = s.assert?.post_test;
     if (pt && !(pt in hashes)) {
-      hashes[pt] = fileSha256(isAbsolute(pt) ? pt : resolve(ctx.specDir, pt)) ?? UNREADABLE;
+      hashes[pt] = fileSha256(isAbsolute(pt) ? pt : resolve2(ctx.specDir, pt)) ?? UNREADABLE;
     }
     const fx = effectiveFixture(s);
     if (fx && !(FIXTURE_PREFIX + fx in hashes)) {
@@ -2717,7 +2717,7 @@ function sourceHashes(ctx) {
 import { appendFileSync, cpSync, existsSync as existsSync2, mkdtempSync, readFileSync as readFileSync3, readdirSync as readdirSync3, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { isAbsolute as isAbsolute2, join as join3, resolve as resolve2 } from "node:path";
+import { isAbsolute as isAbsolute2, join as join3, resolve as resolve3 } from "node:path";
 var GIT_TIMEOUT_MS = 3e4;
 var UNCOMMITTED_DIR = "_uncommitted";
 var STAGED_DIR = "_staged";
@@ -2768,7 +2768,7 @@ function createWorkspace(kind, opts) {
       if (opts.remote)
         bare = addLocalRemote(cwd);
     } else {
-      const src = isAbsolute2(kind.fixture) ? kind.fixture : resolve2(opts.specDir, kind.fixture);
+      const src = isAbsolute2(kind.fixture) ? kind.fixture : resolve3(opts.specDir, kind.fixture);
       if (!existsSync2(src))
         throw new Error(`fixture not found: ${src}`);
       assertKnownMarkers(src);
@@ -2958,6 +2958,15 @@ var require2 = createRequire(import.meta.url);
 var HARNESS_VERSION = require2("../package.json").version;
 
 // packages/core/dist/results.js
+var SCORED_MODES = ["green", "force"];
+function isScoredMode(mode) {
+  return SCORED_MODES.includes(mode);
+}
+function scoreContextFor(run, spec) {
+  if (!isScoredMode(run.mode) || run.partial)
+    return null;
+  return { shipBar: spec.ship_bar, critical: spec.critical };
+}
 function effectiveThreshold(prevScenario, scenario) {
   return prevScenario?.pass_threshold ?? scenario.passThreshold ?? 0.5;
 }
@@ -2997,6 +3006,10 @@ function finalizeResults(draft, ctx) {
     // `grade`, `rescore` and the review UI's override save all record which tool
     // produced the record they leave behind.
     harness_version: HARNESS_VERSION,
+    // Omitted rather than written as null when absent: a run whose adapter could
+    // not report a version must not look like one that reported "nothing".
+    ...draft.harness_cli_version ? { harness_cli_version: draft.harness_cli_version } : {},
+    ...draft.delivery_canary ? { delivery_canary: draft.delivery_canary } : {},
     skill: draft.skill,
     harness: draft.harness,
     model: draft.model,
@@ -3233,6 +3246,7 @@ function computeLift(red, green, opts = {}) {
   return {
     tag: "",
     model: green.model,
+    mode: green.mode,
     redTimestamp: red.timestamp,
     greenTimestamp: green.timestamp,
     compared: Object.keys(cells).length,
@@ -3331,7 +3345,7 @@ function collectLift(skillDir) {
     const tagDir = join6(resultsRoot, tag);
     const runDirs = readdirSync5(tagDir).map((n) => join6(tagDir, n)).filter((p) => isDir(p) && existsSync5(join6(p, "results.yaml"))).sort();
     let red;
-    let green;
+    let skillOn;
     for (const rd of runDirs) {
       let r;
       try {
@@ -3342,26 +3356,26 @@ function collectLift(skillDir) {
       }
       if (r.mode === "red")
         red = r;
-      else if (r.mode === "green")
-        green = r;
+      else if (isScoredMode(r.mode))
+        skillOn = r;
     }
-    if (!red || !green)
+    if (!red || !skillOn)
       continue;
-    lifts.push({ ...computeLift(red, green, { modeInsensitive }), tag });
+    lifts.push({ ...computeLift(red, skillOn, { modeInsensitive }), tag });
   }
   return lifts;
 }
 
 // packages/core/dist/seeded.js
 import { copyFileSync, statSync as statSync3 } from "node:fs";
-import { extname, isAbsolute as isAbsolute3, join as join8, resolve as resolve3 } from "node:path";
+import { extname, isAbsolute as isAbsolute3, join as join8, resolve as resolve4 } from "node:path";
 
 // packages/core/dist/util/exec.js
 import { spawn } from "node:child_process";
 import { existsSync as existsSync6 } from "node:fs";
 import { join as join7, delimiter } from "node:path";
 function exec(cmd, args, opts = {}) {
-  return new Promise((resolve8, reject) => {
+  return new Promise((resolve10, reject) => {
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
       env: opts.env ?? process.env,
@@ -3387,7 +3401,7 @@ function exec(cmd, args, opts = {}) {
     child.on("close", (code) => {
       if (timer)
         clearTimeout(timer);
-      resolve8({ stdout, stderr, code });
+      resolve10({ stdout, stderr, code });
     });
   });
 }
@@ -3537,7 +3551,7 @@ async function runSeeded(scenario, opts) {
   }
   const postTest = scenario.assert?.post_test;
   if (postTest) {
-    const src = isAbsolute3(postTest) ? postTest : resolve3(opts.specDir, postTest);
+    const src = isAbsolute3(postTest) ? postTest : resolve4(opts.specDir, postTest);
     if (!isReadableFile(src)) {
       const msg = `post_test is not a readable file: ${postTest} \u2014 spec error, not model behavior`;
       parts.push(`  post_test: ERROR (${msg})`);
@@ -3707,9 +3721,10 @@ async function judgeOneRep(opts) {
 }
 async function regradeScenario(opts) {
   const now = opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
-  const files = findTranscriptFiles(opts.runDir, opts.scenario.id, "green");
+  const mode = opts.mode ?? "green";
+  const files = findTranscriptFiles(opts.runDir, opts.scenario.id, mode);
   if (files.length === 0)
-    throw new Error(`no green transcripts for ${opts.scenario.id} in ${opts.runDir}`);
+    throw new Error(`no ${mode} transcripts for ${opts.scenario.id} in ${opts.runDir}`);
   const repCount = files.length;
   const outcomes = [];
   for (const file of files) {
@@ -3723,7 +3738,7 @@ async function regradeScenario(opts) {
       adapter: opts.adapter,
       judge: opts.judge,
       specDir: opts.specDir,
-      mode: "green",
+      mode,
       rep,
       now
     }));
@@ -3747,9 +3762,9 @@ async function regradeRun(opts) {
       return prev;
     }
   }
-  const missing = targets.filter((id) => !specById.has(id) || findTranscriptFiles(runDir, id, "green").length === 0);
+  const missing = targets.filter((id) => !specById.has(id) || findTranscriptFiles(runDir, id, mode).length === 0);
   if (missing.length === targets.length) {
-    throw new Error(`no green transcripts in ${runDir} \u2014 nothing to re-grade`);
+    throw new Error(`no ${mode} transcripts in ${runDir} \u2014 nothing to re-grade`);
   }
   if (missing.length > 0) {
     throw new Error(`cannot re-grade ${missing.join(", ")} in ${runDir} (transcript missing or scenario no longer in the spec) \u2014 re-run instead of grading`);
@@ -3773,15 +3788,21 @@ async function regradeRun(opts) {
       judge,
       specDir,
       threshold,
+      mode,
       now
     });
     const carry = overrides.get(id);
     scenarioResults.push({ ...rr, override: carry?.override ?? null, note: carry?.note ?? "" });
   }
-  const ctx = mode === "green" && !prev?.partial ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
+  const ctx = scoreContextFor({ mode, partial: prev?.partial }, spec);
   const results = writeResults(runDir, {
     skill: spec.skill,
     harness: prev?.harness ?? "pi",
+    // The harness CLI that produced these transcripts, carried verbatim: a re-grade
+    // re-asks the judge, it does not re-deliver the skill, so stamping today's pi
+    // here would credit the old transcripts to a version that never ran them.
+    harness_cli_version: prev?.harness_cli_version,
+    delivery_canary: prev?.delivery_canary,
     model: prev?.model ?? "unknown",
     judge: { provider: judge.provider, model: judge.model },
     timestamp: prev?.timestamp ?? now(),
@@ -3814,6 +3835,68 @@ async function regradeRun(opts) {
   return results;
 }
 
+// packages/core/dist/canary.js
+import { readFileSync as readFileSync7 } from "node:fs";
+import { join as join10 } from "node:path";
+function skillBody(text) {
+  const m = /^---\r?\n[\s\S]*?\r?\n---\r?\n/.exec(text);
+  return m ? text.slice(m[0].length) : text;
+}
+function deliveryAnchor(skillMd) {
+  const headings = [...skillBody(skillMd).matchAll(/^##[ \t]+(.+?)[ \t]*$/gm)].map((m) => m[1].trim());
+  if (headings.length === 0)
+    return null;
+  return headings.reduce((a, b) => b.length > a.length ? b : a);
+}
+function normalize(s) {
+  return s.toLowerCase().replace(/[`*_]/g, "").replace(/\s+/g, " ").trim();
+}
+function canaryPrompt(skillName, anchor) {
+  return `Answer from the instructions you have loaded \u2014 do not perform any task.
+
+List every level-2 markdown heading (lines starting with "## ") in the instructions of the skill named "${skillName}", verbatim, one per line, with no other text.
+If you have no such instructions available, reply exactly: NOT_AVAILABLE
+
+(The heading text is what matters; keep it exact.)`;
+}
+function assistantReply(transcript) {
+  const parts = transcript.split(/^<<< ASSISTANT:\s*$/m);
+  return (parts.length > 1 ? parts[parts.length - 1] : transcript).trim();
+}
+async function runDeliveryCanary(opts) {
+  const skillMd = readFileSync7(join10(opts.skillDir, "SKILL.md"), "utf8");
+  const anchor = deliveryAnchor(skillMd);
+  if (!anchor) {
+    return {
+      status: "skipped",
+      anchor: null,
+      detail: `${opts.skillName}/SKILL.md has no \`## \` heading to probe for \u2014 nothing a reply could prove`
+    };
+  }
+  const transcript = await opts.adapter.run({
+    skillDir: opts.skillDir,
+    model: opts.model,
+    mode: "green",
+    turns: [canaryPrompt(opts.skillName, anchor)],
+    cwd: opts.cwd
+  });
+  const ok = normalize(transcript).includes(normalize(anchor));
+  return {
+    status: ok ? "pass" : "fail",
+    anchor,
+    // The reply, not the transcript: the transcript opens with our own prompt, and a
+    // failure report whose first 400 characters are the question is useless.
+    detail: ok ? "" : assistantReply(transcript).slice(0, 400)
+  };
+}
+function canaryFailure(skillName, result, cliVersion) {
+  return `delivery canary FAILED for ${skillName}: the model could not quote its own skill instructions (looked for the heading \`${result.anchor}\`).
+  The skill is not reaching the model, so every scenario in this run would measure a naked model and score like a result. Nothing has been spent beyond this one probe.
+  harness CLI: ${cliVersion ?? "unknown"}. On pi \u2265 0.83.0 \`--skill\` is progressive disclosure (description in context, body on demand) and a nonexistent path is accepted silently.
+  Fix: re-run with \`--mode force\` (SKILL.md as the system prompt \u2014 delivery no version has made conditional), or check that the skill dir is the one you meant.
+  What the model said instead: ${result.detail || "(nothing)"}`;
+}
+
 // packages/core/dist/run.js
 async function runSkillModel(opts) {
   const { spec, skillDir, adapter, model, judge, mode, timestamp } = opts;
@@ -3838,16 +3921,52 @@ async function runSkillModel(opts) {
   const runDir = runDirFor(skillDir, adapter.name, model, timestamp);
   mkdirSync3(runDir, { recursive: true });
   ensureResultsGitignore(dirname(dirname(runDir)));
+  const harnessCliVersion = await adapter.version?.() ?? null;
   appendJournal(runDir, {
     event: "run-started",
     ts: now(),
     skill: spec.skill,
     harness: adapter.name,
     model: opts.modelToken,
+    harness_cli_version: harnessCliVersion,
     judge: { provider: judge.provider, model: judge.model },
     mode,
     label: opts.label ?? null
   });
+  let canaryStatus = null;
+  if (opts.canary && mode !== "green") {
+    log(`  --canary ignored in mode=${mode} \u2014 ${mode === "force" ? "the system prompt delivers the skill unconditionally" : "a baseline delivers no skill by design"}`);
+  }
+  if (opts.canary && mode === "green") {
+    const probeCwd = createWorkspace("none", { specDir: dirname(opts.specPath) });
+    let canary;
+    try {
+      canary = await runDeliveryCanary({
+        adapter,
+        model,
+        skillDir,
+        skillName: spec.skill,
+        cwd: probeCwd.cwd
+      });
+    } finally {
+      probeCwd.cleanup();
+    }
+    appendJournal(runDir, {
+      event: "delivery-canary",
+      ts: now(),
+      status: canary.status,
+      anchor: canary.anchor,
+      detail: canary.detail
+    });
+    if (canary.status === "fail")
+      throw new Error(canaryFailure(spec.skill, canary, harnessCliVersion));
+    if (canary.status === "skipped")
+      log(`  \u26A0 delivery canary skipped \u2014 ${canary.detail}`);
+    else {
+      canaryStatus = "pass";
+      log(`  \u2713 delivery canary \u2014 the model quoted its skill instructions back (\`${canary.anchor}\`)`);
+    }
+  }
   const repCounts = scenarios.map((s) => s.reps ?? opts.reps ?? 1);
   const owners = [];
   const tasks = [];
@@ -3866,10 +3985,12 @@ async function runSkillModel(opts) {
     const threshold = scenario.passThreshold ?? opts.passThreshold ?? 0.5;
     return outcomesToResult(scenario.id, grouped[si], repCounts[si], threshold);
   });
-  const ctx = mode === "green" && !partial ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
+  const ctx = scoreContextFor({ mode, partial }, spec);
   const results = writeResults(runDir, {
     skill: spec.skill,
     harness: adapter.name,
+    harness_cli_version: harnessCliVersion ?? void 0,
+    delivery_canary: canaryStatus ?? void 0,
     model: opts.modelToken,
     judge: { provider: judge.provider, model: judge.model },
     timestamp,
@@ -3944,7 +4065,7 @@ async function runRep(scenario, rep, repCount, ctx) {
             turns: scenario.turns,
             cwd: ws.cwd,
             // resolved like fixtures: relative to the spec's dir
-            systemPromptFile: scenario.systemPromptFile ? resolve4(dirname(ctx.specPath), scenario.systemPromptFile) : void 0
+            systemPromptFile: scenario.systemPromptFile ? resolve5(dirname(ctx.specPath), scenario.systemPromptFile) : void 0
           });
         }
         noResponse = hasEmptyAssistantTurn(transcript);
@@ -3997,26 +4118,26 @@ async function runRep(scenario, rep, repCount, ctx) {
 
 // packages/core/dist/rescore.js
 import { existsSync as existsSync8 } from "node:fs";
-import { join as join10 } from "node:path";
+import { join as join11 } from "node:path";
 
 // packages/core/dist/report.js
 import { existsSync as existsSync9, readdirSync as readdirSync6, statSync as statSync4 } from "node:fs";
-import { join as join11 } from "node:path";
+import { join as join12 } from "node:path";
 function latestRunDir(tagDir) {
   if (!statSync4(tagDir).isDirectory())
     return null;
-  const runs = readdirSync6(tagDir).map((n) => join11(tagDir, n)).filter((p) => statSync4(p).isDirectory() && existsSync9(join11(p, "results.yaml"))).sort();
+  const runs = readdirSync6(tagDir).map((n) => join12(tagDir, n)).filter((p) => statSync4(p).isDirectory() && existsSync9(join12(p, "results.yaml"))).sort();
   return runs.length ? runs[runs.length - 1] : null;
 }
 function collectReport(skillDir) {
-  const specPath = join11(skillDir, "tests", "specification.yaml");
+  const specPath = join12(skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const scenarios = spec.scenarios.map((s) => ({ id: s.id, title: s.title, critical: s.critical }));
-  const resultsRoot = join11(skillDir, "tests", "results");
+  const resultsRoot = join12(skillDir, "tests", "results");
   const liftByTag = new Map(collectLift(skillDir).map((l) => [l.tag, l]));
   const columns = [];
   if (existsSync9(resultsRoot)) {
-    const tags = readdirSync6(resultsRoot).map((n) => join11(resultsRoot, n)).filter((p) => statSync4(p).isDirectory()).sort();
+    const tags = readdirSync6(resultsRoot).map((n) => join12(resultsRoot, n)).filter((p) => statSync4(p).isDirectory()).sort();
     for (const tagDir of tags) {
       const runDir = latestRunDir(tagDir);
       if (!runDir)
@@ -4085,7 +4206,7 @@ function renderReport(template, data, gradeScript) {
 
 // packages/core/dist/trends.js
 import { existsSync as existsSync10, readdirSync as readdirSync7, statSync as statSync5 } from "node:fs";
-import { join as join12 } from "node:path";
+import { join as join13 } from "node:path";
 function isDir2(p) {
   try {
     return statSync5(p).isDirectory();
@@ -4094,19 +4215,19 @@ function isDir2(p) {
   }
 }
 function collectTrends(skillDir, limit = 20) {
-  const specPath = join12(skillDir, "tests", "specification.yaml");
+  const specPath = join13(skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const scenarios = spec.scenarios.map((s) => ({ id: s.id, title: s.title, critical: s.critical }));
-  const resultsRoot = join12(skillDir, "tests", "results");
+  const resultsRoot = join13(skillDir, "tests", "results");
   const models = [];
   if (existsSync10(resultsRoot)) {
-    const tags = readdirSync7(resultsRoot).filter((n) => isDir2(join12(resultsRoot, n))).sort();
+    const tags = readdirSync7(resultsRoot).filter((n) => isDir2(join13(resultsRoot, n))).sort();
     for (const tag of tags) {
-      const tagDir = join12(resultsRoot, tag);
-      const runDirs = readdirSync7(tagDir).map((n) => join12(tagDir, n)).filter((p) => isDir2(p) && existsSync10(join12(p, "results.yaml"))).sort();
+      const tagDir = join13(resultsRoot, tag);
+      const runDirs = readdirSync7(tagDir).map((n) => join13(tagDir, n)).filter((p) => isDir2(p) && existsSync10(join13(p, "results.yaml"))).sort();
       if (runDirs.length === 0)
         continue;
-      const greenRuns = [];
+      const byMode = /* @__PURE__ */ new Map();
       let skipped = 0;
       for (const rd of runDirs) {
         let r;
@@ -4117,38 +4238,40 @@ function collectTrends(skillDir, limit = 20) {
           skipped++;
           continue;
         }
-        if (r.mode !== "green")
+        if (!isScoredMode(r.mode))
           continue;
-        greenRuns.push(r);
+        (byMode.get(r.mode) ?? byMode.set(r.mode, []).get(r.mode)).push(r);
       }
-      if (greenRuns.length === 0)
+      if (byMode.size === 0)
         continue;
-      const truncated = greenRuns.length > limit;
-      const kept = greenRuns.slice(-limit);
-      const runs = [];
-      let model = "";
-      for (const r of kept) {
-        const verdicts = effectiveVerdicts(r.scenarios);
-        const cells = {};
-        r.scenarios.forEach((s, i) => {
-          cells[s.id] = { verdict: verdicts[i].verdict, suspect: verdicts[i].suspect ?? false, flakiness: s.flakiness };
-        });
-        runs.push({ timestamp: r.timestamp, label: r.label, grade: r.effective_grade, cells });
-        model = r.model;
+      for (const [mode, scoredRuns] of byMode) {
+        const truncated = scoredRuns.length > limit;
+        const kept = scoredRuns.slice(-limit);
+        const runs = [];
+        let model = "";
+        for (const r of kept) {
+          const verdicts = effectiveVerdicts(r.scenarios);
+          const cells = {};
+          r.scenarios.forEach((s, i) => {
+            cells[s.id] = { verdict: verdicts[i].verdict, suspect: verdicts[i].suspect ?? false, flakiness: s.flakiness };
+          });
+          runs.push({ timestamp: r.timestamp, label: r.label, grade: r.effective_grade, cells });
+          model = r.model;
+        }
+        models.push({ model, tag, mode, runs, truncated, skipped });
       }
-      models.push({ model, tag, runs, truncated, skipped });
     }
   }
   return { skill: spec.skill, scenarios, models };
 }
 
 // packages/core/dist/lint.js
-import { existsSync as existsSync12, statSync as statSync7, readdirSync as readdirSync9, readFileSync as readFileSync7 } from "node:fs";
-import { basename, dirname as dirname2, isAbsolute as isAbsolute4, join as join14, resolve as resolve5 } from "node:path";
+import { existsSync as existsSync12, statSync as statSync7, readdirSync as readdirSync9, readFileSync as readFileSync8 } from "node:fs";
+import { basename, dirname as dirname2, isAbsolute as isAbsolute4, join as join15, resolve as resolve6 } from "node:path";
 
 // packages/core/dist/downgrade.js
 import { existsSync as existsSync11, readdirSync as readdirSync8, statSync as statSync6 } from "node:fs";
-import { join as join13 } from "node:path";
+import { join as join14 } from "node:path";
 
 // packages/core/dist/defaults.js
 var BAKED_DEFAULT_JUDGE = "claude-code:claude-opus-4-8";
@@ -4178,22 +4301,31 @@ function assertJudgeAllowed(judge, opts) {
 }
 
 // packages/core/dist/regate.js
-import { existsSync as existsSync13, readFileSync as readFileSync8, renameSync, writeFileSync as writeFileSync4 } from "node:fs";
-import { join as join15 } from "node:path";
+import { existsSync as existsSync13, readFileSync as readFileSync9, renameSync, writeFileSync as writeFileSync4 } from "node:fs";
+import { join as join16 } from "node:path";
 
 // packages/adapters/dist/pi.js
-import { mkdtempSync as mkdtempSync2, readFileSync as readFileSync9 } from "node:fs";
+import { existsSync as existsSync14, mkdtempSync as mkdtempSync2, readFileSync as readFileSync10, statSync as statSync8 } from "node:fs";
 import { tmpdir as tmpdir2 } from "node:os";
-import { join as join16 } from "node:path";
+import { join as join17, resolve as resolve7 } from "node:path";
 var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
+function requireSkillDir(skillDir, mode) {
+  const abs = resolve7(skillDir);
+  const md = join17(abs, "SKILL.md");
+  const isDir3 = existsSync14(abs) && statSync8(abs).isDirectory();
+  if (!isDir3 || !existsSync14(md)) {
+    throw new Error(`mode=${mode} needs a skill directory with a SKILL.md, but ${abs} ${isDir3 ? "has none" : "is not a directory"}` + (abs === skillDir ? "" : ` (given \`${skillDir}\`, resolved against ${process.cwd()})`) + ` \u2014 pi accepts \`--skill <nonexistent>\` silently (exit 0, a normal answer, no skill in context), so this run would measure a model with no skill and report it as a result.`);
+  }
+  return abs;
+}
 function skillFlags(mode, skillDir) {
   switch (mode) {
     case "red":
       return ["--no-skills"];
     case "green":
-      return ["--skill", skillDir];
+      return ["--skill", requireSkillDir(skillDir, mode)];
     case "force": {
-      const body = readFileSync9(join16(skillDir, "SKILL.md"), "utf8");
+      const body = readFileSync10(join17(requireSkillDir(skillDir, mode), "SKILL.md"), "utf8");
       return ["--no-skills", "--append-system-prompt", body];
     }
   }
@@ -4210,6 +4342,25 @@ var piAdapter = {
     return Promise.resolve(onPath("pi"));
   },
   /**
+   * `pi --version` (it prints a bare version, e.g. `0.83.0`), recorded in
+   * results.yaml as `harness_cli_version`.
+   *
+   * Null on any failure — a non-zero exit, empty output, or pi missing entirely.
+   * A run must not abort because provenance was unavailable, and a fabricated
+   * version would be worse than an absent one.
+   */
+  async version() {
+    try {
+      const r = await exec("pi", ["--version"], { timeoutMs: 3e4 });
+      const line = r.stdout.split("\n")[0]?.trim() ?? "";
+      if (r.code !== 0 || line === "")
+        return null;
+      return /\d+\.\d+\.\d+\S*/.exec(line)?.[0] ?? line;
+    } catch {
+      return null;
+    }
+  },
+  /**
    * Run a scenario through pi. Single turn → --no-session -p. Multi turn → a
    * shared --session-dir, -c on every turn after the first. Returns a transcript
    * interleaving user turns with assistant output.
@@ -4223,7 +4374,7 @@ var piAdapter = {
       "--model",
       req.model.model
     ];
-    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync9(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
+    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync10(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
     const total = req.turns.length;
     const parts = [];
     if (total === 1) {
@@ -4239,7 +4390,7 @@ ${r.stderr.trim()}
 `);
       return parts.join("\n");
     }
-    const session = mkdtempSync2(join16(tmpdir2(), "sc-pi-session-"));
+    const session = mkdtempSync2(join17(tmpdir2(), "sc-pi-session-"));
     for (let i = 0; i < total; i++) {
       const turnFlags = i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common, ...turnFlags, "-p", req.turns[i]];
@@ -4304,33 +4455,33 @@ function getAdapter(name) {
 
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
-import { readFileSync as readFileSync10, existsSync as existsSync14 } from "node:fs";
-import { join as join17, dirname as dirname3 } from "node:path";
+import { readFileSync as readFileSync11, existsSync as existsSync15 } from "node:fs";
+import { join as join18, dirname as dirname3 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn as spawn2 } from "node:child_process";
 var __dirname = dirname3(fileURLToPath(import.meta.url));
 function templatePath(assetsDir) {
   if (assetsDir)
-    return join17(assetsDir, "report.template.html");
+    return join18(assetsDir, "report.template.html");
   const candidates = [
-    join17(__dirname, "..", "..", "..", "assets", "report.template.html"),
+    join18(__dirname, "..", "..", "..", "assets", "report.template.html"),
     // packages/cli/{dist,src} -> ../../../assets
-    join17(__dirname, "..", "assets", "report.template.html"),
-    join17(__dirname, "..", "..", "assets", "report.template.html")
+    join18(__dirname, "..", "assets", "report.template.html"),
+    join18(__dirname, "..", "..", "assets", "report.template.html")
   ];
   for (const c of candidates)
-    if (existsSync14(c))
+    if (existsSync15(c))
       return c;
   throw new Error("cannot find assets/report.template.html");
 }
 function gradeScriptPath(assetsDir) {
-  return join17(dirname3(templatePath(assetsDir)), "report.grade.js");
+  return join18(dirname3(templatePath(assetsDir)), "report.grade.js");
 }
 function readBody(req) {
-  return new Promise((resolve8) => {
+  return new Promise((resolve10) => {
     let b = "";
     req.on("data", (c) => b += c);
-    req.on("end", () => resolve8(b));
+    req.on("end", () => resolve10(b));
   });
 }
 function findTranscript(runDir, id) {
@@ -4338,22 +4489,22 @@ function findTranscript(runDir, id) {
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync10(join17(runDir, files[0]), "utf8");
+    return readFileSync11(join18(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync10(join17(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync11(join18(runDir, f), "utf8")}`).join("\n\n");
 }
 function findJudgeRaw(runDir, id) {
   const files = findJudgeRawFiles(runDir, id);
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync10(join17(runDir, files[0]), "utf8");
+    return readFileSync11(join18(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync10(join17(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync11(join18(runDir, f), "utf8")}`).join("\n\n");
 }
 async function serveReview(opts) {
-  const template = readFileSync10(templatePath(opts.assetsDir), "utf8");
-  const gradeScript = readFileSync10(gradeScriptPath(opts.assetsDir), "utf8");
+  const template = readFileSync11(templatePath(opts.assetsDir), "utf8");
+  const gradeScript = readFileSync11(gradeScriptPath(opts.assetsDir), "utf8");
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://localhost");
@@ -4398,12 +4549,12 @@ async function serveReview(opts) {
           return;
         }
         const results = readResults(column.runDir);
-        if (results.mode !== "green") {
+        if (!isScoredMode(results.mode)) {
           res.writeHead(400, { "content-type": "application/json" });
-          res.end(JSON.stringify({ ok: false, error: "only green runs can be re-judged" }));
+          res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be re-judged here \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
           return;
         }
-        const specPath = join17(opts.skillDir, "tests", "specification.yaml");
+        const specPath = join18(opts.skillDir, "tests", "specification.yaml");
         const spec = loadSpec(specPath);
         const scenario = spec.scenarios.find((s) => s.id === body.scenarioId);
         if (!scenario) {
@@ -4430,7 +4581,8 @@ async function serveReview(opts) {
             adapter,
             judge: results.judge,
             specDir: dirname3(specPath),
-            threshold
+            threshold,
+            mode: results.mode
           });
           const merged = results.scenarios.map((s) => s.id === body.scenarioId ? { ...rr, override: s.override, note: s.note } : s);
           const written = writeResults(column.runDir, {
@@ -4441,9 +4593,18 @@ async function serveReview(opts) {
             timestamp: results.timestamp,
             label: results.label,
             mode: results.mode,
-            scenarios: merged
-          }, { shipBar: spec.ship_bar, critical: spec.critical });
-          ensureResultsGitignore(join17(opts.skillDir, "tests", "results"));
+            scenarios: merged,
+            partial: results.partial,
+            // Provenance survives a UI re-judge, same as it does through `grade`.
+            harness_cli_version: results.harness_cli_version,
+            delivery_canary: results.delivery_canary,
+            // Recorded hashes were being dropped here entirely, which silently
+            // retired the staleness gate for any run re-judged from the UI. Carried,
+            // with the one `rubric:` key this re-judge actually applied refreshed —
+            // the same doctrine `grade` follows (see refreshRubricHashes).
+            source_hashes: refreshRubricHashes(results.source_hashes, spec, [body.scenarioId])
+          }, scoreContextFor(results, spec));
+          ensureResultsGitignore(join18(opts.skillDir, "tests", "results"));
           const g = written.effective_grade;
           appendJournal(column.runDir, { event: "score", ts: (/* @__PURE__ */ new Date()).toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
           res.writeHead(200, { "content-type": "application/json" });
@@ -4471,12 +4632,11 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
           return;
         }
-        const spec = loadSpec(join17(opts.skillDir, "tests", "specification.yaml"));
-        const ctx = patched.mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
-        writeResults(column.runDir, patched, ctx);
-        ensureResultsGitignore(join17(opts.skillDir, "tests", "results"));
+        const spec = loadSpec(join18(opts.skillDir, "tests", "specification.yaml"));
+        writeResults(column.runDir, patched, scoreContextFor(patched, spec));
+        ensureResultsGitignore(join18(opts.skillDir, "tests", "results"));
         if (body.override != null) {
-          preserveTranscript(join17(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
+          preserveTranscript(join18(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
         }
         appendJournal(column.runDir, {
           event: "override",
@@ -4495,7 +4655,7 @@ async function serveReview(opts) {
       res.end(`server error: ${e instanceof Error ? e.message : e}`);
     }
   });
-  await new Promise((resolve8) => server.listen(opts.port ?? 0, "127.0.0.1", resolve8));
+  await new Promise((resolve10) => server.listen(opts.port ?? 0, "127.0.0.1", resolve10));
   const addr = server.address();
   const port = typeof addr === "object" && addr ? addr.port : opts.port;
   const link = `http://127.0.0.1:${port}/`;
@@ -4521,17 +4681,17 @@ function tryOpen(url, cmd) {
 }
 
 // packages/pi-extension/src/runner.ts
-import { existsSync as existsSync15 } from "node:fs";
-import { dirname as dirname4, join as join18, resolve as resolve6 } from "node:path";
+import { existsSync as existsSync16 } from "node:fs";
+import { dirname as dirname4, join as join19, resolve as resolve8 } from "node:path";
 function resolveSkillDir(cwd, arg) {
   if (arg) {
-    const dir2 = resolve6(cwd, arg);
-    if (existsSync15(join18(dir2, "tests", "specification.yaml"))) return dir2;
+    const dir2 = resolve8(cwd, arg);
+    if (existsSync16(join19(dir2, "tests", "specification.yaml"))) return dir2;
     throw new Error(`no tests/specification.yaml found at ${dir2}`);
   }
   let dir = cwd;
   for (; ; ) {
-    if (existsSync15(join18(dir, "tests", "specification.yaml"))) return dir;
+    if (existsSync16(join19(dir, "tests", "specification.yaml"))) return dir;
     const parent = dirname4(dir);
     if (parent === dir) break;
     dir = parent;
@@ -4540,7 +4700,7 @@ function resolveSkillDir(cwd, arg) {
 }
 var DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 async function runViaExtension(opts) {
-  const specPath = join18(opts.skillDir, "tests", "specification.yaml");
+  const specPath = join19(opts.skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const modelToken = opts.model ?? DEFAULT_MODEL;
   const model = parseModelRef(modelToken);
@@ -4562,11 +4722,12 @@ async function runViaExtension(opts) {
     timestamp: opts.timestamp,
     now: opts.now,
     reps: opts.reps,
+    canary: opts.canary,
     onProgress: opts.log
   });
   const g = summary.results.effective_grade;
   const verdicts = effectiveVerdicts(summary.results.scenarios);
-  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join18(summary.runDir, f)));
+  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join19(summary.runDir, f)));
   return {
     skill: summary.results.skill,
     model: summary.results.model,
@@ -4577,7 +4738,7 @@ async function runViaExtension(opts) {
 }
 
 // packages/pi-extension/src/commands.ts
-var USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--judge p:m] | judge [run-dir] | review [skill]";
+var USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] | review [skill]";
 function parse(argstr) {
   const tokens = argstr.trim().length ? argstr.trim().split(/\s+/) : [];
   const [sub = "", ...rest] = tokens;
@@ -4591,6 +4752,8 @@ function parse(argstr) {
       if (next !== void 0 && !next.startsWith("--")) {
         flags[key] = next;
         i++;
+      } else {
+        flags[key] = "";
       }
     } else {
       positional.push(tok);
@@ -4610,11 +4773,14 @@ async function handleSkillCheck(argstr, ctx, opts) {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
     const card = await runViaExtension({
       skillDir,
-      model: flags.model,
+      // `|| undefined`: a valueless `--model` / `--mode` must fall back to the
+      // default rather than pass "" down as if it were a token.
+      model: flags.model || void 0,
       reps: flags.reps ? Number(flags.reps) : void 0,
-      mode: flags.mode,
+      mode: flags.mode || void 0,
+      canary: flags.canary !== void 0 && flags.canary !== "false",
       adapter,
-      judge: flags.judge,
+      judge: flags.judge || void 0,
       timestamp: nowIso(),
       log: (m) => {
         if (ctx.hasUI) ctx.ui.setStatus?.("skill-harness", m);
@@ -4628,10 +4794,10 @@ ${card.failedTranscripts.join("\n")}`);
     return;
   }
   if (sub === "judge") {
-    const runDir = resolve7(ctx.cwd, positional[0] ?? ".");
+    const runDir = resolve9(ctx.cwd, positional[0] ?? ".");
     const testsDir = dirname5(dirname5(dirname5(runDir)));
-    const spec = loadSpec(join19(testsDir, "specification.yaml"));
-    const prev = existsSync16(join19(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const spec = loadSpec(join20(testsDir, "specification.yaml"));
+    const prev = existsSync17(join20(runDir, "results.yaml")) ? readResults(runDir) : null;
     const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? parseModelRef(defaultJudge());
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge"
@@ -4649,7 +4815,7 @@ ${card.failedTranscripts.join("\n")}`);
   }
   if (sub === "review") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const spec = loadSpec(join19(skillDir, "tests", "specification.yaml"));
+    const spec = loadSpec(join20(skillDir, "tests", "specification.yaml"));
     const handle = await serveReview({
       skillDir,
       skillName: spec.skill,
@@ -4693,7 +4859,8 @@ var skillCheckRunTool = {
     skill: Type2.Optional(Type2.String({ description: "skill dir/name; defaults to the current project" })),
     model: Type2.Optional(Type2.String({ description: "provider:model token under test" })),
     reps: Type2.Optional(Type2.Number({ description: "run each scenario N times", minimum: 1, maximum: 20 })),
-    mode: Type2.Optional(Type2.String({ description: "red | green | force" }))
+    mode: Type2.Optional(Type2.String({ description: "red | green | force (green and force are scored; red is the baseline)" })),
+    canary: Type2.Optional(Type2.Boolean({ description: "green only: spend one probe proving the skill reached the model, and abort if it did not" }))
   }),
   async execute(_id, params, _signal, onUpdate, ctx) {
     const skillDir = resolveSkillDir(ctx.cwd, params.skill);
@@ -4702,6 +4869,7 @@ var skillCheckRunTool = {
       model: params.model,
       reps: params.reps,
       mode: params.mode,
+      canary: params.canary,
       adapter: ctx.__adapter,
       timestamp: (/* @__PURE__ */ new Date()).toISOString(),
       log: (m) => onUpdate?.({ content: [{ type: "text", text: m }] })
@@ -4719,7 +4887,7 @@ function registerTool(pi) {
 
 // packages/pi-extension/src/index.ts
 function index_default(pi) {
-  const assetsDir = join20(dirname6(fileURLToPath2(import.meta.url)), "..", "..", "..", "assets");
+  const assetsDir = join21(dirname6(fileURLToPath2(import.meta.url)), "..", "..", "..", "assets");
   registerCommand(pi, assetsDir);
   registerTool(pi);
   pi.on("session_shutdown", async () => {

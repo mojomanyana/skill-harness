@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { readResults, effectiveVerdicts, type ResultsFile, type ScenarioResult } from "./results.js";
+import { readResults, effectiveVerdicts, isScoredMode, type ResultsFile, type ScenarioResult } from "./results.js";
 import { loadSpec } from "./spec.js";
 import type { Verdict } from "./score.js";
 
@@ -30,6 +30,19 @@ export interface Lift {
   model: string;
   redTimestamp: string;
   greenTimestamp: string;
+  /**
+   * How the skill was delivered on the non-baseline side: `green` (the harness
+   * activated it) or `force` (SKILL.md as the system prompt).
+   *
+   * The `green*` field names are kept as the *skill-active side*, not as a claim
+   * about the mode — they are the wire format the committed report assets and the
+   * review UI read, and renaming them would break every published report to say
+   * something the `mode` field already says. A red baseline is mode-independent
+   * (`--no-skills` either way), so red-vs-force is as valid a comparison as
+   * red-vs-green — but which one you are looking at changes what the number means,
+   * so it is recorded rather than implied.
+   */
+  mode: string;
   /** Scenario ids present in both runs — the only ones a lift can speak to. */
   compared: number;
   gained: number; // skill turned a non-pass into a pass
@@ -186,6 +199,7 @@ export function computeLift(red: ResultsFile, green: ResultsFile, opts: LiftOpti
   return {
     tag: "",
     model: green.model,
+    mode: green.mode,
     redTimestamp: red.timestamp,
     greenTimestamp: green.timestamp,
     compared: Object.keys(cells).length,
@@ -291,7 +305,7 @@ function isDir(p: string): boolean {
 
 /**
  * Per model-tag under <skillDir>/tests/results/, pair the most recent red run
- * with the most recent green run and compute the lift.
+ * with the most recent skill-delivered run (green or force) and compute the lift.
  *
  * Deliberately derived on read rather than persisted into results.yaml: a lift
  * is a fact about a *pair* of runs, so caching it inside one run's file would go
@@ -335,9 +349,13 @@ export function collectLift(skillDir: string): Lift[] {
       .sort(); // timestamp-slug names ⇒ chronological ascending
 
     // Mode is only knowable after reading results.yaml, so every run in the tag
-    // is read; last-wins gives the most recent of each mode.
+    // is read; last-wins gives the most recent baseline and the most recent
+    // skill-delivered run. The skill side is whichever scored mode ran most
+    // recently — a corpus that moved from green to force delivery should see its
+    // lift follow, and the baseline it is measured against is the same either way
+    // (`--no-skills` in both).
     let red: ResultsFile | undefined;
-    let green: ResultsFile | undefined;
+    let skillOn: ResultsFile | undefined;
     for (const rd of runDirs) {
       let r: ResultsFile;
       try {
@@ -348,10 +366,10 @@ export function collectLift(skillDir: string): Lift[] {
         continue;
       }
       if (r.mode === "red") red = r;
-      else if (r.mode === "green") green = r;
+      else if (isScoredMode(r.mode)) skillOn = r;
     }
-    if (!red || !green) continue;
-    lifts.push({ ...computeLift(red, green, { modeInsensitive }), tag });
+    if (!red || !skillOn) continue;
+    lifts.push({ ...computeLift(red, skillOn, { modeInsensitive }), tag });
   }
   return lifts;
 }

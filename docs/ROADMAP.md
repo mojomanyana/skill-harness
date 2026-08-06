@@ -284,6 +284,60 @@ make truth cheap to restore.
       exactly once, on the release where it mattered. Inert on pre-0.3.3 trees, which
       record no version and are never retro-labelled.
 
+### Sprint 1.5 — Addendum: green mode measured a naked model (owner-supplied, 2026-08-05)
+
+The addendum at the top of `~/prepos/skill-harness-work-order.md`, ranked above items 1–5
+(all delivered in 0.4.0). Released as **0.5.0** (2026-08-06).
+
+- [x] **Item 0b — score force-mode runs** (2026-08-06). `green` and `force` are both
+      scored; `red` stays the unscored control. Scored **directly**, not behind a spec
+      flag or a `--score-force` opt-in: "was the skill in front of the model?" is a
+      property of the mode, and a second knob is a second thing to forget (and this repo
+      has one consumer, so there is no green-only default to preserve for anyone else).
+      The gate had been open-coded in seven places — `run`, `grade`, `rescore`, `regate`,
+      `lint`, and both review-server writers — which is exactly how force came to be
+      unscored in all seven at once; it is now one predicate, `scoreContextFor`.
+      Everything downstream of a grade had to follow: `grade`/`regate`/the UI's re-judge
+      read the run's OWN mode's artifacts (a force run's transcripts are `.force.txt`, so
+      looking for green ones found nothing and threw "nothing to re-grade"); `trends`
+      splits a tag into one series per mode; `collectLift` takes the newest *scored* run
+      as the skill side and records which delivery it measured. A pre-0.5.0 force run's
+      `not scored` placeholder now disagrees with a recompute, so `lint` says so and
+      names `rescore` — free, offline — as the remedy.
+      **Epoch honesty is the load-bearing part:** on identical skill text, green → force
+      took `build` A1 from 0/3 to 3/3 while dropping `plan` C2 from 3/3 to 0/3, so the two
+      modes are two deployments, not two samples of one. Nothing pools them.
+- [x] **Item 0 fix set — delivery must be verifiable** (2026-08-06).
+      - **Adapter tripwire.** `skillFlags` stats the skill dir + `SKILL.md` and refuses,
+        loudly, before exec — pi 0.83.0 accepts `--skill /nonexistent` with exit 0 and a
+        normal answer, so the failure had no other way to announce itself. Checked for
+        force too (an absent `SKILL.md` must not become an empty system prompt).
+      - **Relative path resolved at the source.** `discover()` returned `join(root, name)`
+        — relative under `--skills .`, handed to a child process running in a neutral cwd
+        of the harness's choosing. `dir`/`specPath` are absolute now; the adapter resolves
+        again as a second line of defence.
+      - **`harness_cli_version` in `results.yaml`** (`pi --version`, asked once per run,
+        `null`-tolerant). Written by `run` only and carried verbatim by every rewriter: a
+        re-grade re-asks the judge, it does not re-deliver a skill. The whole incident was
+        unbounded afterwards precisely because nothing recorded which pi ran.
+      - **`--canary` (green only, off by default).** One probe before the wave: list the
+        `## ` headings of your own instructions. Anchors on the *longest* heading and
+        never on frontmatter, since the description is always in context under
+        progressive disclosure. Fail ⇒ abort before the spend, with force mode named as
+        the fix; pass ⇒ `delivery_canary: pass` on the record (the journal is gitignored,
+        so a validity claim has to live in `results.yaml` to survive a commit). Honest
+        limit, stated in the docs: it proves the body is *reachable*, not that the model
+        loaded it on every later turn — which is the argument for force, not against the
+        probe.
+      - Green runs without a canary now print a scorecard `NOTE:` naming the
+        version-dependence and both remedies.
+      - Found on the way: the review UI's `/rejudge` was dropping `source_hashes` and
+        `partial` on write, silently retiring the staleness gate for any run re-judged
+        from the browser. Now carried, with the one `rubric:` key it applied refreshed.
+        The pi extension's flag parser dropped valueless flags entirely, so `--canary`
+        would have been accepted and ignored.
+      - Post: `docs/posts/2026-08-06-the-same-skill-text-scored-twice.md`
+
 ## PHASE 2 — Launch & first 100 fans (weeks 5–10)
 
 **Goal:** exist in the heads of everyone who writes skills.

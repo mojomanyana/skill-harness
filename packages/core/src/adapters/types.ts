@@ -51,4 +51,14 @@ export interface HarnessAdapter {
   available(): Promise<boolean>; // is the CLI on PATH?
   run(req: RunReq): Promise<string>; // returns the full transcript text
   judge(req: JudgeReq): Promise<string>; // returns the judge's raw output
+  /**
+   * The harness CLI's own version, recorded in `results.yaml` as
+   * `harness_cli_version`. Null when it cannot be determined — a version this
+   * adapter had to guess at is worse than none, because the whole point of the
+   * field is to identify which CLI produced a transcript.
+   *
+   * Optional so a test double or a future adapter need not implement it; callers
+   * treat a missing method exactly like a null answer.
+   */
+  version?(): Promise<string | null>;
 }

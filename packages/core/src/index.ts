@@ -25,3 +25,4 @@ export * from "./defaults.js";
 export * from "./judge-policy.js";
 export * from "./regate.js";
 export * from "./downgrade.js";
+export * from "./canary.js";

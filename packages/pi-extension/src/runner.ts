@@ -53,6 +53,8 @@ export async function runViaExtension(opts: {
   model?: string;
   reps?: number;
   mode?: "red" | "green" | "force";
+  /** Green only: prove the skill reached the model with one probe before the wave. */
+  canary?: boolean;
   adapter?: HarnessAdapter;
   judge?: string;
   now?: () => string;
@@ -71,7 +73,8 @@ export async function runViaExtension(opts: {
   const mode = opts.mode ?? "green";
   const summary = await runSkillModel({
     spec, skillDir: opts.skillDir, specPath, adapter, model, modelToken, judge, mode,
-    timestamp: opts.timestamp, now: opts.now, reps: opts.reps, onProgress: opts.log,
+    timestamp: opts.timestamp, now: opts.now, reps: opts.reps, canary: opts.canary,
+    onProgress: opts.log,
   });
   const g = summary.results.effective_grade;
   const verdicts = effectiveVerdicts(summary.results.scenarios);

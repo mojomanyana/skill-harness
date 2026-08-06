@@ -151,32 +151,57 @@ describe("cmdGrade on a --reps run", () => {
   });
 });
 
-describe("cmdGrade on a plain RED-mode run (no green transcripts at all)", () => {
-  test("rejects with /no green transcripts/ and NOT /reps run/", async () => {
+describe("cmdGrade re-grades a run in the run's OWN mode", () => {
+  const fakeJudge: HarnessAdapter = {
+    name: "pi",
+    available: async () => true,
+    run: async () => "",
+    judge: async () => "1. FAIL — no greeting\nVERDICT: FAIL\nREASON: never said hello",
+  };
+
+  function plainRun(mode: string) {
     const skillDir = tmp();
     mkdirSync(join(skillDir, "tests"), { recursive: true });
     writeFileSync(join(skillDir, "tests", "specification.yaml"), SPEC, "utf8");
     const runDir = join(skillDir, "tests", "results", "pi-fake", "2026-07-03T00-00-00Z");
     mkdirSync(runDir, { recursive: true });
-    // A plain single-rep RED run: only A1.red.txt exists — no green, no reps at all.
-    writeFileSync(join(runDir, "A1.red.txt"), "USER: Say hello.\nASSISTANT: Hi!", "utf8");
+    writeFileSync(join(runDir, `A1.${mode}.txt`), "USER: Say hello.\nASSISTANT: Hi!", "utf8");
     writeResults(runDir, {
       skill: "golden", harness: "pi", model: "fireworks:fake",
       judge: { provider: "claude-code", model: "opus" },
-      timestamp: "2026-07-03T00:00:00Z", label: null, mode: "red",
+      timestamp: "2026-07-03T00:00:00Z", label: null, mode,
       scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "greeted", suspect: false, override: null, note: "" }],
-    }, null);
+    }, mode === "red" ? null : { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
+    return runDir;
+  }
+
+  // A force run's transcripts are `A1.force.txt`. Looking for green ones threw
+  // "nothing to re-grade" — which is how ten scorable force runs in the reference
+  // corpus could not be re-judged OR graded at all.
+  test("a force run is re-gradable and IS scored", async () => {
+    const runDir = plainRun("force");
+    await cmdGrade(args(runDir), fakeJudge);
+    const after = readResults(runDir);
+    expect(after.scenarios[0].judge_verdict).toBe("FAIL"); // the fake judge was actually reached
+    expect(after.mode).toBe("force");
+    expect(after.effective_grade.total).toBe(1);
+    expect(after.effective_grade.note).not.toMatch(/not scored/);
+  });
+
+  test("a red run is re-gradable too, and stays unscored", async () => {
+    const runDir = plainRun("red");
+    await cmdGrade(args(runDir), fakeJudge);
+    const after = readResults(runDir);
+    expect(after.scenarios[0].judge_verdict).toBe("FAIL");
+    expect(after.effective_grade.note).toBe("mode=red (not scored)");
+    expect(after.effective_grade.letter).toBe("-");
+  });
+
+  test("a run whose own-mode transcripts are absent is still refused, naming that mode", async () => {
+    const runDir = plainRun("green");
+    rmSync(join(runDir, "A1.green.txt"));
     const before = readFileSync(join(runDir, "results.yaml"), "utf8");
-
-    let err: Error | undefined;
-    try {
-      await cmdGrade(args(runDir));
-    } catch (e) {
-      err = e as Error;
-    }
-    expect(err?.message).toMatch(/no green transcripts/);
-    expect(err?.message).not.toMatch(/reps run/);
-
+    await expect(cmdGrade(args(runDir), fakeJudge)).rejects.toThrow(/no green transcripts/);
     expect(readFileSync(join(runDir, "results.yaml"), "utf8")).toBe(before);
   });
 });

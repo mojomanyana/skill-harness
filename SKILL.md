@@ -1,6 +1,6 @@
 ---
 name: skill-harness
-version: 0.4.0
+version: 0.5.0
 description: >
   Use to test, grade, and optimize an agent skill against a spec. Triggers:
   "test the <skill> skill", "/skill-harness", "run the skill bench", "grade these
@@ -31,7 +31,13 @@ lie on weak/stochastic models; re-run before trusting a delta.
      user's Claude subscription, not a metered key). A metered judge is **refused**
      unless the user opts in with `--allow-metered-judge` — never add that flag on
      their behalf; ask. `SKILL_HARNESS_JUDGE` sets the default once per repo/shell.
-   - mode: `green` (skill active). `red` = baseline contrast; `force` = inject body.
+   - mode: `green` (the harness activates the skill) or `force` (SKILL.md as the
+     system prompt) — **both are scored**; `red` = the unscored baseline contrast.
+     Say this when it matters: green delivery depends on the harness version (pi ≥
+     0.83.0 discloses only the skill's description and loads the body on demand, and
+     accepts a bad `--skill` path silently), so `force` is the mode to use for
+     results that will be published, and `--canary` (one extra call, green only)
+     proves delivery per run and aborts if the skill never arrived.
    `--model` repeats for multi-model comparison (or `--models <file>`).
 3. **Run + grade.** `skill-harness run <skill> --skills <root> --model <m> [--model <m2>]
    [--judge <prov:model>]`. This runs every scenario, grades each transcript, writes

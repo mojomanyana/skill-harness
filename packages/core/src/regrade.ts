@@ -5,6 +5,7 @@ import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
 import { buildJudgePrompt, judgeInWorkspace } from "./grade.js";
 import {
   findTranscriptFiles, judgeRawPath, repIndexOf, readResults, writeResults, effectiveThreshold,
+  scoreContextFor,
   type ScenarioResult, type ResultsFile,
 } from "./results.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
@@ -49,6 +50,15 @@ export interface RegradeOptions {
   judge: ModelRef;
   specDir: string; // fixtures/neutral cwd base for the judge workspace
   threshold: number;
+  /**
+   * Which mode's saved transcripts to re-judge — the run's own mode, since
+   * transcript filenames are `<id>.<mode>[.rep<k>].txt`.
+   *
+   * Defaults to `green` for callers that predate force being a scored mode. A
+   * force-mode run whose transcripts were looked up as green found none and failed
+   * with "nothing to re-grade", which is how ten scorable runs stayed ungraded.
+   */
+  mode?: string;
   now?: () => string;
 }
 
@@ -69,15 +79,17 @@ export async function judgeOneRep(opts: {
 }
 
 /**
- * Re-judge a scenario's saved GREEN transcript(s) with `judge` — no harness
- * re-run. Rewrites the judge-raw artifact per rep, emits per-rep judge-verdict
- * (+ misfire-flag) journal events, and returns the aggregated ScenarioResult
- * (override/note empty; the caller merges any prior override + persists).
+ * Re-judge a scenario's saved transcript(s) for the run's mode with `judge` — no
+ * harness re-run. Rewrites the judge-raw artifact per rep, emits per-rep
+ * judge-verdict (+ misfire-flag) journal events, and returns the aggregated
+ * ScenarioResult (override/note empty; the caller merges any prior override +
+ * persists).
  */
 export async function regradeScenario(opts: RegradeOptions): Promise<ScenarioResult> {
   const now = opts.now ?? (() => new Date().toISOString());
-  const files = findTranscriptFiles(opts.runDir, opts.scenario.id, "green");
-  if (files.length === 0) throw new Error(`no green transcripts for ${opts.scenario.id} in ${opts.runDir}`);
+  const mode = opts.mode ?? "green";
+  const files = findTranscriptFiles(opts.runDir, opts.scenario.id, mode);
+  if (files.length === 0) throw new Error(`no ${mode} transcripts for ${opts.scenario.id} in ${opts.runDir}`);
   const repCount = files.length;
   const outcomes: RepOutcome[] = [];
   for (const file of files) {
@@ -85,7 +97,7 @@ export async function regradeScenario(opts: RegradeOptions): Promise<ScenarioRes
     const transcript = readFileSync(join(opts.runDir, file), "utf8");
     outcomes.push(await judgeOneRep({
       runDir: opts.runDir, spec: opts.spec, scenario: opts.scenario, transcript,
-      adapter: opts.adapter, judge: opts.judge, specDir: opts.specDir, mode: "green", rep, now,
+      adapter: opts.adapter, judge: opts.judge, specDir: opts.specDir, mode, rep, now,
     }));
   }
   return outcomesToResult(opts.scenario.id, outcomes, repCount, opts.threshold);
@@ -107,13 +119,13 @@ export interface RegradeRunOptions {
 }
 
 /**
- * Re-judge every green-transcript scenario in a run dir with `judge` — no
- * harness re-run. Targets are the run's RECORDED scenarios (falling back to
- * the spec for a run with no prior results.yaml), so re-grading rewrites the
- * whole results.yaml consistently with what the run actually recorded. Each
- * target must still exist in the spec (for its checklist) AND have a green
- * transcript on disk; anything missing fails fast before spending any judge
- * calls. Preserves each prior scenario's override/note, rewrites
+ * Re-judge every scenario in a run dir that has a transcript for the run's own
+ * mode, with `judge` — no harness re-run. Targets are the run's RECORDED scenarios
+ * (falling back to the spec for a run with no prior results.yaml), so re-grading
+ * rewrites the whole results.yaml consistently with what the run actually recorded.
+ * Each target must still exist in the spec (for its checklist) AND have a
+ * transcript on disk for that mode; anything missing fails fast before spending
+ * any judge calls. Preserves each prior scenario's override/note, rewrites
  * results.yaml, emits the `score` journal event, and returns the new
  * ResultsFile. Shared by `cmdGrade` and the pi-extension's `judge` command.
  */
@@ -147,9 +159,9 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     }
   }
 
-  const missing = targets.filter((id) => !specById.has(id) || findTranscriptFiles(runDir, id, "green").length === 0);
+  const missing = targets.filter((id) => !specById.has(id) || findTranscriptFiles(runDir, id, mode).length === 0);
   if (missing.length === targets.length) {
-    throw new Error(`no green transcripts in ${runDir} — nothing to re-grade`);
+    throw new Error(`no ${mode} transcripts in ${runDir} — nothing to re-grade`);
   }
   if (missing.length > 0) {
     throw new Error(
@@ -169,16 +181,21 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     const prevScenario = prev?.scenarios.find((s) => s.id === id);
     const threshold = effectiveThreshold(prevScenario, scenario);
     const rr = await regradeScenario({
-      runDir, spec, scenario, adapter, judge, specDir, threshold, now,
+      runDir, spec, scenario, adapter, judge, specDir, threshold, mode, now,
     });
     const carry = overrides.get(id);
     scenarioResults.push({ ...rr, override: carry?.override ?? null, note: carry?.note ?? "" });
   }
 
-  const ctx = mode === "green" && !prev?.partial ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
+  const ctx = scoreContextFor({ mode, partial: prev?.partial }, spec);
   const results = writeResults(runDir, {
     skill: spec.skill,
     harness: prev?.harness ?? "pi",
+    // The harness CLI that produced these transcripts, carried verbatim: a re-grade
+    // re-asks the judge, it does not re-deliver the skill, so stamping today's pi
+    // here would credit the old transcripts to a version that never ran them.
+    harness_cli_version: prev?.harness_cli_version,
+    delivery_canary: prev?.delivery_canary,
     model: prev?.model ?? "unknown",
     judge: { provider: judge.provider, model: judge.model },
     timestamp: prev?.timestamp ?? now(),

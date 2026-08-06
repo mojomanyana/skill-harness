@@ -139,15 +139,43 @@ describe("collectTrends", () => {
     expect(m.model).toBe("fireworks:fake");
   });
 
-  it("a tag with only non-green runs is omitted entirely — no model pushed", () => {
+  it("a tag with only baseline (red) runs is omitted entirely — no model pushed", () => {
     const d = skill();
     run(d, "2026-07-01T00:00:00Z", "PASS", null, { mode: "red" });
-    run(d, "2026-07-02T00:00:00Z", "FAIL", null, { mode: "force" });
+    run(d, "2026-07-02T00:00:00Z", "FAIL", null, { mode: "red" });
     const t = collectTrends(d);
     expect(t.models).toEqual([]);
   });
 
-  it("filters to green before applying `limit` — a red run doesn't consume a window slot", () => {
+  // The epoch effect is measured and two-sided (identical skill text: build A1 0/3 →
+  // 3/3 under force, plan C2 3/3 → 0/3), so one sparkline spanning both deliveries
+  // would draw a placement change as skill progress.
+  it("keeps green and force in separate series for the same model tag", () => {
+    const d = skill();
+    run(d, "2026-07-01T00:00:00Z", "PASS");
+    run(d, "2026-07-02T00:00:00Z", "FAIL", null, { mode: "force" });
+    run(d, "2026-07-03T00:00:00Z", "PASS", null, { mode: "force" });
+    const t = collectTrends(d);
+    expect(t.models.map((m) => m.mode)).toEqual(["green", "force"]);
+    expect(t.models.find((m) => m.mode === "green")!.runs).toHaveLength(1);
+    expect(t.models.find((m) => m.mode === "force")!.runs.map((r) => r.timestamp))
+      .toEqual(["2026-07-02T00:00:00Z", "2026-07-03T00:00:00Z"]);
+    // Both series are the same tag and model — only the delivery differs.
+    expect(new Set(t.models.map((m) => m.tag))).toEqual(new Set(["pi-fake"]));
+  });
+
+  it("each mode gets its own `limit` window", () => {
+    const d = skill();
+    run(d, "2026-07-01T00:00:00Z", "PASS");
+    run(d, "2026-07-02T00:00:00Z", "PASS");
+    run(d, "2026-07-03T00:00:00Z", "PASS", null, { mode: "force" });
+    run(d, "2026-07-04T00:00:00Z", "PASS", null, { mode: "force" });
+    const t = collectTrends(d, 1);
+    expect(t.models.map((m) => [m.mode, m.runs.length, m.truncated]))
+      .toEqual([["green", 1, true], ["force", 1, true]]);
+  });
+
+  it("filters to scored runs before applying `limit` — a red run doesn't consume a window slot", () => {
     const d = skill();
     run(d, "2026-07-01T00:00:00Z", "PASS");
     run(d, "2026-07-02T00:00:00Z", "FAIL", null, { mode: "red" });

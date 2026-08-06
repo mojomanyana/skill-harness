@@ -1,20 +1,58 @@
-import { mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { HarnessAdapter, RunReq, JudgeReq, RunMode } from "@skill-harness/core";
 import { exec, onPath, envNum } from "@skill-harness/core";
 
 const PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 300_000);
 
-/** Skill-activation flags for a given run mode. */
+/**
+ * Refuse to hand pi a skill dir it will silently ignore.
+ *
+ * Measured on pi 0.83.0: `pi --skill /nonexistent/skilldir -p "hi"` answers
+ * normally and exits 0. So a wrong path does not fail a run — it turns every
+ * scenario into a no-skill baseline that still looks like a result. Two full waves
+ * in the reference corpus scored ≈ their naked-model baseline before a
+ * contradictory failure mix gave it away.
+ *
+ * Returns the ABSOLUTE dir: `discover()` builds `join(root, name)`, so
+ * `--skills .` yields a relative path, and pi runs in a neutral cwd of the
+ * harness's choosing — a relative `--skill` resolved there points at nothing,
+ * which is precisely the case pi swallows.
+ */
+function requireSkillDir(skillDir: string, mode: RunMode): string {
+  const abs = resolve(skillDir);
+  const md = join(abs, "SKILL.md");
+  const isDir = existsSync(abs) && statSync(abs).isDirectory();
+  if (!isDir || !existsSync(md)) {
+    throw new Error(
+      `mode=${mode} needs a skill directory with a SKILL.md, but ${abs} ${isDir ? "has none" : "is not a directory"}` +
+        (abs === skillDir ? "" : ` (given \`${skillDir}\`, resolved against ${process.cwd()})`) +
+        ` — pi accepts \`--skill <nonexistent>\` silently (exit 0, a normal answer, no skill in context),` +
+        ` so this run would measure a model with no skill and report it as a result.`,
+    );
+  }
+  return abs;
+}
+
+/**
+ * Skill-activation flags for a given run mode.
+ *
+ * `green` asks pi to activate the skill and is therefore only as good as pi's
+ * delivery: 0.80.x wrapped the prompt with the skill body, 0.83.0 discloses the
+ * description and loads the body on demand ("models don't always do this" — pi's
+ * own docs). `force` puts SKILL.md in the system prompt, which no pi version has
+ * made conditional. Both are checked the same way, because the failure being
+ * prevented — a skill dir that isn't there — costs a whole wave either way.
+ */
 function skillFlags(mode: RunMode, skillDir: string): string[] {
   switch (mode) {
     case "red":
       return ["--no-skills"];
     case "green":
-      return ["--skill", skillDir];
+      return ["--skill", requireSkillDir(skillDir, mode)];
     case "force": {
-      const body = readFileSync(join(skillDir, "SKILL.md"), "utf8");
+      const body = readFileSync(join(requireSkillDir(skillDir, mode), "SKILL.md"), "utf8");
       return ["--no-skills", "--append-system-prompt", body];
     }
   }
@@ -30,6 +68,27 @@ export const piAdapter: HarnessAdapter = {
 
   available() {
     return Promise.resolve(onPath("pi"));
+  },
+
+  /**
+   * `pi --version` (it prints a bare version, e.g. `0.83.0`), recorded in
+   * results.yaml as `harness_cli_version`.
+   *
+   * Null on any failure — a non-zero exit, empty output, or pi missing entirely.
+   * A run must not abort because provenance was unavailable, and a fabricated
+   * version would be worse than an absent one.
+   */
+  async version(): Promise<string | null> {
+    try {
+      const r = await exec("pi", ["--version"], { timeoutMs: 30_000 });
+      const line = r.stdout.split("\n")[0]?.trim() ?? "";
+      if (r.code !== 0 || line === "") return null;
+      // Tolerate a future `pi 1.2.3` / `pi version 1.2.3` shape without losing the
+      // bare `0.83.0` one: keep the first version-looking token, else the line.
+      return /\d+\.\d+\.\d+\S*/.exec(line)?.[0] ?? line;
+    } catch {
+      return null;
+    }
   },
 
   /**

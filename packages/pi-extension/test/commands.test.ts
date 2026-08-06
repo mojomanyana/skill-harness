@@ -49,6 +49,16 @@ describe("handleSkillCheck", () => {
     expect(ctx.notified.some((n) => /A1/.test(n.msg))).toBe(true);
   });
 
+  // The flag parser dropped valueless flags entirely, so `--canary` was accepted
+  // and ignored — the worst failure for a flag whose job is to refuse a bad run.
+  it("a bare --canary is honored: a model that cannot quote its skill aborts the run", async () => {
+    const skillDir = skillFixture();
+    writeFileSync(join(skillDir, "SKILL.md"), "---\nname: demo\n---\n\n## Quote me exactly\n", "utf8");
+    const ctx = fakeCtx(skillDir);
+    await expect(handleSkillCheck("run --reps 1 --canary", ctx, { adapter: fakeAdapter }))
+      .rejects.toThrow(/delivery canary FAILED/);
+  });
+
   it("a trailing --mode with no value is treated as unset (defaults to green), not an invalid mode", async () => {
     const skillDir = skillFixture();
     const ctx = fakeCtx(skillDir);

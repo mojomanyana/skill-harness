@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Spec } from "./spec.js";
-import { readResults, writeResults, type ResultsFile, type ScenarioResult } from "./results.js";
+import { readResults, writeResults, scoreContextFor, type ResultsFile, type ScenarioResult } from "./results.js";
 import { appendJournal } from "./journal.js";
 import { policyDigest, POLICY_PREFIX } from "./sources.js";
 
@@ -54,6 +54,12 @@ export interface RescoreResult {
  * When the policy changes, the honest move is to recompute the old measurements under it
  * rather than reconcile two numbers in prose — and to record what moved.
  *
+ * It is also how a run gets a grade it never had: every rescore recomputes
+ * `effective_grade` under the current scoring policy, and since 0.5.0 that policy
+ * scores force runs too (see SCORED_MODES). A corpus holding force-mode runs
+ * recorded as "not scored" turns them into real scorecards with `rescore`, at zero
+ * model and zero judge spend — verdict changes are then genuinely optional output.
+ *
  * Only reps-bearing scenarios can be re-scored: a single-rep verdict has no rate to
  * re-apply a threshold to, and ERROR/JUDGE-AMBIGUOUS carry no trustworthy rate at all —
  * both are carried verbatim. Overrides, notes, and suspect flags are preserved: this
@@ -85,13 +91,15 @@ export function rescoreRun(opts: RescoreOptions): RescoreResult {
     return { ...s, judge_verdict: verdict, pass_threshold: toThreshold };
   });
 
-  const ctx = prev.mode === "green" && !prev.partial
-    ? { shipBar: opts.spec.ship_bar, critical: opts.spec.critical }
-    : null;
+  const ctx = scoreContextFor(prev, opts.spec);
   const results = writeResults(opts.runDir, {
     skill: prev.skill, harness: prev.harness, model: prev.model, judge: prev.judge,
     timestamp: prev.timestamp, label: prev.label, mode: prev.mode,
     partial: prev.partial,
+    // Provenance of the measurement, not of this rewrite: a rescore re-applies a
+    // threshold to reps the recorded harness already produced.
+    harness_cli_version: prev.harness_cli_version,
+    delivery_canary: prev.delivery_canary,
     // A rescore re-applies the CURRENT policy (thresholds, critical set) to the
     // recorded reps, so `policy:` drift is genuinely resolved by having run this —
     // that is what makes `rescore` the honest remedy lint names for it. Stimulus,

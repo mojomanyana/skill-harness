@@ -21,7 +21,15 @@ import type { Verdict } from "./score.js";
  */
 export type JournalEvent =
   | { event: "run-started"; ts: string; skill: string; harness: string; model: string;
+      /** The harness CLI's own version (`pi --version`), or null when it could not be asked. */
+      harness_cli_version?: string | null;
       judge: { provider: string; model: string }; mode: string; label: string | null }
+  /**
+   * The pre-flight delivery probe (green mode, `--canary`): did the model quote a
+   * body-only heading of its own skill back? `fail` aborts the run, so a journal
+   * carrying a failed canary is the record of a wave that was NOT spent.
+   */
+  | { event: "delivery-canary"; ts: string; status: "pass" | "fail" | "skipped"; anchor: string | null; detail: string }
   | { event: "scenario-started"; ts: string; id: string; title: string }
   | { event: "gate-result"; ts: string; id: string; ok: boolean; detail: string; rep?: number }
   | { event: "judge-verdict"; ts: string; id: string; verdict: Verdict; reason: string; suspect: boolean; rep?: number }

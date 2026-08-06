@@ -17,11 +17,12 @@ export const skillCheckRunTool = {
     skill: Type.Optional(Type.String({ description: "skill dir/name; defaults to the current project" })),
     model: Type.Optional(Type.String({ description: "provider:model token under test" })),
     reps: Type.Optional(Type.Number({ description: "run each scenario N times", minimum: 1, maximum: 20 })),
-    mode: Type.Optional(Type.String({ description: "red | green | force" })),
+    mode: Type.Optional(Type.String({ description: "red | green | force (green and force are scored; red is the baseline)" })),
+    canary: Type.Optional(Type.Boolean({ description: "green only: spend one probe proving the skill reached the model, and abort if it did not" })),
   }),
   async execute(
     _id: string,
-    params: { skill?: string; model?: string; reps?: number; mode?: string },
+    params: { skill?: string; model?: string; reps?: number; mode?: string; canary?: boolean },
     _signal: AbortSignal,
     onUpdate: ((update: { content: { type: "text"; text: string }[] }) => void) | undefined,
     ctx: { cwd: string; __adapter?: HarnessAdapter }
@@ -32,6 +33,7 @@ export const skillCheckRunTool = {
       model: params.model,
       reps: params.reps,
       mode: params.mode as "red" | "green" | "force" | undefined,
+      canary: params.canary,
       adapter: ctx.__adapter,
       timestamp: new Date().toISOString(),
       log: (m) => onUpdate?.({ content: [{ type: "text", text: m }] }),

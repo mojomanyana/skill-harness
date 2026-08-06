@@ -45,7 +45,7 @@ give you:
   ways: edit a checklist and lint says *re-grade* (judge only); change a threshold and it
   says *rescore* (free); fix a `diff_contains` needle and it says *regate* (free, from the
   saved diffs). Only a changed stimulus costs a re-run.
-- **[Lift](#lift--red-vs-green)** — red vs green, so you find out whether the model
+- **[Lift](#lift--baseline-vs-skill)** — baseline vs skill, so you find out whether the model
   would have passed without your skill anyway
 - **Judge-misfire quarantine** — a verdict the judge contradicted itself on is
   quarantined, not counted, and it blocks SHIP until a human resolves it
@@ -178,7 +178,7 @@ unguessable, not tamper-proof.
 
 ```
 skill-harness run    <skill|all> --skills <root> [--model prov:model ...] [--models file]
-                               [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
+                               [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T] [--canary]
 skill-harness grade  <run-dir>   [--judge prov:model]    # re-grade saved transcripts (neutral judge)
 skill-harness review <skill>     --skills <root> [--port N]   # serve the interactive UI
 skill-harness add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical]
@@ -255,13 +255,38 @@ skill-harness add-test project-git --skills ../principal-pi-skills \
 
 ### Run modes
 
-| mode | meaning |
-|------|---------|
-| `green` | skill active (the real test) — counts toward the ship bar |
-| `red`   | baseline, **no** skill (the contrast case) |
-| `force` | skill body injected via system prompt (when auto-activation isn't available) |
+| mode | meaning | scored? |
+|------|---------|---------|
+| `green` | skill activated through the harness (`pi --skill`) | yes |
+| `force` | SKILL.md injected as the system prompt (`--append-system-prompt`) | yes |
+| `red`   | baseline, **no** skill (the contrast case) | no — it is what the others are measured against |
 
-### Lift — red vs green
+**Both delivered modes are scored** (since 0.5.0), because "was the skill in front
+of the model?" is what a ship grade depends on, and both put it there. They are not
+interchangeable measurements, though: placement changes behavior in both directions
+at once. Measured on identical skill text, moving from green to force took one
+skill's discipline scenario from 0/3 to 3/3 while dropping another skill's
+right-sizing scenario from 3/3 to 0/3. So a trend line never pools them — a model
+tag with runs in both deliveries gets one series per mode in the review UI.
+
+**Green delivery depends on your harness version; force does not.** pi 0.80.x
+wrapped the prompt with the skill body. pi 0.83.0 delivers `--skill` by
+*progressive disclosure* — only the skill's description is in context and the
+instructions load on demand, which its own docs note "models don't always do". A
+nonexistent `--skill` path is also accepted silently (exit 0, a normal answer). So
+a green run can measure a naked model and still look like a result. Three things
+address it:
+
+- the adapter **refuses** a skill dir with no `SKILL.md` instead of letting pi swallow it;
+- every run records `harness_cli_version` (`pi --version`) beside its verdicts;
+- `--canary` spends **one** probe up front — the model is asked to quote a heading from
+  its own instructions — and aborts the run if the skill isn't reaching it. A run that
+  isn't measuring anything then costs one rep instead of a wave.
+
+`--mode force` is the delivery that has never been conditional, which is why it is
+what a published corpus should measure.
+
+### Lift — baseline vs skill
 
 A letter grade can't tell you whether the skill did anything: a strong model may
 pass your scenarios with the skill switched off, and that `A` looks identical to
@@ -294,6 +319,10 @@ Lift is derived from the runs already on disk — an old baseline still counts, 
 nothing needs re-running for it to appear. Only scenarios present in both runs are
 compared, and a skill with no red run reports `no red baseline` rather than a
 zero, because "not measured" is a different claim from "measured no effect".
+
+The skill side is whichever delivered mode ran most recently (green or force); the
+baseline is `--no-skills` either way, so red-vs-force is as valid a comparison as
+red-vs-green, and the reported lift says which delivery it measured.
 
 ### Concurrency & workspaces
 
@@ -442,19 +471,38 @@ truncated.
   grade can never disagree with what's on the page. Schema-1 files (from before
   this) are still read fine — they're migrated in memory on load, never rewritten.
 - `label` carries the `--label` you ran with (`null` if you didn't pass one).
-- `mode` records which run mode (`red` / `green` / `force`) produced the file.
+- `mode` records which run mode (`red` / `green` / `force`) produced the file. `green`
+  and `force` are scored; a `red` baseline's `effective_grade` is a `not scored`
+  placeholder. A force run recorded by 0.4.x carries that placeholder too — `rescore`
+  (free, offline) writes the real grade, and `lint` says so.
+- `harness_cli_version` records the harness CLI that produced the transcripts
+  (`pi --version`). Provenance for the *delivery*: a pi upgrade silently changed what
+  green mode measures, and that incident was invisible in the artifacts because
+  nothing recorded which pi ran. Written by `run` only, and carried verbatim by
+  `grade`/`rescore`/`regate` — they re-decide verdicts, they do not re-deliver a skill.
+- `delivery_canary: pass` appears on a green run started with `--canary`: before the
+  wave, the model quoted a heading from its own skill instructions back. Absent means
+  the probe wasn't asked for — never that it failed, because a failed canary aborts
+  the run before any results file exists.
 - each scenario carries `suspect`: the judge-misfire tripwire fired (its per-item grades
   disagree with its overall verdict) — marked `suspect`, excluded from the grade, and blocks
   SHIP until you re-judge it or set an override in the review UI.
 - `source_hashes` records a sha256 of **everything the run measured**, so `lint` can prove a
   published result still describes the current inputs:
 
-  | key | covers |
-  |---|---|
-  | `SKILL.md` | the skill text |
-  | `scenario:<id>` | one scenario's definition — turns, checklist, gates, criticality |
-  | `fixture:<path>` | every file under one fixture dir, including `_staged/`/`_uncommitted/` |
-  | `<relative path>` | a `system_prompt_file`, or an `assert.post_test` file's contents |
+  | key | covers | cheapest honest remedy when it drifts |
+  |---|---|---|
+  | `SKILL.md` | the skill text | `run` (subject + judge) |
+  | `stimulus:<id>` | what the model was asked — turns, mode, workspace, fixture path, `assert.vitest` | `run` (subject + judge) |
+  | `rubric:<id>`, `rubric:__persona` | the checklist, title, and judge persona the verdicts came from | `grade` (judge only) |
+  | `policy:<id>` | `critical`, `reps`, `pass_threshold` — how verdicts collapse to a grade | `rescore` (free) |
+  | `gates:<id>` | `diff_contains` / `diff_excludes` needles | `regate` (free; one judge call per flipped rep) |
+  | `fixture:<path>` | every file under one fixture dir, including `_staged/`/`_uncommitted/` | `run` (subject + judge) |
+  | `<relative path>` | a `system_prompt_file`, or an `assert.post_test` file's contents | `run` (subject + judge) |
+
+  Lint names the remedy in the finding itself — only stimulus drift costs model spend.
+  Runs recorded by 0.3.x carry a single combined `scenario:<id>` key instead of the
+  four split ones; it is still compared, and a fresh run supersedes it.
 
   A source that could not be read when the run was recorded is stored as
   `unreadable` rather than omitted, and always reports stale — an omitted key
@@ -469,9 +517,11 @@ truncated.
   recorded before a given key kind existed simply don't carry it and are never retroactively
   flagged.
 
-`skill-harness grade` currently re-judges single-rep runs only; for a `--reps N>1` run it
-fails fast with an explanatory error — resolve `suspect` scenarios there via an override
-in `skill-harness review`, or re-run the skill.
+`skill-harness grade` re-judges whatever transcripts a run left on disk — single-rep or
+`--reps N`, and in the run's own mode (a force run's `.force.txt` transcripts, a red
+baseline's `.red.txt` ones). It fails fast, before spending a judge call, if a recorded
+scenario's transcripts are missing or the spec no longer defines it, rather than quietly
+shrinking the grade denominator.
 
 **Overrides** (via `skill-harness review`) **require a note** — you must say why the
 judge was wrong before an override is accepted. Saving one also un-gitignores
@@ -479,8 +529,8 @@ that scenario's transcript, raw judge output and staged diff, so the evidence
 behind the override stays in the audit trail alongside the note.
 
 `journal.jsonl` is a per-run, line-delimited event stream (`run-started`,
-`scenario-started`, `gate-result`, `judge-verdict`, `misfire-flag`, `score`,
-`override`) meant for tooling — trends, dashboards, future UI — rather than
+`delivery-canary`, `scenario-started`, `gate-result`, `judge-verdict`,
+`misfire-flag`, `score`, `override`) meant for tooling — trends, dashboards, future UI — rather than
 scraping terminal output. It's gitignored; only `results.yaml` is the durable
 record.
 

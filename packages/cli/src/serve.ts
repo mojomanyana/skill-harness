@@ -10,8 +10,8 @@ import {
   appendJournal,
   type Verdict, type ResultsFile,
   loadSpec,
-  regradeScenario, findJudgeRawFiles,
-  effectiveThreshold,
+  regradeScenario, refreshRubricHashes, findJudgeRawFiles,
+  effectiveThreshold, scoreContextFor, isScoredMode,
   envFlag,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
@@ -126,9 +126,13 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
         const column = data.columns.find((c) => c.index === body.col);
         if (!column) { res.writeHead(404).end("unknown column"); return; }
         const results = readResults(column.runDir);
-        if (results.mode !== "green") {
+        // Skill-delivered runs only (green or force). A red baseline's transcripts
+        // can be re-judged too — `skill-harness grade <run-dir>` does it — but a
+        // baseline has no grade for this endpoint to report back, and the button
+        // sits under a scorecard.
+        if (!isScoredMode(results.mode)) {
           res.writeHead(400, { "content-type": "application/json" });
-          res.end(JSON.stringify({ ok: false, error: "only green runs can be re-judged" }));
+          res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be re-judged here — for a ${results.mode} run use \`skill-harness grade\`` }));
           return;
         }
         const specPath = join(opts.skillDir, "tests", "specification.yaml");
@@ -147,7 +151,7 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
         try {
           const rr = await regradeScenario({
             runDir: column.runDir, spec, scenario, adapter, judge: results.judge,
-            specDir: dirname(specPath), threshold,
+            specDir: dirname(specPath), threshold, mode: results.mode,
           });
           const merged = results.scenarios.map((s) =>
             s.id === body.scenarioId ? { ...rr, override: s.override, note: s.note } : s
@@ -155,7 +159,15 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
           const written = writeResults(column.runDir, {
             skill: results.skill, harness: results.harness, model: results.model, judge: results.judge,
             timestamp: results.timestamp, label: results.label, mode: results.mode, scenarios: merged,
-          }, { shipBar: spec.ship_bar, critical: spec.critical });
+            partial: results.partial,
+            // Provenance survives a UI re-judge, same as it does through `grade`.
+            harness_cli_version: results.harness_cli_version, delivery_canary: results.delivery_canary,
+            // Recorded hashes were being dropped here entirely, which silently
+            // retired the staleness gate for any run re-judged from the UI. Carried,
+            // with the one `rubric:` key this re-judge actually applied refreshed —
+            // the same doctrine `grade` follows (see refreshRubricHashes).
+            source_hashes: refreshRubricHashes(results.source_hashes, spec, [body.scenarioId]),
+          }, scoreContextFor(results, spec));
           ensureResultsGitignore(join(opts.skillDir, "tests", "results"));
           const g = written.effective_grade;
           appendJournal(column.runDir, { event: "score", ts: new Date().toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
@@ -194,11 +206,11 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
           return;
         }
         // writeResults recomputes effective_grade override-aware against the CURRENT
-        // spec's ship bar — a saved override can never leave a stale grade. Only
-        // green runs are scored (PR #1 finding: /save must not grade red/force runs).
+        // spec's ship bar — a saved override can never leave a stale grade. Scored
+        // modes only: /save must not put a grade on a red baseline (PR #1 finding),
+        // and since 0.5.0 "scored" includes force.
         const spec = loadSpec(join(opts.skillDir, "tests", "specification.yaml"));
-        const ctx = patched.mode === "green" ? { shipBar: spec.ship_bar, critical: spec.critical } : null;
-        writeResults(column.runDir, patched, ctx);
+        writeResults(column.runDir, patched, scoreContextFor(patched, spec));
         // Unconditional: a results root created before schema-2/journal.jsonl existed
         // may still have a stale .gitignore body — every save (not just overrides)
         // must roll it forward so journal.jsonl doesn't end up tracked.
