@@ -570,6 +570,19 @@ never enter `specification.yaml` before a human promotes them.
       - **Bug caught by its own test:** the ship-deciding counterfactual cleared
         `suspect` on only one side, so the baseline stayed blocked-by-suspect and
         EVERY suspect cell reported as ship-deciding for the wrong reason.
+      - **Surfaced everywhere** (2026-08-08): review-UI cell markers `◉` (objective)
+        and `⚖` (adjudication) in the existing `⇄` pattern; a two-step
+        `POST /adjudicate` that prices before it charges; and pi-extension parity via
+        `/skill-harness judge --auto-rejudge`. The browser offers no tie-break judge
+        (choosing a third judge is a judge decision a UI cannot make honestly), so a
+        disagreement raised there stays unresolved and blocks SHIP; the extension does
+        accept one, since the author types it. Under `-p` the flag itself is the
+        authorization, said out loud so the consent path is visible.
+      - **Second bug, same feature:** `resolveAdjudicationJudges` took an
+        eagerly-parsed `subject` argument, so a run whose recorded model is not
+        `provider:model` threw before the `enabled` early-return — killing a regrade
+        that had not even asked for adjudication. Now takes a token, parses after the
+        check, and warns instead of failing when it is unreadable.
       - Post: `docs/posts/2026-08-08-when-one-judge-is-not-enough.md`
 
 ## PHASE 2 — Launch & first 100 fans (weeks 5–10)

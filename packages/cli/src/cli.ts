@@ -297,7 +297,7 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
     primary: judge,
     secondaryToken: flagStr(args, "secondary-judge"),
     tieBreakToken: flagStr(args, "tie-break-judge"),
-    subject: parseModelRef(results.model),
+    subjectToken: results.model,
     parseRef: parseModelRef,
     assertAllowed: (j, source) => assertJudgeAllowed(j, { source, allowMetered: flagBool(args, "allow-metered-judge") }),
     resemblesSubject: judgeResemblesSubject,

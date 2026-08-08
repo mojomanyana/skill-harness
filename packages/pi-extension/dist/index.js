@@ -6046,6 +6046,29 @@ function repVerdictsOf(runDir, s, mode) {
   }
   return out.length >= 2 ? out : void 0;
 }
+function resolveAdjudicationJudges(opts) {
+  if (!opts.enabled)
+    return null;
+  let subject = null;
+  try {
+    subject = opts.parseRef(opts.subjectToken);
+  } catch {
+    opts.warn(`  \u26A0 cannot read the run's model (\`${opts.subjectToken}\`) \u2014 skipping the judge\u2260subject check`);
+  }
+  const secondary = opts.secondaryToken ? opts.parseRef(opts.secondaryToken) : opts.primary;
+  const tieBreak = opts.tieBreakToken ? opts.parseRef(opts.tieBreakToken) : void 0;
+  opts.assertAllowed(secondary, "--secondary-judge");
+  if (tieBreak)
+    opts.assertAllowed(tieBreak, "--tie-break-judge");
+  if (subject) {
+    for (const [label, judge] of [["secondary", secondary], ["tie-break", tieBreak]]) {
+      if (judge && opts.resemblesSubject(judge, subject)) {
+        opts.warn(`  \u26A0 ${label} judge (${judge.provider}:${judge.model}) resembles the model under test (${subject.provider}:${subject.model}) \u2014 same-family grading inflates scores.`);
+      }
+    }
+  }
+  return tieBreak ? { secondary, tieBreak } : { secondary };
+}
 function formatAdjudicationPlan(plan, judges) {
   if (plan.triggered.length === 0)
     return "adjudication: no cell triggered \u2014 no additional judge calls";
@@ -6881,7 +6904,7 @@ function writeCapture(capturesDir, capture, selected, homeDir) {
 }
 
 // packages/pi-extension/src/commands.ts
-var USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] | review [skill] | capture [skill] | coverage [skill] | affected [skill] [--base ref]";
+var USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m] | review [skill] | capture [skill] | coverage [skill] | affected [skill] [--base ref]";
 function parse(argstr) {
   const tokens = argstr.trim().length ? argstr.trim().split(/\s+/) : [];
   const [sub = "", ...rest] = tokens;
@@ -6945,15 +6968,67 @@ ${card.failedTranscripts.join("\n")}`);
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge"
     });
+    const resolvedAdapter = adapter ?? getAdapter(prev?.harness ?? "pi");
     const results = await regradeRun({
       runDir,
       spec,
-      adapter: adapter ?? getAdapter(prev?.harness ?? "pi"),
+      adapter: resolvedAdapter,
       judge,
       specDir: testsDir,
       now: nowIso
     });
     say(ctx, `re-judged ${runDir}: ${results.effective_grade.letter} (${results.effective_grade.pct}%)`);
+    const judges = resolveAdjudicationJudges({
+      enabled: flags["auto-rejudge"] !== void 0 && flags["auto-rejudge"] !== "false",
+      primary: judge,
+      secondaryToken: flags["secondary-judge"] || void 0,
+      tieBreakToken: flags["tie-break-judge"] || void 0,
+      subjectToken: results.model,
+      parseRef: parseModelRef,
+      assertAllowed: (j, source) => assertJudgeAllowed(j, { source }),
+      resemblesSubject: judgeResemblesSubject,
+      warn: (m) => say(ctx, m, "warning")
+    });
+    if (!judges) return;
+    const plan = planAdjudication({
+      cells: results.scenarios.map((sc) => ({
+        id: sc.id,
+        verdict: sc.judge_verdict,
+        reason: sc.judge_reason,
+        suspect: sc.suspect
+      })),
+      scenarios: spec.scenarios,
+      shipBar: spec.ship_bar,
+      critical: spec.critical,
+      tieBreakAvailable: judges.tieBreak !== void 0
+    });
+    say(ctx, formatAdjudicationPlan(plan, judges));
+    if (plan.triggered.length === 0) return;
+    if (ctx.ui.confirm) {
+      const ok = await ctx.ui.confirm(
+        `adjudicate ${plan.triggered.length} cell(s)? up to ${plan.maxAdditionalCalls} additional judge call(s)`
+      );
+      if (!ok) {
+        say(ctx, "cancelled \u2014 nothing spent");
+        return;
+      }
+    } else {
+      say(ctx, "  (no confirm dialog here \u2014 `--auto-rejudge` is the authorization)");
+    }
+    const adjudicated = await adjudicateRun({
+      runDir,
+      spec,
+      adapter: resolvedAdapter,
+      results,
+      primaryJudge: judge,
+      secondaryJudge: judges.secondary,
+      tieBreakJudge: judges.tieBreak,
+      specDir: testsDir,
+      now: nowIso,
+      log: (m) => say(ctx, m)
+    });
+    const ag = adjudicated.effective_grade;
+    say(ctx, `adjudicated \u2192 ${ag.letter} (${ag.pct}%) ${ag.ship ? "SHIP" : "NOT READY"}`, ag.ship ? "info" : "warning");
     return;
   }
   if (sub === "coverage") {

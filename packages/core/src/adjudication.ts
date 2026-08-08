@@ -454,13 +454,30 @@ export function resolveAdjudicationJudges(opts: {
   primary: ModelRef;
   secondaryToken?: string;
   tieBreakToken?: string;
-  subject: ModelRef;
+  /**
+   * The run's recorded subject, as a raw token.
+   *
+   * A TOKEN rather than a parsed ref, and parsed only after the `enabled` check:
+   * an eagerly-parsed argument threw on any run whose recorded model is not
+   * `provider:model` — which killed the whole regrade over a provenance oddity in
+   * a field only used for a warning.
+   */
+  subjectToken: string;
   parseRef: (token: string) => ModelRef;
   assertAllowed: (judge: ModelRef, source: string) => void;
   resemblesSubject: (judge: ModelRef, subject: ModelRef) => boolean;
   warn: (msg: string) => void;
 }): { secondary: ModelRef; tieBreak?: ModelRef } | null {
   if (!opts.enabled) return null;
+
+  // An unreadable subject skips the resemblance warning rather than failing the
+  // run. The judge≠subject check is advice; the metered refusal below is the gate.
+  let subject: ModelRef | null = null;
+  try {
+    subject = opts.parseRef(opts.subjectToken);
+  } catch {
+    opts.warn(`  ⚠ cannot read the run's model (\`${opts.subjectToken}\`) — skipping the judge≠subject check`);
+  }
 
   // With no explicit secondary the primary judge is asked again as an independent
   // draw. That is a real measurement — the judge-variance study found a ~2%
@@ -471,12 +488,14 @@ export function resolveAdjudicationJudges(opts: {
   opts.assertAllowed(secondary, "--secondary-judge");
   if (tieBreak) opts.assertAllowed(tieBreak, "--tie-break-judge");
 
-  for (const [label, judge] of [["secondary", secondary], ["tie-break", tieBreak]] as const) {
-    if (judge && opts.resemblesSubject(judge, opts.subject)) {
-      opts.warn(
-        `  ⚠ ${label} judge (${judge.provider}:${judge.model}) resembles the model under test ` +
-          `(${opts.subject.provider}:${opts.subject.model}) — same-family grading inflates scores.`,
-      );
+  if (subject) {
+    for (const [label, judge] of [["secondary", secondary], ["tie-break", tieBreak]] as const) {
+      if (judge && opts.resemblesSubject(judge, subject)) {
+        opts.warn(
+          `  ⚠ ${label} judge (${judge.provider}:${judge.model}) resembles the model under test ` +
+            `(${subject.provider}:${subject.model}) — same-family grading inflates scores.`,
+        );
+      }
     }
   }
 

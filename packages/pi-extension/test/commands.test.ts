@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { readResults, writeResults, type HarnessAdapter } from "@skill-harness/core";
-import { handleSkillCheck } from "../src/commands.js";
+import { handleSkillCheck, type CmdCtx } from "../src/commands.js";
 
 function skillFixture(): string {
   const d = mkdtempSync(join(tmpdir(), "sc-cmd-"));
@@ -161,5 +161,125 @@ describe("handleSkillCheck", () => {
 
     const results = readResults(runDir);
     expect(results.scenarios[0]).toMatchObject({ id: "A1", judge_verdict: "PASS" });
+  });
+});
+
+describe("judge --auto-rejudge (extension parity)", () => {
+  const SPEC = `skill: demo
+judge_persona: p
+ship_bar: { total: 1, min_pass: 1, no_critical_fail: true }
+critical: []
+scenarios:
+  - id: A1
+    title: one
+    turns: ["x"]
+    checklist: ["does the thing"]
+`;
+
+  function setup() {
+    const dir = mkdtempSync(join(tmpdir(), "sh-ext-adj-"));
+    const runDir = join(dir, "tests", "results", "tag", "2026-08-08T00-00-00");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(dir, "tests", "specification.yaml"), SPEC, "utf8");
+    writeFileSync(join(runDir, "A1.green.txt"), "USER: x\nASSISTANT: done", "utf8");
+    writeResults(runDir, {
+      skill: "demo", harness: "pi", model: "fireworks:x",
+      judge: { provider: "claude-code", model: "opus" },
+      timestamp: "2026-08-08T00-00-00", label: null, mode: "green",
+      scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "ok", suspect: false, override: null, note: "" }],
+    }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: [] });
+    return { dir, runDir };
+  }
+
+  /** A judge that misfires once, then answers cleanly. Counts every call. */
+  function misfiringJudge() {
+    const state = { calls: 0 };
+    let first = true;
+    const adapter = {
+      name: "pi",
+      available: async () => true,
+      run: async () => "",
+      judge: async () => {
+        state.calls++;
+        if (first) { first = false; return "1. PASS\nVERDICT: FAIL\nREASON: contradicts itself"; }
+        return "1. PASS\nVERDICT: PASS\nREASON: fine";
+      },
+    } as unknown as HarnessAdapter;
+    return { state, adapter };
+  }
+
+  function ctxWith(confirmAnswer?: boolean) {
+    const said: string[] = [];
+    const ui: Record<string, unknown> = { notify: (m: string) => said.push(m), setStatus: () => {} };
+    // Omitting `confirm` models `-p` / `--mode json`, where no dialog exists.
+    if (confirmAnswer !== undefined) ui.confirm = async () => confirmAnswer;
+    return { said, ctx: { cwd: "/tmp", hasUI: true, ui } as unknown as CmdCtx };
+  }
+
+  it("spends nothing extra without the flag", async () => {
+    const { runDir } = setup();
+    const { state, adapter } = misfiringJudge();
+    const { ctx } = ctxWith(true);
+    await handleSkillCheck(`judge ${runDir}`, ctx, { adapter });
+    expect(state.calls).toBe(1); // the first-wave regrade only
+  });
+
+  it("discloses the ceiling in counts, never dollars", async () => {
+    const { runDir } = setup();
+    const { adapter } = misfiringJudge();
+    const { said, ctx } = ctxWith(true);
+    await handleSkillCheck(`judge ${runDir} --auto-rejudge`, ctx, { adapter });
+    const text = said.join("\n");
+    expect(text).toMatch(/additional judge call\(s\)/);
+    expect(text).not.toMatch(/\$/);
+  });
+
+  it("cancels without spending when the dialog is declined", async () => {
+    const { runDir } = setup();
+    const { state, adapter } = misfiringJudge();
+    const { said, ctx } = ctxWith(false);
+    await handleSkillCheck(`judge ${runDir} --auto-rejudge`, ctx, { adapter });
+    expect(state.calls).toBe(1); // first wave only — the dialog stopped it
+    expect(said.join("\n")).toMatch(/cancelled — nothing spent/);
+  });
+
+  it("proceeds when the dialog is accepted", async () => {
+    const { runDir } = setup();
+    const { state, adapter } = misfiringJudge();
+    const { ctx } = ctxWith(true);
+    await handleSkillCheck(`judge ${runDir} --auto-rejudge`, ctx, { adapter });
+    expect(state.calls).toBe(2); // first wave + one adjudication call
+  });
+
+  it("treats the flag as consent when no dialog exists, and says so", async () => {
+    // `-p` / `--mode json`: no confirm surface. Typing --auto-rejudge IS the
+    // authorization, exactly as on the CLI — but it is said out loud so the
+    // consent path is visible in the transcript rather than inferred.
+    const { runDir } = setup();
+    const { state, adapter } = misfiringJudge();
+    const { said, ctx } = ctxWith(undefined);
+    await handleSkillCheck(`judge ${runDir} --auto-rejudge`, ctx, { adapter });
+    expect(state.calls).toBe(2);
+    expect(said.join("\n")).toMatch(/`--auto-rejudge` is the authorization/);
+  });
+
+  it("accepts a tie-break judge, at parity with the CLI", async () => {
+    const { runDir } = setup();
+    const { state, adapter } = misfiringJudge();
+    const { said, ctx } = ctxWith(true);
+    await handleSkillCheck(`judge ${runDir} --auto-rejudge --tie-break-judge claude-code:j3`, ctx, { adapter });
+    expect(said.join("\n")).toMatch(/tie-break judge: claude-code:j3/);
+    // Ceiling doubles with a third judge available.
+    expect(said.join("\n")).toMatch(/up to 2 additional judge call\(s\)/);
+    expect(state.calls).toBe(3); // first wave + secondary + tie-break
+  });
+
+  it("refuses a metered secondary judge", async () => {
+    const { runDir } = setup();
+    const { adapter } = misfiringJudge();
+    const { ctx } = ctxWith(true);
+    await expect(
+      handleSkillCheck(`judge ${runDir} --auto-rejudge --secondary-judge anthropic:claude-opus-4-8`, ctx, { adapter }),
+    ).rejects.toThrow(/metered|allow-metered-judge/i);
   });
 });

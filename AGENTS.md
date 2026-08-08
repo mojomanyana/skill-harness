@@ -32,6 +32,7 @@ stability <skill|all> --skills root [--window N] [--all]  run-over-run verdict f
 review <skill> --skills root [--port N]   interactive matrix UI; flip verdicts + notes persist to results.yaml
 add-test <skill> --skills root --id ID --title T --turn "…" [--turn …] --check "…" [--check …] [--critical] [--mode seeded --fixture path]
 /skill-harness capture [skill]            (pi extension only) turn the live conversation into a regression case — free, zero model calls, preview before every write
+/skill-harness judge [run-dir] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]   full CLI parity; interactive pi shows a confirm dialog, and under -p the flag itself is the authorization
 coverage <skill|all> --skills root [--strict]   which instruction sections have a DECLARED test — free, offline; --strict gates CI
 affected <skill> --skills root [--base ref]     which scenarios a change could touch — free, offline; feed to run --only, or run --affected
 init  <skill> --skills root [--force]                    scaffold a commented template spec (free, offline)

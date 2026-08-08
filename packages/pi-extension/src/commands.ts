@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve, relative } from "node:path";
-import { loadSpec, regradeRun, readResults, parseModelRef, defaultJudge, assertJudgeAllowed, type HarnessAdapter, type SessionEntry, computeCoverage, formatCoverage, selectAffected, formatAffected, gitDiff, exec } from "@skill-harness/core";
+import { loadSpec, regradeRun, readResults, parseModelRef, defaultJudge, assertJudgeAllowed, type HarnessAdapter, type SessionEntry, computeCoverage, formatCoverage, selectAffected, formatAffected, gitDiff, exec,
+  resolveAdjudicationJudges, planAdjudication, formatAdjudicationPlan, adjudicateRun, judgeResemblesSubject } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview, type ServeHandle } from "@skill-harness/cli/serve";
 import { resolveSkillDir, runViaExtension } from "./runner.js";
@@ -44,7 +45,7 @@ export interface CmdCtx {
   isStreaming?(): boolean;
 }
 
-const USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] | review [skill] | capture [skill] | coverage [skill] | affected [skill] [--base ref]";
+const USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m] | review [skill] | capture [skill] | coverage [skill] | affected [skill] [--base ref]";
 
 /** Minimal arg tokenizer: subcommand + positional args + `--key value` flags. A flag with no following value (or one followed by another `--flag`) is left unset, so callers' `?? default` fallbacks apply. */
 function parse(argstr: string): { sub: string; positional: string[]; flags: Record<string, string> } {
@@ -124,11 +125,69 @@ export async function handleSkillCheck(
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge",
     });
+    const resolvedAdapter = adapter ?? getAdapter(prev?.harness ?? "pi");
     const results = await regradeRun({
-      runDir, spec, adapter: adapter ?? getAdapter(prev?.harness ?? "pi"),
+      runDir, spec, adapter: resolvedAdapter,
       judge, specDir: testsDir, now: nowIso,
     });
     say(ctx, `re-judged ${runDir}: ${results.effective_grade.letter} (${results.effective_grade.pct}%)`);
+
+    // Adjudication, at full parity with `skill-harness grade --auto-rejudge`.
+    // Off unless the flag is typed; a spec cannot switch it on.
+    const judges = resolveAdjudicationJudges({
+      enabled: flags["auto-rejudge"] !== undefined && flags["auto-rejudge"] !== "false",
+      primary: judge,
+      secondaryToken: flags["secondary-judge"] || undefined,
+      tieBreakToken: flags["tie-break-judge"] || undefined,
+      subjectToken: results.model,
+      parseRef: parseModelRef,
+      assertAllowed: (j, source) => assertJudgeAllowed(j, { source }),
+      resemblesSubject: judgeResemblesSubject,
+      warn: (m) => say(ctx, m, "warning"),
+    });
+    if (!judges) return;
+
+    const plan = planAdjudication({
+      cells: results.scenarios.map((sc) => ({
+        id: sc.id, verdict: sc.judge_verdict, reason: sc.judge_reason, suspect: sc.suspect,
+      })),
+      scenarios: spec.scenarios,
+      shipBar: spec.ship_bar,
+      critical: spec.critical,
+      tieBreakAvailable: judges.tieBreak !== undefined,
+    });
+
+    // Disclosed before any extra call, in both modes. Counts, never dollars —
+    // the default judge is a subscription and reports no per-call usage.
+    say(ctx, formatAdjudicationPlan(plan, judges));
+    if (plan.triggered.length === 0) return;
+
+    // Interactive: a dialog. Non-interactive (`-p` / `--mode json`, where there is
+    // no dialog): typing `--auto-rejudge` IS the authorization, exactly as it is on
+    // the CLI. Said out loud so the consent path is visible in the transcript
+    // rather than inferred.
+    if (ctx.ui.confirm) {
+      const ok = await ctx.ui.confirm(
+        `adjudicate ${plan.triggered.length} cell(s)? up to ${plan.maxAdditionalCalls} additional judge call(s)`,
+      );
+      if (!ok) {
+        say(ctx, "cancelled — nothing spent");
+        return;
+      }
+    } else {
+      say(ctx, "  (no confirm dialog here — `--auto-rejudge` is the authorization)");
+    }
+
+    const adjudicated = await adjudicateRun({
+      runDir, spec, adapter: resolvedAdapter, results,
+      primaryJudge: judge,
+      secondaryJudge: judges.secondary,
+      tieBreakJudge: judges.tieBreak,
+      specDir: testsDir, now: nowIso,
+      log: (m) => say(ctx, m),
+    });
+    const ag = adjudicated.effective_grade;
+    say(ctx, `adjudicated → ${ag.letter} (${ag.pct}%) ${ag.ship ? "SHIP" : "NOT READY"}`, ag.ship ? "info" : "warning");
     return;
   }
 

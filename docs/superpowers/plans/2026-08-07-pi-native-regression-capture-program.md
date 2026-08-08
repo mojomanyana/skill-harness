@@ -767,7 +767,7 @@ Keep PRs small enough to review and release independently:
 9. [x] Coverage parser/report and capture mapping. (2026-08-08)
 10. [x] Affected-test selection and `run --affected`. (2026-08-08)
 11. [x] Adjudication engine and results model. (2026-08-08)
-12. [~] Rejudge CLI done (2026-08-08); extension confirmation + review-UI surfacing still open.
+12. [x] Rejudge CLI, extension confirmation, and review UI. (2026-08-08)
 
 Prefer separate minor releases for each user-facing feature instead of waiting for all five to complete.
 

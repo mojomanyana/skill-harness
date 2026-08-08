@@ -5,6 +5,7 @@ import {
   projectAdjudication,
   formatAdjudicationPlan,
   runAdjudication,
+  resolveAdjudicationJudges,
   MAX_JUDGMENTS,
   type CellState,
 } from "../src/adjudication.js";
@@ -456,5 +457,68 @@ describe("runAdjudication — exact call counts", () => {
     });
     expect(r.byId.has("A2")).toBe(false);
     expect(s.calls.every((c) => c.id === "A1")).toBe(true);
+  });
+});
+
+describe("resolveAdjudicationJudges", () => {
+  const primary = { provider: "claude-code", model: "j1" };
+  const base = {
+    primary,
+    subjectToken: "fireworks:x",
+    parseRef: (t: string) => {
+      const i = t.indexOf(":");
+      if (i < 0) throw new Error(`model must be \`provider:model\` (got \`${t}\`)`);
+      return { provider: t.slice(0, i), model: t.slice(i + 1) };
+    },
+    assertAllowed: () => {},
+    resemblesSubject: () => false,
+    warn: () => {},
+  };
+
+  it("returns null when not enabled, without parsing anything", () => {
+    // The regression: the subject used to be parsed as an eagerly-evaluated
+    // ARGUMENT, so a run with an unreadable model threw before this early return
+    // was ever reached — killing a regrade that had not even asked for
+    // adjudication.
+    const r = resolveAdjudicationJudges({
+      ...base,
+      enabled: false,
+      subjectToken: "unknown",
+      parseRef: () => { throw new Error("should never be called"); },
+    });
+    expect(r).toBeNull();
+  });
+
+  it("survives an unreadable subject and warns instead of throwing", () => {
+    const warnings: string[] = [];
+    const r = resolveAdjudicationJudges({
+      ...base, enabled: true, subjectToken: "unknown", warn: (m) => warnings.push(m),
+    });
+    expect(r).toEqual({ secondary: primary });
+    expect(warnings.join("\n")).toMatch(/cannot read the run's model/);
+  });
+
+  it("defaults the secondary to the primary — an independent draw, not a no-op", () => {
+    expect(resolveAdjudicationJudges({ ...base, enabled: true })).toEqual({ secondary: primary });
+  });
+
+  it("checks the metered policy on every configured judge", () => {
+    const checked: string[] = [];
+    resolveAdjudicationJudges({
+      ...base, enabled: true,
+      secondaryToken: "claude-code:j2",
+      tieBreakToken: "claude-code:j3",
+      assertAllowed: (j) => checked.push(j.model),
+    });
+    expect(checked).toEqual(["j2", "j3"]);
+  });
+
+  it("warns when a configured judge resembles the subject", () => {
+    const warnings: string[] = [];
+    resolveAdjudicationJudges({
+      ...base, enabled: true, secondaryToken: "fireworks:x",
+      resemblesSubject: () => true, warn: (m) => warnings.push(m),
+    });
+    expect(warnings.join("\n")).toMatch(/secondary judge.*resembles the model under test/);
   });
 });
