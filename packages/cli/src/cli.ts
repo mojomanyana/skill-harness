@@ -163,6 +163,19 @@ export async function cmdRun(args: Args): Promise<void> {
     allowMetered: flagBool(args, "allow-metered-judge"),
   });
 
+  // Contradictory ARGUMENTS are refused before the environment is probed. Both
+  // checks reject the same command, but only one of them tells the user something
+  // they can act on: a machine without `pi` installed reported "harness `pi` is
+  // not on PATH" for a plain flag typo, sending the reader off to fix an install
+  // that was never the problem. Free, offline validation first — it is also why
+  // CI, which has no `pi`, could not test this refusal at all.
+  const onlyRaw = flagStr(args, "only");
+  let only = onlyRaw ? onlyRaw.split(",").map((x) => x.trim()).filter(Boolean) : undefined;
+  const affected = flagBool(args, "affected");
+  if (affected && only) {
+    throw new Error("--affected and --only both choose the scenario set — pass one, not both");
+  }
+
   const harnessName = flagStr(args, "harness", "pi")!;
   const adapter = getAdapter(harnessName);
   if (!(await adapter.available())) throw new Error(`harness \`${harnessName}\` is not on PATH`);
@@ -172,12 +185,6 @@ export async function cmdRun(args: Args): Promise<void> {
   const label = flagStr(args, "label") || null;
   const parallel = Math.max(1, Number(flagStr(args, "parallel", "1")) || 1);
   const { reps, passThreshold } = parseRunTuning(args);
-  const onlyRaw = flagStr(args, "only");
-  let only = onlyRaw ? onlyRaw.split(",").map((x) => x.trim()).filter(Boolean) : undefined;
-  const affected = flagBool(args, "affected");
-  if (affected && only) {
-    throw new Error("--affected and --only both choose the scenario set — pass one, not both");
-  }
   const modelTokens = resolveModels(args);
 
   const skills =
