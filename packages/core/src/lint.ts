@@ -2,6 +2,7 @@ import { existsSync, statSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import yaml from "js-yaml";
 import { loadSpec, SpecError } from "./spec.js";
+import { computeCoverage } from "./instruction-coverage.js";
 import { readResults, finalizeResults, findTranscriptFiles, resultsPath, scoreContextFor } from "./results.js";
 import { currentHashFor, describeSourceKey, remedyForKey, scenarioIdForKey, effectiveFixture, SCENARIO_PREFIX, STIMULUS_PREFIX, UNREADABLE } from "./sources.js";
 import { downgradeWarning } from "./downgrade.js";
@@ -9,7 +10,7 @@ import { collectScoredRuns } from "./trends.js";
 import { boundaryCells, stabilityFrom, stabilityNote } from "./stability.js";
 import { MARKERS, unknownMarkerDirs, suggestMarker } from "./workspace.js";
 
-export type LintCode = "spec" | "ship_bar" | "critical" | "fixture" | "fixture-marker" | "consistency" | "stale" | "stability" | "lint-error";
+export type LintCode = "spec" | "ship_bar" | "critical" | "fixture" | "fixture-marker" | "consistency" | "stale" | "stability" | "covers" | "lint-error";
 
 /**
  * How much a finding means.
@@ -159,6 +160,30 @@ export function lintSkill(skillDir: string): LintFinding[] {
   // system_prompt_file must exist — an agent-file scenario silently falling back to
   // skill activation would measure the wrong artifact entirely.
   for (const s of spec.scenarios) {
+    // A `covers` reference that names a section which does not exist is a WRONG
+    // STATEMENT in the spec, not a coverage gap — so it fails the gate, while an
+    // uncovered section is only reported by `coverage --strict`. Renaming a heading
+    // is the usual cause, so the finding names the near-misses.
+    if (s.covers?.length) {
+      const report = computeCoverage({ specDir, scenarios: [s] });
+      for (const b of report.broken) {
+        const hint = b.didYouMean.length ? ` — did you mean ${b.didYouMean.map((x: string) => `#${x}`).join(", ")}?` : "";
+        findings.push({
+          skill, scenario: s.id, code: "covers",
+          message: `covers reference \`${b.raw}\` is broken (${b.reason})${hint}`,
+        });
+      }
+    }
+
+    // Extension paths, checked statically so a typo is a free CI failure rather
+    // than a wave that ran with no subagent tool and graded the absence.
+    for (const ext of s.extensions ?? []) {
+      const extAbs = isAbsolute(ext) ? ext : resolve(specDir, ext);
+      if (!existsSync(extAbs)) {
+        findings.push({ skill, scenario: s.id, code: "fixture", message: `env.extensions not found: ${ext}` });
+      }
+    }
+
     if (!s.systemPromptFile) continue;
     const abs = isAbsolute(s.systemPromptFile) ? s.systemPromptFile : resolve(specDir, s.systemPromptFile);
     if (!isFile(abs)) {

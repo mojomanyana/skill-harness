@@ -375,3 +375,97 @@ scenarios:
     expect(judgeCalls3).toBe(before); // no judge call spent on a scenario not in this run
   });
 });
+
+describe("review server /adjudicate (two-step, hermetic)", () => {
+  let skillDir3: string;
+  let runDir3: string;
+  let base3: string;
+  let close3: () => void;
+  let calls = 0;
+
+  const fake: HarnessAdapter = {
+    name: "pi",
+    available: async () => true,
+    run: async () => "",
+    judge: async () => {
+      calls++;
+      return "1. PASS\nVERDICT: PASS\nREASON: fine";
+    },
+  };
+
+  beforeAll(async () => {
+    skillDir3 = mkdtempSync(join(tmpdir(), "sc-serve-adj-"));
+    mkdirSync(join(skillDir3, "tests"), { recursive: true });
+    writeFileSync(join(skillDir3, "tests", "specification.yaml"), SPEC, "utf8");
+    runDir3 = join(skillDir3, "tests", "results", "pi-fake", "2026-08-08T00-00-00Z");
+    mkdirSync(runDir3, { recursive: true });
+    writeFileSync(join(runDir3, "A1.green.txt"), "USER: Say hello.\nASSISTANT: Hi there!", "utf8");
+    // A1 misfired, so it triggers `contradictory`.
+    writeResults(runDir3, {
+      skill: "golden", harness: "pi", model: "fireworks:fake",
+      judge: { provider: "claude-code", model: "opus" },
+      timestamp: "2026-08-08T00:00:00Z", label: null, mode: "green",
+      scenarios: [{ id: "A1", judge_verdict: "FAIL", judge_reason: "misfired", suspect: true, override: null, note: "" }],
+    }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: [] });
+
+    const s = await serveReview({ skillDir: skillDir3, skillName: "golden", port: 0, open: false, adapter: fake });
+    base3 = `http://127.0.0.1:${s.port}`;
+    close3 = s.close;
+  });
+
+  afterAll(() => {
+    close3?.();
+    rmSync(skillDir3, { recursive: true, force: true });
+  });
+
+  const post = (body: unknown) =>
+    fetch(`${base3}/adjudicate`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+
+  test("the plan step spends NOTHING and states the exact ceiling", async () => {
+    const before = calls;
+    const r = await post({ col: 0, step: "plan" });
+    expect(r.status).toBe(200);
+    const body = await r.json();
+    expect(body.ok).toBe(true);
+    expect(body.triggered).toEqual(["A1"]);
+    // No tie-break judge from the browser, so one call per triggered cell.
+    expect(body.maxAdditionalCalls).toBe(1);
+    expect(body.detail[0]).toMatch(/A1: contradictory/);
+    // The whole point of two steps: pricing the work must not perform it.
+    expect(calls).toBe(before);
+  });
+
+  test("plan defaults to plan — an omitted step never spends", async () => {
+    const before = calls;
+    const body = await (await post({ col: 0 })).json();
+    expect(body.step).toBe("plan");
+    expect(calls).toBe(before);
+  });
+
+  test("the run step spends exactly the planned number of calls", async () => {
+    const before = calls;
+    const r = await post({ col: 0, step: "run" });
+    expect(r.status).toBe(200);
+    const body = await r.json();
+    expect(body.ok).toBe(true);
+    // One triggered cell, no tie-break available → exactly one extra call.
+    expect(calls).toBe(before + 1);
+  });
+
+  test("a misfire with only one clean vote stays unresolved and keeps blocking SHIP", async () => {
+    const after = readResults(runDir3);
+    const a1 = after.scenarios.find((s) => s.id === "A1")!;
+    // The first-wave judgment misfired, so it is not a clean vote; one fresh clean
+    // vote cannot confirm anything, and the browser offers no tie-break judge.
+    expect(a1.adjudication?.state).toBe("unresolved");
+    expect(a1.suspect).toBe(true);
+    expect(after.effective_grade.ship).toBe(false);
+  });
+
+  test("refuses a red-mode column before touching the adapter", async () => {
+    const before = calls;
+    const r = await post({ col: 99, step: "run" });
+    expect(r.status).toBe(404);
+    expect(calls).toBe(before);
+  });
+});

@@ -19,6 +19,52 @@ export interface ScenarioResult {
   clean?: number; // number of clean (non-misfired) reps — the real denominator for `passes` (reps runs only)
   flakiness?: number; // 0 = unanimous, 1 = even split (reps runs only)
   pass_threshold?: number; // effective threshold used (reps runs only) — lets re-judge reproduce the aggregate
+  /**
+   * Objective trace-gate evidence. ADDITIVE and optional.
+   *
+   * Absent means "the scenario declared no trace assertions" — NOT an objective
+   * pass. Anything reading this must treat the two as different; collapsing them
+   * would silently upgrade every legacy result to "objectively verified".
+   */
+  objective?: ObjectiveResult;
+  /**
+   * Confidence-aware adjudication. ADDITIVE and optional.
+   *
+   * Absent means historical single-judge behavior — NOT that judges agreed. An
+   * unresolved adjudication additionally sets `suspect: true`, which is what
+   * actually blocks SHIP; this field is the audit trail behind that flag.
+   */
+  adjudication?: AdjudicationResult;
+}
+
+/** One judge's answer for a cell, kept verbatim however the collapse turned out. */
+export interface Judgment {
+  /** 1-based: judgment 1 is the first-wave judge, 2 the secondary, 3 the tie-break. */
+  ordinal: number;
+  judge: { provider: string; model: string };
+  verdict: Verdict;
+  reason: string;
+  /** The judge misfired — recorded, never counted as a clean vote. */
+  suspect: boolean;
+}
+
+export interface AdjudicationResult {
+  state: "confirmed" | "tie_broken" | "unresolved";
+  /** Why the cell was re-judged. */
+  trigger: "ambiguous" | "contradictory" | "non_unanimous" | "ship_deciding";
+  /** Every judgment, in order. Never pruned — an author resolving this needs all of them. */
+  judgments: Judgment[];
+  /** The collapsed answer. Absent when unresolved. */
+  verdict?: "PASS" | "FAIL";
+}
+
+/** Objective gate outcome for one scenario cell. */
+export interface ObjectiveResult {
+  /** ERROR means the evidence was missing or malformed — never a pass. */
+  status: "PASS" | "FAIL" | "ERROR";
+  trace_version?: number;
+  trace_sha256?: string;
+  assertions: { kind: string; status: "PASS" | "FAIL" | "ERROR"; detail: string }[];
 }
 
 export interface GradeSummary {
@@ -63,16 +109,23 @@ export interface ResultsFile {
   harness_cli_version?: string;
   /**
    * `pass` when this run proved, before spending the wave, that the skill body was
-   * reachable in the model's context (see canary.ts). Absent means the probe was
-   * not asked for — never that it failed, because a failed canary aborts the run
-   * and no results.yaml is written.
+   * reachable in the model's context (see canary.ts). `skipped` when the probe was
+   * asked for but could not be performed — SKILL.md has no `## ` heading to quote
+   * back, so no reply could prove anything. Absent means the probe was not asked
+   * for — never that it failed, because a failed canary aborts the run and no
+   * results.yaml is written.
+   *
+   * `skipped` exists because absent and skipped were the same value: a user who
+   * passed `--canary` precisely because pi ≥ 0.83.0 delivery is unreliable got a
+   * silently degraded probe, a fully billed wave, and a committed results.yaml
+   * byte-identical to a run where delivery was never checked at all.
    *
    * Only green runs can carry it: red delivers nothing by design and force delivers
    * through the system prompt. It is provenance for the *validity* of a green run,
    * which is why it lives here rather than only in the journal — `journal.jsonl` is
    * gitignored, and this claim has to survive a commit.
    */
-  delivery_canary?: "pass";
+  delivery_canary?: "pass" | "skipped";
   skill: string;
   harness: string;
   model: string; // provider:model token under test
@@ -185,19 +238,57 @@ export function resultsPath(runDir: string): string {
   return join(runDir, "results.yaml");
 }
 
-/** The verdict that counts: author override when present, else the judge's. */
+/**
+ * The verdict that counts: author override when present, else the objective
+ * gate, else the judge's.
+ *
+ * **The objective gate outranks the judge.** `assert.trace` is a mechanical
+ * statement about what the model DID — it called `write`, it touched `.env`.
+ * The judge is an LLM reading prose. When they disagree, the measurement wins.
+ *
+ * This is the only place that ordering is enforced, and it has to be here.
+ * `objective` used to reach the ship decision solely through `gatePrefix` in
+ * `run.ts`, which forces a single rep's verdict — so every path that recomputed
+ * a verdict afterwards silently dropped the gate while keeping the `objective`
+ * block that claimed it was enforced. Three of them did: `--reps N` out-voted an
+ * objective FAIL 2-to-1 (100%, grade A, SHIP, on a CRITICAL scenario that called
+ * a forbidden tool), `regrade` re-judged from a transcript the tool calls are
+ * absent from, and `regate` recomputed it. `reps.ts` already states the policy —
+ * "one rep that called a forbidden tool is a real finding, not a minority draw
+ * to be voted away" — and nothing enforced it.
+ *
+ * An author override still wins, exactly as it does over `suspect`. Overriding a
+ * deterministic assertion is a deliberate, recorded human act — and the failure
+ * this guards against was never a human deciding, it was nobody deciding.
+ */
 export function effectiveVerdicts(scenarios: ScenarioResult[]): ScenarioVerdict[] {
   return scenarios.map((s) => ({
     id: s.id,
-    verdict: s.override ?? s.judge_verdict,
+    verdict: s.override ?? objectiveVerdict(s) ?? s.judge_verdict,
     suspect: s.suspect && s.override == null, // an override resolves the misfire
   }));
 }
 
 /**
+ * The verdict an objective gate forces, or undefined when it forces nothing.
+ *
+ * ERROR outranks FAIL: "the evidence is missing" must never read as "the
+ * assertion held". Absent `objective` forces nothing at all — it means the
+ * scenario declared no trace assertions, and treating that as a pass would
+ * upgrade every legacy result to "objectively verified".
+ */
+function objectiveVerdict(s: ScenarioResult): Verdict | undefined {
+  if (!s.objective) return undefined;
+  if (s.objective.status === "ERROR") return "ERROR";
+  if (s.objective.status === "FAIL") return "FAIL";
+  return undefined;
+}
+
+/**
  * The ONLY place effective_grade is computed. Every writer goes through here,
  * so a persisted grade can never disagree with verdicts + overrides.
- * ctx is null for unscored (red/force) runs.
+ * ctx is null for unscored runs — `red` only, since 0.5.0: `force` is a real
+ * deployment and is scored (see SCORED_MODES directly above).
  */
 export function finalizeResults(draft: ResultsDraft, ctx: ScoreContext | null): ResultsFile {
   let effective_grade: GradeSummary;
@@ -335,7 +426,11 @@ export function ensureResultsGitignore(resultsRoot: string): void {
 
 // Matches transcript (`.rep<k>.txt`), judge-raw (`.rep<k>.judge.txt`) and
 // staged-diff (`.rep<k>.diff.txt`) rep suffixes.
-const REP_SUFFIX_RE = /\.rep(\d+)\.(?:judge\.|diff\.)?txt$/;
+// Every rep-suffixed artifact kind. `.trace.jsonl` was added without updating this,
+// so `repIndexOf` returned null for traces and `regate` looked for an unsuffixed
+// path that does not exist on a multi-rep run — reporting "trace missing" for
+// traces sitting on disk.
+const REP_SUFFIX_RE = /\.rep(\d+)\.(?:judge\.|diff\.)?(?:txt|trace\.jsonl)$/;
 
 /** The rep index embedded in a transcript / judge-raw / staged-diff filename (`.rep<k>.`), or null for a plain (non-rep) file. */
 export function repIndexOf(filename: string): number | null {
@@ -398,9 +493,13 @@ export function judgeRawPath(runDir: string, scenarioId: string, mode: string, r
 export function findJudgeRawFiles(runDir: string, scenarioId: string, mode?: string): string[] {
   if (!existsSync(runDir)) return [];
   const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // `judge2`/`judge3` are the second and third opinions adjudication writes. They
+  // were not matched here, so an override on an adjudicated cell committed the
+  // first judge's answer and silently dropped the very judgments the adjudication
+  // rested on — the audit trail minus its evidence.
   const re = mode === undefined
-    ? new RegExp(`^${esc}\\..*\\.judge\\.txt$`)
-    : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.judge\\.txt$`);
+    ? new RegExp(`^${esc}\\..*\\.judge\\d*\\.txt$`)
+    : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.judge\\d*\\.txt$`);
   return sortByRep(readdirSync(runDir).filter((f) => re.test(f)));
 }
 
@@ -419,6 +518,124 @@ export function diffPath(runDir: string, scenarioId: string, mode: string, rep?:
   return join(runDir, `${base}.diff.txt`);
 }
 
+/**
+ * What happens to one piece of recorded evidence when a command rebuilds a result.
+ *
+ *  - `carry` — the command did not re-measure this, so the prior value still
+ *    describes the run and must survive.
+ *  - `fresh` — the command re-measured it; take the new value.
+ *  - `drop`  — the command invalidated it; a stale value would misinform.
+ */
+export type EvidencePolicy = "carry" | "fresh" | "drop";
+
+export interface RebuildPolicy {
+  objective: EvidencePolicy;
+  adjudication: EvidencePolicy;
+}
+
+/**
+ * Rebuild a `ScenarioResult` after a command re-measured part of it.
+ *
+ * **The single choke point for every rewriter**, and exhaustive by construction:
+ * every field is destructured below, so adding one to `ScenarioResult` fails the
+ * build HERE until someone decides whether it is carried, taken fresh, or
+ * dropped. That guard is the whole point of the function.
+ *
+ * It exists because the ad-hoc version — `{ ...fresh, override: prior.override,
+ * note: prior.note }`, written independently in three places — silently dropped
+ * `objective` from `grade` and `adjudication` from `regate`. Both failures ran in
+ * the dangerous direction: a trace-gated scenario re-read as "no assertions
+ * declared", and an unresolved judge disagreement as a settled verdict. 1,036
+ * tests passed through it; a real smoke run caught it.
+ *
+ * The author's `override` and `note` are always carried and are not policy —
+ * no command re-measures a human's judgement.
+ */
+export function rebuildScenarioResult(
+  fresh: ScenarioResult,
+  prior: ScenarioResult | undefined,
+  policy: RebuildPolicy,
+): ScenarioResult {
+  // Exhaustive destructure. Do not replace with a spread: the spread is what
+  // allowed a new field to pass through unconsidered in the first place.
+  const {
+    id, judge_verdict, judge_reason, suspect,
+    override: _freshOverride, note: _freshNote,
+    reps, passes, clean, flakiness, pass_threshold,
+    objective: freshObjective,
+    adjudication: freshAdjudication,
+    ...rest
+  } = fresh;
+  const _exhaustive: Record<string, never> = rest;
+  void _exhaustive;
+  void _freshOverride;
+  void _freshNote;
+
+  const pick = <T>(p: EvidencePolicy, freshValue: T | undefined, priorValue: T | undefined): T | undefined => {
+    if (p === "drop") return undefined;
+    return p === "fresh" ? freshValue : priorValue;
+  };
+
+  const objective = pick(policy.objective, freshObjective, prior?.objective);
+  const adjudication = pick(policy.adjudication, freshAdjudication, prior?.adjudication);
+
+  // `unresolved` is carried by the `suspect` flag and by nothing else — the
+  // adjudication block records WHY, but `suspect` is what the ship bar reads.
+  // Taking `suspect` from `fresh` while carrying the block therefore published a
+  // record that said `state: "unresolved"` and scored as a clean SHIP. `regate`
+  // did exactly that: it rebuilds verdict and suspect from the saved first-wave
+  // judge file, so a free, offline command silently resolved a disagreement in
+  // favour of shipping — inverting this module's stated invariant that an
+  // unresolved disagreement must not resolve itself.
+  const unresolved = adjudication?.state === "unresolved";
+
+  // A settled adjudication outranks a re-read of the first-wave judge file for
+  // the same reason: `regate` re-measures GATES, not judgments, so re-reading
+  // `<id>.judge.txt` would revert a `confirmed`/`tie_broken` verdict that two or
+  // three judges settled — leaving `adjudication.verdict` on the record
+  // contradicting the `judge_verdict` beside it.
+  const settled = policy.adjudication === "carry" ? adjudication?.verdict : undefined;
+
+  // Field ORDER matches `outcomesToResult`, the writer that produces a run's
+  // results.yaml in the first place. It is not cosmetic: `results.yaml` is a
+  // committed file, and emitting the same fields in a different order made every
+  // `grade`/`regate`/`adjudicate` rewrite every multi-rep scenario block in the
+  // corpus with a pure-noise diff.
+  return {
+    id,
+    judge_verdict: settled ?? judge_verdict,
+    judge_reason,
+    suspect: suspect || unresolved,
+    // Aggregation shape always comes from the fresh computation — these describe
+    // how THIS result was aggregated, not the previous one.
+    ...(reps === undefined ? {} : { reps }),
+    ...(passes === undefined ? {} : { passes }),
+    ...(clean === undefined ? {} : { clean }),
+    ...(flakiness === undefined ? {} : { flakiness }),
+    ...(pass_threshold === undefined ? {} : { pass_threshold }),
+    // The author owns the verdict; a re-measurement never discards their call.
+    override: prior?.override ?? null,
+    note: prior?.note ?? "",
+    // Omitted rather than set to undefined: absent must stay absent, so a result
+    // with no evidence serialises byte-identically to one from before the field
+    // existed.
+    ...(objective ? { objective } : {}),
+    ...(adjudication ? { adjudication } : {}),
+  };
+}
+
+/**
+ * Where a rep's execution trace is saved: `<id>.<mode>[.rep<k>].trace.jsonl`.
+ *
+ * `.jsonl` rather than `.txt` so it is distinguishable at a glance from a
+ * transcript, and one JSON object per line so a multi-turn scenario's per-turn
+ * traces append without a wrapper.
+ */
+export function tracePath(runDir: string, scenarioId: string, mode: string, rep?: number): string {
+  const base = rep === undefined ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
+  return join(runDir, `${base}.trace.jsonl`);
+}
+
 /** A scenario's staged-diff files, sorted (plain first, then numeric rep). Mode-scoped when given. */
 export function findDiffFiles(runDir: string, scenarioId: string, mode?: string): string[] {
   if (!existsSync(runDir)) return [];
@@ -426,6 +643,16 @@ export function findDiffFiles(runDir: string, scenarioId: string, mode?: string)
   const re = mode === undefined
     ? new RegExp(`^${esc}\\..*\\.diff\\.txt$`)
     : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.diff\\.txt$`);
+  return sortByRep(readdirSync(runDir).filter((f) => re.test(f)));
+}
+
+/** A scenario's execution-trace files, sorted (plain first, then numeric rep). Mode-scoped when given. */
+export function findTraceFiles(runDir: string, scenarioId: string, mode?: string): string[] {
+  if (!existsSync(runDir)) return [];
+  const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = mode === undefined
+    ? new RegExp(`^${esc}\\..*\\.trace\\.jsonl$`)
+    : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.trace\\.jsonl$`);
   return sortByRep(readdirSync(runDir).filter((f) => re.test(f)));
 }
 
@@ -453,6 +680,11 @@ export function preserveTranscript(resultsRoot: string, runDir: string, scenario
     ...findTranscriptFiles(runDir, scenarioId),
     ...findJudgeRawFiles(runDir, scenarioId),
     ...findDiffFiles(runDir, scenarioId),
+    // On a trace-gated scenario the trace IS the evidence for the override — the
+    // same role the staged diff plays on a seeded one. Omitting it committed an
+    // override whose justification was gitignored, and left `regate` with nothing
+    // to re-evaluate on the one cell a human had disputed.
+    ...findTraceFiles(runDir, scenarioId),
   ];
   if (files.length === 0) return;
   ensureResultsGitignore(resultsRoot);

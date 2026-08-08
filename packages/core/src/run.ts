@@ -8,6 +8,8 @@ import {
   runDirFor,
   transcriptPath,
   diffPath,
+  tracePath,
+  type ObjectiveResult,
   writeResults,
   ensureResultsGitignore,
   scoreContextFor,
@@ -18,7 +20,10 @@ import {
 import { appendJournal } from "./journal.js";
 import { liftHeadline, type Lift } from "./lift.js";
 import { runSeeded } from "./seeded.js";
-import { createWorkspace, type Workspace } from "./workspace.js";
+import { serializeTrace, mergeTraces, traceSha256 } from "./execution-trace.js";
+import { evaluateTraceGates } from "./trace-gates.js";
+import type { ExecutionTraceV1 } from "./capture-trace-types.js";
+import { snapshotPaths, diffSnapshots, createWorkspace, type Workspace, type PathSnapshot } from "./workspace.js";
 import { runPool } from "./scheduler.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
 import { judgeOneRep } from "./regrade.js";
@@ -113,7 +118,7 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   // skill dies for the price of a rep instead of producing a plausible scorecard.
   // Green only: red delivers nothing by design, and force delivers through the
   // system prompt, which needs no probe.
-  let canaryStatus: "pass" | null = null;
+  let canaryStatus: "pass" | "skipped" | null = null;
   if (opts.canary && mode !== "green") {
     // Ignoring a flag silently is a small version of the bug this whole feature is
     // about. Say it, and say why it isn't needed.
@@ -134,7 +139,13 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
       status: canary.status, anchor: canary.anchor, detail: canary.detail,
     });
     if (canary.status === "fail") throw new Error(canaryFailure(spec.skill, canary, harnessCliVersion));
-    if (canary.status === "skipped") log(`  ⚠ delivery canary skipped — ${canary.detail}`);
+    if (canary.status === "skipped") {
+      // Recorded, not just logged: `journal.jsonl` is gitignored, and the claim
+      // "this run's delivery was verified" has to survive a commit — including
+      // when it is the claim that it wasn't.
+      canaryStatus = "skipped";
+      log(`  ⚠ delivery canary skipped — ${canary.detail}`);
+    }
     else {
       canaryStatus = "pass";
       log(`  ✓ delivery canary — the model quoted its skill instructions back (\`${canary.anchor}\`)`);
@@ -235,6 +246,14 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
       transcript = `[workspace setup failed] ${gatePrefix}`;
     }
     let noResponse = false;
+    let traces: ExecutionTraceV1[] = [];
+    let unobservablePaths = false;
+    // The pre-run state, captured AFTER `createWorkspace` has applied the
+    // fixture's `_staged/` and `_uncommitted/` trees. Those land after the
+    // baseline commit, so a fixture that ships a deliberately dirty tree was
+    // being reported as changes the model made — a fabricated FAIL, written into
+    // a committed results.yaml, naming files the model never touched.
+    let before: PathSnapshot | null = ws ? snapshotPaths(ws.cwd, scenario.workspace) : null;
     if (ws) {
       // A blank assistant turn is a harness timeout, not model behavior: retry ONCE in a
       // fresh workspace (the first attempt may have half-mutated a seeded repo), and if
@@ -245,23 +264,46 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
           log(`  ${scenario.id}${repCount > 1 ? `#${rep}` : ""} empty response — retrying once`);
           ws.cleanup();
           ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath), remote: scenario.remote });
+          // A fresh workspace needs a fresh baseline, or the retry's diff would
+          // be taken against a directory that no longer exists.
+          before = snapshotPaths(ws.cwd, scenario.workspace);
         }
         if (scenario.mode === "seeded") {
           const r = await runSeeded(scenario, {
             skillDir: ctx.skillDir, adapter: ctx.adapter, model: ctx.model, mode, cwd: ws.cwd,
             specDir: dirname(ctx.specPath), // assert.post_test resolves like a fixture
+            trace: scenario.traceAssert ? { scenarioId: scenario.id, rep } : undefined,
           });
           transcript = r.transcript;
           gatePrefix = r.gateFailure;
           stagedDiff = r.diff; // a retry replaces the aborted attempt's diff, as it should
+          traces = r.traces;
         } else {
-          transcript = await ctx.adapter.run({
+          const req = {
             skillDir: ctx.skillDir, model: ctx.model, mode, turns: scenario.turns, cwd: ws.cwd,
             // resolved like fixtures: relative to the spec's dir
             systemPromptFile: scenario.systemPromptFile
               ? resolve(dirname(ctx.specPath), scenario.systemPromptFile)
               : undefined,
-          });
+            // Absolute before it reaches a child process running in a neutral cwd.
+            extensions: scenario.extensions?.map((e) => resolve(dirname(ctx.specPath), e)),
+          };
+          if (scenario.traceAssert) {
+            // Missing required evidence is ERROR, never a silent fallback to the
+            // unstructured path: a gate with nothing to read must not look like a
+            // gate that passed.
+            if (!ctx.adapter.runStructured) {
+              throw new Error(
+                `scenario \`${scenario.id}\` declares \`assert.trace\`, but the \`${ctx.adapter.name}\` adapter` +
+                  ` cannot produce execution traces — the gate would have no evidence to read.`,
+              );
+            }
+            const structured = await ctx.adapter.runStructured({ ...req, scenarioId: scenario.id, rep });
+            transcript = structured.transcript;
+            traces = structured.traces;
+          } else {
+            transcript = await ctx.adapter.run(req);
+          }
         }
         noResponse = hasEmptyAssistantTurn(transcript);
         if (!noResponse) break;
@@ -281,10 +323,79 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
       appendJournal(runDir, { event: "gate-result", ts: now(), id: scenario.id, ok: !gatePrefix, detail: gatePrefix ?? "", ...repField });
     }
 
+    // Filesystem evidence for `unchanged_paths`, observed AFTER the model ran.
+    //
+    // It cannot come through `RunReq`: the request is built before the run, and
+    // what changed only exists afterwards. That plumbing existed and no caller
+    // ever set it, so `changed_paths` was always `[]` and every
+    // `unchanged_paths` assertion passed vacuously — a safety gate reporting
+    // green while the model rewrote the workspace.
+    // Only when the scenario actually asserts on paths. A scenario using only
+    // `require_calls` / `forbid_calls` needs no filesystem evidence, so a
+    // workspace it cannot observe is not an error for it.
+    if (scenario.traceAssert?.unchanged_paths?.length && traces.length > 0 && ws) {
+      const changed = diffSnapshots(before, snapshotPaths(ws.cwd, scenario.workspace));
+      if (changed === null) {
+        // Missing evidence is ERROR, never a pass — spec.ts refuses the
+        // `workspace: none` combination up front, so reaching here means the
+        // workspace could not be read.
+        unobservablePaths = true;
+      } else {
+        traces = traces.map((t) => {
+          const withPaths = { ...t, changed_paths: changed };
+          return { ...withPaths, trace_sha256: traceSha256(withPaths) };
+        });
+      }
+    }
+
+    // Objective evidence is persisted for every rep, pass or fail — a failing gate
+    // is exactly when someone wants to read what the model actually did.
+    let objective: ObjectiveResult | undefined;
+    if (scenario.traceAssert) {
+      if (traces.length > 0) {
+        writeFileSync(
+          tracePath(runDir, scenario.id, mode, repSuffix),
+          traces.map(serializeTrace).join(""),
+          "utf8",
+        );
+      }
+      const merged = mergeTraces(traces);
+      if (unobservablePaths) {
+        gatePrefix = "objective: workspace changes could not be observed — `unchanged_paths` has no evidence to check";
+        objective = { status: "ERROR", assertions: [] };
+      } else if (merged === null) {
+        // Declared a gate, produced no trace: that is broken infrastructure, and
+        // grading it either way would be inventing a result.
+        gatePrefix = "objective: no execution trace was produced — cannot evaluate assert.trace";
+        objective = { status: "ERROR", assertions: [] };
+      } else {
+        const gate = evaluateTraceGates(scenario.traceAssert, merged);
+        objective = {
+          status: gate.status,
+          trace_version: merged.trace_version,
+          trace_sha256: merged.trace_sha256,
+          assertions: gate.assertions,
+        };
+        if (gate.status === "FAIL") {
+          // Set the same gatePrefix the seeded gates use, so a trace failure
+          // short-circuits the judge through the path that already exists.
+          gatePrefix = `objective: ${gate.assertions.filter((x) => x.status === "FAIL").map((x) => x.detail).join("; ")}`;
+        }
+      }
+      appendJournal(runDir, {
+        event: "objective-result", ts: now(), id: scenario.id,
+        ok: objective.status === "PASS", detail: gatePrefix ?? "", ...repField,
+      });
+    }
+
     let verdict: ScenarioResult["judge_verdict"];
     let reason: string;
     let suspect = false;
-    if (noResponse) {
+    if (objective?.status === "ERROR") {
+      verdict = "ERROR";
+      reason = gatePrefix ?? "objective evidence missing";
+      appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
+    } else if (noResponse) {
       verdict = "ERROR";
       reason = "model produced no response after a retry (harness timeout?) — infra, not skill behavior";
       appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
@@ -301,7 +412,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
       verdict = o.verdict; reason = o.reason; suspect = o.suspect; // judgeOneRep already journaled (verdict + misfire)
     }
     log(`  → ${scenario.id}${repCount > 1 ? `#${rep}` : ""} ${verdict}${reason ? `: ${reason}` : ""}${suspect ? "  ⚠ suspect" : ""}`);
-    return { verdict, reason, suspect };
+    return { verdict, reason, suspect, objective };
   } finally {
     ws?.cleanup();
   }
@@ -353,7 +464,9 @@ export function formatScorecard(summary: RunSummary, lift?: Lift, stability?: Sc
   // Said on the scorecard, not just in the docs: the one thing that can invalidate
   // a green number is invisible in the number. `harness_cli_version` is recorded
   // beside the verdicts so a reader can tell which pi produced them.
-  if (results.mode === "green" && !results.delivery_canary) {
+  // `skipped` counts as unproven here, not as proven: the probe was asked for and
+  // could not answer, which leaves delivery exactly as unverified as never asking.
+  if (results.mode === "green" && results.delivery_canary !== "pass") {
     lines.push(
       `  NOTE:  green delivery is harness-version-dependent` +
         (results.harness_cli_version ? ` (${results.harness} ${results.harness_cli_version})` : "") +

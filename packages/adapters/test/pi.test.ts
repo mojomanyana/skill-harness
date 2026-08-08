@@ -145,3 +145,54 @@ describe("agent-file runs", () => {
     expect(args).toContain("# Plan agent\nYou are single-shot.");
   });
 });
+
+describe("controlled extension loading", () => {
+  it("passes --no-extensions plus one --extension per declared path", async () => {
+    const ext = join(mkdtempSync(join(tmpdir(), "sc-ext-")), "sub.ts");
+    writeFileSync(ext, "export default function () {}\n", "utf8");
+
+    await piAdapter.run({
+      skillDir: fakeSkill(),
+      model: { provider: "fireworks", model: "x" },
+      mode: "green",
+      turns: ["hi"],
+      cwd: "/tmp",
+      extensions: [ext],
+    });
+
+    const [, args] = mockedExec.mock.calls[0];
+    // Both, together: discovery off, exactly one declared extension on. Measured on
+    // pi 0.83.0, that pair loads only the declared file even under `-a`.
+    expect(args).toContain("--no-extensions");
+    expect(args).toContain("--extension");
+    expect(args).toContain(ext);
+    expect((args as string[]).filter((a) => a === "--extension")).toHaveLength(1);
+  });
+
+  it("adds no --extension flag when the scenario declares none", async () => {
+    await piAdapter.run({
+      skillDir: fakeSkill(),
+      model: { provider: "fireworks", model: "x" },
+      mode: "green",
+      turns: ["hi"],
+      cwd: "/tmp",
+    });
+    expect(mockedExec.mock.calls[0][1]).not.toContain("--extension");
+  });
+
+  it("refuses a nonexistent extension instead of starting without it", async () => {
+    // pi would start happily, the Agent tool would simply not exist, and the
+    // scenario would grade a model that never had the option to delegate.
+    await expect(
+      piAdapter.run({
+        skillDir: fakeSkill(),
+        model: { provider: "fireworks", model: "x" },
+        mode: "green",
+        turns: ["hi"],
+        cwd: "/tmp",
+        extensions: ["/nonexistent/sub.ts"],
+      }),
+    ).rejects.toThrow(/does not exist/);
+    expect(mockedExec).not.toHaveBeenCalled();
+  });
+});

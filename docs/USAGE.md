@@ -324,6 +324,210 @@ node bin/skill-harness.js add-test golden-skill --skills packages/core/test/fixt
 
 Appends a scenario to the skill's `specification.yaml`. Gather the fields conversationally first.
 
+### `/skill-harness capture` — turn the conversation you're in into a test
+
+Inside a pi session, when the agent has just done something wrong (or something
+right that you want to keep working):
+
+```
+/skill-harness capture [skill]
+```
+
+It reads the **active branch** of the session, groups it into logical turns, and
+walks you through: pick a contiguous turn range → confirm which instructions were
+responsible → mark it `failure` or `good_example` → write what it *should* have
+done → edit the drafted checklist → **preview the whole case** → save as pending,
+promote to a scenario, or cancel.
+
+**Free.** Zero model calls; the checklist draft is a sentence splitter, not a
+model. The only spend is the optional "run just this scenario now?" at the end,
+which names the cost before asking.
+
+Two things worth knowing:
+
+- **A pending capture is not a test yet.** It lives in `<skill>/tests/captures/`,
+  outside `specification.yaml`, so it cannot touch ship-bar totals, staleness,
+  lift or stability until you promote it.
+- **Only your user turns are committed.** The model's reply is evidence for
+  writing the expectation, not an oracle to match against — it goes to a
+  git-ignored `.local/` sidecar. Hidden thinking, tool-result bodies, secrets and
+  home paths are stripped before anything is written, and the preview is your
+  chance to check that.
+
+Requires an interactive session: under `-p` / `--mode json` there is no preview
+step, so `capture` refuses rather than writing unreviewed.
+
+## 7b. Objective gates — assert what the model DID
+
+An LLM judge reading a transcript can only grade what the model *said*.
+`assert.trace` grades what it **did**, from a structured record of the run:
+
+```yaml
+scenarios:
+  - id: R1
+    title: delegates authentication diagnosis
+    turns:
+      - "Find why authentication is failing."
+    checklist:
+      - integrates the planning subagent's recommendation
+
+    env:
+      workspace: empty-git         # required: `unchanged_paths` needs a tree to observe
+      extensions:                     # closed loading: ONLY these load
+        - ../../.pi/extensions/subagents/index.ts
+
+    assert:
+      trace:
+        require_subagents:            # selection + handoff, objectively
+          - tool: Agent
+            agent: plan
+            task_contains: ["authentication"]
+            task_excludes: ["password"]
+        forbid_calls:
+          - write
+        unchanged_paths:
+          - ".env"
+```
+
+Also available: `require_calls` (any tool, with `count: {min,max}` and argument
+predicates `equals` / `contains` / `starts_with` / `ends_with` / `matches` /
+`exists` / `any`).
+
+**A failed gate costs zero judge tokens** — assertions run before the judge, so a
+scenario that called a forbidden tool fails on evidence and nothing is asked.
+
+**Missing evidence is `ERROR`, never a pass.** An adapter that can't trace, a run
+that produced no trace, an unreadable saved trace — all `ERROR`. A result with no
+`objective` block means *no assertions were declared*, not that they passed.
+
+**Editing an assertion is free to re-check** (`regate`, offline, reads the saved
+`.trace.jsonl`). **Editing an extension is not** — it changes what the model could
+do, so it's stimulus and needs a re-run. Lint names the right remedy for each, and
+extension *contents* are hashed, so editing your subagent tool marks results stale
+even though the spec didn't change.
+
+**What a trace does not prove:** it proves a registered tool was called with given
+arguments. It says nothing about what that tool then did to the machine — a `bash`
+command string is not a filesystem audit. For a real path policy, forbid `bash` or
+assert on `unchanged_paths`.
+
+## 7c. Coverage + affected — which instructions have no test (free, offline)
+
+Opt a scenario in with `covers`:
+
+```yaml
+scenarios:
+  - id: A1
+    title: politeness
+    covers: ["../SKILL.md#core-principle"]
+```
+
+```bash
+node bin/skill-harness.js coverage <skill|all> --skills <root> [--strict]
+node bin/skill-harness.js affected <skill> --skills <root> [--base <git-ref>]
+node bin/skill-harness.js run <skill> --skills <root> --affected --base <git-ref>
+```
+
+```
+demo: 2/3 sections have a declared test (67%)
+
+  no test declares coverage of:
+    ../SKILL.md#demo  (Demo)
+
+  `covers` records a declared link, not proof the behaviour is tested.
+```
+
+**It is DECLARED coverage, not proof.** A `covers` entry records that somebody
+associated a test with a section — not that the behaviour is tested, still less
+tested well. `--strict` (which exits non-zero on uncovered sections) is opt-in for
+exactly that reason. A **broken** reference fails regardless of `--strict`, since
+that's a wrong statement in the spec rather than a gap; renaming a heading is the
+usual cause, so the finding suggests near-miss slugs.
+
+`affected` reads `git diff --unified=0 <base>`, maps changed lines to heading
+sections, reverses the `covers` map, and prints a **reason per scenario**:
+
+```
+selected 2/3 scenario(s):
+  A2  covers skills/demo/SKILL.md#edge-cases
+  B1  B-series (always run)
+
+an affected run is partial and never reports SHIP — a full run still gates a release
+```
+
+**Selection always errs toward more**, because under-inclusive means shipping a
+regression while over-inclusive only costs tokens:
+
+- every **critical** and **B-series** scenario runs, whatever the diff said;
+- a scenario with **no `covers`** is always selected — there's nothing to consult;
+- a changed **fixture / post-test / agent file / extension** selects its scenario;
+- a referenced file that was **renamed or deleted**, or a **wholesale rewrite**,
+  selects *everything*.
+
+`run --affected` reuses `--only`, so it's partial and can never report SHIP. Use it
+to iterate; a full run still gates a release.
+
+**`covers` costs nothing to change** — it's in no staleness facet. Editing it
+changes what `--affected` selects next time, not what any past run measured.
+
+## 7d. Confidence-aware rejudging — when one judge isn't enough
+
+Re-judging saved transcripts holds the model constant, so movement is the judge. Ours
+disagreed with itself in **1 of 57 judgments (~2%)** — and the one that mattered was a
+published FAIL that turned out to be a 1-in-7 minority draw, the difference between a
+skill reading 93% and 100%.
+
+```bash
+node bin/skill-harness.js grade <run-dir> --auto-rejudge \
+  --secondary-judge claude-code:claude-opus-4-8 \
+  --tie-break-judge claude-code:claude-opus-4-8
+```
+
+Four triggers, computed from the **complete** first wave:
+
+| Trigger | Fires when |
+|---|---|
+| `ambiguous` | the judge's verdict blocks disagree, or nothing parseable came back |
+| `contradictory` | the overall verdict disagrees with its own per-item grades (the misfire) |
+| `non_unanimous` | the reps split — 2 PASS + 1 FAIL is not a settled result |
+| `ship_deciding` | flipping this one cell would change SHIP ⇄ NOT READY |
+
+`ship_deciding` is a counterfactual against the **real scorer**, so min-pass, critical
+and B-series all move it.
+
+**Off by default. Spec configuration alone never authorizes a judge call** — the only
+switch is `--auto-rejudge`. The preflight prints the ceiling before the first extra call:
+
+```
+adjudication: 1 cell(s) triggered — up to 1 additional judge call(s)
+  secondary judge: claude-code:claude-opus-4-8
+  no tie-break judge — a disagreement stays unresolved and blocks SHIP
+  A4: contradictory
+```
+
+**That is a call count, not a dollar figure, on purpose.** The default judge is your
+Claude subscription and reports no per-call usage back to the harness, so a dollar
+estimate would be invented. (Metered reference, measured on the real corpus: ~760 input
+/ ~130 output tokens per call ≈ $0.008 at Opus rates.)
+
+Every configured judge passes the same gates as the primary — metered refusal and
+judge≠subject.
+
+**Three outcomes:**
+
+- **confirmed** — two clean votes agree; suspect cleared.
+- **tie_broken** — a clean two-of-three majority; suspect cleared.
+- **unresolved** — anything else: `suspect: true`, which **blocks SHIP** through the
+  existing gate rather than a second one.
+
+**A malformed answer is not a vote.** Ambiguous and misfired judgments are recorded in
+full and never counted — so when the *first* wave misfired, a cell needs **two** fresh
+judgments to agree. A misfire cannot confirm itself.
+
+Caps at 3 judgments per cell. Adjudicates one documented rep, never the rep that would
+move the headline. **Human overrides survive untouched** — a judge panel does not
+outvote the author.
+
 ## 8. The optimize loop
 
 Edit the `SKILL.md` under test → re-`run` → compare the new scorecard to the old `results.yaml`. Report the **per-scenario delta**, not just the letter grade. Don't trust one run on a weak/stochastic model — re-run noisy scenarios (`--reps`).

@@ -5,7 +5,7 @@ import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
 import { buildJudgePrompt, judgeInWorkspace } from "./grade.js";
 import {
   findTranscriptFiles, judgeRawPath, repIndexOf, readResults, writeResults, effectiveThreshold,
-  scoreContextFor,
+  scoreContextFor, rebuildScenarioResult,
   type ScenarioResult, type ResultsFile,
 } from "./results.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
@@ -134,7 +134,18 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
   const now = opts.now ?? (() => new Date().toISOString());
 
   const prev = existsSync(join(runDir, "results.yaml")) ? readResults(runDir) : null;
-  const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, { override: s.override, note: s.note }]));
+  // Carried across a re-judge, per field, because the right answer differs:
+  //  - `override`/`note`  — the author's, never the judge's to discard.
+  //  - `objective`        — a re-judge does NOT re-evaluate trace gates (that is
+  //    `regate`), so the recorded evidence still describes this run. Dropping it
+  //    silently downgraded a gated scenario to "no assertions declared".
+  // `adjudication` is deliberately NOT carried: it describes the judgments this
+  // re-grade just replaced, and a stale panel beside a fresh verdict is worse
+  // than none. `grade --auto-rejudge` recomputes it.
+  // The whole prior result per id — `rebuildScenarioResult` decides, field by
+  // field, what survives. Passing a hand-picked subset here is how fields got
+  // dropped before.
+  const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, s]));
   const mode = prev?.mode ?? "green";
 
   // Re-grading rewrites the WHOLE results.yaml, so re-judge exactly the
@@ -184,7 +195,10 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
       runDir, spec, scenario, adapter, judge, specDir, threshold, mode, now,
     });
     const carry = overrides.get(id);
-    scenarioResults.push({ ...rr, override: carry?.override ?? null, note: carry?.note ?? "" });
+    // `grade` re-judges the saved transcript. It does not re-evaluate trace gates
+    // (that is `regate`), so `objective` still describes this run; and it replaced
+    // the judgments a prior adjudication described, so that panel must go.
+    scenarioResults.push(rebuildScenarioResult(rr, carry, { objective: "carry", adjudication: "drop" }));
   }
 
   const ctx = scoreContextFor({ mode, partial: prev?.partial }, spec);

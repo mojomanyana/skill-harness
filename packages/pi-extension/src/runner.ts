@@ -57,6 +57,15 @@ export async function runViaExtension(opts: {
   canary?: boolean;
   adapter?: HarnessAdapter;
   judge?: string;
+  /**
+   * Run only these scenario ids.
+   *
+   * A partial run: `runSkillModel` marks the results `partial`, and a partial run
+   * can never report SHIP. That is the point — after promoting one captured case
+   * you want to see just that scenario, without the result reading like a
+   * release-blessing wave.
+   */
+  only?: string[];
   now?: () => string;
   timestamp: string;
   log: (msg: string) => void;
@@ -74,6 +83,7 @@ export async function runViaExtension(opts: {
   const summary = await runSkillModel({
     spec, skillDir: opts.skillDir, specPath, adapter, model, modelToken, judge, mode,
     timestamp: opts.timestamp, now: opts.now, reps: opts.reps, canary: opts.canary,
+    only: opts.only,
     onProgress: opts.log,
   });
   const g = summary.results.effective_grade;

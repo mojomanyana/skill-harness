@@ -1,5 +1,7 @@
-import { appendFileSync, cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { exec } from "./util/exec.js";
+import { appendFileSync, cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, type Dirent } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 
@@ -213,4 +215,79 @@ export function createWorkspace(kind: WorkspaceKind, opts: { specDir: string; re
     throw e;
   }
   return { cwd, cleanup };
+}
+
+/**
+ * A content snapshot of every file in a workspace: relative path → sha256.
+ *
+ * Taken immediately before the model runs, and compared after. Three reasons it
+ * is a content walk rather than the obvious `git diff`:
+ *
+ * 1. **`git add -A` honours `.gitignore`.** The canonical assertion this feature
+ *    exists for is `unchanged_paths: [".env"]`, and `.env` is the canonical
+ *    gitignored file. Overwriting it produced an empty diff, which read as
+ *    "observed, nothing changed" — a safety gate reporting green on precisely
+ *    the file class that motivated it. It also covers `TOOL_ARTIFACTS`, which
+ *    the harness itself writes into `.git/info/exclude`.
+ * 2. **The baseline commit is not the pre-run state.** `createWorkspace` applies
+ *    a fixture's `_staged/` and `_uncommitted/` trees AFTER `gitBaseline`, so
+ *    those files are already dirty before the model does anything. Diffing
+ *    against the baseline blamed the model for the fixture's own contents.
+ * 3. **The harness writes to the workspace too** — `runSeeded` copies the
+ *    post-test in. A snapshot taken after setup contains it, so it cancels out
+ *    instead of being attributed to the model.
+ */
+export type PathSnapshot = Map<string, string>;
+
+/** Never the model's work, and never worth hashing. */
+const SNAPSHOT_SKIP = new Set([".git", "node_modules", "coverage", ".vitest"]);
+
+/** Snapshot a workspace, or null when there is no workspace to look at. */
+export function snapshotPaths(cwd: string | undefined, kind: WorkspaceKind): PathSnapshot | null {
+  if (kind === "none" || !cwd || !existsSync(cwd)) return null;
+  const out: PathSnapshot = new Map();
+  const walk = (dir: string, prefix: string): void => {
+    let entries: Dirent[];
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return; // an unreadable subtree is not evidence about the model
+    }
+    for (const e of entries) {
+      if (SNAPSHOT_SKIP.has(e.name)) continue;
+      const rel = prefix ? `${prefix}/${e.name}` : e.name;
+      const abs = join(dir, e.name);
+      if (e.isDirectory()) {
+        walk(abs, rel);
+      } else if (e.isFile()) {
+        try {
+          out.set(rel, createHash("sha256").update(readFileSync(abs)).digest("hex"));
+        } catch {
+          out.set(rel, "<unreadable>");
+        }
+      }
+    }
+  };
+  walk(cwd, "");
+  return out;
+}
+
+/**
+ * Paths whose content changed between two snapshots — added, removed, modified.
+ *
+ * The ONLY evidence `assert.trace.unchanged_paths` can honestly rest on. A tool
+ * trace proves which tool was called with which arguments; it cannot prove what
+ * that tool then did to the filesystem, so a path policy has to be checked
+ * against the filesystem.
+ *
+ * Returns null when either snapshot is missing — the caller must treat that as
+ * MISSING EVIDENCE, never as "nothing changed". An empty array means
+ * observed-and-nothing-changed; null means we could not look.
+ */
+export function diffSnapshots(before: PathSnapshot | null, after: PathSnapshot | null): string[] | null {
+  if (!before || !after) return null;
+  const changed = new Set<string>();
+  for (const [path, hash] of after) if (before.get(path) !== hash) changed.add(path);
+  for (const path of before.keys()) if (!after.has(path)) changed.add(path);
+  return [...changed].sort();
 }

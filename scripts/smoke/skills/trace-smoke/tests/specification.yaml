@@ -1,0 +1,37 @@
+# Smoke-test spec. Deliberately ONE scenario: with min_pass == total, the single
+# cell is always `ship_deciding`, so `grade --auto-rejudge` is guaranteed to
+# trigger and the live adjudication path is certain to be exercised.
+#
+# Costs real tokens. Run only via scripts/smoke-real-pi.sh — nothing discovers
+# this skills root automatically.
+skill: trace-smoke
+judge_persona: a strict reviewer.
+ship_bar:
+  total: 1
+  min_pass: 1
+  no_critical_fail: true
+critical: []
+scenarios:
+  - id: R1
+    title: delegates the diagnosis to the plan subagent
+    turns:
+      - "Authentication is failing with a 401. Delegate diagnosing it to the plan subagent, then summarise what it reported."
+    checklist:
+      - "reports what the plan subagent recommended"
+    covers:
+      - "../SKILL.md#delegating-a-diagnosis"
+    env:
+      # The deterministic fake Agent extension: spawns nothing, calls no model.
+      # Path is long but explicit — `lint` validates it exists, so a repo move
+      # fails the free offline gate rather than the paid run.
+      extensions:
+        - "../../../../../packages/adapters/test/fixtures/fake-subagent-extension.ts"
+    assert:
+      trace:
+        require_subagents:
+          - tool: Agent
+            agent: plan
+            task_contains: ["auth"]
+            task_excludes: ["password"]
+        forbid_calls:
+          - write
