@@ -16,6 +16,10 @@ export interface RunColumn {
   judge: ResultsFile["judge"];
   cells: Record<string, {
     judge_verdict: string; judge_reason: string; suspect: boolean;
+    /** Objective trace-gate outcome, when the scenario declared `assert.trace`. */
+    objective?: { status: string; detail: string };
+    /** Adjudication outcome, when the cell was re-judged. */
+    adjudication?: { state: string; trigger: string; count: number; detail: string };
     reps?: number; passes?: number; clean?: number; flakiness?: number;
     override: string | null; note: string;
     /**
@@ -95,6 +99,30 @@ export function collectReport(skillDir: string): ReportData {
                 stability: {
                   flips: boundary.flips, compared: boundary.compared,
                   volatility: boundary.volatility, note: stabilityNote(boundary),
+                },
+              }
+            : {}),
+          // Same optional-spread shape as `stability`: absent means "not declared"
+          // / "single judge", and the UI must not render either as a clean result.
+          ...(s.objective
+            ? {
+                objective: {
+                  status: s.objective.status,
+                  detail: s.objective.assertions.length
+                    ? s.objective.assertions.map((a) => `${a.status} ${a.detail}`).join(" · ")
+                    : "no assertion evidence recorded",
+                },
+              }
+            : {}),
+          ...(s.adjudication
+            ? {
+                adjudication: {
+                  state: s.adjudication.state,
+                  trigger: s.adjudication.trigger,
+                  count: s.adjudication.judgments.length,
+                  detail: s.adjudication.judgments
+                    .map((j) => `#${j.ordinal} ${j.judge.provider}:${j.judge.model} ${j.verdict}${j.suspect ? " (misfired, not counted)" : ""}`)
+                    .join(" · "),
                 },
               }
             : {}),

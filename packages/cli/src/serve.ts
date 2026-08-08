@@ -13,6 +13,7 @@ import {
   regradeScenario, refreshRubricHashes, findJudgeRawFiles,
   effectiveThreshold, scoreContextFor, isScoredMode,
   envFlag,
+  planAdjudication, adjudicateRun, assertJudgeAllowed,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 
@@ -177,6 +178,79 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
           // regradeScenario (or the write/journal that follows) failed — surface the
           // real reason as JSON so the client's r.json().catch(()=>({})) sees body.error
           // instead of falling through to the generic top-level 500 (text/plain).
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+        }
+        return;
+      }
+
+      /**
+       * Adjudication, in two steps: `plan` returns the exact call ceiling and
+       * spends nothing; `run` executes it.
+       *
+       * Two requests rather than one because the ceiling has to be disclosed
+       * BEFORE anything is spent, and a single endpoint that both prices and
+       * charges cannot do that — the UI would be showing a count for work that
+       * had already happened.
+       */
+      if (req.method === "POST" && url.pathname === "/adjudicate") {
+        const body = JSON.parse((await readBody(req)) || "{}") as { col: number; step?: "plan" | "run" };
+        const data = collectReport(opts.skillDir);
+        const column = data.columns.find((c) => c.index === body.col);
+        if (!column) { res.writeHead(404).end("unknown column"); return; }
+        const results = readResults(column.runDir);
+        if (!isScoredMode(results.mode)) {
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be adjudicated — for a ${results.mode} run use \`skill-harness grade\`` }));
+          return;
+        }
+        const specPath = join(opts.skillDir, "tests", "specification.yaml");
+        const spec = loadSpec(specPath);
+        const adapter = opts.adapter ?? getAdapter(results.harness);
+
+        const cells = results.scenarios.map((sc) => ({
+          id: sc.id, verdict: sc.judge_verdict, reason: sc.judge_reason, suspect: sc.suspect,
+        }));
+        // No tie-break judge from the browser: adding a third judge is a judge
+        // CHOICE, and the UI has nowhere honest to make one. A disagreement here
+        // stays unresolved and blocks SHIP, which is the safe direction.
+        const plan = planAdjudication({
+          cells, scenarios: spec.scenarios, shipBar: spec.ship_bar, critical: spec.critical,
+          tieBreakAvailable: false,
+        });
+
+        if (body.step !== "run") {
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify({
+            ok: true, step: "plan",
+            triggered: plan.triggered,
+            maxAdditionalCalls: plan.maxAdditionalCalls,
+            judge: `${results.judge.provider}:${results.judge.model}`,
+            detail: plan.decisions.filter((d) => d.triggers.length).map((d) => `${d.id}: ${d.triggers.join(", ")}`),
+          }));
+          return;
+        }
+
+        if (!(await adapter.available())) {
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: `harness \`${results.harness}\` is not on PATH` }));
+          return;
+        }
+        try {
+          assertJudgeAllowed(results.judge, { source: "the run's recorded judge", allowMetered: envFlag("SKILL_HARNESS_ALLOW_METERED_JUDGE") });
+          const written = await adjudicateRun({
+            runDir: column.runDir, spec, adapter, results,
+            primaryJudge: results.judge,
+            // Asked again as an independent draw. The judge-variance study measured
+            // ~2% self-disagreement on identical transcripts, so this is a real
+            // second opinion rather than a no-op.
+            secondaryJudge: results.judge,
+            specDir: dirname(specPath), now: () => new Date().toISOString(),
+          });
+          ensureResultsGitignore(join(opts.skillDir, "tests", "results"));
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: true, step: "run", grade: written.effective_grade }));
+        } catch (e) {
           res.writeHead(400, { "content-type": "application/json" });
           res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
         }

@@ -5304,6 +5304,22 @@ function collectReport(skillDir) {
               note: stabilityNote(boundary)
             }
           } : {},
+          // Same optional-spread shape as `stability`: absent means "not declared"
+          // / "single judge", and the UI must not render either as a clean result.
+          ...s.objective ? {
+            objective: {
+              status: s.objective.status,
+              detail: s.objective.assertions.length ? s.objective.assertions.map((a) => `${a.status} ${a.detail}`).join(" \xB7 ") : "no assertion evidence recorded"
+            }
+          } : {},
+          ...s.adjudication ? {
+            adjudication: {
+              state: s.adjudication.state,
+              trigger: s.adjudication.trigger,
+              count: s.adjudication.judgments.length,
+              detail: s.adjudication.judgments.map((j) => `#${j.ordinal} ${j.judge.provider}:${j.judge.model} ${j.verdict}${j.suspect ? " (misfired, not counted)" : ""}`).join(" \xB7 ")
+            }
+          } : {},
           judge_verdict: s.judge_verdict,
           judge_reason: s.judge_reason,
           suspect: s.suspect ?? false,
@@ -5834,6 +5850,219 @@ function describe(r) {
 // packages/core/dist/adjudication.js
 import { existsSync as existsSync16, readFileSync as readFileSync13, writeFileSync as writeFileSync6 } from "node:fs";
 import { join as join19 } from "node:path";
+function planAdjudication(input) {
+  const enabled = new Set(input.enabled ?? ["ambiguous", "contradictory", "non_unanimous", "ship_deciding"]);
+  const decisions = [];
+  for (const cell of input.cells) {
+    const triggers = [];
+    if (enabled.has("ambiguous") && cell.verdict === "JUDGE-AMBIGUOUS")
+      triggers.push("ambiguous");
+    if (enabled.has("contradictory") && cell.suspect && cell.verdict !== "JUDGE-AMBIGUOUS") {
+      triggers.push("contradictory");
+    }
+    if (enabled.has("non_unanimous") && isNonUnanimous(cell))
+      triggers.push("non_unanimous");
+    if (enabled.has("ship_deciding") && flipsShipDecision(cell, input))
+      triggers.push("ship_deciding");
+    decisions.push({ id: cell.id, triggers });
+  }
+  const triggered = decisions.filter((d) => d.triggers.length > 0).map((d) => d.id);
+  const perCell = input.tieBreakAvailable ? 2 : 1;
+  return { decisions, triggered, maxAdditionalCalls: triggered.length * perCell };
+}
+function isNonUnanimous(cell) {
+  const reps2 = cell.repVerdicts ?? [];
+  if (reps2.length < 2)
+    return false;
+  const passes = reps2.filter((v) => v === "PASS").length;
+  return passes > 0 && passes < reps2.length;
+}
+function flipsShipDecision(cell, input) {
+  const verdictsWith = (targetVerdict) => input.cells.map((c) => c.id === cell.id ? { id: c.id, verdict: targetVerdict, suspect: false } : { id: c.id, verdict: c.verdict, suspect: c.suspect });
+  const opts = { shipBar: input.shipBar, critical: input.critical };
+  const flipped = cell.verdict === "PASS" ? "FAIL" : "PASS";
+  return score(verdictsWith(cell.verdict), opts).ship !== score(verdictsWith(flipped), opts).ship;
+}
+function collapseJudgments(judgments, trigger) {
+  const clean = judgments.filter((j) => !j.suspect && (j.verdict === "PASS" || j.verdict === "FAIL"));
+  const base = { trigger, judgments };
+  if (clean.length < 2) {
+    return { ...base, state: "unresolved" };
+  }
+  const passes = clean.filter((j) => j.verdict === "PASS").length;
+  const fails = clean.length - passes;
+  if (passes === 0 || fails === 0) {
+    return { ...base, state: "confirmed", verdict: clean[0].verdict };
+  }
+  if (passes > fails)
+    return { ...base, state: "tie_broken", verdict: "PASS" };
+  if (fails > passes)
+    return { ...base, state: "tie_broken", verdict: "FAIL" };
+  return { ...base, state: "unresolved" };
+}
+function projectAdjudication(result, adj) {
+  if (adj.state === "unresolved") {
+    return {
+      ...result,
+      // Verdict is left as recorded rather than forced to FAIL: `suspect` is what
+      // blocks the ship, and overwriting the verdict would destroy the
+      // first-wave answer an author needs in order to adjudicate.
+      judge_reason: `${adj.judgments.length} judgments disagree (${adj.trigger}) \u2014 resolve or re-judge`,
+      suspect: true,
+      adjudication: adj
+    };
+  }
+  return {
+    ...result,
+    judge_verdict: adj.verdict ?? result.judge_verdict,
+    judge_reason: reasonFor(adj),
+    // A confirmed or tie-broken cell is no longer untrustworthy — that is the
+    // entire point of having asked again.
+    suspect: false,
+    adjudication: adj
+  };
+}
+function reasonFor(adj) {
+  const n = adj.judgments.length;
+  const verb = adj.state === "confirmed" ? "confirmed by" : "resolved by majority of";
+  return `${adj.verdict} ${verb} ${n} judgments (${adj.trigger})`;
+}
+async function runAdjudication(opts) {
+  const byId = /* @__PURE__ */ new Map();
+  const log = opts.log ?? (() => {
+  });
+  let callsMade = 0;
+  for (const decision of opts.plan.decisions) {
+    if (decision.triggers.length === 0)
+      continue;
+    const cell = opts.cells.find((c) => c.id === decision.id);
+    if (!cell)
+      continue;
+    const trigger = decision.triggers[0];
+    const judgments = [
+      { ordinal: 1, judge: { ...opts.primaryJudge }, verdict: cell.verdict, reason: cell.reason, suspect: cell.suspect }
+    ];
+    const second = await opts.rejudge(decision.id, opts.secondaryJudge);
+    callsMade++;
+    judgments.push({ ordinal: 2, judge: { ...opts.secondaryJudge }, ...second });
+    let collapsed = collapseJudgments(judgments, trigger);
+    if (collapsed.state === "unresolved" && opts.tieBreakJudge) {
+      const third = await opts.rejudge(decision.id, opts.tieBreakJudge);
+      callsMade++;
+      judgments.push({ ordinal: 3, judge: { ...opts.tieBreakJudge }, ...third });
+      collapsed = collapseJudgments(judgments, trigger);
+    }
+    log(`  ${decision.id}: ${collapsed.state}${collapsed.verdict ? ` \u2192 ${collapsed.verdict}` : ""} (${judgments.length} judgments)`);
+    byId.set(decision.id, collapsed);
+  }
+  return { byId, callsMade };
+}
+async function adjudicateRun(opts) {
+  const log = opts.log ?? (() => {
+  });
+  const mode = opts.results.mode;
+  const cells = opts.results.scenarios.map((s) => ({
+    id: s.id,
+    verdict: s.judge_verdict,
+    reason: s.judge_reason,
+    suspect: s.suspect,
+    repVerdicts: repVerdictsOf(opts.runDir, s, mode)
+  }));
+  const plan = planAdjudication({
+    cells,
+    scenarios: opts.spec.scenarios,
+    shipBar: opts.spec.ship_bar,
+    critical: opts.spec.critical,
+    tieBreakAvailable: opts.tieBreakJudge !== void 0
+  });
+  log(formatAdjudicationPlan(plan, { secondary: opts.secondaryJudge, tieBreak: opts.tieBreakJudge }));
+  if (plan.triggered.length === 0)
+    return opts.results;
+  const byIdScenario = new Map(opts.spec.scenarios.map((s) => [s.id, s]));
+  const { byId, callsMade } = await runAdjudication({
+    plan,
+    cells,
+    primaryJudge: opts.primaryJudge,
+    secondaryJudge: opts.secondaryJudge,
+    tieBreakJudge: opts.tieBreakJudge,
+    log,
+    rejudge: async (id, judge) => {
+      const scenario = byIdScenario.get(id);
+      if (!scenario)
+        throw new Error(`adjudication: scenario \`${id}\` is not in the spec`);
+      return judgeCell({ ...opts, scenario, judge, mode });
+    }
+  });
+  const scenarios = opts.results.scenarios.map((s) => {
+    const adj = byId.get(s.id);
+    return adj ? { ...projectAdjudication(s, adj), override: s.override, note: s.note } : s;
+  });
+  appendJournal(opts.runDir, {
+    event: "adjudication",
+    ts: opts.now(),
+    triggered: plan.triggered,
+    judge_calls: callsMade,
+    unresolved: [...byId.entries()].filter(([, a]) => a.state === "unresolved").map(([id]) => id)
+  });
+  const ctx = scoreContextFor(opts.results, opts.spec);
+  return writeResults(opts.runDir, { ...opts.results, scenarios }, ctx);
+}
+async function judgeCell(opts) {
+  const files = findTranscriptFiles(opts.runDir, opts.scenario.id, opts.mode);
+  if (files.length === 0) {
+    throw new Error(`adjudication: no ${opts.mode} transcript for \`${opts.scenario.id}\` in ${opts.runDir} \u2014 transcripts are gitignored, so this needs the run dir that produced them`);
+  }
+  const transcript = readFileSync13(join19(opts.runDir, files[0]), "utf8");
+  const prompt = buildJudgePrompt({
+    skill: opts.spec.skill,
+    persona: opts.spec.judge_persona,
+    scenario: opts.scenario,
+    transcript
+  });
+  const g = await judgeInWorkspace(opts.adapter, opts.judge, prompt, opts.specDir);
+  const rep = repIndexOf(files[0]) ?? void 0;
+  const base = judgeRawPath(opts.runDir, opts.scenario.id, opts.mode, rep);
+  const nth = existsSync16(base.replace(/\.judge\.txt$/, ".judge2.txt")) ? 3 : 2;
+  writeFileSync6(base.replace(/\.judge\.txt$/, `.judge${nth}.txt`), g.raw, "utf8");
+  appendJournal(opts.runDir, {
+    event: "judge-verdict",
+    ts: opts.now(),
+    id: opts.scenario.id,
+    verdict: g.verdict,
+    reason: g.reason,
+    suspect: g.suspect
+  });
+  return { verdict: g.verdict, reason: g.reason, suspect: g.suspect };
+}
+function repVerdictsOf(runDir, s, mode) {
+  if (!s.reps || s.reps < 2)
+    return void 0;
+  const out = [];
+  for (let rep = 1; rep <= s.reps; rep++) {
+    const path = judgeRawPath(runDir, s.id, mode, rep);
+    if (!existsSync16(path))
+      continue;
+    out.push(parseVerdict(readFileSync13(path, "utf8")).verdict);
+  }
+  return out.length >= 2 ? out : void 0;
+}
+function formatAdjudicationPlan(plan, judges) {
+  if (plan.triggered.length === 0)
+    return "adjudication: no cell triggered \u2014 no additional judge calls";
+  const lines = [
+    `adjudication: ${plan.triggered.length} cell(s) triggered \u2014 up to ${plan.maxAdditionalCalls} additional judge call(s)`,
+    `  secondary judge: ${judges.secondary.provider}:${judges.secondary.model}`
+  ];
+  if (judges.tieBreak)
+    lines.push(`  tie-break judge: ${judges.tieBreak.provider}:${judges.tieBreak.model}`);
+  else
+    lines.push("  no tie-break judge \u2014 a disagreement stays unresolved and blocks SHIP");
+  for (const d of plan.decisions) {
+    if (d.triggers.length)
+      lines.push(`  ${d.id}: ${d.triggers.join(", ")}`);
+  }
+  return lines.join("\n");
+}
 
 // packages/adapters/dist/pi.js
 import { existsSync as existsSync17, mkdtempSync as mkdtempSync2, readFileSync as readFileSync14, statSync as statSync8 } from "node:fs";
@@ -6273,6 +6502,77 @@ async function serveReview(opts) {
           appendJournal(column.runDir, { event: "score", ts: (/* @__PURE__ */ new Date()).toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
           res.writeHead(200, { "content-type": "application/json" });
           res.end(JSON.stringify({ ok: true, grade: g }));
+        } catch (e) {
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+        }
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/adjudicate") {
+        const body = JSON.parse(await readBody(req) || "{}");
+        const data = collectReport(opts.skillDir);
+        const column = data.columns.find((c) => c.index === body.col);
+        if (!column) {
+          res.writeHead(404).end("unknown column");
+          return;
+        }
+        const results = readResults(column.runDir);
+        if (!isScoredMode(results.mode)) {
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be adjudicated \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
+          return;
+        }
+        const specPath = join21(opts.skillDir, "tests", "specification.yaml");
+        const spec = loadSpec(specPath);
+        const adapter = opts.adapter ?? getAdapter(results.harness);
+        const cells = results.scenarios.map((sc) => ({
+          id: sc.id,
+          verdict: sc.judge_verdict,
+          reason: sc.judge_reason,
+          suspect: sc.suspect
+        }));
+        const plan = planAdjudication({
+          cells,
+          scenarios: spec.scenarios,
+          shipBar: spec.ship_bar,
+          critical: spec.critical,
+          tieBreakAvailable: false
+        });
+        if (body.step !== "run") {
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify({
+            ok: true,
+            step: "plan",
+            triggered: plan.triggered,
+            maxAdditionalCalls: plan.maxAdditionalCalls,
+            judge: `${results.judge.provider}:${results.judge.model}`,
+            detail: plan.decisions.filter((d) => d.triggers.length).map((d) => `${d.id}: ${d.triggers.join(", ")}`)
+          }));
+          return;
+        }
+        if (!await adapter.available()) {
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: `harness \`${results.harness}\` is not on PATH` }));
+          return;
+        }
+        try {
+          assertJudgeAllowed(results.judge, { source: "the run's recorded judge", allowMetered: envFlag("SKILL_HARNESS_ALLOW_METERED_JUDGE") });
+          const written = await adjudicateRun({
+            runDir: column.runDir,
+            spec,
+            adapter,
+            results,
+            primaryJudge: results.judge,
+            // Asked again as an independent draw. The judge-variance study measured
+            // ~2% self-disagreement on identical transcripts, so this is a real
+            // second opinion rather than a no-op.
+            secondaryJudge: results.judge,
+            specDir: dirname5(specPath),
+            now: () => (/* @__PURE__ */ new Date()).toISOString()
+          });
+          ensureResultsGitignore(join21(opts.skillDir, "tests", "results"));
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: true, step: "run", grade: written.effective_grade }));
         } catch (e) {
           res.writeHead(400, { "content-type": "application/json" });
           res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));

@@ -45,6 +45,15 @@
   .cell .lm.down { color: var(--fail); }
   /* Amber, like the suspect badge: both mean "this verdict is worth less than it looks". */
   .cell .lm.flip { color: #b45309; }
+  /* Objective trace gates: pass/fail are facts about what the model did. ERROR is
+     amber rather than red — missing evidence is not a failing gate. */
+  .cell .lm.obj-pass { color: var(--pass); }
+  .cell .lm.obj-fail { color: var(--fail); }
+  .cell .lm.obj-error { color: #b45309; }
+  /* Adjudication. `unresolved` is amber for the same reason `suspect` is: it must
+     never read as a clean PASS or FAIL. */
+  .cell .lm.adj-settled { color: var(--dim); }
+  .cell .lm.adj-unresolved { color: #b45309; }
   aside { width: 0; transition: width .15s ease; overflow: hidden; border-left: 1px solid var(--line); background: var(--panel); }
   aside.open { width: 460px; }
   .panel { width: 460px; padding: 16px 18px; }
@@ -230,7 +239,19 @@ function render() {
       const stabMark = st
         ? `<span class='lm flip' title='${escapeHtml(st.note)}'>⇄ ${st.flips}/${st.compared}</span>`
         : "";
-      html += `<td class='cell ${v}${sel}' data-col='${col.index}' data-id='${scn.id}'>${v}${ov}${suspectBadge}${liftMark}${stabMark}${reps}</td>`;
+      // Objective trace gates. Only rendered when the scenario DECLARED them —
+      // absent must read as "not declared", never as an objective pass.
+      const obj = cell.objective;
+      const objMark = obj
+        ? `<span class='lm obj-${obj.status.toLowerCase()}' title='${escapeHtml(`objective ${obj.status}: ${obj.detail}`)}'>◉ ${escapeHtml(obj.status.toLowerCase())}</span>`
+        : "";
+      // Adjudication. `unresolved` is amber and says so in words — a disagreement
+      // that renders as a clean verdict is the whole failure this feature prevents.
+      const adj = cell.adjudication;
+      const adjMark = adj
+        ? `<span class='lm adj-${adj.state === "unresolved" ? "unresolved" : "settled"}' title='${escapeHtml(`adjudication ${adj.state} (${adj.trigger}) · ${adj.detail}`)}'>⚖ ${adj.state === "unresolved" ? "unresolved" : `${adj.count} agree`}</span>`
+        : "";
+      html += `<td class='cell ${v}${sel}' data-col='${col.index}' data-id='${scn.id}'>${v}${ov}${suspectBadge}${liftMark}${stabMark}${objMark}${adjMark}${reps}</td>`;
     });
     html += "</tr>";
   }
@@ -258,12 +279,15 @@ async function openPanel(colIndex, scenarioId) {
     <div class="reason"><b>judge:</b> ${cell.judge_verdict} — ${escapeHtml(cell.judge_reason || "(no reason)")}</div>
     ${cell.suspect ? `<div class="reason" style="color:#b45309"><b>⚠ suspect:</b> judge listed no failed item — re-judge before trusting this FAIL</div>` : ""}
     ${cell.stability ? `<div class="reason" style="color:#b45309"><b>⇄ boundary cell:</b> ${escapeHtml(cell.stability.note)}</div>` : ""}
+    ${cell.objective ? `<div class="reason"><b>◉ objective ${escapeHtml(cell.objective.status)}:</b> ${escapeHtml(cell.objective.detail)}</div>` : ""}
+    ${cell.adjudication ? `<div class="reason"${cell.adjudication.state === "unresolved" ? ' style="color:#b45309"' : ""}><b>⚖ adjudication ${escapeHtml(cell.adjudication.state)}</b> (${escapeHtml(cell.adjudication.trigger)}): ${escapeHtml(cell.adjudication.detail)}</div>` : ""}
     <div class="toggle">
       <button data-v="PASS" class="PASS ${cell.override === 'PASS' ? 'active PASS' : ''}">PASS</button>
       <button data-v="FAIL" class="FAIL ${cell.override === 'FAIL' ? 'active FAIL' : ''}">FAIL</button>
       <button data-v="" class="JUDGE ${!cell.override ? 'active JUDGE' : ''}">use judge (${cell.judge_verdict})</button>
     </div>
     <div class="rejudge"><button id="rejudgeBtn">Re-judge (${escapeHtml(col.judge.provider + ":" + col.judge.model)})</button> <span class="saved" id="rejudged"></span></div>
+    <div class="rejudge"><button id="adjBtn">Adjudicate column…</button> <span class="saved" id="adjudged"></span></div>
     <label class="fld">note <span class="saved" id="saved">saved ✓</span></label>
     <textarea id="note" placeholder="why you overrode / what to fix in SKILL.md">${escapeHtml(cell.note || "")}</textarea>
     <label class="fld">transcript</label>
@@ -287,6 +311,40 @@ async function openPanel(colIndex, scenarioId) {
       if (!r.ok) { const s = document.getElementById("rejudged"); if (s) { s.textContent = body.error || "re-judge failed"; s.classList.add("show", "err"); } rj.disabled = false; rj.textContent = "Re-judge"; return; }
       location.reload(); // re-judge rewrote results.yaml; reload the fresh matrix + grades
     } catch (e) { rj.disabled = false; rj.textContent = "Re-judge"; }
+  };
+
+  // Two requests on purpose. The first prices the work and spends nothing; the
+  // confirm shows that exact ceiling; only then does anything call a judge. A
+  // single endpoint could not disclose a count before charging for it.
+  const adjBtn = document.getElementById("adjBtn");
+  if (adjBtn) adjBtn.onclick = async () => {
+    const status = document.getElementById("adjudged");
+    const show = (msg, err) => { if (status) { status.textContent = msg; status.classList.toggle("err", !!err); status.classList.add("show"); } };
+    adjBtn.disabled = true;
+    try {
+      const pr = await fetch("/adjudicate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ col: colIndex, step: "plan" }) });
+      const plan = await pr.json().catch(() => ({}));
+      if (!pr.ok || !plan.ok) { show(plan.error || "could not plan adjudication", true); adjBtn.disabled = false; return; }
+      if (!plan.triggered.length) { show("no cell triggered — nothing to adjudicate", false); adjBtn.disabled = false; return; }
+
+      // Counts, never dollars: the default judge is a Claude subscription and
+      // reports no per-call usage, so a cost figure here would be invented.
+      const ok = window.confirm(
+        `Adjudicate ${plan.triggered.length} cell(s) with ${plan.judge}?\n\n` +
+        `Up to ${plan.maxAdditionalCalls} additional judge call(s).\n` +
+        `No tie-break judge from the browser — a disagreement stays unresolved and blocks SHIP.\n\n` +
+        plan.detail.join("\n")
+      );
+      if (!ok) { show("cancelled — nothing spent", false); adjBtn.disabled = false; return; }
+
+      adjBtn.textContent = "Adjudicating…";
+      const rr = await fetch("/adjudicate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ col: colIndex, step: "run" }) });
+      const done = await rr.json().catch(() => ({}));
+      if (!rr.ok || !done.ok) { show(done.error || "adjudication failed", true); adjBtn.disabled = false; adjBtn.textContent = "Adjudicate column…"; return; }
+      location.reload();
+    } catch (e) {
+      show("adjudication failed", true); adjBtn.disabled = false; adjBtn.textContent = "Adjudicate column…";
+    }
   };
   let t;
   document.getElementById("note").addEventListener("input", (e) => {
