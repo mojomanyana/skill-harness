@@ -61,7 +61,7 @@ function skillFlags(mode: RunMode, skillDir: string): string[] {
 
 /**
  * Extension flags. `--no-extensions` is ALWAYS present (it already was), and each
- * declared path is added with `-e`.
+ * declared path is added with `--extension`.
  *
  * Measured on pi 0.83.0: `--no-extensions --extension <path>` loads exactly the
  * declared extension and nothing discovered, even with `-a` project-local trust

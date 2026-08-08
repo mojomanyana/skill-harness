@@ -113,11 +113,11 @@ export async function handleSkillCheck(
   if (sub === "judge") {
     const runDir = resolve(ctx.cwd, positional[0] ?? ".");
     // derive the spec from the RUN DIR's own skill (results are at <skillDir>/tests/results/<tag>/<ts>/),
-    // mirroring cmdGrade (cli.ts:183) — NOT from cwd, which could be a different skill.
+    // mirroring cmdGrade in cli.ts — NOT from cwd, which could be a different skill.
     const testsDir = dirname(dirname(dirname(runDir))); // <skillDir>/tests
     const spec = loadSpec(join(testsDir, "specification.yaml"));
     // Re-judge with the run's RECORDED judge + harness (parity with cmdGrade,
-    // cli.ts:186-192 — M6's whole premise is CLI/extension parity); an
+    // the same block in cli.ts's cmdGrade — M6's whole premise is CLI/extension parity); an
     // explicit --judge flag still wins, and a run with no prior results.yaml
     // falls back to the default judge.
     const prev = existsSync(join(runDir, "results.yaml")) ? readResults(runDir) : null;
@@ -223,7 +223,7 @@ export async function handleSkillCheck(
     });
     say(ctx, formatAffected(result, spec.scenarios.length));
     // Deliberately reports and stops. Spending is a separate, explicit act:
-    // `/skill-harness run <skill> --only <ids>` with the list above.
+    // `skill-harness run <skill> --only <ids>` (the CLI — the extension's `run` has no `--only`) with the list above.
     return;
   }
 

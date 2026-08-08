@@ -209,7 +209,7 @@ function facets(s: Scenario): { stimulus: string; rubric: string; policy: string
     // APPENDED CONDITIONALLY, never as a fixed slot. This tuple is positional and
     // its hash is stored in every published results.yaml, so adding an
     // unconditional element re-hashes every scenario that never used the field —
-    // measured: 83 lint findings became 261 across the reference corpus, all of
+    // measured: 62 real lint findings became 261 across the reference corpus, all of
     // them demanding paid re-runs for scenarios nobody had edited.
     stimulus: JSON.stringify([
       id, mode, turns, workspace, remote, systemPromptFile ?? null,

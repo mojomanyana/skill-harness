@@ -23,7 +23,7 @@ import { runSeeded } from "./seeded.js";
 import { serializeTrace, mergeTraces, traceSha256 } from "./execution-trace.js";
 import { evaluateTraceGates } from "./trace-gates.js";
 import type { ExecutionTraceV1 } from "./capture-trace-types.js";
-import { observeChangedPaths, createWorkspace, type Workspace } from "./workspace.js";
+import { snapshotPaths, diffSnapshots, createWorkspace, type Workspace, type PathSnapshot } from "./workspace.js";
 import { runPool } from "./scheduler.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
 import { judgeOneRep } from "./regrade.js";
@@ -118,7 +118,7 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   // skill dies for the price of a rep instead of producing a plausible scorecard.
   // Green only: red delivers nothing by design, and force delivers through the
   // system prompt, which needs no probe.
-  let canaryStatus: "pass" | null = null;
+  let canaryStatus: "pass" | "skipped" | null = null;
   if (opts.canary && mode !== "green") {
     // Ignoring a flag silently is a small version of the bug this whole feature is
     // about. Say it, and say why it isn't needed.
@@ -139,7 +139,13 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
       status: canary.status, anchor: canary.anchor, detail: canary.detail,
     });
     if (canary.status === "fail") throw new Error(canaryFailure(spec.skill, canary, harnessCliVersion));
-    if (canary.status === "skipped") log(`  ⚠ delivery canary skipped — ${canary.detail}`);
+    if (canary.status === "skipped") {
+      // Recorded, not just logged: `journal.jsonl` is gitignored, and the claim
+      // "this run's delivery was verified" has to survive a commit — including
+      // when it is the claim that it wasn't.
+      canaryStatus = "skipped";
+      log(`  ⚠ delivery canary skipped — ${canary.detail}`);
+    }
     else {
       canaryStatus = "pass";
       log(`  ✓ delivery canary — the model quoted its skill instructions back (\`${canary.anchor}\`)`);
@@ -242,6 +248,12 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
     let noResponse = false;
     let traces: ExecutionTraceV1[] = [];
     let unobservablePaths = false;
+    // The pre-run state, captured AFTER `createWorkspace` has applied the
+    // fixture's `_staged/` and `_uncommitted/` trees. Those land after the
+    // baseline commit, so a fixture that ships a deliberately dirty tree was
+    // being reported as changes the model made — a fabricated FAIL, written into
+    // a committed results.yaml, naming files the model never touched.
+    let before: PathSnapshot | null = ws ? snapshotPaths(ws.cwd, scenario.workspace) : null;
     if (ws) {
       // A blank assistant turn is a harness timeout, not model behavior: retry ONCE in a
       // fresh workspace (the first attempt may have half-mutated a seeded repo), and if
@@ -252,6 +264,9 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
           log(`  ${scenario.id}${repCount > 1 ? `#${rep}` : ""} empty response — retrying once`);
           ws.cleanup();
           ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath), remote: scenario.remote });
+          // A fresh workspace needs a fresh baseline, or the retry's diff would
+          // be taken against a directory that no longer exists.
+          before = snapshotPaths(ws.cwd, scenario.workspace);
         }
         if (scenario.mode === "seeded") {
           const r = await runSeeded(scenario, {
@@ -319,15 +334,15 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
     // `require_calls` / `forbid_calls` needs no filesystem evidence, so a
     // workspace it cannot observe is not an error for it.
     if (scenario.traceAssert?.unchanged_paths?.length && traces.length > 0 && ws) {
-      const changed = await observeChangedPaths(ws.cwd, scenario.workspace);
+      const changed = diffSnapshots(before, snapshotPaths(ws.cwd, scenario.workspace));
       if (changed === null) {
-        // `workspace: none` has no repo to compare against. Missing evidence is
-        // ERROR, never a pass — spec.ts refuses this combination up front, so
-        // reaching here means the workspace could not be read.
+        // Missing evidence is ERROR, never a pass — spec.ts refuses the
+        // `workspace: none` combination up front, so reaching here means the
+        // workspace could not be read.
         unobservablePaths = true;
       } else {
         traces = traces.map((t) => {
-          const withPaths = { ...t, changed_paths: [...changed].sort() };
+          const withPaths = { ...t, changed_paths: changed };
           return { ...withPaths, trace_sha256: traceSha256(withPaths) };
         });
       }
@@ -449,7 +464,9 @@ export function formatScorecard(summary: RunSummary, lift?: Lift, stability?: Sc
   // Said on the scorecard, not just in the docs: the one thing that can invalidate
   // a green number is invisible in the number. `harness_cli_version` is recorded
   // beside the verdicts so a reader can tell which pi produced them.
-  if (results.mode === "green" && !results.delivery_canary) {
+  // `skipped` counts as unproven here, not as proven: the probe was asked for and
+  // could not answer, which leaves delivery exactly as unverified as never asking.
+  if (results.mode === "green" && results.delivery_canary !== "pass") {
     lines.push(
       `  NOTE:  green delivery is harness-version-dependent` +
         (results.harness_cli_version ? ` (${results.harness} ${results.harness_cli_version})` : "") +

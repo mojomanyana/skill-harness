@@ -502,7 +502,9 @@ never enter `specification.yaml` before a human promotes them.
         unrecognized shape yields nothing rather than a guess, because inventing an
         `agent` field would be a confident assertion about something nobody wrote.
         Unknown extensions still work via plain `require_calls`.
-      - Capture prepopulates `tool`/`agent`/`count` from a captured delegation but
+      - `draftSubagentAssertion` can prepopulate `tool`/`agent`/`count` from a captured
+        delegation, but the capture command does not call it yet — `captureToScenario`
+        emits no gates. Reachable from the library, not from `/skill-harness capture`. It
         deliberately never `task_contains` — the text that WAS sent is not the text
         that is REQUIRED, and proposing it manufactures a brittle assertion the
         author never reasoned about.

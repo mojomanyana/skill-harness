@@ -1,3 +1,4 @@
+import { EXECUTION_TRACE_VERSION } from "../src/capture-trace-types.js";
 import { describe, it, expect } from "vitest";
 import { evaluateTraceGates, parseTraceAssert, testPredicate, matchesGlob } from "../src/trace-gates.js";
 import type { ExecutionTraceV1, TraceToolCall } from "../src/capture-trace-types.js";
@@ -17,7 +18,7 @@ function call(name: string, args: Record<string, unknown>, extra: Partial<TraceT
 
 function trace(calls: TraceToolCall[], changed: string[] = []): ExecutionTraceV1 {
   return {
-    trace_version: 1,
+    trace_version: EXECUTION_TRACE_VERSION,
     pi_version: "0.83.0",
     subject: { provider: "p", model: "m" },
     scenario_id: "A1",

@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Spec } from "./spec.js";
-import { readResults, writeResults, scoreContextFor, type ResultsFile, type ScenarioResult } from "./results.js";
+import { readResults, writeResults, scoreContextFor, rebuildScenarioResult, type ResultsFile, type ScenarioResult } from "./results.js";
 import { appendJournal } from "./journal.js";
 import { policyDigest, POLICY_PREFIX } from "./sources.js";
 
@@ -88,7 +88,20 @@ export function rescoreRun(opts: RescoreOptions): RescoreResult {
     if (verdict !== s.judge_verdict) {
       changes.push({ id: s.id, from: s.judge_verdict, to: verdict, passes: s.passes, clean: s.clean, fromThreshold, toThreshold });
     }
-    return { ...s, judge_verdict: verdict, pass_threshold: toThreshold };
+    // Through the choke point, not a spread. This was the FIFTH rewriter of a
+    // `ScenarioResult` and the only one still using `{ ...s }` — so it inherited
+    // none of the invariants the others get, and adding `objective` and
+    // `adjudication` to the type did not fail the build here. Concretely: a cell
+    // that adjudication settled FAIL reverted to PASS when a threshold change
+    // recomputed it from rep counters that adjudication never updated.
+    //
+    // Both blocks are CARRIED: a rescore re-applies a threshold to reps that were
+    // already measured. It re-measures nothing, so it may discard nothing.
+    return rebuildScenarioResult(
+      { ...s, judge_verdict: verdict, pass_threshold: toThreshold },
+      s,
+      { objective: "carry", adjudication: "carry" },
+    );
   });
 
   const ctx = scoreContextFor(prev, opts.spec);

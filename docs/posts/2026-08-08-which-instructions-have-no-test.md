@@ -10,7 +10,7 @@ this one. And it matters in a specific way: the sections nobody tested are exact
 where a well-meaning edit will quietly break behaviour, because nothing will go
 red.
 
-0.10.0 adds two free, offline commands.
+This release adds two free, offline commands.
 
 ## `coverage` — declared linkage
 

@@ -12,7 +12,7 @@ turned out to be a 1-in-7 minority judge draw. It was the difference between tha
 skill reading **93%** and **100%**.
 
 The practice that follows is obvious once you've seen it: *judge a non-unanimous
-cell twice before publishing.* 0.11.0 makes that mechanical.
+cell twice before publishing.* This release makes that mechanical.
 
 ```bash
 skill-harness grade <run-dir> --auto-rejudge \

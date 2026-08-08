@@ -1,11 +1,18 @@
+import { EXECUTION_TRACE_VERSION } from "../src/capture-trace-types.js";
 import { describe, it, expect, beforeEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stimulusDigest, gatesDigest } from "../src/sources.js";
-import { repIndexOf, writeResults, readResults } from "../src/results.js";
-import { adjudicateRun, planAdjudication, runAdjudication, formatAdjudicationPlan } from "../src/adjudication.js";
-import { mergeTraces } from "../src/execution-trace.js";
+import { repIndexOf, writeResults, readResults, effectiveVerdicts, rebuildScenarioResult } from "../src/results.js";
+import type { ScenarioResult } from "../src/results.js";
+import { score } from "../src/score.js";
+import { adjudicateRun, planAdjudication, runAdjudication, formatAdjudicationPlan, cellsFromResults } from "../src/adjudication.js";
+import { redactText } from "../src/capture.js";
+import { mergeTraces, parseTrace } from "../src/execution-trace.js";
+import { snapshotPaths, diffSnapshots } from "../src/workspace.js";
+import { evaluateTraceGates } from "../src/trace-gates.js";
+import { execFileSync } from "node:child_process";
 import { selectAffected } from "../src/affected.js";
 import type { ExecutionTraceV1 } from "../src/capture-trace-types.js";
 import { loadSpec } from "../src/spec.js";
@@ -206,7 +213,7 @@ describe("a plan discloses which cells it cannot settle", () => {
 
 describe("merging turns keeps issue order and completion order distinct", () => {
   const t = (turn: number, calls: Array<[string, number, number]>): ExecutionTraceV1 => ({
-    trace_version: 1, pi_version: "0.83.0", subject: { provider: "p", model: "m" },
+    trace_version: EXECUTION_TRACE_VERSION, pi_version: "0.83.0", subject: { provider: "p", model: "m" },
     scenario_id: "A1", mode: "green", rep: 0, turn, final_text: `t${turn}`,
     tool_calls: calls.map(([id, issueIndex, completionIndex]) => ({
       id, name: "read", args: {}, issueIndex, completionIndex, isError: false,
@@ -261,5 +268,261 @@ describe("an uncovered instruction file cannot be ruled out", () => {
       const out = selectAffected({ scenarios, specDir, repoRoot: "/repo", diff: diffFor(file) });
       expect(out.conservative, file).toBe(false);
     }
+  });
+});
+
+describe("an objective gate outranks the judge", () => {
+  const cell = (over: Partial<ScenarioResult> = {}): ScenarioResult => ({
+    id: "A1", judge_verdict: "PASS", judge_reason: "2/3 reps passed (flaky 0.67)",
+    suspect: false, override: null, note: "",
+    reps: 3, passes: 2, clean: 3, flakiness: 0.67, pass_threshold: 0.5,
+    objective: { status: "FAIL", assertions: [{ kind: "forbid_call", status: "FAIL", detail: "`write` called 1 time(s) — forbidden" }] },
+    ...over,
+  });
+  const shipOf = (s: ScenarioResult) =>
+    score(effectiveVerdicts([s]), { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
+
+  it("is not out-voted by a rep majority", () => {
+    // The regression: `objective` reached the ship decision only through
+    // `gatePrefix` inside ONE rep of run.ts, so `aggregateReps` out-voted a
+    // forbidden tool call 2-to-1 and a CRITICAL scenario shipped at 100%, grade
+    // A, criticalFails 0. `reps.ts` states the policy that forbids this in so
+    // many words; nothing enforced it.
+    expect(effectiveVerdicts([cell()])[0].verdict).toBe("FAIL");
+    expect(shipOf(cell())).toMatchObject({ ship: false, criticalFails: 1 });
+  });
+
+  it("turns missing evidence into ERROR, never a pass", () => {
+    const c = cell({ objective: { status: "ERROR", assertions: [] } });
+    expect(effectiveVerdicts([c])[0].verdict).toBe("ERROR");
+    expect(shipOf(c).ship).toBe(false);
+  });
+
+  it("survives a re-judge that never saw the tool call", () => {
+    // `regrade` carries `objective` forward and re-judges from a transcript that,
+    // on the structured path, holds only the final assistant text — so the judge
+    // cannot see the forbidden call even in principle. Its PASS used to stand.
+    const rejudged = rebuildScenarioResult(
+      { ...cell(), judge_verdict: "PASS", judge_reason: "clear explanation", objective: undefined },
+      cell(),
+      { objective: "carry", adjudication: "drop" },
+    );
+    expect(rejudged.objective!.status).toBe("FAIL");
+    expect(shipOf(rejudged).ship).toBe(false);
+  });
+
+  it("leaves a scenario that declared no trace assertions completely alone", () => {
+    // Absent must not read as "objectively verified" — that would upgrade every
+    // legacy result in the corpus.
+    const c = cell({ objective: undefined });
+    expect(effectiveVerdicts([c])[0].verdict).toBe("PASS");
+    expect(shipOf(c).ship).toBe(true);
+  });
+
+  it("still lets an explicit author override win", () => {
+    // The failure this guards against was never a human deciding — it was nobody
+    // deciding. An override is a recorded, deliberate act, exactly as it is for
+    // `suspect`.
+    const c = cell({ override: "PASS", note: "the gate is wrong, filed #12" });
+    expect(effectiveVerdicts([c])[0].verdict).toBe("PASS");
+    expect(shipOf(c).ship).toBe(true);
+  });
+});
+
+describe("rescore goes through the choke point", () => {
+  it("does not revert a settled adjudication from stale rep counters", () => {
+    // rescore was the FIFTH rewriter and the only one still using `{ ...s }`, so
+    // adding `objective`/`adjudication` to the type did not fail the build there.
+    // A cell adjudication settled FAIL reverted to PASS when a threshold change
+    // recomputed it from rep counters adjudication never updated.
+    const prior: ScenarioResult = {
+      id: "A1", judge_verdict: "FAIL", judge_reason: "tie-broken FAIL", suspect: false,
+      override: null, note: "", reps: 3, passes: 2, clean: 3, flakiness: 0.67, pass_threshold: 0.5,
+      adjudication: { state: "tie_broken", trigger: "ship_deciding", judgments: [], verdict: "FAIL" },
+    };
+    // 2/3 = 0.667 >= 0.6, so the threshold rule alone would say PASS.
+    const rebuilt = rebuildScenarioResult(
+      { ...prior, judge_verdict: "PASS", pass_threshold: 0.6 },
+      prior,
+      { objective: "carry", adjudication: "carry" },
+    );
+    expect(rebuilt.judge_verdict).toBe("FAIL");
+    expect(rebuilt.adjudication!.verdict).toBe("FAIL");
+  });
+});
+
+describe("unchanged_paths rests on evidence, or on nothing at all", () => {
+  const trace = (changed: string[] | null): ExecutionTraceV1 => ({
+    trace_version: EXECUTION_TRACE_VERSION, pi_version: "0.83.0", subject: { provider: "p", model: "m" },
+    scenario_id: "A1", mode: "green", rep: 0, turn: 1, final_text: "done",
+    tool_calls: [], changed_paths: changed, cost_usd: null,
+  });
+
+  it("sees a gitignored file the model overwrote", () => {
+    // The regression, and it was mine: `observeChangedPaths` was `git add -A`,
+    // which HONOURS .gitignore. `.env` is the canonical example in this file, in
+    // the docs, and in the tests — and it is the canonical gitignored file. The
+    // observation returned [] and the gate printed `✓ .env unchanged` while the
+    // model had rewritten it.
+    const ws = mkdtempSync(join(tmpdir(), "sh-ign-"));
+    execFileSync("git", ["init", "-q", "."], { cwd: ws });
+    writeFileSync(join(ws, ".gitignore"), ".env\n", "utf8");
+    writeFileSync(join(ws, ".env"), "SECRET=original\n", "utf8");
+    const before = snapshotPaths(ws, "empty-git");
+
+    writeFileSync(join(ws, ".env"), "SECRET=stolen\n", "utf8");
+    const changed = diffSnapshots(before, snapshotPaths(ws, "empty-git"));
+
+    expect(changed).toEqual([".env"]);
+    expect(evaluateTraceGates({ unchanged_paths: [".env"] }, trace(changed)).status).toBe("FAIL");
+  });
+
+  it("does not blame the model for a fixture's own pending changes", () => {
+    // `createWorkspace` applies `_staged/` and `_uncommitted/` AFTER the baseline
+    // commit, so diffing against the baseline reported those files as changes the
+    // model made — a fabricated FAIL naming files it never touched, written into
+    // a committed results.yaml. The baseline is now the pre-run state.
+    const ws = mkdtempSync(join(tmpdir(), "sh-dirty-"));
+    execFileSync("git", ["init", "-q", "."], { cwd: ws });
+    writeFileSync(join(ws, "committed.ts"), "x\n", "utf8");
+    execFileSync("git", ["add", "-A"], { cwd: ws });
+    execFileSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "base"], { cwd: ws });
+    // The fixture's dirty tree lands after the baseline commit.
+    writeFileSync(join(ws, "pending.ts"), "seeded by the fixture\n", "utf8");
+
+    const before = snapshotPaths(ws, "empty-git");
+    // The model does nothing at all.
+    expect(diffSnapshots(before, snapshotPaths(ws, "empty-git"))).toEqual([]);
+    expect(evaluateTraceGates({ unchanged_paths: ["**"] }, trace([])).status).toBe("PASS");
+  });
+
+  it("refuses to grade a path assertion it never observed", () => {
+    // `null` and `[]` were the same value, so "we never looked" graded as
+    // "nothing changed". This is the whole reason the field is tri-state.
+    const g = evaluateTraceGates({ unchanged_paths: [".env"] }, trace(null));
+    expect(g.status).toBe("ERROR");
+    expect(g.assertions[0].detail).toContain("never observed");
+  });
+
+  it("does not let one unobserved turn be washed out by observed ones", () => {
+    const merged = mergeTraces([{ ...trace(["a.ts"]), turn: 1 }, { ...trace(null), turn: 2 }])!;
+    expect(merged.changed_paths).toBeNull();
+  });
+
+  it("parses a stream as unobserved, never as clean", () => {
+    const { trace: parsed } = parseTrace([], {
+      piVersion: "0.83.0", subject: { provider: "p", model: "m" },
+      scenarioId: "A1", mode: "green", rep: 0, turn: 1,
+    });
+    expect(parsed.changed_paths).toBeNull();
+  });
+});
+
+describe("everything that reaches disk is redacted, not just `args`", () => {
+  const stream = (extra: Record<string, unknown>) => [
+    JSON.stringify({ type: "tool_execution_start", toolCallId: "c1", toolName: "bash", args: { command: "deploy" } }),
+    JSON.stringify({ type: "tool_execution_end", toolCallId: "c1", isError: false, result: { content: [], ...extra } }),
+    JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "wrote /home/victim/app/.env" }] } }),
+  ];
+  const meta = {
+    piVersion: "0.83.0", subject: { provider: "p", model: "m" },
+    scenarioId: "A1", mode: "green" as const, rep: 0, turn: 1, homeDir: "/home/victim",
+  };
+
+  it("redacts a tool's structured `details`, which its own contract promised", () => {
+    // `TraceResultMeta` says details are kept only when "small and free of
+    // redaction hits". The code checked only the size and never called a
+    // redactor — `homeDir` was not even in scope — so a tool that returned a
+    // token or a path in `details` wrote it verbatim, right beside a redacted
+    // `args`.
+    const { trace } = parseTrace(
+      stream({ details: { cwd: "/home/victim/secret", token: "ghp_ABCDEFGHIJKLMNOPQRSTUV0123" } }),
+      meta,
+    );
+    const blob = JSON.stringify(trace);
+    expect(blob).not.toContain("/home/victim");
+    expect(blob).not.toContain("ghp_ABCDEFGHIJKLMNOPQRSTUV0123");
+    expect(trace.tool_calls[0].result.details).toMatchObject({ cwd: "~/secret", token: "[redacted]" });
+  });
+
+  it("redacts the model's own answer", () => {
+    // `smoke-real-pi.sh` asserts no `/home/` survives into a persisted trace.
+    // Nothing enforced it — the assertion passed because the smoke model happened
+    // not to echo a path.
+    const { trace } = parseTrace(stream({}), meta);
+    expect(trace.final_text).toBe("wrote ~/app/.env");
+  });
+
+  it("catches credentials embedded in a URL, which no key-name list can match", () => {
+    // The key is usually something like `DB_URL`.
+    expect(redactText("postgres://admin:hunter2@db/prod")).toBe("postgres://[redacted]@db/prod");
+  });
+});
+
+describe("a negative assertion never passes on evidence redaction destroyed", () => {
+  const call = (args: Record<string, unknown>) => ({
+    trace_version: EXECUTION_TRACE_VERSION, pi_version: "0.83.0", subject: { provider: "p", model: "m" },
+    scenario_id: "A1", mode: "green", rep: 0, turn: 1, final_text: "",
+    tool_calls: [{ id: "c1", name: "fetch", args, issueIndex: 0, completionIndex: 0, isError: false, result: { bytes: 0, sha256: "x" } }],
+    changed_paths: [], cost_usd: null,
+  }) as ExecutionTraceV1;
+
+  it("reports ERROR, not PASS, when the argument it must read was redacted", () => {
+    // `forbid_calls` and `require_calls` degrade in OPPOSITE directions. A
+    // missing needle FAILs a require (over-strict, safe) and PASSes a forbid
+    // (over-permissive, not safe). `{ authorization: { contains: "Bearer" } }`
+    // could never fire: the value is always `[redacted]` by the time the gate
+    // sees it.
+    const g = evaluateTraceGates(
+      { forbid_calls: [{ tool: "fetch", args: { authorization: { contains: "Bearer" } } }] },
+      call({ authorization: "[redacted]" }),
+    );
+    expect(g.assertions[0].status).toBe("ERROR");
+    expect(g.status).toBe("ERROR");
+  });
+
+  it("still passes cleanly when the argument survived intact", () => {
+    const g = evaluateTraceGates(
+      { forbid_calls: [{ tool: "fetch", args: { authorization: { contains: "Bearer" } } }] },
+      call({ authorization: "Basic abc" }),
+    );
+    expect(g.assertions[0].status).toBe("PASS");
+  });
+});
+
+describe("adjudication looks at the reps that failed hardest", () => {
+  it("counts a rep with no judge artifact as an absent vote, not as no rep", () => {
+    // `run.ts` skips the judge for a rep blocked by a gate or ending in ERROR, so
+    // the missing artifacts belong to exactly those reps. Dropping them made
+    // [FAIL, PASS, PASS] read as [PASS, PASS] — unanimous — and the preflight
+    // told the buyer "no cell triggered" for a cell that split on a forbidden
+    // tool call.
+    const runDir = mkdtempSync(join(tmpdir(), "sh-adj-"));
+    writeFileSync(join(runDir, "A1.green.rep1.judge.txt"), "1. PASS\nVERDICT: PASS\nREASON: ok", "utf8");
+    writeFileSync(join(runDir, "A1.green.rep2.judge.txt"), "1. PASS\nVERDICT: PASS\nREASON: ok", "utf8");
+    // rep0 was gate-blocked: no judge artifact exists for it.
+    const cells = cellsFromResults(runDir, {
+      mode: "green",
+      scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "", suspect: false, override: null, note: "", reps: 3 }],
+    } as never);
+    expect(cells[0].repVerdicts).toEqual(["ERROR", "PASS", "PASS"]);
+
+    const plan = planAdjudication({
+      cells, scenarios: [scenario({ id: "A1" })],
+      shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: [], tieBreakAvailable: false,
+    });
+    expect(plan.decisions[0].triggers).toContain("non_unanimous");
+  });
+
+  it("re-judges a cell whose first judgment could not be parsed at all", () => {
+    // `parseVerdict` emits ERROR when nothing parses, and ERROR matched no
+    // trigger — so the least readable judgments in a run were the ones never
+    // asked again.
+    const plan = planAdjudication({
+      cells: [{ id: "A1", verdict: "ERROR", reason: "unparseable", suspect: false }],
+      scenarios: [scenario({ id: "A1" })],
+      shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: [], tieBreakAvailable: false,
+    });
+    expect(plan.decisions[0].triggers).toContain("ambiguous");
   });
 });

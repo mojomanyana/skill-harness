@@ -1,3 +1,4 @@
+import { EXECUTION_TRACE_VERSION } from "../src/capture-trace-types.js";
 import { describe, it, expect, beforeEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -45,7 +46,7 @@ scenarios:
 
 const OBJECTIVE: ObjectiveResult = {
   status: "PASS",
-  trace_version: 1,
+  trace_version: EXECUTION_TRACE_VERSION,
   trace_sha256: "a".repeat(64),
   assertions: [{ kind: "forbid_call", status: "PASS", detail: "`write` not called" }],
 };
@@ -75,7 +76,7 @@ function writeTrace() {
   writeFileSync(
     join(runDir, "A1.green.trace.jsonl"),
     `${JSON.stringify({
-      trace_version: 1, pi_version: "0.83.0", subject: { provider: "fireworks", model: "x" },
+      trace_version: EXECUTION_TRACE_VERSION, pi_version: "0.83.0", subject: { provider: "fireworks", model: "x" },
       scenario_id: "A1", mode: "green", rep: 0, turn: 0,
       final_text: "done", tool_calls: [], changed_paths: [], cost_usd: 0,
       trace_sha256: "b".repeat(64),
@@ -215,13 +216,35 @@ describe("rebuildScenarioResult", () => {
   });
 
   it("takes verdict, reason, suspect and aggregation shape from the fresh result", () => {
-    const r = rebuildScenarioResult(fresh(), prior(), { objective: "carry", adjudication: "carry" });
+    const r = rebuildScenarioResult(fresh(), { ...prior(), adjudication: undefined }, { objective: "carry", adjudication: "carry" });
     expect(r.judge_verdict).toBe("FAIL");
     expect(r.judge_reason).toBe("fresh reason");
     expect(r.suspect).toBe(false);
     expect(r.reps).toBe(3);
     expect(r.flakiness).toBe(0.9);
     expect(r.pass_threshold).toBe(0.5);
+  });
+
+  it("re-derives suspect from a CARRIED unresolved adjudication", () => {
+    // `unresolved` is carried by `suspect` and by nothing else — the block
+    // records why, but `suspect` is what the ship bar reads. Taking `suspect`
+    // from `fresh` while carrying the block published a record reading
+    // `state: "unresolved"` that scored as a clean SHIP. `regate` did exactly
+    // that, so a free offline command resolved a judge disagreement in favour of
+    // shipping.
+    const r = rebuildScenarioResult(fresh(), prior(), { objective: "carry", adjudication: "carry" });
+    expect(r.adjudication!.state).toBe("unresolved");
+    expect(r.suspect).toBe(true);
+  });
+
+  it("keeps a SETTLED adjudication's verdict instead of reverting to the first wave", () => {
+    // `regate` re-measures gates, not judgments. Re-reading `<id>.judge.txt`
+    // reverted a verdict two or three judges had settled, leaving
+    // `adjudication.verdict` contradicting the `judge_verdict` beside it.
+    const settled = { ...prior(), adjudication: { ...ADJUDICATION, state: "tie_broken" as const, verdict: "PASS" as const } };
+    const r = rebuildScenarioResult({ ...fresh(), judge_verdict: "FAIL" }, settled, { objective: "carry", adjudication: "carry" });
+    expect(r.judge_verdict).toBe("PASS");
+    expect(r.suspect).toBe(false);
   });
 
   it.each([

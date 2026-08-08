@@ -372,6 +372,7 @@ scenarios:
       - integrates the planning subagent's recommendation
 
     env:
+      workspace: empty-git         # required: `unchanged_paths` needs a tree to observe
       extensions:                     # closed loading: ONLY these load
         - ../../.pi/extensions/subagents/index.ts
 

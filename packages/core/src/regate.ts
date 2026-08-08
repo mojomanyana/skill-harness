@@ -192,21 +192,32 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
       let objective: ObjectiveResult | undefined;
       if (scenario.traceAssert) {
         const tp = tracePath(opts.runDir, scenario.id, mode, rep);
-        const merged = existsSync(tp)
-          ? mergeTraces(
-              readFileSync(tp, "utf8").split("\n").filter((l) => l.trim())
-                .map((l) => deserializeTrace(l))
-                .filter((t): t is NonNullable<typeof t> => t !== null),
-            )
-          : null;
+        // A PARTIAL read is refused, not graded. `deserializeTrace` returns null
+        // for a malformed line and for a version it declines, and dropping those
+        // silently graded whatever survived: a 3-turn trace with a torn middle
+        // line reported `forbid_calls: [bash] → PASS` when the lost turn was the
+        // one that called bash. The write side already refuses an incomplete
+        // stream (`pi.ts` throws on no terminal event) precisely so "called
+        // nothing" and "recorded nothing" cannot look the same; the read side
+        // has to hold the same line.
+        const lines = existsSync(tp)
+          ? readFileSync(tp, "utf8").split("\n").filter((l) => l.trim())
+          : [];
+        const parsed = lines.map((l) => deserializeTrace(l));
+        const usable = parsed.filter((t): t is NonNullable<typeof t> => t !== null);
+        const merged = usable.length === lines.length ? mergeTraces(usable) : null;
         if (merged === null) {
-          traceFailure = "objective: saved trace is missing or unreadable — cannot re-evaluate assert.trace";
+          traceFailure =
+            usable.length === lines.length
+              ? "objective: saved trace is missing or unreadable — cannot re-evaluate assert.trace"
+              : `objective: saved trace is incomplete (${usable.length}/${lines.length} turns readable) — cannot re-evaluate assert.trace`;
           objective = { status: "ERROR", assertions: [] };
         } else {
           const g = evaluateTraceGates(scenario.traceAssert, merged);
           objective = { status: g.status, trace_version: merged.trace_version, trace_sha256: merged.trace_sha256, assertions: g.assertions };
-          if (g.status === "FAIL") {
-            traceFailure = `objective: ${g.assertions.filter((x) => x.status === "FAIL").map((x) => x.detail).join("; ")}`;
+          if (g.status === "FAIL" || g.status === "ERROR") {
+            const bad = g.assertions.filter((x) => x.status === g.status).map((x) => x.detail);
+            traceFailure = `objective: ${bad.join("; ")}`;
           }
         }
       }

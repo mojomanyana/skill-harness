@@ -18,8 +18,11 @@
 # guaranteed to trigger (one scenario, min_pass == total, so the single cell is
 # always `ship_deciding`).
 #
-# Cost: ~2 subject calls on a cheap Fireworks model plus 1 judge call on the
-# Claude subscription. Measured well under a cent of subject spend.
+# Cost: 1 subject call on a cheap Fireworks model, plus 3 judge calls on the
+# Claude subscription — one in `run`, one in `grade`'s re-judge, and one for
+# adjudication's secondary opinion. Measured well under a cent of subject spend.
+# Counted rather than estimated: this file asserts that spend is never implicit,
+# so its own disclosure has to be right.
 #
 set -euo pipefail
 

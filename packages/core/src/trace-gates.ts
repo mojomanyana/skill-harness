@@ -123,7 +123,13 @@ export function normalizeSubagentCall(args: Record<string, unknown>): SubagentIn
 // Evaluation
 // ---------------------------------------------------------------------------
 
-export type AssertionStatus = "PASS" | "FAIL";
+/**
+ * ERROR is a third outcome, not a shade of FAIL: it means the assertion could
+ * not be evaluated because the evidence is absent. The two call for different
+ * fixes — a FAIL means change the skill, an ERROR means the harness could not
+ * look — and only one of them is a finding about the model.
+ */
+export type AssertionStatus = "PASS" | "FAIL" | "ERROR";
 
 export interface AssertionResult {
   kind: "require_call" | "require_subagent" | "forbid_call" | "unchanged_path";
@@ -140,6 +146,10 @@ export interface TraceGateResult {
  * Evaluate every assertion. All of them run even after the first failure — a
  * scorecard that reports one problem per run makes the author re-run to find the
  * second, and re-running is the expensive thing this whole layer exists to avoid.
+ *
+ * (One deliberate exception, marked inline in the `require_subagents` loop: the
+ * three sub-questions there are reported separately, and a later one is skipped
+ * when an earlier one already established there is nothing to ask it about.)
  */
 export function evaluateTraceGates(assert: TraceAssert, trace: ExecutionTraceV1): TraceGateResult {
   const assertions: AssertionResult[] = [];
@@ -215,18 +225,37 @@ export function evaluateTraceGates(assert: TraceAssert, trace: ExecutionTraceV1)
     }
     for (const needle of req.task_excludes ?? []) {
       const leaked = matched.filter((i) => i.task.includes(needle));
+      // Same asymmetry as `forbid_calls`: a leak check that ran over a truncated
+      // or redacted task has not established that nothing leaked.
+      const lost = leaked.length === 0 && matched.some((i) => valueWasLost(i.task));
       assertions.push({
         kind: "require_subagent",
-        status: leaked.length === 0 ? "PASS" : "FAIL",
-        detail: leaked.length === 0
-          ? `handoff to \`${req.agent}\` did not carry ${JSON.stringify(needle)}`
-          : `handoff to \`${req.agent}\` leaked forbidden content ${JSON.stringify(needle)}`,
+        status: lost ? "ERROR" : leaked.length === 0 ? "PASS" : "FAIL",
+        detail: lost
+          ? `leak check on the handoff to \`${req.agent}\` could not be run — the task text was redacted or truncated before the trace was written`
+          : leaked.length === 0
+            ? `handoff to \`${req.agent}\` did not carry ${JSON.stringify(needle)}`
+            : `handoff to \`${req.agent}\` leaked forbidden content ${JSON.stringify(needle)}`,
       });
     }
   }
 
   for (const forbid of assert.forbid_calls ?? []) {
     const hits = trace.tool_calls.filter((c) => c.name === forbid.tool && argsMatch(c, forbid.args));
+    // A "not called" verdict is only trustworthy if the arguments it searched
+    // were intact. Where redaction destroyed one, the honest answer is that the
+    // assertion could not be checked.
+    const lost = [...new Set(
+      trace.tool_calls.filter((c) => c.name === forbid.tool).flatMap((c) => lostArgs(c, forbid.args)),
+    )];
+    if (hits.length === 0 && lost.length > 0) {
+      assertions.push({
+        kind: "forbid_call",
+        status: "ERROR",
+        detail: `\`${forbid.tool}\`${describeArgs(forbid.args)} could not be checked — ${lost.map((k) => `\`${k}\``).join(", ")} was redacted or truncated before the trace was written`,
+      });
+      continue;
+    }
     assertions.push(
       hits.length === 0
         ? { kind: "forbid_call", status: "PASS", detail: `\`${forbid.tool}\`${describeArgs(forbid.args)} not called` }
@@ -239,6 +268,18 @@ export function evaluateTraceGates(assert: TraceAssert, trace: ExecutionTraceV1)
   }
 
   for (const pattern of assert.unchanged_paths ?? []) {
+    // `null` is "we never looked", and it must not be graded. The whole tri-state
+    // exists so this branch can be written: an unobserved workspace produces
+    // ERROR, which blocks the ship, rather than the vacuous PASS an empty list
+    // used to produce.
+    if (trace.changed_paths === null) {
+      assertions.push({
+        kind: "unchanged_path",
+        status: "ERROR",
+        detail: `\`${pattern}\` could not be checked — the workspace was never observed`,
+      });
+      continue;
+    }
     const changed = trace.changed_paths.filter((p) => matchesGlob(pattern, p));
     assertions.push(
       changed.length === 0
@@ -248,7 +289,14 @@ export function evaluateTraceGates(assert: TraceAssert, trace: ExecutionTraceV1)
   }
 
   return {
-    status: assertions.some((a) => a.status === "FAIL") ? "FAIL" : "PASS",
+    // ERROR outranks FAIL: "the evidence is missing" must never be reported as
+    // "the assertion held", and it must not be softened into a plain failure
+    // either — the two call for different fixes.
+    status: assertions.some((a) => a.status === "ERROR")
+      ? "ERROR"
+      : assertions.some((a) => a.status === "FAIL")
+        ? "FAIL"
+        : "PASS",
     assertions,
   };
 }
@@ -287,6 +335,39 @@ function argsMatch(call: TraceToolCall, args?: Record<string, ArgPredicate>): bo
  * reach here — `parseTraceAssert` rejects it at load time, so a typo'd operator
  * is a spec error rather than an assertion that silently passes.
  */
+/**
+ * Did redaction destroy the value this predicate needs to read?
+ *
+ * Trace arguments are redacted, truncated and depth-bounded before they are
+ * persisted — necessary, since they reach disk. But the gate then evaluates
+ * predicates against that lossy projection, and the two failure directions are
+ * not symmetric:
+ *
+ * - `require_calls` degrades SAFELY: a needle that redaction removed simply is
+ *   not found, and the assertion FAILS. Over-strict, never over-permissive.
+ * - `forbid_calls` and `task_excludes` degrade DANGEROUSLY: the predicate cannot
+ *   match, so the forbidden thing is reported as absent. `forbid_calls` on
+ *   `{ authorization: { contains: "Bearer" } }` could never fire, because the
+ *   value is always `[redacted]` by the time the gate sees it.
+ *
+ * So the negative assertions ask this first, and report ERROR — "could not be
+ * checked" — instead of a PASS they have not earned.
+ */
+function valueWasLost(value: unknown): boolean {
+  if (typeof value === "string") {
+    return value === "[redacted]" || value === "[nested]" || value.includes("… [truncated ");
+  }
+  if (Array.isArray(value)) return value.some(valueWasLost);
+  if (value && typeof value === "object") return Object.values(value).some(valueWasLost);
+  return false;
+}
+
+/** The arg names a predicate set reads whose values redaction has destroyed. */
+function lostArgs(call: TraceToolCall, args: Record<string, ArgPredicate> | undefined): string[] {
+  if (!args) return [];
+  return Object.keys(args).filter((key) => valueWasLost(call.args[key]));
+}
+
 export function testPredicate(value: unknown, p: ArgPredicate): boolean {
   if (p.exists !== undefined) {
     if (p.exists !== (value !== undefined && value !== null)) return false;

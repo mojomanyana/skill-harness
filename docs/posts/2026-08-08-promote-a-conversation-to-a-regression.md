@@ -8,7 +8,7 @@ noticed. That is the whole expensive part of testing — *finding* the failure.
 What usually happens next is that you fix the skill, the conversation scrolls
 away, and nothing stops the failure coming back.
 
-`skill-harness` 0.7.0 adds one command to close that gap:
+`skill-harness` adds one command to close that gap:
 
 ```
 /skill-harness capture

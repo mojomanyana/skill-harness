@@ -2449,15 +2449,25 @@ function evaluateTraceGates(assert, trace) {
     }
     for (const needle of req.task_excludes ?? []) {
       const leaked = matched.filter((i) => i.task.includes(needle));
+      const lost = leaked.length === 0 && matched.some((i) => valueWasLost(i.task));
       assertions.push({
         kind: "require_subagent",
-        status: leaked.length === 0 ? "PASS" : "FAIL",
-        detail: leaked.length === 0 ? `handoff to \`${req.agent}\` did not carry ${JSON.stringify(needle)}` : `handoff to \`${req.agent}\` leaked forbidden content ${JSON.stringify(needle)}`
+        status: lost ? "ERROR" : leaked.length === 0 ? "PASS" : "FAIL",
+        detail: lost ? `leak check on the handoff to \`${req.agent}\` could not be run \u2014 the task text was redacted or truncated before the trace was written` : leaked.length === 0 ? `handoff to \`${req.agent}\` did not carry ${JSON.stringify(needle)}` : `handoff to \`${req.agent}\` leaked forbidden content ${JSON.stringify(needle)}`
       });
     }
   }
   for (const forbid of assert.forbid_calls ?? []) {
     const hits = trace.tool_calls.filter((c) => c.name === forbid.tool && argsMatch(c, forbid.args));
+    const lost = [...new Set(trace.tool_calls.filter((c) => c.name === forbid.tool).flatMap((c) => lostArgs(c, forbid.args)))];
+    if (hits.length === 0 && lost.length > 0) {
+      assertions.push({
+        kind: "forbid_call",
+        status: "ERROR",
+        detail: `\`${forbid.tool}\`${describeArgs(forbid.args)} could not be checked \u2014 ${lost.map((k) => `\`${k}\``).join(", ")} was redacted or truncated before the trace was written`
+      });
+      continue;
+    }
     assertions.push(hits.length === 0 ? { kind: "forbid_call", status: "PASS", detail: `\`${forbid.tool}\`${describeArgs(forbid.args)} not called` } : {
       kind: "forbid_call",
       status: "FAIL",
@@ -2465,11 +2475,22 @@ function evaluateTraceGates(assert, trace) {
     });
   }
   for (const pattern of assert.unchanged_paths ?? []) {
+    if (trace.changed_paths === null) {
+      assertions.push({
+        kind: "unchanged_path",
+        status: "ERROR",
+        detail: `\`${pattern}\` could not be checked \u2014 the workspace was never observed`
+      });
+      continue;
+    }
     const changed = trace.changed_paths.filter((p) => matchesGlob(pattern, p));
     assertions.push(changed.length === 0 ? { kind: "unchanged_path", status: "PASS", detail: `\`${pattern}\` unchanged` } : { kind: "unchanged_path", status: "FAIL", detail: `\`${pattern}\` changed: ${changed.join(", ")}` });
   }
   return {
-    status: assertions.some((a) => a.status === "FAIL") ? "FAIL" : "PASS",
+    // ERROR outranks FAIL: "the evidence is missing" must never be reported as
+    // "the assertion held", and it must not be softened into a plain failure
+    // either — the two call for different fixes.
+    status: assertions.some((a) => a.status === "ERROR") ? "ERROR" : assertions.some((a) => a.status === "FAIL") ? "FAIL" : "PASS",
     assertions
   };
 }
@@ -2494,6 +2515,21 @@ function argsMatch(call, args) {
   if (!args)
     return true;
   return Object.entries(args).every(([key, predicate]) => testPredicate(call.args[key], predicate));
+}
+function valueWasLost(value) {
+  if (typeof value === "string") {
+    return value === "[redacted]" || value === "[nested]" || value.includes("\u2026 [truncated ");
+  }
+  if (Array.isArray(value))
+    return value.some(valueWasLost);
+  if (value && typeof value === "object")
+    return Object.values(value).some(valueWasLost);
+  return false;
+}
+function lostArgs(call, args) {
+  if (!args)
+    return [];
+  return Object.keys(args).filter((key) => valueWasLost(call.args[key]));
 }
 function testPredicate(value, p) {
   if (p.exists !== void 0) {
@@ -3056,7 +3092,7 @@ function facets(s) {
     // APPENDED CONDITIONALLY, never as a fixed slot. This tuple is positional and
     // its hash is stored in every published results.yaml, so adding an
     // unconditional element re-hashes every scenario that never used the field —
-    // measured: 83 lint findings became 261 across the reference corpus, all of
+    // measured: 62 real lint findings became 261 across the reference corpus, all of
     // them demanding paid re-runs for scenarios nobody had edited.
     stimulus: JSON.stringify([
       id,
@@ -3171,52 +3207,12 @@ function scenarioSourceKeys(s) {
   return keys;
 }
 
-// packages/core/dist/util/exec.js
-import { spawn } from "node:child_process";
-import { existsSync as existsSync2 } from "node:fs";
-import { join as join3, delimiter } from "node:path";
-function exec(cmd, args, opts = {}) {
-  return new Promise((resolve12, reject) => {
-    const child = spawn(cmd, args, {
-      cwd: opts.cwd,
-      env: opts.env ?? process.env,
-      stdio: ["ignore", "pipe", "pipe"]
-    });
-    let stdout = "";
-    let stderr = "";
-    let timer;
-    if (opts.timeoutMs) {
-      timer = setTimeout(() => {
-        child.kill("SIGKILL");
-        stderr += `
-[skill-harness] killed after ${opts.timeoutMs}ms timeout`;
-      }, opts.timeoutMs);
-    }
-    child.stdout.on("data", (d) => stdout += d.toString());
-    child.stderr.on("data", (d) => stderr += d.toString());
-    child.on("error", (e) => {
-      if (timer)
-        clearTimeout(timer);
-      reject(e);
-    });
-    child.on("close", (code) => {
-      if (timer)
-        clearTimeout(timer);
-      resolve12({ stdout, stderr, code });
-    });
-  });
-}
-function onPath(bin) {
-  const dirs = (process.env.PATH ?? "").split(delimiter);
-  const exts = process.platform === "win32" ? ["", ".exe", ".cmd", ".bat"] : [""];
-  return dirs.some((d) => d && exts.some((ext) => existsSync2(join3(d, bin + ext))));
-}
-
 // packages/core/dist/workspace.js
-import { appendFileSync, cpSync, existsSync as existsSync3, mkdtempSync, readFileSync as readFileSync3, readdirSync as readdirSync3, rmSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync as existsSync2, mkdtempSync, readFileSync as readFileSync3, readdirSync as readdirSync3, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { createHash as createHash2 } from "node:crypto";
 import { tmpdir } from "node:os";
-import { isAbsolute as isAbsolute2, join as join4, resolve as resolve3 } from "node:path";
+import { isAbsolute as isAbsolute2, join as join3, resolve as resolve3 } from "node:path";
 var GIT_TIMEOUT_MS = 3e4;
 var UNCOMMITTED_DIR = "_uncommitted";
 var STAGED_DIR = "_staged";
@@ -3232,8 +3228,8 @@ function assertKnownMarkers(src) {
 }
 var TOOL_ARTIFACTS = ["node_modules/", "coverage/", ".vitest/"];
 function excludeToolArtifacts(cwd) {
-  const excludeFile = join4(cwd, ".git", "info", "exclude");
-  const existing = existsSync3(excludeFile) ? readFileSync3(excludeFile, "utf8") : "";
+  const excludeFile = join3(cwd, ".git", "info", "exclude");
+  const existing = existsSync2(excludeFile) ? readFileSync3(excludeFile, "utf8") : "";
   const nl = existing.length > 0 && !existing.endsWith("\n") ? "\n" : "";
   appendFileSync(excludeFile, `${nl}# skill-harness: tool output, never the model's work
 ${TOOL_ARTIFACTS.join("\n")}
@@ -3246,14 +3242,14 @@ function gitBaseline(cwd) {
   execFileSync("git", ["-c", "user.email=sh@local", "-c", "user.name=skill-harness", "commit", "-q", "--allow-empty", "-m", "baseline"], { cwd, timeout: GIT_TIMEOUT_MS });
 }
 function addLocalRemote(cwd) {
-  const bare = mkdtempSync(join4(tmpdir(), "sc-remote-")) + ".git";
+  const bare = mkdtempSync(join3(tmpdir(), "sc-remote-")) + ".git";
   execFileSync("git", ["init", "-q", "--bare", "-b", "main", bare], { timeout: GIT_TIMEOUT_MS });
   execFileSync("git", ["remote", "add", "origin", bare], { cwd, timeout: GIT_TIMEOUT_MS });
   execFileSync("git", ["push", "-q", "-u", "origin", "main"], { cwd, timeout: GIT_TIMEOUT_MS });
   return bare;
 }
 function createWorkspace(kind, opts) {
-  const cwd = mkdtempSync(join4(tmpdir(), "sc-ws-"));
+  const cwd = mkdtempSync(join3(tmpdir(), "sc-ws-"));
   let bare = null;
   const cleanup = () => {
     rmSync(cwd, { recursive: true, force: true });
@@ -3268,10 +3264,10 @@ function createWorkspace(kind, opts) {
         bare = addLocalRemote(cwd);
     } else {
       const src = isAbsolute2(kind.fixture) ? kind.fixture : resolve3(opts.specDir, kind.fixture);
-      if (!existsSync3(src))
+      if (!existsSync2(src))
         throw new Error(`fixture not found: ${src}`);
       assertKnownMarkers(src);
-      const pending = [STAGED_DIR, UNCOMMITTED_DIR].map((d) => join4(src, d));
+      const pending = [STAGED_DIR, UNCOMMITTED_DIR].map((d) => join3(src, d));
       cpSync(src, cwd, {
         recursive: true,
         filter: (from) => !pending.includes(from)
@@ -3281,11 +3277,11 @@ function createWorkspace(kind, opts) {
       if (opts.remote)
         bare = addLocalRemote(cwd);
       const [staged, uncommitted] = pending;
-      if (existsSync3(staged)) {
+      if (existsSync2(staged)) {
         cpSync(staged, cwd, { recursive: true });
         execFileSync("git", ["add", "-A"], { cwd, timeout: GIT_TIMEOUT_MS });
       }
-      if (existsSync3(uncommitted))
+      if (existsSync2(uncommitted))
         cpSync(uncommitted, cwd, { recursive: true });
     }
   } catch (e) {
@@ -3294,16 +3290,48 @@ function createWorkspace(kind, opts) {
   }
   return { cwd, cleanup };
 }
-async function observeChangedPaths(cwd, kind) {
-  if (kind === "none")
+var SNAPSHOT_SKIP = /* @__PURE__ */ new Set([".git", "node_modules", "coverage", ".vitest"]);
+function snapshotPaths(cwd, kind) {
+  if (kind === "none" || !cwd || !existsSync2(cwd))
     return null;
-  const add = await exec("git", ["add", "-A"], { cwd, timeoutMs: 3e4 });
-  if (add.code !== 0)
+  const out = /* @__PURE__ */ new Map();
+  const walk2 = (dir, prefix) => {
+    let entries;
+    try {
+      entries = readdirSync3(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (SNAPSHOT_SKIP.has(e.name))
+        continue;
+      const rel = prefix ? `${prefix}/${e.name}` : e.name;
+      const abs = join3(dir, e.name);
+      if (e.isDirectory()) {
+        walk2(abs, rel);
+      } else if (e.isFile()) {
+        try {
+          out.set(rel, createHash2("sha256").update(readFileSync3(abs)).digest("hex"));
+        } catch {
+          out.set(rel, "<unreadable>");
+        }
+      }
+    }
+  };
+  walk2(cwd, "");
+  return out;
+}
+function diffSnapshots(before, after) {
+  if (!before || !after)
     return null;
-  const named = await exec("git", ["diff", "--cached", "--name-only"], { cwd, timeoutMs: 3e4 });
-  if (named.code !== 0)
-    return null;
-  return named.stdout.split("\n").map((l) => l.trim()).filter(Boolean);
+  const changed = /* @__PURE__ */ new Set();
+  for (const [path, hash] of after)
+    if (before.get(path) !== hash)
+      changed.add(path);
+  for (const path of before.keys())
+    if (!after.has(path))
+      changed.add(path);
+  return [...changed].sort();
 }
 
 // packages/core/dist/grade.js
@@ -3394,8 +3422,8 @@ async function judgeInWorkspace(adapter, judge, prompt, specDir) {
 }
 
 // packages/core/dist/results.js
-import { mkdirSync, readFileSync as readFileSync4, writeFileSync, existsSync as existsSync4, readdirSync as readdirSync4, appendFileSync as appendFileSync2 } from "node:fs";
-import { join as join5, relative, sep } from "node:path";
+import { mkdirSync, readFileSync as readFileSync4, writeFileSync, existsSync as existsSync3, readdirSync as readdirSync4, appendFileSync as appendFileSync2 } from "node:fs";
+import { join as join4, relative, sep } from "node:path";
 
 // packages/core/dist/adapters/types.js
 function parseModelRef(token) {
@@ -3484,22 +3512,31 @@ function timestampSlug(iso) {
   return iso.replace(/[:.]/g, "-");
 }
 function runDirFor(skillDir, harness, model, timestamp) {
-  return join5(skillDir, "tests", "results", `${harness}-${modelSlug(model)}`, timestampSlug(timestamp));
+  return join4(skillDir, "tests", "results", `${harness}-${modelSlug(model)}`, timestampSlug(timestamp));
 }
 function transcriptPath(runDir, scenarioId, mode, rep) {
   const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
-  return join5(runDir, `${base}.txt`);
+  return join4(runDir, `${base}.txt`);
 }
 function resultsPath(runDir) {
-  return join5(runDir, "results.yaml");
+  return join4(runDir, "results.yaml");
 }
 function effectiveVerdicts(scenarios) {
   return scenarios.map((s) => ({
     id: s.id,
-    verdict: s.override ?? s.judge_verdict,
+    verdict: s.override ?? objectiveVerdict(s) ?? s.judge_verdict,
     suspect: s.suspect && s.override == null
     // an override resolves the misfire
   }));
+}
+function objectiveVerdict(s) {
+  if (!s.objective)
+    return void 0;
+  if (s.objective.status === "ERROR")
+    return "ERROR";
+  if (s.objective.status === "FAIL")
+    return "FAIL";
+  return void 0;
 }
 function finalizeResults(draft, ctx) {
   let effective_grade;
@@ -3601,8 +3638,8 @@ report.html
 `;
 function ensureResultsGitignore(resultsRoot) {
   mkdirSync(resultsRoot, { recursive: true });
-  const giPath = join5(resultsRoot, ".gitignore");
-  const existing = existsSync4(giPath) ? readFileSync4(giPath, "utf8") : "";
+  const giPath = join4(resultsRoot, ".gitignore");
+  const existing = existsSync3(giPath) ? readFileSync4(giPath, "utf8") : "";
   if (existing.startsWith(GITIGNORE_BODY))
     return;
   const preserved = existing.split("\n").filter((l) => l.startsWith("!") && l.trim() !== "!results.yaml");
@@ -3627,7 +3664,7 @@ function sortByRep(files) {
   });
 }
 function findTranscriptFiles(runDir, scenarioId, mode) {
-  if (!existsSync4(runDir))
+  if (!existsSync3(runDir))
     return [];
   const escapedId = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const matcher = mode !== void 0 ? new RegExp(`^${escapedId}\\.${mode}(\\.rep\\d+)?\\.txt$`) : null;
@@ -3636,18 +3673,18 @@ function findTranscriptFiles(runDir, scenarioId, mode) {
 }
 function judgeRawPath(runDir, scenarioId, mode, rep) {
   const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
-  return join5(runDir, `${base}.judge.txt`);
+  return join4(runDir, `${base}.judge.txt`);
 }
 function findJudgeRawFiles(runDir, scenarioId, mode) {
-  if (!existsSync4(runDir))
+  if (!existsSync3(runDir))
     return [];
   const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.judge\\.txt$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.judge\\.txt$`);
+  const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.judge\\d*\\.txt$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.judge\\d*\\.txt$`);
   return sortByRep(readdirSync4(runDir).filter((f) => re.test(f)));
 }
 function diffPath(runDir, scenarioId, mode, rep) {
   const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
-  return join5(runDir, `${base}.diff.txt`);
+  return join4(runDir, `${base}.diff.txt`);
 }
 function rebuildScenarioResult(fresh, prior, policy) {
   const { id, judge_verdict, judge_reason, suspect, override: _freshOverride, note: _freshNote, reps: reps2, passes, clean, flakiness, pass_threshold, objective: freshObjective, adjudication: freshAdjudication, ...rest } = fresh;
@@ -3662,14 +3699,13 @@ function rebuildScenarioResult(fresh, prior, policy) {
   };
   const objective = pick(policy.objective, freshObjective, prior?.objective);
   const adjudication = pick(policy.adjudication, freshAdjudication, prior?.adjudication);
+  const unresolved = adjudication?.state === "unresolved";
+  const settled = policy.adjudication === "carry" ? adjudication?.verdict : void 0;
   return {
     id,
-    judge_verdict,
+    judge_verdict: settled ?? judge_verdict,
     judge_reason,
-    suspect,
-    // The author owns the verdict; a re-measurement never discards their call.
-    override: prior?.override ?? null,
-    note: prior?.note ?? "",
+    suspect: suspect || unresolved,
     // Aggregation shape always comes from the fresh computation — these describe
     // how THIS result was aggregated, not the previous one.
     ...reps2 === void 0 ? {} : { reps: reps2 },
@@ -3677,6 +3713,9 @@ function rebuildScenarioResult(fresh, prior, policy) {
     ...clean === void 0 ? {} : { clean },
     ...flakiness === void 0 ? {} : { flakiness },
     ...pass_threshold === void 0 ? {} : { pass_threshold },
+    // The author owns the verdict; a re-measurement never discards their call.
+    override: prior?.override ?? null,
+    note: prior?.note ?? "",
     // Omitted rather than set to undefined: absent must stay absent, so a result
     // with no evidence serialises byte-identically to one from before the field
     // existed.
@@ -3686,29 +3725,41 @@ function rebuildScenarioResult(fresh, prior, policy) {
 }
 function tracePath(runDir, scenarioId, mode, rep) {
   const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
-  return join5(runDir, `${base}.trace.jsonl`);
+  return join4(runDir, `${base}.trace.jsonl`);
 }
 function findDiffFiles(runDir, scenarioId, mode) {
-  if (!existsSync4(runDir))
+  if (!existsSync3(runDir))
     return [];
   const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.diff\\.txt$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.diff\\.txt$`);
+  return sortByRep(readdirSync4(runDir).filter((f) => re.test(f)));
+}
+function findTraceFiles(runDir, scenarioId, mode) {
+  if (!existsSync3(runDir))
+    return [];
+  const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.trace\\.jsonl$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.trace\\.jsonl$`);
   return sortByRep(readdirSync4(runDir).filter((f) => re.test(f)));
 }
 function preserveTranscript(resultsRoot, runDir, scenarioId) {
   const files = [
     ...findTranscriptFiles(runDir, scenarioId),
     ...findJudgeRawFiles(runDir, scenarioId),
-    ...findDiffFiles(runDir, scenarioId)
+    ...findDiffFiles(runDir, scenarioId),
+    // On a trace-gated scenario the trace IS the evidence for the override — the
+    // same role the staged diff plays on a seeded one. Omitting it committed an
+    // override whose justification was gitignored, and left `regate` with nothing
+    // to re-evaluate on the one cell a human had disputed.
+    ...findTraceFiles(runDir, scenarioId)
   ];
   if (files.length === 0)
     return;
   ensureResultsGitignore(resultsRoot);
-  const giPath = join5(resultsRoot, ".gitignore");
+  const giPath = join4(resultsRoot, ".gitignore");
   const existingLines = readFileSync4(giPath, "utf8").split("\n");
   const newLines = [];
   for (const file of files) {
-    const rel = relative(resultsRoot, join5(runDir, file)).split(sep).join("/");
+    const rel = relative(resultsRoot, join4(runDir, file)).split(sep).join("/");
     const line = `!${rel}`;
     if (!existingLines.includes(line) && !newLines.includes(line)) {
       newLines.push(line);
@@ -3720,10 +3771,10 @@ function preserveTranscript(resultsRoot, runDir, scenarioId) {
 }
 
 // packages/core/dist/journal.js
-import { appendFileSync as appendFileSync3, existsSync as existsSync5, mkdirSync as mkdirSync2, readFileSync as readFileSync5 } from "node:fs";
-import { join as join6 } from "node:path";
+import { appendFileSync as appendFileSync3, existsSync as existsSync4, mkdirSync as mkdirSync2, readFileSync as readFileSync5 } from "node:fs";
+import { join as join5 } from "node:path";
 function journalPath(runDir) {
-  return join6(runDir, "journal.jsonl");
+  return join5(runDir, "journal.jsonl");
 }
 function appendJournal(runDir, e) {
   mkdirSync2(runDir, { recursive: true });
@@ -3731,8 +3782,8 @@ function appendJournal(runDir, e) {
 }
 
 // packages/core/dist/lift.js
-import { existsSync as existsSync6, readdirSync as readdirSync5, statSync as statSync2 } from "node:fs";
-import { join as join7 } from "node:path";
+import { existsSync as existsSync5, readdirSync as readdirSync5, statSync as statSync2 } from "node:fs";
+import { join as join6 } from "node:path";
 function aggregationShape(s) {
   const reps2 = s.reps ?? 1;
   return { reps: reps2, threshold: reps2 > 1 ? s.pass_threshold ?? null : null };
@@ -3875,8 +3926,8 @@ function isDir(p) {
   }
 }
 function modeInsensitiveIds(skillDir) {
-  const specPath = join7(skillDir, "tests", "specification.yaml");
-  if (!existsSync6(specPath))
+  const specPath = join6(skillDir, "tests", "specification.yaml");
+  if (!existsSync5(specPath))
     return [];
   try {
     return loadSpec(specPath).scenarios.filter((s) => s.systemPromptFile).map((s) => s.id);
@@ -3885,14 +3936,14 @@ function modeInsensitiveIds(skillDir) {
   }
 }
 function collectLift(skillDir) {
-  const resultsRoot = join7(skillDir, "tests", "results");
-  if (!existsSync6(resultsRoot))
+  const resultsRoot = join6(skillDir, "tests", "results");
+  if (!existsSync5(resultsRoot))
     return [];
   const modeInsensitive = modeInsensitiveIds(skillDir);
   const lifts = [];
-  for (const tag of readdirSync5(resultsRoot).filter((n) => isDir(join7(resultsRoot, n))).sort()) {
-    const tagDir = join7(resultsRoot, tag);
-    const runDirs = readdirSync5(tagDir).map((n) => join7(tagDir, n)).filter((p) => isDir(p) && existsSync6(join7(p, "results.yaml"))).sort();
+  for (const tag of readdirSync5(resultsRoot).filter((n) => isDir(join6(resultsRoot, n))).sort()) {
+    const tagDir = join6(resultsRoot, tag);
+    const runDirs = readdirSync5(tagDir).map((n) => join6(tagDir, n)).filter((p) => isDir(p) && existsSync5(join6(p, "results.yaml"))).sort();
     let red;
     let skillOn;
     for (const rd of runDirs) {
@@ -3918,6 +3969,47 @@ function collectLift(skillDir) {
 // packages/core/dist/seeded.js
 import { copyFileSync, statSync as statSync3 } from "node:fs";
 import { extname, isAbsolute as isAbsolute3, join as join8, resolve as resolve4 } from "node:path";
+
+// packages/core/dist/util/exec.js
+import { spawn } from "node:child_process";
+import { existsSync as existsSync6 } from "node:fs";
+import { join as join7, delimiter } from "node:path";
+function exec(cmd, args, opts = {}) {
+  return new Promise((resolve12, reject) => {
+    const child = spawn(cmd, args, {
+      cwd: opts.cwd,
+      env: opts.env ?? process.env,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    let timer;
+    if (opts.timeoutMs) {
+      timer = setTimeout(() => {
+        child.kill("SIGKILL");
+        stderr += `
+[skill-harness] killed after ${opts.timeoutMs}ms timeout`;
+      }, opts.timeoutMs);
+    }
+    child.stdout.on("data", (d) => stdout += d.toString());
+    child.stderr.on("data", (d) => stderr += d.toString());
+    child.on("error", (e) => {
+      if (timer)
+        clearTimeout(timer);
+      reject(e);
+    });
+    child.on("close", (code) => {
+      if (timer)
+        clearTimeout(timer);
+      resolve12({ stdout, stderr, code });
+    });
+  });
+}
+function onPath(bin) {
+  const dirs = (process.env.PATH ?? "").split(delimiter);
+  const exts = process.platform === "win32" ? ["", ".exe", ".cmd", ".bat"] : [""];
+  return dirs.some((d) => d && exts.some((ext) => existsSync6(join7(d, bin + ext))));
+}
 
 // packages/core/dist/util/env.js
 var NEW_PREFIX = "SKILL_HARNESS_";
@@ -4161,14 +4253,15 @@ function vitestTally(out) {
 }
 
 // packages/core/dist/execution-trace.js
-import { createHash as createHash3 } from "node:crypto";
+import { createHash as createHash4 } from "node:crypto";
 
 // packages/core/dist/capture-trace-types.js
-var EXECUTION_TRACE_VERSION = 1;
+var EXECUTION_TRACE_VERSION = 2;
 var CAPTURE_SCHEMA_VERSION = 1;
 
 // packages/core/dist/capture.js
-import { createHash as createHash2 } from "node:crypto";
+import { createHash as createHash3 } from "node:crypto";
+import { sep as sep2 } from "node:path";
 function activeBranch(entries, leafId) {
   const byId = /* @__PURE__ */ new Map();
   for (const e of entries)
@@ -4274,12 +4367,17 @@ var SECRET_VALUE = [
   /\bgh[pousr]_[A-Za-z0-9]{16,}\b/g,
   /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/g,
   /\bAKIA[0-9A-Z]{16}\b/g,
-  /\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g
+  /\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
   // JWT
+  // Credentials embedded in a URL — `postgres://user:pass@host/db`. Caught by
+  // shape rather than by key name: the key is usually something like `DB_URL`,
+  // which no list of secret-sounding names will ever match.
+  /\b([a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^/\s@]+@/gi
 ];
 function redactText(input, homeDir) {
   let out = input;
-  for (const re of SECRET_VALUE)
+  out = out.replace(SECRET_VALUE[SECRET_VALUE.length - 1], `$1${REDACTED}@`);
+  for (const re of SECRET_VALUE.slice(0, -1))
     out = out.replace(re, REDACTED);
   if (homeDir && homeDir.length > 1) {
     out = out.split(homeDir).join("~");
@@ -4318,7 +4416,7 @@ function redactValue(value, homeDir, depth) {
   return String(value);
 }
 function sha256(text) {
-  return createHash2("sha256").update(text, "utf8").digest("hex");
+  return createHash3("sha256").update(text, "utf8").digest("hex");
 }
 function captureId(seed, existing = []) {
   const taken = new Set(existing);
@@ -4355,6 +4453,10 @@ function buildCaptureCase(opts) {
     expected_behavior: truncate(redactText(opts.expectedBehavior, opts.homeDir)),
     checklist: checklist.map((c) => truncate(redactText(c, opts.homeDir), 300)),
     target: opts.target,
+    // `covers` refs resolve against the SPEC dir, and `target.path` is relative
+    // to the skill root — one level up. A subagent path (`.pi/agents/x.md`) is
+    // carried the same way; both are instruction files a section walk can read.
+    covers: [`../${opts.target.path.split(sep2).join("/")}`],
     provenance: {
       session_sha256: sha256(opts.sessionPath),
       turn_range: { start, end },
@@ -4428,7 +4530,7 @@ function parseTrace(lines, meta) {
         continue;
       call.completionIndex = completionCounter++;
       call.isError = ev.isError === true;
-      call.result = resultMeta(ev.result);
+      call.result = resultMeta(ev.result, meta.homeDir);
       continue;
     }
     if (type === "message_end") {
@@ -4463,9 +4565,16 @@ function parseTrace(lines, meta) {
     // Fall back to the last assistant text when no message carried `stop` — a
     // truncated or length-capped run still produced an answer, and losing it
     // would silently turn a real reply into an empty transcript.
-    final_text: finalText || lastAssistantText,
+    // Redacted: the model's own answer routinely quotes the paths it just read,
+    // and `smoke-real-pi.sh` asserts no `/home/` survives into a persisted trace
+    // — an assertion that used to pass only because the smoke model happened not
+    // to echo one.
+    final_text: redactText(finalText || lastAssistantText, meta.homeDir),
     tool_calls: [...calls.values()].sort((a, b) => a.issueIndex - b.issueIndex),
-    changed_paths: [...meta.changedPaths ?? []].sort(),
+    // `null`, not `[]`: the stream says nothing about the filesystem. The runner
+    // overwrites this after observing the workspace. Defaulting to `[]` claimed
+    // "observed, nothing changed" for every trace ever parsed.
+    changed_paths: meta.changedPaths ? [...meta.changedPaths].sort() : null,
     cost_usd: cost
   };
   trace.trace_sha256 = traceSha256(trace);
@@ -4474,14 +4583,14 @@ function parseTrace(lines, meta) {
 function assistantText(msg) {
   return (msg.content ?? []).filter((b) => b.type === "text" && typeof b.text === "string").map((b) => b.text).join("\n").trim();
 }
-function resultMeta(result) {
+function resultMeta(result, homeDir) {
   const body = JSON.stringify(result?.content ?? result ?? null);
   const meta = { bytes: Buffer.byteLength(body, "utf8"), sha256: sha2562(body) };
   const details = result?.details;
   if (details && typeof details === "object" && !Array.isArray(details)) {
     const encoded = JSON.stringify(details);
     if (encoded.length <= MAX_DETAILS_CHARS)
-      meta.details = details;
+      meta.details = redactArgs(details, homeDir);
   }
   return meta;
 }
@@ -4489,7 +4598,7 @@ function str(v) {
   return typeof v === "string" && v.length > 0 ? v : void 0;
 }
 function sha2562(text) {
-  return createHash3("sha256").update(text, "utf8").digest("hex");
+  return createHash4("sha256").update(text, "utf8").digest("hex");
 }
 function traceSha256(trace) {
   const { trace_sha256: _omit, ...rest } = trace;
@@ -4516,6 +4625,7 @@ function mergeTraces(traces) {
   }
   const calls = [];
   const changed = /* @__PURE__ */ new Set();
+  let anyUnobserved = false;
   let cost = null;
   let completed = 0;
   for (const t of traces) {
@@ -4523,8 +4633,11 @@ function mergeTraces(traces) {
     for (const c of [...t.tool_calls].sort((a, b) => a.issueIndex - b.issueIndex)) {
       calls.push({ ...c, issueIndex: calls.length, completionIndex: mergedCompletion.get(c.id) ?? -1 });
     }
-    for (const p of t.changed_paths)
-      changed.add(p);
+    if (t.changed_paths === null)
+      anyUnobserved = true;
+    else
+      for (const p of t.changed_paths)
+        changed.add(p);
     if (t.cost_usd !== null)
       cost = (cost ?? 0) + t.cost_usd;
   }
@@ -4535,7 +4648,7 @@ function mergeTraces(traces) {
     // transcript reads and how the judge is asked to grade it.
     final_text: last.final_text,
     tool_calls: calls,
-    changed_paths: [...changed].sort(),
+    changed_paths: anyUnobserved ? null : [...changed].sort(),
     cost_usd: cost
   };
   merged.trace_sha256 = traceSha256(merged);
@@ -5118,9 +5231,10 @@ async function runSkillModel(opts) {
     });
     if (canary.status === "fail")
       throw new Error(canaryFailure(spec.skill, canary, harnessCliVersion));
-    if (canary.status === "skipped")
+    if (canary.status === "skipped") {
+      canaryStatus = "skipped";
       log(`  \u26A0 delivery canary skipped \u2014 ${canary.detail}`);
-    else {
+    } else {
       canaryStatus = "pass";
       log(`  \u2713 delivery canary \u2014 the model quoted its skill instructions back (\`${canary.anchor}\`)`);
     }
@@ -5196,6 +5310,7 @@ async function runRep(scenario, rep, repCount, ctx) {
     let noResponse = false;
     let traces = [];
     let unobservablePaths = false;
+    let before = ws ? snapshotPaths(ws.cwd, scenario.workspace) : null;
     if (ws) {
       for (let attempt = 0; attempt < 2; attempt++) {
         if (attempt > 0) {
@@ -5203,6 +5318,7 @@ async function runRep(scenario, rep, repCount, ctx) {
           log(`  ${scenario.id}${repCount > 1 ? `#${rep}` : ""} empty response \u2014 retrying once`);
           ws.cleanup();
           ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath), remote: scenario.remote });
+          before = snapshotPaths(ws.cwd, scenario.workspace);
         }
         if (scenario.mode === "seeded") {
           const r = await runSeeded(scenario, {
@@ -5256,12 +5372,12 @@ async function runRep(scenario, rep, repCount, ctx) {
       appendJournal(runDir, { event: "gate-result", ts: now(), id: scenario.id, ok: !gatePrefix, detail: gatePrefix ?? "", ...repField });
     }
     if (scenario.traceAssert?.unchanged_paths?.length && traces.length > 0 && ws) {
-      const changed = await observeChangedPaths(ws.cwd, scenario.workspace);
+      const changed = diffSnapshots(before, snapshotPaths(ws.cwd, scenario.workspace));
       if (changed === null) {
         unobservablePaths = true;
       } else {
         traces = traces.map((t) => {
-          const withPaths = { ...t, changed_paths: [...changed].sort() };
+          const withPaths = { ...t, changed_paths: changed };
           return { ...withPaths, trace_sha256: traceSha256(withPaths) };
         });
       }
@@ -5687,7 +5803,7 @@ import { existsSync as existsSync14, readFileSync as readFileSync10, renameSync,
 import { join as join17 } from "node:path";
 
 // packages/core/dist/spec-write.js
-import { createHash as createHash4 } from "node:crypto";
+import { createHash as createHash5 } from "node:crypto";
 import { readFileSync as readFileSync11, renameSync as renameSync2, unlinkSync, writeFileSync as writeFileSync5 } from "node:fs";
 import { dirname as dirname4, join as join18 } from "node:path";
 var ConcurrentSpecModification = class extends Error {
@@ -5703,7 +5819,7 @@ var DuplicateScenarioId = class extends Error {
   }
 };
 function specSha256(text) {
-  return createHash4("sha256").update(text, "utf8").digest("hex");
+  return createHash5("sha256").update(text, "utf8").digest("hex");
 }
 function renderScenarioBlock(scenario) {
   const dumped = index_vite_proxy_tmp_default.dump({ scenarios: [scenario] }, { lineWidth: -1, noRefs: true });
@@ -5936,9 +6052,10 @@ function planAdjudication(input) {
   const decisions = [];
   for (const cell of input.cells) {
     const triggers = [];
-    if (enabled.has("ambiguous") && cell.verdict === "JUDGE-AMBIGUOUS")
+    if (enabled.has("ambiguous") && (cell.verdict === "JUDGE-AMBIGUOUS" || cell.verdict === "ERROR")) {
       triggers.push("ambiguous");
-    if (enabled.has("contradictory") && cell.suspect && cell.verdict !== "JUDGE-AMBIGUOUS") {
+    }
+    if (enabled.has("contradictory") && cell.suspect && cell.verdict !== "JUDGE-AMBIGUOUS" && cell.verdict !== "ERROR") {
       triggers.push("contradictory");
     }
     if (enabled.has("non_unanimous") && isNonUnanimous(cell))
@@ -6127,8 +6244,10 @@ function repVerdictsOf(runDir, s, mode) {
   const out = [];
   for (let rep = 0; rep < s.reps; rep++) {
     const path = judgeRawPath(runDir, s.id, mode, rep);
-    if (!existsSync16(path))
+    if (!existsSync16(path)) {
+      out.push("ERROR");
       continue;
+    }
     out.push(parseVerdict(readFileSync13(path, "utf8")).verdict);
   }
   return out.length >= 2 ? out : void 0;
@@ -6188,6 +6307,7 @@ import { join as join20, resolve as resolve9 } from "node:path";
 // packages/adapters/dist/pi-json.js
 import { spawn as spawn2 } from "node:child_process";
 import { createInterface } from "node:readline";
+var SKIPPED_TYPE_RE = /^\s*\{\s*"type"\s*:\s*"(?:message_update|tool_execution_update)"/;
 var MAX_STDERR_CHARS = 8e3;
 function runPiJson(opts) {
   return new Promise((resolve12, reject) => {
@@ -6209,10 +6329,11 @@ function runPiJson(opts) {
     }, opts.timeoutMs);
     const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
     rl.on("line", (line) => {
-      if (line.includes('"message_update"') || line.includes('"tool_execution_update"'))
+      if (!line.trim())
         return;
-      if (line.trim())
-        kept.push(line);
+      if (SKIPPED_TYPE_RE.test(line))
+        return;
+      kept.push(line);
     });
     child.stderr.on("data", (chunk) => {
       if (stderr.length < MAX_STDERR_CHARS)
@@ -6818,7 +6939,7 @@ async function runViaExtension(opts) {
 // packages/pi-extension/src/capture-cmd.ts
 import { existsSync as existsSync20, mkdirSync as mkdirSync4, writeFileSync as writeFileSync7, readdirSync as readdirSync10, readFileSync as readFileSync16 } from "node:fs";
 import { join as join23 } from "node:path";
-import { createHash as createHash5 } from "node:crypto";
+import { createHash as createHash6 } from "node:crypto";
 var CANCELLED = { status: "cancelled", files: [] };
 var CAPTURES_GITIGNORE = "# Local review evidence for captured cases \u2014 never commit.\n.local/\n";
 async function runCapture(skillDir, ctx) {
@@ -6956,7 +7077,7 @@ async function chooseTarget(skillDir, ctx) {
   return {
     kind: chosen.kind,
     path: chosen.path,
-    content_sha256: createHash5("sha256").update(readFileSync16(chosen.abs, "utf8"), "utf8").digest("hex")
+    content_sha256: createHash6("sha256").update(readFileSync16(chosen.abs, "utf8"), "utf8").digest("hex")
   };
 }
 function suggestScenarioId(specPath, fallback) {

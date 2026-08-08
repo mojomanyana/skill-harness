@@ -13,9 +13,18 @@ import { parseTrace } from "@skill-harness/core";
  * into a string (which is what the shared `exec()` helper does) would exhaust
  * memory partway through a long wave, taking the whole run with it.
  *
- * So this deliberately does NOT reuse `exec()`. Lines are parsed and discarded as
- * they arrive; only the kept fields survive.
+ * So this deliberately does NOT reuse `exec()`. The two quadratic event types are
+ * dropped as each line arrives, so the giant ones are never retained; the
+ * remainder — a few KB of terminal events — is held until `close` and parsed
+ * once. What this bounds is the 52 MB, not the residue.
  */
+
+/**
+ * The two quadratic event types, matched at the head of the object where pi
+ * emits `type`. Line-anchored so a value inside the payload cannot masquerade as
+ * the event kind.
+ */
+const SKIPPED_TYPE_RE = /^\s*\{\s*"type"\s*:\s*"(?:message_update|tool_execution_update)"/;
 
 export interface PiJsonRunOptions {
   args: string[];
@@ -64,10 +73,18 @@ export function runPiJson(opts: PiJsonRunOptions): Promise<PiJsonRunResult> {
 
     const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
     rl.on("line", (line) => {
-      // Cheap prefilter before JSON.parse: the events we skip are both the
-      // overwhelming majority of lines and the largest ones.
-      if (line.includes('"message_update"') || line.includes('"tool_execution_update"')) return;
-      if (line.trim()) kept.push(line);
+      // Prefilter before the full parse: the events skipped here are both the
+      // overwhelming majority of lines and by far the largest.
+      //
+      // Anchored on the `type` field, NOT a substring of the whole line. A raw
+      // `line.includes('"message_update"')` also matched any event whose
+      // ARGUMENTS contained that text — so a `tool_execution_start` for, say,
+      // `grep '"message_update"' logs/` was dropped before parsing, and a
+      // dropped start means the call never enters the trace at all. A
+      // `forbid_calls` gate on that tool then passed for want of the evidence.
+      if (!line.trim()) return;
+      if (SKIPPED_TYPE_RE.test(line)) return;
+      kept.push(line);
     });
 
     child.stderr.on("data", (chunk: Buffer) => {

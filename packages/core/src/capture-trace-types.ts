@@ -19,7 +19,7 @@ import type { ModelRef, RunMode } from "./adapters/types.js";
 // Execution trace
 // ---------------------------------------------------------------------------
 
-export const EXECUTION_TRACE_VERSION = 1;
+export const EXECUTION_TRACE_VERSION = 2;
 
 /**
  * Tool arguments after sanitization.
@@ -118,12 +118,21 @@ export interface ExecutionTraceV1 {
 
   /**
    * Workspace paths whose content changed during the invocation, relative to the
-   * workspace root.
+   * workspace root. Evidence for `unchanged_paths` assertions. Bounded to the
+   * isolated workspace: writes outside it are not observable and never claimed.
    *
-   * Evidence for `unchanged_paths` assertions. Bounded to the isolated
-   * workspace: writes outside it are not observable and are never claimed.
+   * **Tri-state, and the third state is the point.** `null` means the workspace
+   * was never observed — there was none, or the snapshot could not be taken.
+   * `[]` means observed, and nothing changed. Collapsing the two made a safety
+   * gate report green from evidence that does not exist: a run whose observation
+   * failed recorded `objective: ERROR` honestly, and `regate` then read the saved
+   * `[]` and re-graded it to PASS, re-stamping the source hash so `lint` called
+   * the result current.
+   *
+   * Version 2 exists for exactly this widening: a v1 reader must decline a v2
+   * trace rather than read `null` as empty.
    */
-  changed_paths: string[];
+  changed_paths: string[] | null;
 
   /**
    * Reported token cost of this invocation, when pi provided it.
@@ -206,6 +215,23 @@ export interface CaptureCaseV1 {
   status: CapturePromotionStatus;
   /** Set once promoted: the scenario id appended to `specification.yaml`. */
   scenario_id?: string;
+
+  /**
+   * `covers` refs for this pending case, so `coverage` can park it against the
+   * instructions it is about before anyone promotes it.
+   *
+   * Derived from `target` — the author has already been made to choose which
+   * instructions are responsible, and asking again in different words would be
+   * asking the same question twice. File granularity, not `#section`: the target
+   * choice attributes a file, and inventing a section would be a guess the
+   * session cannot support.
+   *
+   * Written relative to the SPEC dir (`<skill>/tests`), matching how a scenario's
+   * own `covers` resolve. `coverage` read this field from the start; nothing ever
+   * wrote it, so every pending case parked against nothing and the feature was
+   * inert.
+   */
+  covers?: string[];
 }
 
 /**
@@ -222,8 +248,8 @@ export interface CaptureCaseV1 {
  */
 export interface CaptureEvidenceV1 {
   capture_id: string;
-  /** Sanitized, truncated excerpt of the assistant's final answer. */
+  /** Sanitized, truncated excerpt of the assistant text of every selected turn, joined. */
   assistant_excerpt: string;
-  /** Tool name, error state and bounded result metadata — no bodies. */
+  /** Tool name, error state and redacted arguments — no bodies. */
   tool_calls: Array<Pick<TraceToolCall, "name" | "isError"> & { args: SanitizedArgs }>;
 }

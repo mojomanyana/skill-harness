@@ -15,7 +15,7 @@ the credential it shouldn't have? A perfect subagent invoked with a task
 description missing the error message is a broken system, and every test you have
 says both halves are fine.
 
-0.9.0 makes the parent testable.
+This release makes the parent testable.
 
 ## Three layers, graded separately
 

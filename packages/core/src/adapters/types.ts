@@ -44,8 +44,10 @@ export interface RunReq {
    *
    * Optional because `run()` never needs them and every existing caller and test
    * double predates them. A trace with no scenario id is still valid evidence —
-   * it just cannot be filed against a scenario, so the parser records
-   * `(unknown)` rather than inventing one.
+   * it just cannot be filed against a scenario. The ADAPTER supplies the
+   * fallback (see `pi.ts`); `parseTrace` requires a `scenarioId` and has no
+   * default, so a second `runStructured` author must pass one rather than
+   * assuming the parser fills it in.
    */
   scenarioId?: string;
   rep?: number;

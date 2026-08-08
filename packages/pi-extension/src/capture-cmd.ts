@@ -53,7 +53,7 @@ export interface CaptureCtx {
   candidateSkills?(): string[];
   homeDir?: string;
   now?: () => string;
-  /** Injected so a promoted case can be run immediately; omitted in tests. */
+  /** Injected so a promoted case can be run immediately; supplied by every test through the shared ctx factory. */
   runOnly?(skillDir: string, scenarioId: string): Promise<string>;
 }
 

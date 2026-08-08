@@ -35,13 +35,20 @@ export interface AffectedResult {
   conservative: boolean;
   /** Human-readable account of why, when `conservative`. */
   conservativeReason: string | null;
-  /** Files in the diff that no scenario maps to. */
+  /** Files in the diff whose changed lines map to no covered section. A file nothing `covers` at all is not listed here — it selects everything (see `isInstructionText`) or is skipped as source. */
   unmappedFiles: string[];
 }
 
 export interface DiffHunk {
   file: string;
-  /** 1-based first changed line in the NEW file; 0 for a pure deletion. */
+  /**
+   * 1-based first changed line in the NEW file.
+   *
+   * For a pure deletion git emits `@@ -2,3 +1,0 @@`, so this is the line the
+   * deletion sits AFTER — 1 in that example, not 0. `selectAffected` maps
+   * sections from the real value; "fixing" it to 0 to match an earlier version
+   * of this comment would break deletion→section mapping.
+   */
   start: number;
   /** Number of changed lines; 0 for a pure deletion at `start`. */
   count: number;

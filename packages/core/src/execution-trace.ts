@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { ExecutionTraceV1, TraceToolCall, TraceResultMeta } from "./capture-trace-types.js";
 import { EXECUTION_TRACE_VERSION } from "./capture-trace-types.js";
-import { redactArgs } from "./capture.js";
+import { redactArgs, redactText } from "./capture.js";
 import type { ModelRef, RunMode } from "./adapters/types.js";
 
 /**
@@ -50,7 +50,10 @@ export interface TraceMeta {
   mode: RunMode;
   rep: number;
   turn: number;
-  /** Workspace paths observed to have changed; supplied by the runner, not the stream. */
+  /**
+   * Workspace paths observed to have changed; supplied by the runner, not the
+   * stream. Omitted means NOT OBSERVED, which the trace records as `null`.
+   */
   changedPaths?: string[];
   /** Home dir to scrub from arguments. */
   homeDir?: string;
@@ -111,7 +114,7 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
       if (!call) continue; // an end with no start is not evidence of a call
       call.completionIndex = completionCounter++;
       call.isError = ev.isError === true;
-      call.result = resultMeta(ev.result);
+      call.result = resultMeta(ev.result, meta.homeDir);
       continue;
     }
 
@@ -134,7 +137,8 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
     if (type === "turn_end" || type === "agent_end" || type === "agent_settled") {
       sawTerminal = true;
       // Deliberately read NOTHING from these. They repeat the same assistant
-      // messages `message_end` already carried (all three do), and reading two
+      // messages `message_end` already carried (`turn_end` and `agent_end` do;
+    // `agent_settled` carries no keys at all beyond `type`), and reading two
       // sources would double the transcript and reintroduce thinking.
       continue;
     }
@@ -151,9 +155,16 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
     // Fall back to the last assistant text when no message carried `stop` — a
     // truncated or length-capped run still produced an answer, and losing it
     // would silently turn a real reply into an empty transcript.
-    final_text: finalText || lastAssistantText,
+    // Redacted: the model's own answer routinely quotes the paths it just read,
+    // and `smoke-real-pi.sh` asserts no `/home/` survives into a persisted trace
+    // — an assertion that used to pass only because the smoke model happened not
+    // to echo one.
+    final_text: redactText(finalText || lastAssistantText, meta.homeDir),
     tool_calls: [...calls.values()].sort((a, b) => a.issueIndex - b.issueIndex),
-    changed_paths: [...(meta.changedPaths ?? [])].sort(),
+    // `null`, not `[]`: the stream says nothing about the filesystem. The runner
+    // overwrites this after observing the workspace. Defaulting to `[]` claimed
+    // "observed, nothing changed" for every trace ever parsed.
+    changed_paths: meta.changedPaths ? [...meta.changedPaths].sort() : null,
     cost_usd: cost,
   };
   trace.trace_sha256 = traceSha256(trace);
@@ -175,7 +186,7 @@ function assistantText(msg: RawMessage): string {
  * file contents, command output, and absolute paths (a failing `read` embeds the
  * full path in its error string).
  */
-function resultMeta(result: unknown): TraceResultMeta {
+function resultMeta(result: unknown, homeDir?: string): TraceResultMeta {
   const body = JSON.stringify((result as { content?: unknown } | undefined)?.content ?? result ?? null);
   const meta: TraceResultMeta = { bytes: Buffer.byteLength(body, "utf8"), sha256: sha256(body) };
 
@@ -184,7 +195,13 @@ function resultMeta(result: unknown): TraceResultMeta {
     const encoded = JSON.stringify(details);
     // Small `details` is the one channel an extension can expose deliberately.
     // Large `details` is a result body wearing a different hat.
-    if (encoded.length <= MAX_DETAILS_CHARS) meta.details = details as Record<string, unknown>;
+    //
+    // Redacted like every other value that reaches disk. `TraceResultMeta` has
+    // always PROMISED this — "retained only when it is small and free of
+    // redaction hits" — while the code checked only the size, so a tool that put
+    // a token, a connection string or a home path in `details` wrote it verbatim
+    // into the trace artifact. `args` right beside it was redacted the whole time.
+    if (encoded.length <= MAX_DETAILS_CHARS) meta.details = redactArgs(details, homeDir);
   }
   return meta;
 }
@@ -267,6 +284,7 @@ export function mergeTraces(traces: ExecutionTraceV1[]): ExecutionTraceV1 | null
 
   const calls: TraceToolCall[] = [];
   const changed = new Set<string>();
+  let anyUnobserved = false;
   let cost: number | null = null;
 
   let completed = 0;
@@ -285,7 +303,10 @@ export function mergeTraces(traces: ExecutionTraceV1[]): ExecutionTraceV1 | null
     for (const c of [...t.tool_calls].sort((a, b) => a.issueIndex - b.issueIndex)) {
       calls.push({ ...c, issueIndex: calls.length, completionIndex: mergedCompletion.get(c.id) ?? -1 });
     }
-    for (const p of t.changed_paths) changed.add(p);
+    // A single unobserved turn makes the merged evidence unobserved: a scenario
+    // cannot claim "nothing changed" from turns it never looked at.
+    if (t.changed_paths === null) anyUnobserved = true;
+    else for (const p of t.changed_paths) changed.add(p);
     if (t.cost_usd !== null) cost = (cost ?? 0) + t.cost_usd;
   }
 
@@ -296,7 +317,7 @@ export function mergeTraces(traces: ExecutionTraceV1[]): ExecutionTraceV1 | null
     // transcript reads and how the judge is asked to grade it.
     final_text: last.final_text,
     tool_calls: calls,
-    changed_paths: [...changed].sort(),
+    changed_paths: anyUnobserved ? null : [...changed].sort(),
     cost_usd: cost,
   };
   merged.trace_sha256 = traceSha256(merged);

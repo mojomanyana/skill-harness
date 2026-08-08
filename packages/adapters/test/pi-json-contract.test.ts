@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
@@ -214,5 +214,48 @@ describe("multi-turn sessions", () => {
     expect(users(t2)[0]).not.toContain("Remember the number");
     // …but the model still had it: it answered from session state.
     expect(finalAssistantText(t2)).toContain("77");
+  });
+});
+
+describe("the stdout prefilter's assumption about pi's event shape", () => {
+  // The prefilter drops the two quadratic event types by matching `"type"` at the
+  // HEAD of the object. That is a bet on pi's key order, and it is the bet that
+  // keeps 52 MB of `message_update` out of memory — so it gets pinned here rather
+  // than discovered during a wave.
+  const SKIPPED_TYPE_RE = /^\s*\{\s*"type"\s*:\s*"(?:message_update|tool_execution_update)"/;
+
+  it("every event in every real-pi fixture puts `type` first", () => {
+    const dir = join(__dirname, "fixtures", "pi-json");
+    const files = readdirSync(dir).filter((f) => f.endsWith(".jsonl"));
+    expect(files.length).toBeGreaterThan(0);
+    for (const file of files) {
+      for (const line of readFileSync(join(dir, file), "utf8").split("\n").filter((l) => l.trim())) {
+        expect(line.trimStart().startsWith('{"type":'), `${file}: ${line.slice(0, 60)}`).toBe(true);
+      }
+    }
+  });
+
+  it("drops the quadratic events and keeps everything else", () => {
+    const dir = join(__dirname, "fixtures", "pi-json");
+    for (const file of readdirSync(dir).filter((f) => f.endsWith(".jsonl"))) {
+      for (const line of readFileSync(join(dir, file), "utf8").split("\n").filter((l) => l.trim())) {
+        const type = (JSON.parse(line) as { type: string }).type;
+        const skipped = type === "message_update" || type === "tool_execution_update";
+        expect(SKIPPED_TYPE_RE.test(line), `${file}: ${type}`).toBe(skipped);
+      }
+    }
+  });
+
+  it("does not drop a tool call whose ARGUMENTS mention a skipped event type", () => {
+    // The regression: the prefilter was `line.includes('"message_update"')` over
+    // the whole line, so this call vanished before parsing — and a call that
+    // never enters the trace makes `forbid_calls` on it pass for want of
+    // evidence. This repo's own corpus scripts grep pi logs, so it is not
+    // hypothetical here.
+    const line = JSON.stringify({
+      type: "tool_execution_start", toolCallId: "c1", toolName: "bash",
+      args: { command: 'grep \'"message_update"\' run.jsonl' },
+    });
+    expect(SKIPPED_TYPE_RE.test(line)).toBe(false);
   });
 });

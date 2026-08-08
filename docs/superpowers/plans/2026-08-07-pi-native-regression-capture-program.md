@@ -1,6 +1,6 @@
 # Pi-Native Regression Capture Program — Implementation Plan
 
-> **Status (2026-08-08):** Phase 0 complete; Phases 1–5 not started. The roadmap
+> **Status (2026-08-08):** Phase 0 complete; Phases 0–5 implemented; see the checklist at the end of this file. The roadmap
 > was amended (`docs/ROADMAP.md`, Sprint 1.7) and the feasibility spike found four
 > errors in this plan — see `docs/pi-native-capture-design-2026-08-08.md` §10, and
 > the corrections marked **[Phase 0]** inline below. Phase 2's transcript rule in
@@ -512,7 +512,7 @@ When a captured range contains an Agent/subagent call, offer to prepopulate, sub
 
 - `packages/core/src/spec.ts` — parse/validate `env.extensions` and orchestration constraints.
 - `packages/core/src/adapters/types.ts` — explicit extension paths.
-- `packages/adapters/src/pi.ts` — `--no-extensions -e ...` argv.
+- `packages/adapters/src/pi.ts` — `--no-extensions --extension ...` argv.
 - `packages/core/src/sources.ts` — extension/prompt stimulus hashes.
 - `packages/core/src/trace-gates.ts` — subagent normalizers/evaluation.
 - `packages/core/src/lint.ts` — paths exist, incompatible fields rejected.
@@ -762,7 +762,7 @@ Keep PRs small enough to review and release independently:
 4. [x] Pi capture UI and extension `only` support. (2026-08-08)
 5. [x] Structured pi JSON trace parser and artifact format. (2026-08-08)
 6. [x] Trace assertion schema/evaluator and core run integration. (2026-08-08)
-7. [~] Trace-aware `regate` done (2026-08-08); lint/scorecard/review-UI surfacing still open.
+7. [~] Trace-aware `regate` and review-UI surfacing done (2026-08-08); lint/scorecard surfacing still open.
 8. [x] Controlled-extension subagent orchestration scenarios. (2026-08-08)
 9. [x] Coverage parser/report and capture mapping. (2026-08-08)
 10. [x] Affected-test selection and `run --affected`. (2026-08-08)

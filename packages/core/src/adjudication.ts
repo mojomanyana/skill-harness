@@ -113,13 +113,18 @@ export function planAdjudication(input: PlanInput): AdjudicationPlan {
     const triggers: TriggerKind[] = [];
 
     // `JUDGE-AMBIGUOUS` is what the parser emits when a judge's verdict blocks
-    // disagree or cannot be read at all.
-    if (enabled.has("ambiguous") && cell.verdict === "JUDGE-AMBIGUOUS") triggers.push("ambiguous");
+    // disagree. `ERROR` is what it emits when nothing parsed at all — and that
+    // was matched by no trigger here, so the least readable judgments in the run
+    // were the ones never asked again. Both are "the first wave produced no
+    // usable answer", which is precisely what a second opinion is for.
+    if (enabled.has("ambiguous") && (cell.verdict === "JUDGE-AMBIGUOUS" || cell.verdict === "ERROR")) {
+      triggers.push("ambiguous");
+    }
 
     // A misfire IS the contradiction: the overall verdict disagrees with the
     // AND of the per-item grades. `detectMisfire` already found it; this is the
     // decision about what to do with it.
-    if (enabled.has("contradictory") && cell.suspect && cell.verdict !== "JUDGE-AMBIGUOUS") {
+    if (enabled.has("contradictory") && cell.suspect && cell.verdict !== "JUDGE-AMBIGUOUS" && cell.verdict !== "ERROR") {
       triggers.push("contradictory");
     }
 
@@ -475,7 +480,17 @@ function repVerdictsOf(runDir: string, s: ScenarioResult, mode: string): Verdict
   // a 2-rep cell returned undefined — `non_unanimous` could never fire correctly.
   for (let rep = 0; rep < s.reps; rep++) {
     const path = judgeRawPath(runDir, s.id, mode, rep);
-    if (!existsSync(path)) continue;
+    if (!existsSync(path)) {
+      // A rep with no judge artifact is an ABSENT vote, not a vote to skip.
+      // `run.ts` deliberately does not call the judge for a rep blocked by a gate
+      // or ending in ERROR — so the missing files are exactly the reps that
+      // failed hardest, and dropping them made `[FAIL, PASS, PASS]` read as
+      // `[PASS, PASS]`: unanimous. The cell whose split was caused by a forbidden
+      // tool call was the one cell adjudication declined to look at, and the
+      // preflight told the buyer "no cell triggered".
+      out.push("ERROR");
+      continue;
+    }
     out.push(parseVerdict(readFileSync(path, "utf8")).verdict);
   }
   return out.length >= 2 ? out : undefined;

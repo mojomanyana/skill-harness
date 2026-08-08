@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { sep } from "node:path";
 import type { CaptureCaseV1, CaptureClassification, CaptureTarget, SanitizedArgs } from "./capture-trace-types.js";
 import { CAPTURE_SCHEMA_VERSION } from "./capture-trace-types.js";
 
@@ -233,6 +234,10 @@ const SECRET_VALUE: RegExp[] = [
   /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/g,
   /\bAKIA[0-9A-Z]{16}\b/g,
   /\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, // JWT
+  // Credentials embedded in a URL — `postgres://user:pass@host/db`. Caught by
+  // shape rather than by key name: the key is usually something like `DB_URL`,
+  // which no list of secret-sounding names will ever match.
+  /\b([a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^/\s@]+@/gi,
 ];
 
 /**
@@ -246,7 +251,10 @@ const SECRET_VALUE: RegExp[] = [
  */
 export function redactText(input: string, homeDir?: string): string {
   let out = input;
-  for (const re of SECRET_VALUE) out = out.replace(re, REDACTED);
+  // The URL pattern keeps its scheme so the value stays recognisable as a URL;
+  // every other pattern replaces the whole match.
+  out = out.replace(SECRET_VALUE[SECRET_VALUE.length - 1], `$1${REDACTED}@`);
+  for (const re of SECRET_VALUE.slice(0, -1)) out = out.replace(re, REDACTED);
   if (homeDir && homeDir.length > 1) {
     out = out.split(homeDir).join("~");
   }
@@ -359,6 +367,10 @@ export function buildCaptureCase(opts: BuildCaptureOptions): CaptureCaseV1 {
     expected_behavior: truncate(redactText(opts.expectedBehavior, opts.homeDir)),
     checklist: checklist.map((c) => truncate(redactText(c, opts.homeDir), 300)),
     target: opts.target,
+    // `covers` refs resolve against the SPEC dir, and `target.path` is relative
+    // to the skill root — one level up. A subagent path (`.pi/agents/x.md`) is
+    // carried the same way; both are instruction files a section walk can read.
+    covers: [`../${opts.target.path.split(sep).join("/")}`],
     provenance: {
       session_sha256: sha256(opts.sessionPath),
       turn_range: { start, end },

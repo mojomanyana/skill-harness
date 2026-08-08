@@ -1,3 +1,4 @@
+import { EXECUTION_TRACE_VERSION } from "../src/capture-trace-types.js";
 import { describe, it, expect, beforeEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -19,7 +20,7 @@ import type { ExecutionTraceV1, TraceToolCall } from "../src/capture-trace-types
 
 function traceOf(calls: Partial<TraceToolCall>[], changed: string[] = []): ExecutionTraceV1 {
   return {
-    trace_version: 1,
+    trace_version: EXECUTION_TRACE_VERSION,
     pi_version: "0.83.0",
     subject: { provider: "p", model: "m" },
     scenario_id: "A1",
