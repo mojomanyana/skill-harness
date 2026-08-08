@@ -8,6 +8,8 @@ import {
   runDirFor,
   transcriptPath,
   diffPath,
+  tracePath,
+  type ObjectiveResult,
   writeResults,
   ensureResultsGitignore,
   scoreContextFor,
@@ -18,6 +20,9 @@ import {
 import { appendJournal } from "./journal.js";
 import { liftHeadline, type Lift } from "./lift.js";
 import { runSeeded } from "./seeded.js";
+import { serializeTrace, mergeTraces } from "./execution-trace.js";
+import { evaluateTraceGates } from "./trace-gates.js";
+import type { ExecutionTraceV1 } from "./capture-trace-types.js";
 import { createWorkspace, type Workspace } from "./workspace.js";
 import { runPool } from "./scheduler.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
@@ -235,6 +240,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
       transcript = `[workspace setup failed] ${gatePrefix}`;
     }
     let noResponse = false;
+    let traces: ExecutionTraceV1[] = [];
     if (ws) {
       // A blank assistant turn is a harness timeout, not model behavior: retry ONCE in a
       // fresh workspace (the first attempt may have half-mutated a seeded repo), and if
@@ -250,18 +256,36 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
           const r = await runSeeded(scenario, {
             skillDir: ctx.skillDir, adapter: ctx.adapter, model: ctx.model, mode, cwd: ws.cwd,
             specDir: dirname(ctx.specPath), // assert.post_test resolves like a fixture
+            trace: scenario.traceAssert ? { scenarioId: scenario.id, rep } : undefined,
           });
           transcript = r.transcript;
           gatePrefix = r.gateFailure;
           stagedDiff = r.diff; // a retry replaces the aborted attempt's diff, as it should
+          traces = r.traces;
         } else {
-          transcript = await ctx.adapter.run({
+          const req = {
             skillDir: ctx.skillDir, model: ctx.model, mode, turns: scenario.turns, cwd: ws.cwd,
             // resolved like fixtures: relative to the spec's dir
             systemPromptFile: scenario.systemPromptFile
               ? resolve(dirname(ctx.specPath), scenario.systemPromptFile)
               : undefined,
-          });
+          };
+          if (scenario.traceAssert) {
+            // Missing required evidence is ERROR, never a silent fallback to the
+            // unstructured path: a gate with nothing to read must not look like a
+            // gate that passed.
+            if (!ctx.adapter.runStructured) {
+              throw new Error(
+                `scenario \`${scenario.id}\` declares \`assert.trace\`, but the \`${ctx.adapter.name}\` adapter` +
+                  ` cannot produce execution traces — the gate would have no evidence to read.`,
+              );
+            }
+            const structured = await ctx.adapter.runStructured({ ...req, scenarioId: scenario.id, rep });
+            transcript = structured.transcript;
+            traces = structured.traces;
+          } else {
+            transcript = await ctx.adapter.run(req);
+          }
         }
         noResponse = hasEmptyAssistantTurn(transcript);
         if (!noResponse) break;
@@ -281,10 +305,51 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
       appendJournal(runDir, { event: "gate-result", ts: now(), id: scenario.id, ok: !gatePrefix, detail: gatePrefix ?? "", ...repField });
     }
 
+    // Objective evidence is persisted for every rep, pass or fail — a failing gate
+    // is exactly when someone wants to read what the model actually did.
+    let objective: ObjectiveResult | undefined;
+    if (scenario.traceAssert) {
+      if (traces.length > 0) {
+        writeFileSync(
+          tracePath(runDir, scenario.id, mode, repSuffix),
+          traces.map(serializeTrace).join(""),
+          "utf8",
+        );
+      }
+      const merged = mergeTraces(traces);
+      if (merged === null) {
+        // Declared a gate, produced no trace: that is broken infrastructure, and
+        // grading it either way would be inventing a result.
+        gatePrefix = "objective: no execution trace was produced — cannot evaluate assert.trace";
+        objective = { status: "ERROR", assertions: [] };
+      } else {
+        const gate = evaluateTraceGates(scenario.traceAssert, merged);
+        objective = {
+          status: gate.status,
+          trace_version: merged.trace_version,
+          trace_sha256: merged.trace_sha256,
+          assertions: gate.assertions,
+        };
+        if (gate.status === "FAIL") {
+          // Set the same gatePrefix the seeded gates use, so a trace failure
+          // short-circuits the judge through the path that already exists.
+          gatePrefix = `objective: ${gate.assertions.filter((x) => x.status === "FAIL").map((x) => x.detail).join("; ")}`;
+        }
+      }
+      appendJournal(runDir, {
+        event: "objective-result", ts: now(), id: scenario.id,
+        ok: objective.status === "PASS", detail: gatePrefix ?? "", ...repField,
+      });
+    }
+
     let verdict: ScenarioResult["judge_verdict"];
     let reason: string;
     let suspect = false;
-    if (noResponse) {
+    if (objective?.status === "ERROR") {
+      verdict = "ERROR";
+      reason = gatePrefix ?? "objective evidence missing";
+      appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
+    } else if (noResponse) {
       verdict = "ERROR";
       reason = "model produced no response after a retry (harness timeout?) — infra, not skill behavior";
       appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
@@ -301,7 +366,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
       verdict = o.verdict; reason = o.reason; suspect = o.suspect; // judgeOneRep already journaled (verdict + misfire)
     }
     log(`  → ${scenario.id}${repCount > 1 ? `#${rep}` : ""} ${verdict}${reason ? `: ${reason}` : ""}${suspect ? "  ⚠ suspect" : ""}`);
-    return { verdict, reason, suspect };
+    return { verdict, reason, suspect, objective };
   } finally {
     ws?.cleanup();
   }

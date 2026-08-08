@@ -452,7 +452,33 @@ never enter `specification.yaml` before a human promotes them.
       - `spec-write.ts` is now the single validated atomic writer; `add-test` was
         refactored onto it so the two paths cannot disagree about a legal spec write.
       - Post: `docs/posts/2026-08-08-promote-a-conversation-to-a-regression.md`
-- [ ] Phase 2 — structured traces + objective `assert.trace` gates
+- [x] **Phase 2 — structured traces + objective `assert.trace` gates** (2026-08-08).
+      Declarative assertions over what the model DID, evaluated before the judge:
+      `require_calls` (with min/max and argument predicates), `forbid_calls`,
+      `unchanged_paths`. Valid on inline and seeded scenarios alike.
+      - **A failed gate costs zero judge calls** — the ordering is the feature, and
+        there is a test whose whole job is counting them.
+      - **Missing evidence is ERROR, never a pass.** An adapter that cannot trace, a
+        structured run yielding no trace, an unreadable saved trace: all ERROR. A
+        result with no `objective` field means *not declared*, never *passed* — the
+        one collapse that would silently upgrade the whole legacy corpus.
+      - **The DSL is closed.** Seven comparison operators, no expressions, no
+        callbacks. A spec arrives from a repository; giving it a code path would make
+        "add a test" and "run arbitrary code in CI" the same act. Unknown keys are
+        rejected rather than ignored — a silently-dropped `forbid_call` reads in
+        review as protection while asserting nothing.
+      - `assert.trace` is bucketed as a **gate** facet, so lint names `regate` (free)
+        as the remedy — and `regate` was extended to honour it, reading saved
+        `.trace.jsonl` artifacts. A run predating trace capture is refused with "needs
+        a re-run" rather than answered from no evidence.
+      - **Bug caught while wiring regate:** prior-gate state was read only from the
+        seeded transcript trailer, which trace-gated inline scenarios do not have, so
+        a gate flipping to PASS never triggered the re-judge it needed — leaving a
+        stale FAIL verdict beside a PASS objective.
+      - Existing scenarios keep their execution path. `runStructured` is opt-in per
+        scenario; transcript parity is proven but proven on a handful of fixtures,
+        which does not justify silently re-running a published corpus.
+      - Post: `docs/posts/2026-08-08-assert-the-trace-not-the-story.md`
 - [ ] Phase 3 — first-class subagent orchestration tests
 - [ ] Phase 4 — instruction coverage + affected-test selection
 - [ ] Phase 5 — confidence-aware automatic rejudging

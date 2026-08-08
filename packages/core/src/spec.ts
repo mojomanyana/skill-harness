@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import yaml from "js-yaml";
 import type { WorkspaceKind } from "./workspace.js";
+import { parseTraceAssert, type TraceAssert } from "./trace-gates.js";
 
 export type ScenarioMode = "inline" | "seeded";
 
@@ -33,6 +34,14 @@ export interface Scenario {
   checklist: string[];
   fixture?: string;
   assert?: SeededAssert;
+  /**
+   * Objective assertions over the execution trace.
+   *
+   * Deliberately NOT part of `SeededAssert`: the other gates read a staged git
+   * diff and are meaningless without a fixture, while a trace exists for any run.
+   * Declaring it opts the scenario into structured (`--mode json`) execution.
+   */
+  traceAssert?: TraceAssert;
   workspace: WorkspaceKind; // isolated-cwd kind; always populated (default "none")
   remote: boolean; // env.remote: wire a local bare `origin` so the fixture has a real upstream
   systemPromptFile?: string; // system_prompt_file: run this md file AS the system prompt (agents/<name>.md)
@@ -221,6 +230,13 @@ export function parseSpec(text: string, file: string): Spec {
       workspace: "none",
       remote: false,
     };
+
+    // `assert.trace` is legal for inline AND seeded scenarios — it reads the
+    // execution trace, which every run produces, not a staged diff.
+    const rawAssert = s.assert as Record<string, unknown> | undefined;
+    if (rawAssert?.trace !== undefined) {
+      scenario.traceAssert = parseTraceAssert(rawAssert.trace, `${file}: scenario \`${id}\``);
+    }
 
     if (mode === "seeded") {
       if (typeof s.fixture !== "string" || s.fixture.length === 0) {

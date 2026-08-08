@@ -4,7 +4,7 @@ import { dirname as dirname7, join as join24 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
 import { existsSync as existsSync18 } from "node:fs";
-import { homedir } from "node:os";
+import { homedir as homedir2 } from "node:os";
 import { dirname as dirname6, join as join23, resolve as resolve9 } from "node:path";
 
 // packages/core/dist/spec.js
@@ -1977,8 +1977,8 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
   function generateNextLine(state, level) {
     return "\n" + common.repeat(" ", state.indent * level);
   }
-  function testImplicitResolving(state, str) {
-    for (let index = 0, length = state.implicitTypes.length; index < length; index += 1) if (state.implicitTypes[index].resolve(str)) return true;
+  function testImplicitResolving(state, str2) {
+    for (let index = 0, length = state.implicitTypes.length; index < length; index += 1) if (state.implicitTypes[index].resolve(str2)) return true;
     return false;
   }
   function isWhitespace(c) {
@@ -2372,6 +2372,281 @@ var import_js_yaml = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((ex
 var { Type, Schema, FAILSAFE_SCHEMA, JSON_SCHEMA, CORE_SCHEMA, DEFAULT_SCHEMA, load, loadAll, dump, YAMLException, types, safeLoad, safeLoadAll, safeDump } = import_js_yaml.default;
 var index_vite_proxy_tmp_default = import_js_yaml.default;
 
+// packages/core/dist/trace-gates.js
+var PREDICATE_KEYS = ["equals", "contains", "starts_with", "ends_with", "matches", "exists", "any"];
+function evaluateTraceGates(assert, trace) {
+  const assertions = [];
+  for (const req of assert.require_calls ?? []) {
+    const matched = trace.tool_calls.filter((c) => c.name === req.tool && argsMatch(c, req.args));
+    const min = req.count?.min ?? 1;
+    const max = req.count?.max;
+    const described = describeArgs(req.args);
+    if (matched.length < min) {
+      assertions.push({
+        kind: "require_call",
+        status: "FAIL",
+        detail: `expected at least ${min} call(s) to \`${req.tool}\`${described}, saw ${matched.length}${nearMiss(trace, req)}`
+      });
+    } else if (max !== void 0 && matched.length > max) {
+      assertions.push({
+        kind: "require_call",
+        status: "FAIL",
+        detail: `expected at most ${max} call(s) to \`${req.tool}\`${described}, saw ${matched.length}`
+      });
+    } else {
+      assertions.push({
+        kind: "require_call",
+        status: "PASS",
+        detail: `\`${req.tool}\`${described} called ${matched.length} time(s)`
+      });
+    }
+  }
+  for (const forbid of assert.forbid_calls ?? []) {
+    const hits = trace.tool_calls.filter((c) => c.name === forbid.tool && argsMatch(c, forbid.args));
+    assertions.push(hits.length === 0 ? { kind: "forbid_call", status: "PASS", detail: `\`${forbid.tool}\`${describeArgs(forbid.args)} not called` } : {
+      kind: "forbid_call",
+      status: "FAIL",
+      detail: `\`${forbid.tool}\`${describeArgs(forbid.args)} called ${hits.length} time(s) \u2014 forbidden`
+    });
+  }
+  for (const pattern of assert.unchanged_paths ?? []) {
+    const changed = trace.changed_paths.filter((p) => matchesGlob(pattern, p));
+    assertions.push(changed.length === 0 ? { kind: "unchanged_path", status: "PASS", detail: `\`${pattern}\` unchanged` } : { kind: "unchanged_path", status: "FAIL", detail: `\`${pattern}\` changed: ${changed.join(", ")}` });
+  }
+  return {
+    status: assertions.some((a) => a.status === "FAIL") ? "FAIL" : "PASS",
+    assertions
+  };
+}
+function nearMiss(trace, req) {
+  if (!req.args)
+    return "";
+  const byName = trace.tool_calls.filter((c) => c.name === req.tool);
+  if (byName.length === 0)
+    return ` (\`${req.tool}\` was never called)`;
+  return ` (\`${req.tool}\` called ${byName.length}x, but with different arguments)`;
+}
+function describeArgs(args) {
+  if (!args || Object.keys(args).length === 0)
+    return "";
+  const parts = Object.entries(args).map(([k, p]) => {
+    const [op] = PREDICATE_KEYS.filter((key) => p[key] !== void 0);
+    return op ? `${k} ${op} ${JSON.stringify(p[op])}` : k;
+  });
+  return ` (${parts.join(", ")})`;
+}
+function argsMatch(call, args) {
+  if (!args)
+    return true;
+  return Object.entries(args).every(([key, predicate]) => testPredicate(call.args[key], predicate));
+}
+function testPredicate(value, p) {
+  if (p.exists !== void 0) {
+    if (p.exists !== (value !== void 0 && value !== null))
+      return false;
+    if (p.exists === false)
+      return true;
+  }
+  if (p.equals !== void 0 && !deepEqual(value, p.equals))
+    return false;
+  if (p.contains !== void 0 && !asString(value).includes(p.contains))
+    return false;
+  if (p.starts_with !== void 0 && !asString(value).startsWith(p.starts_with))
+    return false;
+  if (p.ends_with !== void 0 && !asString(value).endsWith(p.ends_with))
+    return false;
+  if (p.matches !== void 0) {
+    let re;
+    try {
+      re = new RegExp(p.matches);
+    } catch {
+      return false;
+    }
+    if (!re.test(asString(value)))
+      return false;
+  }
+  if (p.any !== void 0) {
+    if (!Array.isArray(value))
+      return false;
+    if (!value.some((v) => testPredicate(v, p.any)))
+      return false;
+  }
+  return true;
+}
+function asString(v) {
+  if (typeof v === "string")
+    return v;
+  if (v === void 0 || v === null)
+    return "";
+  return JSON.stringify(v) ?? "";
+}
+function deepEqual(a, b) {
+  if (a === b)
+    return true;
+  if (typeof a !== typeof b || a === null || b === null)
+    return false;
+  if (typeof a !== "object")
+    return false;
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+function matchesGlob(pattern, path) {
+  const p = normalizePath(path);
+  const pat = normalizePath(pattern);
+  if (pat === p)
+    return true;
+  const escaped = pat.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*\*\//g, "\0SLASHSTAR\0").replace(/\*\*/g, "\0GLOBSTAR\0").replace(/\*/g, "[^/]*").replace(/ SLASHSTAR /g, "(?:.*/)?").replace(/ GLOBSTAR /g, ".*");
+  return new RegExp(`^${escaped}$`).test(p);
+}
+function normalizePath(p) {
+  return p.replace(/\\/g, "/").replace(/^\.\//, "");
+}
+function parseTraceAssert(raw, ctx) {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(`${ctx}: \`assert.trace\` must be a mapping`);
+  }
+  const obj = raw;
+  const allowed = /* @__PURE__ */ new Set(["require_calls", "forbid_calls", "unchanged_paths"]);
+  for (const key of Object.keys(obj)) {
+    if (!allowed.has(key)) {
+      throw new Error(`${ctx}: unknown \`assert.trace\` key \`${key}\` (allowed: ${[...allowed].join(", ")})`);
+    }
+  }
+  const out = {};
+  if (obj.require_calls !== void 0) {
+    out.require_calls = asArray(obj.require_calls, `${ctx}: \`require_calls\``).map((item, i) => {
+      const entry = asObject(item, `${ctx}: \`require_calls[${i}]\``);
+      const tool = requireToolName(entry.tool, `${ctx}: \`require_calls[${i}]\``);
+      const req = { tool };
+      if (entry.count !== void 0)
+        req.count = parseCount(entry.count, `${ctx}: \`require_calls[${i}].count\``);
+      if (entry.args !== void 0)
+        req.args = parseArgs(entry.args, `${ctx}: \`require_calls[${i}].args\``);
+      for (const key of Object.keys(entry)) {
+        if (!["tool", "count", "args"].includes(key)) {
+          throw new Error(`${ctx}: unknown key \`${key}\` in \`require_calls[${i}]\``);
+        }
+      }
+      return req;
+    });
+  }
+  if (obj.forbid_calls !== void 0) {
+    out.forbid_calls = asArray(obj.forbid_calls, `${ctx}: \`forbid_calls\``).map((item, i) => {
+      if (typeof item === "string")
+        return { tool: item };
+      const entry = asObject(item, `${ctx}: \`forbid_calls[${i}]\``);
+      const forbid = { tool: requireToolName(entry.tool, `${ctx}: \`forbid_calls[${i}]\``) };
+      if (entry.args !== void 0)
+        forbid.args = parseArgs(entry.args, `${ctx}: \`forbid_calls[${i}].args\``);
+      for (const key of Object.keys(entry)) {
+        if (!["tool", "args"].includes(key)) {
+          throw new Error(`${ctx}: unknown key \`${key}\` in \`forbid_calls[${i}]\``);
+        }
+      }
+      return forbid;
+    });
+  }
+  if (obj.unchanged_paths !== void 0) {
+    const paths = asArray(obj.unchanged_paths, `${ctx}: \`unchanged_paths\``);
+    out.unchanged_paths = paths.map((p, i) => {
+      if (typeof p !== "string" || p.trim() === "") {
+        throw new Error(`${ctx}: \`unchanged_paths[${i}]\` must be a non-empty string`);
+      }
+      return p;
+    });
+  }
+  if (!out.require_calls && !out.forbid_calls && !out.unchanged_paths) {
+    throw new Error(`${ctx}: \`assert.trace\` declares no assertions \u2014 remove it or add one`);
+  }
+  return out;
+}
+function requireToolName(v, ctx) {
+  if (typeof v !== "string" || v.trim() === "")
+    throw new Error(`${ctx}: needs a non-empty \`tool\` name`);
+  return v;
+}
+function asArray(v, ctx) {
+  if (!Array.isArray(v) || v.length === 0)
+    throw new Error(`${ctx} must be a non-empty list`);
+  return v;
+}
+function asObject(v, ctx) {
+  if (v === null || typeof v !== "object" || Array.isArray(v))
+    throw new Error(`${ctx} must be a mapping`);
+  return v;
+}
+function parseCount(raw, ctx) {
+  const obj = asObject(raw, ctx);
+  const out = {};
+  for (const key of Object.keys(obj)) {
+    if (key !== "min" && key !== "max")
+      throw new Error(`${ctx}: unknown key \`${key}\` (allowed: min, max)`);
+  }
+  for (const key of ["min", "max"]) {
+    if (obj[key] === void 0)
+      continue;
+    const n = obj[key];
+    if (typeof n !== "number" || !Number.isInteger(n) || n < 0) {
+      throw new Error(`${ctx}: \`${key}\` must be a non-negative integer`);
+    }
+    out[key] = n;
+  }
+  if (out.min !== void 0 && out.max !== void 0 && out.min > out.max) {
+    throw new Error(`${ctx}: min (${out.min}) exceeds max (${out.max}) \u2014 nothing can satisfy it`);
+  }
+  return out;
+}
+function parseArgs(raw, ctx) {
+  const obj = asObject(raw, ctx);
+  const out = {};
+  for (const [key, value] of Object.entries(obj)) {
+    out[key] = parsePredicate(value, `${ctx}.${key}`);
+  }
+  return out;
+}
+function parsePredicate(raw, ctx) {
+  if (typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean") {
+    return { equals: raw };
+  }
+  const obj = asObject(raw, ctx);
+  const out = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (!PREDICATE_KEYS.includes(key)) {
+      throw new Error(`${ctx}: unknown operator \`${key}\` (allowed: ${PREDICATE_KEYS.join(", ")})`);
+    }
+    if (key === "matches") {
+      if (typeof value !== "string")
+        throw new Error(`${ctx}: \`matches\` must be a string pattern`);
+      try {
+        new RegExp(value);
+      } catch (e) {
+        throw new Error(`${ctx}: \`matches\` is not a valid regular expression: ${e instanceof Error ? e.message : e}`);
+      }
+      out.matches = value;
+      continue;
+    }
+    if (key === "exists") {
+      if (typeof value !== "boolean")
+        throw new Error(`${ctx}: \`exists\` must be true or false`);
+      out.exists = value;
+      continue;
+    }
+    if (key === "any") {
+      out.any = parsePredicate(value, `${ctx}.any`);
+      continue;
+    }
+    if (key === "equals") {
+      out.equals = value;
+      continue;
+    }
+    if (typeof value !== "string")
+      throw new Error(`${ctx}: \`${key}\` must be a string`);
+    out[key] = value;
+  }
+  if (Object.keys(out).length === 0)
+    throw new Error(`${ctx}: predicate declares no operator`);
+  return out;
+}
+
 // packages/core/dist/spec.js
 var SpecError = class extends Error {
   constructor(message, file) {
@@ -2499,6 +2774,10 @@ function parseSpec(text, file) {
       workspace: "none",
       remote: false
     };
+    const rawAssert = s.assert;
+    if (rawAssert?.trace !== void 0) {
+      scenario.traceAssert = parseTraceAssert(rawAssert.trace, `${file}: scenario \`${id}\``);
+    }
     if (mode === "seeded") {
       if (typeof s.fixture !== "string" || s.fixture.length === 0) {
         throw new SpecError(`seeded scenario \`${id}\` requires a \`fixture\` path`, file);
@@ -2637,13 +2916,13 @@ function walk(dir, prefix = "") {
   return out;
 }
 function facets(s) {
-  const { id, title, critical, mode, turns, checklist, fixture, assert, workspace, remote, systemPromptFile, reps: reps2, passThreshold, ...restScenario } = s;
+  const { id, title, critical, mode, turns, checklist, fixture, assert, traceAssert, workspace, remote, systemPromptFile, reps: reps2, passThreshold, ...restScenario } = s;
   const _scenarioExhaustive = restScenario;
   void _scenarioExhaustive;
   const { vitest, diff_contains, diff_excludes, post_test, ...restAssert } = assert ?? {};
   const _assertExhaustive = restAssert;
   void _assertExhaustive;
-  const hasGates = diff_contains !== void 0 || diff_excludes !== void 0;
+  const hasGates = diff_contains !== void 0 || diff_excludes !== void 0 || traceAssert !== void 0;
   return {
     // `vitest` and the `post_test` PATH are stimulus, not gates: both change what the
     // run executes in the workspace, and neither can be re-evaluated from a saved
@@ -2661,7 +2940,7 @@ function facets(s) {
     ]),
     rubric: JSON.stringify([id, title, checklist]),
     policy: JSON.stringify([id, critical, reps2 ?? null, passThreshold ?? null]),
-    gates: hasGates ? JSON.stringify([id, diff_contains ?? null, diff_excludes ?? null]) : null
+    gates: hasGates ? JSON.stringify([id, diff_contains ?? null, diff_excludes ?? null, traceAssert ?? null]) : null
   };
 }
 function sha(canonical) {
@@ -3177,6 +3456,10 @@ function diffPath(runDir, scenarioId, mode, rep) {
   const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
   return join4(runDir, `${base}.diff.txt`);
 }
+function tracePath(runDir, scenarioId, mode, rep) {
+  const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
+  return join4(runDir, `${base}.trace.jsonl`);
+}
 function findDiffFiles(runDir, scenarioId, mode) {
   if (!existsSync3(runDir))
     return [];
@@ -3552,13 +3835,29 @@ function capDiff(diff, maxBytes = DIFF_MAX_BYTES) {
 }
 async function runSeeded(scenario, opts) {
   const repo = opts.cwd;
-  const harnessOut = await opts.adapter.run({
+  const req = {
     skillDir: opts.skillDir,
     model: opts.model,
     mode: opts.mode,
     turns: scenario.turns,
     cwd: repo
-  });
+  };
+  let traces = [];
+  let harnessOut;
+  if (opts.trace) {
+    if (!opts.adapter.runStructured) {
+      throw new Error(`scenario \`${opts.trace.scenarioId}\` declares \`assert.trace\`, but the \`${opts.adapter.name}\` adapter cannot produce execution traces \u2014 the gate would have no evidence to read.`);
+    }
+    const structured = await opts.adapter.runStructured({
+      ...req,
+      scenarioId: opts.trace.scenarioId,
+      rep: opts.trace.rep
+    });
+    harnessOut = structured.transcript;
+    traces = structured.traces;
+  } else {
+    harnessOut = await opts.adapter.run(req);
+  }
   const parts = [harnessOut, "", "=== SEEDED GATES ==="];
   let gateFailure = null;
   const runVitest = opts.runVitest ?? ((args, cwd) => exec("npx", ["vitest", "run", ...args], { cwd, timeoutMs: VITEST_TIMEOUT_MS }));
@@ -3571,7 +3870,7 @@ async function runSeeded(scenario, opts) {
     const msg = `staged diff could not be captured \u2014 git ${why} \u2014 infrastructure, not model behavior` + (gitFailure.stderr.trim() ? `: ${gitFailure.stderr.trim().split("\n")[0]}` : "");
     parts.push(`  staged diff: ERROR (${msg})`);
     gateFailure = msg;
-    return finish(parts, gateFailure, diff);
+    return finish(parts, gateFailure, diff, traces);
   }
   const needles = evaluateNeedleGates(scenario, diff);
   parts.push(...needles.lines);
@@ -3604,7 +3903,7 @@ async function runSeeded(scenario, opts) {
         parts.push(`  post_test: ERROR (${msg})`);
         if (!gateFailure)
           gateFailure = msg;
-        return finish(parts, gateFailure, diff);
+        return finish(parts, gateFailure, diff, traces);
       }
       const v = await runVitest([POST_TEST_BASE], repo);
       const out = `${v.stdout}
@@ -3632,7 +3931,7 @@ ${v.stderr}`;
         gateFailure = problem;
     }
   }
-  return finish(parts, gateFailure, diff);
+  return finish(parts, gateFailure, diff, traces);
 }
 function git(cwd, args) {
   return exec("git", args, { cwd, timeoutMs: 3e4 });
@@ -3656,10 +3955,10 @@ function bothStreams(v) {
 ${e}`;
   return o || e;
 }
-function finish(parts, gateFailure, diff) {
+function finish(parts, gateFailure, diff, traces = []) {
   parts.push("", "=== STAGED DIFF ===");
   parts.push(diff.trim() === "" ? "  (empty \u2014 the model left no staged changes)" : capDiff(diff));
-  return { transcript: parts.join("\n"), gateFailure, diff };
+  return { transcript: parts.join("\n"), gateFailure, diff, traces };
 }
 function vitestTally(out) {
   const line = /^\s*Tests\s+(.+)$/m.exec(out);
@@ -3670,6 +3969,384 @@ function vitestTally(out) {
     return m ? Number(m[1]) : 0;
   };
   return { passed: read("passed"), failed: read("failed"), skipped: read("skipped"), todo: read("todo") };
+}
+
+// packages/core/dist/execution-trace.js
+import { createHash as createHash3 } from "node:crypto";
+
+// packages/core/dist/capture-trace-types.js
+var EXECUTION_TRACE_VERSION = 1;
+var CAPTURE_SCHEMA_VERSION = 1;
+
+// packages/core/dist/capture.js
+import { createHash as createHash2 } from "node:crypto";
+function activeBranch(entries, leafId) {
+  const byId = /* @__PURE__ */ new Map();
+  for (const e of entries)
+    if (typeof e.id === "string")
+      byId.set(e.id, e);
+  let cursor = leafId;
+  if (cursor === void 0) {
+    for (let i = entries.length - 1; i >= 0; i--) {
+      if (typeof entries[i].id === "string") {
+        cursor = entries[i].id;
+        break;
+      }
+    }
+  }
+  const chain = [];
+  const seen = /* @__PURE__ */ new Set();
+  while (cursor !== void 0 && cursor !== null && byId.has(cursor) && chain.length <= entries.length) {
+    if (seen.has(cursor))
+      break;
+    seen.add(cursor);
+    const entry = byId.get(cursor);
+    chain.push(entry);
+    cursor = entry.parentId ?? void 0;
+  }
+  return chain.reverse();
+}
+function visibleText(blocks) {
+  if (!blocks)
+    return "";
+  const parts = [];
+  for (const b of blocks) {
+    if (b.type === "thinking")
+      continue;
+    if (b.type === "text" && typeof b.text === "string")
+      parts.push(b.text);
+    else if (b.type === "image")
+      parts.push("[image omitted]");
+  }
+  return parts.join("\n").trim();
+}
+function projectTurns(entries) {
+  const turns = [];
+  let current = null;
+  for (const entry of entries) {
+    if (entry.type !== "message" || !entry.message)
+      continue;
+    const msg = entry.message;
+    const id = typeof entry.id === "string" ? entry.id : "";
+    if (msg.role === "user") {
+      current = {
+        index: turns.length,
+        user: visibleText(msg.content),
+        assistantText: "",
+        toolCalls: [],
+        entryIds: id ? [id] : []
+      };
+      turns.push(current);
+      continue;
+    }
+    if (!current)
+      continue;
+    if (id)
+      current.entryIds.push(id);
+    if (msg.role === "assistant") {
+      const text = visibleText(msg.content);
+      if (text)
+        current.assistantText = current.assistantText ? `${current.assistantText}
+${text}` : text;
+      for (const b of msg.content ?? []) {
+        if (b.type !== "toolCall")
+          continue;
+        current.toolCalls.push({
+          name: typeof b.name === "string" ? b.name : "(unknown)",
+          args: redactArgs(b.arguments),
+          isError: false,
+          ...typeof b.id === "string" ? { id: b.id } : {}
+        });
+      }
+      continue;
+    }
+    if (msg.role === "toolResult") {
+      const body = JSON.stringify(msg.content ?? []);
+      const callId = typeof msg.toolCallId === "string" ? msg.toolCallId : void 0;
+      const target = callId ? current.toolCalls.find((c) => c.id === callId) : current.toolCalls.find((c) => c.name === msg.toolName && c.resultBytes === void 0);
+      if (target) {
+        target.isError = msg.isError === true;
+        target.resultBytes = Buffer.byteLength(body, "utf8");
+        target.resultSha256 = sha256(body);
+      }
+    }
+  }
+  return turns;
+}
+var MAX_VALUE_CHARS = 2e3;
+var REDACTED = "[redacted]";
+var SECRET_KEY = /^(.*[-_])?(password|passwd|secret|token|api[-_]?key|apikey|auth|authorization|credential|private[-_]?key|access[-_]?key|session[-_]?key)([-_].*)?$/i;
+var SECRET_VALUE = [
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
+  /\bBearer\s+[A-Za-z0-9._~+/-]{16,}=*/g,
+  /\bsk-[A-Za-z0-9]{16,}\b/g,
+  /\bgh[pousr]_[A-Za-z0-9]{16,}\b/g,
+  /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/g,
+  /\bAKIA[0-9A-Z]{16}\b/g,
+  /\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g
+  // JWT
+];
+function redactText(input, homeDir) {
+  let out = input;
+  for (const re of SECRET_VALUE)
+    out = out.replace(re, REDACTED);
+  if (homeDir && homeDir.length > 1) {
+    out = out.split(homeDir).join("~");
+  }
+  return out;
+}
+function truncate(input, max = MAX_VALUE_CHARS) {
+  if (input.length <= max)
+    return input;
+  return `${input.slice(0, max)}\u2026 [truncated ${input.length - max} chars]`;
+}
+function redactArgs(args, homeDir, depth = 0) {
+  if (args === null || typeof args !== "object" || Array.isArray(args))
+    return {};
+  const out = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (SECRET_KEY.test(key)) {
+      out[key] = REDACTED;
+      continue;
+    }
+    out[key] = redactValue(value, homeDir, depth);
+  }
+  return out;
+}
+function redactValue(value, homeDir, depth) {
+  if (typeof value === "string")
+    return truncate(redactText(value, homeDir));
+  if (typeof value === "number" || typeof value === "boolean" || value === null)
+    return value;
+  if (depth >= 3)
+    return "[nested]";
+  if (Array.isArray(value))
+    return value.slice(0, 20).map((v) => redactValue(v, homeDir, depth + 1));
+  if (typeof value === "object")
+    return redactArgs(value, homeDir, depth + 1);
+  return String(value);
+}
+function sha256(text) {
+  return createHash2("sha256").update(text, "utf8").digest("hex");
+}
+function captureId(seed, existing = []) {
+  const taken = new Set(existing);
+  const base = `CAP-${sha256(seed).slice(0, 6).toUpperCase()}`;
+  if (!taken.has(base))
+    return base;
+  for (let n = 2; ; n++) {
+    const candidate = `${base}-${n}`;
+    if (!taken.has(candidate))
+      return candidate;
+  }
+}
+function buildCaptureCase(opts) {
+  const { start, end } = opts.range;
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end >= opts.turns.length) {
+    throw new Error(`invalid capture range ${start}..${end} over ${opts.turns.length} turn(s)`);
+  }
+  if (opts.expectedBehavior.trim() === "") {
+    throw new Error("a capture needs a written expected behavior \u2014 it is what makes the case reviewable");
+  }
+  const checklist = opts.checklist.map((c) => c.trim()).filter(Boolean);
+  if (checklist.length === 0) {
+    throw new Error("a capture needs at least one checklist item");
+  }
+  const selected = opts.turns.slice(start, end + 1);
+  const turns = selected.map((t) => truncate(redactText(t.user, opts.homeDir)));
+  const id = captureId(`${opts.sessionPath}:${start}:${end}:${opts.created}`, opts.existingIds ?? []);
+  return {
+    capture_schema: CAPTURE_SCHEMA_VERSION,
+    id,
+    created: opts.created,
+    classification: opts.classification,
+    turns,
+    expected_behavior: truncate(redactText(opts.expectedBehavior, opts.homeDir)),
+    checklist: checklist.map((c) => truncate(redactText(c, opts.homeDir), 300)),
+    target: opts.target,
+    provenance: {
+      session_sha256: sha256(opts.sessionPath),
+      turn_range: { start, end },
+      ...opts.subject ? { subject: opts.subject } : {},
+      ...opts.gitCommit ? { git_commit: opts.gitCommit } : {},
+      ...opts.gitDirty === void 0 ? {} : { git_dirty: opts.gitDirty }
+    },
+    status: "pending"
+  };
+}
+function captureToScenario(capture, scenarioId, title) {
+  return {
+    id: scenarioId,
+    title,
+    turns: capture.turns,
+    checklist: capture.checklist
+  };
+}
+function draftChecklist(expectedBehavior) {
+  return expectedBehavior.split(/\n\s*[-*]\s+|\n{2,}|(?<=[.!?])\s+(?=[A-Z])/).map((s) => s.replace(/^[-*]\s+/, "").replace(/\s+/g, " ").trim().replace(/[.]$/, "")).filter((s) => s.length > 3);
+}
+
+// packages/core/dist/execution-trace.js
+var SKIPPED = /* @__PURE__ */ new Set(["message_update", "tool_execution_update"]);
+var MAX_DETAILS_CHARS = 2e3;
+function parseTrace(lines, meta) {
+  const calls = /* @__PURE__ */ new Map();
+  let issueCounter = 0;
+  let completionCounter = 0;
+  let malformedLines = 0;
+  let sawTerminal = false;
+  let finalText = "";
+  let lastAssistantText = "";
+  let cost = null;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed)
+      continue;
+    let ev;
+    try {
+      ev = JSON.parse(trimmed);
+    } catch {
+      malformedLines++;
+      continue;
+    }
+    const type = ev.type;
+    if (typeof type !== "string" || SKIPPED.has(type))
+      continue;
+    if (type === "tool_execution_start") {
+      const id = str(ev.toolCallId);
+      if (!id)
+        continue;
+      calls.set(id, {
+        id,
+        name: str(ev.toolName) ?? "(unknown)",
+        args: redactArgs(ev.args, meta.homeDir),
+        issueIndex: issueCounter++,
+        completionIndex: -1,
+        // filled in on `end`; -1 means it never completed
+        isError: false,
+        result: { bytes: 0, sha256: sha2562("") }
+      });
+      continue;
+    }
+    if (type === "tool_execution_end") {
+      const id = str(ev.toolCallId);
+      if (!id)
+        continue;
+      const call = calls.get(id);
+      if (!call)
+        continue;
+      call.completionIndex = completionCounter++;
+      call.isError = ev.isError === true;
+      call.result = resultMeta(ev.result);
+      continue;
+    }
+    if (type === "message_end") {
+      sawTerminal = true;
+      const msg = ev.message;
+      if (msg?.role !== "assistant")
+        continue;
+      const text = assistantText(msg);
+      if (text) {
+        lastAssistantText = text;
+        if (msg.stopReason === "stop")
+          finalText = text;
+      }
+      const total = msg.usage?.cost?.total;
+      if (typeof total === "number")
+        cost = (cost ?? 0) + total;
+      continue;
+    }
+    if (type === "turn_end" || type === "agent_end" || type === "agent_settled") {
+      sawTerminal = true;
+      continue;
+    }
+  }
+  const trace = {
+    trace_version: EXECUTION_TRACE_VERSION,
+    pi_version: meta.piVersion,
+    subject: meta.subject,
+    scenario_id: meta.scenarioId,
+    mode: meta.mode,
+    rep: meta.rep,
+    turn: meta.turn,
+    // Fall back to the last assistant text when no message carried `stop` — a
+    // truncated or length-capped run still produced an answer, and losing it
+    // would silently turn a real reply into an empty transcript.
+    final_text: finalText || lastAssistantText,
+    tool_calls: [...calls.values()].sort((a, b) => a.issueIndex - b.issueIndex),
+    changed_paths: [...meta.changedPaths ?? []].sort(),
+    cost_usd: cost
+  };
+  trace.trace_sha256 = traceSha256(trace);
+  return { trace, isComplete: sawTerminal, malformedLines };
+}
+function assistantText(msg) {
+  return (msg.content ?? []).filter((b) => b.type === "text" && typeof b.text === "string").map((b) => b.text).join("\n").trim();
+}
+function resultMeta(result) {
+  const body = JSON.stringify(result?.content ?? result ?? null);
+  const meta = { bytes: Buffer.byteLength(body, "utf8"), sha256: sha2562(body) };
+  const details = result?.details;
+  if (details && typeof details === "object" && !Array.isArray(details)) {
+    const encoded = JSON.stringify(details);
+    if (encoded.length <= MAX_DETAILS_CHARS)
+      meta.details = details;
+  }
+  return meta;
+}
+function str(v) {
+  return typeof v === "string" && v.length > 0 ? v : void 0;
+}
+function sha2562(text) {
+  return createHash3("sha256").update(text, "utf8").digest("hex");
+}
+function traceSha256(trace) {
+  const { trace_sha256: _omit, ...rest } = trace;
+  return sha2562(stableStringify(rest));
+}
+function stableStringify(value) {
+  if (value === null || typeof value !== "object")
+    return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value))
+    return `[${value.map(stableStringify).join(",")}]`;
+  const entries = Object.entries(value).filter(([, v]) => v !== void 0).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(",")}}`;
+}
+function serializeTrace(trace) {
+  return `${JSON.stringify(trace)}
+`;
+}
+function mergeTraces(traces) {
+  if (traces.length === 0)
+    return null;
+  if (traces.length === 1) {
+    const only = traces[0];
+    return only.trace_sha256 ? only : { ...only, trace_sha256: traceSha256(only) };
+  }
+  const calls = [];
+  const changed = /* @__PURE__ */ new Set();
+  let cost = null;
+  for (const t of traces) {
+    for (const c of [...t.tool_calls].sort((a, b) => a.issueIndex - b.issueIndex)) {
+      calls.push({ ...c, issueIndex: calls.length, completionIndex: c.completionIndex < 0 ? -1 : calls.length });
+    }
+    for (const p of t.changed_paths)
+      changed.add(p);
+    if (t.cost_usd !== null)
+      cost = (cost ?? 0) + t.cost_usd;
+  }
+  const last = traces[traces.length - 1];
+  const merged = {
+    ...last,
+    // The scenario's answer is its LAST turn's answer, matching how the
+    // transcript reads and how the judge is asked to grade it.
+    final_text: last.final_text,
+    tool_calls: calls,
+    changed_paths: [...changed].sort(),
+    cost_usd: cost
+  };
+  merged.trace_sha256 = traceSha256(merged);
+  return merged;
 }
 
 // packages/core/dist/scheduler.js
@@ -3691,6 +4368,18 @@ async function runPool(tasks, concurrency) {
 }
 
 // packages/core/dist/reps.js
+function aggregateObjective(outcomes) {
+  const present = outcomes.map((o) => o.objective).filter((o) => o !== void 0);
+  if (present.length === 0)
+    return void 0;
+  const errored = present.find((o) => o.status === "ERROR");
+  if (errored)
+    return errored;
+  const failed = present.find((o) => o.status === "FAIL");
+  if (failed)
+    return failed;
+  return present[0];
+}
 function aggregateReps(outcomes, threshold) {
   const reps2 = outcomes.length;
   const clean = outcomes.filter((o) => !o.suspect);
@@ -3709,9 +4398,11 @@ function aggregateReps(outcomes, threshold) {
   return { verdict, reason, passes, reps: reps2, clean: clean.length, flakiness, suspect: false };
 }
 function outcomesToResult(id, outcomes, repCount, threshold) {
+  const objective = aggregateObjective(outcomes);
+  const objectiveField = objective ? { objective } : {};
   if (repCount === 1) {
     const o = outcomes[0];
-    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, override: null, note: "" };
+    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, override: null, note: "", ...objectiveField };
   }
   const agg = aggregateReps(outcomes, threshold);
   return {
@@ -3725,7 +4416,8 @@ function outcomesToResult(id, outcomes, repCount, threshold) {
     flakiness: agg.flakiness,
     pass_threshold: threshold,
     override: null,
-    note: ""
+    note: "",
+    ...objectiveField
   };
 }
 
@@ -4309,6 +5001,7 @@ async function runRep(scenario, rep, repCount, ctx) {
       transcript = `[workspace setup failed] ${gatePrefix}`;
     }
     let noResponse = false;
+    let traces = [];
     if (ws) {
       for (let attempt = 0; attempt < 2; attempt++) {
         if (attempt > 0) {
@@ -4324,14 +5017,16 @@ async function runRep(scenario, rep, repCount, ctx) {
             model: ctx.model,
             mode,
             cwd: ws.cwd,
-            specDir: dirname(ctx.specPath)
+            specDir: dirname(ctx.specPath),
             // assert.post_test resolves like a fixture
+            trace: scenario.traceAssert ? { scenarioId: scenario.id, rep } : void 0
           });
           transcript = r.transcript;
           gatePrefix = r.gateFailure;
           stagedDiff = r.diff;
+          traces = r.traces;
         } else {
-          transcript = await ctx.adapter.run({
+          const req = {
             skillDir: ctx.skillDir,
             model: ctx.model,
             mode,
@@ -4339,7 +5034,17 @@ async function runRep(scenario, rep, repCount, ctx) {
             cwd: ws.cwd,
             // resolved like fixtures: relative to the spec's dir
             systemPromptFile: scenario.systemPromptFile ? resolve5(dirname(ctx.specPath), scenario.systemPromptFile) : void 0
-          });
+          };
+          if (scenario.traceAssert) {
+            if (!ctx.adapter.runStructured) {
+              throw new Error(`scenario \`${scenario.id}\` declares \`assert.trace\`, but the \`${ctx.adapter.name}\` adapter cannot produce execution traces \u2014 the gate would have no evidence to read.`);
+            }
+            const structured = await ctx.adapter.runStructured({ ...req, scenarioId: scenario.id, rep });
+            transcript = structured.transcript;
+            traces = structured.traces;
+          } else {
+            transcript = await ctx.adapter.run(req);
+          }
         }
         noResponse = hasEmptyAssistantTurn(transcript);
         if (!noResponse)
@@ -4354,10 +5059,44 @@ async function runRep(scenario, rep, repCount, ctx) {
       }
       appendJournal(runDir, { event: "gate-result", ts: now(), id: scenario.id, ok: !gatePrefix, detail: gatePrefix ?? "", ...repField });
     }
+    let objective;
+    if (scenario.traceAssert) {
+      if (traces.length > 0) {
+        writeFileSync3(tracePath(runDir, scenario.id, mode, repSuffix), traces.map(serializeTrace).join(""), "utf8");
+      }
+      const merged = mergeTraces(traces);
+      if (merged === null) {
+        gatePrefix = "objective: no execution trace was produced \u2014 cannot evaluate assert.trace";
+        objective = { status: "ERROR", assertions: [] };
+      } else {
+        const gate = evaluateTraceGates(scenario.traceAssert, merged);
+        objective = {
+          status: gate.status,
+          trace_version: merged.trace_version,
+          trace_sha256: merged.trace_sha256,
+          assertions: gate.assertions
+        };
+        if (gate.status === "FAIL") {
+          gatePrefix = `objective: ${gate.assertions.filter((x) => x.status === "FAIL").map((x) => x.detail).join("; ")}`;
+        }
+      }
+      appendJournal(runDir, {
+        event: "objective-result",
+        ts: now(),
+        id: scenario.id,
+        ok: objective.status === "PASS",
+        detail: gatePrefix ?? "",
+        ...repField
+      });
+    }
     let verdict;
     let reason;
     let suspect = false;
-    if (noResponse) {
+    if (objective?.status === "ERROR") {
+      verdict = "ERROR";
+      reason = gatePrefix ?? "objective evidence missing";
+      appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
+    } else if (noResponse) {
       verdict = "ERROR";
       reason = "model produced no response after a retry (harness timeout?) \u2014 infra, not skill behavior";
       appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
@@ -4383,7 +5122,7 @@ async function runRep(scenario, rep, repCount, ctx) {
       suspect = o.suspect;
     }
     log(`  \u2192 ${scenario.id}${repCount > 1 ? `#${rep}` : ""} ${verdict}${reason ? `: ${reason}` : ""}${suspect ? "  \u26A0 suspect" : ""}`);
-    return { verdict, reason, suspect };
+    return { verdict, reason, suspect, objective };
   } finally {
     ws?.cleanup();
   }
@@ -4527,11 +5266,8 @@ function assertJudgeAllowed(judge, opts) {
 import { existsSync as existsSync13, readFileSync as readFileSync9, renameSync, writeFileSync as writeFileSync4 } from "node:fs";
 import { join as join17 } from "node:path";
 
-// packages/core/dist/capture-trace-types.js
-var CAPTURE_SCHEMA_VERSION = 1;
-
 // packages/core/dist/spec-write.js
-import { createHash as createHash2 } from "node:crypto";
+import { createHash as createHash4 } from "node:crypto";
 import { readFileSync as readFileSync10, renameSync as renameSync2, unlinkSync, writeFileSync as writeFileSync5 } from "node:fs";
 import { dirname as dirname3, join as join18 } from "node:path";
 var ConcurrentSpecModification = class extends Error {
@@ -4547,7 +5283,7 @@ var DuplicateScenarioId = class extends Error {
   }
 };
 function specSha256(text) {
-  return createHash2("sha256").update(text, "utf8").digest("hex");
+  return createHash4("sha256").update(text, "utf8").digest("hex");
 }
 function renderScenarioBlock(scenario) {
   const dumped = index_vite_proxy_tmp_default.dump({ scenarios: [scenario] }, { lineWidth: -1, noRefs: true });
@@ -4587,218 +5323,72 @@ function atomicWrite(path, text) {
   }
 }
 
-// packages/core/dist/capture.js
-import { createHash as createHash3 } from "node:crypto";
-function activeBranch(entries, leafId) {
-  const byId = /* @__PURE__ */ new Map();
-  for (const e of entries)
-    if (typeof e.id === "string")
-      byId.set(e.id, e);
-  let cursor = leafId;
-  if (cursor === void 0) {
-    for (let i = entries.length - 1; i >= 0; i--) {
-      if (typeof entries[i].id === "string") {
-        cursor = entries[i].id;
-        break;
-      }
-    }
-  }
-  const chain = [];
-  const seen = /* @__PURE__ */ new Set();
-  while (cursor !== void 0 && cursor !== null && byId.has(cursor) && chain.length <= entries.length) {
-    if (seen.has(cursor))
-      break;
-    seen.add(cursor);
-    const entry = byId.get(cursor);
-    chain.push(entry);
-    cursor = entry.parentId ?? void 0;
-  }
-  return chain.reverse();
-}
-function visibleText(blocks) {
-  if (!blocks)
-    return "";
-  const parts = [];
-  for (const b of blocks) {
-    if (b.type === "thinking")
-      continue;
-    if (b.type === "text" && typeof b.text === "string")
-      parts.push(b.text);
-    else if (b.type === "image")
-      parts.push("[image omitted]");
-  }
-  return parts.join("\n").trim();
-}
-function projectTurns(entries) {
-  const turns = [];
-  let current = null;
-  for (const entry of entries) {
-    if (entry.type !== "message" || !entry.message)
-      continue;
-    const msg = entry.message;
-    const id = typeof entry.id === "string" ? entry.id : "";
-    if (msg.role === "user") {
-      current = {
-        index: turns.length,
-        user: visibleText(msg.content),
-        assistantText: "",
-        toolCalls: [],
-        entryIds: id ? [id] : []
-      };
-      turns.push(current);
-      continue;
-    }
-    if (!current)
-      continue;
-    if (id)
-      current.entryIds.push(id);
-    if (msg.role === "assistant") {
-      const text = visibleText(msg.content);
-      if (text)
-        current.assistantText = current.assistantText ? `${current.assistantText}
-${text}` : text;
-      for (const b of msg.content ?? []) {
-        if (b.type !== "toolCall")
-          continue;
-        current.toolCalls.push({
-          name: typeof b.name === "string" ? b.name : "(unknown)",
-          args: redactArgs(b.arguments),
-          isError: false,
-          ...typeof b.id === "string" ? { id: b.id } : {}
-        });
-      }
-      continue;
-    }
-    if (msg.role === "toolResult") {
-      const body = JSON.stringify(msg.content ?? []);
-      const callId = typeof msg.toolCallId === "string" ? msg.toolCallId : void 0;
-      const target = callId ? current.toolCalls.find((c) => c.id === callId) : current.toolCalls.find((c) => c.name === msg.toolName && c.resultBytes === void 0);
-      if (target) {
-        target.isError = msg.isError === true;
-        target.resultBytes = Buffer.byteLength(body, "utf8");
-        target.resultSha256 = sha256(body);
-      }
-    }
-  }
-  return turns;
-}
-var MAX_VALUE_CHARS = 2e3;
-var REDACTED = "[redacted]";
-var SECRET_KEY = /^(.*[-_])?(password|passwd|secret|token|api[-_]?key|apikey|auth|authorization|credential|private[-_]?key|access[-_]?key|session[-_]?key)([-_].*)?$/i;
-var SECRET_VALUE = [
-  /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
-  /\bBearer\s+[A-Za-z0-9._~+/-]{16,}=*/g,
-  /\bsk-[A-Za-z0-9]{16,}\b/g,
-  /\bgh[pousr]_[A-Za-z0-9]{16,}\b/g,
-  /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/g,
-  /\bAKIA[0-9A-Z]{16}\b/g,
-  /\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g
-  // JWT
-];
-function redactText(input, homeDir) {
-  let out = input;
-  for (const re of SECRET_VALUE)
-    out = out.replace(re, REDACTED);
-  if (homeDir && homeDir.length > 1) {
-    out = out.split(homeDir).join("~");
-  }
-  return out;
-}
-function truncate(input, max = MAX_VALUE_CHARS) {
-  if (input.length <= max)
-    return input;
-  return `${input.slice(0, max)}\u2026 [truncated ${input.length - max} chars]`;
-}
-function redactArgs(args, homeDir, depth = 0) {
-  if (args === null || typeof args !== "object" || Array.isArray(args))
-    return {};
-  const out = {};
-  for (const [key, value] of Object.entries(args)) {
-    if (SECRET_KEY.test(key)) {
-      out[key] = REDACTED;
-      continue;
-    }
-    out[key] = redactValue(value, homeDir, depth);
-  }
-  return out;
-}
-function redactValue(value, homeDir, depth) {
-  if (typeof value === "string")
-    return truncate(redactText(value, homeDir));
-  if (typeof value === "number" || typeof value === "boolean" || value === null)
-    return value;
-  if (depth >= 3)
-    return "[nested]";
-  if (Array.isArray(value))
-    return value.slice(0, 20).map((v) => redactValue(v, homeDir, depth + 1));
-  if (typeof value === "object")
-    return redactArgs(value, homeDir, depth + 1);
-  return String(value);
-}
-function sha256(text) {
-  return createHash3("sha256").update(text, "utf8").digest("hex");
-}
-function captureId(seed, existing = []) {
-  const taken = new Set(existing);
-  const base = `CAP-${sha256(seed).slice(0, 6).toUpperCase()}`;
-  if (!taken.has(base))
-    return base;
-  for (let n = 2; ; n++) {
-    const candidate = `${base}-${n}`;
-    if (!taken.has(candidate))
-      return candidate;
-  }
-}
-function buildCaptureCase(opts) {
-  const { start, end } = opts.range;
-  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end >= opts.turns.length) {
-    throw new Error(`invalid capture range ${start}..${end} over ${opts.turns.length} turn(s)`);
-  }
-  if (opts.expectedBehavior.trim() === "") {
-    throw new Error("a capture needs a written expected behavior \u2014 it is what makes the case reviewable");
-  }
-  const checklist = opts.checklist.map((c) => c.trim()).filter(Boolean);
-  if (checklist.length === 0) {
-    throw new Error("a capture needs at least one checklist item");
-  }
-  const selected = opts.turns.slice(start, end + 1);
-  const turns = selected.map((t) => truncate(redactText(t.user, opts.homeDir)));
-  const id = captureId(`${opts.sessionPath}:${start}:${end}:${opts.created}`, opts.existingIds ?? []);
-  return {
-    capture_schema: CAPTURE_SCHEMA_VERSION,
-    id,
-    created: opts.created,
-    classification: opts.classification,
-    turns,
-    expected_behavior: truncate(redactText(opts.expectedBehavior, opts.homeDir)),
-    checklist: checklist.map((c) => truncate(redactText(c, opts.homeDir), 300)),
-    target: opts.target,
-    provenance: {
-      session_sha256: sha256(opts.sessionPath),
-      turn_range: { start, end },
-      ...opts.subject ? { subject: opts.subject } : {},
-      ...opts.gitCommit ? { git_commit: opts.gitCommit } : {},
-      ...opts.gitDirty === void 0 ? {} : { git_dirty: opts.gitDirty }
-    },
-    status: "pending"
-  };
-}
-function captureToScenario(capture, scenarioId, title) {
-  return {
-    id: scenarioId,
-    title,
-    turns: capture.turns,
-    checklist: capture.checklist
-  };
-}
-function draftChecklist(expectedBehavior) {
-  return expectedBehavior.split(/\n\s*[-*]\s+|\n{2,}|(?<=[.!?])\s+(?=[A-Z])/).map((s) => s.replace(/^[-*]\s+/, "").replace(/\s+/g, " ").trim().replace(/[.]$/, "")).filter((s) => s.length > 3);
+// packages/adapters/dist/pi.js
+import { existsSync as existsSync14, mkdtempSync as mkdtempSync2, readFileSync as readFileSync11, statSync as statSync8 } from "node:fs";
+import { tmpdir as tmpdir2, homedir } from "node:os";
+import { join as join19, resolve as resolve7 } from "node:path";
+
+// packages/adapters/dist/pi-json.js
+import { spawn as spawn2 } from "node:child_process";
+import { createInterface } from "node:readline";
+var MAX_STDERR_CHARS = 8e3;
+function runPiJson(opts) {
+  return new Promise((resolve10, reject) => {
+    const child = spawn2("pi", opts.args, {
+      cwd: opts.cwd,
+      // stdin from /dev/null: pi hangs waiting on it otherwise, and a hang in a
+      // wave is indistinguishable from a slow model until the timeout fires.
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    const kept = [];
+    let stderr = "";
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled)
+        return;
+      settled = true;
+      child.kill("SIGKILL");
+      reject(new Error(`pi --mode json timed out after ${opts.timeoutMs}ms`));
+    }, opts.timeoutMs);
+    const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
+    rl.on("line", (line) => {
+      if (line.includes('"message_update"') || line.includes('"tool_execution_update"'))
+        return;
+      if (line.trim())
+        kept.push(line);
+    });
+    child.stderr.on("data", (chunk) => {
+      if (stderr.length < MAX_STDERR_CHARS)
+        stderr += chunk.toString("utf8");
+    });
+    child.on("error", (err) => {
+      if (settled)
+        return;
+      settled = true;
+      clearTimeout(timer);
+      reject(err);
+    });
+    child.on("close", (code) => {
+      if (settled)
+        return;
+      settled = true;
+      clearTimeout(timer);
+      const parsed = parseTrace(kept, {
+        piVersion: opts.piVersion,
+        subject: opts.subject,
+        scenarioId: opts.scenarioId,
+        mode: opts.mode,
+        rep: opts.rep,
+        turn: opts.turn,
+        changedPaths: opts.changedPaths,
+        homeDir: opts.homeDir
+      });
+      resolve10({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS) });
+    });
+  });
 }
 
 // packages/adapters/dist/pi.js
-import { existsSync as existsSync14, mkdtempSync as mkdtempSync2, readFileSync as readFileSync11, statSync as statSync8 } from "node:fs";
-import { tmpdir as tmpdir2 } from "node:os";
-import { join as join19, resolve as resolve7 } from "node:path";
 var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
 function requireSkillDir(skillDir, mode) {
   const abs = resolve7(skillDir);
@@ -4898,6 +5488,64 @@ ${r.stderr.trim()}
     return parts.join("\n");
   },
   /**
+   * Structured run: same flags, same turn loop, plus `--mode json` and a trace
+   * per turn.
+   *
+   * Shares `skillFlags` and the turn structure with `run()` on purpose — if the
+   * two drifted, a trace-gated scenario would be measuring a different delivery
+   * than an ungated one, and the gate would be attesting to the wrong execution.
+   *
+   * The transcript is REBUILT from each turn's final assistant message rather
+   * than read from stdout, which is byte-identical to print mode's output (proven
+   * on a deterministic prompt; see docs/pi-native-capture-design-2026-08-08.md §2).
+   */
+  async runStructured(req) {
+    const common = [
+      "--no-context-files",
+      "--no-extensions",
+      "--provider",
+      req.model.provider,
+      "--model",
+      req.model.model
+    ];
+    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync11(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
+    const piVersion = await this.version();
+    const total = req.turns.length;
+    const traces = [];
+    const parts = [];
+    const session = total === 1 ? null : mkdtempSync2(join19(tmpdir2(), "sc-pi-session-"));
+    for (let i = 0; i < total; i++) {
+      const turnFlags = session === null ? ["--no-session"] : i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
+      const args = [...flags, ...common, "--mode", "json", ...turnFlags, "-p", req.turns[i]];
+      const r = await runPiJson({
+        args,
+        cwd: req.cwd,
+        timeoutMs: PI_TIMEOUT_MS,
+        piVersion,
+        subject: req.model,
+        scenarioId: req.scenarioId ?? "(unknown)",
+        mode: req.mode,
+        rep: req.rep ?? 0,
+        turn: i,
+        changedPaths: req.changedPaths,
+        homeDir: homedir()
+      });
+      if (!r.isComplete) {
+        throw new Error(`pi --mode json produced no terminal events for turn ${i + 1}/${total} (exit ${r.code}${r.malformedLines ? `, ${r.malformedLines} malformed line(s)` : ""})` + (r.stderr.trim() ? `: ${r.stderr.trim()}` : ""));
+      }
+      traces.push(r.trace);
+      parts.push(header(i + 1, total, req.turns[i]));
+      parts.push(`<<< ASSISTANT:
+${r.trace.final_text.trim()}
+`);
+      if (r.code !== 0)
+        parts.push(`[pi exited ${r.code} on turn ${i + 1}]
+${r.stderr.trim()}
+`);
+    }
+    return { transcript: parts.join("\n"), traces };
+  },
+  /**
    * Run the judge: no skills, no context files, no session, single prompt.
    * Judge provider `claude-code` routes to the Claude Code CLI (`claude -p`),
    * which authenticates via the user's Claude subscription (OAuth) instead of
@@ -4949,7 +5597,7 @@ import { createServer } from "node:http";
 import { readFileSync as readFileSync12, existsSync as existsSync15 } from "node:fs";
 import { join as join20, dirname as dirname4 } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawn as spawn2 } from "node:child_process";
+import { spawn as spawn3 } from "node:child_process";
 var __dirname = dirname4(fileURLToPath(import.meta.url));
 function templatePath(assetsDir) {
   if (assetsDir)
@@ -5163,7 +5811,7 @@ async function serveReview(opts) {
 function tryOpen(url, cmd) {
   const opener = cmd ?? (process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open");
   try {
-    const child = spawn2(opener, [url], { stdio: "ignore", detached: true });
+    const child = spawn3(opener, [url], { stdio: "ignore", detached: true });
     child.on("error", () => {
     });
     child.unref();
@@ -5232,7 +5880,7 @@ async function runViaExtension(opts) {
 // packages/pi-extension/src/capture-cmd.ts
 import { existsSync as existsSync17, mkdirSync as mkdirSync4, writeFileSync as writeFileSync6, readdirSync as readdirSync10, readFileSync as readFileSync13 } from "node:fs";
 import { join as join22 } from "node:path";
-import { createHash as createHash4 } from "node:crypto";
+import { createHash as createHash5 } from "node:crypto";
 var CANCELLED = { status: "cancelled", files: [] };
 var CAPTURES_GITIGNORE = "# Local review evidence for captured cases \u2014 never commit.\n.local/\n";
 async function runCapture(skillDir, ctx) {
@@ -5370,7 +6018,7 @@ async function chooseTarget(skillDir, ctx) {
   return {
     kind: chosen.kind,
     path: chosen.path,
-    content_sha256: createHash4("sha256").update(readFileSync13(chosen.abs, "utf8"), "utf8").digest("hex")
+    content_sha256: createHash5("sha256").update(readFileSync13(chosen.abs, "utf8"), "utf8").digest("hex")
   };
 }
 function suggestScenarioId(specPath, fallback) {
@@ -5503,7 +6151,7 @@ ${card.failedTranscripts.join("\n")}`);
       sessionEntries: () => sm.getBranch(),
       sessionPath: () => sm.getSessionPath?.() ?? "",
       isStreaming: () => ctx.isStreaming?.() ?? false,
-      homeDir: homedir(),
+      homeDir: homedir2(),
       now: nowIso,
       runOnly: async (dir, scenarioId) => {
         const card = await runViaExtension({

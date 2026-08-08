@@ -461,7 +461,7 @@ Preserve current author ownership: a human may override a raw objective failure 
 
 ### 4.10 Required post
 
-- [ ] `docs/posts/<date>-assert-the-trace-not-the-story.md`
+- [x] `docs/posts/2026-08-08-assert-the-trace-not-the-story.md`
 
 ---
 
@@ -760,9 +760,9 @@ Keep PRs small enough to review and release independently:
 2. [x] Shared atomic scenario writer; refactor `add-test` onto it. (2026-08-08)
 3. [x] Capture projection, redaction, and pending-case format. (2026-08-08)
 4. [x] Pi capture UI and extension `only` support. (2026-08-08)
-5. [ ] Structured pi JSON trace parser and artifact format.
-6. [ ] Trace assertion schema/evaluator and core run integration.
-7. [ ] Trace-aware `regate`, lint, scorecard, and review UI.
+5. [x] Structured pi JSON trace parser and artifact format. (2026-08-08)
+6. [x] Trace assertion schema/evaluator and core run integration. (2026-08-08)
+7. [~] Trace-aware `regate` done (2026-08-08); lint/scorecard/review-UI surfacing still open.
 8. [ ] Controlled-extension subagent orchestration scenarios.
 9. [ ] Coverage parser/report and capture mapping.
 10. [ ] Affected-test selection and `run --affected`.

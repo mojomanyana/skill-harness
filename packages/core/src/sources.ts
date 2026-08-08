@@ -173,7 +173,7 @@ function walk(dir: string, prefix = ""): string[] {
  */
 function facets(s: Scenario): { stimulus: string; rubric: string; policy: string; gates: string | null } {
   const {
-    id, title, critical, mode, turns, checklist, fixture, assert,
+    id, title, critical, mode, turns, checklist, fixture, assert, traceAssert,
     workspace, remote, systemPromptFile, reps, passThreshold, ...restScenario
   } = s;
   const _scenarioExhaustive: Record<string, never> = restScenario;
@@ -183,7 +183,11 @@ function facets(s: Scenario): { stimulus: string; rubric: string; policy: string
   const _assertExhaustive: Record<string, never> = restAssert;
   void _assertExhaustive;
 
-  const hasGates = diff_contains !== undefined || diff_excludes !== undefined;
+  // `traceAssert` is a GATE, not stimulus: it is evaluated against a trace the run
+  // already saved, so `regate` (free) can re-answer it without re-running the model.
+  // Note the asymmetry with `env.extensions` in Phase 3, which IS stimulus — one
+  // changes what gets executed, the other only what we conclude from it.
+  const hasGates = diff_contains !== undefined || diff_excludes !== undefined || traceAssert !== undefined;
   return {
     // `vitest` and the `post_test` PATH are stimulus, not gates: both change what the
     // run executes in the workspace, and neither can be re-evaluated from a saved
@@ -194,7 +198,7 @@ function facets(s: Scenario): { stimulus: string; rubric: string; policy: string
     ]),
     rubric: JSON.stringify([id, title, checklist]),
     policy: JSON.stringify([id, critical, reps ?? null, passThreshold ?? null]),
-    gates: hasGates ? JSON.stringify([id, diff_contains ?? null, diff_excludes ?? null]) : null,
+    gates: hasGates ? JSON.stringify([id, diff_contains ?? null, diff_excludes ?? null, traceAssert ?? null]) : null,
   };
 }
 

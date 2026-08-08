@@ -19,6 +19,23 @@ export interface ScenarioResult {
   clean?: number; // number of clean (non-misfired) reps — the real denominator for `passes` (reps runs only)
   flakiness?: number; // 0 = unanimous, 1 = even split (reps runs only)
   pass_threshold?: number; // effective threshold used (reps runs only) — lets re-judge reproduce the aggregate
+  /**
+   * Objective trace-gate evidence. ADDITIVE and optional.
+   *
+   * Absent means "the scenario declared no trace assertions" — NOT an objective
+   * pass. Anything reading this must treat the two as different; collapsing them
+   * would silently upgrade every legacy result to "objectively verified".
+   */
+  objective?: ObjectiveResult;
+}
+
+/** Objective gate outcome for one scenario cell. */
+export interface ObjectiveResult {
+  /** ERROR means the evidence was missing or malformed — never a pass. */
+  status: "PASS" | "FAIL" | "ERROR";
+  trace_version?: number;
+  trace_sha256?: string;
+  assertions: { kind: string; status: "PASS" | "FAIL"; detail: string }[];
 }
 
 export interface GradeSummary {
@@ -419,6 +436,18 @@ export function diffPath(runDir: string, scenarioId: string, mode: string, rep?:
   return join(runDir, `${base}.diff.txt`);
 }
 
+/**
+ * Where a rep's execution trace is saved: `<id>.<mode>[.rep<k>].trace.jsonl`.
+ *
+ * `.jsonl` rather than `.txt` so it is distinguishable at a glance from a
+ * transcript, and one JSON object per line so a multi-turn scenario's per-turn
+ * traces append without a wrapper.
+ */
+export function tracePath(runDir: string, scenarioId: string, mode: string, rep?: number): string {
+  const base = rep === undefined ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
+  return join(runDir, `${base}.trace.jsonl`);
+}
+
 /** A scenario's staged-diff files, sorted (plain first, then numeric rep). Mode-scoped when given. */
 export function findDiffFiles(runDir: string, scenarioId: string, mode?: string): string[] {
   if (!existsSync(runDir)) return [];
@@ -426,6 +455,16 @@ export function findDiffFiles(runDir: string, scenarioId: string, mode?: string)
   const re = mode === undefined
     ? new RegExp(`^${esc}\\..*\\.diff\\.txt$`)
     : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.diff\\.txt$`);
+  return sortByRep(readdirSync(runDir).filter((f) => re.test(f)));
+}
+
+/** A scenario's execution-trace files, sorted (plain first, then numeric rep). Mode-scoped when given. */
+export function findTraceFiles(runDir: string, scenarioId: string, mode?: string): string[] {
+  if (!existsSync(runDir)) return [];
+  const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = mode === undefined
+    ? new RegExp(`^${esc}\\..*\\.trace\\.jsonl$`)
+    : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.trace\\.jsonl$`);
   return sortByRep(readdirSync(runDir).filter((f) => re.test(f)));
 }
 
