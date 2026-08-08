@@ -1,12 +1,80 @@
-# Publishing skill-harness (0.6.0)
+# Publishing skill-harness (0.7.0)
 
-This is the npm-publish runbook. It is **user-run** — the agent that prepared this
-repo does not publish. Run these commands yourself with your own npm auth.
+This is the npm-publish runbook.
 
 The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`, `0.3.0`, `0.3.1`, `0.3.2`, `0.4.0`,
-`0.5.0`. This repo is at `0.6.0`, so these commands publish a **new version over an
-existing line** — the `@skill-harness` scope is already claimed, and `latest` moves to
-0.6.0 as each package lands.
+`0.5.0`, `0.6.0`. This repo is at `0.7.0`, so these commands publish a **new version over
+an existing line** — the `@skill-harness` scope is already claimed, and `latest` moves to
+0.7.0 as each package lands.
+
+**0.7.0 takes the minor: five new capabilities, and one change to what a verdict means.**
+
+Read the last bullet before upgrading — it is the only one that can move a number on
+results you already have.
+
+- **`capture`** (pi extension only, `/skill-harness capture`) — promote a live pi
+  conversation into a regression case. Interactive by design: it refuses to run without a
+  session and the interview primitives, because preview-before-write is what keeps secrets
+  out of committed files. Never a CLI command, never headless, not free.
+- **`assert.trace`** — objective gates over a structured record of what the model actually
+  did: `require_calls`, `forbid_calls`, `require_subagents`, `unchanged_paths`. Evaluated
+  before the judge, so a failing gate costs zero judge tokens.
+- **Orchestration assertions** — `require_subagents` tests the parent's delegation
+  (selection, handoff content, and what the handoff must NOT carry), not just the
+  subagent.
+- **`coverage` and `affected`** — which instruction sections have no test, and which
+  scenarios a diff could plausibly affect. Both free and offline. `affected` resolves every
+  ambiguity toward selecting MORE, and an affected run never reports SHIP.
+- **Adjudication (`--auto-rejudge`)** — a second (and optionally third) judge on cells that
+  are ambiguous, self-contradictory, non-unanimous across reps, or ship-deciding. Spend is
+  disclosed as an exact call-count ceiling before anything is bought, and an unresolved
+  disagreement blocks SHIP rather than resolving itself.
+
+**The one behavioural change: an objective gate now outranks the judge.**
+`effectiveVerdicts` returns `override ?? objective ?? judge_verdict`, where an objective
+FAIL forces FAIL and an objective ERROR (evidence missing) forces ERROR. An explicit
+author override still wins.
+
+Previously `objective` was recorded in `results.yaml` but never scored — it reached the
+ship decision only through a single rep's gate prefix, so `--reps N` out-voted it,
+`grade` re-judged past it, and `regate` recomputed it away. A critical scenario in which
+the model called a forbidden tool scored 100%, grade A, SHIP.
+
+*Consequence for existing results:* a committed `results.yaml` carrying
+`objective: {status: FAIL|ERROR}` beside a PASS verdict will now score differently — that
+is the fix, not a regression. Scenarios that declared no trace assertions carry no
+`objective` at all and are completely unaffected, which is every result produced before
+this release.
+
+**Also in this release, and worth knowing if you rely on the artifacts:**
+
+- **Execution trace format v2.** `changed_paths` is tri-state: `null` means the workspace
+  was never observed, `[]` means observed and unchanged. A v1 reader must decline a v2
+  trace. Nothing in any corpus has committed traces (`*.jsonl` is gitignored), so no
+  stored data is invalidated.
+- **`unchanged_paths` is observed by content snapshot**, taken before the model runs and
+  diffed after — so it sees `.gitignore`d files (it previously could not see `.env`, the
+  canonical case) and does not attribute a fixture's own `_staged/`/`_uncommitted/` trees
+  to the model.
+- **`delivery_canary` gains `"skipped"`.** A `--canary` that was asked for but could not
+  run is now recorded, rather than leaving a `results.yaml` identical to one where
+  delivery was never checked.
+- **Trace artifacts are fully redacted** — tool `details` and the model's `final_text`
+  included, plus credentials embedded in URLs.
+- `results.yaml` field ORDER is unchanged from `outcomesToResult`; rewrites no longer
+  produce noise diffs.
+
+**Consumer checklist for this release:**
+
+1. `lint all --skills <root>` before and after upgrading — output should be identical.
+   Verified against the reference corpus: byte-identical, 62 findings either side.
+2. If any committed result carries an `objective` block, re-read its grade: a gate that
+   was being ignored is now enforced.
+3. `assert.trace.unchanged_paths` requires a workspace (`env.workspace: empty-git` or a
+   fixture). The spec parser refuses the combination offline, before any spend.
+4. Bump the pin to `v0.7.0` when you want the notes (`.github/workflows/ci.yml`).
+
+### 0.6.0, kept for context
 
 **0.6.0 takes the minor: a new command, a new `lint` code, and a new severity concept.**
 Nothing about a verdict, a grade or `results.yaml` changed — this release only *reads*.
@@ -226,13 +294,13 @@ Run from the **repo root** (npm workspaces `-w` flag, verified with npm 11.9.0 /
 Node 24.14.0 — this repo's `engines.node` requires >=20, which ships npm >=10,
 so `-w` should work on any supported install). Each step must land on the
 registry before the next, since each package's `package.json` pins an exact
-`@skill-harness/*@0.6.0` dependency (npm will fail to resolve it otherwise):
+`@skill-harness/*@0.7.0` dependency (npm will fail to resolve it otherwise):
 
 ```bash
 npm publish -w @skill-harness/core --access public
 npm publish -w @skill-harness/adapters --access public
 npm publish -w @skill-harness/cli --access public     # prepack stages assets/report.* into the tarball
-npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.6.0
+npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.7.0
 ```
 
 `@skill-harness/core` and `@skill-harness/adapters` publish exactly the `dist/`
@@ -261,7 +329,7 @@ ships to pi users via `pi install git:...`, not the npm registry.
 ## Verify after publishing
 
 ```bash
-npm view skill-harness version            # expect 0.6.0
+npm view skill-harness version            # expect 0.7.0
 npm i -g skill-harness && skill-harness --help
 npx @skill-harness/cli lint --help
 ```
@@ -279,8 +347,8 @@ The version bump lives on `release-<version>`. Until that branch reaches `main`,
 a fresh clone of `main` reports a different version than the registry serves:
 
 ```bash
-gh pr create --base main --head release-0.6.0 \
-  --title "chore(release): 0.6.0" --body "Version bump + runbook."
+gh pr create --base main --head release/0.7.0 \
+  --title "chore(release): 0.7.0" --body "Version bump + runbook."
 gh pr merge --merge   # or fast-forward main if there is nothing to reconcile
 ```
 
@@ -313,7 +381,7 @@ lockstep.
 
 ```bash
 git checkout main && git pull
-git tag v0.6.0 && git push origin v0.6.0     # the immutable release tag
+git tag v0.7.0 && git push origin v0.7.0     # the immutable release tag
 git tag -f latest && git push -f origin latest   # the ref the docs point at
 ```
 
