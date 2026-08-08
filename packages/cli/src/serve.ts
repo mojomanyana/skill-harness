@@ -11,7 +11,7 @@ import {
   type Verdict, type ResultsFile,
   loadSpec,
   regradeScenario, refreshRubricHashes, findJudgeRawFiles,
-  effectiveThreshold, scoreContextFor, isScoredMode,
+  effectiveThreshold, scoreContextFor, isScoredMode, rebuildScenarioResult,
   envFlag,
   planAdjudication, adjudicateRun, assertJudgeAllowed,
 } from "@skill-harness/core";
@@ -155,11 +155,9 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
             specDir: dirname(specPath), threshold, mode: results.mode,
           });
           const merged = results.scenarios.map((s) =>
-            // Same carry-forward contract as `grade`: the author's override/note and
-            // the run's objective evidence survive a re-judge; a stale adjudication
-            // panel does not (this re-judge replaced the judgments it described).
+            // Same contract as `grade`, through the same choke point.
             s.id === body.scenarioId
-              ? { ...rr, override: s.override, note: s.note, ...(s.objective ? { objective: s.objective } : {}) }
+              ? rebuildScenarioResult(rr, s, { objective: "carry", adjudication: "drop" })
               : s
           );
           const written = writeResults(column.runDir, {

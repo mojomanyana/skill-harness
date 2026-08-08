@@ -4,6 +4,7 @@ import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
 import type { ScenarioResult, AdjudicationResult, Judgment, ResultsFile } from "./results.js";
 import {
   judgeRawPath, writeResults, scoreContextFor, findTranscriptFiles, repIndexOf,
+  rebuildScenarioResult,
 } from "./results.js";
 import type { Scenario, ShipBar, Spec } from "./spec.js";
 import type { Verdict } from "./score.js";
@@ -369,9 +370,12 @@ export async function adjudicateRun(opts: AdjudicateRunOptions): Promise<Results
 
   const scenarios = opts.results.scenarios.map((s) => {
     const adj = byId.get(s.id);
-    // Overrides and their notes survive adjudication untouched: a human override
-    // is the durable semantic authority, and a judge panel does not outvote it.
-    return adj ? { ...projectAdjudication(s, adj), override: s.override, note: s.note } : s;
+    // Adjudication asks judges again and re-measures nothing else, so the run's
+    // objective evidence carries. Overrides survive too — a judge panel does not
+    // outvote the author.
+    return adj
+      ? rebuildScenarioResult(projectAdjudication(s, adj), s, { objective: "carry", adjudication: "fresh" })
+      : s;
   });
 
   appendJournal(opts.runDir, {

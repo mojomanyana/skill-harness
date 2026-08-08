@@ -2,13 +2,13 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { writeResults, readResults } from "../src/results.js";
+import { writeResults, readResults, rebuildScenarioResult } from "../src/results.js";
 import { regradeRun } from "../src/regrade.js";
 import { regateRun } from "../src/regate.js";
 import { rescoreRun } from "../src/rescore.js";
 import { loadSpec } from "../src/spec.js";
 import type { HarnessAdapter } from "../src/adapters/types.js";
-import type { ObjectiveResult, AdjudicationResult } from "../src/results.js";
+import type { ObjectiveResult, AdjudicationResult, ScenarioResult } from "../src/results.js";
 
 /**
  * Every command that REWRITES `results.yaml` must be checked against every
@@ -181,5 +181,98 @@ describe("the dangerous direction", () => {
     expect(after.scenarios[0].suspect).toBe(true);
     expect(after.scenarios[0].adjudication?.state).toBe("unresolved");
     expect(after.effective_grade.ship).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The choke point itself
+// ---------------------------------------------------------------------------
+
+describe("rebuildScenarioResult", () => {
+  const fresh = (): ScenarioResult => ({
+    id: "A1", judge_verdict: "FAIL", judge_reason: "fresh reason", suspect: false,
+    override: null, note: "",
+    reps: 3, passes: 1, clean: 3, flakiness: 0.9, pass_threshold: 0.5,
+    objective: { status: "FAIL", assertions: [{ kind: "require_call", status: "FAIL", detail: "fresh" }] },
+    adjudication: { state: "confirmed", trigger: "ambiguous", judgments: [], verdict: "FAIL" },
+  });
+  const prior = (): ScenarioResult => ({
+    id: "A1", judge_verdict: "PASS", judge_reason: "old", suspect: true,
+    override: "PASS", note: "author note",
+    objective: OBJECTIVE, adjudication: ADJUDICATION,
+  });
+
+  it("always carries the author's override and note — never policy", () => {
+    for (const p of [
+      { objective: "carry", adjudication: "carry" },
+      { objective: "fresh", adjudication: "fresh" },
+      { objective: "drop", adjudication: "drop" },
+    ] as const) {
+      const r = rebuildScenarioResult(fresh(), prior(), p);
+      expect(r.override).toBe("PASS");
+      expect(r.note).toBe("author note");
+    }
+  });
+
+  it("takes verdict, reason, suspect and aggregation shape from the fresh result", () => {
+    const r = rebuildScenarioResult(fresh(), prior(), { objective: "carry", adjudication: "carry" });
+    expect(r.judge_verdict).toBe("FAIL");
+    expect(r.judge_reason).toBe("fresh reason");
+    expect(r.suspect).toBe(false);
+    expect(r.reps).toBe(3);
+    expect(r.flakiness).toBe(0.9);
+    expect(r.pass_threshold).toBe(0.5);
+  });
+
+  it.each([
+    ["carry", OBJECTIVE],
+    ["fresh", fresh().objective],
+    ["drop", undefined],
+  ] as const)("applies objective policy %s", (policy, expected) => {
+    const r = rebuildScenarioResult(fresh(), prior(), { objective: policy, adjudication: "carry" });
+    expect(r.objective).toEqual(expected);
+  });
+
+  it.each([
+    ["carry", ADJUDICATION],
+    ["fresh", fresh().adjudication],
+    ["drop", undefined],
+  ] as const)("applies adjudication policy %s", (policy, expected) => {
+    const r = rebuildScenarioResult(fresh(), prior(), { objective: "carry", adjudication: policy });
+    expect(r.adjudication).toEqual(expected);
+  });
+
+  it("OMITS a dropped field rather than setting it to undefined", () => {
+    // Absent must stay absent: a result with no evidence has to serialise
+    // byte-identically to one written before the field existed.
+    const r = rebuildScenarioResult(fresh(), prior(), { objective: "drop", adjudication: "drop" });
+    expect("objective" in r).toBe(false);
+    expect("adjudication" in r).toBe(false);
+  });
+
+  it("carries nothing when there is no prior result", () => {
+    const r = rebuildScenarioResult(fresh(), undefined, { objective: "carry", adjudication: "carry" });
+    expect(r.objective).toBeUndefined();
+    expect(r.override).toBeNull();
+    expect(r.note).toBe("");
+  });
+
+  it("emits no key outside ScenarioResult's own field set", () => {
+    // The runtime backstop for the compile-time exhaustive destructure: if a new
+    // field is added and routed through here, it appears in this list and the
+    // assertion names it.
+    const known = new Set([
+      "id", "judge_verdict", "judge_reason", "suspect", "override", "note",
+      "reps", "passes", "clean", "flakiness", "pass_threshold",
+      "objective", "adjudication",
+    ]);
+    const r = rebuildScenarioResult(fresh(), prior(), { objective: "carry", adjudication: "carry" });
+    expect(Object.keys(r).filter((k) => !known.has(k))).toEqual([]);
+  });
+
+  it("omits aggregation fields a single-rep result never had", () => {
+    const single: ScenarioResult = { id: "A1", judge_verdict: "PASS", judge_reason: "ok", suspect: false, override: null, note: "" };
+    const r = rebuildScenarioResult(single, undefined, { objective: "drop", adjudication: "drop" });
+    expect(Object.keys(r).sort()).toEqual(["id", "judge_reason", "judge_verdict", "note", "override", "suspect"]);
   });
 });

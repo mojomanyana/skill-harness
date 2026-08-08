@@ -466,6 +466,87 @@ export function diffPath(runDir: string, scenarioId: string, mode: string, rep?:
 }
 
 /**
+ * What happens to one piece of recorded evidence when a command rebuilds a result.
+ *
+ *  - `carry` — the command did not re-measure this, so the prior value still
+ *    describes the run and must survive.
+ *  - `fresh` — the command re-measured it; take the new value.
+ *  - `drop`  — the command invalidated it; a stale value would misinform.
+ */
+export type EvidencePolicy = "carry" | "fresh" | "drop";
+
+export interface RebuildPolicy {
+  objective: EvidencePolicy;
+  adjudication: EvidencePolicy;
+}
+
+/**
+ * Rebuild a `ScenarioResult` after a command re-measured part of it.
+ *
+ * **The single choke point for every rewriter**, and exhaustive by construction:
+ * every field is destructured below, so adding one to `ScenarioResult` fails the
+ * build HERE until someone decides whether it is carried, taken fresh, or
+ * dropped. That guard is the whole point of the function.
+ *
+ * It exists because the ad-hoc version — `{ ...fresh, override: prior.override,
+ * note: prior.note }`, written independently in three places — silently dropped
+ * `objective` from `grade` and `adjudication` from `regate`. Both failures ran in
+ * the dangerous direction: a trace-gated scenario re-read as "no assertions
+ * declared", and an unresolved judge disagreement as a settled verdict. 1,036
+ * tests passed through it; a real smoke run caught it.
+ *
+ * The author's `override` and `note` are always carried and are not policy —
+ * no command re-measures a human's judgement.
+ */
+export function rebuildScenarioResult(
+  fresh: ScenarioResult,
+  prior: ScenarioResult | undefined,
+  policy: RebuildPolicy,
+): ScenarioResult {
+  // Exhaustive destructure. Do not replace with a spread: the spread is what
+  // allowed a new field to pass through unconsidered in the first place.
+  const {
+    id, judge_verdict, judge_reason, suspect,
+    override: _freshOverride, note: _freshNote,
+    reps, passes, clean, flakiness, pass_threshold,
+    objective: freshObjective,
+    adjudication: freshAdjudication,
+    ...rest
+  } = fresh;
+  const _exhaustive: Record<string, never> = rest;
+  void _exhaustive;
+  void _freshOverride;
+  void _freshNote;
+
+  const pick = <T>(p: EvidencePolicy, freshValue: T | undefined, priorValue: T | undefined): T | undefined => {
+    if (p === "drop") return undefined;
+    return p === "fresh" ? freshValue : priorValue;
+  };
+
+  const objective = pick(policy.objective, freshObjective, prior?.objective);
+  const adjudication = pick(policy.adjudication, freshAdjudication, prior?.adjudication);
+
+  return {
+    id, judge_verdict, judge_reason, suspect,
+    // The author owns the verdict; a re-measurement never discards their call.
+    override: prior?.override ?? null,
+    note: prior?.note ?? "",
+    // Aggregation shape always comes from the fresh computation — these describe
+    // how THIS result was aggregated, not the previous one.
+    ...(reps === undefined ? {} : { reps }),
+    ...(passes === undefined ? {} : { passes }),
+    ...(clean === undefined ? {} : { clean }),
+    ...(flakiness === undefined ? {} : { flakiness }),
+    ...(pass_threshold === undefined ? {} : { pass_threshold }),
+    // Omitted rather than set to undefined: absent must stay absent, so a result
+    // with no evidence serialises byte-identically to one from before the field
+    // existed.
+    ...(objective ? { objective } : {}),
+    ...(adjudication ? { adjudication } : {}),
+  };
+}
+
+/**
  * Where a rep's execution trace is saved: `<id>.<mode>[.rep<k>].trace.jsonl`.
  *
  * `.jsonl` rather than `.txt` so it is distinguishable at a glance from a

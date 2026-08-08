@@ -10,6 +10,7 @@ import { judgeOneRep } from "./regrade.js";
 import {
   readResults, writeResults, diffPath, transcriptPath, judgeRawPath, repIndexOf,
   findDiffFiles, findTraceFiles, tracePath, type ObjectiveResult, effectiveThreshold, scoreContextFor,
+  rebuildScenarioResult,
   type ResultsFile, type ScenarioResult,
 } from "./results.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
@@ -255,15 +256,10 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
     const next = outcomesToResult(scenario.id, outcomes, outcomes.length, threshold);
     // Overrides and their notes survive: a regate re-decides the gate, and an author
     // override is a statement about the judge, not about the needle.
-    // `objective` on `next` is freshly recomputed above — that is what regate does.
-    // `adjudication` is carried: regate re-reads saved evidence and never asks a
-    // judge anything, so the recorded panel still describes the current judgments.
-    scenarios.push({
-      ...next,
-      override: rec.override,
-      note: rec.note,
-      ...(rec.adjudication ? { adjudication: rec.adjudication } : {}),
-    });
+    // `regate` re-evaluates gates from saved artifacts and asks no judge anything:
+    // `objective` is freshly recomputed above, and the recorded judge panel still
+    // describes the current judgments.
+    scenarios.push(rebuildScenarioResult(next, rec, { objective: "fresh", adjudication: "carry" }));
 
     const to = next.judge_verdict;
     if (to !== rec.judge_verdict) {

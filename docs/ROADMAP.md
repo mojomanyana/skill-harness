@@ -613,6 +613,32 @@ never enter `specification.yaml` before a human promotes them.
         thinking / home paths / tool-result bodies persisted — the privacy limits
         verified against a real stream instead of a sanitized fixture.
 
+### Sprint 1.9 — One choke point for result rewrites (2026-08-08)
+
+- [x] **`rebuildScenarioResult` + an exhaustive-destructure guard on `ScenarioResult`.**
+      Four of this sprint's five bugs came from the same shape: a rewriter or an
+      argument that looked cheap. The `objective`/`adjudication` drops were the third
+      instance, and unlike the others they needed a paid smoke run to surface because
+      1,036 tests passed straight through them.
+      The `sources.ts` facet guard has caught this class at COMPILE time three times
+      for `Scenario`; ``ScenarioResult`` had no equivalent. Now it does: every rewriter
+      goes through one function that destructures every field, so adding one fails the
+      build until someone chooses `carry` / `fresh` / `drop`. Verified by adding a
+      probe field — `results.ts(517,9): Type '{ guardProbe?: string }' is not
+      assignable to type 'Record<string, never>'`, naming the field.
+      - The policy per command is now stated in code rather than implied by a spread:
+        `grade` carries `objective` and drops `adjudication`; `regate` recomputes
+        `objective` and carries `adjudication`; adjudication carries `objective` and
+        writes `adjudication` fresh; the review server's `/rejudge` shares `grade`'s.
+      - `override`/`note` are carried unconditionally and are deliberately NOT policy —
+        no command re-measures a human's judgement.
+      - A dropped field is OMITTED, never set to `undefined`, so a result with no
+        evidence still serialises byte-identically to one written before the field
+        existed.
+      - 21 tests in `field-roundtrip.test.ts`: every command × every field, the
+        dangerous direction (dropping `adjudication` + `suspect` would un-block a
+        blocked run), and a runtime backstop asserting no key escapes the known set.
+
 ## PHASE 2 — Launch & first 100 fans (weeks 5–10)
 
 **Goal:** exist in the heads of everyone who writes skills.

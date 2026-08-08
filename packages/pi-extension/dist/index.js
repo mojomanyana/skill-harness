@@ -3587,6 +3587,41 @@ function diffPath(runDir, scenarioId, mode, rep) {
   const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
   return join4(runDir, `${base}.diff.txt`);
 }
+function rebuildScenarioResult(fresh, prior, policy) {
+  const { id, judge_verdict, judge_reason, suspect, override: _freshOverride, note: _freshNote, reps: reps2, passes, clean, flakiness, pass_threshold, objective: freshObjective, adjudication: freshAdjudication, ...rest } = fresh;
+  const _exhaustive = rest;
+  void _exhaustive;
+  void _freshOverride;
+  void _freshNote;
+  const pick = (p, freshValue, priorValue) => {
+    if (p === "drop")
+      return void 0;
+    return p === "fresh" ? freshValue : priorValue;
+  };
+  const objective = pick(policy.objective, freshObjective, prior?.objective);
+  const adjudication = pick(policy.adjudication, freshAdjudication, prior?.adjudication);
+  return {
+    id,
+    judge_verdict,
+    judge_reason,
+    suspect,
+    // The author owns the verdict; a re-measurement never discards their call.
+    override: prior?.override ?? null,
+    note: prior?.note ?? "",
+    // Aggregation shape always comes from the fresh computation — these describe
+    // how THIS result was aggregated, not the previous one.
+    ...reps2 === void 0 ? {} : { reps: reps2 },
+    ...passes === void 0 ? {} : { passes },
+    ...clean === void 0 ? {} : { clean },
+    ...flakiness === void 0 ? {} : { flakiness },
+    ...pass_threshold === void 0 ? {} : { pass_threshold },
+    // Omitted rather than set to undefined: absent must stay absent, so a result
+    // with no evidence serialises byte-identically to one from before the field
+    // existed.
+    ...objective ? { objective } : {},
+    ...adjudication ? { adjudication } : {}
+  };
+}
 function tracePath(runDir, scenarioId, mode, rep) {
   const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
   return join4(runDir, `${base}.trace.jsonl`);
@@ -4612,7 +4647,7 @@ async function regradeRun(opts) {
   const { runDir, spec, adapter, judge, specDir } = opts;
   const now = opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
   const prev = existsSync7(join9(runDir, "results.yaml")) ? readResults(runDir) : null;
-  const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, { override: s.override, note: s.note, objective: s.objective }]));
+  const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, s]));
   const mode = prev?.mode ?? "green";
   const specById = new Map(spec.scenarios.map((s) => [s.id, s]));
   const recorded = prev?.scenarios ?? spec.scenarios.map((s) => ({ id: s.id }));
@@ -4655,12 +4690,7 @@ async function regradeRun(opts) {
       now
     });
     const carry = overrides.get(id);
-    scenarioResults.push({
-      ...rr,
-      override: carry?.override ?? null,
-      note: carry?.note ?? "",
-      ...carry?.objective ? { objective: carry.objective } : {}
-    });
+    scenarioResults.push(rebuildScenarioResult(rr, carry, { objective: "carry", adjudication: "drop" }));
   }
   const ctx = scoreContextFor({ mode, partial: prev?.partial }, spec);
   const results = writeResults(runDir, {
@@ -6000,7 +6030,7 @@ async function adjudicateRun(opts) {
   });
   const scenarios = opts.results.scenarios.map((s) => {
     const adj = byId.get(s.id);
-    return adj ? { ...projectAdjudication(s, adj), override: s.override, note: s.note } : s;
+    return adj ? rebuildScenarioResult(projectAdjudication(s, adj), s, { objective: "carry", adjudication: "fresh" }) : s;
   });
   appendJournal(opts.runDir, {
     event: "adjudication",
@@ -6506,10 +6536,8 @@ async function serveReview(opts) {
             mode: results.mode
           });
           const merged = results.scenarios.map((s) => (
-            // Same carry-forward contract as `grade`: the author's override/note and
-            // the run's objective evidence survive a re-judge; a stale adjudication
-            // panel does not (this re-judge replaced the judgments it described).
-            s.id === body.scenarioId ? { ...rr, override: s.override, note: s.note, ...s.objective ? { objective: s.objective } : {} } : s
+            // Same contract as `grade`, through the same choke point.
+            s.id === body.scenarioId ? rebuildScenarioResult(rr, s, { objective: "carry", adjudication: "drop" }) : s
           ));
           const written = writeResults(column.runDir, {
             skill: results.skill,
