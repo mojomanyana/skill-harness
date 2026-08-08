@@ -50,10 +50,73 @@ export interface ForbidCall {
   args?: Record<string, ArgPredicate>;
 }
 
+/**
+ * Convenience syntax for the orchestration case: "the parent delegated to
+ * `plan`, and the handoff carried X but not Y".
+ *
+ * Sugar over `require_calls`, not a second mechanism — it normalizes the known
+ * subagent argument shapes and then evaluates through the same path. There is
+ * deliberately no universal subagent extension assumed: an unknown extension can
+ * still be asserted on with plain `require_calls`, which is why this stays
+ * optional sugar rather than the only way in.
+ */
+export interface RequireSubagent {
+  /** The registered tool name — declared by the spec, since pi has no standard one. */
+  tool: string;
+  /** Which subagent the parent should have selected. */
+  agent: string;
+  count?: CountConstraint;
+  /** Substrings the handoff MUST carry. */
+  task_contains?: string[];
+  /** Substrings the handoff must NOT carry — the leak check. */
+  task_excludes?: string[];
+}
+
 export interface TraceAssert {
   require_calls?: RequireCall[];
+  require_subagents?: RequireSubagent[];
   forbid_calls?: ForbidCall[];
   unchanged_paths?: string[];
+}
+
+/**
+ * Subagent invocations extracted from one tool call.
+ *
+ * A single call can carry several: `{tasks: [...]}` fans out and `{chain: [...]}`
+ * sequences. Normalizing to a flat list means a `count` constraint means the same
+ * thing — how many subagent invocations happened — whichever shape the extension
+ * uses to express them.
+ */
+export interface SubagentInvocation {
+  agent: string;
+  task: string;
+}
+
+/**
+ * Recognize the known subagent argument shapes.
+ *
+ * Three are supported because three exist in the wild; anything else yields an
+ * empty list, and the scenario should use plain `require_calls` instead. It
+ * deliberately does NOT guess: inventing an `agent` from an unrecognized shape
+ * would produce a confident assertion about a field nobody wrote.
+ */
+export function normalizeSubagentCall(args: Record<string, unknown>): SubagentInvocation[] {
+  const one = (v: unknown): SubagentInvocation | null => {
+    if (v === null || typeof v !== "object" || Array.isArray(v)) return null;
+    const o = v as Record<string, unknown>;
+    const agent = typeof o.agent === "string" ? o.agent : typeof o.name === "string" ? o.name : undefined;
+    if (agent === undefined) return null;
+    const task = typeof o.task === "string" ? o.task : typeof o.prompt === "string" ? o.prompt : "";
+    return { agent, task };
+  };
+
+  // Parallel: { tasks: [ {agent, task}, … ] }
+  if (Array.isArray(args.tasks)) return args.tasks.map(one).filter((x): x is SubagentInvocation => x !== null);
+  // Chain: { chain: [ {agent, task}, … ] }
+  if (Array.isArray(args.chain)) return args.chain.map(one).filter((x): x is SubagentInvocation => x !== null);
+  // Single: { agent, task }
+  const single = one(args);
+  return single ? [single] : [];
 }
 
 // ---------------------------------------------------------------------------
@@ -63,7 +126,7 @@ export interface TraceAssert {
 export type AssertionStatus = "PASS" | "FAIL";
 
 export interface AssertionResult {
-  kind: "require_call" | "forbid_call" | "unchanged_path";
+  kind: "require_call" | "require_subagent" | "forbid_call" | "unchanged_path";
   status: AssertionStatus;
   detail: string;
 }
@@ -104,6 +167,60 @@ export function evaluateTraceGates(assert: TraceAssert, trace: ExecutionTraceV1)
         kind: "require_call",
         status: "PASS",
         detail: `\`${req.tool}\`${described} called ${matched.length} time(s)`,
+      });
+    }
+  }
+
+  for (const req of assert.require_subagents ?? []) {
+    // Three independent questions, reported separately, because they send the
+    // author to three different places: selection (did it delegate at all, and to
+    // the right agent), handoff-completeness (did the task carry what the child
+    // needs), and handoff-leakage (did it carry something it must not).
+    const invocations = trace.tool_calls
+      .filter((c) => c.name === req.tool)
+      .flatMap((c) => normalizeSubagentCall(c.args));
+    const matched = invocations.filter((i) => i.agent === req.agent);
+    const min = req.count?.min ?? 1;
+    const max = req.count?.max;
+
+    if (matched.length < min || (max !== undefined && matched.length > max)) {
+      const bound = matched.length < min ? `at least ${min}` : `at most ${max}`;
+      const seen = invocations.length === 0
+        ? `no \`${req.tool}\` invocation was recorded`
+        : `saw agents: ${[...new Set(invocations.map((i) => i.agent))].join(", ")}`;
+      assertions.push({
+        kind: "require_subagent",
+        status: "FAIL",
+        detail: `expected ${bound} delegation(s) to \`${req.agent}\` via \`${req.tool}\`, saw ${matched.length} (${seen})`,
+      });
+      // Handoff assertions are meaningless with nothing to inspect, and reporting
+      // them as failures too would triple one root cause.
+      continue;
+    }
+    assertions.push({
+      kind: "require_subagent",
+      status: "PASS",
+      detail: `delegated to \`${req.agent}\` ${matched.length} time(s) via \`${req.tool}\``,
+    });
+
+    for (const needle of req.task_contains ?? []) {
+      const ok = matched.some((i) => i.task.includes(needle));
+      assertions.push({
+        kind: "require_subagent",
+        status: ok ? "PASS" : "FAIL",
+        detail: ok
+          ? `handoff to \`${req.agent}\` carried ${JSON.stringify(needle)}`
+          : `handoff to \`${req.agent}\` omitted required context ${JSON.stringify(needle)}`,
+      });
+    }
+    for (const needle of req.task_excludes ?? []) {
+      const leaked = matched.filter((i) => i.task.includes(needle));
+      assertions.push({
+        kind: "require_subagent",
+        status: leaked.length === 0 ? "PASS" : "FAIL",
+        detail: leaked.length === 0
+          ? `handoff to \`${req.agent}\` did not carry ${JSON.stringify(needle)}`
+          : `handoff to \`${req.agent}\` leaked forbidden content ${JSON.stringify(needle)}`,
       });
     }
   }
@@ -253,7 +370,7 @@ export function parseTraceAssert(raw: unknown, ctx: string): TraceAssert {
     throw new Error(`${ctx}: \`assert.trace\` must be a mapping`);
   }
   const obj = raw as Record<string, unknown>;
-  const allowed = new Set(["require_calls", "forbid_calls", "unchanged_paths"]);
+  const allowed = new Set(["require_calls", "require_subagents", "forbid_calls", "unchanged_paths"]);
   for (const key of Object.keys(obj)) {
     if (!allowed.has(key)) {
       throw new Error(`${ctx}: unknown \`assert.trace\` key \`${key}\` (allowed: ${[...allowed].join(", ")})`);
@@ -275,6 +392,26 @@ export function parseTraceAssert(raw: unknown, ctx: string): TraceAssert {
         }
       }
       return req;
+    });
+  }
+
+  if (obj.require_subagents !== undefined) {
+    out.require_subagents = asArray(obj.require_subagents, `${ctx}: \`require_subagents\``).map((item, i) => {
+      const where = `${ctx}: \`require_subagents[${i}]\``;
+      const entry = asObject(item, where);
+      for (const key of Object.keys(entry)) {
+        if (!["tool", "agent", "count", "task_contains", "task_excludes"].includes(key)) {
+          throw new Error(`${ctx}: unknown key \`${key}\` in \`require_subagents[${i}]\``);
+        }
+      }
+      const sub: RequireSubagent = {
+        tool: requireToolName(entry.tool, where),
+        agent: requireNonEmpty(entry.agent, `${where}: \`agent\``),
+      };
+      if (entry.count !== undefined) sub.count = parseCount(entry.count, `${where}.count`);
+      if (entry.task_contains !== undefined) sub.task_contains = parseNeedles(entry.task_contains, `${where}.task_contains`);
+      if (entry.task_excludes !== undefined) sub.task_excludes = parseNeedles(entry.task_excludes, `${where}.task_excludes`);
+      return sub;
     });
   }
 
@@ -304,10 +441,23 @@ export function parseTraceAssert(raw: unknown, ctx: string): TraceAssert {
     });
   }
 
-  if (!out.require_calls && !out.forbid_calls && !out.unchanged_paths) {
+  if (!out.require_calls && !out.require_subagents && !out.forbid_calls && !out.unchanged_paths) {
     throw new Error(`${ctx}: \`assert.trace\` declares no assertions — remove it or add one`);
   }
   return out;
+}
+
+function requireNonEmpty(v: unknown, ctx: string): string {
+  if (typeof v !== "string" || v.trim() === "") throw new Error(`${ctx} must be a non-empty string`);
+  return v;
+}
+
+/** Needles must be non-empty: an empty one matches everything, so the check could never fail. */
+function parseNeedles(raw: unknown, ctx: string): string[] {
+  return asArray(raw, ctx).map((n, i) => {
+    if (typeof n !== "string" || n === "") throw new Error(`${ctx}[${i}] must be a non-empty string`);
+    return n;
+  });
 }
 
 function requireToolName(v: unknown, ctx: string): string {

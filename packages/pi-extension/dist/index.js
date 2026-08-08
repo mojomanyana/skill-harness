@@ -2374,6 +2374,24 @@ var index_vite_proxy_tmp_default = import_js_yaml.default;
 
 // packages/core/dist/trace-gates.js
 var PREDICATE_KEYS = ["equals", "contains", "starts_with", "ends_with", "matches", "exists", "any"];
+function normalizeSubagentCall(args) {
+  const one = (v) => {
+    if (v === null || typeof v !== "object" || Array.isArray(v))
+      return null;
+    const o = v;
+    const agent = typeof o.agent === "string" ? o.agent : typeof o.name === "string" ? o.name : void 0;
+    if (agent === void 0)
+      return null;
+    const task = typeof o.task === "string" ? o.task : typeof o.prompt === "string" ? o.prompt : "";
+    return { agent, task };
+  };
+  if (Array.isArray(args.tasks))
+    return args.tasks.map(one).filter((x) => x !== null);
+  if (Array.isArray(args.chain))
+    return args.chain.map(one).filter((x) => x !== null);
+  const single = one(args);
+  return single ? [single] : [];
+}
 function evaluateTraceGates(assert, trace) {
   const assertions = [];
   for (const req of assert.require_calls ?? []) {
@@ -2398,6 +2416,43 @@ function evaluateTraceGates(assert, trace) {
         kind: "require_call",
         status: "PASS",
         detail: `\`${req.tool}\`${described} called ${matched.length} time(s)`
+      });
+    }
+  }
+  for (const req of assert.require_subagents ?? []) {
+    const invocations = trace.tool_calls.filter((c) => c.name === req.tool).flatMap((c) => normalizeSubagentCall(c.args));
+    const matched = invocations.filter((i) => i.agent === req.agent);
+    const min = req.count?.min ?? 1;
+    const max = req.count?.max;
+    if (matched.length < min || max !== void 0 && matched.length > max) {
+      const bound = matched.length < min ? `at least ${min}` : `at most ${max}`;
+      const seen = invocations.length === 0 ? `no \`${req.tool}\` invocation was recorded` : `saw agents: ${[...new Set(invocations.map((i) => i.agent))].join(", ")}`;
+      assertions.push({
+        kind: "require_subagent",
+        status: "FAIL",
+        detail: `expected ${bound} delegation(s) to \`${req.agent}\` via \`${req.tool}\`, saw ${matched.length} (${seen})`
+      });
+      continue;
+    }
+    assertions.push({
+      kind: "require_subagent",
+      status: "PASS",
+      detail: `delegated to \`${req.agent}\` ${matched.length} time(s) via \`${req.tool}\``
+    });
+    for (const needle of req.task_contains ?? []) {
+      const ok = matched.some((i) => i.task.includes(needle));
+      assertions.push({
+        kind: "require_subagent",
+        status: ok ? "PASS" : "FAIL",
+        detail: ok ? `handoff to \`${req.agent}\` carried ${JSON.stringify(needle)}` : `handoff to \`${req.agent}\` omitted required context ${JSON.stringify(needle)}`
+      });
+    }
+    for (const needle of req.task_excludes ?? []) {
+      const leaked = matched.filter((i) => i.task.includes(needle));
+      assertions.push({
+        kind: "require_subagent",
+        status: leaked.length === 0 ? "PASS" : "FAIL",
+        detail: leaked.length === 0 ? `handoff to \`${req.agent}\` did not carry ${JSON.stringify(needle)}` : `handoff to \`${req.agent}\` leaked forbidden content ${JSON.stringify(needle)}`
       });
     }
   }
@@ -2505,7 +2560,7 @@ function parseTraceAssert(raw, ctx) {
     throw new Error(`${ctx}: \`assert.trace\` must be a mapping`);
   }
   const obj = raw;
-  const allowed = /* @__PURE__ */ new Set(["require_calls", "forbid_calls", "unchanged_paths"]);
+  const allowed = /* @__PURE__ */ new Set(["require_calls", "require_subagents", "forbid_calls", "unchanged_paths"]);
   for (const key of Object.keys(obj)) {
     if (!allowed.has(key)) {
       throw new Error(`${ctx}: unknown \`assert.trace\` key \`${key}\` (allowed: ${[...allowed].join(", ")})`);
@@ -2527,6 +2582,28 @@ function parseTraceAssert(raw, ctx) {
         }
       }
       return req;
+    });
+  }
+  if (obj.require_subagents !== void 0) {
+    out.require_subagents = asArray(obj.require_subagents, `${ctx}: \`require_subagents\``).map((item, i) => {
+      const where = `${ctx}: \`require_subagents[${i}]\``;
+      const entry = asObject(item, where);
+      for (const key of Object.keys(entry)) {
+        if (!["tool", "agent", "count", "task_contains", "task_excludes"].includes(key)) {
+          throw new Error(`${ctx}: unknown key \`${key}\` in \`require_subagents[${i}]\``);
+        }
+      }
+      const sub = {
+        tool: requireToolName(entry.tool, where),
+        agent: requireNonEmpty(entry.agent, `${where}: \`agent\``)
+      };
+      if (entry.count !== void 0)
+        sub.count = parseCount(entry.count, `${where}.count`);
+      if (entry.task_contains !== void 0)
+        sub.task_contains = parseNeedles(entry.task_contains, `${where}.task_contains`);
+      if (entry.task_excludes !== void 0)
+        sub.task_excludes = parseNeedles(entry.task_excludes, `${where}.task_excludes`);
+      return sub;
     });
   }
   if (obj.forbid_calls !== void 0) {
@@ -2554,10 +2631,22 @@ function parseTraceAssert(raw, ctx) {
       return p;
     });
   }
-  if (!out.require_calls && !out.forbid_calls && !out.unchanged_paths) {
+  if (!out.require_calls && !out.require_subagents && !out.forbid_calls && !out.unchanged_paths) {
     throw new Error(`${ctx}: \`assert.trace\` declares no assertions \u2014 remove it or add one`);
   }
   return out;
+}
+function requireNonEmpty(v, ctx) {
+  if (typeof v !== "string" || v.trim() === "")
+    throw new Error(`${ctx} must be a non-empty string`);
+  return v;
+}
+function parseNeedles(raw, ctx) {
+  return asArray(raw, ctx).map((n, i) => {
+    if (typeof n !== "string" || n === "")
+      throw new Error(`${ctx}[${i}] must be a non-empty string`);
+    return n;
+  });
 }
 function requireToolName(v, ctx) {
   if (typeof v !== "string" || v.trim() === "")
@@ -2690,6 +2779,24 @@ function resolveWorkspace(env, mode, fixture, id, file) {
     return { fixture: p };
   }
   throw new SpecError(`scenario \`${id}\` env.workspace must be none | empty-git | fixture:<path>`, file);
+}
+function resolveExtensions(env, hasSystemPrompt, id, file) {
+  const raw = env && typeof env === "object" ? env.extensions : void 0;
+  if (raw === void 0)
+    return void 0;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new SpecError(`scenario \`${id}\` env.extensions must be a non-empty list of paths`, file);
+  }
+  const paths = raw.map((p, i) => {
+    if (typeof p !== "string" || p.trim() === "") {
+      throw new SpecError(`scenario \`${id}\` env.extensions[${i}] must be a non-empty path`, file);
+    }
+    return p.trim();
+  });
+  if (hasSystemPrompt) {
+    throw new SpecError(`scenario \`${id}\` sets both env.extensions and system_prompt_file \u2014 system_prompt_file replaces the system prompt to test a subagent in isolation, while env.extensions tests the parent that delegates to one. Pick one.`, file);
+  }
+  return paths;
 }
 function resolveRemote(env, workspace, id, file) {
   const raw = env && typeof env === "object" ? env.remote : void 0;
@@ -2830,6 +2937,7 @@ function parseSpec(text, file) {
       }
       scenario.systemPromptFile = s.system_prompt_file.trim();
     }
+    scenario.extensions = resolveExtensions(s.env, scenario.systemPromptFile !== void 0, id, file);
     if (s.reps !== void 0) {
       if (typeof s.reps !== "number" || !Number.isInteger(s.reps) || s.reps < 1) {
         throw new SpecError(`scenario \`${id}\` \`reps\` must be a positive integer`, file);
@@ -2916,7 +3024,7 @@ function walk(dir, prefix = "") {
   return out;
 }
 function facets(s) {
-  const { id, title, critical, mode, turns, checklist, fixture, assert, traceAssert, workspace, remote, systemPromptFile, reps: reps2, passThreshold, ...restScenario } = s;
+  const { id, title, critical, mode, turns, checklist, fixture, assert, traceAssert, workspace, remote, systemPromptFile, extensions, reps: reps2, passThreshold, ...restScenario } = s;
   const _scenarioExhaustive = restScenario;
   void _scenarioExhaustive;
   const { vitest, diff_contains, diff_excludes, post_test, ...restAssert } = assert ?? {};
@@ -2927,6 +3035,11 @@ function facets(s) {
     // `vitest` and the `post_test` PATH are stimulus, not gates: both change what the
     // run executes in the workspace, and neither can be re-evaluated from a saved
     // diff. (`post_test`'s CONTENTS get their own file-path key, hashed separately.)
+    // `extensions` is STIMULUS, not a gate — note the asymmetry with `traceAssert`
+    // below. Changing which extensions load changes what the model can DO, so the
+    // old transcripts describe a different agent and only a re-run can answer.
+    // Changing an assertion only changes what we conclude from evidence already on
+    // disk, which `regate` can redo for free.
     stimulus: JSON.stringify([
       id,
       mode,
@@ -2936,7 +3049,8 @@ function facets(s) {
       systemPromptFile ?? null,
       fixture ?? null,
       vitest ?? null,
-      post_test ?? null
+      post_test ?? null,
+      extensions ?? null
     ]),
     rubric: JSON.stringify([id, title, checklist]),
     policy: JSON.stringify([id, critical, reps2 ?? null, passThreshold ?? null]),
@@ -2982,6 +3096,11 @@ function sourceHashes(ctx) {
     if (s.systemPromptFile && !(s.systemPromptFile in hashes)) {
       hashes[s.systemPromptFile] = fileSha256(resolve2(ctx.specDir, s.systemPromptFile)) ?? UNREADABLE;
     }
+    for (const ext of s.extensions ?? []) {
+      if (ext in hashes)
+        continue;
+      hashes[ext] = fileSha256(resolve2(ctx.specDir, ext)) ?? UNREADABLE;
+    }
     const pt = s.assert?.post_test;
     if (pt && !(pt in hashes)) {
       hashes[pt] = fileSha256(isAbsolute(pt) ? pt : resolve2(ctx.specDir, pt)) ?? UNREADABLE;
@@ -3022,6 +3141,8 @@ function scenarioSourceKeys(s) {
     keys.push(GATES_PREFIX + s.id);
   if (s.systemPromptFile)
     keys.push(s.systemPromptFile);
+  for (const ext of s.extensions ?? [])
+    keys.push(ext);
   if (s.assert?.post_test)
     keys.push(s.assert.post_test);
   const fx = effectiveFixture(s);
@@ -3840,7 +3961,9 @@ async function runSeeded(scenario, opts) {
     model: opts.model,
     mode: opts.mode,
     turns: scenario.turns,
-    cwd: repo
+    cwd: repo,
+    // Resolved against the spec dir, exactly like fixtures and post-tests.
+    extensions: scenario.extensions?.map((e) => resolve4(opts.specDir, e))
   };
   let traces = [];
   let harnessOut;
@@ -5033,7 +5156,9 @@ async function runRep(scenario, rep, repCount, ctx) {
             turns: scenario.turns,
             cwd: ws.cwd,
             // resolved like fixtures: relative to the spec's dir
-            systemPromptFile: scenario.systemPromptFile ? resolve5(dirname(ctx.specPath), scenario.systemPromptFile) : void 0
+            systemPromptFile: scenario.systemPromptFile ? resolve5(dirname(ctx.specPath), scenario.systemPromptFile) : void 0,
+            // Absolute before it reaches a child process running in a neutral cwd.
+            extensions: scenario.extensions?.map((e) => resolve5(dirname(ctx.specPath), e))
           };
           if (scenario.traceAssert) {
             if (!ctx.adapter.runStructured) {
@@ -5411,6 +5536,17 @@ function skillFlags(mode, skillDir) {
     }
   }
 }
+function extensionFlags(extensions) {
+  if (!extensions || extensions.length === 0)
+    return [];
+  return extensions.flatMap((p) => {
+    const abs = resolve7(p);
+    if (!existsSync14(abs)) {
+      throw new Error(`env.extensions names ${abs}, which does not exist \u2014 pi would start without it and the scenario would silently test an agent with no subagent tool at all.`);
+    }
+    return ["--extension", abs];
+  });
+}
 function header(turnNo, total, text) {
   const label = total === 1 ? "USER" : `USER (turn ${turnNo}/${total})`;
   return `>>> ${label}:
@@ -5450,6 +5586,7 @@ var piAdapter = {
     const common = [
       "--no-context-files",
       "--no-extensions",
+      ...extensionFlags(req.extensions),
       "--provider",
       req.model.provider,
       "--model",
@@ -5503,6 +5640,7 @@ ${r.stderr.trim()}
     const common = [
       "--no-context-files",
       "--no-extensions",
+      ...extensionFlags(req.extensions),
       "--provider",
       req.model.provider,
       "--model",

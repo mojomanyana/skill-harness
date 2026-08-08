@@ -386,6 +386,51 @@ export function captureToScenario(capture: CaptureCaseV1, scenarioId: string, ti
 }
 
 /**
+ * Draft an orchestration assertion from subagent calls seen in the captured range.
+ *
+ * Returns null when the range contains none, so the capture UI can skip the
+ * question entirely rather than offering an empty form.
+ *
+ * Deliberately proposes only `agent` and `count` — never `task_contains`. The
+ * task text that happened to be sent is not the task text that is *required*;
+ * turning one observed handoff into a required substring would manufacture a
+ * brittle assertion the author never reasoned about. Required context is a
+ * judgement, so the UI asks.
+ */
+export function draftSubagentAssertion(
+  turns: LogicalTurn[],
+  toolNames: readonly string[] = ["Agent", "subagent", "task"],
+): { tool: string; agent: string; count: { min: number } } | null {
+  const names = new Set(toolNames.map((n) => n.toLowerCase()));
+  for (const turn of turns) {
+    for (const call of turn.toolCalls) {
+      if (!names.has(call.name.toLowerCase())) continue;
+      const invocations = subagentInvocationsOf(call.args);
+      if (invocations.length === 0) continue;
+      return { tool: call.name, agent: invocations[0], count: { min: 1 } };
+    }
+  }
+  return null;
+}
+
+/** Agent names visible in a call's arguments, across the known shapes. */
+function subagentInvocationsOf(args: SanitizedArgs): string[] {
+  const nameOf = (v: unknown): string | null => {
+    if (v === null || typeof v !== "object" || Array.isArray(v)) return null;
+    const o = v as Record<string, unknown>;
+    if (typeof o.agent === "string") return o.agent;
+    if (typeof o.name === "string") return o.name;
+    return null;
+  };
+  for (const key of ["tasks", "chain"] as const) {
+    const list = args[key];
+    if (Array.isArray(list)) return list.map(nameOf).filter((x): x is string => x !== null);
+  }
+  const single = nameOf(args);
+  return single ? [single] : [];
+}
+
+/**
  * Offline first-draft checklist from the human's expectation.
  *
  * Splits on sentence and bullet boundaries. This is a typing shortcut for the

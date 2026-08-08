@@ -269,6 +269,8 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
             systemPromptFile: scenario.systemPromptFile
               ? resolve(dirname(ctx.specPath), scenario.systemPromptFile)
               : undefined,
+            // Absolute before it reaches a child process running in a neutral cwd.
+            extensions: scenario.extensions?.map((e) => resolve(dirname(ctx.specPath), e)),
           };
           if (scenario.traceAssert) {
             // Missing required evidence is ERROR, never a silent fallback to the

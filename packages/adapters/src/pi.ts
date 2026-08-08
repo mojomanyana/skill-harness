@@ -59,6 +59,30 @@ function skillFlags(mode: RunMode, skillDir: string): string[] {
   }
 }
 
+/**
+ * Extension flags. `--no-extensions` is ALWAYS present (it already was), and each
+ * declared path is added with `-e`.
+ *
+ * Measured on pi 0.83.0: `--no-extensions --extension <path>` loads exactly the
+ * declared extension and nothing discovered, even with `-a` project-local trust
+ * active. Paths are resolved by the caller; a relative one handed to a child
+ * process running in a neutral cwd would silently resolve to nothing — the same
+ * class of failure as the `--skill` incident.
+ */
+function extensionFlags(extensions: string[] | undefined): string[] {
+  if (!extensions || extensions.length === 0) return [];
+  return extensions.flatMap((p) => {
+    const abs = resolve(p);
+    if (!existsSync(abs)) {
+      throw new Error(
+        `env.extensions names ${abs}, which does not exist — pi would start without it and the ` +
+          `scenario would silently test an agent with no subagent tool at all.`,
+      );
+    }
+    return ["--extension", abs];
+  });
+}
+
 function header(turnNo: number, total: number, text: string): string {
   const label = total === 1 ? "USER" : `USER (turn ${turnNo}/${total})`;
   return `>>> ${label}:\n${text}\n`;
@@ -101,6 +125,7 @@ export const piAdapter: HarnessAdapter = {
     const common = [
       "--no-context-files",
       "--no-extensions",
+      ...extensionFlags(req.extensions),
       "--provider",
       req.model.provider,
       "--model",
@@ -150,6 +175,7 @@ export const piAdapter: HarnessAdapter = {
     const common = [
       "--no-context-files",
       "--no-extensions",
+      ...extensionFlags(req.extensions),
       "--provider",
       req.model.provider,
       "--model",

@@ -357,6 +357,59 @@ Two things worth knowing:
 Requires an interactive session: under `-p` / `--mode json` there is no preview
 step, so `capture` refuses rather than writing unreviewed.
 
+## 7b. Objective gates — assert what the model DID
+
+An LLM judge reading a transcript can only grade what the model *said*.
+`assert.trace` grades what it **did**, from a structured record of the run:
+
+```yaml
+scenarios:
+  - id: R1
+    title: delegates authentication diagnosis
+    turns:
+      - "Find why authentication is failing."
+    checklist:
+      - integrates the planning subagent's recommendation
+
+    env:
+      extensions:                     # closed loading: ONLY these load
+        - ../../.pi/extensions/subagents/index.ts
+
+    assert:
+      trace:
+        require_subagents:            # selection + handoff, objectively
+          - tool: Agent
+            agent: plan
+            task_contains: ["authentication"]
+            task_excludes: ["password"]
+        forbid_calls:
+          - write
+        unchanged_paths:
+          - ".env"
+```
+
+Also available: `require_calls` (any tool, with `count: {min,max}` and argument
+predicates `equals` / `contains` / `starts_with` / `ends_with` / `matches` /
+`exists` / `any`).
+
+**A failed gate costs zero judge tokens** — assertions run before the judge, so a
+scenario that called a forbidden tool fails on evidence and nothing is asked.
+
+**Missing evidence is `ERROR`, never a pass.** An adapter that can't trace, a run
+that produced no trace, an unreadable saved trace — all `ERROR`. A result with no
+`objective` block means *no assertions were declared*, not that they passed.
+
+**Editing an assertion is free to re-check** (`regate`, offline, reads the saved
+`.trace.jsonl`). **Editing an extension is not** — it changes what the model could
+do, so it's stimulus and needs a re-run. Lint names the right remedy for each, and
+extension *contents* are hashed, so editing your subagent tool marks results stale
+even though the spec didn't change.
+
+**What a trace does not prove:** it proves a registered tool was called with given
+arguments. It says nothing about what that tool then did to the machine — a `bash`
+command string is not a filesystem audit. For a real path policy, forbid `bash` or
+assert on `unchanged_paths`.
+
 ## 8. The optimize loop
 
 Edit the `SKILL.md` under test → re-`run` → compare the new scorecard to the old `results.yaml`. Report the **per-scenario delta**, not just the letter grade. Don't trust one run on a weak/stochastic model — re-run noisy scenarios (`--reps`).

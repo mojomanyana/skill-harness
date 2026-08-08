@@ -45,6 +45,16 @@ export interface Scenario {
   workspace: WorkspaceKind; // isolated-cwd kind; always populated (default "none")
   remote: boolean; // env.remote: wire a local bare `origin` so the fixture has a real upstream
   systemPromptFile?: string; // system_prompt_file: run this md file AS the system prompt (agents/<name>.md)
+  /**
+   * `env.extensions`: pi extension files to load, resolved relative to the spec dir.
+   *
+   * Loading is CLOSED, not additive — the adapter passes `--no-extensions` plus one
+   * `--extension` per entry, so exactly these load and nothing discovered does.
+   * (Measured on pi 0.83.0: that flag pair isolates even under `-a` project-local
+   * trust.) Without it, whatever the developer happened to have installed would
+   * silently become part of the test.
+   */
+  extensions?: string[];
   reps?: number; // run this scenario N times (overrides --reps); positive integer
   passThreshold?: number; // pass if pass-rate >= this (overrides --pass-threshold); 0..1
 }
@@ -126,6 +136,37 @@ function resolveWorkspace(
     return { fixture: p };
   }
   throw new SpecError(`scenario \`${id}\` env.workspace must be none | empty-git | fixture:<path>`, file);
+}
+
+/**
+ * Resolve `env.extensions` into a list of paths.
+ *
+ * Incompatible with `system_prompt_file` by construction: that flag REPLACES the
+ * system prompt to test a subagent definition in isolation, while an
+ * orchestration scenario tests the PARENT that delegates to one. Allowing both
+ * would silently test neither — the parent's instructions would be gone.
+ */
+function resolveExtensions(env: unknown, hasSystemPrompt: boolean, id: string, file: string): string[] | undefined {
+  const raw = env && typeof env === "object" ? (env as Record<string, unknown>).extensions : undefined;
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new SpecError(`scenario \`${id}\` env.extensions must be a non-empty list of paths`, file);
+  }
+  const paths = raw.map((p, i) => {
+    if (typeof p !== "string" || p.trim() === "") {
+      throw new SpecError(`scenario \`${id}\` env.extensions[${i}] must be a non-empty path`, file);
+    }
+    return p.trim();
+  });
+  if (hasSystemPrompt) {
+    throw new SpecError(
+      `scenario \`${id}\` sets both env.extensions and system_prompt_file — ` +
+        `system_prompt_file replaces the system prompt to test a subagent in isolation, ` +
+        `while env.extensions tests the parent that delegates to one. Pick one.`,
+      file,
+    );
+  }
+  return paths;
 }
 
 /**
@@ -314,6 +355,9 @@ export function parseSpec(text: string, file: string): Spec {
       }
       scenario.systemPromptFile = s.system_prompt_file.trim();
     }
+
+    // After system_prompt_file, so the incompatibility check sees the resolved value.
+    scenario.extensions = resolveExtensions(s.env, scenario.systemPromptFile !== undefined, id, file);
 
     if (s.reps !== undefined) {
       if (typeof s.reps !== "number" || !Number.isInteger(s.reps) || s.reps < 1) {

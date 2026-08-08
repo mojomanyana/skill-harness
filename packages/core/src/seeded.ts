@@ -223,6 +223,8 @@ export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<S
     mode: opts.mode,
     turns: scenario.turns,
     cwd: repo,
+    // Resolved against the spec dir, exactly like fixtures and post-tests.
+    extensions: scenario.extensions?.map((e) => resolve(opts.specDir, e)),
   };
   // A trace-gated seeded scenario runs through the structured path so the tool
   // calls are recorded; everything downstream (gates, diff, transcript) is

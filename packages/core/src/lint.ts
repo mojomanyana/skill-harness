@@ -159,6 +159,15 @@ export function lintSkill(skillDir: string): LintFinding[] {
   // system_prompt_file must exist — an agent-file scenario silently falling back to
   // skill activation would measure the wrong artifact entirely.
   for (const s of spec.scenarios) {
+    // Extension paths, checked statically so a typo is a free CI failure rather
+    // than a wave that ran with no subagent tool and graded the absence.
+    for (const ext of s.extensions ?? []) {
+      const extAbs = isAbsolute(ext) ? ext : resolve(specDir, ext);
+      if (!existsSync(extAbs)) {
+        findings.push({ skill, scenario: s.id, code: "fixture", message: `env.extensions not found: ${ext}` });
+      }
+    }
+
     if (!s.systemPromptFile) continue;
     const abs = isAbsolute(s.systemPromptFile) ? s.systemPromptFile : resolve(specDir, s.systemPromptFile);
     if (!isFile(abs)) {

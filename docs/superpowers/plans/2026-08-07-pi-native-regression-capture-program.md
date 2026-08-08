@@ -542,7 +542,7 @@ When a captured range contains an Agent/subagent call, offer to prepopulate, sub
 
 ### 5.8 Required post
 
-- [ ] `docs/posts/<date>-testing-the-parent-not-just-the-subagent.md`
+- [x] `docs/posts/2026-08-08-testing-the-parent-not-just-the-subagent.md`
 
 ---
 
@@ -763,7 +763,7 @@ Keep PRs small enough to review and release independently:
 5. [x] Structured pi JSON trace parser and artifact format. (2026-08-08)
 6. [x] Trace assertion schema/evaluator and core run integration. (2026-08-08)
 7. [~] Trace-aware `regate` done (2026-08-08); lint/scorecard/review-UI surfacing still open.
-8. [ ] Controlled-extension subagent orchestration scenarios.
+8. [x] Controlled-extension subagent orchestration scenarios. (2026-08-08)
 9. [ ] Coverage parser/report and capture mapping.
 10. [ ] Affected-test selection and `run --affected`.
 11. [ ] Adjudication engine and results model.

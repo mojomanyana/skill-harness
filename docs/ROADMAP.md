@@ -479,7 +479,36 @@ never enter `specification.yaml` before a human promotes them.
         scenario; transcript parity is proven but proven on a handful of fixtures,
         which does not justify silently re-running a published corpus.
       - Post: `docs/posts/2026-08-08-assert-the-trace-not-the-story.md`
-- [ ] Phase 3 — first-class subagent orchestration tests
+- [x] **Phase 3 — first-class subagent orchestration tests** (2026-08-08). Makes the
+      PARENT testable, not just the subagent prompt `system_prompt_file` already
+      covered. Three layers, graded separately: **selection** (did it delegate, to
+      the right agent) and **handoff** (did the task carry required context, and
+      withhold forbidden content) are objective; **integration** (did the final
+      answer use the child's report) stays with the checklist judge, because
+      pretending that is objective would be this tool's whole failure mode. A
+      scenario can pass the first two and fail the third — there is a test for it.
+      - **`env.extensions` is closed loading**, not additive: `--no-extensions` plus
+        one `--extension` per declared path, so nothing the developer happens to have
+        installed joins the test. A missing declared extension is a hard error before
+        pi is spawned — pi would otherwise start fine, the tool simply wouldn't
+        exist, and the scenario would grade a model that never had the option.
+      - **Extensions are STIMULUS; assertions are GATES.** Editing an assertion
+        changes only what we conclude from evidence on disk (`regate`, free); editing
+        an extension changes what the model could DO, so only a re-run can answer.
+        Extension *contents* are hashed, so editing your subagent tool marks results
+        stale without a character of the spec changing.
+      - **Nothing assumes a universal subagent extension.** Normalizers cover the
+        single/parallel/chain shapes and the spec declares the tool name; an
+        unrecognized shape yields nothing rather than a guess, because inventing an
+        `agent` field would be a confident assertion about something nobody wrote.
+        Unknown extensions still work via plain `require_calls`.
+      - Capture prepopulates `tool`/`agent`/`count` from a captured delegation but
+        deliberately never `task_contains` — the text that WAS sent is not the text
+        that is REQUIRED, and proposing it manufactures a brittle assertion the
+        author never reasoned about.
+      - Also closed the open Phase 2 lint gap: `env.extensions` paths are validated
+        statically, so a typo is a free CI failure rather than a graded absence.
+      - Post: `docs/posts/2026-08-08-testing-the-parent-not-just-the-subagent.md`
 - [ ] Phase 4 — instruction coverage + affected-test selection
 - [ ] Phase 5 — confidence-aware automatic rejudging
 

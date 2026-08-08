@@ -10,6 +10,7 @@ import {
   buildCaptureCase,
   captureToScenario,
   draftChecklist,
+  draftSubagentAssertion,
   type SessionEntry,
 } from "../src/capture.js";
 
@@ -358,5 +359,42 @@ describe("draftChecklist", () => {
 
   it("returns nothing useful for an empty expectation", () => {
     expect(draftChecklist("")).toEqual([]);
+  });
+});
+
+describe("draftSubagentAssertion", () => {
+  const turnWith = (name: string, args: Record<string, unknown>) =>
+    projectTurns([
+      { type: "message", id: "u", parentId: null, message: { role: "user", content: [{ type: "text", text: "go" }] } },
+      { type: "message", id: "a", parentId: "u", message: { role: "assistant", content: [{ type: "toolCall", name, arguments: args }] } },
+    ] as SessionEntry[]);
+
+  it("proposes tool, agent and a minimum count from a single call", () => {
+    expect(draftSubagentAssertion(turnWith("Agent", { agent: "plan", task: "diagnose auth" }))).toEqual({
+      tool: "Agent",
+      agent: "plan",
+      count: { min: 1 },
+    });
+  });
+
+  it("reads the parallel shape", () => {
+    expect(draftSubagentAssertion(turnWith("Agent", { tasks: [{ agent: "review", task: "x" }] }))?.agent).toBe("review");
+  });
+
+  it("never proposes task_contains from the observed handoff", () => {
+    // The text that WAS sent is not the text that is REQUIRED. Proposing it would
+    // manufacture a brittle assertion the author never reasoned about.
+    const drafted = draftSubagentAssertion(turnWith("Agent", { agent: "plan", task: "diagnose auth" }))!;
+    expect(Object.keys(drafted)).toEqual(["tool", "agent", "count"]);
+  });
+
+  it("returns null when the range has no subagent call", () => {
+    expect(draftSubagentAssertion(turnWith("read", { path: "a.ts" }))).toBeNull();
+    expect(draftSubagentAssertion([])).toBeNull();
+  });
+
+  it("ignores a subagent-shaped call under an undeclared tool name", () => {
+    expect(draftSubagentAssertion(turnWith("delegate", { agent: "plan" }))).toBeNull();
+    expect(draftSubagentAssertion(turnWith("delegate", { agent: "plan" }), ["delegate"])?.agent).toBe("plan");
   });
 });

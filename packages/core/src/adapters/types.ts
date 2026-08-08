@@ -51,6 +51,13 @@ export interface RunReq {
   rep?: number;
   /** Workspace-relative paths observed to have changed, for `unchanged_paths`. */
   changedPaths?: string[];
+  /**
+   * Absolute paths of pi extensions to load, already resolved by the caller.
+   *
+   * When present the adapter loads EXACTLY these and disables discovery, so an
+   * extension the developer happens to have installed cannot join the test.
+   */
+  extensions?: string[];
 }
 
 /** A judge request: single prompt, no skills, no session. */
