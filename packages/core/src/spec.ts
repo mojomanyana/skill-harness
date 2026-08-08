@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import yaml from "js-yaml";
 import type { WorkspaceKind } from "./workspace.js";
+import { parseTraceAssert, type TraceAssert } from "./trace-gates.js";
 
 export type ScenarioMode = "inline" | "seeded";
 
@@ -33,9 +34,37 @@ export interface Scenario {
   checklist: string[];
   fixture?: string;
   assert?: SeededAssert;
+  /**
+   * Objective assertions over the execution trace.
+   *
+   * Deliberately NOT part of `SeededAssert`: the other gates read a staged git
+   * diff and are meaningless without a fixture, while a trace exists for any run.
+   * Declaring it opts the scenario into structured (`--mode json`) execution.
+   */
+  traceAssert?: TraceAssert;
   workspace: WorkspaceKind; // isolated-cwd kind; always populated (default "none")
   remote: boolean; // env.remote: wire a local bare `origin` so the fixture has a real upstream
   systemPromptFile?: string; // system_prompt_file: run this md file AS the system prompt (agents/<name>.md)
+  /**
+   * `env.extensions`: pi extension files to load, resolved relative to the spec dir.
+   *
+   * Loading is CLOSED, not additive — the adapter passes `--no-extensions` plus one
+   * `--extension` per entry, so exactly these load and nothing discovered does.
+   * (Measured on pi 0.83.0: that flag pair isolates even under `-a` project-local
+   * trust.) Without it, whatever the developer happened to have installed would
+   * silently become part of the test.
+   */
+  extensions?: string[];
+  /**
+   * `covers`: instruction sections this scenario is declared to exercise, e.g.
+   * `SKILL.md#core-principle`.
+   *
+   * METADATA. It stales nothing — see `sources.ts`, where it is deliberately in
+   * no digest. A `covers` edit changes which tests `--affected` selects, not what
+   * any past run measured, so charging a re-run for it would be the exact
+   * "pay tokens to fix a label" trap the facet split exists to remove.
+   */
+  covers?: string[];
   reps?: number; // run this scenario N times (overrides --reps); positive integer
   passThreshold?: number; // pass if pass-rate >= this (overrides --pass-threshold); 0..1
 }
@@ -117,6 +146,37 @@ function resolveWorkspace(
     return { fixture: p };
   }
   throw new SpecError(`scenario \`${id}\` env.workspace must be none | empty-git | fixture:<path>`, file);
+}
+
+/**
+ * Resolve `env.extensions` into a list of paths.
+ *
+ * Incompatible with `system_prompt_file` by construction: that flag REPLACES the
+ * system prompt to test a subagent definition in isolation, while an
+ * orchestration scenario tests the PARENT that delegates to one. Allowing both
+ * would silently test neither — the parent's instructions would be gone.
+ */
+function resolveExtensions(env: unknown, hasSystemPrompt: boolean, id: string, file: string): string[] | undefined {
+  const raw = env && typeof env === "object" ? (env as Record<string, unknown>).extensions : undefined;
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new SpecError(`scenario \`${id}\` env.extensions must be a non-empty list of paths`, file);
+  }
+  const paths = raw.map((p, i) => {
+    if (typeof p !== "string" || p.trim() === "") {
+      throw new SpecError(`scenario \`${id}\` env.extensions[${i}] must be a non-empty path`, file);
+    }
+    return p.trim();
+  });
+  if (hasSystemPrompt) {
+    throw new SpecError(
+      `scenario \`${id}\` sets both env.extensions and system_prompt_file — ` +
+        `system_prompt_file replaces the system prompt to test a subagent in isolation, ` +
+        `while env.extensions tests the parent that delegates to one. Pick one.`,
+      file,
+    );
+  }
+  return paths;
 }
 
 /**
@@ -222,6 +282,13 @@ export function parseSpec(text: string, file: string): Spec {
       remote: false,
     };
 
+    // `assert.trace` is legal for inline AND seeded scenarios — it reads the
+    // execution trace, which every run produces, not a staged diff.
+    const rawAssert = s.assert as Record<string, unknown> | undefined;
+    if (rawAssert?.trace !== undefined) {
+      scenario.traceAssert = parseTraceAssert(rawAssert.trace, `${file}: scenario \`${id}\``);
+    }
+
     if (mode === "seeded") {
       if (typeof s.fixture !== "string" || s.fixture.length === 0) {
         throw new SpecError(`seeded scenario \`${id}\` requires a \`fixture\` path`, file);
@@ -298,6 +365,31 @@ export function parseSpec(text: string, file: string): Spec {
       }
       scenario.systemPromptFile = s.system_prompt_file.trim();
     }
+
+    if (s.covers !== undefined) {
+      if (!isStringArray(s.covers) || s.covers.length === 0) {
+        throw new SpecError(`scenario \`${id}\` \`covers\` must be a non-empty list of strings`, file);
+      }
+      const bad = s.covers.find((c) => c.trim() === "");
+      if (bad !== undefined) throw new SpecError(`scenario \`${id}\` \`covers\` has an empty entry`, file);
+      scenario.covers = s.covers.map((c) => c.trim());
+    }
+
+    // `unchanged_paths` is checked against the workspace's git state, so a scenario
+    // with no repo has nothing to observe. Refused here — free and offline — rather
+    // than at run time, because the alternative shipped for a while: the assertion
+    // silently passed against an empty change list and reported a green safety gate.
+    if (scenario.traceAssert?.unchanged_paths?.length && scenario.workspace === "none") {
+      throw new SpecError(
+        `scenario \`${id}\` declares \`assert.trace.unchanged_paths\` but has no workspace to observe — ` +
+          `set \`env.workspace: empty-git\` or \`fixture:<path>\`, or drop the assertion. ` +
+          `A path policy with nothing to compare against would pass unconditionally.`,
+        file,
+      );
+    }
+
+    // After system_prompt_file, so the incompatibility check sees the resolved value.
+    scenario.extensions = resolveExtensions(s.env, scenario.systemPromptFile !== undefined, id, file);
 
     if (s.reps !== undefined) {
       if (typeof s.reps !== "number" || !Number.isInteger(s.reps) || s.reps < 1) {

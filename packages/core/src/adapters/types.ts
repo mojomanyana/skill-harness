@@ -1,3 +1,5 @@
+import type { ExecutionTraceV1 } from "../capture-trace-types.js";
+
 export type RunMode = "red" | "green" | "force";
 
 /** A provider+model pair, e.g. { provider: "fireworks", model: "accounts/.../deepseek-v4-pro" }. */
@@ -37,6 +39,25 @@ export interface RunReq {
    * single-shot shape it actually runs in; overrides `mode`'s skill flags.
    */
   systemPromptFile?: string;
+  /**
+   * Trace metadata, used only by `runStructured`.
+   *
+   * Optional because `run()` never needs them and every existing caller and test
+   * double predates them. A trace with no scenario id is still valid evidence —
+   * it just cannot be filed against a scenario. The ADAPTER supplies the
+   * fallback (see `pi.ts`); `parseTrace` requires a `scenarioId` and has no
+   * default, so a second `runStructured` author must pass one rather than
+   * assuming the parser fills it in.
+   */
+  scenarioId?: string;
+  rep?: number;
+  /**
+   * Absolute paths of pi extensions to load, already resolved by the caller.
+   *
+   * When present the adapter loads EXACTLY these and disables discovery, so an
+   * extension the developer happens to have installed cannot join the test.
+   */
+  extensions?: string[];
 }
 
 /** A judge request: single prompt, no skills, no session. */
@@ -46,10 +67,28 @@ export interface JudgeReq {
   cwd: string;
 }
 
+/** A structured run: the transcript the judge sees, plus the evidence gates read. */
+export interface StructuredRun {
+  transcript: string;
+  /** One trace per turn — each `pi` invocation emits an independent event stream. */
+  traces: ExecutionTraceV1[];
+}
+
 export interface HarnessAdapter {
   name: string;
   available(): Promise<boolean>; // is the CLI on PATH?
   run(req: RunReq): Promise<string>; // returns the full transcript text
+  /**
+   * Run and additionally return structured execution evidence.
+   *
+   * Optional, and used ONLY by scenarios that declare trace assertions. Two
+   * reasons it is not the default path. Test doubles and any future adapter must
+   * keep working without implementing it; and switching every existing scenario
+   * onto a different execution mode would be a behavior epoch — the transcript
+   * is reconstructed rather than read from stdout, and even a proven-equivalent
+   * reconstruction should not be applied to a whole published corpus silently.
+   */
+  runStructured?(req: RunReq): Promise<StructuredRun>;
   judge(req: JudgeReq): Promise<string>; // returns the judge's raw output
   /**
    * The harness CLI's own version, recorded in `results.yaml` as

@@ -1,0 +1,3 @@
+# A smoke run is one draw on a cheap model, not a measurement. Committing its
+# results.yaml would put a scorecard in the repo that nobody should read as one.
+skills/*/tests/results/

@@ -1,7 +1,8 @@
 import { existsSync, mkdtempSync, readFileSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 import { join, resolve } from "node:path";
-import type { HarnessAdapter, RunReq, JudgeReq, RunMode } from "@skill-harness/core";
+import type { HarnessAdapter, RunReq, JudgeReq, RunMode, StructuredRun, ExecutionTraceV1 } from "@skill-harness/core";
+import { runPiJson } from "./pi-json.js";
 import { exec, onPath, envNum } from "@skill-harness/core";
 
 const PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 300_000);
@@ -58,6 +59,30 @@ function skillFlags(mode: RunMode, skillDir: string): string[] {
   }
 }
 
+/**
+ * Extension flags. `--no-extensions` is ALWAYS present (it already was), and each
+ * declared path is added with `--extension`.
+ *
+ * Measured on pi 0.83.0: `--no-extensions --extension <path>` loads exactly the
+ * declared extension and nothing discovered, even with `-a` project-local trust
+ * active. Paths are resolved by the caller; a relative one handed to a child
+ * process running in a neutral cwd would silently resolve to nothing — the same
+ * class of failure as the `--skill` incident.
+ */
+function extensionFlags(extensions: string[] | undefined): string[] {
+  if (!extensions || extensions.length === 0) return [];
+  return extensions.flatMap((p) => {
+    const abs = resolve(p);
+    if (!existsSync(abs)) {
+      throw new Error(
+        `env.extensions names ${abs}, which does not exist — pi would start without it and the ` +
+          `scenario would silently test an agent with no subagent tool at all.`,
+      );
+    }
+    return ["--extension", abs];
+  });
+}
+
 function header(turnNo: number, total: number, text: string): string {
   const label = total === 1 ? "USER" : `USER (turn ${turnNo}/${total})`;
   return `>>> ${label}:\n${text}\n`;
@@ -100,6 +125,7 @@ export const piAdapter: HarnessAdapter = {
     const common = [
       "--no-context-files",
       "--no-extensions",
+      ...extensionFlags(req.extensions),
       "--provider",
       req.model.provider,
       "--model",
@@ -131,6 +157,81 @@ export const piAdapter: HarnessAdapter = {
       if (r.code !== 0) parts.push(`[pi exited ${r.code} on turn ${i + 1}]\n${r.stderr.trim()}\n`);
     }
     return parts.join("\n");
+  },
+
+  /**
+   * Structured run: same flags, same turn loop, plus `--mode json` and a trace
+   * per turn.
+   *
+   * Shares `skillFlags` and the turn structure with `run()` on purpose — if the
+   * two drifted, a trace-gated scenario would be measuring a different delivery
+   * than an ungated one, and the gate would be attesting to the wrong execution.
+   *
+   * The transcript is REBUILT from each turn's final assistant message rather
+   * than read from stdout, which is byte-identical to print mode's output (proven
+   * on a deterministic prompt; see docs/pi-native-capture-design-2026-08-08.md §2).
+   */
+  async runStructured(req: RunReq): Promise<StructuredRun> {
+    const common = [
+      "--no-context-files",
+      "--no-extensions",
+      ...extensionFlags(req.extensions),
+      "--provider",
+      req.model.provider,
+      "--model",
+      req.model.model,
+    ];
+    const flags = req.systemPromptFile
+      ? ["--no-skills", "--append-system-prompt", readFileSync(req.systemPromptFile, "utf8")]
+      : skillFlags(req.mode, req.skillDir);
+
+    const piVersion = await this.version!();
+    const total = req.turns.length;
+    const traces: ExecutionTraceV1[] = [];
+    const parts: string[] = [];
+    const session = total === 1 ? null : mkdtempSync(join(tmpdir(), "sc-pi-session-"));
+
+    for (let i = 0; i < total; i++) {
+      const turnFlags =
+        session === null
+          ? ["--no-session"]
+          : i === 0
+            ? ["--session-dir", session]
+            : ["--session-dir", session, "-c"];
+      const args = [...flags, ...common, "--mode", "json", ...turnFlags, "-p", req.turns[i]];
+
+      const r = await runPiJson({
+        args,
+        cwd: req.cwd,
+        timeoutMs: PI_TIMEOUT_MS,
+        piVersion,
+        subject: req.model,
+        scenarioId: req.scenarioId ?? "(unknown)",
+        mode: req.mode,
+        rep: req.rep ?? 0,
+        turn: i,
+        homeDir: homedir(),
+      });
+
+      // A stream with no terminal events at all is not evidence of a clean run.
+      // Fail loudly here rather than let an empty trace satisfy a `forbid_calls`
+      // gate — "the model called nothing" and "we recorded nothing" must not
+      // reach the scorer looking the same.
+      if (!r.isComplete) {
+        throw new Error(
+          `pi --mode json produced no terminal events for turn ${i + 1}/${total}` +
+            ` (exit ${r.code}${r.malformedLines ? `, ${r.malformedLines} malformed line(s)` : ""})` +
+            (r.stderr.trim() ? `: ${r.stderr.trim()}` : ""),
+        );
+      }
+
+      traces.push(r.trace);
+      parts.push(header(i + 1, total, req.turns[i]));
+      parts.push(`<<< ASSISTANT:\n${r.trace.final_text.trim()}\n`);
+      if (r.code !== 0) parts.push(`[pi exited ${r.code} on turn ${i + 1}]\n${r.stderr.trim()}\n`);
+    }
+
+    return { transcript: parts.join("\n"), traces };
   },
 
   /**

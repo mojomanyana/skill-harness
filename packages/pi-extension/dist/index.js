@@ -1,10 +1,11 @@
 // packages/pi-extension/src/index.ts
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname as dirname6, join as join22 } from "node:path";
+import { dirname as dirname9, join as join25 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
-import { existsSync as existsSync17 } from "node:fs";
-import { dirname as dirname5, join as join21, resolve as resolve9 } from "node:path";
+import { existsSync as existsSync21 } from "node:fs";
+import { homedir as homedir2 } from "node:os";
+import { dirname as dirname8, join as join24, resolve as resolve11, relative as relative4 } from "node:path";
 
 // packages/core/dist/spec.js
 import { readFileSync } from "node:fs";
@@ -1976,8 +1977,8 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
   function generateNextLine(state, level) {
     return "\n" + common.repeat(" ", state.indent * level);
   }
-  function testImplicitResolving(state, str) {
-    for (let index = 0, length = state.implicitTypes.length; index < length; index += 1) if (state.implicitTypes[index].resolve(str)) return true;
+  function testImplicitResolving(state, str2) {
+    for (let index = 0, length = state.implicitTypes.length; index < length; index += 1) if (state.implicitTypes[index].resolve(str2)) return true;
     return false;
   }
   function isWhitespace(c) {
@@ -2371,6 +2372,406 @@ var import_js_yaml = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((ex
 var { Type, Schema, FAILSAFE_SCHEMA, JSON_SCHEMA, CORE_SCHEMA, DEFAULT_SCHEMA, load, loadAll, dump, YAMLException, types, safeLoad, safeLoadAll, safeDump } = import_js_yaml.default;
 var index_vite_proxy_tmp_default = import_js_yaml.default;
 
+// packages/core/dist/trace-gates.js
+var PREDICATE_KEYS = ["equals", "contains", "starts_with", "ends_with", "matches", "exists", "any"];
+function normalizeSubagentCall(args) {
+  const one = (v) => {
+    if (v === null || typeof v !== "object" || Array.isArray(v))
+      return null;
+    const o = v;
+    const agent = typeof o.agent === "string" ? o.agent : typeof o.name === "string" ? o.name : void 0;
+    if (agent === void 0)
+      return null;
+    const task = typeof o.task === "string" ? o.task : typeof o.prompt === "string" ? o.prompt : "";
+    return { agent, task };
+  };
+  if (Array.isArray(args.tasks))
+    return args.tasks.map(one).filter((x) => x !== null);
+  if (Array.isArray(args.chain))
+    return args.chain.map(one).filter((x) => x !== null);
+  const single = one(args);
+  return single ? [single] : [];
+}
+function evaluateTraceGates(assert, trace) {
+  const assertions = [];
+  for (const req of assert.require_calls ?? []) {
+    const matched = trace.tool_calls.filter((c) => c.name === req.tool && argsMatch(c, req.args));
+    const min = req.count?.min ?? 1;
+    const max = req.count?.max;
+    const described = describeArgs(req.args);
+    if (matched.length < min) {
+      assertions.push({
+        kind: "require_call",
+        status: "FAIL",
+        detail: `expected at least ${min} call(s) to \`${req.tool}\`${described}, saw ${matched.length}${nearMiss(trace, req)}`
+      });
+    } else if (max !== void 0 && matched.length > max) {
+      assertions.push({
+        kind: "require_call",
+        status: "FAIL",
+        detail: `expected at most ${max} call(s) to \`${req.tool}\`${described}, saw ${matched.length}`
+      });
+    } else {
+      assertions.push({
+        kind: "require_call",
+        status: "PASS",
+        detail: `\`${req.tool}\`${described} called ${matched.length} time(s)`
+      });
+    }
+  }
+  for (const req of assert.require_subagents ?? []) {
+    const invocations = trace.tool_calls.filter((c) => c.name === req.tool).flatMap((c) => normalizeSubagentCall(c.args));
+    const matched = invocations.filter((i) => i.agent === req.agent);
+    const min = req.count?.min ?? 1;
+    const max = req.count?.max;
+    if (matched.length < min || max !== void 0 && matched.length > max) {
+      const bound = matched.length < min ? `at least ${min}` : `at most ${max}`;
+      const seen = invocations.length === 0 ? `no \`${req.tool}\` invocation was recorded` : `saw agents: ${[...new Set(invocations.map((i) => i.agent))].join(", ")}`;
+      assertions.push({
+        kind: "require_subagent",
+        status: "FAIL",
+        detail: `expected ${bound} delegation(s) to \`${req.agent}\` via \`${req.tool}\`, saw ${matched.length} (${seen})`
+      });
+      continue;
+    }
+    assertions.push({
+      kind: "require_subagent",
+      status: "PASS",
+      detail: `delegated to \`${req.agent}\` ${matched.length} time(s) via \`${req.tool}\``
+    });
+    for (const needle of req.task_contains ?? []) {
+      const ok = matched.some((i) => i.task.includes(needle));
+      assertions.push({
+        kind: "require_subagent",
+        status: ok ? "PASS" : "FAIL",
+        detail: ok ? `handoff to \`${req.agent}\` carried ${JSON.stringify(needle)}` : `handoff to \`${req.agent}\` omitted required context ${JSON.stringify(needle)}`
+      });
+    }
+    for (const needle of req.task_excludes ?? []) {
+      const leaked = matched.filter((i) => i.task.includes(needle));
+      const lost = leaked.length === 0 && matched.some((i) => valueWasLost(i.task));
+      assertions.push({
+        kind: "require_subagent",
+        status: lost ? "ERROR" : leaked.length === 0 ? "PASS" : "FAIL",
+        detail: lost ? `leak check on the handoff to \`${req.agent}\` could not be run \u2014 the task text was redacted or truncated before the trace was written` : leaked.length === 0 ? `handoff to \`${req.agent}\` did not carry ${JSON.stringify(needle)}` : `handoff to \`${req.agent}\` leaked forbidden content ${JSON.stringify(needle)}`
+      });
+    }
+  }
+  for (const forbid of assert.forbid_calls ?? []) {
+    const hits = trace.tool_calls.filter((c) => c.name === forbid.tool && argsMatch(c, forbid.args));
+    const lost = [...new Set(trace.tool_calls.filter((c) => c.name === forbid.tool).flatMap((c) => lostArgs(c, forbid.args)))];
+    if (hits.length === 0 && lost.length > 0) {
+      assertions.push({
+        kind: "forbid_call",
+        status: "ERROR",
+        detail: `\`${forbid.tool}\`${describeArgs(forbid.args)} could not be checked \u2014 ${lost.map((k) => `\`${k}\``).join(", ")} was redacted or truncated before the trace was written`
+      });
+      continue;
+    }
+    assertions.push(hits.length === 0 ? { kind: "forbid_call", status: "PASS", detail: `\`${forbid.tool}\`${describeArgs(forbid.args)} not called` } : {
+      kind: "forbid_call",
+      status: "FAIL",
+      detail: `\`${forbid.tool}\`${describeArgs(forbid.args)} called ${hits.length} time(s) \u2014 forbidden`
+    });
+  }
+  for (const pattern of assert.unchanged_paths ?? []) {
+    if (trace.changed_paths === null) {
+      assertions.push({
+        kind: "unchanged_path",
+        status: "ERROR",
+        detail: `\`${pattern}\` could not be checked \u2014 the workspace was never observed`
+      });
+      continue;
+    }
+    const changed = trace.changed_paths.filter((p) => matchesGlob(pattern, p));
+    assertions.push(changed.length === 0 ? { kind: "unchanged_path", status: "PASS", detail: `\`${pattern}\` unchanged` } : { kind: "unchanged_path", status: "FAIL", detail: `\`${pattern}\` changed: ${changed.join(", ")}` });
+  }
+  return {
+    // ERROR outranks FAIL: "the evidence is missing" must never be reported as
+    // "the assertion held", and it must not be softened into a plain failure
+    // either — the two call for different fixes.
+    status: assertions.some((a) => a.status === "ERROR") ? "ERROR" : assertions.some((a) => a.status === "FAIL") ? "FAIL" : "PASS",
+    assertions
+  };
+}
+function nearMiss(trace, req) {
+  if (!req.args)
+    return "";
+  const byName = trace.tool_calls.filter((c) => c.name === req.tool);
+  if (byName.length === 0)
+    return ` (\`${req.tool}\` was never called)`;
+  return ` (\`${req.tool}\` called ${byName.length}x, but with different arguments)`;
+}
+function describeArgs(args) {
+  if (!args || Object.keys(args).length === 0)
+    return "";
+  const parts = Object.entries(args).map(([k, p]) => {
+    const [op] = PREDICATE_KEYS.filter((key) => p[key] !== void 0);
+    return op ? `${k} ${op} ${JSON.stringify(p[op])}` : k;
+  });
+  return ` (${parts.join(", ")})`;
+}
+function argsMatch(call, args) {
+  if (!args)
+    return true;
+  return Object.entries(args).every(([key, predicate]) => testPredicate(call.args[key], predicate));
+}
+function valueWasLost(value) {
+  if (typeof value === "string") {
+    return value === "[redacted]" || value === "[nested]" || value.includes("\u2026 [truncated ");
+  }
+  if (Array.isArray(value))
+    return value.some(valueWasLost);
+  if (value && typeof value === "object")
+    return Object.values(value).some(valueWasLost);
+  return false;
+}
+function lostArgs(call, args) {
+  if (!args)
+    return [];
+  return Object.keys(args).filter((key) => valueWasLost(call.args[key]));
+}
+function testPredicate(value, p) {
+  if (p.exists !== void 0) {
+    if (p.exists !== (value !== void 0 && value !== null))
+      return false;
+    if (p.exists === false)
+      return true;
+  }
+  if (p.equals !== void 0 && !deepEqual(value, p.equals))
+    return false;
+  if (p.contains !== void 0 && !asString(value).includes(p.contains))
+    return false;
+  if (p.starts_with !== void 0 && !asString(value).startsWith(p.starts_with))
+    return false;
+  if (p.ends_with !== void 0 && !asString(value).endsWith(p.ends_with))
+    return false;
+  if (p.matches !== void 0) {
+    let re;
+    try {
+      re = new RegExp(p.matches);
+    } catch {
+      return false;
+    }
+    if (!re.test(asString(value)))
+      return false;
+  }
+  if (p.any !== void 0) {
+    if (!Array.isArray(value))
+      return false;
+    if (!value.some((v) => testPredicate(v, p.any)))
+      return false;
+  }
+  return true;
+}
+function asString(v) {
+  if (typeof v === "string")
+    return v;
+  if (v === void 0 || v === null)
+    return "";
+  return JSON.stringify(v) ?? "";
+}
+function deepEqual(a, b) {
+  if (a === b)
+    return true;
+  if (typeof a !== typeof b || a === null || b === null)
+    return false;
+  if (typeof a !== "object")
+    return false;
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+function matchesGlob(pattern, path) {
+  const p = normalizePath(path);
+  const pat = normalizePath(pattern);
+  if (pat === p)
+    return true;
+  const escaped = pat.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*\*\//g, "\0SLASHSTAR\0").replace(/\*\*/g, "\0GLOBSTAR\0").replace(/\*/g, "[^/]*").replace(/ SLASHSTAR /g, "(?:.*/)?").replace(/ GLOBSTAR /g, ".*");
+  return new RegExp(`^${escaped}$`).test(p);
+}
+function normalizePath(p) {
+  return p.replace(/\\/g, "/").replace(/^\.\//, "");
+}
+function parseTraceAssert(raw, ctx) {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(`${ctx}: \`assert.trace\` must be a mapping`);
+  }
+  const obj = raw;
+  const allowed = /* @__PURE__ */ new Set(["require_calls", "require_subagents", "forbid_calls", "unchanged_paths"]);
+  for (const key of Object.keys(obj)) {
+    if (!allowed.has(key)) {
+      throw new Error(`${ctx}: unknown \`assert.trace\` key \`${key}\` (allowed: ${[...allowed].join(", ")})`);
+    }
+  }
+  const out = {};
+  if (obj.require_calls !== void 0) {
+    out.require_calls = asArray(obj.require_calls, `${ctx}: \`require_calls\``).map((item, i) => {
+      const entry = asObject(item, `${ctx}: \`require_calls[${i}]\``);
+      const tool = requireToolName(entry.tool, `${ctx}: \`require_calls[${i}]\``);
+      const req = { tool };
+      if (entry.count !== void 0)
+        req.count = parseCount(entry.count, `${ctx}: \`require_calls[${i}].count\``);
+      if (entry.args !== void 0)
+        req.args = parseArgs(entry.args, `${ctx}: \`require_calls[${i}].args\``);
+      for (const key of Object.keys(entry)) {
+        if (!["tool", "count", "args"].includes(key)) {
+          throw new Error(`${ctx}: unknown key \`${key}\` in \`require_calls[${i}]\``);
+        }
+      }
+      return req;
+    });
+  }
+  if (obj.require_subagents !== void 0) {
+    out.require_subagents = asArray(obj.require_subagents, `${ctx}: \`require_subagents\``).map((item, i) => {
+      const where = `${ctx}: \`require_subagents[${i}]\``;
+      const entry = asObject(item, where);
+      for (const key of Object.keys(entry)) {
+        if (!["tool", "agent", "count", "task_contains", "task_excludes"].includes(key)) {
+          throw new Error(`${ctx}: unknown key \`${key}\` in \`require_subagents[${i}]\``);
+        }
+      }
+      const sub = {
+        tool: requireToolName(entry.tool, where),
+        agent: requireNonEmpty(entry.agent, `${where}: \`agent\``)
+      };
+      if (entry.count !== void 0)
+        sub.count = parseCount(entry.count, `${where}.count`);
+      if (entry.task_contains !== void 0)
+        sub.task_contains = parseNeedles(entry.task_contains, `${where}.task_contains`);
+      if (entry.task_excludes !== void 0)
+        sub.task_excludes = parseNeedles(entry.task_excludes, `${where}.task_excludes`);
+      return sub;
+    });
+  }
+  if (obj.forbid_calls !== void 0) {
+    out.forbid_calls = asArray(obj.forbid_calls, `${ctx}: \`forbid_calls\``).map((item, i) => {
+      if (typeof item === "string")
+        return { tool: item };
+      const entry = asObject(item, `${ctx}: \`forbid_calls[${i}]\``);
+      const forbid = { tool: requireToolName(entry.tool, `${ctx}: \`forbid_calls[${i}]\``) };
+      if (entry.args !== void 0)
+        forbid.args = parseArgs(entry.args, `${ctx}: \`forbid_calls[${i}].args\``);
+      for (const key of Object.keys(entry)) {
+        if (!["tool", "args"].includes(key)) {
+          throw new Error(`${ctx}: unknown key \`${key}\` in \`forbid_calls[${i}]\``);
+        }
+      }
+      return forbid;
+    });
+  }
+  if (obj.unchanged_paths !== void 0) {
+    const paths = asArray(obj.unchanged_paths, `${ctx}: \`unchanged_paths\``);
+    out.unchanged_paths = paths.map((p, i) => {
+      if (typeof p !== "string" || p.trim() === "") {
+        throw new Error(`${ctx}: \`unchanged_paths[${i}]\` must be a non-empty string`);
+      }
+      return p;
+    });
+  }
+  if (!out.require_calls && !out.require_subagents && !out.forbid_calls && !out.unchanged_paths) {
+    throw new Error(`${ctx}: \`assert.trace\` declares no assertions \u2014 remove it or add one`);
+  }
+  return out;
+}
+function requireNonEmpty(v, ctx) {
+  if (typeof v !== "string" || v.trim() === "")
+    throw new Error(`${ctx} must be a non-empty string`);
+  return v;
+}
+function parseNeedles(raw, ctx) {
+  return asArray(raw, ctx).map((n, i) => {
+    if (typeof n !== "string" || n === "")
+      throw new Error(`${ctx}[${i}] must be a non-empty string`);
+    return n;
+  });
+}
+function requireToolName(v, ctx) {
+  if (typeof v !== "string" || v.trim() === "")
+    throw new Error(`${ctx}: needs a non-empty \`tool\` name`);
+  return v;
+}
+function asArray(v, ctx) {
+  if (!Array.isArray(v) || v.length === 0)
+    throw new Error(`${ctx} must be a non-empty list`);
+  return v;
+}
+function asObject(v, ctx) {
+  if (v === null || typeof v !== "object" || Array.isArray(v))
+    throw new Error(`${ctx} must be a mapping`);
+  return v;
+}
+function parseCount(raw, ctx) {
+  const obj = asObject(raw, ctx);
+  const out = {};
+  for (const key of Object.keys(obj)) {
+    if (key !== "min" && key !== "max")
+      throw new Error(`${ctx}: unknown key \`${key}\` (allowed: min, max)`);
+  }
+  for (const key of ["min", "max"]) {
+    if (obj[key] === void 0)
+      continue;
+    const n = obj[key];
+    if (typeof n !== "number" || !Number.isInteger(n) || n < 0) {
+      throw new Error(`${ctx}: \`${key}\` must be a non-negative integer`);
+    }
+    out[key] = n;
+  }
+  if (out.min !== void 0 && out.max !== void 0 && out.min > out.max) {
+    throw new Error(`${ctx}: min (${out.min}) exceeds max (${out.max}) \u2014 nothing can satisfy it`);
+  }
+  return out;
+}
+function parseArgs(raw, ctx) {
+  const obj = asObject(raw, ctx);
+  const out = {};
+  for (const [key, value] of Object.entries(obj)) {
+    out[key] = parsePredicate(value, `${ctx}.${key}`);
+  }
+  return out;
+}
+function parsePredicate(raw, ctx) {
+  if (typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean") {
+    return { equals: raw };
+  }
+  const obj = asObject(raw, ctx);
+  const out = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (!PREDICATE_KEYS.includes(key)) {
+      throw new Error(`${ctx}: unknown operator \`${key}\` (allowed: ${PREDICATE_KEYS.join(", ")})`);
+    }
+    if (key === "matches") {
+      if (typeof value !== "string")
+        throw new Error(`${ctx}: \`matches\` must be a string pattern`);
+      try {
+        new RegExp(value);
+      } catch (e) {
+        throw new Error(`${ctx}: \`matches\` is not a valid regular expression: ${e instanceof Error ? e.message : e}`);
+      }
+      out.matches = value;
+      continue;
+    }
+    if (key === "exists") {
+      if (typeof value !== "boolean")
+        throw new Error(`${ctx}: \`exists\` must be true or false`);
+      out.exists = value;
+      continue;
+    }
+    if (key === "any") {
+      out.any = parsePredicate(value, `${ctx}.any`);
+      continue;
+    }
+    if (key === "equals") {
+      out.equals = value;
+      continue;
+    }
+    if (typeof value !== "string")
+      throw new Error(`${ctx}: \`${key}\` must be a string`);
+    out[key] = value;
+  }
+  if (Object.keys(out).length === 0)
+    throw new Error(`${ctx}: predicate declares no operator`);
+  return out;
+}
+
 // packages/core/dist/spec.js
 var SpecError = class extends Error {
   constructor(message, file) {
@@ -2414,6 +2815,24 @@ function resolveWorkspace(env, mode, fixture, id, file) {
     return { fixture: p };
   }
   throw new SpecError(`scenario \`${id}\` env.workspace must be none | empty-git | fixture:<path>`, file);
+}
+function resolveExtensions(env, hasSystemPrompt, id, file) {
+  const raw = env && typeof env === "object" ? env.extensions : void 0;
+  if (raw === void 0)
+    return void 0;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new SpecError(`scenario \`${id}\` env.extensions must be a non-empty list of paths`, file);
+  }
+  const paths = raw.map((p, i) => {
+    if (typeof p !== "string" || p.trim() === "") {
+      throw new SpecError(`scenario \`${id}\` env.extensions[${i}] must be a non-empty path`, file);
+    }
+    return p.trim();
+  });
+  if (hasSystemPrompt) {
+    throw new SpecError(`scenario \`${id}\` sets both env.extensions and system_prompt_file \u2014 system_prompt_file replaces the system prompt to test a subagent in isolation, while env.extensions tests the parent that delegates to one. Pick one.`, file);
+  }
+  return paths;
 }
 function resolveRemote(env, workspace, id, file) {
   const raw = env && typeof env === "object" ? env.remote : void 0;
@@ -2498,6 +2917,10 @@ function parseSpec(text, file) {
       workspace: "none",
       remote: false
     };
+    const rawAssert = s.assert;
+    if (rawAssert?.trace !== void 0) {
+      scenario.traceAssert = parseTraceAssert(rawAssert.trace, `${file}: scenario \`${id}\``);
+    }
     if (mode === "seeded") {
       if (typeof s.fixture !== "string" || s.fixture.length === 0) {
         throw new SpecError(`seeded scenario \`${id}\` requires a \`fixture\` path`, file);
@@ -2550,6 +2973,19 @@ function parseSpec(text, file) {
       }
       scenario.systemPromptFile = s.system_prompt_file.trim();
     }
+    if (s.covers !== void 0) {
+      if (!isStringArray(s.covers) || s.covers.length === 0) {
+        throw new SpecError(`scenario \`${id}\` \`covers\` must be a non-empty list of strings`, file);
+      }
+      const bad = s.covers.find((c) => c.trim() === "");
+      if (bad !== void 0)
+        throw new SpecError(`scenario \`${id}\` \`covers\` has an empty entry`, file);
+      scenario.covers = s.covers.map((c) => c.trim());
+    }
+    if (scenario.traceAssert?.unchanged_paths?.length && scenario.workspace === "none") {
+      throw new SpecError(`scenario \`${id}\` declares \`assert.trace.unchanged_paths\` but has no workspace to observe \u2014 set \`env.workspace: empty-git\` or \`fixture:<path>\`, or drop the assertion. A path policy with nothing to compare against would pass unconditionally.`, file);
+    }
+    scenario.extensions = resolveExtensions(s.env, scenario.systemPromptFile !== void 0, id, file);
     if (s.reps !== void 0) {
       if (typeof s.reps !== "number" || !Number.isInteger(s.reps) || s.reps < 1) {
         throw new SpecError(`scenario \`${id}\` \`reps\` must be a positive integer`, file);
@@ -2636,17 +3072,28 @@ function walk(dir, prefix = "") {
   return out;
 }
 function facets(s) {
-  const { id, title, critical, mode, turns, checklist, fixture, assert, workspace, remote, systemPromptFile, reps: reps2, passThreshold, ...restScenario } = s;
+  const { id, title, critical, mode, turns, checklist, fixture, assert, traceAssert, workspace, remote, systemPromptFile, extensions, reps: reps2, passThreshold, covers: _coversIsMetadata, ...restScenario } = s;
   const _scenarioExhaustive = restScenario;
   void _scenarioExhaustive;
+  void _coversIsMetadata;
   const { vitest, diff_contains, diff_excludes, post_test, ...restAssert } = assert ?? {};
   const _assertExhaustive = restAssert;
   void _assertExhaustive;
-  const hasGates = diff_contains !== void 0 || diff_excludes !== void 0;
+  const hasGates = diff_contains !== void 0 || diff_excludes !== void 0 || traceAssert !== void 0;
   return {
     // `vitest` and the `post_test` PATH are stimulus, not gates: both change what the
     // run executes in the workspace, and neither can be re-evaluated from a saved
     // diff. (`post_test`'s CONTENTS get their own file-path key, hashed separately.)
+    // `extensions` is STIMULUS, not a gate — note the asymmetry with `traceAssert`
+    // below. Changing which extensions load changes what the model can DO, so the
+    // old transcripts describe a different agent and only a re-run can answer.
+    // Changing an assertion only changes what we conclude from evidence already on
+    // disk, which `regate` can redo for free.
+    // APPENDED CONDITIONALLY, never as a fixed slot. This tuple is positional and
+    // its hash is stored in every published results.yaml, so adding an
+    // unconditional element re-hashes every scenario that never used the field —
+    // measured: 62 real lint findings became 261 across the reference corpus, all of
+    // them demanding paid re-runs for scenarios nobody had edited.
     stimulus: JSON.stringify([
       id,
       mode,
@@ -2656,11 +3103,14 @@ function facets(s) {
       systemPromptFile ?? null,
       fixture ?? null,
       vitest ?? null,
-      post_test ?? null
+      post_test ?? null,
+      ...extensions ? [extensions] : []
     ]),
     rubric: JSON.stringify([id, title, checklist]),
     policy: JSON.stringify([id, critical, reps2 ?? null, passThreshold ?? null]),
-    gates: hasGates ? JSON.stringify([id, diff_contains ?? null, diff_excludes ?? null]) : null
+    // Same rule as `stimulus` above: conditional, so a needle-gated scenario that
+    // declares no trace assertions keeps the digest it was published with.
+    gates: hasGates ? JSON.stringify([id, diff_contains ?? null, diff_excludes ?? null, ...traceAssert ? [traceAssert] : []]) : null
   };
 }
 function sha(canonical) {
@@ -2702,6 +3152,11 @@ function sourceHashes(ctx) {
     if (s.systemPromptFile && !(s.systemPromptFile in hashes)) {
       hashes[s.systemPromptFile] = fileSha256(resolve2(ctx.specDir, s.systemPromptFile)) ?? UNREADABLE;
     }
+    for (const ext of s.extensions ?? []) {
+      if (ext in hashes)
+        continue;
+      hashes[ext] = fileSha256(resolve2(ctx.specDir, ext)) ?? UNREADABLE;
+    }
     const pt = s.assert?.post_test;
     if (pt && !(pt in hashes)) {
       hashes[pt] = fileSha256(isAbsolute(pt) ? pt : resolve2(ctx.specDir, pt)) ?? UNREADABLE;
@@ -2742,6 +3197,8 @@ function scenarioSourceKeys(s) {
     keys.push(GATES_PREFIX + s.id);
   if (s.systemPromptFile)
     keys.push(s.systemPromptFile);
+  for (const ext of s.extensions ?? [])
+    keys.push(ext);
   if (s.assert?.post_test)
     keys.push(s.assert.post_test);
   const fx = effectiveFixture(s);
@@ -2753,6 +3210,7 @@ function scenarioSourceKeys(s) {
 // packages/core/dist/workspace.js
 import { appendFileSync, cpSync, existsSync as existsSync2, mkdtempSync, readFileSync as readFileSync3, readdirSync as readdirSync3, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { createHash as createHash2 } from "node:crypto";
 import { tmpdir } from "node:os";
 import { isAbsolute as isAbsolute2, join as join3, resolve as resolve3 } from "node:path";
 var GIT_TIMEOUT_MS = 3e4;
@@ -2831,6 +3289,49 @@ function createWorkspace(kind, opts) {
     throw e;
   }
   return { cwd, cleanup };
+}
+var SNAPSHOT_SKIP = /* @__PURE__ */ new Set([".git", "node_modules", "coverage", ".vitest"]);
+function snapshotPaths(cwd, kind) {
+  if (kind === "none" || !cwd || !existsSync2(cwd))
+    return null;
+  const out = /* @__PURE__ */ new Map();
+  const walk2 = (dir, prefix) => {
+    let entries;
+    try {
+      entries = readdirSync3(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (SNAPSHOT_SKIP.has(e.name))
+        continue;
+      const rel = prefix ? `${prefix}/${e.name}` : e.name;
+      const abs = join3(dir, e.name);
+      if (e.isDirectory()) {
+        walk2(abs, rel);
+      } else if (e.isFile()) {
+        try {
+          out.set(rel, createHash2("sha256").update(readFileSync3(abs)).digest("hex"));
+        } catch {
+          out.set(rel, "<unreadable>");
+        }
+      }
+    }
+  };
+  walk2(cwd, "");
+  return out;
+}
+function diffSnapshots(before, after) {
+  if (!before || !after)
+    return null;
+  const changed = /* @__PURE__ */ new Set();
+  for (const [path, hash] of after)
+    if (before.get(path) !== hash)
+      changed.add(path);
+  for (const path of before.keys())
+    if (!after.has(path))
+      changed.add(path);
+  return [...changed].sort();
 }
 
 // packages/core/dist/grade.js
@@ -3023,10 +3524,19 @@ function resultsPath(runDir) {
 function effectiveVerdicts(scenarios) {
   return scenarios.map((s) => ({
     id: s.id,
-    verdict: s.override ?? s.judge_verdict,
+    verdict: s.override ?? objectiveVerdict(s) ?? s.judge_verdict,
     suspect: s.suspect && s.override == null
     // an override resolves the misfire
   }));
+}
+function objectiveVerdict(s) {
+  if (!s.objective)
+    return void 0;
+  if (s.objective.status === "ERROR")
+    return "ERROR";
+  if (s.objective.status === "FAIL")
+    return "FAIL";
+  return void 0;
 }
 function finalizeResults(draft, ctx) {
   let effective_grade;
@@ -3135,7 +3645,7 @@ function ensureResultsGitignore(resultsRoot) {
   const preserved = existing.split("\n").filter((l) => l.startsWith("!") && l.trim() !== "!results.yaml");
   writeFileSync(giPath, GITIGNORE_BODY + preserved.map((l) => l + "\n").join(""), "utf8");
 }
-var REP_SUFFIX_RE = /\.rep(\d+)\.(?:judge\.|diff\.)?txt$/;
+var REP_SUFFIX_RE = /\.rep(\d+)\.(?:judge\.|diff\.)?(?:txt|trace\.jsonl)$/;
 function repIndexOf(filename) {
   const m = REP_SUFFIX_RE.exec(filename);
   return m ? Number(m[1]) : null;
@@ -3169,12 +3679,53 @@ function findJudgeRawFiles(runDir, scenarioId, mode) {
   if (!existsSync3(runDir))
     return [];
   const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.judge\\.txt$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.judge\\.txt$`);
+  const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.judge\\d*\\.txt$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.judge\\d*\\.txt$`);
   return sortByRep(readdirSync4(runDir).filter((f) => re.test(f)));
 }
 function diffPath(runDir, scenarioId, mode, rep) {
   const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
   return join4(runDir, `${base}.diff.txt`);
+}
+function rebuildScenarioResult(fresh, prior, policy) {
+  const { id, judge_verdict, judge_reason, suspect, override: _freshOverride, note: _freshNote, reps: reps2, passes, clean, flakiness, pass_threshold, objective: freshObjective, adjudication: freshAdjudication, ...rest } = fresh;
+  const _exhaustive = rest;
+  void _exhaustive;
+  void _freshOverride;
+  void _freshNote;
+  const pick = (p, freshValue, priorValue) => {
+    if (p === "drop")
+      return void 0;
+    return p === "fresh" ? freshValue : priorValue;
+  };
+  const objective = pick(policy.objective, freshObjective, prior?.objective);
+  const adjudication = pick(policy.adjudication, freshAdjudication, prior?.adjudication);
+  const unresolved = adjudication?.state === "unresolved";
+  const settled = policy.adjudication === "carry" ? adjudication?.verdict : void 0;
+  return {
+    id,
+    judge_verdict: settled ?? judge_verdict,
+    judge_reason,
+    suspect: suspect || unresolved,
+    // Aggregation shape always comes from the fresh computation — these describe
+    // how THIS result was aggregated, not the previous one.
+    ...reps2 === void 0 ? {} : { reps: reps2 },
+    ...passes === void 0 ? {} : { passes },
+    ...clean === void 0 ? {} : { clean },
+    ...flakiness === void 0 ? {} : { flakiness },
+    ...pass_threshold === void 0 ? {} : { pass_threshold },
+    // The author owns the verdict; a re-measurement never discards their call.
+    override: prior?.override ?? null,
+    note: prior?.note ?? "",
+    // Omitted rather than set to undefined: absent must stay absent, so a result
+    // with no evidence serialises byte-identically to one from before the field
+    // existed.
+    ...objective ? { objective } : {},
+    ...adjudication ? { adjudication } : {}
+  };
+}
+function tracePath(runDir, scenarioId, mode, rep) {
+  const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
+  return join4(runDir, `${base}.trace.jsonl`);
 }
 function findDiffFiles(runDir, scenarioId, mode) {
   if (!existsSync3(runDir))
@@ -3183,11 +3734,23 @@ function findDiffFiles(runDir, scenarioId, mode) {
   const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.diff\\.txt$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.diff\\.txt$`);
   return sortByRep(readdirSync4(runDir).filter((f) => re.test(f)));
 }
+function findTraceFiles(runDir, scenarioId, mode) {
+  if (!existsSync3(runDir))
+    return [];
+  const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.trace\\.jsonl$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.trace\\.jsonl$`);
+  return sortByRep(readdirSync4(runDir).filter((f) => re.test(f)));
+}
 function preserveTranscript(resultsRoot, runDir, scenarioId) {
   const files = [
     ...findTranscriptFiles(runDir, scenarioId),
     ...findJudgeRawFiles(runDir, scenarioId),
-    ...findDiffFiles(runDir, scenarioId)
+    ...findDiffFiles(runDir, scenarioId),
+    // On a trace-gated scenario the trace IS the evidence for the override — the
+    // same role the staged diff plays on a seeded one. Omitting it committed an
+    // override whose justification was gitignored, and left `regate` with nothing
+    // to re-evaluate on the one cell a human had disputed.
+    ...findTraceFiles(runDir, scenarioId)
   ];
   if (files.length === 0)
     return;
@@ -3412,7 +3975,7 @@ import { spawn } from "node:child_process";
 import { existsSync as existsSync6 } from "node:fs";
 import { join as join7, delimiter } from "node:path";
 function exec(cmd, args, opts = {}) {
-  return new Promise((resolve10, reject) => {
+  return new Promise((resolve12, reject) => {
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
       env: opts.env ?? process.env,
@@ -3438,7 +4001,7 @@ function exec(cmd, args, opts = {}) {
     child.on("close", (code) => {
       if (timer)
         clearTimeout(timer);
-      resolve10({ stdout, stderr, code });
+      resolve12({ stdout, stderr, code });
     });
   });
 }
@@ -3551,13 +4114,31 @@ function capDiff(diff, maxBytes = DIFF_MAX_BYTES) {
 }
 async function runSeeded(scenario, opts) {
   const repo = opts.cwd;
-  const harnessOut = await opts.adapter.run({
+  const req = {
     skillDir: opts.skillDir,
     model: opts.model,
     mode: opts.mode,
     turns: scenario.turns,
-    cwd: repo
-  });
+    cwd: repo,
+    // Resolved against the spec dir, exactly like fixtures and post-tests.
+    extensions: scenario.extensions?.map((e) => resolve4(opts.specDir, e))
+  };
+  let traces = [];
+  let harnessOut;
+  if (opts.trace) {
+    if (!opts.adapter.runStructured) {
+      throw new Error(`scenario \`${opts.trace.scenarioId}\` declares \`assert.trace\`, but the \`${opts.adapter.name}\` adapter cannot produce execution traces \u2014 the gate would have no evidence to read.`);
+    }
+    const structured = await opts.adapter.runStructured({
+      ...req,
+      scenarioId: opts.trace.scenarioId,
+      rep: opts.trace.rep
+    });
+    harnessOut = structured.transcript;
+    traces = structured.traces;
+  } else {
+    harnessOut = await opts.adapter.run(req);
+  }
   const parts = [harnessOut, "", "=== SEEDED GATES ==="];
   let gateFailure = null;
   const runVitest = opts.runVitest ?? ((args, cwd) => exec("npx", ["vitest", "run", ...args], { cwd, timeoutMs: VITEST_TIMEOUT_MS }));
@@ -3570,7 +4151,7 @@ async function runSeeded(scenario, opts) {
     const msg = `staged diff could not be captured \u2014 git ${why} \u2014 infrastructure, not model behavior` + (gitFailure.stderr.trim() ? `: ${gitFailure.stderr.trim().split("\n")[0]}` : "");
     parts.push(`  staged diff: ERROR (${msg})`);
     gateFailure = msg;
-    return finish(parts, gateFailure, diff);
+    return finish(parts, gateFailure, diff, traces);
   }
   const needles = evaluateNeedleGates(scenario, diff);
   parts.push(...needles.lines);
@@ -3603,7 +4184,7 @@ async function runSeeded(scenario, opts) {
         parts.push(`  post_test: ERROR (${msg})`);
         if (!gateFailure)
           gateFailure = msg;
-        return finish(parts, gateFailure, diff);
+        return finish(parts, gateFailure, diff, traces);
       }
       const v = await runVitest([POST_TEST_BASE], repo);
       const out = `${v.stdout}
@@ -3631,7 +4212,7 @@ ${v.stderr}`;
         gateFailure = problem;
     }
   }
-  return finish(parts, gateFailure, diff);
+  return finish(parts, gateFailure, diff, traces);
 }
 function git(cwd, args) {
   return exec("git", args, { cwd, timeoutMs: 3e4 });
@@ -3655,10 +4236,10 @@ function bothStreams(v) {
 ${e}`;
   return o || e;
 }
-function finish(parts, gateFailure, diff) {
+function finish(parts, gateFailure, diff, traces = []) {
   parts.push("", "=== STAGED DIFF ===");
   parts.push(diff.trim() === "" ? "  (empty \u2014 the model left no staged changes)" : capDiff(diff));
-  return { transcript: parts.join("\n"), gateFailure, diff };
+  return { transcript: parts.join("\n"), gateFailure, diff, traces };
 }
 function vitestTally(out) {
   const line = /^\s*Tests\s+(.+)$/m.exec(out);
@@ -3669,6 +4250,409 @@ function vitestTally(out) {
     return m ? Number(m[1]) : 0;
   };
   return { passed: read("passed"), failed: read("failed"), skipped: read("skipped"), todo: read("todo") };
+}
+
+// packages/core/dist/execution-trace.js
+import { createHash as createHash4 } from "node:crypto";
+
+// packages/core/dist/capture-trace-types.js
+var EXECUTION_TRACE_VERSION = 2;
+var CAPTURE_SCHEMA_VERSION = 1;
+
+// packages/core/dist/capture.js
+import { createHash as createHash3 } from "node:crypto";
+import { sep as sep2 } from "node:path";
+function activeBranch(entries, leafId) {
+  const byId = /* @__PURE__ */ new Map();
+  for (const e of entries)
+    if (typeof e.id === "string")
+      byId.set(e.id, e);
+  let cursor = leafId;
+  if (cursor === void 0) {
+    for (let i = entries.length - 1; i >= 0; i--) {
+      if (typeof entries[i].id === "string") {
+        cursor = entries[i].id;
+        break;
+      }
+    }
+  }
+  const chain = [];
+  const seen = /* @__PURE__ */ new Set();
+  while (cursor !== void 0 && cursor !== null && byId.has(cursor) && chain.length <= entries.length) {
+    if (seen.has(cursor))
+      break;
+    seen.add(cursor);
+    const entry = byId.get(cursor);
+    chain.push(entry);
+    cursor = entry.parentId ?? void 0;
+  }
+  return chain.reverse();
+}
+function visibleText(blocks) {
+  if (!blocks)
+    return "";
+  const parts = [];
+  for (const b of blocks) {
+    if (b.type === "thinking")
+      continue;
+    if (b.type === "text" && typeof b.text === "string")
+      parts.push(b.text);
+    else if (b.type === "image")
+      parts.push("[image omitted]");
+  }
+  return parts.join("\n").trim();
+}
+function projectTurns(entries, homeDir) {
+  const turns = [];
+  let current = null;
+  for (const entry of entries) {
+    if (entry.type !== "message" || !entry.message)
+      continue;
+    const msg = entry.message;
+    const id = typeof entry.id === "string" ? entry.id : "";
+    if (msg.role === "user") {
+      current = {
+        index: turns.length,
+        user: visibleText(msg.content),
+        assistantText: "",
+        toolCalls: [],
+        entryIds: id ? [id] : []
+      };
+      turns.push(current);
+      continue;
+    }
+    if (!current)
+      continue;
+    if (id)
+      current.entryIds.push(id);
+    if (msg.role === "assistant") {
+      const text = visibleText(msg.content);
+      if (text)
+        current.assistantText = current.assistantText ? `${current.assistantText}
+${text}` : text;
+      for (const b of msg.content ?? []) {
+        if (b.type !== "toolCall")
+          continue;
+        current.toolCalls.push({
+          name: typeof b.name === "string" ? b.name : "(unknown)",
+          // Without `homeDir` this scrubbed secrets but left absolute home paths
+          // intact — and these args are what the evidence sidecar records.
+          args: redactArgs(b.arguments, homeDir),
+          isError: false,
+          ...typeof b.id === "string" ? { id: b.id } : {}
+        });
+      }
+      continue;
+    }
+    if (msg.role === "toolResult") {
+      const body = JSON.stringify(msg.content ?? []);
+      const callId = typeof msg.toolCallId === "string" ? msg.toolCallId : void 0;
+      const target = callId ? current.toolCalls.find((c) => c.id === callId) : current.toolCalls.find((c) => c.name === msg.toolName && c.resultBytes === void 0);
+      if (target) {
+        target.isError = msg.isError === true;
+        target.resultBytes = Buffer.byteLength(body, "utf8");
+        target.resultSha256 = sha256(body);
+      }
+    }
+  }
+  return turns;
+}
+var MAX_VALUE_CHARS = 2e3;
+var REDACTED = "[redacted]";
+var SECRET_KEY = /^(.*[-_])?(password|passwd|secret|token|api[-_]?key|apikey|auth|authorization|credential|private[-_]?key|access[-_]?key|session[-_]?key)([-_].*)?$/i;
+var SECRET_VALUE = [
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
+  /\bBearer\s+[A-Za-z0-9._~+/-]{16,}=*/g,
+  /\bsk-[A-Za-z0-9]{16,}\b/g,
+  /\bgh[pousr]_[A-Za-z0-9]{16,}\b/g,
+  /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/g,
+  /\bAKIA[0-9A-Z]{16}\b/g,
+  /\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
+  // JWT
+  // Credentials embedded in a URL — `postgres://user:pass@host/db`. Caught by
+  // shape rather than by key name: the key is usually something like `DB_URL`,
+  // which no list of secret-sounding names will ever match.
+  /\b([a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^/\s@]+@/gi
+];
+function redactText(input, homeDir) {
+  let out = input;
+  out = out.replace(SECRET_VALUE[SECRET_VALUE.length - 1], `$1${REDACTED}@`);
+  for (const re of SECRET_VALUE.slice(0, -1))
+    out = out.replace(re, REDACTED);
+  if (homeDir && homeDir.length > 1) {
+    out = out.split(homeDir).join("~");
+  }
+  return out;
+}
+function truncate(input, max = MAX_VALUE_CHARS) {
+  if (input.length <= max)
+    return input;
+  return `${input.slice(0, max)}\u2026 [truncated ${input.length - max} chars]`;
+}
+function redactArgs(args, homeDir, depth = 0) {
+  if (args === null || typeof args !== "object" || Array.isArray(args))
+    return {};
+  const out = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (SECRET_KEY.test(key)) {
+      out[key] = REDACTED;
+      continue;
+    }
+    out[key] = redactValue(value, homeDir, depth);
+  }
+  return out;
+}
+function redactValue(value, homeDir, depth) {
+  if (typeof value === "string")
+    return truncate(redactText(value, homeDir));
+  if (typeof value === "number" || typeof value === "boolean" || value === null)
+    return value;
+  if (depth >= 3)
+    return "[nested]";
+  if (Array.isArray(value))
+    return value.slice(0, 20).map((v) => redactValue(v, homeDir, depth + 1));
+  if (typeof value === "object")
+    return redactArgs(value, homeDir, depth + 1);
+  return String(value);
+}
+function sha256(text) {
+  return createHash3("sha256").update(text, "utf8").digest("hex");
+}
+function captureId(seed, existing = []) {
+  const taken = new Set(existing);
+  const base = `CAP-${sha256(seed).slice(0, 6).toUpperCase()}`;
+  if (!taken.has(base))
+    return base;
+  for (let n = 2; ; n++) {
+    const candidate = `${base}-${n}`;
+    if (!taken.has(candidate))
+      return candidate;
+  }
+}
+function buildCaptureCase(opts) {
+  const { start, end } = opts.range;
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end >= opts.turns.length) {
+    throw new Error(`invalid capture range ${start}..${end} over ${opts.turns.length} turn(s)`);
+  }
+  if (opts.expectedBehavior.trim() === "") {
+    throw new Error("a capture needs a written expected behavior \u2014 it is what makes the case reviewable");
+  }
+  const checklist = opts.checklist.map((c) => c.trim()).filter(Boolean);
+  if (checklist.length === 0) {
+    throw new Error("a capture needs at least one checklist item");
+  }
+  const selected = opts.turns.slice(start, end + 1);
+  const turns = selected.map((t) => truncate(redactText(t.user, opts.homeDir)));
+  const id = captureId(`${opts.sessionPath}:${start}:${end}:${opts.created}`, opts.existingIds ?? []);
+  return {
+    capture_schema: CAPTURE_SCHEMA_VERSION,
+    id,
+    created: opts.created,
+    classification: opts.classification,
+    turns,
+    expected_behavior: truncate(redactText(opts.expectedBehavior, opts.homeDir)),
+    checklist: checklist.map((c) => truncate(redactText(c, opts.homeDir), 300)),
+    target: opts.target,
+    // `covers` refs resolve against the SPEC dir, and `target.path` is relative
+    // to the skill root — one level up. A subagent path (`.pi/agents/x.md`) is
+    // carried the same way; both are instruction files a section walk can read.
+    covers: [`../${opts.target.path.split(sep2).join("/")}`],
+    provenance: {
+      session_sha256: sha256(opts.sessionPath),
+      turn_range: { start, end },
+      ...opts.subject ? { subject: opts.subject } : {},
+      ...opts.gitCommit ? { git_commit: opts.gitCommit } : {},
+      ...opts.gitDirty === void 0 ? {} : { git_dirty: opts.gitDirty }
+    },
+    status: "pending"
+  };
+}
+function captureToScenario(capture, scenarioId, title) {
+  return {
+    id: scenarioId,
+    title,
+    turns: capture.turns,
+    checklist: capture.checklist
+  };
+}
+function draftChecklist(expectedBehavior) {
+  return expectedBehavior.split(/\n\s*[-*]\s+|\n{2,}|(?<=[.!?])\s+(?=[A-Z])/).map((s) => s.replace(/^[-*]\s+/, "").replace(/\s+/g, " ").trim().replace(/[.]$/, "")).filter((s) => s.length > 3);
+}
+
+// packages/core/dist/execution-trace.js
+var SKIPPED = /* @__PURE__ */ new Set(["message_update", "tool_execution_update"]);
+var MAX_DETAILS_CHARS = 2e3;
+function parseTrace(lines, meta) {
+  const calls = /* @__PURE__ */ new Map();
+  let issueCounter = 0;
+  let completionCounter = 0;
+  let malformedLines = 0;
+  let sawTerminal = false;
+  let finalText = "";
+  let lastAssistantText = "";
+  let cost = null;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed)
+      continue;
+    let ev;
+    try {
+      ev = JSON.parse(trimmed);
+    } catch {
+      malformedLines++;
+      continue;
+    }
+    const type = ev.type;
+    if (typeof type !== "string" || SKIPPED.has(type))
+      continue;
+    if (type === "tool_execution_start") {
+      const id = str(ev.toolCallId);
+      if (!id)
+        continue;
+      calls.set(id, {
+        id,
+        name: str(ev.toolName) ?? "(unknown)",
+        args: redactArgs(ev.args, meta.homeDir),
+        issueIndex: issueCounter++,
+        completionIndex: -1,
+        // filled in on `end`; -1 means it never completed
+        isError: false,
+        result: { bytes: 0, sha256: sha2562("") }
+      });
+      continue;
+    }
+    if (type === "tool_execution_end") {
+      const id = str(ev.toolCallId);
+      if (!id)
+        continue;
+      const call = calls.get(id);
+      if (!call)
+        continue;
+      call.completionIndex = completionCounter++;
+      call.isError = ev.isError === true;
+      call.result = resultMeta(ev.result, meta.homeDir);
+      continue;
+    }
+    if (type === "message_end") {
+      sawTerminal = true;
+      const msg = ev.message;
+      if (msg?.role !== "assistant")
+        continue;
+      const text = assistantText(msg);
+      if (text) {
+        lastAssistantText = text;
+        if (msg.stopReason === "stop")
+          finalText = text;
+      }
+      const total = msg.usage?.cost?.total;
+      if (typeof total === "number")
+        cost = (cost ?? 0) + total;
+      continue;
+    }
+    if (type === "turn_end" || type === "agent_end" || type === "agent_settled") {
+      sawTerminal = true;
+      continue;
+    }
+  }
+  const trace = {
+    trace_version: EXECUTION_TRACE_VERSION,
+    pi_version: meta.piVersion,
+    subject: meta.subject,
+    scenario_id: meta.scenarioId,
+    mode: meta.mode,
+    rep: meta.rep,
+    turn: meta.turn,
+    // Fall back to the last assistant text when no message carried `stop` — a
+    // truncated or length-capped run still produced an answer, and losing it
+    // would silently turn a real reply into an empty transcript.
+    // Redacted: the model's own answer routinely quotes the paths it just read,
+    // and `smoke-real-pi.sh` asserts no `/home/` survives into a persisted trace
+    // — an assertion that used to pass only because the smoke model happened not
+    // to echo one.
+    final_text: redactText(finalText || lastAssistantText, meta.homeDir),
+    tool_calls: [...calls.values()].sort((a, b) => a.issueIndex - b.issueIndex),
+    // `null`, not `[]`: the stream says nothing about the filesystem. The runner
+    // overwrites this after observing the workspace. Defaulting to `[]` claimed
+    // "observed, nothing changed" for every trace ever parsed.
+    changed_paths: meta.changedPaths ? [...meta.changedPaths].sort() : null,
+    cost_usd: cost
+  };
+  trace.trace_sha256 = traceSha256(trace);
+  return { trace, isComplete: sawTerminal, malformedLines };
+}
+function assistantText(msg) {
+  return (msg.content ?? []).filter((b) => b.type === "text" && typeof b.text === "string").map((b) => b.text).join("\n").trim();
+}
+function resultMeta(result, homeDir) {
+  const body = JSON.stringify(result?.content ?? result ?? null);
+  const meta = { bytes: Buffer.byteLength(body, "utf8"), sha256: sha2562(body) };
+  const details = result?.details;
+  if (details && typeof details === "object" && !Array.isArray(details)) {
+    const encoded = JSON.stringify(details);
+    if (encoded.length <= MAX_DETAILS_CHARS)
+      meta.details = redactArgs(details, homeDir);
+  }
+  return meta;
+}
+function str(v) {
+  return typeof v === "string" && v.length > 0 ? v : void 0;
+}
+function sha2562(text) {
+  return createHash4("sha256").update(text, "utf8").digest("hex");
+}
+function traceSha256(trace) {
+  const { trace_sha256: _omit, ...rest } = trace;
+  return sha2562(stableStringify(rest));
+}
+function stableStringify(value) {
+  if (value === null || typeof value !== "object")
+    return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value))
+    return `[${value.map(stableStringify).join(",")}]`;
+  const entries = Object.entries(value).filter(([, v]) => v !== void 0).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(",")}}`;
+}
+function serializeTrace(trace) {
+  return `${JSON.stringify(trace)}
+`;
+}
+function mergeTraces(traces) {
+  if (traces.length === 0)
+    return null;
+  if (traces.length === 1) {
+    const only = traces[0];
+    return only.trace_sha256 ? only : { ...only, trace_sha256: traceSha256(only) };
+  }
+  const calls = [];
+  const changed = /* @__PURE__ */ new Set();
+  let anyUnobserved = false;
+  let cost = null;
+  let completed = 0;
+  for (const t of traces) {
+    const mergedCompletion = new Map([...t.tool_calls].filter((c) => c.completionIndex >= 0).sort((a, b) => a.completionIndex - b.completionIndex).map((c) => [c.id, completed++]));
+    for (const c of [...t.tool_calls].sort((a, b) => a.issueIndex - b.issueIndex)) {
+      calls.push({ ...c, issueIndex: calls.length, completionIndex: mergedCompletion.get(c.id) ?? -1 });
+    }
+    if (t.changed_paths === null)
+      anyUnobserved = true;
+    else
+      for (const p of t.changed_paths)
+        changed.add(p);
+    if (t.cost_usd !== null)
+      cost = (cost ?? 0) + t.cost_usd;
+  }
+  const last = traces[traces.length - 1];
+  const merged = {
+    ...last,
+    // The scenario's answer is its LAST turn's answer, matching how the
+    // transcript reads and how the judge is asked to grade it.
+    final_text: last.final_text,
+    tool_calls: calls,
+    changed_paths: anyUnobserved ? null : [...changed].sort(),
+    cost_usd: cost
+  };
+  merged.trace_sha256 = traceSha256(merged);
+  return merged;
 }
 
 // packages/core/dist/scheduler.js
@@ -3690,6 +4674,18 @@ async function runPool(tasks, concurrency) {
 }
 
 // packages/core/dist/reps.js
+function aggregateObjective(outcomes) {
+  const present = outcomes.map((o) => o.objective).filter((o) => o !== void 0);
+  if (present.length === 0)
+    return void 0;
+  const errored = present.find((o) => o.status === "ERROR");
+  if (errored)
+    return errored;
+  const failed = present.find((o) => o.status === "FAIL");
+  if (failed)
+    return failed;
+  return present[0];
+}
 function aggregateReps(outcomes, threshold) {
   const reps2 = outcomes.length;
   const clean = outcomes.filter((o) => !o.suspect);
@@ -3708,9 +4704,11 @@ function aggregateReps(outcomes, threshold) {
   return { verdict, reason, passes, reps: reps2, clean: clean.length, flakiness, suspect: false };
 }
 function outcomesToResult(id, outcomes, repCount, threshold) {
+  const objective = aggregateObjective(outcomes);
+  const objectiveField = objective ? { objective } : {};
   if (repCount === 1) {
     const o = outcomes[0];
-    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, override: null, note: "" };
+    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, override: null, note: "", ...objectiveField };
   }
   const agg = aggregateReps(outcomes, threshold);
   return {
@@ -3724,7 +4722,8 @@ function outcomesToResult(id, outcomes, repCount, threshold) {
     flakiness: agg.flakiness,
     pass_threshold: threshold,
     override: null,
-    note: ""
+    note: "",
+    ...objectiveField
   };
 }
 
@@ -3786,7 +4785,7 @@ async function regradeRun(opts) {
   const { runDir, spec, adapter, judge, specDir } = opts;
   const now = opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
   const prev = existsSync7(join9(runDir, "results.yaml")) ? readResults(runDir) : null;
-  const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, { override: s.override, note: s.note }]));
+  const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, s]));
   const mode = prev?.mode ?? "green";
   const specById = new Map(spec.scenarios.map((s) => [s.id, s]));
   const recorded = prev?.scenarios ?? spec.scenarios.map((s) => ({ id: s.id }));
@@ -3829,7 +4828,7 @@ async function regradeRun(opts) {
       now
     });
     const carry = overrides.get(id);
-    scenarioResults.push({ ...rr, override: carry?.override ?? null, note: carry?.note ?? "" });
+    scenarioResults.push(rebuildScenarioResult(rr, carry, { objective: "carry", adjudication: "drop" }));
   }
   const ctx = scoreContextFor({ mode, partial: prev?.partial }, spec);
   const results = writeResults(runDir, {
@@ -4232,9 +5231,10 @@ async function runSkillModel(opts) {
     });
     if (canary.status === "fail")
       throw new Error(canaryFailure(spec.skill, canary, harnessCliVersion));
-    if (canary.status === "skipped")
+    if (canary.status === "skipped") {
+      canaryStatus = "skipped";
       log(`  \u26A0 delivery canary skipped \u2014 ${canary.detail}`);
-    else {
+    } else {
       canaryStatus = "pass";
       log(`  \u2713 delivery canary \u2014 the model quoted its skill instructions back (\`${canary.anchor}\`)`);
     }
@@ -4308,6 +5308,9 @@ async function runRep(scenario, rep, repCount, ctx) {
       transcript = `[workspace setup failed] ${gatePrefix}`;
     }
     let noResponse = false;
+    let traces = [];
+    let unobservablePaths = false;
+    let before = ws ? snapshotPaths(ws.cwd, scenario.workspace) : null;
     if (ws) {
       for (let attempt = 0; attempt < 2; attempt++) {
         if (attempt > 0) {
@@ -4315,6 +5318,7 @@ async function runRep(scenario, rep, repCount, ctx) {
           log(`  ${scenario.id}${repCount > 1 ? `#${rep}` : ""} empty response \u2014 retrying once`);
           ws.cleanup();
           ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath), remote: scenario.remote });
+          before = snapshotPaths(ws.cwd, scenario.workspace);
         }
         if (scenario.mode === "seeded") {
           const r = await runSeeded(scenario, {
@@ -4323,22 +5327,36 @@ async function runRep(scenario, rep, repCount, ctx) {
             model: ctx.model,
             mode,
             cwd: ws.cwd,
-            specDir: dirname(ctx.specPath)
+            specDir: dirname(ctx.specPath),
             // assert.post_test resolves like a fixture
+            trace: scenario.traceAssert ? { scenarioId: scenario.id, rep } : void 0
           });
           transcript = r.transcript;
           gatePrefix = r.gateFailure;
           stagedDiff = r.diff;
+          traces = r.traces;
         } else {
-          transcript = await ctx.adapter.run({
+          const req = {
             skillDir: ctx.skillDir,
             model: ctx.model,
             mode,
             turns: scenario.turns,
             cwd: ws.cwd,
             // resolved like fixtures: relative to the spec's dir
-            systemPromptFile: scenario.systemPromptFile ? resolve5(dirname(ctx.specPath), scenario.systemPromptFile) : void 0
-          });
+            systemPromptFile: scenario.systemPromptFile ? resolve5(dirname(ctx.specPath), scenario.systemPromptFile) : void 0,
+            // Absolute before it reaches a child process running in a neutral cwd.
+            extensions: scenario.extensions?.map((e) => resolve5(dirname(ctx.specPath), e))
+          };
+          if (scenario.traceAssert) {
+            if (!ctx.adapter.runStructured) {
+              throw new Error(`scenario \`${scenario.id}\` declares \`assert.trace\`, but the \`${ctx.adapter.name}\` adapter cannot produce execution traces \u2014 the gate would have no evidence to read.`);
+            }
+            const structured = await ctx.adapter.runStructured({ ...req, scenarioId: scenario.id, rep });
+            transcript = structured.transcript;
+            traces = structured.traces;
+          } else {
+            transcript = await ctx.adapter.run(req);
+          }
         }
         noResponse = hasEmptyAssistantTurn(transcript);
         if (!noResponse)
@@ -4353,10 +5371,58 @@ async function runRep(scenario, rep, repCount, ctx) {
       }
       appendJournal(runDir, { event: "gate-result", ts: now(), id: scenario.id, ok: !gatePrefix, detail: gatePrefix ?? "", ...repField });
     }
+    if (scenario.traceAssert?.unchanged_paths?.length && traces.length > 0 && ws) {
+      const changed = diffSnapshots(before, snapshotPaths(ws.cwd, scenario.workspace));
+      if (changed === null) {
+        unobservablePaths = true;
+      } else {
+        traces = traces.map((t) => {
+          const withPaths = { ...t, changed_paths: changed };
+          return { ...withPaths, trace_sha256: traceSha256(withPaths) };
+        });
+      }
+    }
+    let objective;
+    if (scenario.traceAssert) {
+      if (traces.length > 0) {
+        writeFileSync3(tracePath(runDir, scenario.id, mode, repSuffix), traces.map(serializeTrace).join(""), "utf8");
+      }
+      const merged = mergeTraces(traces);
+      if (unobservablePaths) {
+        gatePrefix = "objective: workspace changes could not be observed \u2014 `unchanged_paths` has no evidence to check";
+        objective = { status: "ERROR", assertions: [] };
+      } else if (merged === null) {
+        gatePrefix = "objective: no execution trace was produced \u2014 cannot evaluate assert.trace";
+        objective = { status: "ERROR", assertions: [] };
+      } else {
+        const gate = evaluateTraceGates(scenario.traceAssert, merged);
+        objective = {
+          status: gate.status,
+          trace_version: merged.trace_version,
+          trace_sha256: merged.trace_sha256,
+          assertions: gate.assertions
+        };
+        if (gate.status === "FAIL") {
+          gatePrefix = `objective: ${gate.assertions.filter((x) => x.status === "FAIL").map((x) => x.detail).join("; ")}`;
+        }
+      }
+      appendJournal(runDir, {
+        event: "objective-result",
+        ts: now(),
+        id: scenario.id,
+        ok: objective.status === "PASS",
+        detail: gatePrefix ?? "",
+        ...repField
+      });
+    }
     let verdict;
     let reason;
     let suspect = false;
-    if (noResponse) {
+    if (objective?.status === "ERROR") {
+      verdict = "ERROR";
+      reason = gatePrefix ?? "objective evidence missing";
+      appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
+    } else if (noResponse) {
       verdict = "ERROR";
       reason = "model produced no response after a retry (harness timeout?) \u2014 infra, not skill behavior";
       appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
@@ -4382,7 +5448,7 @@ async function runRep(scenario, rep, repCount, ctx) {
       suspect = o.suspect;
     }
     log(`  \u2192 ${scenario.id}${repCount > 1 ? `#${rep}` : ""} ${verdict}${reason ? `: ${reason}` : ""}${suspect ? "  \u26A0 suspect" : ""}`);
-    return { verdict, reason, suspect };
+    return { verdict, reason, suspect, objective };
   } finally {
     ws?.cleanup();
   }
@@ -4427,6 +5493,22 @@ function collectReport(skillDir) {
               compared: boundary.compared,
               volatility: boundary.volatility,
               note: stabilityNote(boundary)
+            }
+          } : {},
+          // Same optional-spread shape as `stability`: absent means "not declared"
+          // / "single judge", and the UI must not render either as a clean result.
+          ...s.objective ? {
+            objective: {
+              status: s.objective.status,
+              detail: s.objective.assertions.length ? s.objective.assertions.map((a) => `${a.status} ${a.detail}`).join(" \xB7 ") : "no assertion evidence recorded"
+            }
+          } : {},
+          ...s.adjudication ? {
+            adjudication: {
+              state: s.adjudication.state,
+              trigger: s.adjudication.trigger,
+              count: s.adjudication.judgments.length,
+              detail: s.adjudication.judgments.map((j) => `#${j.ordinal} ${j.judge.provider}:${j.judge.model} ${j.verdict}${j.suspect ? " (misfired, not counted)" : ""}`).join(" \xB7 ")
             }
           } : {},
           judge_verdict: s.judge_verdict,
@@ -4488,11 +5570,205 @@ function renderReport(template, data, gradeScript) {
 }
 
 // packages/core/dist/lint.js
-import { existsSync as existsSync12, statSync as statSync7, readdirSync as readdirSync9, readFileSync as readFileSync8 } from "node:fs";
-import { basename, dirname as dirname2, isAbsolute as isAbsolute4, join as join16, resolve as resolve6 } from "node:path";
+import { existsSync as existsSync13, statSync as statSync7, readdirSync as readdirSync9, readFileSync as readFileSync9 } from "node:fs";
+import { basename, dirname as dirname3, isAbsolute as isAbsolute5, join as join16, resolve as resolve7 } from "node:path";
+
+// packages/core/dist/instruction-coverage.js
+import { existsSync as existsSync11, readFileSync as readFileSync8 } from "node:fs";
+import { resolve as resolve6, dirname as dirname2, relative as relative2, isAbsolute as isAbsolute4 } from "node:path";
+var FENCE = /^\s{0,3}(`{3,}|~{3,})/;
+var ATX = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
+var SETEXT_H1 = /^\s{0,3}=+\s*$/;
+var SETEXT_H2 = /^\s{0,3}-+\s*$/;
+function slugify(title) {
+  return title.toLowerCase().replace(/[`*_~[\]()]/g, "").replace(/[^\p{L}\p{N}\s-]/gu, "").trim().replace(/\s+/g, "-");
+}
+function parseSections(markdown) {
+  const lines = markdown.split("\n");
+  const found = [];
+  const seen = /* @__PURE__ */ new Map();
+  let fence = null;
+  const start = frontmatterEnd(lines);
+  const push = (title, depth, startLine) => {
+    const base = slugify(title);
+    if (base === "")
+      return;
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    found.push({ slug: n === 0 ? base : `${base}-${n}`, title, depth, startLine });
+  };
+  for (let i = start; i < lines.length; i++) {
+    const line = lines[i];
+    const fenceMatch = FENCE.exec(line);
+    if (fenceMatch) {
+      const marker = fenceMatch[1][0];
+      if (fence === null)
+        fence = marker;
+      else if (fence === marker)
+        fence = null;
+      continue;
+    }
+    if (fence !== null)
+      continue;
+    const atx = ATX.exec(line);
+    if (atx) {
+      push(atx[2], atx[1].length, i + 1);
+      continue;
+    }
+    const prev = i > start ? lines[i - 1] : "";
+    if (prev.trim() !== "" && !ATX.test(prev)) {
+      if (SETEXT_H1.test(line))
+        push(prev.trim(), 1, i);
+      else if (SETEXT_H2.test(line) && /[^-\s]/.test(prev))
+        push(prev.trim(), 2, i);
+    }
+  }
+  return found.map((s, i) => ({
+    ...s,
+    endLine: i + 1 < found.length ? found[i + 1].startLine - 1 : lines.length
+  }));
+}
+function frontmatterEnd(lines) {
+  if (lines[0]?.trim() !== "---")
+    return 0;
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim() === "---")
+      return i + 1;
+  }
+  return 0;
+}
+function sectionAtLine(sections, line) {
+  return sections.find((s) => line >= s.startLine && line <= s.endLine);
+}
+function parseCoversRef(raw) {
+  const hash = raw.indexOf("#");
+  if (hash < 0)
+    return { raw, file: raw.trim() };
+  return { raw, file: raw.slice(0, hash).trim(), slug: raw.slice(hash + 1).trim() || void 0 };
+}
+function computeCoverage(opts) {
+  const fileSections = /* @__PURE__ */ new Map();
+  const readSections = (file) => {
+    if (fileSections.has(file))
+      return fileSections.get(file);
+    const abs = isAbsolute4(file) ? file : resolve6(opts.specDir, file);
+    if (!existsSync11(abs))
+      return null;
+    const sections2 = parseSections(readFileSync8(abs, "utf8"));
+    fileSections.set(file, sections2);
+    return sections2;
+  };
+  for (const f of opts.baseFiles ?? [])
+    readSections(f);
+  const bySection = /* @__PURE__ */ new Map();
+  const key = (file, slug) => `${file}#${slug}`;
+  const ensure = (file, section) => {
+    const k = key(file, section.slug);
+    let entry = bySection.get(k);
+    if (!entry) {
+      entry = { file, section, scenarios: [], pendingCaptures: [] };
+      bySection.set(k, entry);
+    }
+    return entry;
+  };
+  for (const [file, sections2] of fileSections)
+    for (const s of sections2)
+      ensure(file, s);
+  const broken = [];
+  const unmapped = [];
+  const attach = (id, refs, into) => {
+    for (const raw of refs) {
+      const ref = parseCoversRef(raw);
+      const sections2 = readSections(ref.file);
+      if (sections2 === null) {
+        broken.push({ scenarioId: id, raw, reason: "file-missing", didYouMean: [] });
+        continue;
+      }
+      for (const s of sections2)
+        ensure(ref.file, s);
+      if (ref.slug === void 0) {
+        for (const s of sections2)
+          ensure(ref.file, s)[into].push(id);
+        continue;
+      }
+      const match = sections2.find((s) => s.slug === ref.slug);
+      if (!match) {
+        broken.push({
+          scenarioId: id,
+          raw,
+          reason: "section-missing",
+          didYouMean: nearest(ref.slug, sections2.map((s) => s.slug))
+        });
+        continue;
+      }
+      ensure(ref.file, match)[into].push(id);
+    }
+  };
+  for (const s of opts.scenarios) {
+    if (!s.covers || s.covers.length === 0) {
+      unmapped.push(s.id);
+      continue;
+    }
+    attach(s.id, s.covers, "scenarios");
+  }
+  for (const c of opts.pendingCaptures ?? [])
+    attach(c.id, c.covers, "pendingCaptures");
+  const sections = [...bySection.values()].sort((a, b) => a.file.localeCompare(b.file) || a.section.startLine - b.section.startLine);
+  const covered = sections.filter((s) => s.scenarios.length > 0);
+  const uncovered = sections.filter((s) => s.scenarios.length === 0);
+  return {
+    sections,
+    covered,
+    uncovered,
+    broken,
+    unmapped,
+    pct: sections.length === 0 ? 0 : Math.round(covered.length / sections.length * 100)
+  };
+}
+function nearest(target, candidates, limit = 3) {
+  return candidates.map((c) => ({ c, d: distance(target, c) })).filter(({ c, d }) => d <= Math.max(3, Math.floor(c.length / 2))).sort((a, b) => a.d - b.d).slice(0, limit).map(({ c }) => c);
+}
+function distance(a, b) {
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let last = prev[0];
+    prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prev[j];
+      prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, last + (a[i - 1] === b[j - 1] ? 0 : 1));
+      last = tmp;
+    }
+  }
+  return prev[b.length];
+}
+function formatCoverage(report, skill) {
+  const out = [];
+  out.push(`${skill}: ${report.covered.length}/${report.sections.length} sections have a declared test (${report.pct}%)`);
+  out.push("");
+  if (report.uncovered.length) {
+    out.push("  no test declares coverage of:");
+    for (const s of report.uncovered)
+      out.push(`    ${s.file}#${s.section.slug}  (${s.section.title})`);
+    out.push("");
+  }
+  if (report.broken.length) {
+    out.push("  broken references:");
+    for (const b of report.broken) {
+      const hint = b.didYouMean.length ? ` \u2014 did you mean ${b.didYouMean.map((s) => `#${s}`).join(", ")}?` : "";
+      out.push(`    ${b.scenarioId}: ${b.raw} (${b.reason})${hint}`);
+    }
+    out.push("");
+  }
+  if (report.unmapped.length) {
+    out.push(`  scenarios with no \`covers\`: ${report.unmapped.join(", ")}`);
+    out.push("");
+  }
+  out.push("  `covers` records a declared link, not proof the behaviour is tested.");
+  return out.join("\n");
+}
 
 // packages/core/dist/downgrade.js
-import { existsSync as existsSync11, readdirSync as readdirSync8, statSync as statSync6 } from "node:fs";
+import { existsSync as existsSync12, readdirSync as readdirSync8, statSync as statSync6 } from "node:fs";
 import { join as join15 } from "node:path";
 
 // packages/core/dist/defaults.js
@@ -4523,19 +5799,580 @@ function assertJudgeAllowed(judge, opts) {
 }
 
 // packages/core/dist/regate.js
-import { existsSync as existsSync13, readFileSync as readFileSync9, renameSync, writeFileSync as writeFileSync4 } from "node:fs";
+import { existsSync as existsSync14, readFileSync as readFileSync10, renameSync, writeFileSync as writeFileSync4 } from "node:fs";
 import { join as join17 } from "node:path";
 
+// packages/core/dist/spec-write.js
+import { createHash as createHash5 } from "node:crypto";
+import { readFileSync as readFileSync11, renameSync as renameSync2, unlinkSync, writeFileSync as writeFileSync5 } from "node:fs";
+import { dirname as dirname4, join as join18 } from "node:path";
+var ConcurrentSpecModification = class extends Error {
+  constructor(specPath) {
+    super(`${specPath} changed on disk since it was read \u2014 refusing to append. Re-read the spec and retry; appending now would validate against a file that no longer exists.`);
+    this.name = "ConcurrentSpecModification";
+  }
+};
+var DuplicateScenarioId = class extends Error {
+  constructor(id, specPath) {
+    super(`scenario id \`${id}\` already exists in ${specPath}`);
+    this.name = "DuplicateScenarioId";
+  }
+};
+function specSha256(text) {
+  return createHash5("sha256").update(text, "utf8").digest("hex");
+}
+function renderScenarioBlock(scenario) {
+  const dumped = index_vite_proxy_tmp_default.dump({ scenarios: [scenario] }, { lineWidth: -1, noRefs: true });
+  return "\n" + dumped.replace(/^scenarios:\n/, "");
+}
+function appendScenario(opts) {
+  const { specPath, scenario, baseSha256 } = opts;
+  const current = readFileSync11(specPath, "utf8");
+  if (baseSha256 !== void 0 && specSha256(current) !== baseSha256) {
+    throw new ConcurrentSpecModification(specPath);
+  }
+  const id = scenario.id;
+  if (typeof id !== "string" || id.trim() === "") {
+    throw new Error("scenario needs a non-empty string `id`");
+  }
+  const existing = parseSpec(current, specPath);
+  if (existing.scenarios.some((s) => s.id === id)) {
+    throw new DuplicateScenarioId(id, specPath);
+  }
+  const block = renderScenarioBlock(scenario);
+  const merged = current + block;
+  parseSpec(merged, specPath);
+  atomicWrite(specPath, merged);
+  return { id, sha256: specSha256(merged), block };
+}
+function atomicWrite(path, text) {
+  const tmp = join18(dirname4(path), `.${Date.now()}-${process.pid}.specwrite.tmp`);
+  try {
+    writeFileSync5(tmp, text, "utf8");
+    renameSync2(tmp, path);
+  } catch (err) {
+    try {
+      unlinkSync(tmp);
+    } catch {
+    }
+    throw err;
+  }
+}
+
+// packages/core/dist/affected.js
+import { existsSync as existsSync15, readFileSync as readFileSync12 } from "node:fs";
+import { resolve as resolve8, dirname as dirname5, relative as relative3 } from "node:path";
+function parseDiffHunks(diff) {
+  const hunks = [];
+  let file = null;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("+++ ")) {
+      const p = line.slice(4).trim();
+      file = p === "/dev/null" ? null : p.replace(/^b\//, "");
+      continue;
+    }
+    if (!line.startsWith("@@") || file === null)
+      continue;
+    const m = /@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(line);
+    if (!m)
+      continue;
+    hunks.push({ file, start: Number(m[1]), count: m[2] === void 0 ? 1 : Number(m[2]) });
+  }
+  return hunks;
+}
+function parseDiffFiles(diff) {
+  const files = /* @__PURE__ */ new Set();
+  for (const line of diff.split("\n")) {
+    const m = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
+    if (m) {
+      files.add(m[1]);
+      files.add(m[2]);
+    }
+  }
+  return [...files];
+}
+async function gitDiff(repoRoot, base) {
+  const r = await exec("git", ["diff", "--unified=0", base], { cwd: repoRoot, timeoutMs: 6e4 });
+  if (r.code !== 0)
+    throw new Error(`git diff --unified=0 ${base} failed: ${r.stderr.trim() || `exit ${r.code}`}`);
+  return r.stdout;
+}
+function selectAffected(opts) {
+  const { scenarios, specDir, diff, repoRoot } = opts;
+  const reasons = /* @__PURE__ */ new Map();
+  const add = (id, reason) => {
+    const list = reasons.get(id) ?? [];
+    list.push(reason);
+    reasons.set(id, list);
+  };
+  const selectAll = (why) => {
+    for (const s of scenarios)
+      if (!reasons.has(s.id))
+        add(s.id, { kind: "unmapped-change", detail: why });
+    return {
+      selected: [...reasons.entries()].map(([id, rs]) => ({ id, reasons: rs })),
+      conservative: true,
+      conservativeReason: why,
+      unmappedFiles: []
+    };
+  };
+  for (const s of scenarios) {
+    if (s.critical)
+      add(s.id, { kind: "critical" });
+    if (/^B/i.test(s.id))
+      add(s.id, { kind: "under-pressure" });
+  }
+  const hunks = parseDiffHunks(diff);
+  const changedFiles = parseDiffFiles(diff);
+  for (const s of scenarios) {
+    if (!s.covers || s.covers.length === 0)
+      add(s.id, { kind: "no-covers-declared" });
+  }
+  const stimulusFiles = (s) => {
+    const files = [];
+    if (s.fixture)
+      files.push(s.fixture);
+    if (s.assert?.post_test)
+      files.push(s.assert.post_test);
+    if (s.systemPromptFile)
+      files.push(s.systemPromptFile);
+    for (const e of s.extensions ?? [])
+      files.push(e);
+    return files;
+  };
+  const changedAbs = new Set(changedFiles.map((f) => resolve8(repoRoot, f)));
+  for (const s of scenarios) {
+    for (const f of stimulusFiles(s)) {
+      const abs = resolve8(specDir, f);
+      const hit = [...changedAbs].some((c) => c === abs || c.startsWith(`${abs}/`));
+      if (hit)
+        add(s.id, { kind: "stimulus-changed", detail: f });
+    }
+  }
+  const sectionsFor = /* @__PURE__ */ new Map();
+  const load2 = (abs) => {
+    if (sectionsFor.has(abs))
+      return sectionsFor.get(abs);
+    const parsed = existsSync15(abs) ? parseSections(readFileSync12(abs, "utf8")) : null;
+    sectionsFor.set(abs, parsed);
+    return parsed;
+  };
+  const coversIndex = /* @__PURE__ */ new Map();
+  for (const s of scenarios) {
+    for (const raw of s.covers ?? []) {
+      const ref = parseCoversRef(raw);
+      const abs = resolve8(specDir, ref.file);
+      const key = ref.slug === void 0 ? abs : `${abs}#${ref.slug}`;
+      coversIndex.set(key, [...coversIndex.get(key) ?? [], s.id]);
+    }
+  }
+  const skillRoot = dirname5(specDir);
+  const isInstructionText = (abs) => abs.startsWith(`${skillRoot}/`) && !abs.startsWith(`${specDir}/`) && /\.(?:md|markdown)$/i.test(abs);
+  const unmappedFiles = /* @__PURE__ */ new Set();
+  for (const hunk of hunks) {
+    const abs = resolve8(repoRoot, hunk.file);
+    const referenced = [...coversIndex.keys()].some((k) => k === abs || k.startsWith(`${abs}#`));
+    if (!referenced) {
+      if (isInstructionText(abs)) {
+        return selectAll(`${relative3(repoRoot, abs) || hunk.file} is instruction text that no scenario \`covers\` \u2014 the mapping cannot rule it out`);
+      }
+      continue;
+    }
+    const sections = load2(abs);
+    if (sections === null) {
+      return selectAll(`${hunk.file} is referenced by \`covers\` but is not readable \u2014 it may have been renamed or deleted`);
+    }
+    for (const id of coversIndex.get(abs) ?? [])
+      add(id, { kind: "covers", detail: `${hunk.file} (whole file)` });
+    const lines = hunk.count === 0 ? [hunk.start] : Array.from({ length: hunk.count }, (_, i) => hunk.start + i);
+    let mappedAny = false;
+    for (const line of lines) {
+      const section = sectionAtLine(sections, line);
+      if (!section)
+        continue;
+      const ids = coversIndex.get(`${abs}#${section.slug}`) ?? [];
+      for (const id of ids)
+        add(id, { kind: "covers", detail: `${hunk.file}#${section.slug}` });
+      if (ids.length > 0)
+        mappedAny = true;
+    }
+    if (!mappedAny && (coversIndex.get(abs) ?? []).length === 0)
+      unmappedFiles.add(hunk.file);
+  }
+  const rewritten = hunks.filter((h) => h.count > 200);
+  if (rewritten.length > 0) {
+    return selectAll(`${rewritten[0].file} changed by ${rewritten[0].count} lines in one hunk \u2014 too large to map to sections reliably`);
+  }
+  return {
+    selected: [...reasons.entries()].map(([id, rs]) => ({ id, reasons: rs })),
+    conservative: false,
+    conservativeReason: null,
+    unmappedFiles: [...unmappedFiles]
+  };
+}
+function formatAffected(result, total) {
+  const out = [];
+  if (result.conservative) {
+    out.push(`selecting ALL ${total} scenario(s): ${result.conservativeReason}`);
+  } else {
+    out.push(`selected ${result.selected.length}/${total} scenario(s):`);
+  }
+  for (const s of [...result.selected].sort((a, b) => a.id.localeCompare(b.id))) {
+    out.push(`  ${s.id}  ${s.reasons.map(describe).join(", ")}`);
+  }
+  if (result.unmappedFiles.length) {
+    out.push(`  note: changes in ${result.unmappedFiles.join(", ")} map to no covered section`);
+  }
+  out.push("");
+  out.push("an affected run is partial and never reports SHIP \u2014 a full run still gates a release");
+  return out.join("\n");
+}
+function describe(r) {
+  switch (r.kind) {
+    case "covers":
+      return `covers ${r.detail}`;
+    case "critical":
+      return "critical (always run)";
+    case "under-pressure":
+      return "B-series (always run)";
+    case "stimulus-changed":
+      return `stimulus changed: ${r.detail}`;
+    case "unmapped-change":
+      return `conservative: ${r.detail}`;
+    case "no-covers-declared":
+      return "declares no `covers` \u2014 cannot be ruled out";
+  }
+}
+
+// packages/core/dist/adjudication.js
+import { existsSync as existsSync16, readFileSync as readFileSync13, writeFileSync as writeFileSync6 } from "node:fs";
+import { join as join19 } from "node:path";
+function planAdjudication(input) {
+  const enabled = new Set(input.enabled ?? ["ambiguous", "contradictory", "non_unanimous", "ship_deciding"]);
+  const decisions = [];
+  for (const cell of input.cells) {
+    const triggers = [];
+    if (enabled.has("ambiguous") && (cell.verdict === "JUDGE-AMBIGUOUS" || cell.verdict === "ERROR")) {
+      triggers.push("ambiguous");
+    }
+    if (enabled.has("contradictory") && cell.suspect && cell.verdict !== "JUDGE-AMBIGUOUS" && cell.verdict !== "ERROR") {
+      triggers.push("contradictory");
+    }
+    if (enabled.has("non_unanimous") && isNonUnanimous(cell))
+      triggers.push("non_unanimous");
+    if (enabled.has("ship_deciding") && flipsShipDecision(cell, input))
+      triggers.push("ship_deciding");
+    decisions.push({ id: cell.id, triggers });
+  }
+  const suspectById = new Map(input.cells.map((c) => [c.id, c.suspect]));
+  const fired = decisions.filter((d) => d.triggers.length > 0);
+  const needsTieBreak = input.tieBreakAvailable ? [] : fired.filter((d) => suspectById.get(d.id)).map((d) => d.id);
+  const triggered = fired.map((d) => d.id);
+  const perCell = input.tieBreakAvailable ? 2 : 1;
+  return { decisions, triggered, needsTieBreak, maxAdditionalCalls: triggered.length * perCell };
+}
+function isNonUnanimous(cell) {
+  const reps2 = cell.repVerdicts ?? [];
+  if (reps2.length < 2)
+    return false;
+  const passes = reps2.filter((v) => v === "PASS").length;
+  return passes > 0 && passes < reps2.length;
+}
+function flipsShipDecision(cell, input) {
+  const verdictsWith = (targetVerdict) => input.cells.map((c) => c.id === cell.id ? { id: c.id, verdict: targetVerdict, suspect: false } : { id: c.id, verdict: c.verdict, suspect: c.suspect });
+  const opts = { shipBar: input.shipBar, critical: input.critical };
+  const flipped = cell.verdict === "PASS" ? "FAIL" : "PASS";
+  return score(verdictsWith(cell.verdict), opts).ship !== score(verdictsWith(flipped), opts).ship;
+}
+function collapseJudgments(judgments, trigger) {
+  const clean = judgments.filter((j) => !j.suspect && (j.verdict === "PASS" || j.verdict === "FAIL"));
+  const base = { trigger, judgments };
+  if (clean.length < 2) {
+    return { ...base, state: "unresolved" };
+  }
+  const passes = clean.filter((j) => j.verdict === "PASS").length;
+  const fails = clean.length - passes;
+  if (passes === 0 || fails === 0) {
+    return { ...base, state: "confirmed", verdict: clean[0].verdict };
+  }
+  if (passes > fails)
+    return { ...base, state: "tie_broken", verdict: "PASS" };
+  if (fails > passes)
+    return { ...base, state: "tie_broken", verdict: "FAIL" };
+  return { ...base, state: "unresolved" };
+}
+function projectAdjudication(result, adj) {
+  if (adj.state === "unresolved") {
+    return {
+      ...result,
+      // Verdict is left as recorded rather than forced to FAIL: `suspect` is what
+      // blocks the ship, and overwriting the verdict would destroy the
+      // first-wave answer an author needs in order to adjudicate.
+      judge_reason: `${adj.judgments.length} judgments disagree (${adj.trigger}) \u2014 resolve or re-judge`,
+      suspect: true,
+      adjudication: adj
+    };
+  }
+  return {
+    ...result,
+    judge_verdict: adj.verdict ?? result.judge_verdict,
+    judge_reason: reasonFor(adj),
+    // A confirmed or tie-broken cell is no longer untrustworthy — that is the
+    // entire point of having asked again.
+    suspect: false,
+    adjudication: adj
+  };
+}
+function reasonFor(adj) {
+  const n = adj.judgments.length;
+  const verb = adj.state === "confirmed" ? "confirmed by" : "resolved by majority of";
+  return `${adj.verdict} ${verb} ${n} judgments (${adj.trigger})`;
+}
+async function runAdjudication(opts) {
+  const byId = /* @__PURE__ */ new Map();
+  const log = opts.log ?? (() => {
+  });
+  let callsMade = 0;
+  for (const decision of opts.plan.decisions) {
+    if (decision.triggers.length === 0)
+      continue;
+    const cell = opts.cells.find((c) => c.id === decision.id);
+    if (!cell)
+      continue;
+    const trigger = decision.triggers[0];
+    const judgments = [
+      { ordinal: 1, judge: { ...opts.primaryJudge }, verdict: cell.verdict, reason: cell.reason, suspect: cell.suspect }
+    ];
+    const second = await opts.rejudge(decision.id, opts.secondaryJudge);
+    callsMade++;
+    judgments.push({ ordinal: 2, judge: { ...opts.secondaryJudge }, ...second });
+    let collapsed = collapseJudgments(judgments, trigger);
+    if (collapsed.state === "unresolved" && opts.tieBreakJudge) {
+      const third = await opts.rejudge(decision.id, opts.tieBreakJudge);
+      callsMade++;
+      judgments.push({ ordinal: 3, judge: { ...opts.tieBreakJudge }, ...third });
+      collapsed = collapseJudgments(judgments, trigger);
+    }
+    log(`  ${decision.id}: ${collapsed.state}${collapsed.verdict ? ` \u2192 ${collapsed.verdict}` : ""} (${judgments.length} judgments)`);
+    byId.set(decision.id, collapsed);
+  }
+  return { byId, callsMade };
+}
+async function adjudicateRun(opts) {
+  const log = opts.log ?? (() => {
+  });
+  const mode = opts.results.mode;
+  const cells = cellsFromResults(opts.runDir, opts.results);
+  const plan = planAdjudication({
+    cells,
+    scenarios: opts.spec.scenarios,
+    shipBar: opts.spec.ship_bar,
+    critical: opts.spec.critical,
+    tieBreakAvailable: opts.tieBreakJudge !== void 0
+  });
+  log(formatAdjudicationPlan(plan, { secondary: opts.secondaryJudge, tieBreak: opts.tieBreakJudge }));
+  if (plan.triggered.length === 0)
+    return opts.results;
+  const byIdScenario = new Map(opts.spec.scenarios.map((s) => [s.id, s]));
+  const { byId, callsMade } = await runAdjudication({
+    plan,
+    cells,
+    primaryJudge: opts.primaryJudge,
+    secondaryJudge: opts.secondaryJudge,
+    tieBreakJudge: opts.tieBreakJudge,
+    log,
+    rejudge: async (id, judge) => {
+      const scenario = byIdScenario.get(id);
+      if (!scenario)
+        throw new Error(`adjudication: scenario \`${id}\` is not in the spec`);
+      return judgeCell({ ...opts, scenario, judge, mode });
+    }
+  });
+  const scenarios = opts.results.scenarios.map((s) => {
+    const adj = byId.get(s.id);
+    return adj ? rebuildScenarioResult(projectAdjudication(s, adj), s, { objective: "carry", adjudication: "fresh" }) : s;
+  });
+  appendJournal(opts.runDir, {
+    event: "adjudication",
+    ts: opts.now(),
+    triggered: plan.triggered,
+    judge_calls: callsMade,
+    unresolved: [...byId.entries()].filter(([, a]) => a.state === "unresolved").map(([id]) => id)
+  });
+  const ctx = scoreContextFor(opts.results, opts.spec);
+  return writeResults(opts.runDir, { ...opts.results, scenarios }, ctx);
+}
+async function judgeCell(opts) {
+  const files = findTranscriptFiles(opts.runDir, opts.scenario.id, opts.mode);
+  if (files.length === 0) {
+    throw new Error(`adjudication: no ${opts.mode} transcript for \`${opts.scenario.id}\` in ${opts.runDir} \u2014 transcripts are gitignored, so this needs the run dir that produced them`);
+  }
+  const transcript = readFileSync13(join19(opts.runDir, files[0]), "utf8");
+  const prompt = buildJudgePrompt({
+    skill: opts.spec.skill,
+    persona: opts.spec.judge_persona,
+    scenario: opts.scenario,
+    transcript
+  });
+  const g = await judgeInWorkspace(opts.adapter, opts.judge, prompt, opts.specDir);
+  const rep = repIndexOf(files[0]) ?? void 0;
+  const base = judgeRawPath(opts.runDir, opts.scenario.id, opts.mode, rep);
+  const nth = existsSync16(base.replace(/\.judge\.txt$/, ".judge2.txt")) ? 3 : 2;
+  writeFileSync6(base.replace(/\.judge\.txt$/, `.judge${nth}.txt`), g.raw, "utf8");
+  appendJournal(opts.runDir, {
+    event: "judge-verdict",
+    ts: opts.now(),
+    id: opts.scenario.id,
+    verdict: g.verdict,
+    reason: g.reason,
+    suspect: g.suspect
+  });
+  return { verdict: g.verdict, reason: g.reason, suspect: g.suspect };
+}
+function cellsFromResults(runDir, results) {
+  return results.scenarios.map((s) => ({
+    id: s.id,
+    verdict: s.judge_verdict,
+    reason: s.judge_reason,
+    suspect: s.suspect,
+    repVerdicts: repVerdictsOf(runDir, s, results.mode)
+  }));
+}
+function repVerdictsOf(runDir, s, mode) {
+  if (!s.reps || s.reps < 2)
+    return void 0;
+  const out = [];
+  for (let rep = 0; rep < s.reps; rep++) {
+    const path = judgeRawPath(runDir, s.id, mode, rep);
+    if (!existsSync16(path)) {
+      out.push("ERROR");
+      continue;
+    }
+    out.push(parseVerdict(readFileSync13(path, "utf8")).verdict);
+  }
+  return out.length >= 2 ? out : void 0;
+}
+function resolveAdjudicationJudges(opts) {
+  if (!opts.enabled)
+    return null;
+  let subject = null;
+  try {
+    subject = opts.parseRef(opts.subjectToken);
+  } catch {
+    opts.warn(`  \u26A0 cannot read the run's model (\`${opts.subjectToken}\`) \u2014 skipping the judge\u2260subject check`);
+  }
+  const secondary = opts.secondaryToken ? opts.parseRef(opts.secondaryToken) : opts.primary;
+  const tieBreak = opts.tieBreakToken ? opts.parseRef(opts.tieBreakToken) : void 0;
+  opts.assertAllowed(secondary, "--secondary-judge");
+  if (tieBreak)
+    opts.assertAllowed(tieBreak, "--tie-break-judge");
+  if (subject) {
+    for (const [label, judge] of [["secondary", secondary], ["tie-break", tieBreak]]) {
+      if (judge && opts.resemblesSubject(judge, subject)) {
+        opts.warn(`  \u26A0 ${label} judge (${judge.provider}:${judge.model}) resembles the model under test (${subject.provider}:${subject.model}) \u2014 same-family grading inflates scores.`);
+      }
+    }
+  }
+  return tieBreak ? { secondary, tieBreak } : { secondary };
+}
+function formatAdjudicationPlan(plan, judges) {
+  const stuck = plan.needsTieBreak.length ? [
+    `  ${plan.needsTieBreak.length} of those cannot be SETTLED by this plan: ${plan.needsTieBreak.join(", ")}`,
+    "    (their first judgment misfired, so one more judge cannot reach two clean votes \u2014 the call",
+    "     buys a second opinion to resolve by hand; add a tie-break judge to settle them outright)"
+  ] : [];
+  if (plan.triggered.length === 0) {
+    return ["adjudication: no cell triggered \u2014 no additional judge calls", ...stuck].join("\n");
+  }
+  const lines = [
+    `adjudication: ${plan.triggered.length} cell(s) triggered \u2014 up to ${plan.maxAdditionalCalls} additional judge call(s)`,
+    `  secondary judge: ${judges.secondary.provider}:${judges.secondary.model}`
+  ];
+  if (judges.tieBreak)
+    lines.push(`  tie-break judge: ${judges.tieBreak.provider}:${judges.tieBreak.model}`);
+  else
+    lines.push("  no tie-break judge \u2014 a disagreement stays unresolved and blocks SHIP");
+  for (const d of plan.decisions) {
+    if (d.triggers.length)
+      lines.push(`  ${d.id}: ${d.triggers.join(", ")}`);
+  }
+  return [...lines, ...stuck].join("\n");
+}
+
 // packages/adapters/dist/pi.js
-import { existsSync as existsSync14, mkdtempSync as mkdtempSync2, readFileSync as readFileSync10, statSync as statSync8 } from "node:fs";
-import { tmpdir as tmpdir2 } from "node:os";
-import { join as join18, resolve as resolve7 } from "node:path";
+import { existsSync as existsSync17, mkdtempSync as mkdtempSync2, readFileSync as readFileSync14, statSync as statSync8 } from "node:fs";
+import { tmpdir as tmpdir2, homedir } from "node:os";
+import { join as join20, resolve as resolve9 } from "node:path";
+
+// packages/adapters/dist/pi-json.js
+import { spawn as spawn2 } from "node:child_process";
+import { createInterface } from "node:readline";
+var SKIPPED_TYPE_RE = /^\s*\{\s*"type"\s*:\s*"(?:message_update|tool_execution_update)"/;
+var MAX_STDERR_CHARS = 8e3;
+function runPiJson(opts) {
+  return new Promise((resolve12, reject) => {
+    const child = spawn2("pi", opts.args, {
+      cwd: opts.cwd,
+      // stdin from /dev/null: pi hangs waiting on it otherwise, and a hang in a
+      // wave is indistinguishable from a slow model until the timeout fires.
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    const kept = [];
+    let stderr = "";
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled)
+        return;
+      settled = true;
+      child.kill("SIGKILL");
+      reject(new Error(`pi --mode json timed out after ${opts.timeoutMs}ms`));
+    }, opts.timeoutMs);
+    const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
+    rl.on("line", (line) => {
+      if (!line.trim())
+        return;
+      if (SKIPPED_TYPE_RE.test(line))
+        return;
+      kept.push(line);
+    });
+    child.stderr.on("data", (chunk) => {
+      if (stderr.length < MAX_STDERR_CHARS)
+        stderr += chunk.toString("utf8");
+    });
+    child.on("error", (err) => {
+      if (settled)
+        return;
+      settled = true;
+      clearTimeout(timer);
+      reject(err);
+    });
+    child.on("close", (code) => {
+      if (settled)
+        return;
+      settled = true;
+      clearTimeout(timer);
+      const parsed = parseTrace(kept, {
+        piVersion: opts.piVersion,
+        subject: opts.subject,
+        scenarioId: opts.scenarioId,
+        mode: opts.mode,
+        rep: opts.rep,
+        turn: opts.turn,
+        changedPaths: opts.changedPaths,
+        homeDir: opts.homeDir
+      });
+      resolve12({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS) });
+    });
+  });
+}
+
+// packages/adapters/dist/pi.js
 var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
 function requireSkillDir(skillDir, mode) {
-  const abs = resolve7(skillDir);
-  const md = join18(abs, "SKILL.md");
-  const isDir3 = existsSync14(abs) && statSync8(abs).isDirectory();
-  if (!isDir3 || !existsSync14(md)) {
+  const abs = resolve9(skillDir);
+  const md = join20(abs, "SKILL.md");
+  const isDir3 = existsSync17(abs) && statSync8(abs).isDirectory();
+  if (!isDir3 || !existsSync17(md)) {
     throw new Error(`mode=${mode} needs a skill directory with a SKILL.md, but ${abs} ${isDir3 ? "has none" : "is not a directory"}` + (abs === skillDir ? "" : ` (given \`${skillDir}\`, resolved against ${process.cwd()})`) + ` \u2014 pi accepts \`--skill <nonexistent>\` silently (exit 0, a normal answer, no skill in context), so this run would measure a model with no skill and report it as a result.`);
   }
   return abs;
@@ -4547,10 +6384,21 @@ function skillFlags(mode, skillDir) {
     case "green":
       return ["--skill", requireSkillDir(skillDir, mode)];
     case "force": {
-      const body = readFileSync10(join18(requireSkillDir(skillDir, mode), "SKILL.md"), "utf8");
+      const body = readFileSync14(join20(requireSkillDir(skillDir, mode), "SKILL.md"), "utf8");
       return ["--no-skills", "--append-system-prompt", body];
     }
   }
+}
+function extensionFlags(extensions) {
+  if (!extensions || extensions.length === 0)
+    return [];
+  return extensions.flatMap((p) => {
+    const abs = resolve9(p);
+    if (!existsSync17(abs)) {
+      throw new Error(`env.extensions names ${abs}, which does not exist \u2014 pi would start without it and the scenario would silently test an agent with no subagent tool at all.`);
+    }
+    return ["--extension", abs];
+  });
 }
 function header(turnNo, total, text) {
   const label = total === 1 ? "USER" : `USER (turn ${turnNo}/${total})`;
@@ -4591,12 +6439,13 @@ var piAdapter = {
     const common = [
       "--no-context-files",
       "--no-extensions",
+      ...extensionFlags(req.extensions),
       "--provider",
       req.model.provider,
       "--model",
       req.model.model
     ];
-    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync10(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
+    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync14(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
     const total = req.turns.length;
     const parts = [];
     if (total === 1) {
@@ -4612,7 +6461,7 @@ ${r.stderr.trim()}
 `);
       return parts.join("\n");
     }
-    const session = mkdtempSync2(join18(tmpdir2(), "sc-pi-session-"));
+    const session = mkdtempSync2(join20(tmpdir2(), "sc-pi-session-"));
     for (let i = 0; i < total; i++) {
       const turnFlags = i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common, ...turnFlags, "-p", req.turns[i]];
@@ -4627,6 +6476,64 @@ ${r.stderr.trim()}
 `);
     }
     return parts.join("\n");
+  },
+  /**
+   * Structured run: same flags, same turn loop, plus `--mode json` and a trace
+   * per turn.
+   *
+   * Shares `skillFlags` and the turn structure with `run()` on purpose — if the
+   * two drifted, a trace-gated scenario would be measuring a different delivery
+   * than an ungated one, and the gate would be attesting to the wrong execution.
+   *
+   * The transcript is REBUILT from each turn's final assistant message rather
+   * than read from stdout, which is byte-identical to print mode's output (proven
+   * on a deterministic prompt; see docs/pi-native-capture-design-2026-08-08.md §2).
+   */
+  async runStructured(req) {
+    const common = [
+      "--no-context-files",
+      "--no-extensions",
+      ...extensionFlags(req.extensions),
+      "--provider",
+      req.model.provider,
+      "--model",
+      req.model.model
+    ];
+    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync14(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
+    const piVersion = await this.version();
+    const total = req.turns.length;
+    const traces = [];
+    const parts = [];
+    const session = total === 1 ? null : mkdtempSync2(join20(tmpdir2(), "sc-pi-session-"));
+    for (let i = 0; i < total; i++) {
+      const turnFlags = session === null ? ["--no-session"] : i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
+      const args = [...flags, ...common, "--mode", "json", ...turnFlags, "-p", req.turns[i]];
+      const r = await runPiJson({
+        args,
+        cwd: req.cwd,
+        timeoutMs: PI_TIMEOUT_MS,
+        piVersion,
+        subject: req.model,
+        scenarioId: req.scenarioId ?? "(unknown)",
+        mode: req.mode,
+        rep: req.rep ?? 0,
+        turn: i,
+        homeDir: homedir()
+      });
+      if (!r.isComplete) {
+        throw new Error(`pi --mode json produced no terminal events for turn ${i + 1}/${total} (exit ${r.code}${r.malformedLines ? `, ${r.malformedLines} malformed line(s)` : ""})` + (r.stderr.trim() ? `: ${r.stderr.trim()}` : ""));
+      }
+      traces.push(r.trace);
+      parts.push(header(i + 1, total, req.turns[i]));
+      parts.push(`<<< ASSISTANT:
+${r.trace.final_text.trim()}
+`);
+      if (r.code !== 0)
+        parts.push(`[pi exited ${r.code} on turn ${i + 1}]
+${r.stderr.trim()}
+`);
+    }
+    return { transcript: parts.join("\n"), traces };
   },
   /**
    * Run the judge: no skills, no context files, no session, single prompt.
@@ -4677,33 +6584,33 @@ function getAdapter(name) {
 
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
-import { readFileSync as readFileSync11, existsSync as existsSync15 } from "node:fs";
-import { join as join19, dirname as dirname3 } from "node:path";
+import { readFileSync as readFileSync15, existsSync as existsSync18 } from "node:fs";
+import { join as join21, dirname as dirname6 } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawn as spawn2 } from "node:child_process";
-var __dirname = dirname3(fileURLToPath(import.meta.url));
+import { spawn as spawn3 } from "node:child_process";
+var __dirname = dirname6(fileURLToPath(import.meta.url));
 function templatePath(assetsDir) {
   if (assetsDir)
-    return join19(assetsDir, "report.template.html");
+    return join21(assetsDir, "report.template.html");
   const candidates = [
-    join19(__dirname, "..", "..", "..", "assets", "report.template.html"),
+    join21(__dirname, "..", "..", "..", "assets", "report.template.html"),
     // packages/cli/{dist,src} -> ../../../assets
-    join19(__dirname, "..", "assets", "report.template.html"),
-    join19(__dirname, "..", "..", "assets", "report.template.html")
+    join21(__dirname, "..", "assets", "report.template.html"),
+    join21(__dirname, "..", "..", "assets", "report.template.html")
   ];
   for (const c of candidates)
-    if (existsSync15(c))
+    if (existsSync18(c))
       return c;
   throw new Error("cannot find assets/report.template.html");
 }
 function gradeScriptPath(assetsDir) {
-  return join19(dirname3(templatePath(assetsDir)), "report.grade.js");
+  return join21(dirname6(templatePath(assetsDir)), "report.grade.js");
 }
 function readBody(req) {
-  return new Promise((resolve10) => {
+  return new Promise((resolve12) => {
     let b = "";
     req.on("data", (c) => b += c);
-    req.on("end", () => resolve10(b));
+    req.on("end", () => resolve12(b));
   });
 }
 function findTranscript(runDir, id) {
@@ -4711,22 +6618,22 @@ function findTranscript(runDir, id) {
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync11(join19(runDir, files[0]), "utf8");
+    return readFileSync15(join21(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync11(join19(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync15(join21(runDir, f), "utf8")}`).join("\n\n");
 }
 function findJudgeRaw(runDir, id) {
   const files = findJudgeRawFiles(runDir, id);
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync11(join19(runDir, files[0]), "utf8");
+    return readFileSync15(join21(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync11(join19(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync15(join21(runDir, f), "utf8")}`).join("\n\n");
 }
 async function serveReview(opts) {
-  const template = readFileSync11(templatePath(opts.assetsDir), "utf8");
-  const gradeScript = readFileSync11(gradeScriptPath(opts.assetsDir), "utf8");
+  const template = readFileSync15(templatePath(opts.assetsDir), "utf8");
+  const gradeScript = readFileSync15(gradeScriptPath(opts.assetsDir), "utf8");
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://localhost");
@@ -4776,7 +6683,7 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be re-judged here \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
           return;
         }
-        const specPath = join19(opts.skillDir, "tests", "specification.yaml");
+        const specPath = join21(opts.skillDir, "tests", "specification.yaml");
         const spec = loadSpec(specPath);
         const scenario = spec.scenarios.find((s) => s.id === body.scenarioId);
         if (!scenario) {
@@ -4802,11 +6709,14 @@ async function serveReview(opts) {
             scenario,
             adapter,
             judge: results.judge,
-            specDir: dirname3(specPath),
+            specDir: dirname6(specPath),
             threshold,
             mode: results.mode
           });
-          const merged = results.scenarios.map((s) => s.id === body.scenarioId ? { ...rr, override: s.override, note: s.note } : s);
+          const merged = results.scenarios.map((s) => (
+            // Same contract as `grade`, through the same choke point.
+            s.id === body.scenarioId ? rebuildScenarioResult(rr, s, { objective: "carry", adjudication: "drop" }) : s
+          ));
           const written = writeResults(column.runDir, {
             skill: results.skill,
             harness: results.harness,
@@ -4826,11 +6736,77 @@ async function serveReview(opts) {
             // the same doctrine `grade` follows (see refreshRubricHashes).
             source_hashes: refreshRubricHashes(results.source_hashes, spec, [body.scenarioId])
           }, scoreContextFor(results, spec));
-          ensureResultsGitignore(join19(opts.skillDir, "tests", "results"));
+          ensureResultsGitignore(join21(opts.skillDir, "tests", "results"));
           const g = written.effective_grade;
           appendJournal(column.runDir, { event: "score", ts: (/* @__PURE__ */ new Date()).toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
           res.writeHead(200, { "content-type": "application/json" });
           res.end(JSON.stringify({ ok: true, grade: g }));
+        } catch (e) {
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+        }
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/adjudicate") {
+        const body = JSON.parse(await readBody(req) || "{}");
+        const data = collectReport(opts.skillDir);
+        const column = data.columns.find((c) => c.index === body.col);
+        if (!column) {
+          res.writeHead(404).end("unknown column");
+          return;
+        }
+        const results = readResults(column.runDir);
+        if (!isScoredMode(results.mode)) {
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be adjudicated \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
+          return;
+        }
+        const specPath = join21(opts.skillDir, "tests", "specification.yaml");
+        const spec = loadSpec(specPath);
+        const adapter = opts.adapter ?? getAdapter(results.harness);
+        const cells = cellsFromResults(column.runDir, results);
+        const plan = planAdjudication({
+          cells,
+          scenarios: spec.scenarios,
+          shipBar: spec.ship_bar,
+          critical: spec.critical,
+          tieBreakAvailable: false
+        });
+        if (body.step !== "run") {
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify({
+            ok: true,
+            step: "plan",
+            triggered: plan.triggered,
+            maxAdditionalCalls: plan.maxAdditionalCalls,
+            judge: `${results.judge.provider}:${results.judge.model}`,
+            detail: plan.decisions.filter((d) => d.triggers.length).map((d) => `${d.id}: ${d.triggers.join(", ")}`)
+          }));
+          return;
+        }
+        if (!await adapter.available()) {
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: `harness \`${results.harness}\` is not on PATH` }));
+          return;
+        }
+        try {
+          assertJudgeAllowed(results.judge, { source: "the run's recorded judge", allowMetered: envFlag("SKILL_HARNESS_ALLOW_METERED_JUDGE") });
+          const written = await adjudicateRun({
+            runDir: column.runDir,
+            spec,
+            adapter,
+            results,
+            primaryJudge: results.judge,
+            // Asked again as an independent draw. The judge-variance study measured
+            // ~2% self-disagreement on identical transcripts, so this is a real
+            // second opinion rather than a no-op.
+            secondaryJudge: results.judge,
+            specDir: dirname6(specPath),
+            now: () => (/* @__PURE__ */ new Date()).toISOString()
+          });
+          ensureResultsGitignore(join21(opts.skillDir, "tests", "results"));
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: true, step: "run", grade: written.effective_grade }));
         } catch (e) {
           res.writeHead(400, { "content-type": "application/json" });
           res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
@@ -4854,11 +6830,11 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
           return;
         }
-        const spec = loadSpec(join19(opts.skillDir, "tests", "specification.yaml"));
+        const spec = loadSpec(join21(opts.skillDir, "tests", "specification.yaml"));
         writeResults(column.runDir, patched, scoreContextFor(patched, spec));
-        ensureResultsGitignore(join19(opts.skillDir, "tests", "results"));
+        ensureResultsGitignore(join21(opts.skillDir, "tests", "results"));
         if (body.override != null) {
-          preserveTranscript(join19(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
+          preserveTranscript(join21(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
         }
         appendJournal(column.runDir, {
           event: "override",
@@ -4877,7 +6853,7 @@ async function serveReview(opts) {
       res.end(`server error: ${e instanceof Error ? e.message : e}`);
     }
   });
-  await new Promise((resolve10) => server.listen(opts.port ?? 0, "127.0.0.1", resolve10));
+  await new Promise((resolve12) => server.listen(opts.port ?? 0, "127.0.0.1", resolve12));
   const addr = server.address();
   const port = typeof addr === "object" && addr ? addr.port : opts.port;
   const link = `http://127.0.0.1:${port}/`;
@@ -4894,7 +6870,7 @@ async function serveReview(opts) {
 function tryOpen(url, cmd) {
   const opener = cmd ?? (process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open");
   try {
-    const child = spawn2(opener, [url], { stdio: "ignore", detached: true });
+    const child = spawn3(opener, [url], { stdio: "ignore", detached: true });
     child.on("error", () => {
     });
     child.unref();
@@ -4903,18 +6879,18 @@ function tryOpen(url, cmd) {
 }
 
 // packages/pi-extension/src/runner.ts
-import { existsSync as existsSync16 } from "node:fs";
-import { dirname as dirname4, join as join20, resolve as resolve8 } from "node:path";
+import { existsSync as existsSync19 } from "node:fs";
+import { dirname as dirname7, join as join22, resolve as resolve10 } from "node:path";
 function resolveSkillDir(cwd, arg) {
   if (arg) {
-    const dir2 = resolve8(cwd, arg);
-    if (existsSync16(join20(dir2, "tests", "specification.yaml"))) return dir2;
+    const dir2 = resolve10(cwd, arg);
+    if (existsSync19(join22(dir2, "tests", "specification.yaml"))) return dir2;
     throw new Error(`no tests/specification.yaml found at ${dir2}`);
   }
   let dir = cwd;
   for (; ; ) {
-    if (existsSync16(join20(dir, "tests", "specification.yaml"))) return dir;
-    const parent = dirname4(dir);
+    if (existsSync19(join22(dir, "tests", "specification.yaml"))) return dir;
+    const parent = dirname7(dir);
     if (parent === dir) break;
     dir = parent;
   }
@@ -4922,7 +6898,7 @@ function resolveSkillDir(cwd, arg) {
 }
 var DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 async function runViaExtension(opts) {
-  const specPath = join20(opts.skillDir, "tests", "specification.yaml");
+  const specPath = join22(opts.skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const modelToken = opts.model ?? DEFAULT_MODEL;
   const model = parseModelRef(modelToken);
@@ -4945,11 +6921,12 @@ async function runViaExtension(opts) {
     now: opts.now,
     reps: opts.reps,
     canary: opts.canary,
+    only: opts.only,
     onProgress: opts.log
   });
   const g = summary.results.effective_grade;
   const verdicts = effectiveVerdicts(summary.results.scenarios);
-  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join20(summary.runDir, f)));
+  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join22(summary.runDir, f)));
   return {
     skill: summary.results.skill,
     model: summary.results.model,
@@ -4959,8 +6936,189 @@ async function runViaExtension(opts) {
   };
 }
 
+// packages/pi-extension/src/capture-cmd.ts
+import { existsSync as existsSync20, mkdirSync as mkdirSync4, writeFileSync as writeFileSync7, readdirSync as readdirSync10, readFileSync as readFileSync16 } from "node:fs";
+import { join as join23 } from "node:path";
+import { createHash as createHash6 } from "node:crypto";
+var CANCELLED = { status: "cancelled", files: [] };
+var CAPTURES_GITIGNORE = "# Local review evidence for captured cases \u2014 never commit.\n.local/\n";
+async function runCapture(skillDir, ctx) {
+  const ui = ctx.ui;
+  const now = ctx.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
+  if (ctx.isStreaming()) {
+    ui.say("the agent is still streaming \u2014 let it finish, then run capture again");
+    return CANCELLED;
+  }
+  const specPath = join23(skillDir, "tests", "specification.yaml");
+  if (!existsSync20(specPath)) {
+    ui.say(`${specPath} does not exist \u2014 run \`skill-harness init\` before capturing into this skill`);
+    return CANCELLED;
+  }
+  const baseSha256 = specSha256(readFileSync16(specPath, "utf8"));
+  const turns = projectTurns(activeBranch(ctx.sessionEntries()), ctx.homeDir);
+  if (turns.length === 0) {
+    ui.say("no user turns in this session yet \u2014 nothing to capture");
+    return CANCELLED;
+  }
+  const labels = turns.map((t) => turnLabel(t));
+  const start = await ui.select("capture from which turn?", labels);
+  if (start === null) return CANCELLED;
+  const endChoices = labels.slice(start);
+  const endRel = await ui.select("\u2026through which turn?", endChoices);
+  if (endRel === null) return CANCELLED;
+  const end = start + endRel;
+  const target = await chooseTarget(skillDir, ctx);
+  if (!target) return CANCELLED;
+  const cls = await ui.select("what is this?", [
+    "failure \u2014 the agent got this wrong",
+    "good_example \u2014 the agent got this right, keep it working"
+  ]);
+  if (cls === null) return CANCELLED;
+  const classification = cls === 0 ? "failure" : "good_example";
+  const expected = await ui.input("what SHOULD it have done? (one or two sentences)");
+  if (expected === null || expected.trim() === "") {
+    ui.say("cancelled \u2014 a capture needs a written expectation");
+    return CANCELLED;
+  }
+  const drafted = draftChecklist(expected);
+  const edited = await ui.editor(
+    "checklist \u2014 one item per line; these are what the judge grades",
+    (drafted.length ? drafted : [expected.trim()]).join("\n")
+  );
+  if (edited === null) return CANCELLED;
+  const checklist = edited.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (checklist.length === 0) {
+    ui.say("cancelled \u2014 a capture needs at least one checklist item");
+    return CANCELLED;
+  }
+  const capturesDir = join23(skillDir, "tests", "captures");
+  const existingIds = existsSync20(capturesDir) ? readdirSync10(capturesDir).filter((f) => f.endsWith(".yaml")).map((f) => f.replace(/\.yaml$/, "")) : [];
+  const capture = buildCaptureCase({
+    turns,
+    range: { start, end },
+    classification,
+    expectedBehavior: expected,
+    checklist,
+    target,
+    sessionPath: ctx.sessionPath(),
+    created: now(),
+    homeDir: ctx.homeDir,
+    existingIds
+  });
+  const previewYaml = index_vite_proxy_tmp_default.dump(capture, { lineWidth: -1, noRefs: true });
+  ui.say(`
+--- ${capture.id} (preview, nothing written yet) ---
+${previewYaml}---`);
+  const action = await ui.select("what now?", [
+    "save as a pending capture (review and promote later)",
+    "promote to a scenario now",
+    "cancel \u2014 write nothing"
+  ]);
+  if (action === null || action === 2) {
+    ui.say("cancelled \u2014 no files written");
+    return CANCELLED;
+  }
+  const files = writeCapture(capturesDir, capture, turns.slice(start, end + 1), ctx.homeDir);
+  if (action === 0) {
+    ui.say(`saved ${capture.id} \u2014 promote it later, or edit ${files[0]} first`);
+    return { status: "pending", capture, files };
+  }
+  const suggested = suggestScenarioId(specPath, capture.id);
+  const scenarioId = await ui.input("scenario id for the spec", suggested);
+  if (scenarioId === null || scenarioId.trim() === "") {
+    ui.say(`kept ${capture.id} as pending \u2014 no scenario appended`);
+    return { status: "pending", capture, files };
+  }
+  const title = await ui.input("scenario title", defaultTitle(capture));
+  if (title === null || title.trim() === "") {
+    ui.say(`kept ${capture.id} as pending \u2014 no scenario appended`);
+    return { status: "pending", capture, files };
+  }
+  appendScenario({
+    specPath,
+    scenario: captureToScenario(capture, scenarioId.trim(), title.trim()),
+    baseSha256
+  });
+  const promoted = { ...capture, status: "promoted", scenario_id: scenarioId.trim() };
+  writeFileSync7(join23(capturesDir, `${capture.id}.yaml`), index_vite_proxy_tmp_default.dump(promoted, { lineWidth: -1, noRefs: true }), "utf8");
+  ui.say(`promoted ${capture.id} \u2192 scenario ${scenarioId.trim()} in ${specPath}`);
+  if (ctx.runOnly && await ui.confirm(`run scenario ${scenarioId.trim()} now? (spends subject + judge tokens for 1 scenario)`)) {
+    ui.say(await ctx.runOnly(skillDir, scenarioId.trim()));
+  }
+  return { status: "promoted", capture: promoted, files: [...files, specPath], scenarioId: scenarioId.trim() };
+}
+function turnLabel(t) {
+  const head = t.user.replace(/\s+/g, " ").trim();
+  const tools = t.toolCalls.length ? ` [${t.toolCalls.length} tool call(s)]` : "";
+  return `${t.index + 1}. ${head.length > 70 ? `${head.slice(0, 70)}\u2026` : head}${tools}`;
+}
+function defaultTitle(capture) {
+  const first = capture.turns[0] ?? "captured case";
+  const trimmed = first.replace(/\s+/g, " ").trim();
+  return trimmed.length > 60 ? `${trimmed.slice(0, 60)}\u2026` : trimmed;
+}
+async function chooseTarget(skillDir, ctx) {
+  const candidates = [];
+  const skillMd = join23(skillDir, "SKILL.md");
+  if (existsSync20(skillMd)) candidates.push({ label: "SKILL.md (this skill)", kind: "skill", path: "SKILL.md", abs: skillMd });
+  const agentsDir = join23(ctx.cwd, ".pi", "agents");
+  if (existsSync20(agentsDir)) {
+    for (const f of readdirSync10(agentsDir).filter((x) => x.endsWith(".md"))) {
+      candidates.push({ label: `subagent: ${f}`, kind: "subagent", path: join23(".pi", "agents", f), abs: join23(agentsDir, f) });
+    }
+  }
+  if (candidates.length === 0) {
+    ctx.ui.say("no SKILL.md or .pi/agents/*.md found to attribute this to");
+    return null;
+  }
+  const pick = await ctx.ui.select("which instructions are responsible? (your call \u2014 the session cannot prove this)", candidates.map((c) => c.label));
+  if (pick === null) return null;
+  const chosen = candidates[pick];
+  return {
+    kind: chosen.kind,
+    path: chosen.path,
+    content_sha256: createHash6("sha256").update(readFileSync16(chosen.abs, "utf8"), "utf8").digest("hex")
+  };
+}
+function suggestScenarioId(specPath, fallback) {
+  try {
+    const ids = new Set(loadSpec(specPath).scenarios.map((s) => s.id));
+    for (let n = 1; n < 1e3; n++) {
+      const candidate = `R${n}`;
+      if (!ids.has(candidate)) return candidate;
+    }
+  } catch {
+  }
+  return fallback;
+}
+function writeCapture(capturesDir, capture, selected, homeDir) {
+  mkdirSync4(join23(capturesDir, ".local"), { recursive: true });
+  const gitignore = join23(capturesDir, ".gitignore");
+  const existingIgnore = existsSync20(gitignore) ? readFileSync16(gitignore, "utf8") : "";
+  if (!existingIgnore.split("\n").some((l) => l.trim() === ".local/" || l.trim() === ".local")) {
+    writeFileSync7(gitignore, existingIgnore ? `${existingIgnore.replace(/\n*$/, "\n")}${CAPTURES_GITIGNORE}` : CAPTURES_GITIGNORE, "utf8");
+  }
+  const casePath = join23(capturesDir, `${capture.id}.yaml`);
+  writeFileSync7(casePath, index_vite_proxy_tmp_default.dump(capture, { lineWidth: -1, noRefs: true }), "utf8");
+  const evidencePath = join23(capturesDir, ".local", `${capture.id}.evidence.json`);
+  writeFileSync7(
+    evidencePath,
+    JSON.stringify(
+      {
+        capture_id: capture.id,
+        assistant_excerpt: selected.map((t) => redactText(t.assistantText, homeDir)).join("\n---\n").slice(0, 4e3),
+        tool_calls: selected.flatMap((t) => t.toolCalls.map((c) => ({ name: c.name, isError: c.isError, args: c.args })))
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  return [casePath, evidencePath, gitignore];
+}
+
 // packages/pi-extension/src/commands.ts
-var USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] | review [skill]";
+var USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m] | review [skill] | capture [skill] | coverage [skill] | affected [skill] [--base ref]";
 function parse(argstr) {
   const tokens = argstr.trim().length ? argstr.trim().split(/\s+/) : [];
   const [sub = "", ...rest] = tokens;
@@ -5016,28 +7174,147 @@ ${card.failedTranscripts.join("\n")}`);
     return;
   }
   if (sub === "judge") {
-    const runDir = resolve9(ctx.cwd, positional[0] ?? ".");
-    const testsDir = dirname5(dirname5(dirname5(runDir)));
-    const spec = loadSpec(join21(testsDir, "specification.yaml"));
-    const prev = existsSync17(join21(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const runDir = resolve11(ctx.cwd, positional[0] ?? ".");
+    const testsDir = dirname8(dirname8(dirname8(runDir)));
+    const spec = loadSpec(join24(testsDir, "specification.yaml"));
+    const prev = existsSync21(join24(runDir, "results.yaml")) ? readResults(runDir) : null;
     const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? parseModelRef(defaultJudge());
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge"
     });
+    const resolvedAdapter = adapter ?? getAdapter(prev?.harness ?? "pi");
     const results = await regradeRun({
       runDir,
       spec,
-      adapter: adapter ?? getAdapter(prev?.harness ?? "pi"),
+      adapter: resolvedAdapter,
       judge,
       specDir: testsDir,
       now: nowIso
     });
     say(ctx, `re-judged ${runDir}: ${results.effective_grade.letter} (${results.effective_grade.pct}%)`);
+    const judges = resolveAdjudicationJudges({
+      enabled: flags["auto-rejudge"] !== void 0 && flags["auto-rejudge"] !== "false",
+      primary: judge,
+      secondaryToken: flags["secondary-judge"] || void 0,
+      tieBreakToken: flags["tie-break-judge"] || void 0,
+      subjectToken: results.model,
+      parseRef: parseModelRef,
+      assertAllowed: (j, source) => assertJudgeAllowed(j, { source }),
+      resemblesSubject: judgeResemblesSubject,
+      warn: (m) => say(ctx, m, "warning")
+    });
+    if (!judges) return;
+    const plan = planAdjudication({
+      // Same construction as the executor, so the dialog's ceiling is the real one.
+      cells: cellsFromResults(runDir, results),
+      scenarios: spec.scenarios,
+      shipBar: spec.ship_bar,
+      critical: spec.critical,
+      tieBreakAvailable: judges.tieBreak !== void 0
+    });
+    say(ctx, formatAdjudicationPlan(plan, judges));
+    if (plan.triggered.length === 0) return;
+    if (ctx.ui.confirm) {
+      const ok = await ctx.ui.confirm(
+        `adjudicate ${plan.triggered.length} cell(s)? up to ${plan.maxAdditionalCalls} additional judge call(s)`
+      );
+      if (!ok) {
+        say(ctx, "cancelled \u2014 nothing spent");
+        return;
+      }
+    } else {
+      say(ctx, "  (no confirm dialog here \u2014 `--auto-rejudge` is the authorization)");
+    }
+    const adjudicated = await adjudicateRun({
+      runDir,
+      spec,
+      adapter: resolvedAdapter,
+      results,
+      primaryJudge: judge,
+      secondaryJudge: judges.secondary,
+      tieBreakJudge: judges.tieBreak,
+      specDir: testsDir,
+      now: nowIso,
+      log: (m) => say(ctx, m)
+    });
+    const ag = adjudicated.effective_grade;
+    say(ctx, `adjudicated \u2192 ${ag.letter} (${ag.pct}%) ${ag.ship ? "SHIP" : "NOT READY"}`, ag.ship ? "info" : "warning");
+    return;
+  }
+  if (sub === "coverage") {
+    const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
+    const specPath = join24(skillDir, "tests", "specification.yaml");
+    const spec = loadSpec(specPath);
+    const specDir = dirname8(specPath);
+    const report = computeCoverage({
+      specDir,
+      scenarios: spec.scenarios,
+      baseFiles: [relative4(specDir, join24(skillDir, "SKILL.md")).split("\\").join("/")]
+    });
+    say(ctx, formatCoverage(report, spec.skill), report.broken.length ? "warning" : "info");
+    return;
+  }
+  if (sub === "affected") {
+    const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
+    const specPath = join24(skillDir, "tests", "specification.yaml");
+    const spec = loadSpec(specPath);
+    const base = flags.base || "HEAD";
+    const rev = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: dirname8(specPath), timeoutMs: 3e4 });
+    if (rev.code !== 0) {
+      say(ctx, "affected needs a git repository to diff against", "error");
+      return;
+    }
+    const repoRoot = rev.stdout.trim();
+    const result = selectAffected({
+      scenarios: spec.scenarios,
+      specDir: dirname8(specPath),
+      diff: await gitDiff(repoRoot, base),
+      repoRoot
+    });
+    say(ctx, formatAffected(result, spec.scenarios.length));
+    return;
+  }
+  if (sub === "capture") {
+    const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
+    const ui = ctx.ui;
+    if (!ctx.sessionManager || !ui.select || !ui.input || !ui.editor || !ui.confirm) {
+      say(ctx, "capture needs an interactive pi session (it is unavailable under -p / --mode json)", "error");
+      return;
+    }
+    const sm = ctx.sessionManager;
+    const result = await runCapture(skillDir, {
+      cwd: ctx.cwd,
+      ui: {
+        select: ui.select.bind(ui),
+        input: ui.input.bind(ui),
+        editor: ui.editor.bind(ui),
+        confirm: ui.confirm.bind(ui),
+        say: (m) => say(ctx, m)
+      },
+      sessionEntries: () => sm.getBranch(),
+      sessionPath: () => sm.getSessionPath?.() ?? "",
+      isStreaming: () => ctx.isStreaming?.() ?? false,
+      homeDir: homedir2(),
+      now: nowIso,
+      runOnly: async (dir, scenarioId) => {
+        const card = await runViaExtension({
+          skillDir: dir,
+          only: [scenarioId],
+          adapter,
+          timestamp: nowIso(),
+          log: (m) => {
+            if (ctx.hasUI) ctx.ui.setStatus?.("skill-harness", m);
+          }
+        });
+        return card.scenarios.map((s) => `  ${s.id}: ${s.suspect ? "?" : s.verdict}`).join("\n");
+      }
+    });
+    if (result.status !== "cancelled") say(ctx, `capture ${result.status}: ${result.capture?.id}`);
     return;
   }
   if (sub === "review") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const spec = loadSpec(join21(skillDir, "tests", "specification.yaml"));
+    const spec = loadSpec(join24(skillDir, "tests", "specification.yaml"));
     const handle = await serveReview({
       skillDir,
       skillName: spec.skill,
@@ -5109,7 +7386,7 @@ function registerTool(pi) {
 
 // packages/pi-extension/src/index.ts
 function index_default(pi) {
-  const assetsDir = join22(dirname6(fileURLToPath2(import.meta.url)), "..", "..", "..", "assets");
+  const assetsDir = join25(dirname9(fileURLToPath2(import.meta.url)), "..", "..", "..", "assets");
   registerCommand(pi, assetsDir);
   registerTool(pi);
   pi.on("session_shutdown", async () => {

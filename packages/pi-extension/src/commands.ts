@@ -1,9 +1,12 @@
 import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { loadSpec, regradeRun, readResults, parseModelRef, defaultJudge, assertJudgeAllowed, type HarnessAdapter } from "@skill-harness/core";
+import { homedir } from "node:os";
+import { dirname, join, resolve, relative } from "node:path";
+import { loadSpec, regradeRun, readResults, parseModelRef, defaultJudge, assertJudgeAllowed, type HarnessAdapter, type SessionEntry, computeCoverage, formatCoverage, selectAffected, formatAffected, gitDiff, exec,
+  resolveAdjudicationJudges, planAdjudication, formatAdjudicationPlan, adjudicateRun, judgeResemblesSubject, cellsFromResults } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview, type ServeHandle } from "@skill-harness/cli/serve";
 import { resolveSkillDir, runViaExtension } from "./runner.js";
+import { runCapture } from "./capture-cmd.js";
 
 /**
  * Minimal structural stand-in for `@earendil-works/pi-coding-agent`'s
@@ -28,10 +31,21 @@ export interface CmdCtx {
   ui: {
     notify(msg: string, level?: "info" | "warning" | "error"): void;
     setStatus?(key: string, msg: string): void;
+    /** Interactive primitives, present only in the TUI — `capture` requires them. */
+    select?(prompt: string, choices: string[]): Promise<number | null>;
+    input?(prompt: string, initial?: string): Promise<string | null>;
+    editor?(prompt: string, initial: string): Promise<string | null>;
+    confirm?(prompt: string): Promise<boolean>;
   };
+  /** Present in a real pi session; absent under `-p`/json, where capture is refused. */
+  sessionManager?: {
+    getBranch(): unknown[];
+    getSessionPath?(): string;
+  };
+  isStreaming?(): boolean;
 }
 
-const USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] | review [skill]";
+const USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m] | review [skill] | capture [skill] | coverage [skill] | affected [skill] [--base ref]";
 
 /** Minimal arg tokenizer: subcommand + positional args + `--key value` flags. A flag with no following value (or one followed by another `--flag`) is left unset, so callers' `?? default` fallbacks apply. */
 function parse(argstr: string): { sub: string; positional: string[]; flags: Record<string, string> } {
@@ -99,11 +113,11 @@ export async function handleSkillCheck(
   if (sub === "judge") {
     const runDir = resolve(ctx.cwd, positional[0] ?? ".");
     // derive the spec from the RUN DIR's own skill (results are at <skillDir>/tests/results/<tag>/<ts>/),
-    // mirroring cmdGrade (cli.ts:183) — NOT from cwd, which could be a different skill.
+    // mirroring cmdGrade in cli.ts — NOT from cwd, which could be a different skill.
     const testsDir = dirname(dirname(dirname(runDir))); // <skillDir>/tests
     const spec = loadSpec(join(testsDir, "specification.yaml"));
     // Re-judge with the run's RECORDED judge + harness (parity with cmdGrade,
-    // cli.ts:186-192 — M6's whole premise is CLI/extension parity); an
+    // the same block in cli.ts's cmdGrade — M6's whole premise is CLI/extension parity); an
     // explicit --judge flag still wins, and a run with no prior results.yaml
     // falls back to the default judge.
     const prev = existsSync(join(runDir, "results.yaml")) ? readResults(runDir) : null;
@@ -111,11 +125,147 @@ export async function handleSkillCheck(
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge",
     });
+    const resolvedAdapter = adapter ?? getAdapter(prev?.harness ?? "pi");
     const results = await regradeRun({
-      runDir, spec, adapter: adapter ?? getAdapter(prev?.harness ?? "pi"),
+      runDir, spec, adapter: resolvedAdapter,
       judge, specDir: testsDir, now: nowIso,
     });
     say(ctx, `re-judged ${runDir}: ${results.effective_grade.letter} (${results.effective_grade.pct}%)`);
+
+    // Adjudication, at full parity with `skill-harness grade --auto-rejudge`.
+    // Off unless the flag is typed; a spec cannot switch it on.
+    const judges = resolveAdjudicationJudges({
+      enabled: flags["auto-rejudge"] !== undefined && flags["auto-rejudge"] !== "false",
+      primary: judge,
+      secondaryToken: flags["secondary-judge"] || undefined,
+      tieBreakToken: flags["tie-break-judge"] || undefined,
+      subjectToken: results.model,
+      parseRef: parseModelRef,
+      assertAllowed: (j, source) => assertJudgeAllowed(j, { source }),
+      resemblesSubject: judgeResemblesSubject,
+      warn: (m) => say(ctx, m, "warning"),
+    });
+    if (!judges) return;
+
+    const plan = planAdjudication({
+      // Same construction as the executor, so the dialog's ceiling is the real one.
+      cells: cellsFromResults(runDir, results),
+      scenarios: spec.scenarios,
+      shipBar: spec.ship_bar,
+      critical: spec.critical,
+      tieBreakAvailable: judges.tieBreak !== undefined,
+    });
+
+    // Disclosed before any extra call, in both modes. Counts, never dollars —
+    // the default judge is a subscription and reports no per-call usage.
+    say(ctx, formatAdjudicationPlan(plan, judges));
+    if (plan.triggered.length === 0) return;
+
+    // Interactive: a dialog. Non-interactive (`-p` / `--mode json`, where there is
+    // no dialog): typing `--auto-rejudge` IS the authorization, exactly as it is on
+    // the CLI. Said out loud so the consent path is visible in the transcript
+    // rather than inferred.
+    if (ctx.ui.confirm) {
+      const ok = await ctx.ui.confirm(
+        `adjudicate ${plan.triggered.length} cell(s)? up to ${plan.maxAdditionalCalls} additional judge call(s)`,
+      );
+      if (!ok) {
+        say(ctx, "cancelled — nothing spent");
+        return;
+      }
+    } else {
+      say(ctx, "  (no confirm dialog here — `--auto-rejudge` is the authorization)");
+    }
+
+    const adjudicated = await adjudicateRun({
+      runDir, spec, adapter: resolvedAdapter, results,
+      primaryJudge: judge,
+      secondaryJudge: judges.secondary,
+      tieBreakJudge: judges.tieBreak,
+      specDir: testsDir, now: nowIso,
+      log: (m) => say(ctx, m),
+    });
+    const ag = adjudicated.effective_grade;
+    say(ctx, `adjudicated → ${ag.letter} (${ag.pct}%) ${ag.ship ? "SHIP" : "NOT READY"}`, ag.ship ? "info" : "warning");
+    return;
+  }
+
+  if (sub === "coverage") {
+    const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
+    const specPath = join(skillDir, "tests", "specification.yaml");
+    const spec = loadSpec(specPath);
+    const specDir = dirname(specPath);
+    const report = computeCoverage({
+      specDir,
+      scenarios: spec.scenarios,
+      baseFiles: [relative(specDir, join(skillDir, "SKILL.md")).split("\\").join("/")],
+    });
+    say(ctx, formatCoverage(report, spec.skill), report.broken.length ? "warning" : "info");
+    return;
+  }
+
+  if (sub === "affected") {
+    const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
+    const specPath = join(skillDir, "tests", "specification.yaml");
+    const spec = loadSpec(specPath);
+    const base = flags.base || "HEAD";
+    const rev = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: dirname(specPath), timeoutMs: 30_000 });
+    if (rev.code !== 0) {
+      say(ctx, "affected needs a git repository to diff against", "error");
+      return;
+    }
+    const repoRoot = rev.stdout.trim();
+    const result = selectAffected({
+      scenarios: spec.scenarios,
+      specDir: dirname(specPath),
+      diff: await gitDiff(repoRoot, base),
+      repoRoot,
+    });
+    say(ctx, formatAffected(result, spec.scenarios.length));
+    // Deliberately reports and stops. Spending is a separate, explicit act:
+    // `skill-harness run <skill> --only <ids>` (the CLI — the extension's `run` has no `--only`) with the list above.
+    return;
+  }
+
+  if (sub === "capture") {
+    const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
+    const ui = ctx.ui;
+    // Capture is a conversation with the author: without the interactive
+    // primitives there is no preview step, and preview-before-write is the
+    // control that keeps a secret out of a committed file.
+    if (!ctx.sessionManager || !ui.select || !ui.input || !ui.editor || !ui.confirm) {
+      say(ctx, "capture needs an interactive pi session (it is unavailable under -p / --mode json)", "error");
+      return;
+    }
+    const sm = ctx.sessionManager;
+    const result = await runCapture(skillDir, {
+      cwd: ctx.cwd,
+      ui: {
+        select: ui.select.bind(ui),
+        input: ui.input.bind(ui),
+        editor: ui.editor.bind(ui),
+        confirm: ui.confirm.bind(ui),
+        say: (m) => say(ctx, m),
+      },
+      sessionEntries: () => sm.getBranch() as SessionEntry[],
+      sessionPath: () => sm.getSessionPath?.() ?? "",
+      isStreaming: () => ctx.isStreaming?.() ?? false,
+      homeDir: homedir(),
+      now: nowIso,
+      runOnly: async (dir, scenarioId) => {
+        const card = await runViaExtension({
+          skillDir: dir,
+          only: [scenarioId],
+          adapter,
+          timestamp: nowIso(),
+          log: (m) => { if (ctx.hasUI) ctx.ui.setStatus?.("skill-harness", m); },
+        });
+        // Deliberately no grade line: a --only run is partial and cannot ship-grade,
+        // so printing a letter here would invite reading it as one.
+        return card.scenarios.map((s) => `  ${s.id}: ${s.suspect ? "?" : s.verdict}`).join("\n");
+      },
+    });
+    if (result.status !== "cancelled") say(ctx, `capture ${result.status}: ${result.capture?.id}`);
     return;
   }
 

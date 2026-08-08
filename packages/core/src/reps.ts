@@ -1,11 +1,33 @@
 import type { Verdict } from "./score.js";
-import type { ScenarioResult } from "./results.js";
+import type { ScenarioResult, ObjectiveResult } from "./results.js";
 
 /** One rep's outcome (subject run + judge). */
 export interface RepOutcome {
   verdict: Verdict;
   reason: string;
   suspect: boolean;
+  /** Present only when the scenario declared `assert.trace`. */
+  objective?: ObjectiveResult;
+}
+
+/**
+ * Collapse per-rep objective results.
+ *
+ * Strict on purpose, and deliberately NOT the same policy as the judge's
+ * pass-threshold aggregation: an objective assertion is a statement about what
+ * the model DID, so one rep that called a forbidden tool is a real finding, not
+ * a minority draw to be voted away. ERROR dominates (missing evidence is never a
+ * pass), then FAIL, then PASS. The retained assertion detail comes from the
+ * first non-passing rep, since that is the one worth reading.
+ */
+export function aggregateObjective(outcomes: RepOutcome[]): ObjectiveResult | undefined {
+  const present = outcomes.map((o) => o.objective).filter((o): o is ObjectiveResult => o !== undefined);
+  if (present.length === 0) return undefined;
+  const errored = present.find((o) => o.status === "ERROR");
+  if (errored) return errored;
+  const failed = present.find((o) => o.status === "FAIL");
+  if (failed) return failed;
+  return present[0];
 }
 
 /** A scenario's aggregated result over N reps. */
@@ -56,14 +78,18 @@ export function aggregateReps(outcomes: RepOutcome[], threshold: number): RepAgg
  * caller to merge.
  */
 export function outcomesToResult(id: string, outcomes: RepOutcome[], repCount: number, threshold: number): ScenarioResult {
+  // Spread rather than always-set: a scenario with no trace assertions must
+  // produce a result byte-identical to one from before this field existed.
+  const objective = aggregateObjective(outcomes);
+  const objectiveField = objective ? { objective } : {};
   if (repCount === 1) {
     const o = outcomes[0];
-    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, override: null, note: "" };
+    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, override: null, note: "", ...objectiveField };
   }
   const agg = aggregateReps(outcomes, threshold);
   return {
     id, judge_verdict: agg.verdict, judge_reason: agg.reason, suspect: agg.suspect,
     reps: agg.reps, passes: agg.passes, clean: agg.clean, flakiness: agg.flakiness,
-    pass_threshold: threshold, override: null, note: "",
+    pass_threshold: threshold, override: null, note: "", ...objectiveField,
   };
 }

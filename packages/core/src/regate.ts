@@ -4,10 +4,13 @@ import type { Spec, Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
 import { parseVerdict, detectMisfire } from "./grade.js";
 import { evaluateNeedleGates, hasNeedleGates } from "./seeded.js";
+import { evaluateTraceGates } from "./trace-gates.js";
+import { mergeTraces, deserializeTrace } from "./execution-trace.js";
 import { judgeOneRep } from "./regrade.js";
 import {
   readResults, writeResults, diffPath, transcriptPath, judgeRawPath, repIndexOf,
-  findDiffFiles, effectiveThreshold, scoreContextFor,
+  findDiffFiles, findTraceFiles, tracePath, type ObjectiveResult, effectiveThreshold, scoreContextFor,
+  rebuildScenarioResult,
   type ResultsFile, type ScenarioResult,
 } from "./results.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
@@ -122,7 +125,9 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
   const targets: Scenario[] = [];
   for (const rec of prev.scenarios) {
     const s = specById.get(rec.id);
-    if (!s || !hasNeedleGates(s)) continue; // nothing for regate to re-decide
+    const needles = hasNeedleGates(s ?? ({} as Scenario));
+    const traceGated = Boolean(s?.traceAssert);
+    if (!s || (!needles && !traceGated)) continue; // nothing for regate to re-decide
     if (s.assert?.vitest || s.assert?.post_test) {
       blocked.push(
         `${s.id}: declares ${s.assert.vitest ? "assert.vitest" : "assert.post_test"}, which needs the workspace — ` +
@@ -130,8 +135,18 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
       );
       continue;
     }
-    if (findDiffFiles(opts.runDir, s.id, mode).length === 0) {
+    if (needles && findDiffFiles(opts.runDir, s.id, mode).length === 0) {
       blocked.push(`${s.id}: no staged-diff artifact on disk (\`.diff.txt\` is gitignored — regate needs the run dir that produced it)`);
+      continue;
+    }
+    // A trace gate is only re-decidable from a saved trace. A run recorded before
+    // traces existed has none, and saying so is the whole point — pretending
+    // regate can answer would report a verdict derived from no evidence.
+    if (traceGated && findTraceFiles(opts.runDir, s.id, mode).length === 0) {
+      blocked.push(
+        `${s.id}: declares assert.trace but this run saved no \`.trace.jsonl\` artifact ` +
+          `(it predates trace capture, or the trace was not persisted) — it needs a re-run`,
+      );
       continue;
     }
     targets.push(s);
@@ -140,7 +155,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
   if (targets.length === 0) {
     throw new Error(
       `nothing to regate in ${opts.runDir}` +
-        (blocked.length > 0 ? `:\n  ${blocked.join("\n  ")}` : " — no scenario declares diff_contains/diff_excludes"),
+        (blocked.length > 0 ? `:\n  ${blocked.join("\n  ")}` : " — no scenario declares diff_contains/diff_excludes or assert.trace"),
     );
   }
 
@@ -156,19 +171,69 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
     }
 
     const diffFiles = findDiffFiles(opts.runDir, scenario.id, mode);
+    const traceFiles = findTraceFiles(opts.runDir, scenario.id, mode);
+    // Reps come from whichever artifact this scenario actually has. A trace-only
+    // scenario has no `.diff.txt` at all, so iterating diffs would silently
+    // regate nothing and report success.
+    const repKeys = diffFiles.length > 0
+      ? diffFiles.map((f) => ({ rep: repIndexOf(f) ?? undefined, diffFile: f as string | undefined }))
+      : traceFiles.map((f) => ({ rep: repIndexOf(f) ?? undefined, diffFile: undefined }));
     const outcomes: RepOutcome[] = [];
     // Per scenario, not run-wide: with several regated scenarios, a global counter
     // would report every change as "re-judged" because some other scenario was.
     let judgedHere = 0;
     let gateFailedHere = false;
-    for (const file of diffFiles) {
-      const rep = repIndexOf(file) ?? undefined;
-      const diff = readFileSync(join(opts.runDir, file), "utf8");
-      const gate = evaluateNeedleGates(scenario, diff);
+    for (const { rep, diffFile } of repKeys) {
+      const diff = diffFile ? readFileSync(join(opts.runDir, diffFile), "utf8") : "";
+      const needleGate = diffFile ? evaluateNeedleGates(scenario, diff) : { lines: [] as string[], failure: null as string | null };
+
+      // Trace gate, re-decided from the saved trace. Free: no model, no judge.
+      let traceFailure: string | null = null;
+      let objective: ObjectiveResult | undefined;
+      if (scenario.traceAssert) {
+        const tp = tracePath(opts.runDir, scenario.id, mode, rep);
+        // A PARTIAL read is refused, not graded. `deserializeTrace` returns null
+        // for a malformed line and for a version it declines, and dropping those
+        // silently graded whatever survived: a 3-turn trace with a torn middle
+        // line reported `forbid_calls: [bash] → PASS` when the lost turn was the
+        // one that called bash. The write side already refuses an incomplete
+        // stream (`pi.ts` throws on no terminal event) precisely so "called
+        // nothing" and "recorded nothing" cannot look the same; the read side
+        // has to hold the same line.
+        const lines = existsSync(tp)
+          ? readFileSync(tp, "utf8").split("\n").filter((l) => l.trim())
+          : [];
+        const parsed = lines.map((l) => deserializeTrace(l));
+        const usable = parsed.filter((t): t is NonNullable<typeof t> => t !== null);
+        const merged = usable.length === lines.length ? mergeTraces(usable) : null;
+        if (merged === null) {
+          traceFailure =
+            usable.length === lines.length
+              ? "objective: saved trace is missing or unreadable — cannot re-evaluate assert.trace"
+              : `objective: saved trace is incomplete (${usable.length}/${lines.length} turns readable) — cannot re-evaluate assert.trace`;
+          objective = { status: "ERROR", assertions: [] };
+        } else {
+          const g = evaluateTraceGates(scenario.traceAssert, merged);
+          objective = { status: g.status, trace_version: merged.trace_version, trace_sha256: merged.trace_sha256, assertions: g.assertions };
+          if (g.status === "FAIL" || g.status === "ERROR") {
+            const bad = g.assertions.filter((x) => x.status === g.status).map((x) => x.detail);
+            traceFailure = `objective: ${bad.join("; ")}`;
+          }
+        }
+      }
+
+      const gate = { lines: needleGate.lines, failure: needleGate.failure ?? traceFailure };
 
       const tPath = transcriptPath(opts.runDir, scenario.id, mode, rep);
       const before = existsSync(tPath) ? readFileSync(tPath, "utf8") : "";
-      const oldGateFailed = GATE_FAILED_RE.test(before.slice(before.indexOf(TRAILER)));
+      // Two sources, because the two gate kinds record their prior state
+      // differently: a seeded needle gate leaves a trailer in the transcript, a
+      // trace gate leaves an `objective` block on the result. Reading only the
+      // trailer meant a trace gate flipping to PASS never triggered the re-judge
+      // it needs, leaving a stale FAIL verdict beside a PASS objective.
+      const oldObjectiveFailed = rec.objective?.status === "FAIL" || rec.objective?.status === "ERROR";
+      const oldGateFailed =
+        GATE_FAILED_RE.test(before.slice(before.indexOf(TRAILER))) || oldObjectiveFailed;
 
       // The trailer is regenerated whatever the outcome: leaving a stale
       // `MISSING` note beside a corrected verdict would misinform the next reader
@@ -177,23 +242,23 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
 
       if (gate.failure) {
         gateFailedHere = true;
-        outcomes.push({ verdict: "FAIL", reason: gate.failure, suspect: false });
+        outcomes.push({ verdict: "FAIL", reason: gate.failure, suspect: false, objective });
         continue;
       }
       if (!oldGateFailed) {
         // The judge already saw this rep. Its verdict is on disk — re-read it rather
         // than paying to ask the same question again.
         const saved = verdictFromSavedJudgement(opts.runDir, scenario.id, mode, rep);
-        outcomes.push(saved ?? { verdict: rec.judge_verdict, reason: rec.judge_reason, suspect: rec.suspect });
+        outcomes.push({ ...(saved ?? { verdict: rec.judge_verdict, reason: rec.judge_reason, suspect: rec.suspect }), objective });
         continue;
       }
       // The gate blocked this rep before, so no judgement of it exists anywhere.
       const transcript = readFileSync(tPath, "utf8");
-      outcomes.push(await judgeOneRep({
+      outcomes.push({ ...(await judgeOneRep({
         runDir: opts.runDir, spec: opts.spec, scenario, transcript,
         adapter: opts.adapter, judge: opts.judge, specDir: opts.specDir,
         mode, rep, now,
-      }));
+      })), objective });
       judgeCalls++;
       judgedHere++;
     }
@@ -202,7 +267,10 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
     const next = outcomesToResult(scenario.id, outcomes, outcomes.length, threshold);
     // Overrides and their notes survive: a regate re-decides the gate, and an author
     // override is a statement about the judge, not about the needle.
-    scenarios.push({ ...next, override: rec.override, note: rec.note });
+    // `regate` re-evaluates gates from saved artifacts and asks no judge anything:
+    // `objective` is freshly recomputed above, and the recorded judge panel still
+    // describes the current judgments.
+    scenarios.push(rebuildScenarioResult(next, rec, { objective: "fresh", adjudication: "carry" }));
 
     const to = next.judge_verdict;
     if (to !== rec.judge_verdict) {

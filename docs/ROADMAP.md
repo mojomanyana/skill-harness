@@ -372,6 +372,275 @@ Released as **0.6.0** (2026-08-06). One item, optional in priority, high in valu
       mean "perfectly stable" — mixed polarity in one line of output is a footgun.
       - Post: `docs/posts/2026-08-06-flakiness-zero-is-not-stability.md`
 
+### Sprint 1.7 — pi-native feedback loop (owner decision 2026-08-08)
+
+Plan: `docs/superpowers/plans/2026-08-07-pi-native-regression-capture-program.md`.
+Five pi-only capabilities as one incremental program: live conversation capture,
+objective execution traces, subagent orchestration tests, instruction
+coverage/affected-test selection, and confidence-aware rejudging.
+
+**Placement is deliberate, and it is a reprioritization.** This sits ahead of the
+unstarted Phase 2 launch work, at the owner's explicit call on 2026-08-08. The
+argument for going first: the north star in Sprint 1.4 is measurement the engineer
+never has to second-guess, and Phase 2's growth product is a *findings* post — a
+findings post backed by objective trace gates and confidence-aware judging is a
+materially stronger artifact than one backed by a single LLM judge over prose.
+The cost is real and should not be dressed up: launch slips by the length of this
+program, and Phase 2's metrics stay at baseline meanwhile.
+
+Sequencing rules carried from the plan: **one phase at a time**, separate minor
+releases per user-facing feature rather than one big drop, and pending captures
+never enter `specification.yaml` before a human promotes them.
+
+- [x] **Phase 0 — feasibility spike** (2026-08-08). Validated pi 0.83.0's JSON
+      event contract against offline fixtures before touching the adapter, and
+      found four things the plan had wrong. Design record:
+      `docs/pi-native-capture-design-2026-08-08.md`; fixtures + provenance:
+      `packages/adapters/test/fixtures/pi-json/`. Whole spike cost **$0.0035** in
+      subject tokens; the extension-isolation proof cost nothing at all.
+      - **The plan's transcript rule would have moved verdicts.** §4.2 said a
+        trace carries "assistant text blocks excluding thinking"; print mode —
+        what today's adapter actually shows the judge — emits only the **final**
+        assistant message. Models emit text alongside tool calls, so the plan's
+        rule would have fed the judge interim narration the transcript has never
+        contained, on scenarios nobody edited. Proven byte-exact both ways on a
+        deterministic prompt. Same class of silent epoch as
+        `docs/force-epoch-2026-08-06.md`.
+      - **The stream is quadratic.** `message_update` re-sends the entire
+        accumulated message per delta: a three-tool-call run emitted **52 MB** of
+        stdout wrapping 12 KB of terminal events. The JSON path must stream-parse
+        and cannot reuse the buffering `exec()` helper — a memory bug that would
+        have surfaced mid-wave on a long scenario, not in a unit test.
+      - **Parallel tool calls complete out of order.** pi runs batched calls
+        concurrently; ends arrive in completion order, not issue order.
+        `toolCallId` is the only sound correlation key. `gpt-oss-20b` can't
+        produce the shape at all (one call per round trip), so that fixture is
+        pinned to `deepseek-v4-flash`.
+      - **Extension isolation confirmed, stronger than assumed.**
+        `--no-extensions --extension <path>` loads exactly the declared extension
+        even under `-a` project-local trust. Tested via load-time stderr markers
+        for **zero** model spend, since extensions load during `--help`.
+      - Also: pi's `turn` is a round trip, not a user turn (the plan overloads the
+        word); `session.cwd` and tool-error strings leak absolute paths; thinking
+        appears in three separate events, so dropping it is three explicit filters;
+        a tool's `details` survives verbatim and is the one stable structured
+        channel for subagent normalizers.
+      - `CaptureCaseV1` / `ExecutionTraceV1` fixed as types-only in
+        `packages/core/src/capture-trace-types.ts` — no behavior, nothing wired in.
+      - No post: a spike ships no user-facing feature. Rule 2 attaches from Phase 1.
+- [x] **Phase 1 — `/skill-harness capture`** (2026-08-08). Turns the live conversation
+      into a reviewable regression case: active-branch projection, contiguous turn
+      selection, human-confirmed target, offline checklist draft, full preview, then
+      save-pending or promote. Zero model calls; the optional single-scenario run is
+      the only spend and it names the cost first.
+      - **A pending capture is not in `specification.yaml`.** It lives in
+        `<skill>/tests/captures/`. The `draft: true` alternative would have to be
+        honored by every runner, scorer, linter, staleness check, lift computation
+        and stability walker — forgotten once in either direction it either drags a
+        ship grade down or drops a real scenario from a release run.
+      - **Only user turns are committed.** Assistant prose is evidence for the human
+        writing the expectation, never an oracle; it goes to a git-ignored sidecar.
+      - **Redaction is the load-bearing part**, since captures get committed:
+        thinking dropped at all three events pi emits it in, tool-result bodies never
+        persisted (only name/isError/bytes/sha — a failing `read` embeds an absolute
+        path in its error string), home dirs → `~`, secrets by shape and by key name,
+        session path hashed. The preview step is the control, not a courtesy.
+      - **Bug caught by its own test:** the promotion path hashed the spec
+        immediately before appending, so the concurrent-edit guard covered
+        microseconds instead of the minutes the interview actually takes. Baseline is
+        now taken before the first question.
+      - `spec-write.ts` is now the single validated atomic writer; `add-test` was
+        refactored onto it so the two paths cannot disagree about a legal spec write.
+      - Post: `docs/posts/2026-08-08-promote-a-conversation-to-a-regression.md`
+- [x] **Phase 2 — structured traces + objective `assert.trace` gates** (2026-08-08).
+      Declarative assertions over what the model DID, evaluated before the judge:
+      `require_calls` (with min/max and argument predicates), `forbid_calls`,
+      `unchanged_paths`. Valid on inline and seeded scenarios alike.
+      - **A failed gate costs zero judge calls** — the ordering is the feature, and
+        there is a test whose whole job is counting them.
+      - **Missing evidence is ERROR, never a pass.** An adapter that cannot trace, a
+        structured run yielding no trace, an unreadable saved trace: all ERROR. A
+        result with no `objective` field means *not declared*, never *passed* — the
+        one collapse that would silently upgrade the whole legacy corpus.
+      - **The DSL is closed.** Seven comparison operators, no expressions, no
+        callbacks. A spec arrives from a repository; giving it a code path would make
+        "add a test" and "run arbitrary code in CI" the same act. Unknown keys are
+        rejected rather than ignored — a silently-dropped `forbid_call` reads in
+        review as protection while asserting nothing.
+      - `assert.trace` is bucketed as a **gate** facet, so lint names `regate` (free)
+        as the remedy — and `regate` was extended to honour it, reading saved
+        `.trace.jsonl` artifacts. A run predating trace capture is refused with "needs
+        a re-run" rather than answered from no evidence.
+      - **Bug caught while wiring regate:** prior-gate state was read only from the
+        seeded transcript trailer, which trace-gated inline scenarios do not have, so
+        a gate flipping to PASS never triggered the re-judge it needed — leaving a
+        stale FAIL verdict beside a PASS objective.
+      - Existing scenarios keep their execution path. `runStructured` is opt-in per
+        scenario; transcript parity is proven but proven on a handful of fixtures,
+        which does not justify silently re-running a published corpus.
+      - Post: `docs/posts/2026-08-08-assert-the-trace-not-the-story.md`
+- [x] **Phase 3 — first-class subagent orchestration tests** (2026-08-08). Makes the
+      PARENT testable, not just the subagent prompt `system_prompt_file` already
+      covered. Three layers, graded separately: **selection** (did it delegate, to
+      the right agent) and **handoff** (did the task carry required context, and
+      withhold forbidden content) are objective; **integration** (did the final
+      answer use the child's report) stays with the checklist judge, because
+      pretending that is objective would be this tool's whole failure mode. A
+      scenario can pass the first two and fail the third — there is a test for it.
+      - **`env.extensions` is closed loading**, not additive: `--no-extensions` plus
+        one `--extension` per declared path, so nothing the developer happens to have
+        installed joins the test. A missing declared extension is a hard error before
+        pi is spawned — pi would otherwise start fine, the tool simply wouldn't
+        exist, and the scenario would grade a model that never had the option.
+      - **Extensions are STIMULUS; assertions are GATES.** Editing an assertion
+        changes only what we conclude from evidence on disk (`regate`, free); editing
+        an extension changes what the model could DO, so only a re-run can answer.
+        Extension *contents* are hashed, so editing your subagent tool marks results
+        stale without a character of the spec changing.
+      - **Nothing assumes a universal subagent extension.** Normalizers cover the
+        single/parallel/chain shapes and the spec declares the tool name; an
+        unrecognized shape yields nothing rather than a guess, because inventing an
+        `agent` field would be a confident assertion about something nobody wrote.
+        Unknown extensions still work via plain `require_calls`.
+      - `draftSubagentAssertion` can prepopulate `tool`/`agent`/`count` from a captured
+        delegation, but the capture command does not call it yet — `captureToScenario`
+        emits no gates. Reachable from the library, not from `/skill-harness capture`. It
+        deliberately never `task_contains` — the text that WAS sent is not the text
+        that is REQUIRED, and proposing it manufactures a brittle assertion the
+        author never reasoned about.
+      - Also closed the open Phase 2 lint gap: `env.extensions` paths are validated
+        statically, so a typo is a free CI failure rather than a graded absence.
+      - Post: `docs/posts/2026-08-08-testing-the-parent-not-just-the-subagent.md`
+- [x] **Phase 4 — instruction coverage + affected-test selection** (2026-08-08).
+      Two free, offline commands: `coverage <skill|all> [--strict]` and
+      `affected <skill> [--base ref]`, plus `run --affected` and pi-extension
+      subcommands. Scenarios opt in with `covers: ["../SKILL.md#core-principle"]`;
+      the unit is a Markdown heading section, because that is the unit authors
+      already write in.
+      - **It is called DECLARED coverage everywhere**, and the output says
+        "declared link, not proof". A coverage number read as proof is worse than
+        none: an author who believes 100% means done stops looking. `--strict` is
+        therefore opt-in — an uncovered section is information, not a defect, and a
+        gate on it teaches people to add a token `covers:` to silence it. A
+        *broken* reference does fail regardless, since that is a wrong statement in
+        the spec rather than a gap, and the finding names near-miss slugs because a
+        renamed heading is the usual cause.
+      - **Selection resolves every ambiguity toward MORE.** Under-inclusive is
+        dangerous (ship a regression); over-inclusive is merely expensive. So every
+        critical and B-series scenario always runs, a scenario with no `covers` is
+        always selected, changed fixture/post-test/agent-file/extension selects its
+        scenario, and a renamed-away file or a wholesale rewrite selects
+        everything. Every selection prints a reason — one you cannot interrogate is
+        one people stop trusting.
+      - Reuses the existing `--only` machinery, so an affected run inherits
+        partial/never-SHIP through the same code path rather than a parallel one.
+      - **`covers` is in NO staleness facet** — it is metadata. Editing it changes
+        what `--affected` selects next time, not what any past run measured;
+        charging a re-run for a label is the trap the facet split removed. The
+        exhaustive-destructure guard forced that decision to be written down.
+      - **Bug the unit tests missed:** YAML frontmatter closes with `---`, and the
+        line above a `---` is a Setext h2 per CommonMark — so every `SKILL.md` had a
+        phantom section named after its own `description:` line, sitting where a
+        whole-file `covers` would mark it covered. Nine passing heading tests, found
+        in ten seconds by running the command on a real skill.
+      - Post: `docs/posts/2026-08-08-which-instructions-have-no-test.md`
+- [x] **Phase 5 — confidence-aware automatic rejudging** (2026-08-08). Asks an
+      untrustworthy cell again instead of publishing it. Four triggers computed from
+      the COMPLETE first wave: `ambiguous`, `contradictory` (the misfire quarantine,
+      now with a remedy), `non_unanimous`, and `ship_deciding` — a counterfactual
+      against the **real scorer**, so min-pass/critical/B-series all move it and no
+      second copy of the ship rules can drift.
+      **Motivated by our own measurement**: 1 disagreement in 57 judgments (~2%), and
+      the one that mattered was `git-ops` A9 — a published FAIL that was a 1-in-7
+      minority draw, the difference between 93% and 100%.
+      - **Off by default, and spec configuration alone never authorizes a call.** The
+        only switch is `--auto-rejudge`; a test asserts a misfired cell costs exactly
+        zero extra calls without it. Preflight prints the exact ceiling first.
+      - **The preflight quotes CALL COUNTS, never dollars.** The default judge is a
+        Claude subscription and reports no per-call usage, so a dollar figure would be
+        invented — and invented numbers are this tool's cardinal sin. (Metered
+        reference, measured on the real corpus: ~760 in / ~130 out tokens per call ≈
+        $0.008 at Opus rates; 674 cells worst case ≈ $11.)
+      - **`unresolved` reuses the existing suspect gate** rather than adding a second
+        ship rule — two rules drift, one cannot.
+      - **A malformed answer is not a vote.** Consequence that fell out rather than
+        being designed: when the FIRST wave misfired it is not a clean vote either, so
+        a contradictory cell needs TWO fresh judgments to agree. A misfire cannot
+        confirm itself.
+      - Caps at 3 judgments, not configurable; adjudicates one documented rep rather
+        than the rep that would move the headline; human overrides survive untouched.
+      - **Bug caught by its own test:** the ship-deciding counterfactual cleared
+        `suspect` on only one side, so the baseline stayed blocked-by-suspect and
+        EVERY suspect cell reported as ship-deciding for the wrong reason.
+      - **Surfaced everywhere** (2026-08-08): review-UI cell markers `◉` (objective)
+        and `⚖` (adjudication) in the existing `⇄` pattern; a two-step
+        `POST /adjudicate` that prices before it charges; and pi-extension parity via
+        `/skill-harness judge --auto-rejudge`. The browser offers no tie-break judge
+        (choosing a third judge is a judge decision a UI cannot make honestly), so a
+        disagreement raised there stays unresolved and blocks SHIP; the extension does
+        accept one, since the author types it. Under `-p` the flag itself is the
+        authorization, said out loud so the consent path is visible.
+      - **Second bug, same feature:** `resolveAdjudicationJudges` took an
+        eagerly-parsed `subject` argument, so a run whose recorded model is not
+        `provider:model` threw before the `enabled` early-return — killing a regrade
+        that had not even asked for adjudication. Now takes a token, parses after the
+        check, and warns instead of failing when it is unreadable.
+      - Post: `docs/posts/2026-08-08-when-one-judge-is-not-enough.md`
+
+### Sprint 1.8 — Real-pi smoke coverage (2026-08-08)
+
+- [x] **`scripts/smoke-real-pi.sh`** — the three paths a fake adapter cannot reach:
+      `runStructured`'s spawn + streaming JSONL reader, the `--extension` argv the
+      harness passes to pi, and the live judge loop under `--auto-rejudge`. One
+      scenario covers all three; a single-scenario spec (min_pass == total) makes the
+      cell always `ship_deciding`, so adjudication is guaranteed to fire. Committed as
+      a hand-run script, never CI, and wired into `PUBLISHING.md` as a pre-publish step.
+      - **It immediately found a real bug**: `grade` silently dropped the `objective`
+        field from `results.yaml`, so a trace-gated scenario re-read as "no assertions
+        declared" — the dangerous direction — while 1,036 tests passed. `regate` had the
+        mirror-image bug for `adjudication`.
+        Fixed per command, because the correct contract differs: `grade` carries
+        `objective` (it does not re-evaluate gates) and drops `adjudication` (it replaced
+        those judgments); `regate` recomputes `objective` (that is its job) and carries
+        `adjudication` (it asks no judge anything); `rescore` carries both (it
+        re-measures nothing). `packages/core/test/field-roundtrip.test.ts` now covers
+        every writer × every optional field — the round-trip suite the plan asked for
+        and nobody had written.
+      - Also observed live, on the third run: the judge **disagreed with itself** on the
+        same transcript (#1 PASS, #2 FAIL) — a real instance of the ~2% variance Sprint
+        2.3 measured, and the `unresolved → suspect: true → blocks SHIP` path firing on
+        real data rather than a fixture.
+      - Asserts on artifacts, not exit codes: trace version and `pi_version` recorded,
+        the declared extension's `Agent` call present with the right agent, and no
+        thinking / home paths / tool-result bodies persisted — the privacy limits
+        verified against a real stream instead of a sanitized fixture.
+
+### Sprint 1.9 — One choke point for result rewrites (2026-08-08)
+
+- [x] **`rebuildScenarioResult` + an exhaustive-destructure guard on `ScenarioResult`.**
+      Four of this sprint's five bugs came from the same shape: a rewriter or an
+      argument that looked cheap. The `objective`/`adjudication` drops were the third
+      instance, and unlike the others they needed a paid smoke run to surface because
+      1,036 tests passed straight through them.
+      The `sources.ts` facet guard has caught this class at COMPILE time three times
+      for `Scenario`; ``ScenarioResult`` had no equivalent. Now it does: every rewriter
+      goes through one function that destructures every field, so adding one fails the
+      build until someone chooses `carry` / `fresh` / `drop`. Verified by adding a
+      probe field — `results.ts(517,9): Type '{ guardProbe?: string }' is not
+      assignable to type 'Record<string, never>'`, naming the field.
+      - The policy per command is now stated in code rather than implied by a spread:
+        `grade` carries `objective` and drops `adjudication`; `regate` recomputes
+        `objective` and carries `adjudication`; adjudication carries `objective` and
+        writes `adjudication` fresh; the review server's `/rejudge` shares `grade`'s.
+      - `override`/`note` are carried unconditionally and are deliberately NOT policy —
+        no command re-measures a human's judgement.
+      - A dropped field is OMITTED, never set to `undefined`, so a result with no
+        evidence still serialises byte-identically to one written before the field
+        existed.
+      - 21 tests in `field-roundtrip.test.ts`: every command × every field, the
+        dangerous direction (dropping `adjudication` + `suspect` would un-block a
+        blocked run), and a runtime backstop asserting no key escapes the known set.
+
 ## PHASE 2 — Launch & first 100 fans (weeks 5–10)
 
 **Goal:** exist in the heads of everyone who writes skills.
@@ -387,8 +656,32 @@ Released as **0.6.0** (2026-08-06). One item, optional in priority, high in valu
 - Metric: 100 stars. Key task: one pi maintainer acknowledges/tries it.
 
 ### Sprint 2.2 — Show HN + findings bomb
-- [ ] Findings post: "I ran N popular agent skills through an LLM-judged harness with
-      anti-gaming tripwires — X% fail under pressure" + interactive report link
+- [x] **Findings post — drafted 2026-08-08**:
+      `docs/posts/2026-08-08-ninety-three-percent-and-still-not-shipping.md`.
+      **The headline the data actually supports is not the one this line predicted.**
+      "X% fail under pressure" turned out to rest on 23 green / 11 force under-pressure
+      cells — 3 failures each — and dressing 3/11 up as "27% of skills fail under
+      pressure" would have been exactly the kind of number this project exists to
+      refuse. The defensible finding is stronger anyway: **91–94% pass, and only 7 of
+      21 green runs ship** (6 of 11 in force). Pass rate and ship bar disagree most of
+      the time, and the gap is 14 critical failures plus the pressure cluster.
+      - Paired lift, via the harness's own `collectLift` over 147 comparable cells:
+        **red 62% → skill-on 93%**, 48 gained vs 2 regressed. `plan` alone goes
+        36% → 89%. 12 mode-insensitive cells correctly excluded; 0 aggregation
+        mismatches (the whole corpus is `--reps 3`).
+      - Also reportable, and unexpected: **zero unresolved judge misfires** across all
+        166 committed runs — not because the judge never misfired, but because every
+        one was resolved before commit. The quarantine worked as a *process*. Plus 5
+        author overrides.
+      - `build` green 56% / 0-of-3 under pressure vs force 93% / 2-of-3 is the
+        green-delivery incident visible in committed data.
+      - **Scoped honestly**: these are the owner's own 7 skills, not popular
+        third-party ones — the 2026-08-04 survey found "popular AND pi-native AND
+        testable" is not currently a set that exists. The post says so in its own
+        "What this is not" section rather than in a footnote.
+      - Reproducible by anyone: `scripts/corpus-findings.mjs` and
+        `scripts/corpus-lift.mjs`, both free and offline over the public corpus.
+      - **Still owner-only:** the interactive report link, and actually posting it.
 - [ ] Show HN with the findings post (not a bare repo)
 - [ ] PRs/issues to 3+ tested skill repos with their reports attached (every tested
       author is a warm lead)

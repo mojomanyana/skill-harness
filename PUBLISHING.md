@@ -194,6 +194,32 @@ npm run build
 git status --short     # expect clean: a dirty tree here means uncommitted source
 ```
 
+## Smoke against real pi — before you publish
+
+`npm test` is 1,000+ tests against fixtures and fake adapters, which is exactly
+right for CI: fast, free, deterministic. But three code paths only exist when a
+real process is on the other end, and no fake can exercise them — the streaming
+JSONL reader in `runStructured`, the `--no-extensions --extension` argv the
+harness passes to pi, and the live judge loop under `--auto-rejudge`.
+
+```bash
+./scripts/smoke-real-pi.sh          # SPENDS TOKENS: ~2 subject calls + 1–2 judge calls
+```
+
+One scenario exercises all three and asserts on the artifacts, not just the exit
+code: trace version and `pi_version` recorded, the declared extension's `Agent`
+tool actually present, no thinking / home paths / tool-result bodies persisted,
+and adjudication having genuinely taken a second opinion.
+
+**Worth running even though the suite is green.** It caught `grade` silently
+dropping the `objective` field from `results.yaml` — a gated scenario reading as
+"no assertions declared" — while 1,036 tests passed. The round-trip suite
+(`packages/core/test/field-roundtrip.test.ts`) now covers that class, but the
+smoke run is what found it.
+
+A smoke run is **one draw on a cheap model, not a measurement**: its
+`results.yaml` is gitignored so a throwaway scorecard never lands in the repo.
+
 ## Publish, in dependency order
 
 Run from the **repo root** (npm workspaces `-w` flag, verified with npm 11.9.0 /

@@ -173,28 +173,56 @@ function walk(dir: string, prefix = ""): string[] {
  */
 function facets(s: Scenario): { stimulus: string; rubric: string; policy: string; gates: string | null } {
   const {
-    id, title, critical, mode, turns, checklist, fixture, assert,
-    workspace, remote, systemPromptFile, reps, passThreshold, ...restScenario
+    id, title, critical, mode, turns, checklist, fixture, assert, traceAssert,
+    workspace, remote, systemPromptFile, extensions, reps, passThreshold,
+    covers: _coversIsMetadata,
+    ...restScenario
   } = s;
   const _scenarioExhaustive: Record<string, never> = restScenario;
   void _scenarioExhaustive;
+  // `covers` is destructured into a discard on purpose, and this comment is the
+  // decision the guard demanded: it belongs to NO digest. It records which
+  // instruction sections a scenario is declared to exercise, which changes what
+  // `--affected` selects next time — not what any past run measured. Bucketing it
+  // anywhere would charge a re-run (or at best a re-score) for editing a label,
+  // which is the exact trap the facet split was built to remove.
+  void _coversIsMetadata;
 
   const { vitest, diff_contains, diff_excludes, post_test, ...restAssert } = assert ?? {};
   const _assertExhaustive: Record<string, never> = restAssert;
   void _assertExhaustive;
 
-  const hasGates = diff_contains !== undefined || diff_excludes !== undefined;
+  // `traceAssert` is a GATE, not stimulus: it is evaluated against a trace the run
+  // already saved, so `regate` (free) can re-answer it without re-running the model.
+  // Note the asymmetry with `env.extensions` in Phase 3, which IS stimulus — one
+  // changes what gets executed, the other only what we conclude from it.
+  const hasGates = diff_contains !== undefined || diff_excludes !== undefined || traceAssert !== undefined;
   return {
     // `vitest` and the `post_test` PATH are stimulus, not gates: both change what the
     // run executes in the workspace, and neither can be re-evaluated from a saved
     // diff. (`post_test`'s CONTENTS get their own file-path key, hashed separately.)
+    // `extensions` is STIMULUS, not a gate — note the asymmetry with `traceAssert`
+    // below. Changing which extensions load changes what the model can DO, so the
+    // old transcripts describe a different agent and only a re-run can answer.
+    // Changing an assertion only changes what we conclude from evidence already on
+    // disk, which `regate` can redo for free.
+    // APPENDED CONDITIONALLY, never as a fixed slot. This tuple is positional and
+    // its hash is stored in every published results.yaml, so adding an
+    // unconditional element re-hashes every scenario that never used the field —
+    // measured: 62 real lint findings became 261 across the reference corpus, all of
+    // them demanding paid re-runs for scenarios nobody had edited.
     stimulus: JSON.stringify([
       id, mode, turns, workspace, remote, systemPromptFile ?? null,
       fixture ?? null, vitest ?? null, post_test ?? null,
+      ...(extensions ? [extensions] : []),
     ]),
     rubric: JSON.stringify([id, title, checklist]),
     policy: JSON.stringify([id, critical, reps ?? null, passThreshold ?? null]),
-    gates: hasGates ? JSON.stringify([id, diff_contains ?? null, diff_excludes ?? null]) : null,
+    // Same rule as `stimulus` above: conditional, so a needle-gated scenario that
+    // declares no trace assertions keeps the digest it was published with.
+    gates: hasGates
+      ? JSON.stringify([id, diff_contains ?? null, diff_excludes ?? null, ...(traceAssert ? [traceAssert] : [])])
+      : null,
   };
 }
 
@@ -316,6 +344,15 @@ export function sourceHashes(ctx: SourceContext): Record<string, string> {
 
     if (s.systemPromptFile && !(s.systemPromptFile in hashes)) {
       hashes[s.systemPromptFile] = fileSha256(resolve(ctx.specDir, s.systemPromptFile)) ?? UNREADABLE;
+    }
+
+    // Extension CONTENTS, not just the paths the stimulus digest already covers.
+    // An orchestration scenario's subagent tool lives in these files: editing one
+    // changes what the model could do without changing a single character of the
+    // spec, which is precisely the drift the staleness gate exists to catch.
+    for (const ext of s.extensions ?? []) {
+      if (ext in hashes) continue;
+      hashes[ext] = fileSha256(resolve(ctx.specDir, ext)) ?? UNREADABLE;
     }
 
     // The post-test IS the gate on a post_test scenario, and it lives outside the
@@ -459,6 +496,7 @@ export function scenarioSourceKeys(s: Scenario): string[] {
   ];
   if (gatesDigest(s) !== null) keys.push(GATES_PREFIX + s.id);
   if (s.systemPromptFile) keys.push(s.systemPromptFile); // the agent file IS the stimulus
+  for (const ext of s.extensions ?? []) keys.push(ext); // an edited extension is new stimulus
   if (s.assert?.post_test) keys.push(s.assert.post_test); // its contents are the gate
   const fx = effectiveFixture(s);
   if (fx) keys.push(FIXTURE_PREFIX + fx);
