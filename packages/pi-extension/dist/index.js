@@ -1,10 +1,11 @@
 // packages/pi-extension/src/index.ts
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname as dirname6, join as join22 } from "node:path";
+import { dirname as dirname7, join as join24 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
-import { existsSync as existsSync17 } from "node:fs";
-import { dirname as dirname5, join as join21, resolve as resolve9 } from "node:path";
+import { existsSync as existsSync18 } from "node:fs";
+import { homedir } from "node:os";
+import { dirname as dirname6, join as join23, resolve as resolve9 } from "node:path";
 
 // packages/core/dist/spec.js
 import { readFileSync } from "node:fs";
@@ -4526,14 +4527,282 @@ function assertJudgeAllowed(judge, opts) {
 import { existsSync as existsSync13, readFileSync as readFileSync9, renameSync, writeFileSync as writeFileSync4 } from "node:fs";
 import { join as join17 } from "node:path";
 
+// packages/core/dist/capture-trace-types.js
+var CAPTURE_SCHEMA_VERSION = 1;
+
+// packages/core/dist/spec-write.js
+import { createHash as createHash2 } from "node:crypto";
+import { readFileSync as readFileSync10, renameSync as renameSync2, unlinkSync, writeFileSync as writeFileSync5 } from "node:fs";
+import { dirname as dirname3, join as join18 } from "node:path";
+var ConcurrentSpecModification = class extends Error {
+  constructor(specPath) {
+    super(`${specPath} changed on disk since it was read \u2014 refusing to append. Re-read the spec and retry; appending now would validate against a file that no longer exists.`);
+    this.name = "ConcurrentSpecModification";
+  }
+};
+var DuplicateScenarioId = class extends Error {
+  constructor(id, specPath) {
+    super(`scenario id \`${id}\` already exists in ${specPath}`);
+    this.name = "DuplicateScenarioId";
+  }
+};
+function specSha256(text) {
+  return createHash2("sha256").update(text, "utf8").digest("hex");
+}
+function renderScenarioBlock(scenario) {
+  const dumped = index_vite_proxy_tmp_default.dump({ scenarios: [scenario] }, { lineWidth: -1, noRefs: true });
+  return "\n" + dumped.replace(/^scenarios:\n/, "");
+}
+function appendScenario(opts) {
+  const { specPath, scenario, baseSha256 } = opts;
+  const current = readFileSync10(specPath, "utf8");
+  if (baseSha256 !== void 0 && specSha256(current) !== baseSha256) {
+    throw new ConcurrentSpecModification(specPath);
+  }
+  const id = scenario.id;
+  if (typeof id !== "string" || id.trim() === "") {
+    throw new Error("scenario needs a non-empty string `id`");
+  }
+  const existing = parseSpec(current, specPath);
+  if (existing.scenarios.some((s) => s.id === id)) {
+    throw new DuplicateScenarioId(id, specPath);
+  }
+  const block = renderScenarioBlock(scenario);
+  const merged = current + block;
+  parseSpec(merged, specPath);
+  atomicWrite(specPath, merged);
+  return { id, sha256: specSha256(merged), block };
+}
+function atomicWrite(path, text) {
+  const tmp = join18(dirname3(path), `.${Date.now()}-${process.pid}.specwrite.tmp`);
+  try {
+    writeFileSync5(tmp, text, "utf8");
+    renameSync2(tmp, path);
+  } catch (err) {
+    try {
+      unlinkSync(tmp);
+    } catch {
+    }
+    throw err;
+  }
+}
+
+// packages/core/dist/capture.js
+import { createHash as createHash3 } from "node:crypto";
+function activeBranch(entries, leafId) {
+  const byId = /* @__PURE__ */ new Map();
+  for (const e of entries)
+    if (typeof e.id === "string")
+      byId.set(e.id, e);
+  let cursor = leafId;
+  if (cursor === void 0) {
+    for (let i = entries.length - 1; i >= 0; i--) {
+      if (typeof entries[i].id === "string") {
+        cursor = entries[i].id;
+        break;
+      }
+    }
+  }
+  const chain = [];
+  const seen = /* @__PURE__ */ new Set();
+  while (cursor !== void 0 && cursor !== null && byId.has(cursor) && chain.length <= entries.length) {
+    if (seen.has(cursor))
+      break;
+    seen.add(cursor);
+    const entry = byId.get(cursor);
+    chain.push(entry);
+    cursor = entry.parentId ?? void 0;
+  }
+  return chain.reverse();
+}
+function visibleText(blocks) {
+  if (!blocks)
+    return "";
+  const parts = [];
+  for (const b of blocks) {
+    if (b.type === "thinking")
+      continue;
+    if (b.type === "text" && typeof b.text === "string")
+      parts.push(b.text);
+    else if (b.type === "image")
+      parts.push("[image omitted]");
+  }
+  return parts.join("\n").trim();
+}
+function projectTurns(entries) {
+  const turns = [];
+  let current = null;
+  for (const entry of entries) {
+    if (entry.type !== "message" || !entry.message)
+      continue;
+    const msg = entry.message;
+    const id = typeof entry.id === "string" ? entry.id : "";
+    if (msg.role === "user") {
+      current = {
+        index: turns.length,
+        user: visibleText(msg.content),
+        assistantText: "",
+        toolCalls: [],
+        entryIds: id ? [id] : []
+      };
+      turns.push(current);
+      continue;
+    }
+    if (!current)
+      continue;
+    if (id)
+      current.entryIds.push(id);
+    if (msg.role === "assistant") {
+      const text = visibleText(msg.content);
+      if (text)
+        current.assistantText = current.assistantText ? `${current.assistantText}
+${text}` : text;
+      for (const b of msg.content ?? []) {
+        if (b.type !== "toolCall")
+          continue;
+        current.toolCalls.push({
+          name: typeof b.name === "string" ? b.name : "(unknown)",
+          args: redactArgs(b.arguments),
+          isError: false,
+          ...typeof b.id === "string" ? { id: b.id } : {}
+        });
+      }
+      continue;
+    }
+    if (msg.role === "toolResult") {
+      const body = JSON.stringify(msg.content ?? []);
+      const callId = typeof msg.toolCallId === "string" ? msg.toolCallId : void 0;
+      const target = callId ? current.toolCalls.find((c) => c.id === callId) : current.toolCalls.find((c) => c.name === msg.toolName && c.resultBytes === void 0);
+      if (target) {
+        target.isError = msg.isError === true;
+        target.resultBytes = Buffer.byteLength(body, "utf8");
+        target.resultSha256 = sha256(body);
+      }
+    }
+  }
+  return turns;
+}
+var MAX_VALUE_CHARS = 2e3;
+var REDACTED = "[redacted]";
+var SECRET_KEY = /^(.*[-_])?(password|passwd|secret|token|api[-_]?key|apikey|auth|authorization|credential|private[-_]?key|access[-_]?key|session[-_]?key)([-_].*)?$/i;
+var SECRET_VALUE = [
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
+  /\bBearer\s+[A-Za-z0-9._~+/-]{16,}=*/g,
+  /\bsk-[A-Za-z0-9]{16,}\b/g,
+  /\bgh[pousr]_[A-Za-z0-9]{16,}\b/g,
+  /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/g,
+  /\bAKIA[0-9A-Z]{16}\b/g,
+  /\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g
+  // JWT
+];
+function redactText(input, homeDir) {
+  let out = input;
+  for (const re of SECRET_VALUE)
+    out = out.replace(re, REDACTED);
+  if (homeDir && homeDir.length > 1) {
+    out = out.split(homeDir).join("~");
+  }
+  return out;
+}
+function truncate(input, max = MAX_VALUE_CHARS) {
+  if (input.length <= max)
+    return input;
+  return `${input.slice(0, max)}\u2026 [truncated ${input.length - max} chars]`;
+}
+function redactArgs(args, homeDir, depth = 0) {
+  if (args === null || typeof args !== "object" || Array.isArray(args))
+    return {};
+  const out = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (SECRET_KEY.test(key)) {
+      out[key] = REDACTED;
+      continue;
+    }
+    out[key] = redactValue(value, homeDir, depth);
+  }
+  return out;
+}
+function redactValue(value, homeDir, depth) {
+  if (typeof value === "string")
+    return truncate(redactText(value, homeDir));
+  if (typeof value === "number" || typeof value === "boolean" || value === null)
+    return value;
+  if (depth >= 3)
+    return "[nested]";
+  if (Array.isArray(value))
+    return value.slice(0, 20).map((v) => redactValue(v, homeDir, depth + 1));
+  if (typeof value === "object")
+    return redactArgs(value, homeDir, depth + 1);
+  return String(value);
+}
+function sha256(text) {
+  return createHash3("sha256").update(text, "utf8").digest("hex");
+}
+function captureId(seed, existing = []) {
+  const taken = new Set(existing);
+  const base = `CAP-${sha256(seed).slice(0, 6).toUpperCase()}`;
+  if (!taken.has(base))
+    return base;
+  for (let n = 2; ; n++) {
+    const candidate = `${base}-${n}`;
+    if (!taken.has(candidate))
+      return candidate;
+  }
+}
+function buildCaptureCase(opts) {
+  const { start, end } = opts.range;
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end >= opts.turns.length) {
+    throw new Error(`invalid capture range ${start}..${end} over ${opts.turns.length} turn(s)`);
+  }
+  if (opts.expectedBehavior.trim() === "") {
+    throw new Error("a capture needs a written expected behavior \u2014 it is what makes the case reviewable");
+  }
+  const checklist = opts.checklist.map((c) => c.trim()).filter(Boolean);
+  if (checklist.length === 0) {
+    throw new Error("a capture needs at least one checklist item");
+  }
+  const selected = opts.turns.slice(start, end + 1);
+  const turns = selected.map((t) => truncate(redactText(t.user, opts.homeDir)));
+  const id = captureId(`${opts.sessionPath}:${start}:${end}:${opts.created}`, opts.existingIds ?? []);
+  return {
+    capture_schema: CAPTURE_SCHEMA_VERSION,
+    id,
+    created: opts.created,
+    classification: opts.classification,
+    turns,
+    expected_behavior: truncate(redactText(opts.expectedBehavior, opts.homeDir)),
+    checklist: checklist.map((c) => truncate(redactText(c, opts.homeDir), 300)),
+    target: opts.target,
+    provenance: {
+      session_sha256: sha256(opts.sessionPath),
+      turn_range: { start, end },
+      ...opts.subject ? { subject: opts.subject } : {},
+      ...opts.gitCommit ? { git_commit: opts.gitCommit } : {},
+      ...opts.gitDirty === void 0 ? {} : { git_dirty: opts.gitDirty }
+    },
+    status: "pending"
+  };
+}
+function captureToScenario(capture, scenarioId, title) {
+  return {
+    id: scenarioId,
+    title,
+    turns: capture.turns,
+    checklist: capture.checklist
+  };
+}
+function draftChecklist(expectedBehavior) {
+  return expectedBehavior.split(/\n\s*[-*]\s+|\n{2,}|(?<=[.!?])\s+(?=[A-Z])/).map((s) => s.replace(/^[-*]\s+/, "").replace(/\s+/g, " ").trim().replace(/[.]$/, "")).filter((s) => s.length > 3);
+}
+
 // packages/adapters/dist/pi.js
-import { existsSync as existsSync14, mkdtempSync as mkdtempSync2, readFileSync as readFileSync10, statSync as statSync8 } from "node:fs";
+import { existsSync as existsSync14, mkdtempSync as mkdtempSync2, readFileSync as readFileSync11, statSync as statSync8 } from "node:fs";
 import { tmpdir as tmpdir2 } from "node:os";
-import { join as join18, resolve as resolve7 } from "node:path";
+import { join as join19, resolve as resolve7 } from "node:path";
 var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
 function requireSkillDir(skillDir, mode) {
   const abs = resolve7(skillDir);
-  const md = join18(abs, "SKILL.md");
+  const md = join19(abs, "SKILL.md");
   const isDir3 = existsSync14(abs) && statSync8(abs).isDirectory();
   if (!isDir3 || !existsSync14(md)) {
     throw new Error(`mode=${mode} needs a skill directory with a SKILL.md, but ${abs} ${isDir3 ? "has none" : "is not a directory"}` + (abs === skillDir ? "" : ` (given \`${skillDir}\`, resolved against ${process.cwd()})`) + ` \u2014 pi accepts \`--skill <nonexistent>\` silently (exit 0, a normal answer, no skill in context), so this run would measure a model with no skill and report it as a result.`);
@@ -4547,7 +4816,7 @@ function skillFlags(mode, skillDir) {
     case "green":
       return ["--skill", requireSkillDir(skillDir, mode)];
     case "force": {
-      const body = readFileSync10(join18(requireSkillDir(skillDir, mode), "SKILL.md"), "utf8");
+      const body = readFileSync11(join19(requireSkillDir(skillDir, mode), "SKILL.md"), "utf8");
       return ["--no-skills", "--append-system-prompt", body];
     }
   }
@@ -4596,7 +4865,7 @@ var piAdapter = {
       "--model",
       req.model.model
     ];
-    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync10(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
+    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync11(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
     const total = req.turns.length;
     const parts = [];
     if (total === 1) {
@@ -4612,7 +4881,7 @@ ${r.stderr.trim()}
 `);
       return parts.join("\n");
     }
-    const session = mkdtempSync2(join18(tmpdir2(), "sc-pi-session-"));
+    const session = mkdtempSync2(join19(tmpdir2(), "sc-pi-session-"));
     for (let i = 0; i < total; i++) {
       const turnFlags = i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common, ...turnFlags, "-p", req.turns[i]];
@@ -4677,19 +4946,19 @@ function getAdapter(name) {
 
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
-import { readFileSync as readFileSync11, existsSync as existsSync15 } from "node:fs";
-import { join as join19, dirname as dirname3 } from "node:path";
+import { readFileSync as readFileSync12, existsSync as existsSync15 } from "node:fs";
+import { join as join20, dirname as dirname4 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn as spawn2 } from "node:child_process";
-var __dirname = dirname3(fileURLToPath(import.meta.url));
+var __dirname = dirname4(fileURLToPath(import.meta.url));
 function templatePath(assetsDir) {
   if (assetsDir)
-    return join19(assetsDir, "report.template.html");
+    return join20(assetsDir, "report.template.html");
   const candidates = [
-    join19(__dirname, "..", "..", "..", "assets", "report.template.html"),
+    join20(__dirname, "..", "..", "..", "assets", "report.template.html"),
     // packages/cli/{dist,src} -> ../../../assets
-    join19(__dirname, "..", "assets", "report.template.html"),
-    join19(__dirname, "..", "..", "assets", "report.template.html")
+    join20(__dirname, "..", "assets", "report.template.html"),
+    join20(__dirname, "..", "..", "assets", "report.template.html")
   ];
   for (const c of candidates)
     if (existsSync15(c))
@@ -4697,7 +4966,7 @@ function templatePath(assetsDir) {
   throw new Error("cannot find assets/report.template.html");
 }
 function gradeScriptPath(assetsDir) {
-  return join19(dirname3(templatePath(assetsDir)), "report.grade.js");
+  return join20(dirname4(templatePath(assetsDir)), "report.grade.js");
 }
 function readBody(req) {
   return new Promise((resolve10) => {
@@ -4711,22 +4980,22 @@ function findTranscript(runDir, id) {
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync11(join19(runDir, files[0]), "utf8");
+    return readFileSync12(join20(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync11(join19(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync12(join20(runDir, f), "utf8")}`).join("\n\n");
 }
 function findJudgeRaw(runDir, id) {
   const files = findJudgeRawFiles(runDir, id);
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync11(join19(runDir, files[0]), "utf8");
+    return readFileSync12(join20(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync11(join19(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync12(join20(runDir, f), "utf8")}`).join("\n\n");
 }
 async function serveReview(opts) {
-  const template = readFileSync11(templatePath(opts.assetsDir), "utf8");
-  const gradeScript = readFileSync11(gradeScriptPath(opts.assetsDir), "utf8");
+  const template = readFileSync12(templatePath(opts.assetsDir), "utf8");
+  const gradeScript = readFileSync12(gradeScriptPath(opts.assetsDir), "utf8");
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://localhost");
@@ -4776,7 +5045,7 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be re-judged here \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
           return;
         }
-        const specPath = join19(opts.skillDir, "tests", "specification.yaml");
+        const specPath = join20(opts.skillDir, "tests", "specification.yaml");
         const spec = loadSpec(specPath);
         const scenario = spec.scenarios.find((s) => s.id === body.scenarioId);
         if (!scenario) {
@@ -4802,7 +5071,7 @@ async function serveReview(opts) {
             scenario,
             adapter,
             judge: results.judge,
-            specDir: dirname3(specPath),
+            specDir: dirname4(specPath),
             threshold,
             mode: results.mode
           });
@@ -4826,7 +5095,7 @@ async function serveReview(opts) {
             // the same doctrine `grade` follows (see refreshRubricHashes).
             source_hashes: refreshRubricHashes(results.source_hashes, spec, [body.scenarioId])
           }, scoreContextFor(results, spec));
-          ensureResultsGitignore(join19(opts.skillDir, "tests", "results"));
+          ensureResultsGitignore(join20(opts.skillDir, "tests", "results"));
           const g = written.effective_grade;
           appendJournal(column.runDir, { event: "score", ts: (/* @__PURE__ */ new Date()).toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
           res.writeHead(200, { "content-type": "application/json" });
@@ -4854,11 +5123,11 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
           return;
         }
-        const spec = loadSpec(join19(opts.skillDir, "tests", "specification.yaml"));
+        const spec = loadSpec(join20(opts.skillDir, "tests", "specification.yaml"));
         writeResults(column.runDir, patched, scoreContextFor(patched, spec));
-        ensureResultsGitignore(join19(opts.skillDir, "tests", "results"));
+        ensureResultsGitignore(join20(opts.skillDir, "tests", "results"));
         if (body.override != null) {
-          preserveTranscript(join19(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
+          preserveTranscript(join20(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
         }
         appendJournal(column.runDir, {
           event: "override",
@@ -4904,17 +5173,17 @@ function tryOpen(url, cmd) {
 
 // packages/pi-extension/src/runner.ts
 import { existsSync as existsSync16 } from "node:fs";
-import { dirname as dirname4, join as join20, resolve as resolve8 } from "node:path";
+import { dirname as dirname5, join as join21, resolve as resolve8 } from "node:path";
 function resolveSkillDir(cwd, arg) {
   if (arg) {
     const dir2 = resolve8(cwd, arg);
-    if (existsSync16(join20(dir2, "tests", "specification.yaml"))) return dir2;
+    if (existsSync16(join21(dir2, "tests", "specification.yaml"))) return dir2;
     throw new Error(`no tests/specification.yaml found at ${dir2}`);
   }
   let dir = cwd;
   for (; ; ) {
-    if (existsSync16(join20(dir, "tests", "specification.yaml"))) return dir;
-    const parent = dirname4(dir);
+    if (existsSync16(join21(dir, "tests", "specification.yaml"))) return dir;
+    const parent = dirname5(dir);
     if (parent === dir) break;
     dir = parent;
   }
@@ -4922,7 +5191,7 @@ function resolveSkillDir(cwd, arg) {
 }
 var DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 async function runViaExtension(opts) {
-  const specPath = join20(opts.skillDir, "tests", "specification.yaml");
+  const specPath = join21(opts.skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const modelToken = opts.model ?? DEFAULT_MODEL;
   const model = parseModelRef(modelToken);
@@ -4945,11 +5214,12 @@ async function runViaExtension(opts) {
     now: opts.now,
     reps: opts.reps,
     canary: opts.canary,
+    only: opts.only,
     onProgress: opts.log
   });
   const g = summary.results.effective_grade;
   const verdicts = effectiveVerdicts(summary.results.scenarios);
-  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join20(summary.runDir, f)));
+  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join21(summary.runDir, f)));
   return {
     skill: summary.results.skill,
     model: summary.results.model,
@@ -4959,8 +5229,186 @@ async function runViaExtension(opts) {
   };
 }
 
+// packages/pi-extension/src/capture-cmd.ts
+import { existsSync as existsSync17, mkdirSync as mkdirSync4, writeFileSync as writeFileSync6, readdirSync as readdirSync10, readFileSync as readFileSync13 } from "node:fs";
+import { join as join22 } from "node:path";
+import { createHash as createHash4 } from "node:crypto";
+var CANCELLED = { status: "cancelled", files: [] };
+var CAPTURES_GITIGNORE = "# Local review evidence for captured cases \u2014 never commit.\n.local/\n";
+async function runCapture(skillDir, ctx) {
+  const ui = ctx.ui;
+  const now = ctx.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
+  if (ctx.isStreaming()) {
+    ui.say("the agent is still streaming \u2014 let it finish, then run capture again");
+    return CANCELLED;
+  }
+  const specPath = join22(skillDir, "tests", "specification.yaml");
+  if (!existsSync17(specPath)) {
+    ui.say(`${specPath} does not exist \u2014 run \`skill-harness init\` before capturing into this skill`);
+    return CANCELLED;
+  }
+  const baseSha256 = specSha256(readFileSync13(specPath, "utf8"));
+  const turns = projectTurns(activeBranch(ctx.sessionEntries()));
+  if (turns.length === 0) {
+    ui.say("no user turns in this session yet \u2014 nothing to capture");
+    return CANCELLED;
+  }
+  const labels = turns.map((t) => turnLabel(t));
+  const start = await ui.select("capture from which turn?", labels);
+  if (start === null) return CANCELLED;
+  const endChoices = labels.slice(start);
+  const endRel = await ui.select("\u2026through which turn?", endChoices);
+  if (endRel === null) return CANCELLED;
+  const end = start + endRel;
+  const target = await chooseTarget(skillDir, ctx);
+  if (!target) return CANCELLED;
+  const cls = await ui.select("what is this?", [
+    "failure \u2014 the agent got this wrong",
+    "good_example \u2014 the agent got this right, keep it working"
+  ]);
+  if (cls === null) return CANCELLED;
+  const classification = cls === 0 ? "failure" : "good_example";
+  const expected = await ui.input("what SHOULD it have done? (one or two sentences)");
+  if (expected === null || expected.trim() === "") {
+    ui.say("cancelled \u2014 a capture needs a written expectation");
+    return CANCELLED;
+  }
+  const drafted = draftChecklist(expected);
+  const edited = await ui.editor(
+    "checklist \u2014 one item per line; these are what the judge grades",
+    (drafted.length ? drafted : [expected.trim()]).join("\n")
+  );
+  if (edited === null) return CANCELLED;
+  const checklist = edited.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (checklist.length === 0) {
+    ui.say("cancelled \u2014 a capture needs at least one checklist item");
+    return CANCELLED;
+  }
+  const capturesDir = join22(skillDir, "tests", "captures");
+  const existingIds = existsSync17(capturesDir) ? readdirSync10(capturesDir).filter((f) => f.endsWith(".yaml")).map((f) => f.replace(/\.yaml$/, "")) : [];
+  const capture = buildCaptureCase({
+    turns,
+    range: { start, end },
+    classification,
+    expectedBehavior: expected,
+    checklist,
+    target,
+    sessionPath: ctx.sessionPath(),
+    created: now(),
+    homeDir: ctx.homeDir,
+    existingIds
+  });
+  const previewYaml = index_vite_proxy_tmp_default.dump(capture, { lineWidth: -1, noRefs: true });
+  ui.say(`
+--- ${capture.id} (preview, nothing written yet) ---
+${previewYaml}---`);
+  const action = await ui.select("what now?", [
+    "save as a pending capture (review and promote later)",
+    "promote to a scenario now",
+    "cancel \u2014 write nothing"
+  ]);
+  if (action === null || action === 2) {
+    ui.say("cancelled \u2014 no files written");
+    return CANCELLED;
+  }
+  const files = writeCapture(capturesDir, capture, turns.slice(start, end + 1), ctx.homeDir);
+  if (action === 0) {
+    ui.say(`saved ${capture.id} \u2014 promote it later, or edit ${files[0]} first`);
+    return { status: "pending", capture, files };
+  }
+  const suggested = suggestScenarioId(specPath, capture.id);
+  const scenarioId = await ui.input("scenario id for the spec", suggested);
+  if (scenarioId === null || scenarioId.trim() === "") {
+    ui.say(`kept ${capture.id} as pending \u2014 no scenario appended`);
+    return { status: "pending", capture, files };
+  }
+  const title = await ui.input("scenario title", defaultTitle(capture));
+  if (title === null || title.trim() === "") {
+    ui.say(`kept ${capture.id} as pending \u2014 no scenario appended`);
+    return { status: "pending", capture, files };
+  }
+  appendScenario({
+    specPath,
+    scenario: captureToScenario(capture, scenarioId.trim(), title.trim()),
+    baseSha256
+  });
+  const promoted = { ...capture, status: "promoted", scenario_id: scenarioId.trim() };
+  writeFileSync6(join22(capturesDir, `${capture.id}.yaml`), index_vite_proxy_tmp_default.dump(promoted, { lineWidth: -1, noRefs: true }), "utf8");
+  ui.say(`promoted ${capture.id} \u2192 scenario ${scenarioId.trim()} in ${specPath}`);
+  if (ctx.runOnly && await ui.confirm(`run scenario ${scenarioId.trim()} now? (spends subject + judge tokens for 1 scenario)`)) {
+    ui.say(await ctx.runOnly(skillDir, scenarioId.trim()));
+  }
+  return { status: "promoted", capture: promoted, files: [...files, specPath], scenarioId: scenarioId.trim() };
+}
+function turnLabel(t) {
+  const head = t.user.replace(/\s+/g, " ").trim();
+  const tools = t.toolCalls.length ? ` [${t.toolCalls.length} tool call(s)]` : "";
+  return `${t.index + 1}. ${head.length > 70 ? `${head.slice(0, 70)}\u2026` : head}${tools}`;
+}
+function defaultTitle(capture) {
+  const first = capture.turns[0] ?? "captured case";
+  const trimmed = first.replace(/\s+/g, " ").trim();
+  return trimmed.length > 60 ? `${trimmed.slice(0, 60)}\u2026` : trimmed;
+}
+async function chooseTarget(skillDir, ctx) {
+  const candidates = [];
+  const skillMd = join22(skillDir, "SKILL.md");
+  if (existsSync17(skillMd)) candidates.push({ label: "SKILL.md (this skill)", kind: "skill", path: "SKILL.md", abs: skillMd });
+  const agentsDir = join22(ctx.cwd, ".pi", "agents");
+  if (existsSync17(agentsDir)) {
+    for (const f of readdirSync10(agentsDir).filter((x) => x.endsWith(".md"))) {
+      candidates.push({ label: `subagent: ${f}`, kind: "subagent", path: join22(".pi", "agents", f), abs: join22(agentsDir, f) });
+    }
+  }
+  if (candidates.length === 0) {
+    ctx.ui.say("no SKILL.md or .pi/agents/*.md found to attribute this to");
+    return null;
+  }
+  const pick = await ctx.ui.select("which instructions are responsible? (your call \u2014 the session cannot prove this)", candidates.map((c) => c.label));
+  if (pick === null) return null;
+  const chosen = candidates[pick];
+  return {
+    kind: chosen.kind,
+    path: chosen.path,
+    content_sha256: createHash4("sha256").update(readFileSync13(chosen.abs, "utf8"), "utf8").digest("hex")
+  };
+}
+function suggestScenarioId(specPath, fallback) {
+  try {
+    const ids = new Set(loadSpec(specPath).scenarios.map((s) => s.id));
+    for (let n = 1; n < 1e3; n++) {
+      const candidate = `R${n}`;
+      if (!ids.has(candidate)) return candidate;
+    }
+  } catch {
+  }
+  return fallback;
+}
+function writeCapture(capturesDir, capture, selected, homeDir) {
+  mkdirSync4(join22(capturesDir, ".local"), { recursive: true });
+  const gitignore = join22(capturesDir, ".gitignore");
+  if (!existsSync17(gitignore)) writeFileSync6(gitignore, CAPTURES_GITIGNORE, "utf8");
+  const casePath = join22(capturesDir, `${capture.id}.yaml`);
+  writeFileSync6(casePath, index_vite_proxy_tmp_default.dump(capture, { lineWidth: -1, noRefs: true }), "utf8");
+  const evidencePath = join22(capturesDir, ".local", `${capture.id}.evidence.json`);
+  writeFileSync6(
+    evidencePath,
+    JSON.stringify(
+      {
+        capture_id: capture.id,
+        assistant_excerpt: selected.map((t) => redactText(t.assistantText, homeDir)).join("\n---\n").slice(0, 4e3),
+        tool_calls: selected.flatMap((t) => t.toolCalls.map((c) => ({ name: c.name, isError: c.isError, args: c.args })))
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  return [casePath, evidencePath, gitignore];
+}
+
 // packages/pi-extension/src/commands.ts
-var USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] | review [skill]";
+var USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] | review [skill] | capture [skill]";
 function parse(argstr) {
   const tokens = argstr.trim().length ? argstr.trim().split(/\s+/) : [];
   const [sub = "", ...rest] = tokens;
@@ -5017,9 +5465,9 @@ ${card.failedTranscripts.join("\n")}`);
   }
   if (sub === "judge") {
     const runDir = resolve9(ctx.cwd, positional[0] ?? ".");
-    const testsDir = dirname5(dirname5(dirname5(runDir)));
-    const spec = loadSpec(join21(testsDir, "specification.yaml"));
-    const prev = existsSync17(join21(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const testsDir = dirname6(dirname6(dirname6(runDir)));
+    const spec = loadSpec(join23(testsDir, "specification.yaml"));
+    const prev = existsSync18(join23(runDir, "results.yaml")) ? readResults(runDir) : null;
     const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? parseModelRef(defaultJudge());
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge"
@@ -5035,9 +5483,47 @@ ${card.failedTranscripts.join("\n")}`);
     say(ctx, `re-judged ${runDir}: ${results.effective_grade.letter} (${results.effective_grade.pct}%)`);
     return;
   }
+  if (sub === "capture") {
+    const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
+    const ui = ctx.ui;
+    if (!ctx.sessionManager || !ui.select || !ui.input || !ui.editor || !ui.confirm) {
+      say(ctx, "capture needs an interactive pi session (it is unavailable under -p / --mode json)", "error");
+      return;
+    }
+    const sm = ctx.sessionManager;
+    const result = await runCapture(skillDir, {
+      cwd: ctx.cwd,
+      ui: {
+        select: ui.select.bind(ui),
+        input: ui.input.bind(ui),
+        editor: ui.editor.bind(ui),
+        confirm: ui.confirm.bind(ui),
+        say: (m) => say(ctx, m)
+      },
+      sessionEntries: () => sm.getBranch(),
+      sessionPath: () => sm.getSessionPath?.() ?? "",
+      isStreaming: () => ctx.isStreaming?.() ?? false,
+      homeDir: homedir(),
+      now: nowIso,
+      runOnly: async (dir, scenarioId) => {
+        const card = await runViaExtension({
+          skillDir: dir,
+          only: [scenarioId],
+          adapter,
+          timestamp: nowIso(),
+          log: (m) => {
+            if (ctx.hasUI) ctx.ui.setStatus?.("skill-harness", m);
+          }
+        });
+        return card.scenarios.map((s) => `  ${s.id}: ${s.suspect ? "?" : s.verdict}`).join("\n");
+      }
+    });
+    if (result.status !== "cancelled") say(ctx, `capture ${result.status}: ${result.capture?.id}`);
+    return;
+  }
   if (sub === "review") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const spec = loadSpec(join21(skillDir, "tests", "specification.yaml"));
+    const spec = loadSpec(join23(skillDir, "tests", "specification.yaml"));
     const handle = await serveReview({
       skillDir,
       skillName: spec.skill,
@@ -5109,7 +5595,7 @@ function registerTool(pi) {
 
 // packages/pi-extension/src/index.ts
 function index_default(pi) {
-  const assetsDir = join22(dirname6(fileURLToPath2(import.meta.url)), "..", "..", "..", "assets");
+  const assetsDir = join24(dirname7(fileURLToPath2(import.meta.url)), "..", "..", "..", "assets");
   registerCommand(pi, assetsDir);
   registerTool(pi);
   pi.on("session_shutdown", async () => {

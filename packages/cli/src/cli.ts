@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-import { readFileSync, existsSync, appendFileSync, mkdirSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import yaml from "js-yaml";
 import {
   discover, resolveSkill,
   loadSpec, parseSpec,
+  appendScenario,
   parseModelRef,
   runSkillModel, formatScorecard, type RunSummary,
   readResults, regradeRun,
@@ -426,10 +426,6 @@ async function cmdAddTest(args: Args): Promise<void> {
     throw new Error("add-test requires --id, --title, at least one --turn and one --check");
   }
 
-  // Validate the merged spec before writing.
-  const existing = loadSpec(skill.specPath);
-  if (existing.scenarios.some((s) => s.id === id)) throw new Error(`scenario id \`${id}\` already exists`);
-
   const scenario: Record<string, unknown> = { id, title };
   if (flagStr(args, "critical") !== undefined) scenario.critical = true;
   const mode = flagStr(args, "mode");
@@ -440,10 +436,10 @@ async function cmdAddTest(args: Args): Promise<void> {
   scenario.turns = turns;
   scenario.checklist = checks;
 
-  const block = "\n" + yaml.dump({ scenarios: [scenario] }).replace(/^scenarios:\n/, "");
-  const merged = readFileSync(skill.specPath, "utf8") + block;
-  parseSpec(merged, skill.specPath); // throws if the append broke the spec
-  appendFileSync(skill.specPath, block, "utf8");
+  // Duplicate-id rejection, merged-spec validation and the atomic write all live
+  // in appendScenario — shared with capture promotion so the two paths cannot
+  // disagree about what a valid write is.
+  appendScenario({ specPath: skill.specPath, scenario });
   console.log(`added scenario ${id} to ${skill.specPath}`);
 }
 

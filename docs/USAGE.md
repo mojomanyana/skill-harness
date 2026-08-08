@@ -324,6 +324,39 @@ node bin/skill-harness.js add-test golden-skill --skills packages/core/test/fixt
 
 Appends a scenario to the skill's `specification.yaml`. Gather the fields conversationally first.
 
+### `/skill-harness capture` — turn the conversation you're in into a test
+
+Inside a pi session, when the agent has just done something wrong (or something
+right that you want to keep working):
+
+```
+/skill-harness capture [skill]
+```
+
+It reads the **active branch** of the session, groups it into logical turns, and
+walks you through: pick a contiguous turn range → confirm which instructions were
+responsible → mark it `failure` or `good_example` → write what it *should* have
+done → edit the drafted checklist → **preview the whole case** → save as pending,
+promote to a scenario, or cancel.
+
+**Free.** Zero model calls; the checklist draft is a sentence splitter, not a
+model. The only spend is the optional "run just this scenario now?" at the end,
+which names the cost before asking.
+
+Two things worth knowing:
+
+- **A pending capture is not a test yet.** It lives in `<skill>/tests/captures/`,
+  outside `specification.yaml`, so it cannot touch ship-bar totals, staleness,
+  lift or stability until you promote it.
+- **Only your user turns are committed.** The model's reply is evidence for
+  writing the expectation, not an oracle to match against — it goes to a
+  git-ignored `.local/` sidecar. Hidden thinking, tool-result bodies, secrets and
+  home paths are stripped before anything is written, and the preview is your
+  chance to check that.
+
+Requires an interactive session: under `-p` / `--mode json` there is no preview
+step, so `capture` refuses rather than writing unreviewed.
+
 ## 8. The optimize loop
 
 Edit the `SKILL.md` under test → re-`run` → compare the new scorecard to the old `results.yaml`. Report the **per-scenario delta**, not just the letter grade. Don't trust one run on a weak/stochastic model — re-run noisy scenarios (`--reps`).

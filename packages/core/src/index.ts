@@ -28,3 +28,5 @@ export * from "./downgrade.js";
 export * from "./canary.js";
 export * from "./stability.js";
 export * from "./capture-trace-types.js";
+export * from "./spec-write.js";
+export * from "./capture.js";

@@ -428,7 +428,30 @@ never enter `specification.yaml` before a human promotes them.
       - `CaptureCaseV1` / `ExecutionTraceV1` fixed as types-only in
         `packages/core/src/capture-trace-types.ts` — no behavior, nothing wired in.
       - No post: a spike ships no user-facing feature. Rule 2 attaches from Phase 1.
-- [ ] Phase 1 — `/skill-harness capture`: promote a conversation to a regression
+- [x] **Phase 1 — `/skill-harness capture`** (2026-08-08). Turns the live conversation
+      into a reviewable regression case: active-branch projection, contiguous turn
+      selection, human-confirmed target, offline checklist draft, full preview, then
+      save-pending or promote. Zero model calls; the optional single-scenario run is
+      the only spend and it names the cost first.
+      - **A pending capture is not in `specification.yaml`.** It lives in
+        `<skill>/tests/captures/`. The `draft: true` alternative would have to be
+        honored by every runner, scorer, linter, staleness check, lift computation
+        and stability walker — forgotten once in either direction it either drags a
+        ship grade down or drops a real scenario from a release run.
+      - **Only user turns are committed.** Assistant prose is evidence for the human
+        writing the expectation, never an oracle; it goes to a git-ignored sidecar.
+      - **Redaction is the load-bearing part**, since captures get committed:
+        thinking dropped at all three events pi emits it in, tool-result bodies never
+        persisted (only name/isError/bytes/sha — a failing `read` embeds an absolute
+        path in its error string), home dirs → `~`, secrets by shape and by key name,
+        session path hashed. The preview step is the control, not a courtesy.
+      - **Bug caught by its own test:** the promotion path hashed the spec
+        immediately before appending, so the concurrent-edit guard covered
+        microseconds instead of the minutes the interview actually takes. Baseline is
+        now taken before the first question.
+      - `spec-write.ts` is now the single validated atomic writer; `add-test` was
+        refactored onto it so the two paths cannot disagree about a legal spec write.
+      - Post: `docs/posts/2026-08-08-promote-a-conversation-to-a-regression.md`
 - [ ] Phase 2 — structured traces + objective `assert.trace` gates
 - [ ] Phase 3 — first-class subagent orchestration tests
 - [ ] Phase 4 — instruction coverage + affected-test selection

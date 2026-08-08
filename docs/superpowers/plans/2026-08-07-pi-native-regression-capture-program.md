@@ -323,7 +323,7 @@ Cover:
 
 ### 3.8 Required post
 
-- [ ] `docs/posts/<date>-promote-a-conversation-to-a-regression.md`
+- [x] `docs/posts/2026-08-08-promote-a-conversation-to-a-regression.md`
 
 ---
 
@@ -757,9 +757,9 @@ Reuse one adjudication engine from `run`, `grade`, and review rejudge paths; do 
 Keep PRs small enough to review and release independently:
 
 1. [x] Roadmap decision, ADR, and sanitized pi JSON fixtures. (2026-08-08)
-2. [ ] Shared atomic scenario writer; refactor `add-test` onto it.
-3. [ ] Capture projection, redaction, and pending-case format.
-4. [ ] Pi capture UI and extension `only` support.
+2. [x] Shared atomic scenario writer; refactor `add-test` onto it. (2026-08-08)
+3. [x] Capture projection, redaction, and pending-case format. (2026-08-08)
+4. [x] Pi capture UI and extension `only` support. (2026-08-08)
 5. [ ] Structured pi JSON trace parser and artifact format.
 6. [ ] Trace assertion schema/evaluator and core run integration.
 7. [ ] Trace-aware `regate`, lint, scorecard, and review UI.
