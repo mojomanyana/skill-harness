@@ -49,7 +49,7 @@ interface Spy {
   plainRunCalls: number;
 }
 
-function spyAdapter(traces: ExecutionTraceV1[], opts: { structured?: boolean } = {}): Spy {
+function spyAdapter(traces: ExecutionTraceV1[], opts: { structured?: boolean; writes?: string } = {}): Spy {
   const spy: Spy = { judgeCalls: 0, structuredCalls: 0, plainRunCalls: 0, adapter: null as never };
   const adapter: HarnessAdapter = {
     name: "fake",
@@ -67,6 +67,9 @@ function spyAdapter(traces: ExecutionTraceV1[], opts: { structured?: boolean } =
   if (opts.structured !== false) {
     adapter.runStructured = async (req: RunReq): Promise<StructuredRun> => {
       spy.structuredCalls++;
+      // Write into the real workspace when asked, so `unchanged_paths` is checked
+      // against an actual filesystem change rather than a synthetic trace field.
+      if (opts.writes) writeFileSync(join(req.cwd, opts.writes), "touched", "utf8");
       return {
         transcript: `>>> USER:\n${req.turns[0]}\n\n<<< ASSISTANT:\nI have finished the task.\n`,
         traces,
@@ -252,16 +255,40 @@ describe("forbidden tools and protected paths", () => {
     expect(spy.judgeCalls).toBe(0);
   });
 
-  it("fails when a protected path changed", async () => {
-    writeSpec(`    assert:
+  const PATH_SPEC = `    env:
+      workspace: empty-git
+    assert:
       trace:
         unchanged_paths:
-          - ".env"`);
-    const spy = spyAdapter([traceOf([], [".env"])]);
+          - ".env"`;
+
+  it("fails when a protected path actually changed on disk", async () => {
+    // The regression this replaces: `changed_paths` was fed from the request,
+    // which is built BEFORE the run, so nothing ever set it and the assertion
+    // passed vacuously. Now the adapter really writes `.env` and the gate must see it.
+    writeSpec(PATH_SPEC);
+    const spy = spyAdapter([traceOf([])], { writes: ".env" });
     const summary = await run(spy);
     expect(summary.results.scenarios[0].judge_verdict).toBe("FAIL");
     expect(summary.results.scenarios[0].judge_reason).toContain(".env");
     expect(spy.judgeCalls).toBe(0);
+  });
+
+  it("passes when nothing was written — observed, not assumed", async () => {
+    writeSpec(PATH_SPEC);
+    const spy = spyAdapter([traceOf([])]);
+    const summary = await run(spy);
+    expect(summary.results.scenarios[0].objective?.status).toBe("PASS");
+  });
+
+  it("refuses at spec load when there is no workspace to observe", () => {
+    // Free and offline. A path policy with nothing to compare against would pass
+    // unconditionally, which is the failure mode, so it is not allowed to exist.
+    writeSpec(`    assert:
+      trace:
+        unchanged_paths:
+          - ".env"`);
+    expect(() => loadSpec(specPath)).toThrow(/no workspace to observe/);
   });
 });
 

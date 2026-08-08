@@ -13,7 +13,7 @@ import {
   regradeScenario, refreshRubricHashes, findJudgeRawFiles,
   effectiveThreshold, scoreContextFor, isScoredMode, rebuildScenarioResult,
   envFlag,
-  planAdjudication, adjudicateRun, assertJudgeAllowed,
+  planAdjudication, adjudicateRun, assertJudgeAllowed, cellsFromResults,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 
@@ -211,9 +211,9 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
         const spec = loadSpec(specPath);
         const adapter = opts.adapter ?? getAdapter(results.harness);
 
-        const cells = results.scenarios.map((sc) => ({
-          id: sc.id, verdict: sc.judge_verdict, reason: sc.judge_reason, suspect: sc.suspect,
-        }));
+        // Priced exactly as `adjudicateRun` will perform it — including per-rep
+        // verdicts, without which the quoted ceiling can be lower than the spend.
+        const cells = cellsFromResults(column.runDir, results);
         // No tie-break judge from the browser: adding a third judge is a judge
         // CHOICE, and the UI has nowhere honest to make one. A disagreement here
         // stays unresolved and blocks SHIP, which is the safe direction.

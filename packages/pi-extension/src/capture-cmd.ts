@@ -94,7 +94,7 @@ export async function runCapture(skillDir: string, ctx: CaptureCtx): Promise<Cap
   const baseSha256 = specSha256(readFileSync(specPath, "utf8"));
 
   // 2-3. Active branch only, grouped into logical turns.
-  const turns = projectTurns(activeBranch(ctx.sessionEntries()));
+  const turns = projectTurns(activeBranch(ctx.sessionEntries()), ctx.homeDir);
   if (turns.length === 0) {
     ui.say("no user turns in this session yet — nothing to capture");
     return CANCELLED;
@@ -292,8 +292,16 @@ function suggestScenarioId(specPath: string, fallback: string): string {
 function writeCapture(capturesDir: string, capture: CaptureCaseV1, selected: LogicalTurn[], homeDir?: string): string[] {
   mkdirSync(join(capturesDir, ".local"), { recursive: true });
 
+  // Rewritten unless it already ignores `.local/`. Writing only when ABSENT
+  // meant a captures/.gitignore edited (or written by an older version) to
+  // something that no longer covers `.local/` would leave the evidence sidecar
+  // — unredacted-length assistant text and tool arguments — tracked and
+  // committable. The file existing is not evidence that it ignores anything.
   const gitignore = join(capturesDir, ".gitignore");
-  if (!existsSync(gitignore)) writeFileSync(gitignore, CAPTURES_GITIGNORE, "utf8");
+  const existingIgnore = existsSync(gitignore) ? readFileSync(gitignore, "utf8") : "";
+  if (!existingIgnore.split("\n").some((l) => l.trim() === ".local/" || l.trim() === ".local")) {
+    writeFileSync(gitignore, existingIgnore ? `${existingIgnore.replace(/\n*$/, "\n")}${CAPTURES_GITIGNORE}` : CAPTURES_GITIGNORE, "utf8");
+  }
 
   const casePath = join(capturesDir, `${capture.id}.yaml`);
   writeFileSync(casePath, yaml.dump(capture, { lineWidth: -1, noRefs: true }), "utf8");

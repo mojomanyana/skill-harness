@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve, relative } from "node:path";
 import { loadSpec, regradeRun, readResults, parseModelRef, defaultJudge, assertJudgeAllowed, type HarnessAdapter, type SessionEntry, computeCoverage, formatCoverage, selectAffected, formatAffected, gitDiff, exec,
-  resolveAdjudicationJudges, planAdjudication, formatAdjudicationPlan, adjudicateRun, judgeResemblesSubject } from "@skill-harness/core";
+  resolveAdjudicationJudges, planAdjudication, formatAdjudicationPlan, adjudicateRun, judgeResemblesSubject, cellsFromResults } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview, type ServeHandle } from "@skill-harness/cli/serve";
 import { resolveSkillDir, runViaExtension } from "./runner.js";
@@ -148,9 +148,8 @@ export async function handleSkillCheck(
     if (!judges) return;
 
     const plan = planAdjudication({
-      cells: results.scenarios.map((sc) => ({
-        id: sc.id, verdict: sc.judge_verdict, reason: sc.judge_reason, suspect: sc.suspect,
-      })),
+      // Same construction as the executor, so the dialog's ceiling is the real one.
+      cells: cellsFromResults(runDir, results),
       scenarios: spec.scenarios,
       shipBar: spec.ship_bar,
       critical: spec.critical,

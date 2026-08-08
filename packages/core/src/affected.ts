@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, dirname, relative } from "node:path";
 import type { Scenario } from "./spec.js";
 import { parseSections, sectionAtLine, parseCoversRef } from "./instruction-coverage.js";
 import { exec } from "./util/exec.js";
@@ -184,12 +184,32 @@ export function selectAffected(opts: AffectedOptions): AffectedResult {
     }
   }
 
+  // The skill's own directory, minus its `tests/` subtree. Markdown here is
+  // instruction text the model reads; markdown elsewhere in the repo is not.
+  const skillRoot = dirname(specDir);
+  const isInstructionText = (abs: string) =>
+    abs.startsWith(`${skillRoot}/`) && !abs.startsWith(`${specDir}/`) && /\.(?:md|markdown)$/i.test(abs);
+
   const unmappedFiles = new Set<string>();
   for (const hunk of hunks) {
     const abs = resolve(repoRoot, hunk.file);
     // Only instruction files participate; a changed source file is not a section.
     const referenced = [...coversIndex.keys()].some((k) => k === abs || k.startsWith(`${abs}#`));
-    if (!referenced) continue;
+    if (!referenced) {
+      // "No `covers` mentions it" is not the same as "it cannot matter". For
+      // instruction text inside the skill, it is the opposite: every scenario
+      // reads the skill, and nobody claimed this prose — so the mapping has no
+      // basis for ruling it out. `continue` here deselected scenarios the edit
+      // could well have broken, and did not even reach `unmappedFiles`, so the
+      // output said nothing about it. Under-inclusion is the one failure this
+      // module exists to avoid.
+      if (isInstructionText(abs)) {
+        return selectAll(
+          `${relative(repoRoot, abs) || hunk.file} is instruction text that no scenario \`covers\` — the mapping cannot rule it out`,
+        );
+      }
+      continue;
+    }
 
     const sections = load(abs);
     if (sections === null) {

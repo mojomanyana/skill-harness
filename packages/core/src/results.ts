@@ -381,7 +381,11 @@ export function ensureResultsGitignore(resultsRoot: string): void {
 
 // Matches transcript (`.rep<k>.txt`), judge-raw (`.rep<k>.judge.txt`) and
 // staged-diff (`.rep<k>.diff.txt`) rep suffixes.
-const REP_SUFFIX_RE = /\.rep(\d+)\.(?:judge\.|diff\.)?txt$/;
+// Every rep-suffixed artifact kind. `.trace.jsonl` was added without updating this,
+// so `repIndexOf` returned null for traces and `regate` looked for an unsuffixed
+// path that does not exist on a multi-rep run — reporting "trace missing" for
+// traces sitting on disk.
+const REP_SUFFIX_RE = /\.rep(\d+)\.(?:judge\.|diff\.)?(?:txt|trace\.jsonl)$/;
 
 /** The rep index embedded in a transcript / judge-raw / staged-diff filename (`.rep<k>.`), or null for a plain (non-rep) file. */
 export function repIndexOf(filename: string): number | null {

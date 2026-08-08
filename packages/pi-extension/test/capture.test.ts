@@ -203,6 +203,59 @@ describe("capture — pending case", () => {
     expect(existsSync(join(capturesDir(), ".local", `${res.capture!.id}.evidence.json`))).toBe(true);
   });
 
+  it("re-ignores `.local/` when the .gitignore no longer covers it", async () => {
+    // Writing only when the file was ABSENT meant a captures/.gitignore that had
+    // been edited — or written by a version that ignored something else — left
+    // the evidence sidecar tracked. The sidecar holds assistant text and tool
+    // arguments; the file merely existing is not evidence that it ignores them.
+    mkdirSync(capturesDir(), { recursive: true });
+    writeFileSync(join(capturesDir(), ".gitignore"), "# hand-edited\n*.tmp\n", "utf8");
+    const { ctx } = ctxWith(PENDING_SCRIPT);
+    await runCapture(skillDir, ctx);
+    const body = readFileSync(join(capturesDir(), ".gitignore"), "utf8");
+    expect(body).toContain(".local/");
+    expect(body).toContain("*.tmp"); // the author's own rules survive
+  });
+
+  it("leaves an adequate .gitignore byte-identical", async () => {
+    mkdirSync(capturesDir(), { recursive: true });
+    const mine = "# mine\n.local/\n";
+    writeFileSync(join(capturesDir(), ".gitignore"), mine, "utf8");
+    const { ctx } = ctxWith(PENDING_SCRIPT);
+    await runCapture(skillDir, ctx);
+    expect(readFileSync(join(capturesDir(), ".gitignore"), "utf8")).toBe(mine);
+  });
+
+  it("scrubs the home path from tool arguments in the evidence sidecar", async () => {
+    // `projectTurns` redacted secrets but was called without `homeDir`, so
+    // absolute home paths survived into the sidecar's `args` — the one place
+    // tool arguments are written to disk.
+    const entries = session();
+    entries[1] = {
+      type: "message", id: "u1", parentId: null,
+      message: { role: "user", content: [{ type: "text", text: "why is auth failing?" }] },
+    };
+    const withPath: SessionEntry[] = entries.map((e) =>
+      e.id === "a1"
+        ? {
+            ...e,
+            message: {
+              role: "assistant",
+              content: [
+                { type: "toolCall", id: "c1", name: "read", arguments: { path: "/home/someone/secret/.env" } },
+                { type: "text", text: "the token expired" },
+              ],
+            },
+          }
+        : e,
+    );
+    const { ctx } = ctxWith(PENDING_SCRIPT, { sessionEntries: () => withPath });
+    const res = await runCapture(skillDir, ctx);
+    const evidence = readFileSync(join(capturesDir(), ".local", `${res.capture!.id}.evidence.json`), "utf8");
+    expect(evidence).not.toContain("/home/someone");
+    expect(evidence).toContain("~/secret/.env");
+  });
+
   it("does NOT touch specification.yaml — a pending capture is not a test", async () => {
     const { ctx } = ctxWith(PENDING_SCRIPT);
     await runCapture(skillDir, ctx);

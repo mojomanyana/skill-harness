@@ -210,7 +210,6 @@ export const piAdapter: HarnessAdapter = {
         mode: req.mode,
         rep: req.rep ?? 0,
         turn: i,
-        changedPaths: req.changedPaths,
         homeDir: homedir(),
       });
 

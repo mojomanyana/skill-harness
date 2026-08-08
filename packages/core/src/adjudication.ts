@@ -73,6 +73,21 @@ export interface AdjudicationPlan {
   /** Cells that will be re-judged at least once. */
   triggered: string[];
   /**
+   * Triggered cells whose VERDICT this plan provably cannot settle.
+   *
+   * Their first-wave judgment misfired, so it is not a clean vote (see
+   * `collapseJudgments`). With no tie-break judge, one extra call reaches at most
+   * one clean vote and a collapse needs two: the cell returns `unresolved` and
+   * stays `suspect: true` whatever the second judge says.
+   *
+   * They are still re-judged, and deliberately so — the second opinion is the
+   * evidence an author reads to resolve the misfire by hand, which is the only
+   * way these cells ever get resolved. What was missing was saying so: the
+   * preflight offered them alongside cells a call could actually settle, so the
+   * buyer could not tell which was which. This list is that disclosure.
+   */
+  needsTieBreak: string[];
+  /**
    * Exact upper bound on ADDITIONAL judge calls this plan can make.
    *
    * Deliberately a call count, not a cost estimate. The default judge runs on a
@@ -115,12 +130,20 @@ export function planAdjudication(input: PlanInput): AdjudicationPlan {
     decisions.push({ id: cell.id, triggers });
   }
 
-  const triggered = decisions.filter((d) => d.triggers.length > 0).map((d) => d.id);
+  const suspectById = new Map(input.cells.map((c) => [c.id, c.suspect]));
+  const fired = decisions.filter((d) => d.triggers.length > 0);
+  // A misfired first-wave judgment is not a clean vote, so with only one extra
+  // judge the cell can never reach the two clean votes a collapse needs. The call
+  // is still worth making — it records a second opinion for the author — but the
+  // buyer has to be told it cannot settle the verdict.
+  const needsTieBreak = input.tieBreakAvailable ? [] : fired.filter((d) => suspectById.get(d.id)).map((d) => d.id);
+  const triggered = fired.map((d) => d.id);
+
   // Per triggered cell: one secondary call always, plus one tie-break call only
   // if a third judge is available to make it.
   const perCell = input.tieBreakAvailable ? 2 : 1;
 
-  return { decisions, triggered, maxAdditionalCalls: triggered.length * perCell };
+  return { decisions, triggered, needsTieBreak, maxAdditionalCalls: triggered.length * perCell };
 }
 
 /** A rep set containing both a PASS and a non-PASS is not a settled result. */
@@ -331,13 +354,7 @@ export async function adjudicateRun(opts: AdjudicateRunOptions): Promise<Results
   const log = opts.log ?? (() => {});
   const mode = opts.results.mode;
 
-  const cells: CellState[] = opts.results.scenarios.map((s) => ({
-    id: s.id,
-    verdict: s.judge_verdict,
-    reason: s.judge_reason,
-    suspect: s.suspect,
-    repVerdicts: repVerdictsOf(opts.runDir, s, mode),
-  }));
+  const cells = cellsFromResults(opts.runDir, opts.results);
 
   const plan = planAdjudication({
     cells,
@@ -430,11 +447,33 @@ async function judgeCell(opts: AdjudicateRunOptions & { scenario: Scenario; judg
   return { verdict: g.verdict, reason: g.reason, suspect: g.suspect };
 }
 
+/**
+ * Build the plan's input cells from a run.
+ *
+ * EXPORTED so the CLI, the review server and the pi extension all price the work
+ * exactly as `adjudicateRun` will perform it. When the preflight built cells
+ * without `repVerdicts` and the executor built them with, the browser could show
+ * "no cell triggered" and then spend on non-unanimous cells nobody was told
+ * about — inverting the one invariant this feature actually promises.
+ */
+export function cellsFromResults(runDir: string, results: ResultsFile): CellState[] {
+  return results.scenarios.map((s) => ({
+    id: s.id,
+    verdict: s.judge_verdict,
+    reason: s.judge_reason,
+    suspect: s.suspect,
+    repVerdicts: repVerdictsOf(runDir, s, results.mode),
+  }));
+}
+
 /** Per-rep verdicts from saved judge artifacts, for the non-unanimous trigger. */
 function repVerdictsOf(runDir: string, s: ScenarioResult, mode: string): Verdict[] | undefined {
   if (!s.reps || s.reps < 2) return undefined;
   const out: Verdict[] = [];
-  for (let rep = 1; rep <= s.reps; rep++) {
+  // 0-based: `run.ts` writes rep0..repN-1. Looping from 1 dropped rep0 and probed
+  // a repN that never exists, so a 3-rep FAIL/PASS/PASS read as unanimous PASS and
+  // a 2-rep cell returned undefined — `non_unanimous` could never fire correctly.
+  for (let rep = 0; rep < s.reps; rep++) {
     const path = judgeRawPath(runDir, s.id, mode, rep);
     if (!existsSync(path)) continue;
     out.push(parseVerdict(readFileSync(path, "utf8")).verdict);
@@ -508,7 +547,16 @@ export function resolveAdjudicationJudges(opts: {
 
 /** Human-readable preflight line. Counts, never dollars — see `maxAdditionalCalls`. */
 export function formatAdjudicationPlan(plan: AdjudicationPlan, judges: { secondary: ModelRef; tieBreak?: ModelRef }): string {
-  if (plan.triggered.length === 0) return "adjudication: no cell triggered — no additional judge calls";
+  const stuck = plan.needsTieBreak.length
+    ? [
+        `  ${plan.needsTieBreak.length} of those cannot be SETTLED by this plan: ${plan.needsTieBreak.join(", ")}`,
+        "    (their first judgment misfired, so one more judge cannot reach two clean votes — the call",
+        "     buys a second opinion to resolve by hand; add a tie-break judge to settle them outright)",
+      ]
+    : [];
+  if (plan.triggered.length === 0) {
+    return ["adjudication: no cell triggered — no additional judge calls", ...stuck].join("\n");
+  }
   const lines = [
     `adjudication: ${plan.triggered.length} cell(s) triggered — up to ${plan.maxAdditionalCalls} additional judge call(s)`,
     `  secondary judge: ${judges.secondary.provider}:${judges.secondary.model}`,
@@ -518,5 +566,5 @@ export function formatAdjudicationPlan(plan: AdjudicationPlan, judges: { seconda
   for (const d of plan.decisions) {
     if (d.triggers.length) lines.push(`  ${d.id}: ${d.triggers.join(", ")}`);
   }
-  return lines.join("\n");
+  return [...lines, ...stuck].join("\n");
 }

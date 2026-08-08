@@ -269,9 +269,21 @@ export function mergeTraces(traces: ExecutionTraceV1[]): ExecutionTraceV1 | null
   const changed = new Set<string>();
   let cost: number | null = null;
 
+  let completed = 0;
   for (const t of traces) {
+    // Issue order and completion order are renumbered SEPARATELY. Assigning both
+    // from the same counter collapsed them, so every merged call got
+    // `completionIndex === issueIndex` — destroying the out-of-order completion
+    // data the parser records, and the persisted trace then described a
+    // concurrency ordering that did not happen.
+    const mergedCompletion = new Map(
+      [...t.tool_calls]
+        .filter((c) => c.completionIndex >= 0)
+        .sort((a, b) => a.completionIndex - b.completionIndex)
+        .map((c) => [c.id, completed++] as const),
+    );
     for (const c of [...t.tool_calls].sort((a, b) => a.issueIndex - b.issueIndex)) {
-      calls.push({ ...c, issueIndex: calls.length, completionIndex: c.completionIndex < 0 ? -1 : calls.length });
+      calls.push({ ...c, issueIndex: calls.length, completionIndex: mergedCompletion.get(c.id) ?? -1 });
     }
     for (const p of t.changed_paths) changed.add(p);
     if (t.cost_usd !== null) cost = (cost ?? 0) + t.cost_usd;

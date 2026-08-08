@@ -206,13 +206,23 @@ function facets(s: Scenario): { stimulus: string; rubric: string; policy: string
     // old transcripts describe a different agent and only a re-run can answer.
     // Changing an assertion only changes what we conclude from evidence already on
     // disk, which `regate` can redo for free.
+    // APPENDED CONDITIONALLY, never as a fixed slot. This tuple is positional and
+    // its hash is stored in every published results.yaml, so adding an
+    // unconditional element re-hashes every scenario that never used the field —
+    // measured: 83 lint findings became 261 across the reference corpus, all of
+    // them demanding paid re-runs for scenarios nobody had edited.
     stimulus: JSON.stringify([
       id, mode, turns, workspace, remote, systemPromptFile ?? null,
-      fixture ?? null, vitest ?? null, post_test ?? null, extensions ?? null,
+      fixture ?? null, vitest ?? null, post_test ?? null,
+      ...(extensions ? [extensions] : []),
     ]),
     rubric: JSON.stringify([id, title, checklist]),
     policy: JSON.stringify([id, critical, reps ?? null, passThreshold ?? null]),
-    gates: hasGates ? JSON.stringify([id, diff_contains ?? null, diff_excludes ?? null, traceAssert ?? null]) : null,
+    // Same rule as `stimulus` above: conditional, so a needle-gated scenario that
+    // declares no trace assertions keeps the digest it was published with.
+    gates: hasGates
+      ? JSON.stringify([id, diff_contains ?? null, diff_excludes ?? null, ...(traceAssert ? [traceAssert] : [])])
+      : null,
   };
 }
 

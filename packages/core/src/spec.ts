@@ -375,6 +375,19 @@ export function parseSpec(text: string, file: string): Spec {
       scenario.covers = s.covers.map((c) => c.trim());
     }
 
+    // `unchanged_paths` is checked against the workspace's git state, so a scenario
+    // with no repo has nothing to observe. Refused here — free and offline — rather
+    // than at run time, because the alternative shipped for a while: the assertion
+    // silently passed against an empty change list and reported a green safety gate.
+    if (scenario.traceAssert?.unchanged_paths?.length && scenario.workspace === "none") {
+      throw new SpecError(
+        `scenario \`${id}\` declares \`assert.trace.unchanged_paths\` but has no workspace to observe — ` +
+          `set \`env.workspace: empty-git\` or \`fixture:<path>\`, or drop the assertion. ` +
+          `A path policy with nothing to compare against would pass unconditionally.`,
+        file,
+      );
+    }
+
     // After system_prompt_file, so the incompatibility check sees the resolved value.
     scenario.extensions = resolveExtensions(s.env, scenario.systemPromptFile !== undefined, id, file);
 

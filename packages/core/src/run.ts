@@ -20,10 +20,10 @@ import {
 import { appendJournal } from "./journal.js";
 import { liftHeadline, type Lift } from "./lift.js";
 import { runSeeded } from "./seeded.js";
-import { serializeTrace, mergeTraces } from "./execution-trace.js";
+import { serializeTrace, mergeTraces, traceSha256 } from "./execution-trace.js";
 import { evaluateTraceGates } from "./trace-gates.js";
 import type { ExecutionTraceV1 } from "./capture-trace-types.js";
-import { createWorkspace, type Workspace } from "./workspace.js";
+import { observeChangedPaths, createWorkspace, type Workspace } from "./workspace.js";
 import { runPool } from "./scheduler.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
 import { judgeOneRep } from "./regrade.js";
@@ -241,6 +241,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
     }
     let noResponse = false;
     let traces: ExecutionTraceV1[] = [];
+    let unobservablePaths = false;
     if (ws) {
       // A blank assistant turn is a harness timeout, not model behavior: retry ONCE in a
       // fresh workspace (the first attempt may have half-mutated a seeded repo), and if
@@ -307,6 +308,31 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
       appendJournal(runDir, { event: "gate-result", ts: now(), id: scenario.id, ok: !gatePrefix, detail: gatePrefix ?? "", ...repField });
     }
 
+    // Filesystem evidence for `unchanged_paths`, observed AFTER the model ran.
+    //
+    // It cannot come through `RunReq`: the request is built before the run, and
+    // what changed only exists afterwards. That plumbing existed and no caller
+    // ever set it, so `changed_paths` was always `[]` and every
+    // `unchanged_paths` assertion passed vacuously — a safety gate reporting
+    // green while the model rewrote the workspace.
+    // Only when the scenario actually asserts on paths. A scenario using only
+    // `require_calls` / `forbid_calls` needs no filesystem evidence, so a
+    // workspace it cannot observe is not an error for it.
+    if (scenario.traceAssert?.unchanged_paths?.length && traces.length > 0 && ws) {
+      const changed = await observeChangedPaths(ws.cwd, scenario.workspace);
+      if (changed === null) {
+        // `workspace: none` has no repo to compare against. Missing evidence is
+        // ERROR, never a pass — spec.ts refuses this combination up front, so
+        // reaching here means the workspace could not be read.
+        unobservablePaths = true;
+      } else {
+        traces = traces.map((t) => {
+          const withPaths = { ...t, changed_paths: [...changed].sort() };
+          return { ...withPaths, trace_sha256: traceSha256(withPaths) };
+        });
+      }
+    }
+
     // Objective evidence is persisted for every rep, pass or fail — a failing gate
     // is exactly when someone wants to read what the model actually did.
     let objective: ObjectiveResult | undefined;
@@ -319,7 +345,10 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
         );
       }
       const merged = mergeTraces(traces);
-      if (merged === null) {
+      if (unobservablePaths) {
+        gatePrefix = "objective: workspace changes could not be observed — `unchanged_paths` has no evidence to check";
+        objective = { status: "ERROR", assertions: [] };
+      } else if (merged === null) {
         // Declared a gate, produced no trace: that is broken infrastructure, and
         // grading it either way would be inventing a result.
         gatePrefix = "objective: no execution trace was produced — cannot evaluate assert.trace";

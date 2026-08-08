@@ -151,7 +151,7 @@ export function visibleText(blocks: SessionContentBlock[] | undefined): string {
  * guessed at: an unknown entry type is not evidence about the conversation.
  * Anything before the first user message is dropped — it belongs to no turn.
  */
-export function projectTurns(entries: SessionEntry[]): LogicalTurn[] {
+export function projectTurns(entries: SessionEntry[], homeDir?: string): LogicalTurn[] {
   const turns: LogicalTurn[] = [];
   let current: LogicalTurn | null = null;
 
@@ -182,7 +182,9 @@ export function projectTurns(entries: SessionEntry[]): LogicalTurn[] {
         if (b.type !== "toolCall") continue;
         current.toolCalls.push({
           name: typeof b.name === "string" ? b.name : "(unknown)",
-          args: redactArgs(b.arguments),
+          // Without `homeDir` this scrubbed secrets but left absolute home paths
+          // intact — and these args are what the evidence sidecar records.
+          args: redactArgs(b.arguments, homeDir),
           isError: false,
           ...(typeof b.id === "string" ? { id: b.id } : {}),
         });

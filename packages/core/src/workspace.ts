@@ -1,3 +1,4 @@
+import { exec } from "./util/exec.js";
 import { appendFileSync, cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -213,4 +214,26 @@ export function createWorkspace(kind: WorkspaceKind, opts: { specDir: string; re
     throw e;
   }
   return { cwd, cleanup };
+}
+
+/**
+ * Paths whose content changed in a workspace, relative to its baseline commit.
+ *
+ * The ONLY evidence `assert.trace.unchanged_paths` can honestly rest on. A tool
+ * trace proves which tool was called with which arguments; it cannot prove what
+ * that tool then did to the filesystem, so a path policy has to be checked
+ * against the filesystem.
+ *
+ * Returns null when the workspace has no repo to compare against (`workspace:
+ * none`) — the caller must treat that as MISSING EVIDENCE, never as "nothing
+ * changed". An empty array means observed-and-nothing-changed; null means we
+ * could not look.
+ */
+export async function observeChangedPaths(cwd: string, kind: WorkspaceKind): Promise<string[] | null> {
+  if (kind === "none") return null;
+  const add = await exec("git", ["add", "-A"], { cwd, timeoutMs: 30_000 });
+  if (add.code !== 0) return null;
+  const named = await exec("git", ["diff", "--cached", "--name-only"], { cwd, timeoutMs: 30_000 });
+  if (named.code !== 0) return null;
+  return named.stdout.split("\n").map((l) => l.trim()).filter(Boolean);
 }

@@ -49,8 +49,6 @@ export interface RunReq {
    */
   scenarioId?: string;
   rep?: number;
-  /** Workspace-relative paths observed to have changed, for `unchanged_paths`. */
-  changedPaths?: string[];
   /**
    * Absolute paths of pi extensions to load, already resolved by the caller.
    *
