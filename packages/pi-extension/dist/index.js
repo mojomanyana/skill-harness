@@ -4612,7 +4612,7 @@ async function regradeRun(opts) {
   const { runDir, spec, adapter, judge, specDir } = opts;
   const now = opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
   const prev = existsSync7(join9(runDir, "results.yaml")) ? readResults(runDir) : null;
-  const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, { override: s.override, note: s.note }]));
+  const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, { override: s.override, note: s.note, objective: s.objective }]));
   const mode = prev?.mode ?? "green";
   const specById = new Map(spec.scenarios.map((s) => [s.id, s]));
   const recorded = prev?.scenarios ?? spec.scenarios.map((s) => ({ id: s.id }));
@@ -4655,7 +4655,12 @@ async function regradeRun(opts) {
       now
     });
     const carry = overrides.get(id);
-    scenarioResults.push({ ...rr, override: carry?.override ?? null, note: carry?.note ?? "" });
+    scenarioResults.push({
+      ...rr,
+      override: carry?.override ?? null,
+      note: carry?.note ?? "",
+      ...carry?.objective ? { objective: carry.objective } : {}
+    });
   }
   const ctx = scoreContextFor({ mode, partial: prev?.partial }, spec);
   const results = writeResults(runDir, {
@@ -6500,7 +6505,12 @@ async function serveReview(opts) {
             threshold,
             mode: results.mode
           });
-          const merged = results.scenarios.map((s) => s.id === body.scenarioId ? { ...rr, override: s.override, note: s.note } : s);
+          const merged = results.scenarios.map((s) => (
+            // Same carry-forward contract as `grade`: the author's override/note and
+            // the run's objective evidence survive a re-judge; a stale adjudication
+            // panel does not (this re-judge replaced the judgments it described).
+            s.id === body.scenarioId ? { ...rr, override: s.override, note: s.note, ...s.objective ? { objective: s.objective } : {} } : s
+          ));
           const written = writeResults(column.runDir, {
             skill: results.skill,
             harness: results.harness,

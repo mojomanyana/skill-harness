@@ -134,7 +134,17 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
   const now = opts.now ?? (() => new Date().toISOString());
 
   const prev = existsSync(join(runDir, "results.yaml")) ? readResults(runDir) : null;
-  const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, { override: s.override, note: s.note }]));
+  // Carried across a re-judge, per field, because the right answer differs:
+  //  - `override`/`note`  — the author's, never the judge's to discard.
+  //  - `objective`        — a re-judge does NOT re-evaluate trace gates (that is
+  //    `regate`), so the recorded evidence still describes this run. Dropping it
+  //    silently downgraded a gated scenario to "no assertions declared".
+  // `adjudication` is deliberately NOT carried: it describes the judgments this
+  // re-grade just replaced, and a stale panel beside a fresh verdict is worse
+  // than none. `grade --auto-rejudge` recomputes it.
+  const overrides = new Map(
+    (prev?.scenarios ?? []).map((s) => [s.id, { override: s.override, note: s.note, objective: s.objective }]),
+  );
   const mode = prev?.mode ?? "green";
 
   // Re-grading rewrites the WHOLE results.yaml, so re-judge exactly the
@@ -184,7 +194,12 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
       runDir, spec, scenario, adapter, judge, specDir, threshold, mode, now,
     });
     const carry = overrides.get(id);
-    scenarioResults.push({ ...rr, override: carry?.override ?? null, note: carry?.note ?? "" });
+    scenarioResults.push({
+      ...rr,
+      override: carry?.override ?? null,
+      note: carry?.note ?? "",
+      ...(carry?.objective ? { objective: carry.objective } : {}),
+    });
   }
 
   const ctx = scoreContextFor({ mode, partial: prev?.partial }, spec);

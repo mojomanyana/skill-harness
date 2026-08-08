@@ -155,7 +155,12 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
             specDir: dirname(specPath), threshold, mode: results.mode,
           });
           const merged = results.scenarios.map((s) =>
-            s.id === body.scenarioId ? { ...rr, override: s.override, note: s.note } : s
+            // Same carry-forward contract as `grade`: the author's override/note and
+            // the run's objective evidence survive a re-judge; a stale adjudication
+            // panel does not (this re-judge replaced the judgments it described).
+            s.id === body.scenarioId
+              ? { ...rr, override: s.override, note: s.note, ...(s.objective ? { objective: s.objective } : {}) }
+              : s
           );
           const written = writeResults(column.runDir, {
             skill: results.skill, harness: results.harness, model: results.model, judge: results.judge,

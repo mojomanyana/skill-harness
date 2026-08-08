@@ -585,6 +585,34 @@ never enter `specification.yaml` before a human promotes them.
         check, and warns instead of failing when it is unreadable.
       - Post: `docs/posts/2026-08-08-when-one-judge-is-not-enough.md`
 
+### Sprint 1.8 — Real-pi smoke coverage (2026-08-08)
+
+- [x] **`scripts/smoke-real-pi.sh`** — the three paths a fake adapter cannot reach:
+      `runStructured`'s spawn + streaming JSONL reader, the `--extension` argv the
+      harness passes to pi, and the live judge loop under `--auto-rejudge`. One
+      scenario covers all three; a single-scenario spec (min_pass == total) makes the
+      cell always `ship_deciding`, so adjudication is guaranteed to fire. Committed as
+      a hand-run script, never CI, and wired into `PUBLISHING.md` as a pre-publish step.
+      - **It immediately found a real bug**: `grade` silently dropped the `objective`
+        field from `results.yaml`, so a trace-gated scenario re-read as "no assertions
+        declared" — the dangerous direction — while 1,036 tests passed. `regate` had the
+        mirror-image bug for `adjudication`.
+        Fixed per command, because the correct contract differs: `grade` carries
+        `objective` (it does not re-evaluate gates) and drops `adjudication` (it replaced
+        those judgments); `regate` recomputes `objective` (that is its job) and carries
+        `adjudication` (it asks no judge anything); `rescore` carries both (it
+        re-measures nothing). `packages/core/test/field-roundtrip.test.ts` now covers
+        every writer × every optional field — the round-trip suite the plan asked for
+        and nobody had written.
+      - Also observed live, on the third run: the judge **disagreed with itself** on the
+        same transcript (#1 PASS, #2 FAIL) — a real instance of the ~2% variance Sprint
+        2.3 measured, and the `unresolved → suspect: true → blocks SHIP` path firing on
+        real data rather than a fixture.
+      - Asserts on artifacts, not exit codes: trace version and `pi_version` recorded,
+        the declared extension's `Agent` call present with the right agent, and no
+        thinking / home paths / tool-result bodies persisted — the privacy limits
+        verified against a real stream instead of a sanitized fixture.
+
 ## PHASE 2 — Launch & first 100 fans (weeks 5–10)
 
 **Goal:** exist in the heads of everyone who writes skills.

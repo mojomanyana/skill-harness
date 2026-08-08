@@ -255,7 +255,15 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
     const next = outcomesToResult(scenario.id, outcomes, outcomes.length, threshold);
     // Overrides and their notes survive: a regate re-decides the gate, and an author
     // override is a statement about the judge, not about the needle.
-    scenarios.push({ ...next, override: rec.override, note: rec.note });
+    // `objective` on `next` is freshly recomputed above — that is what regate does.
+    // `adjudication` is carried: regate re-reads saved evidence and never asks a
+    // judge anything, so the recorded panel still describes the current judgments.
+    scenarios.push({
+      ...next,
+      override: rec.override,
+      note: rec.note,
+      ...(rec.adjudication ? { adjudication: rec.adjudication } : {}),
+    });
 
     const to = next.judge_verdict;
     if (to !== rec.judge_verdict) {
