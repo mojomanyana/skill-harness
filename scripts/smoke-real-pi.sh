@@ -67,7 +67,11 @@ const fs = require("fs");
 const t = JSON.parse(fs.readFileSync(process.argv[1], "utf8").split("\n").filter(Boolean)[0]);
 const die = (m) => { console.error("FAIL: " + m); process.exit(1); };
 
-if (t.trace_version !== 1) die("unexpected trace_version " + t.trace_version);
+// Read from the source of truth, not a literal. A hardcoded 1 here failed the
+// smoke run purely because the format legitimately moved to 2 — a release gate
+// that cries wolf on its own version bump trains you to ignore it.
+const EXPECTED = require("./packages/core/dist/capture-trace-types.js").EXECUTION_TRACE_VERSION;
+if (t.trace_version !== EXPECTED) die("trace_version " + t.trace_version + ", expected " + EXPECTED);
 if (!t.pi_version) die("no pi_version recorded — provenance is the whole point of the field");
 if (!t.trace_sha256) die("no trace_sha256 — regate identifies saved evidence by this hash");
 
@@ -80,6 +84,11 @@ const blob = JSON.stringify(t);
 if (/thinking/i.test(blob)) die("thinking leaked into the persisted trace");
 if (blob.includes("/home/")) die("a home path leaked into the persisted trace");
 if (t.tool_calls.some((c) => c.result && "content" in c.result)) die("a tool-result body was persisted");
+
+// Tri-state since v2: this scenario declares no `unchanged_paths` and has no
+// workspace, so the honest value is `null` — "never observed". An empty array
+// here would mean the parser had gone back to claiming it looked and saw nothing.
+if (t.changed_paths !== null) die("changed_paths should be null (never observed), got " + JSON.stringify(t.changed_paths));
 
 console.log("  trace_version " + t.trace_version + " · pi " + t.pi_version);
 console.log("  tool calls: " + t.tool_calls.map((c) => c.name).join(", "));
