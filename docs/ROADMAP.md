@@ -372,6 +372,68 @@ Released as **0.6.0** (2026-08-06). One item, optional in priority, high in valu
       mean "perfectly stable" — mixed polarity in one line of output is a footgun.
       - Post: `docs/posts/2026-08-06-flakiness-zero-is-not-stability.md`
 
+### Sprint 1.7 — pi-native feedback loop (owner decision 2026-08-08)
+
+Plan: `docs/superpowers/plans/2026-08-07-pi-native-regression-capture-program.md`.
+Five pi-only capabilities as one incremental program: live conversation capture,
+objective execution traces, subagent orchestration tests, instruction
+coverage/affected-test selection, and confidence-aware rejudging.
+
+**Placement is deliberate, and it is a reprioritization.** This sits ahead of the
+unstarted Phase 2 launch work, at the owner's explicit call on 2026-08-08. The
+argument for going first: the north star in Sprint 1.4 is measurement the engineer
+never has to second-guess, and Phase 2's growth product is a *findings* post — a
+findings post backed by objective trace gates and confidence-aware judging is a
+materially stronger artifact than one backed by a single LLM judge over prose.
+The cost is real and should not be dressed up: launch slips by the length of this
+program, and Phase 2's metrics stay at baseline meanwhile.
+
+Sequencing rules carried from the plan: **one phase at a time**, separate minor
+releases per user-facing feature rather than one big drop, and pending captures
+never enter `specification.yaml` before a human promotes them.
+
+- [x] **Phase 0 — feasibility spike** (2026-08-08). Validated pi 0.83.0's JSON
+      event contract against offline fixtures before touching the adapter, and
+      found four things the plan had wrong. Design record:
+      `docs/pi-native-capture-design-2026-08-08.md`; fixtures + provenance:
+      `packages/adapters/test/fixtures/pi-json/`. Whole spike cost **$0.0035** in
+      subject tokens; the extension-isolation proof cost nothing at all.
+      - **The plan's transcript rule would have moved verdicts.** §4.2 said a
+        trace carries "assistant text blocks excluding thinking"; print mode —
+        what today's adapter actually shows the judge — emits only the **final**
+        assistant message. Models emit text alongside tool calls, so the plan's
+        rule would have fed the judge interim narration the transcript has never
+        contained, on scenarios nobody edited. Proven byte-exact both ways on a
+        deterministic prompt. Same class of silent epoch as
+        `docs/force-epoch-2026-08-06.md`.
+      - **The stream is quadratic.** `message_update` re-sends the entire
+        accumulated message per delta: a three-tool-call run emitted **52 MB** of
+        stdout wrapping 12 KB of terminal events. The JSON path must stream-parse
+        and cannot reuse the buffering `exec()` helper — a memory bug that would
+        have surfaced mid-wave on a long scenario, not in a unit test.
+      - **Parallel tool calls complete out of order.** pi runs batched calls
+        concurrently; ends arrive in completion order, not issue order.
+        `toolCallId` is the only sound correlation key. `gpt-oss-20b` can't
+        produce the shape at all (one call per round trip), so that fixture is
+        pinned to `deepseek-v4-flash`.
+      - **Extension isolation confirmed, stronger than assumed.**
+        `--no-extensions --extension <path>` loads exactly the declared extension
+        even under `-a` project-local trust. Tested via load-time stderr markers
+        for **zero** model spend, since extensions load during `--help`.
+      - Also: pi's `turn` is a round trip, not a user turn (the plan overloads the
+        word); `session.cwd` and tool-error strings leak absolute paths; thinking
+        appears in three separate events, so dropping it is three explicit filters;
+        a tool's `details` survives verbatim and is the one stable structured
+        channel for subagent normalizers.
+      - `CaptureCaseV1` / `ExecutionTraceV1` fixed as types-only in
+        `packages/core/src/capture-trace-types.ts` — no behavior, nothing wired in.
+      - No post: a spike ships no user-facing feature. Rule 2 attaches from Phase 1.
+- [ ] Phase 1 — `/skill-harness capture`: promote a conversation to a regression
+- [ ] Phase 2 — structured traces + objective `assert.trace` gates
+- [ ] Phase 3 — first-class subagent orchestration tests
+- [ ] Phase 4 — instruction coverage + affected-test selection
+- [ ] Phase 5 — confidence-aware automatic rejudging
+
 ## PHASE 2 — Launch & first 100 fans (weeks 5–10)
 
 **Goal:** exist in the heads of everyone who writes skills.
