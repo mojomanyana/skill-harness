@@ -27,6 +27,35 @@ export interface ScenarioResult {
    * would silently upgrade every legacy result to "objectively verified".
    */
   objective?: ObjectiveResult;
+  /**
+   * Confidence-aware adjudication. ADDITIVE and optional.
+   *
+   * Absent means historical single-judge behavior — NOT that judges agreed. An
+   * unresolved adjudication additionally sets `suspect: true`, which is what
+   * actually blocks SHIP; this field is the audit trail behind that flag.
+   */
+  adjudication?: AdjudicationResult;
+}
+
+/** One judge's answer for a cell, kept verbatim however the collapse turned out. */
+export interface Judgment {
+  /** 1-based: judgment 1 is the first-wave judge. */
+  ordinal: number;
+  judge: { provider: string; model: string };
+  verdict: Verdict;
+  reason: string;
+  /** The judge misfired — recorded, never counted as a clean vote. */
+  suspect: boolean;
+}
+
+export interface AdjudicationResult {
+  state: "confirmed" | "tie_broken" | "unresolved";
+  /** Why the cell was re-judged. */
+  trigger: "ambiguous" | "contradictory" | "non_unanimous" | "ship_deciding";
+  /** Every judgment, in order. Never pruned — an author resolving this needs all of them. */
+  judgments: Judgment[];
+  /** The collapsed answer. Absent when unresolved. */
+  verdict?: "PASS" | "FAIL";
 }
 
 /** Objective gate outcome for one scenario cell. */

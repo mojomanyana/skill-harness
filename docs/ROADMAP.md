@@ -542,7 +542,35 @@ never enter `specification.yaml` before a human promotes them.
         whole-file `covers` would mark it covered. Nine passing heading tests, found
         in ten seconds by running the command on a real skill.
       - Post: `docs/posts/2026-08-08-which-instructions-have-no-test.md`
-- [ ] Phase 5 — confidence-aware automatic rejudging
+- [x] **Phase 5 — confidence-aware automatic rejudging** (2026-08-08). Asks an
+      untrustworthy cell again instead of publishing it. Four triggers computed from
+      the COMPLETE first wave: `ambiguous`, `contradictory` (the misfire quarantine,
+      now with a remedy), `non_unanimous`, and `ship_deciding` — a counterfactual
+      against the **real scorer**, so min-pass/critical/B-series all move it and no
+      second copy of the ship rules can drift.
+      **Motivated by our own measurement**: 1 disagreement in 57 judgments (~2%), and
+      the one that mattered was `git-ops` A9 — a published FAIL that was a 1-in-7
+      minority draw, the difference between 93% and 100%.
+      - **Off by default, and spec configuration alone never authorizes a call.** The
+        only switch is `--auto-rejudge`; a test asserts a misfired cell costs exactly
+        zero extra calls without it. Preflight prints the exact ceiling first.
+      - **The preflight quotes CALL COUNTS, never dollars.** The default judge is a
+        Claude subscription and reports no per-call usage, so a dollar figure would be
+        invented — and invented numbers are this tool's cardinal sin. (Metered
+        reference, measured on the real corpus: ~760 in / ~130 out tokens per call ≈
+        $0.008 at Opus rates; 674 cells worst case ≈ $11.)
+      - **`unresolved` reuses the existing suspect gate** rather than adding a second
+        ship rule — two rules drift, one cannot.
+      - **A malformed answer is not a vote.** Consequence that fell out rather than
+        being designed: when the FIRST wave misfired it is not a clean vote either, so
+        a contradictory cell needs TWO fresh judgments to agree. A misfire cannot
+        confirm itself.
+      - Caps at 3 judgments, not configurable; adjudicates one documented rep rather
+        than the rep that would move the headline; human overrides survive untouched.
+      - **Bug caught by its own test:** the ship-deciding counterfactual cleared
+        `suspect` on only one side, so the baseline stayed blocked-by-suspect and
+        EVERY suspect cell reported as ship-deciding for the wrong reason.
+      - Post: `docs/posts/2026-08-08-when-one-judge-is-not-enough.md`
 
 ## PHASE 2 — Launch & first 100 fans (weeks 5–10)
 

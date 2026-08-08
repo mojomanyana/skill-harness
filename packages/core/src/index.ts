@@ -34,3 +34,4 @@ export * from "./execution-trace.js";
 export * from "./trace-gates.js";
 export * from "./instruction-coverage.js";
 export * from "./affected.js";
+export * from "./adjudication.js";

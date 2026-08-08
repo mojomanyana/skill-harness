@@ -748,7 +748,7 @@ Reuse one adjudication engine from `run`, `grade`, and review rejudge paths; do 
 
 ### 7.9 Required post
 
-- [ ] `docs/posts/<date>-when-one-judge-is-not-enough.md`
+- [x] `docs/posts/2026-08-08-when-one-judge-is-not-enough.md`
 
 ---
 
@@ -766,8 +766,8 @@ Keep PRs small enough to review and release independently:
 8. [x] Controlled-extension subagent orchestration scenarios. (2026-08-08)
 9. [x] Coverage parser/report and capture mapping. (2026-08-08)
 10. [x] Affected-test selection and `run --affected`. (2026-08-08)
-11. [ ] Adjudication engine and results model.
-12. [ ] Rejudge CLI, extension confirmation, and review UI.
+11. [x] Adjudication engine and results model. (2026-08-08)
+12. [~] Rejudge CLI done (2026-08-08); extension confirmation + review-UI surfacing still open.
 
 Prefer separate minor releases for each user-facing feature instead of waiting for all five to complete.
 

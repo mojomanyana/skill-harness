@@ -25,6 +25,7 @@ list  <--skills root>                     which skills have a spec (● testable
 lint  <skill|all> --skills root           validate specs/fixtures + results-consistency — CI gate, no models, no keys; exits non-zero on findings
 run   <skill|all> --skills root [--model prov:model ...] [--mode red|green|force] [--judge prov:model] [--reps N] [--pass-threshold T] [--label name] [--parallel N] [--canary]
 grade <run-dir> [--judge prov:model]      re-judge saved transcripts with a (different) judge — no model re-run
+      [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]  ask untrustworthy cells again (OFF by default; prints the exact MAX extra call count first; unresolved disagreement blocks SHIP)
 rescore <run-dir>...                      re-score saved reps against current spec thresholds — free, offline
 regate <run-dir>...                       re-evaluate diff_contains/diff_excludes against the SAVED diffs — free, except one judge call per rep whose gate verdict flips
 stability <skill|all> --skills root [--window N] [--all]  run-over-run verdict flips per scenario — free, offline, exits 0 always

@@ -34,6 +34,8 @@ export type JournalEvent =
   | { event: "gate-result"; ts: string; id: string; ok: boolean; detail: string; rep?: number }
   /** Trace-gate outcome. Separate from `gate-result`, which is the seeded diff/vitest gates. */
   | { event: "objective-result"; ts: string; id: string; ok: boolean; detail: string; rep?: number }
+  /** One adjudication pass: which cells were re-judged, what it cost in CALLS, what stayed unresolved. */
+  | { event: "adjudication"; ts: string; triggered: string[]; judge_calls: number; unresolved: string[] }
   | { event: "judge-verdict"; ts: string; id: string; verdict: Verdict; reason: string; suspect: boolean; rep?: number }
   | { event: "misfire-flag"; ts: string; id: string; reason: string; rep?: number }
   | { event: "empty-response-retry"; ts: string; id: string; attempt: number; rep?: number }

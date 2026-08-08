@@ -18,6 +18,7 @@ import {
   specPathForRunDir,
   collectLift,
   collectStability, boundaryCells, stabilityNote, PATH_LEGEND,
+  resolveAdjudicationJudges, adjudicateRun, judgeResemblesSubject,
   computeCoverage, formatCoverage,
   selectAffected, formatAffected, gitDiff,
   exec,
@@ -286,7 +287,33 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
   for (const s of results.scenarios) {
     console.log(`  ${s.id} → ${s.judge_verdict}: ${s.judge_reason}`);
   }
-  const g = results.effective_grade;
+  let final = results;
+
+  // Adjudication is opt-in. Without --auto-rejudge nothing below runs and not one
+  // extra call is made — a spec may declare triggers, but spec configuration alone
+  // never authorizes spending.
+  const judges = resolveAdjudicationJudges({
+    enabled: flagBool(args, "auto-rejudge"),
+    primary: judge,
+    secondaryToken: flagStr(args, "secondary-judge"),
+    tieBreakToken: flagStr(args, "tie-break-judge"),
+    subject: parseModelRef(results.model),
+    parseRef: parseModelRef,
+    assertAllowed: (j, source) => assertJudgeAllowed(j, { source, allowMetered: flagBool(args, "allow-metered-judge") }),
+    resemblesSubject: judgeResemblesSubject,
+    warn: (m) => console.error(m),
+  });
+
+  if (judges) {
+    final = await adjudicateRun({
+      runDir, spec, adapter, results, primaryJudge: judge,
+      secondaryJudge: judges.secondary, tieBreakJudge: judges.tieBreak,
+      specDir: testsDir, now: nowIso,
+      log: (m) => console.log(m),
+    });
+  }
+
+  const g = final.effective_grade;
   console.log(`\n  re-graded with ${judge.provider}:${judge.model} → ${g.letter} (${g.pct}%) ${g.ship ? "SHIP" : "NOT READY"}`);
 }
 
@@ -712,6 +739,9 @@ export function help(): string {
                      [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
                      [--canary]  green only: spend ONE probe proving the skill reached the model, and abort the run if it did not
   grade  <run-dir>   [--judge prov:model] [--suspect-only]   re-grade saved transcripts (neutral judge)
+                     [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]
+                       ask again about untrustworthy cells (ambiguous / contradictory / non-unanimous /
+                       ship-deciding). OFF by default; prints the exact MAX extra call count first.
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (free)
   regate <run-dir>...  [--judge prov:model]     re-evaluate diff needles against the saved diffs (free; judges only reps whose gate flipped)
   stability <skill|all> --skills <root> [--window N] [--all]  run-over-run verdict flips per scenario (free, offline)

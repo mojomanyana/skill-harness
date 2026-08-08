@@ -469,6 +469,64 @@ to iterate; a full run still gates a release.
 **`covers` costs nothing to change** — it's in no staleness facet. Editing it
 changes what `--affected` selects next time, not what any past run measured.
 
+## 7d. Confidence-aware rejudging — when one judge isn't enough
+
+Re-judging saved transcripts holds the model constant, so movement is the judge. Ours
+disagreed with itself in **1 of 57 judgments (~2%)** — and the one that mattered was a
+published FAIL that turned out to be a 1-in-7 minority draw, the difference between a
+skill reading 93% and 100%.
+
+```bash
+node bin/skill-harness.js grade <run-dir> --auto-rejudge \
+  --secondary-judge claude-code:claude-opus-4-8 \
+  --tie-break-judge claude-code:claude-opus-4-8
+```
+
+Four triggers, computed from the **complete** first wave:
+
+| Trigger | Fires when |
+|---|---|
+| `ambiguous` | the judge's verdict blocks disagree, or nothing parseable came back |
+| `contradictory` | the overall verdict disagrees with its own per-item grades (the misfire) |
+| `non_unanimous` | the reps split — 2 PASS + 1 FAIL is not a settled result |
+| `ship_deciding` | flipping this one cell would change SHIP ⇄ NOT READY |
+
+`ship_deciding` is a counterfactual against the **real scorer**, so min-pass, critical
+and B-series all move it.
+
+**Off by default. Spec configuration alone never authorizes a judge call** — the only
+switch is `--auto-rejudge`. The preflight prints the ceiling before the first extra call:
+
+```
+adjudication: 1 cell(s) triggered — up to 1 additional judge call(s)
+  secondary judge: claude-code:claude-opus-4-8
+  no tie-break judge — a disagreement stays unresolved and blocks SHIP
+  A4: contradictory
+```
+
+**That is a call count, not a dollar figure, on purpose.** The default judge is your
+Claude subscription and reports no per-call usage back to the harness, so a dollar
+estimate would be invented. (Metered reference, measured on the real corpus: ~760 input
+/ ~130 output tokens per call ≈ $0.008 at Opus rates.)
+
+Every configured judge passes the same gates as the primary — metered refusal and
+judge≠subject.
+
+**Three outcomes:**
+
+- **confirmed** — two clean votes agree; suspect cleared.
+- **tie_broken** — a clean two-of-three majority; suspect cleared.
+- **unresolved** — anything else: `suspect: true`, which **blocks SHIP** through the
+  existing gate rather than a second one.
+
+**A malformed answer is not a vote.** Ambiguous and misfired judgments are recorded in
+full and never counted — so when the *first* wave misfired, a cell needs **two** fresh
+judgments to agree. A misfire cannot confirm itself.
+
+Caps at 3 judgments per cell. Adjudicates one documented rep, never the rep that would
+move the headline. **Human overrides survive untouched** — a judge panel does not
+outvote the author.
+
 ## 8. The optimize loop
 
 Edit the `SKILL.md` under test → re-`run` → compare the new scorecard to the old `results.yaml`. Report the **per-scenario delta**, not just the letter grade. Don't trust one run on a weak/stochastic model — re-run noisy scenarios (`--reps`).
