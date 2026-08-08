@@ -628,8 +628,32 @@ never enter `specification.yaml` before a human promotes them.
 - Metric: 100 stars. Key task: one pi maintainer acknowledges/tries it.
 
 ### Sprint 2.2 — Show HN + findings bomb
-- [ ] Findings post: "I ran N popular agent skills through an LLM-judged harness with
-      anti-gaming tripwires — X% fail under pressure" + interactive report link
+- [x] **Findings post — drafted 2026-08-08**:
+      `docs/posts/2026-08-08-ninety-three-percent-and-still-not-shipping.md`.
+      **The headline the data actually supports is not the one this line predicted.**
+      "X% fail under pressure" turned out to rest on 23 green / 11 force under-pressure
+      cells — 3 failures each — and dressing 3/11 up as "27% of skills fail under
+      pressure" would have been exactly the kind of number this project exists to
+      refuse. The defensible finding is stronger anyway: **91–94% pass, and only 7 of
+      21 green runs ship** (6 of 11 in force). Pass rate and ship bar disagree most of
+      the time, and the gap is 14 critical failures plus the pressure cluster.
+      - Paired lift, via the harness's own `collectLift` over 147 comparable cells:
+        **red 62% → skill-on 93%**, 48 gained vs 2 regressed. `plan` alone goes
+        36% → 89%. 12 mode-insensitive cells correctly excluded; 0 aggregation
+        mismatches (the whole corpus is `--reps 3`).
+      - Also reportable, and unexpected: **zero unresolved judge misfires** across all
+        166 committed runs — not because the judge never misfired, but because every
+        one was resolved before commit. The quarantine worked as a *process*. Plus 5
+        author overrides.
+      - `build` green 56% / 0-of-3 under pressure vs force 93% / 2-of-3 is the
+        green-delivery incident visible in committed data.
+      - **Scoped honestly**: these are the owner's own 7 skills, not popular
+        third-party ones — the 2026-08-04 survey found "popular AND pi-native AND
+        testable" is not currently a set that exists. The post says so in its own
+        "What this is not" section rather than in a footnote.
+      - Reproducible by anyone: `scripts/corpus-findings.mjs` and
+        `scripts/corpus-lift.mjs`, both free and offline over the public corpus.
+      - **Still owner-only:** the interactive report link, and actually posting it.
 - [ ] Show HN with the findings post (not a bare repo)
 - [ ] PRs/issues to 3+ tested skill repos with their reports attached (every tested
       author is a warm lead)
