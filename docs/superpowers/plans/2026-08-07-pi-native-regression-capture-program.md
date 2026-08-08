@@ -638,7 +638,7 @@ Modify:
 
 ### 6.8 Required post
 
-- [ ] `docs/posts/<date>-which-instructions-have-no-test.md`
+- [x] `docs/posts/2026-08-08-which-instructions-have-no-test.md`
 
 ---
 
@@ -764,8 +764,8 @@ Keep PRs small enough to review and release independently:
 6. [x] Trace assertion schema/evaluator and core run integration. (2026-08-08)
 7. [~] Trace-aware `regate` done (2026-08-08); lint/scorecard/review-UI surfacing still open.
 8. [x] Controlled-extension subagent orchestration scenarios. (2026-08-08)
-9. [ ] Coverage parser/report and capture mapping.
-10. [ ] Affected-test selection and `run --affected`.
+9. [x] Coverage parser/report and capture mapping. (2026-08-08)
+10. [x] Affected-test selection and `run --affected`. (2026-08-08)
 11. [ ] Adjudication engine and results model.
 12. [ ] Rejudge CLI, extension confirmation, and review UI.
 

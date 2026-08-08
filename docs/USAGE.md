@@ -410,6 +410,65 @@ arguments. It says nothing about what that tool then did to the machine — a `b
 command string is not a filesystem audit. For a real path policy, forbid `bash` or
 assert on `unchanged_paths`.
 
+## 7c. Coverage + affected — which instructions have no test (free, offline)
+
+Opt a scenario in with `covers`:
+
+```yaml
+scenarios:
+  - id: A1
+    title: politeness
+    covers: ["../SKILL.md#core-principle"]
+```
+
+```bash
+node bin/skill-harness.js coverage <skill|all> --skills <root> [--strict]
+node bin/skill-harness.js affected <skill> --skills <root> [--base <git-ref>]
+node bin/skill-harness.js run <skill> --skills <root> --affected --base <git-ref>
+```
+
+```
+demo: 2/3 sections have a declared test (67%)
+
+  no test declares coverage of:
+    ../SKILL.md#demo  (Demo)
+
+  `covers` records a declared link, not proof the behaviour is tested.
+```
+
+**It is DECLARED coverage, not proof.** A `covers` entry records that somebody
+associated a test with a section — not that the behaviour is tested, still less
+tested well. `--strict` (which exits non-zero on uncovered sections) is opt-in for
+exactly that reason. A **broken** reference fails regardless of `--strict`, since
+that's a wrong statement in the spec rather than a gap; renaming a heading is the
+usual cause, so the finding suggests near-miss slugs.
+
+`affected` reads `git diff --unified=0 <base>`, maps changed lines to heading
+sections, reverses the `covers` map, and prints a **reason per scenario**:
+
+```
+selected 2/3 scenario(s):
+  A2  covers skills/demo/SKILL.md#edge-cases
+  B1  B-series (always run)
+
+an affected run is partial and never reports SHIP — a full run still gates a release
+```
+
+**Selection always errs toward more**, because under-inclusive means shipping a
+regression while over-inclusive only costs tokens:
+
+- every **critical** and **B-series** scenario runs, whatever the diff said;
+- a scenario with **no `covers`** is always selected — there's nothing to consult;
+- a changed **fixture / post-test / agent file / extension** selects its scenario;
+- a referenced file that was **renamed or deleted**, or a **wholesale rewrite**,
+  selects *everything*.
+
+`run --affected` reuses `--only`, so it's partial and can never report SHIP. Use it
+to iterate; a full run still gates a release.
+
+**`covers` costs nothing to change** — it's in no staleness facet. Editing it
+changes what `--affected` selects next time, not what any past run measured.
+
 ## 8. The optimize loop
 
 Edit the `SKILL.md` under test → re-`run` → compare the new scorecard to the old `results.yaml`. Report the **per-scenario delta**, not just the letter grade. Don't trust one run on a weak/stochastic model — re-run noisy scenarios (`--reps`).

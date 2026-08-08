@@ -32,3 +32,5 @@ export * from "./spec-write.js";
 export * from "./capture.js";
 export * from "./execution-trace.js";
 export * from "./trace-gates.js";
+export * from "./instruction-coverage.js";
+export * from "./affected.js";

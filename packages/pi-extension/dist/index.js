@@ -1,11 +1,11 @@
 // packages/pi-extension/src/index.ts
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname as dirname7, join as join24 } from "node:path";
+import { dirname as dirname8, join as join24 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
-import { existsSync as existsSync18 } from "node:fs";
+import { existsSync as existsSync20 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
-import { dirname as dirname6, join as join23, resolve as resolve9 } from "node:path";
+import { dirname as dirname7, join as join23, resolve as resolve11, relative as relative3 } from "node:path";
 
 // packages/core/dist/spec.js
 import { readFileSync } from "node:fs";
@@ -2937,6 +2937,15 @@ function parseSpec(text, file) {
       }
       scenario.systemPromptFile = s.system_prompt_file.trim();
     }
+    if (s.covers !== void 0) {
+      if (!isStringArray(s.covers) || s.covers.length === 0) {
+        throw new SpecError(`scenario \`${id}\` \`covers\` must be a non-empty list of strings`, file);
+      }
+      const bad = s.covers.find((c) => c.trim() === "");
+      if (bad !== void 0)
+        throw new SpecError(`scenario \`${id}\` \`covers\` has an empty entry`, file);
+      scenario.covers = s.covers.map((c) => c.trim());
+    }
     scenario.extensions = resolveExtensions(s.env, scenario.systemPromptFile !== void 0, id, file);
     if (s.reps !== void 0) {
       if (typeof s.reps !== "number" || !Number.isInteger(s.reps) || s.reps < 1) {
@@ -3024,9 +3033,10 @@ function walk(dir, prefix = "") {
   return out;
 }
 function facets(s) {
-  const { id, title, critical, mode, turns, checklist, fixture, assert, traceAssert, workspace, remote, systemPromptFile, extensions, reps: reps2, passThreshold, ...restScenario } = s;
+  const { id, title, critical, mode, turns, checklist, fixture, assert, traceAssert, workspace, remote, systemPromptFile, extensions, reps: reps2, passThreshold, covers: _coversIsMetadata, ...restScenario } = s;
   const _scenarioExhaustive = restScenario;
   void _scenarioExhaustive;
+  void _coversIsMetadata;
   const { vitest, diff_contains, diff_excludes, post_test, ...restAssert } = assert ?? {};
   const _assertExhaustive = restAssert;
   void _assertExhaustive;
@@ -3817,7 +3827,7 @@ import { spawn } from "node:child_process";
 import { existsSync as existsSync6 } from "node:fs";
 import { join as join7, delimiter } from "node:path";
 function exec(cmd, args, opts = {}) {
-  return new Promise((resolve10, reject) => {
+  return new Promise((resolve12, reject) => {
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
       env: opts.env ?? process.env,
@@ -3843,7 +3853,7 @@ function exec(cmd, args, opts = {}) {
     child.on("close", (code) => {
       if (timer)
         clearTimeout(timer);
-      resolve10({ stdout, stderr, code });
+      resolve12({ stdout, stderr, code });
     });
   });
 }
@@ -5353,11 +5363,205 @@ function renderReport(template, data, gradeScript) {
 }
 
 // packages/core/dist/lint.js
-import { existsSync as existsSync12, statSync as statSync7, readdirSync as readdirSync9, readFileSync as readFileSync8 } from "node:fs";
-import { basename, dirname as dirname2, isAbsolute as isAbsolute4, join as join16, resolve as resolve6 } from "node:path";
+import { existsSync as existsSync13, statSync as statSync7, readdirSync as readdirSync9, readFileSync as readFileSync9 } from "node:fs";
+import { basename, dirname as dirname3, isAbsolute as isAbsolute5, join as join16, resolve as resolve7 } from "node:path";
+
+// packages/core/dist/instruction-coverage.js
+import { existsSync as existsSync11, readFileSync as readFileSync8 } from "node:fs";
+import { resolve as resolve6, dirname as dirname2, relative as relative2, isAbsolute as isAbsolute4 } from "node:path";
+var FENCE = /^\s{0,3}(`{3,}|~{3,})/;
+var ATX = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
+var SETEXT_H1 = /^\s{0,3}=+\s*$/;
+var SETEXT_H2 = /^\s{0,3}-+\s*$/;
+function slugify(title) {
+  return title.toLowerCase().replace(/[`*_~[\]()]/g, "").replace(/[^\p{L}\p{N}\s-]/gu, "").trim().replace(/\s+/g, "-");
+}
+function parseSections(markdown) {
+  const lines = markdown.split("\n");
+  const found = [];
+  const seen = /* @__PURE__ */ new Map();
+  let fence = null;
+  const start = frontmatterEnd(lines);
+  const push = (title, depth, startLine) => {
+    const base = slugify(title);
+    if (base === "")
+      return;
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    found.push({ slug: n === 0 ? base : `${base}-${n}`, title, depth, startLine });
+  };
+  for (let i = start; i < lines.length; i++) {
+    const line = lines[i];
+    const fenceMatch = FENCE.exec(line);
+    if (fenceMatch) {
+      const marker = fenceMatch[1][0];
+      if (fence === null)
+        fence = marker;
+      else if (fence === marker)
+        fence = null;
+      continue;
+    }
+    if (fence !== null)
+      continue;
+    const atx = ATX.exec(line);
+    if (atx) {
+      push(atx[2], atx[1].length, i + 1);
+      continue;
+    }
+    const prev = i > start ? lines[i - 1] : "";
+    if (prev.trim() !== "" && !ATX.test(prev)) {
+      if (SETEXT_H1.test(line))
+        push(prev.trim(), 1, i);
+      else if (SETEXT_H2.test(line) && /[^-\s]/.test(prev))
+        push(prev.trim(), 2, i);
+    }
+  }
+  return found.map((s, i) => ({
+    ...s,
+    endLine: i + 1 < found.length ? found[i + 1].startLine - 1 : lines.length
+  }));
+}
+function frontmatterEnd(lines) {
+  if (lines[0]?.trim() !== "---")
+    return 0;
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim() === "---")
+      return i + 1;
+  }
+  return 0;
+}
+function sectionAtLine(sections, line) {
+  return sections.find((s) => line >= s.startLine && line <= s.endLine);
+}
+function parseCoversRef(raw) {
+  const hash = raw.indexOf("#");
+  if (hash < 0)
+    return { raw, file: raw.trim() };
+  return { raw, file: raw.slice(0, hash).trim(), slug: raw.slice(hash + 1).trim() || void 0 };
+}
+function computeCoverage(opts) {
+  const fileSections = /* @__PURE__ */ new Map();
+  const readSections = (file) => {
+    if (fileSections.has(file))
+      return fileSections.get(file);
+    const abs = isAbsolute4(file) ? file : resolve6(opts.specDir, file);
+    if (!existsSync11(abs))
+      return null;
+    const sections2 = parseSections(readFileSync8(abs, "utf8"));
+    fileSections.set(file, sections2);
+    return sections2;
+  };
+  for (const f of opts.baseFiles ?? [])
+    readSections(f);
+  const bySection = /* @__PURE__ */ new Map();
+  const key = (file, slug) => `${file}#${slug}`;
+  const ensure = (file, section) => {
+    const k = key(file, section.slug);
+    let entry = bySection.get(k);
+    if (!entry) {
+      entry = { file, section, scenarios: [], pendingCaptures: [] };
+      bySection.set(k, entry);
+    }
+    return entry;
+  };
+  for (const [file, sections2] of fileSections)
+    for (const s of sections2)
+      ensure(file, s);
+  const broken = [];
+  const unmapped = [];
+  const attach = (id, refs, into) => {
+    for (const raw of refs) {
+      const ref = parseCoversRef(raw);
+      const sections2 = readSections(ref.file);
+      if (sections2 === null) {
+        broken.push({ scenarioId: id, raw, reason: "file-missing", didYouMean: [] });
+        continue;
+      }
+      for (const s of sections2)
+        ensure(ref.file, s);
+      if (ref.slug === void 0) {
+        for (const s of sections2)
+          ensure(ref.file, s)[into].push(id);
+        continue;
+      }
+      const match = sections2.find((s) => s.slug === ref.slug);
+      if (!match) {
+        broken.push({
+          scenarioId: id,
+          raw,
+          reason: "section-missing",
+          didYouMean: nearest(ref.slug, sections2.map((s) => s.slug))
+        });
+        continue;
+      }
+      ensure(ref.file, match)[into].push(id);
+    }
+  };
+  for (const s of opts.scenarios) {
+    if (!s.covers || s.covers.length === 0) {
+      unmapped.push(s.id);
+      continue;
+    }
+    attach(s.id, s.covers, "scenarios");
+  }
+  for (const c of opts.pendingCaptures ?? [])
+    attach(c.id, c.covers, "pendingCaptures");
+  const sections = [...bySection.values()].sort((a, b) => a.file.localeCompare(b.file) || a.section.startLine - b.section.startLine);
+  const covered = sections.filter((s) => s.scenarios.length > 0);
+  const uncovered = sections.filter((s) => s.scenarios.length === 0);
+  return {
+    sections,
+    covered,
+    uncovered,
+    broken,
+    unmapped,
+    pct: sections.length === 0 ? 0 : Math.round(covered.length / sections.length * 100)
+  };
+}
+function nearest(target, candidates, limit = 3) {
+  return candidates.map((c) => ({ c, d: distance(target, c) })).filter(({ c, d }) => d <= Math.max(3, Math.floor(c.length / 2))).sort((a, b) => a.d - b.d).slice(0, limit).map(({ c }) => c);
+}
+function distance(a, b) {
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let last = prev[0];
+    prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prev[j];
+      prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, last + (a[i - 1] === b[j - 1] ? 0 : 1));
+      last = tmp;
+    }
+  }
+  return prev[b.length];
+}
+function formatCoverage(report, skill) {
+  const out = [];
+  out.push(`${skill}: ${report.covered.length}/${report.sections.length} sections have a declared test (${report.pct}%)`);
+  out.push("");
+  if (report.uncovered.length) {
+    out.push("  no test declares coverage of:");
+    for (const s of report.uncovered)
+      out.push(`    ${s.file}#${s.section.slug}  (${s.section.title})`);
+    out.push("");
+  }
+  if (report.broken.length) {
+    out.push("  broken references:");
+    for (const b of report.broken) {
+      const hint = b.didYouMean.length ? ` \u2014 did you mean ${b.didYouMean.map((s) => `#${s}`).join(", ")}?` : "";
+      out.push(`    ${b.scenarioId}: ${b.raw} (${b.reason})${hint}`);
+    }
+    out.push("");
+  }
+  if (report.unmapped.length) {
+    out.push(`  scenarios with no \`covers\`: ${report.unmapped.join(", ")}`);
+    out.push("");
+  }
+  out.push("  `covers` records a declared link, not proof the behaviour is tested.");
+  return out.join("\n");
+}
 
 // packages/core/dist/downgrade.js
-import { existsSync as existsSync11, readdirSync as readdirSync8, statSync as statSync6 } from "node:fs";
+import { existsSync as existsSync12, readdirSync as readdirSync8, statSync as statSync6 } from "node:fs";
 import { join as join15 } from "node:path";
 
 // packages/core/dist/defaults.js
@@ -5388,13 +5592,13 @@ function assertJudgeAllowed(judge, opts) {
 }
 
 // packages/core/dist/regate.js
-import { existsSync as existsSync13, readFileSync as readFileSync9, renameSync, writeFileSync as writeFileSync4 } from "node:fs";
+import { existsSync as existsSync14, readFileSync as readFileSync10, renameSync, writeFileSync as writeFileSync4 } from "node:fs";
 import { join as join17 } from "node:path";
 
 // packages/core/dist/spec-write.js
 import { createHash as createHash4 } from "node:crypto";
-import { readFileSync as readFileSync10, renameSync as renameSync2, unlinkSync, writeFileSync as writeFileSync5 } from "node:fs";
-import { dirname as dirname3, join as join18 } from "node:path";
+import { readFileSync as readFileSync11, renameSync as renameSync2, unlinkSync, writeFileSync as writeFileSync5 } from "node:fs";
+import { dirname as dirname4, join as join18 } from "node:path";
 var ConcurrentSpecModification = class extends Error {
   constructor(specPath) {
     super(`${specPath} changed on disk since it was read \u2014 refusing to append. Re-read the spec and retry; appending now would validate against a file that no longer exists.`);
@@ -5416,7 +5620,7 @@ function renderScenarioBlock(scenario) {
 }
 function appendScenario(opts) {
   const { specPath, scenario, baseSha256 } = opts;
-  const current = readFileSync10(specPath, "utf8");
+  const current = readFileSync11(specPath, "utf8");
   if (baseSha256 !== void 0 && specSha256(current) !== baseSha256) {
     throw new ConcurrentSpecModification(specPath);
   }
@@ -5435,7 +5639,7 @@ function appendScenario(opts) {
   return { id, sha256: specSha256(merged), block };
 }
 function atomicWrite(path, text) {
-  const tmp = join18(dirname3(path), `.${Date.now()}-${process.pid}.specwrite.tmp`);
+  const tmp = join18(dirname4(path), `.${Date.now()}-${process.pid}.specwrite.tmp`);
   try {
     writeFileSync5(tmp, text, "utf8");
     renameSync2(tmp, path);
@@ -5448,17 +5652,196 @@ function atomicWrite(path, text) {
   }
 }
 
+// packages/core/dist/affected.js
+import { existsSync as existsSync15, readFileSync as readFileSync12 } from "node:fs";
+import { resolve as resolve8 } from "node:path";
+function parseDiffHunks(diff) {
+  const hunks = [];
+  let file = null;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("+++ ")) {
+      const p = line.slice(4).trim();
+      file = p === "/dev/null" ? null : p.replace(/^b\//, "");
+      continue;
+    }
+    if (!line.startsWith("@@") || file === null)
+      continue;
+    const m = /@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(line);
+    if (!m)
+      continue;
+    hunks.push({ file, start: Number(m[1]), count: m[2] === void 0 ? 1 : Number(m[2]) });
+  }
+  return hunks;
+}
+function parseDiffFiles(diff) {
+  const files = /* @__PURE__ */ new Set();
+  for (const line of diff.split("\n")) {
+    const m = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
+    if (m) {
+      files.add(m[1]);
+      files.add(m[2]);
+    }
+  }
+  return [...files];
+}
+async function gitDiff(repoRoot, base) {
+  const r = await exec("git", ["diff", "--unified=0", base], { cwd: repoRoot, timeoutMs: 6e4 });
+  if (r.code !== 0)
+    throw new Error(`git diff --unified=0 ${base} failed: ${r.stderr.trim() || `exit ${r.code}`}`);
+  return r.stdout;
+}
+function selectAffected(opts) {
+  const { scenarios, specDir, diff, repoRoot } = opts;
+  const reasons = /* @__PURE__ */ new Map();
+  const add = (id, reason) => {
+    const list = reasons.get(id) ?? [];
+    list.push(reason);
+    reasons.set(id, list);
+  };
+  const selectAll = (why) => {
+    for (const s of scenarios)
+      if (!reasons.has(s.id))
+        add(s.id, { kind: "unmapped-change", detail: why });
+    return {
+      selected: [...reasons.entries()].map(([id, rs]) => ({ id, reasons: rs })),
+      conservative: true,
+      conservativeReason: why,
+      unmappedFiles: []
+    };
+  };
+  for (const s of scenarios) {
+    if (s.critical)
+      add(s.id, { kind: "critical" });
+    if (/^B/i.test(s.id))
+      add(s.id, { kind: "under-pressure" });
+  }
+  const hunks = parseDiffHunks(diff);
+  const changedFiles = parseDiffFiles(diff);
+  for (const s of scenarios) {
+    if (!s.covers || s.covers.length === 0)
+      add(s.id, { kind: "no-covers-declared" });
+  }
+  const stimulusFiles = (s) => {
+    const files = [];
+    if (s.fixture)
+      files.push(s.fixture);
+    if (s.assert?.post_test)
+      files.push(s.assert.post_test);
+    if (s.systemPromptFile)
+      files.push(s.systemPromptFile);
+    for (const e of s.extensions ?? [])
+      files.push(e);
+    return files;
+  };
+  const changedAbs = new Set(changedFiles.map((f) => resolve8(repoRoot, f)));
+  for (const s of scenarios) {
+    for (const f of stimulusFiles(s)) {
+      const abs = resolve8(specDir, f);
+      const hit = [...changedAbs].some((c) => c === abs || c.startsWith(`${abs}/`));
+      if (hit)
+        add(s.id, { kind: "stimulus-changed", detail: f });
+    }
+  }
+  const sectionsFor = /* @__PURE__ */ new Map();
+  const load2 = (abs) => {
+    if (sectionsFor.has(abs))
+      return sectionsFor.get(abs);
+    const parsed = existsSync15(abs) ? parseSections(readFileSync12(abs, "utf8")) : null;
+    sectionsFor.set(abs, parsed);
+    return parsed;
+  };
+  const coversIndex = /* @__PURE__ */ new Map();
+  for (const s of scenarios) {
+    for (const raw of s.covers ?? []) {
+      const ref = parseCoversRef(raw);
+      const abs = resolve8(specDir, ref.file);
+      const key = ref.slug === void 0 ? abs : `${abs}#${ref.slug}`;
+      coversIndex.set(key, [...coversIndex.get(key) ?? [], s.id]);
+    }
+  }
+  const unmappedFiles = /* @__PURE__ */ new Set();
+  for (const hunk of hunks) {
+    const abs = resolve8(repoRoot, hunk.file);
+    const referenced = [...coversIndex.keys()].some((k) => k === abs || k.startsWith(`${abs}#`));
+    if (!referenced)
+      continue;
+    const sections = load2(abs);
+    if (sections === null) {
+      return selectAll(`${hunk.file} is referenced by \`covers\` but is not readable \u2014 it may have been renamed or deleted`);
+    }
+    for (const id of coversIndex.get(abs) ?? [])
+      add(id, { kind: "covers", detail: `${hunk.file} (whole file)` });
+    const lines = hunk.count === 0 ? [hunk.start] : Array.from({ length: hunk.count }, (_, i) => hunk.start + i);
+    let mappedAny = false;
+    for (const line of lines) {
+      const section = sectionAtLine(sections, line);
+      if (!section)
+        continue;
+      const ids = coversIndex.get(`${abs}#${section.slug}`) ?? [];
+      for (const id of ids)
+        add(id, { kind: "covers", detail: `${hunk.file}#${section.slug}` });
+      if (ids.length > 0)
+        mappedAny = true;
+    }
+    if (!mappedAny && (coversIndex.get(abs) ?? []).length === 0)
+      unmappedFiles.add(hunk.file);
+  }
+  const rewritten = hunks.filter((h) => h.count > 200);
+  if (rewritten.length > 0) {
+    return selectAll(`${rewritten[0].file} changed by ${rewritten[0].count} lines in one hunk \u2014 too large to map to sections reliably`);
+  }
+  return {
+    selected: [...reasons.entries()].map(([id, rs]) => ({ id, reasons: rs })),
+    conservative: false,
+    conservativeReason: null,
+    unmappedFiles: [...unmappedFiles]
+  };
+}
+function formatAffected(result, total) {
+  const out = [];
+  if (result.conservative) {
+    out.push(`selecting ALL ${total} scenario(s): ${result.conservativeReason}`);
+  } else {
+    out.push(`selected ${result.selected.length}/${total} scenario(s):`);
+  }
+  for (const s of [...result.selected].sort((a, b) => a.id.localeCompare(b.id))) {
+    out.push(`  ${s.id}  ${s.reasons.map(describe).join(", ")}`);
+  }
+  if (result.unmappedFiles.length) {
+    out.push(`  note: changes in ${result.unmappedFiles.join(", ")} map to no covered section`);
+  }
+  out.push("");
+  out.push("an affected run is partial and never reports SHIP \u2014 a full run still gates a release");
+  return out.join("\n");
+}
+function describe(r) {
+  switch (r.kind) {
+    case "covers":
+      return `covers ${r.detail}`;
+    case "critical":
+      return "critical (always run)";
+    case "under-pressure":
+      return "B-series (always run)";
+    case "stimulus-changed":
+      return `stimulus changed: ${r.detail}`;
+    case "unmapped-change":
+      return `conservative: ${r.detail}`;
+    case "no-covers-declared":
+      return "declares no `covers` \u2014 cannot be ruled out";
+  }
+}
+
 // packages/adapters/dist/pi.js
-import { existsSync as existsSync14, mkdtempSync as mkdtempSync2, readFileSync as readFileSync11, statSync as statSync8 } from "node:fs";
+import { existsSync as existsSync16, mkdtempSync as mkdtempSync2, readFileSync as readFileSync13, statSync as statSync8 } from "node:fs";
 import { tmpdir as tmpdir2, homedir } from "node:os";
-import { join as join19, resolve as resolve7 } from "node:path";
+import { join as join19, resolve as resolve9 } from "node:path";
 
 // packages/adapters/dist/pi-json.js
 import { spawn as spawn2 } from "node:child_process";
 import { createInterface } from "node:readline";
 var MAX_STDERR_CHARS = 8e3;
 function runPiJson(opts) {
-  return new Promise((resolve10, reject) => {
+  return new Promise((resolve12, reject) => {
     const child = spawn2("pi", opts.args, {
       cwd: opts.cwd,
       // stdin from /dev/null: pi hangs waiting on it otherwise, and a hang in a
@@ -5508,7 +5891,7 @@ function runPiJson(opts) {
         changedPaths: opts.changedPaths,
         homeDir: opts.homeDir
       });
-      resolve10({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS) });
+      resolve12({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS) });
     });
   });
 }
@@ -5516,10 +5899,10 @@ function runPiJson(opts) {
 // packages/adapters/dist/pi.js
 var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
 function requireSkillDir(skillDir, mode) {
-  const abs = resolve7(skillDir);
+  const abs = resolve9(skillDir);
   const md = join19(abs, "SKILL.md");
-  const isDir3 = existsSync14(abs) && statSync8(abs).isDirectory();
-  if (!isDir3 || !existsSync14(md)) {
+  const isDir3 = existsSync16(abs) && statSync8(abs).isDirectory();
+  if (!isDir3 || !existsSync16(md)) {
     throw new Error(`mode=${mode} needs a skill directory with a SKILL.md, but ${abs} ${isDir3 ? "has none" : "is not a directory"}` + (abs === skillDir ? "" : ` (given \`${skillDir}\`, resolved against ${process.cwd()})`) + ` \u2014 pi accepts \`--skill <nonexistent>\` silently (exit 0, a normal answer, no skill in context), so this run would measure a model with no skill and report it as a result.`);
   }
   return abs;
@@ -5531,7 +5914,7 @@ function skillFlags(mode, skillDir) {
     case "green":
       return ["--skill", requireSkillDir(skillDir, mode)];
     case "force": {
-      const body = readFileSync11(join19(requireSkillDir(skillDir, mode), "SKILL.md"), "utf8");
+      const body = readFileSync13(join19(requireSkillDir(skillDir, mode), "SKILL.md"), "utf8");
       return ["--no-skills", "--append-system-prompt", body];
     }
   }
@@ -5540,8 +5923,8 @@ function extensionFlags(extensions) {
   if (!extensions || extensions.length === 0)
     return [];
   return extensions.flatMap((p) => {
-    const abs = resolve7(p);
-    if (!existsSync14(abs)) {
+    const abs = resolve9(p);
+    if (!existsSync16(abs)) {
       throw new Error(`env.extensions names ${abs}, which does not exist \u2014 pi would start without it and the scenario would silently test an agent with no subagent tool at all.`);
     }
     return ["--extension", abs];
@@ -5592,7 +5975,7 @@ var piAdapter = {
       "--model",
       req.model.model
     ];
-    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync11(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
+    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync13(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
     const total = req.turns.length;
     const parts = [];
     if (total === 1) {
@@ -5646,7 +6029,7 @@ ${r.stderr.trim()}
       "--model",
       req.model.model
     ];
-    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync11(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
+    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync13(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
     const piVersion = await this.version();
     const total = req.turns.length;
     const traces = [];
@@ -5732,11 +6115,11 @@ function getAdapter(name) {
 
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
-import { readFileSync as readFileSync12, existsSync as existsSync15 } from "node:fs";
-import { join as join20, dirname as dirname4 } from "node:path";
+import { readFileSync as readFileSync14, existsSync as existsSync17 } from "node:fs";
+import { join as join20, dirname as dirname5 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn as spawn3 } from "node:child_process";
-var __dirname = dirname4(fileURLToPath(import.meta.url));
+var __dirname = dirname5(fileURLToPath(import.meta.url));
 function templatePath(assetsDir) {
   if (assetsDir)
     return join20(assetsDir, "report.template.html");
@@ -5747,18 +6130,18 @@ function templatePath(assetsDir) {
     join20(__dirname, "..", "..", "assets", "report.template.html")
   ];
   for (const c of candidates)
-    if (existsSync15(c))
+    if (existsSync17(c))
       return c;
   throw new Error("cannot find assets/report.template.html");
 }
 function gradeScriptPath(assetsDir) {
-  return join20(dirname4(templatePath(assetsDir)), "report.grade.js");
+  return join20(dirname5(templatePath(assetsDir)), "report.grade.js");
 }
 function readBody(req) {
-  return new Promise((resolve10) => {
+  return new Promise((resolve12) => {
     let b = "";
     req.on("data", (c) => b += c);
-    req.on("end", () => resolve10(b));
+    req.on("end", () => resolve12(b));
   });
 }
 function findTranscript(runDir, id) {
@@ -5766,22 +6149,22 @@ function findTranscript(runDir, id) {
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync12(join20(runDir, files[0]), "utf8");
+    return readFileSync14(join20(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync12(join20(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync14(join20(runDir, f), "utf8")}`).join("\n\n");
 }
 function findJudgeRaw(runDir, id) {
   const files = findJudgeRawFiles(runDir, id);
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync12(join20(runDir, files[0]), "utf8");
+    return readFileSync14(join20(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync12(join20(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync14(join20(runDir, f), "utf8")}`).join("\n\n");
 }
 async function serveReview(opts) {
-  const template = readFileSync12(templatePath(opts.assetsDir), "utf8");
-  const gradeScript = readFileSync12(gradeScriptPath(opts.assetsDir), "utf8");
+  const template = readFileSync14(templatePath(opts.assetsDir), "utf8");
+  const gradeScript = readFileSync14(gradeScriptPath(opts.assetsDir), "utf8");
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://localhost");
@@ -5857,7 +6240,7 @@ async function serveReview(opts) {
             scenario,
             adapter,
             judge: results.judge,
-            specDir: dirname4(specPath),
+            specDir: dirname5(specPath),
             threshold,
             mode: results.mode
           });
@@ -5932,7 +6315,7 @@ async function serveReview(opts) {
       res.end(`server error: ${e instanceof Error ? e.message : e}`);
     }
   });
-  await new Promise((resolve10) => server.listen(opts.port ?? 0, "127.0.0.1", resolve10));
+  await new Promise((resolve12) => server.listen(opts.port ?? 0, "127.0.0.1", resolve12));
   const addr = server.address();
   const port = typeof addr === "object" && addr ? addr.port : opts.port;
   const link = `http://127.0.0.1:${port}/`;
@@ -5958,18 +6341,18 @@ function tryOpen(url, cmd) {
 }
 
 // packages/pi-extension/src/runner.ts
-import { existsSync as existsSync16 } from "node:fs";
-import { dirname as dirname5, join as join21, resolve as resolve8 } from "node:path";
+import { existsSync as existsSync18 } from "node:fs";
+import { dirname as dirname6, join as join21, resolve as resolve10 } from "node:path";
 function resolveSkillDir(cwd, arg) {
   if (arg) {
-    const dir2 = resolve8(cwd, arg);
-    if (existsSync16(join21(dir2, "tests", "specification.yaml"))) return dir2;
+    const dir2 = resolve10(cwd, arg);
+    if (existsSync18(join21(dir2, "tests", "specification.yaml"))) return dir2;
     throw new Error(`no tests/specification.yaml found at ${dir2}`);
   }
   let dir = cwd;
   for (; ; ) {
-    if (existsSync16(join21(dir, "tests", "specification.yaml"))) return dir;
-    const parent = dirname5(dir);
+    if (existsSync18(join21(dir, "tests", "specification.yaml"))) return dir;
+    const parent = dirname6(dir);
     if (parent === dir) break;
     dir = parent;
   }
@@ -6016,7 +6399,7 @@ async function runViaExtension(opts) {
 }
 
 // packages/pi-extension/src/capture-cmd.ts
-import { existsSync as existsSync17, mkdirSync as mkdirSync4, writeFileSync as writeFileSync6, readdirSync as readdirSync10, readFileSync as readFileSync13 } from "node:fs";
+import { existsSync as existsSync19, mkdirSync as mkdirSync4, writeFileSync as writeFileSync6, readdirSync as readdirSync10, readFileSync as readFileSync15 } from "node:fs";
 import { join as join22 } from "node:path";
 import { createHash as createHash5 } from "node:crypto";
 var CANCELLED = { status: "cancelled", files: [] };
@@ -6029,11 +6412,11 @@ async function runCapture(skillDir, ctx) {
     return CANCELLED;
   }
   const specPath = join22(skillDir, "tests", "specification.yaml");
-  if (!existsSync17(specPath)) {
+  if (!existsSync19(specPath)) {
     ui.say(`${specPath} does not exist \u2014 run \`skill-harness init\` before capturing into this skill`);
     return CANCELLED;
   }
-  const baseSha256 = specSha256(readFileSync13(specPath, "utf8"));
+  const baseSha256 = specSha256(readFileSync15(specPath, "utf8"));
   const turns = projectTurns(activeBranch(ctx.sessionEntries()));
   if (turns.length === 0) {
     ui.say("no user turns in this session yet \u2014 nothing to capture");
@@ -6071,7 +6454,7 @@ async function runCapture(skillDir, ctx) {
     return CANCELLED;
   }
   const capturesDir = join22(skillDir, "tests", "captures");
-  const existingIds = existsSync17(capturesDir) ? readdirSync10(capturesDir).filter((f) => f.endsWith(".yaml")).map((f) => f.replace(/\.yaml$/, "")) : [];
+  const existingIds = existsSync19(capturesDir) ? readdirSync10(capturesDir).filter((f) => f.endsWith(".yaml")).map((f) => f.replace(/\.yaml$/, "")) : [];
   const capture = buildCaptureCase({
     turns,
     range: { start, end },
@@ -6139,9 +6522,9 @@ function defaultTitle(capture) {
 async function chooseTarget(skillDir, ctx) {
   const candidates = [];
   const skillMd = join22(skillDir, "SKILL.md");
-  if (existsSync17(skillMd)) candidates.push({ label: "SKILL.md (this skill)", kind: "skill", path: "SKILL.md", abs: skillMd });
+  if (existsSync19(skillMd)) candidates.push({ label: "SKILL.md (this skill)", kind: "skill", path: "SKILL.md", abs: skillMd });
   const agentsDir = join22(ctx.cwd, ".pi", "agents");
-  if (existsSync17(agentsDir)) {
+  if (existsSync19(agentsDir)) {
     for (const f of readdirSync10(agentsDir).filter((x) => x.endsWith(".md"))) {
       candidates.push({ label: `subagent: ${f}`, kind: "subagent", path: join22(".pi", "agents", f), abs: join22(agentsDir, f) });
     }
@@ -6156,7 +6539,7 @@ async function chooseTarget(skillDir, ctx) {
   return {
     kind: chosen.kind,
     path: chosen.path,
-    content_sha256: createHash5("sha256").update(readFileSync13(chosen.abs, "utf8"), "utf8").digest("hex")
+    content_sha256: createHash5("sha256").update(readFileSync15(chosen.abs, "utf8"), "utf8").digest("hex")
   };
 }
 function suggestScenarioId(specPath, fallback) {
@@ -6173,7 +6556,7 @@ function suggestScenarioId(specPath, fallback) {
 function writeCapture(capturesDir, capture, selected, homeDir) {
   mkdirSync4(join22(capturesDir, ".local"), { recursive: true });
   const gitignore = join22(capturesDir, ".gitignore");
-  if (!existsSync17(gitignore)) writeFileSync6(gitignore, CAPTURES_GITIGNORE, "utf8");
+  if (!existsSync19(gitignore)) writeFileSync6(gitignore, CAPTURES_GITIGNORE, "utf8");
   const casePath = join22(capturesDir, `${capture.id}.yaml`);
   writeFileSync6(casePath, index_vite_proxy_tmp_default.dump(capture, { lineWidth: -1, noRefs: true }), "utf8");
   const evidencePath = join22(capturesDir, ".local", `${capture.id}.evidence.json`);
@@ -6194,7 +6577,7 @@ function writeCapture(capturesDir, capture, selected, homeDir) {
 }
 
 // packages/pi-extension/src/commands.ts
-var USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] | review [skill] | capture [skill]";
+var USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] | review [skill] | capture [skill] | coverage [skill] | affected [skill] [--base ref]";
 function parse(argstr) {
   const tokens = argstr.trim().length ? argstr.trim().split(/\s+/) : [];
   const [sub = "", ...rest] = tokens;
@@ -6250,10 +6633,10 @@ ${card.failedTranscripts.join("\n")}`);
     return;
   }
   if (sub === "judge") {
-    const runDir = resolve9(ctx.cwd, positional[0] ?? ".");
-    const testsDir = dirname6(dirname6(dirname6(runDir)));
+    const runDir = resolve11(ctx.cwd, positional[0] ?? ".");
+    const testsDir = dirname7(dirname7(dirname7(runDir)));
     const spec = loadSpec(join23(testsDir, "specification.yaml"));
-    const prev = existsSync18(join23(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const prev = existsSync20(join23(runDir, "results.yaml")) ? readResults(runDir) : null;
     const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? parseModelRef(defaultJudge());
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge"
@@ -6267,6 +6650,39 @@ ${card.failedTranscripts.join("\n")}`);
       now: nowIso
     });
     say(ctx, `re-judged ${runDir}: ${results.effective_grade.letter} (${results.effective_grade.pct}%)`);
+    return;
+  }
+  if (sub === "coverage") {
+    const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
+    const specPath = join23(skillDir, "tests", "specification.yaml");
+    const spec = loadSpec(specPath);
+    const specDir = dirname7(specPath);
+    const report = computeCoverage({
+      specDir,
+      scenarios: spec.scenarios,
+      baseFiles: [relative3(specDir, join23(skillDir, "SKILL.md")).split("\\").join("/")]
+    });
+    say(ctx, formatCoverage(report, spec.skill), report.broken.length ? "warning" : "info");
+    return;
+  }
+  if (sub === "affected") {
+    const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
+    const specPath = join23(skillDir, "tests", "specification.yaml");
+    const spec = loadSpec(specPath);
+    const base = flags.base || "HEAD";
+    const rev = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: dirname7(specPath), timeoutMs: 3e4 });
+    if (rev.code !== 0) {
+      say(ctx, "affected needs a git repository to diff against", "error");
+      return;
+    }
+    const repoRoot = rev.stdout.trim();
+    const result = selectAffected({
+      scenarios: spec.scenarios,
+      specDir: dirname7(specPath),
+      diff: await gitDiff(repoRoot, base),
+      repoRoot
+    });
+    say(ctx, formatAffected(result, spec.scenarios.length));
     return;
   }
   if (sub === "capture") {
@@ -6381,7 +6797,7 @@ function registerTool(pi) {
 
 // packages/pi-extension/src/index.ts
 function index_default(pi) {
-  const assetsDir = join24(dirname7(fileURLToPath2(import.meta.url)), "..", "..", "..", "assets");
+  const assetsDir = join24(dirname8(fileURLToPath2(import.meta.url)), "..", "..", "..", "assets");
   registerCommand(pi, assetsDir);
   registerTool(pi);
   pi.on("session_shutdown", async () => {

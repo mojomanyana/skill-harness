@@ -509,7 +509,39 @@ never enter `specification.yaml` before a human promotes them.
       - Also closed the open Phase 2 lint gap: `env.extensions` paths are validated
         statically, so a typo is a free CI failure rather than a graded absence.
       - Post: `docs/posts/2026-08-08-testing-the-parent-not-just-the-subagent.md`
-- [ ] Phase 4 — instruction coverage + affected-test selection
+- [x] **Phase 4 — instruction coverage + affected-test selection** (2026-08-08).
+      Two free, offline commands: `coverage <skill|all> [--strict]` and
+      `affected <skill> [--base ref]`, plus `run --affected` and pi-extension
+      subcommands. Scenarios opt in with `covers: ["../SKILL.md#core-principle"]`;
+      the unit is a Markdown heading section, because that is the unit authors
+      already write in.
+      - **It is called DECLARED coverage everywhere**, and the output says
+        "declared link, not proof". A coverage number read as proof is worse than
+        none: an author who believes 100% means done stops looking. `--strict` is
+        therefore opt-in — an uncovered section is information, not a defect, and a
+        gate on it teaches people to add a token `covers:` to silence it. A
+        *broken* reference does fail regardless, since that is a wrong statement in
+        the spec rather than a gap, and the finding names near-miss slugs because a
+        renamed heading is the usual cause.
+      - **Selection resolves every ambiguity toward MORE.** Under-inclusive is
+        dangerous (ship a regression); over-inclusive is merely expensive. So every
+        critical and B-series scenario always runs, a scenario with no `covers` is
+        always selected, changed fixture/post-test/agent-file/extension selects its
+        scenario, and a renamed-away file or a wholesale rewrite selects
+        everything. Every selection prints a reason — one you cannot interrogate is
+        one people stop trusting.
+      - Reuses the existing `--only` machinery, so an affected run inherits
+        partial/never-SHIP through the same code path rather than a parallel one.
+      - **`covers` is in NO staleness facet** — it is metadata. Editing it changes
+        what `--affected` selects next time, not what any past run measured;
+        charging a re-run for a label is the trap the facet split removed. The
+        exhaustive-destructure guard forced that decision to be written down.
+      - **Bug the unit tests missed:** YAML frontmatter closes with `---`, and the
+        line above a `---` is a Setext h2 per CommonMark — so every `SKILL.md` had a
+        phantom section named after its own `description:` line, sitting where a
+        whole-file `covers` would mark it covered. Nine passing heading tests, found
+        in ten seconds by running the command on a real skill.
+      - Post: `docs/posts/2026-08-08-which-instructions-have-no-test.md`
 - [ ] Phase 5 — confidence-aware automatic rejudging
 
 ## PHASE 2 — Launch & first 100 fans (weeks 5–10)

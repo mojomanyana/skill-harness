@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-import { readFileSync, existsSync, mkdirSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { readFileSync, existsSync, mkdirSync, writeFileSync, mkdtempSync, rmSync, readdirSync } from "node:fs";
+import { load as yamlLoad } from "js-yaml";
+import { basename, dirname, join, resolve, relative } from "node:path";
 import { tmpdir } from "node:os";
 import {
   discover, resolveSkill,
@@ -17,6 +18,10 @@ import {
   specPathForRunDir,
   collectLift,
   collectStability, boundaryCells, stabilityNote, PATH_LEGEND,
+  computeCoverage, formatCoverage,
+  selectAffected, formatAffected, gitDiff,
+  exec,
+  type Scenario,
   HARNESS_VERSION,
   defaultJudge,
   assertJudgeAllowed,
@@ -167,7 +172,11 @@ export async function cmdRun(args: Args): Promise<void> {
   const parallel = Math.max(1, Number(flagStr(args, "parallel", "1")) || 1);
   const { reps, passThreshold } = parseRunTuning(args);
   const onlyRaw = flagStr(args, "only");
-  const only = onlyRaw ? onlyRaw.split(",").map((x) => x.trim()).filter(Boolean) : undefined;
+  let only = onlyRaw ? onlyRaw.split(",").map((x) => x.trim()).filter(Boolean) : undefined;
+  const affected = flagBool(args, "affected");
+  if (affected && only) {
+    throw new Error("--affected and --only both choose the scenario set — pass one, not both");
+  }
   const modelTokens = resolveModels(args);
 
   const skills =
@@ -185,6 +194,17 @@ export async function cmdRun(args: Args): Promise<void> {
     // that look comparable and are not. Checked per skill, before its first token.
     assertNotDowngraded(skill.dir, "run");
     const spec = loadSpec(skill.specPath);
+    if (affected) {
+      // Reuses the exact `--only` machinery, so an affected run is partial and
+      // cannot report SHIP — the same guarantee, through the same code path.
+      const result = await computeAffected(args, spec.scenarios, skill.specPath);
+      console.log(formatAffected(result, spec.scenarios.length));
+      only = result.selected.map((sel) => sel.id);
+      if (only.length === 0) {
+        console.log(`skip ${skill.name}: no scenario is affected by this change`);
+        continue;
+      }
+    }
     for (const token of modelTokens) {
       const model = parseModelRef(token);
       // The version is on the banner because a stale global install is otherwise
@@ -443,6 +463,98 @@ async function cmdAddTest(args: Args): Promise<void> {
   console.log(`added scenario ${id} to ${skill.specPath}`);
 }
 
+/**
+ * `coverage` — which instruction sections have a test declared against them.
+ *
+ * Free and offline. `--strict` turns uncovered sections into a non-zero exit, and
+ * is opt-in: an uncovered section is information, not a defect, and a linter that
+ * reddens CI for it teaches people to add a token `covers:` to silence it.
+ */
+async function cmdCoverage(args: Args): Promise<void> {
+  const root = flagStr(args, "skills", process.cwd())!;
+  const target = args._[0];
+  if (!target) throw new Error("usage: skill-harness coverage <skill|all> --skills <root> [--strict]");
+  const strict = flagBool(args, "strict");
+  const skills = target === "all" ? discover(root).filter((s) => s.hasSpec) : [resolveSkill(root, target)];
+
+  let anyUncovered = false;
+  let anyBroken = false;
+  for (const skill of skills) {
+    if (!skill.hasSpec) continue;
+    const spec = loadSpec(skill.specPath);
+    const specDir = dirname(skill.specPath);
+    const report = computeCoverage({
+      specDir,
+      scenarios: spec.scenarios,
+      // SKILL.md lives one level above tests/, and is the file `covers` almost
+      // always points at, so report on it even when nothing references it —
+      // otherwise a skill with zero `covers` reports 0 sections and looks fine.
+      baseFiles: [relative(specDir, join(skill.dir, "SKILL.md")).split("\\").join("/")],
+      pendingCaptures: readPendingCaptures(specDir),
+    });
+    console.log(formatCoverage(report, spec.skill));
+    if (report.uncovered.length) anyUncovered = true;
+    if (report.broken.length) anyBroken = true;
+  }
+
+  // A broken reference fails regardless of --strict: it is a wrong statement in
+  // the spec, not a gap in coverage.
+  if (anyBroken) {
+    console.error("\nbroken `covers` references above — fix the reference or the heading");
+    process.exitCode = 1;
+    return;
+  }
+  if (strict && anyUncovered) {
+    console.error("\n--strict: some sections have no declared test");
+    process.exitCode = 1;
+  }
+}
+
+/** Pending captures and the sections they are parked against. Free, offline, tolerant. */
+function readPendingCaptures(specDir: string): { id: string; covers: string[] }[] {
+  const dir = join(specDir, "captures");
+  if (!existsSync(dir)) return [];
+  const out: { id: string; covers: string[] }[] = [];
+  for (const file of readdirSync(dir).filter((f) => f.endsWith(".yaml"))) {
+    try {
+      const raw = yamlLoad(readFileSync(join(dir, file), "utf8")) as Record<string, unknown> | null;
+      if (!raw || raw.status === "promoted") continue;
+      const covers = Array.isArray(raw.covers) ? raw.covers.filter((c): c is string => typeof c === "string") : [];
+      if (covers.length) out.push({ id: String(raw.id ?? file.replace(/\.yaml$/, "")), covers });
+    } catch {
+      // A malformed capture is the capture command's problem to report; coverage
+      // must not fail because a draft file is mid-edit.
+    }
+  }
+  return out;
+}
+
+/** `affected` — which scenarios a change could plausibly touch. Free and offline. */
+async function cmdAffected(args: Args): Promise<void> {
+  const root = flagStr(args, "skills", process.cwd())!;
+  const target = args._[0];
+  if (!target) throw new Error("usage: skill-harness affected <skill> --skills <root> [--base <git-ref>]");
+  const skill = resolveSkill(root, target);
+  if (!skill.hasSpec) throw new Error(`${target} has no spec`);
+  const spec = loadSpec(skill.specPath);
+  const result = await computeAffected(args, spec.scenarios, skill.specPath);
+  console.log(formatAffected(result, spec.scenarios.length));
+}
+
+/** Shared by `affected` and `run --affected`, so the two can never disagree. */
+async function computeAffected(args: Args, scenarios: Scenario[], specPath: string) {
+  const base = flagStr(args, "base", "HEAD")!;
+  const repoRoot = await gitRepoRoot(dirname(specPath));
+  const diff = await gitDiff(repoRoot, base);
+  return selectAffected({ scenarios, specDir: dirname(specPath), diff, repoRoot });
+}
+
+async function gitRepoRoot(from: string): Promise<string> {
+  const r = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: from, timeoutMs: 30_000 });
+  if (r.code !== 0) throw new Error(`not a git repository (from ${from}) — --affected needs one to diff against`);
+  return r.stdout.trim();
+}
+
 /** Write a spec to disk, creating its tests/ dir. The single choke point for spec
  *  writes (init/suggest) so a future atomic-write/backup/audit change lands in one place. */
 function writeSpecFile(specPath: string, text: string): void {
@@ -596,6 +708,7 @@ export function help(): string {
   return `skill-harness ${HARNESS_VERSION} — test/optimize loop for agent skills (pi harness)
 
   run    <skill|all> --skills <root> [--model prov:model ...] [--models file] [--only A1,D2]
+                     [--affected --base <git-ref>]  run only the scenarios a change could touch (partial; never SHIPs)
                      [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
                      [--canary]  green only: spend ONE probe proving the skill reached the model, and abort the run if it did not
   grade  <run-dir>   [--judge prov:model] [--suspect-only]   re-grade saved transcripts (neutral judge)
@@ -608,6 +721,8 @@ export function help(): string {
   suggest <skill>    --skills <root> [--model prov:model] [--force]  LLM-draft a spec from SKILL.md (spends tokens)
   list   --skills <root>                        discovered skills + spec status
   lint   <skill|all> --skills <root>           validate specs/fixtures + results-consistency (CI gate; exits non-zero on findings)
+  coverage <skill|all> --skills <root> [--strict]   which instruction sections have a declared test (free, offline)
+  affected <skill>   --skills <root> [--base ref]   which scenarios a change could touch (free, offline)
 
   version  print ${HARNESS_VERSION} and exit (also --version / -v)
 
@@ -634,6 +749,8 @@ export async function main(argv: string[]): Promise<void> {
     case "suggest": return cmdSuggest(args);
     case "list": return cmdList(args);
     case "lint": return cmdLint(args);
+    case "coverage": return cmdCoverage(args);
+    case "affected": return cmdAffected(args);
     case "version":
     case "--version":
     case "-v":

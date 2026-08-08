@@ -174,10 +174,19 @@ function walk(dir: string, prefix = ""): string[] {
 function facets(s: Scenario): { stimulus: string; rubric: string; policy: string; gates: string | null } {
   const {
     id, title, critical, mode, turns, checklist, fixture, assert, traceAssert,
-    workspace, remote, systemPromptFile, extensions, reps, passThreshold, ...restScenario
+    workspace, remote, systemPromptFile, extensions, reps, passThreshold,
+    covers: _coversIsMetadata,
+    ...restScenario
   } = s;
   const _scenarioExhaustive: Record<string, never> = restScenario;
   void _scenarioExhaustive;
+  // `covers` is destructured into a discard on purpose, and this comment is the
+  // decision the guard demanded: it belongs to NO digest. It records which
+  // instruction sections a scenario is declared to exercise, which changes what
+  // `--affected` selects next time — not what any past run measured. Bucketing it
+  // anywhere would charge a re-run (or at best a re-score) for editing a label,
+  // which is the exact trap the facet split was built to remove.
+  void _coversIsMetadata;
 
   const { vitest, diff_contains, diff_excludes, post_test, ...restAssert } = assert ?? {};
   const _assertExhaustive: Record<string, never> = restAssert;

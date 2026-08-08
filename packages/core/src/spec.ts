@@ -55,6 +55,16 @@ export interface Scenario {
    * silently become part of the test.
    */
   extensions?: string[];
+  /**
+   * `covers`: instruction sections this scenario is declared to exercise, e.g.
+   * `SKILL.md#core-principle`.
+   *
+   * METADATA. It stales nothing — see `sources.ts`, where it is deliberately in
+   * no digest. A `covers` edit changes which tests `--affected` selects, not what
+   * any past run measured, so charging a re-run for it would be the exact
+   * "pay tokens to fix a label" trap the facet split exists to remove.
+   */
+  covers?: string[];
   reps?: number; // run this scenario N times (overrides --reps); positive integer
   passThreshold?: number; // pass if pass-rate >= this (overrides --pass-threshold); 0..1
 }
@@ -354,6 +364,15 @@ export function parseSpec(text: string, file: string): Spec {
         );
       }
       scenario.systemPromptFile = s.system_prompt_file.trim();
+    }
+
+    if (s.covers !== undefined) {
+      if (!isStringArray(s.covers) || s.covers.length === 0) {
+        throw new SpecError(`scenario \`${id}\` \`covers\` must be a non-empty list of strings`, file);
+      }
+      const bad = s.covers.find((c) => c.trim() === "");
+      if (bad !== undefined) throw new SpecError(`scenario \`${id}\` \`covers\` has an empty entry`, file);
+      scenario.covers = s.covers.map((c) => c.trim());
     }
 
     // After system_prompt_file, so the incompatibility check sees the resolved value.
