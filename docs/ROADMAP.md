@@ -1,9 +1,13 @@
 # skill-harness — Strategy & Roadmap
 
 > Agent-executable strategy doc. Produced 2026-07-06 from a full codebase + market analysis.
+> Status line last reconciled with the shipped code on 2026-08-09.
 > Agents: read **Context & Rules** before picking up any task. Work top-down within the
 > current phase; do not start a later phase until the current phase's exit criteria are met.
 > Check off tasks (`[x]`) as they land and note the date + PR/commit next to them.
+
+> **Current open work lives in `docs/NEXT-SESSION.md`**, not here. This file is the
+> strategy; that one is the state of play.
 
 ## Context (do not re-litigate)
 
@@ -22,7 +26,13 @@
   instrument — that's how we differ from adewale/skill-eval-harness (the closest rival),
   promptfoo (generic, OpenAI-owned), and MLflow skill evals (platform-flavored).
 - **Goals ranking:** community > money. Owner has 10–15h/wk and will do public posting.
-- **Status already done:** name kept as `skill-harness`; published to npm 0.1.0.
+- **Status already done:** name kept as `skill-harness`; **published to npm 0.7.0**
+  (2026-08-08, tag `v0.7.0`, PRs #43 + #44). 0.7.0 shipped the five-phase pi-native
+  capture program in one minor: `capture`, `assert.trace`, `require_subagents`,
+  `coverage`/`affected`, and adjudication (`--auto-rejudge`) — plus the change that
+  made the trace gates real: an objective FAIL/ERROR now outranks the judge in
+  `effectiveVerdicts`. Before that, `objective` was recorded in `results.yaml` and
+  never scored.
 
 ## Rules for agents
 

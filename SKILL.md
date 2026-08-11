@@ -1,6 +1,6 @@
 ---
 name: skill-harness
-version: 0.6.0
+version: 0.7.0
 description: >
   Use to test, grade, and optimize an agent skill against a spec. Triggers:
   "test the <skill> skill", "/skill-harness", "run the skill bench", "grade these
@@ -20,6 +20,12 @@ repo with `npm run dev --` (dev) or the `skill-harness` bin (built).
 **A skill ships only when its scenarios pass under a judge that is NOT the model
 under test.** Subject ≠ judge — same-family grading inflates scores. Single runs
 lie on weak/stochastic models; re-run before trusting a delta.
+
+**Where an objective gate exists, prefer it to the judge.** `assert.trace` states
+what the model DID — which tool it called, which path it touched — and is checked
+against a structured execution record, not against prose. It runs BEFORE the judge,
+so a failing gate costs zero judge tokens, and since 0.7.0 an objective FAIL or
+ERROR outranks the judge's verdict. Only an explicit author override beats it.
 
 ## The loop
 1. **Discover.** `skill-harness list --skills <root>` → which skills have a spec.
@@ -42,6 +48,12 @@ lie on weak/stochastic models; re-run before trusting a delta.
 3. **Run + grade.** `skill-harness run <skill> --skills <root> --model <m> [--model <m2>]
    [--judge <prov:model>]`. This runs every scenario, grades each transcript, writes
    `results.yaml`, and prints a scorecard per model. Heed any judge≈subject warning.
+3b. **Ask for a second opinion where it decides the ship.** Add `--auto-rejudge` to
+   `run` or `grade` to re-judge cells that are ambiguous, self-contradictory,
+   non-unanimous across reps, or ship-deciding. It discloses an exact ceiling on
+   ADDITIONAL judge calls before spending one, and names any cell it cannot settle
+   without `--tie-break-judge`. An unresolved disagreement blocks SHIP; it never
+   resolves itself.
 4. **Check what one run is worth.** `skill-harness stability <skill> --skills <root>`
    (free, offline) lists scenarios whose verdict flipped between runs of the same skill ×
    model × mode. `flakiness 0.00` cannot see this — it compares reps inside ONE run — so
@@ -56,12 +68,37 @@ lie on weak/stochastic models; re-run before trusting a delta.
    [--mode seeded --fixture <path>]`. Gather the fields conversationally first.
 7. **Optimize.** The user edits `<skill>/SKILL.md` → re-run → compare the new
    scorecard to the old `results.yaml`. Report the per-scenario delta, not just the
-   letter grade.
+   letter grade. Before spending a full wave on an edit, `skill-harness affected
+   <skill> --skills <root> --base <ref>` names the scenarios that edit could touch
+   (free, offline). An affected run is partial and never reports SHIP.
+
+## Free, offline, and worth running first
+None of these spend a model or judge token. Reach for them before anything paid:
+`list`, `lint`, `stability`, `rescore`, `regate`, and —
+- `coverage <skill|all> --skills <root>` — which SKILL.md sections have a declared
+  test. `covers` records that somebody LINKED a test to a section; it is not proof
+  the behaviour is tested, and it is worth saying so when you report a percentage.
+- `affected <skill> --skills <root> --base <ref>` — which scenarios a diff could
+  touch. Resolves every ambiguity toward selecting more.
+
+**Match the remedy to the drift; `lint` names it.** `stimulus:` → `run` (spends),
+`rubric:` → `grade` (judge only), `policy:` → `rescore` (free), `gates:` → `regate`
+(free). Never reach for `run` when lint asked for one of the other three.
+
+## Capturing a real failure
+`/skill-harness capture` (pi extension only — NOT a CLI command, and it refuses to
+run headless) promotes turns from a live pi conversation into a regression case.
+There is a preview step before anything is written; that preview is what keeps
+secrets out of a committed file, which is why the command has no unattended mode.
 
 ## Tenets
 1. **Judge ≠ subject.** Never let the judge model sit in the model set being tested.
 2. **Critical + B-series gate the ship.** A critical-id fail or any under-pressure
    (B*) fail blocks SHIP even if the pass count clears the bar.
+2b. **Missing evidence is ERROR, never a pass.** A gate that could not be checked —
+   no trace produced, a workspace never observed, an argument redaction destroyed —
+   reports ERROR and blocks. A vacuous PASS is the one outcome the harness will not
+   print, because it is indistinguishable from a real one.
 3. **The author owns the verdict.** The judge proposes; overrides + notes in the
    review UI are the durable record. Commit `results.yaml`, not transcripts.
 4. **Re-grade cheaply before re-running.** `skill-harness grade <run-dir> --judge <m>`
