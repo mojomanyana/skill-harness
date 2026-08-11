@@ -148,6 +148,24 @@ rejected as an authoring error, since that gate could never pass.
 | `diff_excludes: [str]` | No needle appears in the diff's **changed lines**. Makes scope discipline ("fix `sliceRange`, leave `lastIndex` alone") objective instead of inferring it from the model's prose. |
 | `post_test: <path>` | A test file **you** wrote, copied into the workspace *after* the agent finishes and run on its own. The model never sees it, so it cannot write code shaped to pass it, and it needs no judge. |
 
+### `assert.trace` — gates over what the model *did*
+
+The gates above read the diff. `assert.trace` reads a structured record of the
+run itself, so it answers questions a diff cannot: which tool was called, with
+what arguments, in what order, and which paths changed on disk.
+
+| Gate | What it proves |
+|---|---|
+| `require_calls: [{tool, count, args}]` | The tool was called (optionally N times, optionally with matching arguments). Seven argument operators: `equals`, `contains`, `starts_with`, `ends_with`, `matches`, `exists`, `any`. |
+| `forbid_calls: [tool \| {tool, args}]` | The tool was **not** called. Where the argument it must read was redacted or truncated before the trace was written, this reports ERROR rather than the PASS it has not earned. |
+| `require_subagents: [{tool, agent, task_contains, task_excludes, count}]` | The parent delegated — to the right agent, carrying the context it must carry, and **not** carrying what it must not. Tests the orchestrator, not the subagent. |
+| `unchanged_paths: [glob]` | No file matching the glob changed. Observed by content snapshot taken before the run and diffed after, so it sees `.gitignore`d files and does not blame the model for a fixture's own pending changes. Requires a workspace; the parser refuses the combination without one, offline and free. |
+
+Two properties worth knowing. **They run before the judge**, so a failing gate
+costs zero judge tokens. And **an objective FAIL or ERROR outranks the judge's
+verdict** — only an explicit author override beats it. A gate whose evidence is
+missing reports ERROR, never a pass.
+
 Both needle gates deliberately match only added/removed lines, never context
 lines or `+++`/`---` file headers. A unified diff carries context around every
 hunk, so an untouched symbol near the edit site appears in the diff verbatim.
@@ -181,8 +199,15 @@ unguessable, not tamper-proof.
 ```
 skill-harness run    <skill|all> --skills <root> [--model prov:model ...] [--models file]
                                [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T] [--canary]
+                               [--only A1,A2 | --affected --base <ref>]   # scenario subset; a partial run never reports SHIP
+                               [--auto-rejudge] [--secondary-judge prov:model] [--tie-break-judge prov:model]
 skill-harness stability <skill|all> --skills <root> [--window N] [--all]  # run-over-run verdict flips (free, offline)
-skill-harness grade  <run-dir>   [--judge prov:model]    # re-grade saved transcripts (neutral judge)
+skill-harness coverage <skill|all> --skills <root> [--strict]  # which instruction sections have a declared test (free, offline)
+skill-harness affected <skill>   --skills <root> [--base ref]  # which scenarios a change could touch (free, offline)
+skill-harness grade  <run-dir>   [--judge prov:model] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]
+                                                          # re-grade saved transcripts (neutral judge)
+skill-harness regate <run-dir>...                          # re-evaluate gates against saved artifacts (free; one judge call per rep whose verdict flips)
+skill-harness rescore <run-dir>...                         # re-apply the current pass threshold to saved reps (free, offline)
 skill-harness review <skill>     --skills <root> [--port N]   # serve the interactive UI
 skill-harness add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical]
                                                             [--mode seeded --fixture path]
@@ -191,6 +216,20 @@ skill-harness suggest <skill>    --skills <root> [--model prov:model] [--force] 
 skill-harness list   --skills <root>                          # discovered skills + spec status
 skill-harness lint   <skill|all> --skills <root>               # validate specs/fixtures + results-consistency; CI gate (exits non-zero on findings)
 ```
+
+`capture` is deliberately absent from this list: it exists only as
+`/skill-harness capture` inside the pi extension, and it refuses to run headless
+because the preview step before the write is what keeps secrets out of a committed
+file.
+
+**Adjudication (`--auto-rejudge`) is off by default and discloses before it spends.**
+It asks a second judge about cells that are ambiguous, self-contradictory,
+non-unanimous across reps, or ship-deciding, and prints the exact maximum number of
+ADDITIONAL judge calls first — a count, never a dollar estimate, because the default
+judge reports no per-call usage and a dollar figure there would be invented. It also
+names any cell that no single second opinion can settle, which needs
+`--tie-break-judge`. An unresolved disagreement blocks SHIP rather than resolving
+itself.
 
 **Defaults:** subject model `fireworks:accounts/fireworks/models/deepseek-v4-pro` ·
 judge `claude-code:claude-opus-4-8` · mode `green` · harness `pi`.
