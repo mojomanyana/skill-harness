@@ -45,15 +45,17 @@ verifiable in CI.
 
 ### 2. `principal-pi-skills` — 123 paid re-runs are pending
 
-Sister repo, branch `gitops-safety`, **two commits unpushed** as of this writing.
+Sister repo. `gitops-safety` is **merged into `main`**; everything below is landed.
 
-- `covers` is declared on all 98 scenarios (free, landed).
-- `reps: 3` is pinned on all 98 (free, landed) — this staled the `policy:` facet,
-  which I cleared with `rescore`: 285 findings → 126, **zero verdicts moved**.
-- **What remains: 123 `re-run` + 3 `re-grade` findings.** These come from the agent
-  renames to `principal-*` and the debug contract edit, not from anything in 0.7.0.
-  They need a deliberate, budgeted wave. `main` is at 0 findings; the branch is at
-  126. Reconcile before merging.
+- `covers` is declared on all 98 scenarios (free).
+- `reps: 3` is pinned on all 98 (free) — this staled the `policy:` facet, which
+  `rescore` cleared across 12 run dirs with **zero verdicts moved**. The diff was
+  `policy:` hashes and `harness_version` only.
+- **What remains, measured on `main` at 2026-08-09: 56 `re-run` + 1 `re-grade`.**
+  The re-runs come from the agent renames to `principal-*` and the debug contract
+  edit — not from anything in 0.7.0. They spend subject tokens and need a
+  deliberate, budgeted wave. Re-measure before planning it; this number has moved
+  twice already.
 
 Still unadopted there, both deferred on purpose and both still the right call:
 - **`assert.trace`** — needs a real captured `.trace.jsonl` to verify tool names
@@ -62,9 +64,10 @@ Still unadopted there, both deferred on purpose and both still the right call:
   `.pi/extensions/`. That is a decision about carrying someone else's code, not a
   mechanical step.
 
-⚠️ **A parallel session was writing that repo on 2026-08-08.** It committed my
-working-tree `covers` edits as `89bb442`. If you resume there, check for concurrent
-work before editing.
+⚠️ **A parallel session has been writing that repo.** It committed my working-tree
+`covers` edits as `89bb442`, then merged `gitops-safety` to `main` and carried on.
+Fetch and read the log before editing — and check whether one is still running, or
+you will both be writing the same files.
 
 ### 3. Phase 2 distribution
 
