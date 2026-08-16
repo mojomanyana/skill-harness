@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { loadSpec, type Scenario, type Spec } from "./spec.js";
 import { effectiveVerdicts, type ResultsFile, type ScenarioResult } from "./results.js";
 import { collectScoredRuns, type ScoredRunGroup } from "./trends.js";
-import { describeSourceKey, scenarioSourceKeys, PERSONA_KEY, SKILL_KEY } from "./sources.js";
+import { describeSourceKey, isSupersededKey, scenarioSourceKeys, PERSONA_KEY, SKILL_KEY, SKILL_PROMPT_KEY } from "./sources.js";
 import type { Verdict } from "./score.js";
 
 /**
@@ -140,6 +140,28 @@ function pointFor(r: ResultsFile, s: ScenarioResult, verdict: Verdict): Stabilit
   };
 }
 
+/**
+ * Did the skill text the MODEL RECEIVES differ between two runs?
+ *
+ * Prefers `skill:prompt` when both runs recorded it, and falls back to the raw-bytes
+ * `SKILL.md` key for runs that predate it. A frontmatter-only edit moves the raw bytes and
+ * not the prompt, and labelling a flip "SKILL.md changed across that step" on that basis
+ * would point a reader at an edit no model could have seen — the note's whole job is to
+ * say which of two explanations the record supports, so it must not invent a third.
+ */
+function skillTextChanged(
+  prev: Record<string, string> | undefined,
+  cur: Record<string, string> | undefined,
+): boolean {
+  for (const key of [SKILL_PROMPT_KEY, SKILL_KEY]) {
+    const a = prev?.[key];
+    const b = cur?.[key];
+    if (a === undefined || b === undefined) continue;
+    return a !== b;
+  }
+  return false;
+}
+
 /** reps + threshold, normalised the way lift.ts normalises it (a lone rep has no threshold). */
 function shapeOf(s: ScenarioResult): string {
   const reps = s.reps ?? 1;
@@ -164,6 +186,10 @@ function compareSources(
   let shared = 0;
   const changed: string[] = [];
   for (const key of keys) {
+    // Same rule as lint's: when both runs recorded the model-visible digest of a prompt
+    // document, THAT is the comparison. Leaving the raw-bytes key in would call two runs
+    // "different questions" over an `allowed-tools:` line neither model could read.
+    if (isSupersededKey(key, a) && isSupersededKey(key, b)) continue;
     const va = a[key];
     const vb = b[key];
     if (va === undefined || vb === undefined) continue;
@@ -199,10 +225,7 @@ function stabilityForScenario(group: ScoredRunGroup, scenario: Scenario, window:
     const cur = raw[i];
     const from = points[i - 1];
     const to = points[i];
-    const skillChanged =
-      prev.r.source_hashes?.[SKILL_KEY] !== undefined &&
-      cur.r.source_hashes?.[SKILL_KEY] !== undefined &&
-      prev.r.source_hashes[SKILL_KEY] !== cur.r.source_hashes[SKILL_KEY];
+    const skillChanged = skillTextChanged(prev.r.source_hashes, cur.r.source_hashes);
     const base = { from, to, flipped: false, skillChanged, changedSources: [] as string[], unanimousFlip: false };
 
     if (!prev.ok || !cur.ok) {

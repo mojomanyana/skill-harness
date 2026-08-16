@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
+import yaml from "js-yaml";
 import type { Scenario } from "./spec.js";
 
 /**
@@ -328,7 +329,12 @@ export function sourceHashes(ctx: SourceContext): Record<string, string> {
 
   // UNREADABLE rather than omission on every branch below: a source we failed to
   // hash must stay visible to lint, not vanish from the record. See UNREADABLE.
-  hashes["SKILL.md"] = fileSha256(resolve(ctx.skillDir, "SKILL.md")) ?? UNREADABLE;
+  // Two digests of one file, and both are load-bearing. `SKILL.md` is the raw bytes,
+  // kept so an older skill-harness reading this record still has the key it knows and so
+  // `restamp` has a proof to upgrade from; `skill:prompt` is the text the model actually
+  // receives, and is the one lint compares (see `isSupersededKey`).
+  hashes[SKILL_KEY] = fileSha256(resolve(ctx.skillDir, "SKILL.md")) ?? UNREADABLE;
+  hashes[SKILL_PROMPT_KEY] = promptDocDigestOfFile(resolve(ctx.skillDir, "SKILL.md")) ?? UNREADABLE;
 
   hashes[PERSONA_KEY] = personaDigest(ctx.judgePersona);
 
@@ -342,8 +348,13 @@ export function sourceHashes(ctx: SourceContext): Record<string, string> {
     const gates = gatesDigest(s);
     if (gates !== null) hashes[GATES_PREFIX + s.id] = gates;
 
+    // An agent file is a prompt document too, delivered with `--append-system-prompt`,
+    // and its `tools:` header is read by the harness rather than the model — so it gets
+    // the same pair of digests, for the same reasons, as SKILL.md above.
     if (s.systemPromptFile && !(s.systemPromptFile in hashes)) {
-      hashes[s.systemPromptFile] = fileSha256(resolve(ctx.specDir, s.systemPromptFile)) ?? UNREADABLE;
+      const abs = resolve(ctx.specDir, s.systemPromptFile);
+      hashes[s.systemPromptFile] = fileSha256(abs) ?? UNREADABLE;
+      hashes[PROMPT_PREFIX + s.systemPromptFile] = promptDocDigestOfFile(abs) ?? UNREADABLE;
     }
 
     // Extension CONTENTS, not just the paths the stimulus digest already covers.
@@ -385,7 +396,15 @@ export function sourceHashes(ctx: SourceContext): Record<string, string> {
  * from drifting: a new key kind is defined once, for both sides.
  */
 export function currentHashFor(key: string, ctx: SourceContext): string | null | undefined {
-  if (key === "SKILL.md") return fileSha256(resolve(ctx.skillDir, "SKILL.md"));
+  if (key === SKILL_KEY) return fileSha256(resolve(ctx.skillDir, "SKILL.md"));
+  if (key === SKILL_PROMPT_KEY) return promptDocDigestOfFile(resolve(ctx.skillDir, "SKILL.md"));
+
+  // Before the unknown-prefix guard below, which would otherwise swallow these as keys
+  // from a newer skill-harness. A deleted agent file must still resolve to null ("gone"),
+  // not undefined ("not comparable").
+  if (key.startsWith(PROMPT_PREFIX)) {
+    return promptDocDigestOfFile(resolve(ctx.specDir, key.slice(PROMPT_PREFIX.length)));
+  }
 
   if (key === PERSONA_KEY) return personaDigest(ctx.judgePersona);
 
@@ -424,6 +443,11 @@ export function currentHashFor(key: string, ctx: SourceContext): string | null |
 /** Human label for a recorded key, used in lint messages. */
 export function describeSourceKey(key: string): string {
   if (key === PERSONA_KEY) return "the judge persona";
+  // Deliberately the same label as the raw-bytes key: only one of the pair is ever
+  // compared (see `isSupersededKey`), and a reader of a lint finding cares which FILE
+  // moved, not which of two digests of it was the one consulted.
+  if (key === SKILL_PROMPT_KEY) return SKILL_KEY;
+  if (key.startsWith(PROMPT_PREFIX)) return key.slice(PROMPT_PREFIX.length);
   if (key.startsWith(STIMULUS_PREFIX)) return `the stimulus for \`${key.slice(STIMULUS_PREFIX.length)}\``;
   if (key.startsWith(RUBRIC_PREFIX)) return `the rubric for \`${key.slice(RUBRIC_PREFIX.length)}\``;
   if (key.startsWith(POLICY_PREFIX)) return `the scoring policy for \`${key.slice(POLICY_PREFIX.length)}\``;
@@ -466,6 +490,150 @@ export function remedyForKey(key: string): string {
 export const SKILL_KEY = "SKILL.md";
 
 /**
+ * The model-visible digests of the two prompt documents a run delivers: the skill text
+ * and any `system_prompt_file`. They measure what the model RECEIVES, where the bare
+ * keys above (`SKILL.md`, `<agent path>`) measure the file's raw bytes.
+ *
+ * | key | contents |
+ * |---|---|
+ * | `skill:prompt` | SKILL.md's body + its model-visible frontmatter |
+ * | `prompt:<path>` | the same, for one `system_prompt_file` |
+ *
+ * Both are prefixed, so a skill-harness OLDER than this one reads them through
+ * `currentHashFor`'s unknown-prefix guard and reports "not comparable" rather than a
+ * confident wrong finding about a source that is fine.
+ */
+export const SKILL_PROMPT_KEY = "skill:prompt";
+export const PROMPT_PREFIX = "prompt:";
+
+/**
+ * Frontmatter keys the model never receives: capability declarations the HARNESS
+ * consumes to build a tool allowlist.
+ *
+ * Why a denylist and not an allowlist of "body + description". An allowlist makes the
+ * safe-looking choice the dangerous one: the day a harness starts putting some new
+ * frontmatter key in context, every published number silently stops being protected and
+ * nothing says so. A denylist fails the other way — a newly-invented inert key charges
+ * one unnecessary re-run until it is named here, which is a one-line patch and a visible
+ * complaint. This module already takes that side everywhere else (see `UNREADABLE`, and
+ * the unknown-prefix guard in `currentHashFor`): a blind spot is the worst outcome, and
+ * a false alarm is merely expensive.
+ *
+ * `tools` and `allowed-tools` are the two spellings of the same ceiling in the reference
+ * corpus. Both are read by pi/pi-daddy to build a `--tools` allowlist; neither is ever
+ * rendered into the model's context.
+ */
+const CAPABILITY_KEYS = new Set(["allowed-tools", "tools"]);
+
+/** Opening `---` on line 1 only — a `---` further down is a horizontal rule. */
+const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
+
+/** A prompt document split into its frontmatter text (null when it has none) and its body. */
+function splitPromptDoc(text: string): { frontmatter: string | null; body: string } {
+  const m = FRONTMATTER_RE.exec(text);
+  // Unterminated frontmatter falls through to "all body", the same call
+  // instruction-coverage.ts makes: treat the whole file as content rather than lose it.
+  return m ? { frontmatter: m[1], body: text.slice(m[0].length) } : { frontmatter: null, body: text };
+}
+
+/**
+ * Parsed YAML in a stable shape: object keys sorted, string scalars trimmed.
+ *
+ * Trimmed because YAML block style is not stimulus — `description: >` clips a trailing
+ * newline that `description: <text>` does not, so an author refolding a paragraph the
+ * model receives identically would otherwise be charged a re-run.
+ */
+function canonicalValue(v: unknown): unknown {
+  if (typeof v === "string") return v.trim();
+  if (Array.isArray(v)) return v.map(canonicalValue);
+  if (v && typeof v === "object") {
+    return Object.entries(v as Record<string, unknown>)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, val]) => [k, canonicalValue(val)]);
+  }
+  return v;
+}
+
+/**
+ * The frontmatter a run can observe, canonically. Built from the PARSED YAML for the
+ * same reason the scenario digests are built from the parsed scenario: reindenting or
+ * reordering keys changes no stimulus and must not read as a change.
+ *
+ * Unparseable frontmatter is hashed VERBATIM rather than dropped. Dropping it would mean
+ * a file whose frontmatter is malformed quietly loses that half of its protection — and
+ * a malformed header is exactly when an author is most likely to be mid-edit.
+ */
+function modelVisibleFrontmatter(fm: string | null): unknown {
+  if (fm === null) return null;
+  let parsed: unknown;
+  try {
+    parsed = yaml.load(fm);
+  } catch {
+    return ["unparsed", fm];
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return ["unparsed", fm];
+  return [
+    "parsed",
+    Object.entries(parsed as Record<string, unknown>)
+      .filter(([k]) => !CAPABILITY_KEYS.has(k))
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, v]) => [k, canonicalValue(v)]),
+  ];
+}
+
+/**
+ * The digest of a prompt document: its body verbatim, plus every frontmatter field the
+ * model can actually receive.
+ *
+ * The gate exists to protect published claims, so "the current text" has to mean the text
+ * the model was given. Hashing the raw bytes — which is what shipped through 0.7.0 —
+ * charged a full re-run for edits no graded run could observe: measured on the reference
+ * corpus, adding one `allowed-tools:` key to seven SKILL.md files with byte-identical
+ * bodies took lint from 2 findings to 22, and 20 of those demanded paid re-waves.
+ *
+ * Versioned in the hashed tuple (`prompt-doc/1`) because this is a stored-hash format: if
+ * the rule for "model-visible" ever changes, the tag changes with it and old digests stay
+ * legible as what they were.
+ */
+export function promptDocDigest(text: string): string {
+  const { frontmatter, body } = splitPromptDoc(text);
+  return sha(JSON.stringify(["prompt-doc/1", modelVisibleFrontmatter(frontmatter), body]));
+}
+
+/** `promptDocDigest` of a file, or null when it doesn't exist / isn't readable. */
+export function promptDocDigestOfFile(path: string): string | null {
+  try {
+    return promptDocDigest(readFileSync(path, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True when `key` is a raw-bytes key whose model-visible counterpart THIS RUN also
+ * recorded — in which case the counterpart is the honest comparison and the raw-bytes one
+ * must be skipped.
+ *
+ * Both keys keep being written, and this is why: an older skill-harness reading a newer
+ * results.yaml still finds the bare `SKILL.md` key and keeps checking it, and `restamp`
+ * needs the raw-bytes hash as the proof it upgrades from. Superseding at COMPARISON time
+ * rather than dropping the key at record time is what buys both.
+ *
+ * `UNREADABLE` on EITHER side supersedes nothing. If the counterpart is unreadable there
+ * is nothing better to compare against; and if the raw-bytes key itself is unreadable, the
+ * run never verified that document at all — a fact lint must keep reporting, since the
+ * one thing this module refuses to do is let an unhashed source drop out of checking for
+ * the life of a result.
+ */
+export function isSupersededKey(key: string, recorded: Record<string, string>): boolean {
+  if (key === SKILL_PROMPT_KEY || key.startsWith(PROMPT_PREFIX)) return false;
+  if (recorded[key] === UNREADABLE) return false;
+  const upgraded = key === SKILL_KEY ? SKILL_PROMPT_KEY : PROMPT_PREFIX + key;
+  const v = recorded[upgraded];
+  return v !== undefined && v !== UNREADABLE;
+}
+
+/**
  * Every recorded key whose drift could change THIS scenario's verdict — excluding the
  * two skill-wide ones (`SKILL.md`, `rubric:__persona`), which callers handle
  * separately because they move every scenario at once.
@@ -495,7 +663,10 @@ export function scenarioSourceKeys(s: Scenario): string[] {
     SCENARIO_PREFIX + s.id, // legacy combined (pre-0.4.0 runs)
   ];
   if (gatesDigest(s) !== null) keys.push(GATES_PREFIX + s.id);
-  if (s.systemPromptFile) keys.push(s.systemPromptFile); // the agent file IS the stimulus
+  if (s.systemPromptFile) {
+    keys.push(s.systemPromptFile); // the agent file IS the stimulus
+    keys.push(PROMPT_PREFIX + s.systemPromptFile); // ...as the model receives it
+  }
   for (const ext of s.extensions ?? []) keys.push(ext); // an edited extension is new stimulus
   if (s.assert?.post_test) keys.push(s.assert.post_test); // its contents are the gate
   const fx = effectiveFixture(s);

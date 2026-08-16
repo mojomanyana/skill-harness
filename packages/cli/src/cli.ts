@@ -18,6 +18,7 @@ import {
   specPathForRunDir,
   collectLift,
   collectStability, boundaryCells, stabilityNote, PATH_LEGEND,
+  restampSkill,
   resolveAdjudicationJudges, adjudicateRun, judgeResemblesSubject,
   computeCoverage, formatCoverage,
   selectAffected, formatAffected, gitDiff,
@@ -402,6 +403,37 @@ export async function cmdRegate(args: Args, adapterOverride?: HarnessAdapter): P
  * spec; it is a statement about how much one run of that cell is worth. Making it a
  * gate would turn "this needs more reps" into "your build is broken".
  */
+/**
+ * Upgrade committed runs to the model-visible skill digest — free, offline, no re-runs.
+ *
+ * Run it once on a board that lints clean. Every record whose SKILL.md (or agent file)
+ * still matches the bytes it measured gains a digest of that same file's model-visible
+ * text, after which editing frontmatter the model never receives — `allowed-tools:`, a
+ * tool ceiling — stops demanding a paid re-run. Records whose file has already moved are
+ * left alone: nothing in a one-way hash can say whether that edit touched the body, and
+ * inventing freshness is the one thing this gate must never do.
+ */
+async function cmdRestamp(args: Args): Promise<void> {
+  const root = flagStr(args, "skills", process.cwd())!;
+  const target = args._[0] ?? "all";
+  const skills = target === "all" ? discover(root).filter((s) => s.hasSpec) : [resolveSkill(root, target)];
+  if (skills.length === 0) throw new Error(`no skills with a spec under ${root}`);
+
+  let upgraded = 0;
+  let unprovable = 0;
+  for (const skill of skills) {
+    const r = restampSkill(skill.dir, { from: flagStr(args, "from") });
+    upgraded += r.upgraded;
+    unprovable += r.unprovable;
+    console.log(`\n${skill.name}: ${r.upgraded}/${r.runs} run(s) upgraded`);
+    for (const a of r.added) console.log(`  + ${a}`);
+    if (r.unprovable > 0) {
+      console.log(`  ${r.unprovable} run(s) left alone — the file already moved, so no digest of it can be proven; \`lint\` names the remedy`);
+    }
+  }
+  console.log(`\n${upgraded} run(s) upgraded, ${unprovable} left alone. No models were called.`);
+}
+
 async function cmdStability(args: Args): Promise<void> {
   const root = flagStr(args, "skills", process.cwd())!;
   const target = args._[0] ?? "all";
@@ -751,6 +783,7 @@ export function help(): string {
                        ship-deciding). OFF by default; prints the exact MAX extra call count first.
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (free)
   regate <run-dir>...  [--judge prov:model]     re-evaluate diff needles against the saved diffs (free; judges only reps whose gate flipped)
+  restamp <skill|all> --skills <root> [--from <git-ref>]   record the model-visible skill digest on runs that still match (free, offline; one-time migration)
   stability <skill|all> --skills <root> [--window N] [--all]  run-over-run verdict flips per scenario (free, offline)
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]
@@ -779,6 +812,7 @@ export async function main(argv: string[]): Promise<void> {
     case "grade": return cmdGrade(args);
     case "rescore": return cmdRescore(args);
     case "regate": return cmdRegate(args);
+    case "restamp": return cmdRestamp(args);
     case "stability": return cmdStability(args);
     case "review": return cmdReview(args);
     case "add-test": return cmdAddTest(args);

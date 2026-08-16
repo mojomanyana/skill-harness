@@ -4,7 +4,7 @@ import yaml from "js-yaml";
 import { loadSpec, SpecError } from "./spec.js";
 import { computeCoverage } from "./instruction-coverage.js";
 import { readResults, finalizeResults, findTranscriptFiles, resultsPath, scoreContextFor } from "./results.js";
-import { currentHashFor, describeSourceKey, remedyForKey, scenarioIdForKey, effectiveFixture, SCENARIO_PREFIX, STIMULUS_PREFIX, UNREADABLE } from "./sources.js";
+import { currentHashFor, describeSourceKey, isSupersededKey, remedyForKey, scenarioIdForKey, effectiveFixture, SCENARIO_PREFIX, STIMULUS_PREFIX, UNREADABLE } from "./sources.js";
 import { downgradeWarning } from "./downgrade.js";
 import { collectScoredRuns } from "./trends.js";
 import { boundaryCells, stabilityFrom, stabilityNote } from "./stability.js";
@@ -262,6 +262,11 @@ export function lintSkill(skillDir: string): LintFinding[] {
       const newest = full.runDir;
       const ctx = { skillDir, specDir, scenarios: spec.scenarios, judgePersona: spec.judge_persona };
       for (const [key, recorded] of Object.entries(hashes)) {
+        // A raw-bytes key whose model-visible digest this run also recorded is not the
+        // honest comparison: it reports a `description`-reword or an `allowed-tools:`
+        // line — text no graded run could observe — as a reason to re-run. The pair is
+        // recorded together and exactly one of them is compared.
+        if (isSupersededKey(key, hashes)) continue;
         const what = describeSourceKey(key);
         const scenario = scenarioIdForKey(key, spec.scenarios);
         // The run itself failed to hash this source, so it was never verified and
@@ -358,7 +363,7 @@ function runDirsNewestFirst(tagDir: string): string[] {
  * TOCTOU removal between readdir and statSync) are skipped rather than propagated, so a
  * single bad entry can't abort lintSkill's "never throws" contract.
  */
-function enumerateRunDirs(resultsRoot: string): string[] {
+export function enumerateRunDirs(resultsRoot: string): string[] {
   if (!existsSync(resultsRoot)) return [];
   const out: string[] = [];
   let tags: string[];

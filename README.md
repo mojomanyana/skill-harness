@@ -202,6 +202,7 @@ skill-harness run    <skill|all> --skills <root> [--model prov:model ...] [--mod
                                [--only A1,A2 | --affected --base <ref>]   # scenario subset; a partial run never reports SHIP
                                [--auto-rejudge] [--secondary-judge prov:model] [--tie-break-judge prov:model]
 skill-harness stability <skill|all> --skills <root> [--window N] [--all]  # run-over-run verdict flips (free, offline)
+skill-harness restamp <skill|all> --skills <root> [--from <git-ref>]  # one-time hash upgrade; see "what stales a run" (free, offline)
 skill-harness coverage <skill|all> --skills <root> [--strict]  # which instruction sections have a declared test (free, offline)
 skill-harness affected <skill>   --skills <root> [--base ref]  # which scenarios a change could touch (free, offline)
 skill-harness grade  <run-dir>   [--judge prov:model] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]
@@ -601,7 +602,9 @@ truncated.
 
   | key | covers | cheapest honest remedy when it drifts |
   |---|---|---|
-  | `SKILL.md` | the skill text | `run` (subject + judge) |
+  | `skill:prompt` | the skill text **as the model receives it** — body + model-visible frontmatter | `run` (subject + judge) |
+  | `SKILL.md` | the skill file's raw bytes (superseded by `skill:prompt` when both are recorded) | `run` (subject + judge) |
+  | `prompt:<path>` | a `system_prompt_file` as the model receives it (supersedes the bare path key) | `run` (subject + judge) |
   | `stimulus:<id>` | what the model was asked — turns, mode, workspace, fixture path, `assert.vitest` | `run` (subject + judge) |
   | `rubric:<id>`, `rubric:__persona` | the checklist, title, and judge persona the verdicts came from | `grade` (judge only) |
   | `policy:<id>` | `critical`, `reps`, `pass_threshold` — how verdicts collapse to a grade | `rescore` (free) |
@@ -616,6 +619,25 @@ truncated.
   A source that could not be read when the run was recorded is stored as
   `unreadable` rather than omitted, and always reports stale — an omitted key
   would never be compared again for the life of that result.
+
+  **Frontmatter the model never receives does not stale a run.** A prompt document
+  (SKILL.md, a `system_prompt_file`) is digested as its body plus its *model-visible*
+  frontmatter. `description` and `name` are inside the gate — under progressive disclosure
+  the description is what is in context and decides whether the skill is selected at all —
+  but the capability declarations a harness consumes to build a tool allowlist
+  (`allowed-tools`, `tools`) are not: no graded run can observe them, so they cannot change
+  a result and must not be able to demand a paid re-run. Any *other* frontmatter key stays
+  protected by default, so a newly-invented field fails loud rather than silently losing
+  coverage. Measured: adding one `allowed-tools:` key to seven SKILL.md files with
+  byte-identical bodies took lint from 2 findings to 22 under raw-byte hashing.
+
+  Runs recorded before 0.8.0 carry only the raw-byte keys, and a one-way hash cannot say
+  whether a later edit touched the body. **`restamp`** upgrades them without re-running
+  anything, and only where it can prove the claim: the recorded hash must still match the
+  bytes it measured (`--from <git-ref>` supplies those bytes when the edit has already
+  landed), *and* the model-visible text of those bytes must equal today's. Records that
+  fail either check are left honestly stale. Skipping the migration costs nothing — an
+  unedited skill keeps matching on the raw-byte key exactly as before.
 
   Scenario digests are **per-scenario and built from the parsed spec**, not from
   `specification.yaml` as a whole. Editing A1's checklist marks A1 stale and leaves A2 alone,
