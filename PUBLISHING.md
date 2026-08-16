@@ -1,11 +1,72 @@
-# Publishing skill-harness (0.7.0)
+# Publishing skill-harness (0.8.0)
 
 This is the npm-publish runbook.
 
 The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`, `0.3.0`, `0.3.1`, `0.3.2`, `0.4.0`,
-`0.5.0`, `0.6.0`. This repo is at `0.7.0`, so these commands publish a **new version over
-an existing line** — the `@skill-harness` scope is already claimed, and `latest` moves to
-0.7.0 as each package lands.
+`0.5.0`, `0.6.0`, `0.7.0`. This repo is at `0.8.0`, so these commands publish a **new version
+over an existing line** — the `@skill-harness` scope is already claimed, and `latest` moves to
+0.8.0 as each package lands.
+
+**0.8.0 takes the minor: a new command, and a change to what "the skill changed" means.**
+
+Nothing about a verdict, a grade, or the shape of `results.yaml` changed. What changed is
+which edits the staleness gate charges you for.
+
+**The behavioural change: a frontmatter-only edit no longer stales a published run.**
+
+`SKILL.md` and every `system_prompt_file` are now digested as **body + model-visible
+frontmatter**, recorded under new keys `skill:prompt` and `prompt:<path>`. `description` and
+`name` stay inside the gate — under progressive disclosure the description decides whether
+the skill is selected at all. `allowed-tools` and `tools` are excluded: both spellings of a
+capability ceiling, read by pi/pi-daddy to build a `--tools` allowlist, and neither is
+authored for the model.
+
+Hashing the raw bytes — which is what shipped through 0.7.0 — charged a full paid re-wave
+for edits no graded run could observe. Measured on the reference corpus: adding one
+`allowed-tools:` line to seven `SKILL.md` files, **every body byte-identical**, took `lint`
+from 2 findings to 22, and 20 of those demanded re-runs.
+
+*What is now unprotected, stated plainly.* Under `--mode force` the adapter appends the
+WHOLE file to the system prompt, so an excluded key is genuinely in the model's context and
+editing it no longer stales that run. That is the real coverage being traded, not a
+hypothetical — every newest published run in the reference corpus is force mode. Taken
+anyway because the line is a declaration *about* tooling rather than instruction authored
+for a model, and a force run passes `--no-skills` so pi never applies the ceiling. Frontmatter
+*formatting* also stops being a change at all: the digest is built from parsed YAML with
+string scalars trimmed, so refolding a `>` block or reordering keys is a no-op.
+
+Delivery is deliberately unchanged. Stripping frontmatter in the adapter would make the
+principle true by construction, but it would silently change what `force` measures for every
+future run and make old force runs incomparable to new ones — a bigger lie than the one
+being fixed.
+
+**The new command: `restamp <skill|all> --skills <root> [--from <git-ref>]`** — free,
+offline, no models. This is a stored-hash format, so the fix cannot apply retroactively on
+its own: a one-way hash cannot say whether a past edit touched the body. `restamp` upgrades a
+record only where it can *prove* the claim — the recorded raw-bytes hash still matches the
+bytes the run measured (`--from` supplies those from git when the edit already landed), and
+those bytes carry the same model-visible text as today's. Anything else is left honestly
+stale, and `run` is the only thing that can clear it.
+
+Both digests keep being written, so an older skill-harness reading a newer `results.yaml`
+still finds the key it knows, and the new keys are prefixed so it reports "not comparable"
+rather than a confident wrong finding.
+
+**Consumer checklist for this release:**
+
+1. `lint all --skills <root>` before upgrading, and again after. On a corpus nobody has
+   edited the two are identical: a legacy record keeps matching on the raw-bytes key exactly
+   as before, so **skipping the migration costs nothing**.
+2. Run `restamp all --skills <root> --from origin/main` once, on a board that lints clean,
+   and commit the result. Every later frontmatter-only edit is then free. Note `origin/main`
+   rather than `main` — a fresh clone often has no local `main`, and an unresolvable `--from`
+   now fails loudly rather than reporting "0 upgraded".
+3. Expect `restamp` to leave most historical runs alone. On the reference corpus it upgraded
+   18 of 140; the other 122 measured genuinely older skill text and are correctly unprovable.
+4. Bump the pin to `v0.8.0` when you want the notes (`.github/workflows/ci.yml`). Consumers
+   tracking `latest` get this automatically.
+
+### 0.7.0, kept for context
 
 **0.7.0 takes the minor: five new capabilities, and one change to what a verdict means.**
 
