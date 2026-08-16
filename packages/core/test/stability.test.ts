@@ -180,8 +180,10 @@ describe("an edit is not a flip", () => {
     // this scenario's own stimulus and rubric identical.
     const spec = loadSpec(join(specDir, "specification.yaml"));
     const after = sourceHashes({ skillDir, specDir, scenarios: spec.scenarios, judgePersona: spec.judge_persona });
+    // A body edit moves both digests of the file — the raw bytes and the text the model
+    // receives. (Moving only the former is a frontmatter-only edit; see the test below.)
     run(skillDir, specDir, "2026-08-06T00:00:00Z", [cell({ verdict: "FAIL" })], {
-      hashes: { ...after, "SKILL.md": "0".repeat(64) },
+      hashes: { ...after, "SKILL.md": "0".repeat(64), "skill:prompt": "1".repeat(64) },
     });
 
     const s = a5(skillDir);
@@ -192,6 +194,23 @@ describe("an edit is not a flip", () => {
     expect(note).toMatch(/SKILL\.md changed/);
     expect(note).toMatch(/side effect of that edit or a boundary cell/);
     expect(note).toMatch(/the record cannot say which/);
+  });
+
+  test("a frontmatter-only SKILL.md edit is not a skill edit — the flip is reported plainly", () => {
+    // The raw bytes moved and the model-visible text did not, so attributing the flip to
+    // "SKILL.md changed" would blame an edit the model could never have seen.
+    const { skillDir, specDir } = skillTree();
+    run(skillDir, specDir, "2026-08-05T00:00:00Z", [cell({ verdict: "PASS" })]);
+    const spec = loadSpec(join(specDir, "specification.yaml"));
+    const after = sourceHashes({ skillDir, specDir, scenarios: spec.scenarios, judgePersona: spec.judge_persona });
+    run(skillDir, specDir, "2026-08-06T00:00:00Z", [cell({ verdict: "FAIL" })], {
+      hashes: { ...after, "SKILL.md": "0".repeat(64) }, // raw bytes differ, `skill:prompt` identical
+    });
+
+    const s = a5(skillDir);
+    expect(s.flips).toBe(1);
+    expect(s.flipsAcrossSkillEdit).toBe(0);
+    expect(stabilityNote(s)).toMatch(/on unchanged skill text/);
   });
 
   test("different reps/threshold is not a flip either — one draw vs a majority of three", () => {

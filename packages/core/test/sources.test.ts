@@ -127,9 +127,10 @@ describe("sourceHashes / currentHashFor round-trip", () => {
     const ctx = { skillDir, specDir, scenarios: [seeded], judgePersona: "a judge." };
     const recorded = sourceHashes(ctx);
     // 0.4.0 splits the one `scenario:` key into the four facet keys, each with its
-    // own remedy, plus the spec-level persona.
+    // own remedy, plus the spec-level persona. 0.8.0 adds `skill:prompt` beside
+    // `SKILL.md`: the same file, digested as the model receives it.
     expect(Object.keys(recorded).sort()).toEqual([
-      "SKILL.md", "fixture:fixtures/A1", "policy:A1", "rubric:__persona", "rubric:A1", "stimulus:A1",
+      "SKILL.md", "skill:prompt", "fixture:fixtures/A1", "policy:A1", "rubric:__persona", "rubric:A1", "stimulus:A1",
     ].sort());
     for (const [key, value] of Object.entries(recorded)) {
       expect(currentHashFor(key, ctx)).toBe(value);
