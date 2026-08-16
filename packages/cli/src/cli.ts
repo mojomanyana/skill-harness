@@ -419,19 +419,33 @@ async function cmdRestamp(args: Args): Promise<void> {
   const skills = target === "all" ? discover(root).filter((s) => s.hasSpec) : [resolveSkill(root, target)];
   if (skills.length === 0) throw new Error(`no skills with a spec under ${root}`);
 
+  let runs = 0;
   let upgraded = 0;
   let unprovable = 0;
+  let unchanged = 0;
+  let partial = 0;
   for (const skill of skills) {
     const r = restampSkill(skill.dir, { from: flagStr(args, "from") });
+    runs += r.runs;
     upgraded += r.upgraded;
     unprovable += r.unprovable;
-    console.log(`\n${skill.name}: ${r.upgraded}/${r.runs} run(s) upgraded`);
+    unchanged += r.unchanged;
+    partial += r.partial;
+    console.log(`\n${skill.name}: ${r.upgraded} upgraded, ${r.unprovable} left alone, ${r.unchanged} already current (${r.runs} run(s))`);
     for (const a of r.added) console.log(`  + ${a}`);
     if (r.unprovable > 0) {
-      console.log(`  ${r.unprovable} run(s) left alone — the file already moved, so no digest of it can be proven; \`lint\` names the remedy`);
+      console.log(`  ${r.unprovable} left alone — a document they measured has already moved, so no digest of it can be proven; \`lint\` names the remedy`);
+    }
+    if (r.partial > 0) {
+      console.log(`  ${r.partial} of the upgraded still carry a document that could not be proven`);
     }
   }
-  console.log(`\n${upgraded} run(s) upgraded, ${unprovable} left alone. No models were called.`);
+  // The three buckets sum to the records examined, on purpose: a total that does not add
+  // up reads like the command skipped something rather than like there being nothing to do.
+  console.log(
+    `\n${runs} run(s) examined: ${upgraded} upgraded, ${unprovable} left alone, ${unchanged} already current.` +
+      `${partial > 0 ? ` (${partial} upgraded only in part.)` : ""} No models were called.`,
+  );
 }
 
 async function cmdStability(args: Args): Promise<void> {

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import yaml from "js-yaml";
 import { loadSpec } from "./spec.js";
@@ -49,13 +49,28 @@ import {
  * Free and offline: no model, no judge, no network. It rewrites only `source_hashes`.
  */
 
+/**
+ * Three exclusive buckets that SUM to `runs`, plus `partial` as a subset of `upgraded`.
+ *
+ * Summing is the point. These counters are the only thing an operator can judge a
+ * migration by, and "18 upgraded, 20 left alone" out of 140 leaves 102 records
+ * unaccounted for — which reads like the command quietly skipped them rather than like
+ * the 102 having nothing to upgrade.
+ */
 export interface RestampReport {
-  /** Run records examined. */
+  /** Run records examined. `upgraded + unprovable + unchanged`. */
   runs: number;
-  /** Run records that gained at least one model-visible digest (and were rewritten). */
+  /** Records that gained at least one model-visible digest, and were rewritten. */
   upgraded: number;
-  /** Records left alone because the file has already moved — honestly stale, `run` is the remedy. */
+  /**
+   * Records that gained NOTHING because a document they measured has already moved —
+   * honestly stale, and `run` is the only remedy.
+   */
   unprovable: number;
+  /** Records with nothing to do: no `source_hashes`, unreadable, or already upgraded. */
+  unchanged: number;
+  /** Of `upgraded`, those still carrying a document that could not be proven. */
+  partial: number;
   /** `<runDir>: <key>` for each digest added, for the CLI to print. */
   added: string[];
 }
@@ -131,6 +146,28 @@ function assertRefResolves(dir: string, ref: string): void {
   }
 }
 
+/**
+ * Write via a temp file in the same directory, then rename.
+ *
+ * `rename(2)` is atomic within a filesystem, so a reader sees the old file or the new one
+ * and never a half-written one. It matters more here than in the writers that produce a
+ * run: this loops over an entire published corpus rewriting records that already hold
+ * measurements nobody can reproduce without spending model tokens, so an interrupt or a
+ * full disk partway through would truncate exactly the artifacts the command exists to
+ * preserve. The temp file is `.tmp`-suffixed beside the target rather than in the system
+ * temp dir, because a cross-device rename is not atomic — and is not even permitted.
+ */
+function writeAtomically(path: string, text: string): void {
+  const tmp = `${path}.restamp.tmp`;
+  writeFileSync(tmp, text, "utf8");
+  try {
+    renameSync(tmp, path);
+  } catch (e) {
+    try { rmSync(tmp, { force: true }); } catch { /* the rename failure is what matters */ }
+    throw e;
+  }
+}
+
 /** What one prompt document can prove, computed once and reused across every run. */
 interface Provable {
   /** sha256 of the bytes a run must have recorded for the ref to describe it. */
@@ -143,7 +180,7 @@ interface Provable {
 
 /** Upgrade every provable record under one skill's tests/results. */
 export function restampSkill(skillDir: string, opts: RestampOptions = {}): RestampReport {
-  const report: RestampReport = { runs: 0, upgraded: 0, unprovable: 0, added: [] };
+  const report: RestampReport = { runs: 0, upgraded: 0, unprovable: 0, unchanged: 0, partial: 0, added: [] };
   const specPath = join(skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const specDir = dirname(specPath);
@@ -182,10 +219,16 @@ export function restampSkill(skillDir: string, opts: RestampOptions = {}): Resta
     try {
       doc = yaml.load(readFileSync(resultsPath(runDir), "utf8"));
     } catch {
-      continue; // unreadable/malformed → lint already reports it; never rewrite what we can't read
+      // Unreadable/malformed → lint already reports it; never rewrite what we can't read.
+      // Still bucketed: every record counted in `runs` has to be accounted for somewhere.
+      report.unchanged++;
+      continue;
     }
     const hashes = rawHashes(doc);
-    if (!hashes) continue; // predates source_hashes → nothing to upgrade from
+    if (!hashes) {
+      report.unchanged++; // predates source_hashes → nothing to upgrade from
+      continue;
+    }
 
     let blocked = false;
     const additions: Array<[string, string]> = [];
@@ -207,14 +250,20 @@ export function restampSkill(skillDir: string, opts: RestampOptions = {}): Resta
       additions.push([upgradedKey, p.currentPrompt]);
     }
 
-    if (blocked) report.unprovable++;
-    if (additions.length === 0) continue;
+    if (additions.length === 0) {
+      // Exclusive: a record that gained nothing is `unprovable` only if something
+      // actually blocked it, and `unchanged` otherwise.
+      if (blocked) report.unprovable++;
+      else report.unchanged++;
+      continue;
+    }
     for (const [k, v] of additions) {
       hashes[k] = v;
       report.added.push(`${runDir}: ${k}`);
     }
-    writeFileSync(resultsPath(runDir), yaml.dump(doc, { lineWidth: 100 }), "utf8");
+    writeAtomically(resultsPath(runDir), yaml.dump(doc, { lineWidth: 100 }));
     report.upgraded++;
+    if (blocked) report.partial++;
   }
   return report;
 }

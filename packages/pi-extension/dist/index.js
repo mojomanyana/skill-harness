@@ -5849,7 +5849,7 @@ import { join as join15 } from "node:path";
 // packages/core/dist/restamp.js
 import { createHash as createHash5 } from "node:crypto";
 import { execFileSync as execFileSync2 } from "node:child_process";
-import { readFileSync as readFileSync10, writeFileSync as writeFileSync4 } from "node:fs";
+import { readFileSync as readFileSync10, renameSync, rmSync as rmSync2, writeFileSync as writeFileSync4 } from "node:fs";
 import { dirname as dirname4, join as join17, relative as relative3, resolve as resolve8 } from "node:path";
 
 // packages/core/dist/defaults.js
@@ -5880,12 +5880,12 @@ function assertJudgeAllowed(judge, opts) {
 }
 
 // packages/core/dist/regate.js
-import { existsSync as existsSync14, readFileSync as readFileSync11, renameSync, writeFileSync as writeFileSync5 } from "node:fs";
+import { existsSync as existsSync14, readFileSync as readFileSync11, renameSync as renameSync2, writeFileSync as writeFileSync5 } from "node:fs";
 import { join as join18 } from "node:path";
 
 // packages/core/dist/spec-write.js
 import { createHash as createHash6 } from "node:crypto";
-import { readFileSync as readFileSync12, renameSync as renameSync2, unlinkSync, writeFileSync as writeFileSync6 } from "node:fs";
+import { readFileSync as readFileSync12, renameSync as renameSync3, unlinkSync, writeFileSync as writeFileSync6 } from "node:fs";
 import { dirname as dirname5, join as join19 } from "node:path";
 var ConcurrentSpecModification = class extends Error {
   constructor(specPath) {
@@ -5930,7 +5930,7 @@ function atomicWrite(path, text) {
   const tmp = join19(dirname5(path), `.${Date.now()}-${process.pid}.specwrite.tmp`);
   try {
     writeFileSync6(tmp, text, "utf8");
-    renameSync2(tmp, path);
+    renameSync3(tmp, path);
   } catch (err) {
     try {
       unlinkSync(tmp);

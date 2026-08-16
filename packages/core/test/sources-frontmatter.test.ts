@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -288,9 +288,13 @@ describe("a corpus recorded before this change", () => {
     writeFileSync(join(d, "SKILL.md"), SKILL_MD.replace("Measure before you cut.", "Cut first."), "utf8");
 
     const report = await restampSkill(d);
-    expect(report.unprovable).toBe(1);
     // Per document, not per record: the agent file beside it never moved, so upgrading
-    // THAT key is still a true statement about what this run measured.
+    // THAT key is still a true statement about what this run measured. The record counts
+    // as upgraded — and as `partial`, because one document could not be proven. It must
+    // NOT also count as `unprovable`, or the buckets stop summing to `runs`.
+    expect(report.upgraded).toBe(1);
+    expect(report.partial).toBe(1);
+    expect(report.unprovable).toBe(0);
     const h = readResults(runDir).source_hashes!;
     expect(h[SKILL_PROMPT_KEY]).toBeUndefined();
     expect(h[PROMPT_PREFIX + "agents/plan.md"]).toBe(promptDocDigest(AGENT_MD));
@@ -301,6 +305,60 @@ describe("a corpus recorded before this change", () => {
     const d = skill();
     withRun(d, sourceHashes(ctxFor(d)));
     expect((await restampSkill(d)).upgraded).toBe(0);
+  });
+
+  it("every record examined lands in exactly one bucket", () => {
+    // The counters are what an operator judges the migration by, so they have to add up:
+    // `18 upgraded, 20 left alone` out of 140 leaves 102 records unaccounted for and
+    // reads like the command quietly skipped them.
+    const d = skill();
+    const results = join(d, "tests", "results", "pi-fake");
+    const write = (ts: string, hashes: Record<string, string>) => {
+      const runDir = join(results, ts);
+      mkdirSync(runDir, { recursive: true });
+      writeResults(runDir, {
+        skill: "demo", harness: "pi", model: "fireworks:fake",
+        judge: { provider: "anthropic", model: "opus" }, timestamp: "2026-07-01T00:00:00Z",
+        label: null, mode: "force",
+        scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "ok", suspect: false, override: null, note: "" }] as any,
+      }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
+      const r = readResults(runDir);
+      (r as any).source_hashes = hashes;
+      writeFileSync(join(runDir, "results.yaml"), yaml.dump(r), "utf8");
+    };
+    write("2026-07-01T00-00-00Z", legacyHashes(d));            // upgradeable
+    write("2026-07-02T00-00-00Z", sourceHashes(ctxFor(d)));    // already upgraded → unchanged
+    // Both documents blocked, so this record gains nothing at all — a record with even
+    // one provable document would count as `upgraded` (partially), not `unprovable`.
+    write("2026-07-03T00-00-00Z", {
+      ...legacyHashes(d), [SKILL_KEY]: "0".repeat(64), "agents/plan.md": "0".repeat(64),
+    });
+
+    // A run predating `source_hashes` entirely: it still counts as examined, so it still
+    // has to land in a bucket. (Measured: 202 examined, 18 + 122 + 0 accounted for.)
+    const bare = join(results, "2026-07-04T00-00-00Z");
+    mkdirSync(bare, { recursive: true });
+    writeResults(bare, {
+      skill: "demo", harness: "pi", model: "fireworks:fake",
+      judge: { provider: "anthropic", model: "opus" }, timestamp: "2026-07-01T00:00:00Z",
+      label: null, mode: "force",
+      scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "ok", suspect: false, override: null, note: "" }] as any,
+    }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
+
+    const r = restampSkill(d);
+    expect(r.runs).toBe(4);
+    expect(r.upgraded + r.unprovable + r.unchanged).toBe(r.runs);
+    expect(r.upgraded).toBe(1);
+    expect(r.unprovable).toBe(1);
+    expect(r.unchanged).toBe(2);
+  });
+
+  it("leaves no temp file behind in a published results dir", () => {
+    const d = skill();
+    const runDir = withRun(d, legacyHashes(d));
+    restampSkill(d);
+    expect(readdirSync(runDir)).toEqual(["results.yaml"]);
+    expect(readResults(runDir).source_hashes![SKILL_PROMPT_KEY]).toBe(promptDocDigest(SKILL_MD));
   });
 });
 
@@ -342,7 +400,7 @@ describe("restamp --from <ref>", () => {
     writeFileSync(join(d, "SKILL.md"), SKILL_MD.replace("Measure before you cut.", "Cut first."), "utf8");
 
     const report = await restampSkill(d, { from: "HEAD" });
-    expect(report.unprovable).toBe(1);
+    expect(report.partial).toBe(1); // the agent file beside it was still provable
     expect(staleFindings(d).join("\n")).toMatch(/SKILL\.md/);
   });
 
@@ -365,7 +423,7 @@ describe("restamp --from <ref>", () => {
     writeFileSync(join(d, "SKILL.md"), SKILL_MD.replace("---\n\n# Demo", "allowed-tools: read\n---\n\n# Demo"), "utf8");
 
     const report = await restampSkill(d, { from: "HEAD" });
-    expect(report.unprovable).toBe(1);
+    expect(report.partial).toBe(1);
     expect(readResults(join(d, "tests", "results", "pi-fake", "2026-07-01T00-00-00Z")).source_hashes![SKILL_PROMPT_KEY]).toBeUndefined();
   });
 });
