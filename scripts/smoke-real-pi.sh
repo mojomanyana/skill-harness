@@ -30,7 +30,16 @@ cd "$(dirname "$0")/.."
 
 SKILLS="scripts/smoke/skills"
 SKILL="trace-smoke"
-MODEL="${SMOKE_MODEL:-fireworks:accounts/fireworks/models/deepseek-v4-flash}"
+# DATED pin, not the bare alias. `deepseek-v4-flash` was retired at the provider — Fireworks answers
+# `404 Model not found, inaccessible, and/or not deployed`, pi reports an empty response, and the harness
+# records `R1 ERROR: model produced no response after a retry (harness timeout?) — infra, not skill
+# behavior`. Which is accurate and reads exactly like a harness bug, so the pre-publish gate had been red
+# since 2026-08-08 for a reason that has nothing to do with the code under test.
+#
+# A dated id cannot be retired out from under this script the way a floating alias can. When it is
+# eventually withdrawn the failure is at least honest: the run stops before spending anything, rather
+# than after. `SMOKE_MODEL` overrides it; the only requirement is something cheap that can call tools.
+MODEL="${SMOKE_MODEL:-fireworks:accounts/fireworks/models/deepseek-v4-flash-0731}"
 CLI="node bin/skill-harness.js"
 
 say() { printf '\n\033[1m== %s\033[0m\n' "$1"; }
@@ -52,7 +61,14 @@ $CLI coverage "$SKILL" --skills "$SKILLS"
 say "1 · run (SPENDS subject tokens) — exercises spawn + streaming + --extension"
 $CLI run "$SKILL" --skills "$SKILLS" --model "$MODEL" --mode force --label smoke
 
-RUN_DIR=$(find "$SKILLS/$SKILL/tests/results" -maxdepth 2 -mindepth 2 -type d | sort | tail -1)
+# Sort on the TIMESTAMP, not the whole path. `sort | tail -1` over `<model-tag>/<timestamp>` orders by
+# model tag first, so the newest run only wins when its tag happens to sort last — and tags are not
+# ordered by recency at all. Renaming the model from `deepseek-v4-flash` to `deepseek-v4-flash-0731` was
+# enough to break it, because `-` (0x2D) sorts before `/` (0x2F): the fresh run lost to a stale one from
+# the retired model, and step 2 then asserted against an artifact the run it had just paid for did not
+# produce. A gate that can validate the previous run is worse than no gate.
+RUN_DIR=$(find "$SKILLS/$SKILL/tests/results" -maxdepth 2 -mindepth 2 -type d |
+  awk -F/ '{ print $NF "\t" $0 }' | sort | tail -1 | cut -f2-)
 [ -n "$RUN_DIR" ] || fail "no run dir was produced"
 echo "run dir: $RUN_DIR"
 
