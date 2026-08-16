@@ -1,6 +1,6 @@
 {
     "name": "@skill-harness/adapters",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "description": "skill-harness harness adapters — pi runner + claude-code judge routing (internal API)",
     "type": "module",
     "license": "MIT",
@@ -40,6 +40,6 @@
         "prepack": "cp ../../LICENSE ./LICENSE"
     },
     "dependencies": {
-        "@skill-harness/core": "0.7.0"
+        "@skill-harness/core": "0.8.0"
     }
 }
