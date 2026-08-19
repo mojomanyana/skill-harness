@@ -349,6 +349,13 @@ smoke run is what found it.
 A smoke run is **one draw on a cheap model, not a measurement**: its
 `results.yaml` is gitignored so a throwaway scorecard never lands in the repo.
 
+For the same reason, the **exit status covers the harness, not the model.** The
+artifact assertions above are gating; the scenario's own `objective` verdict is
+printed and left advisory. Gating on it would make publishing depend on which
+cheap model happens to be pinned — the current pin leaks `"password"` into the
+`plan` handoff, a true finding about that model and nothing about the code under
+test. Read the advisory line; do not let it block a release on its own.
+
 ## Publish, in dependency order
 
 Run from the **repo root** (npm workspaces `-w` flag, verified with npm 11.9.0 /
