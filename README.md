@@ -54,6 +54,7 @@ give you:
 - **Judge ≠ subject guard** — same-family grading inflates scores, so it warns
 - **Seeded objective gates** — git diff + real `vitest` runs, not just opinion
 - **Human overrides with mandatory audit notes** — the author owns the verdict
+- **Risk-adaptive workflow trajectories** — versioned events prove phase/state/capability/workspace/evidence contracts, not just final prose
 
 ## Requirements
 
@@ -166,6 +167,40 @@ costs zero judge tokens. And **an objective FAIL or ERROR outranks the judge's
 verdict** — only an explicit author override beats it. A gate whose evidence is
 missing reports ERROR, never a pass.
 
+### `assert.trajectory` — gates over multi-phase workflow state
+
+`assert.trajectory` evaluates a saved, versioned, adapter-neutral event stream. It covers ordered
+phase transitions, required/forbidden tool and capability use, run/task/workspace/context correlation,
+head-versus-candidate-tree identity, writer leases, approval scope/expiry/use, stale evidence,
+packet supersession, repair rebinding, and finalization. Native `principal-assurance-v1` and current
+pi-daddy ledgers are normalized by the pi adapter; missing governance fields are `ERROR`, never a
+pass.
+
+```yaml
+env:
+  workspace: empty-git
+  event_sources:
+    - adapter: principal-assurance-v1
+      path: .git/principal-pi-skills/assurance-v1/runs/*/events.jsonl
+assert:
+  trajectory:
+    version: "1.0"
+    ordered:
+      - [{ event: code_changed }, { event: phase_completed, where: { phase: build } }, { event: evidence_recorded }]
+    correlate:
+      - left: { event: code_changed, select: last }
+        right: { event: evidence_recorded, select: last }
+        same: [run_id, task_id, workspace_id, digests.head, digests.tree]
+    freshness:
+      - subject: { event: evidence_recorded, where: { exit_code: 0 }, select: last }
+        after: [{ event: code_changed, select: last }, { event: phase_completed, where: { phase: build }, select: last }]
+        same: [run_id, task_id, workspace_id]
+```
+
+Like trace gates, trajectory gates run before the judge and a decisive objective failure cannot be
+outvoted by repetitions or judge prose. See [Risk-adaptive workflow measurement](docs/ASSURANCE-WORKFLOWS.md)
+for the complete DSL, pi-daddy mapping, evidence boundary, and sandbox limitation.
+
 Both needle gates deliberately match only added/removed lines, never context
 lines or `+++`/`---` file headers. A unified diff carries context around every
 hunk, so an untouched symbol near the edit site appears in the diff verbatim.
@@ -201,6 +236,9 @@ skill-harness run    <skill|all> --skills <root> [--model prov:model ...] [--mod
                                [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T] [--canary]
                                [--only A1,A2 | --affected --base <ref>]   # scenario subset; a partial run never reports SHIP
                                [--auto-rejudge] [--secondary-judge prov:model] [--tie-break-judge prov:model]
+skill-harness compare <skill|all> --reference <git-ref-or-root> --candidate <skills-root> --model prov:model --reps N
+                                                          # paired reference/candidate run; spends subject + judge calls
+skill-harness mutation-test                               # prove trajectory assertions turn red (free, offline)
 skill-harness stability <skill|all> --skills <root> [--window N] [--all]  # run-over-run verdict flips (free, offline)
 skill-harness restamp <skill|all> --skills <root> [--from <git-ref>]  # one-time hash upgrade; see "what stales a run" (free, offline)
 skill-harness coverage <skill|all> --skills <root> [--strict]  # which instruction sections have a declared test (free, offline)
@@ -473,7 +511,7 @@ the verdicts that moved.
 `JUDGE-AMBIGUOUS`), carrying clean ones verbatim — the rejudge path for ambiguity without
 re-spending the whole run's judge calls. With nothing suspect it is a no-op.
 
-**Per-scenario overrides:** `reps:` and `pass_threshold:` in `specification.yaml` override the run flags.
+**Per-scenario overrides:** `reps:` and `pass_threshold:` in `specification.yaml` override the run flags for ordinary scenarios. Critical scenarios always require every clean repetition (`1.0`); an ERROR stays infrastructure and cannot be voted into PASS.
 
 **Scenarios can declare their workspace** with `env: { workspace: none | empty-git | fixture:<path> }`:
 - `none` (default): a fresh isolated temp dir.
@@ -529,11 +567,12 @@ Seeded scenarios automatically use their `fixture:` setting.
 
 ## Scoring & the judge
 
-- A scenario **PASSes** only if the judge marks every checklist item pass; `FAIL`
-  and `ERROR` both count against it.
+- A scenario **PASSes** only if the judge marks every checklist item pass. `FAIL` is behavioral;
+  `ERROR`/`JUDGE-AMBIGUOUS` are excluded from the behavioral percentage and independently block SHIP.
 - **SHIP** requires: enough scenarios, `≥ min_pass` passes, **zero critical fails**,
   and **zero B-series fails** (ids starting with `B` — the under-pressure scenarios,
-  because holding the line is the discipline that matters most).
+  because holding the line is the discipline that matters most). `critical: true` and top-level
+  `critical:` are one set; every clean critical repetition must pass, including right-sizing cases.
 - **Judge ≠ subject.** The judge model must differ from the model under test —
   same-family grading inflates scores. `skill-harness` warns loudly when the judge
   resembles a subject model. (The default judge is Claude, precisely so it stays
@@ -597,6 +636,9 @@ truncated.
 - each scenario carries `suspect`: the judge-misfire tripwire fired (its per-item grades
   disagree with its overall verdict) — marked `suspect`, excluded from the grade, and blocks
   SHIP until you re-judge it or set an override in the review UI.
+- scenario `metrics` record wall time and judge/re-judge calls, plus subject input/output/cache
+  tokens, tool calls, delegated children, and max concurrency where pi structured traces expose them.
+  Coverage is explicit; unavailable metrics are never shown as zero.
 - `source_hashes` records a sha256 of **everything the run measured**, so `lint` can prove a
   published result still describes the current inputs:
 

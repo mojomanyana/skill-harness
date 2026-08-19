@@ -109,6 +109,36 @@ describe("parseTrace — tool calls", () => {
   });
 });
 
+describe("parseTrace — cost and latency inputs", () => {
+  it("records subject input/output/cache tokens and cost when pi reports them", () => {
+    const { trace } = fixture("tool-error.jsonl");
+    expect(trace.metrics).toMatchObject({
+      input_tokens: 1356,
+      output_tokens: 73,
+      cache_read_tokens: 1218,
+      cache_write_tokens: 0,
+      tool_calls: 1,
+      max_concurrency: 1,
+    });
+    expect(trace.metrics?.cost_usd).toBeCloseTo(0.00015945, 8);
+  });
+
+  it("records delegated child count and maximum observed tool concurrency", () => {
+    expect(fixture("subagent-call.jsonl").trace.metrics?.delegated_children).toBe(1);
+    expect(fixture("parallel-out-of-order.jsonl").trace.metrics?.max_concurrency).toBe(3);
+    expect(fixture("parallel-out-of-order.jsonl").trace.metrics?.tool_calls).toBe(3);
+  });
+
+  it("leaves aggregate metrics unavailable when pi reports no usage instead of fabricating zero tokens/cost", () => {
+    const parsed = parseTrace([
+      JSON.stringify({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "done" }], stopReason: "stop" } }),
+    ], META);
+    expect(parsed.isComplete).toBe(true);
+    expect(parsed.trace.metrics).toBeUndefined();
+    expect(parsed.trace.cost_usd).toBeNull();
+  });
+});
+
 describe("parseTrace — robustness", () => {
   it("skips streaming updates rather than treating them as messages", () => {
     const raw = readFileSync(join(FIXTURES, "single-turn.jsonl"), "utf8");

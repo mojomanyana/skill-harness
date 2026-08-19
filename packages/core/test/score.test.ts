@@ -73,14 +73,17 @@ describe("score", () => {
     expect(r.ship).toBe(false);
   });
 
-  test("ERROR verdict counts as a fail", () => {
+  test("ERROR is excluded as infrastructure, cannot pass, and blocks without becoming a behavioral fail", () => {
     const r = score(
       verdicts({ A1: "ERROR", A2: "PASS", A3: "PASS", A4: "PASS", A5: "PASS", B1: "PASS", C1: "PASS", C2: "PASS" }),
       { shipBar: SHIP_BAR, critical: CRITICAL }
     );
     expect(r.passed).toBe(7);
-    expect(r.criticalFails).toBe(1); // A1 is critical and errored
+    expect(r.total).toBe(7);
+    expect(r.errorCount).toBe(1);
+    expect(r.criticalFails).toBe(0);
     expect(r.ship).toBe(false);
+    expect(r.note).toMatch(/infrastructure error/);
   });
 });
 
@@ -118,5 +121,15 @@ describe("suspect scoring", () => {
     const r = score([{ id: "A1", verdict: "PASS" }, { id: "A2", verdict: "PASS" }], { shipBar: bar, critical: [] });
     expect(r.suspectCount).toBe(0);
     expect(r.ship).toBe(true);
+  });
+
+  test("invalid or vacuous ship bars can never SHIP through direct API use", () => {
+    const verdicts = [{ id: "A1", verdict: "PASS" as const }];
+    for (const shipBar of [
+      { total: 0, min_pass: 0, no_critical_fail: true },
+      { total: -1, min_pass: 1, no_critical_fail: true },
+      { total: 1.5, min_pass: 1, no_critical_fail: true },
+      { total: 1, min_pass: 2, no_critical_fail: true },
+    ]) expect(score(verdicts, { shipBar, critical: [] }).ship).toBe(false);
   });
 });

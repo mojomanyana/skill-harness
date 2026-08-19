@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Spec } from "./spec.js";
-import { readResults, writeResults, scoreContextFor, rebuildScenarioResult, type ResultsFile, type ScenarioResult } from "./results.js";
+import { readResults, writeResults, scoreContextFor, rebuildScenarioResult, effectiveThreshold, type ResultsFile, type ScenarioResult } from "./results.js";
 import { appendJournal } from "./journal.js";
 import { policyDigest, POLICY_PREFIX } from "./sources.js";
 
@@ -79,7 +79,7 @@ export function rescoreRun(opts: RescoreOptions): RescoreResult {
     if (s.judge_verdict === "ERROR" || s.judge_verdict === "JUDGE-AMBIGUOUS") return s;
     if (s.clean === 0) return s;
 
-    const toThreshold = scenario.passThreshold ?? 0.5;
+    const toThreshold = effectiveThreshold(undefined, scenario);
     const fromThreshold = s.pass_threshold ?? toThreshold;
     if (toThreshold === fromThreshold) return s;
 

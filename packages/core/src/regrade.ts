@@ -5,7 +5,7 @@ import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
 import { buildJudgePrompt, judgeInWorkspace } from "./grade.js";
 import {
   findTranscriptFiles, judgeRawPath, repIndexOf, readResults, writeResults, effectiveThreshold,
-  scoreContextFor, rebuildScenarioResult,
+  scoreContextFor, rebuildScenarioResult, mergeScenarioMetrics,
   type ScenarioResult, type ResultsFile,
 } from "./results.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
@@ -59,6 +59,8 @@ export interface RegradeOptions {
    * with "nothing to re-grade", which is how ten scorable runs stayed ungraded.
    */
   mode?: string;
+  /** Recorded repetition count; when supplied, missing/extra rep artifacts fail before judge calls. */
+  expectedReps?: number;
   now?: () => string;
 }
 
@@ -67,15 +69,25 @@ export async function judgeOneRep(opts: {
   runDir: string; spec: Spec; scenario: Scenario; transcript: string;
   adapter: HarnessAdapter; judge: ModelRef; specDir: string;
   mode: string; rep: number | undefined; now: () => string;
+  /** True when this call revisits a saved subject transcript. */
+  rejudge?: boolean;
 }): Promise<RepOutcome> {
   const { runDir, spec, scenario, transcript, adapter, judge, specDir, mode, rep, now } = opts;
+  const startedAt = performance.now();
   const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
   const g = await judgeInWorkspace(adapter, judge, prompt, specDir);
   writeFileSync(judgeRawPath(runDir, scenario.id, mode, rep), g.raw, "utf8");
   const repField = rep === undefined ? {} : { rep };
   appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict: g.verdict, reason: g.reason, suspect: g.suspect, ...repField });
   if (g.suspect) appendJournal(runDir, { event: "misfire-flag", ts: now(), id: scenario.id, reason: g.reason, ...repField });
-  return { verdict: g.verdict, reason: g.reason, suspect: g.suspect };
+  return {
+    verdict: g.verdict, reason: g.reason, suspect: g.suspect,
+    metrics: {
+      wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+      judge_calls: 1,
+      judge_rejudge_calls: opts.rejudge ? 1 : 0,
+    },
+  };
 }
 
 /**
@@ -90,14 +102,20 @@ export async function regradeScenario(opts: RegradeOptions): Promise<ScenarioRes
   const mode = opts.mode ?? "green";
   const files = findTranscriptFiles(opts.runDir, opts.scenario.id, mode);
   if (files.length === 0) throw new Error(`no ${mode} transcripts for ${opts.scenario.id} in ${opts.runDir}`);
-  const repCount = files.length;
+  const expected = opts.expectedReps ?? files.length;
+  const expectedIndices = expected === 1 ? [null] : Array.from({ length: expected }, (_, index) => index);
+  const actualIndices = files.map((file) => repIndexOf(file)).sort((a, b) => (a ?? -1) - (b ?? -1));
+  if (files.length !== expected || JSON.stringify(actualIndices) !== JSON.stringify(expectedIndices)) {
+    throw new Error(`${opts.scenario.id}: transcript artifacts are incomplete for ${expected} recorded rep(s) — re-run instead of grading a smaller repetition set`);
+  }
+  const repCount = expected;
   const outcomes: RepOutcome[] = [];
   for (const file of files) {
     const rep = repIndexOf(file) ?? undefined;
     const transcript = readFileSync(join(opts.runDir, file), "utf8");
     outcomes.push(await judgeOneRep({
       runDir: opts.runDir, spec: opts.spec, scenario: opts.scenario, transcript,
-      adapter: opts.adapter, judge: opts.judge, specDir: opts.specDir, mode, rep, now,
+      adapter: opts.adapter, judge: opts.judge, specDir: opts.specDir, mode, rep, now, rejudge: true,
     }));
   }
   return outcomesToResult(opts.scenario.id, outcomes, repCount, opts.threshold);
@@ -170,7 +188,15 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     }
   }
 
-  const missing = targets.filter((id) => !specById.has(id) || findTranscriptFiles(runDir, id, mode).length === 0);
+  const completeTranscripts = (record: ScenarioResult): boolean => {
+    const expected = record.reps ?? 1;
+    const files = findTranscriptFiles(runDir, record.id, mode);
+    const expectedIndices = expected === 1 ? [null] : Array.from({ length: expected }, (_, index) => index);
+    const actualIndices = files.map((file) => repIndexOf(file)).sort((a, b) => (a ?? -1) - (b ?? -1));
+    return files.length === expected && JSON.stringify(actualIndices) === JSON.stringify(expectedIndices);
+  };
+  const recordedById = new Map(recorded.map((record) => [record.id, record]));
+  const missing = targets.filter((id) => !specById.has(id) || !completeTranscripts(recordedById.get(id)!));
   if (missing.length === targets.length) {
     throw new Error(`no ${mode} transcripts in ${runDir} — nothing to re-grade`);
   }
@@ -193,8 +219,10 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     const threshold = effectiveThreshold(prevScenario, scenario);
     const rr = await regradeScenario({
       runDir, spec, scenario, adapter, judge, specDir, threshold, mode, now,
+      expectedReps: prevScenario?.reps ?? 1,
     });
     const carry = overrides.get(id);
+    rr.metrics = mergeScenarioMetrics(carry?.metrics, rr.metrics);
     // `grade` re-judges the saved transcript. It does not re-evaluate trace gates
     // (that is `regate`), so `objective` still describes this run; and it replaced
     // the judgments a prior adjudication described, so that panel must go.

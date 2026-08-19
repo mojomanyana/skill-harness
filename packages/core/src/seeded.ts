@@ -2,6 +2,7 @@ import { copyFileSync, statSync } from "node:fs";
 import { extname, isAbsolute, join, resolve } from "node:path";
 import type { Scenario } from "./spec.js";
 import type { ExecutionTraceV1 } from "./capture-trace-types.js";
+import type { TrajectoryEventV1 } from "./trajectory-gates.js";
 import type { HarnessAdapter, ModelRef, RunMode } from "./adapters/types.js";
 import { exec, type ExecResult } from "./util/exec.js";
 import { envNum } from "./util/env.js";
@@ -57,10 +58,15 @@ const POST_TEST_BASE = "skill-harness.post";
 
 export interface SeededOutcome {
   transcript: string; // harness output + appended gate report + (capped) staged diff
-  gateFailure: string | null; // non-null => objective gate failed (auto-FAIL, skip judge)
+  gateFailure: string | null; // non-null => objective gate failed (skip judge)
+  gateError: string | null; // non-null => gate could not be evaluated (infrastructure/spec ERROR, never behavioral FAIL)
   diff: string; // the full staged diff, uncapped — caller persists it as a run artifact
-  /** One per turn; empty unless the scenario declared `assert.trace`. */
+  /** One per turn; empty unless structured execution was requested. */
   traces: ExecutionTraceV1[];
+  /** Adapter-neutral workflow/tool events for assert.trajectory. */
+  events: TrajectoryEventV1[];
+  /** Required native sources that could not be read or normalized. */
+  eventErrors: string[];
 }
 
 const VITEST_TIMEOUT_MS = envNum("VITEST_TIMEOUT_MS", 120_000);
@@ -225,12 +231,15 @@ export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<S
     cwd: repo,
     // Resolved against the spec dir, exactly like fixtures and post-tests.
     extensions: scenario.extensions?.map((e) => resolve(opts.specDir, e)),
+    eventSources: scenario.eventSources,
   };
   // A trace-gated seeded scenario runs through the structured path so the tool
   // calls are recorded; everything downstream (gates, diff, transcript) is
   // identical, because the rebuilt transcript is what print mode would have
   // emitted anyway.
   let traces: ExecutionTraceV1[] = [];
+  let events: TrajectoryEventV1[] = [];
+  let eventErrors: string[] = [];
   let harnessOut: string;
   if (opts.trace) {
     if (!opts.adapter.runStructured) {
@@ -246,12 +255,15 @@ export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<S
     });
     harnessOut = structured.transcript;
     traces = structured.traces;
+    events = structured.events ?? [];
+    eventErrors = structured.eventErrors ?? [];
   } else {
     harnessOut = await opts.adapter.run(req);
   }
 
   const parts: string[] = [harnessOut, "", "=== SEEDED GATES ==="];
   let gateFailure: string | null = null;
+  let gateError: string | null = null;
   const runVitest: NonNullable<SeededOpts["runVitest"]> =
     opts.runVitest ??
     ((args, cwd) => exec("npx", ["vitest", "run", ...args], { cwd, timeoutMs: VITEST_TIMEOUT_MS }));
@@ -275,7 +287,8 @@ export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<S
       (gitFailure.stderr.trim() ? `: ${gitFailure.stderr.trim().split("\n")[0]}` : "");
     parts.push(`  staged diff: ERROR (${msg})`);
     gateFailure = msg;
-    return finish(parts, gateFailure, diff, traces);
+    gateError = msg;
+    return finish(parts, gateFailure, gateError, diff, traces, events, eventErrors);
   }
 
   // BOTH needle gates read the changed lines only, never context. A unified diff
@@ -306,10 +319,12 @@ export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<S
         : `  vitest run: ${passed ? "PASS" : `FAIL (exit ${v.code})`}`
     );
     parts.push(indent(bothStreams(v)));
-    if (!passed && !gateFailure) {
-      gateFailure = killed
+    if (!passed) {
+      const problem = killed
         ? `vitest timed out after ${VITEST_TIMEOUT_MS}ms — infrastructure, not model behavior`
         : `vitest failed (exit ${v.code})`;
+      if (!gateFailure) gateFailure = problem;
+      if (killed) gateError = problem;
     }
   }
 
@@ -328,6 +343,7 @@ export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<S
       const msg = `post_test is not a readable file: ${postTest} — spec error, not model behavior`;
       parts.push(`  post_test: ERROR (${msg})`);
       if (!gateFailure) gateFailure = msg;
+      gateError = msg;
     } else {
       // `.test` is part of the name we build, never taken from the source: extname()
       // of "A2.test.ts" is ".ts", so appending only that produced
@@ -344,7 +360,8 @@ export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<S
           `(${e instanceof Error ? e.message : String(e)}) — infrastructure, not model behavior`;
         parts.push(`  post_test: ERROR (${msg})`);
         if (!gateFailure) gateFailure = msg;
-        return finish(parts, gateFailure, diff, traces);
+        gateError = msg;
+        return finish(parts, gateFailure, gateError, diff, traces, events, eventErrors);
       }
       const v = await runVitest([POST_TEST_BASE], repo);
       const out = `${v.stdout}\n${v.stderr}`;
@@ -365,11 +382,15 @@ export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<S
       const killed = v.code === null;
 
       let problem: string | null = null;
+      let problemIsError = false;
       if (killed) {
+        problemIsError = true;
         problem = `post_test ${JSON.stringify(postTest)} timed out after ${VITEST_TIMEOUT_MS}ms — infrastructure, not model behavior`;
       } else if (notCollected) {
+        problemIsError = true;
         problem = `post_test ${JSON.stringify(postTest)} was never collected by vitest — spec/fixture error, not model behavior`;
       } else if (tally === null) {
+        problemIsError = true;
         problem = `post_test ${JSON.stringify(postTest)} produced no parseable vitest summary (exit ${v.code}) — cannot confirm it ran`;
       } else if (v.code !== 0 || tally.failed > 0) {
         // A real failure is checked BEFORE the vacuity conditions below: a run
@@ -378,22 +399,25 @@ export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<S
         // the model's code, which is the actual news.
         problem = `post_test ${JSON.stringify(postTest)} failed (exit ${v.code})`;
       } else if (tally.skipped > 0 || tally.todo > 0) {
+        problemIsError = true;
         problem = `post_test ${JSON.stringify(postTest)} has ${tally.skipped + tally.todo} skipped/todo test(s) — a hidden gate must actually run; spec error, not model behavior`;
       } else if (tally.passed === 0) {
+        problemIsError = true;
         problem = `post_test ${JSON.stringify(postTest)} ran no assertions — spec error, not model behavior`;
       }
 
       parts.push(
         problem === null
           ? `  post_test ${JSON.stringify(postTest)}: PASS (${tally!.passed} assertion-bearing test(s))`
-          : `  post_test ${JSON.stringify(postTest)}: ${v.code === 0 && !killed ? "ERROR" : "FAIL"} (${problem})`
+          : `  post_test ${JSON.stringify(postTest)}: ${problemIsError ? "ERROR" : "FAIL"} (${problem})`
       );
       parts.push(indent(bothStreams(v)));
       if (problem && !gateFailure) gateFailure = problem;
+      if (problem && problemIsError) gateError = problem;
     }
   }
 
-  return finish(parts, gateFailure, diff, traces);
+  return finish(parts, gateFailure, gateError, diff, traces, events, eventErrors);
 }
 
 function git(cwd: string, args: string[]) {
@@ -430,13 +454,16 @@ function bothStreams(v: VitestRun): string {
 }
 
 /** Append the staged diff and return the outcome. Every exit path goes through here, so the judge always sees the same sections in the same order. */
-function finish(parts: string[], gateFailure: string | null, diff: string, traces: ExecutionTraceV1[] = []): SeededOutcome {
+function finish(
+  parts: string[], gateFailure: string | null, gateError: string | null, diff: string,
+  traces: ExecutionTraceV1[] = [], events: TrajectoryEventV1[] = [], eventErrors: string[] = [],
+): SeededOutcome {
   // The code itself, last — the gates above only prove that keywords appeared.
   // Without this section a seeded checklist item about what the code *does* is
   // graded from the model's own description of its work.
   parts.push("", "=== STAGED DIFF ===");
   parts.push(diff.trim() === "" ? "  (empty — the model left no staged changes)" : capDiff(diff));
-  return { transcript: parts.join("\n"), gateFailure, diff, traces };
+  return { transcript: parts.join("\n"), gateFailure, gateError, diff, traces, events, eventErrors };
 }
 
 export interface VitestTally {

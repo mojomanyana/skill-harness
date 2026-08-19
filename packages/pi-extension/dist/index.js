@@ -1,11 +1,11 @@
 // packages/pi-extension/src/index.ts
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname as dirname10, join as join26 } from "node:path";
+import { dirname as dirname10, join as join27 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
 import { existsSync as existsSync21 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
-import { dirname as dirname9, join as join25, resolve as resolve12, relative as relative5 } from "node:path";
+import { dirname as dirname9, join as join26, resolve as resolve12, relative as relative5 } from "node:path";
 
 // packages/core/dist/spec.js
 import { readFileSync } from "node:fs";
@@ -54,9 +54,9 @@ var require_common = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     }
     return target;
   }
-  function repeat(string, count) {
+  function repeat(string2, count) {
     let result = "";
-    for (let cycle = 0; cycle < count; cycle += 1) result += string;
+    for (let cycle = 0; cycle < count; cycle += 1) result += string2;
     return result;
   }
   function isNegativeZero(number) {
@@ -114,8 +114,8 @@ var require_snippet = /* @__PURE__ */ __commonJSMin(((exports, module) => {
       pos: position - lineStart + head.length
     };
   }
-  function padStart(string, max) {
-    return common.repeat(" ", max - string.length) + string;
+  function padStart(string2, max) {
+    return common.repeat(" ", max - string2.length) + string2;
   }
   function makeSnippet(mark, options) {
     options = Object.create(options || null);
@@ -315,8 +315,8 @@ var require_null = /* @__PURE__ */ __commonJSMin(((exports, module) => {
   function constructYamlNull() {
     return null;
   }
-  function isNull(object) {
-    return object === null;
+  function isNull(object2) {
+    return object2 === null;
   }
   module.exports = new Type3("tag:yaml.org,2002:null", {
     kind: "scalar",
@@ -353,8 +353,8 @@ var require_bool = /* @__PURE__ */ __commonJSMin(((exports, module) => {
   function constructYamlBoolean(data) {
     return data === "true" || data === "True" || data === "TRUE";
   }
-  function isBoolean(object) {
-    return Object.prototype.toString.call(object) === "[object Boolean]";
+  function isBoolean(object2) {
+    return Object.prototype.toString.call(object2) === "[object Boolean]";
   }
   module.exports = new Type3("tag:yaml.org,2002:bool", {
     kind: "scalar",
@@ -362,14 +362,14 @@ var require_bool = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     construct: constructYamlBoolean,
     predicate: isBoolean,
     represent: {
-      lowercase: function(object) {
-        return object ? "true" : "false";
+      lowercase: function(object2) {
+        return object2 ? "true" : "false";
       },
-      uppercase: function(object) {
-        return object ? "TRUE" : "FALSE";
+      uppercase: function(object2) {
+        return object2 ? "TRUE" : "FALSE";
       },
-      camelcase: function(object) {
-        return object ? "True" : "False";
+      camelcase: function(object2) {
+        return object2 ? "True" : "False";
       }
     },
     defaultStyle: "lowercase"
@@ -451,8 +451,8 @@ var require_int = /* @__PURE__ */ __commonJSMin(((exports, module) => {
   function constructYamlInteger(data) {
     return parseYamlInteger(data);
   }
-  function isInteger(object) {
-    return Object.prototype.toString.call(object) === "[object Number]" && object % 1 === 0 && !common.isNegativeZero(object);
+  function isInteger(object2) {
+    return Object.prototype.toString.call(object2) === "[object Number]" && object2 % 1 === 0 && !common.isNegativeZero(object2);
   }
   module.exports = new Type3("tag:yaml.org,2002:int", {
     kind: "scalar",
@@ -502,8 +502,8 @@ var require_float = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     return sign * parseFloat(value, 10);
   }
   var SCIENTIFIC_WITHOUT_DOT = /^[-+]?[0-9]+e/;
-  function representYamlFloat(object, style) {
-    if (isNaN(object)) switch (style) {
+  function representYamlFloat(object2, style) {
+    if (isNaN(object2)) switch (style) {
       case "lowercase":
         return ".nan";
       case "uppercase":
@@ -511,7 +511,7 @@ var require_float = /* @__PURE__ */ __commonJSMin(((exports, module) => {
       case "camelcase":
         return ".NaN";
     }
-    else if (Number.POSITIVE_INFINITY === object) switch (style) {
+    else if (Number.POSITIVE_INFINITY === object2) switch (style) {
       case "lowercase":
         return ".inf";
       case "uppercase":
@@ -519,7 +519,7 @@ var require_float = /* @__PURE__ */ __commonJSMin(((exports, module) => {
       case "camelcase":
         return ".Inf";
     }
-    else if (Number.NEGATIVE_INFINITY === object) switch (style) {
+    else if (Number.NEGATIVE_INFINITY === object2) switch (style) {
       case "lowercase":
         return "-.inf";
       case "uppercase":
@@ -527,12 +527,12 @@ var require_float = /* @__PURE__ */ __commonJSMin(((exports, module) => {
       case "camelcase":
         return "-.Inf";
     }
-    else if (common.isNegativeZero(object)) return "-0.0";
-    const res = object.toString(10);
+    else if (common.isNegativeZero(object2)) return "-0.0";
+    const res = object2.toString(10);
     return SCIENTIFIC_WITHOUT_DOT.test(res) ? res.replace("e", ".e") : res;
   }
-  function isFloat(object) {
-    return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 !== 0 || common.isNegativeZero(object));
+  function isFloat(object2) {
+    return Object.prototype.toString.call(object2) === "[object Number]" && (object2 % 1 !== 0 || common.isNegativeZero(object2));
   }
   module.exports = new Type3("tag:yaml.org,2002:float", {
     kind: "scalar",
@@ -592,8 +592,8 @@ var require_timestamp = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     if (delta) date.setTime(date.getTime() - delta);
     return date;
   }
-  function representYamlTimestamp(object) {
-    return object.toISOString();
+  function representYamlTimestamp(object2) {
+    return object2.toISOString();
   }
   module.exports = new Type3("tag:yaml.org,2002:timestamp", {
     kind: "scalar",
@@ -654,10 +654,10 @@ var require_binary = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     } else if (tailbits === 12) result.push(bits >> 4 & 255);
     return new Uint8Array(result);
   }
-  function representYamlBinary(object) {
+  function representYamlBinary(object2) {
     let result = "";
     let bits = 0;
-    const max = object.length;
+    const max = object2.length;
     const map = BASE64_MAP;
     for (let idx = 0; idx < max; idx++) {
       if (idx % 3 === 0 && idx) {
@@ -666,7 +666,7 @@ var require_binary = /* @__PURE__ */ __commonJSMin(((exports, module) => {
         result += map[bits >> 6 & 63];
         result += map[bits & 63];
       }
-      bits = (bits << 8) + object[idx];
+      bits = (bits << 8) + object2[idx];
     }
     const tail = max % 3;
     if (tail === 0) {
@@ -705,9 +705,9 @@ var require_omap = /* @__PURE__ */ __commonJSMin(((exports, module) => {
   function resolveYamlOmap(data) {
     if (data === null) return true;
     const objectKeys = [];
-    const object = data;
-    for (let index = 0, length = object.length; index < length; index += 1) {
-      const pair = object[index];
+    const object2 = data;
+    for (let index = 0, length = object2.length; index < length; index += 1) {
+      const pair = object2[index];
       let pairHasKey = false;
       if (_toString.call(pair) !== "[object Object]") return false;
       let pairKey;
@@ -733,10 +733,10 @@ var require_pairs = /* @__PURE__ */ __commonJSMin(((exports, module) => {
   var _toString = Object.prototype.toString;
   function resolveYamlPairs(data) {
     if (data === null) return true;
-    const object = data;
-    const result = new Array(object.length);
-    for (let index = 0, length = object.length; index < length; index += 1) {
-      const pair = object[index];
+    const object2 = data;
+    const result = new Array(object2.length);
+    for (let index = 0, length = object2.length; index < length; index += 1) {
+      const pair = object2[index];
       if (_toString.call(pair) !== "[object Object]") return false;
       const keys = Object.keys(pair);
       if (keys.length !== 1) return false;
@@ -746,10 +746,10 @@ var require_pairs = /* @__PURE__ */ __commonJSMin(((exports, module) => {
   }
   function constructYamlPairs(data) {
     if (data === null) return [];
-    const object = data;
-    const result = new Array(object.length);
-    for (let index = 0, length = object.length; index < length; index += 1) {
-      const pair = object[index];
+    const object2 = data;
+    const result = new Array(object2.length);
+    for (let index = 0, length = object2.length; index < length; index += 1) {
+      const pair = object2[index];
       const keys = Object.keys(pair);
       result[index] = [keys[0], pair[keys[0]]];
     }
@@ -766,9 +766,9 @@ var require_set = /* @__PURE__ */ __commonJSMin(((exports, module) => {
   var _hasOwnProperty = Object.prototype.hasOwnProperty;
   function resolveYamlSet(data) {
     if (data === null) return true;
-    const object = data;
-    for (const key in object) if (_hasOwnProperty.call(object, key)) {
-      if (object[key] !== null) return false;
+    const object2 = data;
+    for (const key in object2) if (_hasOwnProperty.call(object2, key)) {
+      if (object2[key] !== null) return false;
     }
     return true;
   }
@@ -887,14 +887,14 @@ var require_loader = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     if (c <= 65535) return String.fromCharCode(c);
     return String.fromCharCode((c - 65536 >> 10) + 55296, (c - 65536 & 1023) + 56320);
   }
-  function setProperty(object, key, value) {
-    if (key === "__proto__") Object.defineProperty(object, key, {
+  function setProperty(object2, key, value) {
+    if (key === "__proto__") Object.defineProperty(object2, key, {
       configurable: true,
       enumerable: true,
       writable: true,
       value
     });
-    else object[key] = value;
+    else object2[key] = value;
   }
   var simpleEscapeCheck = new Array(256);
   var simpleEscapeMap = new Array(256);
@@ -1917,7 +1917,7 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
   function encodeHex(character) {
     let handle;
     let length;
-    const string = character.toString(16).toUpperCase();
+    const string2 = character.toString(16).toUpperCase();
     if (character <= 255) {
       handle = "x";
       length = 2;
@@ -1928,7 +1928,7 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
       handle = "U";
       length = 8;
     } else throw new YAMLException2("code point within a string may not be greater than 0xFFFFFFFF");
-    return "\\" + handle + common.repeat("0", length - string.length) + string;
+    return "\\" + handle + common.repeat("0", length - string2.length) + string2;
   }
   var QUOTING_TYPE_SINGLE = 1;
   var QUOTING_TYPE_DOUBLE = 2;
@@ -1954,19 +1954,19 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     this.duplicates = [];
     this.usedDuplicates = null;
   }
-  function indentString(string, spaces) {
+  function indentString(string2, spaces) {
     const ind = common.repeat(" ", spaces);
     let position = 0;
     let result = "";
-    const length = string.length;
+    const length = string2.length;
     while (position < length) {
       let line;
-      const next = string.indexOf("\n", position);
+      const next = string2.indexOf("\n", position);
       if (next === -1) {
-        line = string.slice(position);
+        line = string2.slice(position);
         position = length;
       } else {
-        line = string.slice(position, next + 1);
+        line = string2.slice(position, next + 1);
         position = next + 1;
       }
       if (line.length && line !== "\n") result += ind;
@@ -2001,24 +2001,24 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
   function isPlainSafeLast(c) {
     return !isWhitespace(c) && c !== CHAR_COLON;
   }
-  function codePointAt(string, pos) {
-    const first = string.charCodeAt(pos);
+  function codePointAt(string2, pos) {
+    const first = string2.charCodeAt(pos);
     let second;
-    if (first >= 55296 && first <= 56319 && pos + 1 < string.length) {
-      second = string.charCodeAt(pos + 1);
+    if (first >= 55296 && first <= 56319 && pos + 1 < string2.length) {
+      second = string2.charCodeAt(pos + 1);
       if (second >= 56320 && second <= 57343) return (first - 55296) * 1024 + second - 56320 + 65536;
     }
     return first;
   }
-  function needIndentIndicator(string) {
-    return /^\n* /.test(string);
+  function needIndentIndicator(string2) {
+    return /^\n* /.test(string2);
   }
   var STYLE_PLAIN = 1;
   var STYLE_SINGLE = 2;
   var STYLE_LITERAL = 3;
   var STYLE_FOLDED = 4;
   var STYLE_DOUBLE = 5;
-  function chooseScalarStyle(string, singleLineOnly, indentPerLevel, lineWidth, testAmbiguousType, quotingType, forceQuotes, inblock) {
+  function chooseScalarStyle(string2, singleLineOnly, indentPerLevel, lineWidth, testAmbiguousType, quotingType, forceQuotes, inblock) {
     let i;
     let char = 0;
     let prevChar = null;
@@ -2026,84 +2026,84 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     let hasFoldableLine = false;
     const shouldTrackWidth = lineWidth !== -1;
     let previousLineBreak = -1;
-    let plain = isPlainSafeFirst(codePointAt(string, 0)) && isPlainSafeLast(codePointAt(string, string.length - 1));
-    if (singleLineOnly || forceQuotes) for (i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
-      char = codePointAt(string, i);
+    let plain = isPlainSafeFirst(codePointAt(string2, 0)) && isPlainSafeLast(codePointAt(string2, string2.length - 1));
+    if (singleLineOnly || forceQuotes) for (i = 0; i < string2.length; char >= 65536 ? i += 2 : i++) {
+      char = codePointAt(string2, i);
       if (!isPrintable(char)) return STYLE_DOUBLE;
       plain = plain && isPlainSafe(char, prevChar, inblock);
       prevChar = char;
     }
     else {
-      for (i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
-        char = codePointAt(string, i);
+      for (i = 0; i < string2.length; char >= 65536 ? i += 2 : i++) {
+        char = codePointAt(string2, i);
         if (char === CHAR_LINE_FEED) {
           hasLineBreak = true;
           if (shouldTrackWidth) {
-            hasFoldableLine = hasFoldableLine || i - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ";
+            hasFoldableLine = hasFoldableLine || i - previousLineBreak - 1 > lineWidth && string2[previousLineBreak + 1] !== " ";
             previousLineBreak = i;
           }
         } else if (!isPrintable(char)) return STYLE_DOUBLE;
         plain = plain && isPlainSafe(char, prevChar, inblock);
         prevChar = char;
       }
-      hasFoldableLine = hasFoldableLine || shouldTrackWidth && i - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ";
+      hasFoldableLine = hasFoldableLine || shouldTrackWidth && i - previousLineBreak - 1 > lineWidth && string2[previousLineBreak + 1] !== " ";
     }
     if (!hasLineBreak && !hasFoldableLine) {
-      if (plain && !forceQuotes && !testAmbiguousType(string)) return STYLE_PLAIN;
+      if (plain && !forceQuotes && !testAmbiguousType(string2)) return STYLE_PLAIN;
       return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
     }
-    if (indentPerLevel > 9 && needIndentIndicator(string)) return STYLE_DOUBLE;
+    if (indentPerLevel > 9 && needIndentIndicator(string2)) return STYLE_DOUBLE;
     if (!forceQuotes) return hasFoldableLine ? STYLE_FOLDED : STYLE_LITERAL;
     return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
   }
-  function writeScalar(state, string, level, iskey, inblock) {
+  function writeScalar(state, string2, level, iskey, inblock) {
     state.dump = (function() {
-      if (string.length === 0) return state.quotingType === QUOTING_TYPE_DOUBLE ? '""' : "''";
+      if (string2.length === 0) return state.quotingType === QUOTING_TYPE_DOUBLE ? '""' : "''";
       if (!state.noCompatMode) {
-        if (DEPRECATED_BOOLEANS_SYNTAX.indexOf(string) !== -1 || DEPRECATED_BASE60_SYNTAX.test(string)) return state.quotingType === QUOTING_TYPE_DOUBLE ? '"' + string + '"' : "'" + string + "'";
+        if (DEPRECATED_BOOLEANS_SYNTAX.indexOf(string2) !== -1 || DEPRECATED_BASE60_SYNTAX.test(string2)) return state.quotingType === QUOTING_TYPE_DOUBLE ? '"' + string2 + '"' : "'" + string2 + "'";
       }
       const indent2 = state.indent * Math.max(1, level);
       const lineWidth = state.lineWidth === -1 ? -1 : Math.max(Math.min(state.lineWidth, 40), state.lineWidth - indent2);
       const singleLineOnly = iskey || state.flowLevel > -1 && level >= state.flowLevel;
-      function testAmbiguity(string2) {
-        return testImplicitResolving(state, string2);
+      function testAmbiguity(string3) {
+        return testImplicitResolving(state, string3);
       }
-      switch (chooseScalarStyle(string, singleLineOnly, state.indent, lineWidth, testAmbiguity, state.quotingType, state.forceQuotes && !iskey, inblock)) {
+      switch (chooseScalarStyle(string2, singleLineOnly, state.indent, lineWidth, testAmbiguity, state.quotingType, state.forceQuotes && !iskey, inblock)) {
         case STYLE_PLAIN:
-          return string;
+          return string2;
         case STYLE_SINGLE:
-          return "'" + string.replace(/'/g, "''") + "'";
+          return "'" + string2.replace(/'/g, "''") + "'";
         case STYLE_LITERAL:
-          return "|" + blockHeader(string, state.indent) + dropEndingNewline(indentString(string, indent2));
+          return "|" + blockHeader(string2, state.indent) + dropEndingNewline(indentString(string2, indent2));
         case STYLE_FOLDED:
-          return ">" + blockHeader(string, state.indent) + dropEndingNewline(indentString(foldString(string, lineWidth), indent2));
+          return ">" + blockHeader(string2, state.indent) + dropEndingNewline(indentString(foldString(string2, lineWidth), indent2));
         case STYLE_DOUBLE:
-          return '"' + escapeString(string, lineWidth) + '"';
+          return '"' + escapeString(string2, lineWidth) + '"';
         default:
           throw new YAMLException2("impossible error: invalid scalar style");
       }
     })();
   }
-  function blockHeader(string, indentPerLevel) {
-    const indentIndicator = needIndentIndicator(string) ? String(indentPerLevel) : "";
-    const clip = string[string.length - 1] === "\n";
-    return indentIndicator + (clip && (string[string.length - 2] === "\n" || string === "\n") ? "+" : clip ? "" : "-") + "\n";
+  function blockHeader(string2, indentPerLevel) {
+    const indentIndicator = needIndentIndicator(string2) ? String(indentPerLevel) : "";
+    const clip = string2[string2.length - 1] === "\n";
+    return indentIndicator + (clip && (string2[string2.length - 2] === "\n" || string2 === "\n") ? "+" : clip ? "" : "-") + "\n";
   }
-  function dropEndingNewline(string) {
-    return string[string.length - 1] === "\n" ? string.slice(0, -1) : string;
+  function dropEndingNewline(string2) {
+    return string2[string2.length - 1] === "\n" ? string2.slice(0, -1) : string2;
   }
-  function foldString(string, width) {
+  function foldString(string2, width) {
     const lineRe = /(\n+)([^\n]*)/g;
     let result = (function() {
-      let nextLF = string.indexOf("\n");
-      nextLF = nextLF !== -1 ? nextLF : string.length;
+      let nextLF = string2.indexOf("\n");
+      nextLF = nextLF !== -1 ? nextLF : string2.length;
       lineRe.lastIndex = nextLF;
-      return foldLine(string.slice(0, nextLF), width);
+      return foldLine(string2.slice(0, nextLF), width);
     })();
-    let prevMoreIndented = string[0] === "\n" || string[0] === " ";
+    let prevMoreIndented = string2[0] === "\n" || string2[0] === " ";
     let moreIndented;
     let match;
-    while (match = lineRe.exec(string)) {
+    while (match = lineRe.exec(string2)) {
       const prefix = match[1];
       const line = match[2];
       moreIndented = line[0] === " ";
@@ -2135,25 +2135,25 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     else result += line.slice(start);
     return result.slice(1);
   }
-  function escapeString(string) {
+  function escapeString(string2) {
     let result = "";
     let char = 0;
-    for (let i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
-      char = codePointAt(string, i);
+    for (let i = 0; i < string2.length; char >= 65536 ? i += 2 : i++) {
+      char = codePointAt(string2, i);
       const escapeSeq = ESCAPE_SEQUENCES[char];
       if (!escapeSeq && isPrintable(char)) {
-        result += string[i];
-        if (char >= 65536) result += string[i + 1];
+        result += string2[i];
+        if (char >= 65536) result += string2[i + 1];
       } else result += escapeSeq || encodeHex(char);
     }
     return result;
   }
-  function writeFlowSequence(state, level, object) {
+  function writeFlowSequence(state, level, object2) {
     let _result = "";
     const _tag = state.tag;
-    for (let index = 0, length = object.length; index < length; index += 1) {
-      let value = object[index];
-      if (state.replacer) value = state.replacer.call(object, String(index), value);
+    for (let index = 0, length = object2.length; index < length; index += 1) {
+      let value = object2[index];
+      if (state.replacer) value = state.replacer.call(object2, String(index), value);
       if (writeNode(state, level, value, false, false) || typeof value === "undefined" && writeNode(state, level, null, false, false)) {
         if (_result !== "") _result += "," + (!state.condenseFlow ? " " : "");
         _result += state.dump;
@@ -2162,12 +2162,12 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     state.tag = _tag;
     state.dump = "[" + _result + "]";
   }
-  function writeBlockSequence(state, level, object, compact) {
+  function writeBlockSequence(state, level, object2, compact) {
     let _result = "";
     const _tag = state.tag;
-    for (let index = 0, length = object.length; index < length; index += 1) {
-      let value = object[index];
-      if (state.replacer) value = state.replacer.call(object, String(index), value);
+    for (let index = 0, length = object2.length; index < length; index += 1) {
+      let value = object2[index];
+      if (state.replacer) value = state.replacer.call(object2, String(index), value);
       if (writeNode(state, level + 1, value, true, true, false, true) || typeof value === "undefined" && writeNode(state, level + 1, null, true, true, false, true)) {
         if (!compact || _result !== "") _result += generateNextLine(state, level);
         if (state.dump && CHAR_LINE_FEED === state.dump.charCodeAt(0)) _result += "-";
@@ -2178,17 +2178,17 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     state.tag = _tag;
     state.dump = _result || "[]";
   }
-  function writeFlowMapping(state, level, object) {
+  function writeFlowMapping(state, level, object2) {
     let _result = "";
     const _tag = state.tag;
-    const objectKeyList = Object.keys(object);
+    const objectKeyList = Object.keys(object2);
     for (let index = 0, length = objectKeyList.length; index < length; index += 1) {
       let pairBuffer = "";
       if (_result !== "") pairBuffer += ", ";
       if (state.condenseFlow) pairBuffer += '"';
       const objectKey = objectKeyList[index];
-      let objectValue = object[objectKey];
-      if (state.replacer) objectValue = state.replacer.call(object, objectKey, objectValue);
+      let objectValue = object2[objectKey];
+      if (state.replacer) objectValue = state.replacer.call(object2, objectKey, objectValue);
       if (!writeNode(state, level, objectKey, false, false)) continue;
       if (state.dump.length > 1024) pairBuffer += "? ";
       pairBuffer += state.dump + (state.condenseFlow ? '"' : "") + ":" + (state.condenseFlow ? "" : " ");
@@ -2199,10 +2199,10 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     state.tag = _tag;
     state.dump = "{" + _result + "}";
   }
-  function writeBlockMapping(state, level, object, compact) {
+  function writeBlockMapping(state, level, object2, compact) {
     let _result = "";
     const _tag = state.tag;
-    const objectKeyList = Object.keys(object);
+    const objectKeyList = Object.keys(object2);
     if (state.sortKeys === true) objectKeyList.sort();
     else if (typeof state.sortKeys === "function") objectKeyList.sort(state.sortKeys);
     else if (state.sortKeys) throw new YAMLException2("sortKeys must be a boolean or a function");
@@ -2210,8 +2210,8 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
       let pairBuffer = "";
       if (!compact || _result !== "") pairBuffer += generateNextLine(state, level);
       const objectKey = objectKeyList[index];
-      let objectValue = object[objectKey];
-      if (state.replacer) objectValue = state.replacer.call(object, objectKey, objectValue);
+      let objectValue = object2[objectKey];
+      if (state.replacer) objectValue = state.replacer.call(object2, objectKey, objectValue);
       if (!writeNode(state, level + 1, objectKey, true, true, true)) continue;
       const explicitPair = state.tag !== null && state.tag !== "?" || state.dump && state.dump.length > 1024;
       if (explicitPair) if (state.dump && CHAR_LINE_FEED === state.dump.charCodeAt(0)) pairBuffer += "?";
@@ -2227,19 +2227,19 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     state.tag = _tag;
     state.dump = _result || "{}";
   }
-  function detectType(state, object, explicit) {
+  function detectType(state, object2, explicit) {
     const typeList = explicit ? state.explicitTypes : state.implicitTypes;
     for (let index = 0, length = typeList.length; index < length; index += 1) {
       const type = typeList[index];
-      if ((type.instanceOf || type.predicate) && (!type.instanceOf || typeof object === "object" && object instanceof type.instanceOf) && (!type.predicate || type.predicate(object))) {
-        if (explicit) if (type.multi && type.representName) state.tag = type.representName(object);
+      if ((type.instanceOf || type.predicate) && (!type.instanceOf || typeof object2 === "object" && object2 instanceof type.instanceOf) && (!type.predicate || type.predicate(object2))) {
+        if (explicit) if (type.multi && type.representName) state.tag = type.representName(object2);
         else state.tag = type.tag;
         else state.tag = "?";
         if (type.represent) {
           const style = state.styleMap[type.tag] || type.defaultStyle;
           let _result;
-          if (_toString.call(type.represent) === "[object Function]") _result = type.represent(object, style);
-          else if (_hasOwnProperty.call(type.represent, style)) _result = type.represent[style](object, style);
+          if (_toString.call(type.represent) === "[object Function]") _result = type.represent(object2, style);
+          else if (_hasOwnProperty.call(type.represent, style)) _result = type.represent[style](object2, style);
           else throw new YAMLException2("!<" + type.tag + '> tag resolver accepts not "' + style + '" style');
           state.dump = _result;
         }
@@ -2248,10 +2248,10 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     }
     return false;
   }
-  function writeNode(state, level, object, block, compact, iskey, isblockseq) {
+  function writeNode(state, level, object2, block, compact, iskey, isblockseq) {
     state.tag = null;
-    state.dump = object;
-    if (!detectType(state, object, false)) detectType(state, object, true);
+    state.dump = object2;
+    if (!detectType(state, object2, false)) detectType(state, object2, true);
     const type = _toString.call(state.dump);
     const inblock = block;
     if (block) block = state.flowLevel < 0 || state.flowLevel > level;
@@ -2259,7 +2259,7 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     let duplicateIndex;
     let duplicate;
     if (objectOrArray) {
-      duplicateIndex = state.duplicates.indexOf(object);
+      duplicateIndex = state.duplicates.indexOf(object2);
       duplicate = duplicateIndex !== -1;
     }
     if (state.tag !== null && state.tag !== "?" || duplicate || state.indent !== 2 && level > 0) compact = false;
@@ -2298,25 +2298,25 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     }
     return true;
   }
-  function getDuplicateReferences(object, state) {
+  function getDuplicateReferences(object2, state) {
     const objects = [];
     const duplicatesIndexes = [];
-    inspectNode(object, objects, duplicatesIndexes);
+    inspectNode(object2, objects, duplicatesIndexes);
     const length = duplicatesIndexes.length;
     for (let index = 0; index < length; index += 1) state.duplicates.push(objects[duplicatesIndexes[index]]);
     state.usedDuplicates = new Array(length);
   }
-  function inspectNode(object, objects, duplicatesIndexes) {
-    if (object !== null && typeof object === "object") {
-      const index = objects.indexOf(object);
+  function inspectNode(object2, objects, duplicatesIndexes) {
+    if (object2 !== null && typeof object2 === "object") {
+      const index = objects.indexOf(object2);
       if (index !== -1) {
         if (duplicatesIndexes.indexOf(index) === -1) duplicatesIndexes.push(index);
       } else {
-        objects.push(object);
-        if (Array.isArray(object)) for (let i = 0, length = object.length; i < length; i += 1) inspectNode(object[i], objects, duplicatesIndexes);
+        objects.push(object2);
+        if (Array.isArray(object2)) for (let i = 0, length = object2.length; i < length; i += 1) inspectNode(object2[i], objects, duplicatesIndexes);
         else {
-          const objectKeyList = Object.keys(object);
-          for (let i = 0, length = objectKeyList.length; i < length; i += 1) inspectNode(object[objectKeyList[i]], objects, duplicatesIndexes);
+          const objectKeyList = Object.keys(object2);
+          for (let i = 0, length = objectKeyList.length; i < length; i += 1) inspectNode(object2[objectKeyList[i]], objects, duplicatesIndexes);
         }
       }
     }
@@ -2394,6 +2394,9 @@ function normalizeSubagentCall(args) {
 }
 function evaluateTraceGates(assert, trace) {
   const assertions = [];
+  for (const error of trace.capture_errors ?? []) {
+    assertions.push({ kind: "trace_evidence", status: "ERROR", detail: error });
+  }
   for (const req of assert.require_calls ?? []) {
     const matched = trace.tool_calls.filter((c) => c.name === req.tool && argsMatch(c, req.args));
     const min = req.count?.min ?? 1;
@@ -2772,6 +2775,576 @@ function parsePredicate(raw, ctx) {
   return out;
 }
 
+// packages/core/dist/trajectory-gates.js
+import { createHash } from "node:crypto";
+var TRAJECTORY_EVENT_VERSION = "1.0";
+var TRAJECTORY_ASSERT_VERSION = "1.0";
+function trajectoryEventsSha256(events) {
+  return createHash("sha256").update(stableStringify(events)).digest("hex");
+}
+function serializeTrajectoryEvents(events) {
+  return events.map((event) => JSON.stringify(event)).join("\n") + (events.length ? "\n" : "");
+}
+function deserializeTrajectoryEvents(text) {
+  const out = [];
+  try {
+    for (const line of text.split("\n").filter((entry) => entry.trim())) {
+      const event = JSON.parse(line);
+      if (validateEvent(event) !== null)
+        return null;
+      out.push(event);
+    }
+  } catch {
+    return null;
+  }
+  if (!out.length)
+    return null;
+  const sequences = out.map((event) => event.seq).sort((a, b) => a - b);
+  if (new Set(sequences).size !== out.length || sequences.some((seq, index) => seq !== index + 1))
+    return null;
+  return out;
+}
+function evaluateTrajectoryGates(assert, input) {
+  const assertions = [];
+  const events = [...input].sort((a, b) => a.seq - b.seq);
+  const invalid = input.map((event) => ({ event, problem: validateEvent(event) })).find((entry) => entry.problem !== null);
+  const sequences = [...input.map((event) => event.seq)].sort((a, b) => a - b);
+  const duplicateSeq = new Set(sequences).size !== input.length;
+  const nonContiguous = sequences.some((seq, index) => seq !== index + 1);
+  if (invalid || duplicateSeq || nonContiguous) {
+    assertions.push({
+      kind: "evidence",
+      status: "ERROR",
+      detail: invalid ? `normalized event evidence is invalid at sequence ${String(invalid.event.seq)}: ${invalid.problem}` : duplicateSeq ? "normalized event evidence has duplicate sequence numbers" : "normalized event evidence sequence must be contiguous from 1"
+    });
+  }
+  for (const required of assert.require ?? []) {
+    const hits = matching(events, required);
+    const min = required.count?.min ?? 1;
+    const max = required.count?.max;
+    const ok = hits.length >= min && (max === void 0 || hits.length <= max);
+    assertions.push({
+      kind: "require_event",
+      status: ok ? "PASS" : "FAIL",
+      detail: ok ? `required event \`${required.event}\` occurred ${hits.length} time(s)` : `required event \`${required.event}\` expected ${bounds(min, max)}, saw ${hits.length}`
+    });
+  }
+  for (const forbidden of assert.forbid ?? []) {
+    const hits = matching(events, forbidden);
+    assertions.push({
+      kind: "forbid_event",
+      status: hits.length ? "FAIL" : "PASS",
+      detail: hits.length ? `forbidden event \`${forbidden.event}\` occurred at sequence(s) ${hits.map((event) => event.seq).join(", ")}` : `forbidden event \`${forbidden.event}\` did not occur`
+    });
+  }
+  for (const chain of assert.ordered ?? []) {
+    let cursor = -Infinity;
+    const found = [];
+    for (const selector of chain) {
+      const next = matching(events, selector).find((event) => event.seq > cursor);
+      if (!next)
+        break;
+      found.push(next);
+      cursor = next.seq;
+    }
+    const ok = found.length === chain.length;
+    assertions.push({
+      kind: "ordered_events",
+      status: ok ? "PASS" : "FAIL",
+      detail: ok ? `ordered events occurred at sequences ${found.map((event) => event.seq).join(" < ")}` : `ordered trajectory broke at \`${chain[found.length]?.event ?? "unknown"}\` after sequence ${cursor === -Infinity ? "start" : cursor}`
+    });
+  }
+  for (const correlation of assert.correlate ?? []) {
+    const left = selected(events, correlation.left);
+    const right = selected(events, correlation.right);
+    if (!left.length || !right.length) {
+      assertions.push({ kind: "correlation", status: "FAIL", detail: `correlation needs \`${correlation.left.event}\` and \`${correlation.right.event}\`` });
+      continue;
+    }
+    for (const l of left)
+      for (const r of right) {
+        const checked = compareFields(l, r, correlation.same ?? [], correlation.different ?? []);
+        if (checked.error) {
+          assertions.push({ kind: "correlation", status: "ERROR", detail: checked.error });
+          continue;
+        }
+        const ordered = correlation.order === void 0 || (correlation.order === "before" ? l.seq < r.seq : l.seq > r.seq);
+        assertions.push({
+          kind: "correlation",
+          status: checked.ok && ordered ? "PASS" : "FAIL",
+          detail: checked.ok && ordered ? `\`${correlation.left.event}\` and \`${correlation.right.event}\` satisfy identity/order correlation` : `\`${correlation.left.event}\` and \`${correlation.right.event}\` violate ${!checked.ok ? "identity" : `${correlation.order} ordering`} correlation`
+        });
+      }
+  }
+  for (const freshness of assert.freshness ?? []) {
+    const subjects = selected(events, freshness.subject);
+    if (!subjects.length) {
+      assertions.push({ kind: "freshness", status: "FAIL", detail: `freshness subject \`${freshness.subject.event}\` is missing` });
+      continue;
+    }
+    for (const subject of subjects) {
+      let floor = -Infinity;
+      let failure = null;
+      let error = null;
+      for (const selector of freshness.after) {
+        const candidates = matching(events, selector);
+        const correlated = [];
+        for (const candidate of candidates) {
+          const checked = compareFields(subject, candidate, freshness.same ?? [], []);
+          if (checked.error)
+            error ??= checked.error;
+          else if (checked.ok)
+            correlated.push(candidate);
+        }
+        const anchor = correlated.at(-1);
+        if (!anchor)
+          failure = `freshness anchor \`${selector.event}\` is missing for the correlated identity`;
+        else
+          floor = Math.max(floor, anchor.seq);
+      }
+      assertions.push(error ? { kind: "freshness", status: "ERROR", detail: error } : failure ? { kind: "freshness", status: "FAIL", detail: failure } : subject.seq > floor ? { kind: "freshness", status: "PASS", detail: `\`${freshness.subject.event}\` at ${subject.seq} is newer than freshness floor ${floor}` } : { kind: "freshness", status: "FAIL", detail: `\`${freshness.subject.event}\` at ${subject.seq} is stale; freshness floor is ${floor}` });
+    }
+  }
+  for (const uniqueness of assert.unique ?? []) {
+    const hits = matching(events, uniqueness.events);
+    for (const field of uniqueness.fields) {
+      const values = hits.map((event) => fieldValue(event, field));
+      const missing = values.findIndex((value) => value === void 0 || value === null || value === "");
+      if (missing >= 0) {
+        assertions.push({ kind: "unique", status: "ERROR", detail: `uniqueness field \`${field}\` is missing on \`${uniqueness.events.event}\` at sequence ${hits[missing].seq}` });
+      } else {
+        const duplicates = values.filter((value, index) => values.findIndex((other) => deepEqual2(value, other)) !== index);
+        assertions.push({
+          kind: "unique",
+          status: duplicates.length ? "FAIL" : "PASS",
+          detail: duplicates.length ? `\`${field}\` was reused across independent \`${uniqueness.events.event}\` events` : `\`${field}\` is unique across ${hits.length} event(s)`
+        });
+      }
+    }
+  }
+  for (const rule of assert.forbid_after ?? []) {
+    const anchors = selected(events, rule.anchor);
+    if (!anchors.length) {
+      assertions.push({
+        kind: "forbid_after",
+        status: rule.anchor_optional ? "PASS" : "FAIL",
+        detail: rule.anchor_optional ? `optional anchor \`${rule.anchor.event}\` did not occur` : `anchor \`${rule.anchor.event}\` is missing`
+      });
+      continue;
+    }
+    for (const anchor of anchors) {
+      let violations = 0;
+      let error = null;
+      for (const selector of rule.forbidden) {
+        for (const candidate of matching(events, selector).filter((event) => event.seq > anchor.seq)) {
+          const checked = compareFields(anchor, candidate, rule.same ?? [], []);
+          if (checked.error)
+            error ??= checked.error;
+          else if (checked.ok)
+            violations++;
+        }
+      }
+      assertions.push(error ? { kind: "forbid_after", status: "ERROR", detail: error } : {
+        kind: "forbid_after",
+        status: violations ? "FAIL" : "PASS",
+        detail: violations ? `${violations} forbidden mutation event(s) occurred after \`${rule.anchor.event}\` for the same identity` : `no forbidden mutation followed \`${rule.anchor.event}\``
+      });
+    }
+  }
+  for (const approval of assert.approvals ?? []) {
+    const grants = selected(events, approval.grant);
+    const uses = approval.use.select ? selected(events, approval.use) : matching(events, approval.use);
+    if (!grants.length || !uses.length) {
+      assertions.push({ kind: "approval", status: "FAIL", detail: "approval grant/use evidence is incomplete" });
+      continue;
+    }
+    for (const grant of grants) {
+      const matchingUses = [];
+      let error = null;
+      let usedBeforeGrant = false;
+      const identityFields = [.../* @__PURE__ */ new Set([
+        ...approval.same ?? [],
+        "approval.id",
+        "approval.capability",
+        ...approval.scopes ? ["approval.scope"] : [],
+        ...approval.sources ? ["approval.source"] : []
+      ])];
+      for (const use of uses) {
+        const checked = compareFields(grant, use, identityFields, []);
+        if (checked.error)
+          error ??= checked.error;
+        else if (checked.ok && use.seq <= grant.seq)
+          usedBeforeGrant = true;
+        else if (checked.ok)
+          matchingUses.push(use);
+      }
+      const scope = grant.approval?.scope;
+      const source = grant.approval?.source;
+      if (error) {
+        assertions.push({ kind: "approval", status: "ERROR", detail: error });
+        continue;
+      }
+      if (approval.scopes && (!scope || !approval.scopes.includes(scope))) {
+        assertions.push({ kind: "approval", status: scope ? "FAIL" : "ERROR", detail: scope ? `approval scope \`${scope}\` is not allowed` : "approval scope is missing" });
+        continue;
+      }
+      if (approval.sources && (!source || !approval.sources.includes(source))) {
+        assertions.push({ kind: "approval", status: source ? "FAIL" : "ERROR", detail: source ? `approval source \`${source}\` is not allowed` : "approval source is missing" });
+        continue;
+      }
+      if (usedBeforeGrant) {
+        assertions.push({ kind: "approval", status: "FAIL", detail: "approval was used before its grant event" });
+        continue;
+      }
+      if (matchingUses.length === 0) {
+        assertions.push({ kind: "approval", status: "FAIL", detail: "no approval use matches the granted scope/identity" });
+        continue;
+      }
+      if (approval.max_uses !== void 0 && matchingUses.length > approval.max_uses) {
+        assertions.push({ kind: "approval", status: "FAIL", detail: `approval was used ${matchingUses.length} times (max ${approval.max_uses})` });
+        continue;
+      }
+      if (approval.unexpired) {
+        const approved = grant.approval?.approved_at ?? grant.at;
+        const expires = grant.approval?.expires_at;
+        const timestampsInvalid = !approved || !expires || !validDate(approved) || !validDate(expires) || matchingUses.some((use) => !validDate(use.approval?.used_at ?? use.at));
+        if (timestampsInvalid) {
+          assertions.push({ kind: "approval", status: "ERROR", detail: "approval grant/expiry/use timestamp is missing or invalid" });
+          continue;
+        }
+        const invalidUse = matchingUses.find((use) => {
+          const used = use.approval?.used_at ?? use.at;
+          return Date.parse(used) < Date.parse(approved) || Date.parse(used) >= Date.parse(expires);
+        });
+        if (Date.parse(approved) >= Date.parse(expires) || invalidUse) {
+          assertions.push({ kind: "approval", status: "FAIL", detail: "approval was used outside its grant/expiry interval" });
+          continue;
+        }
+      }
+      assertions.push({ kind: "approval", status: "PASS", detail: `approval was used ${matchingUses.length} time(s) within declared scope and expiry` });
+    }
+  }
+  for (const coverage of assert.coverage ?? []) {
+    const hits = coverage.events ? matching(events, coverage.events) : events;
+    const covered = new Set(hits.flatMap((event) => event.requirements ?? []));
+    const missing = coverage.requirements.filter((requirement) => !covered.has(requirement));
+    assertions.push({
+      kind: "coverage",
+      status: missing.length ? "FAIL" : "PASS",
+      detail: missing.length ? `missing requirement coverage: ${missing.join(", ")}` : `requirement coverage recorded: ${coverage.requirements.join(", ")}`
+    });
+  }
+  return {
+    status: assertions.some((result) => result.status === "ERROR") ? "ERROR" : assertions.some((result) => result.status === "FAIL") ? "FAIL" : "PASS",
+    event_version: TRAJECTORY_EVENT_VERSION,
+    events_sha256: trajectoryEventsSha256(events),
+    assertions
+  };
+}
+function parseTrajectoryAssert(raw, ctx) {
+  const object2 = asObject2(raw, `${ctx}: \`assert.trajectory\``);
+  const allowed = /* @__PURE__ */ new Set(["version", "require", "forbid", "ordered", "correlate", "freshness", "unique", "forbid_after", "approvals", "coverage"]);
+  rejectUnknown(object2, allowed, `${ctx}: \`assert.trajectory\``);
+  if (object2.version !== TRAJECTORY_ASSERT_VERSION)
+    throw new Error(`${ctx}: \`assert.trajectory.version\` must be ${TRAJECTORY_ASSERT_VERSION}`);
+  const out = { version: TRAJECTORY_ASSERT_VERSION };
+  if (object2.require !== void 0)
+    out.require = nonEmptyArray(object2.require, `${ctx}: require`).map((value, index) => parseRequired(value, `${ctx}: require[${index}]`));
+  if (object2.forbid !== void 0)
+    out.forbid = nonEmptyArray(object2.forbid, `${ctx}: forbid`).map((value, index) => parseSelector(value, `${ctx}: forbid[${index}]`));
+  if (object2.ordered !== void 0)
+    out.ordered = nonEmptyArray(object2.ordered, `${ctx}: ordered`).map((chain, index) => nonEmptyArray(chain, `${ctx}: ordered[${index}]`).map((value, step) => parseSelector(value, `${ctx}: ordered[${index}][${step}]`)));
+  if (object2.correlate !== void 0)
+    out.correlate = nonEmptyArray(object2.correlate, `${ctx}: correlate`).map((value, index) => parseCorrelation(value, `${ctx}: correlate[${index}]`));
+  if (object2.freshness !== void 0)
+    out.freshness = nonEmptyArray(object2.freshness, `${ctx}: freshness`).map((value, index) => parseFreshness(value, `${ctx}: freshness[${index}]`));
+  if (object2.unique !== void 0)
+    out.unique = nonEmptyArray(object2.unique, `${ctx}: unique`).map((value, index) => parseUnique(value, `${ctx}: unique[${index}]`));
+  if (object2.forbid_after !== void 0)
+    out.forbid_after = nonEmptyArray(object2.forbid_after, `${ctx}: forbid_after`).map((value, index) => parseForbidAfter(value, `${ctx}: forbid_after[${index}]`));
+  if (object2.approvals !== void 0)
+    out.approvals = nonEmptyArray(object2.approvals, `${ctx}: approvals`).map((value, index) => parseApproval(value, `${ctx}: approvals[${index}]`));
+  if (object2.coverage !== void 0)
+    out.coverage = nonEmptyArray(object2.coverage, `${ctx}: coverage`).map((value, index) => parseCoverage(value, `${ctx}: coverage[${index}]`));
+  if (Object.keys(out).length === 1)
+    throw new Error(`${ctx}: \`assert.trajectory\` declares no assertions`);
+  return out;
+}
+function parseRequired(raw, ctx) {
+  const object2 = asObject2(raw, ctx);
+  rejectUnknown(object2, /* @__PURE__ */ new Set(["event", "where", "select", "count"]), ctx);
+  const out = parseSelector({ event: object2.event, ...object2.where === void 0 ? {} : { where: object2.where }, ...object2.select === void 0 ? {} : { select: object2.select } }, ctx);
+  if (object2.count !== void 0)
+    out.count = parseCount2(object2.count, `${ctx}.count`);
+  return out;
+}
+function parseSelector(raw, ctx) {
+  const object2 = asObject2(raw, ctx);
+  rejectUnknown(object2, /* @__PURE__ */ new Set(["event", "where", "select"]), ctx);
+  if (typeof object2.event !== "string" || !object2.event.trim())
+    throw new Error(`${ctx}.event must be a non-empty string`);
+  const out = { event: object2.event };
+  if (object2.where !== void 0) {
+    const where = asObject2(object2.where, `${ctx}.where`);
+    out.where = Object.fromEntries(Object.entries(where).map(([field, value]) => [field, parsePredicate(value, `${ctx}.where.${field}`)]));
+  }
+  if (object2.select !== void 0) {
+    if (!["first", "last", "all"].includes(object2.select))
+      throw new Error(`${ctx}.select must be first, last, or all`);
+    out.select = object2.select;
+  }
+  return out;
+}
+function parseCorrelation(raw, ctx) {
+  const object2 = asObject2(raw, ctx);
+  rejectUnknown(object2, /* @__PURE__ */ new Set(["left", "right", "same", "different", "order"]), ctx);
+  const out = { left: parseSelector(object2.left, `${ctx}.left`), right: parseSelector(object2.right, `${ctx}.right`) };
+  if (object2.same !== void 0)
+    out.same = stringList(object2.same, `${ctx}.same`);
+  if (object2.different !== void 0)
+    out.different = stringList(object2.different, `${ctx}.different`);
+  if (object2.order !== void 0) {
+    if (object2.order !== "before" && object2.order !== "after")
+      throw new Error(`${ctx}.order must be before or after`);
+    out.order = object2.order;
+  }
+  if (!out.same?.length && !out.different?.length && !out.order)
+    throw new Error(`${ctx} declares no relation`);
+  return out;
+}
+function parseFreshness(raw, ctx) {
+  const object2 = asObject2(raw, ctx);
+  rejectUnknown(object2, /* @__PURE__ */ new Set(["subject", "after", "same"]), ctx);
+  return {
+    subject: parseSelector(object2.subject, `${ctx}.subject`),
+    after: nonEmptyArray(object2.after, `${ctx}.after`).map((value, index) => parseSelector(value, `${ctx}.after[${index}]`)),
+    ...object2.same === void 0 ? {} : { same: stringList(object2.same, `${ctx}.same`) }
+  };
+}
+function parseUnique(raw, ctx) {
+  const object2 = asObject2(raw, ctx);
+  rejectUnknown(object2, /* @__PURE__ */ new Set(["events", "fields"]), ctx);
+  return { events: parseSelector(object2.events, `${ctx}.events`), fields: stringList(object2.fields, `${ctx}.fields`) };
+}
+function parseForbidAfter(raw, ctx) {
+  const object2 = asObject2(raw, ctx);
+  rejectUnknown(object2, /* @__PURE__ */ new Set(["anchor", "forbidden", "same", "anchor_optional"]), ctx);
+  if (object2.anchor_optional !== void 0 && typeof object2.anchor_optional !== "boolean")
+    throw new Error(`${ctx}.anchor_optional must be boolean`);
+  return {
+    anchor: parseSelector(object2.anchor, `${ctx}.anchor`),
+    forbidden: nonEmptyArray(object2.forbidden, `${ctx}.forbidden`).map((value, index) => parseSelector(value, `${ctx}.forbidden[${index}]`)),
+    ...object2.same === void 0 ? {} : { same: stringList(object2.same, `${ctx}.same`) },
+    ...object2.anchor_optional === void 0 ? {} : { anchor_optional: object2.anchor_optional }
+  };
+}
+function parseApproval(raw, ctx) {
+  const object2 = asObject2(raw, ctx);
+  rejectUnknown(object2, /* @__PURE__ */ new Set(["grant", "use", "same", "scopes", "sources", "unexpired", "max_uses"]), ctx);
+  if (object2.unexpired !== void 0 && typeof object2.unexpired !== "boolean")
+    throw new Error(`${ctx}.unexpired must be boolean`);
+  if (object2.max_uses !== void 0 && (!Number.isInteger(object2.max_uses) || Number(object2.max_uses) < 1))
+    throw new Error(`${ctx}.max_uses must be a positive integer`);
+  return {
+    grant: parseSelector(object2.grant, `${ctx}.grant`),
+    use: parseSelector(object2.use, `${ctx}.use`),
+    ...object2.same === void 0 ? {} : { same: stringList(object2.same, `${ctx}.same`) },
+    ...object2.scopes === void 0 ? {} : { scopes: stringList(object2.scopes, `${ctx}.scopes`) },
+    ...object2.sources === void 0 ? {} : { sources: stringList(object2.sources, `${ctx}.sources`) },
+    ...object2.unexpired === void 0 ? {} : { unexpired: object2.unexpired },
+    ...object2.max_uses === void 0 ? {} : { max_uses: Number(object2.max_uses) }
+  };
+}
+function parseCoverage(raw, ctx) {
+  const object2 = asObject2(raw, ctx);
+  rejectUnknown(object2, /* @__PURE__ */ new Set(["requirements", "events"]), ctx);
+  return { requirements: stringList(object2.requirements, `${ctx}.requirements`), ...object2.events === void 0 ? {} : { events: parseSelector(object2.events, `${ctx}.events`) } };
+}
+function parseCount2(raw, ctx) {
+  const object2 = asObject2(raw, ctx);
+  rejectUnknown(object2, /* @__PURE__ */ new Set(["min", "max"]), ctx);
+  const out = {};
+  for (const key of ["min", "max"]) {
+    if (object2[key] === void 0)
+      continue;
+    if (!Number.isInteger(object2[key]) || Number(object2[key]) < 0)
+      throw new Error(`${ctx}.${key} must be a non-negative integer`);
+    out[key] = Number(object2[key]);
+  }
+  if (out.min !== void 0 && out.max !== void 0 && out.min > out.max)
+    throw new Error(`${ctx}.min exceeds max`);
+  return out;
+}
+var EVENT_KEYS = /* @__PURE__ */ new Set([
+  "event_version",
+  "seq",
+  "type",
+  "source",
+  "at",
+  "run_id",
+  "task_id",
+  "workspace_id",
+  "context_id",
+  "finding_id",
+  "parent_id",
+  "child_id",
+  "phase",
+  "tool",
+  "capability",
+  "requested_capabilities",
+  "effective_capabilities",
+  "refusal_code",
+  "exit_code",
+  "digests",
+  "approval",
+  "requirements",
+  "attributes"
+]);
+var APPROVAL_KEYS = /* @__PURE__ */ new Set(["id", "capability", "subject", "source", "scope", "approved_at", "expires_at", "used_at"]);
+var ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+var SHA256_RE = /^[a-fA-F0-9]{64}$/;
+var GIT_SHA_RE = /^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/;
+var REFUSAL_RE = /^[A-Z][A-Z0-9_]*$/;
+function validateEvent(event) {
+  if (!event || typeof event !== "object" || Array.isArray(event))
+    return "event must be an object";
+  const object2 = event;
+  const unknown = Object.keys(object2).find((key) => !EVENT_KEYS.has(key));
+  if (unknown)
+    return `unknown field ${unknown}`;
+  if (event.event_version !== TRAJECTORY_EVENT_VERSION)
+    return `unsupported event_version ${String(event.event_version)}`;
+  if (!Number.isInteger(event.seq) || event.seq < 1)
+    return "seq must be a positive integer";
+  if (typeof event.type !== "string" || !event.type)
+    return "type must be a non-empty string";
+  if (typeof event.source !== "string" || !event.source)
+    return "source must be a non-empty string";
+  if (event.at !== void 0 && !validDate(event.at))
+    return "at must be an RFC 3339 date-time";
+  for (const field of ["run_id", "task_id", "workspace_id", "context_id", "finding_id", "parent_id", "child_id"]) {
+    if (event[field] !== void 0 && (typeof event[field] !== "string" || !ID_RE.test(event[field])))
+      return `${field} is not a valid bounded identifier`;
+  }
+  for (const field of ["phase", "tool", "capability"]) {
+    if (event[field] !== void 0 && (typeof event[field] !== "string" || !event[field]))
+      return `${field} must be a non-empty string`;
+  }
+  for (const field of ["requested_capabilities", "effective_capabilities", "requirements"]) {
+    const values = event[field];
+    if (values !== void 0 && (!Array.isArray(values) || values.some((value) => typeof value !== "string" || !value) || new Set(values).size !== values.length)) {
+      return `${field} must be an array of unique non-empty strings`;
+    }
+  }
+  if (event.refusal_code !== void 0 && !REFUSAL_RE.test(event.refusal_code))
+    return "refusal_code is invalid";
+  if (event.exit_code !== void 0 && !Number.isInteger(event.exit_code))
+    return "exit_code must be an integer";
+  if (event.digests !== void 0) {
+    if (!event.digests || typeof event.digests !== "object" || Array.isArray(event.digests))
+      return "digests must be an object";
+    for (const [key, value] of Object.entries(event.digests)) {
+      if (typeof value !== "string")
+        return `digests.${key} must be a string`;
+      if (["plan", "task", "definition"].includes(key) && !SHA256_RE.test(value))
+        return `digests.${key} must be sha256`;
+      if (["head", "tree"].includes(key) && !GIT_SHA_RE.test(value))
+        return `digests.${key} must be a git object id`;
+    }
+  }
+  if (event.approval !== void 0) {
+    if (!event.approval || typeof event.approval !== "object" || Array.isArray(event.approval))
+      return "approval must be an object";
+    const unknownApproval = Object.keys(event.approval).find((key) => !APPROVAL_KEYS.has(key));
+    if (unknownApproval)
+      return `approval.${unknownApproval} is unknown`;
+    for (const [key, value] of Object.entries(event.approval)) {
+      if (typeof value !== "string" || !value)
+        return `approval.${key} must be a non-empty string`;
+      if (key === "id" && !ID_RE.test(value))
+        return "approval.id is invalid";
+      if (["approved_at", "expires_at", "used_at"].includes(key) && !validDate(value))
+        return `approval.${key} must be an RFC 3339 date-time`;
+    }
+  }
+  if (event.attributes !== void 0 && (!event.attributes || typeof event.attributes !== "object" || Array.isArray(event.attributes)))
+    return "attributes must be an object";
+  return null;
+}
+function matching(events, selector) {
+  return events.filter((event) => event.type === selector.event && Object.entries(selector.where ?? {}).every(([field, predicate]) => testPredicate(fieldValue(event, field), predicate)));
+}
+function selected(events, selector) {
+  const hits = matching(events, selector);
+  if (selector.select === "all")
+    return hits;
+  return hits.length ? [selector.select === "first" ? hits[0] : hits[hits.length - 1]] : [];
+}
+function fieldValue(event, field) {
+  let current = event;
+  for (const part of field.split(".")) {
+    if (!current || typeof current !== "object" || Array.isArray(current) || !Object.hasOwn(current, part))
+      return void 0;
+    current = current[part];
+  }
+  return current;
+}
+function compareFields(left, right, same, different) {
+  for (const field of [...same, ...different]) {
+    const l = fieldValue(left, field), r = fieldValue(right, field);
+    if (l === void 0 || l === null || r === void 0 || r === null)
+      return { ok: false, error: `correlation field \`${field}\` is missing at sequence ${l === void 0 || l === null ? left.seq : right.seq}` };
+  }
+  return { ok: same.every((field) => deepEqual2(fieldValue(left, field), fieldValue(right, field))) && different.every((field) => !deepEqual2(fieldValue(left, field), fieldValue(right, field))) };
+}
+function deepEqual2(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+function validDate(value) {
+  if (typeof value !== "string")
+    return false;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.exec(value);
+  if (!match || !Number.isFinite(Date.parse(value)))
+    return false;
+  const [, year, month, day, hour, minute, second] = match.map(Number);
+  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59)
+    return false;
+  return day >= 1 && day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+function bounds(min, max) {
+  return max === void 0 ? `at least ${min}` : min === 0 ? `at most ${max}` : `${min}..${max}`;
+}
+function asObject2(value, ctx) {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error(`${ctx} must be a mapping`);
+  return value;
+}
+function nonEmptyArray(value, ctx) {
+  if (!Array.isArray(value) || value.length === 0)
+    throw new Error(`${ctx} must be a non-empty list`);
+  return value;
+}
+function stringList(value, ctx) {
+  const values = nonEmptyArray(value, ctx);
+  if (values.some((item) => typeof item !== "string" || !item.trim()))
+    throw new Error(`${ctx} must contain non-empty strings`);
+  if (new Set(values).size !== values.length)
+    throw new Error(`${ctx} must not contain duplicates`);
+  return values;
+}
+function rejectUnknown(object2, allowed, ctx) {
+  const unknown = Object.keys(object2).find((key) => !allowed.has(key));
+  if (unknown)
+    throw new Error(`${ctx}: unknown key \`${unknown}\``);
+}
+function stableStringify(value) {
+  if (value === null || typeof value !== "object")
+    return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value))
+    return `[${value.map(stableStringify).join(",")}]`;
+  return `{${Object.entries(value).filter(([, entry]) => entry !== void 0).sort(([a], [b]) => a.localeCompare(b)).map(([key, entry]) => `${JSON.stringify(key)}:${stableStringify(entry)}`).join(",")}}`;
+}
+
 // packages/core/dist/spec.js
 var SpecError = class extends Error {
   constructor(message, file) {
@@ -2834,6 +3407,48 @@ function resolveExtensions(env, hasSystemPrompt, id, file) {
   }
   return paths;
 }
+function resolveEventSources(env, id, file) {
+  const raw = env && typeof env === "object" ? env.event_sources : void 0;
+  if (raw === void 0)
+    return void 0;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new SpecError(`scenario \`${id}\` env.event_sources must be a non-empty list`, file);
+  }
+  const allowedAdapters = /* @__PURE__ */ new Set([
+    "normalized-v1",
+    "principal-assurance-v1",
+    "pi-daddy-v1"
+  ]);
+  return raw.map((entry, index) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      throw new SpecError(`scenario \`${id}\` env.event_sources[${index}] must be a mapping`, file);
+    }
+    const source = entry;
+    for (const key of Object.keys(source)) {
+      if (!["adapter", "path", "required"].includes(key)) {
+        throw new SpecError(`scenario \`${id}\` env.event_sources[${index}] has unknown key \`${key}\``, file);
+      }
+    }
+    if (!allowedAdapters.has(source.adapter)) {
+      throw new SpecError(`scenario \`${id}\` env.event_sources[${index}].adapter is unsupported`, file);
+    }
+    if (typeof source.path !== "string" || !source.path.trim()) {
+      throw new SpecError(`scenario \`${id}\` env.event_sources[${index}].path must be non-empty`, file);
+    }
+    const path = source.path.trim();
+    if (path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path) || path.includes("\\") || path.split("/").some((part) => part === ".." || part === "." || part === "")) {
+      throw new SpecError(`scenario \`${id}\` env.event_sources paths must be workspace-relative without traversal (got \`${path}\`)`, file);
+    }
+    if (source.required !== void 0 && typeof source.required !== "boolean") {
+      throw new SpecError(`scenario \`${id}\` env.event_sources[${index}].required must be true or false`, file);
+    }
+    return {
+      adapter: source.adapter,
+      path,
+      required: source.required !== false
+    };
+  });
+}
 function resolveRemote(env, workspace, id, file) {
   const raw = env && typeof env === "object" ? env.remote : void 0;
   if (raw === void 0)
@@ -2857,6 +3472,9 @@ function parseSpec(text, file) {
     throw new SpecError("spec must be a YAML mapping", file);
   }
   const o = doc;
+  if (o.schema !== void 0 && o.schema !== 1) {
+    throw new SpecError(`unsupported \`schema\` ${JSON.stringify(o.schema)} (expected 1)`, file);
+  }
   if (typeof o.skill !== "string" || o.skill.length === 0) {
     throw new SpecError("missing or invalid `skill` (string)", file);
   }
@@ -2921,6 +3539,9 @@ function parseSpec(text, file) {
     if (rawAssert?.trace !== void 0) {
       scenario.traceAssert = parseTraceAssert(rawAssert.trace, `${file}: scenario \`${id}\``);
     }
+    if (rawAssert?.trajectory !== void 0) {
+      scenario.trajectoryAssert = parseTrajectoryAssert(rawAssert.trajectory, `${file}: scenario \`${id}\``);
+    }
     if (mode === "seeded") {
       if (typeof s.fixture !== "string" || s.fixture.length === 0) {
         throw new SpecError(`seeded scenario \`${id}\` requires a \`fixture\` path`, file);
@@ -2964,6 +3585,10 @@ function parseSpec(text, file) {
     }
     scenario.workspace = resolveWorkspace(s.env, mode, scenario.fixture, id, file);
     scenario.remote = resolveRemote(s.env, scenario.workspace, id, file);
+    scenario.eventSources = resolveEventSources(s.env, id, file);
+    if (scenario.eventSources && !scenario.trajectoryAssert) {
+      throw new SpecError(`scenario \`${id}\` declares env.event_sources without assert.trajectory`, file);
+    }
     if (s.system_prompt_file !== void 0) {
       if (typeof s.system_prompt_file !== "string" || !s.system_prompt_file.trim()) {
         throw new SpecError(`scenario \`${id}\` \`system_prompt_file\` must be a non-empty string`, file);
@@ -3000,7 +3625,8 @@ function parseSpec(text, file) {
     }
     return scenario;
   });
-  return { skill: o.skill, judge_persona: o.judge_persona, ship_bar, critical, scenarios };
+  const effectiveCritical = [.../* @__PURE__ */ new Set([...critical, ...scenarios.filter((scenario) => scenario.critical).map((scenario) => scenario.id)])];
+  return { schema: 1, skill: o.skill, judge_persona: o.judge_persona, ship_bar, critical: effectiveCritical, scenarios };
 }
 function loadSpec(file) {
   let text;
@@ -3021,7 +3647,7 @@ import { mkdirSync as mkdirSync3, writeFileSync as writeFileSync3 } from "node:f
 import { dirname, resolve as resolve5 } from "node:path";
 
 // packages/core/dist/sources.js
-import { createHash } from "node:crypto";
+import { createHash as createHash2 } from "node:crypto";
 import { readFileSync as readFileSync2, readdirSync as readdirSync2 } from "node:fs";
 import { isAbsolute, join as join2, resolve as resolve2 } from "node:path";
 var SCENARIO_PREFIX = "scenario:";
@@ -3034,7 +3660,7 @@ var PERSONA_KEY = `${RUBRIC_PREFIX}__persona`;
 var UNREADABLE = "unreadable";
 function fileSha256(path) {
   try {
-    return createHash("sha256").update(readFileSync2(path)).digest("hex");
+    return createHash2("sha256").update(readFileSync2(path)).digest("hex");
   } catch {
     return null;
   }
@@ -3046,7 +3672,7 @@ function dirSha256(dir) {
   } catch {
     return null;
   }
-  const h = createHash("sha256");
+  const h = createHash2("sha256");
   for (const rel of files) {
     h.update(rel);
     h.update("\0");
@@ -3072,14 +3698,14 @@ function walk(dir, prefix = "") {
   return out;
 }
 function facets(s) {
-  const { id, title, critical, mode, turns, checklist, fixture, assert, traceAssert, workspace, remote, systemPromptFile, extensions, reps: reps2, passThreshold, covers: _coversIsMetadata, ...restScenario } = s;
+  const { id, title, critical, mode, turns, checklist, fixture, assert, traceAssert, trajectoryAssert, workspace, remote, systemPromptFile, extensions, eventSources, reps: reps2, passThreshold, covers: _coversIsMetadata, ...restScenario } = s;
   const _scenarioExhaustive = restScenario;
   void _scenarioExhaustive;
   void _coversIsMetadata;
   const { vitest, diff_contains, diff_excludes, post_test, ...restAssert } = assert ?? {};
   const _assertExhaustive = restAssert;
   void _assertExhaustive;
-  const hasGates = diff_contains !== void 0 || diff_excludes !== void 0 || traceAssert !== void 0;
+  const hasGates = diff_contains !== void 0 || diff_excludes !== void 0 || traceAssert !== void 0 || trajectoryAssert !== void 0;
   return {
     // `vitest` and the `post_test` PATH are stimulus, not gates: both change what the
     // run executes in the workspace, and neither can be re-evaluated from a saved
@@ -3104,17 +3730,27 @@ function facets(s) {
       fixture ?? null,
       vitest ?? null,
       post_test ?? null,
-      ...extensions ? [extensions] : []
+      ...extensions ? [extensions] : [],
+      // Event-source paths choose which native ledgers are captured. A saved
+      // normalized artifact cannot answer for a source that was never collected,
+      // so changing this is stimulus and needs a re-run.
+      ...eventSources ? [eventSources] : []
     ]),
     rubric: JSON.stringify([id, title, checklist]),
     policy: JSON.stringify([id, critical, reps2 ?? null, passThreshold ?? null]),
     // Same rule as `stimulus` above: conditional, so a needle-gated scenario that
     // declares no trace assertions keeps the digest it was published with.
-    gates: hasGates ? JSON.stringify([id, diff_contains ?? null, diff_excludes ?? null, ...traceAssert ? [traceAssert] : []]) : null
+    gates: hasGates ? JSON.stringify([
+      id,
+      diff_contains ?? null,
+      diff_excludes ?? null,
+      ...traceAssert ? [traceAssert] : [],
+      ...trajectoryAssert ? [trajectoryAssert] : []
+    ]) : null
   };
 }
 function sha(canonical) {
-  return createHash("sha256").update(canonical).digest("hex");
+  return createHash2("sha256").update(canonical).digest("hex");
 }
 function stimulusDigest(s) {
   return sha(facets(s).stimulus);
@@ -3273,7 +3909,7 @@ function scenarioSourceKeys(s) {
 // packages/core/dist/workspace.js
 import { appendFileSync, cpSync, existsSync as existsSync2, mkdtempSync, readFileSync as readFileSync3, readdirSync as readdirSync3, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { createHash as createHash2 } from "node:crypto";
+import { createHash as createHash3 } from "node:crypto";
 import { tmpdir } from "node:os";
 import { isAbsolute as isAbsolute2, join as join3, resolve as resolve3 } from "node:path";
 var GIT_TIMEOUT_MS = 3e4;
@@ -3374,7 +4010,7 @@ function snapshotPaths(cwd, kind) {
         walk2(abs, rel);
       } else if (e.isFile()) {
         try {
-          out.set(rel, createHash2("sha256").update(readFileSync3(abs)).digest("hex"));
+          out.set(rel, createHash3("sha256").update(readFileSync3(abs)).digest("hex"));
         } catch {
           out.set(rel, "<unreadable>");
         }
@@ -3524,9 +4160,14 @@ function score(verdicts, input) {
   let criticalFails = 0;
   let bSeriesFails = 0;
   let suspectCount = 0;
+  let errorCount = 0;
   for (const v of verdicts) {
     if (v.suspect) {
       suspectCount++;
+      continue;
+    }
+    if (v.verdict === "ERROR" || v.verdict === "JUDGE-AMBIGUOUS") {
+      errorCount++;
       continue;
     }
     total++;
@@ -3541,16 +4182,21 @@ function score(verdicts, input) {
   }
   const pct = total > 0 ? Math.round(passed * 100 / total) : 0;
   const letter = letterFor(pct);
-  const ship = total >= shipBar.total && passed >= shipBar.min_pass && (!shipBar.no_critical_fail || criticalFails === 0) && bSeriesFails === 0 && suspectCount === 0;
+  const validBar = Number.isInteger(shipBar.total) && shipBar.total >= 1 && Number.isInteger(shipBar.min_pass) && shipBar.min_pass >= 1 && shipBar.min_pass <= shipBar.total;
+  const ship = validBar && total >= shipBar.total && passed >= shipBar.min_pass && (!shipBar.no_critical_fail || criticalFails === 0) && bSeriesFails === 0 && suspectCount === 0 && errorCount === 0;
   let note = "";
-  if (suspectCount > 0) {
+  if (!validBar) {
+    note = "invalid ship bar: total/min_pass must be positive integers with min_pass <= total";
+  } else if (suspectCount > 0) {
     note = `${suspectCount} suspect: re-judge/resolve`;
+  } else if (errorCount > 0) {
+    note = `${errorCount} infrastructure error${errorCount === 1 ? "" : "s"}: retry/repair evidence`;
   } else if (criticalFails > 0) {
     note = `gated: ${criticalFails} critical fail${criticalFails === 1 ? "" : "s"}`;
   } else if (bSeriesFails > 0) {
     note = `gated: ${bSeriesFails} B-series fail${bSeriesFails === 1 ? "" : "s"}`;
   }
-  return { passed, total, pct, letter, ship, criticalFails, bSeriesFails, suspectCount, note };
+  return { passed, total, pct, letter, ship, criticalFails, bSeriesFails, suspectCount, errorCount, note };
 }
 
 // packages/core/dist/version.js
@@ -3559,6 +4205,28 @@ var require2 = createRequire(import.meta.url);
 var HARNESS_VERSION = require2("../package.json").version;
 
 // packages/core/dist/results.js
+function mergeScenarioMetrics(prior, fresh) {
+  if (!prior)
+    return fresh;
+  if (!fresh)
+    return prior;
+  const subject = prior.subject_metrics_reps > 0 ? prior : fresh;
+  return {
+    wall_time_ms: prior.wall_time_ms + fresh.wall_time_ms,
+    judge_calls: prior.judge_calls + fresh.judge_calls,
+    judge_rejudge_calls: prior.judge_rejudge_calls + fresh.judge_rejudge_calls,
+    subject_metrics_reps: subject.subject_metrics_reps,
+    total_reps: prior.total_reps,
+    ...subject.input_tokens === void 0 ? {} : { input_tokens: subject.input_tokens },
+    ...subject.output_tokens === void 0 ? {} : { output_tokens: subject.output_tokens },
+    ...subject.cache_read_tokens === void 0 ? {} : { cache_read_tokens: subject.cache_read_tokens },
+    ...subject.cache_write_tokens === void 0 ? {} : { cache_write_tokens: subject.cache_write_tokens },
+    ...subject.subject_cost_usd === void 0 ? {} : { subject_cost_usd: subject.subject_cost_usd },
+    ...subject.tool_calls === void 0 ? {} : { tool_calls: subject.tool_calls },
+    ...subject.delegated_children === void 0 ? {} : { delegated_children: subject.delegated_children },
+    ...subject.max_concurrency === void 0 ? {} : { max_concurrency: subject.max_concurrency }
+  };
+}
 var SCORED_MODES = ["green", "force"];
 function isScoredMode(mode) {
   return SCORED_MODES.includes(mode);
@@ -3569,6 +4237,8 @@ function scoreContextFor(run, spec) {
   return { shipBar: spec.ship_bar, critical: spec.critical };
 }
 function effectiveThreshold(prevScenario, scenario) {
+  if (scenario.critical)
+    return 1;
   return prevScenario?.pass_threshold ?? scenario.passThreshold ?? 0.5;
 }
 function timestampSlug(iso) {
@@ -3708,7 +4378,7 @@ function ensureResultsGitignore(resultsRoot) {
   const preserved = existing.split("\n").filter((l) => l.startsWith("!") && l.trim() !== "!results.yaml");
   writeFileSync(giPath, GITIGNORE_BODY + preserved.map((l) => l + "\n").join(""), "utf8");
 }
-var REP_SUFFIX_RE = /\.rep(\d+)\.(?:judge\.|diff\.)?(?:txt|trace\.jsonl)$/;
+var REP_SUFFIX_RE = /\.rep(\d+)\.(?:(?:judge|diff)\.txt|(?:trace|events)\.jsonl|txt)$/;
 function repIndexOf(filename) {
   const m = REP_SUFFIX_RE.exec(filename);
   return m ? Number(m[1]) : null;
@@ -3750,7 +4420,7 @@ function diffPath(runDir, scenarioId, mode, rep) {
   return join4(runDir, `${base}.diff.txt`);
 }
 function rebuildScenarioResult(fresh, prior, policy) {
-  const { id, judge_verdict, judge_reason, suspect, override: _freshOverride, note: _freshNote, reps: reps2, passes, clean, flakiness, pass_threshold, objective: freshObjective, adjudication: freshAdjudication, ...rest } = fresh;
+  const { id, judge_verdict, judge_reason, suspect, override: _freshOverride, note: _freshNote, reps: reps2, passes, clean, flakiness, pass_threshold, metrics: freshMetrics, objective: freshObjective, adjudication: freshAdjudication, ...rest } = fresh;
   const _exhaustive = rest;
   void _exhaustive;
   void _freshOverride;
@@ -3761,9 +4431,11 @@ function rebuildScenarioResult(fresh, prior, policy) {
     return p === "fresh" ? freshValue : priorValue;
   };
   const objective = pick(policy.objective, freshObjective, prior?.objective);
-  const adjudication = pick(policy.adjudication, freshAdjudication, prior?.adjudication);
+  const pickedAdjudication = pick(policy.adjudication, freshAdjudication, prior?.adjudication);
+  const conflictsWithFreshEvidence = Boolean(pickedAdjudication?.verdict && (objective?.status === "FAIL" || objective?.status === "ERROR" || pass_threshold === 1 && (reps2 ?? 1) > 1 && judge_verdict !== "PASS"));
+  const adjudication = conflictsWithFreshEvidence && pickedAdjudication ? { ...pickedAdjudication, state: "unresolved", verdict: void 0 } : pickedAdjudication;
   const unresolved = adjudication?.state === "unresolved";
-  const settled = policy.adjudication === "carry" ? adjudication?.verdict : void 0;
+  const settled = policy.adjudication === "carry" && !conflictsWithFreshEvidence ? adjudication?.verdict : void 0;
   return {
     id,
     judge_verdict: settled ?? judge_verdict,
@@ -3776,6 +4448,7 @@ function rebuildScenarioResult(fresh, prior, policy) {
     ...clean === void 0 ? {} : { clean },
     ...flakiness === void 0 ? {} : { flakiness },
     ...pass_threshold === void 0 ? {} : { pass_threshold },
+    ...freshMetrics ?? prior?.metrics ? { metrics: freshMetrics ?? prior.metrics } : {},
     // The author owns the verdict; a re-measurement never discards their call.
     override: prior?.override ?? null,
     note: prior?.note ?? "",
@@ -3789,6 +4462,17 @@ function rebuildScenarioResult(fresh, prior, policy) {
 function tracePath(runDir, scenarioId, mode, rep) {
   const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
   return join4(runDir, `${base}.trace.jsonl`);
+}
+function trajectoryPath(runDir, scenarioId, mode, rep) {
+  const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
+  return join4(runDir, `${base}.events.jsonl`);
+}
+function findTrajectoryFiles(runDir, scenarioId, mode) {
+  if (!existsSync3(runDir))
+    return [];
+  const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.events\\.jsonl$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.events\\.jsonl$`);
+  return sortByRep(readdirSync4(runDir).filter((f) => re.test(f)));
 }
 function findDiffFiles(runDir, scenarioId, mode) {
   if (!existsSync3(runDir))
@@ -3813,7 +4497,8 @@ function preserveTranscript(resultsRoot, runDir, scenarioId) {
     // same role the staged diff plays on a seeded one. Omitting it committed an
     // override whose justification was gitignored, and left `regate` with nothing
     // to re-evaluate on the one cell a human had disputed.
-    ...findTraceFiles(runDir, scenarioId)
+    ...findTraceFiles(runDir, scenarioId),
+    ...findTrajectoryFiles(runDir, scenarioId)
   ];
   if (files.length === 0)
     return;
@@ -4184,9 +4869,12 @@ async function runSeeded(scenario, opts) {
     turns: scenario.turns,
     cwd: repo,
     // Resolved against the spec dir, exactly like fixtures and post-tests.
-    extensions: scenario.extensions?.map((e) => resolve4(opts.specDir, e))
+    extensions: scenario.extensions?.map((e) => resolve4(opts.specDir, e)),
+    eventSources: scenario.eventSources
   };
   let traces = [];
+  let events = [];
+  let eventErrors = [];
   let harnessOut;
   if (opts.trace) {
     if (!opts.adapter.runStructured) {
@@ -4199,11 +4887,14 @@ async function runSeeded(scenario, opts) {
     });
     harnessOut = structured.transcript;
     traces = structured.traces;
+    events = structured.events ?? [];
+    eventErrors = structured.eventErrors ?? [];
   } else {
     harnessOut = await opts.adapter.run(req);
   }
   const parts = [harnessOut, "", "=== SEEDED GATES ==="];
   let gateFailure = null;
+  let gateError = null;
   const runVitest = opts.runVitest ?? ((args, cwd) => exec("npx", ["vitest", "run", ...args], { cwd, timeoutMs: VITEST_TIMEOUT_MS }));
   const add = await git(repo, ["add", "-A"]);
   const show = await git(repo, ["diff", "--cached"]);
@@ -4214,7 +4905,8 @@ async function runSeeded(scenario, opts) {
     const msg = `staged diff could not be captured \u2014 git ${why} \u2014 infrastructure, not model behavior` + (gitFailure.stderr.trim() ? `: ${gitFailure.stderr.trim().split("\n")[0]}` : "");
     parts.push(`  staged diff: ERROR (${msg})`);
     gateFailure = msg;
-    return finish(parts, gateFailure, diff, traces);
+    gateError = msg;
+    return finish(parts, gateFailure, gateError, diff, traces, events, eventErrors);
   }
   const needles = evaluateNeedleGates(scenario, diff);
   parts.push(...needles.lines);
@@ -4226,8 +4918,12 @@ async function runSeeded(scenario, opts) {
     const passed = v.code === 0;
     parts.push(killed ? `  vitest run: ERROR (timed out after ${VITEST_TIMEOUT_MS}ms \u2014 infrastructure, not model behavior)` : `  vitest run: ${passed ? "PASS" : `FAIL (exit ${v.code})`}`);
     parts.push(indent(bothStreams(v)));
-    if (!passed && !gateFailure) {
-      gateFailure = killed ? `vitest timed out after ${VITEST_TIMEOUT_MS}ms \u2014 infrastructure, not model behavior` : `vitest failed (exit ${v.code})`;
+    if (!passed) {
+      const problem = killed ? `vitest timed out after ${VITEST_TIMEOUT_MS}ms \u2014 infrastructure, not model behavior` : `vitest failed (exit ${v.code})`;
+      if (!gateFailure)
+        gateFailure = problem;
+      if (killed)
+        gateError = problem;
     }
   }
   const postTest = scenario.assert?.post_test;
@@ -4238,6 +4934,7 @@ async function runSeeded(scenario, opts) {
       parts.push(`  post_test: ERROR (${msg})`);
       if (!gateFailure)
         gateFailure = msg;
+      gateError = msg;
     } else {
       const dest = join8(repo, `${POST_TEST_BASE}.test${extname(src) || ".ts"}`);
       try {
@@ -4247,7 +4944,8 @@ async function runSeeded(scenario, opts) {
         parts.push(`  post_test: ERROR (${msg})`);
         if (!gateFailure)
           gateFailure = msg;
-        return finish(parts, gateFailure, diff, traces);
+        gateError = msg;
+        return finish(parts, gateFailure, gateError, diff, traces, events, eventErrors);
       }
       const v = await runVitest([POST_TEST_BASE], repo);
       const out = `${v.stdout}
@@ -4256,26 +4954,34 @@ ${v.stderr}`;
       const notCollected = /^\s*No test files found/im.test(out);
       const killed = v.code === null;
       let problem = null;
+      let problemIsError = false;
       if (killed) {
+        problemIsError = true;
         problem = `post_test ${JSON.stringify(postTest)} timed out after ${VITEST_TIMEOUT_MS}ms \u2014 infrastructure, not model behavior`;
       } else if (notCollected) {
+        problemIsError = true;
         problem = `post_test ${JSON.stringify(postTest)} was never collected by vitest \u2014 spec/fixture error, not model behavior`;
       } else if (tally === null) {
+        problemIsError = true;
         problem = `post_test ${JSON.stringify(postTest)} produced no parseable vitest summary (exit ${v.code}) \u2014 cannot confirm it ran`;
       } else if (v.code !== 0 || tally.failed > 0) {
         problem = `post_test ${JSON.stringify(postTest)} failed (exit ${v.code})`;
       } else if (tally.skipped > 0 || tally.todo > 0) {
+        problemIsError = true;
         problem = `post_test ${JSON.stringify(postTest)} has ${tally.skipped + tally.todo} skipped/todo test(s) \u2014 a hidden gate must actually run; spec error, not model behavior`;
       } else if (tally.passed === 0) {
+        problemIsError = true;
         problem = `post_test ${JSON.stringify(postTest)} ran no assertions \u2014 spec error, not model behavior`;
       }
-      parts.push(problem === null ? `  post_test ${JSON.stringify(postTest)}: PASS (${tally.passed} assertion-bearing test(s))` : `  post_test ${JSON.stringify(postTest)}: ${v.code === 0 && !killed ? "ERROR" : "FAIL"} (${problem})`);
+      parts.push(problem === null ? `  post_test ${JSON.stringify(postTest)}: PASS (${tally.passed} assertion-bearing test(s))` : `  post_test ${JSON.stringify(postTest)}: ${problemIsError ? "ERROR" : "FAIL"} (${problem})`);
       parts.push(indent(bothStreams(v)));
       if (problem && !gateFailure)
         gateFailure = problem;
+      if (problem && problemIsError)
+        gateError = problem;
     }
   }
-  return finish(parts, gateFailure, diff, traces);
+  return finish(parts, gateFailure, gateError, diff, traces, events, eventErrors);
 }
 function git(cwd, args) {
   return exec("git", args, { cwd, timeoutMs: 3e4 });
@@ -4299,10 +5005,10 @@ function bothStreams(v) {
 ${e}`;
   return o || e;
 }
-function finish(parts, gateFailure, diff, traces = []) {
+function finish(parts, gateFailure, gateError, diff, traces = [], events = [], eventErrors = []) {
   parts.push("", "=== STAGED DIFF ===");
   parts.push(diff.trim() === "" ? "  (empty \u2014 the model left no staged changes)" : capDiff(diff));
-  return { transcript: parts.join("\n"), gateFailure, diff, traces };
+  return { transcript: parts.join("\n"), gateFailure, gateError, diff, traces, events, eventErrors };
 }
 function vitestTally(out) {
   const line = /^\s*Tests\s+(.+)$/m.exec(out);
@@ -4316,14 +5022,14 @@ function vitestTally(out) {
 }
 
 // packages/core/dist/execution-trace.js
-import { createHash as createHash4 } from "node:crypto";
+import { createHash as createHash5 } from "node:crypto";
 
 // packages/core/dist/capture-trace-types.js
 var EXECUTION_TRACE_VERSION = 2;
 var CAPTURE_SCHEMA_VERSION = 1;
 
 // packages/core/dist/capture.js
-import { createHash as createHash3 } from "node:crypto";
+import { createHash as createHash4 } from "node:crypto";
 import { sep as sep2 } from "node:path";
 function activeBranch(entries, leafId) {
   const byId = /* @__PURE__ */ new Map();
@@ -4479,7 +5185,7 @@ function redactValue(value, homeDir, depth) {
   return String(value);
 }
 function sha256(text) {
-  return createHash3("sha256").update(text, "utf8").digest("hex");
+  return createHash4("sha256").update(text, "utf8").digest("hex");
 }
 function captureId(seed, existing = []) {
   const taken = new Set(existing);
@@ -4504,8 +5210,8 @@ function buildCaptureCase(opts) {
   if (checklist.length === 0) {
     throw new Error("a capture needs at least one checklist item");
   }
-  const selected = opts.turns.slice(start, end + 1);
-  const turns = selected.map((t) => truncate(redactText(t.user, opts.homeDir)));
+  const selected2 = opts.turns.slice(start, end + 1);
+  const turns = selected2.map((t) => truncate(redactText(t.user, opts.homeDir)));
   const id = captureId(`${opts.sessionPath}:${start}:${end}:${opts.created}`, opts.existingIds ?? []);
   return {
     capture_schema: CAPTURE_SCHEMA_VERSION,
@@ -4547,6 +5253,8 @@ var SKIPPED = /* @__PURE__ */ new Set(["message_update", "tool_execution_update"
 var MAX_DETAILS_CHARS = 2e3;
 function parseTrace(lines, meta) {
   const calls = /* @__PURE__ */ new Map();
+  const issuedAt = /* @__PURE__ */ new Map();
+  const completedAt = /* @__PURE__ */ new Map();
   let issueCounter = 0;
   let completionCounter = 0;
   let malformedLines = 0;
@@ -4554,6 +5262,13 @@ function parseTrace(lines, meta) {
   let finalText = "";
   let lastAssistantText = "";
   let cost = null;
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let cacheReadTokens = 0;
+  let cacheWriteTokens = 0;
+  let sawUsage = false;
+  let activeCalls = 0;
+  let maxConcurrency = 0;
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed)
@@ -4577,11 +5292,14 @@ function parseTrace(lines, meta) {
         name: str(ev.toolName) ?? "(unknown)",
         args: redactArgs(ev.args, meta.homeDir),
         issueIndex: issueCounter++,
+        ...issuedAt.get(id) ? { started_at: issuedAt.get(id) } : {},
         completionIndex: -1,
         // filled in on `end`; -1 means it never completed
         isError: false,
         result: { bytes: 0, sha256: sha2562("") }
       });
+      activeCalls++;
+      maxConcurrency = Math.max(maxConcurrency, activeCalls);
       continue;
     }
     if (type === "tool_execution_end") {
@@ -4591,7 +5309,11 @@ function parseTrace(lines, meta) {
       const call = calls.get(id);
       if (!call)
         continue;
+      if (call.completionIndex < 0)
+        activeCalls = Math.max(0, activeCalls - 1);
       call.completionIndex = completionCounter++;
+      if (completedAt.get(id))
+        call.completed_at = completedAt.get(id);
       call.isError = ev.isError === true;
       call.result = resultMeta(ev.result, meta.homeDir);
       continue;
@@ -4599,6 +5321,23 @@ function parseTrace(lines, meta) {
     if (type === "message_end") {
       sawTerminal = true;
       const msg = ev.message;
+      const at = isoTime(msg?.timestamp);
+      if (msg?.role === "assistant" && at) {
+        for (const block of msg.content ?? []) {
+          if (block.type !== "toolCall" || typeof block.id !== "string")
+            continue;
+          issuedAt.set(block.id, at);
+          const call = calls.get(block.id);
+          if (call)
+            call.started_at = at;
+        }
+      }
+      if (msg?.role === "toolResult" && typeof msg.toolCallId === "string" && at) {
+        completedAt.set(msg.toolCallId, at);
+        const call = calls.get(msg.toolCallId);
+        if (call)
+          call.completed_at = at;
+      }
       if (msg?.role !== "assistant")
         continue;
       const text = assistantText(msg);
@@ -4607,9 +5346,19 @@ function parseTrace(lines, meta) {
         if (msg.stopReason === "stop")
           finalText = text;
       }
+      if (msg.usage && (typeof msg.usage.input === "number" || typeof msg.usage.output === "number" || typeof msg.usage.cacheRead === "number" || typeof msg.usage.cacheWrite === "number" || typeof msg.usage.cost?.total === "number"))
+        sawUsage = true;
       const total = msg.usage?.cost?.total;
       if (typeof total === "number")
         cost = (cost ?? 0) + total;
+      if (typeof msg.usage?.input === "number")
+        inputTokens += msg.usage.input;
+      if (typeof msg.usage?.output === "number")
+        outputTokens += msg.usage.output;
+      if (typeof msg.usage?.cacheRead === "number")
+        cacheReadTokens += msg.usage.cacheRead;
+      if (typeof msg.usage?.cacheWrite === "number")
+        cacheWriteTokens += msg.usage.cacheWrite;
       continue;
     }
     if (type === "turn_end" || type === "agent_end" || type === "agent_settled") {
@@ -4617,6 +5366,17 @@ function parseTrace(lines, meta) {
       continue;
     }
   }
+  const toolCalls = [...calls.values()].sort((a, b) => a.issueIndex - b.issueIndex);
+  const metrics = {
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+    cache_read_tokens: cacheReadTokens,
+    cache_write_tokens: cacheWriteTokens,
+    cost_usd: cost ?? 0,
+    tool_calls: toolCalls.length,
+    delegated_children: toolCalls.filter((call) => call.name === "Agent").reduce((count, call) => count + normalizeSubagentCall(call.args).length, 0),
+    max_concurrency: maxConcurrency
+  };
   const trace = {
     trace_version: EXECUTION_TRACE_VERSION,
     pi_version: meta.piVersion,
@@ -4633,12 +5393,16 @@ function parseTrace(lines, meta) {
     // — an assertion that used to pass only because the smoke model happened not
     // to echo one.
     final_text: redactText(finalText || lastAssistantText, meta.homeDir),
-    tool_calls: [...calls.values()].sort((a, b) => a.issueIndex - b.issueIndex),
+    tool_calls: toolCalls,
     // `null`, not `[]`: the stream says nothing about the filesystem. The runner
     // overwrites this after observing the workspace. Defaulting to `[]` claimed
     // "observed, nothing changed" for every trace ever parsed.
     changed_paths: meta.changedPaths ? [...meta.changedPaths].sort() : null,
-    cost_usd: cost
+    cost_usd: cost,
+    // Tool calls remain in the trace for objective gates. Aggregate usage/cost/
+    // tool metrics are published only when pi actually reported usage; otherwise
+    // zero would mean "free" instead of "unavailable".
+    ...sawUsage ? { metrics } : {}
   };
   trace.trace_sha256 = traceSha256(trace);
   return { trace, isComplete: sawTerminal, malformedLines };
@@ -4660,20 +5424,26 @@ function resultMeta(result, homeDir) {
 function str(v) {
   return typeof v === "string" && v.length > 0 ? v : void 0;
 }
+function isoTime(value) {
+  if (typeof value !== "number" && typeof value !== "string")
+    return void 0;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? void 0 : date.toISOString();
+}
 function sha2562(text) {
-  return createHash4("sha256").update(text, "utf8").digest("hex");
+  return createHash5("sha256").update(text, "utf8").digest("hex");
 }
 function traceSha256(trace) {
   const { trace_sha256: _omit, ...rest } = trace;
-  return sha2562(stableStringify(rest));
+  return sha2562(stableStringify2(rest));
 }
-function stableStringify(value) {
+function stableStringify2(value) {
   if (value === null || typeof value !== "object")
     return JSON.stringify(value) ?? "null";
   if (Array.isArray(value))
-    return `[${value.map(stableStringify).join(",")}]`;
+    return `[${value.map(stableStringify2).join(",")}]`;
   const entries = Object.entries(value).filter(([, v]) => v !== void 0).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
-  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(",")}}`;
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify2(v)}`).join(",")}}`;
 }
 function serializeTrace(trace) {
   return `${JSON.stringify(trace)}
@@ -4684,7 +5454,7 @@ function mergeTraces(traces) {
     return null;
   if (traces.length === 1) {
     const only = traces[0];
-    return only.trace_sha256 ? only : { ...only, trace_sha256: traceSha256(only) };
+    return { ...only, trace_sha256: traceSha256(only) };
   }
   const calls = [];
   const changed = /* @__PURE__ */ new Set();
@@ -4704,15 +5474,40 @@ function mergeTraces(traces) {
     if (t.cost_usd !== null)
       cost = (cost ?? 0) + t.cost_usd;
   }
+  const completeMetrics = traces.every((trace) => trace.metrics !== void 0);
+  const metrics = completeMetrics ? traces.reduce((sum, trace) => ({
+    input_tokens: sum.input_tokens + trace.metrics.input_tokens,
+    output_tokens: sum.output_tokens + trace.metrics.output_tokens,
+    cache_read_tokens: sum.cache_read_tokens + trace.metrics.cache_read_tokens,
+    cache_write_tokens: sum.cache_write_tokens + trace.metrics.cache_write_tokens,
+    cost_usd: sum.cost_usd + trace.metrics.cost_usd,
+    tool_calls: sum.tool_calls + trace.metrics.tool_calls,
+    delegated_children: sum.delegated_children + trace.metrics.delegated_children,
+    max_concurrency: Math.max(sum.max_concurrency, trace.metrics.max_concurrency)
+  }), {
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_read_tokens: 0,
+    cache_write_tokens: 0,
+    cost_usd: 0,
+    tool_calls: 0,
+    delegated_children: 0,
+    max_concurrency: 0
+  }) : void 0;
   const last = traces[traces.length - 1];
+  const captureErrors = traces.flatMap((trace) => trace.capture_errors ?? []);
+  const { capture_errors: _lastCaptureErrors, ...lastWithoutCaptureErrors } = last;
+  void _lastCaptureErrors;
   const merged = {
-    ...last,
+    ...lastWithoutCaptureErrors,
     // The scenario's answer is its LAST turn's answer, matching how the
     // transcript reads and how the judge is asked to grade it.
     final_text: last.final_text,
     tool_calls: calls,
     changed_paths: anyUnobserved ? null : [...changed].sort(),
-    cost_usd: cost
+    cost_usd: cost,
+    ...captureErrors.length ? { capture_errors: captureErrors } : {},
+    ...metrics ? { metrics } : {}
   };
   merged.trace_sha256 = traceSha256(merged);
   return merged;
@@ -4741,24 +5536,27 @@ function aggregateObjective(outcomes) {
   const present = outcomes.map((o) => o.objective).filter((o) => o !== void 0);
   if (present.length === 0)
     return void 0;
-  const errored = present.find((o) => o.status === "ERROR");
-  if (errored)
-    return errored;
-  const failed = present.find((o) => o.status === "FAIL");
-  if (failed)
-    return failed;
-  return present[0];
+  const picked = present.find((o) => o.status === "ERROR") ?? present.find((o) => o.status === "FAIL") ?? present[0];
+  if (present.length === 1)
+    return picked;
+  const eventHashes = present.map((objective) => objective.events_sha256);
+  const traceHashes = present.map((objective) => objective.trace_sha256);
+  return {
+    ...picked,
+    ...eventHashes.every((hash) => typeof hash === "string") ? { rep_events_sha256: eventHashes } : {},
+    ...traceHashes.every((hash) => typeof hash === "string") ? { rep_trace_sha256: traceHashes } : {}
+  };
 }
 function aggregateReps(outcomes, threshold) {
   const reps2 = outcomes.length;
   const clean = outcomes.filter((o) => !o.suspect);
   const passes = clean.filter((o) => o.verdict === "PASS").length;
+  const errored = outcomes.filter((o) => o.verdict === "ERROR").length;
+  if (errored > 0) {
+    return { verdict: "ERROR", reason: `${errored}/${reps2} reps errored \u2014 infrastructure, not behavior`, passes, reps: reps2, clean: clean.length, flakiness: 0, suspect: false };
+  }
   if (clean.length * 2 < reps2) {
     return { verdict: "FAIL", reason: `${reps2 - clean.length}/${reps2} reps misfired \u2014 re-judge`, passes, reps: reps2, clean: clean.length, flakiness: 0, suspect: true };
-  }
-  const errored = clean.filter((o) => o.verdict === "ERROR").length;
-  if (clean.length > 0 && errored === clean.length) {
-    return { verdict: "ERROR", reason: `${errored}/${reps2} reps errored`, passes: 0, reps: reps2, clean: clean.length, flakiness: 0, suspect: false };
   }
   const passRate = passes / clean.length;
   const verdict = passRate >= threshold ? "PASS" : "FAIL";
@@ -4769,9 +5567,11 @@ function aggregateReps(outcomes, threshold) {
 function outcomesToResult(id, outcomes, repCount, threshold) {
   const objective = aggregateObjective(outcomes);
   const objectiveField = objective ? { objective } : {};
+  const metrics = aggregateMetrics(outcomes);
+  const metricsField = metrics ? { metrics } : {};
   if (repCount === 1) {
     const o = outcomes[0];
-    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, override: null, note: "", ...objectiveField };
+    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, ...metricsField, override: null, note: "", ...objectiveField };
   }
   const agg = aggregateReps(outcomes, threshold);
   return {
@@ -4784,9 +5584,36 @@ function outcomesToResult(id, outcomes, repCount, threshold) {
     clean: agg.clean,
     flakiness: agg.flakiness,
     pass_threshold: threshold,
+    ...metricsField,
     override: null,
     note: "",
     ...objectiveField
+  };
+}
+function aggregateMetrics(outcomes) {
+  const present = outcomes.map((outcome) => outcome.metrics).filter((metrics) => metrics !== void 0);
+  if (present.length === 0)
+    return void 0;
+  const subjects = present.map((metrics) => metrics.subject).filter((metrics) => metrics !== void 0);
+  const base = {
+    wall_time_ms: present.reduce((sum, metrics) => sum + metrics.wall_time_ms, 0),
+    judge_calls: present.reduce((sum, metrics) => sum + metrics.judge_calls, 0),
+    judge_rejudge_calls: present.reduce((sum, metrics) => sum + metrics.judge_rejudge_calls, 0),
+    subject_metrics_reps: subjects.length,
+    total_reps: outcomes.length
+  };
+  if (subjects.length === 0)
+    return base;
+  return {
+    ...base,
+    input_tokens: subjects.reduce((sum, metrics) => sum + metrics.input_tokens, 0),
+    output_tokens: subjects.reduce((sum, metrics) => sum + metrics.output_tokens, 0),
+    cache_read_tokens: subjects.reduce((sum, metrics) => sum + metrics.cache_read_tokens, 0),
+    cache_write_tokens: subjects.reduce((sum, metrics) => sum + metrics.cache_write_tokens, 0),
+    subject_cost_usd: subjects.reduce((sum, metrics) => sum + metrics.cost_usd, 0),
+    tool_calls: subjects.reduce((sum, metrics) => sum + metrics.tool_calls, 0),
+    delegated_children: subjects.reduce((sum, metrics) => sum + metrics.delegated_children, 0),
+    max_concurrency: Math.max(...subjects.map((metrics) => metrics.max_concurrency))
   };
 }
 
@@ -4809,6 +5636,7 @@ function refreshRubricHashes(recorded, spec, judgedIds) {
 }
 async function judgeOneRep(opts) {
   const { runDir, spec, scenario, transcript, adapter, judge, specDir, mode, rep, now } = opts;
+  const startedAt = performance.now();
   const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
   const g = await judgeInWorkspace(adapter, judge, prompt, specDir);
   writeFileSync2(judgeRawPath(runDir, scenario.id, mode, rep), g.raw, "utf8");
@@ -4816,7 +5644,16 @@ async function judgeOneRep(opts) {
   appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict: g.verdict, reason: g.reason, suspect: g.suspect, ...repField });
   if (g.suspect)
     appendJournal(runDir, { event: "misfire-flag", ts: now(), id: scenario.id, reason: g.reason, ...repField });
-  return { verdict: g.verdict, reason: g.reason, suspect: g.suspect };
+  return {
+    verdict: g.verdict,
+    reason: g.reason,
+    suspect: g.suspect,
+    metrics: {
+      wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+      judge_calls: 1,
+      judge_rejudge_calls: opts.rejudge ? 1 : 0
+    }
+  };
 }
 async function regradeScenario(opts) {
   const now = opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
@@ -4824,7 +5661,13 @@ async function regradeScenario(opts) {
   const files = findTranscriptFiles(opts.runDir, opts.scenario.id, mode);
   if (files.length === 0)
     throw new Error(`no ${mode} transcripts for ${opts.scenario.id} in ${opts.runDir}`);
-  const repCount = files.length;
+  const expected = opts.expectedReps ?? files.length;
+  const expectedIndices = expected === 1 ? [null] : Array.from({ length: expected }, (_, index) => index);
+  const actualIndices = files.map((file) => repIndexOf(file)).sort((a, b) => (a ?? -1) - (b ?? -1));
+  if (files.length !== expected || JSON.stringify(actualIndices) !== JSON.stringify(expectedIndices)) {
+    throw new Error(`${opts.scenario.id}: transcript artifacts are incomplete for ${expected} recorded rep(s) \u2014 re-run instead of grading a smaller repetition set`);
+  }
+  const repCount = expected;
   const outcomes = [];
   for (const file of files) {
     const rep = repIndexOf(file) ?? void 0;
@@ -4839,7 +5682,8 @@ async function regradeScenario(opts) {
       specDir: opts.specDir,
       mode,
       rep,
-      now
+      now,
+      rejudge: true
     }));
   }
   return outcomesToResult(opts.scenario.id, outcomes, repCount, opts.threshold);
@@ -4861,7 +5705,15 @@ async function regradeRun(opts) {
       return prev;
     }
   }
-  const missing = targets.filter((id) => !specById.has(id) || findTranscriptFiles(runDir, id, mode).length === 0);
+  const completeTranscripts = (record) => {
+    const expected = record.reps ?? 1;
+    const files = findTranscriptFiles(runDir, record.id, mode);
+    const expectedIndices = expected === 1 ? [null] : Array.from({ length: expected }, (_, index) => index);
+    const actualIndices = files.map((file) => repIndexOf(file)).sort((a, b) => (a ?? -1) - (b ?? -1));
+    return files.length === expected && JSON.stringify(actualIndices) === JSON.stringify(expectedIndices);
+  };
+  const recordedById = new Map(recorded.map((record) => [record.id, record]));
+  const missing = targets.filter((id) => !specById.has(id) || !completeTranscripts(recordedById.get(id)));
   if (missing.length === targets.length) {
     throw new Error(`no ${mode} transcripts in ${runDir} \u2014 nothing to re-grade`);
   }
@@ -4888,9 +5740,11 @@ async function regradeRun(opts) {
       specDir,
       threshold,
       mode,
-      now
+      now,
+      expectedReps: prevScenario?.reps ?? 1
     });
     const carry = overrides.get(id);
+    rr.metrics = mergeScenarioMetrics(carry?.metrics, rr.metrics);
     scenarioResults.push(rebuildScenarioResult(rr, carry, { objective: "carry", adjudication: "drop" }));
   }
   const ctx = scoreContextFor({ mode, partial: prev?.partial }, spec);
@@ -5243,6 +6097,31 @@ var REJECTION = {
   unverified: "step(s) whose recorded hashes cannot be compared"
 };
 
+// packages/core/dist/comparison.js
+function aggregateMetrics2(scenarios) {
+  const metrics = scenarios.map((scenario) => scenario.metrics).filter((value) => value !== void 0);
+  const sumOptional = (field) => {
+    const values = metrics.map((value) => value[field]).filter((value) => typeof value === "number");
+    return values.length ? values.reduce((sum, value) => sum + value, 0) : null;
+  };
+  const maxValues = metrics.map((value) => value.max_concurrency).filter((value) => typeof value === "number");
+  return {
+    wall_time_ms: metrics.reduce((sum, value) => sum + value.wall_time_ms, 0),
+    judge_calls: metrics.reduce((sum, value) => sum + value.judge_calls, 0),
+    judge_rejudge_calls: metrics.reduce((sum, value) => sum + value.judge_rejudge_calls, 0),
+    subject_metrics_reps: metrics.reduce((sum, value) => sum + value.subject_metrics_reps, 0),
+    total_reps: metrics.reduce((sum, value) => sum + value.total_reps, 0),
+    input_tokens: sumOptional("input_tokens"),
+    output_tokens: sumOptional("output_tokens"),
+    cache_read_tokens: sumOptional("cache_read_tokens"),
+    cache_write_tokens: sumOptional("cache_write_tokens"),
+    subject_cost_usd: sumOptional("subject_cost_usd"),
+    tool_calls: sumOptional("tool_calls"),
+    delegated_children: sumOptional("delegated_children"),
+    max_concurrency: maxValues.length ? Math.max(...maxValues) : null
+  };
+}
+
 // packages/core/dist/run.js
 async function runSkillModel(opts) {
   const { spec, skillDir, adapter, model, judge, mode, timestamp } = opts;
@@ -5329,7 +6208,7 @@ async function runSkillModel(opts) {
   const grouped = scenarios.map(() => []);
   flat.forEach((outcome, i) => grouped[owners[i]].push(outcome));
   const scenarioResults = scenarios.map((scenario, si) => {
-    const threshold = scenario.passThreshold ?? opts.passThreshold ?? 0.5;
+    const threshold = scenario.critical ? effectiveThreshold(void 0, scenario) : scenario.passThreshold ?? opts.passThreshold ?? 0.5;
     return outcomesToResult(scenario.id, grouped[si], repCounts[si], threshold);
   });
   const ctx = scoreContextFor({ mode, partial }, spec);
@@ -5365,6 +6244,7 @@ function hasEmptyAssistantTurn(transcript) {
   });
 }
 async function runRep(scenario, rep, repCount, ctx) {
+  const startedAt = performance.now();
   const { spec, judge, mode, runDir, now, log } = ctx;
   const repField = repCount > 1 ? { rep } : {};
   if (rep === 0) {
@@ -5374,16 +6254,20 @@ async function runRep(scenario, rep, repCount, ctx) {
   let ws = null;
   let transcript = "";
   let gatePrefix = null;
+  let infrastructureFailure = null;
   let stagedDiff = null;
   try {
     try {
       ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath), remote: scenario.remote });
     } catch (e) {
       gatePrefix = e instanceof Error ? e.message : String(e);
+      infrastructureFailure = gatePrefix;
       transcript = `[workspace setup failed] ${gatePrefix}`;
     }
     let noResponse = false;
     let traces = [];
+    let events = [];
+    let eventErrors = [];
     let unobservablePaths = false;
     let before = ws ? snapshotPaths(ws.cwd, scenario.workspace) : null;
     if (ws) {
@@ -5404,12 +6288,15 @@ async function runRep(scenario, rep, repCount, ctx) {
             cwd: ws.cwd,
             specDir: dirname(ctx.specPath),
             // assert.post_test resolves like a fixture
-            trace: scenario.traceAssert ? { scenarioId: scenario.id, rep } : void 0
+            trace: scenario.traceAssert || scenario.trajectoryAssert ? { scenarioId: scenario.id, rep } : void 0
           });
           transcript = r.transcript;
           gatePrefix = r.gateFailure;
+          infrastructureFailure = r.gateError;
           stagedDiff = r.diff;
           traces = r.traces;
+          events = r.events;
+          eventErrors = r.eventErrors;
         } else {
           const req = {
             skillDir: ctx.skillDir,
@@ -5420,15 +6307,18 @@ async function runRep(scenario, rep, repCount, ctx) {
             // resolved like fixtures: relative to the spec's dir
             systemPromptFile: scenario.systemPromptFile ? resolve5(dirname(ctx.specPath), scenario.systemPromptFile) : void 0,
             // Absolute before it reaches a child process running in a neutral cwd.
-            extensions: scenario.extensions?.map((e) => resolve5(dirname(ctx.specPath), e))
+            extensions: scenario.extensions?.map((e) => resolve5(dirname(ctx.specPath), e)),
+            eventSources: scenario.eventSources
           };
-          if (scenario.traceAssert) {
+          if (scenario.traceAssert || scenario.trajectoryAssert) {
             if (!ctx.adapter.runStructured) {
-              throw new Error(`scenario \`${scenario.id}\` declares \`assert.trace\`, but the \`${ctx.adapter.name}\` adapter cannot produce execution traces \u2014 the gate would have no evidence to read.`);
+              throw new Error(`scenario \`${scenario.id}\` declares structured objective assertions, but the \`${ctx.adapter.name}\` adapter cannot produce execution traces/events \u2014 the gate would have no evidence to read.`);
             }
             const structured = await ctx.adapter.runStructured({ ...req, scenarioId: scenario.id, rep });
             transcript = structured.transcript;
             traces = structured.traces;
+            events = structured.events ?? [];
+            eventErrors = structured.eventErrors ?? [];
           } else {
             transcript = await ctx.adapter.run(req);
           }
@@ -5458,28 +6348,51 @@ async function runRep(scenario, rep, repCount, ctx) {
       }
     }
     let objective;
-    if (scenario.traceAssert) {
-      if (traces.length > 0) {
-        writeFileSync3(tracePath(runDir, scenario.id, mode, repSuffix), traces.map(serializeTrace).join(""), "utf8");
-      }
-      const merged = mergeTraces(traces);
-      if (unobservablePaths) {
-        gatePrefix = "objective: workspace changes could not be observed \u2014 `unchanged_paths` has no evidence to check";
-        objective = { status: "ERROR", assertions: [] };
-      } else if (merged === null) {
-        gatePrefix = "objective: no execution trace was produced \u2014 cannot evaluate assert.trace";
-        objective = { status: "ERROR", assertions: [] };
-      } else {
-        const gate = evaluateTraceGates(scenario.traceAssert, merged);
-        objective = {
-          status: gate.status,
-          trace_version: merged.trace_version,
-          trace_sha256: merged.trace_sha256,
-          assertions: gate.assertions
-        };
-        if (gate.status === "FAIL") {
-          gatePrefix = `objective: ${gate.assertions.filter((x) => x.status === "FAIL").map((x) => x.detail).join("; ")}`;
+    if (scenario.traceAssert || scenario.trajectoryAssert) {
+      const assertionResults = [];
+      let status = "PASS";
+      let traceMeta = {};
+      let trajectoryMeta = {};
+      if (scenario.traceAssert) {
+        if (traces.length > 0) {
+          writeFileSync3(tracePath(runDir, scenario.id, mode, repSuffix), traces.map(serializeTrace).join(""), "utf8");
         }
+        const merged = mergeTraces(traces);
+        if (unobservablePaths) {
+          status = "ERROR";
+          assertionResults.push({ kind: "unchanged_path", status: "ERROR", detail: "workspace changes could not be observed" });
+        } else if (merged === null) {
+          status = "ERROR";
+          assertionResults.push({ kind: "trace_evidence", status: "ERROR", detail: "no execution trace was produced" });
+        } else {
+          const gate = evaluateTraceGates(scenario.traceAssert, merged);
+          status = gate.status;
+          assertionResults.push(...gate.assertions);
+          traceMeta = { trace_version: merged.trace_version, trace_sha256: merged.trace_sha256 };
+        }
+      }
+      if (scenario.trajectoryAssert) {
+        if (events.length > 0) {
+          writeFileSync3(trajectoryPath(runDir, scenario.id, mode, repSuffix), serializeTrajectoryEvents(events), "utf8");
+        }
+        if (eventErrors.length > 0) {
+          status = "ERROR";
+          assertionResults.push(...eventErrors.map((detail) => ({ kind: "trajectory_evidence", status: "ERROR", detail })));
+        } else if (events.length === 0) {
+          status = "ERROR";
+          assertionResults.push({ kind: "trajectory_evidence", status: "ERROR", detail: "no normalized workflow events were produced" });
+        } else {
+          const gate = evaluateTrajectoryGates(scenario.trajectoryAssert, events);
+          if (gate.status === "ERROR" || gate.status === "FAIL" && status === "PASS")
+            status = gate.status;
+          assertionResults.push(...gate.assertions);
+          trajectoryMeta = { trajectory_version: gate.event_version, events_sha256: gate.events_sha256 };
+        }
+      }
+      objective = { status, ...traceMeta, ...trajectoryMeta, assertions: assertionResults };
+      if (status !== "PASS") {
+        const details = assertionResults.filter((result) => result.status === status).map((result) => result.detail);
+        gatePrefix = `objective: ${details.join("; ") || "structured evidence could not be evaluated"}`;
       }
       appendJournal(runDir, {
         event: "objective-result",
@@ -5493,9 +6406,14 @@ async function runRep(scenario, rep, repCount, ctx) {
     let verdict;
     let reason;
     let suspect = false;
+    let judgeCalls = 0;
     if (objective?.status === "ERROR") {
       verdict = "ERROR";
       reason = gatePrefix ?? "objective evidence missing";
+      appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
+    } else if (infrastructureFailure) {
+      verdict = "ERROR";
+      reason = infrastructureFailure;
       appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
     } else if (noResponse) {
       verdict = "ERROR";
@@ -5521,9 +6439,22 @@ async function runRep(scenario, rep, repCount, ctx) {
       verdict = o.verdict;
       reason = o.reason;
       suspect = o.suspect;
+      judgeCalls = 1;
     }
     log(`  \u2192 ${scenario.id}${repCount > 1 ? `#${rep}` : ""} ${verdict}${reason ? `: ${reason}` : ""}${suspect ? "  \u26A0 suspect" : ""}`);
-    return { verdict, reason, suspect, objective };
+    const subject = mergeTraces(traces)?.metrics;
+    return {
+      verdict,
+      reason,
+      suspect,
+      objective,
+      metrics: {
+        wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+        judge_calls: judgeCalls,
+        judge_rejudge_calls: 0,
+        ...subject ? { subject } : {}
+      }
+    };
   } finally {
     ws?.cleanup();
   }
@@ -5594,6 +6525,7 @@ function collectReport(skillDir) {
           passes: s.passes,
           clean: s.clean,
           flakiness: s.flakiness,
+          metrics: s.metrics,
           override: s.override,
           note: s.note
         };
@@ -5608,8 +6540,10 @@ function collectReport(skillDir) {
         runDir,
         timestamp: r.timestamp,
         mode: r.mode,
+        partial: r.partial === true,
         grade: r.effective_grade,
         judge: r.judge,
+        metrics: aggregateMetrics2(r.scenarios),
         cells,
         ...lift ? { lift, liftHeadline: liftHeadline(lift) } : {}
       });
@@ -5629,8 +6563,10 @@ function publicView(data) {
       tag: c.tag,
       timestamp: c.timestamp,
       mode: c.mode,
+      partial: c.partial,
       grade: c.grade,
       judge: c.judge,
+      metrics: c.metrics,
       cells: c.cells,
       ...c.lift ? { lift: c.lift, liftHeadline: c.liftHeadline } : {}
     }))
@@ -5847,7 +6783,7 @@ import { existsSync as existsSync12, readdirSync as readdirSync8, statSync as st
 import { join as join15 } from "node:path";
 
 // packages/core/dist/restamp.js
-import { createHash as createHash5 } from "node:crypto";
+import { createHash as createHash6 } from "node:crypto";
 import { execFileSync as execFileSync2 } from "node:child_process";
 import { readFileSync as readFileSync10, renameSync, rmSync as rmSync2, writeFileSync as writeFileSync4 } from "node:fs";
 import { dirname as dirname4, join as join17, relative as relative3, resolve as resolve8 } from "node:path";
@@ -5881,10 +6817,10 @@ function assertJudgeAllowed(judge, opts) {
 
 // packages/core/dist/regate.js
 import { existsSync as existsSync14, readFileSync as readFileSync11, renameSync as renameSync2, writeFileSync as writeFileSync5 } from "node:fs";
-import { join as join18 } from "node:path";
+import { basename as basename2, join as join18 } from "node:path";
 
 // packages/core/dist/spec-write.js
-import { createHash as createHash6 } from "node:crypto";
+import { createHash as createHash7 } from "node:crypto";
 import { readFileSync as readFileSync12, renameSync as renameSync3, unlinkSync, writeFileSync as writeFileSync6 } from "node:fs";
 import { dirname as dirname5, join as join19 } from "node:path";
 var ConcurrentSpecModification = class extends Error {
@@ -5900,7 +6836,7 @@ var DuplicateScenarioId = class extends Error {
   }
 };
 function specSha256(text) {
-  return createHash6("sha256").update(text, "utf8").digest("hex");
+  return createHash7("sha256").update(text, "utf8").digest("hex");
 }
 function renderScenarioBlock(scenario) {
   const dumped = index_vite_proxy_tmp_default.dump({ scenarios: [scenario] }, { lineWidth: -1, noRefs: true });
@@ -6182,6 +7118,10 @@ function collapseJudgments(judgments, trigger) {
     return { ...base, state: "tie_broken", verdict: "FAIL" };
   return { ...base, state: "unresolved" };
 }
+function boundAdjudicationToRepetitions(result, scenario, adj) {
+  const criticalAggregate = (result.reps ?? 1) > 1 && effectiveThreshold(result, scenario) === 1;
+  return criticalAggregate && result.judge_verdict !== "PASS" && adj.verdict === "PASS" ? { ...adj, state: "unresolved", verdict: void 0 } : adj;
+}
 function projectAdjudication(result, adj) {
   if (adj.state === "unresolved") {
     return {
@@ -6271,7 +7211,23 @@ async function adjudicateRun(opts) {
   });
   const scenarios = opts.results.scenarios.map((s) => {
     const adj = byId.get(s.id);
-    return adj ? rebuildScenarioResult(projectAdjudication(s, adj), s, { objective: "carry", adjudication: "fresh" }) : s;
+    if (!adj)
+      return s;
+    const scenario = byIdScenario.get(s.id);
+    const boundedAdj = scenario ? boundAdjudicationToRepetitions(s, scenario, adj) : adj;
+    const projected = projectAdjudication(s, boundedAdj);
+    if (boundedAdj !== adj) {
+      projected.judge_reason = `${adj.judgments.length} judgments on one transcript cannot replace a critical all-repetitions aggregate`;
+    }
+    const extraCalls = adj.judgments.filter((judgment) => judgment.ordinal > 1).length;
+    projected.metrics = mergeScenarioMetrics(s.metrics, {
+      wall_time_ms: 0,
+      judge_calls: extraCalls,
+      judge_rejudge_calls: extraCalls,
+      subject_metrics_reps: 0,
+      total_reps: s.metrics?.total_reps ?? s.reps ?? 1
+    });
+    return rebuildScenarioResult(projected, s, { objective: "carry", adjudication: "fresh" });
   });
   appendJournal(opts.runDir, {
     event: "adjudication",
@@ -6381,9 +7337,9 @@ function formatAdjudicationPlan(plan, judges) {
 }
 
 // packages/adapters/dist/pi.js
-import { existsSync as existsSync17, mkdtempSync as mkdtempSync2, readFileSync as readFileSync15, statSync as statSync8 } from "node:fs";
+import { existsSync as existsSync17, mkdtempSync as mkdtempSync2, readFileSync as readFileSync16, statSync as statSync8 } from "node:fs";
 import { tmpdir as tmpdir2, homedir } from "node:os";
-import { join as join21, resolve as resolve10 } from "node:path";
+import { join as join22, resolve as resolve10 } from "node:path";
 
 // packages/adapters/dist/pi-json.js
 import { spawn as spawn2 } from "node:child_process";
@@ -6447,11 +7403,488 @@ function runPiJson(opts) {
   });
 }
 
+// packages/adapters/dist/trajectory.js
+import { createHash as createHash8 } from "node:crypto";
+import { readFileSync as readFileSync15, readdirSync as readdirSync10 } from "node:fs";
+import { join as join21 } from "node:path";
+function collectTrajectorySources(cwd, sources) {
+  const files = walkFiles(cwd);
+  const streams = [];
+  const errors = [];
+  const seenFiles = /* @__PURE__ */ new Set();
+  for (const source of sources) {
+    const matched = files.filter((file) => matchesGlob(source.path, file));
+    if (matched.length === 0) {
+      if (source.required)
+        errors.push(`required event source ${source.adapter}:${source.path} is missing`);
+      continue;
+    }
+    for (const file of matched.sort()) {
+      const sourceFile = `${source.adapter}:${file}`;
+      if (seenFiles.has(sourceFile)) {
+        errors.push(`event source ${sourceFile} was declared more than once`);
+        continue;
+      }
+      seenFiles.add(sourceFile);
+      try {
+        const text = readFileSync15(join21(cwd, file), "utf8");
+        const normalized = source.adapter === "principal-assurance-v1" ? normalizePrincipalAssuranceLedger(text) : source.adapter === "pi-daddy-v1" ? normalizePiDaddyLedger(text) : deserializeTrajectoryEvents(text);
+        if (!normalized)
+          throw new Error("normalized-v1 source is empty, malformed, or unsupported");
+        const times = normalized.map((event) => validTime(event.at) ? Date.parse(event.at) : null);
+        if (times.every((time) => time !== null) && times.some((time, index) => index > 0 && time < times[index - 1])) {
+          throw new Error("native event timestamps move backwards relative to the source's recorded sequence");
+        }
+        streams.push({ file, adapter: source.adapter, events: normalized });
+      } catch (error) {
+        errors.push(`${source.adapter}:${file}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  }
+  if (streams.length > 1) {
+    if (streams.some((stream) => stream.events.some((event) => !validTime(event.at)))) {
+      errors.push("multiple native event files cannot be globally ordered because at least one event has no valid `at` timestamp");
+    }
+    const owners = /* @__PURE__ */ new Map();
+    for (const stream of streams)
+      for (const event of stream.events) {
+        if (!event.at)
+          continue;
+        const instant = String(Date.parse(event.at));
+        const filesAtTime = owners.get(instant) ?? /* @__PURE__ */ new Set();
+        filesAtTime.add(stream.file);
+        owners.set(instant, filesAtTime);
+      }
+    if ([...owners.values()].some((filesAtTime) => filesAtTime.size > 1)) {
+      errors.push("native event files contain equal timestamps, so strict cross-source order is ambiguous");
+    }
+    const principalRuns = /* @__PURE__ */ new Map();
+    for (const stream of streams.filter((entry) => entry.adapter === "principal-assurance-v1")) {
+      for (const runId of new Set(stream.events.map((event) => event.run_id).filter((value) => Boolean(value)))) {
+        const prior = principalRuns.get(runId);
+        if (prior && prior !== stream.file)
+          errors.push(`principal assurance run ${runId} appears in multiple ledger files (${prior}, ${stream.file})`);
+        else
+          principalRuns.set(runId, stream.file);
+      }
+    }
+  }
+  return { events: resequence(streams.flatMap((stream) => stream.events)), errors };
+}
+function resequence(events) {
+  const native = events.map((event, index) => ({
+    event,
+    index,
+    at: validTime(event.at) ? Date.parse(event.at) : null
+  }));
+  if (native.every((entry) => entry.at !== null))
+    native.sort((a, b) => a.at - b.at || a.index - b.index);
+  return native.map(({ event }, index) => ({
+    ...event,
+    seq: index + 1,
+    attributes: { native_seq: event.seq, ...event.attributes ?? {} }
+  }));
+}
+function normalizePiTraces(traces) {
+  const events = [];
+  let seq = 1;
+  for (const trace of [...traces].sort((a, b) => a.turn - b.turn)) {
+    const base = { scenario_id: trace.scenario_id, rep: trace.rep, turn: trace.turn };
+    const calls = [...trace.tool_calls].sort((a, b) => a.issueIndex - b.issueIndex);
+    for (const call of calls) {
+      events.push({
+        event_version: TRAJECTORY_EVENT_VERSION,
+        seq: seq++,
+        type: "tool_started",
+        source: "pi",
+        at: call.started_at,
+        tool: call.name,
+        attributes: { ...base, tool_call_id: call.id, args: call.args, issue_index: call.issueIndex }
+      });
+    }
+    for (const call of calls.filter((item) => item.completionIndex >= 0).sort((a, b) => a.completionIndex - b.completionIndex)) {
+      events.push({
+        event_version: TRAJECTORY_EVENT_VERSION,
+        seq: seq++,
+        type: "tool_completed",
+        source: "pi",
+        at: call.completed_at,
+        tool: call.name,
+        attributes: {
+          ...base,
+          tool_call_id: call.id,
+          success: !call.isError,
+          issue_index: call.issueIndex,
+          completion_index: call.completionIndex,
+          result_sha256: call.result.sha256,
+          ...call.result.details ? { details: call.result.details } : {}
+        }
+      });
+    }
+  }
+  return events;
+}
+function normalizePrincipalAssuranceLedger(text) {
+  const records = parseJsonl(text, "principal assurance");
+  validatePrincipalIntegrity(records);
+  return records.map((record, index) => {
+    if (record.schema_version !== "1.0") {
+      throw new Error(`unsupported principal assurance schema version ${JSON.stringify(record.schema_version)} at line ${index + 1}; expected "1.0"`);
+    }
+    if (!Number.isInteger(record.seq) || Number(record.seq) < 1 || typeof record.type !== "string" || typeof record.run_id !== "string") {
+      throw new Error(`invalid principal assurance v1 event at line ${index + 1}: seq, type, and run_id are required`);
+    }
+    const packet = object(record.packet);
+    const definitionDigests = object(packet?.definition_digests);
+    const definition = typeof record.definition_digest === "string" ? record.definition_digest : typeof definitionDigests?.["skill:build"] === "string" ? definitionDigests["skill:build"] : void 0;
+    const taskId = string(record.task_id) ?? string(packet?.task_id);
+    const workspaceId = string(record.workspace_id) ?? string(packet?.workspace_id);
+    const plan = string(record.plan_digest) ?? string(packet?.plan_digest);
+    const head = string(record.head_sha);
+    const tree = string(record.tree_sha);
+    const attributes = without(record, [
+      "schema_version",
+      "seq",
+      "type",
+      "at",
+      "run_id",
+      "task_id",
+      "workspace_id",
+      "context_id",
+      "finding_id",
+      "phase",
+      "plan_digest",
+      "definition_digest",
+      "head_sha",
+      "tree_sha",
+      "exit_code"
+    ]);
+    return cleanEvent({
+      event_version: TRAJECTORY_EVENT_VERSION,
+      seq: Number(record.seq),
+      type: record.type,
+      source: "principal-assurance-v1",
+      at: string(record.at),
+      run_id: record.run_id,
+      task_id: taskId,
+      workspace_id: workspaceId,
+      context_id: string(record.context_id),
+      finding_id: string(record.finding_id),
+      phase: string(record.phase),
+      exit_code: Number.isInteger(record.exit_code) ? Number(record.exit_code) : void 0,
+      digests: anyDefined({ plan, definition, head, tree }),
+      requirements: stringArray(record.requirements),
+      attributes: sanitizeAttributes(attributes)
+    });
+  });
+}
+function normalizePiDaddyLedger(text) {
+  const records = parseJsonl(text, "pi-daddy");
+  const out = [];
+  let seq = 1;
+  records.forEach((record, index) => {
+    if (record.schema_version !== void 0 && record.schema_version !== "1.0") {
+      throw new Error(`unsupported pi-daddy ledger schema version ${JSON.stringify(record.schema_version)} at line ${index + 1}; expected unversioned 0.17 grant records or "1.0" governance records`);
+    }
+    if (record.schema_version === "1.0") {
+      out.push(normalizePiDaddyV1(record, seq++, index));
+      return;
+    }
+    for (const event of normalizeLegacyGrant(record, index))
+      out.push({ ...event, seq: seq++ });
+  });
+  return out;
+}
+function normalizeLegacyGrant(record, index) {
+  const requiredArrays = ["requested", "parentGrant", "effective", "denied", "clipped", "gatedBlocked"];
+  if (typeof record.ts !== "string" || typeof record.parentId !== "string" || typeof record.childId !== "string" || !Number.isInteger(record.depth) || typeof record.blocked !== "boolean" || typeof record.executor !== "string" || requiredArrays.some((field) => !Array.isArray(record[field]) || !record[field].every((value) => typeof value === "string"))) {
+    throw new Error(`invalid unversioned pi-daddy grant record at line ${index + 1}; expected the 0.17 GrantRecord shape`);
+  }
+  const requested = record.requested;
+  const effective = record.effective;
+  const denied = record.denied;
+  const gated = record.gatedBlocked;
+  const digest = object(record.definitionDigest);
+  const common = {
+    event_version: TRAJECTORY_EVENT_VERSION,
+    source: "pi-daddy-0.17",
+    at: record.ts,
+    parent_id: record.parentId,
+    child_id: record.childId
+  };
+  const attributes = sanitizeAttributes({
+    native_record: index + 1,
+    depth: record.depth,
+    agent_type: record.agentType,
+    executor: record.executor,
+    parent_grant: record.parentGrant,
+    clipped: record.clipped,
+    gated_blocked: gated,
+    gate_outcome: record.gateOutcome,
+    human_denied: record.humanDenied === true,
+    reason: record.reason,
+    definition_name: digest?.name,
+    legacy_schema: "pi-daddy-grant-ledger/0.17"
+  });
+  const refusal = record.blocked ? legacyRefusalCode(record) : void 0;
+  const spawn4 = cleanEvent({
+    ...common,
+    type: record.blocked ? "child_spawn_refused" : "child_started",
+    requested_capabilities: requested,
+    effective_capabilities: effective,
+    refusal_code: refusal,
+    digests: anyDefined({ definition: string(digest?.sha256) }),
+    attributes
+  });
+  const events = [
+    ...requested.map((capability) => ({ ...common, type: "capability_requested", capability, requested_capabilities: requested, effective_capabilities: effective, attributes })),
+    ...effective.map((capability) => ({ ...common, type: "capability_granted", capability, requested_capabilities: requested, effective_capabilities: effective, attributes })),
+    ...[.../* @__PURE__ */ new Set([...denied, ...gated])].map((capability) => ({ ...common, type: "capability_refused", capability, requested_capabilities: requested, effective_capabilities: effective, refusal_code: denied.includes(capability) ? "CAPABILITY_ESCALATION" : refusal, attributes }))
+  ];
+  const sources = object(record.approvalSources);
+  const scopes = object(record.approvalScopes);
+  for (const capability of stringArray(record.approved) ?? []) {
+    events.push(cleanEvent({
+      ...common,
+      type: "approval_used",
+      capability,
+      approval: {
+        capability,
+        source: string(sources?.[capability]) ?? string(record.approvalSource),
+        scope: string(scopes?.[capability]) ?? string(record.approvalScope),
+        used_at: record.ts
+      },
+      attributes
+    }));
+  }
+  events.push(spawn4);
+  return events;
+}
+function normalizePiDaddyV1(record, seq, index) {
+  const recordType = string(record.record_type);
+  const action = string(record.action);
+  if (!recordType || !action || !string(record.ts))
+    throw new Error(`invalid pi-daddy governance v1 record at line ${index + 1}: record_type, action, and ts are required`);
+  let type;
+  if (recordType === "writer_lease") {
+    if (!(/* @__PURE__ */ new Set(["acquired", "refused", "conflict", "released"])).has(action))
+      throw new Error(`invalid writer_lease action ${JSON.stringify(action)} at line ${index + 1}`);
+    type = action === "conflict" ? "writer_lease_conflict" : `writer_lease_${action}`;
+  } else if (recordType === "approval") {
+    if (!(/* @__PURE__ */ new Set(["granted", "used", "refused"])).has(action))
+      throw new Error(`invalid approval action ${JSON.stringify(action)} at line ${index + 1}`);
+    type = `approval_${action}`;
+  } else if (recordType === "child_lifecycle") {
+    if (!(/* @__PURE__ */ new Set(["started", "completed", "refused"])).has(action))
+      throw new Error(`invalid child_lifecycle action ${JSON.stringify(action)} at line ${index + 1}`);
+    type = action === "refused" ? "child_spawn_refused" : `child_${action}`;
+  } else if (recordType === "capability") {
+    if (!(/* @__PURE__ */ new Set(["requested", "granted", "refused"])).has(action))
+      throw new Error(`invalid capability action ${JSON.stringify(action)} at line ${index + 1}`);
+    type = `capability_${action}`;
+  } else {
+    throw new Error(`unsupported pi-daddy governance v1 record_type ${JSON.stringify(recordType)} at line ${index + 1}`);
+  }
+  return cleanEvent({
+    event_version: TRAJECTORY_EVENT_VERSION,
+    seq,
+    type,
+    source: "pi-daddy-v1",
+    at: string(record.ts),
+    run_id: string(record.run_id),
+    task_id: string(record.task_id),
+    workspace_id: string(record.workspace_id),
+    context_id: string(record.context_id),
+    parent_id: string(record.parent_id),
+    child_id: string(record.child_id),
+    capability: string(record.capability),
+    requested_capabilities: stringArray(record.requested),
+    effective_capabilities: stringArray(record.effective),
+    refusal_code: string(record.refusal_code),
+    digests: anyDefined({ task: string(record.task_digest), definition: string(record.definition_digest) }),
+    approval: recordType === "approval" ? cleanObject({
+      id: string(record.approval_id),
+      capability: string(record.capability),
+      subject: string(record.subject),
+      source: string(record.source),
+      scope: string(record.scope),
+      approved_at: string(record.approved_at),
+      expires_at: string(record.expires_at),
+      used_at: string(record.used_at)
+    }) : void 0,
+    attributes: sanitizeAttributes(without(record, ["schema_version", "record_type", "ts", "action", "run_id", "task_id", "workspace_id", "context_id", "parent_id", "child_id", "capability", "requested", "effective", "refusal_code", "task_digest", "definition_digest", "approval_id", "subject", "source", "scope", "approved_at", "expires_at", "used_at"]))
+  });
+}
+function legacyRefusalCode(record) {
+  const denied = stringArray(record.denied) ?? [];
+  const gated = stringArray(record.gatedBlocked) ?? [];
+  const reason = string(record.reason) ?? "";
+  if (denied.length)
+    return "CAPABILITY_ESCALATION";
+  if (/declares no `allowed-tools`/i.test(reason))
+    return "UNDECLARED_CAPABILITIES";
+  if (/unknown capabilit/i.test(reason))
+    return "UNKNOWN_CAPABILITY";
+  if (/depth limit/i.test(reason))
+    return "DEPTH_LIMIT";
+  if (/needs a task/i.test(reason))
+    return "MISSING_TASK";
+  if (/universal capability|cannot narrow/i.test(reason))
+    return "NON_NARROWING_GRANT";
+  if (gated.length) {
+    if (record.humanDenied === true || record.gateOutcome === "declined")
+      return "APPROVAL_DECLINED";
+    if (record.gateOutcome === "no-ui")
+      return "APPROVAL_NO_UI";
+    if (record.gateOutcome === "dismissed")
+      return "APPROVAL_DISMISSED";
+    if (record.gateOutcome === "error")
+      return "APPROVAL_ERROR";
+    return "APPROVAL_REQUIRED";
+  }
+  return "LEGACY_UNCLASSIFIED";
+}
+function validatePrincipalIntegrity(records) {
+  let previous = null;
+  let previousTime = null;
+  let runId = null;
+  records.forEach((record, index) => {
+    const line = index + 1;
+    if (record.schema_version !== "1.0") {
+      throw new Error(`unsupported principal assurance schema version ${JSON.stringify(record.schema_version)} at line ${line}; expected "1.0"`);
+    }
+    if (record.seq !== line)
+      throw new Error(`principal assurance integrity failure at line ${line}: sequence mismatch`);
+    if (index === 0 && record.type !== "run_initialized")
+      throw new Error("principal assurance integrity failure: first event must initialize the run");
+    if (typeof record.run_id !== "string" || !record.run_id)
+      throw new Error(`principal assurance integrity failure at line ${line}: run_id is missing`);
+    if (runId === null)
+      runId = record.run_id;
+    else if (record.run_id !== runId)
+      throw new Error(`principal assurance integrity failure at line ${line}: run_id changed`);
+    if (record.prev_digest !== previous)
+      throw new Error(`principal assurance integrity failure at line ${line}: previous digest mismatch`);
+    if (typeof record.event_digest !== "string" || !/^[a-f0-9]{64}$/i.test(record.event_digest)) {
+      throw new Error(`principal assurance integrity failure at line ${line}: event_digest is invalid`);
+    }
+    const copy = { ...record };
+    delete copy.event_digest;
+    const expected = createHash8("sha256").update(canonicalJson(copy)).digest("hex");
+    if (record.event_digest !== expected)
+      throw new Error(`principal assurance integrity failure at line ${line}: event digest mismatch`);
+    if (!validTime(typeof record.at === "string" ? record.at : void 0))
+      throw new Error(`invalid principal assurance v1 event at line ${line}: at must be a date-time`);
+    const at = Date.parse(record.at);
+    if (previousTime !== null && at < previousTime)
+      throw new Error(`principal assurance integrity failure at line ${line}: timestamp moves backwards`);
+    previousTime = at;
+    previous = record.event_digest;
+  });
+}
+function canonicalJson(value) {
+  if (value === null || typeof value === "string" || typeof value === "boolean")
+    return JSON.stringify(value);
+  if (typeof value === "number") {
+    if (!Number.isFinite(value))
+      throw new Error("principal assurance event contains a non-finite number");
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value))
+    return `[${value.map(canonicalJson).join(",")}]`;
+  if (!value || typeof value !== "object")
+    throw new Error("principal assurance event contains a non-JSON value");
+  return `{${Object.entries(value).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0).map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`).join(",")}}`;
+}
+function validTime(value) {
+  if (typeof value !== "string")
+    return false;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.exec(value);
+  if (!match || !Number.isFinite(Date.parse(value)))
+    return false;
+  const [, year, month, day, hour, minute, second] = match.map(Number);
+  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59)
+    return false;
+  return day >= 1 && day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+function sanitizeAttributes(value) {
+  const redacted = redactArgs(value);
+  const sensitiveKey = /(secret|token|password|passphrase|api[_-]?key|authorization|cookie|credential)/i;
+  const freeTextKey = /^(request|command|stdout|stderr|output|prompt|content)$/i;
+  const walk2 = (current, key = "") => {
+    if (sensitiveKey.test(key))
+      return "[REDACTED]";
+    if (typeof current === "string" && freeTextKey.test(key)) {
+      return `[REDACTED sha256:${createHash8("sha256").update(current).digest("hex")}]`;
+    }
+    if (Array.isArray(current))
+      return current.map((entry) => walk2(entry));
+    if (current && typeof current === "object")
+      return Object.fromEntries(Object.entries(current).map(([childKey, entry]) => [childKey, walk2(entry, childKey)]));
+    return current;
+  };
+  return walk2(redacted);
+}
+function parseJsonl(text, label) {
+  const lines = text.split("\n").filter((line) => line.trim());
+  if (!lines.length)
+    throw new Error(`${label} ledger is empty`);
+  return lines.map((line, index) => {
+    try {
+      const value = JSON.parse(line);
+      if (!value || typeof value !== "object" || Array.isArray(value))
+        throw new Error("record is not an object");
+      return value;
+    } catch (error) {
+      throw new Error(`${label} ledger line ${index + 1} is invalid JSON: ${error instanceof Error ? error.message : error}`);
+    }
+  });
+}
+function object(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
+}
+function string(value) {
+  return typeof value === "string" && value.length ? value : void 0;
+}
+function stringArray(value) {
+  return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : void 0;
+}
+function anyDefined(value) {
+  return Object.values(value).some((entry) => entry !== void 0) ? value : void 0;
+}
+function cleanObject(value) {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== void 0));
+}
+function cleanEvent(event) {
+  return cleanObject(event);
+}
+function without(record, keys) {
+  const omitted = new Set(keys);
+  return Object.fromEntries(Object.entries(record).filter(([key, value]) => !omitted.has(key) && value !== void 0));
+}
+function walkFiles(root, relative6 = "") {
+  const out = [];
+  let entries;
+  try {
+    entries = readdirSync10(join21(root, relative6), { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const entry of entries) {
+    const path = relative6 ? `${relative6}/${entry.name}` : entry.name;
+    if (entry.isDirectory())
+      out.push(...walkFiles(root, path));
+    else if (entry.isFile())
+      out.push(path);
+  }
+  return out;
+}
+
 // packages/adapters/dist/pi.js
 var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
 function requireSkillDir(skillDir, mode) {
   const abs = resolve10(skillDir);
-  const md = join21(abs, "SKILL.md");
+  const md = join22(abs, "SKILL.md");
   const isDir3 = existsSync17(abs) && statSync8(abs).isDirectory();
   if (!isDir3 || !existsSync17(md)) {
     throw new Error(`mode=${mode} needs a skill directory with a SKILL.md, but ${abs} ${isDir3 ? "has none" : "is not a directory"}` + (abs === skillDir ? "" : ` (given \`${skillDir}\`, resolved against ${process.cwd()})`) + ` \u2014 pi accepts \`--skill <nonexistent>\` silently (exit 0, a normal answer, no skill in context), so this run would measure a model with no skill and report it as a result.`);
@@ -6465,7 +7898,7 @@ function skillFlags(mode, skillDir) {
     case "green":
       return ["--skill", requireSkillDir(skillDir, mode)];
     case "force": {
-      const body = readFileSync15(join21(requireSkillDir(skillDir, mode), "SKILL.md"), "utf8");
+      const body = readFileSync16(join22(requireSkillDir(skillDir, mode), "SKILL.md"), "utf8");
       return ["--no-skills", "--append-system-prompt", body];
     }
   }
@@ -6526,7 +7959,7 @@ var piAdapter = {
       "--model",
       req.model.model
     ];
-    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync15(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
+    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync16(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
     const total = req.turns.length;
     const parts = [];
     if (total === 1) {
@@ -6542,7 +7975,7 @@ ${r.stderr.trim()}
 `);
       return parts.join("\n");
     }
-    const session = mkdtempSync2(join21(tmpdir2(), "sc-pi-session-"));
+    const session = mkdtempSync2(join22(tmpdir2(), "sc-pi-session-"));
     for (let i = 0; i < total; i++) {
       const turnFlags = i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common, ...turnFlags, "-p", req.turns[i]];
@@ -6580,12 +8013,12 @@ ${r.stderr.trim()}
       "--model",
       req.model.model
     ];
-    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync15(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
+    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync16(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
     const piVersion = await this.version();
     const total = req.turns.length;
     const traces = [];
     const parts = [];
-    const session = total === 1 ? null : mkdtempSync2(join21(tmpdir2(), "sc-pi-session-"));
+    const session = total === 1 ? null : mkdtempSync2(join22(tmpdir2(), "sc-pi-session-"));
     for (let i = 0; i < total; i++) {
       const turnFlags = session === null ? ["--no-session"] : i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common, "--mode", "json", ...turnFlags, "-p", req.turns[i]];
@@ -6604,6 +8037,10 @@ ${r.stderr.trim()}
       if (!r.isComplete) {
         throw new Error(`pi --mode json produced no terminal events for turn ${i + 1}/${total} (exit ${r.code}${r.malformedLines ? `, ${r.malformedLines} malformed line(s)` : ""})` + (r.stderr.trim() ? `: ${r.stderr.trim()}` : ""));
       }
+      if (r.malformedLines > 0) {
+        r.trace.capture_errors = [`pi JSONL contained ${r.malformedLines} malformed line(s); absence-based trace assertions are unsafe`];
+        r.trace.trace_sha256 = traceSha256(r.trace);
+      }
       traces.push(r.trace);
       parts.push(header(i + 1, total, req.turns[i]));
       parts.push(`<<< ASSISTANT:
@@ -6614,7 +8051,27 @@ ${r.trace.final_text.trim()}
 ${r.stderr.trim()}
 `);
     }
-    return { transcript: parts.join("\n"), traces };
+    const native = req.eventSources?.length ? collectTrajectorySources(req.cwd, req.eventSources) : { events: [], errors: [] };
+    const piEvents = normalizePiTraces(traces);
+    const combined = [...piEvents, ...native.events];
+    const chronologyErrors = [];
+    if (piEvents.length && native.events.length) {
+      if (combined.some((event) => !event.at || !Number.isFinite(Date.parse(event.at)))) {
+        chronologyErrors.push("pi/native events cannot be globally ordered because at least one event has no valid `at` timestamp");
+      } else {
+        const piTimes = new Set(piEvents.map((event) => Date.parse(event.at)));
+        if (native.events.some((event) => piTimes.has(Date.parse(event.at)))) {
+          chronologyErrors.push("pi/native events contain equal timestamps, so strict cross-source order is ambiguous");
+        }
+      }
+    }
+    const eventErrors = [...native.errors, ...chronologyErrors];
+    return {
+      transcript: parts.join("\n"),
+      traces,
+      events: resequence(combined),
+      ...eventErrors.length ? { eventErrors } : {}
+    };
   },
   /**
    * Run the judge: no skills, no context files, no session, single prompt.
@@ -6665,19 +8122,19 @@ function getAdapter(name) {
 
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
-import { readFileSync as readFileSync16, existsSync as existsSync18 } from "node:fs";
-import { join as join22, dirname as dirname7 } from "node:path";
+import { readFileSync as readFileSync17, existsSync as existsSync18 } from "node:fs";
+import { join as join23, dirname as dirname7 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn as spawn3 } from "node:child_process";
 var __dirname = dirname7(fileURLToPath(import.meta.url));
 function templatePath(assetsDir) {
   if (assetsDir)
-    return join22(assetsDir, "report.template.html");
+    return join23(assetsDir, "report.template.html");
   const candidates = [
-    join22(__dirname, "..", "..", "..", "assets", "report.template.html"),
+    join23(__dirname, "..", "..", "..", "assets", "report.template.html"),
     // packages/cli/{dist,src} -> ../../../assets
-    join22(__dirname, "..", "assets", "report.template.html"),
-    join22(__dirname, "..", "..", "assets", "report.template.html")
+    join23(__dirname, "..", "assets", "report.template.html"),
+    join23(__dirname, "..", "..", "assets", "report.template.html")
   ];
   for (const c of candidates)
     if (existsSync18(c))
@@ -6685,7 +8142,7 @@ function templatePath(assetsDir) {
   throw new Error("cannot find assets/report.template.html");
 }
 function gradeScriptPath(assetsDir) {
-  return join22(dirname7(templatePath(assetsDir)), "report.grade.js");
+  return join23(dirname7(templatePath(assetsDir)), "report.grade.js");
 }
 function readBody(req) {
   return new Promise((resolve13) => {
@@ -6699,22 +8156,22 @@ function findTranscript(runDir, id) {
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync16(join22(runDir, files[0]), "utf8");
+    return readFileSync17(join23(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync16(join22(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync17(join23(runDir, f), "utf8")}`).join("\n\n");
 }
 function findJudgeRaw(runDir, id) {
   const files = findJudgeRawFiles(runDir, id);
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync16(join22(runDir, files[0]), "utf8");
+    return readFileSync17(join23(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync16(join22(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync17(join23(runDir, f), "utf8")}`).join("\n\n");
 }
 async function serveReview(opts) {
-  const template = readFileSync16(templatePath(opts.assetsDir), "utf8");
-  const gradeScript = readFileSync16(gradeScriptPath(opts.assetsDir), "utf8");
+  const template = readFileSync17(templatePath(opts.assetsDir), "utf8");
+  const gradeScript = readFileSync17(gradeScriptPath(opts.assetsDir), "utf8");
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://localhost");
@@ -6764,7 +8221,7 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be re-judged here \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
           return;
         }
-        const specPath = join22(opts.skillDir, "tests", "specification.yaml");
+        const specPath = join23(opts.skillDir, "tests", "specification.yaml");
         const spec = loadSpec(specPath);
         const scenario = spec.scenarios.find((s) => s.id === body.scenarioId);
         if (!scenario) {
@@ -6792,11 +8249,12 @@ async function serveReview(opts) {
             judge: results.judge,
             specDir: dirname7(specPath),
             threshold,
-            mode: results.mode
+            mode: results.mode,
+            expectedReps: prev.reps ?? 1
           });
           const merged = results.scenarios.map((s) => (
             // Same contract as `grade`, through the same choke point.
-            s.id === body.scenarioId ? rebuildScenarioResult(rr, s, { objective: "carry", adjudication: "drop" }) : s
+            s.id === body.scenarioId ? rebuildScenarioResult({ ...rr, metrics: mergeScenarioMetrics(s.metrics, rr.metrics) }, s, { objective: "carry", adjudication: "drop" }) : s
           ));
           const written = writeResults(column.runDir, {
             skill: results.skill,
@@ -6817,7 +8275,7 @@ async function serveReview(opts) {
             // the same doctrine `grade` follows (see refreshRubricHashes).
             source_hashes: refreshRubricHashes(results.source_hashes, spec, [body.scenarioId])
           }, scoreContextFor(results, spec));
-          ensureResultsGitignore(join22(opts.skillDir, "tests", "results"));
+          ensureResultsGitignore(join23(opts.skillDir, "tests", "results"));
           const g = written.effective_grade;
           appendJournal(column.runDir, { event: "score", ts: (/* @__PURE__ */ new Date()).toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
           res.writeHead(200, { "content-type": "application/json" });
@@ -6842,7 +8300,7 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be adjudicated \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
           return;
         }
-        const specPath = join22(opts.skillDir, "tests", "specification.yaml");
+        const specPath = join23(opts.skillDir, "tests", "specification.yaml");
         const spec = loadSpec(specPath);
         const adapter = opts.adapter ?? getAdapter(results.harness);
         const cells = cellsFromResults(column.runDir, results);
@@ -6885,7 +8343,7 @@ async function serveReview(opts) {
             specDir: dirname7(specPath),
             now: () => (/* @__PURE__ */ new Date()).toISOString()
           });
-          ensureResultsGitignore(join22(opts.skillDir, "tests", "results"));
+          ensureResultsGitignore(join23(opts.skillDir, "tests", "results"));
           res.writeHead(200, { "content-type": "application/json" });
           res.end(JSON.stringify({ ok: true, step: "run", grade: written.effective_grade }));
         } catch (e) {
@@ -6911,11 +8369,11 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
           return;
         }
-        const spec = loadSpec(join22(opts.skillDir, "tests", "specification.yaml"));
+        const spec = loadSpec(join23(opts.skillDir, "tests", "specification.yaml"));
         writeResults(column.runDir, patched, scoreContextFor(patched, spec));
-        ensureResultsGitignore(join22(opts.skillDir, "tests", "results"));
+        ensureResultsGitignore(join23(opts.skillDir, "tests", "results"));
         if (body.override != null) {
-          preserveTranscript(join22(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
+          preserveTranscript(join23(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
         }
         appendJournal(column.runDir, {
           event: "override",
@@ -6961,16 +8419,16 @@ function tryOpen(url, cmd) {
 
 // packages/pi-extension/src/runner.ts
 import { existsSync as existsSync19 } from "node:fs";
-import { dirname as dirname8, join as join23, resolve as resolve11 } from "node:path";
+import { dirname as dirname8, join as join24, resolve as resolve11 } from "node:path";
 function resolveSkillDir(cwd, arg) {
   if (arg) {
     const dir2 = resolve11(cwd, arg);
-    if (existsSync19(join23(dir2, "tests", "specification.yaml"))) return dir2;
+    if (existsSync19(join24(dir2, "tests", "specification.yaml"))) return dir2;
     throw new Error(`no tests/specification.yaml found at ${dir2}`);
   }
   let dir = cwd;
   for (; ; ) {
-    if (existsSync19(join23(dir, "tests", "specification.yaml"))) return dir;
+    if (existsSync19(join24(dir, "tests", "specification.yaml"))) return dir;
     const parent = dirname8(dir);
     if (parent === dir) break;
     dir = parent;
@@ -6979,7 +8437,7 @@ function resolveSkillDir(cwd, arg) {
 }
 var DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 async function runViaExtension(opts) {
-  const specPath = join23(opts.skillDir, "tests", "specification.yaml");
+  const specPath = join24(opts.skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const modelToken = opts.model ?? DEFAULT_MODEL;
   const model = parseModelRef(modelToken);
@@ -7007,7 +8465,7 @@ async function runViaExtension(opts) {
   });
   const g = summary.results.effective_grade;
   const verdicts = effectiveVerdicts(summary.results.scenarios);
-  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join23(summary.runDir, f)));
+  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join24(summary.runDir, f)));
   return {
     skill: summary.results.skill,
     model: summary.results.model,
@@ -7018,9 +8476,9 @@ async function runViaExtension(opts) {
 }
 
 // packages/pi-extension/src/capture-cmd.ts
-import { existsSync as existsSync20, mkdirSync as mkdirSync4, writeFileSync as writeFileSync8, readdirSync as readdirSync10, readFileSync as readFileSync17 } from "node:fs";
-import { join as join24 } from "node:path";
-import { createHash as createHash7 } from "node:crypto";
+import { existsSync as existsSync20, mkdirSync as mkdirSync4, writeFileSync as writeFileSync8, readdirSync as readdirSync11, readFileSync as readFileSync18 } from "node:fs";
+import { join as join25 } from "node:path";
+import { createHash as createHash9 } from "node:crypto";
 var CANCELLED = { status: "cancelled", files: [] };
 var CAPTURES_GITIGNORE = "# Local review evidence for captured cases \u2014 never commit.\n.local/\n";
 async function runCapture(skillDir, ctx) {
@@ -7030,12 +8488,12 @@ async function runCapture(skillDir, ctx) {
     ui.say("the agent is still streaming \u2014 let it finish, then run capture again");
     return CANCELLED;
   }
-  const specPath = join24(skillDir, "tests", "specification.yaml");
+  const specPath = join25(skillDir, "tests", "specification.yaml");
   if (!existsSync20(specPath)) {
     ui.say(`${specPath} does not exist \u2014 run \`skill-harness init\` before capturing into this skill`);
     return CANCELLED;
   }
-  const baseSha256 = specSha256(readFileSync17(specPath, "utf8"));
+  const baseSha256 = specSha256(readFileSync18(specPath, "utf8"));
   const turns = projectTurns(activeBranch(ctx.sessionEntries()), ctx.homeDir);
   if (turns.length === 0) {
     ui.say("no user turns in this session yet \u2014 nothing to capture");
@@ -7072,8 +8530,8 @@ async function runCapture(skillDir, ctx) {
     ui.say("cancelled \u2014 a capture needs at least one checklist item");
     return CANCELLED;
   }
-  const capturesDir = join24(skillDir, "tests", "captures");
-  const existingIds = existsSync20(capturesDir) ? readdirSync10(capturesDir).filter((f) => f.endsWith(".yaml")).map((f) => f.replace(/\.yaml$/, "")) : [];
+  const capturesDir = join25(skillDir, "tests", "captures");
+  const existingIds = existsSync20(capturesDir) ? readdirSync11(capturesDir).filter((f) => f.endsWith(".yaml")).map((f) => f.replace(/\.yaml$/, "")) : [];
   const capture = buildCaptureCase({
     turns,
     range: { start, end },
@@ -7121,7 +8579,7 @@ ${previewYaml}---`);
     baseSha256
   });
   const promoted = { ...capture, status: "promoted", scenario_id: scenarioId.trim() };
-  writeFileSync8(join24(capturesDir, `${capture.id}.yaml`), index_vite_proxy_tmp_default.dump(promoted, { lineWidth: -1, noRefs: true }), "utf8");
+  writeFileSync8(join25(capturesDir, `${capture.id}.yaml`), index_vite_proxy_tmp_default.dump(promoted, { lineWidth: -1, noRefs: true }), "utf8");
   ui.say(`promoted ${capture.id} \u2192 scenario ${scenarioId.trim()} in ${specPath}`);
   if (ctx.runOnly && await ui.confirm(`run scenario ${scenarioId.trim()} now? (spends subject + judge tokens for 1 scenario)`)) {
     ui.say(await ctx.runOnly(skillDir, scenarioId.trim()));
@@ -7140,12 +8598,12 @@ function defaultTitle(capture) {
 }
 async function chooseTarget(skillDir, ctx) {
   const candidates = [];
-  const skillMd = join24(skillDir, "SKILL.md");
+  const skillMd = join25(skillDir, "SKILL.md");
   if (existsSync20(skillMd)) candidates.push({ label: "SKILL.md (this skill)", kind: "skill", path: "SKILL.md", abs: skillMd });
-  const agentsDir = join24(ctx.cwd, ".pi", "agents");
+  const agentsDir = join25(ctx.cwd, ".pi", "agents");
   if (existsSync20(agentsDir)) {
-    for (const f of readdirSync10(agentsDir).filter((x) => x.endsWith(".md"))) {
-      candidates.push({ label: `subagent: ${f}`, kind: "subagent", path: join24(".pi", "agents", f), abs: join24(agentsDir, f) });
+    for (const f of readdirSync11(agentsDir).filter((x) => x.endsWith(".md"))) {
+      candidates.push({ label: `subagent: ${f}`, kind: "subagent", path: join25(".pi", "agents", f), abs: join25(agentsDir, f) });
     }
   }
   if (candidates.length === 0) {
@@ -7158,7 +8616,7 @@ async function chooseTarget(skillDir, ctx) {
   return {
     kind: chosen.kind,
     path: chosen.path,
-    content_sha256: createHash7("sha256").update(readFileSync17(chosen.abs, "utf8"), "utf8").digest("hex")
+    content_sha256: createHash9("sha256").update(readFileSync18(chosen.abs, "utf8"), "utf8").digest("hex")
   };
 }
 function suggestScenarioId(specPath, fallback) {
@@ -7172,23 +8630,23 @@ function suggestScenarioId(specPath, fallback) {
   }
   return fallback;
 }
-function writeCapture(capturesDir, capture, selected, homeDir) {
-  mkdirSync4(join24(capturesDir, ".local"), { recursive: true });
-  const gitignore = join24(capturesDir, ".gitignore");
-  const existingIgnore = existsSync20(gitignore) ? readFileSync17(gitignore, "utf8") : "";
+function writeCapture(capturesDir, capture, selected2, homeDir) {
+  mkdirSync4(join25(capturesDir, ".local"), { recursive: true });
+  const gitignore = join25(capturesDir, ".gitignore");
+  const existingIgnore = existsSync20(gitignore) ? readFileSync18(gitignore, "utf8") : "";
   if (!existingIgnore.split("\n").some((l) => l.trim() === ".local/" || l.trim() === ".local")) {
     writeFileSync8(gitignore, existingIgnore ? `${existingIgnore.replace(/\n*$/, "\n")}${CAPTURES_GITIGNORE}` : CAPTURES_GITIGNORE, "utf8");
   }
-  const casePath = join24(capturesDir, `${capture.id}.yaml`);
+  const casePath = join25(capturesDir, `${capture.id}.yaml`);
   writeFileSync8(casePath, index_vite_proxy_tmp_default.dump(capture, { lineWidth: -1, noRefs: true }), "utf8");
-  const evidencePath = join24(capturesDir, ".local", `${capture.id}.evidence.json`);
+  const evidencePath = join25(capturesDir, ".local", `${capture.id}.evidence.json`);
   writeFileSync8(
     evidencePath,
     JSON.stringify(
       {
         capture_id: capture.id,
-        assistant_excerpt: selected.map((t) => redactText(t.assistantText, homeDir)).join("\n---\n").slice(0, 4e3),
-        tool_calls: selected.flatMap((t) => t.toolCalls.map((c) => ({ name: c.name, isError: c.isError, args: c.args })))
+        assistant_excerpt: selected2.map((t) => redactText(t.assistantText, homeDir)).join("\n---\n").slice(0, 4e3),
+        tool_calls: selected2.flatMap((t) => t.toolCalls.map((c) => ({ name: c.name, isError: c.isError, args: c.args })))
       },
       null,
       2
@@ -7257,8 +8715,8 @@ ${card.failedTranscripts.join("\n")}`);
   if (sub === "judge") {
     const runDir = resolve12(ctx.cwd, positional[0] ?? ".");
     const testsDir = dirname9(dirname9(dirname9(runDir)));
-    const spec = loadSpec(join25(testsDir, "specification.yaml"));
-    const prev = existsSync21(join25(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const spec = loadSpec(join26(testsDir, "specification.yaml"));
+    const prev = existsSync21(join26(runDir, "results.yaml")) ? readResults(runDir) : null;
     const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? parseModelRef(defaultJudge());
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge"
@@ -7324,20 +8782,20 @@ ${card.failedTranscripts.join("\n")}`);
   }
   if (sub === "coverage") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const specPath = join25(skillDir, "tests", "specification.yaml");
+    const specPath = join26(skillDir, "tests", "specification.yaml");
     const spec = loadSpec(specPath);
     const specDir = dirname9(specPath);
     const report = computeCoverage({
       specDir,
       scenarios: spec.scenarios,
-      baseFiles: [relative5(specDir, join25(skillDir, "SKILL.md")).split("\\").join("/")]
+      baseFiles: [relative5(specDir, join26(skillDir, "SKILL.md")).split("\\").join("/")]
     });
     say(ctx, formatCoverage(report, spec.skill), report.broken.length ? "warning" : "info");
     return;
   }
   if (sub === "affected") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const specPath = join25(skillDir, "tests", "specification.yaml");
+    const specPath = join26(skillDir, "tests", "specification.yaml");
     const spec = loadSpec(specPath);
     const base = flags.base || "HEAD";
     const rev = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: dirname9(specPath), timeoutMs: 3e4 });
@@ -7395,7 +8853,7 @@ ${card.failedTranscripts.join("\n")}`);
   }
   if (sub === "review") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const spec = loadSpec(join25(skillDir, "tests", "specification.yaml"));
+    const spec = loadSpec(join26(skillDir, "tests", "specification.yaml"));
     const handle = await serveReview({
       skillDir,
       skillName: spec.skill,
@@ -7467,7 +8925,7 @@ function registerTool(pi) {
 
 // packages/pi-extension/src/index.ts
 function index_default(pi) {
-  const assetsDir = join26(dirname10(fileURLToPath2(import.meta.url)), "..", "..", "..", "assets");
+  const assetsDir = join27(dirname10(fileURLToPath2(import.meta.url)), "..", "..", "..", "assets");
   registerCommand(pi, assetsDir);
   registerTool(pi);
   pi.on("session_shutdown", async () => {

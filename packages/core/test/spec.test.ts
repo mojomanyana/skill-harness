@@ -43,11 +43,29 @@ scenarios:
 describe("parseSpec", () => {
   test("parses a valid spec with top-level fields", () => {
     const spec = parseSpec(PONYTAIL, "ponytail/tests/specification.yaml");
+    expect(spec.schema).toBe(1);
     expect(spec.skill).toBe("ponytail");
     expect(spec.judge_persona).toContain("simplicity sidekick");
     expect(spec.ship_bar).toEqual({ total: 8, min_pass: 6, no_critical_fail: true });
     expect(spec.critical).toEqual(["A1", "A2", "B1", "C1", "C2"]);
     expect(spec.scenarios).toHaveLength(3);
+  });
+
+  test("unifies scenario-level critical flags into the release-gating critical set", () => {
+    const spec = parseSpec(`
+skill: x
+judge_persona: p
+ship_bar: { total: 1, min_pass: 1 }
+critical: []
+scenarios:
+  - id: A1
+    title: t
+    critical: true
+    turns: [hi]
+    checklist: [ok]
+`, "f");
+    expect(spec.critical).toEqual(["A1"]);
+    expect(spec.scenarios[0].critical).toBe(true);
   });
 
   test("derives scenario.critical from top-level critical list", () => {
@@ -72,6 +90,11 @@ describe("parseSpec", () => {
     expect(s1.fixture).toBe("fixtures/account");
     expect(s1.assert?.vitest).toBe(true);
     expect(s1.assert?.diff_contains).toEqual(["describe(", "withdraw"]);
+  });
+
+  test("accepts explicit schema: 1 and rejects an unsupported future schema", () => {
+    expect(parseSpec(`schema: 1\n${PONYTAIL}`, "f").schema).toBe(1);
+    expect(() => parseSpec(`schema: 2\n${PONYTAIL}`, "f")).toThrow(/unsupported `schema` 2/);
   });
 
   test("throws SpecError with file path when skill is missing", () => {
@@ -343,6 +366,75 @@ scenarios:
 
   test("system_prompt_file must be a non-empty string", () => {
     expect(() => parseSpec(base("    system_prompt_file: '   '"), "f")).toThrow(/non-empty string/);
+  });
+});
+
+describe("assert.trajectory + env.event_sources", () => {
+  const base = (extra: string) => `
+skill: demo
+judge_persona: a judge.
+ship_bar: { total: 1, min_pass: 1 }
+scenarios:
+  - id: A1
+    title: governed workflow
+    turns: ["run it"]
+    checklist: ["completes safely"]
+${extra}`;
+
+  test("parses an adapter-neutral trajectory assertion and versioned native sources", () => {
+    const scenario = parseSpec(base(`    env:
+      event_sources:
+        - adapter: principal-assurance-v1
+          path: .git/principal-pi-skills/assurance-v1/runs/*/events.jsonl
+        - adapter: pi-daddy-v1
+          path: .pi/grants-ledger.jsonl
+          required: false
+    assert:
+      trajectory:
+        version: "1.0"
+        require:
+          - event: risk_classified
+        forbid:
+          - event: writer_lease_conflict
+`), "f").scenarios[0];
+    expect(scenario.trajectoryAssert?.version).toBe("1.0");
+    expect(scenario.eventSources).toEqual([
+      { adapter: "principal-assurance-v1", path: ".git/principal-pi-skills/assurance-v1/runs/*/events.jsonl", required: true },
+      { adapter: "pi-daddy-v1", path: ".pi/grants-ledger.jsonl", required: false },
+    ]);
+  });
+
+  test("existing trace-only specs keep the old shape", () => {
+    const scenario = parseSpec(base(`    assert:
+      trace:
+        forbid_calls: [write]
+`), "f").scenarios[0];
+    expect(scenario.traceAssert).toBeDefined();
+    expect(scenario.trajectoryAssert).toBeUndefined();
+    expect(scenario.eventSources).toBeUndefined();
+  });
+
+  test("rejects an event source traversal rather than reading outside the workspace", () => {
+    expect(() => parseSpec(base(`    env:
+      event_sources:
+        - adapter: normalized-v1
+          path: ../../secrets.jsonl
+    assert:
+      trajectory:
+        version: "1.0"
+        require: [{ event: done }]
+`), "f")).toThrow(/event_sources.*workspace-relative/);
+  });
+
+  test("a trajectory assertion with no event sources still permits normalized pi tool events", () => {
+    const scenario = parseSpec(base(`    assert:
+      trajectory:
+        version: "1.0"
+        require:
+          - event: tool_started
+            where: { tool: read }
+`), "f").scenarios[0];
+    expect(scenario.eventSources).toBeUndefined();
   });
 });
 

@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeResults, readResults, rebuildScenarioResult } from "../src/results.js";
+import { traceSha256 } from "../src/execution-trace.js";
 import { regradeRun } from "../src/regrade.js";
 import { regateRun } from "../src/regate.js";
 import { rescoreRun } from "../src/rescore.js";
@@ -73,16 +74,17 @@ const judge: HarnessAdapter = {
 
 /** A trace artifact matching the spec's `forbid_calls: [write]` gate. */
 function writeTrace() {
-  writeFileSync(
-    join(runDir, "A1.green.trace.jsonl"),
-    `${JSON.stringify({
-      trace_version: EXECUTION_TRACE_VERSION, pi_version: "0.83.0", subject: { provider: "fireworks", model: "x" },
-      scenario_id: "A1", mode: "green", rep: 0, turn: 0,
-      final_text: "done", tool_calls: [], changed_paths: [], cost_usd: 0,
-      trace_sha256: "b".repeat(64),
-    })}\n`,
-    "utf8",
-  );
+  const trace = {
+    trace_version: EXECUTION_TRACE_VERSION, pi_version: "0.83.0", subject: { provider: "fireworks", model: "x" },
+    scenario_id: "A1", mode: "green" as const, rep: 0, turn: 0,
+    final_text: "done", tool_calls: [], changed_paths: [], cost_usd: 0,
+  };
+  const hash = traceSha256(trace);
+  writeFileSync(join(runDir, "A1.green.trace.jsonl"), `${JSON.stringify({ ...trace, trace_sha256: hash })}\n`, "utf8");
+  const recorded = readResults(runDir);
+  recorded.scenarios[0].objective = { ...recorded.scenarios[0].objective!, trace_sha256: hash };
+  writeResults(runDir, recorded, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: [] });
+  return hash;
 }
 
 beforeEach(() => {
@@ -143,13 +145,11 @@ describe("regate (regateRun)", () => {
   });
 
   it("recomputes `objective` rather than carrying it — that IS the job", async () => {
-    writeTrace();
+    const hash = writeTrace();
     await regateRun({ runDir, spec: loadSpec(specPath), adapter: judge, judge: { provider: "claude-code", model: "j1" }, specDir: join(skillDir, "tests") });
     const o = cell().objective!;
     expect(o.status).toBe("PASS");
-    // Freshly evaluated against the saved trace, so the hash is the trace's, not
-    // the stale one recorded before.
-    expect(o.trace_sha256).toBe("b".repeat(64));
+    expect(o.trace_sha256).toBe(hash);
   });
 
   it("preserves the author's override and note", async () => {
@@ -245,6 +245,26 @@ describe("rebuildScenarioResult", () => {
     const r = rebuildScenarioResult({ ...fresh(), judge_verdict: "FAIL" }, settled, { objective: "carry", adjudication: "carry" });
     expect(r.judge_verdict).toBe("PASS");
     expect(r.suspect).toBe(false);
+  });
+
+  it("downgrades a carried settled panel when fresh objective or all-repetition evidence conflicts", () => {
+    const settled = { ...prior(), adjudication: { ...ADJUDICATION, state: "tie_broken" as const, verdict: "PASS" as const } };
+    const objectiveConflict = rebuildScenarioResult(
+      { ...fresh(), objective: { status: "FAIL", assertions: [{ kind: "gate", status: "FAIL", detail: "no" }] } },
+      settled,
+      { objective: "fresh", adjudication: "carry" },
+    );
+    expect(objectiveConflict.judge_verdict).toBe("FAIL");
+    expect(objectiveConflict.adjudication).toMatchObject({ state: "unresolved" });
+    expect(objectiveConflict.suspect).toBe(true);
+
+    const repConflict = rebuildScenarioResult(
+      { ...fresh(), objective: undefined, reps: 3, passes: 2, clean: 3, pass_threshold: 1, judge_verdict: "FAIL" },
+      settled,
+      { objective: "drop", adjudication: "carry" },
+    );
+    expect(repConflict.judge_verdict).toBe("FAIL");
+    expect(repConflict.adjudication).toMatchObject({ state: "unresolved" });
   });
 
   it.each([

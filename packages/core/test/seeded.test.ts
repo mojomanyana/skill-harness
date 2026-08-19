@@ -270,6 +270,7 @@ describe("assert.post_test", () => {
     // the message has to point at the spec, not at the model.
     expect(r.gateFailure).toMatch(/post_test is not a readable file/);
     expect(r.gateFailure).toMatch(/spec error, not model behavior/);
+    expect(r.gateError).toMatch(/spec error, not model behavior/);
   });
 
   it("a post_test that is a DIRECTORY degrades the scenario, never the whole run", async () => {
@@ -357,6 +358,7 @@ describe("assert.post_test", () => {
       runVitest: fakeVitest({ code: 1, stdout: summary({ failed: 1 }) }),
     });
     expect(r.gateFailure).toMatch(/post_test "hidden\.test\.ts" failed \(exit 1\)/);
+    expect(r.gateError).toBeNull();
     expect(r.transcript).toContain('post_test "hidden.test.ts": FAIL');
   });
 
@@ -372,6 +374,7 @@ describe("assert.post_test", () => {
     });
     expect(r.gateFailure).toMatch(/never collected by vitest/);
     expect(r.gateFailure).toMatch(/spec\/fixture error, not model behavior/);
+    expect(r.gateError).toMatch(/never collected/);
   });
 
   it("REFUSES to pass when every hidden test is skipped — exit 0 is not evidence", async () => {

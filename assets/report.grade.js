@@ -24,7 +24,12 @@
 // a plain <script> in the browser (for the review UI).
 
 export function effective(cell) {
-  return cell.override || cell.judge_verdict;
+  if (cell.override) return cell.override;
+  // Mechanical evidence outranks a prose judge. Objective PASS deliberately
+  // forces nothing — the checklist judge still decides the behavioral rubric.
+  if (cell.objective && cell.objective.status === "ERROR") return "ERROR";
+  if (cell.objective && cell.objective.status === "FAIL") return "FAIL";
+  return cell.judge_verdict;
 }
 
 function letterFor(pct) {
@@ -47,6 +52,7 @@ export function gradeColumn(col, shipBar, critical) {
   let criticalFails = 0;
   let bFails = 0;
   let suspect = 0;
+  let errors = 0;
 
   for (const id of Object.keys(col.cells)) {
     const cell = col.cells[id];
@@ -55,8 +61,13 @@ export function gradeColumn(col, shipBar, critical) {
       suspect++;
       continue; // excluded, blocks ship
     }
+    const verdict = effective(cell);
+    if (verdict === "ERROR" || verdict === "JUDGE-AMBIGUOUS") {
+      errors++;
+      continue;
+    }
     total++;
-    if (effective(cell) === "PASS") {
+    if (verdict === "PASS") {
       passed++;
       continue;
     }
@@ -64,16 +75,23 @@ export function gradeColumn(col, shipBar, critical) {
     if (/^B/i.test(id)) bFails++;
   }
 
+  if (col.partial === true) {
+    return { passed: 0, total: 0, pct: 0, letter: "-", ship: false, criticalFails, bFails, suspect, errors };
+  }
+
   const pct = total > 0 ? Math.round((passed * 100) / total) : 0;
   const letter = letterFor(pct);
+  const validBar = Number.isInteger(shipBar.total) && shipBar.total >= 1 && Number.isInteger(shipBar.min_pass) && shipBar.min_pass >= 1 && shipBar.min_pass <= shipBar.total;
   const ship =
+    validBar &&
     total >= shipBar.total &&
     passed >= shipBar.min_pass &&
     (!shipBar.no_critical_fail || criticalFails === 0) &&
     bFails === 0 &&
-    suspect === 0;
+    suspect === 0 &&
+    errors === 0;
 
-  return { passed, total, pct, letter, ship, criticalFails, bFails, suspect };
+  return { passed, total, pct, letter, ship, criticalFails, bFails, suspect, errors };
 }
 
 /**

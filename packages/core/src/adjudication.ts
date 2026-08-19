@@ -4,7 +4,7 @@ import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
 import type { ScenarioResult, AdjudicationResult, Judgment, ResultsFile } from "./results.js";
 import {
   judgeRawPath, writeResults, scoreContextFor, findTranscriptFiles, repIndexOf,
-  rebuildScenarioResult,
+  rebuildScenarioResult, mergeScenarioMetrics, effectiveThreshold,
 } from "./results.js";
 import type { Scenario, ShipBar, Spec } from "./spec.js";
 import type { Verdict } from "./score.js";
@@ -231,6 +231,15 @@ export function collapseJudgments(judgments: Judgment[], trigger: TriggerKind): 
  * resolving this needs to see what each judge actually said, not just the
  * collapsed answer.
  */
+export function boundAdjudicationToRepetitions(result: ScenarioResult, scenario: Scenario, adj: AdjudicationResult): AdjudicationResult {
+  const criticalAggregate = (result.reps ?? 1) > 1 && effectiveThreshold(result, scenario) === 1;
+  // A cell-level re-judge reads one transcript. It can confirm the aggregate,
+  // but cannot erase another clean repetition's failure.
+  return criticalAggregate && result.judge_verdict !== "PASS" && adj.verdict === "PASS"
+    ? { ...adj, state: "unresolved", verdict: undefined }
+    : adj;
+}
+
 export function projectAdjudication(result: ScenarioResult, adj: AdjudicationResult): ScenarioResult {
   if (adj.state === "unresolved") {
     return {
@@ -395,9 +404,22 @@ export async function adjudicateRun(opts: AdjudicateRunOptions): Promise<Results
     // Adjudication asks judges again and re-measures nothing else, so the run's
     // objective evidence carries. Overrides survive too — a judge panel does not
     // outvote the author.
-    return adj
-      ? rebuildScenarioResult(projectAdjudication(s, adj), s, { objective: "carry", adjudication: "fresh" })
-      : s;
+    if (!adj) return s;
+    const scenario = byIdScenario.get(s.id);
+    const boundedAdj = scenario ? boundAdjudicationToRepetitions(s, scenario, adj) : adj;
+    const projected = projectAdjudication(s, boundedAdj);
+    if (boundedAdj !== adj) {
+      projected.judge_reason = `${adj.judgments.length} judgments on one transcript cannot replace a critical all-repetitions aggregate`;
+    }
+    const extraCalls = adj.judgments.filter((judgment) => judgment.ordinal > 1).length;
+    projected.metrics = mergeScenarioMetrics(s.metrics, {
+      wall_time_ms: 0,
+      judge_calls: extraCalls,
+      judge_rejudge_calls: extraCalls,
+      subject_metrics_reps: 0,
+      total_reps: s.metrics?.total_reps ?? s.reps ?? 1,
+    });
+    return rebuildScenarioResult(projected, s, { objective: "carry", adjudication: "fresh" });
   });
 
   appendJournal(opts.runDir, {

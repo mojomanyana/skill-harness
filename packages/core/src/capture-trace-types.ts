@@ -49,8 +49,12 @@ export interface TraceToolCall {
   args: SanitizedArgs;
   /** 0-based position in ISSUE order (the order pi emitted `tool_execution_start`). */
   issueIndex: number;
+  /** Wall-clock issue time correlated from pi's assistant tool-call message, when available. */
+  started_at?: string;
   /** 0-based position in COMPLETION order. Differs from `issueIndex` under parallelism. */
   completionIndex: number;
+  /** Wall-clock completion time correlated from pi's tool-result message, when available. */
+  completed_at?: string;
   /** pi's `isError` on the `tool_execution_end` event. */
   isError: boolean;
   /**
@@ -89,6 +93,18 @@ export interface TraceResultMeta {
  * conversation carries in the session dir, not in the event stream). This
  * mirrors the loop the adapter already runs.
  */
+export interface TraceMetrics {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  cost_usd: number;
+  tool_calls: number;
+  delegated_children: number;
+  /** Maximum simultaneously outstanding tool calls observed in the pi stream. */
+  max_concurrency: number;
+}
+
 export interface ExecutionTraceV1 {
   trace_version: typeof EXECUTION_TRACE_VERSION;
   /** `pi --version` at capture time. Null when it could not be determined. */
@@ -141,6 +157,12 @@ export interface ExecutionTraceV1 {
    * disclosure, never for grading.
    */
   cost_usd: number | null;
+
+  /** Capture defects that make absence-based assertions unsafe (for example malformed native JSONL). */
+  capture_errors?: string[];
+
+  /** Token/tool/concurrency counters reported or directly observed by the adapter. */
+  metrics?: TraceMetrics;
 
   /** SHA-256 over the deterministic serialization of this trace, minus this field. */
   trace_sha256?: string;

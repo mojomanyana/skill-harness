@@ -78,6 +78,12 @@ export function lintSkill(skillDir: string): LintFinding[] {
   }
 
   // ship_bar sanity
+  if (!Number.isInteger(spec.ship_bar.total)) {
+    findings.push({ skill, code: "ship_bar", message: "ship_bar.total must be an integer" });
+  }
+  if (!Number.isInteger(spec.ship_bar.min_pass)) {
+    findings.push({ skill, code: "ship_bar", message: "ship_bar.min_pass must be an integer" });
+  }
   if (spec.ship_bar.total < 1) {
     findings.push({ skill, code: "ship_bar", message: "ship_bar.total must be >= 1" });
   }

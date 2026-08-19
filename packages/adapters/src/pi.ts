@@ -3,7 +3,8 @@ import { tmpdir, homedir } from "node:os";
 import { join, resolve } from "node:path";
 import type { HarnessAdapter, RunReq, JudgeReq, RunMode, StructuredRun, ExecutionTraceV1 } from "@skill-harness/core";
 import { runPiJson } from "./pi-json.js";
-import { exec, onPath, envNum } from "@skill-harness/core";
+import { collectTrajectorySources, normalizePiTraces, resequence } from "./trajectory.js";
+import { exec, onPath, envNum, traceSha256 } from "@skill-harness/core";
 
 const PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 300_000);
 
@@ -225,13 +226,39 @@ export const piAdapter: HarnessAdapter = {
         );
       }
 
+      if (r.malformedLines > 0) {
+        r.trace.capture_errors = [`pi JSONL contained ${r.malformedLines} malformed line(s); absence-based trace assertions are unsafe`];
+        r.trace.trace_sha256 = traceSha256(r.trace);
+      }
       traces.push(r.trace);
       parts.push(header(i + 1, total, req.turns[i]));
       parts.push(`<<< ASSISTANT:\n${r.trace.final_text.trim()}\n`);
       if (r.code !== 0) parts.push(`[pi exited ${r.code} on turn ${i + 1}]\n${r.stderr.trim()}\n`);
     }
 
-    return { transcript: parts.join("\n"), traces };
+    const native = req.eventSources?.length
+      ? collectTrajectorySources(req.cwd, req.eventSources)
+      : { events: [], errors: [] };
+    const piEvents = normalizePiTraces(traces);
+    const combined = [...piEvents, ...native.events];
+    const chronologyErrors: string[] = [];
+    if (piEvents.length && native.events.length) {
+      if (combined.some((event) => !event.at || !Number.isFinite(Date.parse(event.at)))) {
+        chronologyErrors.push("pi/native events cannot be globally ordered because at least one event has no valid `at` timestamp");
+      } else {
+        const piTimes = new Set(piEvents.map((event) => Date.parse(event.at!)));
+        if (native.events.some((event) => piTimes.has(Date.parse(event.at!)))) {
+          chronologyErrors.push("pi/native events contain equal timestamps, so strict cross-source order is ambiguous");
+        }
+      }
+    }
+    const eventErrors = [...native.errors, ...chronologyErrors];
+    return {
+      transcript: parts.join("\n"),
+      traces,
+      events: resequence(combined),
+      ...(eventErrors.length ? { eventErrors } : {}),
+    };
   },
 
   /**

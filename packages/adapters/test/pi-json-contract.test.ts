@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { SKIPPED_TYPE_RE } from "../src/pi-json.js";
 
 /**
  * Characterization tests for pi's `--mode json` event stream.
@@ -222,8 +223,6 @@ describe("the stdout prefilter's assumption about pi's event shape", () => {
   // HEAD of the object. That is a bet on pi's key order, and it is the bet that
   // keeps 52 MB of `message_update` out of memory — so it gets pinned here rather
   // than discovered during a wave.
-  const SKIPPED_TYPE_RE = /^\s*\{\s*"type"\s*:\s*"(?:message_update|tool_execution_update)"/;
-
   it("every event in every real-pi fixture puts `type` first", () => {
     const dir = join(__dirname, "fixtures", "pi-json");
     const files = readdirSync(dir).filter((f) => f.endsWith(".jsonl"));

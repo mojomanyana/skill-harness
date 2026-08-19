@@ -75,7 +75,7 @@ node bin/skill-harness.js run golden-skill --skills packages/core/test/fixtures 
 - `--mode green` (default; the harness activates the skill) · `force` (SKILL.md as the system prompt) · `red` (baseline, skill off). **Green and force are both scored**; red is the control and never gets a grade. See §4e for which one to publish.
 - `--canary` (green only) spends one extra call proving the skill reached the model, and aborts the run if it didn't.
 - After the run, the scorecard flags any scenario that flipped its verdict since the last comparable run (§4f) — one run of such a cell is one draw, whatever its flakiness said.
-- `--reps N` runs each scenario N times (flakiness); `--pass-threshold T` sets the pass-rate bar.
+- `--reps N` runs each scenario N times (flakiness); `--pass-threshold T` sets the ordinary pass-rate bar. Critical scenarios always require every clean repetition to pass. Judge/API/tooling ERROR remains ERROR and cannot be voted into a behavioral pass or failure.
 - **Judge ≠ subject** — never put the judge model in the set under test; heed any judge≈subject warning.
 
 The scorecard shows each scenario's verdict, the letter grade + %, and **SHIP / NOT READY**. A critical-id fail or any under-pressure (`B*`) fail blocks SHIP even if the pass count clears the bar.
@@ -411,7 +411,62 @@ arguments. It says nothing about what that tool then did to the machine — a `b
 command string is not a filesystem audit. For a real path policy, forbid `bash` or
 assert on `unchanged_paths`.
 
-## 7c. Coverage + affected — which instructions have no test (free, offline)
+## 7c. Workflow trajectories — state, authority, and fresh evidence
+
+`assert.trajectory` is the multi-phase counterpart to `assert.trace`. The pi adapter normalizes pi
+tool events, principal assurance v1 events, and current pi-daddy grant/governance ledgers into one
+versioned event model. Assertions can require/forbid events, order transitions, correlate
+run/task/workspace/context IDs and distinct head/tree identities, enforce freshness after the last
+change/authority/Build completion, prove lease and approval lifecycle, reject superseded-task
+mutation, and verify finalization.
+
+```yaml
+env:
+  workspace: empty-git
+  event_sources:
+    - adapter: principal-assurance-v1
+      path: .git/principal-pi-skills/assurance-v1/runs/*/events.jsonl
+assert:
+  trajectory:
+    version: "1.0"
+    ordered:
+      - [{ event: phase_started, where: { phase: build } }, { event: code_changed }, { event: phase_completed, where: { phase: build } }, { event: evidence_recorded }]
+    correlate:
+      - left: { event: code_changed, select: last }
+        right: { event: evidence_recorded, select: last }
+        same: [run_id, task_id, workspace_id, digests.head, digests.tree]
+```
+
+A missing field needed for governance is `ERROR`, never success. Gates run before the judge and are
+replayable with `regate` from `.events.jsonl`. Run the free evaluator proof any time:
+
+```bash
+node bin/skill-harness.js mutation-test
+```
+
+It detects 15 mutations including stale-authority/Build evidence, equal-HEAD/different-tree,
+superseded-task mutation, context reuse, approval expiry, writer conflict, and invalid finalization.
+Full schema and adapter details: [`ASSURANCE-WORKFLOWS.md`](ASSURANCE-WORKFLOWS.md).
+
+## 7d. Paired reference-versus-candidate comparison
+
+```bash
+node bin/skill-harness.js compare build \
+  --reference main --candidate ../principal-pi-skills \
+  --model fireworks:accounts/fireworks/models/deepseek-v4-pro \
+  --reps 3 --mode force
+```
+
+This **spends subject and judge calls**; confirm the skill, model(s), and judge first. Both sides use
+the same scenario/spec/fixture/model/mode/judge/repetition plan and remain independently inspectable
+under `.skill-harness/comparisons/`. Reports include exact digests, per-scenario lift/regression and
+flakiness, token/tool/judge/wall metrics where available, and explicit cost thresholds separate from
+behavior. This is paired setup, not provider-seeded deterministic sampling.
+
+Exit 2 means a critical regression; exit 1 an ordinary ship-bar/behavioral regression or unresolved
+infrastructure error. `--only` and `--affected` are branch feedback and can never report SHIP.
+
+## 7e. Coverage + affected — which instructions have no test (free, offline)
 
 Opt a scenario in with `covers`:
 
@@ -470,7 +525,7 @@ to iterate; a full run still gates a release.
 **`covers` costs nothing to change** — it's in no staleness facet. Editing it
 changes what `--affected` selects next time, not what any past run measured.
 
-## 7d. Confidence-aware rejudging — when one judge isn't enough
+## 7f. Confidence-aware rejudging — when one judge isn't enough
 
 Re-judging saved transcripts holds the model constant, so movement is the judge. Ours
 disagreed with itself in **1 of 57 judgments (~2%)** — and the one that mattered was a

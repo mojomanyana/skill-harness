@@ -7,6 +7,44 @@ import { HARNESS_VERSION } from "./version.js";
 import type { Verdict } from "./score.js";
 import type { ShipBar, Scenario } from "./spec.js";
 
+export interface ScenarioMetrics {
+  wall_time_ms: number;
+  judge_calls: number;
+  judge_rejudge_calls: number;
+  subject_metrics_reps: number;
+  total_reps: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_read_tokens?: number;
+  cache_write_tokens?: number;
+  subject_cost_usd?: number;
+  tool_calls?: number;
+  delegated_children?: number;
+  max_concurrency?: number;
+}
+
+/** Merge bookkeeping from a later judge/gate pass without duplicating subject usage. */
+export function mergeScenarioMetrics(prior: ScenarioMetrics | undefined, fresh: ScenarioMetrics | undefined): ScenarioMetrics | undefined {
+  if (!prior) return fresh;
+  if (!fresh) return prior;
+  const subject = prior.subject_metrics_reps > 0 ? prior : fresh;
+  return {
+    wall_time_ms: prior.wall_time_ms + fresh.wall_time_ms,
+    judge_calls: prior.judge_calls + fresh.judge_calls,
+    judge_rejudge_calls: prior.judge_rejudge_calls + fresh.judge_rejudge_calls,
+    subject_metrics_reps: subject.subject_metrics_reps,
+    total_reps: prior.total_reps,
+    ...(subject.input_tokens === undefined ? {} : { input_tokens: subject.input_tokens }),
+    ...(subject.output_tokens === undefined ? {} : { output_tokens: subject.output_tokens }),
+    ...(subject.cache_read_tokens === undefined ? {} : { cache_read_tokens: subject.cache_read_tokens }),
+    ...(subject.cache_write_tokens === undefined ? {} : { cache_write_tokens: subject.cache_write_tokens }),
+    ...(subject.subject_cost_usd === undefined ? {} : { subject_cost_usd: subject.subject_cost_usd }),
+    ...(subject.tool_calls === undefined ? {} : { tool_calls: subject.tool_calls }),
+    ...(subject.delegated_children === undefined ? {} : { delegated_children: subject.delegated_children }),
+    ...(subject.max_concurrency === undefined ? {} : { max_concurrency: subject.max_concurrency }),
+  };
+}
+
 export interface ScenarioResult {
   id: string;
   judge_verdict: Verdict;
@@ -19,6 +57,8 @@ export interface ScenarioResult {
   clean?: number; // number of clean (non-misfired) reps — the real denominator for `passes` (reps runs only)
   flakiness?: number; // 0 = unanimous, 1 = even split (reps runs only)
   pass_threshold?: number; // effective threshold used (reps runs only) — lets re-judge reproduce the aggregate
+  /** Cost/latency counters. Separate from verdicts: cheaper failure is still failure. */
+  metrics?: ScenarioMetrics;
   /**
    * Objective trace-gate evidence. ADDITIVE and optional.
    *
@@ -64,6 +104,11 @@ export interface ObjectiveResult {
   status: "PASS" | "FAIL" | "ERROR";
   trace_version?: number;
   trace_sha256?: string;
+  trajectory_version?: string;
+  events_sha256?: string;
+  /** Per-repetition hashes retained when an aggregate has more than one rep. */
+  rep_events_sha256?: string[];
+  rep_trace_sha256?: string[];
   assertions: { kind: string; status: "PASS" | "FAIL" | "ERROR"; detail: string }[];
 }
 
@@ -203,6 +248,10 @@ export function scoreContextFor(
 
 /** The pass-threshold a re-grade uses: the run's persisted value, else the spec's per-scenario value, else 0.5. */
 export function effectiveThreshold(prevScenario: ScenarioResult | undefined, scenario: Scenario): number {
+  // Critical includes destructive/security/capability/data-loss AND right-sizing
+  // counterexamples. Every clean repetition must pass; an aggregate majority may
+  // not hide one release-blocking failure.
+  if (scenario.critical) return 1;
   return prevScenario?.pass_threshold ?? scenario.passThreshold ?? 0.5;
 }
 
@@ -430,7 +479,7 @@ export function ensureResultsGitignore(resultsRoot: string): void {
 // so `repIndexOf` returned null for traces and `regate` looked for an unsuffixed
 // path that does not exist on a multi-rep run — reporting "trace missing" for
 // traces sitting on disk.
-const REP_SUFFIX_RE = /\.rep(\d+)\.(?:judge\.|diff\.)?(?:txt|trace\.jsonl)$/;
+const REP_SUFFIX_RE = /\.rep(\d+)\.(?:(?:judge|diff)\.txt|(?:trace|events)\.jsonl|txt)$/;
 
 /** The rep index embedded in a transcript / judge-raw / staged-diff filename (`.rep<k>.`), or null for a plain (non-rep) file. */
 export function repIndexOf(filename: string): number | null {
@@ -562,6 +611,7 @@ export function rebuildScenarioResult(
     id, judge_verdict, judge_reason, suspect,
     override: _freshOverride, note: _freshNote,
     reps, passes, clean, flakiness, pass_threshold,
+    metrics: freshMetrics,
     objective: freshObjective,
     adjudication: freshAdjudication,
     ...rest
@@ -577,7 +627,18 @@ export function rebuildScenarioResult(
   };
 
   const objective = pick(policy.objective, freshObjective, prior?.objective);
-  const adjudication = pick(policy.adjudication, freshAdjudication, prior?.adjudication);
+  const pickedAdjudication = pick(policy.adjudication, freshAdjudication, prior?.adjudication);
+  const conflictsWithFreshEvidence = Boolean(
+    pickedAdjudication?.verdict && (
+      objective?.status === "FAIL" || objective?.status === "ERROR" ||
+      (pass_threshold === 1 && (reps ?? 1) > 1 && judge_verdict !== "PASS")
+    ),
+  );
+  // A settled cell-level panel cannot overrule newly evaluated objective gates,
+  // nor can one transcript erase a failed repetition under an all-clean policy.
+  const adjudication = conflictsWithFreshEvidence && pickedAdjudication
+    ? { ...pickedAdjudication, state: "unresolved" as const, verdict: undefined }
+    : pickedAdjudication;
 
   // `unresolved` is carried by the `suspect` flag and by nothing else — the
   // adjudication block records WHY, but `suspect` is what the ship bar reads.
@@ -594,7 +655,7 @@ export function rebuildScenarioResult(
   // `<id>.judge.txt` would revert a `confirmed`/`tie_broken` verdict that two or
   // three judges settled — leaving `adjudication.verdict` on the record
   // contradicting the `judge_verdict` beside it.
-  const settled = policy.adjudication === "carry" ? adjudication?.verdict : undefined;
+  const settled = policy.adjudication === "carry" && !conflictsWithFreshEvidence ? adjudication?.verdict : undefined;
 
   // Field ORDER matches `outcomesToResult`, the writer that produces a run's
   // results.yaml in the first place. It is not cosmetic: `results.yaml` is a
@@ -613,6 +674,7 @@ export function rebuildScenarioResult(
     ...(clean === undefined ? {} : { clean }),
     ...(flakiness === undefined ? {} : { flakiness }),
     ...(pass_threshold === undefined ? {} : { pass_threshold }),
+    ...((freshMetrics ?? prior?.metrics) ? { metrics: freshMetrics ?? prior!.metrics } : {}),
     // The author owns the verdict; a re-measurement never discards their call.
     override: prior?.override ?? null,
     note: prior?.note ?? "",
@@ -634,6 +696,22 @@ export function rebuildScenarioResult(
 export function tracePath(runDir: string, scenarioId: string, mode: string, rep?: number): string {
   const base = rep === undefined ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
   return join(runDir, `${base}.trace.jsonl`);
+}
+
+/** Saved adapter-neutral workflow events for one scenario rep. */
+export function trajectoryPath(runDir: string, scenarioId: string, mode: string, rep?: number): string {
+  const base = rep === undefined ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
+  return join(runDir, `${base}.events.jsonl`);
+}
+
+/** A scenario's normalized-event files, sorted (plain first, then numeric rep). */
+export function findTrajectoryFiles(runDir: string, scenarioId: string, mode?: string): string[] {
+  if (!existsSync(runDir)) return [];
+  const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = mode === undefined
+    ? new RegExp(`^${esc}\\..*\\.events\\.jsonl$`)
+    : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.events\\.jsonl$`);
+  return sortByRep(readdirSync(runDir).filter((f) => re.test(f)));
 }
 
 /** A scenario's staged-diff files, sorted (plain first, then numeric rep). Mode-scoped when given. */
@@ -685,6 +763,7 @@ export function preserveTranscript(resultsRoot: string, runDir: string, scenario
     // override whose justification was gitignored, and left `regate` with nothing
     // to re-evaluate on the one cell a human had disputed.
     ...findTraceFiles(runDir, scenarioId),
+    ...findTrajectoryFiles(runDir, scenarioId),
   ];
   if (files.length === 0) return;
   ensureResultsGitignore(resultsRoot);

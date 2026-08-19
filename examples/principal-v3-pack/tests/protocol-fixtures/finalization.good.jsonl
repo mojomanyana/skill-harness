@@ -1,0 +1,5 @@
+{"event_version":"1.0","seq":1,"type":"finish_selected","source":"principal","run_id":"run-1","attributes":{"choice":"keep"}}
+{"event_version":"1.0","seq":2,"type":"phase_started","source":"principal","run_id":"run-1","phase":"git-ops"}
+{"event_version":"1.0","seq":3,"type":"gate_evaluated","source":"principal","run_id":"run-1","digests":{"head":"1111111111111111111111111111111111111111","tree":"2222222222222222222222222222222222222222"},"attributes":{"gate":"finalize","result":"pass"}}
+{"event_version":"1.0","seq":4,"type":"finalization_completed","source":"principal","run_id":"run-1","digests":{"head":"1111111111111111111111111111111111111111","tree":"2222222222222222222222222222222222222222"},"attributes":{"choice":"keep","final_branch":"feature"}}
+{"event_version":"1.0","seq":5,"type":"gate_evaluated","source":"principal","run_id":"run-1","digests":{"head":"1111111111111111111111111111111111111111","tree":"2222222222222222222222222222222222222222"},"attributes":{"gate":"finish","result":"pass"}}

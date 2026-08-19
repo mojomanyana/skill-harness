@@ -9,10 +9,12 @@ import {
   transcriptPath,
   diffPath,
   tracePath,
+  trajectoryPath,
   type ObjectiveResult,
   writeResults,
   ensureResultsGitignore,
   scoreContextFor,
+  effectiveThreshold,
   isScoredMode,
   type ResultsFile,
   type ScenarioResult,
@@ -22,6 +24,10 @@ import { liftHeadline, type Lift } from "./lift.js";
 import { runSeeded } from "./seeded.js";
 import { serializeTrace, mergeTraces, traceSha256 } from "./execution-trace.js";
 import { evaluateTraceGates } from "./trace-gates.js";
+import {
+  evaluateTrajectoryGates, serializeTrajectoryEvents,
+  type TrajectoryEventV1,
+} from "./trajectory-gates.js";
 import type { ExecutionTraceV1 } from "./capture-trace-types.js";
 import { snapshotPaths, diffSnapshots, createWorkspace, type Workspace, type PathSnapshot } from "./workspace.js";
 import { runPool } from "./scheduler.js";
@@ -29,6 +35,7 @@ import { outcomesToResult, type RepOutcome } from "./reps.js";
 import { judgeOneRep } from "./regrade.js";
 import { runDeliveryCanary, canaryFailure, type CanaryResult } from "./canary.js";
 import { boundaryCells, stabilityNote, type ScenarioStability } from "./stability.js";
+import { aggregateMetrics } from "./comparison.js";
 
 export interface RunOptions {
   spec: Spec;
@@ -170,7 +177,9 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   flat.forEach((outcome, i) => grouped[owners[i]].push(outcome));
 
   const scenarioResults: ScenarioResult[] = scenarios.map((scenario, si) => {
-    const threshold = scenario.passThreshold ?? opts.passThreshold ?? 0.5;
+    const threshold = scenario.critical
+      ? effectiveThreshold(undefined, scenario)
+      : scenario.passThreshold ?? opts.passThreshold ?? 0.5;
     return outcomesToResult(scenario.id, grouped[si], repCounts[si], threshold);
   });
 
@@ -223,6 +232,7 @@ export function hasEmptyAssistantTurn(transcript: string): boolean {
 
 /** Run ONE rep of a scenario in its own isolated workspace. */
 async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: RunOptions & ScenarioCtx): Promise<RepOutcome> {
+  const startedAt = performance.now();
   const { spec, judge, mode, runDir, now, log } = ctx;
   const repField = repCount > 1 ? { rep } : {};
   if (rep === 0) {
@@ -233,6 +243,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
   let ws: Workspace | null = null;
   let transcript = "";
   let gatePrefix: string | null = null;
+  let infrastructureFailure: string | null = null;
   // Null until a seeded rep actually reaches its gates: a workspace-setup failure
   // produces no diff, and writing an empty artifact there would misreport "the
   // model changed nothing" for a rep that never ran.
@@ -241,12 +252,16 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
     try {
       ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath), remote: scenario.remote });
     } catch (e) {
-      // A setup failure (e.g. missing fixture) is an objective FAIL, not an infra abort.
+      // A setup failure means the scenario never executed. It blocks release as
+      // infrastructure ERROR; it is not evidence of subject behavior.
       gatePrefix = e instanceof Error ? e.message : String(e);
+      infrastructureFailure = gatePrefix;
       transcript = `[workspace setup failed] ${gatePrefix}`;
     }
     let noResponse = false;
     let traces: ExecutionTraceV1[] = [];
+    let events: TrajectoryEventV1[] = [];
+    let eventErrors: string[] = [];
     let unobservablePaths = false;
     // The pre-run state, captured AFTER `createWorkspace` has applied the
     // fixture's `_staged/` and `_uncommitted/` trees. Those land after the
@@ -272,12 +287,15 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
           const r = await runSeeded(scenario, {
             skillDir: ctx.skillDir, adapter: ctx.adapter, model: ctx.model, mode, cwd: ws.cwd,
             specDir: dirname(ctx.specPath), // assert.post_test resolves like a fixture
-            trace: scenario.traceAssert ? { scenarioId: scenario.id, rep } : undefined,
+            trace: scenario.traceAssert || scenario.trajectoryAssert ? { scenarioId: scenario.id, rep } : undefined,
           });
           transcript = r.transcript;
           gatePrefix = r.gateFailure;
+          infrastructureFailure = r.gateError;
           stagedDiff = r.diff; // a retry replaces the aborted attempt's diff, as it should
           traces = r.traces;
+          events = r.events;
+          eventErrors = r.eventErrors;
         } else {
           const req = {
             skillDir: ctx.skillDir, model: ctx.model, mode, turns: scenario.turns, cwd: ws.cwd,
@@ -287,20 +305,23 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
               : undefined,
             // Absolute before it reaches a child process running in a neutral cwd.
             extensions: scenario.extensions?.map((e) => resolve(dirname(ctx.specPath), e)),
+            eventSources: scenario.eventSources,
           };
-          if (scenario.traceAssert) {
+          if (scenario.traceAssert || scenario.trajectoryAssert) {
             // Missing required evidence is ERROR, never a silent fallback to the
             // unstructured path: a gate with nothing to read must not look like a
             // gate that passed.
             if (!ctx.adapter.runStructured) {
               throw new Error(
-                `scenario \`${scenario.id}\` declares \`assert.trace\`, but the \`${ctx.adapter.name}\` adapter` +
-                  ` cannot produce execution traces — the gate would have no evidence to read.`,
+                `scenario \`${scenario.id}\` declares structured objective assertions, but the \`${ctx.adapter.name}\` adapter` +
+                  ` cannot produce execution traces/events — the gate would have no evidence to read.`,
               );
             }
             const structured = await ctx.adapter.runStructured({ ...req, scenarioId: scenario.id, rep });
             transcript = structured.transcript;
             traces = structured.traces;
+            events = structured.events ?? [];
+            eventErrors = structured.eventErrors ?? [];
           } else {
             transcript = await ctx.adapter.run(req);
           }
@@ -351,36 +372,61 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
     // Objective evidence is persisted for every rep, pass or fail — a failing gate
     // is exactly when someone wants to read what the model actually did.
     let objective: ObjectiveResult | undefined;
-    if (scenario.traceAssert) {
-      if (traces.length > 0) {
-        writeFileSync(
-          tracePath(runDir, scenario.id, mode, repSuffix),
-          traces.map(serializeTrace).join(""),
-          "utf8",
-        );
-      }
-      const merged = mergeTraces(traces);
-      if (unobservablePaths) {
-        gatePrefix = "objective: workspace changes could not be observed — `unchanged_paths` has no evidence to check";
-        objective = { status: "ERROR", assertions: [] };
-      } else if (merged === null) {
-        // Declared a gate, produced no trace: that is broken infrastructure, and
-        // grading it either way would be inventing a result.
-        gatePrefix = "objective: no execution trace was produced — cannot evaluate assert.trace";
-        objective = { status: "ERROR", assertions: [] };
-      } else {
-        const gate = evaluateTraceGates(scenario.traceAssert, merged);
-        objective = {
-          status: gate.status,
-          trace_version: merged.trace_version,
-          trace_sha256: merged.trace_sha256,
-          assertions: gate.assertions,
-        };
-        if (gate.status === "FAIL") {
-          // Set the same gatePrefix the seeded gates use, so a trace failure
-          // short-circuits the judge through the path that already exists.
-          gatePrefix = `objective: ${gate.assertions.filter((x) => x.status === "FAIL").map((x) => x.detail).join("; ")}`;
+    if (scenario.traceAssert || scenario.trajectoryAssert) {
+      const assertionResults: ObjectiveResult["assertions"] = [];
+      let status: ObjectiveResult["status"] = "PASS";
+      let traceMeta: Pick<ObjectiveResult, "trace_version" | "trace_sha256"> = {};
+      let trajectoryMeta: Pick<ObjectiveResult, "trajectory_version" | "events_sha256"> = {};
+
+      if (scenario.traceAssert) {
+        if (traces.length > 0) {
+          writeFileSync(
+            tracePath(runDir, scenario.id, mode, repSuffix),
+            traces.map(serializeTrace).join(""),
+            "utf8",
+          );
         }
+        const merged = mergeTraces(traces);
+        if (unobservablePaths) {
+          status = "ERROR";
+          assertionResults.push({ kind: "unchanged_path", status: "ERROR", detail: "workspace changes could not be observed" });
+        } else if (merged === null) {
+          status = "ERROR";
+          assertionResults.push({ kind: "trace_evidence", status: "ERROR", detail: "no execution trace was produced" });
+        } else {
+          const gate = evaluateTraceGates(scenario.traceAssert, merged);
+          status = gate.status;
+          assertionResults.push(...gate.assertions);
+          traceMeta = { trace_version: merged.trace_version, trace_sha256: merged.trace_sha256 };
+        }
+      }
+
+      if (scenario.trajectoryAssert) {
+        if (events.length > 0) {
+          writeFileSync(
+            trajectoryPath(runDir, scenario.id, mode, repSuffix),
+            serializeTrajectoryEvents(events),
+            "utf8",
+          );
+        }
+        if (eventErrors.length > 0) {
+          status = "ERROR";
+          assertionResults.push(...eventErrors.map((detail) => ({ kind: "trajectory_evidence", status: "ERROR" as const, detail })));
+        } else if (events.length === 0) {
+          status = "ERROR";
+          assertionResults.push({ kind: "trajectory_evidence", status: "ERROR", detail: "no normalized workflow events were produced" });
+        } else {
+          const gate = evaluateTrajectoryGates(scenario.trajectoryAssert, events);
+          if (gate.status === "ERROR" || (gate.status === "FAIL" && status === "PASS")) status = gate.status;
+          assertionResults.push(...gate.assertions);
+          trajectoryMeta = { trajectory_version: gate.event_version, events_sha256: gate.events_sha256 };
+        }
+      }
+
+      objective = { status, ...traceMeta, ...trajectoryMeta, assertions: assertionResults };
+      if (status !== "PASS") {
+        const details = assertionResults.filter((result) => result.status === status).map((result) => result.detail);
+        gatePrefix = `objective: ${details.join("; ") || "structured evidence could not be evaluated"}`;
       }
       appendJournal(runDir, {
         event: "objective-result", ts: now(), id: scenario.id,
@@ -391,9 +437,14 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
     let verdict: ScenarioResult["judge_verdict"];
     let reason: string;
     let suspect = false;
+    let judgeCalls = 0;
     if (objective?.status === "ERROR") {
       verdict = "ERROR";
       reason = gatePrefix ?? "objective evidence missing";
+      appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
+    } else if (infrastructureFailure) {
+      verdict = "ERROR";
+      reason = infrastructureFailure;
       appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
     } else if (noResponse) {
       verdict = "ERROR";
@@ -410,9 +461,19 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
         specDir: dirname(ctx.specPath), mode, rep: repCount > 1 ? rep : undefined, now,
       });
       verdict = o.verdict; reason = o.reason; suspect = o.suspect; // judgeOneRep already journaled (verdict + misfire)
+      judgeCalls = 1;
     }
     log(`  → ${scenario.id}${repCount > 1 ? `#${rep}` : ""} ${verdict}${reason ? `: ${reason}` : ""}${suspect ? "  ⚠ suspect" : ""}`);
-    return { verdict, reason, suspect, objective };
+    const subject = mergeTraces(traces)?.metrics;
+    return {
+      verdict, reason, suspect, objective,
+      metrics: {
+        wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+        judge_calls: judgeCalls,
+        judge_rejudge_calls: 0,
+        ...(subject ? { subject } : {}),
+      },
+    };
   } finally {
     ws?.cleanup();
   }
@@ -440,7 +501,7 @@ export function formatScorecard(summary: RunSummary, lift?: Lift, stability?: Sc
   const lines: string[] = [];
   lines.push(`── ${results.skill} · ${results.harness} · ${results.model} ──`);
   for (const s of results.scenarios) {
-    const v = s.override ?? s.judge_verdict;
+    const v = s.override ?? (s.objective?.status === "ERROR" ? "ERROR" : s.objective?.status === "FAIL" ? "FAIL" : s.judge_verdict);
     const mark = v === "PASS" ? "✓" : v === "FAIL" ? "✗" : "?";
     const ov = s.override ? " (override)" : "";
     const susp = s.suspect ? " ⚠suspect" : "";
@@ -451,6 +512,14 @@ export function formatScorecard(summary: RunSummary, lift?: Lift, stability?: Sc
   const ship = g.ship ? "SHIP" : "NOT READY";
   const note = g.note ? ` (${g.note})` : "";
   lines.push(`  GRADE: ${g.letter} (${g.pct}%) — ${g.passed}/${g.total} — ${ship}${note}`);
+  const metrics = aggregateMetrics(results.scenarios);
+  if (metrics.total_reps > 0) {
+    const tokens = metrics.input_tokens === null
+      ? "subject tokens unavailable"
+      : `subject tokens ${metrics.input_tokens} in / ${metrics.output_tokens ?? 0} out / ${metrics.cache_read_tokens ?? 0} cache-read`;
+    const tools = metrics.tool_calls === null ? "tool calls unavailable" : `${metrics.tool_calls} tool call(s), ${metrics.delegated_children ?? 0} delegated, max concurrency ${metrics.max_concurrency ?? 0}`;
+    lines.push(`  COST:   ${tokens} (${metrics.subject_metrics_reps}/${metrics.total_reps} reps reported) · ${metrics.judge_calls} judge + ${metrics.judge_rejudge_calls} re-judge call(s) · ${metrics.wall_time_ms}ms · ${tools}`);
+  }
   // Lift is a statement about a skill-delivered run (green or force). On a red run
   // the caller may still have a lift in hand (a scored run exists in the same tag),
   // but printing it under a baseline scorecard reads as if the baseline itself

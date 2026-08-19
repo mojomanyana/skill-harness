@@ -183,6 +183,13 @@ describe("evaluateTraceGates — reporting", () => {
     expect(res.assertions.filter((a) => a.status === "FAIL")).toHaveLength(3);
   });
 
+  it("turns malformed native capture into ERROR even when an absence gate would otherwise pass", () => {
+    const captured = { ...trace([]), capture_errors: ["pi JSONL contained 1 malformed line"] };
+    const result = evaluateTraceGates({ forbid_calls: [{ tool: "bash" }] }, captured);
+    expect(result.status).toBe("ERROR");
+    expect(result.assertions[0]).toMatchObject({ kind: "trace_evidence", status: "ERROR" });
+  });
+
   it("passes with no assertions declared", () => {
     expect(evaluateTraceGates({}, trace([])).status).toBe("PASS");
   });

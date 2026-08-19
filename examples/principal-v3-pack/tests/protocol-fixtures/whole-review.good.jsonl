@@ -1,0 +1,9 @@
+{"event_version":"1.0","seq":1,"type":"phase_completed","source":"principal","run_id":"run-1","task_id":"task-1","phase":"build"}
+{"event_version":"1.0","seq":2,"type":"evidence_recorded","source":"principal","run_id":"run-1","task_id":"task-1","exit_code":0,"attributes":{"kind":"exact-target"}}
+{"event_version":"1.0","seq":3,"type":"review_recorded","source":"principal","run_id":"run-1","task_id":"task-1","context_id":"ctx-1s","attributes":{"axis":"specification"}}
+{"event_version":"1.0","seq":4,"type":"review_recorded","source":"principal","run_id":"run-1","task_id":"task-1","context_id":"ctx-1q","attributes":{"axis":"quality"}}
+{"event_version":"1.0","seq":5,"type":"phase_completed","source":"principal","run_id":"run-1","task_id":"task-2","phase":"build"}
+{"event_version":"1.0","seq":6,"type":"evidence_recorded","source":"principal","run_id":"run-1","task_id":"task-2","exit_code":0,"attributes":{"kind":"exact-target"}}
+{"event_version":"1.0","seq":7,"type":"review_recorded","source":"principal","run_id":"run-1","task_id":"task-2","context_id":"ctx-2s","attributes":{"axis":"specification"}}
+{"event_version":"1.0","seq":8,"type":"review_recorded","source":"principal","run_id":"run-1","task_id":"task-2","context_id":"ctx-2q","attributes":{"axis":"quality"}}
+{"event_version":"1.0","seq":9,"type":"review_recorded","source":"principal","run_id":"run-1","context_id":"ctx-whole","attributes":{"axis":"whole-change","spec_verdict":"APPROVE","quality_verdict":"APPROVE"}}

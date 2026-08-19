@@ -132,7 +132,7 @@ export function normalizeSubagentCall(args: Record<string, unknown>): SubagentIn
 export type AssertionStatus = "PASS" | "FAIL" | "ERROR";
 
 export interface AssertionResult {
-  kind: "require_call" | "require_subagent" | "forbid_call" | "unchanged_path";
+  kind: "require_call" | "require_subagent" | "forbid_call" | "unchanged_path" | "trace_evidence";
   status: AssertionStatus;
   detail: string;
 }
@@ -153,6 +153,9 @@ export interface TraceGateResult {
  */
 export function evaluateTraceGates(assert: TraceAssert, trace: ExecutionTraceV1): TraceGateResult {
   const assertions: AssertionResult[] = [];
+  for (const error of trace.capture_errors ?? []) {
+    assertions.push({ kind: "trace_evidence", status: "ERROR", detail: error });
+  }
 
   for (const req of assert.require_calls ?? []) {
     const matched = trace.tool_calls.filter((c) => c.name === req.tool && argsMatch(c, req.args));
@@ -585,7 +588,7 @@ function parseArgs(raw: unknown, ctx: string): Record<string, ArgPredicate> {
   return out;
 }
 
-function parsePredicate(raw: unknown, ctx: string): ArgPredicate {
+export function parsePredicate(raw: unknown, ctx: string): ArgPredicate {
   // `agent: plan` is shorthand for `agent: { equals: plan }` — the common case
   // should not require the author to know the operator vocabulary.
   if (typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean") {

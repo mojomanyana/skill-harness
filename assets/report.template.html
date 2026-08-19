@@ -165,13 +165,21 @@ function render() {
       // Green and force are scored; a red baseline column has no ship grade.
       gradeHtml = `<span class='badge no'>not scored (${escapeHtml(col.mode)})</span>`;
       if (g.suspect > 0) gradeHtml += ` — ${g.suspect} suspect`;
+      if (g.errors > 0) gradeHtml += ` — ${g.errors} infrastructure error`;
     } else {
       // g.ship is already false whenever g.suspect > 0 (gradeColumn's suspect gate), so
       // the NOT READY badge is forced automatically; we just surface the count here.
       const badge = g.ship ? "<span class='badge ship'>SHIP</span>" : "<span class='badge no'>NOT READY</span>";
       const suspectNote = g.suspect > 0 ? ` — ${g.suspect} suspect` : "";
-      gradeHtml = `${g.letter} (${g.pct}%) · ${g.passed}/${g.total}${suspectNote} ${badge}`;
+      const errorNote = g.errors > 0 ? ` — ${g.errors} infrastructure error${g.errors === 1 ? "" : "s"}` : "";
+      gradeHtml = `${g.letter} (${g.pct}%) · ${g.passed}/${g.total}${suspectNote}${errorNote} ${badge}`;
     }
+    const m = col.metrics;
+    const metricHtml = m && m.total_reps > 0
+      ? `<div class='grade' title='subject metrics reported by ${m.subject_metrics_reps}/${m.total_reps} reps'>` +
+        `${m.input_tokens == null ? "tokens n/a" : `${m.input_tokens}in/${m.output_tokens || 0}out`} · ` +
+        `${m.judge_calls} judge · ${m.wall_time_ms}ms · ${m.tool_calls == null ? "tools n/a" : `${m.tool_calls} tools`}</div>`
+      : "";
     // Lift answers "does this skill do anything?", which the grade alone cannot:
     // a column can score A because the model never needed the skill. Recomputed
     // from the live cells (see liftSummary) so overrides move it immediately.
@@ -189,7 +197,7 @@ function render() {
           : `lift 0 · no effect`;
       const inc = ls.inconclusive > 0 ? ` · ${ls.inconclusive} inconclusive` : "";
       const part = col.lift.partial ? " · partial" : "";
-      html += `<th><div>${escapeHtml(col.label)}</div><div class='grade'>${gradeHtml}</div>` +
+      html += `<th><div>${escapeHtml(col.label)}</div><div class='grade'>${gradeHtml}</div>${metricHtml}` +
         `<div class='lift ${cls}' title='vs red baseline ${escapeHtml(col.lift.redTimestamp)} — ${ls.kept} passed without the skill too'>${body}${inc}${part}</div></th>`;
       return;
     }
@@ -199,7 +207,7 @@ function render() {
     if (none) {
       liftHtml = `<div class='lift none' title='${escapeHtml(none.title)}'>${escapeHtml(none.text)}</div>`;
     }
-    html += `<th><div>${escapeHtml(col.label)}</div><div class='grade'>${gradeHtml}</div>${liftHtml}</th>`;
+    html += `<th><div>${escapeHtml(col.label)}</div><div class='grade'>${gradeHtml}</div>${metricHtml}${liftHtml}</th>`;
   });
   html += "</tr></thead><tbody>";
   for (const scn of DATA.scenarios) {
@@ -281,6 +289,7 @@ async function openPanel(colIndex, scenarioId) {
     ${cell.stability ? `<div class="reason" style="color:#b45309"><b>⇄ boundary cell:</b> ${escapeHtml(cell.stability.note)}</div>` : ""}
     ${cell.objective ? `<div class="reason"><b>◉ objective ${escapeHtml(cell.objective.status)}:</b> ${escapeHtml(cell.objective.detail)}</div>` : ""}
     ${cell.adjudication ? `<div class="reason"${cell.adjudication.state === "unresolved" ? ' style="color:#b45309"' : ""}><b>⚖ adjudication ${escapeHtml(cell.adjudication.state)}</b> (${escapeHtml(cell.adjudication.trigger)}): ${escapeHtml(cell.adjudication.detail)}</div>` : ""}
+    ${cell.metrics ? `<div class="reason"><b>cost/latency:</b> ${cell.metrics.input_tokens == null ? "subject tokens unavailable" : `${cell.metrics.input_tokens} input / ${cell.metrics.output_tokens || 0} output / ${cell.metrics.cache_read_tokens || 0} cache-read`} (${cell.metrics.subject_metrics_reps}/${cell.metrics.total_reps} reps) · ${cell.metrics.judge_calls} judge + ${cell.metrics.judge_rejudge_calls} re-judge · ${cell.metrics.wall_time_ms}ms · ${cell.metrics.tool_calls == null ? "tool calls unavailable" : `${cell.metrics.tool_calls} tools, ${cell.metrics.delegated_children || 0} delegated, max concurrency ${cell.metrics.max_concurrency || 0}`}</div>` : ""}
     <div class="toggle">
       <button data-v="PASS" class="PASS ${cell.override === 'PASS' ? 'active PASS' : ''}">PASS</button>
       <button data-v="FAIL" class="FAIL ${cell.override === 'FAIL' ? 'active FAIL' : ''}">FAIL</button>

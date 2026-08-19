@@ -6,6 +6,17 @@ half-finished and what will bite you.*
 
 ## Where things stand
 
+**2026-08-20 risk-adaptive workflow implementation (working tree, not published):** trajectory
+assertions, principal/pi-daddy normalization, paired `compare`, critical all-clean repetition gates,
+`mutation-test`, cost/latency fields, schemas, and the principal v3 example pack are implemented.
+Authoritative upstream was principal-pi-skills PR #31 at
+`961f8ccbdb2a12e92db1e1b2d4ab7ca50f9d7d21`; its GitHub `ci / spec-lint` check was SUCCESS and the
+head had not advanced. No subject/judge wave or principal live E2E cell was run. Historical v2 cells
+remain historical. OS sandbox work is intentionally only an interface + fake; do not claim temp dirs
+or worktrees are containment. `packages/pi-extension/dist/index.js` was regenerated; the final
+packed-artifact smoke installed all four tarballs, imported the public trajectory schema subpath,
+ran `--version`/help, detected 15/15 offline mutations, and linted the example pack with 0 findings.
+
 `skill-harness@0.7.0` is **published, merged, and tagged** (`v0.7.0`, PRs #43 + #44).
 CI is green. 1123 tests. Working tree is clean.
 

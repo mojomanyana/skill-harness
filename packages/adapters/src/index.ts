@@ -18,3 +18,4 @@ export function getAdapter(name: string): HarnessAdapter {
 }
 
 export { piAdapter };
+export * from "./trajectory.js";

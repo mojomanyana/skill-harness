@@ -1,0 +1,5 @@
+{"event_version":"1.0","seq":1,"type":"phase_completed","source":"principal","run_id":"run-1","task_id":"task-1","phase":"build"}
+{"event_version":"1.0","seq":2,"type":"review_recorded","source":"principal","run_id":"run-1","context_id":"ctx-whole","attributes":{"axis":"whole-change","spec_verdict":"APPROVE","quality_verdict":"APPROVE"}}
+{"event_version":"1.0","seq":3,"type":"evidence_recorded","source":"principal","run_id":"run-1","task_id":"task-1","exit_code":0,"attributes":{"kind":"exact-target"}}
+{"event_version":"1.0","seq":4,"type":"review_recorded","source":"principal","run_id":"run-1","task_id":"task-1","context_id":"ctx-1s","attributes":{"axis":"specification"}}
+{"event_version":"1.0","seq":5,"type":"review_recorded","source":"principal","run_id":"run-1","task_id":"task-1","context_id":"ctx-1q","attributes":{"axis":"quality"}}

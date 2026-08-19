@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-harness.dev/schemas/trajectory-event-v1.schema.json",
+  "title": "skill-harness normalized trajectory event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_version", "seq", "type", "source"],
+  "properties": {
+    "event_version": { "const": "1.0" },
+    "seq": { "type": "integer", "minimum": 1 },
+    "type": { "type": "string", "minLength": 1 },
+    "source": { "type": "string", "minLength": 1 },
+    "at": { "type": "string", "format": "date-time" },
+    "run_id": { "$ref": "#/$defs/id" },
+    "task_id": { "$ref": "#/$defs/id" },
+    "workspace_id": { "$ref": "#/$defs/id" },
+    "context_id": { "$ref": "#/$defs/id" },
+    "finding_id": { "$ref": "#/$defs/id" },
+    "parent_id": { "$ref": "#/$defs/id" },
+    "child_id": { "$ref": "#/$defs/id" },
+    "phase": { "type": "string", "minLength": 1 },
+    "tool": { "type": "string", "minLength": 1 },
+    "capability": { "type": "string", "minLength": 1 },
+    "requested_capabilities": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "effective_capabilities": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "refusal_code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+    "exit_code": { "type": "integer" },
+    "digests": {
+      "type": "object",
+      "properties": {
+        "plan": { "$ref": "#/$defs/sha256" },
+        "task": { "$ref": "#/$defs/sha256" },
+        "definition": { "$ref": "#/$defs/sha256" },
+        "head": { "$ref": "#/$defs/gitSha" },
+        "tree": { "$ref": "#/$defs/gitSha" }
+      },
+      "additionalProperties": { "type": "string" }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "capability": { "type": "string", "minLength": 1 },
+        "subject": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "minLength": 1 },
+        "scope": { "type": "string", "minLength": 1 },
+        "approved_at": { "type": "string", "format": "date-time" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "used_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "requirements": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "attributes": { "type": "object" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+    "gitSha": { "type": "string", "pattern": "^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$" }
+  }
+}

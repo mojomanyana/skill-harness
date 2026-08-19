@@ -59,21 +59,20 @@ describe("regradeScenario", () => {
     expect(existsSync(join(runDir, "A1.green.rep2.judge.txt"))).toBe(true);
   });
 
-  it("derives each rep from the filename, not the loop index, for non-contiguous reps", async () => {
+  it("rejects a non-contiguous recorded repetition set before judging", async () => {
     const runDir = tmp();
     // rep1 is missing (e.g. a killed run) — file INDEX 1 is rep2's file.
     writeFileSync(join(runDir, "A1.green.rep0.txt"), "t0", "utf8");
     writeFileSync(join(runDir, "A1.green.rep2.txt"), "t2", "utf8");
     const spec = scenarioOf(SPEC);
-    await regradeScenario({
+    await expect(regradeScenario({
       runDir, spec, scenario: spec.scenarios[0],
       adapter: judgeAdapter("1. PASS — ok\nVERDICT: PASS\nREASON: fine"),
       judge: { provider: "claude-code", model: "opus" }, specDir: runDir, threshold: 0.5,
-      now: () => "t",
-    });
-    expect(existsSync(join(runDir, "A1.green.rep0.judge.txt"))).toBe(true);
-    expect(existsSync(join(runDir, "A1.green.rep2.judge.txt"))).toBe(true);
-    expect(existsSync(join(runDir, "A1.green.rep1.judge.txt"))).toBe(false);
+      expectedReps: 3, now: () => "t",
+    })).rejects.toThrow(/incomplete for 3 recorded rep/);
+    expect(existsSync(join(runDir, "A1.green.rep0.judge.txt"))).toBe(false);
+    expect(existsSync(join(runDir, "A1.green.rep2.judge.txt"))).toBe(false);
   });
 
   it("throws when there are no green transcripts", async () => {
@@ -124,7 +123,7 @@ describe("judgeOneRep", () => {
       adapter: judgeAdapter("1. PASS — ok\nVERDICT: PASS\nREASON: fine"),
       judge: { provider: "claude-code", model: "opus" }, specDir: runDir, mode: "green", rep: undefined, now: () => "t",
     });
-    expect(o).toEqual({ verdict: "PASS", reason: "fine", suspect: false });
+    expect(o).toMatchObject({ verdict: "PASS", reason: "fine", suspect: false, metrics: { judge_calls: 1, judge_rejudge_calls: 0 } });
     expect(readFileSync(join(runDir, "A1.green.judge.txt"), "utf8")).toMatch(/VERDICT: PASS/);
     const jv = readJournal(runDir).filter((e) => e.event === "judge-verdict");
     expect(jv).toHaveLength(1);
@@ -140,7 +139,7 @@ describe("judgeOneRep", () => {
       adapter: judgeAdapter("1. PASS — ok\n2. FAIL — missing\nVERDICT: PASS\nREASON: looks ok"),
       judge: { provider: "claude-code", model: "opus" }, specDir: runDir, mode: "green", rep: undefined, now: () => "t",
     });
-    expect(o).toEqual({ verdict: "PASS", reason: "looks ok", suspect: true });
+    expect(o).toMatchObject({ verdict: "PASS", reason: "looks ok", suspect: true, metrics: { judge_calls: 1, judge_rejudge_calls: 0 } });
     const events = readJournal(runDir);
     const jv = events.filter((e) => e.event === "judge-verdict");
     const misfire = events.filter((e) => e.event === "misfire-flag");

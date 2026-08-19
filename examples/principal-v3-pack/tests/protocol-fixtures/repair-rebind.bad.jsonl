@@ -1,0 +1,6 @@
+{"event_version":"1.0","seq":1,"type":"repair_started","source":"principal","run_id":"run-1","finding_id":"F-1","task_id":"task-old","workspace_id":"ws-old","digests":{"definition":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}
+{"event_version":"1.0","seq":2,"type":"repair_suspended","source":"principal","run_id":"run-1","finding_id":"F-1","task_id":"task-old","workspace_id":"ws-old"}
+{"event_version":"1.0","seq":3,"type":"assurance_escalated","source":"principal","run_id":"run-1"}
+{"event_version":"1.0","seq":4,"type":"task_packet_recorded","source":"principal","run_id":"run-1","task_id":"task-new","workspace_id":"ws-new","digests":{"definition":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}}
+{"event_version":"1.0","seq":5,"type":"phase_started","source":"principal","run_id":"run-1","task_id":"task-new","workspace_id":"ws-new","phase":"build","digests":{"definition":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}}
+{"event_version":"1.0","seq":6,"type":"repair_started","source":"principal","run_id":"run-1","finding_id":"F-1","task_id":"task-old","workspace_id":"ws-old","digests":{"definition":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}

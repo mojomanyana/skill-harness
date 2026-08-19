@@ -651,6 +651,17 @@ never enter `specification.yaml` before a human promotes them.
         dangerous direction (dropping `adjudication` + `suspect` would un-block a
         blocked run), and a runtime backstop asserting no key escapes the known set.
 
+### Sprint 1.10 — Risk-adaptive workflow measurement (owner work order, 2026-08-20)
+
+- [x] **Versioned trajectory assertions, principal/pi-daddy normalization, paired compare,
+      critical repetition gates, mutation self-test, and cost/latency reporting** (2026-08-20,
+      implementation working tree). Objective workflow events now cover phase/state/authority/
+      capability/workspace/evidence/finalization contracts before the judge; `compare` preserves
+      paired artifacts and never overclaims seeded sampling; `mutation-test` proves 15 assertion
+      classes turn red offline. The principal v3 skill cells and eight live workflow E2E cells remain
+      explicitly unrun. Sandbox delivery is bounded to an interface + fake; no containment claim.
+      Post: `docs/posts/2026-08-20-the-final-answer-is-not-the-workflow.md`
+
 ## PHASE 2 — Launch & first 100 fans (weeks 5–10)
 
 **Goal:** exist in the heads of everyone who writes skills.

@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-harness.dev/schemas/specification-v1.schema.json",
+  "title": "skill-harness specification v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["skill", "judge_persona", "ship_bar", "scenarios"],
+  "properties": {
+    "schema": { "const": 1 },
+    "skill": { "type": "string", "minLength": 1 },
+    "judge_persona": { "type": "string", "minLength": 1 },
+    "ship_bar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "min_pass"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 1 },
+        "min_pass": { "type": "integer", "minimum": 1 },
+        "no_critical_fail": { "type": "boolean" }
+      }
+    },
+    "critical": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "adjudication": { "type": "object" },
+    "scenarios": { "type": "array", "items": { "$ref": "#/$defs/scenario" } }
+  },
+  "$defs": {
+    "stringList": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1, "uniqueItems": true },
+    "predicate": {
+      "oneOf": [
+        { "type": ["string", "number", "boolean"] },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "equals": {},
+            "contains": { "type": "string" },
+            "starts_with": { "type": "string" },
+            "ends_with": { "type": "string" },
+            "matches": { "type": "string" },
+            "exists": { "type": "boolean" },
+            "any": { "$ref": "#/$defs/predicate" }
+          },
+          "minProperties": 1
+        }
+      ]
+    },
+    "count": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "min": { "type": "integer", "minimum": 0 },
+        "max": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "selector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event"],
+      "properties": {
+        "event": { "type": "string", "minLength": 1 },
+        "where": { "type": "object", "additionalProperties": { "$ref": "#/$defs/predicate" } },
+        "select": { "enum": ["first", "last", "all"] }
+      }
+    },
+    "requiredSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event"],
+      "properties": {
+        "event": { "type": "string", "minLength": 1 },
+        "where": { "type": "object", "additionalProperties": { "$ref": "#/$defs/predicate" } },
+        "select": { "enum": ["first", "last", "all"] },
+        "count": { "$ref": "#/$defs/count" }
+      }
+    },
+    "correlation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["left", "right"],
+      "properties": {
+        "left": { "$ref": "#/$defs/selector" },
+        "right": { "$ref": "#/$defs/selector" },
+        "same": { "$ref": "#/$defs/stringList" },
+        "different": { "$ref": "#/$defs/stringList" },
+        "order": { "enum": ["before", "after"] }
+      },
+      "anyOf": [{ "required": ["same"] }, { "required": ["different"] }, { "required": ["order"] }]
+    },
+    "freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject", "after"],
+      "properties": {
+        "subject": { "$ref": "#/$defs/selector" },
+        "after": { "type": "array", "items": { "$ref": "#/$defs/selector" }, "minItems": 1 },
+        "same": { "$ref": "#/$defs/stringList" }
+      }
+    },
+    "unique": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["events", "fields"],
+      "properties": {
+        "events": { "$ref": "#/$defs/selector" },
+        "fields": { "$ref": "#/$defs/stringList" }
+      }
+    },
+    "forbidAfter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["anchor", "forbidden"],
+      "properties": {
+        "anchor": { "$ref": "#/$defs/selector" },
+        "forbidden": { "type": "array", "items": { "$ref": "#/$defs/selector" }, "minItems": 1 },
+        "same": { "$ref": "#/$defs/stringList" },
+        "anchor_optional": { "type": "boolean" }
+      }
+    },
+    "approvalAssertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["grant", "use"],
+      "properties": {
+        "grant": { "$ref": "#/$defs/selector" },
+        "use": { "$ref": "#/$defs/selector" },
+        "same": { "$ref": "#/$defs/stringList" },
+        "scopes": { "$ref": "#/$defs/stringList" },
+        "sources": { "$ref": "#/$defs/stringList" },
+        "unexpired": { "type": "boolean" },
+        "max_uses": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "coverageAssertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requirements"],
+      "properties": {
+        "requirements": { "$ref": "#/$defs/stringList" },
+        "events": { "$ref": "#/$defs/selector" }
+      }
+    },
+    "trajectory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version"],
+      "properties": {
+        "version": { "const": "1.0" },
+        "require": { "type": "array", "items": { "$ref": "#/$defs/requiredSelector" }, "minItems": 1 },
+        "forbid": { "type": "array", "items": { "$ref": "#/$defs/selector" }, "minItems": 1 },
+        "ordered": { "type": "array", "items": { "type": "array", "items": { "$ref": "#/$defs/selector" }, "minItems": 1 }, "minItems": 1 },
+        "correlate": { "type": "array", "items": { "$ref": "#/$defs/correlation" }, "minItems": 1 },
+        "freshness": { "type": "array", "items": { "$ref": "#/$defs/freshness" }, "minItems": 1 },
+        "unique": { "type": "array", "items": { "$ref": "#/$defs/unique" }, "minItems": 1 },
+        "forbid_after": { "type": "array", "items": { "$ref": "#/$defs/forbidAfter" }, "minItems": 1 },
+        "approvals": { "type": "array", "items": { "$ref": "#/$defs/approvalAssertion" }, "minItems": 1 },
+        "coverage": { "type": "array", "items": { "$ref": "#/$defs/coverageAssertion" }, "minItems": 1 }
+      },
+      "minProperties": 2
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "turns", "checklist"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "critical": { "type": "boolean" },
+        "mode": { "enum": ["inline", "seeded"] },
+        "fixture": { "type": "string" },
+        "turns": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "checklist": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "covers": { "type": "array", "items": { "type": "string" } },
+        "reps": { "type": "integer", "minimum": 1 },
+        "pass_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "system_prompt_file": { "type": "string" },
+        "env": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "workspace": {},
+            "remote": { "type": "boolean" },
+            "extensions": { "type": "array", "items": { "type": "string" } },
+            "event_sources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["adapter", "path"],
+                "properties": {
+                  "adapter": { "enum": ["normalized-v1", "principal-assurance-v1", "pi-daddy-v1"] },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^(?!/)(?![A-Za-z]:[\\\\/])(?!.*\\\\)(?!.*//)(?!.*(?:^|/)\\.\\.?(?:/|$)).+$"
+                  },
+                  "required": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "assert": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "vitest": { "type": "boolean" },
+            "diff_contains": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "diff_excludes": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "post_test": { "type": "string" },
+            "trace": { "type": "object" },
+            "trajectory": { "$ref": "#/$defs/trajectory" }
+          }
+        }
+      }
+    }
+  }
+}

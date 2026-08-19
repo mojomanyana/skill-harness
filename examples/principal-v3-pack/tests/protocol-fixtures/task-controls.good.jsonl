@@ -1,0 +1,4 @@
+{"event_version":"1.0","seq":1,"type":"phase_completed","source":"principal","run_id":"run-1","task_id":"task-1","workspace_id":"ws-1","phase":"build"}
+{"event_version":"1.0","seq":2,"type":"evidence_recorded","source":"principal","run_id":"run-1","task_id":"task-1","workspace_id":"ws-1","exit_code":0}
+{"event_version":"1.0","seq":3,"type":"review_recorded","source":"principal","run_id":"run-1","task_id":"task-1","workspace_id":"ws-1","context_id":"ctx-spec","attributes":{"axis":"specification"}}
+{"event_version":"1.0","seq":4,"type":"review_recorded","source":"principal","run_id":"run-1","task_id":"task-1","workspace_id":"ws-1","context_id":"ctx-quality","attributes":{"axis":"quality"}}

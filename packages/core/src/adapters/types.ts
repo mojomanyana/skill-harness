@@ -1,4 +1,6 @@
 import type { ExecutionTraceV1 } from "../capture-trace-types.js";
+import type { TrajectoryEventSource } from "../spec.js";
+import type { TrajectoryEventV1 } from "../trajectory-gates.js";
 
 export type RunMode = "red" | "green" | "force";
 
@@ -58,6 +60,8 @@ export interface RunReq {
    * extension the developer happens to have installed cannot join the test.
    */
   extensions?: string[];
+  /** Workspace-local native ledgers to normalize after the subject finishes. */
+  eventSources?: TrajectoryEventSource[];
 }
 
 /** A judge request: single prompt, no skills, no session. */
@@ -72,6 +76,10 @@ export interface StructuredRun {
   transcript: string;
   /** One trace per turn — each `pi` invocation emits an independent event stream. */
   traces: ExecutionTraceV1[];
+  /** Adapter-neutral workflow/tool events. Additive; absent on older adapters. */
+  events?: TrajectoryEventV1[];
+  /** Native sources that were required but missing/malformed. Never treated as an empty success. */
+  eventErrors?: string[];
 }
 
 export interface HarnessAdapter {

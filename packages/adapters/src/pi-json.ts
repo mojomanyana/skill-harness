@@ -24,7 +24,7 @@ import { parseTrace } from "@skill-harness/core";
  * emits `type`. Line-anchored so a value inside the payload cannot masquerade as
  * the event kind.
  */
-const SKIPPED_TYPE_RE = /^\s*\{\s*"type"\s*:\s*"(?:message_update|tool_execution_update)"/;
+export const SKIPPED_TYPE_RE = /^\s*\{\s*"type"\s*:\s*"(?:message_update|tool_execution_update)"/;
 
 export interface PiJsonRunOptions {
   args: string[];

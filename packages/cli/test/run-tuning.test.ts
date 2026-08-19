@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { parseRunTuning, type Args } from "../src/cli.js";
+import { parseRunTuning, releaseExitCode, type Args } from "../src/cli.js";
 
 /**
  * `--reps` / `--pass-threshold` must reject invalid provided values rather
@@ -12,6 +12,20 @@ import { parseRunTuning, type Args } from "../src/cli.js";
 function argsFor(flags: Record<string, string>): Args {
   return { _: [], flags, multi: {} };
 }
+
+describe("release exit policy", () => {
+  const summary = (mode: string, ship: boolean, partial = false) => ({ results: { mode, partial, effective_grade: { ship } } });
+
+  test("a full scored NOT READY run exits non-zero, including one critical failure hidden by a high aggregate", () => {
+    expect(releaseExitCode([summary("force", false)])).toBe(1);
+  });
+
+  test("SHIP, red baselines, and partial branch-feedback runs do not masquerade as failed release gates", () => {
+    expect(releaseExitCode([summary("force", true)])).toBe(0);
+    expect(releaseExitCode([summary("red", false)])).toBe(0);
+    expect(releaseExitCode([summary("force", false, true)])).toBe(0);
+  });
+});
 
 describe("parseRunTuning", () => {
   test("absent flags use the defaults", () => {

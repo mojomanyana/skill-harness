@@ -29,9 +29,12 @@ import {
   assertJudgeAllowed,
   assertNotDowngraded,
   downgradeWarning,
+  isScoredMode,
+  runTrajectoryMutationSelfTest,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
+import { runCompareCommand } from "./compare.js";
 
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 // The judge default lives in core (`defaultJudge()`), which resolves
@@ -149,6 +152,12 @@ async function cmdList(args: Args): Promise<void> {
   console.log(`\n● = testable · ○ = no spec yet · ✗ = spec present but invalid`);
 }
 
+export function releaseExitCode(
+  summaries: Array<{ results: { mode: string; partial?: boolean; effective_grade: { ship: boolean } } }>,
+): 0 | 1 {
+  return summaries.some(({ results }) => isScoredMode(results.mode) && !results.partial && !results.effective_grade.ship) ? 1 : 0;
+}
+
 export async function cmdRun(args: Args): Promise<void> {
   const root = flagStr(args, "skills", process.cwd())!;
   const target = args._[0];
@@ -252,6 +261,92 @@ export async function cmdRun(args: Args): Promise<void> {
   }
 
   console.log(`\nReview interactively:  skill-harness review ${skills[0]?.name ?? "<skill>"} --skills ${root}`);
+  // A full delivered run is a release gate. NOT READY — including one critical
+  // failure hidden by a high aggregate — must be machine-visible to CI. Red
+  // baselines and partial/affected branch feedback are deliberately excluded.
+  if (releaseExitCode(summaries) !== 0) process.exitCode = 1;
+}
+
+export async function cmdCompare(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
+  const target = args._[0];
+  const reference = flagStr(args, "reference");
+  const candidateRoot = flagStr(args, "candidate");
+  if (!target || !reference || !candidateRoot) {
+    throw new Error("usage: skill-harness compare <skill|all> --reference <git-ref-or-skills-root> --candidate <skills-root> --model <provider:model> --reps N");
+  }
+  const judgeFlag = flagStr(args, "judge");
+  const judgeToken = judgeFlag ?? defaultJudge();
+  const judge = parseModelRef(judgeToken);
+  assertJudgeAllowed(judge, {
+    source: judgeFlag ? "--judge" : "the default judge (SKILL_HARNESS_JUDGE or the baked value)",
+    allowMetered: flagBool(args, "allow-metered-judge"),
+  });
+  const harnessName = flagStr(args, "harness", "pi")!;
+  const adapter = adapterOverride ?? getAdapter(harnessName);
+  if (!(await adapter.available())) throw new Error(`harness \`${harnessName}\` is not on PATH`);
+  const mode = (flagStr(args, "mode", "force") || "force") as "red" | "green" | "force";
+  if (mode === "red") throw new Error("compare measures a skill candidate, so --mode must be green or force (red is a no-skill baseline)");
+  const tuning = parseRunTuning(args);
+  const onlyRaw = flagStr(args, "only");
+  let only = onlyRaw ? onlyRaw.split(",").map((id) => id.trim()).filter(Boolean) : undefined;
+  const affected = flagBool(args, "affected");
+  if (affected && only) throw new Error("--affected and --only both choose the comparison scenario set — pass one, not both");
+  if (affected) {
+    if (target === "all") throw new Error("compare --affected currently requires one skill so each selected ID has an unambiguous spec");
+    const skill = resolveSkill(candidateRoot, target);
+    const spec = loadSpec(skill.specPath);
+    const selectionArgs: Args = {
+      ...args,
+      flags: {
+        ...args.flags,
+        // A git-ref reference is the natural diff base. A reference directory
+        // has no common history, so the caller must supply --base explicitly.
+        ...(!flagStr(args, "base") && !existsSync(reference) ? { base: reference } : {}),
+      },
+    };
+    if (existsSync(reference) && !flagStr(args, "base")) {
+      throw new Error("compare --affected with a reference directory needs --base <git-ref> for candidate change selection");
+    }
+    const selected = await computeAffected(selectionArgs, spec.scenarios, skill.specPath);
+    console.log(formatAffected(selected, spec.scenarios.length));
+    only = selected.selected.map((entry) => entry.id);
+    if (only.length === 0) {
+      console.log("compare: no affected scenarios — 0 subject calls, 0 judge calls; no release claim produced");
+      return;
+    }
+  }
+  const threshold = (name: string): number | undefined => {
+    const raw = flagStr(args, name);
+    if (raw === undefined) return undefined;
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 0) throw new Error(`--${name} must be a non-negative ratio (got \`${raw}\`)`);
+    return value;
+  };
+  const thresholds = {
+    max_subject_token_increase: threshold("max-subject-token-increase"),
+    max_wall_time_increase: threshold("max-wall-time-increase"),
+    max_tool_call_increase: threshold("max-tool-call-increase"),
+  };
+  const hasThreshold = Object.values(thresholds).some((value) => value !== undefined);
+  const result = await runCompareCommand({
+    target,
+    reference,
+    candidateRoot,
+    models: resolveModels(args),
+    judgeToken,
+    mode,
+    reps: tuning.reps,
+    passThreshold: tuning.passThreshold,
+    parallel: Math.max(1, Number(flagStr(args, "parallel", "1")) || 1),
+    only,
+    canary: flagBool(args, "canary"),
+    output: flagStr(args, "output") || undefined,
+    thresholds: hasThreshold ? thresholds : undefined,
+    adapter,
+    now: nowIso,
+  });
+  console.log(`\ncomparison artifacts: ${result.outputDir}`);
+  if (result.exitCode !== 0) process.exitCode = result.exitCode;
 }
 
 export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
@@ -330,6 +425,17 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
  * Reps are the measurement; thresholds are policy. When policy changes, recompute rather
  * than reconcile two numbers in prose.
  */
+export async function cmdMutationTest(): Promise<void> {
+  const report = runTrajectoryMutationSelfTest();
+  console.log(`trajectory assertion mutation self-test: baseline ${report.baseline}`);
+  for (const test of report.cases) {
+    console.log(`  ${test.detected ? "✓" : "✗"} ${test.id}: ${test.status} — ${test.detail}`);
+  }
+  const missed = report.cases.filter((test) => !test.detected);
+  console.log(`\n${report.cases.length - missed.length}/${report.cases.length} mutations detected; no model or judge calls.`);
+  if (missed.length) process.exitCode = 1;
+}
+
 async function cmdRescore(args: Args): Promise<void> {
   const runDirs = args._;
   if (runDirs.length === 0) throw new Error("usage: skill-harness rescore <run-dir> [<run-dir> ...]");
@@ -791,10 +897,15 @@ export function help(): string {
                      [--affected --base <git-ref>]  run only the scenarios a change could touch (partial; never SHIPs)
                      [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
                      [--canary]  green only: spend ONE probe proving the skill reached the model, and abort the run if it did not
+  compare <skill|all> --reference <git-ref-or-skills-root> --candidate <skills-root>
+                     [--model prov:model ...] [--mode green|force] [--judge prov:model] [--reps N] [--only IDs | --affected --base ref]
+                     [--output dir] [--max-subject-token-increase R] [--max-wall-time-increase R] [--max-tool-call-increase R]
+                       paired setup (not seeded sampling); critical regression exit 2, ordinary regression exit 1
   grade  <run-dir>   [--judge prov:model] [--suspect-only]   re-grade saved transcripts (neutral judge)
                      [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]
                        ask again about untrustworthy cells (ambiguous / contradictory / non-unanimous /
                        ship-deciding). OFF by default; prints the exact MAX extra call count first.
+  mutation-test                                  prove trajectory assertions turn red (free, offline)
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (free)
   regate <run-dir>...  [--judge prov:model]     re-evaluate diff needles against the saved diffs (free; judges only reps whose gate flipped)
   restamp <skill|all> --skills <root> [--from <git-ref>]   record the model-visible skill digest on runs that still match (free, offline; one-time migration)
@@ -823,7 +934,9 @@ export async function main(argv: string[]): Promise<void> {
   const args = parseArgs(argv.slice(1));
   switch (cmd) {
     case "run": return cmdRun(args);
+    case "compare": return cmdCompare(args);
     case "grade": return cmdGrade(args);
+    case "mutation-test": return cmdMutationTest();
     case "rescore": return cmdRescore(args);
     case "regate": return cmdRegate(args);
     case "restamp": return cmdRestamp(args);

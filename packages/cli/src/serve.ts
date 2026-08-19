@@ -11,7 +11,7 @@ import {
   type Verdict, type ResultsFile,
   loadSpec,
   regradeScenario, refreshRubricHashes, findJudgeRawFiles,
-  effectiveThreshold, scoreContextFor, isScoredMode, rebuildScenarioResult,
+  effectiveThreshold, scoreContextFor, isScoredMode, rebuildScenarioResult, mergeScenarioMetrics,
   envFlag,
   planAdjudication, adjudicateRun, assertJudgeAllowed, cellsFromResults,
 } from "@skill-harness/core";
@@ -153,11 +153,12 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
           const rr = await regradeScenario({
             runDir: column.runDir, spec, scenario, adapter, judge: results.judge,
             specDir: dirname(specPath), threshold, mode: results.mode,
+            expectedReps: prev.reps ?? 1,
           });
           const merged = results.scenarios.map((s) =>
             // Same contract as `grade`, through the same choke point.
             s.id === body.scenarioId
-              ? rebuildScenarioResult(rr, s, { objective: "carry", adjudication: "drop" })
+              ? rebuildScenarioResult({ ...rr, metrics: mergeScenarioMetrics(s.metrics, rr.metrics) }, s, { objective: "carry", adjudication: "drop" })
               : s
           );
           const written = writeResults(column.runDir, {

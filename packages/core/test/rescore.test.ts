@@ -9,7 +9,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = join(here, "fixtures", "golden-skill");
 
 /** A run where A1 passes 2 of 3 reps and B1 passes 3 of 3. */
-async function runWithWobble(threshold: number) {
+async function runWithWobble(threshold: number, critical = true) {
   const skillDir = mkdtempSync(join(tmpdir(), "sc-rescore-"));
   cpSync(FIXTURE, skillDir, { recursive: true });
   const specPath = join(skillDir, "tests", "specification.yaml");
@@ -18,6 +18,11 @@ async function runWithWobble(threshold: number) {
     "  - id: A1\n    title: says hello\n    critical: true\n",
     `  - id: A1\n    title: says hello\n    critical: true\n    pass_threshold: ${threshold}\n`,
   ));
+  if (!critical) {
+    writeFileSync(specPath, readFileSync(specPath, "utf8")
+      .replace("critical: [A1]", "critical: []")
+      .replace("    critical: true\n", ""));
+  }
   const spec = parseSpec(readFileSync(specPath, "utf8"), specPath);
   let a1 = 0;
   const adapter: HarnessAdapter = {
@@ -41,24 +46,23 @@ async function runWithWobble(threshold: number) {
 }
 
 describe("rescoreRun", () => {
-  it("re-collapses a 2/3 critical from FAIL to PASS when policy moves to majority", async () => {
+  it("never loosens a critical scenario below all-clean-repetitions-pass", async () => {
     const { skillDir, specPath, runDir } = await runWithWobble(1.0);
     const before = readResults(runDir)!;
     expect(before.scenarios.find((s) => s.id === "A1")!.judge_verdict).toBe("FAIL");
     expect(before.effective_grade.ship).toBe(false);
 
-    // policy change: criticals gate at majority
+    // A lower declared threshold cannot weaken critical release semantics.
     writeFileSync(specPath, readFileSync(specPath, "utf8").replace("pass_threshold: 1", "pass_threshold: 0.5"));
     const spec = parseSpec(readFileSync(specPath, "utf8"), specPath);
     const { results, changes } = rescoreRun({ runDir, spec, now: () => "2026-08-04T01:00:00.000Z" });
 
-    expect(changes).toHaveLength(1);
-    expect(changes[0]).toMatchObject({ id: "A1", from: "FAIL", to: "PASS", passes: 2, clean: 3 });
-    expect(results.scenarios.find((s) => s.id === "A1")!.judge_verdict).toBe("PASS");
-    expect(results.scenarios.find((s) => s.id === "A1")!.pass_threshold).toBe(0.5);
-    expect(results.effective_grade.ship).toBe(true);
+    expect(changes).toEqual([]);
+    expect(results.scenarios.find((s) => s.id === "A1")!.judge_verdict).toBe("FAIL");
+    expect(results.scenarios.find((s) => s.id === "A1")!.pass_threshold).toBe(1);
+    expect(results.effective_grade.ship).toBe(false);
     // persisted, and journaled
-    expect(readResults(runDir)!.effective_grade.ship).toBe(true);
+    expect(readResults(runDir)!.effective_grade.ship).toBe(false);
     expect(readJournal(runDir).map((e) => e.event)).toContain("rescore");
     expect(skillDir).toBeTruthy();
   });
@@ -70,8 +74,8 @@ describe("rescoreRun", () => {
     expect(changes).toEqual([]);
   });
 
-  it("tightening policy also re-collapses — PASS to FAIL", async () => {
-    const { specPath, runDir } = await runWithWobble(0.5);
+  it("tightening ordinary policy also re-collapses — PASS to FAIL", async () => {
+    const { specPath, runDir } = await runWithWobble(0.5, false);
     expect(readResults(runDir)!.scenarios.find((s) => s.id === "A1")!.judge_verdict).toBe("PASS");
     writeFileSync(specPath, readFileSync(specPath, "utf8").replace("pass_threshold: 0.5", "pass_threshold: 1.0"));
     const spec = parseSpec(readFileSync(specPath, "utf8"), specPath);

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import yaml from "js-yaml";
 import type { WorkspaceKind } from "./workspace.js";
 import { parseTraceAssert, type TraceAssert } from "./trace-gates.js";
+import { parseTrajectoryAssert, type TrajectoryAssert } from "./trajectory-gates.js";
 
 export type ScenarioMode = "inline" | "seeded";
 
@@ -25,6 +26,15 @@ export interface SeededAssert {
   post_test?: string;
 }
 
+export interface TrajectoryEventSource {
+  /** Native format adapter registered by the harness adapter. */
+  adapter: "normalized-v1" | "principal-assurance-v1" | "pi-daddy-v1";
+  /** Workspace-relative file/glob. Never an absolute path or traversal. */
+  path: string;
+  /** Missing evidence is an error by default; false is for optional supplemental ledgers. */
+  required: boolean;
+}
+
 export interface Scenario {
   id: string;
   title: string;
@@ -42,6 +52,10 @@ export interface Scenario {
    * Declaring it opts the scenario into structured (`--mode json`) execution.
    */
   traceAssert?: TraceAssert;
+  /** Objective assertions over adapter-neutral, versioned workflow events. */
+  trajectoryAssert?: TrajectoryAssert;
+  /** Native event/ledger files the harness normalizes after execution. */
+  eventSources?: TrajectoryEventSource[];
   workspace: WorkspaceKind; // isolated-cwd kind; always populated (default "none")
   remote: boolean; // env.remote: wire a local bare `origin` so the fixture has a real upstream
   systemPromptFile?: string; // system_prompt_file: run this md file AS the system prompt (agents/<name>.md)
@@ -76,6 +90,8 @@ export interface ShipBar {
 }
 
 export interface Spec {
+  /** Specification schema. Omitted YAML is read as v1 for 0.8 compatibility. */
+  schema?: 1;
   skill: string;
   judge_persona: string;
   ship_bar: ShipBar;
@@ -184,6 +200,49 @@ function resolveExtensions(env: unknown, hasSystemPrompt: boolean, id: string, f
  * with empty-git or a fixture — asking for one on a bare cwd is an authoring mistake,
  * not something to silently ignore.
  */
+function resolveEventSources(env: unknown, id: string, file: string): TrajectoryEventSource[] | undefined {
+  const raw = env && typeof env === "object" ? (env as Record<string, unknown>).event_sources : undefined;
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new SpecError(`scenario \`${id}\` env.event_sources must be a non-empty list`, file);
+  }
+  const allowedAdapters = new Set<TrajectoryEventSource["adapter"]>([
+    "normalized-v1", "principal-assurance-v1", "pi-daddy-v1",
+  ]);
+  return raw.map((entry, index) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      throw new SpecError(`scenario \`${id}\` env.event_sources[${index}] must be a mapping`, file);
+    }
+    const source = entry as Record<string, unknown>;
+    for (const key of Object.keys(source)) {
+      if (!["adapter", "path", "required"].includes(key)) {
+        throw new SpecError(`scenario \`${id}\` env.event_sources[${index}] has unknown key \`${key}\``, file);
+      }
+    }
+    if (!allowedAdapters.has(source.adapter as TrajectoryEventSource["adapter"])) {
+      throw new SpecError(`scenario \`${id}\` env.event_sources[${index}].adapter is unsupported`, file);
+    }
+    if (typeof source.path !== "string" || !source.path.trim()) {
+      throw new SpecError(`scenario \`${id}\` env.event_sources[${index}].path must be non-empty`, file);
+    }
+    const path = source.path.trim();
+    if (path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path) || path.includes("\\") || path.split("/").some((part) => part === ".." || part === "." || part === "")) {
+      throw new SpecError(
+        `scenario \`${id}\` env.event_sources paths must be workspace-relative without traversal (got \`${path}\`)`,
+        file,
+      );
+    }
+    if (source.required !== undefined && typeof source.required !== "boolean") {
+      throw new SpecError(`scenario \`${id}\` env.event_sources[${index}].required must be true or false`, file);
+    }
+    return {
+      adapter: source.adapter as TrajectoryEventSource["adapter"],
+      path,
+      required: source.required !== false,
+    };
+  });
+}
+
 function resolveRemote(env: unknown, workspace: WorkspaceKind, id: string, file: string): boolean {
   const raw = env && typeof env === "object" ? (env as Record<string, unknown>).remote : undefined;
   if (raw === undefined) return false;
@@ -213,6 +272,9 @@ export function parseSpec(text: string, file: string): Spec {
   }
   const o = doc as Record<string, unknown>;
 
+  if (o.schema !== undefined && o.schema !== 1) {
+    throw new SpecError(`unsupported \`schema\` ${JSON.stringify(o.schema)} (expected 1)`, file);
+  }
   if (typeof o.skill !== "string" || o.skill.length === 0) {
     throw new SpecError("missing or invalid `skill` (string)", file);
   }
@@ -288,6 +350,9 @@ export function parseSpec(text: string, file: string): Spec {
     if (rawAssert?.trace !== undefined) {
       scenario.traceAssert = parseTraceAssert(rawAssert.trace, `${file}: scenario \`${id}\``);
     }
+    if (rawAssert?.trajectory !== undefined) {
+      scenario.trajectoryAssert = parseTrajectoryAssert(rawAssert.trajectory, `${file}: scenario \`${id}\``);
+    }
 
     if (mode === "seeded") {
       if (typeof s.fixture !== "string" || s.fixture.length === 0) {
@@ -350,6 +415,10 @@ export function parseSpec(text: string, file: string): Spec {
 
     scenario.workspace = resolveWorkspace(s.env, mode, scenario.fixture, id, file);
     scenario.remote = resolveRemote(s.env, scenario.workspace, id, file);
+    scenario.eventSources = resolveEventSources(s.env, id, file);
+    if (scenario.eventSources && !scenario.trajectoryAssert) {
+      throw new SpecError(`scenario \`${id}\` declares env.event_sources without assert.trajectory`, file);
+    }
     if (s.system_prompt_file !== undefined) {
       if (typeof s.system_prompt_file !== "string" || !s.system_prompt_file.trim()) {
         throw new SpecError(`scenario \`${id}\` \`system_prompt_file\` must be a non-empty string`, file);
@@ -407,7 +476,8 @@ export function parseSpec(text: string, file: string): Spec {
     return scenario;
   });
 
-  return { skill: o.skill, judge_persona: o.judge_persona, ship_bar, critical, scenarios };
+  const effectiveCritical = [...new Set([...critical, ...scenarios.filter((scenario) => scenario.critical).map((scenario) => scenario.id)])];
+  return { schema: 1, skill: o.skill, judge_persona: o.judge_persona, ship_bar, critical: effectiveCritical, scenarios };
 }
 
 /** Load + validate a specification.yaml from disk. */

@@ -13,6 +13,7 @@ interface CellFixture {
   judge_verdict: "PASS" | "FAIL" | "ERROR";
   override?: "PASS" | "FAIL" | "ERROR" | null;
   suspect?: boolean;
+  objective?: { status: "PASS" | "FAIL" | "ERROR" };
 }
 
 const SHIP_BAR: ShipBar = { total: 3, min_pass: 3, no_critical_fail: true };
@@ -27,14 +28,14 @@ const CRITICAL = ["A1"];
 function build(cells: CellFixture[]) {
   const verdicts: ScenarioVerdict[] = cells.map((c) => ({
     id: c.id,
-    verdict: c.override || c.judge_verdict,
+    verdict: c.override || (c.objective?.status === "ERROR" ? "ERROR" : c.objective?.status === "FAIL" ? "FAIL" : c.judge_verdict),
     suspect: !!c.suspect && !c.override,
   }));
   const col = {
     cells: Object.fromEntries(
       cells.map((c) => [
         c.id,
-        { judge_verdict: c.judge_verdict, override: c.override ?? null, suspect: !!c.suspect },
+        { judge_verdict: c.judge_verdict, override: c.override ?? null, suspect: !!c.suspect, objective: c.objective },
       ])
     ),
   };
@@ -78,6 +79,16 @@ const FIXTURES: Record<string, CellFixture[]> = {
     { id: "C2", judge_verdict: "FAIL", suspect: true, override: "FAIL" },
     { id: "C3", judge_verdict: "PASS" },
   ],
+  "objective critical failure outranks a flattering judge": [
+    { id: "A1", judge_verdict: "PASS", objective: { status: "FAIL" } },
+    { id: "C2", judge_verdict: "PASS" },
+    { id: "C3", judge_verdict: "PASS" },
+  ],
+  "objective ERROR remains infrastructure and blocks critical ship": [
+    { id: "A1", judge_verdict: "PASS", objective: { status: "ERROR" } },
+    { id: "C2", judge_verdict: "PASS" },
+    { id: "C3", judge_verdict: "PASS" },
+  ],
   "mix: unresolved suspect alongside a critical fail": [
     { id: "A1", judge_verdict: "FAIL" },
     { id: "B1", judge_verdict: "PASS" },
@@ -87,6 +98,11 @@ const FIXTURES: Record<string, CellFixture[]> = {
 };
 
 describe("report.grade.js gradeColumn matches score.ts score() (drift guard)", () => {
+  test("partial report column never displays SHIP", () => {
+    const { col } = build(FIXTURES["all pass"]);
+    expect(gradeColumn({ ...col, partial: true }, SHIP_BAR, CRITICAL)).toMatchObject({ ship: false, letter: "-", passed: 0, total: 0, pct: 0 });
+  });
+
   for (const [name, cells] of Object.entries(FIXTURES)) {
     test(name, () => {
       const { verdicts, col } = build(cells);
@@ -98,6 +114,7 @@ describe("report.grade.js gradeColumn matches score.ts score() (drift guard)", (
       expect(actual.pct).toBe(expected.pct);
       expect(actual.letter).toBe(expected.letter);
       expect(actual.suspect).toBe(expected.suspectCount);
+      expect(actual.errors).toBe(expected.errorCount);
     });
   }
 });

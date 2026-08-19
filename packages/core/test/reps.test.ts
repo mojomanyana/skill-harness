@@ -72,24 +72,69 @@ describe("aggregateReps", () => {
     expect(a.reason).toMatch(/errored/);
   });
 
-  test("a mix of ERROR and PASS: ERROR counts as a non-pass in the rate (unchanged from before)", () => {
-    const a = aggregateReps([err(), pass(), pass()], 0.5); // clean=3, passes=2 → 2/3 = 0.67
-    expect(a.verdict).toBe("PASS"); // 0.67 >= 0.5
+  test("a mix of ERROR and PASS remains ERROR — infrastructure cannot be voted into a behavioral pass", () => {
+    const a = aggregateReps([err(), pass(), pass()], 0.5);
+    expect(a.verdict).toBe("ERROR");
     expect(a.passes).toBe(2);
-    expect(a.reason).toMatch(/2\/3 reps passed/); // reason agrees with the verdict (no contradiction)
+    expect(a.reason).toMatch(/1\/3 reps errored/);
   });
 
-  test("ERROR reps drag the pass-rate below threshold", () => {
-    const a = aggregateReps([err(), err(), pass()], 0.5); // clean=3, passes=1 → 1/3 = 0.33
-    expect(a.verdict).toBe("FAIL");
+  test("several ERROR reps remain ERROR rather than a behavioral FAIL", () => {
+    const a = aggregateReps([err(), err(), pass()], 0.5);
+    expect(a.verdict).toBe("ERROR");
     expect(a.passes).toBe(1);
+  });
+
+  test("ERROR outranks a majority-misfire aggregate instead of becoming behavioral FAIL", () => {
+    const a = aggregateReps([{ ...fail(), suspect: true }, { ...fail(), suspect: true }, err()], 1);
+    expect(a.verdict).toBe("ERROR");
+    expect(a.suspect).toBe(false);
   });
 });
 
 describe("outcomesToResult", () => {
+  test("retains per-repetition objective hashes for later tamper detection", () => {
+    const outcomes = ["a", "b"].map((char) => ({
+      ...pass(),
+      objective: { status: "PASS" as const, events_sha256: char.repeat(64), assertions: [] },
+    }));
+    const result = outcomesToResult("A1", outcomes, 2, 1);
+    expect(result.objective?.rep_events_sha256).toEqual(["a".repeat(64), "b".repeat(64)]);
+  });
+
   test("single rep → no reps fields (byte-identical to a plain run)", () => {
     const r = outcomesToResult("A1", [pass()], 1, 0.5);
     expect(r).toEqual({ id: "A1", judge_verdict: "PASS", judge_reason: "ok", suspect: false, override: null, note: "" });
+  });
+
+  test("aggregates cost/latency/tool counters separately from behavioral correctness", () => {
+    const first: RepOutcome = {
+      ...pass(),
+      metrics: {
+        wall_time_ms: 120, judge_calls: 1, judge_rejudge_calls: 0,
+        subject: { input_tokens: 10, output_tokens: 2, cache_read_tokens: 3, cache_write_tokens: 0, cost_usd: 0.01, tool_calls: 2, delegated_children: 1, max_concurrency: 2 },
+      },
+    };
+    const second: RepOutcome = {
+      ...fail(),
+      metrics: { wall_time_ms: 80, judge_calls: 1, judge_rejudge_calls: 0 },
+    };
+    const result = outcomesToResult("A1", [first, second], 2, 0.5);
+    expect(result.metrics).toEqual({
+      wall_time_ms: 200,
+      judge_calls: 2,
+      judge_rejudge_calls: 0,
+      subject_metrics_reps: 1,
+      total_reps: 2,
+      input_tokens: 10,
+      output_tokens: 2,
+      cache_read_tokens: 3,
+      cache_write_tokens: 0,
+      subject_cost_usd: 0.01,
+      tool_calls: 2,
+      delegated_children: 1,
+      max_concurrency: 2,
+    });
   });
 
   test("multi rep → reps/passes/clean/flakiness + persisted pass_threshold", () => {

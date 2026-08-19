@@ -174,8 +174,8 @@ function walk(dir: string, prefix = ""): string[] {
  */
 function facets(s: Scenario): { stimulus: string; rubric: string; policy: string; gates: string | null } {
   const {
-    id, title, critical, mode, turns, checklist, fixture, assert, traceAssert,
-    workspace, remote, systemPromptFile, extensions, reps, passThreshold,
+    id, title, critical, mode, turns, checklist, fixture, assert, traceAssert, trajectoryAssert,
+    workspace, remote, systemPromptFile, extensions, eventSources, reps, passThreshold,
     covers: _coversIsMetadata,
     ...restScenario
   } = s;
@@ -197,7 +197,7 @@ function facets(s: Scenario): { stimulus: string; rubric: string; policy: string
   // already saved, so `regate` (free) can re-answer it without re-running the model.
   // Note the asymmetry with `env.extensions` in Phase 3, which IS stimulus — one
   // changes what gets executed, the other only what we conclude from it.
-  const hasGates = diff_contains !== undefined || diff_excludes !== undefined || traceAssert !== undefined;
+  const hasGates = diff_contains !== undefined || diff_excludes !== undefined || traceAssert !== undefined || trajectoryAssert !== undefined;
   return {
     // `vitest` and the `post_test` PATH are stimulus, not gates: both change what the
     // run executes in the workspace, and neither can be re-evaluated from a saved
@@ -216,13 +216,21 @@ function facets(s: Scenario): { stimulus: string; rubric: string; policy: string
       id, mode, turns, workspace, remote, systemPromptFile ?? null,
       fixture ?? null, vitest ?? null, post_test ?? null,
       ...(extensions ? [extensions] : []),
+      // Event-source paths choose which native ledgers are captured. A saved
+      // normalized artifact cannot answer for a source that was never collected,
+      // so changing this is stimulus and needs a re-run.
+      ...(eventSources ? [eventSources] : []),
     ]),
     rubric: JSON.stringify([id, title, checklist]),
     policy: JSON.stringify([id, critical, reps ?? null, passThreshold ?? null]),
     // Same rule as `stimulus` above: conditional, so a needle-gated scenario that
     // declares no trace assertions keeps the digest it was published with.
     gates: hasGates
-      ? JSON.stringify([id, diff_contains ?? null, diff_excludes ?? null, ...(traceAssert ? [traceAssert] : [])])
+      ? JSON.stringify([
+          id, diff_contains ?? null, diff_excludes ?? null,
+          ...(traceAssert ? [traceAssert] : []),
+          ...(trajectoryAssert ? [trajectoryAssert] : []),
+        ])
       : null,
   };
 }

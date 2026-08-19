@@ -22,10 +22,11 @@ under test.** Subject ≠ judge — same-family grading inflates scores. Single 
 lie on weak/stochastic models; re-run before trusting a delta.
 
 **Where an objective gate exists, prefer it to the judge.** `assert.trace` states
-what the model DID — which tool it called, which path it touched — and is checked
-against a structured execution record, not against prose. It runs BEFORE the judge,
-so a failing gate costs zero judge tokens, and since 0.7.0 an objective FAIL or
-ERROR outranks the judge's verdict. Only an explicit author override beats it.
+what the model DID — which tool it called, which path it touched. `assert.trajectory`
+states whether a multi-phase workflow obeyed state, capability, workspace, authority,
+freshness, and finalization contracts. Both read structured evidence, run BEFORE the
+judge, and cost zero judge tokens when they fail. An objective FAIL or ERROR outranks
+the judge's verdict; only an explicit author override beats it.
 
 ## The loop
 1. **Discover.** `skill-harness list --skills <root>` → which skills have a spec.
@@ -66,7 +67,11 @@ ERROR outranks the judge's verdict. Only an explicit author override beats it.
 6. **Add a test.** `skill-harness add-test <skill> --skills <root> --id <ID> --title <T>
    --turn "<turn>" [--turn ...] --check "<item>" [--check ...] [--critical]
    [--mode seeded --fixture <path>]`. Gather the fields conversationally first.
-7. **Optimize.** The user edits `<skill>/SKILL.md` → re-run → compare the new
+7. **Compare a reference and candidate when isolation matters.** `skill-harness compare`
+   uses the same spec/fixture/model/mode/judge/repetition plan on both snapshots. Confirm
+   the spend first. It is paired setup, not seeded LLM sampling; partial/affected is
+   branch feedback and never SHIP.
+8. **Optimize.** The user edits `<skill>/SKILL.md` → re-run → compare the new
    scorecard to the old `results.yaml`. Report the per-scenario delta, not just the
    letter grade. Before spending a full wave on an edit, `skill-harness affected
    <skill> --skills <root> --base <ref>` names the scenarios that edit could touch
@@ -74,7 +79,7 @@ ERROR outranks the judge's verdict. Only an explicit author override beats it.
 
 ## Free, offline, and worth running first
 None of these spend a model or judge token. Reach for them before anything paid:
-`list`, `lint`, `stability`, `rescore`, `regate`, and —
+`list`, `lint`, `stability`, `rescore`, `regate`, `mutation-test`, and —
 - `coverage <skill|all> --skills <root>` — which SKILL.md sections have a declared
   test. `covers` records that somebody LINKED a test to a section; it is not proof
   the behaviour is tested, and it is worth saying so when you report a percentage.
@@ -94,7 +99,8 @@ secrets out of a committed file, which is why the command has no unattended mode
 ## Tenets
 1. **Judge ≠ subject.** Never let the judge model sit in the model set being tested.
 2. **Critical + B-series gate the ship.** A critical-id fail or any under-pressure
-   (B*) fail blocks SHIP even if the pass count clears the bar.
+   (B*) fail blocks SHIP even if the pass count clears the bar. Every clean critical
+   repetition must pass; this includes over-refusal/right-sizing counterexamples.
 2b. **Missing evidence is ERROR, never a pass.** A gate that could not be checked —
    no trace produced, a workspace never observed, an argument redaction destroyed —
    reports ERROR and blocks. A vacuous PASS is the one outcome the harness will not

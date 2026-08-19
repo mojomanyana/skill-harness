@@ -148,7 +148,9 @@ describe("golden pipeline run", () => {
       };
       const seq = await run(1, "2026-07-04T00-00-00-010Z");
       const par = await run(2, "2026-07-04T00-00-00-011Z");
-      const strip = (s: string) => s.replace(/timestamp:.*/g, "timestamp: X");
+      const strip = (s: string) => s
+        .replace(/timestamp:.*/g, "timestamp: X")
+        .replace(/wall_time_ms:.*/g, "wall_time_ms: X");
       expect(strip(par)).toBe(strip(seq));
 
       // Only this test's scenario workspaces land under wsRoot, so this scan is hermetic.
@@ -234,7 +236,7 @@ describe("golden pipeline run", () => {
     expect(s.passes).toBeGreaterThanOrEqual(0);
     expect(s.clean).toBe(3); // no misfires in this fixture — clean equals reps
     expect(typeof s.flakiness).toBe("number");
-    expect(s.pass_threshold).toBe(0.5); // default threshold persisted on reps runs
+    expect(s.pass_threshold).toBe(1); // A1 is critical: every clean repetition must pass
     // rep-suffixed transcripts exist
     expect(existsSync(join(runDir, `${s.id}.green.rep0.txt`))).toBe(true);
     expect(existsSync(join(runDir, `${s.id}.green.rep2.txt`))).toBe(true);
@@ -274,7 +276,7 @@ describe("golden pipeline run", () => {
     expect(misfire).toHaveLength(1);
   });
 
-  it("gate-failed scenario (workspace setup failure) still emits judge-verdict FAIL, without invoking the judge", async () => {
+  it("workspace setup failure emits infrastructure ERROR without invoking the judge", async () => {
     // The scenario's fixture does not exist, so createWorkspace throws and run.ts's
     // gatePrefix path fires — the load-bearing invariant this test locks in.
     const skillDir = mkdtempSync(join(tmpdir(), "sc-golden-gatefail-"));
@@ -312,7 +314,7 @@ describe("golden pipeline run", () => {
       now: () => "2026-07-05T00:00:00.000Z",
     });
 
-    expect(results.scenarios[0].judge_verdict).toBe("FAIL");
+    expect(results.scenarios[0].judge_verdict).toBe("ERROR");
     expect(results.scenarios[0].judge_reason).toMatch(/fixture not found/);
 
     // No judge-raw artifact — proof the judge path was never taken (belt-and-suspenders
@@ -320,7 +322,7 @@ describe("golden pipeline run", () => {
     expect(existsSync(join(runDir, "G1.green.judge.txt"))).toBe(false);
 
     const jv = readJournal(runDir).filter((e) => e.event === "judge-verdict");
-    expect(jv).toHaveLength(1); // runRep's gate-failed branch still journals a judge-verdict
-    expect(jv[0]).toMatchObject({ id: "G1", verdict: "FAIL", suspect: false });
+    expect(jv).toHaveLength(1); // runRep's infrastructure branch still journals a judge-verdict
+    expect(jv[0]).toMatchObject({ id: "G1", verdict: "ERROR", suspect: false });
   });
 });

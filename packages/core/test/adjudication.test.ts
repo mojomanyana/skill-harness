@@ -6,6 +6,7 @@ import {
   formatAdjudicationPlan,
   runAdjudication,
   resolveAdjudicationJudges,
+  boundAdjudicationToRepetitions,
   MAX_JUDGMENTS,
   type CellState,
 } from "../src/adjudication.js";
@@ -248,6 +249,14 @@ const baseResult = (): ScenarioResult => ({
 });
 
 describe("projectAdjudication", () => {
+  it("cannot turn a failed all-clean repetition aggregate into PASS by rejudging one transcript", () => {
+    const result: ScenarioResult = { ...baseResult(), judge_verdict: "FAIL", reps: 3, passes: 2, clean: 3, pass_threshold: 1 };
+    const adj = collapseJudgments([judgment(1, "PASS"), judgment(2, "PASS")], "non_unanimous");
+    const bounded = boundAdjudicationToRepetitions(result, { ...scenario("A1", true), reps: 3, passThreshold: 1 }, adj);
+    expect(bounded.state).toBe("unresolved");
+    expect(projectAdjudication(result, bounded).judge_verdict).toBe("FAIL");
+    expect(projectAdjudication(result, bounded).suspect).toBe(true);
+  });
   it("unresolved sets suspect, which the existing ship bar already blocks on", () => {
     const adj = collapseJudgments([judgment(1, "PASS"), judgment(2, "FAIL")], "non_unanimous");
     const r = projectAdjudication(baseResult(), adj);

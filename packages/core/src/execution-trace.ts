@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import type { ExecutionTraceV1, TraceToolCall, TraceResultMeta } from "./capture-trace-types.js";
+import type { ExecutionTraceV1, TraceToolCall, TraceResultMeta, TraceMetrics } from "./capture-trace-types.js";
+import { normalizeSubagentCall } from "./trace-gates.js";
 import { EXECUTION_TRACE_VERSION } from "./capture-trace-types.js";
 import { redactArgs, redactText } from "./capture.js";
 import type { ModelRef, RunMode } from "./adapters/types.js";
@@ -40,7 +41,15 @@ interface RawMessage {
   role?: string;
   content?: ContentBlock[];
   stopReason?: string;
-  usage?: { cost?: { total?: number } };
+  toolCallId?: string;
+  timestamp?: number | string;
+  usage?: {
+    input?: number;
+    output?: number;
+    cacheRead?: number;
+    cacheWrite?: number;
+    cost?: { total?: number };
+  };
 }
 
 export interface TraceMeta {
@@ -69,6 +78,8 @@ export interface TraceMeta {
  */
 export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: ExecutionTraceV1; isComplete: boolean; malformedLines: number } {
   const calls = new Map<string, TraceToolCall>();
+  const issuedAt = new Map<string, string>();
+  const completedAt = new Map<string, string>();
   let issueCounter = 0;
   let completionCounter = 0;
   let malformedLines = 0;
@@ -77,6 +88,13 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
   let finalText = "";
   let lastAssistantText = "";
   let cost: number | null = null;
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let cacheReadTokens = 0;
+  let cacheWriteTokens = 0;
+  let sawUsage = false;
+  let activeCalls = 0;
+  let maxConcurrency = 0;
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -100,10 +118,13 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
         name: str(ev.toolName) ?? "(unknown)",
         args: redactArgs(ev.args, meta.homeDir),
         issueIndex: issueCounter++,
+        ...(issuedAt.get(id) ? { started_at: issuedAt.get(id) } : {}),
         completionIndex: -1, // filled in on `end`; -1 means it never completed
         isError: false,
         result: { bytes: 0, sha256: sha256("") },
       });
+      activeCalls++;
+      maxConcurrency = Math.max(maxConcurrency, activeCalls);
       continue;
     }
 
@@ -112,7 +133,9 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
       if (!id) continue;
       const call = calls.get(id);
       if (!call) continue; // an end with no start is not evidence of a call
+      if (call.completionIndex < 0) activeCalls = Math.max(0, activeCalls - 1);
       call.completionIndex = completionCounter++;
+      if (completedAt.get(id)) call.completed_at = completedAt.get(id);
       call.isError = ev.isError === true;
       call.result = resultMeta(ev.result, meta.homeDir);
       continue;
@@ -121,6 +144,20 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
     if (type === "message_end") {
       sawTerminal = true;
       const msg = ev.message as RawMessage | undefined;
+      const at = isoTime(msg?.timestamp);
+      if (msg?.role === "assistant" && at) {
+        for (const block of msg.content ?? []) {
+          if (block.type !== "toolCall" || typeof block.id !== "string") continue;
+          issuedAt.set(block.id, at);
+          const call = calls.get(block.id);
+          if (call) call.started_at = at;
+        }
+      }
+      if (msg?.role === "toolResult" && typeof msg.toolCallId === "string" && at) {
+        completedAt.set(msg.toolCallId, at);
+        const call = calls.get(msg.toolCallId);
+        if (call) call.completed_at = at;
+      }
       if (msg?.role !== "assistant") continue;
       const text = assistantText(msg);
       if (text) {
@@ -129,8 +166,17 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
         // mid-flight narration and is deliberately not the transcript.
         if (msg.stopReason === "stop") finalText = text;
       }
+      if (msg.usage && (
+        typeof msg.usage.input === "number" || typeof msg.usage.output === "number" ||
+        typeof msg.usage.cacheRead === "number" || typeof msg.usage.cacheWrite === "number" ||
+        typeof msg.usage.cost?.total === "number"
+      )) sawUsage = true;
       const total = msg.usage?.cost?.total;
       if (typeof total === "number") cost = (cost ?? 0) + total;
+      if (typeof msg.usage?.input === "number") inputTokens += msg.usage.input;
+      if (typeof msg.usage?.output === "number") outputTokens += msg.usage.output;
+      if (typeof msg.usage?.cacheRead === "number") cacheReadTokens += msg.usage.cacheRead;
+      if (typeof msg.usage?.cacheWrite === "number") cacheWriteTokens += msg.usage.cacheWrite;
       continue;
     }
 
@@ -144,6 +190,19 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
     }
   }
 
+  const toolCalls = [...calls.values()].sort((a, b) => a.issueIndex - b.issueIndex);
+  const metrics: TraceMetrics = {
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+    cache_read_tokens: cacheReadTokens,
+    cache_write_tokens: cacheWriteTokens,
+    cost_usd: cost ?? 0,
+    tool_calls: toolCalls.length,
+    delegated_children: toolCalls
+      .filter((call) => call.name === "Agent")
+      .reduce((count, call) => count + normalizeSubagentCall(call.args).length, 0),
+    max_concurrency: maxConcurrency,
+  };
   const trace: ExecutionTraceV1 = {
     trace_version: EXECUTION_TRACE_VERSION,
     pi_version: meta.piVersion,
@@ -160,12 +219,16 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
     // — an assertion that used to pass only because the smoke model happened not
     // to echo one.
     final_text: redactText(finalText || lastAssistantText, meta.homeDir),
-    tool_calls: [...calls.values()].sort((a, b) => a.issueIndex - b.issueIndex),
+    tool_calls: toolCalls,
     // `null`, not `[]`: the stream says nothing about the filesystem. The runner
     // overwrites this after observing the workspace. Defaulting to `[]` claimed
     // "observed, nothing changed" for every trace ever parsed.
     changed_paths: meta.changedPaths ? [...meta.changedPaths].sort() : null,
     cost_usd: cost,
+    // Tool calls remain in the trace for objective gates. Aggregate usage/cost/
+    // tool metrics are published only when pi actually reported usage; otherwise
+    // zero would mean "free" instead of "unavailable".
+    ...(sawUsage ? { metrics } : {}),
   };
   trace.trace_sha256 = traceSha256(trace);
 
@@ -208,6 +271,12 @@ function resultMeta(result: unknown, homeDir?: string): TraceResultMeta {
 
 function str(v: unknown): string | undefined {
   return typeof v === "string" && v.length > 0 ? v : undefined;
+}
+
+function isoTime(value: unknown): string | undefined {
+  if (typeof value !== "number" && typeof value !== "string") return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
 function sha256(text: string): string {
@@ -279,7 +348,7 @@ export function mergeTraces(traces: ExecutionTraceV1[]): ExecutionTraceV1 | null
     // without one would be un-regatable — and an adapter is exactly the layer
     // most likely to forget.
     const only = traces[0];
-    return only.trace_sha256 ? only : { ...only, trace_sha256: traceSha256(only) };
+    return { ...only, trace_sha256: traceSha256(only) };
   }
 
   const calls: TraceToolCall[] = [];
@@ -310,15 +379,36 @@ export function mergeTraces(traces: ExecutionTraceV1[]): ExecutionTraceV1 | null
     if (t.cost_usd !== null) cost = (cost ?? 0) + t.cost_usd;
   }
 
+  const completeMetrics = traces.every((trace) => trace.metrics !== undefined);
+  const metrics = completeMetrics
+    ? traces.reduce<TraceMetrics>((sum, trace) => ({
+        input_tokens: sum.input_tokens + trace.metrics!.input_tokens,
+        output_tokens: sum.output_tokens + trace.metrics!.output_tokens,
+        cache_read_tokens: sum.cache_read_tokens + trace.metrics!.cache_read_tokens,
+        cache_write_tokens: sum.cache_write_tokens + trace.metrics!.cache_write_tokens,
+        cost_usd: sum.cost_usd + trace.metrics!.cost_usd,
+        tool_calls: sum.tool_calls + trace.metrics!.tool_calls,
+        delegated_children: sum.delegated_children + trace.metrics!.delegated_children,
+        max_concurrency: Math.max(sum.max_concurrency, trace.metrics!.max_concurrency),
+      }), {
+        input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0,
+        cost_usd: 0, tool_calls: 0, delegated_children: 0, max_concurrency: 0,
+      })
+    : undefined;
   const last = traces[traces.length - 1];
+  const captureErrors = traces.flatMap((trace) => trace.capture_errors ?? []);
+  const { capture_errors: _lastCaptureErrors, ...lastWithoutCaptureErrors } = last;
+  void _lastCaptureErrors;
   const merged: ExecutionTraceV1 = {
-    ...last,
+    ...lastWithoutCaptureErrors,
     // The scenario's answer is its LAST turn's answer, matching how the
     // transcript reads and how the judge is asked to grade it.
     final_text: last.final_text,
     tool_calls: calls,
     changed_paths: anyUnobserved ? null : [...changed].sort(),
     cost_usd: cost,
+    ...(captureErrors.length ? { capture_errors: captureErrors } : {}),
+    ...(metrics ? { metrics } : {}),
   };
   merged.trace_sha256 = traceSha256(merged);
   return merged;

@@ -4,6 +4,7 @@ import { loadSpec, type ShipBar } from "./spec.js";
 import { readResults, type ResultsFile } from "./results.js";
 import { collectLift, liftHeadline, type Lift } from "./lift.js";
 import { boundaryCells, collectStability, stabilityNote } from "./stability.js";
+import { aggregateMetrics, type AggregateMetrics } from "./comparison.js";
 
 export interface RunColumn {
   index: number;
@@ -12,8 +13,10 @@ export interface RunColumn {
   runDir: string; // absolute path (server-side only)
   timestamp: string;
   mode: string; // red | green | force — green and force are scored, red is the unscored baseline
+  partial: boolean;
   grade: ResultsFile["effective_grade"];
   judge: ResultsFile["judge"];
+  metrics: AggregateMetrics;
   cells: Record<string, {
     judge_verdict: string; judge_reason: string; suspect: boolean;
     /** Objective trace-gate outcome, when the scenario declared `assert.trace`. */
@@ -21,6 +24,7 @@ export interface RunColumn {
     /** Adjudication outcome, when the cell was re-judged. */
     adjudication?: { state: string; trigger: string; count: number; detail: string };
     reps?: number; passes?: number; clean?: number; flakiness?: number;
+    metrics?: import("./results.js").ScenarioMetrics;
     override: string | null; note: string;
     /**
      * Run-over-run history for this cell, derived from the tag's other runs in the
@@ -133,6 +137,7 @@ export function collectReport(skillDir: string): ReportData {
           passes: s.passes,
           clean: s.clean,
           flakiness: s.flakiness,
+          metrics: s.metrics,
           override: s.override,
           note: s.note,
         };
@@ -155,8 +160,10 @@ export function collectReport(skillDir: string): ReportData {
         runDir,
         timestamp: r.timestamp,
         mode: r.mode,
+        partial: r.partial === true,
         grade: r.effective_grade,
         judge: r.judge,
+        metrics: aggregateMetrics(r.scenarios),
         cells,
         ...(lift ? { lift, liftHeadline: liftHeadline(lift) } : {}),
       });
@@ -179,8 +186,10 @@ export function publicView(data: ReportData) {
       tag: c.tag,
       timestamp: c.timestamp,
       mode: c.mode,
+      partial: c.partial,
       grade: c.grade,
       judge: c.judge,
+      metrics: c.metrics,
       cells: c.cells,
       ...(c.lift ? { lift: c.lift, liftHeadline: c.liftHeadline } : {}),
     })),
