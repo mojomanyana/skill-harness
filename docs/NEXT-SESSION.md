@@ -1,119 +1,157 @@
 # Next session — start here
 
-*Written 2026-08-09, at the close of the 0.7.0 release session. Read this before
+*Written 2026-08-20, at the close of the 0.9.0 release session. Read this before
 `docs/ROADMAP.md`: the roadmap says where the project is going, this says what is
 half-finished and what will bite you.*
 
 ## Where things stand
 
-**2026-08-20 risk-adaptive workflow implementation (working tree, not published):** trajectory
-assertions, principal/pi-daddy normalization, paired `compare`, critical all-clean repetition gates,
-`mutation-test`, cost/latency fields, schemas, and the principal v3 example pack are implemented.
-Authoritative upstream was principal-pi-skills PR #31 at
-`961f8ccbdb2a12e92db1e1b2d4ab7ca50f9d7d21`; its GitHub `ci / spec-lint` check was SUCCESS and the
-head had not advanced. No subject/judge wave or principal live E2E cell was run. Historical v2 cells
-remain historical. OS sandbox work is intentionally only an interface + fake; do not claim temp dirs
-or worktrees are containment. `packages/pi-extension/dist/index.js` was regenerated; the final
-packed-artifact smoke installed all four tarballs, imported the public trajectory schema subpath,
-ran `--version`/help, detected 15/15 offline mutations, and linted the example pack with 0 findings.
+`skill-harness@0.9.0` is **published, merged and tagged** — `v0.9.0` on `96b9554`,
+`latest` moved to the same commit, all four packages on the registry and verified by
+installing into an empty project rather than by trusting the publish output. CI is
+green. 1,245 tests across 78 files. Working tree clean, no open PRs.
 
-`skill-harness@0.7.0` is **published, merged, and tagged** (`v0.7.0`, PRs #43 + #44).
-CI is green. 1123 tests. Working tree is clean.
+**0.9.0 shipped workflow-level assurance.** `assert.trajectory` gates over normalized
+workflow events (`require`, `forbid`, `ordered`, `correlate`, `approvals`,
+`freshness`, `coverage`, `forbid_after`, `unique`), where a missing correlation field
+is ERROR and never a pass. `compare` runs a paired reference/candidate setup and
+*refuses* any run whose two sides differ in spec bytes, fixtures, extensions, system
+prompt, model, mode, judge or repetition plan — preflighted before the first subject
+call, so an unfair comparison costs nothing. `mutation-test` proves the new gate
+classes can turn red, 15/15, offline and free. `critical:` scenarios now demand every
+clean repetition. Cost/latency fields are recorded, and three JSON schemas are a
+public export subpath (`@skill-harness/core/schemas/*.json`).
 
-0.7.0 shipped five capabilities in one minor — `capture`, `assert.trace`,
-`require_subagents`, `coverage`/`affected`, adjudication — plus the change that made
-the trace gates actually gate: **an objective FAIL/ERROR now outranks the judge** in
-`effectiveVerdicts`. Before that, `objective` was written into `results.yaml` and
-never scored, so a critical scenario in which the model called a forbidden tool
-graded 100% and SHIPped. If you touch scoring, that ordering is the invariant to
-protect: `override ?? objective ?? judge_verdict`.
+**What is deliberately not claimed.** There is **no OS sandbox** — core exports a
+`SandboxBackend`/`withSandbox` seam with fake-backed tests, and temp fixture
+directories and git workspaces are *not* containment. The principal digest chain is an
+integrity check, not attestation: it detects torn or edited saved logs, but an
+unsandboxed subject that can rewrite and rehash a whole ledger can fabricate one. Any
+report must keep saying containment is unavailable until a real backend exists.
+
+**The pre-publish smoke gate works now, and did not before.** `scripts/smoke-real-pi.sh`
+had four defects, each of which made it report something other than what it measured:
+a retired model alias, run-dir selection by model tag (so it could assert against a
+*previous* run), never reaching its own assertions (step 1 exited non-zero on any
+non-shipping scorecard under `set -e`), and gating the objective *after* the judge
+spend though `grade` only carries that verdict. It has now reached all four stages
+once, exit 0, on pi 0.84.2 — for 2242/457 subject tokens (`cost_usd 0.00049`) and 3
+judge calls, matching its own disclosure. Treat that single run as what it says it is:
+one draw on a cheap model, not a measurement.
 
 ## Open work, in the order I would do it
 
-### 1. `runStructured` has no automated test — the largest coverage gap
+### 1. `principal-pi-skills` — 100 paid re-runs, re-measured today
 
-`packages/adapters/src/pi.ts` (`runStructured`, ~75 lines) and all of
-`packages/adapters/src/pi-json.ts` have **no test that imports them**. Every trace
-test above them runs against a fake adapter that hand-writes trace objects, and
-`pi-json-contract.test.ts` only reads the fixture files — it never executes the
-module. The only thing that covers the real path is `./scripts/smoke-real-pi.sh`,
-which spends money and must be run by hand.
+Sister repo, on disk at `../principal-pi-skills` (HEAD `2c53559`). Measured with the
+0.9.0 binary, free and offline:
 
-One sharp edge to fix while you are in there: the stdout prefilter test I added
-re-declares `SKIPPED_TYPE_RE` as a **copy** of the regex in `pi-json.ts` rather than
-importing it. It therefore pins the assumption (pi puts `type` first in every event)
-but would not catch someone editing the real regex. Import the real one.
+```bash
+node bin/skill-harness.js lint all --skills ../principal-pi-skills
+# 7 skill(s), 101 finding(s), 32 note(s)
+```
 
-Close it with `vi.mock("node:child_process")` and a fake spawn emitting a canned
-JSONL stream — the fixtures already exist in
-`packages/adapters/test/fixtures/pi-json/`. Assert: argv contains `--mode json` and
-the right session flags per turn; a stream with no terminal event throws rather than
-returning an empty trace; and `runStructured`'s transcript is byte-identical to
-`run()`'s for the same turns (the docstring claims parity and nothing checks it).
+**100 findings demand a paid `run`; 1 wants a `re-grade`; zero have a free remedy** —
+no `regate`, no `rescore`. The previous handoff said 56 re-runs measured 2026-08-09,
+so this has nearly doubled; the number has now moved three times, which is the
+argument for re-measuring rather than planning against any figure written here.
 
-This is free, and it is the last thing standing between the release path and being
-verifiable in CI.
-
-### 2. `principal-pi-skills` — 123 paid re-runs are pending
-
-Sister repo. `gitops-safety` is **merged into `main`**; everything below is landed.
-
-- `covers` is declared on all 98 scenarios (free).
-- `reps: 3` is pinned on all 98 (free) — this staled the `policy:` facet, which
-  `rescore` cleared across 12 run dirs with **zero verdicts moved**. The diff was
-  `policy:` hashes and `harness_version` only.
-- **What remains, measured on `main` at 2026-08-09: 56 `re-run` + 1 `re-grade`.**
-  The re-runs come from the agent renames to `principal-*` and the debug contract
-  edit — not from anything in 0.7.0. They spend subject tokens and need a
-  deliberate, budgeted wave. Re-measure before planning it; this number has moved
-  twice already.
+This needs a deliberate, budgeted wave, not an afternoon. Decide the scope first —
+which skills, which models, how many reps — because the whole 100 at `reps: 3` is a
+large bill and most of it is staleness from skill edits rather than anything the
+harness changed.
 
 Still unadopted there, both deferred on purpose and both still the right call:
-- **`assert.trace`** — needs a real captured `.trace.jsonl` to verify tool names
-  against. A gate that silently never fires is worse than no gate.
-- **`require_subagents`** — needs pi-mono's subagent extension vendored into
-  `.pi/extensions/`. That is a decision about carrying someone else's code, not a
-  mechanical step.
+`assert.trace` needs a real captured `.trace.jsonl` to verify tool names against (a
+gate that silently never fires is worse than no gate), and `require_subagents` needs
+pi-mono's subagent extension vendored into `.pi/extensions/` — a decision about
+carrying someone else's code, not a mechanical step.
 
-⚠️ **A parallel session has been writing that repo.** It committed my working-tree
-`covers` edits as `89bb442`, then merged `gitops-safety` to `main` and carried on.
-Fetch and read the log before editing — and check whether one is still running, or
-you will both be writing the same files.
+### 2. One real sandbox backend
 
-### 3. Phase 2 distribution
+The bounded follow-up named in `docs/ASSURANCE-WORKFLOWS.md`: add a single Linux
+backend (container or bubblewrap) behind the existing seam, wire an explicit CLI flag,
+capture its workspace diff, and test denied network / process / filesystem access on
+supported hosts. Until it exists the seam is a fake and the docs must keep saying so.
+
+### 3. Small and free: `pi_version` is only ever asserted by the paid script
+
+`pi_version` is only ever an *input* in the suite — passed in as meta and hardcoded
+(`"0.83.0"` in seven places) — so nothing checks it is populated from a real pi's
+output. Only the smoke script's step 2 does, which costs money to reach. A ~10-line
+test over `buildExecutionTrace` would prove the field is wired, leaving "the real pi
+reports something" as the only paid part.
+
+### 4. Phase 2 distribution
 
 Untouched, deliberately last, at the owner's call. See `docs/ROADMAP.md`.
 
 ## Things that will bite you
 
-- **The pi-extension bundle is committed.** `packages/pi-extension/dist/index.js` is
-  an esbuild artifact under version control. Run `npm run build:ext` and commit it
+- **`grade` CARRIES trace gates; only `run` and `regate` compute them.** `regrade.ts`
+  says so and `field-roundtrip.test.ts` pins it. This is worth knowing before you put
+  an objective assertion after a `grade` call: doing exactly that in the smoke script
+  cost two judge calls to re-confirm a verdict already on disk, and printed
+  "survived the re-grade" about something nothing had re-graded.
+- **`packages/core/src/trace-gates.ts` contains literal NUL bytes** (its glob
+  sentinels), so plain `grep` reports **no matches** on that file and exits 1. Use
+  `grep -a`. It silently defeats grep-based auditing of the file most trace-gate
+  questions land in.
+- **`gh pr edit` is broken on this repo.** It prefetches classic Projects and dies with
+  a deprecation error, exit 1, **having written nothing**. Use
+  `gh api -X PATCH repos/mojomanyana/skill-harness/pulls/<N> -F body=@file.md`, and
+  confirm the write landed — the failure mode is a silent no-op.
+- **`gh` needs an account switch** for PR writes: `gh auth switch -u mojomanyana`, then
+  back to `mojo-cosmic`. It reverts mid-session, so re-run it before every write.
+- **An agent working here cannot merge PRs** — `gh pr merge` is refused by the
+  permission classifier. Open the PR, get it green, and hand the merge to the human;
+  do not try to route around it.
+- **The pi-extension bundle is committed.** `packages/pi-extension/dist/index.js` is an
+  esbuild artifact under version control. Run `npm run build:ext` and commit it
   whenever bundled core/cli source changes; `bundle.test.ts` fails if it goes stale.
   Never add pi-extension to an emitting `tsc -b` — that clobbers the bundle.
 - **`pi -p` hangs** unless stdin is `/dev/null`. Silent timeout, looks like a slow
-  model.
-- **CI has no `pi` on PATH.** A test that shells out to the adapter passes locally
-  and fails there. This already happened once: an argument-validation test was
-  ordered behind the PATH probe. Run the suite against a PATH without `pi` before
-  trusting it.
-- **`gh` needs an account switch** for PRs on these repos: `gh auth switch --user
-  mojomanyana`, then switch back to `mojo-cosmic` when done.
+  model. `runPiJson` passes `stdio: ["ignore", …]` for exactly this reason, and there
+  is now a test that fails if someone changes it.
+- **CI has no `pi` on PATH.** A test that shells out to the adapter passes locally and
+  fails there. Run the suite against a PATH without `pi` before trusting it.
 - **Digest facets decide cost.** `stimulus:` → `run` (spends), `rubric:` → `grade`,
-  `policy:` → `rescore` (free), `gates:` → `regate` (free). `covers` is in **no**
-  digest by construction. Before any spec-wide edit, measure lint before and after on
-  the same tree — an edit that moves `stimulus:` bills a full board.
+  `policy:` → `rescore` (free), `gates:` → `regate` (free, *except* a rep whose gate
+  flips fail→pass must be judged — it prints the count). `covers` is in **no** digest.
+  Before any spec-wide edit, measure `lint` before and after on the same tree.
+- **The smoke gate reports one permanent stale finding** and steps over it by design.
+  The retired `deepseek-v4-flash` tag dir can never receive another run, and `lint`
+  checks the newest run of every tag, so that finding cannot be cleared by running
+  anything — only by deleting the gitignored dir. Staleness does not block the paid
+  run; a `fixture` finding still does.
+- **The smoke spec's `task_contains: ["auth"]` is a case-sensitive substring** on text
+  the *model* writes, and the turn opens "Authentication", which does not contain
+  `auth`. It has passed on luck twice. If the gate reddens there, read it as the model,
+  not the harness — the spec comment says so.
+- **Mutation-check any test you write for this repo.** Writing the failure-path tests
+  for `pi-json.ts`, the prefilter test passed against a deliberately broken source: the
+  payload put the event name in single quotes, which `JSON.stringify` escapes, so
+  neither the real filter nor the buggy one matched it. A test that cannot fail is
+  worse than no test, and this one looked right.
 - **`docs/posts/` drafts no longer claim version numbers.** Five of them used to
-  announce 0.7.0–0.11.0 for features that all shipped in one release. Don't
-  reintroduce per-post versions.
+  announce 0.7.0–0.11.0 for features that shipped in one release. Don't reintroduce
+  per-post versions.
 
-## What was removed this session, and why
+## What this file used to say, and why it changed
 
-Ten completed milestone plans and nine specs under `docs/superpowers/` (~10,000
-lines, July M1–M7a, init-suggest, rebrand-publish). Every one described shipped,
-published work while carrying 26–41 **unchecked** boxes and zero checked — so an
-agent reading `milestone-6.md` would conclude the pi extension does not exist. It
-does; it is published. Git history keeps them.
+The previous version was written at the close of the 0.7.0 session and had gone stale
+in ways that would mislead a reader rather than merely date it:
 
-Kept: `2026-08-07-pi-native-regression-capture-program.md` (live-referenced, and its
-checklist is the record of the work just finished), and the dated investigation docs
-under `docs/`, which are the evidence behind published posts.
+- It headlined 0.7.0 as the current release and reported 1,123 tests.
+- It described the risk-adaptive workflow implementation as "working tree, not
+  published". That work is on `main` and shipped in 0.9.0 — it landed under a commit
+  message reading only `tmp-work`, so `PUBLISHING.md`'s 0.9.0 section is where its
+  notes actually live.
+- Its open-work item #1 was "`runStructured` has no automated test — the largest
+  coverage gap". Half of it was already closed by the time it was written
+  (`pi-structured.test.ts` mocks `node:child_process` and covers argv, per-turn session
+  flags, the no-terminal-event throw and transcript parity with `run()`), and the
+  failure paths were closed in 0.9.0 (`pi-json.test.ts`). Its specific complaint that
+  the contract test re-declares `SKIPPED_TYPE_RE` as a copy was also already fixed —
+  it imports the real regex.
+- Its sister-repo figure (56 re-runs) was three measurements out of date.
