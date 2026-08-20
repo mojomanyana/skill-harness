@@ -3,9 +3,12 @@
 This is the npm-publish runbook.
 
 The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`, `0.3.0`, `0.3.1`, `0.3.2`, `0.4.0`,
-`0.5.0`, `0.6.0`, `0.7.0`. This repo is at `0.8.0`, so these commands publish a **new version
-over an existing line** — the `@skill-harness` scope is already claimed, and `latest` moves to
-0.8.0 as each package lands.
+`0.5.0`, `0.6.0`, `0.7.0`, `0.8.0` — which is also where this repo sits, so **0.8.0 is already
+served and the commands below are the record of how it went out, not a runnable script**. npm
+refuses to publish over a version that exists, so bump every version literal here to the new
+number first; they are written out rather than parameterised because a runbook you can read is
+worth more than one you can paste. The `@skill-harness` scope is already claimed, and `latest`
+moves as each package lands.
 
 **0.8.0 takes the minor: a new command, and a change to what "the skill changed" means.**
 
@@ -374,13 +377,13 @@ Run from the **repo root** (npm workspaces `-w` flag, verified with npm 11.9.0 /
 Node 24.14.0 — this repo's `engines.node` requires >=20, which ships npm >=10,
 so `-w` should work on any supported install). Each step must land on the
 registry before the next, since each package's `package.json` pins an exact
-`@skill-harness/*@0.7.0` dependency (npm will fail to resolve it otherwise):
+`@skill-harness/*@0.8.0` dependency (npm will fail to resolve it otherwise):
 
 ```bash
 npm publish -w @skill-harness/core --access public
 npm publish -w @skill-harness/adapters --access public
 npm publish -w @skill-harness/cli --access public     # prepack stages assets/report.* into the tarball
-npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.7.0
+npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.8.0
 ```
 
 `@skill-harness/core` and `@skill-harness/adapters` publish exactly the `dist/`
@@ -409,7 +412,7 @@ ships to pi users via `pi install git:...`, not the npm registry.
 ## Verify after publishing
 
 ```bash
-npm view skill-harness version            # expect 0.7.0
+npm view skill-harness version            # expect 0.8.0
 npm i -g skill-harness && skill-harness --help
 npx @skill-harness/cli lint --help
 ```
@@ -427,8 +430,8 @@ The version bump lives on `release-<version>`. Until that branch reaches `main`,
 a fresh clone of `main` reports a different version than the registry serves:
 
 ```bash
-gh pr create --base main --head release/0.7.0 \
-  --title "chore(release): 0.7.0" --body "Version bump + runbook."
+gh pr create --base main --head release/0.8.0 \
+  --title "chore(release): 0.8.0" --body "Version bump + runbook."
 gh pr merge --merge   # or fast-forward main if there is nothing to reconcile
 ```
 
@@ -461,7 +464,7 @@ lockstep.
 
 ```bash
 git checkout main && git pull
-git tag v0.7.0 && git push origin v0.7.0     # the immutable release tag
+git tag v0.8.0 && git push origin v0.8.0     # the immutable release tag
 git tag -f latest && git push -f origin latest   # the ref the docs point at
 ```
 
