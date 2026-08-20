@@ -25,3 +25,12 @@ jobs:
         with:
           skills-root: packages/core/test/fixtures
           skill: all
+      # The smoke spec claims `lint` validates its declared extension path, but the only thing
+      # that ran that lint was the token-spending script — so a repo move broke the pre-publish
+      # gate and you found out by spending. A fresh checkout has no `tests/results/`, so the
+      # staleness findings that fire locally cannot fire here.
+      - name: Lint the real-pi smoke spec
+        uses: ./
+        with:
+          skills-root: scripts/smoke/skills
+          skill: all

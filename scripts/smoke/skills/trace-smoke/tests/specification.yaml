@@ -31,7 +31,23 @@ scenarios:
         require_subagents:
           - tool: Agent
             agent: plan
+            # `task_contains` is matched against the handoff text the MODEL writes, and the
+            # match is a case-sensitive substring — the turn opens "Authentication is failing",
+            # which does not contain "auth". So this needle is prompt-driven, not guaranteed:
+            # if it ever reddens on a draw, read it as the model, not the harness.
             task_contains: ["auth"]
-            task_excludes: ["password"]
+            # A sentinel no model will ever emit, and that is the entire point. This needle used
+            # to be ["password"], which cheap models leak into the handoff — a pre-publish gate
+            # blocked by one draw of a subject rather than by anything about the harness.
+            #
+            # Deleting it outright cost something, though: the `lost` branch in `trace-gates.ts`
+            # (`leaked.length === 0 && matched.some(i => valueWasLost(i.task))`) is the scenario's
+            # ONLY reachable redaction detector — `task_contains` has no such branch, and
+            # `forbid_calls` declares no `args`, so `lostArgs` returns []. That branch fires on
+            # `valueWasLost(i.task)` alone and never looks at the needle, so an unsatisfiable
+            # sentinel keeps it live with zero model-dependence: redaction or truncation of the
+            # handoff still reports ERROR ("the leak check could not be run") instead of hiding
+            # inside a `task_contains` FAIL that reads like the model simply not saying "auth".
+            task_excludes: ["SMOKE-SENTINEL-NEVER-EMITTED-8f3a1c"]
         forbid_calls:
           - write

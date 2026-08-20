@@ -332,7 +332,7 @@ JSONL reader in `runStructured`, the `--no-extensions --extension` argv the
 harness passes to pi, and the live judge loop under `--auto-rejudge`.
 
 ```bash
-./scripts/smoke-real-pi.sh          # SPENDS TOKENS: ~2 subject calls + 1–2 judge calls
+./scripts/smoke-real-pi.sh          # SPENDS TOKENS: 1–2 pi invocations + up to 3 judge calls
 ```
 
 One scenario exercises all three and asserts on the artifacts, not just the exit
@@ -348,6 +348,25 @@ smoke run is what found it.
 
 A smoke run is **one draw on a cheap model, not a measurement**: its
 `results.yaml` is gitignored so a throwaway scorecard never lands in the repo.
+
+For the same reason `run`'s own release exit code is deferred rather than allowed
+to end the script, and the objective gate is asserted **before** the judge spend
+rather than after — `grade` carries trace gates rather than re-evaluating them, so
+checking afterwards only paid to re-read a verdict already on disk.
+
+What the gate fails on is mostly harness, not model: the spec's only content
+needle is a sentinel no model can emit. **Mostly, not entirely** — the delegation
+itself (`require_subagents` selection) and `task_contains` are the subject's
+behaviour, and a provider outage reddens the first of them. So read the failing
+assertion rather than assuming either cause. A `NOT READY` scorecard from `run` is
+separate and expected: reported, not fatal.
+
+The subject pin is `deepseek-v4-flash-0731`, dated deliberately so the provider
+cannot retire it out from under the script; `SMOKE_MODEL` overrides it per shell.
+The first preflight after any spec edit reports `stale` findings from earlier local
+runs — gitignored litter, stepped over rather than fatal, and clearable by deleting
+`scripts/smoke/skills/*/tests/results/` (not by `regate`, which costs a judge call
+when a gate verdict flips).
 
 ## Publish, in dependency order
 
