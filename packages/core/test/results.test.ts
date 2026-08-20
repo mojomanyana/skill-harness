@@ -1,7 +1,7 @@
 import { describe, test, expect, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import yaml from "js-yaml";
 import {
   runDirFor,
@@ -59,6 +59,27 @@ describe("runDirFor", () => {
     expect(dir).toMatch(/pi-fireworks-accounts-fireworks-models-deepseek-v4-pro/);
     // timestamp colons are not filesystem-friendly on all platforms — slugified
     expect(dir).not.toMatch(/14:03:00/);
+  });
+
+  // `scripts/smoke-real-pi.sh` picks the newest run by sorting on this basename alone and taking
+  // the last one, so "lexicographic order is chronological order" is load-bearing OUTSIDE this
+  // package — and the test above would not notice it breaking. A local offset or unpadded fields
+  // inverts it: `2026-6-25T…` sorts after `2026-12-…`, and the smoke gate silently validates an
+  // older run. The producer side is the CLI's `nowIso`, which must keep handing this a full UTC
+  // ISO string with milliseconds.
+  test("basename is fixed-width UTC, so lexicographic order is chronological", () => {
+    const at = (iso: string) => basename(runDirFor("/skills/ponytail", "pi", {
+      provider: "fireworks",
+      model: "accounts/fireworks/models/deepseek-v4-pro",
+    }, iso));
+    expect(at("2026-06-25T14:03:00.000Z")).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/);
+    const ordered = [
+      "2026-06-09T23:59:59.999Z",
+      "2026-06-10T00:00:00.000Z",
+      "2026-12-01T09:00:00.000Z",
+      "2027-01-01T00:00:00.000Z",
+    ].map(at);
+    expect([...ordered].sort()).toEqual(ordered);
   });
 });
 

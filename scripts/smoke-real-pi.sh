@@ -18,10 +18,12 @@
 # guaranteed to trigger (one scenario, min_pass == total, so the single cell is
 # always `ship_deciding`).
 #
-# Cost: 1 subject call on a cheap Fireworks model — 2 if the first turn comes back
+# Cost: 1 pi invocation on a cheap Fireworks model — 2 if the first turn comes back
 # blank, which the harness retries once — plus up to 3 judge calls on the Claude
 # subscription: one in `run`, one in `grade`'s re-judge, and one for adjudication's
-# secondary opinion. Measured well under a cent of subject spend. Counted rather
+# secondary opinion. One invocation is not one model call: the agentic loop inside it
+# calls the model once per tool round, and the archived runs show two tool calls, so
+# budget three. Measured well under a cent of subject spend either way. Counted rather
 # than estimated: this file asserts that spend is never implicit, so its own
 # disclosure has to be right — and PUBLISHING.md quotes the same numbers.
 #
@@ -59,10 +61,23 @@ echo "pi     $(pi --version)"
 echo "claude $(claude --version | head -1)"
 echo "subject $MODEL"
 
-# Runs BEFORE any spend: lint validates that the declared extension path exists,
-# so a repo move fails here for free instead of after tokens are spent on a
-# scenario whose subagent tool was silently absent.
-$CLI lint all --skills "$SKILLS" || fail "lint found problems — fix before spending"
+# Runs BEFORE any spend, and one finding is the reason: `fixture` proves the declared extension path
+# exists, so a repo move fails here for free instead of after tokens are spent on a scenario whose
+# subagent tool was silently absent. That one still fails closed.
+#
+# `stale` is a different animal and must NOT block. It means an OLD LOCAL run predates the current
+# spec — and those runs are gitignored, so they are never published, which is the only thing staleness
+# exists to prevent. It is also unclearable in general: `lint` checks the newest run of EVERY model tag,
+# and the retired model's tag can never receive another run, so one spec edit would leave this script
+# permanently unrunnable. Clear them by deleting `tests/results/` if you want a quiet preflight; note
+# `regate` is NOT free here, since a gate verdict that flips costs a judge call.
+LINT_OUT=$($CLI lint all --skills "$SKILLS" 2>&1) || true
+printf '%s\n' "$LINT_OUT"
+BLOCKING=$(printf '%s\n' "$LINT_OUT" | grep '^✗' | grep -v ': stale — ' || true)
+[ -z "$BLOCKING" ] || fail "lint found problems — fix before spending"
+STALE=$(printf '%s\n' "$LINT_OUT" | grep -c ': stale — ' || true)
+[ "$STALE" = "0" ] ||
+  echo "note: stepped over $STALE stale finding(s) — old local runs predate the spec, not a spend-safety problem"
 $CLI coverage "$SKILL" --skills "$SKILLS"
 
 say "1 · run (SPENDS subject tokens) — exercises spawn + streaming + --extension"
@@ -70,8 +85,16 @@ say "1 · run (SPENDS subject tokens) — exercises spawn + streaming + --extens
 # Taken BEFORE the spend so the run dir can be required to be NEW. Without it, a `run` that dies before
 # writing anything leaves the newest PREVIOUS run as the selection below, and steps 2-4 then assert
 # against artifacts this run never produced — the same false pass the sort fix closes, by another route.
-STAMP="$(mktemp -d)/stamp"
+STAMP_DIR=$(mktemp -d)
+trap 'rm -rf "$STAMP_DIR"' EXIT
+STAMP="$STAMP_DIR/stamp"
 : > "$STAMP"
+# Backdated deliberately. `find -newer` is strictly greater and filesystem mtimes are coarse — measured
+# 4 ms ticks on ext4 here, 1 s on drvfs/NFS — so a run dir created in the same tick as the stamp would be
+# excluded. That direction fails closed (it reports "no new run dir" rather than adopting a stale one),
+# but only after the tokens are gone, and a TMPDIR coarser than the repo truncates the stamp DOWNWARD,
+# which is the direction that could admit a dir created just before this script started.
+touch -d '1 second ago' "$STAMP"
 
 # `run` is itself a release gate: it exits 1 whenever the scorecard does not SHIP
 # (`releaseExitCode`, packages/cli/src/cli.ts, asserted in packages/cli/test/run-tuning.test.ts), and
@@ -82,8 +105,14 @@ STAMP="$(mktemp -d)/stamp"
 # this file exists to exercise had been touched. Deferred and reported; the assertions below are the gate.
 RUN_STATUS=0
 $CLI run "$SKILL" --skills "$SKILLS" --model "$MODEL" --mode force --label smoke || RUN_STATUS=$?
+# The status is deliberately NOT diagnosed here. `run` exits non-zero for a release verdict
+# (`releaseExitCode`), for every throw in `main()` — pi missing, an unreadable spec, a judge refusal —
+# and for a signal (137 the OOM killer, 143 SIGTERM), and nothing at this layer can tell them apart.
+# Naming "the scorecard did not SHIP" would be a guess dressed as a diagnosis. A signal is different in
+# kind: it means the run was cut short, so there is no complete artifact worth asserting against.
+[ "$RUN_STATUS" -lt 128 ] || fail "run was killed by a signal (exit $RUN_STATUS) — not asserting against a partial run"
 [ "$RUN_STATUS" -eq 0 ] ||
-  echo "note: run exited $RUN_STATUS (the scorecard did not SHIP) — continuing; the assertions below are the gate"
+  echo "note: run exited $RUN_STATUS — cause unknown at this layer, see its output above; continuing, the assertions below are the gate"
 
 # Three separate ways this used to validate the wrong run, every one of them a false pass:
 #
@@ -104,12 +133,22 @@ RESULTS="$SKILLS/$SKILL/tests/results"
 RUN_DIR=$(find "$RESULTS" -maxdepth 2 -mindepth 2 -type d -newer "$STAMP" |
   awk -F/ '{ print $NF "\t" $0 }' | sort | tail -1 | cut -f2-)
 [ -n "$RUN_DIR" ] || fail "step 1 produced no new run dir (run exited $RUN_STATUS) — nothing to assert against"
-RUN_MODEL=$(sed -n 's/^model: *//p' "$RUN_DIR/results.yaml" | head -1 | tr -d "\"'")
+# `run` creates the run dir BEFORE the subject call and writes `results.yaml` LAST, so "dir exists,
+# scorecard does not" is the normal shape of any crash, OOM or timeout — and the journal write bumps the
+# dir mtime, so `-newer` selects it. Without this guard the `sed` below aborts the script under
+# `pipefail` with `sed: can't read …` and no FAIL: line: the exact defect the `$RESULTS` guard above
+# exists to prevent, two lines later.
+RESULTS_YAML="$RUN_DIR/results.yaml"
+[ -f "$RESULTS_YAML" ] || fail "run dir $RUN_DIR has no results.yaml — run died before writing its scorecard"
+# `q` after the match instead of `head -1`: `head` closing the pipe early makes `find`/`sed` exit 141
+# under `pipefail`, which aborts with no message at all.
+RUN_MODEL=$(sed -n 's/^model: *//p;/^model:/q' "$RESULTS_YAML" | tr -d "\"'")
+[ -n "$RUN_MODEL" ] || fail "results.yaml in $RUN_DIR records no model — truncated mid-write"
 [ "$RUN_MODEL" = "$MODEL" ] || fail "run dir $RUN_DIR records model $RUN_MODEL, not the pinned $MODEL"
 echo "run dir: $RUN_DIR"
 
 say "2 · assert the trace artifact is real"
-TRACE=$(find "$RUN_DIR" -name "*.trace.jsonl" | head -1)
+TRACE=$(find "$RUN_DIR" -name "*.trace.jsonl" -print -quit)
 [ -n "$TRACE" ] || fail "no .trace.jsonl artifact — runStructured did not run, so the scenario silently used the unstructured path"
 echo "trace: $TRACE ($(wc -c < "$TRACE") bytes)"
 
@@ -127,8 +166,14 @@ if (t.trace_version !== EXPECTED) die("trace_version " + t.trace_version + ", ex
 if (!t.pi_version) die("no pi_version recorded — provenance is the whole point of the field");
 if (!t.trace_sha256) die("no trace_sha256 — regate identifies saved evidence by this hash");
 
+// Distinguish "the model said nothing" from "the extension did not load" BEFORE blaming the loader.
+// A withdrawn or unavailable model produces a trace with no tool calls at all, and this script used to
+// accuse path #2 of the three it exists to prove — which is exactly the misdiagnosis the model pin
+// above is about, arriving by a different route.
+if (t.tool_calls.length === 0) die("the trace records no tool calls at all — the model returned nothing (a retired or unavailable model reads exactly like this); this is not an extension-loading failure");
+
 const agent = t.tool_calls.find((c) => c.name === "Agent");
-if (!agent) die("the declared extension did not load: no Agent tool call in the trace");
+if (!agent) die("the declared extension did not load: tool calls were recorded (" + t.tool_calls.map((c) => c.name).join(", ") + ") but no Agent among them");
 if (agent.args.agent !== "plan") die("Agent called with agent=" + JSON.stringify(agent.args.agent));
 
 // Privacy limits, verified against a REAL stream rather than a fixture.
@@ -150,8 +195,45 @@ console.log("  cost_usd: " + t.cost_usd);
 console.log("  no thinking, no home paths, no result bodies ✓");
 ' "$TRACE" || fail "trace assertions failed"
 
+say "2b · assert the objective gate — BEFORE any judge spend"
+# Ordering is the point. `grade` CARRIES the objective, it never recomputes it (`regrade.ts`, and
+# `packages/core/test/field-roundtrip.test.ts` pins it: "a re-judge does not re-evaluate trace gates").
+# So the verdict asserted here is already final the moment `run` finishes, and checking it after step 3
+# bought two judge calls to re-confirm something written to disk minutes earlier. In a file that asserts
+# spend is never implicit, that was implicit spend.
+node -e '
+const fs = require("fs"), path = require("path"), yaml = require("js-yaml");
+const die = (m) => { console.error("FAIL: " + m); process.exit(1); };
+const r = yaml.load(fs.readFileSync(path.join(process.argv[1], "results.yaml"), "utf8"));
+const c = (r.scenarios || [])[0];
+if (!c) die("results.yaml records no scenarios");
+if (!c.objective) die("the scenario declares assert.trace but results.yaml has no `objective` — a rewriter dropped it");
+
+// Every non-PASS is gated, ERROR included. The SPEC is what makes that honest: its only content needle
+// is a sentinel no model can emit, so the needle cannot fail on a draw — see specification.yaml. What
+// remains IS subject behaviour in part (the delegation itself), so a failure here is read, not assumed:
+// the detail line says which assertion went red.
+//
+// ERROR matters most: it means the gate could not evaluate its own evidence — a trace-digest mismatch
+// (`regate` compares the saved trace against the hash the run recorded), an unreadable trace, or the
+// handoff text being redacted or truncated before the leak check could run. All three are harness
+// faults, and `regate` can emit ERROR with an EMPTY assertions array, which is normal for the
+// missing-trace case rather than a second defect.
+const assertions = c.objective.assertions || [];
+if (c.objective.status !== "PASS") {
+  for (const as of assertions) if (as.status !== "PASS") console.error("    " + as.status + " " + as.kind + ": " + as.detail);
+  if (c.judge_reason) console.error("    judge_reason: " + c.judge_reason);
+  die("objective " + c.objective.status);
+}
+// `status` is derived as worst-of-assertions, so a rewriter that recomputes it wrongly would show up
+// here and nowhere else — a PASS standing over a failed assertion is the shape to catch.
+const bad = assertions.filter((as) => as.status !== "PASS");
+if (bad.length) die("objective says PASS but carries " + bad.length + " non-PASS assertion(s): " + JSON.stringify(bad));
+console.log("  objective: PASS · " + assertions.length + " assertion(s): " + assertions.map((as) => as.kind).join(", "));
+' "$RUN_DIR" || fail "objective assertions failed"
+
 say "3 · grade --auto-rejudge (SPENDS judge tokens) — exercises the live judge loop"
-$CLI grade "$RUN_DIR" --auto-rejudge
+$CLI grade "$RUN_DIR" --auto-rejudge || fail "grade failed"
 
 say "4 · assert adjudication actually ran"
 node -e '
@@ -159,31 +241,27 @@ const fs = require("fs"), path = require("path");
 const yaml = require("js-yaml");
 const r = yaml.load(fs.readFileSync(path.join(process.argv[1], "results.yaml"), "utf8"));
 const die = (m) => { console.error("FAIL: " + m); process.exit(1); };
-const c = r.scenarios[0];
+const c = (r.scenarios || [])[0];
+if (!c) die("results.yaml records no scenarios");
 if (!c.adjudication) die("no adjudication recorded — the trigger did not fire");
 const a = c.adjudication;
+if (!Array.isArray(a.judgments)) die("adjudication recorded no judgments array");
 if (a.judgments.length < 2) die("only " + a.judgments.length + " judgment(s): no second opinion was taken");
-if (a.trigger !== "ship_deciding") console.log("  note: triggered on " + a.trigger + " (expected ship_deciding)");
+// Gated, not noted. The header states this trigger is guaranteed by construction — one scenario,
+// min_pass == total, so the single cell is always ship_deciding — which makes a different trigger a
+// claim about the harness, not a curiosity.
+if (a.trigger !== "ship_deciding") die("triggered on " + a.trigger + ", not ship_deciding — the guarantee stated in this script header (one scenario, min_pass == total) no longer holds");
 console.log("  state: " + a.state + " · trigger: " + a.trigger + " · " + a.judgments.length + " judgments");
 for (const j of a.judgments) console.log("    #" + j.ordinal + " " + j.judge.provider + ":" + j.judge.model + " " + j.verdict + (j.suspect ? " (misfired)" : ""));
 if (a.state === "unresolved" && !c.suspect) die("unresolved must set suspect:true — that is what blocks SHIP");
-// Asserted, not just printed. `grade` really did drop this field, and the only thing that caught it
-// was reading this line on a real run — so it is a failure rather than a note.
-if (!c.objective) die("the scenario declares assert.trace but results.yaml has no `objective` — a rewriter dropped it");
-
-// Every non-PASS is gated, ERROR included, and the SPEC is what keeps that honest: it carries no needle
-// that only the subject model can satisfy, so a red line here is a claim about the HARNESS. `ERROR`
-// especially — it means the gate could not evaluate its own evidence (a gates-digest mismatch, an
-// unreadable trace, redaction eating the text it was about to search), which is the strongest reason to
-// stop rather than a reason to shrug. The paths differ from step 2 on purpose: selection resolves
-// through `normalizeSubagentCall` over the merged trace, where step 2 reads `args.agent` off the first
-// turn, so a merge or redaction regression shows up HERE and nowhere else in this script.
-if (c.objective.status !== "PASS") {
-  const failed = (c.objective.assertions ?? []).filter((as) => as.status !== "PASS");
-  for (const as of failed) console.error("    " + as.status + " " + as.kind + ": " + as.detail);
-  die("objective " + c.objective.status + (failed.length ? "" : " with no failing assertion recorded — itself a defect signature"));
-}
-console.log("  objective: PASS (survived the re-grade ✓)");
+// The objective was already gated in step 2b. What step 4 adds is the CARRY invariant: `grade` must
+// hand the field through untouched. It really did drop it once — found by a real run while 1,036 tests
+// passed — and since `grade` does not re-evaluate trace gates, any change across step 3 is a rewriter
+// mangling evidence rather than a new verdict. "Survived the re-grade" was the old wording here and it
+// was wrong: nothing re-grades it.
+if (!c.objective) die("`grade` dropped `objective` from results.yaml — the field `run` wrote is gone");
+if (c.objective.status !== "PASS") die("`objective` changed to " + c.objective.status + " across `grade`, which carries trace gates rather than re-evaluating them — a rewriter mangled it");
+console.log("  objective: PASS, carried intact across the re-grade ✓");
 ' "$RUN_DIR" || fail "adjudication assertions failed"
 
 say "DONE — all three real-pi paths exercised"
