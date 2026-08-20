@@ -4,6 +4,7 @@ dist/
 .DS_Store
 *.tsbuildinfo
 packages/cli/assets/
+packages/core/schemas/
 packages/core/LICENSE
 packages/adapters/LICENSE
 packages/cli/LICENSE
