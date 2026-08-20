@@ -1,14 +1,87 @@
-# Publishing skill-harness (0.8.0)
+# Publishing skill-harness (0.9.0)
 
 This is the npm-publish runbook.
 
 The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`, `0.3.0`, `0.3.1`, `0.3.2`, `0.4.0`,
-`0.5.0`, `0.6.0`, `0.7.0`, `0.8.0` — which is also where this repo sits, so **0.8.0 is already
-served and the commands below are the record of how it went out, not a runnable script**. npm
-refuses to publish over a version that exists, so bump every version literal here to the new
-number first; they are written out rather than parameterised because a runbook you can read is
-worth more than one you can paste. The `@skill-harness` scope is already claimed, and `latest`
-moves as each package lands.
+`0.5.0`, `0.6.0`, `0.7.0`, `0.8.0`. This repo is at `0.9.0`, so these commands publish a **new
+version over an existing line** — the `@skill-harness` scope is already claimed, and `latest`
+moves to 0.9.0 as each package lands. npm refuses to publish over a version that already
+exists, so every version literal below has to move with the bump; they are written out rather
+than parameterised because a runbook you can read is worth more than one you can paste.
+
+**0.9.0 takes the minor: workflow-level assurance — trajectory assertions, paired
+`compare`, and an offline self-test that proves the new gates can turn red.**
+
+Nothing about `results.yaml`'s verdict fields changed shape. What is new is a second
+kind of evidence beside the execution trace, and a way to compare two skill
+revisions without pretending one wave is a measurement.
+
+**`assert.trajectory` — gates over normalized workflow events.** Where `assert.trace`
+asks what tools were called in one run, trajectory assertions ask whether a
+multi-phase workflow held its shape: `require`, `forbid`, `ordered`, `correlate`,
+`approvals`, `freshness`, `coverage`, `forbid_after`, `unique`. Events are normalized
+from pi traces and from native event sources, and a missing correlation field is
+**ERROR**, never a pass — the same rule the trace gates already follow. Adapters for
+principal/pi-daddy governance shapes ship with fixtures.
+
+**`compare <skill|all> --reference <ref> --candidate <root>`** — paired setup, not
+seeded sampling. Both sides run from throwaway snapshots, and the command *refuses*
+to run when the two sides differ in scenario IDs, spec bytes, fixture / extension /
+system-prompt / post-test inputs, subject model, mode, judge, or repetition plan.
+Test-input equivalence is preflighted **before the first subject call**, so an unfair
+comparison costs nothing. Regression exit codes are distinct: `2` for a critical
+regression, `1` for an ordinary one. It spends subject and judge calls — confirm the
+skill, models and judge before running it.
+
+**`mutation-test`** — free, offline, no models. Proves the trajectory assertion
+classes can actually turn red, 15 mutations, and fails if any survives. It covers
+`assert.trajectory` only: `assert.trace` needles are evaluated by different code and
+get nothing from it.
+
+**Critical scenarios now demand every clean repetition.** `critical: true` and
+membership in top-level `critical:` are one release-gating set, and for that set the
+effective repetition threshold is always `1.0`. An `ERROR` stays `ERROR` — repetitions
+cannot vote it into a PASS, and one objective failure cannot be outvoted by other
+reps. A full green/force `run` that is NOT READY exits non-zero; red baselines and
+partial runs do not pretend to be release gates.
+
+**Cost and latency are recorded** per run (subject tokens in/out/cache-read, judge and
+re-judge call counts, wall time, tool-call and delegation counts), and three JSON
+schemas are published for external consumers: `schemas/specification-v1`,
+`schemas/results-v2`, `schemas/trajectory-event-v1`.
+
+*What is NOT claimed, stated plainly.* **There is no OS sandbox.** Core exports a
+`SandboxBackend`/`withSandbox` seam with fake-backed tests, and that is all it is: temp
+fixture directories and git workspaces are **not containment**, and reports must keep
+saying containment is unavailable until a real backend exists. The principal digest
+chain is an integrity check, not attestation — it detects torn or edited saved logs,
+but an unsandboxed subject that can rewrite and rehash a whole ledger can fabricate
+one. No signature, MAC, or remote witness is claimed. The `examples/principal-v3-pack`
+fixtures prove the evaluator accepts and rejects saved event sequences; they report no
+principal model cell as executed.
+
+**The pre-publish smoke gate was rebuilt, because it had never worked.** Four defects,
+each of which made it report something other than what it measured: it pinned a
+retired model alias, selected its run dir by model tag (so it could assert against a
+*previous* run), **never reached its own assertions** — step 1 exited non-zero on any
+non-shipping scorecard under `set -e` — and gated the objective *after* the judge
+spend, though `grade` only carries that verdict and never recomputes it. See
+`docs/ASSURANCE-WORKFLOWS.md` for the workflow contract, and the smoke section below
+for what the gate proves now.
+
+**Consumer checklist for this release:**
+
+1. Nothing to migrate. `assert.trajectory`, `compare` and `mutation-test` are additive;
+   a spec that declares none of them behaves exactly as it did on 0.8.0.
+2. If you declare `critical:` scenarios, re-read their grades before trusting a green
+   board: the threshold for that set is now every clean repetition, so a cell that
+   passed 2 of 3 was previously green and is now a release failure. That is the point.
+3. If you consume `results.yaml` from outside, the new schemas are the contract to pin
+   against rather than reading fields by hand.
+4. Bump the pin to `v0.9.0` when you want the notes (`.github/workflows/ci.yml`).
+   Consumers tracking `latest` get this automatically.
+
+### 0.8.0, kept for context
 
 **0.8.0 takes the minor: a new command, and a change to what "the skill changed" means.**
 
@@ -66,8 +139,7 @@ rather than a confident wrong finding.
    now fails loudly rather than reporting "0 upgraded".
 3. Expect `restamp` to leave most historical runs alone. On the reference corpus it upgraded
    18 of 140; the other 122 measured genuinely older skill text and are correctly unprovable.
-4. Bump the pin to `v0.8.0` when you want the notes (`.github/workflows/ci.yml`). Consumers
-   tracking `latest` get this automatically.
+4. Bump the pin to `v0.8.0` when you want the notes (`.github/workflows/ci.yml`).
 
 ### 0.7.0, kept for context
 
@@ -377,13 +449,13 @@ Run from the **repo root** (npm workspaces `-w` flag, verified with npm 11.9.0 /
 Node 24.14.0 — this repo's `engines.node` requires >=20, which ships npm >=10,
 so `-w` should work on any supported install). Each step must land on the
 registry before the next, since each package's `package.json` pins an exact
-`@skill-harness/*@0.8.0` dependency (npm will fail to resolve it otherwise):
+`@skill-harness/*@0.9.0` dependency (npm will fail to resolve it otherwise):
 
 ```bash
 npm publish -w @skill-harness/core --access public
 npm publish -w @skill-harness/adapters --access public
 npm publish -w @skill-harness/cli --access public     # prepack stages assets/report.* into the tarball
-npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.8.0
+npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.9.0
 ```
 
 `@skill-harness/core` and `@skill-harness/adapters` publish exactly the `dist/`
@@ -412,7 +484,7 @@ ships to pi users via `pi install git:...`, not the npm registry.
 ## Verify after publishing
 
 ```bash
-npm view skill-harness version            # expect 0.8.0
+npm view skill-harness version            # expect 0.9.0
 npm i -g skill-harness && skill-harness --help
 npx @skill-harness/cli lint --help
 ```
@@ -430,8 +502,8 @@ The version bump lives on `release-<version>`. Until that branch reaches `main`,
 a fresh clone of `main` reports a different version than the registry serves:
 
 ```bash
-gh pr create --base main --head release/0.8.0 \
-  --title "chore(release): 0.8.0" --body "Version bump + runbook."
+gh pr create --base main --head release/0.9.0 \
+  --title "chore(release): 0.9.0" --body "Version bump + runbook."
 gh pr merge --merge   # or fast-forward main if there is nothing to reconcile
 ```
 
@@ -464,7 +536,7 @@ lockstep.
 
 ```bash
 git checkout main && git pull
-git tag v0.8.0 && git push origin v0.8.0     # the immutable release tag
+git tag v0.9.0 && git push origin v0.9.0     # the immutable release tag
 git tag -f latest && git push -f origin latest   # the ref the docs point at
 ```
 
