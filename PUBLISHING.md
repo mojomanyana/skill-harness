@@ -332,7 +332,7 @@ JSONL reader in `runStructured`, the `--no-extensions --extension` argv the
 harness passes to pi, and the live judge loop under `--auto-rejudge`.
 
 ```bash
-./scripts/smoke-real-pi.sh          # SPENDS TOKENS: ~2 subject calls + 1–2 judge calls
+./scripts/smoke-real-pi.sh          # SPENDS TOKENS: 1–2 subject calls + up to 3 judge calls
 ```
 
 One scenario exercises all three and asserts on the artifacts, not just the exit
@@ -349,12 +349,13 @@ smoke run is what found it.
 A smoke run is **one draw on a cheap model, not a measurement**: its
 `results.yaml` is gitignored so a throwaway scorecard never lands in the repo.
 
-For the same reason, the **exit status covers the harness, not the model.** The
-artifact assertions above are gating; the scenario's own `objective` verdict is
-printed and left advisory. Gating on it would make publishing depend on which
-cheap model happens to be pinned — the current pin leaks `"password"` into the
-`plan` handoff, a true finding about that model and nothing about the code under
-test. Read the advisory line; do not let it block a release on its own.
+For the same reason the smoke **spec** carries no assertion that only the subject
+model can satisfy, and `run`'s own release exit code is deferred rather than
+allowed to end the script: everything the gate fails on is a claim about the
+harness. A red line here means the harness, not the model — so do not wave it
+through. The subject model can still make the run's own scorecard read `NOT
+READY` (that is `run` doing its job, and it is reported, not fatal); the pinned
+model is `SMOKE_MODEL`, overridable per shell.
 
 ## Publish, in dependency order
 

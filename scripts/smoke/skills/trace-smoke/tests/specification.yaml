@@ -31,7 +31,14 @@ scenarios:
         require_subagents:
           - tool: Agent
             agent: plan
+            # Deliberately NO needle that only the subject model can satisfy. `task_excludes:
+            # ["password"]` used to sit here, and it made a pre-publish gate model-dependent:
+            # cheap models leak "password" into the handoff, so a release was blocked by one
+            # draw of a subject rather than by anything about the harness — and this scenario
+            # exists to exercise harness paths, not to measure a model. `task_contains` stays
+            # because the turn is ABOUT auth, so the prompt drives it; what it really proves is
+            # that the handoff text survived capture and redaction. Everything else here routes
+            # through harness code: selection via `normalizeSubagentCall`, and `forbid_calls`.
             task_contains: ["auth"]
-            task_excludes: ["password"]
         forbid_calls:
           - write
