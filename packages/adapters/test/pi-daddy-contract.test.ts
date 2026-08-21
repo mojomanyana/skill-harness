@@ -134,7 +134,15 @@ describe("pinned pi-daddy ledger v2 contract", () => {
     for (const value of ["2026-08-20T12:00:00Z", "2026-08-20t12:00:00z", "2026-12-31T23:59:60Z", "2026-08-20T12:00:00.123+02:00"]) {
       expect(validateClosedSchema(probe, value), value).toEqual([]);
     }
-    for (const value of ["2026-08-20 12:00:00Z", "2026-13-01T00:00:00Z", "2026-02-30T00:00:00Z", "2026-08-20T24:00:00Z", "not-a-date"]) {
+    for (const value of ["2026-08-20T12:00:00+23:59", "2026-08-20T12:00:00-05:30"]) {
+      expect(validateClosedSchema(probe, value), value).toEqual([]);
+    }
+    // ...and no wider than it: `time-numoffset` is bounded by the same hour/minute
+    // rules as the time itself, so a parseable-looking offset is not automatically one.
+    for (const value of [
+      "2026-08-20 12:00:00Z", "2026-13-01T00:00:00Z", "2026-02-30T00:00:00Z", "2026-08-20T24:00:00Z", "not-a-date",
+      "2026-08-20T12:00:00+25:70", "2026-08-20T12:00:00+99:99", "2026-08-20T12:00:00-88:88",
+    ]) {
       expect(validateClosedSchema(probe, value).length, value).toBeGreaterThan(0);
     }
   });
@@ -143,32 +151,35 @@ describe("pinned pi-daddy ledger v2 contract", () => {
     // Not just the refusal codes. A semantic set that has drifted *narrower* than the
     // contract now produces the mirror of the original bug: the closed schema admits
     // the record and a stale harness set throws it out as "unsupported".
-    expect(V2_RESTATED_VOCABULARIES.length).toBeGreaterThanOrEqual(10);
+    expect(V2_RESTATED_VOCABULARIES.length).toBeGreaterThanOrEqual(13);
     for (const { name, kind, pointer, values } of V2_RESTATED_VOCABULARIES) {
-      const node = resolvePointer(pointer);
+      const node = resolvePointer(pointer) as any;
       const expected = kind === "enum"
-        ? (node as any).enum as string[]
-        : kind === "propertyNames"
-          ? Object.keys((node as any).properties as Record<string, unknown>)
-          : ((node as any) as any[]).map((branch) => (branchOf(discriminatorOf(branch)) as any).properties.event.const as string);
+        ? node.enum as string[]
+        : kind === "typeNames"
+          ? (Array.isArray(node.type) ? node.type : [node.type]) as string[]
+          : kind === "propertyNames"
+            ? Object.keys(node.properties as Record<string, unknown>)
+            : kind === "numericPropertyNames"
+              ? Object.entries(node.properties as Record<string, any>)
+                  .filter(([, entry]) => entry?.type === "number" || entry?.type === "integer")
+                  .map(([field]) => field)
+              : (node as any[]).map((branch) => (branchOf(discriminatorOf(branch)) as any).properties.event.const as string);
       expect(Array.isArray(expected) && expected.length > 0, `${name}: ${pointer} resolved to no vocabulary`).toBe(true);
+      expect(values.size, `${name} is empty, so its drift assertion would be vacuous`).toBeGreaterThan(0);
       expect([...values].sort(), `${name} has drifted from ${pointer}`).toEqual([...expected].sort());
     }
   });
 
   it("keeps harness-side vocabulary subsets inside the pinned schema", () => {
-    for (const { name, kind, pointer, values } of V2_VOCABULARY_SUBSETS) {
-      const node = resolvePointer(pointer) as any;
-      if (kind === "enum") {
-        const allowed = new Set(node.enum as string[]);
-        for (const value of values) expect(allowed.has(value), `${name} contains ${value}, which ${pointer} does not`).toBe(true);
-        continue;
-      }
-      // The numeric correlation fields must be exactly those the schema types as numbers.
-      const numeric = Object.entries(node.properties as Record<string, any>)
-        .filter(([, entry]) => entry?.type === "number" || entry?.type === "integer")
-        .map(([field]) => field);
-      expect([...values].sort(), `${name} has drifted from the numeric fields of ${pointer}`).toEqual(numeric.sort());
+    // Guarded against vacuity for the same reason as the manifest above: an emptied
+    // manifest, or an emptied entry, would make a green test out of no assertion.
+    expect(V2_VOCABULARY_SUBSETS.length).toBeGreaterThanOrEqual(2);
+    for (const { name, pointer, values } of V2_VOCABULARY_SUBSETS) {
+      const allowed = new Set((resolvePointer(pointer) as any).enum as string[]);
+      expect(allowed.size, `${name}: ${pointer} resolved to no enum`).toBeGreaterThan(0);
+      expect(values.size, `${name} is empty, so its containment assertion would be vacuous`).toBeGreaterThan(0);
+      for (const value of values) expect(allowed.has(value), `${name} contains ${value}, which ${pointer} does not`).toBe(true);
     }
   });
 

@@ -30,11 +30,13 @@ So the schema is now *interpreted*, not transcribed:
   than silently validating less than the contract declares.
 - `packages/adapters/test/pi-daddy-contract.test.ts` asserts these digests, that the
   runtime copy still equals these bytes, and that every vocabulary the adapter restates
-  is set-equal to its place in this schema, in both directions — refusal codes, event
-  discriminators, approval sources and scopes, lease outcomes and access, lifecycle
-  states, executors, and the correlation field whitelist. Add a new one to the
+  is set-equal to its place in this schema, in both directions — refusal codes and refusal
+  field/detail-type names, event discriminators, approval sources and scopes, lease
+  outcomes and access, lifecycle states, executors, and the correlation field whitelist
+  including which of its fields are numeric. Add a new one to the
   `V2_RESTATED_VOCABULARIES` manifest in `trajectory.ts`, never as a loose
-  `new Set([...])` the drift test cannot see.
+  `new Set([...])` the drift test cannot see. A vocabulary the harness deliberately holds
+  as a *subset* goes in `V2_VOCABULARY_SUBSETS` and is containment-asserted instead.
 
 Free and offline; no model or judge calls. Run it directly with:
 

@@ -7674,11 +7674,13 @@ function sameJson(left, right) {
   return left === right || JSON.stringify(left) === JSON.stringify(right);
 }
 function isRfc3339(value) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$/.exec(value);
+  const match = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|([+-])(\d{2}):(\d{2}))$/.exec(value);
   if (!match)
     return false;
-  const [, year, month, day, hour, minute, second] = match.map(Number);
+  const [year, month, day, hour, minute, second] = match.slice(1, 7).map(Number);
   if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 60)
+    return false;
+  if (match[8] !== void 0 && (Number(match[8]) > 23 || Number(match[9]) > 59))
     return false;
   return day >= 1 && day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
@@ -8568,6 +8570,9 @@ var V2_LEASE_OUTCOMES = /* @__PURE__ */ new Set([
   "recovered"
 ]);
 var V2_LEASE_ACCESS = /* @__PURE__ */ new Set(["read", "write"]);
+var V2_RECEIPT_PRIOR_LEASE_OUTCOMES = /* @__PURE__ */ new Set(["acquired", "recovered"]);
+var V2_REFUSAL_FIELDS = /* @__PURE__ */ new Set(["code", "message", "details"]);
+var V2_REFUSAL_DETAIL_TYPES = /* @__PURE__ */ new Set(["string", "number", "boolean", "null"]);
 var V2_LIFECYCLE_STATES = /* @__PURE__ */ new Set(["starting", "completed", "failed"]);
 var V2_EXECUTORS = /* @__PURE__ */ new Set(["process", "herdr"]);
 var V2_RECEIPT_RELEASE_OUTCOMES = /* @__PURE__ */ new Set(["released", "released-unrecorded", "lost", "timeout"]);
@@ -8694,7 +8699,7 @@ function isRawPiDaddyReceiptInversion(records, index, receiptTime) {
   if (receipt.childId !== release.childId || receipt.workspaceId !== release.workspaceId || !sameRawCorrelationIdentity(receipt, release) || !V2_RECEIPT_RELEASE_OUTCOMES.has(string(release.outcome) ?? ""))
     return false;
   const previousLease = records.slice(0, index - 1).reverse().find((record) => record.ledgerVersion === 2 && record.event === "workspace_lease" && record.childId === receipt.childId && record.workspaceId === receipt.workspaceId && sameRawCorrelationIdentity(receipt, record));
-  return Boolean(previousLease && (/* @__PURE__ */ new Set(["acquired", "recovered"])).has(string(previousLease.outcome) ?? "") && validTime(string(previousLease.ts)) && Date.parse(string(previousLease.ts)) <= receiptTime);
+  return Boolean(previousLease && V2_RECEIPT_PRIOR_LEASE_OUTCOMES.has(string(previousLease.outcome) ?? "") && validTime(string(previousLease.ts)) && Date.parse(string(previousLease.ts)) <= receiptTime);
 }
 function isAllowedPiDaddyReceiptInversion(adapter, events, index) {
   if (adapter !== "pi-daddy-v1")
@@ -9135,11 +9140,11 @@ function structuredRefusal(value, event, line) {
   if (!V2_REFUSAL_CODES.has(code)) {
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal has unsupported code ${safeDiagnosticValue(code)}`);
   }
-  const unknown = Object.keys(parsed).filter((key) => !(/* @__PURE__ */ new Set(["code", "message", "details"])).has(key));
+  const unknown = Object.keys(parsed).filter((key) => !V2_REFUSAL_FIELDS.has(key));
   if (unknown.length > 0)
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal carries unsupported fields`);
   const details = parsed.details === void 0 ? void 0 : object2(parsed.details);
-  if (parsed.details !== void 0 && (!details || Object.values(details).some((entry) => !["string", "number", "boolean"].includes(typeof entry) && entry !== null))) {
+  if (parsed.details !== void 0 && (!details || Object.values(details).some((entry) => !V2_REFUSAL_DETAIL_TYPES.has(entry === null ? "null" : typeof entry)))) {
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal.details must contain scalar values`);
   }
   return parsed;

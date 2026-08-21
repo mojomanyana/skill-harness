@@ -340,10 +340,13 @@ function sameJson(left: unknown, right: unknown): boolean {
  * afterwards, where it is correctly labelled a harness requirement.
  */
 function isRfc3339(value: string): boolean {
-  const match = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$/.exec(value);
+  const match = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|([+-])(\d{2}):(\d{2}))$/.exec(value);
   if (!match) return false;
-  const [, year, month, day, hour, minute, second] = match.map(Number);
+  const [year, month, day, hour, minute, second] = match.slice(1, 7).map(Number);
   if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 60) return false;
+  // `time-numoffset` is bounded by the same `time-hour`/`time-minute` rules, so
+  // `+25:70` is not an RFC 3339 date-time however parseable it looks.
+  if (match[8] !== undefined && (Number(match[8]) > 23 || Number(match[9]) > 59)) return false;
   return day >= 1 && day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 

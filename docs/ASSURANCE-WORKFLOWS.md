@@ -121,14 +121,16 @@ contract construct is a loud failure and not a quiet hole.
 
 `packages/adapters/test/pi-daddy-contract.test.ts` asserts the artifact digests, that the runtime
 schema copy still equals the vendored bytes, and that **every** vocabulary the adapter restates —
-refusal codes, event discriminators, approval sources and scopes, lease outcomes and access,
-lifecycle states, executors, and the correlation field whitelist — is set-equal to its place in the
-pinned schema, in both directions. A hand-maintained second vocabulary without that drift assertion
+refusal codes and refusal field/detail-type names, event discriminators, approval sources and scopes,
+lease outcomes and access, lifecycle states, executors, and the correlation field whitelist including
+which of its fields are numeric — is set-equal to its place in the pinned schema, in both directions. A hand-maintained second vocabulary without that drift assertion
 is how `GRANT_ID_MALFORMED` came to read as "unsupported", and with the schema gating first, a set
 that drifts *narrower* now produces the mirror failure: a contract-valid record admitted by the
-schema and then thrown out by a stale harness check. Harness-side subsets
-(`V2_RECEIPT_RELEASE_OUTCOMES`, the numeric correlation fields) are asserted as subsets rather than
-equals, because they encode harness semantics.
+schema and then thrown out by a stale harness check. The two harness-side subsets — which lease
+outcomes a receipt may be appended after, and which may precede that release — are asserted as
+containment rather than equality, because they encode harness semantics; anything the test
+equality-asserts belongs in the restated manifest instead. Both manifests are guarded against
+vacuity, so emptying one is a red test rather than a green one.
 
 The evaluator refuses more than an unknown keyword. A keyword whose *value* has an unexpected shape
 (`required: "a"`) and a `$ref` carrying sibling constraints are both refused, because either would be
@@ -138,8 +140,10 @@ line is never reported as a contract violation; the harness's own narrower times
 applies afterwards, where it is labelled a harness requirement.
 
 It is free and offline; `node scripts/check-pi-daddy-contract.mjs [<pi-daddy-checkout> <commit>]` runs
-the same four-fixture check directly, reports the digests it used, and refuses to report success
-against a `dist` built from a different contract.
+the same four-fixture check directly, reports the digests it used, refuses to report success
+against a `dist` built from a different contract, and carries a negative control — an undeclared
+top-level field that must be refused. A positive-only check cannot tell "the gate ran" from "the
+gate is gone".
 
 The producer's schema is the floor. Requirements the harness adds on top run *after* a record is
 admitted, and are harness requirements rather than contract violations: nested

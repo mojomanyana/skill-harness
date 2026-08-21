@@ -268,6 +268,10 @@ const V2_LEASE_OUTCOMES = new Set([
   "acquired", "uncontended", "refused", "released", "released-unrecorded", "lost", "retained", "timeout", "recovered",
 ]);
 const V2_LEASE_ACCESS = new Set(["read", "write"]);
+/** Lease outcomes that can precede the one accepted append-after-release receipt inversion. */
+const V2_RECEIPT_PRIOR_LEASE_OUTCOMES = new Set(["acquired", "recovered"]);
+const V2_REFUSAL_FIELDS = new Set(["code", "message", "details"]);
+const V2_REFUSAL_DETAIL_TYPES = new Set(["string", "number", "boolean", "null"]);
 const V2_LIFECYCLE_STATES = new Set(["starting", "completed", "failed"]);
 const V2_EXECUTORS = new Set(["process", "herdr"]);
 const V2_RECEIPT_RELEASE_OUTCOMES = new Set(["released", "released-unrecorded", "lost", "timeout"]);
@@ -313,7 +317,7 @@ export const V2_REFUSAL_CODES = new Set([
  */
 export const V2_RESTATED_VOCABULARIES: ReadonlyArray<{
   name: string;
-  kind: "enum" | "propertyNames" | "discriminators";
+  kind: "enum" | "propertyNames" | "discriminators" | "typeNames" | "numericPropertyNames";
   pointer: string;
   values: ReadonlySet<string>;
 }> = [
@@ -327,16 +331,21 @@ export const V2_RESTATED_VOCABULARIES: ReadonlyArray<{
   { name: "V2_EXECUTORS (lifecycle)", kind: "enum", pointer: "#/$defs/childLifecycle/properties/executor", values: V2_EXECUTORS },
   { name: "V2_EXECUTORS (decision)", kind: "enum", pointer: "#/$defs/capabilityDecision/properties/executor", values: V2_EXECUTORS },
   { name: "V2_CORRELATION_FIELDS", kind: "propertyNames", pointer: "#/$defs/correlation", values: V2_CORRELATION_FIELDS },
+  { name: "V2_CORRELATION_NUMERIC_FIELDS", kind: "numericPropertyNames", pointer: "#/$defs/correlation", values: V2_CORRELATION_NUMERIC_FIELDS },
+  { name: "V2_REFUSAL_FIELDS", kind: "propertyNames", pointer: "#/$defs/refusal", values: V2_REFUSAL_FIELDS },
+  { name: "V2_REFUSAL_DETAIL_TYPES", kind: "typeNames", pointer: "#/$defs/refusal/properties/details/additionalProperties", values: V2_REFUSAL_DETAIL_TYPES },
 ];
 
 /**
- * Harness-side subsets of a contract vocabulary, not restatements of one. They
- * encode the harness's own semantics (which lease outcomes a receipt may follow),
- * so the assertion on them is containment, not equality.
+ * Harness-side subsets of a contract vocabulary, not restatements of one. They encode
+ * the harness's own semantics — which lease outcomes a receipt may be appended after,
+ * and which may precede that release — so the assertion on them is containment, not
+ * equality. Anything the test *equality*-asserts belongs in the manifest above
+ * instead; membership here is a claim that the harness deliberately holds a subset.
  */
-export const V2_VOCABULARY_SUBSETS: ReadonlyArray<{ name: string; pointer: string; values: ReadonlySet<string>; kind: "enum" | "numericPropertyNames" }> = [
-  { name: "V2_RECEIPT_RELEASE_OUTCOMES", kind: "enum", pointer: "#/$defs/workspaceLease/properties/outcome", values: V2_RECEIPT_RELEASE_OUTCOMES },
-  { name: "V2_CORRELATION_NUMERIC_FIELDS", kind: "numericPropertyNames", pointer: "#/$defs/correlation", values: V2_CORRELATION_NUMERIC_FIELDS },
+export const V2_VOCABULARY_SUBSETS: ReadonlyArray<{ name: string; pointer: string; values: ReadonlySet<string> }> = [
+  { name: "V2_RECEIPT_RELEASE_OUTCOMES", pointer: "#/$defs/workspaceLease/properties/outcome", values: V2_RECEIPT_RELEASE_OUTCOMES },
+  { name: "V2_RECEIPT_PRIOR_LEASE_OUTCOMES", pointer: "#/$defs/workspaceLease/properties/outcome", values: V2_RECEIPT_PRIOR_LEASE_OUTCOMES },
 ];
 
 const V2_CORRELATION_MAX_BYTES = 32 * 1024;
@@ -400,7 +409,7 @@ function isRawPiDaddyReceiptInversion(records: Record<string, unknown>[], index:
     record.workspaceId === receipt.workspaceId && sameRawCorrelationIdentity(receipt, record),
   );
   return Boolean(
-    previousLease && new Set(["acquired", "recovered"]).has(string(previousLease.outcome) ?? "") &&
+    previousLease && V2_RECEIPT_PRIOR_LEASE_OUTCOMES.has(string(previousLease.outcome) ?? "") &&
     validTime(string(previousLease.ts)) && Date.parse(string(previousLease.ts)!) <= receiptTime,
   );
 }
@@ -884,10 +893,10 @@ function structuredRefusal(value: unknown, event: string, line: number): Record<
   if (!V2_REFUSAL_CODES.has(code)) {
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal has unsupported code ${safeDiagnosticValue(code)}`);
   }
-  const unknown = Object.keys(parsed).filter((key) => !new Set(["code", "message", "details"]).has(key));
+  const unknown = Object.keys(parsed).filter((key) => !V2_REFUSAL_FIELDS.has(key));
   if (unknown.length > 0) throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal carries unsupported fields`);
   const details = parsed.details === undefined ? undefined : object(parsed.details);
-  if (parsed.details !== undefined && (!details || Object.values(details).some((entry) => !["string", "number", "boolean"].includes(typeof entry) && entry !== null))) {
+  if (parsed.details !== undefined && (!details || Object.values(details).some((entry) => !V2_REFUSAL_DETAIL_TYPES.has(entry === null ? "null" : typeof entry)))) {
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal.details must contain scalar values`);
   }
   return parsed;

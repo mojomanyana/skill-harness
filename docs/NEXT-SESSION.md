@@ -62,9 +62,11 @@ own builder output:
   independently — and let a controller-supplied string vouch for a measured one. The correlation copy
   survives only as `digests.correlation_tree`.
 - **`GRANT_ID_MALFORMED` is in the refusal vocabulary,** and *every* restated vocabulary — refusal
-  codes, discriminators, approval sources/scopes, lease outcomes/access, lifecycle states, executors,
-  correlation field whitelist — is drift-asserted set-equal to the pinned schema in both directions
-  via the `V2_RESTATED_VOCABULARIES` manifest. A hand-copied second list is exactly how a code the
+  codes and refusal field/detail-type names, discriminators, approval sources/scopes, lease
+  outcomes/access, lifecycle states, executors, correlation field whitelist and its numeric subset —
+  is drift-asserted set-equal to the pinned schema in both directions via the
+  `V2_RESTATED_VOCABULARIES` manifest, with `V2_VOCABULARY_SUBSETS` for the two the harness
+  deliberately narrows. A hand-copied second list is exactly how a code the
   producer had published came to read as "unsupported", and with the schema gating first, a set that
   drifts narrower now fails the mirror way: contract-valid in, stale-harness-rejected out. Add to the
   manifest, not to a loose `new Set([...])`.

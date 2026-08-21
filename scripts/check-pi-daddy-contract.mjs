@@ -79,6 +79,25 @@ if (JSON.stringify(producerCodes) === JSON.stringify(consumerCodes)) {
   fail(`refusal vocabulary drift: producer-only ${producerCodes.filter((code) => !consumerCodes.includes(code)).join(", ") || "none"}; consumer-only ${consumerCodes.filter((code) => !producerCodes.includes(code)).join(", ") || "none"}`);
 }
 
+// A positive-only check cannot tell "the gate ran" from "the gate is gone": a `dist`
+// built before the closed-schema gate existed accepts all four fixtures and every
+// digest above still prints green. So assert a refusal too — this is the exact record
+// that rode through before the pin, and it must not any more.
+console.log("\nnegative control");
+try {
+  const smuggled = { ...JSON.parse(read(join("fixtures", "workspace-lease.json"))), assuranceScope: "smuggled" };
+  normalizePiDaddyLedger(`${JSON.stringify(smuggled)}\n`);
+  fail("an undeclared top-level field was ACCEPTED — the closed-contract gate is not in the built adapter");
+} catch (error) {
+  if (/closed contract violation/.test(error.message)) {
+    console.log("  ✓ undeclared top-level field refused by the closed-contract gate");
+  } else if (error.message.startsWith("  ✗")) {
+    throw error;
+  } else {
+    fail(`undeclared field was rejected, but not by the contract gate: ${error.message}`);
+  }
+}
+
 console.log("\ncanonical fixtures");
 for (const name of FIXTURES) {
   const record = JSON.parse(read(join("fixtures", `${name}.json`)));
@@ -87,8 +106,8 @@ for (const name of FIXTURES) {
     console.log(`  ✓ ${name} → ${events.map((event) => event.type).join(", ")}`);
     if (name === "check-receipt") {
       const [event] = events;
-      const measured = event.digests?.tree === record.treeSha;
-      const label = event.digests?.correlation_tree === record.correlation?.tree_sha;
+      const measured = Boolean(record.treeSha) && event.digests?.tree === record.treeSha;
+      const label = Boolean(record.correlation?.tree_sha) && event.digests?.correlation_tree === record.correlation.tree_sha;
       console.log(`    ${measured && label ? "✓" : "✗"} digests.tree=${event.digests?.tree} (receipt)  digests.correlation_tree=${event.digests?.correlation_tree} (label)`);
       if (!measured) fail("digests.tree did not come from the receipt's top-level treeSha");
       if (!label) fail("correlation.tree_sha was not preserved as non-authoritative metadata");
