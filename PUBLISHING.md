@@ -1,13 +1,31 @@
-# Publishing skill-harness (0.9.0)
+# Publishing skill-harness (0.9.1)
 
 This is the npm-publish runbook.
 
 The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`, `0.3.0`, `0.3.1`, `0.3.2`, `0.4.0`,
-`0.5.0`, `0.6.0`, `0.7.0`, `0.8.0`. This repo is at `0.9.0`, so these commands publish a **new
-version over an existing line** — the `@skill-harness` scope is already claimed, and `latest`
-moves to 0.9.0 as each package lands. npm refuses to publish over a version that already
-exists, so every version literal below has to move with the bump; they are written out rather
-than parameterised because a runbook you can read is worth more than one you can paste.
+`0.5.0`, `0.6.0`, `0.7.0`, `0.8.0`, `0.9.0`. This repo is at `0.9.1`, so these commands
+publish a **new patch over an existing line** — the `@skill-harness` scope is already claimed,
+and `latest` moves to 0.9.1 as each package lands. npm refuses to publish over a version that
+already exists, so every version literal below has to move with the bump; they are written out
+rather than parameterised because a runbook you can read is worth more than one you can paste.
+
+**0.9.1 repairs the pi-daddy trajectory adapter against the real public v0.18.0 ledger.**
+The adapter now accepts the four `ledgerVersion: 2` variants emitted by the pinned builders,
+preserves unversioned v0.17 GrantRecord support, validates causal joins and receipts without
+rejecting concurrent append order, and fails closed on malformed governance evidence. It also
+prevents blocked grants, stale chain refusals, duplicate-request evaluator errors, invented
+optional facts, and secret-bearing persisted attributes/errors. The public selector stays
+`pi-daddy-v1` for compatibility. This is structured integrity evidence, not attestation against
+a fully fabricated schema-valid ledger.
+
+**Consumer checklist for this patch:**
+
+1. No spec or results migration is required.
+2. Re-run or `regate` only pi-daddy-backed trajectory evidence that was previously rejected or
+   normalized incorrectly; other saved results are unchanged.
+3. Bump exact consumer pins to `v0.9.1`; `@latest` trackers move with the release tag.
+
+### 0.9.0, kept for context
 
 **0.9.0 takes the minor: workflow-level assurance — trajectory assertions, paired
 `compare`, and an offline self-test that proves the new gates can turn red.**
@@ -449,13 +467,13 @@ Run from the **repo root** (npm workspaces `-w` flag, verified with npm 11.9.0 /
 Node 24.14.0 — this repo's `engines.node` requires >=20, which ships npm >=10,
 so `-w` should work on any supported install). Each step must land on the
 registry before the next, since each package's `package.json` pins an exact
-`@skill-harness/*@0.9.0` dependency (npm will fail to resolve it otherwise):
+`@skill-harness/*@0.9.1` dependency (npm will fail to resolve it otherwise):
 
 ```bash
 npm publish -w @skill-harness/core --access public
 npm publish -w @skill-harness/adapters --access public
 npm publish -w @skill-harness/cli --access public     # prepack stages assets/report.* into the tarball
-npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.9.0
+npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.9.1
 ```
 
 `@skill-harness/core` and `@skill-harness/adapters` publish exactly the `dist/`
@@ -484,7 +502,7 @@ ships to pi users via `pi install git:...`, not the npm registry.
 ## Verify after publishing
 
 ```bash
-npm view skill-harness version            # expect 0.9.0
+npm view skill-harness version            # expect 0.9.1
 npm i -g skill-harness && skill-harness --help
 npx @skill-harness/cli lint --help
 ```
@@ -502,8 +520,8 @@ The version bump lives on `release-<version>`. Until that branch reaches `main`,
 a fresh clone of `main` reports a different version than the registry serves:
 
 ```bash
-gh pr create --base main --head release/0.9.0 \
-  --title "chore(release): 0.9.0" --body "Version bump + runbook."
+gh pr create --base main --head release/0.9.1 \
+  --title "chore(release): 0.9.1" --body "Version bump + runbook."
 gh pr merge --merge   # or fast-forward main if there is nothing to reconcile
 ```
 
@@ -536,7 +554,7 @@ lockstep.
 
 ```bash
 git checkout main && git pull
-git tag v0.9.0 && git push origin v0.9.0     # the immutable release tag
+git tag v0.9.1 && git push origin v0.9.1     # the immutable release tag
 git tag -f latest && git push -f origin latest   # the ref the docs point at
 ```
 
