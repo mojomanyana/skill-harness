@@ -1,15 +1,19 @@
 # Next session — start here
 
-*Written 2026-08-20, at the close of the 0.9.0 release session. Read this before
-`docs/ROADMAP.md`: the roadmap says where the project is going, this says what is
-half-finished and what will bite you.*
+*Written 2026-08-20 at the close of the 0.9.0 release session; revised 2026-08-21 after the
+pi-daddy contract pin. Read this before `docs/ROADMAP.md`: the roadmap says where the project is
+going, this says what is half-finished and what will bite you.*
 
 ## Where things stand
 
 `skill-harness@0.9.0` is **published, merged and tagged** — `v0.9.0` on `96b9554`,
 `latest` moved to the same commit, all four packages on the registry and verified by
 installing into an empty project rather than by trusting the publish output. CI is
-green. 1,245 tests across 78 files. Working tree clean, no open PRs.
+green. 1,245 tests across 78 files at that tag.
+
+Two merges have landed on `main` since, both **unreleased**: PR #52 (the handoff rewrite) and PR #53
+(the pi-daddy v2 adapter), the latter at `282085b61f68411d1f9d4fb855ec27662a9d489f`. Nothing after
+`v0.9.0` is on the registry, so "on `main`" and "published" are not interchangeable here.
 
 **0.9.0 shipped workflow-level assurance.** `assert.trajectory` gates over normalized
 workflow events (`require`, `forbid`, `ordered`, `correlate`, `approvals`,
@@ -22,9 +26,12 @@ classes can turn red, 15/15, offline and free. `critical:` scenarios now demand 
 clean repetition. Cost/latency fields are recorded, and three JSON schemas are a
 public export subpath (`@skill-harness/core/schemas/*.json`).
 
-**Unpublished pi-daddy adapter repair:** branch `fix/pi-daddy-v2-ledger` starts at
-`a0c6d96959e7e373381ddbc8b7113ffa8b66e069` and is pinned to pi-daddy 0.18.0 commit
-`dde8eeb5632113d4a54705e16dc22ce70740fd4f`. The adapter now recognizes public
+**pi-daddy adapter repair — merged, not a branch.** PR #53 (`fix/pi-daddy-v2-ledger`) is on
+`main` as `282085b61f68411d1f9d4fb855ec27662a9d489f`; it is *unreleased* (no tag, nothing
+republished), which is a different thing from unmerged. It was written against pi-daddy 0.18.0
+commit `dde8eeb5632113d4a54705e16dc22ce70740fd4f`, and the pin has since moved — see
+"Pinned to pi-daddy's canonical contract" below.
+The adapter recognizes public
 `ledgerVersion: 2` records before the unversioned fallback and normalizes all four 0.18 variants:
 `capability_decision`, `workspace_lease`, `child_lifecycle`, and `check_receipt`. Unversioned 0.17
 `GrantRecord` remains supported. The old `schema_version` / `record_type` fixture was hypothetical,
@@ -35,9 +42,44 @@ harness cannot join them to workflow evidence. Correlation now enforces pi-daddy
 size/type bounds, non-authoritative workspace labels are not promoted, malformed identity/executor values
 are rejected, absent facts stay absent, blocked decisions emit no grants, nested native attributes are
 sanitized, capability/approval/refusal relations fail closed, and only the matching append-after-release
-receipt inversion is accepted within each run/task/workspace/child causal stream. Free validation on the
-branch: build/typecheck green, 1,269 tests across 78 files,
+receipt inversion is accepted within each run/task/workspace/child causal stream. Free validation at
+that merge: build/typecheck green, 1,269 tests across 78 files,
 all three dogfood lint roots at 0 findings, and mutation-test 15/15.
+
+**Pinned to pi-daddy's canonical contract.** The producer now publishes a machine contract, and the
+consumer is pinned to it: pi-daddy `main` `1948b9406c13c9730f2fc103e68023d6e58c5e85` (merged PR #11),
+vendored byte-exact under `contracts/pi-daddy/ledger/v2/` with per-artifact SHA-256 in `PINNED.json`.
+Three things that PR #53 got wrong are fixed, and all three were only visible against the producer's
+own builder output:
+
+- **A v2 record is validated against the exact closed schema before semantic normalization.** The
+  adapter previously restated the contract field by field, so an undeclared top-level field rode
+  through: a check that is not written cannot fail. `packages/adapters/src/closed-schema.ts` evaluates
+  the pinned bytes and **refuses a JSON Schema keyword it cannot enforce**, so a future contract
+  construct is a loud failure rather than a quiet hole.
+- **A check receipt's top-level `treeSha` is the measured identity.** Requiring it to equal
+  `correlation.tree_sha` rejected pi-daddy's *own* canonical receipt — the builders emit the two
+  independently — and let a controller-supplied string vouch for a measured one. The correlation copy
+  survives only as `digests.correlation_tree`.
+- **`GRANT_ID_MALFORMED` is in the refusal vocabulary,** and *every* restated vocabulary — refusal
+  codes, discriminators, approval sources/scopes, lease outcomes/access, lifecycle states, executors,
+  correlation field whitelist — is drift-asserted set-equal to the pinned schema in both directions
+  via the `V2_RESTATED_VOCABULARIES` manifest. A hand-copied second list is exactly how a code the
+  producer had published came to read as "unsupported", and with the schema gating first, a set that
+  drifts narrower now fails the mirror way: contract-valid in, stale-harness-rejected out. Add to the
+  manifest, not to a loose `new Set([...])`.
+
+Harness-only requirements deliberately survive schema validation, because the producer's schema is a
+floor and not a ceiling: missing `correlation.run_id`/`task_id` still fails as unjoinable even though
+pi-daddy permits an uncorrelated v2 line, and a receipt `treeSha` must still look like a git object id.
+`node scripts/check-pi-daddy-contract.mjs [<pi-daddy-checkout> <commit>]` runs the four-fixture
+conformance check directly — free, offline, no model or judge calls — and
+`node scripts/vendor-pi-daddy-contract.mjs <checkout> <commit> [pr]` re-pins.
+
+**Do not hand-edit `packages/adapters/src/pi-daddy-ledger-v2.ts`.** It is generated, and the
+conformance test fails if it stops matching the vendored producer bytes. Bumping the pin also means
+editing `EXPECTED_PRODUCER_COMMIT` in `packages/adapters/test/pi-daddy-contract.test.ts`, which is
+deliberate: the pin should never move as a side effect.
 
 **What is deliberately not claimed.** There is **no OS sandbox** — core exports a
 `SandboxBackend`/`withSandbox` seam with fake-backed tests, and temp fixture
@@ -110,6 +152,11 @@ Untouched, deliberately last, at the owner's call. See `docs/ROADMAP.md`.
   an objective assertion after a `grade` call: doing exactly that in the smoke script
   cost two judge calls to re-confirm a verdict already on disk, and printed
   "survived the re-grade" about something nothing had re-graded.
+- **The pinned closed schema now fires before the adapter's semantic checks**, so a malformed
+  v2 record's error message comes from the contract layer (`closed contract violation — <path> …`),
+  not from the hand-written check that used to report it. If a test asserting an old message goes
+  red, check *which layer* rejected the record before changing behaviour — several of those checks
+  are now redundant defence in depth and are meant to stay.
 - **`packages/core/src/trace-gates.ts` contains literal NUL bytes** (its glob
   sentinels), so plain `grep` reports **no matches** on that file and exits 1. Use
   `grep -a`. It silently defeats grep-based auditing of the file most trace-gate

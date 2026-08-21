@@ -315,8 +315,8 @@ var require_null = /* @__PURE__ */ __commonJSMin(((exports, module) => {
   function constructYamlNull() {
     return null;
   }
-  function isNull(object2) {
-    return object2 === null;
+  function isNull(object3) {
+    return object3 === null;
   }
   module.exports = new Type3("tag:yaml.org,2002:null", {
     kind: "scalar",
@@ -353,8 +353,8 @@ var require_bool = /* @__PURE__ */ __commonJSMin(((exports, module) => {
   function constructYamlBoolean(data) {
     return data === "true" || data === "True" || data === "TRUE";
   }
-  function isBoolean(object2) {
-    return Object.prototype.toString.call(object2) === "[object Boolean]";
+  function isBoolean(object3) {
+    return Object.prototype.toString.call(object3) === "[object Boolean]";
   }
   module.exports = new Type3("tag:yaml.org,2002:bool", {
     kind: "scalar",
@@ -362,14 +362,14 @@ var require_bool = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     construct: constructYamlBoolean,
     predicate: isBoolean,
     represent: {
-      lowercase: function(object2) {
-        return object2 ? "true" : "false";
+      lowercase: function(object3) {
+        return object3 ? "true" : "false";
       },
-      uppercase: function(object2) {
-        return object2 ? "TRUE" : "FALSE";
+      uppercase: function(object3) {
+        return object3 ? "TRUE" : "FALSE";
       },
-      camelcase: function(object2) {
-        return object2 ? "True" : "False";
+      camelcase: function(object3) {
+        return object3 ? "True" : "False";
       }
     },
     defaultStyle: "lowercase"
@@ -451,8 +451,8 @@ var require_int = /* @__PURE__ */ __commonJSMin(((exports, module) => {
   function constructYamlInteger(data) {
     return parseYamlInteger(data);
   }
-  function isInteger(object2) {
-    return Object.prototype.toString.call(object2) === "[object Number]" && object2 % 1 === 0 && !common.isNegativeZero(object2);
+  function isInteger(object3) {
+    return Object.prototype.toString.call(object3) === "[object Number]" && object3 % 1 === 0 && !common.isNegativeZero(object3);
   }
   module.exports = new Type3("tag:yaml.org,2002:int", {
     kind: "scalar",
@@ -502,8 +502,8 @@ var require_float = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     return sign * parseFloat(value, 10);
   }
   var SCIENTIFIC_WITHOUT_DOT = /^[-+]?[0-9]+e/;
-  function representYamlFloat(object2, style) {
-    if (isNaN(object2)) switch (style) {
+  function representYamlFloat(object3, style) {
+    if (isNaN(object3)) switch (style) {
       case "lowercase":
         return ".nan";
       case "uppercase":
@@ -511,7 +511,7 @@ var require_float = /* @__PURE__ */ __commonJSMin(((exports, module) => {
       case "camelcase":
         return ".NaN";
     }
-    else if (Number.POSITIVE_INFINITY === object2) switch (style) {
+    else if (Number.POSITIVE_INFINITY === object3) switch (style) {
       case "lowercase":
         return ".inf";
       case "uppercase":
@@ -519,7 +519,7 @@ var require_float = /* @__PURE__ */ __commonJSMin(((exports, module) => {
       case "camelcase":
         return ".Inf";
     }
-    else if (Number.NEGATIVE_INFINITY === object2) switch (style) {
+    else if (Number.NEGATIVE_INFINITY === object3) switch (style) {
       case "lowercase":
         return "-.inf";
       case "uppercase":
@@ -527,12 +527,12 @@ var require_float = /* @__PURE__ */ __commonJSMin(((exports, module) => {
       case "camelcase":
         return "-.Inf";
     }
-    else if (common.isNegativeZero(object2)) return "-0.0";
-    const res = object2.toString(10);
+    else if (common.isNegativeZero(object3)) return "-0.0";
+    const res = object3.toString(10);
     return SCIENTIFIC_WITHOUT_DOT.test(res) ? res.replace("e", ".e") : res;
   }
-  function isFloat(object2) {
-    return Object.prototype.toString.call(object2) === "[object Number]" && (object2 % 1 !== 0 || common.isNegativeZero(object2));
+  function isFloat(object3) {
+    return Object.prototype.toString.call(object3) === "[object Number]" && (object3 % 1 !== 0 || common.isNegativeZero(object3));
   }
   module.exports = new Type3("tag:yaml.org,2002:float", {
     kind: "scalar",
@@ -592,8 +592,8 @@ var require_timestamp = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     if (delta) date.setTime(date.getTime() - delta);
     return date;
   }
-  function representYamlTimestamp(object2) {
-    return object2.toISOString();
+  function representYamlTimestamp(object3) {
+    return object3.toISOString();
   }
   module.exports = new Type3("tag:yaml.org,2002:timestamp", {
     kind: "scalar",
@@ -654,10 +654,10 @@ var require_binary = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     } else if (tailbits === 12) result.push(bits >> 4 & 255);
     return new Uint8Array(result);
   }
-  function representYamlBinary(object2) {
+  function representYamlBinary(object3) {
     let result = "";
     let bits = 0;
-    const max = object2.length;
+    const max = object3.length;
     const map = BASE64_MAP;
     for (let idx = 0; idx < max; idx++) {
       if (idx % 3 === 0 && idx) {
@@ -666,7 +666,7 @@ var require_binary = /* @__PURE__ */ __commonJSMin(((exports, module) => {
         result += map[bits >> 6 & 63];
         result += map[bits & 63];
       }
-      bits = (bits << 8) + object2[idx];
+      bits = (bits << 8) + object3[idx];
     }
     const tail = max % 3;
     if (tail === 0) {
@@ -705,9 +705,9 @@ var require_omap = /* @__PURE__ */ __commonJSMin(((exports, module) => {
   function resolveYamlOmap(data) {
     if (data === null) return true;
     const objectKeys = [];
-    const object2 = data;
-    for (let index = 0, length = object2.length; index < length; index += 1) {
-      const pair = object2[index];
+    const object3 = data;
+    for (let index = 0, length = object3.length; index < length; index += 1) {
+      const pair = object3[index];
       let pairHasKey = false;
       if (_toString.call(pair) !== "[object Object]") return false;
       let pairKey;
@@ -733,10 +733,10 @@ var require_pairs = /* @__PURE__ */ __commonJSMin(((exports, module) => {
   var _toString = Object.prototype.toString;
   function resolveYamlPairs(data) {
     if (data === null) return true;
-    const object2 = data;
-    const result = new Array(object2.length);
-    for (let index = 0, length = object2.length; index < length; index += 1) {
-      const pair = object2[index];
+    const object3 = data;
+    const result = new Array(object3.length);
+    for (let index = 0, length = object3.length; index < length; index += 1) {
+      const pair = object3[index];
       if (_toString.call(pair) !== "[object Object]") return false;
       const keys = Object.keys(pair);
       if (keys.length !== 1) return false;
@@ -746,10 +746,10 @@ var require_pairs = /* @__PURE__ */ __commonJSMin(((exports, module) => {
   }
   function constructYamlPairs(data) {
     if (data === null) return [];
-    const object2 = data;
-    const result = new Array(object2.length);
-    for (let index = 0, length = object2.length; index < length; index += 1) {
-      const pair = object2[index];
+    const object3 = data;
+    const result = new Array(object3.length);
+    for (let index = 0, length = object3.length; index < length; index += 1) {
+      const pair = object3[index];
       const keys = Object.keys(pair);
       result[index] = [keys[0], pair[keys[0]]];
     }
@@ -766,9 +766,9 @@ var require_set = /* @__PURE__ */ __commonJSMin(((exports, module) => {
   var _hasOwnProperty = Object.prototype.hasOwnProperty;
   function resolveYamlSet(data) {
     if (data === null) return true;
-    const object2 = data;
-    for (const key in object2) if (_hasOwnProperty.call(object2, key)) {
-      if (object2[key] !== null) return false;
+    const object3 = data;
+    for (const key in object3) if (_hasOwnProperty.call(object3, key)) {
+      if (object3[key] !== null) return false;
     }
     return true;
   }
@@ -887,14 +887,14 @@ var require_loader = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     if (c <= 65535) return String.fromCharCode(c);
     return String.fromCharCode((c - 65536 >> 10) + 55296, (c - 65536 & 1023) + 56320);
   }
-  function setProperty(object2, key, value) {
-    if (key === "__proto__") Object.defineProperty(object2, key, {
+  function setProperty(object3, key, value) {
+    if (key === "__proto__") Object.defineProperty(object3, key, {
       configurable: true,
       enumerable: true,
       writable: true,
       value
     });
-    else object2[key] = value;
+    else object3[key] = value;
   }
   var simpleEscapeCheck = new Array(256);
   var simpleEscapeMap = new Array(256);
@@ -1723,9 +1723,9 @@ var require_loader = /* @__PURE__ */ __commonJSMin(((exports, module) => {
       if (_hasOwnProperty.call(state.typeMap[state.kind || "fallback"], state.tag)) type = state.typeMap[state.kind || "fallback"][state.tag];
       else {
         type = null;
-        const typeList = state.typeMap.multi[state.kind || "fallback"];
-        for (let typeIndex = 0, typeQuantity = typeList.length; typeIndex < typeQuantity; typeIndex += 1) if (state.tag.slice(0, typeList[typeIndex].tag.length) === typeList[typeIndex].tag) {
-          type = typeList[typeIndex];
+        const typeList2 = state.typeMap.multi[state.kind || "fallback"];
+        for (let typeIndex = 0, typeQuantity = typeList2.length; typeIndex < typeQuantity; typeIndex += 1) if (state.tag.slice(0, typeList2[typeIndex].tag.length) === typeList2[typeIndex].tag) {
+          type = typeList2[typeIndex];
           break;
         }
       }
@@ -2148,12 +2148,12 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     }
     return result;
   }
-  function writeFlowSequence(state, level, object2) {
+  function writeFlowSequence(state, level, object3) {
     let _result = "";
     const _tag = state.tag;
-    for (let index = 0, length = object2.length; index < length; index += 1) {
-      let value = object2[index];
-      if (state.replacer) value = state.replacer.call(object2, String(index), value);
+    for (let index = 0, length = object3.length; index < length; index += 1) {
+      let value = object3[index];
+      if (state.replacer) value = state.replacer.call(object3, String(index), value);
       if (writeNode(state, level, value, false, false) || typeof value === "undefined" && writeNode(state, level, null, false, false)) {
         if (_result !== "") _result += "," + (!state.condenseFlow ? " " : "");
         _result += state.dump;
@@ -2162,12 +2162,12 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     state.tag = _tag;
     state.dump = "[" + _result + "]";
   }
-  function writeBlockSequence(state, level, object2, compact) {
+  function writeBlockSequence(state, level, object3, compact) {
     let _result = "";
     const _tag = state.tag;
-    for (let index = 0, length = object2.length; index < length; index += 1) {
-      let value = object2[index];
-      if (state.replacer) value = state.replacer.call(object2, String(index), value);
+    for (let index = 0, length = object3.length; index < length; index += 1) {
+      let value = object3[index];
+      if (state.replacer) value = state.replacer.call(object3, String(index), value);
       if (writeNode(state, level + 1, value, true, true, false, true) || typeof value === "undefined" && writeNode(state, level + 1, null, true, true, false, true)) {
         if (!compact || _result !== "") _result += generateNextLine(state, level);
         if (state.dump && CHAR_LINE_FEED === state.dump.charCodeAt(0)) _result += "-";
@@ -2178,17 +2178,17 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     state.tag = _tag;
     state.dump = _result || "[]";
   }
-  function writeFlowMapping(state, level, object2) {
+  function writeFlowMapping(state, level, object3) {
     let _result = "";
     const _tag = state.tag;
-    const objectKeyList = Object.keys(object2);
+    const objectKeyList = Object.keys(object3);
     for (let index = 0, length = objectKeyList.length; index < length; index += 1) {
       let pairBuffer = "";
       if (_result !== "") pairBuffer += ", ";
       if (state.condenseFlow) pairBuffer += '"';
       const objectKey = objectKeyList[index];
-      let objectValue = object2[objectKey];
-      if (state.replacer) objectValue = state.replacer.call(object2, objectKey, objectValue);
+      let objectValue = object3[objectKey];
+      if (state.replacer) objectValue = state.replacer.call(object3, objectKey, objectValue);
       if (!writeNode(state, level, objectKey, false, false)) continue;
       if (state.dump.length > 1024) pairBuffer += "? ";
       pairBuffer += state.dump + (state.condenseFlow ? '"' : "") + ":" + (state.condenseFlow ? "" : " ");
@@ -2199,10 +2199,10 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     state.tag = _tag;
     state.dump = "{" + _result + "}";
   }
-  function writeBlockMapping(state, level, object2, compact) {
+  function writeBlockMapping(state, level, object3, compact) {
     let _result = "";
     const _tag = state.tag;
-    const objectKeyList = Object.keys(object2);
+    const objectKeyList = Object.keys(object3);
     if (state.sortKeys === true) objectKeyList.sort();
     else if (typeof state.sortKeys === "function") objectKeyList.sort(state.sortKeys);
     else if (state.sortKeys) throw new YAMLException2("sortKeys must be a boolean or a function");
@@ -2210,8 +2210,8 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
       let pairBuffer = "";
       if (!compact || _result !== "") pairBuffer += generateNextLine(state, level);
       const objectKey = objectKeyList[index];
-      let objectValue = object2[objectKey];
-      if (state.replacer) objectValue = state.replacer.call(object2, objectKey, objectValue);
+      let objectValue = object3[objectKey];
+      if (state.replacer) objectValue = state.replacer.call(object3, objectKey, objectValue);
       if (!writeNode(state, level + 1, objectKey, true, true, true)) continue;
       const explicitPair = state.tag !== null && state.tag !== "?" || state.dump && state.dump.length > 1024;
       if (explicitPair) if (state.dump && CHAR_LINE_FEED === state.dump.charCodeAt(0)) pairBuffer += "?";
@@ -2227,19 +2227,19 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     state.tag = _tag;
     state.dump = _result || "{}";
   }
-  function detectType(state, object2, explicit) {
-    const typeList = explicit ? state.explicitTypes : state.implicitTypes;
-    for (let index = 0, length = typeList.length; index < length; index += 1) {
-      const type = typeList[index];
-      if ((type.instanceOf || type.predicate) && (!type.instanceOf || typeof object2 === "object" && object2 instanceof type.instanceOf) && (!type.predicate || type.predicate(object2))) {
-        if (explicit) if (type.multi && type.representName) state.tag = type.representName(object2);
+  function detectType(state, object3, explicit) {
+    const typeList2 = explicit ? state.explicitTypes : state.implicitTypes;
+    for (let index = 0, length = typeList2.length; index < length; index += 1) {
+      const type = typeList2[index];
+      if ((type.instanceOf || type.predicate) && (!type.instanceOf || typeof object3 === "object" && object3 instanceof type.instanceOf) && (!type.predicate || type.predicate(object3))) {
+        if (explicit) if (type.multi && type.representName) state.tag = type.representName(object3);
         else state.tag = type.tag;
         else state.tag = "?";
         if (type.represent) {
           const style = state.styleMap[type.tag] || type.defaultStyle;
           let _result;
-          if (_toString.call(type.represent) === "[object Function]") _result = type.represent(object2, style);
-          else if (_hasOwnProperty.call(type.represent, style)) _result = type.represent[style](object2, style);
+          if (_toString.call(type.represent) === "[object Function]") _result = type.represent(object3, style);
+          else if (_hasOwnProperty.call(type.represent, style)) _result = type.represent[style](object3, style);
           else throw new YAMLException2("!<" + type.tag + '> tag resolver accepts not "' + style + '" style');
           state.dump = _result;
         }
@@ -2248,10 +2248,10 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     }
     return false;
   }
-  function writeNode(state, level, object2, block, compact, iskey, isblockseq) {
+  function writeNode(state, level, object3, block, compact, iskey, isblockseq) {
     state.tag = null;
-    state.dump = object2;
-    if (!detectType(state, object2, false)) detectType(state, object2, true);
+    state.dump = object3;
+    if (!detectType(state, object3, false)) detectType(state, object3, true);
     const type = _toString.call(state.dump);
     const inblock = block;
     if (block) block = state.flowLevel < 0 || state.flowLevel > level;
@@ -2259,7 +2259,7 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     let duplicateIndex;
     let duplicate;
     if (objectOrArray) {
-      duplicateIndex = state.duplicates.indexOf(object2);
+      duplicateIndex = state.duplicates.indexOf(object3);
       duplicate = duplicateIndex !== -1;
     }
     if (state.tag !== null && state.tag !== "?" || duplicate || state.indent !== 2 && level > 0) compact = false;
@@ -2298,25 +2298,25 @@ var require_dumper = /* @__PURE__ */ __commonJSMin(((exports, module) => {
     }
     return true;
   }
-  function getDuplicateReferences(object2, state) {
+  function getDuplicateReferences(object3, state) {
     const objects = [];
     const duplicatesIndexes = [];
-    inspectNode(object2, objects, duplicatesIndexes);
+    inspectNode(object3, objects, duplicatesIndexes);
     const length = duplicatesIndexes.length;
     for (let index = 0; index < length; index += 1) state.duplicates.push(objects[duplicatesIndexes[index]]);
     state.usedDuplicates = new Array(length);
   }
-  function inspectNode(object2, objects, duplicatesIndexes) {
-    if (object2 !== null && typeof object2 === "object") {
-      const index = objects.indexOf(object2);
+  function inspectNode(object3, objects, duplicatesIndexes) {
+    if (object3 !== null && typeof object3 === "object") {
+      const index = objects.indexOf(object3);
       if (index !== -1) {
         if (duplicatesIndexes.indexOf(index) === -1) duplicatesIndexes.push(index);
       } else {
-        objects.push(object2);
-        if (Array.isArray(object2)) for (let i = 0, length = object2.length; i < length; i += 1) inspectNode(object2[i], objects, duplicatesIndexes);
+        objects.push(object3);
+        if (Array.isArray(object3)) for (let i = 0, length = object3.length; i < length; i += 1) inspectNode(object3[i], objects, duplicatesIndexes);
         else {
-          const objectKeyList = Object.keys(object2);
-          for (let i = 0, length = objectKeyList.length; i < length; i += 1) inspectNode(object2[objectKeyList[i]], objects, duplicatesIndexes);
+          const objectKeyList = Object.keys(object3);
+          for (let i = 0, length = objectKeyList.length; i < length; i += 1) inspectNode(object3[objectKeyList[i]], objects, duplicatesIndexes);
         }
       }
     }
@@ -3042,134 +3042,134 @@ function evaluateTrajectoryGates(assert, input) {
   };
 }
 function parseTrajectoryAssert(raw, ctx) {
-  const object2 = asObject2(raw, `${ctx}: \`assert.trajectory\``);
+  const object3 = asObject2(raw, `${ctx}: \`assert.trajectory\``);
   const allowed = /* @__PURE__ */ new Set(["version", "require", "forbid", "ordered", "correlate", "freshness", "unique", "forbid_after", "approvals", "coverage"]);
-  rejectUnknown(object2, allowed, `${ctx}: \`assert.trajectory\``);
-  if (object2.version !== TRAJECTORY_ASSERT_VERSION)
+  rejectUnknown(object3, allowed, `${ctx}: \`assert.trajectory\``);
+  if (object3.version !== TRAJECTORY_ASSERT_VERSION)
     throw new Error(`${ctx}: \`assert.trajectory.version\` must be ${TRAJECTORY_ASSERT_VERSION}`);
   const out = { version: TRAJECTORY_ASSERT_VERSION };
-  if (object2.require !== void 0)
-    out.require = nonEmptyArray(object2.require, `${ctx}: require`).map((value, index) => parseRequired(value, `${ctx}: require[${index}]`));
-  if (object2.forbid !== void 0)
-    out.forbid = nonEmptyArray(object2.forbid, `${ctx}: forbid`).map((value, index) => parseSelector(value, `${ctx}: forbid[${index}]`));
-  if (object2.ordered !== void 0)
-    out.ordered = nonEmptyArray(object2.ordered, `${ctx}: ordered`).map((chain, index) => nonEmptyArray(chain, `${ctx}: ordered[${index}]`).map((value, step) => parseSelector(value, `${ctx}: ordered[${index}][${step}]`)));
-  if (object2.correlate !== void 0)
-    out.correlate = nonEmptyArray(object2.correlate, `${ctx}: correlate`).map((value, index) => parseCorrelation(value, `${ctx}: correlate[${index}]`));
-  if (object2.freshness !== void 0)
-    out.freshness = nonEmptyArray(object2.freshness, `${ctx}: freshness`).map((value, index) => parseFreshness(value, `${ctx}: freshness[${index}]`));
-  if (object2.unique !== void 0)
-    out.unique = nonEmptyArray(object2.unique, `${ctx}: unique`).map((value, index) => parseUnique(value, `${ctx}: unique[${index}]`));
-  if (object2.forbid_after !== void 0)
-    out.forbid_after = nonEmptyArray(object2.forbid_after, `${ctx}: forbid_after`).map((value, index) => parseForbidAfter(value, `${ctx}: forbid_after[${index}]`));
-  if (object2.approvals !== void 0)
-    out.approvals = nonEmptyArray(object2.approvals, `${ctx}: approvals`).map((value, index) => parseApproval(value, `${ctx}: approvals[${index}]`));
-  if (object2.coverage !== void 0)
-    out.coverage = nonEmptyArray(object2.coverage, `${ctx}: coverage`).map((value, index) => parseCoverage(value, `${ctx}: coverage[${index}]`));
+  if (object3.require !== void 0)
+    out.require = nonEmptyArray(object3.require, `${ctx}: require`).map((value, index) => parseRequired(value, `${ctx}: require[${index}]`));
+  if (object3.forbid !== void 0)
+    out.forbid = nonEmptyArray(object3.forbid, `${ctx}: forbid`).map((value, index) => parseSelector(value, `${ctx}: forbid[${index}]`));
+  if (object3.ordered !== void 0)
+    out.ordered = nonEmptyArray(object3.ordered, `${ctx}: ordered`).map((chain, index) => nonEmptyArray(chain, `${ctx}: ordered[${index}]`).map((value, step) => parseSelector(value, `${ctx}: ordered[${index}][${step}]`)));
+  if (object3.correlate !== void 0)
+    out.correlate = nonEmptyArray(object3.correlate, `${ctx}: correlate`).map((value, index) => parseCorrelation(value, `${ctx}: correlate[${index}]`));
+  if (object3.freshness !== void 0)
+    out.freshness = nonEmptyArray(object3.freshness, `${ctx}: freshness`).map((value, index) => parseFreshness(value, `${ctx}: freshness[${index}]`));
+  if (object3.unique !== void 0)
+    out.unique = nonEmptyArray(object3.unique, `${ctx}: unique`).map((value, index) => parseUnique(value, `${ctx}: unique[${index}]`));
+  if (object3.forbid_after !== void 0)
+    out.forbid_after = nonEmptyArray(object3.forbid_after, `${ctx}: forbid_after`).map((value, index) => parseForbidAfter(value, `${ctx}: forbid_after[${index}]`));
+  if (object3.approvals !== void 0)
+    out.approvals = nonEmptyArray(object3.approvals, `${ctx}: approvals`).map((value, index) => parseApproval(value, `${ctx}: approvals[${index}]`));
+  if (object3.coverage !== void 0)
+    out.coverage = nonEmptyArray(object3.coverage, `${ctx}: coverage`).map((value, index) => parseCoverage(value, `${ctx}: coverage[${index}]`));
   if (Object.keys(out).length === 1)
     throw new Error(`${ctx}: \`assert.trajectory\` declares no assertions`);
   return out;
 }
 function parseRequired(raw, ctx) {
-  const object2 = asObject2(raw, ctx);
-  rejectUnknown(object2, /* @__PURE__ */ new Set(["event", "where", "select", "count"]), ctx);
-  const out = parseSelector({ event: object2.event, ...object2.where === void 0 ? {} : { where: object2.where }, ...object2.select === void 0 ? {} : { select: object2.select } }, ctx);
-  if (object2.count !== void 0)
-    out.count = parseCount2(object2.count, `${ctx}.count`);
+  const object3 = asObject2(raw, ctx);
+  rejectUnknown(object3, /* @__PURE__ */ new Set(["event", "where", "select", "count"]), ctx);
+  const out = parseSelector({ event: object3.event, ...object3.where === void 0 ? {} : { where: object3.where }, ...object3.select === void 0 ? {} : { select: object3.select } }, ctx);
+  if (object3.count !== void 0)
+    out.count = parseCount2(object3.count, `${ctx}.count`);
   return out;
 }
 function parseSelector(raw, ctx) {
-  const object2 = asObject2(raw, ctx);
-  rejectUnknown(object2, /* @__PURE__ */ new Set(["event", "where", "select"]), ctx);
-  if (typeof object2.event !== "string" || !object2.event.trim())
+  const object3 = asObject2(raw, ctx);
+  rejectUnknown(object3, /* @__PURE__ */ new Set(["event", "where", "select"]), ctx);
+  if (typeof object3.event !== "string" || !object3.event.trim())
     throw new Error(`${ctx}.event must be a non-empty string`);
-  const out = { event: object2.event };
-  if (object2.where !== void 0) {
-    const where = asObject2(object2.where, `${ctx}.where`);
+  const out = { event: object3.event };
+  if (object3.where !== void 0) {
+    const where = asObject2(object3.where, `${ctx}.where`);
     out.where = Object.fromEntries(Object.entries(where).map(([field, value]) => [field, parsePredicate(value, `${ctx}.where.${field}`)]));
   }
-  if (object2.select !== void 0) {
-    if (!["first", "last", "all"].includes(object2.select))
+  if (object3.select !== void 0) {
+    if (!["first", "last", "all"].includes(object3.select))
       throw new Error(`${ctx}.select must be first, last, or all`);
-    out.select = object2.select;
+    out.select = object3.select;
   }
   return out;
 }
 function parseCorrelation(raw, ctx) {
-  const object2 = asObject2(raw, ctx);
-  rejectUnknown(object2, /* @__PURE__ */ new Set(["left", "right", "same", "different", "order"]), ctx);
-  const out = { left: parseSelector(object2.left, `${ctx}.left`), right: parseSelector(object2.right, `${ctx}.right`) };
-  if (object2.same !== void 0)
-    out.same = stringList(object2.same, `${ctx}.same`);
-  if (object2.different !== void 0)
-    out.different = stringList(object2.different, `${ctx}.different`);
-  if (object2.order !== void 0) {
-    if (object2.order !== "before" && object2.order !== "after")
+  const object3 = asObject2(raw, ctx);
+  rejectUnknown(object3, /* @__PURE__ */ new Set(["left", "right", "same", "different", "order"]), ctx);
+  const out = { left: parseSelector(object3.left, `${ctx}.left`), right: parseSelector(object3.right, `${ctx}.right`) };
+  if (object3.same !== void 0)
+    out.same = stringList(object3.same, `${ctx}.same`);
+  if (object3.different !== void 0)
+    out.different = stringList(object3.different, `${ctx}.different`);
+  if (object3.order !== void 0) {
+    if (object3.order !== "before" && object3.order !== "after")
       throw new Error(`${ctx}.order must be before or after`);
-    out.order = object2.order;
+    out.order = object3.order;
   }
   if (!out.same?.length && !out.different?.length && !out.order)
     throw new Error(`${ctx} declares no relation`);
   return out;
 }
 function parseFreshness(raw, ctx) {
-  const object2 = asObject2(raw, ctx);
-  rejectUnknown(object2, /* @__PURE__ */ new Set(["subject", "after", "same"]), ctx);
+  const object3 = asObject2(raw, ctx);
+  rejectUnknown(object3, /* @__PURE__ */ new Set(["subject", "after", "same"]), ctx);
   return {
-    subject: parseSelector(object2.subject, `${ctx}.subject`),
-    after: nonEmptyArray(object2.after, `${ctx}.after`).map((value, index) => parseSelector(value, `${ctx}.after[${index}]`)),
-    ...object2.same === void 0 ? {} : { same: stringList(object2.same, `${ctx}.same`) }
+    subject: parseSelector(object3.subject, `${ctx}.subject`),
+    after: nonEmptyArray(object3.after, `${ctx}.after`).map((value, index) => parseSelector(value, `${ctx}.after[${index}]`)),
+    ...object3.same === void 0 ? {} : { same: stringList(object3.same, `${ctx}.same`) }
   };
 }
 function parseUnique(raw, ctx) {
-  const object2 = asObject2(raw, ctx);
-  rejectUnknown(object2, /* @__PURE__ */ new Set(["events", "fields"]), ctx);
-  return { events: parseSelector(object2.events, `${ctx}.events`), fields: stringList(object2.fields, `${ctx}.fields`) };
+  const object3 = asObject2(raw, ctx);
+  rejectUnknown(object3, /* @__PURE__ */ new Set(["events", "fields"]), ctx);
+  return { events: parseSelector(object3.events, `${ctx}.events`), fields: stringList(object3.fields, `${ctx}.fields`) };
 }
 function parseForbidAfter(raw, ctx) {
-  const object2 = asObject2(raw, ctx);
-  rejectUnknown(object2, /* @__PURE__ */ new Set(["anchor", "forbidden", "same", "anchor_optional"]), ctx);
-  if (object2.anchor_optional !== void 0 && typeof object2.anchor_optional !== "boolean")
+  const object3 = asObject2(raw, ctx);
+  rejectUnknown(object3, /* @__PURE__ */ new Set(["anchor", "forbidden", "same", "anchor_optional"]), ctx);
+  if (object3.anchor_optional !== void 0 && typeof object3.anchor_optional !== "boolean")
     throw new Error(`${ctx}.anchor_optional must be boolean`);
   return {
-    anchor: parseSelector(object2.anchor, `${ctx}.anchor`),
-    forbidden: nonEmptyArray(object2.forbidden, `${ctx}.forbidden`).map((value, index) => parseSelector(value, `${ctx}.forbidden[${index}]`)),
-    ...object2.same === void 0 ? {} : { same: stringList(object2.same, `${ctx}.same`) },
-    ...object2.anchor_optional === void 0 ? {} : { anchor_optional: object2.anchor_optional }
+    anchor: parseSelector(object3.anchor, `${ctx}.anchor`),
+    forbidden: nonEmptyArray(object3.forbidden, `${ctx}.forbidden`).map((value, index) => parseSelector(value, `${ctx}.forbidden[${index}]`)),
+    ...object3.same === void 0 ? {} : { same: stringList(object3.same, `${ctx}.same`) },
+    ...object3.anchor_optional === void 0 ? {} : { anchor_optional: object3.anchor_optional }
   };
 }
 function parseApproval(raw, ctx) {
-  const object2 = asObject2(raw, ctx);
-  rejectUnknown(object2, /* @__PURE__ */ new Set(["grant", "use", "same", "scopes", "sources", "unexpired", "max_uses"]), ctx);
-  if (object2.unexpired !== void 0 && typeof object2.unexpired !== "boolean")
+  const object3 = asObject2(raw, ctx);
+  rejectUnknown(object3, /* @__PURE__ */ new Set(["grant", "use", "same", "scopes", "sources", "unexpired", "max_uses"]), ctx);
+  if (object3.unexpired !== void 0 && typeof object3.unexpired !== "boolean")
     throw new Error(`${ctx}.unexpired must be boolean`);
-  if (object2.max_uses !== void 0 && (!Number.isInteger(object2.max_uses) || Number(object2.max_uses) < 1))
+  if (object3.max_uses !== void 0 && (!Number.isInteger(object3.max_uses) || Number(object3.max_uses) < 1))
     throw new Error(`${ctx}.max_uses must be a positive integer`);
   return {
-    grant: parseSelector(object2.grant, `${ctx}.grant`),
-    use: parseSelector(object2.use, `${ctx}.use`),
-    ...object2.same === void 0 ? {} : { same: stringList(object2.same, `${ctx}.same`) },
-    ...object2.scopes === void 0 ? {} : { scopes: stringList(object2.scopes, `${ctx}.scopes`) },
-    ...object2.sources === void 0 ? {} : { sources: stringList(object2.sources, `${ctx}.sources`) },
-    ...object2.unexpired === void 0 ? {} : { unexpired: object2.unexpired },
-    ...object2.max_uses === void 0 ? {} : { max_uses: Number(object2.max_uses) }
+    grant: parseSelector(object3.grant, `${ctx}.grant`),
+    use: parseSelector(object3.use, `${ctx}.use`),
+    ...object3.same === void 0 ? {} : { same: stringList(object3.same, `${ctx}.same`) },
+    ...object3.scopes === void 0 ? {} : { scopes: stringList(object3.scopes, `${ctx}.scopes`) },
+    ...object3.sources === void 0 ? {} : { sources: stringList(object3.sources, `${ctx}.sources`) },
+    ...object3.unexpired === void 0 ? {} : { unexpired: object3.unexpired },
+    ...object3.max_uses === void 0 ? {} : { max_uses: Number(object3.max_uses) }
   };
 }
 function parseCoverage(raw, ctx) {
-  const object2 = asObject2(raw, ctx);
-  rejectUnknown(object2, /* @__PURE__ */ new Set(["requirements", "events"]), ctx);
-  return { requirements: stringList(object2.requirements, `${ctx}.requirements`), ...object2.events === void 0 ? {} : { events: parseSelector(object2.events, `${ctx}.events`) } };
+  const object3 = asObject2(raw, ctx);
+  rejectUnknown(object3, /* @__PURE__ */ new Set(["requirements", "events"]), ctx);
+  return { requirements: stringList(object3.requirements, `${ctx}.requirements`), ...object3.events === void 0 ? {} : { events: parseSelector(object3.events, `${ctx}.events`) } };
 }
 function parseCount2(raw, ctx) {
-  const object2 = asObject2(raw, ctx);
-  rejectUnknown(object2, /* @__PURE__ */ new Set(["min", "max"]), ctx);
+  const object3 = asObject2(raw, ctx);
+  rejectUnknown(object3, /* @__PURE__ */ new Set(["min", "max"]), ctx);
   const out = {};
   for (const key of ["min", "max"]) {
-    if (object2[key] === void 0)
+    if (object3[key] === void 0)
       continue;
-    if (!Number.isInteger(object2[key]) || Number(object2[key]) < 0)
+    if (!Number.isInteger(object3[key]) || Number(object3[key]) < 0)
       throw new Error(`${ctx}.${key} must be a non-negative integer`);
-    out[key] = Number(object2[key]);
+    out[key] = Number(object3[key]);
   }
   if (out.min !== void 0 && out.max !== void 0 && out.min > out.max)
     throw new Error(`${ctx}.min exceeds max`);
@@ -3208,8 +3208,8 @@ var REFUSAL_RE = /^[A-Z][A-Z0-9_]*$/;
 function validateEvent(event) {
   if (!event || typeof event !== "object" || Array.isArray(event))
     return "event must be an object";
-  const object2 = event;
-  const unknown = Object.keys(object2).find((key) => !EVENT_KEYS.has(key));
+  const object3 = event;
+  const unknown = Object.keys(object3).find((key) => !EVENT_KEYS.has(key));
   if (unknown)
     return `unknown field ${unknown}`;
   if (event.event_version !== TRAJECTORY_EVENT_VERSION)
@@ -3332,8 +3332,8 @@ function stringList(value, ctx) {
     throw new Error(`${ctx} must not contain duplicates`);
   return values;
 }
-function rejectUnknown(object2, allowed, ctx) {
-  const unknown = Object.keys(object2).find((key) => !allowed.has(key));
+function rejectUnknown(object3, allowed, ctx) {
+  const unknown = Object.keys(object3).find((key) => !allowed.has(key));
   if (unknown)
     throw new Error(`${ctx}: unknown key \`${unknown}\``);
 }
@@ -4724,7 +4724,7 @@ import { existsSync as existsSync6 } from "node:fs";
 import { join as join7, delimiter } from "node:path";
 function exec(cmd, args, opts = {}) {
   return new Promise((resolve13, reject) => {
-    const child = spawn(cmd, args, {
+    const child2 = spawn(cmd, args, {
       cwd: opts.cwd,
       env: opts.env ?? process.env,
       stdio: ["ignore", "pipe", "pipe"]
@@ -4734,19 +4734,19 @@ function exec(cmd, args, opts = {}) {
     let timer;
     if (opts.timeoutMs) {
       timer = setTimeout(() => {
-        child.kill("SIGKILL");
+        child2.kill("SIGKILL");
         stderr += `
 [skill-harness] killed after ${opts.timeoutMs}ms timeout`;
       }, opts.timeoutMs);
     }
-    child.stdout.on("data", (d) => stdout += d.toString());
-    child.stderr.on("data", (d) => stderr += d.toString());
-    child.on("error", (e) => {
+    child2.stdout.on("data", (d) => stdout += d.toString());
+    child2.stderr.on("data", (d) => stderr += d.toString());
+    child2.on("error", (e) => {
       if (timer)
         clearTimeout(timer);
       reject(e);
     });
-    child.on("close", (code) => {
+    child2.on("close", (code) => {
       if (timer)
         clearTimeout(timer);
       resolve13({ stdout, stderr, code });
@@ -7348,7 +7348,7 @@ var SKIPPED_TYPE_RE = /^\s*\{\s*"type"\s*:\s*"(?:message_update|tool_execution_u
 var MAX_STDERR_CHARS = 8e3;
 function runPiJson(opts) {
   return new Promise((resolve13, reject) => {
-    const child = spawn2("pi", opts.args, {
+    const child2 = spawn2("pi", opts.args, {
       cwd: opts.cwd,
       // stdin from /dev/null: pi hangs waiting on it otherwise, and a hang in a
       // wave is indistinguishable from a slow model until the timeout fires.
@@ -7361,10 +7361,10 @@ function runPiJson(opts) {
       if (settled)
         return;
       settled = true;
-      child.kill("SIGKILL");
+      child2.kill("SIGKILL");
       reject(new Error(`pi --mode json timed out after ${opts.timeoutMs}ms`));
     }, opts.timeoutMs);
-    const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
+    const rl = createInterface({ input: child2.stdout, crlfDelay: Infinity });
     rl.on("line", (line) => {
       if (!line.trim())
         return;
@@ -7372,18 +7372,18 @@ function runPiJson(opts) {
         return;
       kept.push(line);
     });
-    child.stderr.on("data", (chunk) => {
+    child2.stderr.on("data", (chunk) => {
       if (stderr.length < MAX_STDERR_CHARS)
         stderr += chunk.toString("utf8");
     });
-    child.on("error", (err) => {
+    child2.on("error", (err) => {
       if (settled)
         return;
       settled = true;
       clearTimeout(timer);
       reject(err);
     });
-    child.on("close", (code) => {
+    child2.on("close", (code) => {
       if (settled)
         return;
       settled = true;
@@ -7407,6 +7407,924 @@ function runPiJson(opts) {
 import { createHash as createHash8 } from "node:crypto";
 import { readFileSync as readFileSync15, readdirSync as readdirSync10 } from "node:fs";
 import { join as join21 } from "node:path";
+
+// packages/adapters/dist/closed-schema.js
+var ANNOTATION_KEYWORDS = /* @__PURE__ */ new Set(["$schema", "$id", "title", "description", "$defs"]);
+var SUPPORTED_KEYWORDS = /* @__PURE__ */ new Set([
+  ...ANNOTATION_KEYWORDS,
+  // structure
+  "$ref",
+  "oneOf",
+  "type",
+  "properties",
+  "required",
+  "additionalProperties",
+  "items",
+  // value constraints
+  "enum",
+  "const",
+  "minLength",
+  "maxLength",
+  "minimum",
+  "pattern",
+  "format"
+]);
+var KEYWORD_SHAPES = {
+  $ref: { check: (value) => typeof value === "string", expected: "a string" },
+  oneOf: { check: (value) => Array.isArray(value) && value.length > 0, expected: "a non-empty array" },
+  type: { check: (value) => typeof value === "string" || Array.isArray(value) && value.length > 0 && value.every((entry) => typeof entry === "string"), expected: "a string or array of strings" },
+  properties: { check: (value) => isSchemaObject(value), expected: "an object" },
+  required: { check: (value) => Array.isArray(value) && value.every((entry) => typeof entry === "string"), expected: "an array of strings" },
+  additionalProperties: { check: (value) => typeof value === "boolean" || isSchemaObject(value), expected: "a boolean or a schema object" },
+  items: { check: (value) => isSchemaObject(value), expected: "a schema object" },
+  enum: { check: (value) => Array.isArray(value) && value.length > 0, expected: "a non-empty array" },
+  minLength: { check: (value) => typeof value === "number", expected: "a number" },
+  maxLength: { check: (value) => typeof value === "number", expected: "a number" },
+  minimum: { check: (value) => typeof value === "number", expected: "a number" },
+  pattern: { check: (value) => typeof value === "string", expected: "a string" },
+  format: { check: (value) => typeof value === "string", expected: "a string" }
+  // `const` may legitimately be any JSON value, including null.
+};
+var SUPPORTED_FORMATS = /* @__PURE__ */ new Set(["date-time"]);
+var SUPPORTED_TYPES = /* @__PURE__ */ new Set(["object", "array", "string", "number", "integer", "boolean", "null"]);
+function assertSupportedSchema(schema, label, path = "#") {
+  if (typeof schema !== "object" || schema === null || Array.isArray(schema)) {
+    throw new Error(`${label} is not a JSON Schema object at ${path}`);
+  }
+  const node = schema;
+  for (const keyword of Object.keys(node)) {
+    if (!SUPPORTED_KEYWORDS.has(keyword)) {
+      throw new Error(`${label} uses unsupported JSON Schema keyword \`${keyword}\` at ${path}; the closed-contract evaluator refuses to validate less than the schema declares`);
+    }
+    const shape = KEYWORD_SHAPES[keyword];
+    if (shape && !shape.check(node[keyword])) {
+      throw new Error(`${label} declares \`${keyword}\` at ${path} as something other than ${shape.expected}; the closed-contract evaluator refuses to skip a keyword it cannot read`);
+    }
+  }
+  if (node.format !== void 0 && !SUPPORTED_FORMATS.has(String(node.format))) {
+    throw new Error(`${label} uses unsupported format \`${String(node.format)}\` at ${path}`);
+  }
+  for (const type of typeList(node)) {
+    if (!SUPPORTED_TYPES.has(type))
+      throw new Error(`${label} uses unsupported type \`${type}\` at ${path}`);
+  }
+  if (node.$ref !== void 0) {
+    if (!/^#\/\$defs\/[A-Za-z0-9_]+$/.test(String(node.$ref))) {
+      throw new Error(`${label} uses unsupported $ref \`${String(node.$ref)}\` at ${path}; only #/$defs/<name> is resolvable`);
+    }
+    const siblings = Object.keys(node).filter((keyword) => keyword !== "$ref" && !ANNOTATION_KEYWORDS.has(keyword));
+    if (siblings.length > 0) {
+      throw new Error(`${label} combines $ref with ${siblings.map((keyword) => `\`${keyword}\``).join(", ")} at ${path}; the closed-contract evaluator would drop the sibling constraint, so it refuses the schema instead`);
+    }
+  }
+  for (const [name, entry] of Object.entries(object(node.$defs) ?? {}))
+    assertSupportedSchema(entry, label, `${path}/$defs/${name}`);
+  for (const [index, entry] of (Array.isArray(node.oneOf) ? node.oneOf : []).entries())
+    assertSupportedSchema(entry, label, `${path}/oneOf/${index}`);
+  for (const [name, entry] of Object.entries(object(node.properties) ?? {}))
+    assertSupportedSchema(entry, label, `${path}/properties/${name}`);
+  if (node.items !== void 0)
+    assertSupportedSchema(node.items, label, `${path}/items`);
+  if (node.additionalProperties !== void 0 && node.additionalProperties !== false && node.additionalProperties !== true) {
+    assertSupportedSchema(node.additionalProperties, label, `${path}/additionalProperties`);
+  }
+}
+function validateClosedSchema(schema, value, options = {}) {
+  return validate(schema, schema, value, "", options.knownFieldNames ?? /* @__PURE__ */ new Set());
+}
+function declaredPropertyNames(schema) {
+  const names = /* @__PURE__ */ new Set();
+  const walk2 = (node) => {
+    const current = object(node);
+    if (!current)
+      return;
+    for (const [name, entry] of Object.entries(object(current.properties) ?? {})) {
+      names.add(name);
+      walk2(entry);
+    }
+    for (const entry of Object.values(object(current.$defs) ?? {}))
+      walk2(entry);
+    for (const entry of Array.isArray(current.oneOf) ? current.oneOf : [])
+      walk2(entry);
+    if (current.items !== void 0)
+      walk2(current.items);
+    if (current.additionalProperties && typeof current.additionalProperties === "object")
+      walk2(current.additionalProperties);
+  };
+  walk2(schema);
+  return names;
+}
+function validate(root, schema, value, path, known) {
+  if (schema.$ref !== void 0) {
+    const resolved = resolveRef(root, String(schema.$ref));
+    return validate(root, resolved, value, path, known);
+  }
+  const violations = [];
+  const types2 = typeList(schema);
+  if (types2.length && !types2.some((type) => matchesType(type, value))) {
+    return [{ path, message: `must be ${describeTypes(types2)}` }];
+  }
+  if (schema.const !== void 0 && !sameJson(schema.const, value)) {
+    return [{ path, message: `must be ${JSON.stringify(schema.const)}` }];
+  }
+  if (Array.isArray(schema.enum) && !schema.enum.some((allowed) => sameJson(allowed, value))) {
+    return [{ path, message: `must be one of ${schema.enum.map((allowed) => stringifyAllowed(allowed)).join(", ")}` }];
+  }
+  if (Array.isArray(schema.oneOf)) {
+    const branches = schema.oneOf.map((branch) => validate(root, branch, value, path, known));
+    const matched = branches.filter((branch) => branch.length === 0).length;
+    if (matched === 0)
+      return bestBranch(root, schema.oneOf, branches, value, path);
+    if (matched > 1)
+      return [{ path, message: `matches ${matched} of the ${branches.length} allowed shapes and is therefore ambiguous` }];
+  }
+  if (typeof value === "string")
+    violations.push(...validateString(schema, value, path));
+  if (typeof value === "number")
+    violations.push(...validateNumber(schema, value, path));
+  if (Array.isArray(value) && schema.items !== void 0) {
+    value.forEach((entry, index) => violations.push(...validate(root, schema.items, entry, `${path}[${index}]`, known)));
+  }
+  const record = object(value);
+  if (record)
+    violations.push(...validateObject(root, schema, record, path, known));
+  return violations;
+}
+function validateObject(root, schema, record, path, known) {
+  const violations = [];
+  const properties = object(schema.properties) ?? {};
+  for (const name of Array.isArray(schema.required) ? schema.required : []) {
+    if (!Object.hasOwn(record, name))
+      violations.push({ path: child(path, name), message: "is required" });
+  }
+  for (const [name, entry] of Object.entries(record)) {
+    if (entry === void 0)
+      continue;
+    const propertySchema = Object.hasOwn(properties, name) ? object(properties[name]) : void 0;
+    if (propertySchema) {
+      violations.push(...validate(root, propertySchema, entry, child(path, name), known));
+      continue;
+    }
+    if (schema.additionalProperties === false) {
+      violations.push({
+        path: path || "(top level)",
+        message: `carries undeclared field ${known.has(name) ? name : "[REDACTED field name]"}, which the closed contract does not allow`
+      });
+      continue;
+    }
+    const extra = typeof schema.additionalProperties === "object" && schema.additionalProperties !== null ? schema.additionalProperties : void 0;
+    if (extra)
+      violations.push(...validate(root, extra, entry, child(path, name), known));
+  }
+  return violations;
+}
+function validateString(schema, value, path) {
+  const violations = [];
+  if (typeof schema.minLength === "number" && value.length < schema.minLength) {
+    violations.push({ path, message: schema.minLength === 1 ? "must not be empty" : `must be at least ${schema.minLength} characters` });
+  }
+  if (typeof schema.maxLength === "number" && value.length > schema.maxLength) {
+    violations.push({ path, message: `must be at most ${schema.maxLength} characters` });
+  }
+  if (typeof schema.pattern === "string" && !new RegExp(schema.pattern).test(value)) {
+    violations.push({ path, message: `must match ${schema.pattern}` });
+  }
+  if (schema.format === "date-time" && !isRfc3339(value)) {
+    violations.push({ path, message: "must be an RFC 3339 date-time" });
+  }
+  return violations;
+}
+function validateNumber(schema, value, path) {
+  if (typeof schema.minimum === "number" && value < schema.minimum) {
+    return [{ path, message: `must be >= ${schema.minimum}` }];
+  }
+  return [];
+}
+function bestBranch(root, schemas, branches, value, path) {
+  const discriminated = schemas.map((schema, index) => ({ schema, violations: branches[index] })).filter(({ schema }) => matchesDiscriminator(root, schema, value));
+  const candidates = discriminated.length === 1 ? [discriminated[0].violations] : branches;
+  let best = candidates[0] ?? [];
+  for (const branch of candidates)
+    if (branch.length < best.length)
+      best = branch;
+  return best.length ? best : [{ path, message: "does not match any allowed shape" }];
+}
+function matchesDiscriminator(root, schema, value) {
+  const resolved = schema.$ref !== void 0 ? resolveRef(root, String(schema.$ref)) : schema;
+  const record = object(value);
+  const properties = object(resolved.properties);
+  if (!record || !properties)
+    return false;
+  const required = new Set(Array.isArray(resolved.required) ? resolved.required : []);
+  const consts = Object.entries(properties).filter(([name]) => required.has(name)).map(([name, entry]) => [name, object(entry)?.const]).filter(([, constant]) => constant !== void 0);
+  return consts.length > 0 && consts.every(([name, constant]) => sameJson(constant, record[name]));
+}
+function resolveRef(root, ref) {
+  const name = ref.replace("#/$defs/", "");
+  const resolved = object((object(root.$defs) ?? {})[name]);
+  if (!resolved)
+    throw new Error(`unresolvable $ref ${ref} in pinned schema`);
+  return resolved;
+}
+function typeList(schema) {
+  if (typeof schema.type === "string")
+    return [schema.type];
+  if (Array.isArray(schema.type))
+    return schema.type.map(String);
+  return [];
+}
+function matchesType(type, value) {
+  switch (type) {
+    case "object":
+      return object(value) !== void 0;
+    case "array":
+      return Array.isArray(value);
+    case "string":
+      return typeof value === "string";
+    case "boolean":
+      return typeof value === "boolean";
+    case "null":
+      return value === null;
+    case "integer":
+      return typeof value === "number" && Number.isInteger(value);
+    case "number":
+      return typeof value === "number" && Number.isFinite(value);
+    default:
+      return false;
+  }
+}
+function describeTypes(types2) {
+  const article = (type) => ["object", "array", "integer"].includes(type) ? `an ${type}` : `a ${type}`;
+  if (types2.length === 1)
+    return types2[0] === "null" ? "null" : article(types2[0]);
+  return types2.map((type) => type === "null" ? "null" : article(type)).join(" or ");
+}
+function stringifyAllowed(value) {
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+function child(path, name) {
+  const safe = /^[A-Za-z0-9_.:-]{1,64}$/.test(name) && redactText(name) === name ? name : "[REDACTED key]";
+  if (safe === "[REDACTED key]")
+    return path ? `${path}[REDACTED key]` : "[REDACTED key]";
+  if (!path)
+    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(safe) ? safe : `[${JSON.stringify(safe)}]`;
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(safe) ? `${path}.${safe}` : `${path}[${JSON.stringify(safe)}]`;
+}
+function sameJson(left, right) {
+  return left === right || JSON.stringify(left) === JSON.stringify(right);
+}
+function isRfc3339(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$/.exec(value);
+  if (!match)
+    return false;
+  const [, year, month, day, hour, minute, second] = match.map(Number);
+  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 60)
+    return false;
+  return day >= 1 && day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+function object(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
+}
+function isSchemaObject(value) {
+  return object(value) !== void 0;
+}
+
+// packages/adapters/dist/pi-daddy-ledger-v2.js
+var PI_DADDY_CONTRACT_COMMIT = "1948b9406c13c9730f2fc103e68023d6e58c5e85";
+var PI_DADDY_LEDGER_V2_SCHEMA = {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mojomanyana/pi-daddy/contracts/ledger/v2/ledger-event.schema.json",
+  "title": "pi-daddy ledgerVersion 2 event",
+  "description": "One JSON object per JSONL line. This schema covers only explicit ledgerVersion 2 events; legacy GrantRecord lines have no version/event discriminator and are intentionally outside this schema.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/capabilityDecision"
+    },
+    {
+      "$ref": "#/$defs/workspaceLease"
+    },
+    {
+      "$ref": "#/$defs/childLifecycle"
+    },
+    {
+      "$ref": "#/$defs/checkReceipt"
+    }
+  ],
+  "$defs": {
+    "correlation": {
+      "type": "object",
+      "description": "Opaque, non-authoritative controller metadata. String and aggregate byte limits are additionally enforced by the runtime and cannot be represented exactly in JSON Schema.",
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "run_id": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "task_id": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "workspace_id": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "context_id": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "phase": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "assurance": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "assurance_effective": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "policy_label": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "assurance_source": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "assurance_scope": {},
+        "activated_at": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "plan_digest": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "definition_digest": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "task_digest": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "base_sha": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "head_sha": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "tree_sha": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "event_seq": {
+          "type": "number"
+        },
+        "last_change_seq": {
+          "type": "number"
+        },
+        "last_authority_seq": {
+          "type": "number"
+        },
+        "check_receipt_id": {
+          "type": "string",
+          "maxLength": 512
+        }
+      },
+      "additionalProperties": false
+    },
+    "refusalCode": {
+      "type": "string",
+      "enum": [
+        "CAPABILITY_ESCALATION",
+        "GRANT_ID_MALFORMED",
+        "DEFINITION_NOT_AUTHORIZED",
+        "UNDECLARED_TOOLS",
+        "UNKNOWN_TOOL",
+        "GATED_UNAPPROVED",
+        "APPROVAL_EXPIRED",
+        "APPROVAL_SCOPE_MISMATCH",
+        "APPROVAL_FLOW_FAILED",
+        "DEPTH_EXCEEDED",
+        "FANOUT_EXCEEDED",
+        "EXECUTOR_UNAVAILABLE",
+        "CHILD_TIMED_OUT",
+        "CHILD_CANCELLED",
+        "CHILD_EXIT_NONZERO",
+        "TASK_MISSING",
+        "UNKNOWN_DEFINITION",
+        "CEILING_PATTERNS_UNRESOLVED",
+        "NARROWING_VIOLATED",
+        "DEFINITION_UNREADABLE",
+        "CORRELATION_TOO_LARGE",
+        "CORRELATION_INVALID",
+        "LEDGER_WRITE_FAILED",
+        "FANOUT_FAILED",
+        "WORKSPACE_NOT_REGISTERED",
+        "WORKSPACE_WRITE_CONFLICT",
+        "WORKSPACE_LEASE_STALE",
+        "CHECK_NOT_CONFIGURED",
+        "CHECK_CONFIGURATION_INVALID",
+        "CHECK_IDENTITY_UNAVAILABLE",
+        "CHECK_IDENTITY_MISMATCH"
+      ]
+    },
+    "refusal": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/refusalCode"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "approvalSource": {
+      "type": "string",
+      "enum": [
+        "prompt",
+        "session",
+        "persisted",
+        "inherited"
+      ]
+    },
+    "approvalScope": {
+      "type": "string",
+      "enum": [
+        "once",
+        "session",
+        "always"
+      ]
+    },
+    "approvalUse": {
+      "type": "object",
+      "properties": {
+        "max": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "remaining": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "max",
+        "remaining"
+      ],
+      "additionalProperties": false
+    },
+    "definitionDigest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        }
+      },
+      "required": [
+        "name",
+        "source",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "capabilityDecision": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 2
+        },
+        "event": {
+          "const": "capability_decision"
+        },
+        "ts": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "parentId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "childId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "agentType": {
+          "type": "string"
+        },
+        "requested": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "parentGrant": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "effective": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "denied": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "clipped": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "gatedBlocked": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blocked": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "approved": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "approvalSource": {
+          "$ref": "#/$defs/approvalSource"
+        },
+        "approvalSources": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/approvalSource"
+          }
+        },
+        "approvalScopes": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/approvalScope"
+          }
+        },
+        "approvalExpiresAt": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "approvalUses": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/approvalUse"
+          }
+        },
+        "approvalScope": {
+          "$ref": "#/$defs/approvalScope"
+        },
+        "humanDenied": {
+          "const": true
+        },
+        "gateOutcome": {
+          "type": "string",
+          "enum": [
+            "declined",
+            "dismissed",
+            "no-ui",
+            "error"
+          ]
+        },
+        "definitionDigest": {
+          "$ref": "#/$defs/definitionDigest"
+        },
+        "executor": {
+          "type": "string",
+          "enum": [
+            "process",
+            "herdr"
+          ]
+        },
+        "taskFrom": {
+          "type": "string"
+        },
+        "taskDigest": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "correlation": {
+          "$ref": "#/$defs/correlation"
+        },
+        "refusal": {
+          "$ref": "#/$defs/refusal"
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "parentId",
+        "childId",
+        "depth",
+        "requested",
+        "parentGrant",
+        "effective",
+        "denied",
+        "clipped",
+        "gatedBlocked",
+        "blocked",
+        "executor",
+        "taskDigest"
+      ],
+      "additionalProperties": false
+    },
+    "workspaceLease": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 2
+        },
+        "event": {
+          "const": "workspace_lease"
+        },
+        "ts": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "childId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workspaceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "access": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write"
+          ]
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "acquired",
+            "uncontended",
+            "refused",
+            "released",
+            "released-unrecorded",
+            "lost",
+            "retained",
+            "timeout",
+            "recovered"
+          ]
+        },
+        "recovered": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "unknown"
+            }
+          ]
+        },
+        "releaseReason": {
+          "type": "string"
+        },
+        "refusal": {
+          "$ref": "#/$defs/refusal"
+        },
+        "correlation": {
+          "$ref": "#/$defs/correlation"
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "childId",
+        "workspaceId",
+        "root",
+        "access",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "childLifecycle": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 2
+        },
+        "event": {
+          "const": "child_lifecycle"
+        },
+        "ts": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "childId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "starting",
+            "completed",
+            "failed"
+          ]
+        },
+        "executor": {
+          "type": "string",
+          "enum": [
+            "process",
+            "herdr"
+          ]
+        },
+        "exitCode": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "signal": {
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "SIGABRT",
+                "SIGALRM",
+                "SIGBUS",
+                "SIGCHLD",
+                "SIGCONT",
+                "SIGFPE",
+                "SIGHUP",
+                "SIGILL",
+                "SIGINT",
+                "SIGIO",
+                "SIGIOT",
+                "SIGKILL",
+                "SIGPIPE",
+                "SIGPOLL",
+                "SIGPROF",
+                "SIGPWR",
+                "SIGQUIT",
+                "SIGSEGV",
+                "SIGSTKFLT",
+                "SIGSTOP",
+                "SIGSYS",
+                "SIGTERM",
+                "SIGTRAP",
+                "SIGTSTP",
+                "SIGTTIN",
+                "SIGTTOU",
+                "SIGUNUSED",
+                "SIGURG",
+                "SIGUSR1",
+                "SIGUSR2",
+                "SIGVTALRM",
+                "SIGWINCH",
+                "SIGXCPU",
+                "SIGXFSZ",
+                "SIGBREAK",
+                "SIGLOST",
+                "SIGINFO"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timedOut": {
+          "const": true
+        },
+        "aborted": {
+          "const": true
+        },
+        "truncated": {
+          "const": true
+        },
+        "reason": {
+          "type": "string"
+        },
+        "correlation": {
+          "$ref": "#/$defs/correlation"
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "childId",
+        "state",
+        "executor"
+      ],
+      "additionalProperties": false
+    },
+    "checkReceipt": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 2
+        },
+        "event": {
+          "const": "check_receipt"
+        },
+        "ts": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "childId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "receiptId": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "workspaceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "checkId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "treeSha": {
+          "type": "string",
+          "minLength": 1
+        },
+        "correlation": {
+          "$ref": "#/$defs/correlation"
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "childId",
+        "receiptId",
+        "workspaceId",
+        "checkId",
+        "treeSha"
+      ],
+      "additionalProperties": false
+    }
+  }
+};
+
+// packages/adapters/dist/trajectory.js
 function collectTrajectorySources(cwd, sources) {
   const files = walkFiles(cwd);
   const streams = [];
@@ -7542,8 +8460,8 @@ function normalizePrincipalAssuranceLedger(text) {
     if (!Number.isInteger(record.seq) || Number(record.seq) < 1 || typeof record.type !== "string" || typeof record.run_id !== "string") {
       throw new Error(`invalid principal assurance v1 event at line ${index + 1}: seq, type, and run_id are required`);
     }
-    const packet = object(record.packet);
-    const definitionDigests = object(packet?.definition_digests);
+    const packet = object2(record.packet);
+    const definitionDigests = object2(packet?.definition_digests);
     const definition = typeof record.definition_digest === "string" ? record.definition_digest : typeof definitionDigests?.["skill:build"] === "string" ? definitionDigests["skill:build"] : void 0;
     const taskId = string(record.task_id) ?? string(packet?.task_id);
     const workspaceId = string(record.workspace_id) ?? string(packet?.workspace_id);
@@ -7596,6 +8514,8 @@ function normalizePiDaddyLedger(text) {
       if (record.ledgerVersion !== 2) {
         throw new Error(`unsupported pi-daddy ledgerVersion ${safeDiagnosticValue(record.ledgerVersion)} at line ${index + 1}; expected 2 or an unversioned 0.17 GrantRecord`);
       }
+      requireV2Discriminator(record, index + 1);
+      assertPinnedV2Contract(record, index + 1);
       for (const event of normalizePiDaddyV2(record, index))
         out.push({ ...event, seq: seq++ });
       return;
@@ -7611,6 +8531,31 @@ function normalizePiDaddyLedger(text) {
   });
   return out;
 }
+var V2_EVENTS = /* @__PURE__ */ new Set(["capability_decision", "workspace_lease", "child_lifecycle", "check_receipt"]);
+function requireV2Discriminator(record, line) {
+  const nativeEvent = string(record.event);
+  if (!nativeEvent || !V2_EVENTS.has(nativeEvent)) {
+    throw new Error(`invalid pi-daddy v2 event at line ${line}: event must be capability_decision, workspace_lease, child_lifecycle, or check_receipt`);
+  }
+  return nativeEvent;
+}
+var pinnedContractChecked = false;
+var pinnedContractFieldNames;
+function assertPinnedV2Contract(record, line) {
+  if (!pinnedContractChecked) {
+    assertSupportedSchema(PI_DADDY_LEDGER_V2_SCHEMA, "pinned pi-daddy ledger v2 schema");
+    pinnedContractFieldNames = declaredPropertyNames(PI_DADDY_LEDGER_V2_SCHEMA);
+    pinnedContractChecked = true;
+  }
+  const violations = validateClosedSchema(PI_DADDY_LEDGER_V2_SCHEMA, record, { knownFieldNames: pinnedContractFieldNames });
+  if (violations.length === 0)
+    return;
+  const nativeEvent = string(record.event);
+  const label = nativeEvent && V2_EVENTS.has(nativeEvent) ? nativeEvent : "record";
+  const [first] = violations;
+  const extra = violations.length > 1 ? ` (+${violations.length - 1} more contract violation${violations.length > 2 ? "s" : ""})` : "";
+  throw new Error(`invalid pi-daddy v2 ${label} at line ${line}: closed contract violation \u2014 ${first.path ? `${first.path} ` : ""}${first.message}${extra} [pi-daddy ${PI_DADDY_CONTRACT_COMMIT.slice(0, 12)}]`);
+}
 var V2_LEASE_OUTCOMES = /* @__PURE__ */ new Set([
   "acquired",
   "uncontended",
@@ -7622,6 +8567,8 @@ var V2_LEASE_OUTCOMES = /* @__PURE__ */ new Set([
   "timeout",
   "recovered"
 ]);
+var V2_LEASE_ACCESS = /* @__PURE__ */ new Set(["read", "write"]);
+var V2_LIFECYCLE_STATES = /* @__PURE__ */ new Set(["starting", "completed", "failed"]);
 var V2_EXECUTORS = /* @__PURE__ */ new Set(["process", "herdr"]);
 var V2_RECEIPT_RELEASE_OUTCOMES = /* @__PURE__ */ new Set(["released", "released-unrecorded", "lost", "timeout"]);
 var NORMALIZED_RECEIPT_RELEASE_EVENTS = /* @__PURE__ */ new Set([
@@ -7659,6 +8606,7 @@ var V2_APPROVAL_SOURCES = /* @__PURE__ */ new Set(["prompt", "session", "persist
 var V2_APPROVAL_SCOPES = /* @__PURE__ */ new Set(["once", "session", "always"]);
 var V2_REFUSAL_CODES = /* @__PURE__ */ new Set([
   "CAPABILITY_ESCALATION",
+  "GRANT_ID_MALFORMED",
   "DEFINITION_NOT_AUTHORIZED",
   "UNDECLARED_TOOLS",
   "UNKNOWN_TOOL",
@@ -7695,7 +8643,7 @@ var V2_CORRELATION_MAX_SCOPE_BYTES = 4 * 1024;
 function piDaddyStreamKey(record, index) {
   if (record.ledgerVersion === void 0)
     return JSON.stringify(["legacy", string(record.childId) ?? `missing-child:${index}`]);
-  const correlation = object(record.correlation);
+  const correlation = object2(record.correlation);
   return JSON.stringify([
     string(correlation?.run_id) ?? `missing-run:${index}`,
     string(correlation?.task_id) ?? `missing-task:${index}`,
@@ -7706,7 +8654,7 @@ function piDaddyStreamKey(record, index) {
 function normalizedPiDaddyStreamKey(event, index) {
   if (event.source === "pi-daddy-0.17")
     return JSON.stringify(["legacy", event.child_id ?? `missing-child:${index}`]);
-  const correlation = object(event.attributes?.correlation);
+  const correlation = object2(event.attributes?.correlation);
   return JSON.stringify([
     event.run_id ?? `missing-run:${index}`,
     event.task_id ?? `missing-task:${index}`,
@@ -7715,8 +8663,8 @@ function normalizedPiDaddyStreamKey(event, index) {
   ]);
 }
 function sameRawCorrelationIdentity(left, right) {
-  const leftCorrelation = object(left.correlation);
-  const rightCorrelation = object(right.correlation);
+  const leftCorrelation = object2(left.correlation);
+  const rightCorrelation = object2(right.correlation);
   return string(leftCorrelation?.run_id) === string(rightCorrelation?.run_id) && string(leftCorrelation?.task_id) === string(rightCorrelation?.task_id);
 }
 function validatePiDaddyTimestampOrder(records) {
@@ -7730,12 +8678,12 @@ function validatePiDaddyTimestampOrder(records) {
     if (!validTime(at))
       throw new Error(`invalid pi-daddy ledger timestamp at line ${index + 1}: ts must be a date-time`);
     const time = Date.parse(at);
-    const child = piDaddyStreamKey(record, index);
-    const highWater = highWaterByChild.get(child);
+    const child2 = piDaddyStreamKey(record, index);
+    const highWater = highWaterByChild.get(child2);
     if (highWater !== void 0 && time < highWater && !isRawPiDaddyReceiptInversion(records, index, time)) {
       throw new Error(`pi-daddy ledger timestamp moves backwards at line ${index + 1}`);
     }
-    highWaterByChild.set(child, Math.max(highWater ?? time, time));
+    highWaterByChild.set(child2, Math.max(highWater ?? time, time));
   });
 }
 function isRawPiDaddyReceiptInversion(records, index, receiptTime) {
@@ -7763,10 +8711,7 @@ function isAllowedPiDaddyReceiptInversion(adapter, events, index) {
 }
 function normalizePiDaddyV2(record, index) {
   const line = index + 1;
-  const nativeEvent = string(record.event);
-  if (!nativeEvent || !(/* @__PURE__ */ new Set(["capability_decision", "workspace_lease", "child_lifecycle", "check_receipt"])).has(nativeEvent)) {
-    throw new Error(`invalid pi-daddy v2 event at line ${line}: event must be capability_decision, workspace_lease, child_lifecycle, or check_receipt`);
-  }
+  const nativeEvent = requireV2Discriminator(record, line);
   const at = requireV2String(record, "ts", nativeEvent, line);
   const childId = requireV2String(record, "childId", nativeEvent, line);
   const correlation = requireV2Correlation(record, nativeEvent, line);
@@ -7782,7 +8727,7 @@ function normalizePiDaddyV2(record, index) {
   if (nativeEvent !== "capability_decision" && (record.taskDigest !== void 0 || record.definitionDigest !== void 0)) {
     throw new Error(`invalid pi-daddy v2 ${nativeEvent} at line ${line}: taskDigest and definitionDigest belong only to capability_decision`);
   }
-  const definition = nativeEvent === "capability_decision" ? object(record.definitionDigest) : void 0;
+  const definition = nativeEvent === "capability_decision" ? object2(record.definitionDigest) : void 0;
   const trustedTask = nativeEvent === "capability_decision" ? string(record.taskDigest) : void 0;
   const trustedDefinition = nativeEvent === "capability_decision" ? string(definition?.sha256) : void 0;
   const common = {
@@ -7905,7 +8850,7 @@ function normalizePiDaddyV2(record, index) {
           expires_at: string(expiries?.[capability]),
           used_at: at
         }),
-        attributes: safeAttributes({ ...attributes, approval_uses: object(uses?.[capability]) })
+        attributes: safeAttributes({ ...attributes, approval_uses: object2(uses?.[capability]) })
       }));
     }
     const approvedSet = new Set(approved ?? []);
@@ -7927,7 +8872,7 @@ function normalizePiDaddyV2(record, index) {
     requireV2String(record, "root", nativeEvent, line);
     const access = requireV2String(record, "access", nativeEvent, line);
     const outcome = requireV2String(record, "outcome", nativeEvent, line);
-    if (!(/* @__PURE__ */ new Set(["read", "write"])).has(access) || !V2_LEASE_OUTCOMES.has(outcome)) {
+    if (!V2_LEASE_ACCESS.has(access) || !V2_LEASE_OUTCOMES.has(outcome)) {
       throw new Error(`invalid pi-daddy v2 workspace_lease at line ${line}: access or outcome is unsupported`);
     }
     if (record.recovered !== void 0 && typeof record.recovered !== "boolean" && record.recovered !== "unknown") {
@@ -7954,7 +8899,7 @@ function normalizePiDaddyV2(record, index) {
   if (nativeEvent === "child_lifecycle") {
     const state = requireV2String(record, "state", nativeEvent, line);
     const executor = requireV2Executor(record, nativeEvent, line);
-    if (!(/* @__PURE__ */ new Set(["starting", "completed", "failed"])).has(state)) {
+    if (!V2_LIFECYCLE_STATES.has(state)) {
       throw new Error(`invalid pi-daddy v2 child_lifecycle at line ${line}: state is unsupported`);
     }
     if (record.exitCode !== void 0 && record.exitCode !== null && !Number.isInteger(record.exitCode)) {
@@ -7991,10 +8936,6 @@ function normalizePiDaddyV2(record, index) {
   if (!/^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/.test(treeSha)) {
     throw new Error(`invalid pi-daddy v2 check_receipt at line ${line}: treeSha must be a git object id`);
   }
-  const correlationTree = string(correlation.tree_sha);
-  if (correlationTree && correlationTree !== treeSha) {
-    throw new Error(`invalid pi-daddy v2 check_receipt at line ${line}: treeSha and correlation.tree_sha disagree`);
-  }
   return [cleanEvent({
     ...common,
     workspace_id: workspaceId,
@@ -8009,7 +8950,7 @@ function normalizePiDaddyV2(record, index) {
   })];
 }
 function requireV2Correlation(record, event, line) {
-  const correlation = object(record.correlation);
+  const correlation = object2(record.correlation);
   if (!correlation) {
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation.run_id and correlation.task_id are required for workflow joins`);
   }
@@ -8103,7 +9044,7 @@ function optionalV2Enum(value, field, allowed, event, line) {
 function optionalV2EnumMap(value, field, allowed, event, line) {
   if (value === void 0)
     return void 0;
-  const parsed = object(value);
+  const parsed = object2(value);
   if (!parsed)
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be an object`);
   const entries = Object.entries(parsed);
@@ -8112,14 +9053,14 @@ function optionalV2EnumMap(value, field, allowed, event, line) {
   }
   return Object.fromEntries(entries);
 }
-function optionalV2StringMap(value, field, event, line, validate = () => true) {
+function optionalV2StringMap(value, field, event, line, validate2 = () => true) {
   if (value === void 0)
     return void 0;
-  const parsed = object(value);
+  const parsed = object2(value);
   if (!parsed)
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be an object`);
   const entries = Object.entries(parsed);
-  if (entries.some(([key, entry]) => !key || typeof entry !== "string" || !validate(entry))) {
+  if (entries.some(([key, entry]) => !key || typeof entry !== "string" || !validate2(entry))) {
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must map capabilities to valid strings`);
   }
   return Object.fromEntries(entries);
@@ -8127,12 +9068,12 @@ function optionalV2StringMap(value, field, event, line, validate = () => true) {
 function optionalV2ApprovalUses(value, event, line) {
   if (value === void 0)
     return void 0;
-  const parsed = object(value);
+  const parsed = object2(value);
   if (!parsed)
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: approvalUses must be an object`);
   const output = {};
   for (const [capability, boundsValue] of Object.entries(parsed)) {
-    const bounds2 = object(boundsValue);
+    const bounds2 = object2(boundsValue);
     if (!capability || !bounds2 || !Number.isInteger(bounds2.max) || !Number.isInteger(bounds2.remaining) || Number(bounds2.max) < 0 || Number(bounds2.remaining) < 0 || Number(bounds2.remaining) > Number(bounds2.max)) {
       throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: approvalUses requires integer max/remaining bounds`);
     }
@@ -8186,7 +9127,7 @@ function approvalSubject(value) {
 function structuredRefusal(value, event, line) {
   if (value === void 0)
     return void 0;
-  const parsed = object(value);
+  const parsed = object2(value);
   const code = string(parsed?.code);
   if (!parsed || !code || !string(parsed.message)) {
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal requires code and message`);
@@ -8197,7 +9138,7 @@ function structuredRefusal(value, event, line) {
   const unknown = Object.keys(parsed).filter((key) => !(/* @__PURE__ */ new Set(["code", "message", "details"])).has(key));
   if (unknown.length > 0)
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal carries unsupported fields`);
-  const details = parsed.details === void 0 ? void 0 : object(parsed.details);
+  const details = parsed.details === void 0 ? void 0 : object2(parsed.details);
   if (parsed.details !== void 0 && (!details || Object.values(details).some((entry) => !["string", "number", "boolean"].includes(typeof entry) && entry !== null))) {
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal.details must contain scalar values`);
   }
@@ -8215,7 +9156,7 @@ function normalizeLegacyGrant(record, index) {
   const effective = record.effective;
   const denied = record.denied;
   const gated = record.gatedBlocked;
-  const digest = object(record.definitionDigest);
+  const digest = object2(record.definitionDigest);
   const common = {
     event_version: TRAJECTORY_EVENT_VERSION,
     source: "pi-daddy-0.17",
@@ -8252,8 +9193,8 @@ function normalizeLegacyGrant(record, index) {
     ...effective.map((capability) => ({ ...common, type: "capability_granted", capability, requested_capabilities: requested, effective_capabilities: effective, attributes })),
     ...[.../* @__PURE__ */ new Set([...denied, ...gated])].map((capability) => ({ ...common, type: "capability_refused", capability, requested_capabilities: requested, effective_capabilities: effective, refusal_code: denied.includes(capability) ? "CAPABILITY_ESCALATION" : refusal, attributes }))
   ];
-  const sources = object(record.approvalSources);
-  const scopes = object(record.approvalScopes);
+  const sources = object2(record.approvalSources);
+  const scopes = object2(record.approvalScopes);
   for (const capability of stringArray(record.approved) ?? []) {
     events.push(cleanEvent({
       ...common,
@@ -8407,7 +9348,7 @@ function parseJsonl(text, label) {
     }
   });
 }
-function object(value) {
+function object2(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
 }
 function string(value) {
@@ -8980,10 +9921,10 @@ async function serveReview(opts) {
 function tryOpen(url, cmd) {
   const opener = cmd ?? (process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open");
   try {
-    const child = spawn3(opener, [url], { stdio: "ignore", detached: true });
-    child.on("error", () => {
+    const child2 = spawn3(opener, [url], { stdio: "ignore", detached: true });
+    child2.on("error", () => {
     });
-    child.unref();
+    child2.unref();
   } catch {
   }
 }

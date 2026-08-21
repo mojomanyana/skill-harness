@@ -243,12 +243,16 @@ describe("pi-daddy 0.17 and 0.18 ledger normalization", () => {
   it("enforces pi-daddy's pinned correlation whitelist, types, and bounds", () => {
     const [line] = fixture("pi-daddy-v2-positive.jsonl").trim().split("\n");
     const record = JSON.parse(line);
+    // Since the pinned closed contract is validated before semantic normalization,
+    // an undeclared correlation field and a mistyped one are refused by the schema
+    // layer; the field name is still withheld because it is untrusted input.
     record.correlation.task = "TOP SECRET";
-    expect(() => normalizePiDaddyLedger(`${JSON.stringify(record)}\n`)).toThrow(/correlation.*outside.*REDACTED field names/i);
+    expect(() => normalizePiDaddyLedger(`${JSON.stringify(record)}\n`)).toThrow(/closed contract violation.*correlation carries undeclared field \[REDACTED field name\]/i);
+    expect(() => normalizePiDaddyLedger(`${JSON.stringify(record)}\n`)).not.toThrow(/TOP SECRET/);
 
     delete record.correlation.task;
     record.correlation.event_seq = "12";
-    expect(() => normalizePiDaddyLedger(`${JSON.stringify(record)}\n`)).toThrow(/correlation.*event_seq.*finite number/i);
+    expect(() => normalizePiDaddyLedger(`${JSON.stringify(record)}\n`)).toThrow(/closed contract violation.*correlation\.event_seq must be a number/i);
 
     record.correlation.event_seq = 12;
     record.correlation.schema_version = "1.1";
@@ -267,8 +271,10 @@ describe("pi-daddy 0.17 and 0.18 ledger normalization", () => {
     expect(event.workspace_id).toBeUndefined();
     expect(event.attributes).toMatchObject({ correlation: { workspace_id: "ws-18" } });
 
+    // `child_lifecycle` declares no top-level workspaceId, so the closed contract
+    // refuses the forged one before any promotion decision is reached.
     lifecycle.workspaceId = "forged-top-level";
-    expect(() => normalizePiDaddyLedger(`${JSON.stringify(lifecycle)}\n`)).toThrow(/child_lifecycle.*workspaceId.*not part of the public variant/i);
+    expect(() => normalizePiDaddyLedger(`${JSON.stringify(lifecycle)}\n`)).toThrow(/child_lifecycle.*closed contract violation.*carries undeclared field workspaceId/i);
   });
 
   it("omits optional facts that the ledger did not record", () => {
@@ -295,7 +301,11 @@ describe("pi-daddy 0.17 and 0.18 ledger normalization", () => {
     const lifecycle = fixture("pi-daddy-v2-positive.jsonl").trim().split("\n").map((line) => JSON.parse(line)).find((record) => record.event === "child_lifecycle")!;
     lifecycle.taskDigest = "a".repeat(64);
     lifecycle.definitionDigest = { sha256: "b".repeat(64) };
-    expect(() => normalizePiDaddyLedger(`${JSON.stringify(lifecycle)}\n`)).toThrow(/child_lifecycle.*taskDigest.*definitionDigest.*capability_decision/i);
+    // Trusted digests live only on capability_decision, so the closed contract sees
+    // both of them as undeclared fields on this variant and names them.
+    expect(() => normalizePiDaddyLedger(`${JSON.stringify(lifecycle)}\n`)).toThrow(/child_lifecycle.*closed contract violation.*carries undeclared field taskDigest.*\+1 more contract violation/i);
+    delete lifecycle.definitionDigest;
+    expect(() => normalizePiDaddyLedger(`${JSON.stringify(lifecycle)}\n`)).toThrow(/child_lifecycle.*carries undeclared field taskDigest/i);
   });
 
   it("accepts duplicate requested capabilities that pi-daddy resolves into unique result sets", () => {
@@ -342,8 +352,10 @@ describe("pi-daddy 0.17 and 0.18 ledger normalization", () => {
     expect(chainEvents.some((event) => event.type === "approval_used")).toBe(true);
     expect(chainEvents.some((event) => event.type === "capability_refused" && event.capability === "tool:write")).toBe(false);
 
+    // A code outside pi-daddy's pinned enum is refused by the closed contract, which
+    // reports the vocabulary it does accept rather than echoing the received value.
     blocked.refusal = { code: "TOTALLY_FAKE", message: "not public" };
-    expect(() => normalizePiDaddyLedger(`${JSON.stringify(blocked)}\n`)).toThrow(/refusal.*unsupported.*TOTALLY_FAKE/i);
+    expect(() => normalizePiDaddyLedger(`${JSON.stringify(blocked)}\n`)).toThrow(/refusal\.code must be one of CAPABILITY_ESCALATION, GRANT_ID_MALFORMED/);
 
     const refusedLease = JSON.parse(JSON.stringify(refusalRecords.find((record) => record.event === "workspace_lease")));
     delete refusedLease.refusal;
@@ -364,24 +376,53 @@ describe("pi-daddy 0.17 and 0.18 ledger normalization", () => {
   it("rejects malformed trusted digest and receipt identity", () => {
     const records = fixture("pi-daddy-v2-positive.jsonl").trim().split("\n").map((line) => JSON.parse(line));
     const decision = records.find((record) => record.event === "capability_decision")!;
-    for (const definitionDigest of [
-      {},
-      { name: "build", source: "/skills/build/SKILL.md" },
-      { name: "build", source: "/skills/build/SKILL.md", sha256: 42 },
-      { name: "", source: "/skills/build/SKILL.md", sha256: "b".repeat(64) },
-    ]) {
-      expect(() => normalizePiDaddyLedger(`${JSON.stringify({ ...decision, definitionDigest })}\n`)).toThrow(/capability_decision.*definitionDigest.*name.*source.*sha256/i);
+    // Requiredness and type drift inside definitionDigest is contract-level; an
+    // empty-but-present name is not expressible in the pinned schema, so the
+    // adapter's own semantic check remains the enforcer for that one.
+    for (const [definitionDigest, expected] of [
+      [{}, /closed contract violation.*definitionDigest\.name is required/i],
+      [{ name: "build", source: "/skills/build/SKILL.md" }, /closed contract violation.*definitionDigest\.sha256 is required/i],
+      [{ name: "build", source: "/skills/build/SKILL.md", sha256: 42 }, /closed contract violation.*definitionDigest\.sha256 must be a string/i],
+      [{ name: "", source: "/skills/build/SKILL.md", sha256: "b".repeat(64) }, /capability_decision.*definitionDigest.*name.*source.*sha256/i],
+    ] as const) {
+      expect(() => normalizePiDaddyLedger(`${JSON.stringify({ ...decision, definitionDigest })}\n`)).toThrow(expected);
     }
 
     const receipt = records.find((record) => record.event === "check_receipt")!;
     receipt.receiptId = "not-a-digest";
-    expect(() => normalizePiDaddyLedger(`${JSON.stringify(receipt)}\n`)).toThrow(/check_receipt.*receiptId.*sha256/i);
+    expect(() => normalizePiDaddyLedger(`${JSON.stringify(receipt)}\n`)).toThrow(/check_receipt.*receiptId must match \^\[a-fA-F0-9\]\{64\}\$/);
     receipt.receiptId = "d".repeat(64);
+    // The pinned schema only bounds treeSha as a non-empty string; requiring a git
+    // object id is a harness-side check that survives after schema validation.
     receipt.treeSha = "not-a-git-object";
     expect(() => normalizePiDaddyLedger(`${JSON.stringify(receipt)}\n`)).toThrow(/check_receipt.*treeSha.*git object/i);
-    receipt.treeSha = "6".repeat(40);
-    receipt.correlation.tree_sha = "f".repeat(40);
-    expect(() => normalizePiDaddyLedger(`${JSON.stringify(receipt)}\n`)).toThrow(/check_receipt.*treeSha.*correlation\.tree_sha.*disagree/i);
+    receipt.treeSha = "";
+    expect(() => normalizePiDaddyLedger(`${JSON.stringify(receipt)}\n`)).toThrow(/closed contract violation.*treeSha must not be empty/i);
+  });
+
+  it("treats a receipt's top-level treeSha as the measured identity and correlation.tree_sha as a label", () => {
+    // pi-daddy's canonical builder emits the two independently, and its contract calls
+    // correlation opaque and non-authoritative. Requiring equality both rejected the
+    // producer's own receipt and let a controller string vouch for a measured one.
+    const receipt = fixture("pi-daddy-v2-positive.jsonl").trim().split("\n").map((line) => JSON.parse(line)).find((record) => record.event === "check_receipt")!;
+    receipt.treeSha = "b".repeat(40);
+    receipt.correlation.tree_sha = "6".repeat(40);
+    const [event] = normalizePiDaddyLedger(`${JSON.stringify(receipt)}\n`);
+    expect(event.type).toBe("check_receipt_recorded");
+    expect(event.digests?.tree).toBe("b".repeat(40));
+    expect(event.digests?.correlation_tree).toBe("6".repeat(40));
+    expect(event.attributes).toMatchObject({ correlation: { tree_sha: "6".repeat(40) } });
+
+    // An assertion over measured tree identity is answered by the receipt, never by
+    // the correlation copy.
+    expect(evaluateTrajectoryGates(
+      { version: "1.0", require: [{ event: "check_receipt_recorded", where: { "digests.tree": { equals: "b".repeat(40) } } }] },
+      normalizePiDaddyLedger(`${JSON.stringify(receipt)}\n`),
+    ).status).toBe("PASS");
+    expect(evaluateTrajectoryGates(
+      { version: "1.0", require: [{ event: "check_receipt_recorded", where: { "digests.tree": { equals: "6".repeat(40) } } }] },
+      normalizePiDaddyLedger(`${JSON.stringify(receipt)}\n`),
+    ).status).toBe("FAIL");
   });
 
   it("rejects executors outside pi-daddy's public process/herdr union", () => {
