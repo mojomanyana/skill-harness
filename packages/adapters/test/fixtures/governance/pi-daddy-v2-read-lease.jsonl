@@ -1,0 +1,1 @@
+{"ledgerVersion":2,"event":"workspace_lease","ts":"2026-08-20T12:00:08.000Z","childId":"d0.read","workspaceId":"ws-read","root":"/repo","access":"read","outcome":"uncontended","recovered":false,"correlation":{"schema_version":"1.0","run_id":"run-read","task_id":"task-read","workspace_id":"ws-read","context_id":"ctx-read","phase":"review"}}

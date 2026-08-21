@@ -22,6 +22,23 @@ classes can turn red, 15/15, offline and free. `critical:` scenarios now demand 
 clean repetition. Cost/latency fields are recorded, and three JSON schemas are a
 public export subpath (`@skill-harness/core/schemas/*.json`).
 
+**Unpublished pi-daddy adapter repair:** branch `fix/pi-daddy-v2-ledger` starts at
+`a0c6d96959e7e373381ddbc8b7113ffa8b66e069` and is pinned to pi-daddy 0.18.0 commit
+`dde8eeb5632113d4a54705e16dc22ce70740fd4f`. The adapter now recognizes public
+`ledgerVersion: 2` records before the unversioned fallback and normalizes all four 0.18 variants:
+`capability_decision`, `workspace_lease`, `child_lifecycle`, and `check_receipt`. Unversioned 0.17
+`GrantRecord` remains supported. The old `schema_version` / `record_type` fixture was hypothetical,
+not pi-daddy evidence, and has been removed. Remaining compatibility exception: specs still select
+this adapter with the historical name `pi-daddy-v1`; changing that public selector would require a
+migration. V2 events without `correlation.run_id` and `correlation.task_id` fail closed because the
+harness cannot join them to workflow evidence. Correlation now enforces pi-daddy's pinned whitelist and
+size/type bounds, non-authoritative workspace labels are not promoted, malformed identity/executor values
+are rejected, absent facts stay absent, blocked decisions emit no grants, nested native attributes are
+sanitized, capability/approval/refusal relations fail closed, and only the matching append-after-release
+receipt inversion is accepted within each run/task/workspace/child causal stream. Free validation on the
+branch: build/typecheck green, 1,269 tests across 78 files,
+all three dogfood lint roots at 0 findings, and mutation-test 15/15.
+
 **What is deliberately not claimed.** There is **no OS sandbox** — core exports a
 `SandboxBackend`/`withSandbox` seam with fake-backed tests, and temp fixture
 directories and git workspaces are *not* containment. The principal digest chain is an
