@@ -1,13 +1,87 @@
-# Publishing skill-harness (0.9.0)
+# Publishing skill-harness (0.10.0)
 
 This is the npm-publish runbook.
 
 The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`, `0.3.0`, `0.3.1`, `0.3.2`, `0.4.0`,
-`0.5.0`, `0.6.0`, `0.7.0`, `0.8.0`. This repo is at `0.9.0`, so these commands publish a **new
-version over an existing line** — the `@skill-harness` scope is already claimed, and `latest`
-moves to 0.9.0 as each package lands. npm refuses to publish over a version that already
-exists, so every version literal below has to move with the bump; they are written out rather
-than parameterised because a runbook you can read is worth more than one you can paste.
+`0.5.0`, `0.6.0`, `0.7.0`, `0.8.0`, `0.9.0`. This repo is at `0.10.0`, so these commands publish
+a **new version over an existing line** — the `@skill-harness` scope is already claimed, and
+`latest` moves to 0.10.0 as each package lands. npm refuses to publish over a version that
+already exists, so every version literal below has to move with the bump; they are written out
+rather than parameterised because a runbook you can read is worth more than one you can paste.
+
+**0.10.0 takes the minor: the pi-daddy v2 adapter is pinned to the producer's canonical
+contract, and validates against it before normalizing.** It takes the minor rather than a patch
+because a v2 record carrying an **undeclared top-level field now fails closed**, where 0.9.0
+accepted it. That is a gate getting stricter, which is the same reason this project has no
+moving `v1` tag: a release that adds a check makes a repo that passed yesterday fail today, and
+a patch number would understate it.
+
+The adapter used to restate pi-daddy's `ledgerVersion: 2` contract in its own code, and a
+restatement can disagree with the original in either direction. Measured against the producer's
+own builder output at pi-daddy `main` `1948b9406c13c9730f2fc103e68023d6e58c5e85` (merged PR #11),
+it disagreed three ways at once: the canonical `check_receipt` fixture was **rejected** because
+the harness demanded that a receipt's measured `treeSha` equal the controller-supplied
+`correlation.tree_sha` — which pi-daddy's builders emit independently; a canonical
+`capability_decision` refused with `GRANT_ID_MALFORMED`, a member of the producer's own pinned
+enum, was rejected as an unsupported code; and an undeclared top-level field rode through
+unnoticed although the producer's schema is `additionalProperties: false`.
+
+**The contract is now interpreted, not transcribed.** `contracts/pi-daddy/ledger/v2/` vendors the
+producer's schema, its four builder fixtures and its README byte-exact, with the commit and
+per-artifact SHA-256 in `PINNED.json`. A v2 record is validated against those bytes *before*
+semantic normalization, so undeclared fields, invalid enum members, wrong nullability and
+requiredness drift fail closed by construction rather than by a check someone remembered to
+write. The evaluator refuses anything it cannot faithfully enforce — an unknown keyword, a known
+keyword whose value has an unexpected shape, or a `$ref` carrying sibling constraints — so a
+future contract construct is a loud failure rather than a quiet hole. No new runtime dependency.
+
+**`digests.tree` now comes from the receipt alone.** `correlation.tree_sha` survives only as
+`digests.correlation_tree`, and is not required to equal it. Requiring agreement did not just
+reject the producer's own receipt: it let a controller-supplied string vouch for a measured
+identity, which is the opposite of what a trusted digest is for.
+
+**Every restated vocabulary is drift-asserted** set-equal to its place in the pinned schema, in
+both directions, through one `V2_RESTATED_VOCABULARIES` manifest — refusal codes and refusal
+field/detail-type names, event discriminators, approval sources and scopes, lease outcomes and
+access, lifecycle states, executors, and the correlation field whitelist including which of its
+fields are numeric. A hand-copied list without that assertion is exactly how `GRANT_ID_MALFORMED`
+came to read as "unsupported", and with the schema gating first, a set that drifts *narrower* now
+fails the mirror way: contract-valid in, stale-harness-rejected out.
+
+Harness-only requirements deliberately survive schema validation, because the producer's schema
+is a floor and not a ceiling: missing `correlation.run_id`/`task_id` still fails as unjoinable
+even though pi-daddy permits an uncorrelated v2 line, and a receipt `treeSha` must still look
+like a git object id. Legacy unversioned 0.17 support and the `pi-daddy-v1` selector alias are
+unchanged.
+
+*What is NOT claimed.* Conformance to a contract is not attestation. Everything 0.9.0 declined to
+claim still stands: **there is no OS sandbox**, the `SandboxBackend` seam is fake-backed, temp
+fixture directories and git workspaces are not containment, and the principal digest chain
+detects torn or edited logs but cannot stop an unsandboxed subject that rewrites and rehashes a
+whole ledger. Nothing watches pi-daddy for drift either — the conformance test proves the consumer
+matches the *pinned* commit, not the producer's current `main`.
+
+**Consumer checklist for this release:**
+
+1. No spec or results migration. The change is confined to the `pi-daddy-v1` event adapter.
+2. If you feed pi-daddy `ledgerVersion: 2` ledgers to `assert.trajectory`, re-run or `regate`
+   that evidence: records rejected for the receipt-tree or refusal-code reasons above now
+   normalize, and a record carrying an undeclared top-level field now fails closed.
+3. Bump exact consumer pins to `v0.10.0`; `@latest` trackers move with the release tag.
+4. Re-pin the producer contract with `node scripts/vendor-pi-daddy-contract.mjs` when pi-daddy
+   publishes a new one. `packages/adapters/src/pi-daddy-ledger-v2.ts` is generated — never
+   hand-edited.
+
+### 0.9.1, superseded and never published
+
+A `release/0.9.1` branch was prepared for the 0.9.0-era pi-daddy adapter work and never shipped.
+Its notes claimed the adapter "accepts the four `ledgerVersion: 2` variants emitted by the pinned
+builders". Measured against the producer's canonical fixtures, that was **not true** at that
+commit — `check_receipt` was rejected outright — and it was pinned to 0.18.0 `dde8eeb`, which has
+since moved. 0.10.0 supersedes it. The lesson is the one this release is built on: a claim about a
+producer's format is worth only as much as the producer's own artifact you checked it against.
+
+### 0.9.0, kept for context
 
 **0.9.0 takes the minor: workflow-level assurance — trajectory assertions, paired
 `compare`, and an offline self-test that proves the new gates can turn red.**
@@ -78,7 +152,7 @@ for what the gate proves now.
    passed 2 of 3 was previously green and is now a release failure. That is the point.
 3. If you consume `results.yaml` from outside, the new schemas are the contract to pin
    against rather than reading fields by hand.
-4. Bump the pin to `v0.9.0` when you want the notes (`.github/workflows/ci.yml`).
+4. Bump the pin to `v0.9.0` when you want the 0.9.0 notes (`.github/workflows/ci.yml`).
    Consumers tracking `latest` get this automatically.
 
 ### 0.8.0, kept for context
@@ -443,19 +517,40 @@ runs — gitignored litter, stepped over rather than fatal, and clearable by del
 `scripts/smoke/skills/*/tests/results/` (not by `regate`, which costs a judge call
 when a gate verdict flips).
 
+### Smoke gate: deliberately skipped for 0.10.0
+
+Recorded rather than silently omitted, because "mandatory" above is otherwise a claim this
+release did not honour.
+
+The gate's value is the three paths no fake can exercise: the streaming JSONL reader in
+`runStructured`, the `--no-extensions --extension` argv the harness passes to pi, and the live
+judge loop under `--auto-rejudge`. **This release touches none of them.** The diff is confined to
+the `pi-daddy-v1` event adapter, a new closed-schema evaluator, the vendored producer contract,
+two offline scripts, tests and docs — nothing in the pi invocation path, the judge path, or
+`results.yaml`'s shape.
+
+What was run instead, all free and offline: build, typecheck, 1,289 tests across 79 files, all
+three dogfood lint roots at 0 findings, `mutation-test` 15/15, and
+`node scripts/check-pi-daddy-contract.mjs` 4/4 both against the vendored copy and against a real
+pi-daddy checkout read with `git show`. The adapter suite was additionally run against a `PATH`
+with no `pi` on it, which is the CI condition.
+
+The residual risk is stated plainly: if this change somehow broke pi invocation, only the smoke
+gate would have caught it. Run it before the next release that touches the harness↔pi boundary.
+
 ## Publish, in dependency order
 
 Run from the **repo root** (npm workspaces `-w` flag, verified with npm 11.9.0 /
 Node 24.14.0 — this repo's `engines.node` requires >=20, which ships npm >=10,
 so `-w` should work on any supported install). Each step must land on the
 registry before the next, since each package's `package.json` pins an exact
-`@skill-harness/*@0.9.0` dependency (npm will fail to resolve it otherwise):
+`@skill-harness/*@0.10.0` dependency (npm will fail to resolve it otherwise):
 
 ```bash
 npm publish -w @skill-harness/core --access public
 npm publish -w @skill-harness/adapters --access public
 npm publish -w @skill-harness/cli --access public     # prepack stages assets/report.* into the tarball
-npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.9.0
+npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.10.0
 ```
 
 `@skill-harness/core` and `@skill-harness/adapters` publish exactly the `dist/`
@@ -484,7 +579,7 @@ ships to pi users via `pi install git:...`, not the npm registry.
 ## Verify after publishing
 
 ```bash
-npm view skill-harness version            # expect 0.9.0
+npm view skill-harness version            # expect 0.10.0
 npm i -g skill-harness && skill-harness --help
 npx @skill-harness/cli lint --help
 ```
@@ -502,8 +597,8 @@ The version bump lives on `release-<version>`. Until that branch reaches `main`,
 a fresh clone of `main` reports a different version than the registry serves:
 
 ```bash
-gh pr create --base main --head release/0.9.0 \
-  --title "chore(release): 0.9.0" --body "Version bump + runbook."
+gh pr create --base main --head release/0.10.0 \
+  --title "chore(release): 0.10.0" --body "Version bump + runbook."
 gh pr merge --merge   # or fast-forward main if there is nothing to reconcile
 ```
 
@@ -536,7 +631,7 @@ lockstep.
 
 ```bash
 git checkout main && git pull
-git tag v0.9.0 && git push origin v0.9.0     # the immutable release tag
+git tag v0.10.0 && git push origin v0.10.0     # the immutable release tag
 git tag -f latest && git push -f origin latest   # the ref the docs point at
 ```
 
