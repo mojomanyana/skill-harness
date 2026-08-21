@@ -100,16 +100,60 @@ Adapters:
   (`risk_classified`, `task_packet_superseded`, `repair_suspended`, `finalization_completed`, etc.),
   and promotes packet/build/evidence/finalization identity.
 - **pi-daddy-v1** is the historical *adapter selector* name. It supports the public unversioned
-  pi-daddy 0.17 `GrantRecord` and pi-daddy 0.18.0's `ledgerVersion: 2` events, verified against
-  `dde8eeb5632113d4a54705e16dc22ce70740fd4f`. V2 dispatch happens
+  pi-daddy 0.17 `GrantRecord` and pi-daddy's `ledgerVersion: 2` events, pinned to the producer's
+  canonical contract artifact at pi-daddy `main` commit
+  `1948b9406c13c9730f2fc103e68023d6e58c5e85` (merged PR #11). V2 dispatch happens
   before the legacy fallback and covers `capability_decision`, `workspace_lease`, `child_lifecycle`,
   and `check_receipt`. The former `schema_version` / `record_type` “governance v1” shape was a
   hypothetical harness fixture, not a pi-daddy release format; it is no longer accepted or cited as
   evidence. Unknown explicit `ledgerVersion` values fail with the received and expected versions.
 
+### Pinned producer contract
+
+The contract is **interpreted, not transcribed**. `contracts/pi-daddy/ledger/v2/` holds
+byte-exact copies of the producer's `ledger-event.schema.json`, its four builder fixtures and its
+README, with the commit and per-artifact SHA-256 in `PINNED.json`. A v2 record is validated
+against that closed schema *before* semantic normalization, so an undeclared top-level field, an
+invalid `signal`/`outcome`/`state`/`access`/`executor`/`gateOutcome`/approval enum member, wrong
+nullability, and requiredness drift all fail closed by construction rather than by a check someone
+remembered to write. The evaluator refuses any JSON Schema keyword it cannot enforce, so a future
+contract construct is a loud failure and not a quiet hole.
+
+`packages/adapters/test/pi-daddy-contract.test.ts` asserts the artifact digests, that the runtime
+schema copy still equals the vendored bytes, and that **every** vocabulary the adapter restates —
+refusal codes and refusal field/detail-type names, event discriminators, approval sources and scopes,
+lease outcomes and access, lifecycle states, executors, and the correlation field whitelist including
+which of its fields are numeric — is set-equal to its place in the pinned schema, in both directions. A hand-maintained second vocabulary without that drift assertion
+is how `GRANT_ID_MALFORMED` came to read as "unsupported", and with the schema gating first, a set
+that drifts *narrower* now produces the mirror failure: a contract-valid record admitted by the
+schema and then thrown out by a stale harness check. The two harness-side subsets — which lease
+outcomes a receipt may be appended after, and which may precede that release — are asserted as
+containment rather than equality, because they encode harness semantics; anything the test
+equality-asserts belongs in the restated manifest instead. Both manifests are guarded against
+vacuity, so emptying one is a red test rather than a green one.
+
+The evaluator refuses more than an unknown keyword. A keyword whose *value* has an unexpected shape
+(`required: "a"`) and a `$ref` carrying sibling constraints are both refused, because either would be
+skipped downstream and validate less than the schema declares. `format: date-time` is evaluated as
+RFC 3339 §5.6 actually reads — lowercase `t`/`z` and a leap `:60` included — so a conforming producer
+line is never reported as a contract violation; the harness's own narrower timestamp rule still
+applies afterwards, where it is labelled a harness requirement.
+
+It is free and offline; `node scripts/check-pi-daddy-contract.mjs [<pi-daddy-checkout> <commit>]` runs
+the same four-fixture check directly, reports the digests it used, refuses to report success
+against a `dist` built from a different contract, and carries a negative control — an undeclared
+top-level field that must be refused. A positive-only check cannot tell "the gate ran" from "the
+gate is gone".
+
+The producer's schema is the floor. Requirements the harness adds on top run *after* a record is
+admitted, and are harness requirements rather than contract violations: nested
+`correlation.run_id`/`correlation.task_id` (pi-daddy permits an uncorrelated v2 line; the harness
+cannot join one to workflow evidence, so it fails as unjoinable), a git-object-shaped receipt
+`treeSha`, the correlation byte/secret bounds below, and every semantic relation in this section.
+
 Pi-daddy v2 mapping:
 
-| pi-daddy 0.18 field | Normalized trajectory field |
+| pinned pi-daddy v2 field | Normalized trajectory field |
 |---|---|
 | `ledgerVersion`, `event`, `ts` | `source: pi-daddy-v2`, event-specific `type`, `at`; native discriminator/version also remain in `attributes` |
 | `correlation.run_id/task_id/context_id/phase` | `run_id`, `task_id`, `context_id`, `phase`; required workflow IDs fail closed when absent |
@@ -124,10 +168,12 @@ Pi-daddy v2 mapping:
 | structured `refusal` | pinned refusal-code taxonomy plus scalar structured details when the producer recorded one; low-level lease failures and blocked chain records may legitimately omit it rather than invent a code |
 | lease access/outcome/recovery/release | write access → `writer_lease_*`; read access → `workspace_read_*`; complete lease state remains in `attributes` |
 | lifecycle state/executor/exit/signal flags | `child_started/completed/failed`, `exit_code`, and lifecycle attributes; executor is restricted to `process` / `herdr` |
-| receipt/workspace/check/tree identity | `check_receipt_recorded`, `workspace_id`, `digests.tree`, and receipt/check IDs in `attributes`; `receiptId` must be SHA-256 and measured `treeSha` must agree with any supplied correlation tree |
+| receipt/workspace/check/tree identity | `check_receipt_recorded`, `workspace_id`, `digests.tree` **from the receipt's top-level `treeSha` only**, and receipt/check IDs in `attributes`; `receiptId` must be SHA-256. `correlation.tree_sha` is kept solely as `digests.correlation_tree` and is **not** required to equal it — the producer's builders emit the two independently, so requiring agreement both rejected pi-daddy's canonical receipt and let a controller string vouch for a measured identity |
 
 Every v2 variant requires nested `correlation.run_id` and `correlation.task_id` before it can enter a
-trajectory; missing join identity is an actionable ERROR rather than an unjoinable event. Correlation
+trajectory; missing join identity is an actionable ERROR rather than an unjoinable event. That is a
+harness join requirement, not a contract violation — pi-daddy's closed schema makes `correlation`
+optional, so the record is admitted by the producer's schema and then refused here. Correlation
 also enforces pi-daddy's pinned field whitelist, value types, 512-character string bound, 4 KiB scope
 bound, and 32 KiB total bound, preventing it from becoming an arbitrary payload or secrets sink. Every
 assembled native attribute object and persisted collection error is sanitized before persistence, with
@@ -135,9 +181,11 @@ free-text diagnostics stored only as redacted digests and malformed native value
 from the native record are omitted rather than synthesized as false/empty or stringified as `"undefined"`. Legacy 0.17 remains intentionally
 lossy: task/workspace/correlation/expiry evidence that its public record never carried is not invented.
 Pi-daddy's correlation metadata is controller-supplied and non-authoritative; only the top-level v2
-`taskDigest`, definition digest, and a check receipt's computed `treeSha` are promoted as trusted
+`taskDigest`, definition digest, and a check receipt's measured `treeSha` are promoted as trusted
 identities. Correlation copies stay under explicitly named `correlation_*` digest keys, so a controller
-value cannot satisfy an assertion over measured `digests.head` / `digests.tree`.
+value cannot satisfy an assertion over measured `digests.head` / `digests.tree`. A regression fixture
+in which a receipt's `treeSha` and `correlation.tree_sha` deliberately differ proves which one
+`digests.tree` comes from, and that an assertion over the correlation value does not pass.
 
 Multiple native ledgers are merged by recorded timestamps. Equal cross-stream instants, missing
 timestamps, duplicate principal run streams, and pi/native ties are ERROR because they cannot prove a
@@ -150,10 +198,15 @@ children and runs may interleave because pi-daddy timestamps before taking its c
 non-decreasing per source. Declaration/file order is never presented
 as cross-stream workflow chronology.
 
-Stable normalized refusal codes include `CAPABILITY_ESCALATION`, `UNDECLARED_CAPABILITIES`,
-`UNKNOWN_CAPABILITY`, `APPROVAL_REQUIRED`, `APPROVAL_NO_UI`, `APPROVAL_DECLINED`,
-`APPROVAL_DISMISSED`, `APPROVAL_ERROR`, `DEPTH_LIMIT`, and `NON_NARROWING_GRANT`. A legacy refusal
-that cannot be classified is `LEGACY_UNCLASSIFIED`, never success.
+There are two refusal vocabularies and they are not the same list. A **v2** record carries the
+producer's own code, and the accepted set is exactly `#/$defs/refusalCode` in the pinned schema — 31
+codes at commit `1948b94`, including `GRANT_ID_MALFORMED`. Nothing restates that list without a drift
+assertion against the artifact. **Legacy 0.17** records carry no structured refusal, so the adapter
+classifies them into its own stable normalized codes: `CAPABILITY_ESCALATION`,
+`UNDECLARED_CAPABILITIES`, `UNKNOWN_CAPABILITY`, `APPROVAL_REQUIRED`, `APPROVAL_NO_UI`,
+`APPROVAL_DECLINED`, `APPROVAL_DISMISSED`, `APPROVAL_ERROR`, `DEPTH_LIMIT`, `MISSING_TASK`, and
+`NON_NARROWING_GRANT`. A legacy refusal that cannot be classified is `LEGACY_UNCLASSIFIED`, never
+success.
 
 `writer: "build"` in principal state is workflow metadata. Only a measured
 `writer_lease_acquired`/`writer_lease_conflict`/`writer_lease_released` pi-daddy event proves

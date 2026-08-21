@@ -1,0 +1,34 @@
+{
+  "producer": "pi-daddy",
+  "repository": "https://github.com/mojomanyana/pi-daddy",
+  "commit": "1948b9406c13c9730f2fc103e68023d6e58c5e85",
+  "pull_request": 11,
+  "source_dir": "packages/pi-daddy/contracts/ledger/v2",
+  "note": "Byte-exact copies of the producer's canonical ledgerVersion 2 contract. pi-daddy's own README.md is vendored as pi-daddy-README.md so it does not shadow the consumer notes in README.md. Digests are over the vendored bytes and are asserted by packages/adapters/test/pi-daddy-contract.test.ts.",
+  "artifacts": {
+    "ledger-event.schema.json": {
+      "source": "packages/pi-daddy/contracts/ledger/v2/ledger-event.schema.json",
+      "sha256": "69c3a6856481b9250587c5785a8aadda87baba6cb03c79b209cff4f55f70a81c"
+    },
+    "pi-daddy-README.md": {
+      "source": "packages/pi-daddy/contracts/ledger/v2/README.md",
+      "sha256": "b9dc9e13f0dfc690748d7183b86a208b9a1a0ebec21228fa393181cd6bc6918c"
+    },
+    "fixtures/capability-decision.json": {
+      "source": "packages/pi-daddy/contracts/ledger/v2/fixtures/capability-decision.json",
+      "sha256": "4bab646a13256b943cc8e014748eb14962a11d52e10e0f671d748ffaf91f58f8"
+    },
+    "fixtures/workspace-lease.json": {
+      "source": "packages/pi-daddy/contracts/ledger/v2/fixtures/workspace-lease.json",
+      "sha256": "36465e7ef82520a8051092d639b8e2464506d05a8da760ade2d237a67d9683a3"
+    },
+    "fixtures/child-lifecycle.json": {
+      "source": "packages/pi-daddy/contracts/ledger/v2/fixtures/child-lifecycle.json",
+      "sha256": "2b351886124b80ef5e3c097c1cd3b6919066e3f94b6007a42f71b5f65492bd10"
+    },
+    "fixtures/check-receipt.json": {
+      "source": "packages/pi-daddy/contracts/ledger/v2/fixtures/check-receipt.json",
+      "sha256": "83c1ad835b4ca4f420d081aa8b3cd0ed94e0c6e87202ee5d2eec7e81e3dc3656"
+    }
+  }
+}

@@ -3,6 +3,8 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { ExecutionTraceV1, TrajectoryEventSource, TrajectoryEventV1 } from "@skill-harness/core";
 import { TRAJECTORY_EVENT_VERSION, deserializeTrajectoryEvents, matchesGlob, redactArgs, redactText } from "@skill-harness/core";
+import { assertSupportedSchema, declaredPropertyNames, validateClosedSchema } from "./closed-schema.js";
+import { PI_DADDY_CONTRACT_COMMIT, PI_DADDY_LEDGER_V2_SCHEMA } from "./pi-daddy-ledger-v2.js";
 
 export interface CollectedTrajectorySources {
   events: TrajectoryEventV1[];
@@ -199,6 +201,11 @@ export function normalizePiDaddyLedger(text: string): TrajectoryEventV1[] {
       if (record.ledgerVersion !== 2) {
         throw new Error(`unsupported pi-daddy ledgerVersion ${safeDiagnosticValue(record.ledgerVersion)} at line ${index + 1}; expected 2 or an unversioned 0.17 GrantRecord`);
       }
+      // The discriminator first (it names the four public variants), then the
+      // producer's own closed schema, then semantic normalization. Nothing
+      // downstream may assume a field the pinned contract has not admitted.
+      requireV2Discriminator(record, index + 1);
+      assertPinnedV2Contract(record, index + 1);
       for (const event of normalizePiDaddyV2(record, index)) out.push({ ...event, seq: seq++ });
       return;
     }
@@ -213,9 +220,59 @@ export function normalizePiDaddyLedger(text: string): TrajectoryEventV1[] {
   return out;
 }
 
+/** The four public `ledgerVersion: 2` event discriminators. */
+const V2_EVENTS = new Set(["capability_decision", "workspace_lease", "child_lifecycle", "check_receipt"]);
+
+function requireV2Discriminator(record: Record<string, unknown>, line: number): string {
+  const nativeEvent = string(record.event);
+  if (!nativeEvent || !V2_EVENTS.has(nativeEvent)) {
+    throw new Error(`invalid pi-daddy v2 event at line ${line}: event must be capability_decision, workspace_lease, child_lifecycle, or check_receipt`);
+  }
+  return nativeEvent;
+}
+
+// Memoized once per process: the pinned document does not change at runtime, and
+// walking it for every ledger line would be pure waste.
+let pinnedContractChecked = false;
+let pinnedContractFieldNames: ReadonlySet<string> | undefined;
+
+/**
+ * Validate one explicit `ledgerVersion: 2` record against pi-daddy's *own* closed
+ * schema before anything reads a field out of it.
+ *
+ * The harness used to reimplement the contract field by field, which is how an
+ * undeclared top-level field could ride along unnoticed: a check that is not
+ * written cannot fail. Driving the check from the producer's pinned bytes makes
+ * unknown fields, enum members, nullability and requiredness fail closed without
+ * a second vocabulary to keep in step.
+ */
+function assertPinnedV2Contract(record: Record<string, unknown>, line: number): void {
+  if (!pinnedContractChecked) {
+    assertSupportedSchema(PI_DADDY_LEDGER_V2_SCHEMA, "pinned pi-daddy ledger v2 schema");
+    pinnedContractFieldNames = declaredPropertyNames(PI_DADDY_LEDGER_V2_SCHEMA);
+    pinnedContractChecked = true;
+  }
+  const violations = validateClosedSchema(PI_DADDY_LEDGER_V2_SCHEMA, record, { knownFieldNames: pinnedContractFieldNames });
+  if (violations.length === 0) return;
+  const nativeEvent = string(record.event);
+  const label = nativeEvent && V2_EVENTS.has(nativeEvent) ? nativeEvent : "record";
+  const [first] = violations;
+  const extra = violations.length > 1 ? ` (+${violations.length - 1} more contract violation${violations.length > 2 ? "s" : ""})` : "";
+  throw new Error(
+    `invalid pi-daddy v2 ${label} at line ${line}: closed contract violation — ${first.path ? `${first.path} ` : ""}${first.message}${extra}` +
+    ` [pi-daddy ${PI_DADDY_CONTRACT_COMMIT.slice(0, 12)}]`,
+  );
+}
+
 const V2_LEASE_OUTCOMES = new Set([
   "acquired", "uncontended", "refused", "released", "released-unrecorded", "lost", "retained", "timeout", "recovered",
 ]);
+const V2_LEASE_ACCESS = new Set(["read", "write"]);
+/** Lease outcomes that can precede the one accepted append-after-release receipt inversion. */
+const V2_RECEIPT_PRIOR_LEASE_OUTCOMES = new Set(["acquired", "recovered"]);
+const V2_REFUSAL_FIELDS = new Set(["code", "message", "details"]);
+const V2_REFUSAL_DETAIL_TYPES = new Set(["string", "number", "boolean", "null"]);
+const V2_LIFECYCLE_STATES = new Set(["starting", "completed", "failed"]);
 const V2_EXECUTORS = new Set(["process", "herdr"]);
 const V2_RECEIPT_RELEASE_OUTCOMES = new Set(["released", "released-unrecorded", "lost", "timeout"]);
 const NORMALIZED_RECEIPT_RELEASE_EVENTS = new Set([
@@ -230,8 +287,16 @@ const V2_CORRELATION_FIELDS = new Set([
 const V2_CORRELATION_NUMERIC_FIELDS = new Set(["event_seq", "last_change_seq", "last_authority_seq"]);
 const V2_APPROVAL_SOURCES = new Set(["prompt", "session", "persisted", "inherited"]);
 const V2_APPROVAL_SCOPES = new Set(["once", "session", "always"]);
-const V2_REFUSAL_CODES = new Set([
-  "CAPABILITY_ESCALATION", "DEFINITION_NOT_AUTHORIZED", "UNDECLARED_TOOLS", "UNKNOWN_TOOL",
+/**
+ * pi-daddy's canonical refusal vocabulary, in the pinned contract's own order.
+ *
+ * This is a copy of `#/$defs/refusalCode` from the pinned schema and is exported
+ * so `pi-daddy-contract.test.ts` can assert set equality against the producer
+ * artifact — a hand-maintained second vocabulary without that drift assertion is
+ * exactly how `GRANT_ID_MALFORMED` came to be rejected as "unsupported".
+ */
+export const V2_REFUSAL_CODES = new Set([
+  "CAPABILITY_ESCALATION", "GRANT_ID_MALFORMED", "DEFINITION_NOT_AUTHORIZED", "UNDECLARED_TOOLS", "UNKNOWN_TOOL",
   "GATED_UNAPPROVED", "APPROVAL_EXPIRED", "APPROVAL_SCOPE_MISMATCH", "APPROVAL_FLOW_FAILED",
   "DEPTH_EXCEEDED", "FANOUT_EXCEEDED", "EXECUTOR_UNAVAILABLE", "CHILD_TIMED_OUT", "CHILD_CANCELLED",
   "CHILD_EXIT_NONZERO", "TASK_MISSING", "UNKNOWN_DEFINITION", "CEILING_PATTERNS_UNRESOLVED",
@@ -240,6 +305,49 @@ const V2_REFUSAL_CODES = new Set([
   "WORKSPACE_LEASE_STALE", "CHECK_NOT_CONFIGURED", "CHECK_CONFIGURATION_INVALID",
   "CHECK_IDENTITY_UNAVAILABLE", "CHECK_IDENTITY_MISMATCH",
 ]);
+/**
+ * Every vocabulary the adapter restates from the pinned contract, paired with the
+ * place in the schema it must equal.
+ *
+ * The closed schema gates first, so a semantic check that has drifted *narrower*
+ * than the contract no longer opens a hole — it produces the opposite failure:
+ * a contract-valid record admitted by the schema and then thrown out by a stale
+ * harness set, which is precisely what `GRANT_ID_MALFORMED` did. One manifest, one
+ * test over all of it, so re-pinning cannot quietly leave a set behind.
+ */
+export const V2_RESTATED_VOCABULARIES: ReadonlyArray<{
+  name: string;
+  kind: "enum" | "propertyNames" | "discriminators" | "typeNames" | "numericPropertyNames";
+  pointer: string;
+  values: ReadonlySet<string>;
+}> = [
+  { name: "V2_EVENTS", kind: "discriminators", pointer: "#/oneOf", values: V2_EVENTS },
+  { name: "V2_REFUSAL_CODES", kind: "enum", pointer: "#/$defs/refusalCode", values: V2_REFUSAL_CODES },
+  { name: "V2_APPROVAL_SOURCES", kind: "enum", pointer: "#/$defs/approvalSource", values: V2_APPROVAL_SOURCES },
+  { name: "V2_APPROVAL_SCOPES", kind: "enum", pointer: "#/$defs/approvalScope", values: V2_APPROVAL_SCOPES },
+  { name: "V2_LEASE_OUTCOMES", kind: "enum", pointer: "#/$defs/workspaceLease/properties/outcome", values: V2_LEASE_OUTCOMES },
+  { name: "V2_LEASE_ACCESS", kind: "enum", pointer: "#/$defs/workspaceLease/properties/access", values: V2_LEASE_ACCESS },
+  { name: "V2_LIFECYCLE_STATES", kind: "enum", pointer: "#/$defs/childLifecycle/properties/state", values: V2_LIFECYCLE_STATES },
+  { name: "V2_EXECUTORS (lifecycle)", kind: "enum", pointer: "#/$defs/childLifecycle/properties/executor", values: V2_EXECUTORS },
+  { name: "V2_EXECUTORS (decision)", kind: "enum", pointer: "#/$defs/capabilityDecision/properties/executor", values: V2_EXECUTORS },
+  { name: "V2_CORRELATION_FIELDS", kind: "propertyNames", pointer: "#/$defs/correlation", values: V2_CORRELATION_FIELDS },
+  { name: "V2_CORRELATION_NUMERIC_FIELDS", kind: "numericPropertyNames", pointer: "#/$defs/correlation", values: V2_CORRELATION_NUMERIC_FIELDS },
+  { name: "V2_REFUSAL_FIELDS", kind: "propertyNames", pointer: "#/$defs/refusal", values: V2_REFUSAL_FIELDS },
+  { name: "V2_REFUSAL_DETAIL_TYPES", kind: "typeNames", pointer: "#/$defs/refusal/properties/details/additionalProperties", values: V2_REFUSAL_DETAIL_TYPES },
+];
+
+/**
+ * Harness-side subsets of a contract vocabulary, not restatements of one. They encode
+ * the harness's own semantics — which lease outcomes a receipt may be appended after,
+ * and which may precede that release — so the assertion on them is containment, not
+ * equality. Anything the test *equality*-asserts belongs in the manifest above
+ * instead; membership here is a claim that the harness deliberately holds a subset.
+ */
+export const V2_VOCABULARY_SUBSETS: ReadonlyArray<{ name: string; pointer: string; values: ReadonlySet<string> }> = [
+  { name: "V2_RECEIPT_RELEASE_OUTCOMES", pointer: "#/$defs/workspaceLease/properties/outcome", values: V2_RECEIPT_RELEASE_OUTCOMES },
+  { name: "V2_RECEIPT_PRIOR_LEASE_OUTCOMES", pointer: "#/$defs/workspaceLease/properties/outcome", values: V2_RECEIPT_PRIOR_LEASE_OUTCOMES },
+];
+
 const V2_CORRELATION_MAX_BYTES = 32 * 1024;
 const V2_CORRELATION_MAX_FIELD_CHARS = 512;
 const V2_CORRELATION_MAX_SCOPE_BYTES = 4 * 1024;
@@ -301,7 +409,7 @@ function isRawPiDaddyReceiptInversion(records: Record<string, unknown>[], index:
     record.workspaceId === receipt.workspaceId && sameRawCorrelationIdentity(receipt, record),
   );
   return Boolean(
-    previousLease && new Set(["acquired", "recovered"]).has(string(previousLease.outcome) ?? "") &&
+    previousLease && V2_RECEIPT_PRIOR_LEASE_OUTCOMES.has(string(previousLease.outcome) ?? "") &&
     validTime(string(previousLease.ts)) && Date.parse(string(previousLease.ts)!) <= receiptTime,
   );
 }
@@ -329,10 +437,7 @@ function isAllowedPiDaddyReceiptInversion(
 
 function normalizePiDaddyV2(record: Record<string, unknown>, index: number): Omit<TrajectoryEventV1, "seq">[] {
   const line = index + 1;
-  const nativeEvent = string(record.event);
-  if (!nativeEvent || !new Set(["capability_decision", "workspace_lease", "child_lifecycle", "check_receipt"]).has(nativeEvent)) {
-    throw new Error(`invalid pi-daddy v2 event at line ${line}: event must be capability_decision, workspace_lease, child_lifecycle, or check_receipt`);
-  }
+  const nativeEvent = requireV2Discriminator(record, line);
   const at = requireV2String(record, "ts", nativeEvent, line);
   const childId = requireV2String(record, "childId", nativeEvent, line);
   const correlation = requireV2Correlation(record, nativeEvent, line);
@@ -499,7 +604,7 @@ function normalizePiDaddyV2(record: Record<string, unknown>, index: number): Omi
     requireV2String(record, "root", nativeEvent, line);
     const access = requireV2String(record, "access", nativeEvent, line);
     const outcome = requireV2String(record, "outcome", nativeEvent, line);
-    if (!new Set(["read", "write"]).has(access) || !V2_LEASE_OUTCOMES.has(outcome)) {
+    if (!V2_LEASE_ACCESS.has(access) || !V2_LEASE_OUTCOMES.has(outcome)) {
       throw new Error(`invalid pi-daddy v2 workspace_lease at line ${line}: access or outcome is unsupported`);
     }
     if (record.recovered !== undefined && typeof record.recovered !== "boolean" && record.recovered !== "unknown") {
@@ -531,7 +636,7 @@ function normalizePiDaddyV2(record: Record<string, unknown>, index: number): Omi
   if (nativeEvent === "child_lifecycle") {
     const state = requireV2String(record, "state", nativeEvent, line);
     const executor = requireV2Executor(record, nativeEvent, line);
-    if (!new Set(["starting", "completed", "failed"]).has(state)) {
+    if (!V2_LIFECYCLE_STATES.has(state)) {
       throw new Error(`invalid pi-daddy v2 child_lifecycle at line ${line}: state is unsupported`);
     }
     if (record.exitCode !== undefined && record.exitCode !== null && !Number.isInteger(record.exitCode)) {
@@ -569,10 +674,13 @@ function normalizePiDaddyV2(record: Record<string, unknown>, index: number): Omi
   if (!/^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/.test(treeSha)) {
     throw new Error(`invalid pi-daddy v2 check_receipt at line ${line}: treeSha must be a git object id`);
   }
-  const correlationTree = string(correlation.tree_sha);
-  if (correlationTree && correlationTree !== treeSha) {
-    throw new Error(`invalid pi-daddy v2 check_receipt at line ${line}: treeSha and correlation.tree_sha disagree`);
-  }
+  // The receipt's top-level `treeSha` is the candidate identity pi-daddy measured;
+  // `correlation.tree_sha` is a controller label the producer documents as opaque
+  // and non-authoritative, and its own builders emit the two independently. The
+  // adapter therefore promotes only the measured value into `digests.tree` and
+  // keeps the correlation copy in `digests.correlation_tree`. Requiring the two to
+  // agree rejected pi-daddy's own canonical receipt and, worse, let a controller
+  // string vouch for a measured one.
   return [cleanEvent({
     ...common,
     workspace_id: workspaceId,
@@ -785,10 +893,10 @@ function structuredRefusal(value: unknown, event: string, line: number): Record<
   if (!V2_REFUSAL_CODES.has(code)) {
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal has unsupported code ${safeDiagnosticValue(code)}`);
   }
-  const unknown = Object.keys(parsed).filter((key) => !new Set(["code", "message", "details"]).has(key));
+  const unknown = Object.keys(parsed).filter((key) => !V2_REFUSAL_FIELDS.has(key));
   if (unknown.length > 0) throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal carries unsupported fields`);
   const details = parsed.details === undefined ? undefined : object(parsed.details);
-  if (parsed.details !== undefined && (!details || Object.values(details).some((entry) => !["string", "number", "boolean"].includes(typeof entry) && entry !== null))) {
+  if (parsed.details !== undefined && (!details || Object.values(details).some((entry) => !V2_REFUSAL_DETAIL_TYPES.has(entry === null ? "null" : typeof entry)))) {
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal.details must contain scalar values`);
   }
   return parsed;
