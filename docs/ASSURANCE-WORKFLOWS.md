@@ -85,7 +85,7 @@ judge`). An explicit author override remains the only override.
 ## Normalized event model and adapters
 
 Every normalized event has `event_version: "1.0"`, a replay sequence, `type`, `source`, promoted
-correlation fields (`run_id`, `task_id`, `workspace_id`, `context_id`), separate `digests.head` and
+join fields under adapter-specific trust semantics, separate `digests.head` and
 `digests.tree`, and optional capability, approval, refusal, receipt, and attribute fields. Native
 fields not promoted remain under `attributes`; normalization does not throw information needed for
 ordering away.
@@ -99,15 +99,56 @@ Adapters:
   normalization, and preserves principal event names verbatim
   (`risk_classified`, `task_packet_superseded`, `repair_suspended`, `finalization_completed`, etc.),
   and promotes packet/build/evidence/finalization identity.
-- **pi-daddy-v1** explicitly supports the current unversioned 0.17 grant ledger and the versioned v1
-  governance supplement. Legacy requested/effective/denied capabilities, definition digest,
-  parent/child IDs, approval source/scope, and gate outcome normalize without inventing missing
-  task/workspace/expiry fields. Unknown versions fail with a schema/version message.
+- **pi-daddy-v1** is the historical *adapter selector* name. It supports the public unversioned
+  pi-daddy 0.17 `GrantRecord` and pi-daddy 0.18.0's `ledgerVersion: 2` events, verified against
+  `dde8eeb5632113d4a54705e16dc22ce70740fd4f`. V2 dispatch happens
+  before the legacy fallback and covers `capability_decision`, `workspace_lease`, `child_lifecycle`,
+  and `check_receipt`. The former `schema_version` / `record_type` “governance v1” shape was a
+  hypothetical harness fixture, not a pi-daddy release format; it is no longer accepted or cited as
+  evidence. Unknown explicit `ledgerVersion` values fail with the received and expected versions.
 
-Multiple native ledgers are merged by recorded timestamps only after each stream's native order is
-validated. Equal cross-stream instants, missing timestamps, duplicate principal run streams, and
-pi/native ties are ERROR because they cannot prove a strict order. Native sequence remains in
-`attributes.native_seq`; declaration/file order is never presented as workflow chronology.
+Pi-daddy v2 mapping:
+
+| pi-daddy 0.18 field | Normalized trajectory field |
+|---|---|
+| `ledgerVersion`, `event`, `ts` | `source: pi-daddy-v2`, event-specific `type`, `at`; native discriminator/version also remain in `attributes` |
+| `correlation.run_id/task_id/context_id/phase` | `run_id`, `task_id`, `context_id`, `phase`; required workflow IDs fail closed when absent |
+| `correlation.workspace_id` | retained under `attributes.correlation` as a non-authoritative controller label; never promoted by itself to canonical `workspace_id` |
+| trusted `taskDigest` / complete `definitionDigest` | validated SHA-256 `digests.task` / `digests.definition`; a present definition requires non-empty name, source, and digest |
+| correlation `plan_digest/task_digest/definition_digest` | non-authoritative opaque `digests.correlation_plan/correlation_task/correlation_definition` (and the full nested correlation remains in `attributes.correlation`); secret-shaped values are refused |
+| correlation `base_sha/head_sha/tree_sha` | `digests.correlation_base/correlation_head/correlation_tree`; never promoted as measured candidate identity |
+| correlation `event_seq/last_change_seq/last_authority_seq/check_receipt_id` | same snake-case names in `attributes` |
+| `parentId`, `childId`, top-level `workspaceId` | `parent_id`, `child_id`, `workspace_id`; a top-level/nested workspace mismatch is rejected |
+| capability arrays and `blocked` outcome | deduplicated requests, validated disjoint result subsets, and requested/granted/refused/spawn-refusal events; pre-resolution refusals may leave requests unclassified, approved stale gated entries do not become refusals, a blocked spawn emits no grant, and execution starts only on lifecycle `starting` |
+| approval source/scope/expiry/use maps | enum- and relation-validated `approval_used` plus structured approval fields and use bounds; tools-form delegation uses pi-daddy's isolated `<delegate>` subject |
+| structured `refusal` | pinned refusal-code taxonomy plus scalar structured details when the producer recorded one; low-level lease failures and blocked chain records may legitimately omit it rather than invent a code |
+| lease access/outcome/recovery/release | write access → `writer_lease_*`; read access → `workspace_read_*`; complete lease state remains in `attributes` |
+| lifecycle state/executor/exit/signal flags | `child_started/completed/failed`, `exit_code`, and lifecycle attributes; executor is restricted to `process` / `herdr` |
+| receipt/workspace/check/tree identity | `check_receipt_recorded`, `workspace_id`, `digests.tree`, and receipt/check IDs in `attributes`; `receiptId` must be SHA-256 and measured `treeSha` must agree with any supplied correlation tree |
+
+Every v2 variant requires nested `correlation.run_id` and `correlation.task_id` before it can enter a
+trajectory; missing join identity is an actionable ERROR rather than an unjoinable event. Correlation
+also enforces pi-daddy's pinned field whitelist, value types, 512-character string bound, 4 KiB scope
+bound, and 32 KiB total bound, preventing it from becoming an arbitrary payload or secrets sink. Every
+assembled native attribute object and persisted collection error is sanitized before persistence, with
+free-text diagnostics stored only as redacted digests and malformed native values never echoed raw. Values absent
+from the native record are omitted rather than synthesized as false/empty or stringified as `"undefined"`. Legacy 0.17 remains intentionally
+lossy: task/workspace/correlation/expiry evidence that its public record never carried is not invented.
+Pi-daddy's correlation metadata is controller-supplied and non-authoritative; only the top-level v2
+`taskDigest`, definition digest, and a check receipt's computed `treeSha` are promoted as trusted
+identities. Correlation copies stay under explicitly named `correlation_*` digest keys, so a controller
+value cannot satisfy an assertion over measured `digests.head` / `digests.tree`.
+
+Multiple native ledgers are merged by recorded timestamps. Equal cross-stream instants, missing
+timestamps, duplicate principal run streams, and pi/native ties are ERROR because they cannot prove a
+strict order. One pi-daddy exception is intentional: `check-runner.ts` stamps the check's earlier end
+time but appends the receipt immediately after the later matching lease-release line. The adapter accepts
+only that bounded inversion when the same check owner most recently acquired the workspace before the release, uses semantic
+timestamps for normalized chronology, and retains append order in `attributes.native_seq`. Every other
+pi-daddy event must remain non-decreasing within the same run/task/workspace/child stream; independent
+children and runs may interleave because pi-daddy timestamps before taking its cross-process append lock. Other native adapters remain
+non-decreasing per source. Declaration/file order is never presented
+as cross-stream workflow chronology.
 
 Stable normalized refusal codes include `CAPABILITY_ESCALATION`, `UNDECLARED_CAPABILITIES`,
 `UNKNOWN_CAPABILITY`, `APPROVAL_REQUIRED`, `APPROVAL_NO_UI`, `APPROVAL_DECLINED`,
@@ -116,8 +157,9 @@ that cannot be classified is `LEGACY_UNCLASSIFIED`, never success.
 
 `writer: "build"` in principal state is workflow metadata. Only a measured
 `writer_lease_acquired`/`writer_lease_conflict`/`writer_lease_released` pi-daddy event proves
-coordination among children governed by that pi-daddy instance. It does not prove exclusion of an
-unrelated process. Initial CWD validation is not path confinement.
+coordination among children governed by that pi-daddy instance. `workspace_read_*` preserves read
+activity but is not evidence that a kernel lock excluded another process. Neither proves exclusion of
+an unrelated process. Initial CWD validation is not path confinement.
 
 ## Critical release policy
 
