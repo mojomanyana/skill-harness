@@ -1,6 +1,6 @@
 ---
 name: skill-harness
-version: 0.7.0
+version: 0.10.0
 description: >
   Use to test, grade, and optimize an agent skill against a spec. Triggers:
   "test the <skill> skill", "/skill-harness", "run the skill bench", "grade these
