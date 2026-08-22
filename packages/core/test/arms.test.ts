@@ -160,4 +160,76 @@ describe("seedArmDefinitions", () => {
     expect(seedArmDefinitions(NONE_ARM, corpusWithAgents(3), ws, { ambientSkillsDir: emptyAmbient() })).toBe(0);
     expect(existsSync(join(ws, ".pi"))).toBe(false);
   });
+
+  it("does not bypass the ambient-root check for a non-control arm with no seed_skills", () => {
+    // pi-daddy reads the ambient root independently of seeding, so an arm
+    // that loads it via `extensions` alone must not be able to dodge the
+    // check just by declaring seed_skills: [].
+    const ws = mkdtempSync(join(tmpdir(), "sh-ws-"));
+    const ambient = mkdtempSync(join(tmpdir(), "sh-ambient-full-"));
+    writeFileSync(join(ambient, "leaky.md"), "---\nname: leaky\n---\n", "utf8");
+    expect(() =>
+      seedArmDefinitions(armWith({ seedSkills: [] }), corpusWithAgents(3), ws, { ambientSkillsDir: ambient }),
+    ).toThrow(/leaky|ambient/i);
+  });
+
+  it("returns 0 without seeding when a non-control arm declares no seed_skills and ambient is empty", () => {
+    const ws = mkdtempSync(join(tmpdir(), "sh-ws-"));
+    const n = seedArmDefinitions(armWith({ seedSkills: [] }), corpusWithAgents(3), ws, {
+      ambientSkillsDir: emptyAmbient(),
+    });
+    expect(n).toBe(0);
+    expect(existsSync(join(ws, ".pi"))).toBe(false);
+  });
+
+  it("ERRORs when a seed_skills directory does not exist", () => {
+    // Distinguishing check: the message must be the unreadable-directory
+    // refusal specifically, not the fewer-than-required refusal — a version
+    // of the code that silently treated the missing directory as 0 entries
+    // would also throw (require_definitions: 1 > 0 seeded) but for the wrong
+    // reason, so we assert on text unique to the unreadable-directory path.
+    const root = mkdtempSync(join(tmpdir(), "sh-seed-missing-"));
+    const ws = mkdtempSync(join(tmpdir(), "sh-ws-"));
+    let thrown: Error | undefined;
+    try {
+      seedArmDefinitions(armWith({ seedSkills: ["nonexistent"], requireDefinitions: 1 }), root, ws, {
+        ambientSkillsDir: emptyAmbient(),
+      });
+    } catch (e) {
+      thrown = e as Error;
+    }
+    expect(thrown).toBeDefined();
+    expect(thrown!.message).toContain("cannot be read");
+    expect(thrown!.message).toContain(join(root, "nonexistent"));
+    expect(thrown!.message).not.toContain("require_definitions");
+  });
+
+  it("treats a missing ambient skills root as empty", () => {
+    const root = corpusWithAgents(3);
+    const ws = mkdtempSync(join(tmpdir(), "sh-ws-"));
+    const missingAmbient = join(tmpdir(), `sh-ambient-missing-${process.pid}-${Date.now()}`);
+    const n = seedArmDefinitions(armWith({}), root, ws, { ambientSkillsDir: missingAmbient });
+    expect(n).toBe(3);
+  });
+
+  it("surfaces a non-ENOENT ambient-root read failure instead of treating it as empty", () => {
+    // A file where a directory is expected reproduces a real, portable
+    // non-ENOENT failure (ENOTDIR) without relying on permission tricks.
+    const root = corpusWithAgents(3);
+    const ws = mkdtempSync(join(tmpdir(), "sh-ws-"));
+    const holder = mkdtempSync(join(tmpdir(), "sh-ambient-notdir-"));
+    const notADir = join(holder, "not-a-directory");
+    writeFileSync(notADir, "x", "utf8");
+
+    let thrown: Error | undefined;
+    try {
+      seedArmDefinitions(armWith({}), root, ws, { ambientSkillsDir: notADir });
+    } catch (e) {
+      thrown = e as Error;
+    }
+    expect(thrown).toBeDefined();
+    expect(thrown!.message).toContain("could not read");
+    expect(thrown!.message).toContain(notADir);
+    expect(thrown!.message).not.toContain("is not empty");
+  });
 });

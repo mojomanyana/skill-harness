@@ -119,7 +119,10 @@ function defaultAmbientSkillsDir(): string {
  *  3. **A non-empty ambient skills root.** pi-daddy reads `~/.pi/agent/skills` as
  *     well as the workspace, so anything there is an uncontrolled variable in the
  *     measurement. Empty on the reference box today — that is luck, not a
- *     guarantee, and this check is what turns it into one.
+ *     guarantee, and this check is what turns it into one. It runs for any
+ *     non-control arm, even one that declares no `seed_skills` — pi-daddy
+ *     reads that root independently of whether the workspace was seeded, so
+ *     an arm can't opt out of the guarantee just by not seeding.
  */
 export function seedArmDefinitions(
   arm: Arm,
@@ -127,14 +130,31 @@ export function seedArmDefinitions(
   workspaceCwd: string,
   opts: { ambientSkillsDir?: string } = {},
 ): number {
-  if (arm.name === NONE_ARM.name || arm.seedSkills.length === 0) return 0;
+  // The control arm loads no extension at all, so nothing can read the
+  // ambient root on its behalf — it's the only arm exempt from the check
+  // below. Every other arm must pass it even when it declares no
+  // seed_skills: pi-daddy reads ~/.pi/agent/skills independently of seeding,
+  // so an arm that loads pi-daddy via `extensions` alone must not be able to
+  // skip the guarantee that root is empty.
+  if (arm.name === NONE_ARM.name) return 0;
 
   const ambient = opts.ambientSkillsDir ?? defaultAmbientSkillsDir();
   let ambientEntries: string[] = [];
   try {
     ambientEntries = readdirSync(ambient);
-  } catch {
-    ambientEntries = []; // absent is as good as empty: nothing can leak from it
+  } catch (err) {
+    // Absent is as good as empty: nothing can leak from a directory that
+    // isn't there. Anything else (e.g. EACCES) is not equivalent to empty —
+    // it means we couldn't verify the guarantee, so it must surface, not be
+    // silently read as "clean".
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      ambientEntries = [];
+    } else {
+      throw new Error(
+        `arm \`${arm.name}\`: could not read the ambient skill root ${ambient}: ${(err as Error).message} — ` +
+          `pi-daddy reads it as well as the workspace, so this can't be verified empty.`,
+      );
+    }
   }
   if (ambientEntries.length > 0) {
     throw new Error(
@@ -143,6 +163,8 @@ export function seedArmDefinitions(
         `Move them aside for the run.`,
     );
   }
+
+  if (arm.seedSkills.length === 0) return 0;
 
   const dest = join(workspaceCwd, ".pi", "skills");
   mkdirSync(dest, { recursive: true });
