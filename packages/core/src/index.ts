@@ -40,3 +40,4 @@ export * from "./adjudication.js";
 export * from "./comparison.js";
 export * from "./sandbox.js";
 export * from "./provider-failure.js";
+export * from "./arms.js";
