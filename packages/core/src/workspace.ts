@@ -112,8 +112,17 @@ function assertKnownMarkers(src: string): void {
  * ways — a `diff_contains` needle matching a test filename can pass for free, and a
  * `diff_excludes` needle can false-fail on a path string — and it pads every diff the
  * judge reads.
+ *
+ * `.pi/` is the same class from a different writer: `seedArmDefinitions` copies an
+ * arm's definitions into `<workspace>/.pi/skills/` for pi-daddy to spawn, and that
+ * happens in the same workspace `runSeeded` later runs `git add -A` + `git diff
+ * --cached` against. Without this exclusion those seeded `.md` files land in the
+ * diff as harness-injected `+` lines — a `diff_contains` needle can match text the
+ * model never wrote (a false objective PASS), the judge is shown the seeded
+ * definitions as if they were the model's edit, and `.pi/skills/*` reads as a
+ * model change for `unchanged_paths`.
  */
-const TOOL_ARTIFACTS = ["node_modules/", "coverage/", ".vitest/"];
+const TOOL_ARTIFACTS = ["node_modules/", "coverage/", ".vitest/", ".pi/"];
 
 /**
  * Exclude tool artifacts via `.git/info/exclude`, deliberately not a `.gitignore`.
@@ -239,8 +248,9 @@ export function createWorkspace(kind: WorkspaceKind, opts: { specDir: string; re
  */
 export type PathSnapshot = Map<string, string>;
 
-/** Never the model's work, and never worth hashing. */
-const SNAPSHOT_SKIP = new Set([".git", "node_modules", "coverage", ".vitest"]);
+/** Never the model's work, and never worth hashing. `.pi` mirrors `TOOL_ARTIFACTS` — an
+ * arm's seeded definitions, not something the model wrote. */
+const SNAPSHOT_SKIP = new Set([".git", "node_modules", "coverage", ".vitest", ".pi"]);
 
 /** Snapshot a workspace, or null when there is no workspace to look at. */
 export function snapshotPaths(cwd: string | undefined, kind: WorkspaceKind): PathSnapshot | null {

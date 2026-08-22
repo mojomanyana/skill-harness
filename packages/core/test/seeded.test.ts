@@ -168,6 +168,46 @@ describe("assert.diff_contains reads changed lines, not context", () => {
   });
 });
 
+describe("arm-seeded .pi/skills definitions do not satisfy diff_contains (C1)", () => {
+  it("a needle present only in a seeded definition file must FAIL the gate, not pass for free", async () => {
+    const fixture = mkdtempSync(join(tmpdir(), "sc-seed-src-")); tmps.push(fixture);
+    writeFileSync(join(fixture, "seed.txt"), "seed", "utf8");
+    const ws = createWorkspace({ fixture }, { specDir: "/x" }); tmps.push(ws.cwd);
+
+    // Reproduces exactly what `run.ts` does before the subject runs: it calls
+    // `seedArmDefinitions`, which drops an arm's definitions into
+    // `<workspace>/.pi/skills/`. Done directly here (rather than importing
+    // arms.ts) so this test is a pure statement about `runSeeded` + the
+    // workspace's git exclusion — not coupled to how the file got there.
+    mkdirSync(join(ws.cwd, ".pi", "skills"), { recursive: true });
+    writeFileSync(
+      join(ws.cwd, ".pi", "skills", "seeded-def.md"),
+      "---\nname: x\ntools: read\n---\n\nUNIQUE_ARM_NEEDLE appears only here.\n",
+      "utf8",
+    );
+
+    // The model does nothing to the repo — the ONLY way this needle could ever
+    // reach the diff is via the seeded `.pi/skills/` file being staged.
+    const noop: HarnessAdapter = {
+      name: "pi", available: async () => true,
+      run: async () => "<<< ASSISTANT: looked around, made no change.",
+      judge: async () => "VERDICT: PASS",
+    };
+
+    const r = await runSeeded(seededScenario("UNIQUE_ARM_NEEDLE"), {
+      skillDir: "/x", adapter: noop,
+      model: { provider: "fireworks", model: "fake" }, mode: "green", cwd: ws.cwd, specDir: "/x",
+    });
+
+    // The false-pass this closes: without excluding `.pi/` from `git add -A`,
+    // the seeded file would be staged, its text would land in the diff as
+    // harness-injected `+` lines, and the needle gate would read the arm's own
+    // definitions as if the model had written them.
+    expect(r.diff).not.toContain("UNIQUE_ARM_NEEDLE");
+    expect(r.gateFailure).toMatch(/missing "UNIQUE_ARM_NEEDLE"/);
+  });
+});
+
 describe("assert.diff_excludes", () => {
   const excludesScenario = (contains: string[], excludes: string[]): Scenario => ({
     id: "A2", title: "scope discipline", critical: false, mode: "seeded",
