@@ -99,11 +99,39 @@ It is worth noticing what would have happened had `S6` gone the other way. A sin
 PASS under the arm, on a cell known to be unstable, would have read as pi-daddy *improving*
 the skill. One draw against a majority.
 
+## The cause, found the same day
+
+It was one line, and it was ours.
+
+`PI_GRANTS_HERDR` is three-state in pi-daddy's `src/executor.ts`, and **absent means probe**.
+Our `arms.yaml` never set it, so on a machine with `herdr` on `PATH` — this one — pi-daddy
+probed, found it, and chose pane-based execution. A pane needs an *interactive* plan, and
+pi-daddy's own comment says why that cannot work here: `--print` makes pi process the prompt
+and exit, so it never reaches the readiness `herdr agent start` waits for, and the child is
+never detected. The harness runs `pi -p`.
+
+Setting `PI_GRANTS_HERDR: "0"` selects the captured-subprocess executor. The same delegation
+then records:
+
+```
+capability_decision   review    process
+child_lifecycle       starting  process
+child_lifecycle       completed process
+```
+
+and the parent reports the child's answer back. `0`'s own disclosure string is "children
+have no terminal", which is exactly a headless measurement run.
+
+Worth stating plainly: pi-daddy is not at fault. Probing is a reasonable default for someone
+working interactively. A measurement harness is the one caller that must never accept a
+probed default, because the probe's answer depends on what happens to be installed on the
+machine — which is precisely the kind of ambient variable an arm exists to pin down. The arm
+already refuses to run if `~/.pi/agent/skills` is non-empty for that same reason; it simply
+did not think to pin the executor.
+
 ## Next
 
-The delegation path needs to complete before a second wave means anything. The spawn used
-`executor: "herdr"`, and the harness runs pi headless — `-p`, `--no-session`, no tty. A
-child that reports `starting` and never finishes under those conditions is the thing to
-chase, and it is a pi-daddy question, not a harness one.
-
-Until then, five more skills would buy five more copies of an unmeasurable result.
+The governed arm has to be re-run — the committed one is a truthful measurement of the
+probe-selected executor, not of governed delegation. Wave 1 is worth nothing until the
+delegation path completes, and then the number to watch is whether governance changes
+behaviour once it can actually act, against the +40% input-token cost it charges either way.
