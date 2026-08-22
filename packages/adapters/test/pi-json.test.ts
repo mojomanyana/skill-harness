@@ -194,6 +194,21 @@ const PROVIDER_FAILURE_LINE = JSON.stringify({
   },
 });
 
+/**
+ * A benign diagnostic — present, but not one of `FAILURE_DIAGNOSTICS` — so the
+ * "clean stream" test below has something a too-broad match could wrongly
+ * latch onto. A stream with no `diagnostics` array at all cannot falsify an
+ * over-broad `FAILURE_DIAGNOSTICS` check: there is nothing there to match.
+ */
+const BENIGN_DIAGNOSTIC_LINE = JSON.stringify({
+  type: "message_start",
+  message: {
+    role: "assistant",
+    provider: "openai-codex",
+    diagnostics: [{ type: "rate_limit_notice" }],
+  },
+});
+
 describe("provider failure detection", () => {
   it("sets providerFailure when a line carries a provider_transport_failure diagnostic", async () => {
     scripts.push({ stdout: `${PROVIDER_FAILURE_LINE}\n${TERMINAL}` });
@@ -202,8 +217,8 @@ describe("provider failure detection", () => {
     expect(r.providerFailure).toContain("WebSocket error");
   });
 
-  it("leaves providerFailure null for a clean stream", async () => {
-    scripts.push({ stdout: TERMINAL });
+  it("leaves providerFailure null for a clean stream with a benign diagnostic", async () => {
+    scripts.push({ stdout: `${BENIGN_DIAGNOSTIC_LINE}\n${TERMINAL}` });
     const r = await run();
     expect(r.providerFailure).toBeNull();
   });
