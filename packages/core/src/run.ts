@@ -36,6 +36,7 @@ import { judgeOneRep } from "./regrade.js";
 import { runDeliveryCanary, canaryFailure, type CanaryResult } from "./canary.js";
 import { boundaryCells, stabilityNote, type ScenarioStability } from "./stability.js";
 import { aggregateMetrics } from "./comparison.js";
+import { providerFailureFromTranscript } from "./provider-failure.js";
 
 export interface RunOptions {
   spec: Spec;
@@ -66,6 +67,13 @@ export interface RunOptions {
    * there) is already refused by the adapter for free.
    */
   canary?: boolean;
+  /**
+   * Take the structured path even when no scenario declares a trace or trajectory
+   * assertion. The subject half of `ScenarioMetrics` — tokens, `subject_cost_usd` —
+   * is only ever populated from traces, so without this a run records no cost or
+   * token data at all, which is why the reference corpus has none.
+   */
+  structured?: boolean;
 }
 
 export interface RunSummary {
@@ -307,24 +315,39 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
             extensions: scenario.extensions?.map((e) => resolve(dirname(ctx.specPath), e)),
             eventSources: scenario.eventSources,
           };
-          if (scenario.traceAssert || scenario.trajectoryAssert) {
+          const wantStructured = Boolean(ctx.structured) || Boolean(scenario.traceAssert) || Boolean(scenario.trajectoryAssert);
+          if (wantStructured) {
             // Missing required evidence is ERROR, never a silent fallback to the
             // unstructured path: a gate with nothing to read must not look like a
-            // gate that passed.
+            // gate that passed. A mere `--structured` request, with no gate
+            // depending on it, degrades to the plain path instead.
             if (!ctx.adapter.runStructured) {
-              throw new Error(
-                `scenario \`${scenario.id}\` declares structured objective assertions, but the \`${ctx.adapter.name}\` adapter` +
-                  ` cannot produce execution traces/events — the gate would have no evidence to read.`,
-              );
+              if (scenario.traceAssert || scenario.trajectoryAssert) {
+                throw new Error(
+                  `scenario \`${scenario.id}\` declares structured objective assertions, but the \`${ctx.adapter.name}\` adapter` +
+                    ` cannot produce execution traces/events — the gate would have no evidence to read.`,
+                );
+              }
+              transcript = await ctx.adapter.run(req);
+            } else {
+              const structured = await ctx.adapter.runStructured({ ...req, scenarioId: scenario.id, rep });
+              transcript = structured.transcript;
+              traces = structured.traces;
+              events = structured.events ?? [];
+              eventErrors = structured.eventErrors ?? [];
+              if (structured.providerFailure) infrastructureFailure = `provider failure — ${structured.providerFailure}`;
             }
-            const structured = await ctx.adapter.runStructured({ ...req, scenarioId: scenario.id, rep });
-            transcript = structured.transcript;
-            traces = structured.traces;
-            events = structured.events ?? [];
-            eventErrors = structured.eventErrors ?? [];
           } else {
             transcript = await ctx.adapter.run(req);
           }
+        }
+
+        // A provider outage is infrastructure, never a model verdict. Checked on
+        // every path: the text path carries the marker in the transcript, the
+        // structured path sets `providerFailure` above and exits 0 while doing it.
+        if (!infrastructureFailure) {
+          const provider = providerFailureFromTranscript(transcript);
+          if (provider) infrastructureFailure = `provider failure — ${provider}`;
         }
         noResponse = hasEmptyAssistantTurn(transcript);
         if (!noResponse) break;
