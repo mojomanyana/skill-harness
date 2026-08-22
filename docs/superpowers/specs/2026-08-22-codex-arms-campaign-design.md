@@ -239,10 +239,17 @@ The data is discarded, not unavailable: `capture-trace-types.ts:97-101` already 
 invocation, and `comparison.ts` already aggregates those plus `wall_time_ms` for `compare`'s
 `--max-subject-token-increase` / `--max-wall-time-increase` gates.
 
-**Change:** a `--structured` flag on `run` takes the structured path regardless of gates,
-and per-run aggregates are persisted into `results.yaml` as **optional additive** fields.
-Whether that warrants a `schema:` bump is an implementation call — additive-optional argues
-no, the 1→2 migration precedent argues for care. Either way old readers must not break.
+**Change:** exactly one flag. `ScenarioMetrics` (`results.ts:10`) **already** carries
+`wall_time_ms`, `judge_calls`, `subject_metrics_reps`, `total_reps` and — optional, populated
+only from traces — `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`,
+`subject_cost_usd`, `tool_calls`, `delegated_children`, `max_concurrency`. The persistence
+plumbing is complete and `mergeScenarioMetrics` already keeps a later judge pass from
+double-counting subject usage. So there are **no new results fields and no `schema:`
+question**: add a `--structured` flag that makes a gate-free run take the structured path,
+and the subject half of a record that already exists starts being populated.
+
+(Corrected 2026-08-22: an earlier draft of this section called for new additive fields and
+weighed a schema bump. Both were unnecessary — the fields were already there.)
 
 Without this, the deferred pinning decision has nothing to read, and "cheaper and faster"
 stays unanswerable.
