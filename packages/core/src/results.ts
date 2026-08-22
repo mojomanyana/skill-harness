@@ -185,8 +185,14 @@ export interface ResultsFile {
    * what the arm actually loaded — a run whose extension list or definition count
    * differed from today's `arms.yaml` is not comparable, and only the record can
    * show that.
+   *
+   * `ledger_events` is the arm's delivery proof, `--canary`'s equivalent for this
+   * axis: the pi-daddy ledger itself is gitignored (`*.jsonl`), so without a
+   * count here a vacuous arm run (extension loaded, nothing ever delegated)
+   * commits a record indistinguishable from one that actually exercised
+   * delegation. 0 is a reportable outcome, not an absent field.
    */
-  arm?: { name: string; extensions: string[]; definitions: number };
+  arm?: { name: string; extensions: string[]; definitions: number; ledger_events: number };
   /** True for an `--only`-filtered run: a scenario subset, never ship-graded, never a release run. */
   partial?: boolean;
   /**

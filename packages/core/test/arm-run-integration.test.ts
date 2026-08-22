@@ -128,6 +128,7 @@ describe("an arm reaches the subject and the record", () => {
       name: "pi-daddy",
       extensions: [join(root, "agents", "plan.md")],
       definitions: 2,
+      ledger_events: 0, // I4: reportable outcome (no ledger written), not an absent field
     });
 
     const req = reqs[0];
@@ -184,6 +185,7 @@ describe("an arm reaches a seeded scenario's subject", () => {
       name: "pi-daddy",
       extensions: [join(root, "agents", "plan.md")],
       definitions: 2,
+      ledger_events: 0, // I4: reportable outcome (no ledger written), not an absent field
     });
 
     // A seeded scenario declares no `env.extensions` of its own here, so
@@ -193,5 +195,113 @@ describe("an arm reaches a seeded scenario's subject", () => {
     expect(req.extensions).toEqual([join(root, "agents", "plan.md")]);
     expect(req.armEnv!.PI_GRANTS_LEDGER).toBe(join(summary.runDir, "pi-daddy.ledger.jsonl"));
     expect(req.armEnv!.PI_GRANTS_GRANT).toBe("tool:read");
+  });
+});
+
+describe("the arm's ledger is counted into the record (I4)", () => {
+  // The pi-daddy ledger is gitignored and uncounted otherwise, so a vacuous arm
+  // run (extension loaded, nothing ever delegated) would commit a record
+  // indistinguishable from one that actually exercised delegation. The count
+  // has to come from the SAME path the arm's own env points pi-daddy at
+  // (`req.armEnv.PI_GRANTS_LEDGER`, with `<run-dir>` already substituted) —
+  // faking that write is what proves `countLedgerEvents` reads the real file
+  // rather than always reporting 0.
+  //
+  // Mutation: hardcoding `run.ts`'s `countLedgerEvents` to always `return 0`
+  // (or dropping `ledger_events` from the recorded `arm` block entirely) makes
+  // this test's `toBe(3)` assertion fail.
+  it("records a non-zero ledger_events count when the subject actually wrote ledger lines", async () => {
+    const { root, dir, specPath } = corpus();
+    const ambient = mkdtempSync(join(tmpdir(), "sh-ambient-ledger-"));
+    const adapter: HarnessAdapter = {
+      name: "pi",
+      available: async () => true,
+      run: async (req) => {
+        const ledgerPath = req.armEnv!.PI_GRANTS_LEDGER;
+        writeFileSync(
+          ledgerPath,
+          [
+            JSON.stringify({ tool: "read", at: "2026-08-22T00:00:00Z" }),
+            JSON.stringify({ tool: "write", at: "2026-08-22T00:00:01Z" }),
+            JSON.stringify({ tool: "read", at: "2026-08-22T00:00:02Z" }),
+          ].join("\n") + "\n",
+          "utf8",
+        );
+        return ">>> USER:\nhi\n\n<<< ASSISTANT:\nhello\n";
+      },
+      judge: async () => "VERDICT: PASS\n1. PASS",
+      version: async () => "0.84.2",
+    };
+    const summary = await runSkillModel({
+      spec: loadSpec(specPath),
+      skillDir: dir,
+      specPath,
+      adapter,
+      model: { provider: "openai-codex", model: "gpt-5.6-sol:medium" },
+      modelToken: "openai-codex:gpt-5.6-sol:medium",
+      judge: { provider: "claude-code", model: "claude-opus-4-8" },
+      mode: "force",
+      timestamp: "2026-08-22T00:00:00.000Z",
+      arm: ARM(root),
+      skillsRoot: root,
+      ambientSkillsDir: ambient,
+    });
+
+    expect(summary.results.arm?.ledger_events).toBe(3);
+  });
+});
+
+describe("the empty-response retry re-seeds the fresh workspace (T1)", () => {
+  // `run.ts` tears down the half-mutated workspace and creates a fresh one when
+  // the subject returns a blank assistant turn, then retries once. The fresh
+  // workspace starts with no `.pi/skills/` at all — a retry that skipped
+  // re-seeding would run pi-daddy with nothing to spawn on the attempt that
+  // actually counts (the one whose transcript gets graded), while every artifact
+  // still says `+pi-daddy`.
+  //
+  // Mutation: deleting the second `seedArmDefinitions(...)` call in run.ts (the
+  // one inside the `attempt > 0` branch, right after the fresh workspace is
+  // created) makes this test's second `seededFlags` entry come back `false`.
+  it("seeds the arm's definitions into the retry's fresh workspace, not just the first attempt", async () => {
+    const { root, dir, specPath } = corpus();
+    const ambient = mkdtempSync(join(tmpdir(), "sh-ambient-retry-"));
+    const cwds: string[] = [];
+    const seededFlags: boolean[] = [];
+    let calls = 0;
+    const adapter: HarnessAdapter = {
+      name: "pi",
+      available: async () => true,
+      run: async (req) => {
+        calls += 1;
+        cwds.push(req.cwd);
+        seededFlags.push(existsSync(join(req.cwd, ".pi", "skills", "plan.md")));
+        // Attempt 1: a blank assistant turn — the harness-timeout shape that
+        // triggers the retry. Attempt 2: an ordinary answer.
+        return calls === 1 ? ">>> USER:\nhi\n\n<<< ASSISTANT:\n" : ">>> USER:\nhi\n\n<<< ASSISTANT:\nhello\n";
+      },
+      judge: async () => "VERDICT: PASS\n1. PASS",
+      version: async () => "0.84.2",
+    };
+    const summary = await runSkillModel({
+      spec: loadSpec(specPath),
+      skillDir: dir,
+      specPath,
+      adapter,
+      model: { provider: "openai-codex", model: "gpt-5.6-sol:medium" },
+      modelToken: "openai-codex:gpt-5.6-sol:medium",
+      judge: { provider: "claude-code", model: "claude-opus-4-8" },
+      mode: "force",
+      timestamp: "2026-08-22T00:00:00.000Z",
+      arm: ARM(root),
+      skillsRoot: root,
+      ambientSkillsDir: ambient,
+    });
+
+    expect(calls).toBe(2); // the retry actually happened
+    expect(cwds[0]).not.toBe(cwds[1]); // in a genuinely fresh workspace
+    expect(seededFlags).toEqual([true, true]); // seeded on BOTH attempts
+    // The graded transcript is the retry's, and it was seeded — a real answer,
+    // not the harness-timeout ERROR the un-fixed code would have produced.
+    expect(summary.results.scenarios[0].judge_verdict).toBe("PASS");
   });
 });

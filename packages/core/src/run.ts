@@ -1,5 +1,5 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import type { Spec, Scenario } from "./spec.js";
 import { sourceHashes } from "./sources.js";
 import type { HarnessAdapter, ModelRef, RunMode } from "./adapters/types.js";
@@ -86,6 +86,36 @@ export interface RunOptions {
 export interface RunSummary {
   runDir: string;
   results: ResultsFile;
+}
+
+/**
+ * The pi-daddy arm's delivery proof, by convention: `arms.yaml` points
+ * `PI_GRANTS_LEDGER` at exactly this filename inside the run dir (see
+ * `../principal-pi-skills/tests/arms.yaml` and CODEX-ARMS-RUNBOOK.md §4.3), so
+ * a fixed name here is what makes the count readable without parsing the arm's
+ * own `env` map back out.
+ */
+const LEDGER_FILENAME = "pi-daddy.ledger.jsonl";
+
+/**
+ * Count the arm's ledger events after the run, or 0 when the file was never
+ * written.
+ *
+ * This is `--canary`'s lesson applied to the arm: the ledger is the arm's
+ * delivery proof, and a delivery claim has to survive a commit. A missing file
+ * records `0`, not an absent field — "the extension never wrote a ledger" and
+ * "the extension wrote one with nothing in it" are both real, reportable
+ * outcomes, and a vacuous arm run must not commit a record indistinguishable
+ * from one that actually delegated.
+ */
+function countLedgerEvents(runDir: string): number {
+  let text: string;
+  try {
+    text = readFileSync(join(runDir, LEDGER_FILENAME), "utf8");
+  } catch {
+    return 0;
+  }
+  return text.split("\n").filter((line) => line.trim().length > 0).length;
 }
 
 /** Run one skill against one model: run scenarios, grade, score, persist. */
@@ -216,7 +246,9 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     // coverage of scenarios it skipped.
     source_hashes: sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios, judgePersona: spec.judge_persona }),
     scenarios: scenarioResults,
-    ...(arm.name === NONE_ARM.name ? {} : { arm: { name: arm.name, extensions: arm.extensions, definitions: armDefinitions.count } }),
+    ...(arm.name === NONE_ARM.name ? {} : {
+      arm: { name: arm.name, extensions: arm.extensions, definitions: armDefinitions.count, ledger_events: countLedgerEvents(runDir) },
+    }),
   }, ctx);
   if (ctx) {
     const g = results.effective_grade;
@@ -331,7 +363,13 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
           const r = await runSeeded(scenario, {
             skillDir: ctx.skillDir, adapter: ctx.adapter, model: ctx.model, mode, cwd: ws.cwd,
             specDir: dirname(ctx.specPath), // assert.post_test resolves like a fixture
-            trace: scenario.traceAssert || scenario.trajectoryAssert ? { scenarioId: scenario.id, rep } : undefined,
+            // `ctx.structured` (a bare `--structured` request, with no gate depending
+            // on it) must route through the structured path here too, exactly as it
+            // does for the non-seeded branch below — without it, `--structured` on a
+            // `mode: seeded` scenario silently called the adapter's plain `run()` and
+            // recorded zero subject tokens/cost, which is the one thing the flag exists
+            // to capture.
+            trace: (ctx.structured || scenario.traceAssert || scenario.trajectoryAssert) ? { scenarioId: scenario.id, rep } : undefined,
             // `runSeeded` merges these with `scenario.extensions` itself when it
             // builds the RunReq — the arm's extensions and env (with `<run-dir>`
             // already substituted) both must reach pi.
