@@ -34,6 +34,37 @@ function corpus(): { root: string; dir: string; specPath: string } {
   return { root, dir, specPath };
 }
 
+/** A `mode: seeded` corpus: one scenario with a fixture, no gates declared. */
+function seededCorpus(): { root: string; dir: string; specPath: string } {
+  const root = mkdtempSync(join(tmpdir(), "sh-armrun-seeded-"));
+  const dir = join(root, "golden");
+  mkdirSync(join(dir, "tests", "fixtures", "S1"), { recursive: true });
+  mkdirSync(join(root, "agents"), { recursive: true });
+  for (const n of ["plan", "review"]) {
+    writeFileSync(join(root, "agents", `${n}.md`), `---\nname: ${n}\ntools: read\n---\n\nbody\n`, "utf8");
+  }
+  writeFileSync(join(dir, "SKILL.md"), "---\nname: golden\n---\n\n## Fix\nFix it.\n", "utf8");
+  writeFileSync(join(dir, "tests", "fixtures", "S1", "seed.ts"), "export const a = 1;\n", "utf8");
+  const specPath = join(dir, "tests", "specification.yaml");
+  writeFileSync(
+    specPath,
+    [
+      "skill: golden",
+      "judge_persona: a friendly reviewer",
+      "ship_bar: { total: 1, min_pass: 1, no_critical_fail: true }",
+      "scenarios:",
+      "  - id: S1",
+      "    title: fixes it",
+      "    mode: seeded",
+      "    fixture: fixtures/S1",
+      "    turns: ['fix it']",
+      "    checklist: ['fixes it']",
+    ].join("\n") + "\n",
+    "utf8",
+  );
+  return { root, dir, specPath };
+}
+
 function recordingAdapter(): {
   adapter: HarnessAdapter;
   reqs: RunReq[];
@@ -125,5 +156,42 @@ describe("an arm reaches the subject and the record", () => {
     expect(summary.results.arm).toBeUndefined();
     expect(reqs[0].armEnv).toBeUndefined();
     expect(piDirAtCallTime[0]).toBe(false);
+  });
+});
+
+describe("an arm reaches a seeded scenario's subject", () => {
+  it("merges the arm's extensions into a seeded scenario's request, with <run-dir> substituted", async () => {
+    const { root, dir, specPath } = seededCorpus();
+    const { adapter, reqs } = recordingAdapter();
+    const ambient = mkdtempSync(join(tmpdir(), "sh-ambient-seeded-"));
+    const summary = await runSkillModel({
+      spec: loadSpec(specPath),
+      skillDir: dir,
+      specPath,
+      adapter,
+      model: { provider: "openai-codex", model: "gpt-5.6-sol:medium" },
+      modelToken: "openai-codex:gpt-5.6-sol:medium",
+      judge: { provider: "claude-code", model: "claude-opus-4-8" },
+      mode: "force",
+      timestamp: "2026-08-22T00:00:00.000Z",
+      arm: ARM(root),
+      skillsRoot: root,
+      ambientSkillsDir: ambient,
+    });
+
+    expect(summary.runDir).toContain("+pi-daddy");
+    expect(summary.results.arm).toEqual({
+      name: "pi-daddy",
+      extensions: [join(root, "agents", "plan.md")],
+      definitions: 2,
+    });
+
+    // A seeded scenario declares no `env.extensions` of its own here, so
+    // anything in `req.extensions` had to come from the arm — this would be
+    // `[]` if the arm's contribution never reached `runSeeded`'s request.
+    const req = reqs[0];
+    expect(req.extensions).toEqual([join(root, "agents", "plan.md")]);
+    expect(req.armEnv!.PI_GRANTS_LEDGER).toBe(join(summary.runDir, "pi-daddy.ledger.jsonl"));
+    expect(req.armEnv!.PI_GRANTS_GRANT).toBe("tool:read");
   });
 });

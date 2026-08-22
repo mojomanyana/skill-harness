@@ -332,12 +332,10 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
             skillDir: ctx.skillDir, adapter: ctx.adapter, model: ctx.model, mode, cwd: ws.cwd,
             specDir: dirname(ctx.specPath), // assert.post_test resolves like a fixture
             trace: scenario.traceAssert || scenario.trajectoryAssert ? { scenarioId: scenario.id, rep } : undefined,
-            // The arm's extensions join whatever the scenario itself declares —
-            // both must reach pi — and its env (with `<run-dir>` substituted).
-            extensions: [
-              ...(scenario.extensions?.map((e) => resolve(dirname(ctx.specPath), e)) ?? []),
-              ...arm.extensions,
-            ],
+            // `runSeeded` merges these with `scenario.extensions` itself when it
+            // builds the RunReq — the arm's extensions and env (with `<run-dir>`
+            // already substituted) both must reach pi.
+            armExtensions: arm.extensions,
             ...(armEnv ? { armEnv } : {}),
           });
           transcript = r.transcript;
