@@ -10,7 +10,7 @@ vi.mock("@skill-harness/core", async (importOriginal) => {
 });
 
 import { piAdapter } from "../src/pi.js";
-import { exec, PROVIDER_FAILURE_MARKER } from "@skill-harness/core";
+import { exec, PROVIDER_FAILURE_MARKER, providerFailureFromTranscript } from "@skill-harness/core";
 
 const mockedExec = vi.mocked(exec);
 
@@ -213,6 +213,10 @@ describe("provider failure in text mode", () => {
     });
     expect(transcript).toContain(PROVIDER_FAILURE_MARKER);
     expect(transcript).toContain("invalidated oauth token");
+    // The contract is the round trip, not the substring: the marker only counts
+    // as evidence when it lands in the preamble, ahead of the first `>>> ` turn
+    // header, which is the one region a model's own text can never occupy.
+    expect(providerFailureFromTranscript(transcript)).toContain("invalidated oauth token");
   });
 
   it("leaves an ordinary non-zero exit unmarked", async () => {
@@ -225,6 +229,7 @@ describe("provider failure in text mode", () => {
       cwd: "/tmp",
     });
     expect(transcript).not.toContain(PROVIDER_FAILURE_MARKER);
+    expect(providerFailureFromTranscript(transcript)).toBeNull();
     expect(transcript).toContain("[pi exited 2]");
   });
 });

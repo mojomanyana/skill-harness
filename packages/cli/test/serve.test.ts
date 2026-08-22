@@ -197,6 +197,10 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
       judge: { provider: "claude-code", model: "opus" },
       timestamp: "2026-07-03T00:00:00Z", label: null, mode: "force",
       source_hashes: { "SKILL.md": "abc" },
+      arm: {
+        name: "pi-daddy", extensions: ["/opt/pi-daddy/ext/grants.ts"],
+        definitions: 6, ledger_events: 12, env: { PI_GRANTS_MAX_DEPTH: "1" },
+      },
       scenarios: [{ id: "A1", judge_verdict: "FAIL", judge_reason: "old", suspect: false, override: null, note: "" }],
     }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
 
@@ -266,6 +270,13 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
     // Provenance and the staleness gate survive a UI re-judge.
     expect(after.harness_cli_version).toBe("0.83.0");
     expect(after.source_hashes).toEqual({ "SKILL.md": "abc" });
+    // …and so does the arm record. It is the only proof this `+pi-daddy` run
+    // actually delegated (the ledger it counts is gitignored), and re-judging
+    // from the UI was silently deleting it.
+    expect(after.arm).toEqual({
+      name: "pi-daddy", extensions: ["/opt/pi-daddy/ext/grants.ts"],
+      definitions: 6, ledger_events: 12, env: { PI_GRANTS_MAX_DEPTH: "1" },
+    });
   });
 });
 

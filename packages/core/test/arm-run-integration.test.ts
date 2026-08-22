@@ -129,6 +129,13 @@ describe("an arm reaches the subject and the record", () => {
       extensions: [join(root, "agents", "plan.md")],
       definitions: 2,
       ledger_events: 0, // I4: reportable outcome (no ledger written), not an absent field
+      // The env IS the condition (grant, max depth), so it is part of the record —
+      // without it two runs at different settings are byte-identical here and in
+      // the same `+pi-daddy` tag, and `stability` reads the difference between two
+      // conditions as one lineage flipping. Recorded as DECLARED: the substituted
+      // form carries this run's temp path, which would make one condition look
+      // like a new one on every run.
+      env: { PI_GRANTS_GRANT: "tool:read", PI_GRANTS_LEDGER: "<run-dir>/pi-daddy.ledger.jsonl" },
     });
 
     const req = reqs[0];
@@ -186,6 +193,13 @@ describe("an arm reaches a seeded scenario's subject", () => {
       extensions: [join(root, "agents", "plan.md")],
       definitions: 2,
       ledger_events: 0, // I4: reportable outcome (no ledger written), not an absent field
+      // The env IS the condition (grant, max depth), so it is part of the record —
+      // without it two runs at different settings are byte-identical here and in
+      // the same `+pi-daddy` tag, and `stability` reads the difference between two
+      // conditions as one lineage flipping. Recorded as DECLARED: the substituted
+      // form carries this run's temp path, which would make one condition look
+      // like a new one on every run.
+      env: { PI_GRANTS_GRANT: "tool:read", PI_GRANTS_LEDGER: "<run-dir>/pi-daddy.ledger.jsonl" },
     });
 
     // A seeded scenario declares no `env.extensions` of its own here, so

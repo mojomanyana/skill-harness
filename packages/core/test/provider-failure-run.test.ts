@@ -38,7 +38,7 @@ function textFailAdapter(): { adapter: HarnessAdapter; judgeCalls: () => number 
   const adapter: HarnessAdapter = {
     name: "fake",
     available: async () => true,
-    run: async () => `>>> USER:\nhi\n\n<<< ASSISTANT:\n\n${PROVIDER_FAILURE_MARKER} openai-codex: invalidated oauth token\n`,
+    run: async () => `${PROVIDER_FAILURE_MARKER} openai-codex: invalidated oauth token\n\n>>> USER:\nhi\n\n<<< ASSISTANT:\n\n`,
     judge: async () => {
       judgeCalls += 1;
       return "VERDICT: PASS\n1. PASS";

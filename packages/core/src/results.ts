@@ -191,8 +191,20 @@ export interface ResultsFile {
    * count here a vacuous arm run (extension loaded, nothing ever delegated)
    * commits a record indistinguishable from one that actually exercised
    * delegation. 0 is a reportable outcome, not an absent field.
+   *
+   * `env` is the arm's declared env for the subject process (`PI_GRANTS_GRANT`,
+   * `PI_GRANTS_MAX_DEPTH`, …) — recorded because it IS the experimental
+   * condition, not decoration around it. Without it, changing `PI_GRANTS_MAX_DEPTH`
+   * from 1 to 3 and re-running lands both runs in the same `+<arm>` tag with
+   * byte-identical `arm` records, and `stability` reads a verdict flip between two
+   * different conditions as one lineage being bimodal — the exact misreading the
+   * tag placement exists to prevent. Recorded as DECLARED, with `<run-dir>`
+   * unsubstituted: the substituted form differs every run for the same condition,
+   * which would make two identical conditions look like two.
+   *
+   * Optional only for records written before it was added; every writer emits it.
    */
-  arm?: { name: string; extensions: string[]; definitions: number; ledger_events: number };
+  arm?: { name: string; extensions: string[]; definitions: number; ledger_events: number; env?: Record<string, string> };
   /** True for an `--only`-filtered run: a scenario subset, never ship-graded, never a release run. */
   partial?: boolean;
   /**

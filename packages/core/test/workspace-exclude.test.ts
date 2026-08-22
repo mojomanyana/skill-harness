@@ -71,6 +71,23 @@ describe("workspace git excludes tooling droppings from the captured diff", () =
     }
   });
 
+  // The scope of C1, from the other side: only `.pi/skills/` is the harness's
+  // writing. A scenario whose whole point is that the model authors a pi agent
+  // definition must still be able to assert on the file it wrote. Mutation:
+  // widening TOOL_ARTIFACTS back to `.pi/` makes this fail.
+  test("model writes elsewhere under .pi/ are NOT excluded", () => {
+    const ws = createWorkspace({ fixture: fixture() }, { specDir: "/" });
+    try {
+      mkdirSync(join(ws.cwd, ".pi", "agent"), { recursive: true });
+      writeFileSync(join(ws.cwd, ".pi", "agent", "authored.md"), "---\nname: y\n---\n\nbody\n", "utf8");
+
+      const diff = stagedDiff(ws.cwd);
+      expect(diff).toContain(".pi/agent/authored.md");
+    } finally {
+      ws.cleanup();
+    }
+  });
+
   test("coverage output is excluded too", () => {
     const ws = createWorkspace({ fixture: fixture() }, { specDir: "/" });
     try {

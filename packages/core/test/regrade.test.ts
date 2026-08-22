@@ -151,7 +151,7 @@ describe("judgeOneRep", () => {
       name: "pi", available: async () => true, run: async () => "",
       judge: async (_: JudgeReq) => { judgeCalls += 1; return "1. PASS — ok\nVERDICT: PASS\nREASON: fine"; },
     };
-    const transcript = `>>> USER:\nhi\n\n<<< ASSISTANT:\n\n${PROVIDER_FAILURE_MARKER} openai-codex: invalidated oauth token\n`;
+    const transcript = `${PROVIDER_FAILURE_MARKER} openai-codex: invalidated oauth token\n\n>>> USER:\nhi\n\n<<< ASSISTANT:\n\n`;
 
     const o = await judgeOneRep({
       runDir, spec, scenario: spec.scenarios[0], transcript,

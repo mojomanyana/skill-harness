@@ -363,6 +363,13 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
     skill: prev.skill, harness: prev.harness, model: prev.model,
     // Carried verbatim: a regate re-reads saved diffs, it never re-runs the harness.
     harness_cli_version: prev.harness_cli_version, delivery_canary: prev.delivery_canary,
+    // The arm is provenance of the MEASUREMENT, not of this rewrite, and it is the
+    // only record that a `+<arm>` run actually delegated: rebuilding the draft
+    // field-by-field without it silently deleted `definitions`/`ledger_events`
+    // from any arm run that was ever re-graded, leaving a record
+    // indistinguishable from a vacuous arm. Same reason `harness_cli_version`,
+    // `delivery_canary` and `source_hashes` are carried here.
+    arm: prev.arm,
     judge: { provider: opts.judge.provider, model: opts.judge.model },
     timestamp: prev.timestamp, label: prev.label, mode: prev.mode, partial: prev.partial,
     // Only the `gates:` keys of the scenarios actually re-evaluated. Stimulus, rubric

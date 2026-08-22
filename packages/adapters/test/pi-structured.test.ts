@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PROVIDER_FAILURE_MARKER } from "@skill-harness/core";
+import { PROVIDER_FAILURE_MARKER, providerFailureFromTranscript } from "@skill-harness/core";
 import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -142,10 +142,14 @@ describe("piAdapter.runStructured", () => {
   // `.txt` had no way to recover the evidence: the marker regrade.ts now looks
   // for simply was not there.
   //
-  // Mutation: deleting the `parts.push(\`${PROVIDER_FAILURE_MARKER} ...\`)` line
-  // in pi.ts's runStructured (right after `providerFailure = r.providerFailure`)
-  // makes this test's `toContain(PROVIDER_FAILURE_MARKER)` assertion fail even
-  // though `result.providerFailure` itself is still set correctly.
+  // Mutation: deleting the `withProviderFailure(...)` wrapper around the returned
+  // transcript in pi.ts's runStructured makes this test fail even though
+  // `result.providerFailure` itself is still set correctly.
+  //
+  // The failure here is injected on turn TWO on purpose. Written inline it landed
+  // after turn one's assistant section — indistinguishable, to any reader, from
+  // text the model produced. `withProviderFailure` hoists it to the preamble, so
+  // `providerFailureFromTranscript` can recover it without trusting model output.
   it("writes the provider-failure marker into the transcript, not just the returned field", async () => {
     const providerFailureLine = JSON.stringify({
       type: "message_start",
@@ -169,5 +173,7 @@ describe("piAdapter.runStructured", () => {
     expect(result.transcript).toContain(PROVIDER_FAILURE_MARKER);
     expect(result.transcript).toContain("openai-codex");
     expect(result.transcript).toContain("WebSocket error");
+    // Recoverable from the saved artifact alone — that is what a later re-grade has.
+    expect(providerFailureFromTranscript(result.transcript)).toContain("WebSocket error");
   });
 });

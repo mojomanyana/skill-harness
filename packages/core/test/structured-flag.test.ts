@@ -208,4 +208,83 @@ describe("--structured on a mode: seeded scenario with no trace/trajectory asser
     expect(plainCalls()).toBe(1);
     expect(summary.results.scenarios[0].metrics?.input_tokens).toBeUndefined();
   });
+
+  // The two branches degraded ASYMMETRICALLY. The non-seeded branch fell back to
+  // `adapter.run()` when the adapter had no `runStructured`; the seeded branch
+  // passed `trace: {...}` unconditionally, and `runSeeded` then threw
+  // ``scenario `S1` declares `assert.trace`…`` at a scenario that declares no
+  // such thing — a message that is not merely unhelpful but false.
+  //
+  // Mutation: reverting run.ts's seeded `trace:` back to keying off
+  // `ctx.structured || ...` instead of `useStructured` makes this throw.
+  it("degrades to the plain path when the adapter cannot produce traces, and says nothing about assert.trace", async () => {
+    const { dir, specPath } = seededCorpusNoGate();
+    let plainCalls = 0;
+    const noStructured: HarnessAdapter = {
+      name: "fake",
+      available: async () => true,
+      run: async () => { plainCalls += 1; return ">>> USER:\nx\n\n<<< ASSISTANT:\ndone\n"; },
+      judge: async () => "VERDICT: PASS\n1. PASS",
+      version: async () => "0.84.2",
+    };
+    const summary = await runSkillModel({
+      spec: loadSpec(specPath),
+      skillDir: dir,
+      specPath,
+      adapter: noStructured,
+      model: { provider: "fireworks", model: "x" },
+      modelToken: "fireworks:x",
+      judge: { provider: "claude-code", model: "j" },
+      mode: "green",
+      timestamp: "2026-08-22T00:00:00.000Z",
+      structured: true,
+    });
+    expect(plainCalls).toBe(1);
+    expect(summary.results.scenarios[0].judge_verdict).toBe("PASS");
+  });
+
+  // The other half of the same decision, unchanged: a scenario that genuinely
+  // declares structured assertions must still ERROR rather than fall back, or a
+  // gate with no evidence to read would look like a gate that passed.
+  it("still refuses when a scenario really does declare structured assertions", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sh-structured-gated-"));
+    mkdirSync(join(root, "tests"), { recursive: true });
+    writeFileSync(join(root, "SKILL.md"), "---\nname: demo\ndescription: d\n---\n\n## Do it\n", "utf8");
+    const gatedSpec = join(root, "tests", "specification.yaml");
+    writeFileSync(
+      gatedSpec,
+      [
+        "skill: demo",
+        "judge_persona: a strict reviewer",
+        "ship_bar: { total: 1, min_pass: 1, no_critical_fail: true }",
+        "scenarios:",
+        "  - id: A1",
+        "    title: does it",
+        "    turns: ['do it']",
+        "    checklist: ['did it']",
+        "    assert:",
+        "      trace:",
+        "        forbid_calls: [write]",
+      ].join("\n") + "\n",
+      "utf8",
+    );
+    const noStructured: HarnessAdapter = {
+      name: "fake",
+      available: async () => true,
+      run: async () => ">>> USER:\nx\n\n<<< ASSISTANT:\ndone\n",
+      judge: async () => "VERDICT: PASS\n1. PASS",
+      version: async () => "0.84.2",
+    };
+    await expect(runSkillModel({
+      spec: loadSpec(gatedSpec),
+      skillDir: root,
+      specPath: gatedSpec,
+      adapter: noStructured,
+      model: { provider: "fireworks", model: "x" },
+      modelToken: "fireworks:x",
+      judge: { provider: "claude-code", model: "j" },
+      mode: "green",
+      timestamp: "2026-08-22T00:00:00.000Z",
+    })).rejects.toThrow(/cannot produce execution traces/);
+  });
 });

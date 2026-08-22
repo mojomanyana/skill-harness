@@ -38,7 +38,10 @@ export type JournalEvent =
   | { event: "adjudication"; ts: string; triggered: string[]; judge_calls: number; unresolved: string[] }
   | { event: "judge-verdict"; ts: string; id: string; verdict: Verdict; reason: string; suspect: boolean; rep?: number }
   | { event: "misfire-flag"; ts: string; id: string; reason: string; rep?: number }
-  | { event: "empty-response-retry"; ts: string; id: string; attempt: number; rep?: number }
+  // `reason` distinguishes the two events that take this retry: a blank assistant
+  // turn, and an adapter that threw. They are the same remedy but not the same
+  // incident, and the journal is where that is recoverable after the fact.
+  | { event: "empty-response-retry"; ts: string; id: string; attempt: number; reason?: string; rep?: number }
   | { event: "rescore"; ts: string; changed: string[]; passed: number; total: number; pct: number; ship: boolean }
   /**
    * A regate: needle gates re-evaluated against the saved staged diffs. `judge_calls`

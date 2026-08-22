@@ -41,9 +41,22 @@ describe("loadArms", () => {
     expect(arm.env.PI_GRANTS_GRANT).toBe("tool:read");
   });
 
-  it("refuses an extension path that does not exist", () => {
+  it("does NOT refuse a missing extension path — that is resolveArm's job", () => {
+    // `loadArms` reads EVERY declared arm. Validating all of their paths made one
+    // arm's machine-specific extension (the corpus's real `arms.yaml` points at a
+    // checkout that exists on one box) break `--arm <any-other-arm>` on every
+    // other machine — a refusal about an arm the caller never selected.
     const root = corpus(() => "arms:\n  - name: a\n    extensions: [/nope/missing.ts]\n");
-    expect(() => loadArms(root)).toThrow(/\/nope\/missing\.ts/);
+    expect(loadArms(root).get("a")!.extensions).toEqual(["/nope/missing.ts"]);
+  });
+
+  it("refuses a require_definitions that is not a non-negative integer", () => {
+    // Mutation: restoring `Number(x ?? 0) || 0` makes this pass silently with 0,
+    // which disables the refusal `require_definitions` exists to make.
+    for (const bad of ["six", "-1", "2.5"]) {
+      const root = corpus(() => `arms:\n  - name: a\n    require_definitions: ${bad}\n`);
+      expect(() => loadArms(root)).toThrow(/require_definitions/);
+    }
   });
 
   it("refuses two arms with the same name", () => {
@@ -105,6 +118,18 @@ describe("resolveArm", () => {
     const root = corpus(VALID);
     expect(() => resolveArm(root, "typo")).toThrow(/pi-daddy/);
   });
+
+  it("refuses a missing extension path on the SELECTED arm", () => {
+    const root = corpus(() => "arms:\n  - name: a\n    extensions: [/nope/missing.ts]\n");
+    expect(() => resolveArm(root, "a")).toThrow(/\/nope\/missing\.ts/);
+  });
+
+  it("ignores a missing extension path on an arm that was not selected", () => {
+    // The regression this pair exists for: an unrelated arm's unresolvable path
+    // must not decide whether the selected arm can run.
+    const root = corpus((r) => `arms:\n  - name: broken\n    extensions: [/nope/missing.ts]\n  - name: ok\n    extensions: [${r}/ext/grants.ts]\n`);
+    expect(resolveArm(root, "ok").name).toBe("ok");
+  });
 });
 
 describe("loadArms — path expansion", () => {
@@ -117,9 +142,13 @@ describe("loadArms — path expansion", () => {
     const root = corpus(() => `arms:\n  - name: a\n    extensions: [~/${missing}]\n`);
     const expandedAbs = join(homedir(), missing);
 
+    // Expansion is observable on the loaded arm; the missing-path refusal that
+    // used to carry the evidence now lives in `resolveArm`, so both are checked.
+    expect(loadArms(root).get("a")!.extensions).toEqual([expandedAbs]);
+
     let thrown: Error | undefined;
     try {
-      loadArms(root);
+      resolveArm(root, "a");
     } catch (e) {
       thrown = e as Error;
     }
@@ -259,6 +288,55 @@ describe("seedArmDefinitions", () => {
     // `.pi/skills/` is created before the per-entry escape check runs, so it may
     // exist — what matters is that nothing from outside the root landed in it.
     expect(readdirSync(join(ws, ".pi", "skills"))).toEqual([]);
+  });
+
+  // Safety fix: the same escape written as a SYMLINK. `resolve()` is lexical, so
+  // `<root>/link` "is inside" the root no matter where the link points, and the
+  // containment guarantee held for `../..` but not for its equivalent as a link.
+  // Mutation: reverting `realpathOr(...)` to `resolve(...)` on either side of the
+  // comparison makes this test's `toThrow` fail — the outside definitions would
+  // be seeded.
+  it("refuses a seed_skills entry that escapes the skills root via a symlink (safety)", () => {
+    const outside = mkdtempSync(join(tmpdir(), "sh-outside-"));
+    writeFileSync(join(outside, "smuggled.md"), "---\nname: smuggled\n---\n", "utf8");
+    const root = corpusWithAgents(1);
+    symlinkSync(outside, join(root, "linked"), "dir");
+    const ws = mkdtempSync(join(tmpdir(), "sh-ws-"));
+    expect(() =>
+      seedArmDefinitions(armWith({ seedSkills: ["linked"] }), root, ws, { ambientSkillsDir: emptyAmbient() }),
+    ).toThrow(/outside the skills root/);
+    expect(readdirSync(join(ws, ".pi", "skills"))).toEqual([]);
+  });
+
+  // `dest` is one FLAT directory, so two seed entries shipping the same basename
+  // both write the same file — the second overwrites the first. Counting copies
+  // let `require_definitions: 4` be satisfied by 4 copies that left 2 files on
+  // disk, reaching the vacuous arm through the very refusal meant to prevent it.
+  // Mutation: restoring `count += 1` per copy makes this test's `toThrow` fail
+  // and the count assertion below read 4 instead of 2.
+  it("refuses two seed_skills entries that collide on a basename (safety)", () => {
+    const root = mkdtempSync(join(tmpdir(), "sh-collide-"));
+    for (const dir of ["agents", "extra"]) {
+      mkdirSync(join(root, dir), { recursive: true });
+      writeFileSync(join(root, dir, "review.md"), `---\nname: review\n---\nfrom ${dir}\n`, "utf8");
+      writeFileSync(join(root, dir, `${dir}-only.md`), "---\nname: x\n---\n", "utf8");
+    }
+    const ws = mkdtempSync(join(tmpdir(), "sh-ws-"));
+    expect(() =>
+      seedArmDefinitions(armWith({ seedSkills: ["agents", "extra"], requireDefinitions: 4 }), root, ws, {
+        ambientSkillsDir: emptyAmbient(),
+      }),
+    ).toThrow(/both provide `review\.md`/);
+  });
+
+  it("counts distinct definitions on disk, not copies made", () => {
+    const root = corpusWithAgents(3);
+    const ws = mkdtempSync(join(tmpdir(), "sh-ws-"));
+    const n = seedArmDefinitions(armWith({ seedSkills: ["agents"], requireDefinitions: 3 }), root, ws, {
+      ambientSkillsDir: emptyAmbient(),
+    });
+    expect(n).toBe(readdirSync(join(ws, ".pi", "skills")).length);
+    expect(n).toBe(3);
   });
 
   // Safety fix: a dangling symlink inside a seed directory used to throw

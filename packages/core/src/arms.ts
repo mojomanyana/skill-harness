@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve, sep } from "node:path";
 import yaml from "js-yaml";
@@ -43,6 +43,44 @@ function expandHome(p: string): string {
   return p === "~" || p.startsWith("~/") ? join(homedir(), p.slice(1)) : p;
 }
 
+/**
+ * `realpathSync(p)`, or `p` when it cannot be resolved.
+ *
+ * A path that does not exist has no real path, and refusing here would replace
+ * the two callers' specific messages ("outside the skills root", "cannot be read
+ * — pi would start with nothing to spawn") with a bare ENOENT. The lexical path
+ * is the strictly safer fallback for the containment check: an absent path
+ * cannot be a symlink out of the corpus.
+ */
+function realpathOr(p: string): string {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
+}
+
+/**
+ * `require_definitions`, refusing anything that is not a non-negative integer.
+ *
+ * A tolerant `Number(x) || 0` reads `require_definitions: six` (and any value
+ * YAML hands over as a string) as 0, which does not disable a typo — it disables
+ * the REFUSAL the key exists to make, so an arm that seeds nothing runs green and
+ * measures nothing. The one failure mode this key defends against is the one a
+ * silent default reintroduces.
+ */
+function parseRequireDefinitions(file: string, name: string, raw: unknown): number {
+  if (raw === undefined || raw === null) return 0;
+  const n = typeof raw === "number" ? raw : Number(String(raw).trim());
+  if (!Number.isInteger(n) || n < 0) {
+    throw new Error(
+      `${file}: arm \`${name}\` require_definitions is ${JSON.stringify(raw)} — it must be a non-negative integer, ` +
+        `and a value that silently read as 0 would disable the refusal it exists to make.`,
+    );
+  }
+  return n;
+}
+
 /** `<skills-root>/tests/arms.yaml`, or an empty map when the corpus declares none. */
 export function loadArms(skillsRoot: string): Map<string, Arm> {
   const file = join(skillsRoot, "tests", "arms.yaml");
@@ -60,16 +98,15 @@ export function loadArms(skillsRoot: string): Map<string, Arm> {
     if (RESERVED.has(name)) throw new Error(`${file}: arm name \`${name}\` is reserved for the implicit control`);
     if (out.has(name)) throw new Error(`${file}: two arms are both named \`${name}\``);
 
+    // Resolved here, but NOT existence-checked here: `loadArms` reads every
+    // declared arm, so validating all of them would make one arm's
+    // machine-specific path (the corpus's `pi-daddy` points into a checkout that
+    // exists on one box) fail `--arm <some-other-arm>` — and `resolveArm`'s
+    // "unknown arm" message — for an arm the caller never asked for. The refusal
+    // moved to `resolveArm`, where only the SELECTED arm is checked.
     const extensions = (Array.isArray(entry.extensions) ? entry.extensions : []).map((p) => {
       const expanded = expandHome(String(p));
-      const abs = isAbsolute(expanded) ? expanded : resolve(skillsRoot, expanded);
-      // Same refusal `extensionFlags` makes, made earlier and for the same reason:
-      // pi would start without it and the scenario would silently test an agent
-      // with no delegation tool at all.
-      if (!existsSync(abs)) {
-        throw new Error(`${file}: arm \`${name}\` names extension ${abs}, which does not exist — pi would start without it`);
-      }
-      return abs;
+      return isAbsolute(expanded) ? expanded : resolve(skillsRoot, expanded);
     });
 
     const env: Record<string, string> = {};
@@ -88,7 +125,7 @@ export function loadArms(skillsRoot: string): Map<string, Arm> {
       name,
       extensions,
       seedSkills: (Array.isArray(entry.seed_skills) ? entry.seed_skills : []).map(String),
-      requireDefinitions: Number(entry.require_definitions ?? 0) || 0,
+      requireDefinitions: parseRequireDefinitions(file, name, entry.require_definitions),
       env,
     });
   }
@@ -105,6 +142,14 @@ export function resolveArm(skillsRoot: string, name: string | null): Arm {
     throw new Error(
       `unknown arm \`${name}\` — ${known.length ? `declared arms: ${known.join(", ")}` : `no arms declared in ${join(skillsRoot, "tests", "arms.yaml")}`}`,
     );
+  }
+  // Same refusal `extensionFlags` makes, made earlier and for the same reason:
+  // pi accepts a missing `--extension` path by starting without it, so the
+  // scenario would silently test an agent with no delegation tool at all.
+  for (const abs of arm.extensions) {
+    if (!existsSync(abs)) {
+      throw new Error(`arm \`${arm.name}\` names extension ${abs}, which does not exist — pi would start without it`);
+    }
   }
   return arm;
 }
@@ -193,10 +238,15 @@ export function seedArmDefinitions(
   const dest = join(workspaceCwd, ".pi", "skills");
   mkdirSync(dest, { recursive: true });
 
-  const resolvedRoot = resolve(skillsRoot);
-  let count = 0;
+  // `realpathSync` and not `resolve`: `resolve` is pure lexical arithmetic on the
+  // path string, so a `seed_skills` entry naming a SYMLINK inside the corpus that
+  // points outside it passes a `startsWith` check on the lexical path and seeds
+  // from outside the corpus anyway — the containment guarantee held for `../..`
+  // and not for the equivalent written as a link.
+  const resolvedRoot = realpathOr(resolve(skillsRoot));
+  const seen = new Set<string>();
   for (const rel of arm.seedSkills) {
-    const src = resolve(skillsRoot, rel);
+    const src = realpathOr(resolve(skillsRoot, rel));
     // `seed_skills` entries are meant to name directories WITHIN the corpus —
     // `resolve(skillsRoot, "../..")` is accepted by `resolve()` without complaint,
     // and would seed the workspace from whatever happens to sit outside the
@@ -227,11 +277,27 @@ export function seedArmDefinitions(
         );
       }
       if (!isFile) continue;
+      // `dest` is ONE flat directory, so two seed dirs shipping the same basename
+      // resolve to the same destination path: the second copy silently overwrites
+      // the first. Counting copies rather than files then lets `require_definitions:
+      // 6` be satisfied by 6 copies that left 3 files on disk — the vacuous arm the
+      // refusal exists to prevent, reached through the refusal itself. Refused,
+      // because the alternative is that whichever entry is listed last wins and
+      // nothing says so.
+      if (seen.has(name)) {
+        throw new Error(
+          `arm \`${arm.name}\`: two seed_skills entries both provide \`${name}\` (latest: ${from}) — ` +
+            `they are copied into the one flat directory ${dest}, so one would silently overwrite the other. ` +
+            `Rename one, or drop the duplicate entry.`,
+        );
+      }
+      seen.add(name);
       copyFileSync(from, join(dest, name));
-      count += 1;
     }
   }
 
+  // Distinct definitions ON DISK, which is what pi-daddy can actually spawn.
+  const count = seen.size;
   if (count < arm.requireDefinitions) {
     throw new Error(
       `arm \`${arm.name}\`: seeded ${count} definition(s) into ${dest} but require_definitions is ${arm.requireDefinitions} — ` +

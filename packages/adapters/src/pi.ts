@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import type { HarnessAdapter, RunReq, JudgeReq, RunMode, StructuredRun, ExecutionTraceV1 } from "@skill-harness/core";
 import { runPiJson } from "./pi-json.js";
 import { collectTrajectorySources, normalizePiTraces, resequence } from "./trajectory.js";
-import { exec, onPath, envNum, traceSha256, PROVIDER_FAILURE_MARKER } from "@skill-harness/core";
+import { exec, onPath, envNum, traceSha256, withProviderFailure } from "@skill-harness/core";
 
 const PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 300_000);
 
@@ -161,18 +161,23 @@ export const piAdapter: HarnessAdapter = {
     // normally and the control arm is unaffected.
     const env = req.armEnv ? { ...process.env, ...req.armEnv } : undefined;
 
+    // Collected across turns and written by `withProviderFailure` into the
+    // transcript PREAMBLE at the end, never inline after an assistant turn: the
+    // preamble is the only region of the transcript the model provably cannot
+    // reach, and a marker anywhere else is forgeable by a model that types the
+    // words (which would convert a FAIL into ERROR and mute the judge forever).
+    let providerFailure: string | null = null;
+
     if (total === 1) {
       const args = [...flags, ...common, "--no-session", "-p", req.turns[0]];
       const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env });
       parts.push(header(1, 1, req.turns[0]));
       parts.push(`<<< ASSISTANT:\n${r.stdout.trim()}\n`);
       if (r.code !== 0) {
-        const provider = providerStderr(r.stderr);
-        parts.push(provider
-          ? `${PROVIDER_FAILURE_MARKER} ${provider}\n`
-          : `[pi exited ${r.code}]\n${r.stderr.trim()}\n`);
+        providerFailure = providerStderr(r.stderr);
+        if (!providerFailure) parts.push(`[pi exited ${r.code}]\n${r.stderr.trim()}\n`);
       }
-      return parts.join("\n");
+      return withProviderFailure(parts.join("\n"), providerFailure);
     }
 
     const session = mkdtempSync(join(tmpdir(), "sc-pi-session-"));
@@ -184,12 +189,13 @@ export const piAdapter: HarnessAdapter = {
       parts.push(`<<< ASSISTANT:\n${r.stdout.trim()}\n`);
       if (r.code !== 0) {
         const provider = providerStderr(r.stderr);
-        parts.push(provider
-          ? `${PROVIDER_FAILURE_MARKER} ${provider}\n`
-          : `[pi exited ${r.code} on turn ${i + 1}]\n${r.stderr.trim()}\n`);
+        // First failure wins, same as the structured path: the turns after an
+        // outage are downstream of it, not independent evidence.
+        if (provider && providerFailure === null) providerFailure = provider;
+        if (!provider) parts.push(`[pi exited ${r.code} on turn ${i + 1}]\n${r.stderr.trim()}\n`);
       }
     }
-    return parts.join("\n");
+    return withProviderFailure(parts.join("\n"), providerFailure);
   },
 
   /**
@@ -267,15 +273,13 @@ export const piAdapter: HarnessAdapter = {
         r.trace.capture_errors = [`pi JSONL contained ${r.malformedLines} malformed line(s); absence-based trace assertions are unsafe`];
         r.trace.trace_sha256 = traceSha256(r.trace);
       }
-      if (providerFailure === null && r.providerFailure) {
-        providerFailure = r.providerFailure;
-        // Written into the transcript, not just returned on `providerFailure`: the
-        // artifact on disk is the only thing a later `grade`/`regrade` call ever
-        // reads (see `judgeOneRep` in core/regrade.ts), and until this line the
-        // structured path exited 0 while carrying the evidence ONLY in a field
-        // that a re-judge never sees — unrecoverable from the saved transcript.
-        parts.push(`${PROVIDER_FAILURE_MARKER} ${providerFailure}\n`);
-      }
+      // Recorded here, written into the transcript preamble by
+      // `withProviderFailure` below — not just returned on `providerFailure`: the
+      // artifact on disk is the only thing a later `grade`/`regrade` call ever
+      // reads (see `judgeOneRep` in core/regrade.ts), and the structured path
+      // exits 0 while carrying the evidence, so a field a re-judge never sees
+      // leaves it unrecoverable from the saved transcript.
+      if (providerFailure === null && r.providerFailure) providerFailure = r.providerFailure;
       traces.push(r.trace);
       parts.push(header(i + 1, total, req.turns[i]));
       parts.push(`<<< ASSISTANT:\n${r.trace.final_text.trim()}\n`);
@@ -300,7 +304,7 @@ export const piAdapter: HarnessAdapter = {
     }
     const eventErrors = [...native.errors, ...chronologyErrors];
     return {
-      transcript: parts.join("\n"),
+      transcript: withProviderFailure(parts.join("\n"), providerFailure),
       traces,
       events: resequence(combined),
       ...(eventErrors.length ? { eventErrors } : {}),

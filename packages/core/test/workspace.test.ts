@@ -346,7 +346,7 @@ describe("createWorkspace — local remote (env.remote)", () => {
 // a spurious diff on cleanup, and an `unchanged_paths` gate could see a path it
 // was never meant to police.
 describe("snapshotPaths — SNAPSHOT_SKIP (C1)", () => {
-  test("does not walk into .pi/", () => {
+  test("does not walk into .pi/skills/", () => {
     const src = fixtureDir();
     writeFileSync(join(src, "a.txt"), "1\n", "utf8");
     const ws = createWorkspace({ fixture: src }, { specDir: "/nonexistent" });
@@ -356,6 +356,25 @@ describe("snapshotPaths — SNAPSHOT_SKIP (C1)", () => {
 
     const snapshot = snapshotPaths(ws.cwd, { fixture: src })!;
     expect(snapshot.has("a.txt")).toBe(true);
-    expect([...snapshot.keys()].some((k) => k.startsWith(".pi"))).toBe(false);
+    expect([...snapshot.keys()].some((k) => k.startsWith(".pi/skills"))).toBe(false);
+  });
+
+  // The scope of C1, asserted from the other side. `.pi/skills/` is harness-written;
+  // the rest of `.pi/` is content the model can legitimately be asked to author (the
+  // corpus keeps a `.pi/` at its own root), and skipping all of it would make that
+  // work invisible to `unchanged_paths` — a safety gate passing vacuously on exactly
+  // the files it was pointed at. Mutation: putting `.pi` back in SNAPSHOT_SKIP makes
+  // this fail.
+  test("still sees model writes elsewhere under .pi/", () => {
+    const src = fixtureDir();
+    const ws = createWorkspace({ fixture: src }, { specDir: "/nonexistent" });
+    tmps.push(ws.cwd);
+    mkdirSync(join(ws.cwd, ".pi", "agent"), { recursive: true });
+    writeFileSync(join(ws.cwd, ".pi", "agent", "authored.md"), "---\nname: y\n---\n\nbody\n", "utf8");
+    writeFileSync(join(ws.cwd, ".pi", "config.json"), "{}\n", "utf8");
+
+    const snapshot = snapshotPaths(ws.cwd, { fixture: src })!;
+    expect(snapshot.has(".pi/agent/authored.md")).toBe(true);
+    expect(snapshot.has(".pi/config.json")).toBe(true);
   });
 });

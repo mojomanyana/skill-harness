@@ -113,16 +113,21 @@ function assertKnownMarkers(src: string): void {
  * `diff_excludes` needle can false-fail on a path string — and it pads every diff the
  * judge reads.
  *
- * `.pi/` is the same class from a different writer: `seedArmDefinitions` copies an
- * arm's definitions into `<workspace>/.pi/skills/` for pi-daddy to spawn, and that
- * happens in the same workspace `runSeeded` later runs `git add -A` + `git diff
- * --cached` against. Without this exclusion those seeded `.md` files land in the
- * diff as harness-injected `+` lines — a `diff_contains` needle can match text the
- * model never wrote (a false objective PASS), the judge is shown the seeded
- * definitions as if they were the model's edit, and `.pi/skills/*` reads as a
- * model change for `unchanged_paths`.
+ * `.pi/skills/` is the same class from a different writer: `seedArmDefinitions` copies
+ * an arm's definitions there for pi-daddy to spawn, and that happens in the same
+ * workspace `runSeeded` later runs `git add -A` + `git diff --cached` against.
+ * Without this exclusion those seeded `.md` files land in the diff as
+ * harness-injected `+` lines — a `diff_contains` needle can match text the model
+ * never wrote (a false objective PASS), the judge is shown the seeded definitions
+ * as if they were the model's edit, and `.pi/skills/*` reads as a model change for
+ * `unchanged_paths`.
+ *
+ * `.pi/skills/` and NOT `.pi/`: only that one directory is harness-written. `.pi/`
+ * at large is content the model can legitimately be asked to author, and excluding
+ * all of it would make that work invisible to every gate — including for the
+ * control arm, which seeds nothing.
  */
-const TOOL_ARTIFACTS = ["node_modules/", "coverage/", ".vitest/", ".pi/"];
+const TOOL_ARTIFACTS = ["node_modules/", "coverage/", ".vitest/", ".pi/skills/"];
 
 /**
  * Exclude tool artifacts via `.git/info/exclude`, deliberately not a `.gitignore`.
@@ -248,9 +253,21 @@ export function createWorkspace(kind: WorkspaceKind, opts: { specDir: string; re
  */
 export type PathSnapshot = Map<string, string>;
 
-/** Never the model's work, and never worth hashing. `.pi` mirrors `TOOL_ARTIFACTS` — an
- * arm's seeded definitions, not something the model wrote. */
-const SNAPSHOT_SKIP = new Set([".git", "node_modules", "coverage", ".vitest", ".pi"]);
+/** Never the model's work, and never worth hashing — matched on the entry NAME, at any depth. */
+const SNAPSHOT_SKIP = new Set([".git", "node_modules", "coverage", ".vitest"]);
+
+/**
+ * Skipped by RELATIVE PATH, not by name: `.pi/skills/` is where an arm's seeded
+ * definitions land, and only that directory is the harness's writing.
+ *
+ * Scoped to `skills/` rather than all of `.pi/` on purpose. `.pi/` is also a
+ * perfectly ordinary thing for the model to be asked to write — a skill that
+ * authors pi agent definitions does exactly that, and the corpus keeps a `.pi/`
+ * at its own root — so skipping the whole directory would hide that work from
+ * `unchanged_paths` (a vacuous pass) as well as from `diff_contains` (a false
+ * FAIL), for the control arm too, which seeds nothing at all.
+ */
+const SNAPSHOT_SKIP_RELS = new Set([".pi/skills"]);
 
 /** Snapshot a workspace, or null when there is no workspace to look at. */
 export function snapshotPaths(cwd: string | undefined, kind: WorkspaceKind): PathSnapshot | null {
@@ -266,6 +283,7 @@ export function snapshotPaths(cwd: string | undefined, kind: WorkspaceKind): Pat
     for (const e of entries) {
       if (SNAPSHOT_SKIP.has(e.name)) continue;
       const rel = prefix ? `${prefix}/${e.name}` : e.name;
+      if (SNAPSHOT_SKIP_RELS.has(rel)) continue;
       const abs = join(dir, e.name);
       if (e.isDirectory()) {
         walk(abs, rel);

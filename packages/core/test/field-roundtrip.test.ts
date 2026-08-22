@@ -61,6 +61,21 @@ const ADJUDICATION: AdjudicationResult = {
   ],
 };
 
+/**
+ * The arm record. Every rewriter must carry it verbatim: it is the ONLY evidence
+ * that a `+<arm>` run actually delegated (the pi-daddy ledger it counts is
+ * gitignored), so a rewriter that drops it turns a real delegation run into a
+ * record indistinguishable from a vacuous one — and re-grading is exactly what
+ * you do to a run you care about.
+ */
+const ARM = {
+  name: "pi-daddy",
+  extensions: ["/opt/pi-daddy/ext/grants.ts"],
+  definitions: 6,
+  ledger_events: 12,
+  env: { PI_GRANTS_GRANT: "tool:read", PI_GRANTS_MAX_DEPTH: "1" },
+};
+
 let skillDir: string;
 let runDir: string;
 let specPath: string;
@@ -99,6 +114,7 @@ beforeEach(() => {
     skill: "demo", harness: "pi", model: "fireworks:x",
     judge: { provider: "claude-code", model: "j1" },
     timestamp: "2026-08-08T00-00-00", label: null, mode: "green",
+    arm: ARM,
     scenarios: [{
       id: "A1", judge_verdict: "PASS", judge_reason: "ok", suspect: false,
       override: "PASS", note: "author says fine",
@@ -114,6 +130,10 @@ describe("writeResults / readResults", () => {
     const c = cell();
     expect(c.objective).toEqual(OBJECTIVE);
     expect(c.adjudication).toEqual(ADJUDICATION);
+  });
+
+  it("round-trips the arm record, env included", () => {
+    expect(readResults(runDir).arm).toEqual(ARM);
   });
 });
 
@@ -134,6 +154,13 @@ describe("grade (regradeRun)", () => {
   it("drops `adjudication` deliberately — it described the judgments just replaced", async () => {
     await regradeRun({ runDir, spec: loadSpec(specPath), adapter: judge, judge: { provider: "claude-code", model: "j1" }, specDir: join(skillDir, "tests") });
     expect(cell().adjudication).toBeUndefined();
+  });
+
+  it("carries the arm record forward — a re-judge does not re-run the arm", async () => {
+    // Mutation: deleting `arm: prev?.arm` from regrade.ts makes this fail, and in
+    // production it silently deletes the delivery proof of every arm run graded.
+    await regradeRun({ runDir, spec: loadSpec(specPath), adapter: judge, judge: { provider: "claude-code", model: "j1" }, specDir: join(skillDir, "tests") });
+    expect(readResults(runDir).arm).toEqual(ARM);
   });
 });
 
@@ -158,6 +185,12 @@ describe("regate (regateRun)", () => {
     expect(cell().override).toBe("PASS");
     expect(cell().note).toBe("author says fine");
   });
+
+  it("carries the arm record forward", async () => {
+    writeTrace();
+    await regateRun({ runDir, spec: loadSpec(specPath), adapter: judge, judge: { provider: "claude-code", model: "j1" }, specDir: join(skillDir, "tests") });
+    expect(readResults(runDir).arm).toEqual(ARM);
+  });
 });
 
 describe("rescore (rescoreRun)", () => {
@@ -165,6 +198,11 @@ describe("rescore (rescoreRun)", () => {
     rescoreRun({ runDir, spec: loadSpec(specPath) });
     expect(cell().objective).toEqual(OBJECTIVE);
     expect(cell().adjudication).toEqual(ADJUDICATION);
+  });
+
+  it("carries the arm record forward", () => {
+    rescoreRun({ runDir, spec: loadSpec(specPath) });
+    expect(readResults(runDir).arm).toEqual(ARM);
   });
 });
 
