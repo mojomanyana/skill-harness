@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import type { ExecutionTraceV1, ModelRef, RunMode } from "@skill-harness/core";
-import { parseTrace } from "@skill-harness/core";
+import { parseTrace, providerFailureFromJsonLine } from "@skill-harness/core";
 
 /**
  * Run `pi --mode json` and build an execution trace, **streaming**.
@@ -46,6 +46,7 @@ export interface PiJsonRunResult {
   malformedLines: number;
   code: number | null;
   stderr: string;
+  providerFailure: string | null;
 }
 
 /** How much stderr to retain — enough to diagnose, bounded so a loop cannot blow up. */
@@ -62,6 +63,7 @@ export function runPiJson(opts: PiJsonRunOptions): Promise<PiJsonRunResult> {
 
     const kept: string[] = [];
     let stderr = "";
+    let providerFailure: string | null = null;
     let settled = false;
 
     const timer = setTimeout(() => {
@@ -85,6 +87,7 @@ export function runPiJson(opts: PiJsonRunOptions): Promise<PiJsonRunResult> {
       if (!line.trim()) return;
       if (SKIPPED_TYPE_RE.test(line)) return;
       kept.push(line);
+      if (providerFailure === null) providerFailure = providerFailureFromJsonLine(line);
     });
 
     child.stderr.on("data", (chunk: Buffer) => {
@@ -112,7 +115,7 @@ export function runPiJson(opts: PiJsonRunOptions): Promise<PiJsonRunResult> {
         changedPaths: opts.changedPaths,
         homeDir: opts.homeDir,
       });
-      resolve({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS) });
+      resolve({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS), providerFailure });
     });
   });
 }

@@ -4,9 +4,28 @@ import { join, resolve } from "node:path";
 import type { HarnessAdapter, RunReq, JudgeReq, RunMode, StructuredRun, ExecutionTraceV1 } from "@skill-harness/core";
 import { runPiJson } from "./pi-json.js";
 import { collectTrajectorySources, normalizePiTraces, resequence } from "./trajectory.js";
-import { exec, onPath, envNum, traceSha256 } from "@skill-harness/core";
+import { exec, onPath, envNum, traceSha256, PROVIDER_FAILURE_MARKER } from "@skill-harness/core";
 
 const PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 300_000);
+
+/**
+ * stderr fragments that mean the provider refused the request, so the run measured
+ * nothing about the model. Substring matching on a message pi passes through from
+ * the provider — deliberately narrow: a stderr line we cannot classify stays an
+ * ordinary non-zero exit, because calling a real model failure "infrastructure"
+ * would hide a regression.
+ */
+const PROVIDER_STDERR_SIGNATURES = [
+  "invalidated oauth token",
+  "invalid_api_key",
+  "insufficient_quota",
+  "authentication",
+];
+
+function providerStderr(stderr: string): string | null {
+  const hay = stderr.toLowerCase();
+  return PROVIDER_STDERR_SIGNATURES.some((sig) => hay.includes(sig)) ? stderr.trim() : null;
+}
 
 /**
  * Refuse to hand pi a skill dir it will silently ignore.
@@ -144,7 +163,12 @@ export const piAdapter: HarnessAdapter = {
       const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS });
       parts.push(header(1, 1, req.turns[0]));
       parts.push(`<<< ASSISTANT:\n${r.stdout.trim()}\n`);
-      if (r.code !== 0) parts.push(`[pi exited ${r.code}]\n${r.stderr.trim()}\n`);
+      if (r.code !== 0) {
+        const provider = providerStderr(r.stderr);
+        parts.push(provider
+          ? `${PROVIDER_FAILURE_MARKER} ${provider}\n`
+          : `[pi exited ${r.code}]\n${r.stderr.trim()}\n`);
+      }
       return parts.join("\n");
     }
 
@@ -155,7 +179,12 @@ export const piAdapter: HarnessAdapter = {
       const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS });
       parts.push(header(i + 1, total, req.turns[i]));
       parts.push(`<<< ASSISTANT:\n${r.stdout.trim()}\n`);
-      if (r.code !== 0) parts.push(`[pi exited ${r.code} on turn ${i + 1}]\n${r.stderr.trim()}\n`);
+      if (r.code !== 0) {
+        const provider = providerStderr(r.stderr);
+        parts.push(provider
+          ? `${PROVIDER_FAILURE_MARKER} ${provider}\n`
+          : `[pi exited ${r.code} on turn ${i + 1}]\n${r.stderr.trim()}\n`);
+      }
     }
     return parts.join("\n");
   },
@@ -191,6 +220,7 @@ export const piAdapter: HarnessAdapter = {
     const traces: ExecutionTraceV1[] = [];
     const parts: string[] = [];
     const session = total === 1 ? null : mkdtempSync(join(tmpdir(), "sc-pi-session-"));
+    let providerFailure: string | null = null;
 
     for (let i = 0; i < total; i++) {
       const turnFlags =
@@ -230,6 +260,7 @@ export const piAdapter: HarnessAdapter = {
         r.trace.capture_errors = [`pi JSONL contained ${r.malformedLines} malformed line(s); absence-based trace assertions are unsafe`];
         r.trace.trace_sha256 = traceSha256(r.trace);
       }
+      if (providerFailure === null && r.providerFailure) providerFailure = r.providerFailure;
       traces.push(r.trace);
       parts.push(header(i + 1, total, req.turns[i]));
       parts.push(`<<< ASSISTANT:\n${r.trace.final_text.trim()}\n`);
@@ -258,6 +289,7 @@ export const piAdapter: HarnessAdapter = {
       traces,
       events: resequence(combined),
       ...(eventErrors.length ? { eventErrors } : {}),
+      ...(providerFailure ? { providerFailure } : {}),
     };
   },
 

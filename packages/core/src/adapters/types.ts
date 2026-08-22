@@ -80,6 +80,11 @@ export interface StructuredRun {
   events?: TrajectoryEventV1[];
   /** Native sources that were required but missing/malformed. Never treated as an empty success. */
   eventErrors?: string[];
+  /**
+   * Set when pi failed provider-side (auth, transport) rather than the model
+   * answering badly. `run.ts` turns this into ERROR — never a model verdict.
+   */
+  providerFailure?: string;
 }
 
 export interface HarnessAdapter {
