@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readdirSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readdirSync, symlinkSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { join, isAbsolute } from "node:path";
 import { loadArms, resolveArm, NONE_ARM, seedArmDefinitions, type Arm } from "../src/arms.js";
@@ -74,6 +74,25 @@ arms:
   it("refuses an arm name that would not survive a directory name", () => {
     const root = corpus(() => "arms:\n  - name: 'bad/name'\n    extensions: []\n");
     expect(() => loadArms(root)).toThrow(/bad\/name/);
+  });
+
+  // Safety fix: a nested `env` value used to reach `String(v)` unchecked, which
+  // stringifies an object as the literal text "[object Object]" — a corrupted
+  // env var handed to the subject process with no indication anything went
+  // wrong. Mutation: deleting the `typeof v === "object"` guard in arms.ts
+  // makes this test's `toThrow` fail (loadArms would return normally with
+  // `env.GRANT === "[object Object]"`).
+  it("refuses a non-scalar env value instead of silently stringifying it (safety)", () => {
+    const root = corpus(
+      () => `
+arms:
+  - name: pi-daddy
+    extensions: []
+    env:
+      GRANT: { nested: true }
+`,
+    );
+    expect(() => loadArms(root)).toThrow(/env\.GRANT is not a scalar/);
   });
 });
 
@@ -173,12 +192,32 @@ describe("seedArmDefinitions", () => {
     ).toThrow(/leaky|ambient/i);
   });
 
-  it("returns 0 without seeding when a non-control arm declares no seed_skills and ambient is empty", () => {
+  it("returns 0 without seeding when a non-control arm declares no seed_skills, requires none, and ambient is empty", () => {
     const ws = mkdtempSync(join(tmpdir(), "sh-ws-"));
-    const n = seedArmDefinitions(armWith({ seedSkills: [] }), corpusWithAgents(3), ws, {
+    const n = seedArmDefinitions(armWith({ seedSkills: [], requireDefinitions: 0 }), corpusWithAgents(3), ws, {
       ambientSkillsDir: emptyAmbient(),
     });
     expect(n).toBe(0);
+    expect(existsSync(join(ws, ".pi"))).toBe(false);
+  });
+
+  // I1: the vacuous-arm bypass this refusal exists to close. Before the fix, the
+  // `seedSkills.length === 0` branch returned 0 immediately — before ever
+  // consulting `requireDefinitions` — so an arm declaring `require_definitions: 6`
+  // with an empty (or typo'd) `seed_skills` seeded nothing, returned 0, and ran
+  // tagged `+pi-daddy` with nothing for pi-daddy to spawn. The check must fire
+  // even though `seed_skills` is empty, not only when it names too few files.
+  //
+  // Mutation: reordering this back to `if (arm.seedSkills.length === 0) return 0;`
+  // (checking require_definitions only after the seeding loop) makes this test's
+  // `expect(...).toThrow(...)` fail — seedArmDefinitions would return 0 instead.
+  it("ERRORs when require_definitions > 0 but seed_skills is empty, before ever seeding anything (I1)", () => {
+    const ws = mkdtempSync(join(tmpdir(), "sh-ws-"));
+    expect(() =>
+      seedArmDefinitions(armWith({ seedSkills: [], requireDefinitions: 6 }), corpusWithAgents(3), ws, {
+        ambientSkillsDir: emptyAmbient(),
+      }),
+    ).toThrow(/require_definitions is 6/);
     expect(existsSync(join(ws, ".pi"))).toBe(false);
   });
 
@@ -202,6 +241,46 @@ describe("seedArmDefinitions", () => {
     expect(thrown!.message).toContain("cannot be read");
     expect(thrown!.message).toContain(join(root, "nonexistent"));
     expect(thrown!.message).not.toContain("require_definitions");
+  });
+
+  // Safety fix: `resolve(skillsRoot, "../..")` is accepted by `resolve()` without
+  // complaint, and would have seeded the workspace from whatever sits outside the
+  // corpus — an arm should only ever be able to name directories WITHIN the
+  // corpus it belongs to. Mutation: deleting the `src.startsWith(resolvedRoot +
+  // sep)` guard in arms.ts makes this test's `toThrow` fail — the escape would
+  // be silently followed instead (and `corpusWithAgents`' md files, which sit
+  // two levels up under the shared tmp root, would get seeded).
+  it("refuses a seed_skills entry that escapes the skills root (safety)", () => {
+    const root = corpusWithAgents(3);
+    const ws = mkdtempSync(join(tmpdir(), "sh-ws-"));
+    expect(() =>
+      seedArmDefinitions(armWith({ seedSkills: ["../.."] }), root, ws, { ambientSkillsDir: emptyAmbient() }),
+    ).toThrow(/outside the skills root/);
+    // `.pi/skills/` is created before the per-entry escape check runs, so it may
+    // exist — what matters is that nothing from outside the root landed in it.
+    expect(readdirSync(join(ws, ".pi", "skills"))).toEqual([]);
+  });
+
+  // Safety fix: a dangling symlink inside a seed directory used to throw
+  // uncaught out of `statSync` — an unclassified crash instead of a message
+  // naming the offending file. Mutation: reverting the try/catch around
+  // `statSync(from)` back to a bare `statSync(from).isFile()` makes this test's
+  // `toThrow` assertion on message content fail (it would still throw, but with
+  // node's raw ENOENT message, not one naming the arm or the file as a likely
+  // dangling symlink).
+  it("fails with a message naming the file when a seed directory contains a dangling symlink (safety)", () => {
+    const root = corpusWithAgents(1);
+    symlinkSync(join(root, "agents", "does-not-exist.md"), join(root, "agents", "broken.md"));
+    const ws = mkdtempSync(join(tmpdir(), "sh-ws-"));
+    let thrown: Error | undefined;
+    try {
+      seedArmDefinitions(armWith({ requireDefinitions: 1 }), root, ws, { ambientSkillsDir: emptyAmbient() });
+    } catch (e) {
+      thrown = e as Error;
+    }
+    expect(thrown).toBeDefined();
+    expect(thrown!.message).toContain(join(root, "agents", "broken.md"));
+    expect(thrown!.message).toContain("dangling symlink");
   });
 
   it("treats a missing ambient skills root as empty", () => {

@@ -1,6 +1,6 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, join, resolve, sep } from "node:path";
 import yaml from "js-yaml";
 
 /**
@@ -73,7 +73,16 @@ export function loadArms(skillsRoot: string): Map<string, Arm> {
     });
 
     const env: Record<string, string> = {};
-    for (const [k, v] of Object.entries((entry.env ?? {}) as Record<string, unknown>)) env[k] = String(v);
+    for (const [k, v] of Object.entries((entry.env ?? {}) as Record<string, unknown>)) {
+      // A nested object/array value stringifies as the literal text
+      // "[object Object]" (or a comma-joined array) via `String(v)`, which would
+      // reach the subject process as a corrupted env var with no indication
+      // anything went wrong. Refused instead — env values must be scalars.
+      if (v !== null && typeof v === "object") {
+        throw new Error(`${file}: arm \`${name}\` env.${k} is not a scalar value — got ${JSON.stringify(v)}`);
+      }
+      env[k] = String(v);
+    }
 
     out.set(name, {
       name,
@@ -164,14 +173,39 @@ export function seedArmDefinitions(
     );
   }
 
-  if (arm.seedSkills.length === 0) return 0;
+  // Checked BEFORE the early return below, not after: an empty (or vacuously
+  // typo'd — `seed_skill:` instead of `seed_skills:`) list must hit the same
+  // `require_definitions` refusal as a directory that seeds too few. This is
+  // the same bypass shape the ambient-root check above was already hoisted to
+  // avoid — an arm with `require_definitions: 6` and no `seed_skills` would
+  // otherwise seed 0, return early, and run tagged `+pi-daddy` with nothing to
+  // spawn: the exact vacuous arm this refusal exists to prevent.
+  if (arm.seedSkills.length === 0) {
+    if (arm.requireDefinitions > 0) {
+      throw new Error(
+        `arm \`${arm.name}\`: seeded 0 definition(s) (no \`seed_skills\` declared) but require_definitions is ${arm.requireDefinitions} — ` +
+          `pi-daddy would have nothing to spawn, and the arm would measure nothing while looking green.`,
+      );
+    }
+    return 0;
+  }
 
   const dest = join(workspaceCwd, ".pi", "skills");
   mkdirSync(dest, { recursive: true });
 
+  const resolvedRoot = resolve(skillsRoot);
   let count = 0;
   for (const rel of arm.seedSkills) {
     const src = resolve(skillsRoot, rel);
+    // `seed_skills` entries are meant to name directories WITHIN the corpus —
+    // `resolve(skillsRoot, "../..")` is accepted by `resolve()` without complaint,
+    // and would seed the workspace from whatever happens to sit outside the
+    // corpus root. Refused rather than silently followed.
+    if (src !== resolvedRoot && !src.startsWith(resolvedRoot + sep)) {
+      throw new Error(
+        `arm \`${arm.name}\`: seed_skills entry ${JSON.stringify(rel)} resolves to ${src}, which is outside the skills root ${resolvedRoot} — refusing to seed from outside the corpus`,
+      );
+    }
     let names: string[];
     try {
       names = readdirSync(src);
@@ -180,7 +214,19 @@ export function seedArmDefinitions(
     }
     for (const name of names) {
       const from = join(src, name);
-      if (!name.endsWith(".md") || !statSync(from).isFile()) continue;
+      if (!name.endsWith(".md")) continue;
+      let isFile: boolean;
+      try {
+        isFile = statSync(from).isFile();
+      } catch (err) {
+        // A dangling symlink (or a file removed between readdir and stat) throws
+        // here uncaught otherwise — an unclassified crash instead of a message
+        // naming the offending file.
+        throw new Error(
+          `arm \`${arm.name}\`: seed_skills entry ${JSON.stringify(rel)} contains ${from}, which cannot be read (${(err as Error).message}) — likely a dangling symlink`,
+        );
+      }
+      if (!isFile) continue;
       copyFileSync(from, join(dest, name));
       count += 1;
     }
