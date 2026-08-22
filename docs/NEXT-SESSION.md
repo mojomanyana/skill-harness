@@ -43,95 +43,116 @@ and 0.10.0 touched neither. **Run it before the next release that does.** Its la
 reached all four stages, exit 0, on pi 0.84.2 for 2242/457 subject tokens (`cost_usd 0.00049`)
 and 3 judge calls. Treat that as one draw on a cheap model, not a measurement.
 
-## This branch: `feat/codex-arms-axis` (local, unpushed)
+## Merged since 0.10.0: the Codex + arms axis (unreleased)
 
-Everything above is `main`/0.10.0 and is unaffected by what follows. This is a second,
-unmerged body of work sitting on top of it — a full task-13 release-hygiene pass ran
-against it today (build, typecheck, full suite, suite with `pi` off `PATH`, all green:
-**1,330 tests across 84 files**, up from 1,289/79). Nothing here is on `main`. Nothing
-has been pushed. No PR exists — pushing and opening one is the owner's call, not a
-session's to make unilaterally, and this session was explicitly told not to.
+`main` is now `5888830` and carries a body of work that is **merged but not released** —
+the registry still serves 0.10.0 and `package.json` still says 0.10.0. PRs
+[skill-harness#58](https://github.com/mojomanyana/skill-harness/pull/58) and
+[principal-pi-skills#32](https://github.com/mojomanyana/principal-pi-skills/pull/32) both
+merged 2026-08-22. Verified on merged `main`: build clean, `npm run typecheck` PASS,
+**1,368 tests across 85 files**, and the invariant below unmoved.
 
-**Shipped here:** provider-failure classification as infrastructure `ERROR` on both run
-paths; `run --structured` so subject tokens/cost/wall-time are actually recorded (before
-this, `--structured`'s absence meant that data was silently never written); the pi-daddy
-**arms axis** — `<skills-root>/tests/arms.yaml`, a `--arm` flag, the arm name carried in
-the run-dir tag, definition seeding, three refusals for malformed arm input, and a
-per-run ledger — plus `docs/CODEX-ARMS-RUNBOOK.md` describing how to spend Wave 0. The
-corpus-side half, `arms.yaml` itself, is committed in `../principal-pi-skills` on local
-branch `feat/measurement-arms` (`c55784b`) — also unpushed, also the owner's call.
+**What it adds.** Provider failure is classified as infrastructure `ERROR` on both run
+paths rather than scored as model behaviour, and survives `grade`/`regrade`. `run
+--structured` populates the subject half of `ScenarioMetrics` — tokens, `subject_cost_usd`,
+wall time — which no run had ever written, because `runStructured` only fired for a
+declared trace/trajectory gate and no scenario in the corpus declares one. And the pi-daddy
+**arms axis**: `<skills-root>/tests/arms.yaml`, a `--arm` flag, the arm carried in the
+run-dir tag, definition seeding, refusals, and a per-run ledger counted into the record.
+`docs/CODEX-ARMS-RUNBOOK.md` is the console guide.
 
-**Wave 0 is blocked on ONE thing:** the `openai-codex` OAuth token in
-`~/.pi/agent/auth.json` is invalidated. Re-auth is required before any Wave 0 command can
-run for real. Do not trust `pi auth check` as the gate — it reports
-`{"status":"ready",...}` against that same dead token. The runbook's one-call probe is
-the actual gate; use it.
+**Wave 0 has never run.** It is blocked on one thing: the `openai-codex` OAuth token in
+`~/.pi/agent/auth.json` is invalidated. **`pi auth check` is not the gate** — it reported
+`{"status":"ready","authType":"oauth"}` against that same dead token, because it verifies a
+credential exists and refreshes, not that it works. Use the runbook's one-call probe. Note
+also that `--mode json` is the *worse* diagnostic here: it reports a generic
+`provider_transport_failure` and exits **0**, while text mode exits 1 and prints the real
+message.
 
-**Still unverified and load-bearing:** whether pi binds a thinking level from a
-`:suffix` on `--model` (e.g. `openai-codex:gpt-5.6-sol:medium`). The spike meant to answer
-this died on the dead token above, so it is genuinely open, not just untested. If it does
-not bind, the fallback is an optional third segment in `parseModelRef` plus a
-`--thinking` flag threaded through `pi.ts`'s `common` array — sized, not designed, so
-budget real time for it.
+**Still unverified and load-bearing:** whether pi binds a thinking level from a `:suffix`
+on `--model` (`openai-codex:gpt-5.6-sol:medium`). The spike died on the dead token, so this
+is open, not merely untested. If it does not bind, the run silently uses the provider's
+**default** thinking level while the run dir, the record, and every later comparison all
+say `medium`. Fallback if needed: an optional third segment in `parseModelRef` plus
+`--thinking` in `pi.ts`'s `common` array — sized, not designed.
 
-**The measurement-integrity invariant that held throughout, and must keep holding:**
+**Do not release on the strength of this.** Nothing in the axis has been exercised against
+a live model. The arm's delivery proof — the ledger event count — has never once fired.
+Publishing an A/B axis whose proof has never produced a non-zero reading would be a claim
+resting on unit tests alone. Hold 0.11.0 until Wave 0 reports at least one real ledger
+event.
+
+### The invariant that must keep holding
 
 ```bash
 node bin/skill-harness.js lint all --skills ../principal-pi-skills
-# 7 skill(s), 101 finding(s), 32 note(s)
+# 7 skill(s), 101 finding(s), 32 note(s) (do not fail the gate)
 ```
 
-Measured four times across this work, including after the corpus's `arms.yaml` landed.
-Movement on this number means an arm leaked into a digest — treat any change as a bug in
-this work, not as corpus drift, until proven otherwise.
+Measured **seven** times across this work, including after the corpus's `arms.yaml` landed
+and after the merge. Movement means an arm leaked into a result digest — treat any change
+as a bug in this work, not as corpus drift, until proven otherwise.
 
-**The finding this work deliberately did NOT fix**, from the spec's §10: `force` mode
-appends the whole `SKILL.md`, frontmatter included, to the system prompt — but
-`sources.ts`'s `CAPABILITY_KEYS` excludes `allowed-tools`/`tools` from the model-visible
-digest on the stated grounds that they are "never rendered into the model's context".
-That grounds is false in force mode, for all 7 skills, all 6 agent files, and 59
-committed force runs. It is its own issue with its own fix and its own write-up. It was
-not fixed here because changing force's delivery would move the ground the Wave 0 numbers
-stand on, mid-campaign.
+### What the PR reviews caught, because the pattern repeats
 
-**A gap a future task must close:** `vitest` transpiles through esbuild and never
-type-checks, so `npm run typecheck` is the *only* guard against a genuine type error in
-this repo — several tasks in this campaign added code that had never been type-checked
-until task 13's build-then-typecheck pass ran. The deferred minors immediately below were
-accepted rather than fixed for the same reason release hygiene exists: to surface them
-for a human, not to quietly wave them through.
+The branch was reviewed per-task, then whole-branch, then again on the PRs. The PR round
+found **11 findings in the tool and a critical one in the corpus**, and two of them would
+have destroyed a Wave 0 spend without the pilot being able to detect it:
 
-**Deferred minors, verbatim, for triage before merge:**
+- **Every `results.yaml` rewriter dropped the `arm` block.** `regrade`, `regate`, `rescore`
+  and the review UI rebuilt the draft field-by-field, so grading an arm run *deleted*
+  `definitions` and `ledger_events` — and since the ledger it counts is gitignored, that
+  destroyed the only surviving proof the run delegated. Carried now, for the same reason
+  `harness_cli_version` and `source_hashes` are.
+- **One pi crash could unwind a whole wave.** `--structured` routes every scenario through
+  `runStructured`, which throws on a stream with no terminal events; `runRep` had only a
+  `finally` and `runPool` is fail-fast, so a mid-wave crash meant no `results.yaml` and
+  every completed verdict lost. An adapter throw is now one rep's infrastructure ERROR with
+  the same one-shot retry a blank assistant turn gets.
 
-- `providerFailureFromJsonLine` returns on the first matching diagnostic; multiple
-  diagnostics in one array is untested.
-- The transcript forgery guard is verified by one case, not exhaustively.
-- Task 5's four refusal tests (extension-missing, duplicate-name, reserved-name,
-  bad-name-shape) were never re-mutation-tested after Task 6 restructured the function
-  around them — inspected only.
-- Task 8's fix report overstated its regression coverage, naming `regate`/`lint`/
-  `sources-split` as covering `runSeeded`'s request path when none of them call it; real
-  coverage is `p1-multipliers`, `force-scoring`, and `seeded.test.ts`.
-- The runbook's two post-run greps (`metrics:` block, ledger `wc -l`) are corroborated
-  against source, not against a live run directory — spot-check them on the first real
-  run.
+**The corpus finding is the one to learn from.** As first merged, the arm's
+`PI_GRANTS_GRANT` could not delegate *at all* — no `tool:delegate` (so a governed session
+registers no spawn tool), no `agent:` capability (so `maySpawnDefinition` refuses all six
+definitions), and not a superset of the seeded ceilings (so the four `bash`-declaring
+definitions are hard `CAPABILITY_ESCALATION` refusals, not narrowings). It would have run
+green, tagged `+pi-daddy`, and measured the control with extra steps.
 
-**A hazard worth recording:** across this plan, seven specified tests turned out to be
-unable to fail — fixtures that never contained the string they claimed to reject, one
-that tripped an unrelated pre-existing `ERROR` path instead of the one under test, one
-built on unverified string surgery, one whose mutation was unreachable because the
-fixture carried no diagnostics to begin with, vacuous post-run filesystem assertions
-defeated by workspace teardown, and a byte-identical clone that `stability` could never
-flag as anything but identical. Every one of the seven was caught by the mandatory
-mutation step; none was caught by reading the passing suite. Keep that step
-non-negotiable — this campaign is the evidence for why.
+`require_definitions` could not catch any of it, and that is the lesson: **it counted
+definition files COPIED, not definitions reachable.** The same mistake appeared twice more
+in the same review — the count was satisfied by two seed dirs sharing a basename whose
+files overwrote each other, and `require_definitions: six` silently parsed to `0`,
+disabling the refusal entirely. A refusal that validates the wrong quantity is a gate that
+cannot fire, which is the exact failure it was written to prevent. When adding a threshold,
+state what it proves and then check that it proves *that*.
 
+Two more worth knowing before touching this code:
+
+- **The provider-failure marker used to be forgeable.** The text path wrote it *after* the
+  assistant body, so a model emitting the same line at column 0 turned a FAIL into ERROR
+  and muted the judge on every re-grade. It now goes in the transcript **preamble**, ahead
+  of the first `>>> ` header, and the reader stops scanning there. **Transcripts written
+  before that change carry the old placement and will no longer short-circuit on re-grade.**
+- **`.pi/` exclusion was too broad.** It was excluded from the captured diff and the
+  snapshot for *all* runs including the control, hiding legitimate model writes there.
+  Narrowed to `.pi/skills/`.
+
+**A hazard worth recording:** across the implementation plan, seven specified tests turned
+out to be unable to fail — fixtures that never contained the string they claimed to reject,
+one that tripped an unrelated pre-existing `ERROR` path instead of the one under test, one
+built on unverified string surgery, one whose mutation was unreachable because the fixture
+carried no diagnostics to begin with, vacuous post-run filesystem assertions defeated by
+workspace teardown, and a byte-identical clone that `stability` could never flag as
+anything but identical. Every one was caught by the mandatory mutation step; none by
+reading the passing suite. And the durable pattern across every review round: **the code
+added in a late fix round was consistently the least-covered on the branch.** Keep the
+mutation step non-negotiable, and give fix-round code the same test scrutiny as the
+original.
 ## Open work, in the order I would do it
 
 ### 1. `principal-pi-skills` — 100 paid re-runs
 
-Sister repo, on disk at `../principal-pi-skills` (HEAD `2c53559`). Re-measured today with the
-**0.10.0** binary, free and offline:
+Sister repo, on disk at `../principal-pi-skills` (HEAD `378627e` — it moved: PR #32 merged
+the arm declaration and its delivery guard). Re-measured on merged `main`, free and offline:
 
 ```bash
 node bin/skill-harness.js lint all --skills ../principal-pi-skills
@@ -268,6 +289,14 @@ Untouched, deliberately last, at the owner's call. See `docs/ROADMAP.md`.
   0.7.0–0.11.0 for features that shipped in one release. Don't reintroduce per-post versions.
 
 ## What this file used to say, and why it changed
+
+**Revised 2026-08-23.** The previous version described the Codex + arms work as a local,
+unpushed branch with no PR and 1,330 tests — all three were true when written and none is
+now. Both PRs merged on 2026-08-22, the PR reviews added 11 findings in the tool and a
+critical one in the corpus, and the suite is 1,368 across 85 files. That section is
+rewritten rather than appended to, because a handoff that describes a branch state which no
+longer exists costs the next session a wrong mental model before it reads anything else.
+The 0.10.0 material above it is unchanged and still accurate.
 
 The previous version was written at the close of the 0.9.0 session and revised mid-way through
 the 0.10.0 one, which left it describing a repo state that no longer existed:
