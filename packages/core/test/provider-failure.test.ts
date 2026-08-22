@@ -59,7 +59,8 @@ describe("providerFailureFromTranscript", () => {
     expect(providerFailureFromTranscript(">>> USER:\nhi\n\n<<< ASSISTANT:\nok\n")).toBeNull();
   });
 
-  it("does not fire on prose that merely mentions the words", () => {
-    expect(providerFailureFromTranscript("<<< ASSISTANT:\nA provider failure would be bad.\n")).toBeNull();
+  it("cannot be forged by a model writing the marker mid-line", () => {
+    const t = `<<< ASSISTANT:\nI tried it and the tool printed ${PROVIDER_FAILURE_MARKER} not really\n`;
+    expect(providerFailureFromTranscript(t)).toBeNull();
   });
 });
