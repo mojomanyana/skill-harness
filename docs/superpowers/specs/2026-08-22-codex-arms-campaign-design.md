@@ -77,6 +77,36 @@ search and does not parse the suffix, so it proves nothing either way.
 with `--model gpt-5.6-sol --thinking medium`, and with `--thinking off`, and compare the
 reported usage. If the first two agree and differ from the third, the suffix binds.
 
+### Spike result, 2026-08-22: BLOCKED, question still open
+
+Run, and it could not answer the question — for a reason worth more than the answer.
+All three calls failed identically with `stopReason: "error"`, zero tokens, and a
+`provider_transport_failure` diagnostic ("WebSocket error",
+`openai-codex-responses.js:948`). Repeated on `gpt-5.4` as well, so it is not model-specific.
+
+Text mode gave the true cause that JSON mode masked:
+
+```
+$ pi --no-context-files --no-extensions --no-skills --no-session \
+     --provider openai-codex --model gpt-5.6-sol -p "Reply with exactly: ok" </dev/null
+exit=1
+stderr: Encountered invalidated oauth token for user, failing request
+```
+
+**The Codex OAuth token is invalidated.** Credentials live in `~/.pi/agent/auth.json`.
+Re-authentication is an owner action; the spike must then be re-run before Wave 0, because
+the thinking-suffix question is still genuinely open.
+
+Two consequences that outlive the token:
+
+- **`pi auth check` is not a pre-flight gate.** It reported
+  `{"status":"ready","authType":"oauth"}` against this invalidated token. It verifies that
+  a credential exists and refreshes, not that it works. The runbook must probe with one
+  real call instead.
+- **JSON mode is the *worse* diagnostic here, not the better one.** It reports a generic
+  transport failure and **exits 0**; text mode reports the real message and exits 1. Do not
+  assume `--structured` improves failure visibility — see §7b.
+
 **Fallback if it does not bind:** accept an optional third segment in `parseModelRef`
 (`provider:model:thinking`) and emit `--thinking` in `pi.ts`'s `common` array. Two files,
 contained. `modelSlug` must keep producing distinct tags per level either way.
@@ -217,7 +247,37 @@ no, the 1→2 migration precedent argues for care. Either way old readers must n
 Without this, the deferred pinning decision has nothing to read, and "cheaper and faster"
 stays unanswerable.
 
+## 7b. Provider failure must be infrastructure ERROR, not a model verdict
+
+Added on the §4 spike's evidence, and it is a prerequisite for Wave 0 rather than a nicety:
+**unmitigated, Wave 0 would have produced 44 spurious model FAILs indistinguishable from
+findings.**
+
+Neither run path classifies a provider-side failure today:
+
+- **Text** (`piAdapter.run`): pi exits 1, so the adapter appends `[pi exited 1]` plus the
+  stderr into the transcript. The judge then reads *"Encountered invalidated oauth token"*
+  as the model's answer and fails the scenario. A provider outage becomes a skill
+  regression.
+- **Structured** (`runStructured`): pi exits **0** with empty content and a
+  `provider_transport_failure` diagnostic. The empty-response retry in `run.ts` fires once,
+  then the cell records a model-attributable failure. The diagnostic is on the stream and
+  nothing reads it.
+
+**Change:** classify provider failure as `infrastructureFailure` — which `run.ts` already
+threads through as ERROR — in both paths. Structured reads
+`diagnostics[].type === "provider_transport_failure"` and must not treat exit 0 as success;
+text matches a non-zero exit against known provider signatures. ERROR blocks and never
+passes, which is the existing rule ("missing evidence is ERROR, never a pass") applied to a
+provider being adopted for the first time.
+
+Negative control required: a fixture stream carrying `provider_transport_failure` with
+exit 0 must produce ERROR, and the test must fail if the classification is removed.
+
 ## 8. Wave 0
+
+**Prerequisites, both hard:** a re-authenticated Codex token proven by one real call (not
+by `pi auth check`, see §4), and §7b's provider-failure classification in place.
 
 `review` (22 scenarios) × `gpt-5.6-sol:medium` × force × `--reps 1` × both arms =
 **44 subject runs, ~44 judge calls.**
@@ -354,3 +414,4 @@ Neither belongs in this spec; both are free.
 | principal-pi-skills | HEAD `2c53559`, 7 skills, 106 scenarios, 202 runs, 101 lint findings / 32 notes |
 | Corpus modes | 94 green, 59 force, 12 red |
 | Scenario counts | architect 15, build 10, debug 12, decide 13, git-ops 21, plan 13, review 22 |
+| §4 spike | Run 2026-08-22 — blocked on an invalidated `openai-codex` OAuth token; thinking-suffix question still open |
