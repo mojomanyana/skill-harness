@@ -114,7 +114,10 @@ skill-harness's `--model openai-codex:gpt-5.6-sol:medium` actually binds a think
 through that `:medium` suffix when it calls pi is still UNVERIFIED** — the spike that
 would have answered it died on the invalidated token. Do not assert it works; if it
 matters for Wave 0's read, cross-check by running the same scenario once more with an
-explicit `--thinking medium` and comparing.
+explicit `--thinking medium` and comparing. If the suffix does not bind, the failure is
+silent: the run falls back to the provider's **default** thinking level while the run
+directory, the results record, and every later comparison all still say `medium` — so the
+numbers look fine and are measuring something else.
 
 **2. Cost and latency recorded.** `--structured` must be on both Wave 0 commands above, or
 no subject token/cost data is written at all. Check:
