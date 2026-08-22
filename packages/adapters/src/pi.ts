@@ -267,7 +267,15 @@ export const piAdapter: HarnessAdapter = {
         r.trace.capture_errors = [`pi JSONL contained ${r.malformedLines} malformed line(s); absence-based trace assertions are unsafe`];
         r.trace.trace_sha256 = traceSha256(r.trace);
       }
-      if (providerFailure === null && r.providerFailure) providerFailure = r.providerFailure;
+      if (providerFailure === null && r.providerFailure) {
+        providerFailure = r.providerFailure;
+        // Written into the transcript, not just returned on `providerFailure`: the
+        // artifact on disk is the only thing a later `grade`/`regrade` call ever
+        // reads (see `judgeOneRep` in core/regrade.ts), and until this line the
+        // structured path exited 0 while carrying the evidence ONLY in a field
+        // that a re-judge never sees — unrecoverable from the saved transcript.
+        parts.push(`${PROVIDER_FAILURE_MARKER} ${providerFailure}\n`);
+      }
       traces.push(r.trace);
       parts.push(header(i + 1, total, req.turns[i]));
       parts.push(`<<< ASSISTANT:\n${r.trace.final_text.trim()}\n`);

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PROVIDER_FAILURE_MARKER } from "@skill-harness/core";
 import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -132,5 +133,41 @@ describe("piAdapter.runStructured", () => {
     });
     expect(result.providerFailure).toContain("openai-codex");
     expect(result.providerFailure).toContain("WebSocket error");
+  });
+
+  // I2 (adapter half): the artifact on disk is the only thing a later
+  // `grade`/`regrade` call ever reads (see `judgeOneRep` in core/regrade.ts).
+  // Before this fix, `runStructured` returned `providerFailure` as a field ONLY
+  // — never written into the transcript string — so a re-judge of the saved
+  // `.txt` had no way to recover the evidence: the marker regrade.ts now looks
+  // for simply was not there.
+  //
+  // Mutation: deleting the `parts.push(\`${PROVIDER_FAILURE_MARKER} ...\`)` line
+  // in pi.ts's runStructured (right after `providerFailure = r.providerFailure`)
+  // makes this test's `toContain(PROVIDER_FAILURE_MARKER)` assertion fail even
+  // though `result.providerFailure` itself is still set correctly.
+  it("writes the provider-failure marker into the transcript, not just the returned field", async () => {
+    const providerFailureLine = JSON.stringify({
+      type: "message_start",
+      message: {
+        role: "assistant",
+        provider: "openai-codex",
+        diagnostics: [
+          { type: "provider_transport_failure", error: { name: "Error", message: "WebSocket error" } },
+        ],
+      },
+    });
+    streams.push(
+      readFileSync(join(FIXTURES, "multi-turn-turn1.jsonl"), "utf8"),
+      `${providerFailureLine}\n${readFileSync(join(FIXTURES, "multi-turn-turn2.jsonl"), "utf8")}`,
+    );
+    const result = await piAdapter.runStructured!({
+      skillDir: skill(), model: { provider: "fireworks", model: "x" }, mode: "force",
+      turns: ["remember 77", "what number?"], cwd: "/tmp", scenarioId: "A1", rep: 0,
+    });
+    expect(result.providerFailure).toBeTruthy();
+    expect(result.transcript).toContain(PROVIDER_FAILURE_MARKER);
+    expect(result.transcript).toContain("openai-codex");
+    expect(result.transcript).toContain("WebSocket error");
   });
 });
