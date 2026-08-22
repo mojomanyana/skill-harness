@@ -10,7 +10,7 @@ vi.mock("@skill-harness/core", async (importOriginal) => {
 });
 
 import { piAdapter } from "../src/pi.js";
-import { exec } from "@skill-harness/core";
+import { exec, PROVIDER_FAILURE_MARKER, providerFailureFromTranscript } from "@skill-harness/core";
 
 const mockedExec = vi.mocked(exec);
 
@@ -194,5 +194,42 @@ describe("controlled extension loading", () => {
       }),
     ).rejects.toThrow(/does not exist/);
     expect(mockedExec).not.toHaveBeenCalled();
+  });
+});
+
+describe("provider failure in text mode", () => {
+  it("marks a provider failure so the transcript is not read as a model answer", async () => {
+    mockedExec.mockResolvedValue({
+      code: 1,
+      stdout: "",
+      stderr: "Encountered invalidated oauth token for user, failing request",
+    });
+    const transcript = await piAdapter.run({
+      skillDir: fakeSkill(),
+      model: { provider: "openai-codex", model: "gpt-5.6-sol" },
+      mode: "force",
+      turns: ["hi"],
+      cwd: "/tmp",
+    });
+    expect(transcript).toContain(PROVIDER_FAILURE_MARKER);
+    expect(transcript).toContain("invalidated oauth token");
+    // The contract is the round trip, not the substring: the marker only counts
+    // as evidence when it lands in the preamble, ahead of the first `>>> ` turn
+    // header, which is the one region a model's own text can never occupy.
+    expect(providerFailureFromTranscript(transcript)).toContain("invalidated oauth token");
+  });
+
+  it("leaves an ordinary non-zero exit unmarked", async () => {
+    mockedExec.mockResolvedValue({ code: 2, stdout: "partial", stderr: "some other problem" });
+    const transcript = await piAdapter.run({
+      skillDir: fakeSkill(),
+      model: { provider: "p", model: "m" },
+      mode: "force",
+      turns: ["hi"],
+      cwd: "/tmp",
+    });
+    expect(transcript).not.toContain(PROVIDER_FAILURE_MARKER);
+    expect(providerFailureFromTranscript(transcript)).toBeNull();
+    expect(transcript).toContain("[pi exited 2]");
   });
 });

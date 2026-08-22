@@ -167,6 +167,13 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
             partial: results.partial,
             // Provenance survives a UI re-judge, same as it does through `grade`.
             harness_cli_version: results.harness_cli_version, delivery_canary: results.delivery_canary,
+            // The arm is provenance of the MEASUREMENT, not of this rewrite, and it is the
+            // only record that a `+<arm>` run actually delegated: rebuilding the draft
+            // field-by-field without it silently deleted `definitions`/`ledger_events`
+            // from any arm run that was ever re-graded, leaving a record
+            // indistinguishable from a vacuous arm. Same reason `harness_cli_version`,
+            // `delivery_canary` and `source_hashes` are carried here.
+            arm: results.arm,
             // Recorded hashes were being dropped here entirely, which silently
             // retired the staleness gate for any run re-judged from the UI. Carried,
             // with the one `rubric:` key this re-judge actually applied refreshed —

@@ -1,9 +1,10 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import type { Spec, Scenario } from "./spec.js";
 import { sourceHashes } from "./sources.js";
 import type { HarnessAdapter, ModelRef, RunMode } from "./adapters/types.js";
 import { judgeResemblesSubject } from "./grade.js";
+import { NONE_ARM, seedArmDefinitions, type Arm } from "./arms.js";
 import {
   runDirFor,
   transcriptPath,
@@ -36,6 +37,7 @@ import { judgeOneRep } from "./regrade.js";
 import { runDeliveryCanary, canaryFailure, type CanaryResult } from "./canary.js";
 import { boundaryCells, stabilityNote, type ScenarioStability } from "./stability.js";
 import { aggregateMetrics } from "./comparison.js";
+import { providerFailureFromTranscript } from "./provider-failure.js";
 
 export interface RunOptions {
   spec: Spec;
@@ -66,11 +68,54 @@ export interface RunOptions {
    * there) is already refused by the adapter for free.
    */
   canary?: boolean;
+  /**
+   * Take the structured path even when no scenario declares a trace or trajectory
+   * assertion. The subject half of `ScenarioMetrics` — tokens, `subject_cost_usd` —
+   * is only ever populated from traces, so without this a run records no cost or
+   * token data at all, which is why the reference corpus has none.
+   */
+  structured?: boolean;
+  /** The arm this run is measured under. Absent means the control (`none`). */
+  arm?: Arm;
+  /** Skills root — `seed_skills` paths resolve against it. Defaults to the skill's parent. */
+  skillsRoot?: string;
+  /** Injectable ambient skill root, for tests. Production reads `~/.pi/agent/skills`. */
+  ambientSkillsDir?: string;
 }
 
 export interface RunSummary {
   runDir: string;
   results: ResultsFile;
+}
+
+/**
+ * The pi-daddy arm's delivery proof, by convention: `arms.yaml` points
+ * `PI_GRANTS_LEDGER` at exactly this filename inside the run dir (see
+ * `../principal-pi-skills/tests/arms.yaml` and CODEX-ARMS-RUNBOOK.md §4.3), so
+ * a fixed name here is what makes the count readable without parsing the arm's
+ * own `env` map back out.
+ */
+const LEDGER_FILENAME = "pi-daddy.ledger.jsonl";
+
+/**
+ * Count the arm's ledger events after the run, or 0 when the file was never
+ * written.
+ *
+ * This is `--canary`'s lesson applied to the arm: the ledger is the arm's
+ * delivery proof, and a delivery claim has to survive a commit. A missing file
+ * records `0`, not an absent field — "the extension never wrote a ledger" and
+ * "the extension wrote one with nothing in it" are both real, reportable
+ * outcomes, and a vacuous arm run must not commit a record indistinguishable
+ * from one that actually delegated.
+ */
+function countLedgerEvents(runDir: string): number {
+  let text: string;
+  try {
+    text = readFileSync(join(runDir, LEDGER_FILENAME), "utf8");
+  } catch {
+    return 0;
+  }
+  return text.split("\n").filter((line) => line.trim().length > 0).length;
 }
 
 /** Run one skill against one model: run scenarios, grade, score, persist. */
@@ -103,7 +148,8 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     );
   }
 
-  const runDir = runDirFor(skillDir, adapter.name, model, timestamp);
+  const arm = opts.arm ?? NONE_ARM;
+  const runDir = runDirFor(skillDir, adapter.name, model, timestamp, arm.name);
   mkdirSync(runDir, { recursive: true });
   ensureResultsGitignore(dirname(dirname(runDir))); // .../tests/results/.gitignore
 
@@ -163,12 +209,13 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   const repCounts = scenarios.map((s) => s.reps ?? opts.reps ?? 1);
   const owners: number[] = [];
   const tasks: Array<() => Promise<RepOutcome>> = [];
+  const armDefinitions = { count: 0 };
   scenarios.forEach((scenario, si) => {
     for (let k = 0; k < repCounts[si]; k++) {
       const rep = k;
       const total = repCounts[si];
       owners.push(si);
-      tasks.push(() => runRep(scenario, rep, total, { ...opts, runDir, now, log }));
+      tasks.push(() => runRep(scenario, rep, total, { ...opts, runDir, now, log, armDefinitions }));
     }
   });
   const flat = await runPool(tasks, opts.concurrency ?? 1);
@@ -199,6 +246,22 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     // coverage of scenarios it skipped.
     source_hashes: sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios, judgePersona: spec.judge_persona }),
     scenarios: scenarioResults,
+    ...(arm.name === NONE_ARM.name ? {} : {
+      arm: {
+        name: arm.name,
+        extensions: arm.extensions,
+        definitions: armDefinitions.count,
+        ledger_events: countLedgerEvents(runDir),
+        // The DECLARED env, `<run-dir>` left unsubstituted. It is the condition
+        // being measured (grant, max depth), so leaving it out made two runs at
+        // different settings byte-identical here and inside the same `+<arm>`
+        // tag — `stability` then reads the verdict difference between two
+        // conditions as one lineage flipping. The substituted form would be the
+        // opposite error: it embeds this run's temp path, so re-running the SAME
+        // condition would record two different-looking arms.
+        env: arm.env,
+      },
+    }),
   }, ctx);
   if (ctx) {
     const g = results.effective_grade;
@@ -211,6 +274,14 @@ interface ScenarioCtx {
   runDir: string;
   now: () => string;
   log: (msg: string) => void;
+  /**
+   * Shared mutable slot for the arm's seeded-definitions count. Seeding happens
+   * per-workspace, inside `runRep` (so a retry's fresh workspace is re-seeded),
+   * but the count is recorded once on the run-level results draft — the arm and
+   * `skillsRoot` are constant for the whole run, so every rep computes the same
+   * number and the last one to run wins.
+   */
+  armDefinitions: { count: number };
 }
 
 /**
@@ -235,6 +306,14 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
   const startedAt = performance.now();
   const { spec, judge, mode, runDir, now, log } = ctx;
   const repField = repCount > 1 ? { rep } : {};
+  const arm = ctx.arm ?? NONE_ARM;
+  const skillsRoot = ctx.skillsRoot ?? dirname(ctx.skillDir);
+  // `<run-dir>` in an arm's env values is a real path (temp dirs on this box
+  // routinely contain characters a regex would treat specially), so this is a
+  // plain split/join, not a `.replace(/<run-dir>/g, …)`.
+  const armEnv: Record<string, string> | undefined = Object.keys(arm.env).length
+    ? Object.fromEntries(Object.entries(arm.env).map(([k, v]) => [k, v.split("<run-dir>").join(runDir)]))
+    : undefined;
   if (rep === 0) {
     log(`  ${scenario.id} (${scenario.title})${repCount > 1 ? ` ×${repCount}` : ""} …`);
     appendJournal(runDir, { event: "scenario-started", ts: now(), id: scenario.id, title: scenario.title });
@@ -270,64 +349,155 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
     // a committed results.yaml, naming files the model never touched.
     let before: PathSnapshot | null = ws ? snapshotPaths(ws.cwd, scenario.workspace) : null;
     if (ws) {
+      // Seed the arm's definitions into THIS workspace before the subject runs.
+      // Control (`none`) short-circuits inside `seedArmDefinitions` with no
+      // filesystem side effects at all.
+      ctx.armDefinitions.count = seedArmDefinitions(arm, skillsRoot, ws.cwd, { ambientSkillsDir: ctx.ambientSkillsDir });
+    }
+    // Set when the adapter itself threw. Rep-scoped rather than loop-scoped: the
+    // evidence blocks below have to know this rep never ran.
+    let adapterFailure: string | null = null;
+    if (ws) {
+      // Decided ONCE, before any attempt, and for both the seeded and non-seeded
+      // branches — these are spec/adapter facts, not per-attempt outcomes, and
+      // deciding them here is what lets the execution below be wrapped in a catch
+      // that must not swallow a configuration error.
+      //
+      // `needsStructuredEvidence` is a gate with nothing to read if the adapter
+      // cannot produce traces: ERROR, never a silent fallback to the unstructured
+      // path, because a gate that could not be evaluated must not look like one
+      // that passed. A bare `--structured` request with no gate depending on it
+      // degrades to the plain path instead — on BOTH branches. The seeded branch
+      // used to pass `trace: {...}` unconditionally and let `runSeeded` throw
+      // ``scenario `X` declares `assert.trace`…`` at a scenario that declares no
+      // such thing.
+      const needsStructuredEvidence = Boolean(scenario.traceAssert || scenario.trajectoryAssert);
+      if (needsStructuredEvidence && !ctx.adapter.runStructured) {
+        throw new Error(
+          `scenario \`${scenario.id}\` declares structured objective assertions, but the \`${ctx.adapter.name}\` adapter` +
+            ` cannot produce execution traces/events — the gate would have no evidence to read.`,
+        );
+      }
+      const useStructured = (Boolean(ctx.structured) || needsStructuredEvidence) && Boolean(ctx.adapter.runStructured);
+
       // A blank assistant turn is a harness timeout, not model behavior: retry ONCE in a
       // fresh workspace (the first attempt may have half-mutated a seeded repo), and if
       // it happens again the verdict is ERROR — never a judged FAIL on an empty reply.
+      // An adapter that THREW is the same class of event and takes the same retry.
       for (let attempt = 0; attempt < 2; attempt++) {
         if (attempt > 0) {
-          appendJournal(runDir, { event: "empty-response-retry", ts: now(), id: scenario.id, attempt, ...repField });
-          log(`  ${scenario.id}${repCount > 1 ? `#${rep}` : ""} empty response — retrying once`);
+          const why = adapterFailure ? `adapter failed (${adapterFailure})` : "empty response";
+          appendJournal(runDir, { event: "empty-response-retry", ts: now(), id: scenario.id, attempt, reason: why, ...repField });
+          log(`  ${scenario.id}${repCount > 1 ? `#${rep}` : ""} ${why} — retrying once`);
           ws.cleanup();
           ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath), remote: scenario.remote });
           // A fresh workspace needs a fresh baseline, or the retry's diff would
           // be taken against a directory that no longer exists.
           before = snapshotPaths(ws.cwd, scenario.workspace);
+          // And a fresh workspace has nothing to spawn until it, too, is seeded —
+          // a retry that skipped this would silently run the arm with no
+          // definitions at all.
+          ctx.armDefinitions.count = seedArmDefinitions(arm, skillsRoot, ws.cwd, { ambientSkillsDir: ctx.ambientSkillsDir });
         }
-        if (scenario.mode === "seeded") {
-          const r = await runSeeded(scenario, {
-            skillDir: ctx.skillDir, adapter: ctx.adapter, model: ctx.model, mode, cwd: ws.cwd,
-            specDir: dirname(ctx.specPath), // assert.post_test resolves like a fixture
-            trace: scenario.traceAssert || scenario.trajectoryAssert ? { scenarioId: scenario.id, rep } : undefined,
-          });
-          transcript = r.transcript;
-          gatePrefix = r.gateFailure;
-          infrastructureFailure = r.gateError;
-          stagedDiff = r.diff; // a retry replaces the aborted attempt's diff, as it should
-          traces = r.traces;
-          events = r.events;
-          eventErrors = r.eventErrors;
-        } else {
-          const req = {
-            skillDir: ctx.skillDir, model: ctx.model, mode, turns: scenario.turns, cwd: ws.cwd,
-            // resolved like fixtures: relative to the spec's dir
-            systemPromptFile: scenario.systemPromptFile
-              ? resolve(dirname(ctx.specPath), scenario.systemPromptFile)
-              : undefined,
-            // Absolute before it reaches a child process running in a neutral cwd.
-            extensions: scenario.extensions?.map((e) => resolve(dirname(ctx.specPath), e)),
-            eventSources: scenario.eventSources,
-          };
-          if (scenario.traceAssert || scenario.trajectoryAssert) {
-            // Missing required evidence is ERROR, never a silent fallback to the
-            // unstructured path: a gate with nothing to read must not look like a
-            // gate that passed.
-            if (!ctx.adapter.runStructured) {
-              throw new Error(
-                `scenario \`${scenario.id}\` declares structured objective assertions, but the \`${ctx.adapter.name}\` adapter` +
-                  ` cannot produce execution traces/events — the gate would have no evidence to read.`,
-              );
-            }
-            const structured = await ctx.adapter.runStructured({ ...req, scenarioId: scenario.id, rep });
-            transcript = structured.transcript;
-            traces = structured.traces;
-            events = structured.events ?? [];
-            eventErrors = structured.eventErrors ?? [];
+        // Cleared per attempt, never carried over. A provider failure always
+        // leaves a blank assistant turn, so attempt 0's reason used to survive a
+        // retry that then succeeded: the rep was recorded ERROR citing an outage
+        // while the persisted transcript was attempt 1's clean one — the record
+        // and the artifact disagreeing, and a recovered measurement thrown away.
+        infrastructureFailure = null;
+        adapterFailure = null;
+        try {
+          if (scenario.mode === "seeded") {
+            const r = await runSeeded(scenario, {
+              skillDir: ctx.skillDir, adapter: ctx.adapter, model: ctx.model, mode, cwd: ws.cwd,
+              specDir: dirname(ctx.specPath), // assert.post_test resolves like a fixture
+              // `ctx.structured` (a bare `--structured` request, with no gate depending
+              // on it) must route through the structured path here too, exactly as it
+              // does for the non-seeded branch below — without it, `--structured` on a
+              // `mode: seeded` scenario silently called the adapter's plain `run()` and
+              // recorded zero subject tokens/cost, which is the one thing the flag exists
+              // to capture. `useStructured` (not the raw request) so an adapter with no
+              // `runStructured` degrades here exactly as it does below.
+              trace: useStructured ? { scenarioId: scenario.id, rep } : undefined,
+              // `runSeeded` merges these with `scenario.extensions` itself when it
+              // builds the RunReq — the arm's extensions and env (with `<run-dir>`
+              // already substituted) both must reach pi.
+              armExtensions: arm.extensions,
+              ...(armEnv ? { armEnv } : {}),
+            });
+            transcript = r.transcript;
+            gatePrefix = r.gateFailure;
+            infrastructureFailure = r.gateError;
+            stagedDiff = r.diff; // a retry replaces the aborted attempt's diff, as it should
+            traces = r.traces;
+            events = r.events;
+            eventErrors = r.eventErrors;
           } else {
-            transcript = await ctx.adapter.run(req);
+            const req = {
+              skillDir: ctx.skillDir, model: ctx.model, mode, turns: scenario.turns, cwd: ws.cwd,
+              // resolved like fixtures: relative to the spec's dir
+              systemPromptFile: scenario.systemPromptFile
+                ? resolve(dirname(ctx.specPath), scenario.systemPromptFile)
+                : undefined,
+              // Absolute before it reaches a child process running in a neutral cwd.
+              // The arm's extensions are added alongside whatever the scenario
+              // itself declares — both must reach pi.
+              extensions: [
+                ...(scenario.extensions?.map((e) => resolve(dirname(ctx.specPath), e)) ?? []),
+                ...arm.extensions,
+              ],
+              eventSources: scenario.eventSources,
+              ...(armEnv ? { armEnv } : {}),
+            };
+            if (useStructured) {
+              const structured = await ctx.adapter.runStructured!({ ...req, scenarioId: scenario.id, rep });
+              transcript = structured.transcript;
+              traces = structured.traces;
+              events = structured.events ?? [];
+              eventErrors = structured.eventErrors ?? [];
+              if (structured.providerFailure) infrastructureFailure = `provider failure — ${structured.providerFailure}`;
+            } else {
+              transcript = await ctx.adapter.run(req);
+            }
           }
+        } catch (e) {
+          // An adapter that THREW is one rep's infrastructure failure, not the
+          // wave's. `runPool` is fail-fast and `runRep` had only a `finally`, so
+          // a single pi crash or `PI_TIMEOUT_MS` timeout unwound the whole run:
+          // no results.yaml written and every already-graded scenario's verdict
+          // lost. `--structured` made that reachable for EVERY scenario, because
+          // `runStructured` throws on a stream with no terminal events where the
+          // text path merely recorded `[pi exited N]` and carried on.
+          //
+          // Configuration errors do not arrive here: the two that used to be
+          // thrown from inside this block (adapter cannot produce traces for a
+          // gated scenario) are decided above, before the loop.
+          adapterFailure = e instanceof Error ? e.message : String(e);
+          transcript = `[adapter failure] ${adapterFailure}`;
+          // Nothing partial from the failed attempt may be read as evidence: an
+          // empty trace list satisfies a `forbid_calls` gate, and a stale diff
+          // from a previous attempt would be attributed to this one.
+          gatePrefix = null;
+          stagedDiff = null;
+          traces = [];
+          events = [];
+          eventErrors = [];
+        }
+
+        // A provider outage is infrastructure, never a model verdict. Checked on
+        // every path: the text path carries the marker in the transcript, the
+        // structured path sets `providerFailure` above and exits 0 while doing it.
+        if (!infrastructureFailure) {
+          const provider = providerFailureFromTranscript(transcript);
+          if (provider) infrastructureFailure = `provider failure — ${provider}`;
         }
         noResponse = hasEmptyAssistantTurn(transcript);
-        if (!noResponse) break;
+        if (!noResponse && !adapterFailure) break;
+      }
+      // Survived the retry: ERROR for this rep, inside a run that still completes
+      // and still writes every other scenario's verdict.
+      if (adapterFailure && !infrastructureFailure) {
+        infrastructureFailure = `adapter failure — ${adapterFailure}`;
       }
     }
 
@@ -371,8 +541,13 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
 
     // Objective evidence is persisted for every rep, pass or fail — a failing gate
     // is exactly when someone wants to read what the model actually did.
+    // `!adapterFailure`: a rep whose adapter threw never ran, so there is nothing
+    // to evaluate. Evaluating anyway reports "no execution trace was produced",
+    // which is the symptom — it names the missing artifact instead of the crash or
+    // timeout that caused it, and it is that text, not the real reason, that would
+    // reach the results record. The verdict is ERROR either way.
     let objective: ObjectiveResult | undefined;
-    if (scenario.traceAssert || scenario.trajectoryAssert) {
+    if ((scenario.traceAssert || scenario.trajectoryAssert) && !adapterFailure) {
       const assertionResults: ObjectiveResult["assertions"] = [];
       let status: ObjectiveResult["status"] = "PASS";
       let traceMeta: Pick<ObjectiveResult, "trace_version" | "trace_sha256"> = {};

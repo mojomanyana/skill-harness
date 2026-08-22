@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { regradeScenario, parseSpec, type HarnessAdapter, type JudgeReq } from "../src/index.js";
 import { judgeOneRep, regradeRun } from "../src/regrade.js";
 import { readJournal, readResults, writeResults } from "../src/index.js";
+import { PROVIDER_FAILURE_MARKER } from "../src/provider-failure.js";
 
 const tmps: string[] = [];
 function tmp() { const d = mkdtempSync(join(tmpdir(), "sc-regrade-")); tmps.push(d); return d; }
@@ -128,6 +129,42 @@ describe("judgeOneRep", () => {
     const jv = readJournal(runDir).filter((e) => e.event === "judge-verdict");
     expect(jv).toHaveLength(1);
     expect(jv[0]).toMatchObject({ id: "A1", verdict: "PASS" });
+  });
+
+  // I2: a provider outage recorded in a SAVED transcript (by run()'s marker, or
+  // by runStructured's — see pi.ts) must stay ERROR through a re-judge. Before
+  // this fix, judgeOneRep had no provider-failure check at all — the guard
+  // run.ts applies before ever calling this function does not exist on the
+  // grade/regrade path, which reads the transcript straight off disk. A
+  // provider outage would be spent a judge call and turned into a model
+  // verdict — infrastructure noise reported as a finding.
+  //
+  // Mutation: deleting the `providerFailureFromTranscript` check at the top of
+  // judgeOneRep (regrade.ts) makes this test's `verdict` assertion fail (it
+  // would come back "PASS", the judge would have been called once, and no
+  // ERROR journal entry would exist).
+  it("re-judges a provider-failure transcript to ERROR without spending a judge call", async () => {
+    const runDir = tmp();
+    const spec = scenarioOf(SPEC);
+    let judgeCalls = 0;
+    const adapter: HarnessAdapter = {
+      name: "pi", available: async () => true, run: async () => "",
+      judge: async (_: JudgeReq) => { judgeCalls += 1; return "1. PASS — ok\nVERDICT: PASS\nREASON: fine"; },
+    };
+    const transcript = `${PROVIDER_FAILURE_MARKER} openai-codex: invalidated oauth token\n\n>>> USER:\nhi\n\n<<< ASSISTANT:\n\n`;
+
+    const o = await judgeOneRep({
+      runDir, spec, scenario: spec.scenarios[0], transcript,
+      adapter, judge: { provider: "claude-code", model: "opus" }, specDir: runDir, mode: "green", rep: undefined, now: () => "t",
+    });
+
+    expect(o.verdict).toBe("ERROR");
+    expect(o.reason).toContain("openai-codex");
+    expect(o.metrics.judge_calls).toBe(0);
+    expect(judgeCalls).toBe(0);
+    const jv = readJournal(runDir).filter((e) => e.event === "judge-verdict");
+    expect(jv).toHaveLength(1);
+    expect(jv[0]).toMatchObject({ id: "A1", verdict: "ERROR" });
   });
 
   it("emits a misfire-flag alongside judge-verdict when the judge's verdict disagrees with its own items", async () => {

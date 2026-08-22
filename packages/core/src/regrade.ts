@@ -11,6 +11,7 @@ import {
 import { outcomesToResult, type RepOutcome } from "./reps.js";
 import { appendJournal } from "./journal.js";
 import { rubricDigest, personaDigest, RUBRIC_PREFIX, PERSONA_KEY } from "./sources.js";
+import { providerFailureFromTranscript } from "./provider-failure.js";
 
 /**
  * Carry a run's recorded hashes forward, refreshing only the `rubric:` keys this
@@ -74,10 +75,28 @@ export async function judgeOneRep(opts: {
 }): Promise<RepOutcome> {
   const { runDir, spec, scenario, transcript, adapter, judge, specDir, mode, rep, now } = opts;
   const startedAt = performance.now();
+  const repField = rep === undefined ? {} : { rep };
+
+  // A provider outage recorded in the transcript (either by `run()`'s marker or,
+  // since the fix for I2, by `runStructured` too) must stay ERROR through a
+  // re-judge. Without this check, `grade`/`regrade` reads the saved transcript
+  // with no infrastructure-failure guard at all — the one `run.ts` applies BEFORE
+  // ever calling this function — and re-judges "provider never ran the request"
+  // into a model verdict, spending a judge call to turn infrastructure noise into
+  // a false FAIL.
+  const providerFailure = providerFailureFromTranscript(transcript);
+  if (providerFailure) {
+    const reason = `provider failure — ${providerFailure}`;
+    appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict: "ERROR", reason, suspect: false, ...repField });
+    return {
+      verdict: "ERROR", reason, suspect: false,
+      metrics: { wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)), judge_calls: 0, judge_rejudge_calls: 0 },
+    };
+  }
+
   const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
   const g = await judgeInWorkspace(adapter, judge, prompt, specDir);
   writeFileSync(judgeRawPath(runDir, scenario.id, mode, rep), g.raw, "utf8");
-  const repField = rep === undefined ? {} : { rep };
   appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict: g.verdict, reason: g.reason, suspect: g.suspect, ...repField });
   if (g.suspect) appendJournal(runDir, { event: "misfire-flag", ts: now(), id: scenario.id, reason: g.reason, ...repField });
   return {
@@ -238,6 +257,13 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     // here would credit the old transcripts to a version that never ran them.
     harness_cli_version: prev?.harness_cli_version,
     delivery_canary: prev?.delivery_canary,
+    // The arm is provenance of the MEASUREMENT, not of this rewrite, and it is the
+    // only record that a `+<arm>` run actually delegated: rebuilding the draft
+    // field-by-field without it silently deleted `definitions`/`ledger_events`
+    // from any arm run that was ever re-graded, leaving a record
+    // indistinguishable from a vacuous arm. Same reason `harness_cli_version`,
+    // `delivery_canary` and `source_hashes` are carried here.
+    arm: prev?.arm,
     model: prev?.model ?? "unknown",
     judge: { provider: judge.provider, model: judge.model },
     timestamp: prev?.timestamp ?? now(),

@@ -43,6 +43,89 @@ and 0.10.0 touched neither. **Run it before the next release that does.** Its la
 reached all four stages, exit 0, on pi 0.84.2 for 2242/457 subject tokens (`cost_usd 0.00049`)
 and 3 judge calls. Treat that as one draw on a cheap model, not a measurement.
 
+## This branch: `feat/codex-arms-axis` (local, unpushed)
+
+Everything above is `main`/0.10.0 and is unaffected by what follows. This is a second,
+unmerged body of work sitting on top of it — a full task-13 release-hygiene pass ran
+against it today (build, typecheck, full suite, suite with `pi` off `PATH`, all green:
+**1,330 tests across 84 files**, up from 1,289/79). Nothing here is on `main`. Nothing
+has been pushed. No PR exists — pushing and opening one is the owner's call, not a
+session's to make unilaterally, and this session was explicitly told not to.
+
+**Shipped here:** provider-failure classification as infrastructure `ERROR` on both run
+paths; `run --structured` so subject tokens/cost/wall-time are actually recorded (before
+this, `--structured`'s absence meant that data was silently never written); the pi-daddy
+**arms axis** — `<skills-root>/tests/arms.yaml`, a `--arm` flag, the arm name carried in
+the run-dir tag, definition seeding, three refusals for malformed arm input, and a
+per-run ledger — plus `docs/CODEX-ARMS-RUNBOOK.md` describing how to spend Wave 0. The
+corpus-side half, `arms.yaml` itself, is committed in `../principal-pi-skills` on local
+branch `feat/measurement-arms` (`c55784b`) — also unpushed, also the owner's call.
+
+**Wave 0 is blocked on ONE thing:** the `openai-codex` OAuth token in
+`~/.pi/agent/auth.json` is invalidated. Re-auth is required before any Wave 0 command can
+run for real. Do not trust `pi auth check` as the gate — it reports
+`{"status":"ready",...}` against that same dead token. The runbook's one-call probe is
+the actual gate; use it.
+
+**Still unverified and load-bearing:** whether pi binds a thinking level from a
+`:suffix` on `--model` (e.g. `openai-codex:gpt-5.6-sol:medium`). The spike meant to answer
+this died on the dead token above, so it is genuinely open, not just untested. If it does
+not bind, the fallback is an optional third segment in `parseModelRef` plus a
+`--thinking` flag threaded through `pi.ts`'s `common` array — sized, not designed, so
+budget real time for it.
+
+**The measurement-integrity invariant that held throughout, and must keep holding:**
+
+```bash
+node bin/skill-harness.js lint all --skills ../principal-pi-skills
+# 7 skill(s), 101 finding(s), 32 note(s)
+```
+
+Measured four times across this work, including after the corpus's `arms.yaml` landed.
+Movement on this number means an arm leaked into a digest — treat any change as a bug in
+this work, not as corpus drift, until proven otherwise.
+
+**The finding this work deliberately did NOT fix**, from the spec's §10: `force` mode
+appends the whole `SKILL.md`, frontmatter included, to the system prompt — but
+`sources.ts`'s `CAPABILITY_KEYS` excludes `allowed-tools`/`tools` from the model-visible
+digest on the stated grounds that they are "never rendered into the model's context".
+That grounds is false in force mode, for all 7 skills, all 6 agent files, and 59
+committed force runs. It is its own issue with its own fix and its own write-up. It was
+not fixed here because changing force's delivery would move the ground the Wave 0 numbers
+stand on, mid-campaign.
+
+**A gap a future task must close:** `vitest` transpiles through esbuild and never
+type-checks, so `npm run typecheck` is the *only* guard against a genuine type error in
+this repo — several tasks in this campaign added code that had never been type-checked
+until task 13's build-then-typecheck pass ran. The deferred minors immediately below were
+accepted rather than fixed for the same reason release hygiene exists: to surface them
+for a human, not to quietly wave them through.
+
+**Deferred minors, verbatim, for triage before merge:**
+
+- `providerFailureFromJsonLine` returns on the first matching diagnostic; multiple
+  diagnostics in one array is untested.
+- The transcript forgery guard is verified by one case, not exhaustively.
+- Task 5's four refusal tests (extension-missing, duplicate-name, reserved-name,
+  bad-name-shape) were never re-mutation-tested after Task 6 restructured the function
+  around them — inspected only.
+- Task 8's fix report overstated its regression coverage, naming `regate`/`lint`/
+  `sources-split` as covering `runSeeded`'s request path when none of them call it; real
+  coverage is `p1-multipliers`, `force-scoring`, and `seeded.test.ts`.
+- The runbook's two post-run greps (`metrics:` block, ledger `wc -l`) are corroborated
+  against source, not against a live run directory — spot-check them on the first real
+  run.
+
+**A hazard worth recording:** across this plan, seven specified tests turned out to be
+unable to fail — fixtures that never contained the string they claimed to reject, one
+that tripped an unrelated pre-existing `ERROR` path instead of the one under test, one
+built on unverified string surgery, one whose mutation was unreachable because the
+fixture carried no diagnostics to begin with, vacuous post-run filesystem assertions
+defeated by workspace teardown, and a byte-identical clone that `stability` could never
+flag as anything but identical. Every one of the seven was caught by the mandatory
+mutation step; none was caught by reading the passing suite. Keep that step
+non-negotiable — this campaign is the evidence for why.
+
 ## Open work, in the order I would do it
 
 ### 1. `principal-pi-skills` — 100 paid re-runs

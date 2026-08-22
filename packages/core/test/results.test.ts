@@ -1,4 +1,4 @@
-import { describe, test, expect, afterEach } from "vitest";
+import { describe, test, it, expect, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
@@ -80,6 +80,25 @@ describe("runDirFor", () => {
       "2027-01-01T00:00:00.000Z",
     ].map(at);
     expect([...ordered].sort()).toEqual(ordered);
+  });
+});
+
+describe("runDirFor with an arm", () => {
+  const model = { provider: "openai-codex", model: "gpt-5.6-sol:medium" };
+
+  it("is byte-identical to today's path for the control arm", () => {
+    const bare = runDirFor("/s", "pi", model, "2026-08-22T00:00:00.000Z");
+    expect(runDirFor("/s", "pi", model, "2026-08-22T00:00:00.000Z", "none")).toBe(bare);
+    expect(runDirFor("/s", "pi", model, "2026-08-22T00:00:00.000Z", undefined)).toBe(bare);
+    expect(bare).toContain("pi-openai-codex-gpt-5.6-sol-medium");
+  });
+
+  it("appends the arm with a separator modelSlug can never emit", () => {
+    const dir = runDirFor("/s", "pi", model, "2026-08-22T00:00:00.000Z", "pi-daddy");
+    expect(dir).toContain("pi-openai-codex-gpt-5.6-sol-medium+pi-daddy");
+    // splittable back into exactly two halves
+    const tag = dir.split("/").slice(-2)[0];
+    expect(tag.split("+")).toHaveLength(2);
   });
 });
 

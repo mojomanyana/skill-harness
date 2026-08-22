@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import type { ExecutionTraceV1, ModelRef, RunMode } from "@skill-harness/core";
-import { parseTrace } from "@skill-harness/core";
+import { parseTrace, providerFailureFromJsonLine } from "@skill-harness/core";
 
 /**
  * Run `pi --mode json` and build an execution trace, **streaming**.
@@ -38,6 +38,11 @@ export interface PiJsonRunOptions {
   turn: number;
   changedPaths?: string[];
   homeDir?: string;
+  /**
+   * Extra env for the subject process, from the arm. `spawn` treats `undefined`
+   * as "inherit", so the control arm (which never sets this) is unaffected.
+   */
+  env?: NodeJS.ProcessEnv;
 }
 
 export interface PiJsonRunResult {
@@ -46,6 +51,13 @@ export interface PiJsonRunResult {
   malformedLines: number;
   code: number | null;
   stderr: string;
+  /**
+   * Set when a line on the stream carried a provider-side failure diagnostic
+   * (auth, transport) rather than the model answering badly. `runStructured`
+   * collects this across turns; `run.ts` turns it into ERROR — never a model
+   * verdict.
+   */
+  providerFailure: string | null;
 }
 
 /** How much stderr to retain — enough to diagnose, bounded so a loop cannot blow up. */
@@ -55,6 +67,7 @@ export function runPiJson(opts: PiJsonRunOptions): Promise<PiJsonRunResult> {
   return new Promise((resolve, reject) => {
     const child = spawn("pi", opts.args, {
       cwd: opts.cwd,
+      env: opts.env,
       // stdin from /dev/null: pi hangs waiting on it otherwise, and a hang in a
       // wave is indistinguishable from a slow model until the timeout fires.
       stdio: ["ignore", "pipe", "pipe"],
@@ -62,6 +75,7 @@ export function runPiJson(opts: PiJsonRunOptions): Promise<PiJsonRunResult> {
 
     const kept: string[] = [];
     let stderr = "";
+    let providerFailure: string | null = null;
     let settled = false;
 
     const timer = setTimeout(() => {
@@ -85,6 +99,7 @@ export function runPiJson(opts: PiJsonRunOptions): Promise<PiJsonRunResult> {
       if (!line.trim()) return;
       if (SKIPPED_TYPE_RE.test(line)) return;
       kept.push(line);
+      if (providerFailure === null) providerFailure = providerFailureFromJsonLine(line);
     });
 
     child.stderr.on("data", (chunk: Buffer) => {
@@ -112,7 +127,7 @@ export function runPiJson(opts: PiJsonRunOptions): Promise<PiJsonRunResult> {
         changedPaths: opts.changedPaths,
         homeDir: opts.homeDir,
       });
-      resolve({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS) });
+      resolve({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS), providerFailure });
     });
   });
 }

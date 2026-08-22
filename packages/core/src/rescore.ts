@@ -113,6 +113,13 @@ export function rescoreRun(opts: RescoreOptions): RescoreResult {
     // threshold to reps the recorded harness already produced.
     harness_cli_version: prev.harness_cli_version,
     delivery_canary: prev.delivery_canary,
+    // The arm is provenance of the MEASUREMENT, not of this rewrite, and it is the
+    // only record that a `+<arm>` run actually delegated: rebuilding the draft
+    // field-by-field without it silently deleted `definitions`/`ledger_events`
+    // from any arm run that was ever re-graded, leaving a record
+    // indistinguishable from a vacuous arm. Same reason `harness_cli_version`,
+    // `delivery_canary` and `source_hashes` are carried here.
+    arm: prev.arm,
     // A rescore re-applies the CURRENT policy (thresholds, critical set) to the
     // recorded reps, so `policy:` drift is genuinely resolved by having run this —
     // that is what makes `rescore` the honest remedy lint names for it. Stimulus,

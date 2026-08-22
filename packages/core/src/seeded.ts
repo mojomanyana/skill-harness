@@ -28,6 +28,16 @@ interface SeededOpts {
    * routes the subject through the adapter's structured (`--mode json`) path.
    */
   trace?: { scenarioId: string; rep: number };
+  /**
+   * Absolute paths of an arm's pi extensions, merged with `scenario.extensions`
+   * when the `RunReq` is built below — the same shape the non-seeded path in
+   * `run.ts` produces, so a trace-gated seeded scenario measures the same
+   * delivery as an ungated one (the reason `runStructured` shares `skillFlags`
+   * with `run()` instead of inventing a second convention applies here too).
+   */
+  armExtensions?: string[];
+  /** The arm's env for the subject process; `<run-dir>` already substituted by the caller. */
+  armEnv?: Record<string, string>;
 }
 
 /**
@@ -229,9 +239,15 @@ export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<S
     mode: opts.mode,
     turns: scenario.turns,
     cwd: repo,
-    // Resolved against the spec dir, exactly like fixtures and post-tests.
-    extensions: scenario.extensions?.map((e) => resolve(opts.specDir, e)),
+    // Resolved against the spec dir, exactly like fixtures and post-tests —
+    // the arm's extensions (already absolute) join alongside, same as the
+    // non-seeded path in run.ts.
+    extensions: [
+      ...(scenario.extensions?.map((e) => resolve(opts.specDir, e)) ?? []),
+      ...(opts.armExtensions ?? []),
+    ],
     eventSources: scenario.eventSources,
+    ...(opts.armEnv ? { armEnv: opts.armEnv } : {}),
   };
   // A trace-gated seeded scenario runs through the structured path so the tool
   // calls are recorded; everything downstream (gates, diff, transcript) is

@@ -178,6 +178,33 @@ export interface ResultsFile {
   timestamp: string;
   label: string | null; // run label, e.g. "round-3" — ends timestamp-dir archaeology
   mode: string; // red | green | force — green and force are scored (see SCORED_MODES); red is the control
+  /**
+   * The arm this run was measured under, absent for the control.
+   *
+   * Recorded rather than inferred from the tag: the tag says which arm, this says
+   * what the arm actually loaded — a run whose extension list or definition count
+   * differed from today's `arms.yaml` is not comparable, and only the record can
+   * show that.
+   *
+   * `ledger_events` is the arm's delivery proof, `--canary`'s equivalent for this
+   * axis: the pi-daddy ledger itself is gitignored (`*.jsonl`), so without a
+   * count here a vacuous arm run (extension loaded, nothing ever delegated)
+   * commits a record indistinguishable from one that actually exercised
+   * delegation. 0 is a reportable outcome, not an absent field.
+   *
+   * `env` is the arm's declared env for the subject process (`PI_GRANTS_GRANT`,
+   * `PI_GRANTS_MAX_DEPTH`, …) — recorded because it IS the experimental
+   * condition, not decoration around it. Without it, changing `PI_GRANTS_MAX_DEPTH`
+   * from 1 to 3 and re-running lands both runs in the same `+<arm>` tag with
+   * byte-identical `arm` records, and `stability` reads a verdict flip between two
+   * different conditions as one lineage being bimodal — the exact misreading the
+   * tag placement exists to prevent. Recorded as DECLARED, with `<run-dir>`
+   * unsubstituted: the substituted form differs every run for the same condition,
+   * which would make two identical conditions look like two.
+   *
+   * Optional only for records written before it was added; every writer emits it.
+   */
+  arm?: { name: string; extensions: string[]; definitions: number; ledger_events: number; env?: Record<string, string> };
   /** True for an `--only`-filtered run: a scenario subset, never ship-graded, never a release run. */
   partial?: boolean;
   /**
@@ -268,9 +295,29 @@ function timestampSlug(iso: string): string {
   return iso.replace(/[:.]/g, "-");
 }
 
-/** <skillDir>/tests/results/<harness>-<model-slug>/<timestamp-slug>/ */
-export function runDirFor(skillDir: string, harness: string, model: ModelRef, timestamp: string): string {
-  return join(skillDir, "tests", "results", `${harness}-${modelSlug(model)}`, timestampSlug(timestamp));
+/**
+ * `<skillDir>/tests/results/<harness>-<model-slug>[+<arm>]/<timestamp-slug>/`
+ *
+ * The arm is part of the run's IDENTITY, not of the spec's digest. `lint` and
+ * `stability` both key on this tag, so two arms become separate lineages that can
+ * never be misread as one lineage flipping run-over-run — and no
+ * `specification.yaml` byte moves, so every committed run stays valid.
+ *
+ * `+` is deliberate and is appended OUTSIDE `modelSlug`, whose character class
+ * (`[^A-Za-z0-9._-]`) cannot emit one. So the separator can never occur inside a
+ * slug and the tag stays unambiguously splittable back into model and arm. The
+ * control arm appends nothing, so its paths are byte-identical to before arms
+ * existed.
+ */
+export function runDirFor(
+  skillDir: string,
+  harness: string,
+  model: ModelRef,
+  timestamp: string,
+  armName?: string,
+): string {
+  const arm = armName && armName !== "none" ? `+${armName}` : "";
+  return join(skillDir, "tests", "results", `${harness}-${modelSlug(model)}${arm}`, timestampSlug(timestamp));
 }
 
 /** Path of a transcript file within a run dir. A rep index (for --reps N>1) is suffixed. */
@@ -365,6 +412,7 @@ export function finalizeResults(draft: ResultsDraft, ctx: ScoreContext | null): 
     timestamp: draft.timestamp,
     label: draft.label,
     mode: draft.mode,
+    ...(draft.arm ? { arm: draft.arm } : {}),
     ...(draft.partial ? { partial: true } : {}),
     ...(draft.source_hashes ? { source_hashes: draft.source_hashes } : {}),
     effective_grade,

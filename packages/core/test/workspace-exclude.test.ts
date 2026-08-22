@@ -52,6 +52,42 @@ describe("workspace git excludes tooling droppings from the captured diff", () =
     }
   });
 
+  // C1: `.pi/skills/` is where `seedArmDefinitions` (arms.ts) copies an arm's
+  // definitions before the subject runs — a harness writer, same class as the
+  // vitest cache above, not the model's work.
+  test("an arm's seeded .pi/skills/ definitions are excluded too", () => {
+    const ws = createWorkspace({ fixture: fixture() }, { specDir: "/" });
+    try {
+      mkdirSync(join(ws.cwd, ".pi", "skills"), { recursive: true });
+      writeFileSync(join(ws.cwd, ".pi", "skills", "seeded.md"), "---\nname: x\n---\n\nbody\n", "utf8");
+      writeFileSync(join(ws.cwd, "app.ts"), "export const x = 2;\n", "utf8");
+
+      const diff = stagedDiff(ws.cwd);
+      expect(diff).toContain("app.ts"); // the model's real edit still shows
+      expect(diff).not.toContain(".pi");
+      expect(diff).not.toContain("seeded.md");
+    } finally {
+      ws.cleanup();
+    }
+  });
+
+  // The scope of C1, from the other side: only `.pi/skills/` is the harness's
+  // writing. A scenario whose whole point is that the model authors a pi agent
+  // definition must still be able to assert on the file it wrote. Mutation:
+  // widening TOOL_ARTIFACTS back to `.pi/` makes this fail.
+  test("model writes elsewhere under .pi/ are NOT excluded", () => {
+    const ws = createWorkspace({ fixture: fixture() }, { specDir: "/" });
+    try {
+      mkdirSync(join(ws.cwd, ".pi", "agent"), { recursive: true });
+      writeFileSync(join(ws.cwd, ".pi", "agent", "authored.md"), "---\nname: y\n---\n\nbody\n", "utf8");
+
+      const diff = stagedDiff(ws.cwd);
+      expect(diff).toContain(".pi/agent/authored.md");
+    } finally {
+      ws.cleanup();
+    }
+  });
+
   test("coverage output is excluded too", () => {
     const ws = createWorkspace({ fixture: fixture() }, { specDir: "/" });
     try {

@@ -31,6 +31,7 @@ import {
   downgradeWarning,
   isScoredMode,
   runTrajectoryMutationSelfTest,
+  resolveArm,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
@@ -192,10 +193,16 @@ export async function cmdRun(args: Args): Promise<void> {
 
   const mode = (flagStr(args, "mode", "green") as "red" | "green" | "force") || "green";
   const canary = flagBool(args, "canary");
+  const structured = flagBool(args, "structured");
   const label = flagStr(args, "label") || null;
   const parallel = Math.max(1, Number(flagStr(args, "parallel", "1")) || 1);
   const { reps, passThreshold } = parseRunTuning(args);
   const modelTokens = resolveModels(args);
+
+  // Resolved ONCE, before the skill loop: a typo'd arm name fails before any
+  // token is spent on any skill.
+  const armName = flagStr(args, "arm") || null;
+  const arm = resolveArm(root, armName);
 
   const skills =
     target === "all"
@@ -245,6 +252,9 @@ export async function cmdRun(args: Args): Promise<void> {
         passThreshold,
         only,
         canary,
+        structured,
+        arm,
+        skillsRoot: root,
         onProgress: (m) => console.log(m),
       });
       summaries.push(summary);
@@ -897,6 +907,9 @@ export function help(): string {
                      [--affected --base <git-ref>]  run only the scenarios a change could touch (partial; never SHIPs)
                      [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
                      [--canary]  green only: spend ONE probe proving the skill reached the model, and abort the run if it did not
+                     [--structured]  record subject tokens, cost and wall time (needs pi --mode json)
+                     [--arm <name>]  measure under a named arm from <skills-root>/tests/arms.yaml
+                                     (loads its extensions, seeds pi-daddy definitions, tags the run dir)
   compare <skill|all> --reference <git-ref-or-skills-root> --candidate <skills-root>
                      [--model prov:model ...] [--mode green|force] [--judge prov:model] [--reps N] [--only IDs | --affected --base ref]
                      [--output dir] [--max-subject-token-increase R] [--max-wall-time-increase R] [--max-tool-call-increase R]

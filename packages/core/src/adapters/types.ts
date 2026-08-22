@@ -62,6 +62,12 @@ export interface RunReq {
   extensions?: string[];
   /** Workspace-local native ledgers to normalize after the subject finishes. */
   eventSources?: TrajectoryEventSource[];
+  /**
+   * Extra env for the subject process, from the arm. Merged over `process.env` by
+   * the adapter — an arm must be able to add `PI_GRANTS_*` without the harness
+   * inheriting a caller's copy of them.
+   */
+  armEnv?: Record<string, string>;
 }
 
 /** A judge request: single prompt, no skills, no session. */
@@ -80,6 +86,11 @@ export interface StructuredRun {
   events?: TrajectoryEventV1[];
   /** Native sources that were required but missing/malformed. Never treated as an empty success. */
   eventErrors?: string[];
+  /**
+   * Set when pi failed provider-side (auth, transport) rather than the model
+   * answering badly. `run.ts` turns this into ERROR — never a model verdict.
+   */
+  providerFailure?: string;
 }
 
 export interface HarnessAdapter {

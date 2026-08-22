@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PROVIDER_FAILURE_MARKER, providerFailureFromTranscript } from "@skill-harness/core";
 import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -107,5 +108,72 @@ describe("piAdapter.runStructured", () => {
       skillDir: skill(), model: { provider: "fireworks", model: "x" }, mode: "green",
       turns: ["hi"], cwd: "/tmp", scenarioId: "A1", rep: 0,
     })).rejects.toThrow(/no terminal events/);
+  });
+
+  it("collects a provider failure that occurs on a turn other than the first", async () => {
+    // A real pi `--mode json` line naming a provider-side transport failure,
+    // planted on the SECOND turn's stream — turn 1 is an ordinary clean run.
+    const providerFailureLine = JSON.stringify({
+      type: "message_start",
+      message: {
+        role: "assistant",
+        provider: "openai-codex",
+        diagnostics: [
+          { type: "provider_transport_failure", error: { name: "Error", message: "WebSocket error" } },
+        ],
+      },
+    });
+    streams.push(
+      readFileSync(join(FIXTURES, "multi-turn-turn1.jsonl"), "utf8"),
+      `${providerFailureLine}\n${readFileSync(join(FIXTURES, "multi-turn-turn2.jsonl"), "utf8")}`,
+    );
+    const result = await piAdapter.runStructured!({
+      skillDir: skill(), model: { provider: "fireworks", model: "x" }, mode: "force",
+      turns: ["remember 77", "what number?"], cwd: "/tmp", scenarioId: "A1", rep: 0,
+    });
+    expect(result.providerFailure).toContain("openai-codex");
+    expect(result.providerFailure).toContain("WebSocket error");
+  });
+
+  // I2 (adapter half): the artifact on disk is the only thing a later
+  // `grade`/`regrade` call ever reads (see `judgeOneRep` in core/regrade.ts).
+  // Before this fix, `runStructured` returned `providerFailure` as a field ONLY
+  // — never written into the transcript string — so a re-judge of the saved
+  // `.txt` had no way to recover the evidence: the marker regrade.ts now looks
+  // for simply was not there.
+  //
+  // Mutation: deleting the `withProviderFailure(...)` wrapper around the returned
+  // transcript in pi.ts's runStructured makes this test fail even though
+  // `result.providerFailure` itself is still set correctly.
+  //
+  // The failure here is injected on turn TWO on purpose. Written inline it landed
+  // after turn one's assistant section — indistinguishable, to any reader, from
+  // text the model produced. `withProviderFailure` hoists it to the preamble, so
+  // `providerFailureFromTranscript` can recover it without trusting model output.
+  it("writes the provider-failure marker into the transcript, not just the returned field", async () => {
+    const providerFailureLine = JSON.stringify({
+      type: "message_start",
+      message: {
+        role: "assistant",
+        provider: "openai-codex",
+        diagnostics: [
+          { type: "provider_transport_failure", error: { name: "Error", message: "WebSocket error" } },
+        ],
+      },
+    });
+    streams.push(
+      readFileSync(join(FIXTURES, "multi-turn-turn1.jsonl"), "utf8"),
+      `${providerFailureLine}\n${readFileSync(join(FIXTURES, "multi-turn-turn2.jsonl"), "utf8")}`,
+    );
+    const result = await piAdapter.runStructured!({
+      skillDir: skill(), model: { provider: "fireworks", model: "x" }, mode: "force",
+      turns: ["remember 77", "what number?"], cwd: "/tmp", scenarioId: "A1", rep: 0,
+    });
+    expect(result.providerFailure).toBeTruthy();
+    expect(result.transcript).toContain(PROVIDER_FAILURE_MARKER);
+    expect(result.transcript).toContain("openai-codex");
+    expect(result.transcript).toContain("WebSocket error");
+    // Recoverable from the saved artifact alone — that is what a later re-grade has.
+    expect(providerFailureFromTranscript(result.transcript)).toContain("WebSocket error");
   });
 });

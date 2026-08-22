@@ -181,3 +181,45 @@ describe("runPiJson", () => {
     expect(SKIPPED_TYPE_RE.test(sneaky)).toBe(false);
   });
 });
+
+/** A real pi `--mode json` line naming a provider-side transport failure. */
+const PROVIDER_FAILURE_LINE = JSON.stringify({
+  type: "message_start",
+  message: {
+    role: "assistant",
+    provider: "openai-codex",
+    diagnostics: [
+      { type: "provider_transport_failure", error: { name: "Error", message: "WebSocket error" } },
+    ],
+  },
+});
+
+/**
+ * A benign diagnostic — present, but not one of `FAILURE_DIAGNOSTICS` — so the
+ * "clean stream" test below has something a too-broad match could wrongly
+ * latch onto. A stream with no `diagnostics` array at all cannot falsify an
+ * over-broad `FAILURE_DIAGNOSTICS` check: there is nothing there to match.
+ */
+const BENIGN_DIAGNOSTIC_LINE = JSON.stringify({
+  type: "message_start",
+  message: {
+    role: "assistant",
+    provider: "openai-codex",
+    diagnostics: [{ type: "rate_limit_notice" }],
+  },
+});
+
+describe("provider failure detection", () => {
+  it("sets providerFailure when a line carries a provider_transport_failure diagnostic", async () => {
+    scripts.push({ stdout: `${PROVIDER_FAILURE_LINE}\n${TERMINAL}` });
+    const r = await run();
+    expect(r.providerFailure).toContain("openai-codex");
+    expect(r.providerFailure).toContain("WebSocket error");
+  });
+
+  it("leaves providerFailure null for a clean stream with a benign diagnostic", async () => {
+    scripts.push({ stdout: `${BENIGN_DIAGNOSTIC_LINE}\n${TERMINAL}` });
+    const r = await run();
+    expect(r.providerFailure).toBeNull();
+  });
+});
