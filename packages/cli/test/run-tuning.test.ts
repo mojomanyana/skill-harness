@@ -61,3 +61,9 @@ test("run --help documents --structured and what it buys", () => {
   expect(usage).toContain("--structured");
   expect(usage).toMatch(/cost|token/i);
 });
+
+test("run --help documents --arm and where arms are declared", () => {
+  const usage = help();
+  expect(usage).toContain("--arm");
+  expect(usage).toContain("arms.yaml");
+});

@@ -31,6 +31,7 @@ import {
   downgradeWarning,
   isScoredMode,
   runTrajectoryMutationSelfTest,
+  resolveArm,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
@@ -198,6 +199,11 @@ export async function cmdRun(args: Args): Promise<void> {
   const { reps, passThreshold } = parseRunTuning(args);
   const modelTokens = resolveModels(args);
 
+  // Resolved ONCE, before the skill loop: a typo'd arm name fails before any
+  // token is spent on any skill.
+  const armName = flagStr(args, "arm") || null;
+  const arm = resolveArm(root, armName);
+
   const skills =
     target === "all"
       ? discover(root).filter((s) => s.hasSpec)
@@ -247,6 +253,8 @@ export async function cmdRun(args: Args): Promise<void> {
         only,
         canary,
         structured,
+        arm,
+        skillsRoot: root,
         onProgress: (m) => console.log(m),
       });
       summaries.push(summary);
@@ -900,6 +908,8 @@ export function help(): string {
                      [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
                      [--canary]  green only: spend ONE probe proving the skill reached the model, and abort the run if it did not
                      [--structured]  record subject tokens, cost and wall time (needs pi --mode json)
+                     [--arm <name>]  measure under a named arm from <skills-root>/tests/arms.yaml
+                                     (loads its extensions, seeds pi-daddy definitions, tags the run dir)
   compare <skill|all> --reference <git-ref-or-skills-root> --candidate <skills-root>
                      [--model prov:model ...] [--mode green|force] [--judge prov:model] [--reps N] [--only IDs | --affected --base ref]
                      [--output dir] [--max-subject-token-increase R] [--max-wall-time-increase R] [--max-tool-call-increase R]
