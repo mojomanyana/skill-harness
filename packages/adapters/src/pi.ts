@@ -19,7 +19,6 @@ const PROVIDER_STDERR_SIGNATURES = [
   "invalidated oauth token",
   "invalid_api_key",
   "insufficient_quota",
-  "authentication",
 ];
 
 function providerStderr(stderr: string): string | null {

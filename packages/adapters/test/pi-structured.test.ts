@@ -108,4 +108,29 @@ describe("piAdapter.runStructured", () => {
       turns: ["hi"], cwd: "/tmp", scenarioId: "A1", rep: 0,
     })).rejects.toThrow(/no terminal events/);
   });
+
+  it("collects a provider failure that occurs on a turn other than the first", async () => {
+    // A real pi `--mode json` line naming a provider-side transport failure,
+    // planted on the SECOND turn's stream — turn 1 is an ordinary clean run.
+    const providerFailureLine = JSON.stringify({
+      type: "message_start",
+      message: {
+        role: "assistant",
+        provider: "openai-codex",
+        diagnostics: [
+          { type: "provider_transport_failure", error: { name: "Error", message: "WebSocket error" } },
+        ],
+      },
+    });
+    streams.push(
+      readFileSync(join(FIXTURES, "multi-turn-turn1.jsonl"), "utf8"),
+      `${providerFailureLine}\n${readFileSync(join(FIXTURES, "multi-turn-turn2.jsonl"), "utf8")}`,
+    );
+    const result = await piAdapter.runStructured!({
+      skillDir: skill(), model: { provider: "fireworks", model: "x" }, mode: "force",
+      turns: ["remember 77", "what number?"], cwd: "/tmp", scenarioId: "A1", rep: 0,
+    });
+    expect(result.providerFailure).toContain("openai-codex");
+    expect(result.providerFailure).toContain("WebSocket error");
+  });
 });

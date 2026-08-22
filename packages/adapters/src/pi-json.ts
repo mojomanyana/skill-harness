@@ -46,6 +46,12 @@ export interface PiJsonRunResult {
   malformedLines: number;
   code: number | null;
   stderr: string;
+  /**
+   * Set when a line on the stream carried a provider-side failure diagnostic
+   * (auth, transport) rather than the model answering badly. `runStructured`
+   * collects this across turns; `run.ts` turns it into ERROR — never a model
+   * verdict.
+   */
   providerFailure: string | null;
 }
 
