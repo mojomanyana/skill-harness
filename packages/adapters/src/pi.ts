@@ -156,10 +156,14 @@ export const piAdapter: HarnessAdapter = {
       : skillFlags(req.mode, req.skillDir);
     const total = req.turns.length;
     const parts: string[] = [];
+    // The arm's env, merged over the harness's own — undefined (not `process.env`)
+    // when there is none, so `exec`'s `env: opts.env ?? process.env` inherits
+    // normally and the control arm is unaffected.
+    const env = req.armEnv ? { ...process.env, ...req.armEnv } : undefined;
 
     if (total === 1) {
       const args = [...flags, ...common, "--no-session", "-p", req.turns[0]];
-      const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS });
+      const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env });
       parts.push(header(1, 1, req.turns[0]));
       parts.push(`<<< ASSISTANT:\n${r.stdout.trim()}\n`);
       if (r.code !== 0) {
@@ -175,7 +179,7 @@ export const piAdapter: HarnessAdapter = {
     for (let i = 0; i < total; i++) {
       const turnFlags = i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common, ...turnFlags, "-p", req.turns[i]];
-      const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS });
+      const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env });
       parts.push(header(i + 1, total, req.turns[i]));
       parts.push(`<<< ASSISTANT:\n${r.stdout.trim()}\n`);
       if (r.code !== 0) {
@@ -220,6 +224,9 @@ export const piAdapter: HarnessAdapter = {
     const parts: string[] = [];
     const session = total === 1 ? null : mkdtempSync(join(tmpdir(), "sc-pi-session-"));
     let providerFailure: string | null = null;
+    // Same merge as `run()`: undefined when the arm carries no env, so `spawn`
+    // (which treats `undefined` as "inherit") leaves the control arm untouched.
+    const env = req.armEnv ? { ...process.env, ...req.armEnv } : undefined;
 
     for (let i = 0; i < total; i++) {
       const turnFlags =
@@ -241,6 +248,7 @@ export const piAdapter: HarnessAdapter = {
         rep: req.rep ?? 0,
         turn: i,
         homeDir: homedir(),
+        env,
       });
 
       // A stream with no terminal events at all is not evidence of a clean run.

@@ -4,6 +4,7 @@ import type { Spec, Scenario } from "./spec.js";
 import { sourceHashes } from "./sources.js";
 import type { HarnessAdapter, ModelRef, RunMode } from "./adapters/types.js";
 import { judgeResemblesSubject } from "./grade.js";
+import { NONE_ARM, seedArmDefinitions, type Arm } from "./arms.js";
 import {
   runDirFor,
   transcriptPath,
@@ -74,6 +75,12 @@ export interface RunOptions {
    * token data at all, which is why the reference corpus has none.
    */
   structured?: boolean;
+  /** The arm this run is measured under. Absent means the control (`none`). */
+  arm?: Arm;
+  /** Skills root — `seed_skills` paths resolve against it. Defaults to the skill's parent. */
+  skillsRoot?: string;
+  /** Injectable ambient skill root, for tests. Production reads `~/.pi/agent/skills`. */
+  ambientSkillsDir?: string;
 }
 
 export interface RunSummary {
@@ -111,7 +118,8 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     );
   }
 
-  const runDir = runDirFor(skillDir, adapter.name, model, timestamp);
+  const arm = opts.arm ?? NONE_ARM;
+  const runDir = runDirFor(skillDir, adapter.name, model, timestamp, arm.name);
   mkdirSync(runDir, { recursive: true });
   ensureResultsGitignore(dirname(dirname(runDir))); // .../tests/results/.gitignore
 
@@ -171,12 +179,13 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   const repCounts = scenarios.map((s) => s.reps ?? opts.reps ?? 1);
   const owners: number[] = [];
   const tasks: Array<() => Promise<RepOutcome>> = [];
+  const armDefinitions = { count: 0 };
   scenarios.forEach((scenario, si) => {
     for (let k = 0; k < repCounts[si]; k++) {
       const rep = k;
       const total = repCounts[si];
       owners.push(si);
-      tasks.push(() => runRep(scenario, rep, total, { ...opts, runDir, now, log }));
+      tasks.push(() => runRep(scenario, rep, total, { ...opts, runDir, now, log, armDefinitions }));
     }
   });
   const flat = await runPool(tasks, opts.concurrency ?? 1);
@@ -207,6 +216,7 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     // coverage of scenarios it skipped.
     source_hashes: sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios, judgePersona: spec.judge_persona }),
     scenarios: scenarioResults,
+    ...(arm.name === NONE_ARM.name ? {} : { arm: { name: arm.name, extensions: arm.extensions, definitions: armDefinitions.count } }),
   }, ctx);
   if (ctx) {
     const g = results.effective_grade;
@@ -219,6 +229,14 @@ interface ScenarioCtx {
   runDir: string;
   now: () => string;
   log: (msg: string) => void;
+  /**
+   * Shared mutable slot for the arm's seeded-definitions count. Seeding happens
+   * per-workspace, inside `runRep` (so a retry's fresh workspace is re-seeded),
+   * but the count is recorded once on the run-level results draft — the arm and
+   * `skillsRoot` are constant for the whole run, so every rep computes the same
+   * number and the last one to run wins.
+   */
+  armDefinitions: { count: number };
 }
 
 /**
@@ -243,6 +261,14 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
   const startedAt = performance.now();
   const { spec, judge, mode, runDir, now, log } = ctx;
   const repField = repCount > 1 ? { rep } : {};
+  const arm = ctx.arm ?? NONE_ARM;
+  const skillsRoot = ctx.skillsRoot ?? dirname(ctx.skillDir);
+  // `<run-dir>` in an arm's env values is a real path (temp dirs on this box
+  // routinely contain characters a regex would treat specially), so this is a
+  // plain split/join, not a `.replace(/<run-dir>/g, …)`.
+  const armEnv: Record<string, string> | undefined = Object.keys(arm.env).length
+    ? Object.fromEntries(Object.entries(arm.env).map(([k, v]) => [k, v.split("<run-dir>").join(runDir)]))
+    : undefined;
   if (rep === 0) {
     log(`  ${scenario.id} (${scenario.title})${repCount > 1 ? ` ×${repCount}` : ""} …`);
     appendJournal(runDir, { event: "scenario-started", ts: now(), id: scenario.id, title: scenario.title });
@@ -278,6 +304,12 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
     // a committed results.yaml, naming files the model never touched.
     let before: PathSnapshot | null = ws ? snapshotPaths(ws.cwd, scenario.workspace) : null;
     if (ws) {
+      // Seed the arm's definitions into THIS workspace before the subject runs.
+      // Control (`none`) short-circuits inside `seedArmDefinitions` with no
+      // filesystem side effects at all.
+      ctx.armDefinitions.count = seedArmDefinitions(arm, skillsRoot, ws.cwd, { ambientSkillsDir: ctx.ambientSkillsDir });
+    }
+    if (ws) {
       // A blank assistant turn is a harness timeout, not model behavior: retry ONCE in a
       // fresh workspace (the first attempt may have half-mutated a seeded repo), and if
       // it happens again the verdict is ERROR — never a judged FAIL on an empty reply.
@@ -290,12 +322,23 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
           // A fresh workspace needs a fresh baseline, or the retry's diff would
           // be taken against a directory that no longer exists.
           before = snapshotPaths(ws.cwd, scenario.workspace);
+          // And a fresh workspace has nothing to spawn until it, too, is seeded —
+          // a retry that skipped this would silently run the arm with no
+          // definitions at all.
+          ctx.armDefinitions.count = seedArmDefinitions(arm, skillsRoot, ws.cwd, { ambientSkillsDir: ctx.ambientSkillsDir });
         }
         if (scenario.mode === "seeded") {
           const r = await runSeeded(scenario, {
             skillDir: ctx.skillDir, adapter: ctx.adapter, model: ctx.model, mode, cwd: ws.cwd,
             specDir: dirname(ctx.specPath), // assert.post_test resolves like a fixture
             trace: scenario.traceAssert || scenario.trajectoryAssert ? { scenarioId: scenario.id, rep } : undefined,
+            // The arm's extensions join whatever the scenario itself declares —
+            // both must reach pi — and its env (with `<run-dir>` substituted).
+            extensions: [
+              ...(scenario.extensions?.map((e) => resolve(dirname(ctx.specPath), e)) ?? []),
+              ...arm.extensions,
+            ],
+            ...(armEnv ? { armEnv } : {}),
           });
           transcript = r.transcript;
           gatePrefix = r.gateFailure;
@@ -312,8 +355,14 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
               ? resolve(dirname(ctx.specPath), scenario.systemPromptFile)
               : undefined,
             // Absolute before it reaches a child process running in a neutral cwd.
-            extensions: scenario.extensions?.map((e) => resolve(dirname(ctx.specPath), e)),
+            // The arm's extensions are added alongside whatever the scenario
+            // itself declares — both must reach pi.
+            extensions: [
+              ...(scenario.extensions?.map((e) => resolve(dirname(ctx.specPath), e)) ?? []),
+              ...arm.extensions,
+            ],
             eventSources: scenario.eventSources,
+            ...(armEnv ? { armEnv } : {}),
           };
           const wantStructured = Boolean(ctx.structured) || Boolean(scenario.traceAssert) || Boolean(scenario.trajectoryAssert);
           if (wantStructured) {

@@ -38,6 +38,11 @@ export interface PiJsonRunOptions {
   turn: number;
   changedPaths?: string[];
   homeDir?: string;
+  /**
+   * Extra env for the subject process, from the arm. `spawn` treats `undefined`
+   * as "inherit", so the control arm (which never sets this) is unaffected.
+   */
+  env?: NodeJS.ProcessEnv;
 }
 
 export interface PiJsonRunResult {
@@ -62,6 +67,7 @@ export function runPiJson(opts: PiJsonRunOptions): Promise<PiJsonRunResult> {
   return new Promise((resolve, reject) => {
     const child = spawn("pi", opts.args, {
       cwd: opts.cwd,
+      env: opts.env,
       // stdin from /dev/null: pi hangs waiting on it otherwise, and a hang in a
       // wave is indistinguishable from a slow model until the timeout fires.
       stdio: ["ignore", "pipe", "pipe"],
