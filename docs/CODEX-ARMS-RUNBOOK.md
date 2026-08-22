@@ -126,7 +126,11 @@ no subject token/cost data is written at all. Check:
 grep -A6 'metrics:' <run-dir>/results.yaml
 ```
 
-`input_tokens` and `subject_cost_usd` (and their siblings) must be non-null.
+`input_tokens` and `subject_cost_usd` (and their siblings) must be non-null. On an
+OAuth-subscription provider (this campaign's `openai-codex`), `subject_cost_usd` may
+legitimately read `0` — there is no per-call metered price to attach. The check is
+non-null, not non-zero; a `0` here is evidence the field was populated, not evidence
+the call was free of the harness's structured path.
 
 **3. At least one ledger spawn event.**
 

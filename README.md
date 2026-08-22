@@ -290,7 +290,7 @@ banner and `results.yaml` now records it.
 is seven pi skills tested with this harness, with every `results.yaml` committed:
 **88 scenarios × 3 models × 3 reps**, 528 rep-executions in the release round plus 264
 more against a third model that the skills were never tuned against.
-[`RESULTS-MANIFEST.md`](https://github.com/mojomanyana/principal-pi-skills/blob/main/RESULTS-MANIFEST.md)
+[`RESULTS-MANIFEST.md`](https://github.com/mojomanyana/principal-pi-skills/blob/main/docs/validation/RESULTS-MANIFEST.md)
 maps all ~104 runs to the round that produced them, so a superseded number stays
 readable instead of being quietly overwritten.
 
@@ -322,10 +322,10 @@ skill-harness grade ../principal-pi-skills/build/tests/results/pi-*/2026-*/ \
   --judge fireworks:accounts/fireworks/models/kimi-k3
 
 # name a run so results.yaml stops being timestamp archaeology
-skill-harness run ponytail --skills ../principal-pi-skills --label round-3
+skill-harness run build --skills ../principal-pi-skills --label round-3
 
 # open the interactive review (flip verdicts, add notes → saved to results.yaml)
-skill-harness review ponytail --skills ../principal-pi-skills
+skill-harness review build --skills ../principal-pi-skills
 
 # scaffold a new scenario into a spec (validated on append)
 skill-harness add-test project-git --skills ../principal-pi-skills \
