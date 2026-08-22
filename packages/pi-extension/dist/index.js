@@ -6122,6 +6122,40 @@ function aggregateMetrics2(scenarios) {
   };
 }
 
+// packages/core/dist/provider-failure.js
+var PROVIDER_FAILURE_MARKER = "[skill-harness] provider failure:";
+var FAILURE_DIAGNOSTICS = /* @__PURE__ */ new Set(["provider_transport_failure"]);
+function providerFailureFromJsonLine(line) {
+  let parsed;
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    return null;
+  }
+  const message = parsed?.message;
+  if (!message || typeof message !== "object")
+    return null;
+  const diagnostics = message.diagnostics;
+  if (!Array.isArray(diagnostics))
+    return null;
+  for (const raw of diagnostics) {
+    if (typeof raw?.type !== "string" || !FAILURE_DIAGNOSTICS.has(raw.type))
+      continue;
+    const provider = typeof message.provider === "string" ? message.provider : "unknown provider";
+    const detail = typeof raw.error?.message === "string" ? raw.error.message : raw.type;
+    return `${provider}: ${detail}`;
+  }
+  return null;
+}
+function providerFailureFromTranscript(transcript) {
+  for (const line of transcript.split("\n")) {
+    if (!line.startsWith(PROVIDER_FAILURE_MARKER))
+      continue;
+    return line.slice(PROVIDER_FAILURE_MARKER.length).trim();
+  }
+  return null;
+}
+
 // packages/core/dist/run.js
 async function runSkillModel(opts) {
   const { spec, skillDir, adapter, model, judge, mode, timestamp } = opts;
@@ -6310,18 +6344,30 @@ async function runRep(scenario, rep, repCount, ctx) {
             extensions: scenario.extensions?.map((e) => resolve5(dirname(ctx.specPath), e)),
             eventSources: scenario.eventSources
           };
-          if (scenario.traceAssert || scenario.trajectoryAssert) {
+          const wantStructured = Boolean(ctx.structured) || Boolean(scenario.traceAssert) || Boolean(scenario.trajectoryAssert);
+          if (wantStructured) {
             if (!ctx.adapter.runStructured) {
-              throw new Error(`scenario \`${scenario.id}\` declares structured objective assertions, but the \`${ctx.adapter.name}\` adapter cannot produce execution traces/events \u2014 the gate would have no evidence to read.`);
+              if (scenario.traceAssert || scenario.trajectoryAssert) {
+                throw new Error(`scenario \`${scenario.id}\` declares structured objective assertions, but the \`${ctx.adapter.name}\` adapter cannot produce execution traces/events \u2014 the gate would have no evidence to read.`);
+              }
+              transcript = await ctx.adapter.run(req);
+            } else {
+              const structured = await ctx.adapter.runStructured({ ...req, scenarioId: scenario.id, rep });
+              transcript = structured.transcript;
+              traces = structured.traces;
+              events = structured.events ?? [];
+              eventErrors = structured.eventErrors ?? [];
+              if (structured.providerFailure)
+                infrastructureFailure = `provider failure \u2014 ${structured.providerFailure}`;
             }
-            const structured = await ctx.adapter.runStructured({ ...req, scenarioId: scenario.id, rep });
-            transcript = structured.transcript;
-            traces = structured.traces;
-            events = structured.events ?? [];
-            eventErrors = structured.eventErrors ?? [];
           } else {
             transcript = await ctx.adapter.run(req);
           }
+        }
+        if (!infrastructureFailure) {
+          const provider = providerFailureFromTranscript(transcript);
+          if (provider)
+            infrastructureFailure = `provider failure \u2014 ${provider}`;
         }
         noResponse = hasEmptyAssistantTurn(transcript);
         if (!noResponse)
@@ -7356,6 +7402,7 @@ function runPiJson(opts) {
     });
     const kept = [];
     let stderr = "";
+    let providerFailure = null;
     let settled = false;
     const timer = setTimeout(() => {
       if (settled)
@@ -7371,6 +7418,8 @@ function runPiJson(opts) {
       if (SKIPPED_TYPE_RE.test(line))
         return;
       kept.push(line);
+      if (providerFailure === null)
+        providerFailure = providerFailureFromJsonLine(line);
     });
     child2.stderr.on("data", (chunk) => {
       if (stderr.length < MAX_STDERR_CHARS)
@@ -7398,7 +7447,7 @@ function runPiJson(opts) {
         changedPaths: opts.changedPaths,
         homeDir: opts.homeDir
       });
-      resolve13({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS) });
+      resolve13({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS), providerFailure });
     });
   });
 }
@@ -9399,6 +9448,15 @@ function walkFiles(root, relative6 = "") {
 
 // packages/adapters/dist/pi.js
 var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
+var PROVIDER_STDERR_SIGNATURES = [
+  "invalidated oauth token",
+  "invalid_api_key",
+  "insufficient_quota"
+];
+function providerStderr(stderr) {
+  const hay = stderr.toLowerCase();
+  return PROVIDER_STDERR_SIGNATURES.some((sig) => hay.includes(sig)) ? stderr.trim() : null;
+}
 function requireSkillDir(skillDir, mode) {
   const abs = resolve10(skillDir);
   const md = join22(abs, "SKILL.md");
@@ -9486,10 +9544,13 @@ var piAdapter = {
       parts.push(`<<< ASSISTANT:
 ${r.stdout.trim()}
 `);
-      if (r.code !== 0)
-        parts.push(`[pi exited ${r.code}]
+      if (r.code !== 0) {
+        const provider = providerStderr(r.stderr);
+        parts.push(provider ? `${PROVIDER_FAILURE_MARKER} ${provider}
+` : `[pi exited ${r.code}]
 ${r.stderr.trim()}
 `);
+      }
       return parts.join("\n");
     }
     const session = mkdtempSync2(join22(tmpdir2(), "sc-pi-session-"));
@@ -9501,10 +9562,13 @@ ${r.stderr.trim()}
       parts.push(`<<< ASSISTANT:
 ${r.stdout.trim()}
 `);
-      if (r.code !== 0)
-        parts.push(`[pi exited ${r.code} on turn ${i + 1}]
+      if (r.code !== 0) {
+        const provider = providerStderr(r.stderr);
+        parts.push(provider ? `${PROVIDER_FAILURE_MARKER} ${provider}
+` : `[pi exited ${r.code} on turn ${i + 1}]
 ${r.stderr.trim()}
 `);
+      }
     }
     return parts.join("\n");
   },
@@ -9536,6 +9600,7 @@ ${r.stderr.trim()}
     const traces = [];
     const parts = [];
     const session = total === 1 ? null : mkdtempSync2(join22(tmpdir2(), "sc-pi-session-"));
+    let providerFailure = null;
     for (let i = 0; i < total; i++) {
       const turnFlags = session === null ? ["--no-session"] : i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common, "--mode", "json", ...turnFlags, "-p", req.turns[i]];
@@ -9558,6 +9623,8 @@ ${r.stderr.trim()}
         r.trace.capture_errors = [`pi JSONL contained ${r.malformedLines} malformed line(s); absence-based trace assertions are unsafe`];
         r.trace.trace_sha256 = traceSha256(r.trace);
       }
+      if (providerFailure === null && r.providerFailure)
+        providerFailure = r.providerFailure;
       traces.push(r.trace);
       parts.push(header(i + 1, total, req.turns[i]));
       parts.push(`<<< ASSISTANT:
@@ -9587,7 +9654,8 @@ ${r.stderr.trim()}
       transcript: parts.join("\n"),
       traces,
       events: resequence(combined),
-      ...eventErrors.length ? { eventErrors } : {}
+      ...eventErrors.length ? { eventErrors } : {},
+      ...providerFailure ? { providerFailure } : {}
     };
   },
   /**

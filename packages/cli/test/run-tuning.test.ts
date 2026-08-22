@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { parseRunTuning, releaseExitCode, type Args } from "../src/cli.js";
+import { parseRunTuning, releaseExitCode, help, type Args } from "../src/cli.js";
 
 /**
  * `--reps` / `--pass-threshold` must reject invalid provided values rather
@@ -54,4 +54,10 @@ describe("parseRunTuning", () => {
   test("--reps 2.5 throws", () => {
     expect(() => parseRunTuning(argsFor({ reps: "2.5" }))).toThrow(/reps/);
   });
+});
+
+test("run --help documents --structured and what it buys", () => {
+  const usage = help();
+  expect(usage).toContain("--structured");
+  expect(usage).toMatch(/cost|token/i);
 });
