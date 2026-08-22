@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import yaml from "js-yaml";
@@ -98,4 +98,77 @@ export function resolveArm(skillsRoot: string, name: string | null): Arm {
     );
   }
   return arm;
+}
+
+/** pi's second skill root, which pi-daddy reads too. */
+function defaultAmbientSkillsDir(): string {
+  return join(homedir(), ".pi", "agent", "skills");
+}
+
+/**
+ * Copy an arm's definitions into `<workspace>/.pi/skills/` and return the count.
+ *
+ * Three refusals, each with a negative control in the suite, because a
+ * positive-only check measures less than it claims:
+ *
+ *  1. **Fewer definitions than required.** pi-daddy spawns definitions by path.
+ *     Zero definitions means the arm has nothing to spawn, so it would run green
+ *     and measure nothing — a vacuous result shaped exactly like a finding.
+ *  2. **A missing seed directory** — the `--skill <nonexistent>` class: pi accepts
+ *     silently, so the run would look fine and measure a different thing.
+ *  3. **A non-empty ambient skills root.** pi-daddy reads `~/.pi/agent/skills` as
+ *     well as the workspace, so anything there is an uncontrolled variable in the
+ *     measurement. Empty on the reference box today — that is luck, not a
+ *     guarantee, and this check is what turns it into one.
+ */
+export function seedArmDefinitions(
+  arm: Arm,
+  skillsRoot: string,
+  workspaceCwd: string,
+  opts: { ambientSkillsDir?: string } = {},
+): number {
+  if (arm.name === NONE_ARM.name || arm.seedSkills.length === 0) return 0;
+
+  const ambient = opts.ambientSkillsDir ?? defaultAmbientSkillsDir();
+  let ambientEntries: string[] = [];
+  try {
+    ambientEntries = readdirSync(ambient);
+  } catch {
+    ambientEntries = []; // absent is as good as empty: nothing can leak from it
+  }
+  if (ambientEntries.length > 0) {
+    throw new Error(
+      `arm \`${arm.name}\`: the ambient skill root ${ambient} is not empty (${ambientEntries.slice(0, 5).join(", ")}) — ` +
+        `pi-daddy reads it as well as the workspace, so those definitions would be an uncontrolled variable in the measurement. ` +
+        `Move them aside for the run.`,
+    );
+  }
+
+  const dest = join(workspaceCwd, ".pi", "skills");
+  mkdirSync(dest, { recursive: true });
+
+  let count = 0;
+  for (const rel of arm.seedSkills) {
+    const src = resolve(skillsRoot, rel);
+    let names: string[];
+    try {
+      names = readdirSync(src);
+    } catch {
+      throw new Error(`arm \`${arm.name}\`: seed_skills names ${src}, which cannot be read — pi would start with nothing to spawn`);
+    }
+    for (const name of names) {
+      const from = join(src, name);
+      if (!name.endsWith(".md") || !statSync(from).isFile()) continue;
+      copyFileSync(from, join(dest, name));
+      count += 1;
+    }
+  }
+
+  if (count < arm.requireDefinitions) {
+    throw new Error(
+      `arm \`${arm.name}\`: seeded ${count} definition(s) into ${dest} but require_definitions is ${arm.requireDefinitions} — ` +
+        `pi-daddy would have nothing (or too little) to spawn, and the arm would measure nothing while looking green.`,
+    );
+  }
+  return count;
 }
