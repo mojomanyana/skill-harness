@@ -147,6 +147,98 @@ reading the passing suite. And the durable pattern across every review round: **
 added in a late fix round was consistently the least-covered on the branch.** Keep the
 mutation step non-negotiable, and give fix-round code the same test scrutiny as the
 original.
+## Wave 0 ran. Read this before planning Wave 1.
+
+The arms axis has now been exercised against a live model: `review`, 22 scenarios,
+`openai-codex:gpt-5.6-terra:high`, `--mode force`, 3 reps, both arms, twice on the governed
+side. Results are committed in `../principal-pi-skills` (`review/tests/results/
+pi-openai-codex-gpt-5.6-terra-high{,+pi-daddy}/`) and written up in
+`docs/posts/2026-08-23-the-spawn-that-only-said-starting.md`.
+
+```
+                          grade            S6     subject in-tokens   delegations
+control                   A 95% 21/22      FAIL          87,660            n/a
+arm · herdr · 0.18.1      A 95% 21/22      FAIL         123,088       1 (hung)
+arm · subprocess · 0.19.0 A 95% 21/22      FAIL         123,677             0
+```
+
+**Three things Wave 0 settled, so nobody re-derives them:**
+
+1. **The `:suffix` thinking level binds.** `openai-codex:gpt-5.6-terra:high` works —
+   `parseModelRef` splits on the first colon and pi's pattern parser takes the rest. A valid
+   level resolves silently; only an invalid one (`:banana`) falls through to "custom model id"
+   and is rejected by the provider. The spec's `--thinking` fallback is not needed.
+2. **Sol is not available on a ChatGPT-account subscription**, nor are `gpt-5.4` or
+   `gpt-5.3-codex-spark`. Available: `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`,
+   `gpt-5.4-mini`. `pi --list-models` is a catalog, not an entitlement check — it lists all
+   seven. So a "three model" comparison is really Terra + Luna.
+3. **An arm MUST pin `PI_GRANTS_HERDR: "0"`.** It is three-state in pi-daddy and *absent
+   means probe*, so a machine with `herdr` on `PATH` silently gets pane-based execution, which
+   cannot work behind `pi -p` — the pane never reaches the readiness `herdr agent start`
+   waits for. Wave 0's first arm hung exactly there for the full 300s adapter timeout. Fixed
+   in the corpus's `arms.yaml`; the general rule is that **a measurement harness is the one
+   caller that must never accept a probed default.**
+
+**And the finding that matters most, which is about the skill and not the arm:** `S6` passed
+**once in nine attempts** across all three runs, failing identically each time — handing over
+a rewrite when the scenario asks it to recommend the already-minimal original be kept. `S6` is
+in the critical set, so 21/22 at 95% still reports NOT READY. `lint` had already flagged it as
+a boundary cell. On this model `review` reliably fails the one scenario that tests restraint.
+
+### Wave 1 — scope it to the skills that actually delegate
+
+**Do not run Wave 1 as the spec sketched it.** `review` is single-turn code review: nothing
+about it wants a sub-agent, and the governed arm was therefore a pure surcharge — zero
+behavioural difference and **+40% subject input tokens**. That cost isolates cleanly: the two
+arm runs differ by 0.5% in input tokens despite one delegating and one not, so the 40% is the
+*context* cost of carrying three delegation tools plus six available definitions on every rep,
+paid whether anything spawns or not. Governance is billed by the turn, not by the delegation.
+Five more skills of that shape buys five more surcharges and no signal.
+
+The skills worth the spend are the ones whose definitions delegate: **`plan` and `debug`**,
+which have `principal-plan.md` / `principal-debug.md` agent files, and whose specs carry
+`system_prompt_file` D-series scenarios that run *as* those definitions. In Wave 0 the single
+delegation attempt in 132 governed reps came from exactly such a scenario (`review`'s `D2`,
+which runs as `principal-review.md`). That is the only channel through which governance has
+been observed to engage at all.
+
+Suggested next wave, in this order:
+
+```bash
+# control, then governed, one skill at a time — check the ledger between them
+node bin/skill-harness.js run plan  --skills ../principal-pi-skills \
+  --mode force --model openai-codex:gpt-5.6-terra:high --structured --label w1-plan-control
+node bin/skill-harness.js run plan  --skills ../principal-pi-skills \
+  --mode force --model openai-codex:gpt-5.6-terra:high --structured --arm pi-daddy \
+  --label w1-plan-pi-daddy-pd<version>
+# then the same two for `debug`
+```
+
+`plan` is 13 scenarios and `debug` is 12, so at 3 reps that is ~150 subject executions for all
+four runs. **Read `ledger_events` in each governed `results.yaml` before drawing any
+conclusion.** Zero means the model declined to delegate and the comparison is a cost
+measurement only — which is a legitimate finding, but it is not a finding about governance
+changing behaviour, and Wave 0 is the cautionary example of how similar those look.
+
+Note `debug` and `plan` also carry `mode: seeded` scenarios (9 and 7 across the corpus), so
+those runs will exercise the seeded arm path — the one whose `.pi/skills` staging was the
+Critical finding in PR #58's review. Wave 0 never touched it, because `review` has no seeded
+scenarios.
+
+### Close the arm's provenance gap before the next wave
+
+`results.yaml`'s `arm` block records extension **paths**, not versions or content digests. Two
+runs with byte-identical `arm:` blocks can therefore have executed different extension code —
+and that is not hypothetical: Wave 0's first arm ran pi-daddy 0.18.1 and the re-run ran 0.19.0,
+with nothing in either record saying so. It was papered over by putting the version in
+`--label`, which works exactly until someone forgets.
+
+This is the same shape as the incident `harness_cli_version` exists to prevent: pi 0.80.x
+wrapped a `--skill` prompt with the skill body, 0.83.0 switched to progressive disclosure, and
+two waves of runs became indistinguishable from a naked-model baseline with nothing in the
+artifacts to show it. One dependency further out, same failure. A content digest per declared
+extension, recorded in the `arm` block, closes it.
+
 ## Open work, in the order I would do it
 
 ### 1. `principal-pi-skills` — 100 paid re-runs
