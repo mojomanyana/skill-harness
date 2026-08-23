@@ -76,7 +76,7 @@ Four public packages were packed on Node 20 and installed together with `npm ins
 |---|---|
 | `@skill-harness/core` | `2be702f14c544cdb03ff8617e5dee90f8039bbdf7e0e527d2c833c1868c129f6` |
 | `@skill-harness/adapters` | `292cde8ac211dc39ca172f066fd34f731ccdde59fc0651bd57fa7d8bd94b634a` |
-| `@skill-harness/cli` | `47e2a4eaa4b425f4815a6fb0f611f61ee4b723ff0e633d25ee9d429da0a02b55` |
+| `@skill-harness/cli` | `dd95dd0caa1f6013fa06c944c0445285a147a1f4a5fbc8becb960232c237ffd9` |
 | `skill-harness` | `91d379a7a6cc8d1aba347bfa1ebe50dfbab2efb20b4464774f6dc0ce96c5e026` |
 
 **Changed files:** `.github/workflows/ci.yml`, `AGENTS.md`, `PUBLISHING.md`,
