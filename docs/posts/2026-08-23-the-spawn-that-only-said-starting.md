@@ -129,9 +129,53 @@ machine — which is precisely the kind of ambient variable an arm exists to pin
 already refuses to run if `~/.pi/agent/skills` is non-empty for that same reason; it simply
 did not think to pin the executor.
 
+## The re-run, and the actual answer
+
+With `PI_GRANTS_HERDR: "0"` and pi-daddy 0.19.0, the arm ran again. Delegation worked —
+verified in isolation, `starting` *and* `completed`, the parent receiving the child's answer.
+
+The model used it zero times in 66 reps. No ledger file was written at all.
+
+```
+                          grade            S6     subject in-tokens   delegations
+control                   A 95% 21/22      FAIL          87,660            n/a
+arm · herdr · 0.18.1      A 95% 21/22      FAIL         123,088       1 (hung)
+arm · subprocess · 0.19.0 A 95% 21/22      FAIL         123,677             0
+```
+
+One delegation attempted in 132 governed reps, and it was the run where delegation could not
+complete. So the answer for `review` is not "governance changed nothing because it never got
+to act" — it is that **the model does not reach for delegation on this skill at all**, and
+the arm is a pure cost.
+
+That cost isolates unusually cleanly. The two arm runs differ by 0.5% in subject input
+tokens — 123,088 against 123,677 — despite one delegating and one not. The +40% over the
+control is therefore the *context* cost of carrying the delegation surface: three tool
+definitions and six available definitions, injected on every rep, paid whether or not
+anything is ever spawned. Governance is billed by the turn, not by the delegation.
+
+## S6 is a finding about the skill, not about the arm
+
+One cell failed in every run. Across all three, `S6` passed **once in nine attempts**, and
+failed the same way each time: handing over a rewrite when the scenario asks it to recommend
+the already-minimal original be kept. `lint` had flagged `S6` as a boundary cell before any
+of this started.
+
+Two things follow. The control's single pass is the outlier, not the arm's zeroes — 1/3
+against 0/6 is not a difference worth claiming at these numbers. And on `terra:high` the
+`review` skill reliably fails the one scenario that tests restraint, which is the cell that
+gates SHIP. That is worth more than anything the arms comparison produced.
+
 ## Next
 
-The governed arm has to be re-run — the committed one is a truthful measurement of the
-probe-selected executor, not of governed delegation. Wave 1 is worth nothing until the
-delegation path completes, and then the number to watch is whether governance changes
-behaviour once it can actually act, against the +40% input-token cost it charges either way.
+Wave 1 should not simply scale this up. `review` is single-turn code review: nothing about it
+wants a sub-agent, so measuring it under governance buys a 40% token surcharge and no signal.
+The skills worth the spend are the ones whose definitions actually delegate — `plan` and
+`debug` run as `principal-*` agent files — and the honest prediction is that they are where
+governance either does something or is revealed as inert everywhere.
+
+The provenance gap this run papered over with a label is worth closing properly: the `arm`
+block records extension paths, not versions or content digests, so two runs with byte-identical
+`arm:` blocks can have executed different extension code. `harness_cli_version` exists because
+pi 0.80 → 0.83 silently changed what green mode measured and the artifacts could not show it.
+This is the same shape, one dependency further out.
