@@ -1,16 +1,18 @@
 # Pinned pi-daddy ledger v2 contract (consumer copy)
 
 Byte-exact copies of pi-daddy's canonical `ledgerVersion: 2` contract, taken from
-producer commit `1948b9406c13c9730f2fc103e68023d6e58c5e85` (pi-daddy `main`, merged
-PR #11). `PINNED.json` records the commit, the source path of every file, and its
-SHA-256.
+the immutable Handoff B producer commit
+`3070152efd4633bc40f5065e892d5eee8372ffc8`. `PINNED.json` records repository
+`mojomanyana/pi-daddy`, the exact commit, schema/refusal source paths, the schema
+digest, and a SHA-256 for every vendored artifact.
 
 | File | What it is |
 |---|---|
 | `ledger-event.schema.json` | The producer's closed JSON Schema (draft 2020-12) union, discriminated by `event`. |
 | `fixtures/*.json` | The four deterministic examples pi-daddy generates through its production builders. |
+| `refusals.ts` | The producer's canonical `REFUSAL_CODES` source, byte-exact. |
 | `pi-daddy-README.md` | pi-daddy's own contract notes, verbatim (renamed so it does not shadow this file). |
-| `PINNED.json` | Producer commit + per-artifact SHA-256. |
+| `PINNED.json` | Producer repository/commit, source paths, schema digest, and per-artifact SHA-256. |
 
 ## Why the copy exists
 
@@ -28,22 +30,37 @@ So the schema is now *interpreted*, not transcribed:
 - `packages/adapters/src/closed-schema.ts` evaluates a record against it before any
   semantic normalization, and **refuses** a schema keyword it cannot enforce rather
   than silently validating less than the contract declares.
+- The runtime refusal set is derived directly from `#/$defs/refusalCode` in that
+  generated schema; there is no adapter-owned list. The vendored `refusals.ts` proves
+  which producer source was pinned, and the real-builder verifier imports its compiled
+  `REFUSAL_CODES` and checks set equality with both schema and adapter.
 - `packages/adapters/test/pi-daddy-contract.test.ts` asserts these digests, that the
   runtime copy still equals these bytes, and that every vocabulary the adapter restates
-  is set-equal to its place in this schema, in both directions — refusal codes and refusal
-  field/detail-type names, event discriminators, approval sources and scopes, lease
+  is set-equal to its place in this schema, in both directions — refusal field/detail-type
+  names, event discriminators, approval sources and scopes, lease
   outcomes and access, lifecycle states, executors, and the correlation field whitelist
   including which of its fields are numeric. Add a new one to the
   `V2_RESTATED_VOCABULARIES` manifest in `trajectory.ts`, never as a loose
   `new Set([...])` the drift test cannot see. A vocabulary the harness deliberately holds
   as a *subset* goes in `V2_VOCABULARY_SUBSETS` and is containment-asserted instead.
 
-Free and offline; no model or judge calls. Run it directly with:
+Free and offline; no model or judge calls. The vendored check needs only this
+checkout; the integration verifier needs dependencies already installed in both
+clean checkouts and then builds both repositories itself:
 
 ```bash
-node scripts/check-pi-daddy-contract.mjs                                    # vendored copy
-node scripts/check-pi-daddy-contract.mjs ../pi-daddy <producer-commit>      # a real checkout, read from git
+node scripts/check-pi-daddy-contract.mjs
+node scripts/vendor-pi-daddy-contract.mjs ../pi-daddy 3070152efd4633bc40f5065e892d5eee8372ffc8 11 --check
+npm run verify:pi-daddy-contract -- ../pi-daddy
 ```
+
+The verifier refuses a dirty pi-daddy checkout or any producer HEAD other than the
+pin. It imports production `buildRecord`, the three runtime event builders, and
+`REFUSAL_CODES`; validates every builder-produced wire record against the pinned
+schema; then checks normalization, join identity, all refusal codes, legacy dispatch,
+approvals/digests, every lease outcome, lifecycle flags, receipt identity, and
+fail-closed mutations. It never reads current pi-daddy `main` and never fetches at
+runtime.
 
 ## Harness-only requirements that survive schema validation
 
@@ -67,12 +84,17 @@ are enforced *after* a record is admitted by the contract:
 
 ```bash
 node scripts/vendor-pi-daddy-contract.mjs ../pi-daddy <commit> [pr-number]
-npm run build                        # the check below reads dist and refuses a stale one
-npm test -- pi-daddy-contract        # digests, drift assertions, four-fixture conformance
+node scripts/vendor-pi-daddy-contract.mjs ../pi-daddy <commit> [pr-number] --check
+npm run build                        # the checks below refuse stale dist
+npm test -- pi-daddy-contract        # digests, drift assertions, vocabulary conformance
 node scripts/check-pi-daddy-contract.mjs ../pi-daddy <commit>
+npm run verify:pi-daddy-contract -- ../pi-daddy
 ```
 
-The script reads the artifact out of `git show` (never the working tree), rewrites
-these files and the digests, and regenerates the runtime schema module. Update
+The vendor script reads artifacts with `git show` (never the working tree), rewrites
+the copies/digests, and regenerates the runtime schema module. `--check` performs the
+same generation in memory and fails on any byte difference. Update
 `EXPECTED_PRODUCER_COMMIT` in the conformance test in the same change, so bumping the
-pin is a deliberate edit rather than a silent one.
+pin is a deliberate edit rather than a silent one. CI checks pi-daddy out at the
+literal immutable SHA (not a tag, npm `latest`, or `main`) and runs the real-builder
+verifier before the ordinary build/test and dogfood jobs may proceed.

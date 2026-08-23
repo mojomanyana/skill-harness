@@ -1,18 +1,12 @@
 #!/usr/bin/env node
-// Re-pin the vendored pi-daddy ledger v2 contract.
-//
-// Why a script and not hand-editing: the runtime schema in
-// packages/adapters/src/pi-daddy-ledger-v2.ts is a *copy* of the producer's
-// artifact, and a hand-maintained copy drifts silently. This regenerates it from
-// the vendored bytes and rewrites the digests in PINNED.json, so re-pinning is a
-// mechanical step whose result a reviewer can diff.
+// Vendor or deterministically check the pinned pi-daddy ledger v2 contract.
 //
 //   node scripts/vendor-pi-daddy-contract.mjs <pi-daddy-checkout> <commit> [pr-number]
+//   node scripts/vendor-pi-daddy-contract.mjs <pi-daddy-checkout> <commit> [pr-number] --check
 //
-// It reads the four fixtures, the schema and the README out of the given commit
-// with `git show` (never the working tree), writes them under contracts/, and
-// regenerates the runtime module. The conformance test then proves the runtime
-// module still matches the vendored bytes.
+// Source bytes are read with `git show`, never from the checkout's working tree. The
+// generated runtime module embeds the schema so it survives the committed pi-extension
+// bundle and published adapters package without a runtime filesystem or network fetch.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -21,57 +15,78 @@ import { fileURLToPath } from "node:url";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DEST = join(REPO, "contracts", "pi-daddy", "ledger", "v2");
-const SOURCE_DIR = "packages/pi-daddy/contracts/ledger/v2";
+const REPOSITORY = "mojomanyana/pi-daddy";
+const CONTRACT_SOURCE_DIR = "packages/pi-daddy/contracts/ledger/v2";
+const SCHEMA_SOURCE = `${CONTRACT_SOURCE_DIR}/ledger-event.schema.json`;
+const REFUSAL_SOURCE = "packages/pi-daddy/src/refusals.ts";
 const FIXTURES = ["capability-decision", "workspace-lease", "child-lifecycle", "check-receipt"];
 
-const [checkout, commit, pr] = process.argv.slice(2);
+const rawArgs = process.argv.slice(2);
+const check = rawArgs.includes("--check");
+const [checkout, commit, pr] = rawArgs.filter((arg) => arg !== "--check");
 if (!checkout || !commit) {
-  console.error("usage: node scripts/vendor-pi-daddy-contract.mjs <pi-daddy-checkout> <commit> [pr-number]");
+  console.error("usage: node scripts/vendor-pi-daddy-contract.mjs <pi-daddy-checkout> <commit> [pr-number] [--check]");
+  process.exit(2);
+}
+if (pr !== undefined && (!/^\d+$/.test(pr) || Number(pr) < 1)) {
+  console.error("pr-number must be a positive integer");
   process.exit(2);
 }
 
-const show = (path) => execFileSync("git", ["-C", checkout, "show", `${commit}:${SOURCE_DIR}/${path}`], { encoding: "utf8" });
+try {
+  execFileSync("git", ["-C", checkout, "cat-file", "-e", `${commit}^{commit}`], { stdio: "ignore" });
+} catch {
+  console.error(`${checkout} does not contain producer commit ${commit}`);
+  process.exit(2);
+}
+
+const show = (source) => execFileSync("git", ["-C", checkout, "show", `${commit}:${source}`], { encoding: "utf8" });
 const sha256 = (text) => createHash("sha256").update(text).digest("hex");
 
 const files = [
-  { source: "ledger-event.schema.json", dest: "ledger-event.schema.json" },
-  { source: "README.md", dest: "pi-daddy-README.md" },
-  ...FIXTURES.map((name) => ({ source: `fixtures/${name}.json`, dest: `fixtures/${name}.json` })),
+  { source: SCHEMA_SOURCE, dest: "ledger-event.schema.json" },
+  { source: `${CONTRACT_SOURCE_DIR}/README.md`, dest: "pi-daddy-README.md" },
+  { source: REFUSAL_SOURCE, dest: "refusals.ts" },
+  ...FIXTURES.map((name) => ({ source: `${CONTRACT_SOURCE_DIR}/fixtures/${name}.json`, dest: `fixtures/${name}.json` })),
 ];
 
+const generated = new Map();
 const artifacts = {};
 for (const file of files) {
   const text = show(file.source);
-  const target = join(DEST, file.dest);
-  mkdirSync(dirname(target), { recursive: true });
-  writeFileSync(target, text);
-  artifacts[file.dest] = { source: `${SOURCE_DIR}/${file.source}`, sha256: sha256(text) };
+  generated.set(join(DEST, file.dest), text);
+  artifacts[file.dest] = { source: file.source, sha256: sha256(text) };
 }
 
-const pinnedPath = join(DEST, "PINNED.json");
-const pinned = JSON.parse(readFileSync(pinnedPath, "utf8"));
-writeFileSync(pinnedPath, `${JSON.stringify({
-  ...pinned,
+const previousPinned = JSON.parse(readFileSync(join(DEST, "PINNED.json"), "utf8"));
+const schemaText = generated.get(join(DEST, "ledger-event.schema.json"));
+const pinned = {
+  producer: "pi-daddy",
+  repository: REPOSITORY,
   commit,
-  pull_request: pr === undefined ? pinned.pull_request : Number(pr),
-  source_dir: SOURCE_DIR,
+  pull_request: pr === undefined ? previousPinned.pull_request : Number(pr),
+  source_schema: SCHEMA_SOURCE,
+  source_refusal_enumeration: REFUSAL_SOURCE,
+  schema_sha256: sha256(schemaText),
+  source_dir: CONTRACT_SOURCE_DIR,
+  note: "Byte-exact copies of the producer's canonical ledgerVersion 2 contract and refusal enumeration. pi-daddy's own README.md is vendored as pi-daddy-README.md so it does not shadow the consumer notes in README.md. Digests are over the vendored bytes and are asserted by packages/adapters/test/pi-daddy-contract.test.ts.",
   artifacts,
-}, null, 2)}\n`);
+};
+generated.set(join(DEST, "PINNED.json"), `${JSON.stringify(pinned, null, 2)}\n`);
 
-const schemaText = readFileSync(join(DEST, "ledger-event.schema.json"), "utf8");
-const module = `// GENERATED by scripts/vendor-pi-daddy-contract.mjs — do not edit by hand.
+const runtimeModule = `// GENERATED by scripts/vendor-pi-daddy-contract.mjs — do not edit by hand.
 //
 // The runtime copy of pi-daddy's canonical \`ledgerVersion: 2\` JSON Schema, pinned to
 // producer commit ${commit}.
 // It is a module rather than a file read so it survives bundling (the pi extension is a
 // committed esbuild bundle) and so the published package needs no data asset.
 //
-// contracts/pi-daddy/ledger/v2/ holds the byte-exact producer artifact and its recorded
-// SHA-256 digests; packages/adapters/test/pi-daddy-contract.test.ts asserts those digests
-// and that this object still deep-equals the vendored bytes. Re-pin with:
+// contracts/pi-daddy/ledger/v2/ holds the byte-exact producer artifacts and their
+// SHA-256 digests; packages/adapters/test/pi-daddy-contract.test.ts asserts those
+// digests and that this object still deep-equals the vendored bytes. Re-pin with:
 //   node scripts/vendor-pi-daddy-contract.mjs <pi-daddy-checkout> <commit> [pr]
 
-/** pi-daddy commit whose contract artifact this schema was taken from. */
+/** pi-daddy commit whose contract artifacts this schema was taken from. */
 export const PI_DADDY_CONTRACT_COMMIT = ${JSON.stringify(commit)};
 
 /** SHA-256 of the byte-exact producer schema file this object was generated from. */
@@ -80,7 +95,26 @@ export const PI_DADDY_LEDGER_V2_SCHEMA_SHA256 = ${JSON.stringify(sha256(schemaTe
 /** pi-daddy's canonical, closed ledgerVersion 2 event schema (JSON Schema draft 2020-12). */
 export const PI_DADDY_LEDGER_V2_SCHEMA = ${JSON.stringify(JSON.parse(schemaText), null, 2)} as const;
 `;
-writeFileSync(join(REPO, "packages", "adapters", "src", "pi-daddy-ledger-v2.ts"), module);
+generated.set(join(REPO, "packages", "adapters", "src", "pi-daddy-ledger-v2.ts"), runtimeModule);
 
-console.log(`vendored ${files.length} artifact(s) from ${commit}`);
-for (const [name, entry] of Object.entries(artifacts)) console.log(`  ${entry.sha256}  ${name}`);
+let mismatches = 0;
+for (const [target, text] of generated) {
+  if (check) {
+    const actual = readFileSync(target, "utf8");
+    if (actual !== text) {
+      console.error(`out of date: ${target.slice(REPO.length + 1)}`);
+      mismatches += 1;
+    }
+  } else {
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, text);
+  }
+}
+
+if (check) {
+  if (mismatches > 0) process.exit(1);
+  console.log(`pi-daddy contract pin is deterministic and current at ${commit}`);
+} else {
+  console.log(`vendored ${files.length} artifact(s) from ${commit}`);
+  for (const [name, entry] of Object.entries(artifacts)) console.log(`  ${entry.sha256}  ${name}`);
+}

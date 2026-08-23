@@ -7926,7 +7926,7 @@ function isSchemaObject(value) {
 }
 
 // packages/adapters/dist/pi-daddy-ledger-v2.js
-var PI_DADDY_CONTRACT_COMMIT = "1948b9406c13c9730f2fc103e68023d6e58c5e85";
+var PI_DADDY_CONTRACT_COMMIT = "3070152efd4633bc40f5065e892d5eee8372ffc8";
 var PI_DADDY_LEDGER_V2_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/mojomanyana/pi-daddy/contracts/ledger/v2/ledger-event.schema.json",
@@ -8843,39 +8843,7 @@ var V2_CORRELATION_FIELDS = /* @__PURE__ */ new Set([
 var V2_CORRELATION_NUMERIC_FIELDS = /* @__PURE__ */ new Set(["event_seq", "last_change_seq", "last_authority_seq"]);
 var V2_APPROVAL_SOURCES = /* @__PURE__ */ new Set(["prompt", "session", "persisted", "inherited"]);
 var V2_APPROVAL_SCOPES = /* @__PURE__ */ new Set(["once", "session", "always"]);
-var V2_REFUSAL_CODES = /* @__PURE__ */ new Set([
-  "CAPABILITY_ESCALATION",
-  "GRANT_ID_MALFORMED",
-  "DEFINITION_NOT_AUTHORIZED",
-  "UNDECLARED_TOOLS",
-  "UNKNOWN_TOOL",
-  "GATED_UNAPPROVED",
-  "APPROVAL_EXPIRED",
-  "APPROVAL_SCOPE_MISMATCH",
-  "APPROVAL_FLOW_FAILED",
-  "DEPTH_EXCEEDED",
-  "FANOUT_EXCEEDED",
-  "EXECUTOR_UNAVAILABLE",
-  "CHILD_TIMED_OUT",
-  "CHILD_CANCELLED",
-  "CHILD_EXIT_NONZERO",
-  "TASK_MISSING",
-  "UNKNOWN_DEFINITION",
-  "CEILING_PATTERNS_UNRESOLVED",
-  "NARROWING_VIOLATED",
-  "DEFINITION_UNREADABLE",
-  "CORRELATION_TOO_LARGE",
-  "CORRELATION_INVALID",
-  "LEDGER_WRITE_FAILED",
-  "FANOUT_FAILED",
-  "WORKSPACE_NOT_REGISTERED",
-  "WORKSPACE_WRITE_CONFLICT",
-  "WORKSPACE_LEASE_STALE",
-  "CHECK_NOT_CONFIGURED",
-  "CHECK_CONFIGURATION_INVALID",
-  "CHECK_IDENTITY_UNAVAILABLE",
-  "CHECK_IDENTITY_MISMATCH"
-]);
+var V2_REFUSAL_CODES = new Set(PI_DADDY_LEDGER_V2_SCHEMA.$defs.refusalCode.enum);
 var V2_CORRELATION_MAX_BYTES = 32 * 1024;
 var V2_CORRELATION_MAX_FIELD_CHARS = 512;
 var V2_CORRELATION_MAX_SCOPE_BYTES = 4 * 1024;
