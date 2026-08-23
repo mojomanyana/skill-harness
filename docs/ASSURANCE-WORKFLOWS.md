@@ -101,8 +101,8 @@ Adapters:
   and promotes packet/build/evidence/finalization identity.
 - **pi-daddy-v1** is the historical *adapter selector* name. It supports the public unversioned
   pi-daddy 0.17 `GrantRecord` and pi-daddy's `ledgerVersion: 2` events, pinned to the producer's
-  canonical contract artifact at pi-daddy `main` commit
-  `1948b9406c13c9730f2fc103e68023d6e58c5e85` (merged PR #11). V2 dispatch happens
+  canonical contract artifacts at immutable pi-daddy Handoff B commit
+  `3070152efd4633bc40f5065e892d5eee8372ffc8` (PR #11 history). V2 dispatch happens
   before the legacy fallback and covers `capability_decision`, `workspace_lease`, `child_lifecycle`,
   and `check_receipt`. The former `schema_version` / `record_type` “governance v1” shape was a
   hypothetical harness fixture, not a pi-daddy release format; it is no longer accepted or cited as
@@ -111,17 +111,21 @@ Adapters:
 ### Pinned producer contract
 
 The contract is **interpreted, not transcribed**. `contracts/pi-daddy/ledger/v2/` holds
-byte-exact copies of the producer's `ledger-event.schema.json`, its four builder fixtures and its
-README, with the commit and per-artifact SHA-256 in `PINNED.json`. A v2 record is validated
+byte-exact copies of the producer's `ledger-event.schema.json`, `src/refusals.ts`, four builder
+fixtures, and contract README, with repository, commit, source paths, schema digest, and
+per-artifact SHA-256 in `PINNED.json`. A v2 record is validated
 against that closed schema *before* semantic normalization, so an undeclared top-level field, an
 invalid `signal`/`outcome`/`state`/`access`/`executor`/`gateOutcome`/approval enum member, wrong
 nullability, and requiredness drift all fail closed by construction rather than by a check someone
 remembered to write. The evaluator refuses any JSON Schema keyword it cannot enforce, so a future
 contract construct is a loud failure and not a quiet hole.
 
-`packages/adapters/test/pi-daddy-contract.test.ts` asserts the artifact digests, that the runtime
-schema copy still equals the vendored bytes, and that **every** vocabulary the adapter restates —
-refusal codes and refusal field/detail-type names, event discriminators, approval sources and scopes,
+The accepted refusal vocabulary is derived directly from the pinned schema rather than restated.
+The real-builder verifier imports the producer's compiled `REFUSAL_CODES` from the exact checkout
+and proves it set-equal to both schema and adapter. `packages/adapters/test/pi-daddy-contract.test.ts`
+asserts the artifact digests, that the runtime schema copy still equals the vendored bytes, and that
+**every remaining** vocabulary the adapter restates — refusal field/detail-type names, event
+discriminators, approval sources and scopes,
 lease outcomes and access, lifecycle states, executors, and the correlation field whitelist including
 which of its fields are numeric — is set-equal to its place in the pinned schema, in both directions. A hand-maintained second vocabulary without that drift assertion
 is how `GRANT_ID_MALFORMED` came to read as "unsupported", and with the schema gating first, a set
@@ -139,11 +143,13 @@ RFC 3339 §5.6 actually reads — lowercase `t`/`z` and a leap `:60` included �
 line is never reported as a contract violation; the harness's own narrower timestamp rule still
 applies afterwards, where it is labelled a harness requirement.
 
-It is free and offline; `node scripts/check-pi-daddy-contract.mjs [<pi-daddy-checkout> <commit>]` runs
-the same four-fixture check directly, reports the digests it used, refuses to report success
-against a `dist` built from a different contract, and carries a negative control — an undeclared
-top-level field that must be refused. A positive-only check cannot tell "the gate ran" from "the
-gate is gone".
+It is free and offline after dependencies are installed. `node scripts/check-pi-daddy-contract.mjs`
+runs the vendored four-fixture check and negative control. For cross-repository evidence, use
+`npm run verify:pi-daddy-contract -- <clean-pi-daddy-checkout>`: it requires the exact pinned HEAD,
+builds both repositories, imports production builders/refusal enumeration, validates builder output
+against the pinned schema, preserves joins, and applies negative mutations. CI obtains that checkout
+at the literal SHA rather than pi-daddy `main` or npm. A positive-only check cannot tell "the gate
+ran" from "the gate is gone".
 
 The producer's schema is the floor. Requirements the harness adds on top run *after* a record is
 admitted, and are harness requirements rather than contract violations: nested
@@ -199,9 +205,10 @@ non-decreasing per source. Declaration/file order is never presented
 as cross-stream workflow chronology.
 
 There are two refusal vocabularies and they are not the same list. A **v2** record carries the
-producer's own code, and the accepted set is exactly `#/$defs/refusalCode` in the pinned schema — 31
-codes at commit `1948b94`, including `GRANT_ID_MALFORMED`. Nothing restates that list without a drift
-assertion against the artifact. **Legacy 0.17** records carry no structured refusal, so the adapter
+producer's own code, and the accepted set is derived exactly from `#/$defs/refusalCode` in the pinned
+schema — 31 codes at commit `3070152`, including `GRANT_ID_MALFORMED`. The real-builder verifier
+independently checks the production `REFUSAL_CODES` export against that derived set. **Legacy 0.17**
+records carry no structured refusal, so the adapter
 classifies them into its own stable normalized codes: `CAPABILITY_ESCALATION`,
 `UNDECLARED_CAPABILITIES`, `UNKNOWN_CAPABILITY`, `APPROVAL_REQUIRED`, `APPROVAL_NO_UI`,
 `APPROVAL_DECLINED`, `APPROVAL_DISMISSED`, `APPROVAL_ERROR`, `DEPTH_LIMIT`, `MISSING_TASK`, and

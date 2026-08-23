@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * Direct four-canonical-fixture conformance check.
+ * Direct vendored-contract conformance check.
  *
  * Free, offline, no model or judge calls. It reads pi-daddy's four canonical builder
- * fixtures and its refusal enum, runs them through the adapter, and reports the
- * artifact digests it used — so the claim "the harness accepts the producer's
+ * fixtures, closed schema, and byte-pinned refusal source, runs the fixtures through
+ * the adapter, and reports the artifact digests it used — so the claim "the harness accepts the producer's
  * contract" can be checked in one command instead of inferred from a test summary.
  *
  *   node scripts/check-pi-daddy-contract.mjs                       # vendored copy
@@ -63,10 +63,10 @@ for (const [relative, entry] of Object.entries(pinned.artifacts)) {
 // green checks about bytes nothing under test had read. The compiled schema has to be
 // the pinned one, or this check is not measuring what it claims.
 console.log("\nbuilt adapter");
-if (PI_DADDY_LEDGER_V2_SCHEMA_SHA256 === pinned.artifacts["ledger-event.schema.json"].sha256) {
-  console.log(`  ✓ dist schema is the pinned artifact (${PI_DADDY_CONTRACT_COMMIT.slice(0, 12)})`);
+if (PI_DADDY_LEDGER_V2_SCHEMA_SHA256 === pinned.schema_sha256 && PI_DADDY_CONTRACT_COMMIT === pinned.commit) {
+  console.log(`  ✓ dist schema and producer commit are the pinned artifacts (${PI_DADDY_CONTRACT_COMMIT.slice(0, 12)})`);
 } else {
-  fail(`dist was built from a different contract (${PI_DADDY_LEDGER_V2_SCHEMA_SHA256}); run npm run build`);
+  fail(`dist was built from a different contract (${PI_DADDY_CONTRACT_COMMIT} / ${PI_DADDY_LEDGER_V2_SCHEMA_SHA256}); run npm run build`);
 }
 
 console.log("\nrefusal vocabulary");

@@ -2,6 +2,30 @@
 
 This is the npm-publish runbook.
 
+## Unreleased cross-repository contract repair
+
+The next publish must not proceed unless CI's `pi-daddy-contract` job is green. That
+job checks out `mojomanyana/pi-daddy` at the literal immutable Handoff B SHA
+`3070152efd4633bc40f5065e892d5eee8372ffc8` into a sibling directory, installs both
+lockfiles, builds both repositories, and runs:
+
+```bash
+npm run verify:pi-daddy-contract -- ../pi-daddy
+```
+
+It does not use pi-daddy `main`, a tag, or npm `latest`. The verifier refuses a dirty
+producer checkout or any other HEAD, imports production builders plus `REFUSAL_CODES`,
+validates builder-produced records against schema SHA-256
+`69c3a6856481b9250587c5785a8aadda87baba6cb03c79b209cff4f55f70a81c`, and requires
+every normalized v2 event to retain run/task join identity. Release/publish work is
+downstream of this job: a green ordinary unit suite cannot substitute for it.
+
+The earlier 0.10.0 release notes below accurately record that release's pin
+(`1948b940…`). The repair re-pins provenance to Handoff B `3070152…`; those commits
+carry byte-identical ledger-v2 schema, fixtures, contract README, and refusal source.
+The adapter now derives the refusal vocabulary from the pinned schema instead of
+maintaining another list. No OS sandbox is introduced by this repair.
+
 The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`, `0.3.0`, `0.3.1`, `0.3.2`, `0.4.0`,
 `0.5.0`, `0.6.0`, `0.7.0`, `0.8.0`, `0.9.0`. This repo is at `0.10.0`, so these commands publish
 a **new version over an existing line** — the `@skill-harness` scope is already claimed, and

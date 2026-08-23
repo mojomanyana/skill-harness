@@ -4,7 +4,43 @@ on:
     branches: [main]
   pull_request:
 jobs:
+  pi-daddy-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out skill-harness
+        uses: actions/checkout@v5
+        with:
+          path: skill-harness
+      - name: Check out immutable pi-daddy contract producer
+        uses: actions/checkout@v5
+        with:
+          repository: mojomanyana/pi-daddy
+          ref: 3070152efd4633bc40f5065e892d5eee8372ffc8
+          path: pi-daddy
+      # pi-daddy's pinned package requires Node >=22.19; Node 24 is also supported
+      # by skill-harness. The ordinary skill-harness suite remains authoritative on 20 below.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            skill-harness/package-lock.json
+            pi-daddy/package-lock.json
+      - name: Install skill-harness dependencies
+        run: npm ci
+        working-directory: skill-harness
+      - name: Install pi-daddy dependencies
+        run: npm ci
+        working-directory: pi-daddy
+      - name: Check deterministic vendored contract generation
+        run: node scripts/vendor-pi-daddy-contract.mjs ../pi-daddy 3070152efd4633bc40f5065e892d5eee8372ffc8 11 --check
+        working-directory: skill-harness
+      - name: Verify real pi-daddy builders against the pinned adapter
+        run: npm run verify:pi-daddy-contract -- ../pi-daddy
+        working-directory: skill-harness
+
   build-test:
+    needs: pi-daddy-contract
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -17,6 +53,7 @@ jobs:
       - run: npm test
       - run: npm run typecheck
   dogfood-lint:
+    needs: pi-daddy-contract
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

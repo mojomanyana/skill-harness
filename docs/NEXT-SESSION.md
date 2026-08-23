@@ -5,6 +5,93 @@
 half-finished and what will bite you. Release notes live in `PUBLISHING.md` — this file
 deliberately does not restate them.*
 
+## Cross-repository pi-daddy v2 contract repair — implementation handoff
+
+**State:** product-fix branch in progress; no release action is authorized. The exact
+starting state was clean `main` at
+`1434ac319c915022f5c635d2130dedad742d5efe` (`v0.11.0`, equal to `origin/main`). PR
+[#53](https://github.com/mojomanyana/skill-harness/pull/53) was already merged, so this
+is a successor branch, `fix/pi-daddy-v2-refusal-contract`, rather than a rewrite of its
+published head `43564f1c6e9e97515469a01b5542b5435b66c9db`. Starting from current main deliberately
+includes the reviewed 0.10.0 closed-schema/generated-contract repair and the unrelated
+0.11.0 provider/arms release; no later `main` change was merged or cherry-picked after
+the branch point. The implementation commit is
+`87598f1218be260ef9427972c75bd38997f47f2b`; the review handoff is
+[PR #62](https://github.com/mojomanyana/skill-harness/pull/62). The PR's immutable
+final head is recorded in the final response/GitHub metadata because a commit cannot
+contain its own SHA.
+
+**Immutable cross-repository inputs:** principal-pi-skills
+`2c53559f4b5f4b193c503ba4a1b04e76c51b0aef`; pi-daddy Handoff B
+`3070152efd4633bc40f5065e892d5eee8372ffc8`; skill-harness Handoff A
+`43564f1c6e9e97515469a01b5542b5435b66c9db`. The consumer pin is now explicitly
+repository `mojomanyana/pi-daddy`, schema source
+`packages/pi-daddy/contracts/ledger/v2/ledger-event.schema.json`, refusal source
+`packages/pi-daddy/src/refusals.ts`, and schema SHA-256
+`69c3a6856481b9250587c5785a8aadda87baba6cb03c79b209cff4f55f70a81c`.
+
+**Builder-produced reproduction before the fix.** In clean detached checkouts of
+pi-daddy Handoff B and skill-harness Handoff A, pi-daddy's production `buildRecord`
+created a blocked v2 capability decision using its production `REFUSAL_CODES` member
+`GRANT_ID_MALFORMED`. TypeBox accepted the wire record against pi-daddy's checked-in
+v2 schema. Passing that exact JSONL line to Handoff A's `normalizePiDaddyLedger`
+returned verbatim:
+
+```text
+invalid pi-daddy v2 capability_decision at line 1: refusal has unsupported code "GRANT_ID_MALFORMED"
+```
+
+**Root cause and repair mapping.** Handoff A had copied the producer's refusal
+vocabulary and omitted a published member. The adapter now derives accepted refusal
+codes directly from the generated immutable schema; the producer's refusal source is
+also vendored byte-exact and digest-pinned. The deterministic vendor command supports
+`--check`. `scripts/verify-pi-daddy-builders.mjs` refuses any dirty/non-pinned producer
+checkout, builds both repositories, imports production builders and `REFUSAL_CODES`,
+validates builder output against the pin, and checks all codes, legacy dispatch,
+approvals/correlation/digests, every lease outcome, lifecycle flags, receipt identity,
+and fail-closed mutations. CI checks out the producer at the literal SHA and makes the
+ordinary build/test and dogfood jobs wait for this gate.
+
+**Complete free evidence.** The authoritative harness pass used Node `v20.20.2` / npm
+`10.8.2`: `npm ci` completed (59 packages; npm reported the existing 8 audit findings),
+`npm run build`, `npm run typecheck`, and `npm run build:ext` passed; `npm test` passed
+**1,372/1,372 tests across 86 files**; `mutation-test` detected 15/15 trajectory
+mutations; both required lint roots reported one skill and 0 findings; `git diff
+--check` passed. A direct refusal-vocabulary mutation made the new targeted contract
+test fail (4 failures, including the all-codes and `GRANT_ID_MALFORMED` cells) and was
+restored. Node `v24.19.0` / npm `11.17.0` separately passed the same 1,372 tests with no
+worker-teardown difference.
+
+The real-builder verifier ran on Node 24 (pi-daddy requires Node >=22.19) against a
+clean detached checkout at the exact pin: **46 builder-produced positive cases**, all
+31 production refusal codes, 9 lease outcomes, 3 lifecycle states, and receipt/
+approval/digest/legacy mappings passed; **10 fail-closed mutations** were rejected;
+every v2 normalized event retained run/task joins. The deterministic vendor `--check`
+and the direct vendored conformance check also passed. No model or judge calls.
+
+Four public packages were packed on Node 20 and installed together with `npm install
+--offline` into an empty probe. `skill-harness --version` returned `0.11.0`:
+
+| package | tarball SHA-256 |
+|---|---|
+| `@skill-harness/core` | `2be702f14c544cdb03ff8617e5dee90f8039bbdf7e0e527d2c833c1868c129f6` |
+| `@skill-harness/adapters` | `292cde8ac211dc39ca172f066fd34f731ccdde59fc0651bd57fa7d8bd94b634a` |
+| `@skill-harness/cli` | `dd95dd0caa1f6013fa06c944c0445285a147a1f4a5fbc8becb960232c237ffd9` |
+| `skill-harness` | `91d379a7a6cc8d1aba347bfa1ebe50dfbab2efb20b4464774f6dc0ce96c5e026` |
+
+**Changed files:** `.github/workflows/ci.yml`, `AGENTS.md`, `PUBLISHING.md`,
+`contracts/pi-daddy/ledger/v2/{PINNED.json,README.md,refusals.ts}`,
+`docs/{ASSURANCE-WORKFLOWS.md,NEXT-SESSION.md}`,
+`package.json`, `packages/adapters/src/{pi-daddy-ledger-v2.ts,trajectory.ts}`,
+`packages/adapters/test/pi-daddy-contract.test.ts`,
+`packages/pi-extension/dist/index.js`, and
+`scripts/{check-pi-daddy-contract.mjs,vendor-pi-daddy-contract.mjs,verify-pi-daddy-builders.mjs}`.
+
+Remaining paid/model evidence is unchanged: the principal-pi-skills remeasurement and
+future Codex arms waves in this document remain owner-authorized-later work. None is
+needed to validate this deterministic contract repair and none was run. **No OS sandbox
+was added. No publish, tag, GitHub Release, merge, or paid/model run occurred.**
+
 ## Where things stand
 
 `skill-harness@0.10.0` is **published, merged and tagged.** `v0.10.0` and `latest` both point at

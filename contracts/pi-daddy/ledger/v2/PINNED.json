@@ -1,10 +1,13 @@
 {
   "producer": "pi-daddy",
-  "repository": "https://github.com/mojomanyana/pi-daddy",
-  "commit": "1948b9406c13c9730f2fc103e68023d6e58c5e85",
+  "repository": "mojomanyana/pi-daddy",
+  "commit": "3070152efd4633bc40f5065e892d5eee8372ffc8",
   "pull_request": 11,
+  "source_schema": "packages/pi-daddy/contracts/ledger/v2/ledger-event.schema.json",
+  "source_refusal_enumeration": "packages/pi-daddy/src/refusals.ts",
+  "schema_sha256": "69c3a6856481b9250587c5785a8aadda87baba6cb03c79b209cff4f55f70a81c",
   "source_dir": "packages/pi-daddy/contracts/ledger/v2",
-  "note": "Byte-exact copies of the producer's canonical ledgerVersion 2 contract. pi-daddy's own README.md is vendored as pi-daddy-README.md so it does not shadow the consumer notes in README.md. Digests are over the vendored bytes and are asserted by packages/adapters/test/pi-daddy-contract.test.ts.",
+  "note": "Byte-exact copies of the producer's canonical ledgerVersion 2 contract and refusal enumeration. pi-daddy's own README.md is vendored as pi-daddy-README.md so it does not shadow the consumer notes in README.md. Digests are over the vendored bytes and are asserted by packages/adapters/test/pi-daddy-contract.test.ts.",
   "artifacts": {
     "ledger-event.schema.json": {
       "source": "packages/pi-daddy/contracts/ledger/v2/ledger-event.schema.json",
@@ -13,6 +16,10 @@
     "pi-daddy-README.md": {
       "source": "packages/pi-daddy/contracts/ledger/v2/README.md",
       "sha256": "b9dc9e13f0dfc690748d7183b86a208b9a1a0ebec21228fa393181cd6bc6918c"
+    },
+    "refusals.ts": {
+      "source": "packages/pi-daddy/src/refusals.ts",
+      "sha256": "d6164f794bc190b3405e2a7573968c4855b77ecdc4618613767739e8cd06eb12"
     },
     "fixtures/capability-decision.json": {
       "source": "packages/pi-daddy/contracts/ledger/v2/fixtures/capability-decision.json",

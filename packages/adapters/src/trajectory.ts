@@ -288,23 +288,13 @@ const V2_CORRELATION_NUMERIC_FIELDS = new Set(["event_seq", "last_change_seq", "
 const V2_APPROVAL_SOURCES = new Set(["prompt", "session", "persisted", "inherited"]);
 const V2_APPROVAL_SCOPES = new Set(["once", "session", "always"]);
 /**
- * pi-daddy's canonical refusal vocabulary, in the pinned contract's own order.
- *
- * This is a copy of `#/$defs/refusalCode` from the pinned schema and is exported
- * so `pi-daddy-contract.test.ts` can assert set equality against the producer
- * artifact — a hand-maintained second vocabulary without that drift assertion is
- * exactly how `GRANT_ID_MALFORMED` came to be rejected as "unsupported".
+ * pi-daddy's canonical refusal vocabulary, derived directly from the immutable
+ * pinned schema. The producer's `src/refusals.ts` is vendored and digest-checked
+ * separately, while the real-builder verifier proves its production export is
+ * set-equal to this schema-derived runtime set. There is no second list here to
+ * forget when pi-daddy adds a contract-valid code.
  */
-export const V2_REFUSAL_CODES = new Set([
-  "CAPABILITY_ESCALATION", "GRANT_ID_MALFORMED", "DEFINITION_NOT_AUTHORIZED", "UNDECLARED_TOOLS", "UNKNOWN_TOOL",
-  "GATED_UNAPPROVED", "APPROVAL_EXPIRED", "APPROVAL_SCOPE_MISMATCH", "APPROVAL_FLOW_FAILED",
-  "DEPTH_EXCEEDED", "FANOUT_EXCEEDED", "EXECUTOR_UNAVAILABLE", "CHILD_TIMED_OUT", "CHILD_CANCELLED",
-  "CHILD_EXIT_NONZERO", "TASK_MISSING", "UNKNOWN_DEFINITION", "CEILING_PATTERNS_UNRESOLVED",
-  "NARROWING_VIOLATED", "DEFINITION_UNREADABLE", "CORRELATION_TOO_LARGE", "CORRELATION_INVALID",
-  "LEDGER_WRITE_FAILED", "FANOUT_FAILED", "WORKSPACE_NOT_REGISTERED", "WORKSPACE_WRITE_CONFLICT",
-  "WORKSPACE_LEASE_STALE", "CHECK_NOT_CONFIGURED", "CHECK_CONFIGURATION_INVALID",
-  "CHECK_IDENTITY_UNAVAILABLE", "CHECK_IDENTITY_MISMATCH",
-]);
+export const V2_REFUSAL_CODES = new Set<string>(PI_DADDY_LEDGER_V2_SCHEMA.$defs.refusalCode.enum);
 /**
  * Every vocabulary the adapter restates from the pinned contract, paired with the
  * place in the schema it must equal.

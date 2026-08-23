@@ -26,13 +26,17 @@ import { evaluateTrajectoryGates } from "@skill-harness/core";
 import { PI_DADDY_CONTRACT_COMMIT, PI_DADDY_LEDGER_V2_SCHEMA, PI_DADDY_LEDGER_V2_SCHEMA_SHA256 } from "../src/pi-daddy-ledger-v2.js";
 import { assertSupportedSchema, declaredPropertyNames, validateClosedSchema } from "../src/closed-schema.js";
 
-/** The producer commit this consumer is pinned to (pi-daddy main, merged PR #11). */
-const EXPECTED_PRODUCER_COMMIT = "1948b9406c13c9730f2fc103e68023d6e58c5e85";
+/** Immutable pi-daddy Handoff B producer commit. */
+const EXPECTED_PRODUCER_COMMIT = "3070152efd4633bc40f5065e892d5eee8372ffc8";
 
 const CONTRACT = join(fileURLToPath(new URL("../../..", import.meta.url)), "contracts", "pi-daddy", "ledger", "v2");
 const bytes = (relative: string) => readFileSync(join(CONTRACT, relative), "utf8");
 const pinned = JSON.parse(bytes("PINNED.json")) as {
+  repository: string;
   commit: string;
+  source_schema: string;
+  source_refusal_enumeration: string;
+  schema_sha256: string;
   artifacts: Record<string, { source: string; sha256: string }>;
 };
 const CANONICAL_FIXTURES = ["capability-decision", "workspace-lease", "child-lifecycle", "check-receipt"] as const;
@@ -66,8 +70,11 @@ function branchOf(event: string): Record<string, unknown> {
 }
 
 describe("pinned pi-daddy ledger v2 contract", () => {
-  it("pins the producer commit and every vendored artifact digest", () => {
+  it("pins the producer repository, commit, schema, refusal source, and every artifact digest", () => {
+    expect(pinned.repository).toBe("mojomanyana/pi-daddy");
     expect(pinned.commit).toBe(EXPECTED_PRODUCER_COMMIT);
+    expect(pinned.source_schema).toBe("packages/pi-daddy/contracts/ledger/v2/ledger-event.schema.json");
+    expect(pinned.source_refusal_enumeration).toBe("packages/pi-daddy/src/refusals.ts");
     expect(PI_DADDY_CONTRACT_COMMIT).toBe(EXPECTED_PRODUCER_COMMIT);
     expect(Object.keys(pinned.artifacts).sort()).toEqual([
       "fixtures/capability-decision.json",
@@ -76,16 +83,19 @@ describe("pinned pi-daddy ledger v2 contract", () => {
       "fixtures/workspace-lease.json",
       "ledger-event.schema.json",
       "pi-daddy-README.md",
+      "refusals.ts",
     ]);
+    expect(pinned.artifacts["refusals.ts"].source).toBe(pinned.source_refusal_enumeration);
     for (const [relative, entry] of Object.entries(pinned.artifacts)) {
       expect(sha256(bytes(relative)), `${relative} is not the pinned producer bytes`).toBe(entry.sha256);
-      expect(entry.source).toMatch(/^packages\/pi-daddy\/contracts\/ledger\/v2\//);
+      expect(entry.source).toMatch(/^packages\/pi-daddy\/(?:contracts\/ledger\/v2\/|src\/refusals\.ts$)/);
     }
   });
 
   it("keeps the runtime schema identical to the vendored producer schema", () => {
     const vendored = bytes("ledger-event.schema.json");
     expect(PI_DADDY_LEDGER_V2_SCHEMA_SHA256).toBe(sha256(vendored));
+    expect(PI_DADDY_LEDGER_V2_SCHEMA_SHA256).toBe(pinned.schema_sha256);
     expect(PI_DADDY_LEDGER_V2_SCHEMA_SHA256).toBe(pinned.artifacts["ledger-event.schema.json"].sha256);
     // Deep equality, not "close enough": the runtime object is what actually gates
     // records, so a hand edit to either copy has to fail here.
@@ -193,6 +203,40 @@ describe("pinned pi-daddy ledger v2 contract", () => {
     expect([...V2_REFUSAL_CODES].sort()).toEqual([...enumerated].sort());
   });
 
+  it("accepts and preserves every refusal code in the pinned producer contract", () => {
+    const enumerated = ((PI_DADDY_LEDGER_V2_SCHEMA as Record<string, any>).$defs.refusalCode.enum as string[]);
+    expect(enumerated.length).toBeGreaterThan(20);
+    for (const code of enumerated) {
+      const decision = canonicalFixture("capability-decision");
+      (decision.refusal as Record<string, unknown>).code = code;
+      const events = normalizePiDaddyLedger(line(decision));
+      const refused = events.find((event) => event.type === "child_spawn_refused");
+      expect(refused?.refusal_code, `${code} was not preserved`).toBe(code);
+      expect(refused?.attributes?.structured_refusal, `${code} lost its structured refusal`).toMatchObject({ code });
+    }
+  });
+
+  it("rejects an unknown refusal code outside the pinned producer contract", () => {
+    const decision = canonicalFixture("capability-decision");
+    (decision.refusal as Record<string, unknown>).code = "FUTURE_UNPINNED_REFUSAL";
+    expect(() => normalizePiDaddyLedger(line(decision))).toThrow(/refusal\.code must be one of|refusal has unsupported code/i);
+  });
+
+  it("fails closed on malformed structured refusal fields", () => {
+    const malformed: Array<[string, (refusal: Record<string, unknown>) => void, RegExp]> = [
+      ["missing code", (refusal) => { delete refusal.code; }, /refusal\.code is required|refusal requires code and message/i],
+      ["missing message", (refusal) => { delete refusal.message; }, /refusal\.message is required|refusal requires code and message/i],
+      ["non-object details", (refusal) => { refusal.details = []; }, /refusal\.details must be an object/i],
+      ["nested detail value", (refusal) => { refusal.details = { nested: {} }; }, /refusal\.details.*must be (?:a string|one of string)|must contain scalar values/i],
+      ["undeclared field", (refusal) => { refusal.future = true; }, /refusal.*undeclared field/i],
+    ];
+    for (const [label, mutate, expected] of malformed) {
+      const decision = canonicalFixture("capability-decision");
+      mutate(decision.refusal as Record<string, unknown>);
+      expect(() => normalizePiDaddyLedger(line(decision)), label).toThrow(expected);
+    }
+  });
+
   it("accepts every canonical builder fixture unmodified", () => {
     for (const name of CANONICAL_FIXTURES) {
       const record = canonicalFixture(name);
@@ -232,13 +276,51 @@ describe("pinned pi-daddy ledger v2 contract", () => {
     expect(event.workspace_id).toBe(receipt.workspaceId);
   });
 
-  it("normalizes a canonical decision refused with GRANT_ID_MALFORMED and gates on it", () => {
+  it("keeps workspace, lifecycle, receipt, approval, and digest mappings unchanged", () => {
+    const decision = normalizePiDaddyLedger(line(canonicalFixture("capability-decision")));
+    const spawn = decision.find((event) => event.type === "child_spawn_refused")!;
+    expect(spawn.workspace_id).toBeUndefined();
+    expect(spawn.digests).toMatchObject({
+      task: "9".repeat(64),
+      definition: "8".repeat(64),
+      correlation_plan: "1".repeat(64),
+      correlation_task: "3".repeat(64),
+      correlation_definition: "2".repeat(64),
+    });
+    expect(decision.filter((event) => event.type === "approval_used").map((event) => event.approval)).toEqual([
+      expect.objectContaining({ capability: "tool:bash", source: "persisted", scope: "always" }),
+      expect.objectContaining({ capability: "tool:read", source: "prompt", scope: "once" }),
+    ]);
+
+    const [lease] = normalizePiDaddyLedger(line(canonicalFixture("workspace-lease")));
+    expect(lease).toMatchObject({ type: "writer_lease_acquired", workspace_id: "workspace-contract", attributes: { outcome: "acquired", recovered: "unknown" } });
+
+    const [lifecycle] = normalizePiDaddyLedger(line(canonicalFixture("child-lifecycle")));
+    expect(lifecycle).toMatchObject({ type: "child_failed", attributes: { state: "failed", executor: "process", exit_code: null, aborted: true } });
+    expect(Object.hasOwn(lifecycle, "exit_code")).toBe(false);
+
+    const receiptRecord = canonicalFixture("check-receipt");
+    const [receipt] = normalizePiDaddyLedger(line(receiptRecord));
+    expect(receipt).toMatchObject({
+      type: "check_receipt_recorded",
+      child_id: receiptRecord.childId,
+      workspace_id: receiptRecord.workspaceId,
+      digests: { tree: receiptRecord.treeSha, correlation_tree: "6".repeat(40) },
+      attributes: { receipt_id: receiptRecord.receiptId, check_id: receiptRecord.checkId, check_receipt_id: "7".repeat(64) },
+    });
+  });
+
+  it("accepts GRANT_ID_MALFORMED, preserves its code, and sanitizes without losing structured details", () => {
     const decision = canonicalFixture("capability-decision");
     (decision.refusal as Record<string, unknown>).code = "GRANT_ID_MALFORMED";
     const events = normalizePiDaddyLedger(line(decision));
     const refused = events.find((event) => event.type === "child_spawn_refused")!;
     expect(refused.refusal_code).toBe("GRANT_ID_MALFORMED");
-    expect(refused.attributes?.structured_refusal).toMatchObject({ code: "GRANT_ID_MALFORMED" });
+    expect(refused.attributes?.structured_refusal).toEqual({
+      code: "GRANT_ID_MALFORMED",
+      message: expect.stringMatching(/^\[REDACTED sha256:[a-f0-9]{64}\]$/),
+      details: { workspace_id: "workspace-contract", retryable: true, holder_depth: 1 },
+    });
 
     // Prove it all the way through the gate layer, not just the normalizer: a code the
     // adapter accepts but a spec cannot assert on would still be unusable evidence.
