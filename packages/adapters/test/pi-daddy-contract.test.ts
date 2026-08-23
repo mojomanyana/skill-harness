@@ -26,10 +26,12 @@ import { evaluateTrajectoryGates } from "@skill-harness/core";
 import { PI_DADDY_CONTRACT_COMMIT, PI_DADDY_LEDGER_V2_SCHEMA, PI_DADDY_LEDGER_V2_SCHEMA_SHA256 } from "../src/pi-daddy-ledger-v2.js";
 import { assertSupportedSchema, declaredPropertyNames, validateClosedSchema } from "../src/closed-schema.js";
 
-/** Immutable pi-daddy Handoff B producer commit. */
-const EXPECTED_PRODUCER_COMMIT = "3070152efd4633bc40f5065e892d5eee8372ffc8";
+/** Immutable pi-daddy 0.19.0 producer commit. */
+const EXPECTED_PRODUCER_COMMIT = "c364a6717e3d5e369ecd3298b9cbb595eb94d9b2";
 
-const CONTRACT = join(fileURLToPath(new URL("../../..", import.meta.url)), "contracts", "pi-daddy", "ledger", "v2");
+const REPO = fileURLToPath(new URL("../../..", import.meta.url));
+const CONTRACT = join(REPO, "contracts", "pi-daddy", "ledger", "v2");
+const WORKSPACE_NOT_AUTHORIZED_FIXTURE = join(REPO, "packages", "adapters", "test", "fixtures", "governance", "pi-daddy-v2-workspace-not-authorized.jsonl");
 const bytes = (relative: string) => readFileSync(join(CONTRACT, relative), "utf8");
 const pinned = JSON.parse(bytes("PINNED.json")) as {
   repository: string;
@@ -37,6 +39,9 @@ const pinned = JSON.parse(bytes("PINNED.json")) as {
   source_schema: string;
   source_refusal_enumeration: string;
   schema_sha256: string;
+  version: string;
+  package_sha256: string;
+  dist_manifest_sha256: string;
   artifacts: Record<string, { source: string; sha256: string }>;
 };
 const CANONICAL_FIXTURES = ["capability-decision", "workspace-lease", "child-lifecycle", "check-receipt"] as const;
@@ -44,6 +49,11 @@ const canonicalFixture = (name: (typeof CANONICAL_FIXTURES)[number]) =>
   JSON.parse(bytes(join("fixtures", `${name}.json`))) as Record<string, unknown>;
 const line = (record: unknown) => `${JSON.stringify(record)}\n`;
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
+const refusalCodesFromSource = () => {
+  const declaration = bytes("refusals.ts").match(/REFUSAL_CODES\s*=\s*\[([\s\S]*?)\]\s*as const/);
+  if (!declaration) throw new Error("vendored refusals.ts has no REFUSAL_CODES declaration");
+  return [...declaration[1].matchAll(/"([A-Z][A-Z0-9_]*)"/g)].map((match) => match[1]);
+};
 
 /** Resolve a `#/a/b/c` pointer inside the pinned schema. */
 function resolvePointer(pointer: string): unknown {
@@ -75,6 +85,9 @@ describe("pinned pi-daddy ledger v2 contract", () => {
     expect(pinned.commit).toBe(EXPECTED_PRODUCER_COMMIT);
     expect(pinned.source_schema).toBe("packages/pi-daddy/contracts/ledger/v2/ledger-event.schema.json");
     expect(pinned.source_refusal_enumeration).toBe("packages/pi-daddy/src/refusals.ts");
+    expect(pinned.version).toBe("0.19.0");
+    expect(pinned.package_sha256).toBe("c261877f9f6e1b13db8249e1d4e233cae9094efc07602e80c28555168cdc9b16");
+    expect(pinned.dist_manifest_sha256).toBe("892394e6b231d6bfd95c5537ad1238eded39bcfae8078bd0782f539cfebe5688");
     expect(PI_DADDY_CONTRACT_COMMIT).toBe(EXPECTED_PRODUCER_COMMIT);
     expect(Object.keys(pinned.artifacts).sort()).toEqual([
       "fixtures/capability-decision.json",
@@ -198,9 +211,41 @@ describe("pinned pi-daddy ledger v2 contract", () => {
     expect(canonical).toBe("#/$defs/refusal");
     const enumerated = ((PI_DADDY_LEDGER_V2_SCHEMA as Record<string, any>).$defs.refusalCode.enum as string[]);
     expect(enumerated).toContain("GRANT_ID_MALFORMED");
-    // Set equality both ways: a code the producer added must not read as unsupported,
-    // and the harness must not invent one the producer never published.
+    expect(enumerated).toContain("WORKSPACE_NOT_AUTHORIZED");
+    // Three-way set equality: byte-vendored production source, closed schema, and
+    // runtime adapter. Removing, adding, or renaming a code in any one turns red.
+    expect(refusalCodesFromSource().sort()).toEqual([...enumerated].sort());
     expect([...V2_REFUSAL_CODES].sort()).toEqual([...enumerated].sort());
+  });
+
+  it("detects refusal deletion, addition, rename, and structured-schema mutations", () => {
+    const sourceCodes = refusalCodesFromSource().sort();
+    const wire = JSON.parse(readFileSync(WORKSPACE_NOT_AUTHORIZED_FIXTURE, "utf8"));
+    const mutate = (apply: (schema: any) => void) => {
+      const schema = structuredClone(PI_DADDY_LEDGER_V2_SCHEMA) as any;
+      apply(schema);
+      return schema;
+    };
+    const deleted = mutate((schema) => {
+      schema.$defs.refusalCode.enum = schema.$defs.refusalCode.enum.filter((code: string) => code !== "WORKSPACE_NOT_AUTHORIZED");
+    });
+    const added = mutate((schema) => { schema.$defs.refusalCode.enum.push("FUTURE_UNPINNED_REFUSAL"); });
+    const renamed = mutate((schema) => {
+      schema.$defs.refusalCode.enum = schema.$defs.refusalCode.enum.map((code: string) => code === "WORKSPACE_NOT_AUTHORIZED" ? "WORKSPACE_ROUTE_DENIED" : code);
+    });
+    for (const drifted of [deleted, added, renamed]) {
+      expect([...drifted.$defs.refusalCode.enum].sort()).not.toEqual(sourceCodes);
+    }
+    for (const drifted of [deleted, renamed]) {
+      expect(validateClosedSchema(drifted, wire)).toEqual(expect.arrayContaining([
+        expect.objectContaining({ path: "refusal.code", message: expect.stringMatching(/must be one of/) }),
+      ]));
+    }
+
+    const changedRefusalShape = mutate((schema) => { schema.$defs.refusal.properties.message.type = "number"; });
+    expect(validateClosedSchema(changedRefusalShape, wire)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: "refusal.message", message: "must be a number" }),
+    ]));
   });
 
   it("accepts and preserves every refusal code in the pinned producer contract", () => {
@@ -308,6 +353,33 @@ describe("pinned pi-daddy ledger v2 contract", () => {
       digests: { tree: receiptRecord.treeSha, correlation_tree: "6".repeat(40) },
       attributes: { receipt_id: receiptRecord.receiptId, check_id: receiptRecord.checkId, check_receipt_id: "7".repeat(64) },
     });
+  });
+
+  it("accepts the real producer-built WORKSPACE_NOT_AUTHORIZED regression fixture losslessly", () => {
+    const wire = JSON.parse(readFileSync(WORKSPACE_NOT_AUTHORIZED_FIXTURE, "utf8")) as Record<string, any>;
+    expect(wire).toMatchObject({
+      ledgerVersion: 2,
+      event: "capability_decision",
+      blocked: true,
+      requested: ["workspace:production"],
+      denied: ["workspace:production"],
+      refusal: { code: "WORKSPACE_NOT_AUTHORIZED" },
+      correlation: { run_id: "run-builder-contract-001", task_id: "task-builder-contract-001" },
+    });
+
+    const events = normalizePiDaddyLedger(line(wire));
+    expect(events).toHaveLength(3);
+    expect(events.every((event) => event.run_id === wire.correlation.run_id && event.task_id === wire.correlation.task_id)).toBe(true);
+    const denied = events.find((event) => event.type === "capability_refused")!;
+    expect(denied.capability).toBe("workspace:production");
+    const refused = events.find((event) => event.type === "child_spawn_refused")!;
+    expect(refused.refusal_code).toBe("WORKSPACE_NOT_AUTHORIZED");
+    expect(refused.attributes?.denied).toEqual(["workspace:production"]);
+    expect(refused.attributes?.structured_refusal).toEqual({
+      code: "WORKSPACE_NOT_AUTHORIZED",
+      message: expect.stringMatching(/^\[REDACTED sha256:[a-f0-9]{64}\]$/),
+    });
+    expect(refused.attributes?.correlation).toEqual(wire.correlation);
   });
 
   it("accepts GRANT_ID_MALFORMED, preserves its code, and sanitizes without losing structured details", () => {

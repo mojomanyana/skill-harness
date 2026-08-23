@@ -5,7 +5,27 @@
 half-finished and what will bite you. Release notes live in `PUBLISHING.md` — this file
 deliberately does not restate them.*
 
-## Cross-repository pi-daddy v2 contract repair — implementation handoff
+## Pi-daddy 0.19.0 ledger-v2 contract re-pin — current handoff
+
+**State:** deterministic synchronization branch `fix/pi-daddy-c364-contract-repin`,
+started from exact skill-harness `main`
+`fb56cc8d39ebf16ab3b7e662db63b63357bb659e`. The producer pin is exact pi-daddy
+`c364a6717e3d5e369ecd3298b9cbb595eb94d9b2` / 0.19.0; both remote mains were
+verified at those revisions before the branch was created.
+
+The producer's closed refusal vocabulary moves from 31 to 32 codes by adding
+production-reachable `WORKSPACE_NOT_AUTHORIZED`. The regression fixture is generated
+by production `planDelegation` and mapped through production `buildRecord`; it retains
+the denied `workspace:production` identity, full structured refusal, nested
+correlation, and run/task joins. The real-builder matrix is 47 positive cases and 10
+fail-closed mutations, with all 32 refusal codes preserved. The exact package and
+dist-manifest SHA-256 values are recorded in `PINNED.json` alongside the source paths
+and seven vendored artifact digests.
+
+This is contract synchronization only. No model or judge calls, release, publish,
+tag, merge, or OS-sandbox claim belongs to it.
+
+## Previous cross-repository pi-daddy v2 contract repair — historical handoff
 
 **State:** product-fix branch in progress; no release action is authorized. The exact
 starting state was clean `main` at

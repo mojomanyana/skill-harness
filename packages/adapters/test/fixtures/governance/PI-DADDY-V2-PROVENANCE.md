@@ -15,6 +15,12 @@ The v2 fixtures in this directory are pinned to pi-daddy `v0.18.0`, commit
 - `pi-daddy-v2-missing-join.jsonl` was emitted with
   `buildWorkspaceLeaseEvent` without correlation metadata. pi-daddy permits this;
   skill-harness rejects it because it cannot join the event to a workflow run/task.
+- `pi-daddy-v2-workspace-not-authorized.jsonl` was generated from pi-daddy 0.19.0
+  commit `c364a6717e3d5e369ecd3298b9cbb595eb94d9b2` by driving production
+  `planDelegation` through the denied `workspace:production` routing path, then
+  mapping that plan through production `buildRecord` exactly as
+  `extensions/run-delegation.ts` does. The real-builder verifier regenerates and
+  byte-compares this fixture on every contract CI run.
 - `pi-daddy-unsupported-version.jsonl` is the positive lease shape with the explicit
   ledger version changed to `3`; no v2 builder can emit an unsupported version.
 

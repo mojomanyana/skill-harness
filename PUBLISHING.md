@@ -5,8 +5,8 @@ This is the npm-publish runbook.
 ## Unreleased cross-repository contract repair
 
 The next publish must not proceed unless CI's `pi-daddy-contract` job is green. That
-job checks out `mojomanyana/pi-daddy` at the literal immutable Handoff B SHA
-`3070152efd4633bc40f5065e892d5eee8372ffc8` into a sibling directory, installs both
+job checks out `mojomanyana/pi-daddy` at the literal immutable 0.19.0 SHA
+`c364a6717e3d5e369ecd3298b9cbb595eb94d9b2` into a sibling directory, installs both
 lockfiles, builds both repositories, and runs:
 
 ```bash
@@ -15,16 +15,21 @@ npm run verify:pi-daddy-contract -- ../pi-daddy
 
 It does not use pi-daddy `main`, a tag, or npm `latest`. The verifier refuses a dirty
 producer checkout or any other HEAD, imports production builders plus `REFUSAL_CODES`,
-validates builder-produced records against schema SHA-256
-`69c3a6856481b9250587c5785a8aadda87baba6cb03c79b209cff4f55f70a81c`, and requires
-every normalized v2 event to retain run/task join identity. Release/publish work is
-downstream of this job: a green ordinary unit suite cannot substitute for it.
+validates 47 builder-produced records against schema SHA-256
+`3862bc451c25393dd40b198c62a8f94a3f58784e31da6dff05e3f06be71a3f86`, and requires
+every normalized v2 event to retain run/task join identity. The pin also records the
+authoritative package SHA-256 `c261877f9f6e1b13db8249e1d4e233cae9094efc07602e80c28555168cdc9b16`
+and dist-manifest SHA-256 `892394e6b231d6bfd95c5537ad1238eded39bcfae8078bd0782f539cfebe5688`.
+Release/publish work is downstream of this job: a green ordinary unit suite cannot
+substitute for it.
 
 The earlier 0.10.0 release notes below accurately record that release's pin
-(`1948b940…`). The repair re-pins provenance to Handoff B `3070152…`; those commits
-carry byte-identical ledger-v2 schema, fixtures, contract README, and refusal source.
-The adapter now derives the refusal vocabulary from the pinned schema instead of
-maintaining another list. No OS sandbox is introduced by this repair.
+(`1948b940…`). The first repair re-pinned provenance to Handoff B `3070152…`; this
+synchronization advances it to pi-daddy 0.19.0 `c364a67…`, whose closed refusal
+vocabulary has 32 members after adding production-reachable
+`WORKSPACE_NOT_AUTHORIZED`. The adapter continues deriving that vocabulary from the
+pinned schema instead of maintaining another list. No OS sandbox is introduced by
+this repair.
 
 The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`, `0.3.0`, `0.3.1`, `0.3.2`, `0.4.0`,
 `0.5.0`, `0.6.0`, `0.7.0`, `0.8.0`, `0.9.0`. This repo is at `0.10.0`, so these commands publish

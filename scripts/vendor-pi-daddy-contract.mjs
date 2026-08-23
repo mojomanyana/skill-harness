@@ -20,6 +20,13 @@ const CONTRACT_SOURCE_DIR = "packages/pi-daddy/contracts/ledger/v2";
 const SCHEMA_SOURCE = `${CONTRACT_SOURCE_DIR}/ledger-event.schema.json`;
 const REFUSAL_SOURCE = "packages/pi-daddy/src/refusals.ts";
 const FIXTURES = ["capability-decision", "workspace-lease", "child-lifecycle", "check-receipt"];
+const PRODUCER_RELEASES = {
+  c364a6717e3d5e369ecd3298b9cbb595eb94d9b2: {
+    version: "0.19.0",
+    package_sha256: "c261877f9f6e1b13db8249e1d4e233cae9094efc07602e80c28555168cdc9b16",
+    dist_manifest_sha256: "892394e6b231d6bfd95c5537ad1238eded39bcfae8078bd0782f539cfebe5688",
+  },
+};
 
 const rawArgs = process.argv.slice(2);
 const check = rawArgs.includes("--check");
@@ -59,12 +66,25 @@ for (const file of files) {
 }
 
 const previousPinned = JSON.parse(readFileSync(join(DEST, "PINNED.json"), "utf8"));
+const release = PRODUCER_RELEASES[commit];
+if (!release) {
+  console.error(`no authoritative producer release metadata recorded for ${commit}`);
+  process.exit(2);
+}
+const packageVersion = JSON.parse(show("packages/pi-daddy/package.json")).version;
+if (packageVersion !== release.version) {
+  console.error(`producer package version ${packageVersion} does not match recorded release ${release.version}`);
+  process.exit(2);
+}
 const schemaText = generated.get(join(DEST, "ledger-event.schema.json"));
 const pinned = {
   producer: "pi-daddy",
   repository: REPOSITORY,
   commit,
   pull_request: pr === undefined ? previousPinned.pull_request : Number(pr),
+  version: release.version,
+  package_sha256: release.package_sha256,
+  dist_manifest_sha256: release.dist_manifest_sha256,
   source_schema: SCHEMA_SOURCE,
   source_refusal_enumeration: REFUSAL_SOURCE,
   schema_sha256: sha256(schemaText),

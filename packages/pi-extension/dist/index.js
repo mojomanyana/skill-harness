@@ -7926,7 +7926,7 @@ function isSchemaObject(value) {
 }
 
 // packages/adapters/dist/pi-daddy-ledger-v2.js
-var PI_DADDY_CONTRACT_COMMIT = "3070152efd4633bc40f5065e892d5eee8372ffc8";
+var PI_DADDY_CONTRACT_COMMIT = "c364a6717e3d5e369ecd3298b9cbb595eb94d9b2";
 var PI_DADDY_LEDGER_V2_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/mojomanyana/pi-daddy/contracts/ledger/v2/ledger-event.schema.json",
@@ -8064,6 +8064,7 @@ var PI_DADDY_LEDGER_V2_SCHEMA = {
         "LEDGER_WRITE_FAILED",
         "FANOUT_FAILED",
         "WORKSPACE_NOT_REGISTERED",
+        "WORKSPACE_NOT_AUTHORIZED",
         "WORKSPACE_WRITE_CONFLICT",
         "WORKSPACE_LEASE_STALE",
         "CHECK_NOT_CONFIGURED",
