@@ -72,6 +72,81 @@ matches the *pinned* commit, not the producer's current `main`.
    publishes a new one. `packages/adapters/src/pi-daddy-ledger-v2.ts` is generated — never
    hand-edited.
 
+## 0.11.0 — the arms axis, and a provider outage that stops looking like a skill regression
+
+**Published 2026-08-23.** First release since 0.10.0. Three additions, and the third is the
+one that changes what a `results.yaml` can say.
+
+**Provider failure is infrastructure ERROR, not a model verdict.** Measured against an
+invalidated `openai-codex` OAuth token: text mode exits 1 with `Encountered invalidated oauth
+token`, while `--mode json` reports a generic `provider_transport_failure` with
+`stopReason: "error"`, zero tokens, and **exit code 0**. Neither path was classified, so a
+wave against a dead provider produced model FAILs shaped exactly like findings. Both paths now
+classify, the verdict is ERROR before the judge and costs zero judge calls, and it survives
+`grade`/`regrade` rather than being re-judged into a FAIL on the next pass. The marker lives in
+the transcript **preamble**, ahead of the first `>>> ` header, so a model writing the same line
+into its answer cannot forge one. **Transcripts written by ≤ 0.10.0 carry the old placement and
+will not short-circuit on re-grade.**
+
+**`run --structured`.** `runStructured` only ever fired for a scenario declaring a trace or
+trajectory gate, and no scenario in the reference corpus declares either — so the subject half
+of `ScenarioMetrics` (`input_tokens`, `subject_cost_usd`, cache tokens) was never populated by
+any run, anywhere. The fields already existed; nothing wrote them. One flag now takes the
+structured path regardless, including on `mode: seeded` scenarios.
+
+**The arms axis.** A named bundle of harness-side conditions — extensions, seeded definitions,
+env — declared in `<skills-root>/tests/arms.yaml` and selected with `--arm`, so the same
+scenarios can be A/B'd with and without an extension loaded. The arm is carried in the
+**run-directory tag** (`pi-<model>+<arm>`), deliberately: `lint` and `stability` both key on the
+tag, so two arms are separate lineages that can never be misread as one lineage flipping
+run-over-run — and no `specification.yaml` byte moves, so no committed result is disturbed.
+Four refusals make a vacuous arm unreachable: too few seeded definitions, an unreadable seed
+directory, a non-empty ambient `~/.pi/agent/skills`, and a seed path escaping the skills root.
+
+### `results.yaml` grew an `arm` block — consumers need 0.11.0 to read it
+
+Still **schema 2**. The block records the arm's name, resolved extension paths, seeded
+definition count, `ledger_events`, and the declared `env` with `<run-dir>` unsubstituted. Per
+the rule in §1b, **a `results.yaml` written by 0.11.0 needs a reader ≥ 0.11.0**, and every
+rewriter (`grade`, `regate`, `rescore`, the review UI) now carries the block rather than
+rebuilding the draft without it — an omission that silently deleted the only committed evidence
+an arm run delegated, since the ledger it counts is gitignored.
+
+**Correction to §2 below, which was stale:** `principal-pi-skills` is described there as pinning
+`ref: v0.3.0` at an exact pin. It does not — its workflow pins `ref: latest`, so moving the
+`latest` tag reaches its CI immediately. That is the desired ordering here rather than a hazard:
+that repo already carries Wave 0 results written by an unreleased `main`, and tagging 0.11.0 is
+what gives its CI a reader new enough to understand them.
+
+### Smoke gate: RUN for this release
+
+0.10.0 skipped it on the grounds that the release touched none of the three paths no fake can
+exercise. This release touches **all three** — the streaming JSONL reader (provider-failure
+collection and the new `env` passed to `spawn`), the `--no-extensions --extension` argv (the
+arm's entire mechanism), and the live judge loop (`regrade`'s provider-failure short-circuit).
+
+`./scripts/smoke-real-pi.sh` reached all four stages, exit 0, on pi 0.84.2 for `cost_usd
+0.000562688`: trace_version 2 recorded, the declared extension's `Agent` tool present and
+called, no thinking / home paths / result bodies persisted, the objective gate PASS on four
+assertions before any judge spend, and `--auto-rejudge` genuinely taking a second opinion
+(2 judgments, `confirmed`, `ship_deciding`). One draw on a cheap model, not a measurement.
+
+### Also verified before publishing
+
+Build, `npm run typecheck`, 1,368 tests across 86 files, the suite again with `pi` removed from
+`PATH` (the CI condition), the committed pi-extension bundle current against an in-memory
+rebuild, and `lint all --skills ../principal-pi-skills` reporting `7 skill(s), 101 finding(s),
+32 note(s)` — the same figure measured before this work began, which is the evidence that no arm
+leaked into a result digest.
+
+### Field-tested, which is new for a release here
+
+The axis was exercised live before publishing, not only under test: `review` × 22 scenarios ×
+3 reps × both arms on `openai-codex:gpt-5.6-terra:high`, twice on the governed side. That run
+is what found the executor trap now documented in `docs/CODEX-ARMS-RUNBOOK.md` — an arm must
+pin `PI_GRANTS_HERDR`, because absent it means *probe*, and a probed herdr pane cannot complete
+behind `pi -p`. Findings in `docs/posts/2026-08-23-the-spawn-that-only-said-starting.md`.
+
 ### 0.9.1, superseded and never published
 
 A `release/0.9.1` branch was prepared for the 0.9.0-era pi-daddy adapter work and never shipped.
