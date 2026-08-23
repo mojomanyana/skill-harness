@@ -15,8 +15,11 @@ is a successor branch, `fix/pi-daddy-v2-refusal-contract`, rather than a rewrite
 published head `43564f1c6e9e97515469a01b5542b5435b66c9db`. Starting from current main deliberately
 includes the reviewed 0.10.0 closed-schema/generated-contract repair and the unrelated
 0.11.0 provider/arms release; no later `main` change was merged or cherry-picked after
-the branch point. **Final immutable SHA and PR URL are recorded in the final Git/PR
-handoff because a Git commit cannot contain its own SHA.**
+the branch point. The implementation commit is
+`87598f1218be260ef9427972c75bd38997f47f2b`; the review handoff is
+[PR #62](https://github.com/mojomanyana/skill-harness/pull/62). The PR's immutable
+final head is recorded in the final response/GitHub metadata because a commit cannot
+contain its own SHA.
 
 **Immutable cross-repository inputs:** principal-pi-skills
 `2c53559f4b5f4b193c503ba4a1b04e76c51b0aef`; pi-daddy Handoff B
