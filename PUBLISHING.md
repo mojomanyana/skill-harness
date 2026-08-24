@@ -562,19 +562,49 @@ npm login
 You need an npm account with publish rights on the `@skill-harness` scope and on
 the unscoped `skill-harness` name — the same account that published 0.1.x.
 
-## Build first — this is not optional
+## Build and pack through the release command — this is not optional
 
 `dist/` is **gitignored** (only `packages/pi-extension/dist/index.js` is
-force-committed, and that one is never published). A fresh clone therefore has no
-`dist` at all, and every publishable package ships `dist/**` as its entire
-payload — so publishing without building first produces a tarball with no code in
-it. Always run:
+force-committed, and that one is never published), so `git status` cannot tell
+whether a publishable output is absent, stale, or has the wrong mode. In particular,
+`npm ci` can mark an already-present workspace bin executable and TypeScript preserves
+that mode when it rewrites the file. The same source then packs differently depending
+on whether the workspace was reused.
+
+The only authorized packaging path is:
 
 ```bash
-npm install
-npm run build
-git status --short     # expect clean: a dirty tree here means uncommitted source
+node --version          # must be v20.20.2
+npm --version           # must be 10.8.2
+npm ci
+npm run release:pack
+# digests and archive-entry modes are now in release-artifacts/release-manifest.json
+git status --short     # still required for tracked source; not used to validate dist/
 ```
+
+The command enforces those exact Node/npm versions. Runtime support remains Node ≥20,
+but release packaging is intentionally narrower: npm versions disagree about executable
+mode treatment for declared bins, so an unpinned packager would restore the ambiguity this
+control exists to remove.
+
+`release:pack` is the control, not the prose around it. It inspects the three exact
+ignored output roots (`packages/{core,adapters,cli}/dist`) and refuses symlinks,
+devices, or other non-regular entries before removing anything. It then recreates
+only those roots with `npm run build`, establishes and verifies
+`packages/cli/dist/cli.js` as a regular file with canonical POSIX archive mode
+**0644**, verifies npm's archive-entry manifest, and independently reads the tar header
+and archived bytes before recording any digest. Changing the mode never changes the file
+contents. The output directory cannot overlap a managed package path, rejects
+unexpected entries rather than using broad cleanup, and invalidates any prior manifest
+before another check can fail. `release-manifest.json` is written last — no manifest
+means packaging did not complete.
+
+All four workspace `prepack` hooks require the authorization marker created by this
+command. A raw `npm pack -w …` or `npm publish -w …` therefore fails closed and names
+`npm run release:pack`; it is not an alternative release path. CI runs the command
+and the regression suite covers both a clean checkout and a reused workspace seeded
+with byte-identical `cli.js` at 0755, plus hostile-path and removed-normalization
+controls.
 
 ## Smoke against real pi — before you publish
 
@@ -642,48 +672,40 @@ with no `pi` on it, which is the CI condition.
 The residual risk is stated plainly: if this change somehow broke pi invocation, only the smoke
 gate would have caught it. Run it before the next release that touches the harness↔pi boundary.
 
-## Publish, in dependency order
+## Publish the verified archives, in dependency order
 
-Run from the **repo root** (npm workspaces `-w` flag, verified with npm 11.9.0 /
-Node 24.14.0 — this repo's `engines.node` requires >=20, which ships npm >=10,
-so `-w` should work on any supported install). Each step must land on the
-registry before the next, since each package's `package.json` pins an exact
-`@skill-harness/*@0.10.0` dependency (npm will fail to resolve it otherwise):
+Publish only the tarballs named and digested by
+`release-artifacts/release-manifest.json`. Do not rebuild or pack between reading
+that manifest and publishing. From the repository root:
 
 ```bash
-npm publish -w @skill-harness/core --access public
-npm publish -w @skill-harness/adapters --access public
-npm publish -w @skill-harness/cli --access public     # prepack stages assets/report.* into the tarball
-npm publish -w skill-harness                            # unscoped meta package; depends on @skill-harness/cli@0.10.0
+VERSION=$(node -p "require('./package.json').version")
+npm publish "release-artifacts/skill-harness-core-${VERSION}.tgz" --access public
+npm publish "release-artifacts/skill-harness-adapters-${VERSION}.tgz" --access public
+npm publish "release-artifacts/skill-harness-cli-${VERSION}.tgz" --access public
+npm publish "release-artifacts/skill-harness-${VERSION}.tgz"
 ```
 
-`@skill-harness/core` and `@skill-harness/adapters` publish exactly the `dist/`
-that `npm run build` produced above — there is no per-package build hook to fall
-back on, which is why the build step is mandatory rather than a nicety.
-`@skill-harness/cli`'s `prepack` script
-(`rm -rf ./assets && mkdir -p ./assets && cp ../../assets/report.* ./assets/`)
-runs automatically as part of `npm publish`/`npm pack` and stages the review-UI
-assets (`assets/report.template.html`, `assets/report.grade.js`) into its tarball.
-It copies `report.*` rather than all of `assets/` deliberately: `assets/` also
-holds the README's demo GIF and the scripts that record it, and `cp -r` put half
-a megabyte of them in the tarball (0.3.1 fixed that).
+Each package must land before the next because the workspaces pin exact internal
+versions. Publishing a workspace directory directly is deliberately refused by its
+`prepack` guard: it would reintroduce state-dependent packing after the archive was
+verified. There is no per-package fallback. If `release:pack` cannot produce all four
+archives, stop rather than reconstructing its steps by hand.
 
-If `-w` doesn't work with your npm version, publish per-package instead:
+The release script performs the package staging before invoking the guarded `prepack`:
+core receives the public schemas and license, adapters and the meta-package receive the
+license, and CLI receives `assets/report.template.html` plus
+`assets/report.grade.js`. Every destination is checked before replacement, so a symlink
+or non-regular file cannot turn staging into an external write. CLI continues copying
+only `report.*`, so the README demo assets do not enter the package.
 
-```bash
-(cd packages/core && npm publish --access public)
-(cd packages/adapters && npm publish --access public)
-(cd packages/cli && npm publish --access public)
-(cd packages/skill-harness && npm publish)
-```
-
-Do **not** publish `@skill-harness/pi-extension` — it's `private: true` and
-ships to pi users via `pi install git:...`, not the npm registry.
+Do **not** publish `@skill-harness/pi-extension` — it is `private: true` and ships
+to pi users via `pi install git:...`, not the npm registry.
 
 ## Verify after publishing
 
 ```bash
-npm view skill-harness version            # expect 0.10.0
+npm view skill-harness version            # expect the VERSION published above
 npm i -g skill-harness && skill-harness --help
 npx @skill-harness/cli lint --help
 ```

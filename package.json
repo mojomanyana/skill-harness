@@ -17,6 +17,7 @@
     "scripts": {
         "build": "tsc -b packages/core packages/adapters packages/cli",
         "build:ext": "npm run build && node packages/pi-extension/build.mjs",
+        "release:pack": "node scripts/release-pack.mjs",
         "dev": "tsx packages/cli/src/cli.ts",
         "test": "vitest run",
         "typecheck": "tsc -b packages/core packages/adapters packages/cli && tsc --noEmit -p packages/pi-extension/tsconfig.json",

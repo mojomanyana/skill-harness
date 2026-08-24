@@ -25,6 +25,19 @@ and seven vendored artifact digests.
 This is contract synchronization only. No model or judge calls, release, publish,
 tag, merge, or OS-sandbox claim belongs to it.
 
+**PR #63 review follow-up:** independent review found that a reused ignored
+`packages/cli/dist/cli.js` could retain mode 0755 through TypeScript and produce a
+different archive than the reviewed clean 0644 build. The repair adds one mandatory
+`npm run release:pack` path: it safely recreates only the known ignored build roots,
+establishes CLI mode 0644, verifies npm's archive manifest, writes digests last, and
+makes raw workspace pack/publish commands fail closed. CI and disposable-workspace
+tests cover clean, reused-0755, hostile symlink, and removed-normalization cases.
+Package metadata changes because each public package carries the prepack guard, so the
+four archive digests move from the original PR evidence: core `bb3f5fbebf6812de…`,
+adapters `eae95b06a255dbd1…`, CLI `f4800a8c0a784016…`, and meta
+`e52fa3665c641973…`. The complete values belong in the PR evidence and generated
+`release-manifest.json`, not in the publish runbook.
+
 ## Previous cross-repository pi-daddy v2 contract repair — historical handoff
 
 **State:** product-fix branch in progress; no release action is authorized. The exact

@@ -52,6 +52,8 @@ jobs:
       - run: npm run build
       - run: npm test
       - run: npm run typecheck
+      - name: Reproduce canonical release archives
+        run: npm run release:pack -- --output "$RUNNER_TEMP/skill-harness-release"
   dogfood-lint:
     needs: pi-daddy-contract
     runs-on: ubuntu-latest
