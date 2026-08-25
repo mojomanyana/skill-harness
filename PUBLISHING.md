@@ -587,17 +587,32 @@ but release packaging is intentionally narrower: npm versions disagree about exe
 mode treatment for declared bins, so an unpinned packager would restore the ambiguity this
 control exists to remove.
 
-`release:pack` is the control, not the prose around it. It inspects the three exact
-ignored output roots (`packages/{core,adapters,cli}/dist`) and refuses symlinks,
-devices, or other non-regular entries before removing anything. It then recreates
-only those roots with `npm run build`, establishes and verifies
-`packages/cli/dist/cli.js` as a regular file with canonical POSIX archive mode
-**0644**, verifies npm's archive-entry manifest, and independently reads the tar header
-and archived bytes before recording any digest. Changing the mode never changes the file
-contents. The output directory cannot overlap a managed package path, rejects
-unexpected entries rather than using broad cleanup, and invalidates any prior manifest
-before another check can fail. `release-manifest.json` is written last — no manifest
-means packaging did not complete.
+`release:pack` is the control, not the prose around it. It requires a clean tracked
+source tree and records the exact source commit/tree plus Node/npm versions. It inspects
+every existing output-path component without following links, rejects alias overlap and
+non-directory ancestors, and validates newly-created output components. Explicit
+relative and absolute external directories remain supported; a path that reaches one
+through a symlink does not. This is validation against a still filesystem, not OS
+containment: another process able to rename path components concurrently can race an
+`lstat` check, so release preparation requires a quiescent checkout.
+
+It inspects the three exact ignored output roots
+(`packages/{core,adapters,cli}/dist`) and every public package input, refusing symlinks,
+devices, FIFOs, sockets, missing files, and other non-regular entries before packaging.
+It then recreates only the generated roots with `npm run build`, establishes
+`packages/cli/dist/cli.js` as canonical POSIX archive mode **0644**, and derives an
+expected inventory from explicit per-package roots and required files. That inventory
+must agree exactly with npm's dry-run plan, npm's actual pack metadata, and the real tar
+entry paths, types, modes, sizes, and bytes. JavaScript/declaration pairs are required.
+Changing the CLI mode never changes its contents.
+
+The output directory rejects unexpected entries rather than using broad cleanup and
+invalidates any prior manifest before another authorized-path check can fail. Any later
+failure removes the four expected archives and completion marker. The manifest is
+written last through a same-directory temporary file and atomic rename; it binds the
+source commit/tree, exact toolchain, creation order, package metadata, archive sizes and
+SHA-256 values, full file inventories, and canonical modes. No manifest means packaging
+did not complete.
 
 All four workspace `prepack` hooks require the authorization marker created by this
 command. A raw `npm pack -w …` or `npm publish -w …` therefore fails closed and names

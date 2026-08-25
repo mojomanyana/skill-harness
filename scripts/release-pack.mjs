@@ -2,23 +2,30 @@
 /**
  * Authoritative deterministic package builder for releases.
  *
- * Recreates only the three known ignored TypeScript output directories, builds,
- * establishes canonical archive modes, packs all public workspaces, verifies the
- * npm file manifest, and writes release-manifest.json last. Workspace prepack
- * hooks refuse raw `npm pack` / `npm publish` calls that bypass this path.
+ * Recreates only known generated outputs, validates every package input without
+ * following links, compares the source inventory with npm's dry-run metadata and
+ * the actual tar bytes, and writes a source/toolchain-bound manifest last.
+ *
+ * This is validation against a still filesystem, not OS containment. Another
+ * process able to rename path components concurrently can race lstat-based checks;
+ * release preparation therefore requires an otherwise quiescent checkout.
  */
 import { spawnSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import {
   chmodSync,
+  closeSync,
   copyFileSync,
   cpSync,
+  fsyncSync,
   lstatSync,
-  mkdtempSync,
   mkdirSync,
+  mkdtempSync,
+  openSync,
   readFileSync,
   readdirSync,
   realpathSync,
+  renameSync,
   rmSync,
   unlinkSync,
   writeFileSync,
@@ -33,24 +40,55 @@ const canonicalCliRelative = "packages/cli/dist/cli.js";
 const canonicalCliMode = 0o644;
 const requiredNodeVersion = "v20.20.2";
 const requiredNpmVersion = "10.8.2";
+const completionManifestName = "release-manifest.json";
+const pendingManifestName = "release-manifest.json.tmp";
 const buildOutputRoots = [
   "packages/core/dist",
   "packages/adapters/dist",
   "packages/cli/dist",
 ];
 const packages = [
-  { workspace: "@skill-harness/core", directory: "packages/core", archivePrefix: "skill-harness-core" },
-  { workspace: "@skill-harness/adapters", directory: "packages/adapters", archivePrefix: "skill-harness-adapters" },
-  { workspace: "@skill-harness/cli", directory: "packages/cli", archivePrefix: "skill-harness-cli" },
-  { workspace: "skill-harness", directory: "packages/skill-harness", archivePrefix: "skill-harness" },
+  {
+    workspace: "@skill-harness/core",
+    directory: "packages/core",
+    archivePrefix: "skill-harness-core",
+    staticFiles: ["package.json", "README.md", "LICENSE"],
+    inventoryRoots: [
+      { path: "dist", accepts: (path) => path.endsWith(".js") || path.endsWith(".d.ts"), ignores: (path) => path === ".tsbuildinfo" || path.endsWith(".map"), pairedDeclarations: true },
+      { path: "schemas", accepts: (path) => path.endsWith(".json") },
+    ],
+  },
+  {
+    workspace: "@skill-harness/adapters",
+    directory: "packages/adapters",
+    archivePrefix: "skill-harness-adapters",
+    staticFiles: ["package.json", "README.md", "LICENSE"],
+    inventoryRoots: [
+      { path: "dist", accepts: (path) => path.endsWith(".js") || path.endsWith(".d.ts"), ignores: (path) => path === ".tsbuildinfo" || path.endsWith(".map"), pairedDeclarations: true },
+    ],
+  },
+  {
+    workspace: "@skill-harness/cli",
+    directory: "packages/cli",
+    archivePrefix: "skill-harness-cli",
+    staticFiles: ["package.json", "README.md", "LICENSE"],
+    inventoryRoots: [
+      { path: "dist", accepts: (path) => path.endsWith(".js") || path.endsWith(".d.ts"), ignores: (path) => path === ".tsbuildinfo" || path.endsWith(".map"), pairedDeclarations: true },
+      { path: "assets", exact: ["report.grade.js", "report.template.html"] },
+    ],
+  },
+  {
+    workspace: "skill-harness",
+    directory: "packages/skill-harness",
+    archivePrefix: "skill-harness",
+    staticFiles: ["package.json", "README.md", "LICENSE", "bin.js"],
+    inventoryRoots: [],
+    modes: { "bin.js": 0o755 },
+  },
 ];
 const stagingDirectories = [
   { source: "schemas", destination: "packages/core/schemas", files: null },
-  {
-    source: "assets",
-    destination: "packages/cli/assets",
-    files: ["report.template.html", "report.grade.js"],
-  },
+  { source: "assets", destination: "packages/cli/assets", files: ["report.template.html", "report.grade.js"] },
 ];
 const stagingFiles = [
   "packages/core/LICENSE",
@@ -60,6 +98,7 @@ const stagingFiles = [
 ];
 const markerPathEnv = "SKILL_HARNESS_RELEASE_PACK_MARKER";
 const markerNonceEnv = "SKILL_HARNESS_RELEASE_PACK_NONCE";
+let failureCleanup;
 
 function fail(message) {
   throw new Error(`release-pack: ${message}`);
@@ -87,6 +126,14 @@ function assertRegularFile(path, label = displayPath(path)) {
   return stat;
 }
 
+function assertDirectory(path, label = displayPath(path)) {
+  const stat = lstatIfPresent(path);
+  if (!stat) fail(`${label} is missing`);
+  if (stat.isSymbolicLink()) fail(`${label} is a symbolic link; refusing to follow it`);
+  if (!stat.isDirectory()) fail(`${label} is not a directory`);
+  return stat;
+}
+
 function assertSafeDirectoryTree(path, { required = false } = {}) {
   const rootStat = lstatIfPresent(path);
   if (!rootStat) {
@@ -108,19 +155,110 @@ function assertRegularFileIfPresent(path) {
   if (lstatIfPresent(path)) assertRegularFile(path);
 }
 
-function runNpm(cwd, args, { capture = false, env = process.env } = {}) {
-  const result = spawnSync("npm", args, {
+function pathComponents(path) {
+  const components = [];
+  let current = resolve(path);
+  for (;;) {
+    components.unshift(current);
+    const parent = dirname(current);
+    if (parent === current) return components;
+    current = parent;
+  }
+}
+
+/** Validate every existing output component without following links. */
+function inspectOutputPath(path) {
+  const absolute = resolve(path);
+  const components = pathComponents(absolute);
+  let missing = false;
+  let lastExisting = components[0];
+  for (let index = 0; index < components.length; index += 1) {
+    const component = components[index];
+    const stat = lstatIfPresent(component);
+    if (!stat) {
+      missing = true;
+      continue;
+    }
+    if (missing) fail(`output path ${absolute} changed while it was inspected`);
+    if (stat.isSymbolicLink()) fail(`output path component ${component} is a symbolic link; refusing to follow it`);
+    if (!stat.isDirectory()) fail(`output path component ${component} is not a directory`);
+    lastExisting = component;
+  }
+  const suffix = relative(lastExisting, absolute).split(sep).filter(Boolean);
+  return {
+    absolute,
+    canonical: resolve(realpathSync(lastExisting), ...suffix),
+    exists: Boolean(lstatIfPresent(absolute)),
+  };
+}
+
+function assertOutputSeparated(output) {
+  const inspected = inspectOutputPath(output);
+  const canonicalRepo = realpathSync(repoRoot);
+  const canonicalDefault = join(canonicalRepo, "release-artifacts");
+  const insideRepo = inspected.canonical === canonicalRepo || inspected.canonical.startsWith(`${canonicalRepo}${sep}`);
+  if (insideRepo && inspected.canonical !== canonicalDefault) {
+    fail(`output directory ${output} overlaps managed repository paths; use release-artifacts/ or a directory outside the checkout`);
+  }
+  return inspected;
+}
+
+function createOutputDirectory(inspected) {
+  if (!inspected.exists) {
+    let parentExists = true;
+    for (const component of pathComponents(inspected.absolute)) {
+      const stat = lstatIfPresent(component);
+      if (stat) {
+        if (!parentExists) fail(`output path ${inspected.absolute} changed while it was created`);
+        if (stat.isSymbolicLink()) fail(`output path component ${component} is a symbolic link; refusing to follow it`);
+        if (!stat.isDirectory()) fail(`output path component ${component} is not a directory`);
+        continue;
+      }
+      parentExists = false;
+      try {
+        mkdirSync(component);
+      } catch (error) {
+        if (error?.code !== "EEXIST") fail(`could not create output directory ${component}: ${error.message}`);
+      }
+      const created = lstatIfPresent(component);
+      if (!created || created.isSymbolicLink() || !created.isDirectory()) {
+        fail(`new output path component ${component} is not a regular directory`);
+      }
+      parentExists = true;
+    }
+  }
+  const verified = assertOutputSeparated(inspected.absolute);
+  if (!verified.exists || realpathSync(verified.absolute) !== inspected.canonical) {
+    fail(`output directory ${inspected.absolute} changed identity while it was created`);
+  }
+  return verified;
+}
+
+function runCommand(command, args, { cwd = repoRoot, capture = false, env = process.env } = {}) {
+  const result = spawnSync(command, args, {
     cwd,
     env,
     encoding: "utf8",
     stdio: capture ? "pipe" : "inherit",
   });
-  if (result.error) fail(`could not run npm ${args.join(" ")}: ${result.error.message}`);
+  if (result.error) fail(`could not run ${command} ${args.join(" ")}: ${result.error.message}`);
   if (result.status !== 0) {
     const output = capture ? `\n${result.stdout ?? ""}${result.stderr ?? ""}` : "";
-    fail(`npm ${args.join(" ")} exited ${result.status}${output}`);
+    fail(`${command} ${args.join(" ")} exited ${result.status}${output}`);
   }
   return result.stdout ?? "";
+}
+
+function runNpm(cwd, args, options = {}) {
+  return runCommand("npm", args, { cwd, ...options });
+}
+
+function runGit(args) {
+  return runCommand("git", args, { capture: true }).trim();
+}
+
+function runGitRaw(args) {
+  return runCommand("git", args, { capture: true });
 }
 
 function modeString(mode) {
@@ -135,11 +273,47 @@ function assertReleaseToolchain(root) {
   if (npmVersion !== requiredNpmVersion) {
     fail(`release packaging requires npm ${requiredNpmVersion}; running ${npmVersion}`);
   }
+  return npmVersion;
+}
+
+function committedSourceIdentity() {
+  const commit = runGit(["rev-parse", "HEAD"]);
+  const tree = runGit(["rev-parse", "HEAD^{tree}"]);
+  let rootManifest;
+  try {
+    rootManifest = JSON.parse(runGit(["show", `${commit}:package.json`]));
+  } catch (error) {
+    fail(`committed package.json is unreadable: ${error.message}`);
+  }
+  if (typeof rootManifest.version !== "string" || !rootManifest.version) fail("committed package.json has no version");
+  return { commit, tree, version: rootManifest.version };
+}
+
+function assertCleanSource(identity) {
+  const currentCommit = runGit(["rev-parse", "HEAD"]);
+  const currentTree = runGit(["rev-parse", "HEAD^{tree}"]);
+  if (currentCommit !== identity.commit || currentTree !== identity.tree) {
+    fail(`source identity changed during release preparation; expected ${identity.commit}/${identity.tree}, got ${currentCommit}/${currentTree}`);
+  }
+  const dirty = runGitRaw(["status", "--porcelain=v1", "--untracked-files=all"]).trimEnd();
+  if (dirty) {
+    const paths = dirty.split("\n").slice(0, 8).map((line) => line.slice(3)).join(", ");
+    fail(`tracked source differs from recorded tree ${identity.tree}: ${paths}`);
+  }
+}
+
+function assertStaticPackageInputs() {
+  assertRegularFile(join(repoRoot, "package.json"));
+  for (const pkg of packages) {
+    const packageRoot = join(repoRoot, pkg.directory);
+    assertDirectory(packageRoot);
+    for (const file of pkg.staticFiles.filter((name) => name !== "LICENSE")) {
+      assertRegularFile(join(packageRoot, file), `${pkg.directory}/${file}`);
+    }
+  }
 }
 
 async function prepareCanonicalBuildOutputs(root) {
-  // Inspect every ignored path touched below before deleting or copying. A link,
-  // device, or FIFO is a refusal, not something release preparation follows.
   for (const relativeRoot of buildOutputRoots) assertSafeDirectoryTree(join(root, relativeRoot));
   for (const { source, destination, files } of stagingDirectories) {
     assertSafeDirectoryTree(join(root, source), { required: true });
@@ -163,7 +337,7 @@ async function prepareCanonicalBuildOutputs(root) {
     const sourcePath = join(root, source);
     const destinationPath = join(root, destination);
     if (files) {
-      mkdirSync(destinationPath, { recursive: true });
+      mkdirSync(destinationPath);
       for (const file of files) copyFileSync(join(sourcePath, file), join(destinationPath, file));
     } else {
       cpSync(sourcePath, destinationPath, { recursive: true });
@@ -173,9 +347,9 @@ async function prepareCanonicalBuildOutputs(root) {
 
   const cli = join(root, canonicalCliRelative);
   assertRegularFile(cli, canonicalCliRelative);
-  const contentBefore = createHash("sha256").update(readFileSync(cli)).digest("hex");
+  const contentBefore = sha256Bytes(readFileSync(cli));
   chmodSync(cli, canonicalCliMode);
-  const contentAfter = createHash("sha256").update(readFileSync(cli)).digest("hex");
+  const contentAfter = sha256Bytes(readFileSync(cli));
   if (contentAfter !== contentBefore) fail(`${canonicalCliRelative} content changed while establishing its mode`);
   const actualMode = lstatSync(cli).mode & 0o777;
   if (actualMode !== canonicalCliMode) {
@@ -210,54 +384,37 @@ function requireReleasePackGuard() {
 function invalidateCompletionManifest(output) {
   const outputStat = lstatIfPresent(output);
   if (!outputStat) return;
-  if (outputStat.isSymbolicLink()) fail(`${output} is a symbolic link`);
-  if (!outputStat.isDirectory()) fail(`${output} is not a directory`);
-  const manifest = join(output, "release-manifest.json");
-  if (lstatIfPresent(manifest)) {
-    assertRegularFile(manifest, manifest);
-    unlinkSync(manifest);
+  assertDirectory(output, output);
+  for (const name of [completionManifestName, pendingManifestName]) {
+    const path = join(output, name);
+    if (lstatIfPresent(path)) {
+      assertRegularFile(path, path);
+      unlinkSync(path);
+    }
   }
 }
 
-function prepareOutputDirectory(output, expectedNames) {
-  const outputStat = lstatIfPresent(output);
-  if (!outputStat) {
-    mkdirSync(output, { recursive: true });
-    return;
+function cleanupFailedOutput(output, expectedNames) {
+  const inspected = inspectOutputPath(output);
+  if (!inspected.exists) return;
+  for (const name of [...expectedNames, completionManifestName, pendingManifestName]) {
+    const path = join(inspected.absolute, name);
+    if (!lstatIfPresent(path)) continue;
+    assertRegularFile(path, path);
+    unlinkSync(path);
   }
-  if (outputStat.isSymbolicLink()) fail(`${output} is a symbolic link`);
-  if (!outputStat.isDirectory()) fail(`${output} is not a directory`);
+}
 
+function prepareOutputDirectory(inspected, expectedNames) {
+  const verified = createOutputDirectory(inspected);
   const allowed = new Set(expectedNames);
-  const entries = readdirSync(output);
+  const entries = readdirSync(verified.absolute);
   for (const name of entries) {
-    if (!allowed.has(name)) fail(`${output} contains unexpected entry ${name}; refusing broad cleanup`);
-    assertRegularFile(join(output, name), join(output, name));
+    if (!allowed.has(name)) fail(`${verified.absolute} contains unexpected entry ${name}; refusing broad cleanup`);
+    assertRegularFile(join(verified.absolute, name), join(verified.absolute, name));
   }
-  for (const name of entries) unlinkSync(join(output, name));
-}
-
-function canonicalTargetPath(path) {
-  const suffix = [];
-  let ancestor = path;
-  while (!lstatIfPresent(ancestor)) {
-    const parent = dirname(ancestor);
-    if (parent === ancestor) fail(`cannot resolve output path ${path}`);
-    suffix.unshift(basename(ancestor));
-    ancestor = parent;
-  }
-  return resolve(realpathSync(ancestor), ...suffix);
-}
-
-function assertOutputSeparated(output) {
-  const canonicalOutput = canonicalTargetPath(output);
-  const canonicalRepo = realpathSync(repoRoot);
-  const canonicalDefault = join(canonicalRepo, "release-artifacts");
-  const insideRepo = canonicalOutput === canonicalRepo || canonicalOutput.startsWith(`${canonicalRepo}${sep}`);
-  if (insideRepo && canonicalOutput !== canonicalDefault) {
-    fail(`output directory ${output} overlaps managed repository paths; use release-artifacts/ or a directory outside the checkout`);
-  }
-  return canonicalOutput;
+  for (const name of entries) unlinkSync(join(verified.absolute, name));
+  return verified;
 }
 
 function parsePackJson(stdout, workspace) {
@@ -273,29 +430,210 @@ function parsePackJson(stdout, workspace) {
   return parsed[0];
 }
 
-function sha256(path) {
-  return createHash("sha256").update(readFileSync(path)).digest("hex");
+function sha256Bytes(value) {
+  return createHash("sha256").update(value).digest("hex");
 }
 
-function tarEntry(archive, wantedPath) {
+function sha256(path) {
+  return sha256Bytes(readFileSync(path));
+}
+
+function walkInventory(root, relativeRoot, descriptor, entries) {
+  const absoluteRoot = join(root, relativeRoot);
+  assertDirectory(absoluteRoot);
+  const exact = descriptor.exact ? new Set(descriptor.exact) : undefined;
+  const ignored = descriptor.ignores ?? (() => false);
+  const foundExact = new Set();
+  function visit(directory, relativeDirectory) {
+    for (const name of readdirSync(directory).sort()) {
+      const path = join(directory, name);
+      const relativePath = relativeDirectory ? `${relativeDirectory}/${name}` : name;
+      const stat = lstatSync(path);
+      if (stat.isSymbolicLink()) fail(`${displayPath(path)} is a symbolic link; refusing to package it`);
+      if (stat.isDirectory()) {
+        visit(path, relativePath);
+        continue;
+      }
+      if (!stat.isFile()) fail(`${displayPath(path)} is not a regular file`);
+      if (ignored(relativePath)) continue;
+      if (exact) {
+        if (!exact.has(relativePath)) fail(`${displayPath(path)} is an unexpected package input`);
+        foundExact.add(relativePath);
+      } else if (!descriptor.accepts(relativePath)) {
+        fail(`${displayPath(path)} is an unexpected package input`);
+      }
+      entries.push(`${relativeRoot}/${relativePath}`);
+    }
+  }
+  visit(absoluteRoot, "");
+  if (entries.filter((path) => path.startsWith(`${relativeRoot}/`)).length === 0) fail(`${displayPath(absoluteRoot)} contains no package files`);
+  if (exact) {
+    for (const expected of exact) if (!foundExact.has(expected)) fail(`${displayPath(join(absoluteRoot, expected))} is missing`);
+  }
+}
+
+function collectExpectedInventory(pkg) {
+  const packageRoot = join(repoRoot, pkg.directory);
+  assertDirectory(packageRoot);
+  const relativeFiles = [...pkg.staticFiles];
+  for (const descriptor of pkg.inventoryRoots) walkInventory(packageRoot, descriptor.path, descriptor, relativeFiles);
+  const unique = new Set(relativeFiles);
+  if (unique.size !== relativeFiles.length) fail(`${pkg.workspace} expected inventory contains duplicate paths`);
+
+  for (const descriptor of pkg.inventoryRoots.filter((entry) => entry.pairedDeclarations)) {
+    const scoped = relativeFiles.filter((path) => path.startsWith(`${descriptor.path}/`));
+    const names = new Set(scoped);
+    for (const path of scoped) {
+      const pair = path.endsWith(".d.ts") ? `${path.slice(0, -5)}.js` : path.endsWith(".js") ? `${path.slice(0, -3)}.d.ts` : undefined;
+      if (pair && !names.has(pair)) fail(`${pkg.directory}/${pair} is missing; JavaScript and declaration outputs must be paired`);
+    }
+  }
+
+  const inventory = new Map();
+  for (const path of [...unique].sort()) {
+    const absolute = join(packageRoot, path);
+    const stat = assertRegularFile(absolute, `${pkg.directory}/${path}`);
+    const content = readFileSync(absolute);
+    inventory.set(path, {
+      path,
+      absolute,
+      size: stat.size,
+      mode: pkg.modes?.[path] ?? 0o644,
+      content,
+      sha256: sha256Bytes(content),
+    });
+  }
+  return inventory;
+}
+
+function normalizeNpmFiles(packed, pkg, phase) {
+  if (packed.name !== pkg.workspace || packed.version !== pkg.version || packed.filename !== pkg.filename) {
+    fail(`${pkg.workspace} ${phase} metadata has unexpected package identity or filename`);
+  }
+  if (!Array.isArray(packed.files)) fail(`${pkg.workspace} ${phase} metadata has no file inventory`);
+  const files = new Map();
+  for (const entry of packed.files) {
+    if (typeof entry.path !== "string" || !entry.path || entry.path.startsWith("/") || entry.path.split("/").includes("..")) {
+      fail(`${pkg.workspace} ${phase} metadata contains unsafe path ${JSON.stringify(entry.path)}`);
+    }
+    if (!Number.isSafeInteger(entry.size) || entry.size < 0 || !Number.isSafeInteger(entry.mode)) {
+      fail(`${pkg.workspace} ${phase} metadata for ${entry.path} has invalid size or mode`);
+    }
+    if (files.has(entry.path)) fail(`${pkg.workspace} ${phase} metadata repeats ${entry.path}`);
+    files.set(entry.path, { path: entry.path, size: entry.size, mode: entry.mode & 0o777 });
+  }
+  return files;
+}
+
+function compareInventory(label, actual, expected) {
+  const actualPaths = [...actual.keys()].sort();
+  const expectedPaths = [...expected.keys()].sort();
+  if (JSON.stringify(actualPaths) !== JSON.stringify(expectedPaths)) {
+    const unexpected = actualPaths.filter((path) => !expected.has(path));
+    const missing = expectedPaths.filter((path) => !actual.has(path));
+    fail(`${label} inventory mismatch: unexpected ${unexpected.join(", ") || "none"}; missing ${missing.join(", ") || "none"}`);
+  }
+  for (const path of expectedPaths) {
+    const received = actual.get(path);
+    const wanted = expected.get(path);
+    if (received.size !== wanted.size || received.mode !== wanted.mode) {
+      fail(`${label} metadata mismatch for ${path}: size/mode ${received.size}/${modeString(received.mode)}, expected ${wanted.size}/${modeString(wanted.mode)}`);
+    }
+  }
+}
+
+function parseOctal(header, offset, length, label) {
+  const raw = header.subarray(offset, offset + length).toString("ascii").replace(/\0.*$/, "").trim();
+  if (!/^[0-7]+$/.test(raw)) fail(`${label} has malformed octal field`);
+  const value = Number.parseInt(raw, 8);
+  if (!Number.isSafeInteger(value) || value < 0) fail(`${label} has out-of-range octal field`);
+  return value;
+}
+
+function inspectTarArchive(archive, expected) {
   const tar = gunzipSync(readFileSync(archive));
-  const field = (offset, length) => tar.subarray(offset, offset + length).toString("utf8").replace(/\0.*$/, "").trim();
-  for (let offset = 0; offset + 512 <= tar.length;) {
+  const files = new Map();
+  const directories = new Set();
+  let offset = 0;
+  let zeroBlocks = 0;
+  while (offset + 512 <= tar.length) {
     const header = tar.subarray(offset, offset + 512);
-    if (header.every((byte) => byte === 0)) break;
-    const name = field(offset, 100);
-    const prefix = field(offset + 345, 155);
-    const path = prefix ? `${prefix}/${name}` : name;
-    const size = Number.parseInt(field(offset + 124, 12) || "0", 8);
-    const mode = Number.parseInt(field(offset + 100, 8) || "0", 8);
-    if (!Number.isSafeInteger(size) || size < 0 || !Number.isSafeInteger(mode)) fail(`${archive} has a malformed tar header`);
+    if (header.every((byte) => byte === 0)) {
+      zeroBlocks += 1;
+      offset += 512;
+      if (zeroBlocks >= 2) break;
+      continue;
+    }
+    if (zeroBlocks > 0) fail(`${archive} has data after a tar zero block`);
+    const storedChecksum = parseOctal(header, 148, 8, archive);
+    let computedChecksum = 0;
+    for (let index = 0; index < header.length; index += 1) computedChecksum += index >= 148 && index < 156 ? 0x20 : header[index];
+    if (storedChecksum !== computedChecksum) fail(`${archive} has an invalid tar header checksum`);
+
+    const field = (start, length) => header.subarray(start, start + length).toString("utf8").replace(/\0.*$/, "");
+    const name = field(0, 100);
+    const prefix = field(345, 155);
+    const tarPath = prefix ? `${prefix}/${name}` : name;
+    const size = parseOctal(header, 124, 12, `${archive}:${tarPath}`);
+    const mode = parseOctal(header, 100, 8, `${archive}:${tarPath}`) & 0o777;
+    const type = header[156] === 0 ? "0" : String.fromCharCode(header[156]);
+    if (!tarPath.startsWith("package/")) fail(`${archive} contains path outside package/: ${tarPath}`);
+    const path = tarPath.slice("package/".length).replace(/\/$/, "");
+    if (!path || path.startsWith("/") || path.includes("\\") || path.split("/").some((part) => part === "" || part === "." || part === "..")) {
+      fail(`${archive} contains unsafe tar path ${tarPath}`);
+    }
     const contentStart = offset + 512;
     const contentEnd = contentStart + size;
-    if (contentEnd > tar.length) fail(`${archive} has a truncated tar entry ${path}`);
-    if (path === wantedPath) return { mode, content: tar.subarray(contentStart, contentEnd) };
+    if (contentEnd > tar.length) fail(`${archive} has a truncated tar entry ${tarPath}`);
+    if (type === "5") {
+      if (size !== 0) fail(`${archive} directory ${tarPath} has content`);
+      directories.add(path);
+    } else if (type === "0") {
+      if (files.has(path)) fail(`${archive} repeats tar entry ${tarPath}`);
+      files.set(path, { path, size, mode, content: tar.subarray(contentStart, contentEnd) });
+    } else {
+      fail(`${archive} entry ${tarPath} has unsupported type ${JSON.stringify(type)}; only regular files and directories are allowed`);
+    }
     offset = contentStart + Math.ceil(size / 512) * 512;
   }
-  fail(`${archive} is missing ${wantedPath}`);
+  if (zeroBlocks < 2 || !tar.subarray(offset).every((byte) => byte === 0)) fail(`${archive} has an invalid tar trailer`);
+
+  compareInventory(`${basename(archive)} tar`, files, expected);
+  const allowedDirectories = new Set();
+  for (const path of expected.keys()) {
+    const parts = path.split("/");
+    for (let index = 1; index < parts.length; index += 1) allowedDirectories.add(parts.slice(0, index).join("/"));
+  }
+  for (const path of directories) if (!allowedDirectories.has(path)) fail(`${archive} contains unexpected directory ${path}`);
+  for (const [path, wanted] of expected) {
+    const actual = files.get(path);
+    if (!actual.content.equals(wanted.content)) fail(`${archive} archived bytes differ from source input ${path}`);
+  }
+  return files;
+}
+
+function assertInventorySourcesUnchanged(pkg, inventory) {
+  for (const [path, entry] of inventory) {
+    const stat = assertRegularFile(entry.absolute, `${pkg.directory}/${path}`);
+    if (stat.size !== entry.size || sha256(entry.absolute) !== entry.sha256) {
+      fail(`${pkg.directory}/${path} changed after its package inventory was captured`);
+    }
+  }
+}
+
+function writeManifestAtomic(output, manifest) {
+  const pending = join(output, pendingManifestName);
+  const final = join(output, completionManifestName);
+  const bytes = `${JSON.stringify(manifest, null, 2)}\n`;
+  const fd = openSync(pending, "wx", 0o644);
+  try {
+    writeFileSync(fd, bytes);
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  renameSync(pending, final);
+  assertRegularFile(final, final);
 }
 
 async function main() {
@@ -308,88 +646,118 @@ async function main() {
 
   let output = join(repoRoot, "release-artifacts");
   if (args.length > 0) {
-    if (args.length !== 2 || args[0] !== "--output" || !args[1]) {
-      fail("usage: npm run release:pack -- [--output <directory>]");
-    }
-    output = isAbsolute(args[1]) ? args[1] : resolve(repoRoot, args[1]);
+    if (args.length !== 2 || args[0] !== "--output" || !args[1]) fail("usage: npm run release:pack -- [--output <directory>]");
+    output = isAbsolute(args[1]) ? resolve(args[1]) : resolve(repoRoot, args[1]);
   }
 
-  assertOutputSeparated(output);
-  // For every authorized output location, invalidate the completion marker before
-  // package metadata, toolchain, tree inspection, or build checks can fail.
-  invalidateCompletionManifest(output);
+  const inspectedOutput = assertOutputSeparated(output);
+  invalidateCompletionManifest(inspectedOutput.absolute);
+
+  const source = committedSourceIdentity();
+  const expectedArchiveNames = packages.map((pkg) => `${pkg.archivePrefix}-${source.version}.tgz`);
+  failureCleanup = { output: inspectedOutput.absolute, expectedNames: expectedArchiveNames };
+  const verifiedOutput = prepareOutputDirectory(inspectedOutput, expectedArchiveNames);
+  const npmVersion = assertReleaseToolchain(repoRoot);
+  assertStaticPackageInputs();
+  assertCleanSource(source);
 
   const packageVersions = packages.map((entry) => {
-    const manifest = JSON.parse(readFileSync(join(repoRoot, entry.directory, "package.json"), "utf8"));
-    if (manifest.name !== entry.workspace || typeof manifest.version !== "string") {
-      fail(`${entry.directory}/package.json has unexpected package identity`);
+    const path = join(repoRoot, entry.directory, "package.json");
+    assertRegularFile(path, `${entry.directory}/package.json`);
+    const manifest = JSON.parse(readFileSync(path, "utf8"));
+    if (manifest.name !== entry.workspace || manifest.version !== source.version) {
+      fail(`${entry.directory}/package.json has unexpected package identity or version`);
     }
     return { ...entry, version: manifest.version, filename: `${entry.archivePrefix}-${manifest.version}.tgz` };
   });
-  const rootVersion = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")).version;
-  if (packageVersions.some(({ version }) => version !== rootVersion)) fail("workspace versions are not in lockstep");
 
-  prepareOutputDirectory(output, packageVersions.map(({ filename }) => filename));
-  assertReleaseToolchain(repoRoot);
   await prepareCanonicalBuildOutputs(repoRoot);
+  assertCleanSource(source);
 
   const marker = createGuardMarker();
-  const packEnv = {
-    ...process.env,
-    [markerPathEnv]: marker.path,
-    [markerNonceEnv]: marker.nonce,
-  };
+  const packEnv = { ...process.env, [markerPathEnv]: marker.path, [markerNonceEnv]: marker.nonce };
   const artifacts = [];
+  const capturedInventories = new Map();
   try {
     for (const pkg of packageVersions) {
+      assertOutputSeparated(verifiedOutput.absolute);
+      const expected = collectExpectedInventory(pkg);
+      capturedInventories.set(pkg.workspace, expected);
+
+      const plannedStdout = runNpm(repoRoot, [
+        "pack", "-w", pkg.workspace, "--pack-destination", verifiedOutput.absolute, "--json", "--silent", "--dry-run",
+      ], { capture: true, env: packEnv });
+      const planned = parsePackJson(plannedStdout, pkg.workspace);
+      const plannedFiles = normalizeNpmFiles(planned, pkg, "dry-run");
+      compareInventory(`${pkg.workspace} npm dry-run`, plannedFiles, expected);
+      if (lstatIfPresent(join(verifiedOutput.absolute, pkg.filename))) fail(`${pkg.workspace} dry-run unexpectedly retained an archive`);
+
       const stdout = runNpm(repoRoot, [
-        "pack", "-w", pkg.workspace, "--pack-destination", output, "--json", "--silent",
+        "pack", "-w", pkg.workspace, "--pack-destination", verifiedOutput.absolute, "--json", "--silent",
       ], { capture: true, env: packEnv });
       const packed = parsePackJson(stdout, pkg.workspace);
-      if (packed.filename !== pkg.filename) fail(`${pkg.workspace} produced ${packed.filename}; expected ${pkg.filename}`);
-      const archive = join(output, packed.filename);
+      const packedFiles = normalizeNpmFiles(packed, pkg, "pack");
+      compareInventory(`${pkg.workspace} npm pack`, packedFiles, expected);
+      compareInventory(`${pkg.workspace} npm dry-run/pack`, packedFiles, plannedFiles);
+
+      const archive = join(verifiedOutput.absolute, pkg.filename);
       assertRegularFile(archive, archive);
-      const files = Array.isArray(packed.files) ? packed.files.map(({ path, size, mode }) => ({ path, size, mode })) : [];
-      if (pkg.workspace === "@skill-harness/cli") {
-        const cliEntry = files.find((file) => file.path === "dist/cli.js");
-        if (!cliEntry) fail("@skill-harness/cli archive is missing dist/cli.js");
-        if (cliEntry.mode !== canonicalCliMode) {
-          fail(`@skill-harness/cli dist/cli.js archive mode is ${modeString(cliEntry.mode)}; expected 0644`);
-        }
-        const archivedCli = tarEntry(archive, "package/dist/cli.js");
-        if (archivedCli.mode !== canonicalCliMode) {
-          fail(`@skill-harness/cli dist/cli.js tar mode is ${modeString(archivedCli.mode)}; expected 0644`);
-        }
-        if (!archivedCli.content.equals(readFileSync(join(repoRoot, canonicalCliRelative)))) {
-          fail("@skill-harness/cli dist/cli.js archive content differs from the canonical build output");
-        }
-      }
+      const tarFiles = inspectTarArchive(archive, expected);
+      assertInventorySourcesUnchanged(pkg, expected);
       artifacts.push({
         package: pkg.workspace,
         version: pkg.version,
-        filename: packed.filename,
-        sha256: sha256(archive),
-        size: lstatSync(archive).size,
-        files,
+        filename: pkg.filename,
+        sha256: "",
+        size: 0,
+        files: [...tarFiles.values()].map(({ path, size, mode }) => ({ path, size, mode })).sort((left, right) => left.path.localeCompare(right.path)),
       });
     }
   } finally {
     rmSync(marker.directory, { recursive: true, force: true });
   }
 
+  assertCleanSource(source);
+  for (const pkg of packageVersions) assertInventorySourcesUnchanged(pkg, capturedInventories.get(pkg.workspace));
+  const finalOutput = assertOutputSeparated(verifiedOutput.absolute);
+  if (realpathSync(finalOutput.absolute) !== verifiedOutput.canonical) fail("output directory changed identity before manifest completion");
+  const retained = readdirSync(finalOutput.absolute).sort();
+  if (JSON.stringify(retained) !== JSON.stringify([...expectedArchiveNames].sort())) {
+    fail(`retained release inventory changed before manifest completion: ${retained.join(", ")}`);
+  }
+  for (const artifact of artifacts) {
+    const archive = join(finalOutput.absolute, artifact.filename);
+    const stat = assertRegularFile(archive, archive);
+    artifact.size = stat.size;
+    artifact.sha256 = sha256(archive);
+  }
+
   const manifest = {
-    schema: 1,
-    version: rootVersion,
+    schema: 2,
+    completion: "complete",
+    source: { commit: source.commit, tree: source.tree },
+    toolchain: { node: process.version, npm: npmVersion },
+    version: source.version,
+    creation_order: artifacts.map(({ filename }) => filename),
     canonical_modes: { [canonicalCliRelative]: "0644" },
     artifacts,
   };
-  // Written last: its presence means every archive and canonical mode above was verified.
-  writeFileSync(join(output, "release-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o644, flag: "wx" });
+  writeManifestAtomic(finalOutput.absolute, manifest);
+  failureCleanup = undefined;
   for (const artifact of artifacts) console.log(`${artifact.sha256}  ${artifact.filename}`);
-  console.log(`verified release artifacts → ${output}`);
+  console.log(`verified release artifacts → ${finalOutput.absolute}`);
 }
 
 main().catch((error) => {
+  let cleanupError;
+  if (failureCleanup) {
+    try {
+      cleanupFailedOutput(failureCleanup.output, failureCleanup.expectedNames);
+    } catch (caught) {
+      cleanupError = caught;
+    }
+  }
   console.error(error instanceof Error ? error.message : String(error));
+  if (cleanupError) console.error(`release-pack: failed-output cleanup also failed: ${cleanupError.message ?? String(cleanupError)}`);
   process.exit(1);
 });

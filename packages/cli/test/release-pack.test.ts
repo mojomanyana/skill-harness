@@ -25,8 +25,19 @@ const TMP = mkdtempSync(join(tmpdir(), "skill-harness-release-pack-test-"));
 const CLI_OUTPUT = join("packages", "cli", "dist", "cli.js");
 const MANIFEST = "release-manifest.json";
 const CANONICAL_MODE = 0o644;
+const GIT_ENV = {
+  ...process.env,
+  GIT_AUTHOR_NAME: "release-pack-test",
+  GIT_AUTHOR_EMAIL: "release-pack-test@example.invalid",
+  GIT_COMMITTER_NAME: "release-pack-test",
+  GIT_COMMITTER_EMAIL: "release-pack-test@example.invalid",
+  GIT_AUTHOR_DATE: "2026-08-24T00:00:00Z",
+  GIT_COMMITTER_DATE: "2026-08-24T00:00:00Z",
+};
 
 interface ReleaseManifest {
+  source: { commit: string; tree: string };
+  toolchain: { node: string; npm: string };
   canonical_modes: Record<string, string>;
   artifacts: Array<{
     package: string;
@@ -52,7 +63,18 @@ function cloneRepo(label: string): string {
     },
   });
   symlinkSync(join(REPO, "node_modules"), join(destination, "node_modules"), "dir");
+  for (const args of [["init", "-q"], ["add", "-A"], ["commit", "-qm", "fixture"]]) {
+    const result = spawnSync("git", args, { cwd: destination, encoding: "utf8", env: GIT_ENV });
+    if (result.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
+  }
   return destination;
+}
+
+function commitPaths(root: string, paths: string[], message = "mutation"): void {
+  for (const args of [["add", "--", ...paths], ["commit", "-qm", message]]) {
+    const result = spawnSync("git", args, { cwd: root, encoding: "utf8", env: GIT_ENV });
+    if (result.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
+  }
 }
 
 function runReleasePack(root: string, output = join(root, "release-artifacts")) {
@@ -117,6 +139,11 @@ describe("authoritative release packaging", () => {
 
     expect(mode(join(root, CLI_OUTPUT))).toBe(CANONICAL_MODE);
     const manifest = readManifest(root);
+    expect(manifest.source).toEqual({
+      commit: spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim(),
+      tree: spawnSync("git", ["rev-parse", "HEAD^{tree}"], { cwd: root, encoding: "utf8" }).stdout.trim(),
+    });
+    expect(manifest.toolchain).toEqual({ node: process.version, npm: "10.8.2" });
     expect(manifest.canonical_modes[CLI_OUTPUT]).toBe("0644");
     expect(manifest.artifacts).toHaveLength(4);
     for (const artifact of manifest.artifacts) {
@@ -157,6 +184,113 @@ describe("authoritative release packaging", () => {
       expect(readFileSync(join(reused, "release-artifacts", filename)), filename).toEqual(bytes);
     }
   }, 90_000);
+
+  it("accepts safe external outputs and rejects non-directory ancestors", () => {
+    const absoluteRoot = cloneRepo("absolute-external-output");
+    const absoluteOutput = join(TMP, "safe-absolute-output");
+    const absoluteResult = runReleasePack(absoluteRoot, absoluteOutput);
+    requireSuccess(absoluteResult);
+    expect(existsSync(join(absoluteOutput, MANIFEST))).toBe(true);
+
+    const relativeRoot = cloneRepo("relative-external-output");
+    const relativeOutput = join("..", "safe-relative-output");
+    const relativeResult = runReleasePack(relativeRoot, relativeOutput);
+    requireSuccess(relativeResult);
+    expect(existsSync(join(dirname(relativeRoot), "safe-relative-output", MANIFEST))).toBe(true);
+
+    const blockedRoot = cloneRepo("non-directory-output-ancestor");
+    const blockingFile = join(blockedRoot, "not-a-directory");
+    writeFileSync(blockingFile, "sentinel\n");
+    const blockedResult = runReleasePack(blockedRoot, join(blockingFile, "release"));
+    expect(blockedResult.status).not.toBe(0);
+    expect(blockedResult.combined).toMatch(/output path component .* is not a directory/i);
+    expect(readFileSync(blockingFile, "utf8")).toBe("sentinel\n");
+    expect(existsSync(join(blockingFile, "release", MANIFEST))).toBe(false);
+  }, 60_000);
+
+  it("rejects output symlinks at any depth without touching external targets", () => {
+    for (const shape of ["direct", "ancestor", "chained", "dangling"] as const) {
+      const root = cloneRepo(`output-link-${shape}`);
+      const external = join(TMP, `output-link-${shape}-external`);
+      mkdirSync(external);
+      writeFileSync(join(external, "sentinel"), "outside stays unchanged\n");
+      let output: string;
+      if (shape === "direct") {
+        output = join(root, "linked-output");
+        symlinkSync(external, output, "dir");
+      } else if (shape === "ancestor") {
+        const parent = join(root, "output-parent");
+        mkdirSync(parent);
+        symlinkSync(external, join(parent, "link"), "dir");
+        output = join(parent, "link", "release");
+      } else if (shape === "chained") {
+        const first = join(root, "first-link");
+        const second = join(root, "second-link");
+        symlinkSync(second, first, "dir");
+        symlinkSync(external, second, "dir");
+        output = join(first, "release");
+      } else {
+        const dangling = join(root, "dangling-link");
+        symlinkSync(join(TMP, "does-not-exist"), dangling, "dir");
+        output = join(dangling, "release");
+      }
+
+      const result = runReleasePack(root, output);
+      expect(result.status, `${shape}: ${result.combined}`).not.toBe(0);
+      expect(result.combined, shape).toMatch(/symbolic link/i);
+      expect(readFileSync(join(external, "sentinel"), "utf8"), shape).toBe("outside stays unchanged\n");
+      expect(readdirSync(external), shape).toEqual(["sentinel"]);
+      expect(existsSync(join(output, MANIFEST)), shape).toBe(false);
+    }
+  }, 30_000);
+
+  it("rejects symlinked or missing public package inputs without following external targets", () => {
+    const cases = [
+      { label: "package-json-link", path: join("packages", "core", "package.json"), kind: "link" },
+      { label: "readme-link", path: join("packages", "core", "README.md"), kind: "link" },
+      { label: "readme-missing", path: join("packages", "core", "README.md"), kind: "missing" },
+    ] as const;
+    for (const probe of cases) {
+      const root = cloneRepo(probe.label);
+      const input = join(root, probe.path);
+      const original = readFileSync(input);
+      rmSync(input);
+      const external = join(TMP, `${probe.label}-external`);
+      writeFileSync(external, original);
+      if (probe.kind === "link") symlinkSync(external, input);
+
+      const result = runReleasePack(root);
+      expect(result.status, `${probe.label}: ${result.combined}`).not.toBe(0);
+      expect(result.combined, probe.label).toMatch(/package\.json|README\.md/i);
+      expect(readFileSync(external), probe.label).toEqual(original);
+      expect(existsSync(join(result.output, MANIFEST)), probe.label).toBe(false);
+      expect(existsSync(join(result.output, "skill-harness-core-0.11.0.tgz")), probe.label).toBe(false);
+    }
+  }, 30_000);
+
+  it("rejects FIFO and symlinked LICENSE package inputs without changing external targets", () => {
+    const fifoRoot = cloneRepo("readme-fifo");
+    const fifoReadme = join(fifoRoot, "packages", "core", "README.md");
+    rmSync(fifoReadme);
+    const fifo = spawnSync("mkfifo", [fifoReadme], { encoding: "utf8" });
+    expect(fifo.status, fifo.stderr).toBe(0);
+    const fifoResult = runReleasePack(fifoRoot);
+    expect(fifoResult.status).not.toBe(0);
+    expect(fifoResult.combined).toMatch(/README\.md.*not a regular file/i);
+    expect(existsSync(join(fifoRoot, "release-artifacts", MANIFEST))).toBe(false);
+
+    const licenseRoot = cloneRepo("license-link");
+    const license = join(licenseRoot, "packages", "core", "LICENSE");
+    const external = join(TMP, "license-link-external");
+    writeFileSync(external, "external license remains unchanged\n");
+    rmSync(license, { force: true });
+    symlinkSync(external, license);
+    const licenseResult = runReleasePack(licenseRoot);
+    expect(licenseResult.status).not.toBe(0);
+    expect(licenseResult.combined).toMatch(/packages\/core\/LICENSE.*symbolic link/i);
+    expect(readFileSync(external, "utf8")).toBe("external license remains unchanged\n");
+    expect(existsSync(join(licenseRoot, "release-artifacts", MANIFEST))).toBe(false);
+  }, 30_000);
 
   it("rejects a hostile cli.js symlink without following or changing its target", () => {
     const root = cloneRepo("hostile-symlink");
@@ -219,6 +353,19 @@ describe("authoritative release packaging", () => {
     expect(wrongResult.combined).toMatch(/release packaging requires Node 0\.0\.0/i);
     expect(existsSync(join(wrongOutput, MANIFEST))).toBe(false);
 
+    const wrongNpm = cloneRepo("stale-manifest-npm-refusal");
+    const wrongNpmOutput = join(wrongNpm, "release-artifacts");
+    mkdirSync(wrongNpmOutput);
+    writeFileSync(join(wrongNpmOutput, MANIFEST), "stale\n");
+    const wrongNpmScript = join(wrongNpm, "scripts", "release-pack.mjs");
+    const wrongNpmSource = readFileSync(wrongNpmScript, "utf8");
+    expect(wrongNpmSource).toContain('const requiredNpmVersion = "10.8.2";');
+    writeFileSync(wrongNpmScript, wrongNpmSource.replace('const requiredNpmVersion = "10.8.2";', 'const requiredNpmVersion = "0.0.0";'));
+    const wrongNpmResult = runReleasePack(wrongNpm);
+    expect(wrongNpmResult.status).not.toBe(0);
+    expect(wrongNpmResult.combined).toMatch(/release packaging requires npm 0\.0\.0/i);
+    expect(existsSync(join(wrongNpmOutput, MANIFEST))).toBe(false);
+
     const overlap = cloneRepo("overlapping-output");
     const overlapOutput = join(overlap, "packages", "cli", "dist");
     const overlapResult = runReleasePack(overlap, overlapOutput);
@@ -231,8 +378,127 @@ describe("authoritative release packaging", () => {
     const aliasOutput = join(alias, "packages", "cli", "dist");
     const aliasResult = runReleasePack(overlap, aliasOutput);
     expect(aliasResult.status).not.toBe(0);
-    expect(aliasResult.combined).toMatch(/output directory .* overlaps managed repository paths/i);
+    expect(aliasResult.combined).toMatch(/overlaps managed repository paths|symbolic link/i);
     expect(existsSync(join(overlapOutput, MANIFEST))).toBe(false);
+  }, 30_000);
+
+  it("rejects missing declarations and npm inventory drift", () => {
+    const missingDeclaration = cloneRepo("missing-declaration");
+    const declarationScript = join(missingDeclaration, "scripts", "release-pack.mjs");
+    const declarationSource = readFileSync(declarationScript, "utf8");
+    const preparation = "await prepareCanonicalBuildOutputs(repoRoot);";
+    expect(declarationSource.split(preparation)).toHaveLength(2);
+    writeFileSync(declarationScript, declarationSource.replace(
+      preparation,
+      `${preparation}\n  unlinkSync(join(repoRoot, "packages/core/dist/index.d.ts")); // mutation: declaration missing`,
+    ));
+    commitPaths(missingDeclaration, ["scripts/release-pack.mjs"]);
+    const declarationResult = runReleasePack(missingDeclaration);
+    expect(declarationResult.status).not.toBe(0);
+    expect(declarationResult.combined).toMatch(/dist\/index\.d\.ts is missing|JavaScript and declaration outputs must be paired/i);
+    expect(existsSync(join(declarationResult.output, MANIFEST))).toBe(false);
+    expect(readdirSync(declarationResult.output)).toEqual([]);
+
+    const unexpected = cloneRepo("unexpected-npm-file");
+    const unexpectedManifestPath = join(unexpected, "packages", "core", "package.json");
+    const unexpectedManifest = JSON.parse(readFileSync(unexpectedManifestPath, "utf8"));
+    unexpectedManifest.files.push("surprise.txt");
+    writeFileSync(unexpectedManifestPath, `${JSON.stringify(unexpectedManifest, null, 4)}\n`);
+    writeFileSync(join(unexpected, "packages", "core", "surprise.txt"), "must not ship\n");
+    commitPaths(unexpected, ["packages/core/package.json", "packages/core/surprise.txt"]);
+    const unexpectedResult = runReleasePack(unexpected);
+    expect(unexpectedResult.status).not.toBe(0);
+    expect(unexpectedResult.combined).toMatch(/npm dry-run inventory mismatch.*unexpected surprise\.txt/i);
+    expect(existsSync(join(unexpectedResult.output, MANIFEST))).toBe(false);
+    expect(readdirSync(unexpectedResult.output)).toEqual([]);
+
+    const missing = cloneRepo("missing-npm-file");
+    const missingManifestPath = join(missing, "packages", "core", "package.json");
+    const missingManifest = JSON.parse(readFileSync(missingManifestPath, "utf8"));
+    missingManifest.files = missingManifest.files.filter((entry: string) => entry !== "dist/**/*.d.ts");
+    writeFileSync(missingManifestPath, `${JSON.stringify(missingManifest, null, 4)}\n`);
+    commitPaths(missing, ["packages/core/package.json"]);
+    const missingResult = runReleasePack(missing);
+    expect(missingResult.status).not.toBe(0);
+    expect(missingResult.combined).toMatch(/npm dry-run inventory mismatch.*missing dist\//i);
+    expect(existsSync(join(missingResult.output, MANIFEST))).toBe(false);
+    expect(readdirSync(missingResult.output)).toEqual([]);
+  }, 90_000);
+
+  it("rejects an actual tar inventory mutation after npm metadata agrees", () => {
+    const root = cloneRepo("tar-inventory-mutation");
+    const script = join(root, "scripts", "release-pack.mjs");
+    let source = readFileSync(script, "utf8");
+    source = source.replace(
+      'import { gunzipSync } from "node:zlib";',
+      'import { gzipSync, gunzipSync } from "node:zlib";',
+    );
+    const needle = "assertRegularFile(archive, archive);\n      const tarFiles = inspectTarArchive(archive, expected);";
+    expect(source.match(new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"))).toHaveLength(1);
+    const mutation = `assertRegularFile(archive, archive);\n      if (pkg.workspace === "@skill-harness/core") {\n        const mutatedTar = gunzipSync(readFileSync(archive));\n        const originalName = Buffer.from("package/README.md");\n        const replacementName = Buffer.from("package/SURPRISE.");\n        const headerOffset = mutatedTar.indexOf(originalName);\n        if (headerOffset < 0) throw new Error("mutation could not find README header");\n        replacementName.copy(mutatedTar, headerOffset);\n        const blockOffset = Math.floor(headerOffset / 512) * 512;\n        mutatedTar.fill(0x20, blockOffset + 148, blockOffset + 156);\n        let checksum = 0;\n        for (let i = 0; i < 512; i += 1) checksum += mutatedTar[blockOffset + i];\n        Buffer.from(checksum.toString(8).padStart(6, "0") + "\\0 ").copy(mutatedTar, blockOffset + 148);\n        writeFileSync(archive, gzipSync(mutatedTar, { mtime: 0 }));\n      }\n      const tarFiles = inspectTarArchive(archive, expected);`;
+    writeFileSync(script, source.replace(needle, mutation));
+    commitPaths(root, ["scripts/release-pack.mjs"]);
+
+    const result = runReleasePack(root);
+    expect(result.status).not.toBe(0);
+    expect(result.combined).toMatch(/tar inventory mismatch.*unexpected SURPRISE\..*missing README\.md/i);
+    expect(existsSync(join(result.output, MANIFEST))).toBe(false);
+    expect(readdirSync(result.output)).toEqual([]);
+  }, 60_000);
+
+  it("binds and replaces stale source/toolchain manifests, and detects later archive mutation", () => {
+    const root = cloneRepo("manifest-binding");
+    const output = join(root, "release-artifacts");
+    mkdirSync(output);
+    writeFileSync(join(output, MANIFEST), `${JSON.stringify({
+      schema: 2,
+      completion: "complete",
+      source: { commit: "0".repeat(40), tree: "1".repeat(40) },
+      toolchain: { node: "v0.0.0", npm: "0.0.0" },
+    })}\n`);
+    for (const name of [
+      "skill-harness-core-0.11.0.tgz",
+      "skill-harness-adapters-0.11.0.tgz",
+      "skill-harness-cli-0.11.0.tgz",
+      "skill-harness-0.11.0.tgz",
+    ]) writeFileSync(join(output, name), "stale archive\n");
+
+    const result = runReleasePack(root);
+    requireSuccess(result);
+    const manifest = readManifest(root);
+    expect(manifest.source.commit).not.toBe("0".repeat(40));
+    expect(manifest.source.tree).not.toBe("1".repeat(40));
+    expect(manifest.toolchain).toEqual({ node: process.version, npm: "10.8.2" });
+    const artifact = manifest.artifacts[0];
+    const archive = join(output, artifact.filename);
+    expect(sha256(archive)).toBe(artifact.sha256);
+    writeFileSync(archive, Buffer.concat([readFileSync(archive), Buffer.from([0])]));
+    expect(sha256(archive)).not.toBe(artifact.sha256);
+
+    const rebuilt = runReleasePack(root);
+    requireSuccess(rebuilt);
+    const repairedManifest = readManifest(root);
+    const repairedArtifact = repairedManifest.artifacts.find((entry) => entry.filename === artifact.filename)!;
+    expect(sha256(join(output, repairedArtifact.filename))).toBe(repairedArtifact.sha256);
+  }, 60_000);
+
+  it("invalidates stale evidence and expected archives when tracked source is dirty", () => {
+    const root = cloneRepo("dirty-source");
+    const output = join(root, "release-artifacts");
+    mkdirSync(output);
+    writeFileSync(join(output, MANIFEST), "stale\n");
+    for (const name of [
+      "skill-harness-core-0.11.0.tgz",
+      "skill-harness-adapters-0.11.0.tgz",
+      "skill-harness-cli-0.11.0.tgz",
+      "skill-harness-0.11.0.tgz",
+    ]) writeFileSync(join(output, name), "stale\n");
+    writeFileSync(join(root, "packages", "core", "README.md"), "dirty tracked source\n");
+
+    const result = runReleasePack(root);
+    expect(result.status).not.toBe(0);
+    expect(result.combined).toMatch(/tracked source differs from recorded tree.*packages\/core\/README\.md/i);
+    expect(readdirSync(output)).toEqual([]);
   }, 30_000);
 
   it("refuses raw workspace packing outside the authorized release command", () => {
@@ -270,6 +536,7 @@ describe("authoritative release packaging", () => {
     const needle = "await prepareCanonicalBuildOutputs(repoRoot);";
     expect(source.match(new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"))).toHaveLength(1);
     writeFileSync(script, source.replace(needle, 'await runNpm(repoRoot, ["run", "build"]); // mutation: normalization removed'));
+    commitPaths(mutated, ["scripts/release-pack.mjs"]);
 
     const result = runReleasePack(mutated);
     expect(result.status).not.toBe(0);

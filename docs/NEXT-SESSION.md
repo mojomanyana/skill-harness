@@ -25,18 +25,25 @@ and seven vendored artifact digests.
 This is contract synchronization only. No model or judge calls, release, publish,
 tag, merge, or OS-sandbox claim belongs to it.
 
-**PR #63 review follow-up:** independent review found that a reused ignored
+**PR #63 review follow-up:** independent review first found that a reused ignored
 `packages/cli/dist/cli.js` could retain mode 0755 through TypeScript and produce a
-different archive than the reviewed clean 0644 build. The repair adds one mandatory
-`npm run release:pack` path: it safely recreates only the known ignored build roots,
-establishes CLI mode 0644, verifies npm's archive manifest, writes digests last, and
-makes raw workspace pack/publish commands fail closed. CI and disposable-workspace
-tests cover clean, reused-0755, hostile symlink, and removed-normalization cases.
-Package metadata changes because each public package carries the prepack guard, so the
-four archive digests move from the original PR evidence: core `bb3f5fbebf6812de…`,
-adapters `eae95b06a255dbd1…`, CLI `f4800a8c0a784016…`, and meta
-`e52fa3665c641973…`. The complete values belong in the PR evidence and generated
-`release-manifest.json`, not in the publish runbook.
+different archive than a clean 0644 build. A whole-change re-review then found three
+more release-control defects: nested output symlinks could escape to an external target,
+package inputs such as `package.json`/README were not comprehensively checked, and the
+manifest did not bind source or toolchain identity.
+
+The repaired mandatory `npm run release:pack` path now requires clean tracked source,
+records exact commit/tree and Node/npm versions, validates every existing output
+component without following links, recreates only known generated roots, and compares an
+explicit source inventory with npm's dry-run plan, actual pack metadata, and real tar
+paths/types/modes/sizes/bytes. Failures remove all four expected archives and completion
+evidence; the manifest is written last by same-directory temporary-file rename. Raw
+workspace pack/publish remains fail-closed. Hostile regressions cover direct/nested/
+chained/dangling output links, package-input links/FIFOs/missing files, declaration and
+npm inventory drift, actual tar mutation, dirty source, stale candidate/toolchain
+manifests, and removed CLI normalization. The lock now resolves runtime `js-yaml` to
+4.3.1, clearing the production-only audit without a broad audit fix. Final package
+digests belong in the PR evidence and generated `release-manifest.json`, not here.
 
 ## Previous cross-repository pi-daddy v2 contract repair — historical handoff
 
