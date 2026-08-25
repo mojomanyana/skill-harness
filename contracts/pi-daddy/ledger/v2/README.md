@@ -82,6 +82,11 @@ are enforced *after* a record is admitted by the contract:
 
 ## Re-pinning to a newer producer commit
 
+First add the immutable producer commit and its package `version` to
+`PRODUCER_RELEASES` in `scripts/vendor-pi-daddy-contract.mjs`. The script verifies that
+version against the committed producer `package.json` and refuses an unrecorded commit.
+Then run:
+
 ```bash
 node scripts/vendor-pi-daddy-contract.mjs ../pi-daddy <commit> [pr-number]
 node scripts/vendor-pi-daddy-contract.mjs ../pi-daddy <commit> [pr-number] --check
@@ -93,7 +98,7 @@ npm run verify:pi-daddy-contract -- ../pi-daddy
 
 The vendor script reads artifacts with `git show` (never the working tree), rewrites
 the copies/digests, and regenerates the runtime schema module. `--check` performs the
-same generation in memory and fails on any byte difference. Update
+same generation in memory and fails on any byte difference. Update the release map and
 `EXPECTED_PRODUCER_COMMIT` in the conformance test in the same change, so bumping the
 pin is a deliberate edit rather than a silent one. CI checks pi-daddy out at the
 literal immutable SHA (not a tag, npm `latest`, or `main`) and runs the real-builder

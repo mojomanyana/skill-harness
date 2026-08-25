@@ -7,7 +7,8 @@
 //
 // contracts/pi-daddy/ledger/v2/ holds the byte-exact producer artifacts and their
 // SHA-256 digests; packages/adapters/test/pi-daddy-contract.test.ts asserts those
-// digests and that this object still deep-equals the vendored bytes. Re-pin with:
+// digests and that this object still deep-equals the vendored bytes. Re-pin by first
+// recording the commit/version in this script's PRODUCER_RELEASES map, then run:
 //   node scripts/vendor-pi-daddy-contract.mjs <pi-daddy-checkout> <commit> [pr]
 
 /** pi-daddy commit whose contract artifacts this schema was taken from. */

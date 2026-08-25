@@ -336,6 +336,32 @@ function artifactPath(output, filename) {
   return path;
 }
 
+function gitBlobId(bytes, objectFormat) {
+  if (objectFormat !== "sha1" && objectFormat !== "sha256") fail(`unsupported Git object format ${objectFormat}`);
+  return createHash(objectFormat).update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
+}
+
+function assertTrackedBytesMatchHead(identity) {
+  const objectFormat = runGit(["rev-parse", "--show-object-format"]);
+  const entries = runGitRaw(["ls-tree", "-r", "-z", "--full-tree", identity.commit]).split("\0").filter(Boolean);
+  for (const entry of entries) {
+    const tab = entry.indexOf("\t");
+    if (tab < 0) fail("git ls-tree returned malformed output");
+    const [mode, type, object] = entry.slice(0, tab).split(" ");
+    const path = entry.slice(tab + 1);
+    if (type !== "blob" || (mode !== "100644" && mode !== "100755")) {
+      fail(`tracked source ${path} has unsupported Git type/mode ${type}/${mode}`);
+    }
+    const absolute = join(repoRoot, path);
+    assertManagedPathComponents(absolute, { finalType: "file" });
+    const stat = assertRegularFile(absolute, path);
+    const executable = Boolean(stat.mode & 0o111);
+    if (executable !== (mode === "100755")) fail(`tracked source ${path} has a different executable mode from HEAD`);
+    const bytes = readFileSync(absolute);
+    if (gitBlobId(bytes, objectFormat) !== object) fail(`tracked source ${path} raw bytes differ from HEAD`);
+  }
+}
+
 function workingSourceTree() {
   const directory = mkdtempSync(join(tmpdir(), "skill-harness-release-index-"));
   const index = join(directory, "index");
@@ -357,6 +383,7 @@ function assertCleanSource(identity) {
   }
   const flagged = runGitRaw(["ls-files", "-v"]).split("\n").filter((line) => /^[a-zS] /.test(line));
   if (flagged.length > 0) fail(`tracked source uses hidden index flags: ${flagged.slice(0, 8).map((line) => line.slice(2)).join(", ")}`);
+  assertTrackedBytesMatchHead(identity);
   const actualTree = workingSourceTree();
   if (actualTree !== identity.tree) {
     const dirty = runGitRaw(["status", "--porcelain=v1", "--untracked-files=all"]).trimEnd();
@@ -763,11 +790,17 @@ async function main() {
     if (scriptEntries.length !== 1 || scriptEntries[0][0] !== "prepack" || scriptEntries[0][1] !== "node ../../scripts/release-pack.mjs --guard") {
       fail(`${entry.directory}/package.json must declare only the authorized prepack guard lifecycle`);
     }
-    const internal = Object.entries(manifest.dependencies ?? {}).filter(([name]) => name.startsWith("@skill-harness/"));
+    const dependencySections = ["dependencies", "optionalDependencies", "peerDependencies", "devDependencies"];
+    const internal = [];
+    for (const section of dependencySections) {
+      for (const [name, version] of Object.entries(manifest[section] ?? {})) {
+        if (name.startsWith("@skill-harness/")) internal.push({ section, name, version });
+      }
+    }
     const expectedInternal = [...entry.internalDependencies].sort();
-    if (JSON.stringify(internal.map(([name]) => name).sort()) !== JSON.stringify(expectedInternal)
-      || internal.some(([, version]) => version !== source.version)) {
-      fail(`${entry.directory}/package.json has invalid internal dependency pins`);
+    if (JSON.stringify(internal.map(({ name }) => name).sort()) !== JSON.stringify(expectedInternal)
+      || internal.some(({ section, version }) => section !== "dependencies" || version !== source.version)) {
+      fail(`${entry.directory}/package.json has invalid internal dependency pins across dependency sections`);
     }
     return { ...entry, version: manifest.version, filename: artifactFilename(entry.archivePrefix, manifest.version) };
   });

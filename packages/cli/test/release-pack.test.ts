@@ -73,11 +73,12 @@ function cloneRepo(label: string): string {
       return true;
     },
   });
-  symlinkSync(join(REPO, "node_modules"), join(destination, "node_modules"), "dir");
   for (const args of [["init", "-q"], ["add", "-A"], ["commit", "-qm", "fixture"]]) {
     const result = spawnSync("git", args, { cwd: destination, encoding: "utf8", env: GIT_ENV });
     if (result.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
   }
+  writeFileSync(join(destination, ".git", "info", "exclude"), "node_modules\n", { flag: "a" });
+  symlinkSync(join(REPO, "node_modules"), join(destination, "node_modules"), "dir");
   return destination;
 }
 
@@ -339,6 +340,20 @@ describe("authoritative release packaging", () => {
     expect(hiddenResult.combined).toMatch(/hidden index flags.*packages\/core\/README\.md/i);
     expect(readdirSync(hiddenResult.output)).toEqual([]);
 
+    const filteredRoot = cloneRepo("clean-filtered-source");
+    writeFileSync(join(filteredRoot, ".gitattributes"), "packages/core/README.md text eol=crlf\n");
+    commitPaths(filteredRoot, [".gitattributes"], "declare checkout filter");
+    const filteredReadme = join(filteredRoot, "packages", "core", "README.md");
+    rmSync(filteredReadme);
+    const checkout = spawnSync("git", ["checkout", "HEAD", "--", "packages/core/README.md"], { cwd: filteredRoot, encoding: "utf8" });
+    expect(checkout.status, checkout.stderr).toBe(0);
+    expect(readFileSync(filteredReadme).includes(Buffer.from("\r\n"))).toBe(true);
+    expect(spawnSync("git", ["status", "--porcelain=v1"], { cwd: filteredRoot, encoding: "utf8" }).stdout).toBe("");
+    const filteredResult = runReleasePack(filteredRoot);
+    expect(filteredResult.status).not.toBe(0);
+    expect(filteredResult.combined).toMatch(/packages\/core\/README\.md raw bytes differ from HEAD/i);
+    expect(readdirSync(filteredResult.output)).toEqual([]);
+
     const linkedRoot = cloneRepo("intermediate-package-link");
     const external = join(TMP, "intermediate-package-external");
     renameSync(join(linkedRoot, "packages"), external);
@@ -520,6 +535,17 @@ describe("authoritative release packaging", () => {
     expect(dependencyResult.combined).toMatch(/invalid internal dependency pins/i);
     expect(readdirSync(dependencyResult.output)).toEqual([]);
 
+    const optionalRoot = cloneRepo("optional-internal-dependency-drift");
+    const optionalManifestPath = join(optionalRoot, "packages", "adapters", "package.json");
+    const optionalManifest = JSON.parse(readFileSync(optionalManifestPath, "utf8"));
+    optionalManifest.optionalDependencies = { "@skill-harness/core": "*" };
+    writeFileSync(optionalManifestPath, `${JSON.stringify(optionalManifest, null, 4)}\n`);
+    commitPaths(optionalRoot, ["packages/adapters/package.json"]);
+    const optionalResult = runReleasePack(optionalRoot);
+    expect(optionalResult.status).not.toBe(0);
+    expect(optionalResult.combined).toMatch(/invalid internal dependency pins across dependency sections/i);
+    expect(readdirSync(optionalResult.output)).toEqual([]);
+
     const lifecycleRoot = cloneRepo("package-lifecycle-drift");
     const coreManifestPath = join(lifecycleRoot, "packages", "core", "package.json");
     const coreManifest = JSON.parse(readFileSync(coreManifestPath, "utf8"));
@@ -630,7 +656,7 @@ describe("authoritative release packaging", () => {
 
     const result = runReleasePack(root);
     expect(result.status).not.toBe(0);
-    expect(result.combined).toMatch(/tracked source differs from recorded tree.*packages\/core\/README\.md/i);
+    expect(result.combined).toMatch(/tracked source packages\/core\/README\.md raw bytes differ from HEAD|tracked source differs from recorded tree.*packages\/core\/README\.md/i);
     expect(readdirSync(output)).toEqual([]);
   }, 30_000);
 
