@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import {
   chmodSync,
+  copyFileSync,
   cpSync,
   existsSync,
   lstatSync,
@@ -59,6 +60,9 @@ function cloneRepo(label: string): string {
       if (rel === "release-artifacts" || rel.startsWith("release-artifacts/")) return false;
       if (rel.endsWith(".tsbuildinfo")) return false;
       if (/^packages\/(core|adapters|cli)\/dist(?:\/|$)/.test(rel)) return false;
+      if (/^packages\/core\/schemas(?:\/|$)/.test(rel)) return false;
+      if (/^packages\/cli\/assets(?:\/|$)/.test(rel)) return false;
+      if (/^packages\/(core|adapters|cli|skill-harness)\/LICENSE$/.test(rel)) return false;
       return true;
     },
   });
@@ -526,6 +530,11 @@ describe("authoritative release packaging", () => {
     const cleanCli = readFileSync(join(clean, CLI_OUTPUT));
 
     const mutated = cloneRepo("mutation-no-normalization");
+    cpSync(join(clean, "packages", "core", "schemas"), join(mutated, "packages", "core", "schemas"), { recursive: true });
+    cpSync(join(clean, "packages", "cli", "assets"), join(mutated, "packages", "cli", "assets"), { recursive: true });
+    for (const directory of ["core", "adapters", "cli", "skill-harness"]) {
+      copyFileSync(join(clean, "packages", directory, "LICENSE"), join(mutated, "packages", directory, "LICENSE"));
+    }
     const cli = join(mutated, CLI_OUTPUT);
     mkdirSync(dirname(cli), { recursive: true });
     writeFileSync(cli, cleanCli);
