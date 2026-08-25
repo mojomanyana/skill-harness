@@ -45,7 +45,7 @@ manifests, and removed CLI normalization. The lock now resolves runtime `js-yaml
 4.3.1, clearing the production-only audit without a broad audit fix. The dependency
 floor changes only core's package metadata; final authorized archive SHA-256 values are
 core `549d86e2952d0d224448ee50aafbd8665eee7331b9bbfe7e5d5bd284eb80a2fc`,
-adapters `eae95b06a255dbd14e6cfbfaa5da25c0d9cb4ae337c49cd730d513f3680ca9cc`, CLI
+adapters `92f016bb413b2dfe8b1cf38b716ba7a092266ff3ebc4d3c7afabb9d402e2dc26`, CLI
 `f4800a8c0a784016b6c094ea5155ea2383dfb6ff2c8bb47489332ff8f047d343`, and meta
 `e52fa3665c641973fc5a870b54694e7e71922c05be630a830fb5953e040ec830`.
 
