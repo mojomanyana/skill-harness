@@ -53,6 +53,7 @@ const packages = [
     directory: "packages/core",
     archivePrefix: "skill-harness-core",
     staticFiles: ["package.json", "README.md", "LICENSE"],
+    internalDependencies: [],
     inventoryRoots: [
       { path: "dist", accepts: (path) => path.endsWith(".js") || path.endsWith(".d.ts"), ignores: (path) => path === ".tsbuildinfo" || path.endsWith(".map"), pairedDeclarations: true },
       { path: "schemas", accepts: (path) => path.endsWith(".json") },
@@ -63,6 +64,7 @@ const packages = [
     directory: "packages/adapters",
     archivePrefix: "skill-harness-adapters",
     staticFiles: ["package.json", "README.md", "LICENSE"],
+    internalDependencies: ["@skill-harness/core"],
     inventoryRoots: [
       { path: "dist", accepts: (path) => path.endsWith(".js") || path.endsWith(".d.ts"), ignores: (path) => path === ".tsbuildinfo" || path.endsWith(".map"), pairedDeclarations: true },
     ],
@@ -72,6 +74,7 @@ const packages = [
     directory: "packages/cli",
     archivePrefix: "skill-harness-cli",
     staticFiles: ["package.json", "README.md", "LICENSE"],
+    internalDependencies: ["@skill-harness/core", "@skill-harness/adapters"],
     inventoryRoots: [
       { path: "dist", accepts: (path) => path.endsWith(".js") || path.endsWith(".d.ts"), ignores: (path) => path === ".tsbuildinfo" || path.endsWith(".map"), pairedDeclarations: true },
       { path: "assets", exact: ["report.grade.js", "report.template.html"] },
@@ -82,6 +85,7 @@ const packages = [
     directory: "packages/skill-harness",
     archivePrefix: "skill-harness",
     staticFiles: ["package.json", "README.md", "LICENSE", "bin.js"],
+    internalDependencies: ["@skill-harness/cli"],
     inventoryRoots: [],
     modes: { "bin.js": 0o755 },
   },
@@ -163,6 +167,30 @@ function pathComponents(path) {
     const parent = dirname(current);
     if (parent === current) return components;
     current = parent;
+  }
+}
+
+function assertManagedPathComponents(path, { finalType, allowMissing = false } = {}) {
+  const absolute = resolve(path);
+  const rel = relative(repoRoot, absolute);
+  if (rel.startsWith("..") || isAbsolute(rel)) fail(`${absolute} escapes the repository`);
+  const components = rel.split(sep).filter(Boolean);
+  let current = repoRoot;
+  assertDirectory(repoRoot, repoRoot);
+  for (let index = 0; index < components.length; index += 1) {
+    current = join(current, components[index]);
+    const stat = lstatIfPresent(current);
+    const final = index === components.length - 1;
+    if (!stat) {
+      if (allowMissing) return;
+      fail(`${displayPath(current)} is missing`);
+    }
+    if (stat.isSymbolicLink()) fail(`${displayPath(current)} is a symbolic link; refusing to follow it`);
+    if (!final || finalType === "directory") {
+      if (!stat.isDirectory()) fail(`${displayPath(current)} is not a directory`);
+    } else if (finalType === "file" && !stat.isFile()) {
+      fail(`${displayPath(current)} is not a regular file`);
+    }
   }
 }
 
@@ -253,16 +281,16 @@ function runNpm(cwd, args, options = {}) {
   return runCommand("npm", args, { cwd, ...options });
 }
 
-function runGit(args) {
-  return runCommand("git", args, { capture: true }).trim();
+function runGit(args, { env = process.env } = {}) {
+  return runCommand("git", args, { capture: true, env }).trim();
 }
 
-function runGitRaw(args) {
-  return runCommand("git", args, { capture: true });
+function runGitRaw(args, { env = process.env } = {}) {
+  return runCommand("git", args, { capture: true, env });
 }
 
 function modeString(mode) {
-  return (mode & 0o777).toString(8).padStart(4, "0");
+  return mode.toString(8).padStart(4, "0");
 }
 
 function assertReleaseToolchain(root) {
@@ -272,6 +300,10 @@ function assertReleaseToolchain(root) {
   const npmVersion = runNpm(root, ["--version"], { capture: true }).trim();
   if (npmVersion !== requiredNpmVersion) {
     fail(`release packaging requires npm ${requiredNpmVersion}; running ${npmVersion}`);
+  }
+  const ignoreScripts = runNpm(root, ["config", "get", "ignore-scripts"], { capture: true }).trim();
+  if (ignoreScripts !== "false") {
+    fail(`release packaging requires npm lifecycle scripts; ignore-scripts is ${ignoreScripts || "unset"}`);
   }
   return npmVersion;
 }
@@ -285,8 +317,36 @@ function committedSourceIdentity() {
   } catch (error) {
     fail(`committed package.json is unreadable: ${error.message}`);
   }
-  if (typeof rootManifest.version !== "string" || !rootManifest.version) fail("committed package.json has no version");
+  if (typeof rootManifest.version !== "string" || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(rootManifest.version)) {
+    fail(`committed package.json has unsafe version ${JSON.stringify(rootManifest.version)}`);
+  }
   return { commit, tree, version: rootManifest.version };
+}
+
+function artifactFilename(prefix, version) {
+  if (!/^[a-z0-9-]+$/.test(prefix)) fail(`unsafe archive prefix ${prefix}`);
+  const filename = `${prefix}-${version}.tgz`;
+  if (basename(filename) !== filename || filename.includes("/") || filename.includes("\\")) fail(`unsafe archive filename ${filename}`);
+  return filename;
+}
+
+function artifactPath(output, filename) {
+  const path = resolve(output, filename);
+  if (dirname(path) !== resolve(output) || basename(path) !== filename) fail(`archive path ${filename} escapes the output directory`);
+  return path;
+}
+
+function workingSourceTree() {
+  const directory = mkdtempSync(join(tmpdir(), "skill-harness-release-index-"));
+  const index = join(directory, "index");
+  const env = { ...process.env, GIT_INDEX_FILE: index };
+  try {
+    runGit(["read-tree", "HEAD"], { env });
+    runGit(["add", "-A"], { env });
+    return runGit(["write-tree"], { env });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 }
 
 function assertCleanSource(identity) {
@@ -295,33 +355,47 @@ function assertCleanSource(identity) {
   if (currentCommit !== identity.commit || currentTree !== identity.tree) {
     fail(`source identity changed during release preparation; expected ${identity.commit}/${identity.tree}, got ${currentCommit}/${currentTree}`);
   }
-  const dirty = runGitRaw(["status", "--porcelain=v1", "--untracked-files=all"]).trimEnd();
-  if (dirty) {
-    const paths = dirty.split("\n").slice(0, 8).map((line) => line.slice(3)).join(", ");
+  const flagged = runGitRaw(["ls-files", "-v"]).split("\n").filter((line) => /^[a-zS] /.test(line));
+  if (flagged.length > 0) fail(`tracked source uses hidden index flags: ${flagged.slice(0, 8).map((line) => line.slice(2)).join(", ")}`);
+  const actualTree = workingSourceTree();
+  if (actualTree !== identity.tree) {
+    const dirty = runGitRaw(["status", "--porcelain=v1", "--untracked-files=all"]).trimEnd();
+    const paths = dirty ? dirty.split("\n").slice(0, 8).map((line) => line.slice(3)).join(", ") : "working bytes differ from HEAD";
     fail(`tracked source differs from recorded tree ${identity.tree}: ${paths}`);
   }
 }
 
 function assertStaticPackageInputs() {
-  assertRegularFile(join(repoRoot, "package.json"));
+  assertManagedPathComponents(join(repoRoot, "package.json"), { finalType: "file" });
   for (const pkg of packages) {
     const packageRoot = join(repoRoot, pkg.directory);
-    assertDirectory(packageRoot);
+    assertManagedPathComponents(packageRoot, { finalType: "directory" });
     for (const file of pkg.staticFiles.filter((name) => name !== "LICENSE")) {
-      assertRegularFile(join(packageRoot, file), `${pkg.directory}/${file}`);
+      const path = join(packageRoot, file);
+      assertManagedPathComponents(path, { finalType: "file" });
+      assertRegularFile(path, `${pkg.directory}/${file}`);
     }
   }
 }
 
 async function prepareCanonicalBuildOutputs(root) {
-  for (const relativeRoot of buildOutputRoots) assertSafeDirectoryTree(join(root, relativeRoot));
+  for (const relativeRoot of buildOutputRoots) {
+    assertManagedPathComponents(join(root, relativeRoot), { finalType: "directory", allowMissing: true });
+    assertSafeDirectoryTree(join(root, relativeRoot));
+  }
   for (const { source, destination, files } of stagingDirectories) {
+    assertManagedPathComponents(join(root, source), { finalType: "directory" });
+    assertManagedPathComponents(join(root, destination), { finalType: "directory", allowMissing: true });
     assertSafeDirectoryTree(join(root, source), { required: true });
     assertSafeDirectoryTree(join(root, destination));
     if (files) for (const file of files) assertRegularFile(join(root, source, file));
   }
+  assertManagedPathComponents(join(root, "LICENSE"), { finalType: "file" });
   assertRegularFile(join(root, "LICENSE"));
-  for (const relativeFile of stagingFiles) assertRegularFileIfPresent(join(root, relativeFile));
+  for (const relativeFile of stagingFiles) {
+    assertManagedPathComponents(join(root, relativeFile), { finalType: "file", allowMissing: true });
+    assertRegularFileIfPresent(join(root, relativeFile));
+  }
 
   for (const relativeRoot of [...buildOutputRoots, ...stagingDirectories.map(({ destination }) => destination)]) {
     rmSync(join(root, relativeRoot), { recursive: true, force: true });
@@ -381,28 +455,39 @@ function requireReleasePackGuard() {
   if (marker.repoRoot !== repoRoot || marker.nonce !== nonce) fail("release authorization marker does not match this checkout");
 }
 
+function unlinkExactOutputEntry(path) {
+  const stat = lstatIfPresent(path);
+  if (!stat) return { hostile: false };
+  if (stat.isDirectory()) fail(`${path} is a directory; refusing recursive cleanup`);
+  const hostile = stat.isSymbolicLink() || !stat.isFile();
+  unlinkSync(path); // unlink the exact directory entry; never follow a link target
+  return { hostile };
+}
+
 function invalidateCompletionManifest(output) {
   const outputStat = lstatIfPresent(output);
   if (!outputStat) return;
   assertDirectory(output, output);
+  let hostile = false;
   for (const name of [completionManifestName, pendingManifestName]) {
-    const path = join(output, name);
-    if (lstatIfPresent(path)) {
-      assertRegularFile(path, path);
-      unlinkSync(path);
-    }
+    const result = unlinkExactOutputEntry(join(output, name));
+    hostile ||= result.hostile;
   }
+  if (hostile) fail(`${output} contained a non-regular completion marker; it was unlinked without following it`);
 }
 
 function cleanupFailedOutput(output, expectedNames) {
   const inspected = inspectOutputPath(output);
   if (!inspected.exists) return;
+  const errors = [];
   for (const name of [...expectedNames, completionManifestName, pendingManifestName]) {
-    const path = join(inspected.absolute, name);
-    if (!lstatIfPresent(path)) continue;
-    assertRegularFile(path, path);
-    unlinkSync(path);
+    try {
+      unlinkExactOutputEntry(artifactPath(inspected.absolute, name));
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
   }
+  if (errors.length > 0) fail(`could not remove every failed output: ${errors.join("; ")}`);
 }
 
 function prepareOutputDirectory(inspected, expectedNames) {
@@ -440,6 +525,7 @@ function sha256(path) {
 
 function walkInventory(root, relativeRoot, descriptor, entries) {
   const absoluteRoot = join(root, relativeRoot);
+  assertManagedPathComponents(absoluteRoot, { finalType: "directory" });
   assertDirectory(absoluteRoot);
   const exact = descriptor.exact ? new Set(descriptor.exact) : undefined;
   const ignored = descriptor.ignores ?? (() => false);
@@ -474,6 +560,7 @@ function walkInventory(root, relativeRoot, descriptor, entries) {
 
 function collectExpectedInventory(pkg) {
   const packageRoot = join(repoRoot, pkg.directory);
+  assertManagedPathComponents(packageRoot, { finalType: "directory" });
   assertDirectory(packageRoot);
   const relativeFiles = [...pkg.staticFiles];
   for (const descriptor of pkg.inventoryRoots) walkInventory(packageRoot, descriptor.path, descriptor, relativeFiles);
@@ -516,11 +603,11 @@ function normalizeNpmFiles(packed, pkg, phase) {
     if (typeof entry.path !== "string" || !entry.path || entry.path.startsWith("/") || entry.path.split("/").includes("..")) {
       fail(`${pkg.workspace} ${phase} metadata contains unsafe path ${JSON.stringify(entry.path)}`);
     }
-    if (!Number.isSafeInteger(entry.size) || entry.size < 0 || !Number.isSafeInteger(entry.mode)) {
+    if (!Number.isSafeInteger(entry.size) || entry.size < 0 || !Number.isSafeInteger(entry.mode) || entry.mode < 0 || entry.mode > 0o777) {
       fail(`${pkg.workspace} ${phase} metadata for ${entry.path} has invalid size or mode`);
     }
     if (files.has(entry.path)) fail(`${pkg.workspace} ${phase} metadata repeats ${entry.path}`);
-    files.set(entry.path, { path: entry.path, size: entry.size, mode: entry.mode & 0o777 });
+    files.set(entry.path, { path: entry.path, size: entry.size, mode: entry.mode });
   }
   return files;
 }
@@ -550,10 +637,10 @@ function parseOctal(header, offset, length, label) {
   return value;
 }
 
-function inspectTarArchive(archive, expected) {
-  const tar = gunzipSync(readFileSync(archive));
+function inspectTarArchive(archive, expected, archiveBytes = readFileSync(archive)) {
+  const tar = gunzipSync(archiveBytes);
   const files = new Map();
-  const directories = new Set();
+  const directories = new Map();
   let offset = 0;
   let zeroBlocks = 0;
   while (offset + 512 <= tar.length) {
@@ -575,7 +662,8 @@ function inspectTarArchive(archive, expected) {
     const prefix = field(345, 155);
     const tarPath = prefix ? `${prefix}/${name}` : name;
     const size = parseOctal(header, 124, 12, `${archive}:${tarPath}`);
-    const mode = parseOctal(header, 100, 8, `${archive}:${tarPath}`) & 0o777;
+    const mode = parseOctal(header, 100, 8, `${archive}:${tarPath}`);
+    if (mode > 0o777) fail(`${archive} entry ${tarPath} carries unsupported special mode bits ${modeString(mode)}`);
     const type = header[156] === 0 ? "0" : String.fromCharCode(header[156]);
     if (!tarPath.startsWith("package/")) fail(`${archive} contains path outside package/: ${tarPath}`);
     const path = tarPath.slice("package/".length).replace(/\/$/, "");
@@ -587,7 +675,9 @@ function inspectTarArchive(archive, expected) {
     if (contentEnd > tar.length) fail(`${archive} has a truncated tar entry ${tarPath}`);
     if (type === "5") {
       if (size !== 0) fail(`${archive} directory ${tarPath} has content`);
-      directories.add(path);
+      if (mode !== 0o755) fail(`${archive} directory ${tarPath} has mode ${modeString(mode)}; expected 0755`);
+      if (directories.has(path)) fail(`${archive} repeats directory entry ${tarPath}`);
+      directories.set(path, mode);
     } else if (type === "0") {
       if (files.has(path)) fail(`${archive} repeats tar entry ${tarPath}`);
       files.set(path, { path, size, mode, content: tar.subarray(contentStart, contentEnd) });
@@ -604,7 +694,7 @@ function inspectTarArchive(archive, expected) {
     const parts = path.split("/");
     for (let index = 1; index < parts.length; index += 1) allowedDirectories.add(parts.slice(0, index).join("/"));
   }
-  for (const path of directories) if (!allowedDirectories.has(path)) fail(`${archive} contains unexpected directory ${path}`);
+  for (const path of directories.keys()) if (!allowedDirectories.has(path)) fail(`${archive} contains unexpected directory ${path}`);
   for (const [path, wanted] of expected) {
     const actual = files.get(path);
     if (!actual.content.equals(wanted.content)) fail(`${archive} archived bytes differ from source input ${path}`);
@@ -651,11 +741,11 @@ async function main() {
   }
 
   const inspectedOutput = assertOutputSeparated(output);
-  invalidateCompletionManifest(inspectedOutput.absolute);
-
   const source = committedSourceIdentity();
-  const expectedArchiveNames = packages.map((pkg) => `${pkg.archivePrefix}-${source.version}.tgz`);
+  const expectedArchiveNames = packages.map((pkg) => artifactFilename(pkg.archivePrefix, source.version));
+  for (const name of expectedArchiveNames) artifactPath(inspectedOutput.absolute, name);
   failureCleanup = { output: inspectedOutput.absolute, expectedNames: expectedArchiveNames };
+  invalidateCompletionManifest(inspectedOutput.absolute);
   const verifiedOutput = prepareOutputDirectory(inspectedOutput, expectedArchiveNames);
   const npmVersion = assertReleaseToolchain(repoRoot);
   assertStaticPackageInputs();
@@ -663,12 +753,23 @@ async function main() {
 
   const packageVersions = packages.map((entry) => {
     const path = join(repoRoot, entry.directory, "package.json");
+    assertManagedPathComponents(path, { finalType: "file" });
     assertRegularFile(path, `${entry.directory}/package.json`);
     const manifest = JSON.parse(readFileSync(path, "utf8"));
     if (manifest.name !== entry.workspace || manifest.version !== source.version) {
       fail(`${entry.directory}/package.json has unexpected package identity or version`);
     }
-    return { ...entry, version: manifest.version, filename: `${entry.archivePrefix}-${manifest.version}.tgz` };
+    const scriptEntries = Object.entries(manifest.scripts ?? {});
+    if (scriptEntries.length !== 1 || scriptEntries[0][0] !== "prepack" || scriptEntries[0][1] !== "node ../../scripts/release-pack.mjs --guard") {
+      fail(`${entry.directory}/package.json must declare only the authorized prepack guard lifecycle`);
+    }
+    const internal = Object.entries(manifest.dependencies ?? {}).filter(([name]) => name.startsWith("@skill-harness/"));
+    const expectedInternal = [...entry.internalDependencies].sort();
+    if (JSON.stringify(internal.map(([name]) => name).sort()) !== JSON.stringify(expectedInternal)
+      || internal.some(([, version]) => version !== source.version)) {
+      fail(`${entry.directory}/package.json has invalid internal dependency pins`);
+    }
+    return { ...entry, version: manifest.version, filename: artifactFilename(entry.archivePrefix, manifest.version) };
   });
 
   await prepareCanonicalBuildOutputs(repoRoot);
@@ -690,7 +791,7 @@ async function main() {
       const planned = parsePackJson(plannedStdout, pkg.workspace);
       const plannedFiles = normalizeNpmFiles(planned, pkg, "dry-run");
       compareInventory(`${pkg.workspace} npm dry-run`, plannedFiles, expected);
-      if (lstatIfPresent(join(verifiedOutput.absolute, pkg.filename))) fail(`${pkg.workspace} dry-run unexpectedly retained an archive`);
+      if (lstatIfPresent(artifactPath(verifiedOutput.absolute, pkg.filename))) fail(`${pkg.workspace} dry-run unexpectedly retained an archive`);
 
       const stdout = runNpm(repoRoot, [
         "pack", "-w", pkg.workspace, "--pack-destination", verifiedOutput.absolute, "--json", "--silent",
@@ -700,7 +801,7 @@ async function main() {
       compareInventory(`${pkg.workspace} npm pack`, packedFiles, expected);
       compareInventory(`${pkg.workspace} npm dry-run/pack`, packedFiles, plannedFiles);
 
-      const archive = join(verifiedOutput.absolute, pkg.filename);
+      const archive = artifactPath(verifiedOutput.absolute, pkg.filename);
       assertRegularFile(archive, archive);
       const tarFiles = inspectTarArchive(archive, expected);
       assertInventorySourcesUnchanged(pkg, expected);
@@ -725,11 +826,21 @@ async function main() {
   if (JSON.stringify(retained) !== JSON.stringify([...expectedArchiveNames].sort())) {
     fail(`retained release inventory changed before manifest completion: ${retained.join(", ")}`);
   }
+  const finalArchiveBytes = new Map();
   for (const artifact of artifacts) {
-    const archive = join(finalOutput.absolute, artifact.filename);
+    const archive = artifactPath(finalOutput.absolute, artifact.filename);
     const stat = assertRegularFile(archive, archive);
-    artifact.size = stat.size;
-    artifact.sha256 = sha256(archive);
+    const bytes = readFileSync(archive);
+    if (stat.size !== bytes.length) fail(`${archive} changed size while final bytes were read`);
+    finalArchiveBytes.set(artifact.package, { archive, bytes });
+  }
+  for (const artifact of artifacts) {
+    const { archive, bytes } = finalArchiveBytes.get(artifact.package);
+    const expected = capturedInventories.get(artifact.package);
+    const tarFiles = inspectTarArchive(archive, expected, bytes);
+    artifact.files = [...tarFiles.values()].map(({ path, size, mode }) => ({ path, size, mode })).sort((left, right) => left.path.localeCompare(right.path));
+    artifact.size = bytes.length;
+    artifact.sha256 = sha256Bytes(bytes);
   }
 
   const manifest = {

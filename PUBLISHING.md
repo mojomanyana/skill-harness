@@ -17,11 +17,11 @@ It does not use pi-daddy `main`, a tag, or npm `latest`. The verifier refuses a 
 producer checkout or any other HEAD, imports production builders plus `REFUSAL_CODES`,
 validates 47 builder-produced records against schema SHA-256
 `3862bc451c25393dd40b198c62a8f94a3f58784e31da6dff05e3f06be71a3f86`, and requires
-every normalized v2 event to retain run/task join identity. The pin also records the
-authoritative package SHA-256 `c261877f9f6e1b13db8249e1d4e233cae9094efc07602e80c28555168cdc9b16`
-and dist-manifest SHA-256 `892394e6b231d6bfd95c5537ad1238eded39bcfae8078bd0782f539cfebe5688`.
-Release/publish work is downstream of this job: a green ordinary unit suite cannot
-substitute for it.
+every normalized v2 event to retain run/task join identity. Release/publish work is
+downstream of this job: a green ordinary unit suite cannot substitute for it. The pin
+claims only identities it can rederive from the exact producer commit: repository,
+commit/version, source paths, schema digest, and all seven byte-vendored artifact
+digests.
 
 The earlier 0.10.0 release notes below accurately record that release's pin
 (`1948b940…`). The first repair re-pinned provenance to Handoff B `3070152…`; this
@@ -594,7 +594,7 @@ non-directory ancestors, and validates newly-created output components. Explicit
 relative and absolute external directories remain supported; a path that reaches one
 through a symlink does not. This is validation against a still filesystem, not OS
 containment: another process able to rename path components concurrently can race an
-`lstat` check, so release preparation requires a quiescent checkout.
+`lstat` check, so release preparation requires a quiescent checkout and output directory.
 
 It inspects the three exact ignored output roots
 (`packages/{core,adapters,cli}/dist`) and every public package input, refusing symlinks,
@@ -615,11 +615,16 @@ SHA-256 values, full file inventories, and canonical modes. No manifest means pa
 did not complete.
 
 All four workspace `prepack` hooks require the authorization marker created by this
-command. A raw `npm pack -w …` or `npm publish -w …` therefore fails closed and names
-`npm run release:pack`; it is not an alternative release path. CI runs the command
-and the regression suite covers both a clean checkout and a reused workspace seeded
-with byte-identical `cli.js` at 0755, plus hostile-path and removed-normalization
-controls.
+command. Standard raw `npm pack -w …` or `npm publish -w …` therefore fails closed and
+names `npm run release:pack`; it is not an alternative release path. npm's explicit
+`--ignore-scripts` switch disables every lifecycle hook, including this tripwire — it
+can create an **unverified** tarball but cannot create `release-manifest.json`. Treating
+such bytes as releasable is equivalent to deliberately removing a release check, not an
+authorized fallback. The release command itself refuses an ambient
+`npm_config_ignore_scripts=true`, so a publisher's global setting cannot silently skip
+the guard during canonical preparation. CI runs the command and the regression suite
+covers clean/reused workspaces, hostile paths and package inputs, tar mutation, stale
+evidence, and removed normalization.
 
 ## Smoke against real pi — before you publish
 

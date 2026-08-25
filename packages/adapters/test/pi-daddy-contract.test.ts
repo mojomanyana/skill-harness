@@ -40,8 +40,6 @@ const pinned = JSON.parse(bytes("PINNED.json")) as {
   source_refusal_enumeration: string;
   schema_sha256: string;
   version: string;
-  package_sha256: string;
-  dist_manifest_sha256: string;
   artifacts: Record<string, { source: string; sha256: string }>;
 };
 const CANONICAL_FIXTURES = ["capability-decision", "workspace-lease", "child-lifecycle", "check-receipt"] as const;
@@ -86,8 +84,6 @@ describe("pinned pi-daddy ledger v2 contract", () => {
     expect(pinned.source_schema).toBe("packages/pi-daddy/contracts/ledger/v2/ledger-event.schema.json");
     expect(pinned.source_refusal_enumeration).toBe("packages/pi-daddy/src/refusals.ts");
     expect(pinned.version).toBe("0.19.0");
-    expect(pinned.package_sha256).toBe("c261877f9f6e1b13db8249e1d4e233cae9094efc07602e80c28555168cdc9b16");
-    expect(pinned.dist_manifest_sha256).toBe("892394e6b231d6bfd95c5537ad1238eded39bcfae8078bd0782f539cfebe5688");
     expect(PI_DADDY_CONTRACT_COMMIT).toBe(EXPECTED_PRODUCER_COMMIT);
     expect(Object.keys(pinned.artifacts).sort()).toEqual([
       "fixtures/capability-decision.json",

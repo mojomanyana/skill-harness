@@ -23,8 +23,6 @@ const FIXTURES = ["capability-decision", "workspace-lease", "child-lifecycle", "
 const PRODUCER_RELEASES = {
   c364a6717e3d5e369ecd3298b9cbb595eb94d9b2: {
     version: "0.19.0",
-    package_sha256: "c261877f9f6e1b13db8249e1d4e233cae9094efc07602e80c28555168cdc9b16",
-    dist_manifest_sha256: "892394e6b231d6bfd95c5537ad1238eded39bcfae8078bd0782f539cfebe5688",
   },
 };
 
@@ -83,8 +81,6 @@ const pinned = {
   commit,
   pull_request: pr === undefined ? previousPinned.pull_request : Number(pr),
   version: release.version,
-  package_sha256: release.package_sha256,
-  dist_manifest_sha256: release.dist_manifest_sha256,
   source_schema: SCHEMA_SOURCE,
   source_refusal_enumeration: REFUSAL_SOURCE,
   schema_sha256: sha256(schemaText),

@@ -4,8 +4,6 @@
   "commit": "c364a6717e3d5e369ecd3298b9cbb595eb94d9b2",
   "pull_request": 10,
   "version": "0.19.0",
-  "package_sha256": "c261877f9f6e1b13db8249e1d4e233cae9094efc07602e80c28555168cdc9b16",
-  "dist_manifest_sha256": "892394e6b231d6bfd95c5537ad1238eded39bcfae8078bd0782f539cfebe5688",
   "source_schema": "packages/pi-daddy/contracts/ledger/v2/ledger-event.schema.json",
   "source_refusal_enumeration": "packages/pi-daddy/src/refusals.ts",
   "schema_sha256": "3862bc451c25393dd40b198c62a8f94a3f58784e31da6dff05e3f06be71a3f86",

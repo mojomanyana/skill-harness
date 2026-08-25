@@ -3,9 +3,8 @@
 Byte-exact copies of pi-daddy's canonical `ledgerVersion: 2` contract, taken from
 the immutable 0.19.0 producer commit
 `c364a6717e3d5e369ecd3298b9cbb595eb94d9b2`. `PINNED.json` records repository
-`mojomanyana/pi-daddy`, the exact commit and version, authoritative package and
-dist-manifest SHA-256 values, schema/refusal source paths, the schema digest, and
-a SHA-256 for every vendored artifact.
+`mojomanyana/pi-daddy`, the exact commit and version, schema/refusal source paths,
+the schema digest, and a SHA-256 for every byte-vendored artifact.
 
 | File | What it is |
 |---|---|

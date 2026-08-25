@@ -11,6 +11,7 @@ import {
   readFileSync,
   readdirSync,
   readlinkSync,
+  renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -25,6 +26,12 @@ const REPO = fileURLToPath(new URL("../../..", import.meta.url));
 const TMP = mkdtempSync(join(tmpdir(), "skill-harness-release-pack-test-"));
 const CLI_OUTPUT = join("packages", "cli", "dist", "cli.js");
 const MANIFEST = "release-manifest.json";
+const ARCHIVE_NAMES = [
+  "skill-harness-core-0.11.0.tgz",
+  "skill-harness-adapters-0.11.0.tgz",
+  "skill-harness-cli-0.11.0.tgz",
+  "skill-harness-0.11.0.tgz",
+];
 const CANONICAL_MODE = 0o644;
 const GIT_ENV = {
   ...process.env,
@@ -81,11 +88,11 @@ function commitPaths(root: string, paths: string[], message = "mutation"): void 
   }
 }
 
-function runReleasePack(root: string, output = join(root, "release-artifacts")) {
+function runReleasePack(root: string, output = join(root, "release-artifacts"), env = process.env) {
   const result = spawnSync(process.execPath, [join(root, "scripts", "release-pack.mjs"), "--output", output], {
     cwd: root,
     encoding: "utf8",
-    env: process.env,
+    env,
   });
   return { ...result, output, combined: `${result.stdout ?? ""}\n${result.stderr ?? ""}` };
 }
@@ -248,6 +255,54 @@ describe("authoritative release packaging", () => {
     }
   }, 30_000);
 
+  it("unlinks hostile completion/archive entries and removes all failed evidence", () => {
+    const manifestRoot = cloneRepo("symlinked-completion-marker");
+    const manifestOutput = join(TMP, "symlinked-completion-output");
+    const manifestTarget = join(TMP, "symlinked-completion-target");
+    mkdirSync(manifestOutput);
+    writeFileSync(manifestTarget, "external manifest target remains unchanged\n");
+    symlinkSync(manifestTarget, join(manifestOutput, MANIFEST));
+    for (const name of ARCHIVE_NAMES) writeFileSync(join(manifestOutput, name), "stale\n");
+    const manifestResult = runReleasePack(manifestRoot, manifestOutput);
+    expect(manifestResult.status).not.toBe(0);
+    expect(manifestResult.combined).toMatch(/non-regular completion marker/i);
+    expect(readFileSync(manifestTarget, "utf8")).toBe("external manifest target remains unchanged\n");
+    expect(readdirSync(manifestOutput)).toEqual([]);
+
+    const archiveRoot = cloneRepo("symlinked-expected-archive");
+    const archiveOutput = join(TMP, "symlinked-archive-output");
+    const archiveTarget = join(TMP, "symlinked-archive-target");
+    mkdirSync(archiveOutput);
+    writeFileSync(archiveTarget, "external archive target remains unchanged\n");
+    for (const name of ARCHIVE_NAMES) writeFileSync(join(archiveOutput, name), "stale\n");
+    rmSync(join(archiveOutput, ARCHIVE_NAMES[0]));
+    symlinkSync(archiveTarget, join(archiveOutput, ARCHIVE_NAMES[0]));
+    const archiveResult = runReleasePack(archiveRoot, archiveOutput);
+    expect(archiveResult.status).not.toBe(0);
+    expect(archiveResult.combined).toMatch(/symbolic link/i);
+    expect(readFileSync(archiveTarget, "utf8")).toBe("external archive target remains unchanged\n");
+    expect(readdirSync(archiveOutput)).toEqual([]);
+  }, 30_000);
+
+  it("rejects unsafe committed versions before constructing artifact paths", () => {
+    const root = cloneRepo("unsafe-version");
+    const manifestPath = join(root, "package.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.version = "../../external-sentinel";
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 4)}\n`);
+    commitPaths(root, ["package.json"]);
+    const output = join(TMP, "unsafe-version-output");
+    mkdirSync(output);
+    const sentinel = join(TMP, "external-sentinel");
+    writeFileSync(sentinel, "unchanged\n");
+
+    const result = runReleasePack(root, output);
+    expect(result.status).not.toBe(0);
+    expect(result.combined).toMatch(/unsafe version/i);
+    expect(readFileSync(sentinel, "utf8")).toBe("unchanged\n");
+    expect(readdirSync(output)).toEqual([]);
+  }, 30_000);
+
   it("rejects symlinked or missing public package inputs without following external targets", () => {
     const cases = [
       { label: "package-json-link", path: join("packages", "core", "package.json"), kind: "link" },
@@ -270,6 +325,30 @@ describe("authoritative release packaging", () => {
       expect(existsSync(join(result.output, MANIFEST)), probe.label).toBe(false);
       expect(existsSync(join(result.output, "skill-harness-core-0.11.0.tgz")), probe.label).toBe(false);
     }
+  }, 30_000);
+
+  it("rejects hidden index changes and intermediate managed-path symlinks", () => {
+    const hiddenRoot = cloneRepo("assume-unchanged-source");
+    const hiddenReadme = join(hiddenRoot, "packages", "core", "README.md");
+    const flagged = spawnSync("git", ["update-index", "--assume-unchanged", "packages/core/README.md"], { cwd: hiddenRoot, encoding: "utf8" });
+    expect(flagged.status, flagged.stderr).toBe(0);
+    writeFileSync(hiddenReadme, "hidden working-tree change\n");
+    expect(spawnSync("git", ["status", "--porcelain=v1"], { cwd: hiddenRoot, encoding: "utf8" }).stdout).toBe("");
+    const hiddenResult = runReleasePack(hiddenRoot);
+    expect(hiddenResult.status).not.toBe(0);
+    expect(hiddenResult.combined).toMatch(/hidden index flags.*packages\/core\/README\.md/i);
+    expect(readdirSync(hiddenResult.output)).toEqual([]);
+
+    const linkedRoot = cloneRepo("intermediate-package-link");
+    const external = join(TMP, "intermediate-package-external");
+    renameSync(join(linkedRoot, "packages"), external);
+    writeFileSync(join(external, "sentinel"), "external package tree unchanged\n");
+    symlinkSync(external, join(linkedRoot, "packages"), "dir");
+    const linkedResult = runReleasePack(linkedRoot);
+    expect(linkedResult.status).not.toBe(0);
+    expect(linkedResult.combined).toMatch(/packages.*symbolic link/i);
+    expect(readFileSync(join(external, "sentinel"), "utf8")).toBe("external package tree unchanged\n");
+    expect(existsSync(join(linkedResult.output, MANIFEST))).toBe(false);
   }, 30_000);
 
   it("rejects FIFO and symlinked LICENSE package inputs without changing external targets", () => {
@@ -429,6 +508,38 @@ describe("authoritative release packaging", () => {
     expect(readdirSync(missingResult.output)).toEqual([]);
   }, 90_000);
 
+  it("rejects internal dependency and package lifecycle drift", () => {
+    const dependencyRoot = cloneRepo("internal-dependency-drift");
+    const metaManifestPath = join(dependencyRoot, "packages", "skill-harness", "package.json");
+    const metaManifest = JSON.parse(readFileSync(metaManifestPath, "utf8"));
+    metaManifest.dependencies["@skill-harness/cli"] = "99.99.99";
+    writeFileSync(metaManifestPath, `${JSON.stringify(metaManifest, null, 2)}\n`);
+    commitPaths(dependencyRoot, ["packages/skill-harness/package.json"]);
+    const dependencyResult = runReleasePack(dependencyRoot);
+    expect(dependencyResult.status).not.toBe(0);
+    expect(dependencyResult.combined).toMatch(/invalid internal dependency pins/i);
+    expect(readdirSync(dependencyResult.output)).toEqual([]);
+
+    const lifecycleRoot = cloneRepo("package-lifecycle-drift");
+    const coreManifestPath = join(lifecycleRoot, "packages", "core", "package.json");
+    const coreManifest = JSON.parse(readFileSync(coreManifestPath, "utf8"));
+    coreManifest.scripts.postpack = "node accidental-postpack.mjs";
+    writeFileSync(coreManifestPath, `${JSON.stringify(coreManifest, null, 4)}\n`);
+    commitPaths(lifecycleRoot, ["packages/core/package.json"]);
+    const lifecycleResult = runReleasePack(lifecycleRoot);
+    expect(lifecycleResult.status).not.toBe(0);
+    expect(lifecycleResult.combined).toMatch(/only the authorized prepack guard lifecycle/i);
+    expect(readdirSync(lifecycleResult.output)).toEqual([]);
+  }, 30_000);
+
+  it("refuses canonical preparation when npm lifecycle scripts are globally disabled", () => {
+    const root = cloneRepo("ignore-scripts-config");
+    const result = runReleasePack(root, join(root, "release-artifacts"), { ...process.env, npm_config_ignore_scripts: "true" });
+    expect(result.status).not.toBe(0);
+    expect(result.combined).toMatch(/requires npm lifecycle scripts; ignore-scripts is true/i);
+    expect(readdirSync(result.output)).toEqual([]);
+  }, 30_000);
+
   it("rejects an actual tar inventory mutation after npm metadata agrees", () => {
     const root = cloneRepo("tar-inventory-mutation");
     const script = join(root, "scripts", "release-pack.mjs");
@@ -446,6 +557,24 @@ describe("authoritative release packaging", () => {
     const result = runReleasePack(root);
     expect(result.status).not.toBe(0);
     expect(result.combined).toMatch(/tar inventory mismatch.*unexpected SURPRISE\..*missing README\.md/i);
+    expect(existsSync(join(result.output, MANIFEST))).toBe(false);
+    expect(readdirSync(result.output)).toEqual([]);
+  }, 60_000);
+
+  it("revalidates all final archive bytes after later package work completes", () => {
+    const root = cloneRepo("late-archive-mutation");
+    const script = join(root, "scripts", "release-pack.mjs");
+    const source = readFileSync(script, "utf8");
+    const needle = "const finalArchiveBytes = new Map();";
+    expect(source.split(needle)).toHaveLength(2);
+    writeFileSync(script, source.replace(
+      needle,
+      `writeFileSync(artifactPath(finalOutput.absolute, artifacts[0].filename), "late replacement\\n"); // mutation: after initial tar validation\n  ${needle}`,
+    ));
+    commitPaths(root, ["scripts/release-pack.mjs"]);
+    const result = runReleasePack(root);
+    expect(result.status).not.toBe(0);
+    expect(result.combined).toMatch(/incorrect header check|unexpected end of file|invalid tar|unknown compression/i);
     expect(existsSync(join(result.output, MANIFEST))).toBe(false);
     expect(readdirSync(result.output)).toEqual([]);
   }, 60_000);

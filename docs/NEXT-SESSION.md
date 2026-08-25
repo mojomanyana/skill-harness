@@ -18,9 +18,9 @@ production-reachable `WORKSPACE_NOT_AUTHORIZED`. The regression fixture is gener
 by production `planDelegation` and mapped through production `buildRecord`; it retains
 the denied `workspace:production` identity, full structured refusal, nested
 correlation, and run/task joins. The real-builder matrix is 47 positive cases and 10
-fail-closed mutations, with all 32 refusal codes preserved. The exact package and
-dist-manifest SHA-256 values are recorded in `PINNED.json` alongside the source paths
-and seven vendored artifact digests.
+fail-closed mutations, with all 32 refusal codes preserved. `PINNED.json` records only provenance it can rederive from the exact producer commit:
+repository, commit/version, source paths, schema digest, and all seven byte-vendored
+artifact digests.
 
 This is contract synchronization only. No model or judge calls, release, publish,
 tag, merge, or OS-sandbox claim belongs to it.
