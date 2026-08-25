@@ -362,6 +362,30 @@ function assertTrackedBytesMatchHead(identity) {
   }
 }
 
+function assertNoUntrackedBuildInputs(identity) {
+  const tracked = new Set(runGitRaw(["ls-tree", "-r", "-z", "--name-only", identity.commit]).split("\0").filter(Boolean));
+  const roots = ["packages/core/src", "packages/adapters/src", "packages/cli/src", "schemas"];
+  function visit(directory) {
+    for (const name of readdirSync(directory).sort()) {
+      const path = join(directory, name);
+      const stat = lstatSync(path);
+      if (stat.isSymbolicLink()) fail(`${displayPath(path)} is a symbolic link; refusing it as a build input`);
+      if (stat.isDirectory()) {
+        visit(path);
+        continue;
+      }
+      if (!stat.isFile()) fail(`${displayPath(path)} is not a regular build input`);
+      const relativePath = relative(repoRoot, path).replaceAll("\\", "/");
+      if (!tracked.has(relativePath)) fail(`untracked build input ${relativePath} is not present in HEAD`);
+    }
+  }
+  for (const root of roots) {
+    const path = join(repoRoot, root);
+    assertManagedPathComponents(path, { finalType: "directory" });
+    visit(path);
+  }
+}
+
 function workingSourceTree() {
   const directory = mkdtempSync(join(tmpdir(), "skill-harness-release-index-"));
   const index = join(directory, "index");
@@ -384,6 +408,7 @@ function assertCleanSource(identity) {
   const flagged = runGitRaw(["ls-files", "-v"]).split("\n").filter((line) => /^[a-zS] /.test(line));
   if (flagged.length > 0) fail(`tracked source uses hidden index flags: ${flagged.slice(0, 8).map((line) => line.slice(2)).join(", ")}`);
   assertTrackedBytesMatchHead(identity);
+  assertNoUntrackedBuildInputs(identity);
   const actualTree = workingSourceTree();
   if (actualTree !== identity.tree) {
     const dirty = runGitRaw(["status", "--porcelain=v1", "--untracked-files=all"]).trimEnd();
@@ -493,14 +518,33 @@ function unlinkExactOutputEntry(path) {
 
 function invalidateCompletionManifest(output) {
   const outputStat = lstatIfPresent(output);
-  if (!outputStat) return;
+  if (!outputStat) return false;
   assertDirectory(output, output);
   let hostile = false;
   for (const name of [completionManifestName, pendingManifestName]) {
     const result = unlinkExactOutputEntry(join(output, name));
     hostile ||= result.hostile;
   }
-  if (hostile) fail(`${output} contained a non-regular completion marker; it was unlinked without following it`);
+  return hostile;
+}
+
+function invalidateRecognizedArchives(output) {
+  const outputStat = lstatIfPresent(output);
+  if (!outputStat) return false;
+  assertDirectory(output, output);
+  let hostile = false;
+  for (const name of readdirSync(output)) {
+    const recognized = packages.some(({ archivePrefix }) => {
+      const prefix = `${archivePrefix}-`;
+      if (!name.startsWith(prefix) || !name.endsWith(".tgz")) return false;
+      const version = name.slice(prefix.length, -4);
+      return /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version);
+    });
+    if (!recognized) continue;
+    const result = unlinkExactOutputEntry(join(output, name));
+    hostile ||= result.hostile;
+  }
+  return hostile;
 }
 
 function cleanupFailedOutput(output, expectedNames) {
@@ -768,11 +812,15 @@ async function main() {
   }
 
   const inspectedOutput = assertOutputSeparated(output);
+  const hostileCompletion = invalidateCompletionManifest(inspectedOutput.absolute);
+  const hostileArchive = invalidateRecognizedArchives(inspectedOutput.absolute);
+  if (hostileCompletion || hostileArchive) {
+    fail(`${inspectedOutput.absolute} contained non-regular release evidence; it was unlinked without following external targets`);
+  }
   const source = committedSourceIdentity();
   const expectedArchiveNames = packages.map((pkg) => artifactFilename(pkg.archivePrefix, source.version));
   for (const name of expectedArchiveNames) artifactPath(inspectedOutput.absolute, name);
   failureCleanup = { output: inspectedOutput.absolute, expectedNames: expectedArchiveNames };
-  invalidateCompletionManifest(inspectedOutput.absolute);
   const verifiedOutput = prepareOutputDirectory(inspectedOutput, expectedArchiveNames);
   const npmVersion = assertReleaseToolchain(repoRoot);
   assertStaticPackageInputs();
@@ -805,6 +853,8 @@ async function main() {
     return { ...entry, version: manifest.version, filename: artifactFilename(entry.archivePrefix, manifest.version) };
   });
 
+  runNpm(repoRoot, ["ci"]);
+  assertCleanSource(source);
   await prepareCanonicalBuildOutputs(repoRoot);
   assertCleanSource(source);
 

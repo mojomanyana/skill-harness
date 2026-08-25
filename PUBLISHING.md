@@ -588,7 +588,9 @@ mode treatment for declared bins, so an unpinned packager would restore the ambi
 control exists to remove.
 
 `release:pack` is the control, not the prose around it. It requires a clean tracked
-source tree and records the exact source commit/tree plus Node/npm versions. It inspects
+source tree, rejects ignored/untracked compiler and schema inputs, runs `npm ci` itself
+to establish the exact lockfile dependency tree, and records the exact source
+commit/tree plus Node/npm versions. It inspects
 every existing output-path component without following links, rejects alias overlap and
 non-directory ancestors, and validates newly-created output components. Explicit
 relative and absolute external directories remain supported; a path that reaches one
@@ -700,10 +702,10 @@ that manifest and publishing. From the repository root:
 
 ```bash
 VERSION=$(node -p "require('./package.json').version")
-npm publish "release-artifacts/skill-harness-core-${VERSION}.tgz" --access public
-npm publish "release-artifacts/skill-harness-adapters-${VERSION}.tgz" --access public
-npm publish "release-artifacts/skill-harness-cli-${VERSION}.tgz" --access public
-npm publish "release-artifacts/skill-harness-${VERSION}.tgz"
+npm publish "./release-artifacts/skill-harness-core-${VERSION}.tgz" --access public
+npm publish "./release-artifacts/skill-harness-adapters-${VERSION}.tgz" --access public
+npm publish "./release-artifacts/skill-harness-cli-${VERSION}.tgz" --access public
+npm publish "./release-artifacts/skill-harness-${VERSION}.tgz"
 ```
 
 Each package must land before the next because the workspaces pin exact internal

@@ -77,8 +77,6 @@ function cloneRepo(label: string): string {
     const result = spawnSync("git", args, { cwd: destination, encoding: "utf8", env: GIT_ENV });
     if (result.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
   }
-  writeFileSync(join(destination, ".git", "info", "exclude"), "node_modules\n", { flag: "a" });
-  symlinkSync(join(REPO, "node_modules"), join(destination, "node_modules"), "dir");
   return destination;
 }
 
@@ -266,7 +264,7 @@ describe("authoritative release packaging", () => {
     for (const name of ARCHIVE_NAMES) writeFileSync(join(manifestOutput, name), "stale\n");
     const manifestResult = runReleasePack(manifestRoot, manifestOutput);
     expect(manifestResult.status).not.toBe(0);
-    expect(manifestResult.combined).toMatch(/non-regular completion marker/i);
+    expect(manifestResult.combined).toMatch(/non-regular release evidence/i);
     expect(readFileSync(manifestTarget, "utf8")).toBe("external manifest target remains unchanged\n");
     expect(readdirSync(manifestOutput)).toEqual([]);
 
@@ -280,7 +278,7 @@ describe("authoritative release packaging", () => {
     symlinkSync(archiveTarget, join(archiveOutput, ARCHIVE_NAMES[0]));
     const archiveResult = runReleasePack(archiveRoot, archiveOutput);
     expect(archiveResult.status).not.toBe(0);
-    expect(archiveResult.combined).toMatch(/symbolic link/i);
+    expect(archiveResult.combined).toMatch(/non-regular release evidence/i);
     expect(readFileSync(archiveTarget, "utf8")).toBe("external archive target remains unchanged\n");
     expect(readdirSync(archiveOutput)).toEqual([]);
   }, 30_000);
@@ -294,6 +292,8 @@ describe("authoritative release packaging", () => {
     commitPaths(root, ["package.json"]);
     const output = join(TMP, "unsafe-version-output");
     mkdirSync(output);
+    writeFileSync(join(output, MANIFEST), "stale manifest\n");
+    for (const name of ARCHIVE_NAMES) writeFileSync(join(output, name), "stale archive\n");
     const sentinel = join(TMP, "external-sentinel");
     writeFileSync(sentinel, "unchanged\n");
 
@@ -364,6 +364,31 @@ describe("authoritative release packaging", () => {
     expect(linkedResult.combined).toMatch(/packages.*symbolic link/i);
     expect(readFileSync(join(external, "sentinel"), "utf8")).toBe("external package tree unchanged\n");
     expect(existsSync(join(linkedResult.output, MANIFEST))).toBe(false);
+  }, 30_000);
+
+  it("rejects ignored untracked build inputs absent from HEAD", () => {
+    const root = cloneRepo("ignored-build-input");
+    const ignored = join(root, "packages", "core", "src", "extra.ts");
+    writeFileSync(ignored, "export const ignoredBuildInput = true;\n");
+    writeFileSync(join(root, ".git", "info", "exclude"), "packages/core/src/extra.ts\n", { flag: "a" });
+    expect(spawnSync("git", ["status", "--porcelain=v1", "--untracked-files=all"], { cwd: root, encoding: "utf8" }).stdout).toBe("");
+    const result = runReleasePack(root);
+    expect(result.status).not.toBe(0);
+    expect(result.combined).toMatch(/untracked build input packages\/core\/src\/extra\.ts is not present in HEAD/i);
+    expect(readdirSync(result.output)).toEqual([]);
+  }, 30_000);
+
+  it("rejects a lockfile that cannot reproduce package manifests", () => {
+    const root = cloneRepo("lockfile-drift");
+    const lockPath = join(root, "package-lock.json");
+    const lock = JSON.parse(readFileSync(lockPath, "utf8"));
+    delete lock.packages["node_modules/js-yaml"];
+    writeFileSync(lockPath, `${JSON.stringify(lock, null, 4)}\n`);
+    commitPaths(root, ["package-lock.json"]);
+    const result = runReleasePack(root);
+    expect(result.status).not.toBe(0);
+    expect(result.combined).toMatch(/npm ci exited|Invalid: lock file|not in sync/i);
+    expect(readdirSync(result.output)).toEqual([]);
   }, 30_000);
 
   it("rejects FIFO and symlinked LICENSE package inputs without changing external targets", () => {
