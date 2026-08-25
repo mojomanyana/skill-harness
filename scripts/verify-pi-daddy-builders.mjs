@@ -12,7 +12,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -20,12 +20,15 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const HARNESS = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CONTRACT = join(HARNESS, "contracts", "pi-daddy", "ledger", "v2");
 const pinned = JSON.parse(readFileSync(join(CONTRACT, "PINNED.json"), "utf8"));
-const [checkoutArg] = process.argv.slice(2);
-if (!checkoutArg || process.argv.length !== 3) {
-  console.error("usage: node scripts/verify-pi-daddy-builders.mjs <clean-pi-daddy-checkout>");
+const rawArgs = process.argv.slice(2);
+const writeRegressionFixture = rawArgs.includes("--write-regression-fixture");
+const [checkoutArg, ...extraArgs] = rawArgs.filter((arg) => arg !== "--write-regression-fixture");
+if (!checkoutArg || extraArgs.length > 0) {
+  console.error("usage: node scripts/verify-pi-daddy-builders.mjs <clean-pi-daddy-checkout> [--write-regression-fixture]");
   process.exit(2);
 }
 const checkout = resolve(checkoutArg);
+const workspaceRefusalFixture = join(HARNESS, "packages", "adapters", "test", "fixtures", "governance", "pi-daddy-v2-workspace-not-authorized.jsonl");
 const producerPackage = join(checkout, "packages", "pi-daddy");
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 const command = (cwd, file, args, options = {}) => execFileSync(file, args, { cwd, encoding: "utf8", stdio: options.capture ? "pipe" : "inherit" });
@@ -59,6 +62,7 @@ const producerRequire = createRequire(join(producerPackage, "package.json"));
 const typeboxCompiler = await import(pathToFileURL(producerRequire.resolve("typebox/compile")).href);
 const producerSchemaValidator = typeboxCompiler.Compile(JSON.parse(readFileSync(join(CONTRACT, "ledger-event.schema.json"), "utf8")));
 const ledger = await import(`${pathToFileURL(join(producerPackage, "dist", "ledger.js")).href}?pin=${pinned.commit}`);
+const delegation = await import(`${pathToFileURL(join(producerPackage, "dist", "delegate.js")).href}?pin=${pinned.commit}`);
 const refusals = await import(`${pathToFileURL(join(producerPackage, "dist", "refusals.js")).href}?pin=${pinned.commit}`);
 const adapter = await import(`${pathToFileURL(join(HARNESS, "packages", "adapters", "dist", "trajectory.js")).href}?pin=${pinned.commit}`);
 const schemaRuntime = await import(`${pathToFileURL(join(HARNESS, "packages", "adapters", "dist", "pi-daddy-ledger-v2.js")).href}?pin=${pinned.commit}`);
@@ -128,19 +132,71 @@ const now = (offset) => new Date(Date.parse("2026-08-20T12:00:00.000Z") + offset
 
 console.log("\ncanonical structured refusals");
 for (const [index, code] of refusals.REFUSAL_CODES.entries()) {
-  const built = ledger.buildRecord({
-    parentId: "d0", childId: `d0.refusal.${index}`, depth: 1, agentType: "build",
-    requested: ["tool:read"], parentGrant: ["tool:read"], result: resolution([], [], ["tool:read"], []),
-    blocked: true, reason: `contract refusal ${code}`, executor: "process", taskDigest: "9".repeat(64), correlation,
-    refusal: { code, message: `contract refusal ${code}`, details: { contract_case: code, code_index: index, retryable: false } },
-    now: now(index + 1),
-  });
+  let built;
+  if (code === "WORKSPACE_NOT_AUTHORIZED") {
+    // This refusal is production-reachable only through ADR-0035's routing guard.
+    // Drive that planner and then map its result through the same buildRecord call
+    // shape as extensions/run-delegation.ts; do not manufacture a positive wire line.
+    const parentGrant = ["tool:read", "tool:delegate", "workspace:staging"];
+    const plan = delegation.planDelegation({
+      task: "Inspect production without changing it",
+      tools: ["read"],
+      boundWorkspaceId: "production",
+      correlation,
+    }, {
+      ownGrant: parentGrant,
+      depth: 1,
+      maxDepth: 3,
+      gated: [],
+      approved: [],
+      spawnId: "d0.authorized-parent",
+    });
+    assert(plan.ok === false, "WORKSPACE_NOT_AUTHORIZED planner case unexpectedly succeeded");
+    assert(plan.refusal?.code === code, `routing planner produced ${plan.refusal?.code ?? "no refusal"}`);
+    assert(JSON.stringify(plan.result.denied) === JSON.stringify(["workspace:production"]), "routing planner lost denied workspace capability identity");
+    built = ledger.buildRecord({
+      parentId: "d0.authorized-parent",
+      childId: "d0.authorized-parent.denied-production",
+      depth: plan.childDepth,
+      agentType: "delegate",
+      executor: "process",
+      requested: plan.requested,
+      parentGrant,
+      result: plan.result,
+      blocked: !plan.ok,
+      reason: plan.reason,
+      definitionDigest: plan.definitionDigest,
+      taskDigest: plan.taskDigest,
+      correlation: plan.correlation,
+      refusal: plan.refusal,
+      now: now(index + 1),
+    });
+    const generatedLine = line(clone(built));
+    if (writeRegressionFixture) writeFileSync(workspaceRefusalFixture, generatedLine);
+    else assert(readFileSync(workspaceRefusalFixture, "utf8") === generatedLine, "WORKSPACE_NOT_AUTHORIZED regression fixture has drifted from the production planner/builder path");
+  } else {
+    built = ledger.buildRecord({
+      parentId: "d0", childId: `d0.refusal.${index}`, depth: 1, agentType: "build",
+      requested: ["tool:read"], parentGrant: ["tool:read"], result: resolution([], [], ["tool:read"], []),
+      blocked: true, reason: `contract refusal ${code}`, executor: "process", taskDigest: "9".repeat(64), correlation,
+      refusal: { code, message: `contract refusal ${code}`, details: { contract_case: code, code_index: index, retryable: false } },
+      now: now(index + 1),
+    });
+  }
   const { events } = normalizeBuilderRecord(`refusal ${code}`, built);
   const refused = events.find((event) => event.type === "child_spawn_refused");
   assert(refused?.refusal_code === code, `${code}: refusal_code was not preserved`);
   assert(refused.attributes?.structured_refusal?.code === code, `${code}: structured refusal code was lost`);
-  assert(refused.attributes.structured_refusal.details?.contract_case === code, `${code}: structured refusal details were lost`);
-  assert(refused.attributes.structured_refusal.message !== `contract refusal ${code}`, `${code}: refusal message was not sanitized`);
+  assert(refused.attributes.structured_refusal.message !== built.refusal.message, `${code}: refusal message was not sanitized`);
+  if (code === "WORKSPACE_NOT_AUTHORIZED") {
+    const denied = events.find((event) => event.type === "capability_refused");
+    assert(denied?.capability === "workspace:production", "WORKSPACE_NOT_AUTHORIZED denied capability identity was not preserved losslessly");
+    assert(JSON.stringify(refused.attributes.denied) === JSON.stringify(["workspace:production"]), "WORKSPACE_NOT_AUTHORIZED denied partition changed shape");
+    assert(JSON.stringify(refused.attributes.structured_refusal) === JSON.stringify({ code, message: refused.attributes.structured_refusal.message }), "WORKSPACE_NOT_AUTHORIZED structured refusal changed shape");
+    assert(JSON.stringify(refused.attributes.correlation) === JSON.stringify(correlation), "WORKSPACE_NOT_AUTHORIZED nested correlation was not preserved");
+  } else {
+    assert(refused.attributes.structured_refusal.details?.contract_case === code, `${code}: structured refusal details were lost`);
+  }
 }
 console.log(`  ✓ ${refusals.REFUSAL_CODES.length} production REFUSAL_CODES accepted and preserved`);
 

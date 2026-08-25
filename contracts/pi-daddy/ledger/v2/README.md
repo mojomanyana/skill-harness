@@ -1,10 +1,10 @@
 # Pinned pi-daddy ledger v2 contract (consumer copy)
 
 Byte-exact copies of pi-daddy's canonical `ledgerVersion: 2` contract, taken from
-the immutable Handoff B producer commit
-`3070152efd4633bc40f5065e892d5eee8372ffc8`. `PINNED.json` records repository
-`mojomanyana/pi-daddy`, the exact commit, schema/refusal source paths, the schema
-digest, and a SHA-256 for every vendored artifact.
+the immutable 0.19.0 producer commit
+`c364a6717e3d5e369ecd3298b9cbb595eb94d9b2`. `PINNED.json` records repository
+`mojomanyana/pi-daddy`, the exact commit and version, schema/refusal source paths,
+the schema digest, and a SHA-256 for every byte-vendored artifact.
 
 | File | What it is |
 |---|---|
@@ -50,7 +50,7 @@ clean checkouts and then builds both repositories itself:
 
 ```bash
 node scripts/check-pi-daddy-contract.mjs
-node scripts/vendor-pi-daddy-contract.mjs ../pi-daddy 3070152efd4633bc40f5065e892d5eee8372ffc8 11 --check
+node scripts/vendor-pi-daddy-contract.mjs ../pi-daddy c364a6717e3d5e369ecd3298b9cbb595eb94d9b2 10 --check
 npm run verify:pi-daddy-contract -- ../pi-daddy
 ```
 
@@ -82,6 +82,11 @@ are enforced *after* a record is admitted by the contract:
 
 ## Re-pinning to a newer producer commit
 
+First add the immutable producer commit and its package `version` to
+`PRODUCER_RELEASES` in `scripts/vendor-pi-daddy-contract.mjs`. The script verifies that
+version against the committed producer `package.json` and refuses an unrecorded commit.
+Then run:
+
 ```bash
 node scripts/vendor-pi-daddy-contract.mjs ../pi-daddy <commit> [pr-number]
 node scripts/vendor-pi-daddy-contract.mjs ../pi-daddy <commit> [pr-number] --check
@@ -93,7 +98,7 @@ npm run verify:pi-daddy-contract -- ../pi-daddy
 
 The vendor script reads artifacts with `git show` (never the working tree), rewrites
 the copies/digests, and regenerates the runtime schema module. `--check` performs the
-same generation in memory and fails on any byte difference. Update
+same generation in memory and fails on any byte difference. Update the release map and
 `EXPECTED_PRODUCER_COMMIT` in the conformance test in the same change, so bumping the
 pin is a deliberate edit rather than a silent one. CI checks pi-daddy out at the
 literal immutable SHA (not a tag, npm `latest`, or `main`) and runs the real-builder

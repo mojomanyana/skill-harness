@@ -74,7 +74,11 @@ const schema = JSON.parse(read("ledger-event.schema.json"));
 const producerCodes = [...schema.$defs.refusalCode.enum].sort();
 const consumerCodes = [...V2_REFUSAL_CODES].sort();
 if (JSON.stringify(producerCodes) === JSON.stringify(consumerCodes)) {
-  console.log(`  ✓ ${producerCodes.length} codes, no drift (GRANT_ID_MALFORMED ${producerCodes.includes("GRANT_ID_MALFORMED") ? "present" : "ABSENT"})`);
+  const requiredRegressionCodes = ["GRANT_ID_MALFORMED", "WORKSPACE_NOT_AUTHORIZED"];
+  const missingRegressionCodes = requiredRegressionCodes.filter((code) => !producerCodes.includes(code));
+  const coverage = requiredRegressionCodes.map((code) => `${code} ${producerCodes.includes(code) ? "present" : "ABSENT"}`).join("; ");
+  console.log(`  ${missingRegressionCodes.length === 0 ? "✓" : "✗"} ${producerCodes.length} codes, no drift (${coverage})`);
+  if (missingRegressionCodes.length > 0) fail(`required refusal regression coverage missing: ${missingRegressionCodes.join(", ")}`);
 } else {
   fail(`refusal vocabulary drift: producer-only ${producerCodes.filter((code) => !consumerCodes.includes(code)).join(", ") || "none"}; consumer-only ${consumerCodes.filter((code) => !producerCodes.includes(code)).join(", ") || "none"}`);
 }
@@ -117,7 +121,26 @@ for (const name of FIXTURES) {
   }
 }
 
+console.log("\nWORKSPACE_NOT_AUTHORIZED regression");
+try {
+  const regression = readFileSync(join(REPO, "packages", "adapters", "test", "fixtures", "governance", "pi-daddy-v2-workspace-not-authorized.jsonl"), "utf8");
+  const record = JSON.parse(regression);
+  const events = normalizePiDaddyLedger(regression);
+  const denied = events.find((event) => event.type === "capability_refused");
+  const refused = events.find((event) => event.type === "child_spawn_refused");
+  const joins = events.every((event) => event.run_id === record.correlation.run_id && event.task_id === record.correlation.task_id);
+  const structured = refused?.attributes?.structured_refusal?.code === "WORKSPACE_NOT_AUTHORIZED";
+  const correlation = JSON.stringify(refused?.attributes?.correlation) === JSON.stringify(record.correlation);
+  if (denied?.capability !== "workspace:production" || refused?.refusal_code !== "WORKSPACE_NOT_AUTHORIZED" || !joins || !structured || !correlation) {
+    fail("real producer-built workspace refusal lost its structured refusal, denied workspace capability, correlation, or joins");
+  } else {
+    console.log("  ✓ real planner/builder fixture preserved structured refusal, denied workspace capability, correlation, and joins");
+  }
+} catch (error) {
+  fail(`real planner/builder fixture rejected: ${error.message}`);
+}
+
 console.log(failures === 0
-  ? "\n4/4 canonical fixtures accepted; no vocabulary or digest drift. No model or judge calls."
+  ? "\n4/4 canonical fixtures plus workspace refusal regression accepted; no vocabulary or digest drift. No model or judge calls."
   : `\n${failures} conformance failure(s).`);
 process.exit(failures === 0 ? 0 : 1);

@@ -39,9 +39,9 @@
         "node": ">=20"
     },
     "scripts": {
-        "prepack": "rm -rf ./schemas && cp -R ../../schemas ./schemas && cp ../../LICENSE ./LICENSE"
+        "prepack": "node ../../scripts/release-pack.mjs --guard"
     },
     "dependencies": {
-        "js-yaml": "^4.1.0"
+        "js-yaml": "^4.3.1"
     }
 }

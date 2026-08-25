@@ -101,8 +101,8 @@ Adapters:
   and promotes packet/build/evidence/finalization identity.
 - **pi-daddy-v1** is the historical *adapter selector* name. It supports the public unversioned
   pi-daddy 0.17 `GrantRecord` and pi-daddy's `ledgerVersion: 2` events, pinned to the producer's
-  canonical contract artifacts at immutable pi-daddy Handoff B commit
-  `3070152efd4633bc40f5065e892d5eee8372ffc8` (PR #11 history). V2 dispatch happens
+  canonical contract artifacts at immutable pi-daddy 0.19.0 commit
+  `c364a6717e3d5e369ecd3298b9cbb595eb94d9b2`. V2 dispatch happens
   before the legacy fallback and covers `capability_decision`, `workspace_lease`, `child_lifecycle`,
   and `check_receipt`. The former `schema_version` / `record_type` “governance v1” shape was a
   hypothetical harness fixture, not a pi-daddy release format; it is no longer accepted or cited as
@@ -206,8 +206,11 @@ as cross-stream workflow chronology.
 
 There are two refusal vocabularies and they are not the same list. A **v2** record carries the
 producer's own code, and the accepted set is derived exactly from `#/$defs/refusalCode` in the pinned
-schema — 31 codes at commit `3070152`, including `GRANT_ID_MALFORMED`. The real-builder verifier
-independently checks the production `REFUSAL_CODES` export against that derived set. **Legacy 0.17**
+schema — 32 codes at commit `c364a67`, including `GRANT_ID_MALFORMED` and the
+production-reachable `WORKSPACE_NOT_AUTHORIZED`. The latter's real planner/builder regression
+fixture preserves its exact denied `workspace:<id>` capability, structured refusal, nested
+correlation, and run/task joins. The real-builder verifier independently checks the production
+`REFUSAL_CODES` export against that derived set. **Legacy 0.17**
 records carry no structured refusal, so the adapter
 classifies them into its own stable normalized codes: `CAPABILITY_ESCALATION`,
 `UNDECLARED_CAPABILITIES`, `UNKNOWN_CAPABILITY`, `APPROVAL_REQUIRED`, `APPROVAL_NO_UI`,

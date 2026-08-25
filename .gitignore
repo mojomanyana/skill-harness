@@ -9,6 +9,7 @@ packages/core/LICENSE
 packages/adapters/LICENSE
 packages/cli/LICENSE
 packages/skill-harness/LICENSE
+release-artifacts/
 
 # Scratch / local
 /tmp/

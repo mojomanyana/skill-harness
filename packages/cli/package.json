@@ -41,7 +41,7 @@
         "node": ">=20"
     },
     "scripts": {
-        "prepack": "rm -rf ./assets && mkdir -p ./assets && cp ../../assets/report.* ./assets/ && cp ../../LICENSE ./LICENSE"
+        "prepack": "node ../../scripts/release-pack.mjs --guard"
     },
     "dependencies": {
         "@skill-harness/core": "0.11.0",

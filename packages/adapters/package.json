@@ -37,7 +37,7 @@
         "node": ">=20"
     },
     "scripts": {
-        "prepack": "cp ../../LICENSE ./LICENSE"
+        "prepack": "node ../../scripts/release-pack.mjs --guard"
     },
     "dependencies": {
         "@skill-harness/core": "0.11.0"

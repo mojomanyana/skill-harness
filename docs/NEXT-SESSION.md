@@ -5,7 +5,51 @@
 half-finished and what will bite you. Release notes live in `PUBLISHING.md` — this file
 deliberately does not restate them.*
 
-## Cross-repository pi-daddy v2 contract repair — implementation handoff
+## Pi-daddy 0.19.0 ledger-v2 contract re-pin — current handoff
+
+**State:** deterministic synchronization branch `fix/pi-daddy-c364-contract-repin`,
+started from exact skill-harness `main`
+`fb56cc8d39ebf16ab3b7e662db63b63357bb659e`. The producer pin is exact pi-daddy
+`c364a6717e3d5e369ecd3298b9cbb595eb94d9b2` / 0.19.0; both remote mains were
+verified at those revisions before the branch was created.
+
+The producer's closed refusal vocabulary moves from 31 to 32 codes by adding
+production-reachable `WORKSPACE_NOT_AUTHORIZED`. The regression fixture is generated
+by production `planDelegation` and mapped through production `buildRecord`; it retains
+the denied `workspace:production` identity, full structured refusal, nested
+correlation, and run/task joins. The real-builder matrix is 47 positive cases and 10
+fail-closed mutations, with all 32 refusal codes preserved. `PINNED.json` records only provenance it can rederive from the exact producer commit:
+repository, commit/version, source paths, schema digest, and all seven byte-vendored
+artifact digests.
+
+This is contract synchronization only. No model or judge calls, release, publish,
+tag, merge, or OS-sandbox claim belongs to it.
+
+**PR #63 review follow-up:** independent review first found that a reused ignored
+`packages/cli/dist/cli.js` could retain mode 0755 through TypeScript and produce a
+different archive than a clean 0644 build. A whole-change re-review then found three
+more release-control defects: nested output symlinks could escape to an external target,
+package inputs such as `package.json`/README were not comprehensively checked, and the
+manifest did not bind source or toolchain identity.
+
+The repaired mandatory `npm run release:pack` path now requires clean tracked source,
+records exact commit/tree and Node/npm versions, validates every existing output
+component without following links, recreates only known generated roots, and compares an
+explicit source inventory with npm's dry-run plan, actual pack metadata, and real tar
+paths/types/modes/sizes/bytes. Failures remove all four expected archives and completion
+evidence; the manifest is written last by same-directory temporary-file rename. Raw
+workspace pack/publish remains fail-closed. Hostile regressions cover direct/nested/
+chained/dangling output links, package-input links/FIFOs/missing files, declaration and
+npm inventory drift, actual tar mutation, dirty source, stale candidate/toolchain
+manifests, and removed CLI normalization. The lock now resolves runtime `js-yaml` to
+4.3.1, clearing the production-only audit without a broad audit fix. The dependency
+floor changes only core's package metadata; final authorized archive SHA-256 values are
+core `549d86e2952d0d224448ee50aafbd8665eee7331b9bbfe7e5d5bd284eb80a2fc`,
+adapters `92f016bb413b2dfe8b1cf38b716ba7a092266ff3ebc4d3c7afabb9d402e2dc26`, CLI
+`f4800a8c0a784016b6c094ea5155ea2383dfb6ff2c8bb47489332ff8f047d343`, and meta
+`e52fa3665c641973fc5a870b54694e7e71922c05be630a830fb5953e040ec830`.
+
+## Previous cross-repository pi-daddy v2 contract repair — historical handoff
 
 **State:** product-fix branch in progress; no release action is authorized. The exact
 starting state was clean `main` at
