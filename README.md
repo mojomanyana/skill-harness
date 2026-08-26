@@ -279,8 +279,9 @@ nobody asked for. Stronger than a default: a metered judge is **refused** unless
 say so, whether it arrived via `--judge`, via `SKILL_HARNESS_JUDGE`, or from the judge
 a run recorded (which `grade` reuses). Opt in per command with `--allow-metered-judge`
 or per repo with `SKILL_HARNESS_ALLOW_METERED_JUDGE=1` — an API key's rate limits are
-worth having for a large `--reps` run, but you choose it. Free providers are
-allow-listed (`claude-code` and local runtimes like `ollama`); anything unclassified is
+worth having for a large `--reps` run, but you choose it. Subscription-backed
+providers are allow-listed (`claude-code` and Pi's `openai-codex`), as are local
+runtimes like `ollama`; anything unclassified — including direct `openai` — is
 assumed to bill. `skill-harness --version` prints the running version, and every run
 banner and `results.yaml` now records it.
 

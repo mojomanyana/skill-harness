@@ -6,15 +6,17 @@ import { BAKED_DEFAULT_JUDGE } from "./defaults.js";
  * Judge providers that cannot bill a per-token API.
  *
  * `claude-code` shells out to the `claude` CLI, authenticated with the user's
- * Claude subscription (OAuth). `ollama`/`lmstudio`/`llamacpp`/`local` are local
- * runtimes. Everything else is assumed to charge.
+ * Claude subscription (OAuth). `openai-codex` stays in Pi and authenticates with
+ * the user's ChatGPT subscription (OAuth). `ollama`/`lmstudio`/`llamacpp`/`local`
+ * are local runtimes. Everything else — including direct `openai` — is assumed
+ * to charge.
  *
  * An **allow-list**, deliberately, not a deny-list of known-paid providers: a
  * provider nobody has classified yet should be treated as able to bill, because
  * being wrong in that direction produces a surprise invoice while being wrong in
  * this direction produces one extra flag.
  */
-const FREE_JUDGE_PROVIDERS = new Set(["claude-code", "ollama", "lmstudio", "llamacpp", "local"]);
+const FREE_JUDGE_PROVIDERS = new Set(["claude-code", "openai-codex", "ollama", "lmstudio", "llamacpp", "local"]);
 
 /** Whether judging with this ref can charge a per-token API. */
 export function isMeteredJudge(judge: ModelRef): boolean {
