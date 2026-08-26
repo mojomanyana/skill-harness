@@ -51,6 +51,59 @@ describe("pi adapter nested-run safety", () => {
     expect(cmd).toBe("pi");
     expect(args).toContain("--no-extensions");
   });
+
+  it("routes exact openai-codex subject and judge identities through Pi without API-key or Codex CLI flags", async () => {
+    await piAdapter.run({
+      skillDir: fakeSkill(),
+      model: { provider: "openai-codex", model: "gpt-5.6-luna" },
+      mode: "force",
+      turns: ["hi"],
+      cwd: "/tmp",
+    });
+    await piAdapter.judge({
+      model: { provider: "openai-codex", model: "gpt-5.6-sol" },
+      prompt: "p",
+      cwd: "/tmp",
+    });
+
+    const [[subjectCmd, subjectArgs, subjectOpts], [judgeCmd, judgeArgs, judgeOpts]] = mockedExec.mock.calls;
+    expect(subjectCmd).toBe("pi");
+    expect(subjectArgs).toEqual([
+      "--no-skills",
+      "--append-system-prompt",
+      "---\nname: s\ndescription: d\n---\n\n## Do the thing\n",
+      "--no-context-files",
+      "--no-extensions",
+      "--provider",
+      "openai-codex",
+      "--model",
+      "gpt-5.6-luna",
+      "--no-session",
+      "-p",
+      "hi",
+    ]);
+    expect(subjectOpts?.env).toBeUndefined();
+
+    expect(judgeCmd).toBe("pi");
+    expect(judgeArgs).toEqual([
+      "--no-skills",
+      "--no-context-files",
+      "--no-extensions",
+      "--no-session",
+      "--provider",
+      "openai-codex",
+      "--model",
+      "gpt-5.6-sol",
+      "-p",
+      "p",
+    ]);
+    expect(judgeOpts).not.toHaveProperty("env");
+
+    for (const args of [subjectArgs, judgeArgs]) {
+      expect(args.some((arg) => /^--?(?:api[-_]?key|token|authorization)(?:[=-]|$)/i.test(arg))).toBe(false);
+      expect(args.some((arg) => /^--?codex(?:[=-]|$)/i.test(arg))).toBe(false);
+    }
+  });
 });
 
 describe("skill-delivery tripwire", () => {

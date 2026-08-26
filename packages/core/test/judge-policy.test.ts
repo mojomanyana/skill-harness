@@ -9,8 +9,9 @@ beforeEach(() => { delete process.env[ENV]; __resetEnvWarnings(); });
 afterEach(() => { delete process.env[ENV]; });
 
 describe("isMeteredJudge", () => {
-  test("the Claude subscription path is not metered", () => {
+  test("subscription-backed providers are not metered", () => {
     expect(isMeteredJudge(parseModelRef("claude-code:claude-opus-4-8"))).toBe(false);
+    expect(isMeteredJudge(parseModelRef("openai-codex:gpt-5.6-sol"))).toBe(false);
   });
 
   test("a local runtime is not metered", () => {
@@ -18,9 +19,10 @@ describe("isMeteredJudge", () => {
     expect(isMeteredJudge(parseModelRef("lmstudio:whatever"))).toBe(false);
   });
 
-  test("an API-key provider is metered — including the one that used to be the default", () => {
+  test("an API-key provider is metered — including direct OpenAI and the old default", () => {
     expect(isMeteredJudge(parseModelRef("anthropic:claude-opus-4-8"))).toBe(true);
     expect(isMeteredJudge(parseModelRef("fireworks:accounts/fireworks/models/kimi-k3"))).toBe(true);
+    expect(isMeteredJudge(parseModelRef("openai:gpt-5.6-sol"))).toBe(true);
   });
 
   // Allow-list, not deny-list: a provider nobody has classified is treated as
@@ -31,8 +33,9 @@ describe("isMeteredJudge", () => {
 });
 
 describe("assertJudgeAllowed", () => {
-  test("a subscription judge passes silently", () => {
+  test("subscription judges pass silently", () => {
     expect(() => assertJudgeAllowed(parseModelRef("claude-code:claude-opus-4-8"), { source: "--judge" })).not.toThrow();
+    expect(() => assertJudgeAllowed(parseModelRef("openai-codex:gpt-5.6-sol"), { source: "--judge" })).not.toThrow();
   });
 
   test("a metered judge is refused, naming the provider and the source of the choice", () => {

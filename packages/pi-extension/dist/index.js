@@ -7721,7 +7721,7 @@ function defaultJudge() {
 }
 
 // packages/core/dist/judge-policy.js
-var FREE_JUDGE_PROVIDERS = /* @__PURE__ */ new Set(["claude-code", "ollama", "lmstudio", "llamacpp", "local"]);
+var FREE_JUDGE_PROVIDERS = /* @__PURE__ */ new Set(["claude-code", "openai-codex", "ollama", "lmstudio", "llamacpp", "local"]);
 function isMeteredJudge(judge) {
   return !FREE_JUDGE_PROVIDERS.has(judge.provider);
 }
