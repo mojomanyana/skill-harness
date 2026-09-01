@@ -21,7 +21,8 @@
         "dev": "tsx packages/cli/src/cli.ts",
         "test": "vitest run",
         "typecheck": "tsc -b packages/core packages/adapters packages/cli && tsc --noEmit -p packages/pi-extension/tsconfig.json",
-        "verify:pi-daddy-contract": "node scripts/verify-pi-daddy-builders.mjs"
+        "verify:pi-daddy-contract": "node scripts/verify-pi-daddy-builders.mjs",
+        "verify:pi-daddy-v3-contract": "node scripts/verify-pi-daddy-v3-builders.mjs"
     },
     "engines": {
         "node": ">=20"

@@ -24,6 +24,7 @@ npm i -g @skill-harness/cli
 | `skill-harness grade <run-dir> [--judge p:m]` | re-grade saved transcripts |
 | `skill-harness review <skill> --skills <root> [--port N]` | serve the interactive review UI |
 | `skill-harness add-test <skill> --skills <root> --id ID --title T ...` | scaffold a new scenario |
+| `skill-harness qualification prepare\|start\|status\|poll\|validate\|abort ...` | durable external-config qualification lifecycle |
 
 ## More
 

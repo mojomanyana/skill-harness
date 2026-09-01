@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-harness.dev/schemas/qualification-invocation-request-v1.schema.json",
+  "title": "skill-harness qualification invocation request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "measurement_identity_sha256", "invocation_id", "scenario", "role", "counts_as_measurement", "arms", "selected_arm", "repetition"],
+  "properties": {
+    "schema_version": { "const": "qualification-invocation-request-v1" },
+    "measurement_identity_sha256": { "$ref": "#/$defs/sha256" },
+    "invocation_id": { "$ref": "#/$defs/id" },
+    "scenario": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "version", "stimulus_sha256", "rubric_sha256", "input_path", "input_sha256", "working_directory"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" }, "version": { "$ref": "#/$defs/id" },
+        "stimulus_sha256": { "$ref": "#/$defs/sha256" }, "rubric_sha256": { "$ref": "#/$defs/sha256" },
+        "input_path": { "type": "string", "minLength": 1 }, "input_sha256": { "$ref": "#/$defs/sha256" },
+        "working_directory": { "type": "string", "minLength": 1 }
+      }
+    },
+    "role": { "enum": ["holdout-author", "holdout-reviewer", "subject", "judge", "calibration", "canary"] },
+    "counts_as_measurement": { "type": "boolean" },
+    "arms": {
+      "type": "object", "additionalProperties": false, "required": ["subject", "judge"],
+      "properties": { "subject": { "$ref": "#/$defs/id" }, "judge": { "$ref": "#/$defs/id" } }
+    },
+    "selected_arm": { "$ref": "#/$defs/id" },
+    "repetition": { "type": "integer", "minimum": 0 }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" }
+  }
+}

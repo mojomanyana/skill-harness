@@ -28,7 +28,7 @@ export interface SeededAssert {
 
 export interface TrajectoryEventSource {
   /** Native format adapter registered by the harness adapter. */
-  adapter: "normalized-v1" | "principal-assurance-v1" | "pi-daddy-v1";
+  adapter: "normalized-v1" | "principal-assurance-v1" | "pi-daddy-v1" | "pi-daddy-ledger-v3";
   /** Workspace-relative file/glob. Never an absolute path or traversal. */
   path: string;
   /** Missing evidence is an error by default; false is for optional supplemental ledgers. */
@@ -207,7 +207,7 @@ function resolveEventSources(env: unknown, id: string, file: string): Trajectory
     throw new SpecError(`scenario \`${id}\` env.event_sources must be a non-empty list`, file);
   }
   const allowedAdapters = new Set<TrajectoryEventSource["adapter"]>([
-    "normalized-v1", "principal-assurance-v1", "pi-daddy-v1",
+    "normalized-v1", "principal-assurance-v1", "pi-daddy-v1", "pi-daddy-ledger-v3",
   ]);
   return raw.map((entry, index) => {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) {

@@ -39,8 +39,44 @@ jobs:
         run: npm run verify:pi-daddy-contract -- ../pi-daddy
         working-directory: skill-harness
 
+  pi-daddy-ledger-v3-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out skill-harness
+        uses: actions/checkout@v5
+        with:
+          path: skill-harness
+      - name: Check out immutable pi-daddy ledger-v3 producer
+        uses: actions/checkout@v5
+        with:
+          repository: mojomanyana/pi-daddy
+          ref: 591abb4a358bf8a84455486812b83609e2a47e3f
+          path: pi-daddy-v3
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            skill-harness/package-lock.json
+            pi-daddy-v3/package-lock.json
+      - name: Install skill-harness dependencies
+        run: npm ci
+        working-directory: skill-harness
+      - name: Install pi-daddy dependencies
+        run: npm ci
+        working-directory: pi-daddy-v3
+      - name: Check deterministic ledger-v3 vendoring
+        run: node scripts/vendor-pi-daddy-ledger-v3-contract.mjs ../pi-daddy-v3 591abb4a358bf8a84455486812b83609e2a47e3f --check
+        working-directory: skill-harness
+      - name: Verify real ledger-v3 production builders
+        run: npm run verify:pi-daddy-v3-contract -- ../pi-daddy-v3
+        working-directory: skill-harness
+      - name: Check built ledger-v3 adapter directly
+        run: node scripts/check-pi-daddy-v3-contract.mjs
+        working-directory: skill-harness
+
   build-test:
-    needs: pi-daddy-contract
+    needs: [pi-daddy-contract, pi-daddy-ledger-v3-contract]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -55,7 +91,7 @@ jobs:
       - name: Reproduce canonical release archives
         run: npm run release:pack -- --output "$RUNNER_TEMP/skill-harness-release"
   dogfood-lint:
-    needs: pi-daddy-contract
+    needs: [pi-daddy-contract, pi-daddy-ledger-v3-contract]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

@@ -469,8 +469,10 @@ describe("pi-daddy 0.17 and 0.18 ledger normalization", () => {
     }
   });
 
-  it("rejects unsupported explicit ledger versions and the old hypothetical schema", () => {
-    expect(() => normalizePiDaddyLedger(fixture("pi-daddy-unsupported-version.jsonl"))).toThrow(/unsupported pi-daddy ledgerVersion 3.*expected 2/i);
+  it("rejects a v2-shaped lookalike stamped v3 and the old hypothetical schema", () => {
+    // Ledger v3 is now separately supported; this historical fixture remains
+    // invalid because it is a v2 lease with no v3 execution identity.
+    expect(() => normalizePiDaddyLedger(fixture("pi-daddy-unsupported-version.jsonl"))).toThrow(/invalid pi-daddy v3 workspace_lease.*executionId/i);
     expect(() => normalizePiDaddyLedger('{"schema_version":"1.0","record_type":"child_lifecycle"}\n')).toThrow(/schema_version.*not a public pi-daddy ledger format/i);
   });
 

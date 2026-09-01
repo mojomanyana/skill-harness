@@ -34,6 +34,11 @@ const SUPPORTED_KEYWORDS = new Set([
   // value constraints
   "enum", "const", "minLength", "maxLength", "minimum", "pattern", "format",
 ]);
+/** Ledger v3 adds only closed composition/conditionals and property-name schemas. */
+const V3_SUPPORTED_KEYWORDS = new Set([
+  ...SUPPORTED_KEYWORDS,
+  "allOf", "anyOf", "if", "then", "propertyNames",
+]);
 
 /**
  * The shape each supported keyword must have. A keyword whose *name* is known but
@@ -44,6 +49,11 @@ const SUPPORTED_KEYWORDS = new Set([
 const KEYWORD_SHAPES: Record<string, { check: (value: unknown) => boolean; expected: string }> = {
   $ref: { check: (value) => typeof value === "string", expected: "a string" },
   oneOf: { check: (value) => Array.isArray(value) && value.length > 0, expected: "a non-empty array" },
+  allOf: { check: (value) => Array.isArray(value) && value.length > 0, expected: "a non-empty array" },
+  anyOf: { check: (value) => Array.isArray(value) && value.length > 0, expected: "a non-empty array" },
+  if: { check: (value) => isSchemaObject(value), expected: "a schema object" },
+  then: { check: (value) => isSchemaObject(value), expected: "a schema object" },
+  propertyNames: { check: (value) => isSchemaObject(value), expected: "a schema object" },
   type: { check: (value) => typeof value === "string" || (Array.isArray(value) && value.length > 0 && value.every((entry) => typeof entry === "string")), expected: "a string or array of strings" },
   properties: { check: (value) => isSchemaObject(value), expected: "an object" },
   required: { check: (value) => Array.isArray(value) && value.every((entry) => typeof entry === "string"), expected: "an array of strings" },
@@ -76,12 +86,22 @@ type Schema = Record<string, unknown>;
  * a keyword fails loudly rather than validating less than it claims.
  */
 export function assertSupportedSchema(schema: unknown, label: string, path = "#"): void {
+  assertSchemaSupported(schema, label, path, false);
+}
+
+/** V3-only evaluator profile; the frozen v2 profile above remains unchanged. */
+export function assertSupportedSchemaV3(schema: unknown, label: string, path = "#"): void {
+  assertSchemaSupported(schema, label, path, true);
+}
+
+function assertSchemaSupported(schema: unknown, label: string, path: string, v3: boolean): void {
   if (typeof schema !== "object" || schema === null || Array.isArray(schema)) {
     throw new Error(`${label} is not a JSON Schema object at ${path}`);
   }
   const node = schema as Schema;
+  const supported = v3 ? V3_SUPPORTED_KEYWORDS : SUPPORTED_KEYWORDS;
   for (const keyword of Object.keys(node)) {
-    if (!SUPPORTED_KEYWORDS.has(keyword)) {
+    if (!supported.has(keyword)) {
       throw new Error(`${label} uses unsupported JSON Schema keyword \`${keyword}\` at ${path}; the closed-contract evaluator refuses to validate less than the schema declares`);
     }
     const shape = KEYWORD_SHAPES[keyword];
@@ -107,12 +127,18 @@ export function assertSupportedSchema(schema: unknown, label: string, path = "#"
       throw new Error(`${label} combines $ref with ${siblings.map((keyword) => `\`${keyword}\``).join(", ")} at ${path}; the closed-contract evaluator would drop the sibling constraint, so it refuses the schema instead`);
     }
   }
-  for (const [name, entry] of Object.entries(object(node.$defs) ?? {})) assertSupportedSchema(entry, label, `${path}/$defs/${name}`);
-  for (const [index, entry] of (Array.isArray(node.oneOf) ? node.oneOf : []).entries()) assertSupportedSchema(entry, label, `${path}/oneOf/${index}`);
-  for (const [name, entry] of Object.entries(object(node.properties) ?? {})) assertSupportedSchema(entry, label, `${path}/properties/${name}`);
-  if (node.items !== undefined) assertSupportedSchema(node.items, label, `${path}/items`);
+  for (const [name, entry] of Object.entries(object(node.$defs) ?? {})) assertSchemaSupported(entry, label, `${path}/$defs/${name}`, v3);
+  for (const keyword of ["oneOf", "allOf", "anyOf"] as const) {
+    for (const [index, entry] of (Array.isArray(node[keyword]) ? node[keyword] as unknown[] : []).entries()) {
+      assertSchemaSupported(entry, label, `${path}/${keyword}/${index}`, v3);
+    }
+  }
+  for (const [name, entry] of Object.entries(object(node.properties) ?? {})) assertSchemaSupported(entry, label, `${path}/properties/${name}`, v3);
+  for (const keyword of ["items", "propertyNames", "if", "then"] as const) {
+    if (node[keyword] !== undefined) assertSchemaSupported(node[keyword], label, `${path}/${keyword}`, v3);
+  }
   if (node.additionalProperties !== undefined && node.additionalProperties !== false && node.additionalProperties !== true) {
-    assertSupportedSchema(node.additionalProperties, label, `${path}/additionalProperties`);
+    assertSchemaSupported(node.additionalProperties, label, `${path}/additionalProperties`, v3);
   }
 }
 
@@ -133,6 +159,15 @@ export function validateClosedSchema(
   return validate(schema, schema, value, "", options.knownFieldNames ?? new Set());
 }
 
+/** Evaluate the additional closed constructs used by the separately pinned v3 schema. */
+export function validateClosedSchemaV3(
+  schema: Schema,
+  value: unknown,
+  options: { knownFieldNames?: ReadonlySet<string> } = {},
+): SchemaViolation[] {
+  return validate(schema, schema, value, "", options.knownFieldNames ?? new Set());
+}
+
 /** Every property name declared anywhere in the document — safe to echo. */
 export function declaredPropertyNames(schema: unknown): Set<string> {
   const names = new Set<string>();
@@ -144,8 +179,10 @@ export function declaredPropertyNames(schema: unknown): Set<string> {
       walk(entry);
     }
     for (const entry of Object.values(object(current.$defs) ?? {})) walk(entry);
-    for (const entry of Array.isArray(current.oneOf) ? current.oneOf : []) walk(entry);
-    if (current.items !== undefined) walk(current.items);
+    for (const keyword of ["oneOf", "allOf", "anyOf"] as const) {
+      for (const entry of Array.isArray(current[keyword]) ? current[keyword] as unknown[] : []) walk(entry);
+    }
+    for (const keyword of ["items", "propertyNames", "if", "then"] as const) if (current[keyword] !== undefined) walk(current[keyword]);
     if (current.additionalProperties && typeof current.additionalProperties === "object") walk(current.additionalProperties);
   };
   walk(schema);
@@ -158,6 +195,16 @@ function validate(root: Schema, schema: Schema, value: unknown, path: string, kn
     return validate(root, resolved, value, path, known);
   }
   const violations: SchemaViolation[] = [];
+  if (Array.isArray(schema.allOf)) {
+    for (const branch of schema.allOf as Schema[]) violations.push(...validate(root, branch, value, path, known));
+  }
+  if (Array.isArray(schema.anyOf)) {
+    const branches = (schema.anyOf as Schema[]).map((branch) => validate(root, branch, value, path, known));
+    if (!branches.some((branch) => branch.length === 0)) violations.push(...bestBranch(root, schema.anyOf as Schema[], branches, value, path));
+  }
+  if (schema.if !== undefined && validate(root, schema.if as Schema, value, path, known).length === 0 && schema.then !== undefined) {
+    violations.push(...validate(root, schema.then as Schema, value, path, known));
+  }
   const types = typeList(schema);
   if (types.length && !types.some((type) => matchesType(type, value))) {
     return [{ path, message: `must be ${describeTypes(types)}` }];
@@ -188,6 +235,9 @@ function validate(root: Schema, schema: Schema, value: unknown, path: string, kn
 function validateObject(root: Schema, schema: Schema, record: Record<string, unknown>, path: string, known: ReadonlySet<string>): SchemaViolation[] {
   const violations: SchemaViolation[] = [];
   const properties = object(schema.properties) ?? {};
+  if (schema.propertyNames !== undefined) {
+    for (const name of Object.keys(record)) violations.push(...validate(root, schema.propertyNames as Schema, name, path, known));
+  }
   for (const name of (Array.isArray(schema.required) ? schema.required : []) as string[]) {
     if (!Object.hasOwn(record, name)) violations.push({ path: child(path, name), message: "is required" });
   }

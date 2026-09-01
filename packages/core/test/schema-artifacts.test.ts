@@ -9,6 +9,8 @@ describe("versioned public schemas", () => {
     ["specification-v1.schema.json", "https://skill-harness.dev/schemas/specification-v1.schema.json"],
     ["trajectory-event-v1.schema.json", "https://skill-harness.dev/schemas/trajectory-event-v1.schema.json"],
     ["results-v2.schema.json", "https://skill-harness.dev/schemas/results-v2.schema.json"],
+    ["qualification-config-v1.schema.json", "https://skill-harness.dev/schemas/qualification-config-v1.schema.json"],
+    ["qualification-invocation-request-v1.schema.json", "https://skill-harness.dev/schemas/qualification-invocation-request-v1.schema.json"],
   ])("ships parseable %s", (file, id) => {
     const schema = JSON.parse(readFileSync(join(root, file), "utf8"));
     expect(schema.$schema).toContain("2020-12");

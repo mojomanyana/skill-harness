@@ -254,7 +254,16 @@ skill-harness init   <skill>     --skills <root> [--force]     # scaffold a comm
 skill-harness suggest <skill>    --skills <root> [--model prov:model] [--force]  # LLM-draft a spec from SKILL.md (spends tokens)
 skill-harness list   --skills <root>                          # discovered skills + spec status
 skill-harness lint   <skill|all> --skills <root>               # validate specs/fixtures + results-consistency; CI gate (exits non-zero on findings)
+skill-harness qualification prepare --spool DIR --config FILE --request FILE
+skill-harness qualification start|status|poll|abort --spool DIR --id ID
+skill-harness qualification validate --spool DIR               # qualification-runner-v1 durable spool; separate from ordinary run/grade
 ```
+
+The separately versioned [`qualification-runner-v1`](docs/QUALIFICATION-RUNNER.md)
+uses external, closed configuration; exact source-built pins; an OAuth-only child
+environment; atomic exactly-once call accounting; detached supervision; and
+post-run provider/model attestation. It contains no Principal board, holdout, or
+measurement identity. Its inert example invokes no model.
 
 `capture` is deliberately absent from this list: it exists only as
 `/skill-harness capture` inside the pi extension, and it refuses to run headless
