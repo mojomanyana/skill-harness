@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { describe, expect, it } from "vitest";
-import { QUALIFICATION_ACCOUNTING_POLICY } from "../src/qualification-config.js";
+import { QUALIFICATION_ACCOUNTING_POLICY, qualificationCanonicalJson, qualificationSha256 } from "../src/qualification-config.js";
 import {
   appendQualificationAccountingEvent,
   atomicWriteCanonical,
@@ -67,6 +67,11 @@ const finish = (actualProvider = provider, actualModel = model, extra = {}) => {
     cp.spawn(process.execPath, ['-e', 'setTimeout(()=>require("node:fs").writeFileSync(process.argv[1],"late"),500)', marker], { stdio: 'ignore' });
     await new Promise(r => setTimeout(r, 5000)); finish(); return;
   }
+  if (command.startsWith('orphan-grandchild:')) {
+    const marker = command.slice('orphan-grandchild:'.length);
+    cp.spawn(process.execPath, ['-e', 'setTimeout(()=>require("node:fs").writeFileSync(process.argv[1],"orphan"),500)', marker], { stdio: 'ignore' }).unref();
+    finish(); return;
+  }
   if (command === 'invalid') { process.stdout.write('{not-json\\n'); return; }
   if (command === 'missing-identity') { line({ type: 'message_end', message: { role: 'assistant', content: [] } }); return; }
   if (command === 'provider-substitution') { finish('openai', model); return; }
@@ -91,9 +96,9 @@ function setup(command = "complete", overrides: { timeout?: number; output?: num
   const envNames = ["HOME", "PATH", "FAKE_AUTH_STATUS", "FAKE_AUTH_TYPE", "FAKE_COUNT_FILE"];
   const config = {
     schema_version: "qualification-config-v1", mode: "test",
-    product: { repository: "https://example.invalid/product", commit: hex("1", 40), tree: hex("2", 40), package_sha256: hex("3"), package_bytes: 1 },
-    engine: { repository: "https://example.invalid/engine", commit: hex("4", 40), tree: hex("5", 40), package_sha256: { core: hex("6"), adapters: hex("7"), cli: hex("8"), meta: hex("9") } },
-    producer: { repository: "https://example.invalid/producer", commit: hex("a", 40), tree: hex("b", 40), version: "0.20.0", ledger_version: 3 },
+    product: { repository: "https://example.invalid/product", commit: hex("1", 40), tree: hex("2", 40), checkout_path: root, package_path: executable, package_sha256: hex("3"), package_bytes: 1 },
+    engine: { repository: "https://example.invalid/engine", commit: hex("4", 40), tree: hex("5", 40), checkout_path: root, package_paths: { core: executable, adapters: executable, cli: executable, meta: executable }, package_sha256: { core: hex("6"), adapters: hex("7"), cli: hex("8"), meta: hex("9") } },
+    producer: { repository: "https://example.invalid/producer", commit: hex("a", 40), tree: hex("b", 40), checkout_path: root, version: "0.20.0", ledger_version: 3, ledger_schema_sha256: hex("a") },
     runner: { version: "qualification-runner-v1", executable: executablePin, conflicting_parent_environment: overrides.conflict ?? "remove-and-record" },
     accounting: structuredClone(QUALIFICATION_ACCOUNTING_POLICY),
     arms: [
@@ -121,6 +126,13 @@ async function run(files: ReturnType<typeof setup>) {
 }
 
 function calls(path: string): number { return existsSync(path) ? readFileSync(path, "utf8").trim().split("\n").filter(Boolean).length : 0; }
+async function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error("timed out waiting for test condition");
+    await sleep(10);
+  }
+}
 
 describe("qualification OAuth boundary", () => {
   it("requires a dedicated stored OAuth credential and refuses stored API keys or Codex routing overrides", () => {
@@ -148,6 +160,21 @@ describe("qualification OAuth boundary", () => {
     expect(redacted).not.toContain(token);
     expect(redacted).not.toContain(apiValue);
     expect(redacted).toContain("REDACTED");
+  });
+
+  it("refuses stale replayed auth evidence and refreshes it through a new metadata check", async () => {
+    const files = setup();
+    const first = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
+    const path = join(files.spool, "invocations", "invocation-0001", "auth-evidence.json");
+    const evidence = JSON.parse(readFileSync(path, "utf8"));
+    evidence.checked_at = "2026-01-01T00:00:00.000Z";
+    const { evidence_sha256: _old, ...base } = evidence;
+    evidence.evidence_sha256 = qualificationSha256(qualificationCanonicalJson(base));
+    writeFileSync(path, `${qualificationCanonicalJson(evidence)}\n`);
+    await expect(superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: first.child_env })).rejects.toThrow(/auth evidence.*stale/i);
+    const refreshed = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
+    await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: refreshed.child_env });
+    expect(qualificationInvocationStatus(files.spool, "invocation-0001").terminal_status).toBe("completed");
   });
 
   it("records metadata-only OAuth readiness and only environment names, never values", async () => {
@@ -211,15 +238,19 @@ describe("qualification durable execution", () => {
     expect(calls(files.count)).toBe(1);
     expect(readQualificationAccounting(files.spool).events).toHaveLength(1);
     if (command === "huge") expect(status.output.stdout.truncated).toBe(true);
+    if (command === "refused") {
+      const receipt = JSON.parse(readFileSync(join(files.spool, "invocations", "invocation-0001", "terminal", "receipt.json"), "utf8"));
+      expect(receipt).toMatchObject({ provider_model_identity_observed: true, successful_execution: false, terminal_status: "refused" });
+    }
   });
 
   it("retains durable partial output while running and permits safe concurrent polling", async () => {
     const files = setup("partial:180");
     const auth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
     const supervisor = superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env });
-    await sleep(60);
-    expect(readQualificationLifecycle(files.spool, "invocation-0001").phase).toBe("running");
     const partial = join(files.spool, "invocations", "invocation-0001", "stdout.partial");
+    await waitFor(() => readQualificationLifecycle(files.spool, "invocation-0001").phase === "running" &&
+      existsSync(partial) && readFileSync(partial, "utf8").includes('"type":"session"'));
     // Only complete sanitized lines are made durable; the preceding session line
     // proves partial progress without ever flushing a split credential/token.
     expect(readFileSync(partial, "utf8")).toContain('"type":"session"');
@@ -324,6 +355,16 @@ describe("qualification durable execution", () => {
     expect(calls(files.count)).toBe(1);
   });
 
+  it("cleans up inherited process-group descendants even when the group leader exits first", async () => {
+    const markerRoot = mkdtempSync(join(tmpdir(), "qualification-orphan-marker-"));
+    const marker = join(markerRoot, "orphan.txt");
+    const files = setup(`orphan-grandchild:${marker}`, { timeout: 2000 });
+    const status = await run(files);
+    expect(status.terminal_status).toBe("completed");
+    await sleep(700);
+    expect(existsSync(marker)).toBe(false);
+  });
+
   it("times out once, retains partial output, kills the process group, and never accepts late completion", async () => {
     const markerRoot = mkdtempSync(join(tmpdir(), "qualification-grandchild-marker-"));
     const marker = join(markerRoot, "late.txt");
@@ -338,6 +379,19 @@ describe("qualification durable execution", () => {
     expect(qualificationInvocationStatus(files.spool, "invocation-0001").terminal_status).toBe("timed-out");
   });
 
+  it("serializes an abort racing the launch claim into one internally consistent terminal", async () => {
+    const files = setup("sleep:100");
+    const auth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
+    const supervisor = superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env });
+    const abort = abortQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", reason: "operator-request" });
+    await Promise.allSettled([supervisor, abort]);
+    const status = qualificationInvocationStatus(files.spool, "invocation-0001");
+    expect(status.terminal_status).toBe("aborted");
+    expect(status.attempt).toBe(readQualificationAccounting(files.spool).events.length ? 1 : 0);
+    expect(validateQualificationRunnerSpool(files.spool).ok).toBe(true);
+    expect(calls(files.count)).toBeLessThanOrEqual(1);
+  });
+
   it("aborts a prepared reservation without consuming a call", async () => {
     const files = setup("sleep:5000");
     const status = await abortQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", reason: "operator-request" });
@@ -350,11 +404,22 @@ describe("qualification durable execution", () => {
     const files = setup("sleep:5000", { timeout: 10000 });
     const auth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
     const supervisor = superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env });
-    await sleep(60);
+    await waitFor(() => qualificationInvocationStatus(files.spool, "invocation-0001").phase === "running" && calls(files.count) === 1);
     await abortQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", reason: "operator-request" });
     await supervisor;
     expect(qualificationInvocationStatus(files.spool, "invocation-0001").terminal_status).toBe("aborted");
     expect(calls(files.count)).toBe(1);
+  });
+
+  it("rejects a receipt whose attempt/accounting claim disagree even when each file is canonical", async () => {
+    const files = setup();
+    await abortQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", reason: "operator-request" });
+    const contradictory = appendQualificationAccountingEvent(createQualificationAccountingLedger(), {
+      invocation_id: "invocation-0001", role: "subject", call_class: "subject", counts_as_measurement: true,
+      launched_at: "2026-08-28T12:00:00.000Z",
+    });
+    writeQualificationAccounting(files.spool, contradictory);
+    expect(() => validateQualificationRunnerSpool(files.spool)).toThrow(/attempt contradicts accounting/i);
   });
 
   it("detects artifact mutation after atomic terminal publication", async () => {

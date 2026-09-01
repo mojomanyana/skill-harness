@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import { QUALIFICATION_ACCOUNTING_POLICY } from "@skill-harness/core";
+import { consumeQualificationContinuationAuthority, qualificationSupervisorRuntimeArgs } from "../src/qualification.js";
 
 const REPO = resolve(import.meta.dirname, "../../..");
 const CLI = join(REPO, "packages", "cli", "src", "cli.ts");
@@ -27,7 +28,7 @@ function fixture(delay = 0) {
   const count = join(root, "calls.txt");
   const pin = { path: executable, sha256: sha(readFileSync(executable)) };
   const arm = (id: string, kind: "subject" | "judge", model: string) => ({ id, kind, provider: "fake", model, authentication: "test-oauth", executable: pin, resources: [], arguments: ["@{input_path}"], allowed_environment_names: ["HOME", "PATH", "FAKE_COUNT_FILE"], timeout_ms: 2000, output_limit_bytes: 65536, artifact: { type: "pi-jsonl", relative_path_template: "artifacts/{invocation_id}.jsonl" }, fallback: false, metered_override: false });
-  const config = { schema_version: "qualification-config-v1", mode: "test", product: { repository: "https://example.invalid/product", commit: hex("1",40), tree: hex("2",40), package_sha256: hex("3"), package_bytes: 1 }, engine: { repository: "https://example.invalid/engine", commit: hex("4",40), tree: hex("5",40), package_sha256: { core: hex("6"), adapters: hex("7"), cli: hex("8"), meta: hex("9") } }, producer: { repository: "https://example.invalid/producer", commit: hex("a",40), tree: hex("b",40), version: "0.20.0", ledger_version: 3 }, runner: { version: "qualification-runner-v1", executable: pin, conflicting_parent_environment: "remove-and-record" }, accounting: structuredClone(QUALIFICATION_ACCOUNTING_POLICY), arms: [arm("fake-subject","subject","fake-luna"),arm("fake-judge","judge","fake-sol")] };
+  const config = { schema_version: "qualification-config-v1", mode: "test", product: { repository: "https://example.invalid/product", commit: hex("1",40), tree: hex("2",40), checkout_path: root, package_path: executable, package_sha256: hex("3"), package_bytes: 1 }, engine: { repository: "https://example.invalid/engine", commit: hex("4",40), tree: hex("5",40), checkout_path: root, package_paths: { core: executable, adapters: executable, cli: executable, meta: executable }, package_sha256: { core: hex("6"), adapters: hex("7"), cli: hex("8"), meta: hex("9") } }, producer: { repository: "https://example.invalid/producer", commit: hex("a",40), tree: hex("b",40), checkout_path: root, version: "0.20.0", ledger_version: 3, ledger_schema_sha256: hex("a") }, runner: { version: "qualification-runner-v1", executable: pin, conflicting_parent_environment: "remove-and-record" }, accounting: structuredClone(QUALIFICATION_ACCOUNTING_POLICY), arms: [arm("fake-subject","subject","fake-luna"),arm("fake-judge","judge","fake-sol")] };
   const configPath=join(root,"config.json");writeFileSync(configPath,JSON.stringify(config));
   const request={schema_version:"qualification-invocation-request-v1",measurement_identity_sha256:hex("c"),invocation_id:"invocation-cli-1",scenario:{id:"fake-A1",version:"1",stimulus_sha256:hex("d"),rubric_sha256:hex("e"),input_path:prompt,input_sha256:sha(readFileSync(prompt)),working_directory:root},role:"subject",counts_as_measurement:true,arms:{subject:"fake-subject",judge:"fake-judge"},selected_arm:"fake-subject",repetition:0};
   const requestPath=join(root,"request.json");writeFileSync(requestPath,JSON.stringify(request));
@@ -42,6 +43,20 @@ function cli(f: ReturnType<typeof fixture>, args: string[], timeout=5000) {
 function lines(path:string){return existsSync(path)?readFileSync(path,"utf8").trim().split("\n").filter(Boolean).length:0}
 
 describe("qualification CLI lifecycle",()=>{
+  it("consumes continuation authority from a private one-use file instead of argv or environment", () => {
+    const root = mkdtempSync(join(tmpdir(), "qualification-continuation-"));
+    const path = join(root, "authority");
+    writeFileSync(path, "sentinel-continuation-authority", { mode: 0o600 });
+    expect(consumeQualificationContinuationAuthority(path)).toBe("sentinel-continuation-authority");
+    expect(existsSync(path)).toBe(false);
+  });
+
+  it("never inherits parent Node loader/import/debug arguments into a production supervisor", () => {
+    expect(qualificationSupervisorRuntimeArgs("production", "/pinned/cli.js")).toEqual([]);
+    expect(qualificationSupervisorRuntimeArgs("test", "/source/cli.ts")).toEqual(["--import", "tsx"]);
+    expect(qualificationSupervisorRuntimeArgs("test", "/built/cli.js")).toEqual([]);
+  });
+
   it("prepare/start/status/poll/validate operate on one durable invocation",()=>{
     const f=fixture(80);
     expect(cli(f,["qualification","prepare","--spool",f.spool,"--config",f.configPath,"--request",f.requestPath])).toMatchObject({status:0});

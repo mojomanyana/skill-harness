@@ -25,9 +25,9 @@ const arm = (id, kind, model) => ({
 const configuration = {
   schema_version: "qualification-config-v1",
   mode: "test",
-  product: { repository: "https://example.invalid/inert-product", commit: hex("1", 40), tree: hex("2", 40), package_sha256: hex("3"), package_bytes: 1 },
-  engine: { repository: "https://example.invalid/inert-engine", commit: hex("4", 40), tree: hex("5", 40), package_sha256: { core: hex("6"), adapters: hex("7"), cli: hex("8"), meta: hex("9") } },
-  producer: { repository: "https://example.invalid/inert-producer", commit: hex("a", 40), tree: hex("b", 40), version: "0.0.0-inert", ledger_version: 3 },
+  product: { repository: "https://example.invalid/inert-product", commit: hex("1", 40), tree: hex("2", 40), checkout_path: output, package_path: fake, package_sha256: hex("3"), package_bytes: 1 },
+  engine: { repository: "https://example.invalid/inert-engine", commit: hex("4", 40), tree: hex("5", 40), checkout_path: output, package_paths: { core: fake, adapters: fake, cli: fake, meta: fake }, package_sha256: { core: hex("6"), adapters: hex("7"), cli: hex("8"), meta: hex("9") } },
+  producer: { repository: "https://example.invalid/inert-producer", commit: hex("a", 40), tree: hex("b", 40), checkout_path: output, version: "0.0.0-inert", ledger_version: 3, ledger_schema_sha256: hex("a") },
   runner: { version: "qualification-runner-v1", executable, conflicting_parent_environment: "remove-and-record" },
   accounting: { wave_a: { subject: 54, judge: 54 }, complete_program: { subject: 642, judge: 642 }, ceilings: { subject: 700, judge: 700 }, initial: { subject: 0, judge: 0 } },
   arms: [arm("inert-subject", "subject", "fake-luna"), arm("inert-judge", "judge", "fake-sol")],

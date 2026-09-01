@@ -935,6 +935,7 @@ export function help(): string {
   qualification <prepare|start|status|poll|validate|abort>  durable qualification-runner-v1 lifecycle
                      prepare --spool DIR --config FILE --request FILE
                      start|status|poll|abort --spool DIR --id ID  (abort also requires --reason ID)
+                     start may resume only with --continuation-authority-file <private-0600-one-use-file>
                      validate --spool DIR  (all calls use external, schema-validated arms; no automatic retry)
 
   version  print ${HARNESS_VERSION} and exit (also --version / -v)

@@ -1,10 +1,26 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, realpathSync } from "node:fs";
-import { isAbsolute } from "node:path";
+import { isAbsolute, join } from "node:path";
 
 export const QUALIFICATION_CONFIG_VERSION = "qualification-config-v1" as const;
 export const QUALIFICATION_RUNNER_VERSION = "qualification-runner-v1" as const;
 export const QUALIFICATION_REQUEST_VERSION = "qualification-invocation-request-v1" as const;
+export const PRINCIPAL_QUALIFICATION_PRODUCT_PIN = {
+  repository: "https://github.com/mojomanyana/principal-pi-skills",
+  commit: "a6596950d64a3a525f95329d5dbd3e38948be408",
+  tree: "960359d69deb6f216724b86e13eef67e2f6a6aa1",
+  package_sha256: "3677f76fb31dcaf6a28c9e8b9cf9d6358f998b78bd370f0a0f250d05e136fcc8",
+  package_bytes: 110168,
+} as const;
+export const PI_DADDY_QUALIFICATION_PRODUCER_PIN = {
+  repository: "https://github.com/mojomanyana/pi-daddy",
+  commit: "591abb4a358bf8a84455486812b83609e2a47e3f",
+  tree: "c9fe1b324ffbf0d72e7d904972594b3a936e9928",
+  version: "0.20.0",
+  ledger_version: 3,
+  ledger_schema_sha256: "906ed8a89a516e66c9fe9a5e4e40521015bd710502e0225a1518d61903887ad3",
+} as const;
 
 export const QUALIFICATION_ACCOUNTING_POLICY = {
   wave_a: { subject: 54, judge: 54 },
@@ -36,17 +52,23 @@ export interface QualificationRepositoryPin {
 }
 
 export interface QualificationProductPin extends QualificationRepositoryPin {
+  checkout_path: string;
+  package_path: string;
   package_sha256: string;
   package_bytes: number;
 }
 
 export interface QualificationEnginePin extends QualificationRepositoryPin {
+  checkout_path: string;
+  package_paths: { core: string; adapters: string; cli: string; meta: string };
   package_sha256: { core: string; adapters: string; cli: string; meta: string };
 }
 
 export interface QualificationProducerPin extends QualificationRepositoryPin {
+  checkout_path: string;
   version: string;
   ledger_version: 3;
+  ledger_schema_sha256: string;
 }
 
 export interface QualificationResourcePin {
@@ -180,6 +202,63 @@ export function qualificationConfigDigest(config: QualificationConfigV1): string
   return qualificationSha256(qualificationCanonicalJson(config));
 }
 
+export function verifyQualificationPins(config: QualificationConfigV1): void {
+  verifyQualificationExecutable(config.runner.executable);
+  for (const arm of config.arms) {
+    verifyQualificationExecutable(arm.executable);
+    for (const resource of arm.resources) verifyQualificationResource(resource);
+  }
+  if (config.mode !== "production") return;
+  verifyRepository(config.product, "product");
+  verifyRepository(config.engine, "engine");
+  verifyRepository(config.producer, "producer");
+  verifyFileIdentity(config.product.package_path, config.product.package_sha256, config.product.package_bytes, "product package");
+  for (const name of ["core", "adapters", "cli", "meta"] as const) {
+    verifyFileIdentity(config.engine.package_paths[name], config.engine.package_sha256[name], undefined, `engine ${name} package`);
+  }
+  const producerPackagePath = join(config.producer.checkout_path, "packages", "pi-daddy", "package.json");
+  let producerPackage: unknown;
+  try { producerPackage = JSON.parse(readFileSync(producerPackagePath, "utf8")); }
+  catch { throw new Error("qualification producer package.json is missing or invalid"); }
+  const producerManifest = object(producerPackage, "qualification producer package.json");
+  if (producerManifest.version !== config.producer.version) throw new Error("qualification producer package version does not match its pin");
+  verifyFileIdentity(
+    join(config.producer.checkout_path, "packages", "pi-daddy", "contracts", "ledger", "v3", "ledger-event.schema.json"),
+    config.producer.ledger_schema_sha256,
+    undefined,
+    "producer ledger-v3 schema",
+  );
+}
+
+function verifyRepository(pin: QualificationRepositoryPin & { checkout_path: string }, label: string): void {
+  let head: string, tree: string, dirty: string, remote: string;
+  try {
+    head = execFileSync("git", ["-C", pin.checkout_path, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    tree = execFileSync("git", ["-C", pin.checkout_path, "rev-parse", "HEAD^{tree}"], { encoding: "utf8" }).trim();
+    dirty = execFileSync("git", ["-C", pin.checkout_path, "status", "--porcelain=v1", "--untracked-files=all"], { encoding: "utf8" }).trim();
+    remote = execFileSync("git", ["-C", pin.checkout_path, "remote", "get-url", "origin"], { encoding: "utf8" }).trim();
+  } catch { throw new Error(`qualification ${label} checkout is not a readable pinned Git repository`); }
+  if (head !== pin.commit || tree !== pin.tree) throw new Error(`qualification ${label} checkout commit/tree does not match its pin`);
+  if (dirty) throw new Error(`qualification ${label} checkout must be clean`);
+  if (repositorySlug(remote) !== repositorySlug(pin.repository)) throw new Error(`qualification ${label} checkout origin does not match its repository pin`);
+}
+
+function repositorySlug(value: string): string {
+  const match = /github\.com(?::|\/)([^/]+\/[^/#]+?)(?:\.git)?$/i.exec(value.replace(/^git\+/, ""));
+  if (!match) throw new Error(`qualification repository URL is not a pinned GitHub repository: ${value}`);
+  return match[1].replace(/\.git$/i, "").toLowerCase();
+}
+
+function verifyFileIdentity(path: string, expectedSha256: string, expectedBytes: number | undefined, label: string): void {
+  let stat;
+  try { stat = lstatSync(path); }
+  catch { throw new Error(`qualification ${label} is missing: ${path}`); }
+  if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(`qualification ${label} must be a regular non-symlink file`);
+  if (expectedBytes !== undefined && stat.size !== expectedBytes) throw new Error(`qualification ${label} byte size does not match its pin`);
+  const actual = qualificationSha256(readFileSync(path));
+  if (actual !== expectedSha256) throw new Error(`qualification ${label} digest does not match its pin`);
+}
+
 export function verifyQualificationResource(pin: QualificationResourcePin): { realpath: string; bytes: number; sha256: string } {
   const path = absolutePath(pin.path, "qualification resource.path");
   const expected = digest(pin.sha256, "qualification resource.sha256");
@@ -192,7 +271,7 @@ export function verifyQualificationResource(pin: QualificationResourcePin): { re
   return { realpath: realpathSync(path), bytes: stat.size, sha256: actual };
 }
 
-export function verifyQualificationExecutable(pin: QualificationExecutablePin): { realpath: string; bytes: number; sha256: string } {
+export function verifyQualificationExecutable(pin: QualificationExecutablePin): { realpath: string; bytes: number; sha256: string; device: number; inode: number; mtime_ms: number } {
   const parsed = parseExecutablePin(pin, "executable");
   let stat;
   try {
@@ -205,7 +284,7 @@ export function verifyQualificationExecutable(pin: QualificationExecutablePin): 
   if (process.platform !== "win32" && (stat.mode & 0o111) === 0) throw new Error(`qualification executable is not executable: ${parsed.path}`);
   const digest = qualificationSha256(readFileSync(parsed.path));
   if (digest !== parsed.sha256) throw new Error(`qualification executable digest mismatch for ${parsed.path}: expected ${parsed.sha256}, got ${digest}`);
-  return { realpath: realpathSync(parsed.path), bytes: stat.size, sha256: digest };
+  return { realpath: realpathSync(parsed.path), bytes: stat.size, sha256: digest, device: stat.dev, inode: stat.ino, mtime_ms: stat.mtimeMs };
 }
 
 export function parseQualificationConfig(value: unknown): QualificationConfigV1 {
@@ -214,18 +293,29 @@ export function parseQualificationConfig(value: unknown): QualificationConfigV1 
   if (root.schema_version !== QUALIFICATION_CONFIG_VERSION) throw new Error(`qualification configuration schema_version must be ${QUALIFICATION_CONFIG_VERSION}`);
   const mode = enumValue(root.mode, ["production", "test"], "qualification configuration mode") as QualificationConfigMode;
   const productObject = object(root.product, "qualification configuration product");
-  exactKeys(productObject, ["repository", "commit", "tree", "package_sha256", "package_bytes"], "qualification configuration product");
+  exactKeys(productObject, ["repository", "commit", "tree", "checkout_path", "package_path", "package_sha256", "package_bytes"], "qualification configuration product");
   const product: QualificationProductPin = {
     ...parseRepositoryPin(productObject, "product"),
+    checkout_path: absolutePath(productObject.checkout_path, "product.checkout_path"),
+    package_path: absolutePath(productObject.package_path, "product.package_path"),
     package_sha256: digest(productObject.package_sha256, "product.package_sha256"),
     package_bytes: positiveInteger(productObject.package_bytes, "product.package_bytes"),
   };
   const engineObject = object(root.engine, "qualification configuration engine");
-  exactKeys(engineObject, ["repository", "commit", "tree", "package_sha256"], "qualification configuration engine");
+  exactKeys(engineObject, ["repository", "commit", "tree", "checkout_path", "package_paths", "package_sha256"], "qualification configuration engine");
   const packageObject = object(engineObject.package_sha256, "engine.package_sha256");
   exactKeys(packageObject, ["core", "adapters", "cli", "meta"], "engine.package_sha256");
+  const packagePaths = object(engineObject.package_paths, "engine.package_paths");
+  exactKeys(packagePaths, ["core", "adapters", "cli", "meta"], "engine.package_paths");
   const engine: QualificationEnginePin = {
     ...parseRepositoryPin(engineObject, "engine"),
+    checkout_path: absolutePath(engineObject.checkout_path, "engine.checkout_path"),
+    package_paths: {
+      core: absolutePath(packagePaths.core, "engine.package_paths.core"),
+      adapters: absolutePath(packagePaths.adapters, "engine.package_paths.adapters"),
+      cli: absolutePath(packagePaths.cli, "engine.package_paths.cli"),
+      meta: absolutePath(packagePaths.meta, "engine.package_paths.meta"),
+    },
     package_sha256: {
       core: digest(packageObject.core, "engine.package_sha256.core"),
       adapters: digest(packageObject.adapters, "engine.package_sha256.adapters"),
@@ -234,13 +324,31 @@ export function parseQualificationConfig(value: unknown): QualificationConfigV1 
     },
   };
   const producerObject = object(root.producer, "qualification configuration producer");
-  exactKeys(producerObject, ["repository", "commit", "tree", "version", "ledger_version"], "qualification configuration producer");
+  exactKeys(producerObject, ["repository", "commit", "tree", "checkout_path", "version", "ledger_version", "ledger_schema_sha256"], "qualification configuration producer");
   if (producerObject.ledger_version !== 3) throw new Error("qualification producer.ledger_version must be 3");
   const producer: QualificationProducerPin = {
     ...parseRepositoryPin(producerObject, "producer"),
+    checkout_path: absolutePath(producerObject.checkout_path, "producer.checkout_path"),
     version: nonEmpty(producerObject.version, "producer.version"),
     ledger_version: 3,
+    ledger_schema_sha256: digest(producerObject.ledger_schema_sha256, "producer.ledger_schema_sha256"),
   };
+  if (mode === "production") {
+    const productIdentity = {
+      repository: product.repository, commit: product.commit, tree: product.tree, package_sha256: product.package_sha256, package_bytes: product.package_bytes,
+    };
+    if (qualificationCanonicalJson(productIdentity) !== qualificationCanonicalJson(PRINCIPAL_QUALIFICATION_PRODUCT_PIN)) {
+      throw new Error("qualification production product pin does not match the authorized principal-pi-skills commit/tree/package identity");
+    }
+    const producerIdentity = {
+      repository: producer.repository, commit: producer.commit, tree: producer.tree, version: producer.version, ledger_version: producer.ledger_version,
+      ledger_schema_sha256: producer.ledger_schema_sha256,
+    };
+    if (qualificationCanonicalJson(producerIdentity) !== qualificationCanonicalJson(PI_DADDY_QUALIFICATION_PRODUCER_PIN)) {
+      throw new Error("qualification production producer pin does not match the authorized pi-daddy ledger-v3 identity");
+    }
+    if (repositorySlug(engine.repository) !== "mojomanyana/skill-harness") throw new Error("qualification production engine repository must be mojomanyana/skill-harness");
+  }
   const runnerObject = object(root.runner, "qualification configuration runner");
   exactKeys(runnerObject, ["version", "executable", "conflicting_parent_environment"], "qualification configuration runner");
   if (runnerObject.version !== QUALIFICATION_RUNNER_VERSION) throw new Error(`qualification runner.version must be ${QUALIFICATION_RUNNER_VERSION}`);

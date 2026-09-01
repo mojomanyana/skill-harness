@@ -10,12 +10,13 @@ import {
   openSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   renameSync,
   rmSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, extname, join, resolve } from "node:path";
 import {
   QUALIFICATION_ACCOUNTING_POLICY,
   type QualificationArmV1,
@@ -27,6 +28,8 @@ import {
   qualificationCanonicalJson,
   qualificationConfigDigest,
   qualificationSha256,
+  verifyQualificationExecutable,
+  verifyQualificationPins,
   verifyQualificationResource,
 } from "./qualification-config.js";
 
@@ -58,7 +61,9 @@ export interface QualificationInvocationV1 {
   ceiling_policy: typeof QUALIFICATION_ACCOUNTING_POLICY;
   execution: {
     executable: QualificationArmV1["executable"];
+    executable_identity: ReturnType<typeof verifyQualificationExecutable>;
     resources: QualificationArmV1["resources"];
+    working_directory_identity: { realpath: string; device: number; inode: number };
     arguments: string[];
     allowed_environment_names: string[];
     timeout_ms: number;
@@ -147,6 +152,7 @@ export function prepareQualificationInvocation(options: {
 }): QualificationInvocationV1 {
   const config = parseQualificationConfig(parseJsonFile(options.config_path, "qualification configuration"));
   const request = parseQualificationRequest(parseJsonFile(options.request_path, "qualification invocation request"), config);
+  verifyQualificationPins(config);
   const now = options.now ?? (() => new Date().toISOString());
   assertRegularInput(request.scenario.input_path, request.scenario.input_sha256);
   assertWorkingDirectory(request.scenario.working_directory);
@@ -171,7 +177,16 @@ export function prepareQualificationInvocation(options: {
     }
     try {
       const selected = config.arms.find((arm) => arm.id === request.selected_arm)!;
-      for (const resource of selected.resources) verifyQualificationResource(resource);
+      const executableIdentity = verifyQualificationExecutable(selected.executable);
+      const preparedResources = selected.resources.map((resource, index) => {
+        verifyQualificationResource(resource);
+        const suffix = extname(resource.path).replace(/[^A-Za-z0-9.]/g, "");
+        const path = join(paths.invocation!, "resources", `${String(index).padStart(4, "0")}${suffix}`);
+        atomicWriteBytes(path, readFileSync(resource.path), true);
+        return { ...resource, path };
+      });
+      const workingStat = lstatSync(request.scenario.working_directory);
+      const workingDirectoryIdentity = { realpath: realpathSync(request.scenario.working_directory), device: workingStat.dev, inode: workingStat.ino };
       // Snapshot the already-digested private input before publishing the immutable
       // invocation record. The child never races a later edit to the coordinator's
       // source path; the spool copy is the launch material bound by input_sha256.
@@ -199,7 +214,9 @@ export function prepareQualificationInvocation(options: {
         ceiling_policy: structuredClone(QUALIFICATION_ACCOUNTING_POLICY),
         execution: {
           executable: structuredClone(selected.executable),
-          resources: structuredClone(selected.resources),
+          executable_identity: executableIdentity,
+          resources: preparedResources,
+          working_directory_identity: workingDirectoryIdentity,
           arguments: [...selected.arguments],
           allowed_environment_names: [...selected.allowed_environment_names],
           timeout_ms: selected.timeout_ms,

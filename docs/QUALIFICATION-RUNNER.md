@@ -71,8 +71,10 @@ signature and a malicious local owner can rewrite a record and its hashes.
 
 The accounting event is the atomic launch claim. A crash after that claim remains a
 consumed call. If the lifecycle write was interrupted, a later supervisor refuses to
-continue without explicit `--continuation-authority`; only the authority digest is
-recorded. Once a launch-attempt record exists, the process is never launched again.
+continue without `start --continuation-authority-file <0600-one-use-file>`. The outer
+CLI consumes and removes that file, sends the value over a private inherited descriptor,
+and records only its digest—never raw argv, environment, or spool text. Once a
+launch-attempt record exists, the process is never launched again.
 Ambiguous interruption therefore fails closed rather than replaying a paid call.
 
 Linux process receipts include PID, kernel boot ID, and `/proc/<pid>/stat` start ticks.
@@ -170,8 +172,10 @@ identity. Completion requires at least one assistant message and requires every
 reported provider/model pair to equal the requested pair. Missing identity,
 provider/model substitution, explicit provider/model fallback events, malformed JSONL,
 or output truncation produces `invalid-artifact`. A subscription refusal remains
-`refused`; it never becomes behavioral evidence. Authentication readiness and model
-execution are separate receipt fields.
+`refused`; it never becomes behavioral evidence. The receipt distinguishes
+`provider_model_identity_observed` from `successful_execution`, so a refusal can
+preserve exact identity while successful execution remains false. Authentication
+readiness, identity observation, and execution success are separate facts.
 
 The terminal receipt binds requested and observed identities, exact attempt count,
 process identities, deadline/effective timeout, exit/signal, output byte counts and
@@ -183,16 +187,22 @@ bytes again.
 
 Configuration binds:
 
-- principal-pi-skills repository, commit, tree, package digest and bytes;
-- skill-harness repository, commit, tree, and all public package digests;
-- pi-daddy repository, commit, tree, version and ledger version;
+- principal-pi-skills repository, clean checkout path, commit, tree, package path,
+  digest and bytes;
+- skill-harness repository, clean checkout path, commit, tree, and paths/digests for
+  all four public source-built packages;
+- pi-daddy repository, clean checkout path, commit, tree, version, ledger version,
+  and production v3 schema digest;
 - qualification-runner version and executable path/digest;
 - subject/judge arm kind, exact provider/model/auth mode;
 - executable path/digest, fixed arguments, allowed environment names;
 - timeout, output limit, artifact policy, call targets and ceilings.
 
-Production execution additionally verifies that the running CLI is the configured
-source-built runner executable. The inert example under
+Production `prepare` resolves each checkout's origin/HEAD/tree/cleanliness, hashes
+package/schema bytes, and verifies runner/arm executable and resource bytes before it
+publishes prepared state. Executable/resource and filesystem occurrence identities
+are checked again at auth and launch. Production execution additionally verifies that
+the running CLI is the configured source-built runner executable. The inert example under
 `examples/qualification-runner-v1/` generates a valid `mode: test` configuration with
 fake repositories/models and `counts_as_measurement: false`. It is not a packet or a
 measurement identity.

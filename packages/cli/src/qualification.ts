@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { realpathSync } from "node:fs";
+import { lstatSync, readFileSync, realpathSync, unlinkSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 import {
   abortQualificationInvocation,
@@ -35,6 +35,24 @@ function integerFlag(args: QualificationCliArgs, name: string, fallback: number)
   if (!Number.isSafeInteger(value) || value < 0) throw new Error(`qualification --${name} must be a non-negative integer`);
   return value;
 }
+export function qualificationSupervisorRuntimeArgs(mode: "production" | "test", scriptPath: string): string[] {
+  // Production supervisors execute built JavaScript with no inherited Node
+  // loader/import/debug hooks. Source-mode tests need exactly the repository's
+  // tsx import and nothing from the parent process.execArgv.
+  return mode === "test" && scriptPath.endsWith(".ts") ? ["--import", "tsx"] : [];
+}
+
+export function consumeQualificationContinuationAuthority(path: string): string {
+  const stat = lstatSync(path);
+  if (stat.isSymbolicLink() || !stat.isFile()) throw new Error("qualification continuation authority must be a regular non-symlink file");
+  if (process.platform !== "win32" && (stat.mode & 0o077) !== 0) throw new Error("qualification continuation authority file must be mode 0600");
+  if (stat.size < 1 || stat.size > 4096) throw new Error("qualification continuation authority must be 1..4096 bytes");
+  const authority = readFileSync(path, "utf8");
+  unlinkSync(path);
+  if (!authority.trim()) throw new Error("qualification continuation authority must not be blank");
+  return authority;
+}
+
 function print(value: unknown): void {
   process.stdout.write(`${qualificationCanonicalJson(value)}\n`);
 }
@@ -79,16 +97,27 @@ export async function cmdQualification(args: QualificationCliArgs): Promise<void
     return;
   }
   if (operation === "__supervise") {
+    const fdRaw = flag(args, "continuation-fd");
+    if (fdRaw !== undefined && fdRaw !== "3") throw new Error("qualification internal continuation descriptor must be fd 3");
+    const continuation = fdRaw === undefined ? undefined : readFileSync(3, "utf8");
     await superviseQualificationInvocation({
       spool_dir: spool,
       invocation_id: id,
       child_env: process.env,
-      continuation_authority: flag(args, "continuation-authority"),
+      continuation_authority: continuation,
     });
     return;
   }
   if (operation === "start") {
     const config = readQualificationSpoolConfig(spool);
+    const before = qualificationInvocationStatus(spool, id);
+    if (before.phase === "terminal" || before.phase === "running" || (before.phase === "launch-claimed" && before.supervisor_alive)) {
+      print(before);
+      return;
+    }
+    if (before.phase === "launch-claimed" && !flag(args, "continuation-authority-file")) {
+      throw new Error("qualification stale launch-claimed invocation requires --continuation-authority-file");
+    }
     if (config.mode === "production") {
       const pinned = verifyQualificationExecutable(config.runner.executable);
       const running = realpathSync(process.argv[1]);
@@ -97,25 +126,32 @@ export async function cmdQualification(args: QualificationCliArgs): Promise<void
       }
     }
     const auth = await checkQualificationAuthentication({ spool_dir: spool, invocation_id: id });
-    const continuation = flag(args, "continuation-authority");
+    if (flag(args, "continuation-authority") !== undefined) throw new Error("qualification continuation authority must use --continuation-authority-file, never argv text");
+    const continuationFile = flag(args, "continuation-authority-file");
+    const continuation = continuationFile ? consumeQualificationContinuationAuthority(continuationFile) : undefined;
     const childArgs = [
-      ...process.execArgv,
+      ...qualificationSupervisorRuntimeArgs(config.mode, process.argv[1]),
       process.argv[1],
       "qualification", "__supervise",
       "--spool", spool,
       "--id", id,
-      ...(continuation ? ["--continuation-authority", continuation] : []),
+      ...(continuation ? ["--continuation-fd", "3"] : []),
     ];
     const supervisor = spawn(process.execPath, childArgs, {
       cwd: process.cwd(),
       env: auth.child_env,
       detached: true,
-      stdio: "ignore",
+      stdio: continuation ? ["ignore", "ignore", "ignore", "pipe"] : "ignore",
     });
     await new Promise<void>((resolve, reject) => {
       supervisor.once("spawn", resolve);
       supervisor.once("error", reject);
     });
+    if (continuation) {
+      const authorityPipe = supervisor.stdio[3];
+      if (!authorityPipe || !("write" in authorityPipe)) throw new Error("qualification continuation authority pipe was not created");
+      authorityPipe.end(continuation);
+    }
     supervisor.unref();
     const deadline = Date.now() + integerFlag(args, "ack-wait-ms", 1500);
     let status = qualificationInvocationStatus(spool, id);

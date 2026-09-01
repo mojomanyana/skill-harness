@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  PI_DADDY_QUALIFICATION_PRODUCER_PIN,
+  PRINCIPAL_QUALIFICATION_PRODUCT_PIN,
   QUALIFICATION_ACCOUNTING_POLICY,
   parseQualificationConfig,
   parseQualificationRequest,
@@ -31,16 +33,19 @@ function config() {
     mode: "test",
     product: {
       repository: "https://example.invalid/principal-pi-skills",
-      commit: h("1", 40), tree: h("2", 40), package_sha256: h("3"), package_bytes: 110168,
+      commit: h("1", 40), tree: h("2", 40), checkout_path: "/tmp", package_path: command.path,
+      package_sha256: h("3"), package_bytes: 110168,
     },
     engine: {
       repository: "https://example.invalid/skill-harness",
-      commit: h("4", 40), tree: h("5", 40),
+      commit: h("4", 40), tree: h("5", 40), checkout_path: "/tmp",
+      package_paths: { core: command.path, adapters: command.path, cli: command.path, meta: command.path },
       package_sha256: { core: h("6"), adapters: h("7"), cli: h("8"), meta: h("9") },
     },
     producer: {
       repository: "https://example.invalid/pi-daddy",
-      commit: h("a", 40), tree: h("b", 40), version: "0.20.0", ledger_version: 3,
+      commit: h("a", 40), tree: h("b", 40), checkout_path: "/tmp", version: "0.20.0", ledger_version: 3,
+      ledger_schema_sha256: h("a"),
     },
     runner: {
       version: "qualification-runner-v1",
@@ -132,6 +137,9 @@ describe("qualification configuration v1", () => {
   it("requires production arms to use exact openai-codex ChatGPT OAuth", () => {
     const value = config();
     value.mode = "production";
+    Object.assign(value.product, PRINCIPAL_QUALIFICATION_PRODUCT_PIN);
+    Object.assign(value.producer, PI_DADDY_QUALIFICATION_PRODUCER_PIN);
+    value.engine.repository = "https://github.com/mojomanyana/skill-harness";
     for (const arm of value.arms) {
       arm.provider = "openai-codex";
       arm.model = arm.kind === "subject" ? "gpt-5.6-luna" : "gpt-5.6-sol";

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { chmodSync, mkdtempSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -28,9 +28,9 @@ function setupFiles() {
   const config = {
     schema_version: "qualification-config-v1",
     mode: "test",
-    product: { repository: "https://example.invalid/product", commit: hex("1", 40), tree: hex("2", 40), package_sha256: hex("3"), package_bytes: 1 },
-    engine: { repository: "https://example.invalid/engine", commit: hex("4", 40), tree: hex("5", 40), package_sha256: { core: hex("6"), adapters: hex("7"), cli: hex("8"), meta: hex("9") } },
-    producer: { repository: "https://example.invalid/producer", commit: hex("a", 40), tree: hex("b", 40), version: "0.20.0", ledger_version: 3 },
+    product: { repository: "https://example.invalid/product", commit: hex("1", 40), tree: hex("2", 40), checkout_path: root, package_path: executable, package_sha256: hex("3"), package_bytes: 1 },
+    engine: { repository: "https://example.invalid/engine", commit: hex("4", 40), tree: hex("5", 40), checkout_path: root, package_paths: { core: executable, adapters: executable, cli: executable, meta: executable }, package_sha256: { core: hex("6"), adapters: hex("7"), cli: hex("8"), meta: hex("9") } },
+    producer: { repository: "https://example.invalid/producer", commit: hex("a", 40), tree: hex("b", 40), checkout_path: root, version: "0.20.0", ledger_version: 3, ledger_schema_sha256: hex("a") },
     runner: { version: "qualification-runner-v1", executable: { path: executable, sha256: sha(readFileSync(executable)) }, conflicting_parent_environment: "remove-and-record" },
     accounting: structuredClone(QUALIFICATION_ACCOUNTING_POLICY),
     arms: [
@@ -98,6 +98,15 @@ describe("qualification preparation", () => {
     record.role = "judge";
     writeFileSync(path, `${qualificationCanonicalJson(record)}\n`);
     expect(() => readQualificationInvocation(files.spool, "invocation-0001")).toThrow(/immutable digest mismatch/i);
+  });
+
+  it("verifies pinned runner/arm executable bytes before publishing prepared state", () => {
+    const files = setupFiles();
+    const requestPath = join(files.root, "request.json");
+    writeFileSync(requestPath, JSON.stringify(request(files)));
+    writeFileSync(files.executable, "#!/bin/sh\nexit 9\n");
+    expect(() => prepareQualificationInvocation({ spool_dir: files.spool, config_path: files.configPath, request_path: requestPath })).toThrow(/executable digest mismatch/i);
+    expect(existsSync(files.spool)).toBe(false);
   });
 
   it("rejects duplicate IDs, changed config identity, input mutation, symlinked input, and pre-existing artifacts", () => {

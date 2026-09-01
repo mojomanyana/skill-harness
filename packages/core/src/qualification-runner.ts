@@ -12,6 +12,7 @@ import {
   openSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   renameSync,
   rmSync,
   unlinkSync,
@@ -72,6 +73,7 @@ export interface QualificationAuthEvidenceV1 {
   removed_parent_environment_names: string[];
   child_environment_names: string[];
   executable_sha256: string;
+  evidence_sha256: string;
 }
 
 export interface QualificationOutputReceipt {
@@ -98,7 +100,8 @@ export interface QualificationTerminalReceiptV1 {
   signal: NodeJS.Signals | null;
   requested: { provider: string; model: string };
   actual: { provider: string; model: string } | null;
-  provider_model_attested: boolean;
+  provider_model_identity_observed: boolean;
+  successful_execution: boolean;
   fallback_detected: boolean;
   authentication: {
     evidence_sha256: string;
@@ -182,7 +185,9 @@ export async function checkQualificationAuthentication(options: {
   if (!arm) throw new Error(`qualification selected arm ${invocation.arms.selected} disappeared from configuration`);
   verifyQualificationExecutable(config.runner.executable);
   const executable = verifyQualificationExecutable(arm.executable);
-  for (const resource of arm.resources) verifyQualificationResource(resource);
+  assertQualificationExecutableIdentity(invocation, executable);
+  for (const resource of invocation.execution.resources) verifyQualificationResource(resource);
+  assertQualificationWorkingDirectory(invocation);
   const sanitized = sanitizeQualificationEnvironment(
     options.parent_env ?? process.env,
     arm.allowed_environment_names,
@@ -203,7 +208,7 @@ export async function checkQualificationAuthentication(options: {
   if (parsed.status !== "ready") throw new Error(`qualification OAuth readiness is not ready for ${arm.provider}:${arm.model}`);
   if (parsed.provider !== arm.provider) throw new Error(`qualification auth check provider substitution: requested ${arm.provider}, reported ${String(parsed.provider)}`);
   if (parsed.authType !== "oauth") throw new Error(`qualification requires OAuth readiness; Pi reported ${String(parsed.authType ?? "missing auth type")}`);
-  const evidence: QualificationAuthEvidenceV1 = {
+  const evidenceBase: Omit<QualificationAuthEvidenceV1, "evidence_sha256"> = {
     schema_version: QUALIFICATION_AUTH_EVIDENCE_VERSION,
     checked_at: timestamp((options.now ?? (() => new Date().toISOString()))(), "qualification auth check time"),
     provider: arm.provider,
@@ -217,13 +222,18 @@ export async function checkQualificationAuthentication(options: {
     child_environment_names: Object.keys(sanitized.env).sort(),
     executable_sha256: executable.sha256,
   };
+  const evidence: QualificationAuthEvidenceV1 = {
+    ...evidenceBase,
+    evidence_sha256: qualificationSha256(qualificationCanonicalJson(evidenceBase)),
+  };
   const authPath = join(qualificationSpoolPaths(options.spool_dir, options.invocation_id).invocation!, "auth-evidence.json");
   if (existsSync(authPath)) {
     const existing = readCanonicalJson(authPath, `qualification auth evidence ${options.invocation_id}`) as QualificationAuthEvidenceV1;
-    validateAuthEvidence(existing, invocation);
+    validateAuthEvidence(existing, invocation, false);
     if (existing.provider !== evidence.provider || existing.model !== evidence.model || existing.executable_sha256 !== evidence.executable_sha256) {
       throw new Error("qualification auth evidence contradicts the current invocation");
     }
+    atomicWriteCanonical(authPath, evidence, false);
   } else {
     atomicWriteCanonical(authPath, evidence, true);
   }
@@ -247,8 +257,9 @@ export async function superviseQualificationInvocation(options: {
   const arm = config.arms.find((candidate) => candidate.id === invocation.arms.selected);
   if (!arm) throw new Error(`qualification selected arm ${invocation.arms.selected} disappeared from configuration`);
   verifyQualificationExecutable(config.runner.executable);
-  verifyQualificationExecutable(arm.executable);
-  for (const resource of arm.resources) verifyQualificationResource(resource);
+  assertQualificationExecutableIdentity(invocation, verifyQualificationExecutable(arm.executable));
+  for (const resource of invocation.execution.resources) verifyQualificationResource(resource);
+  assertQualificationWorkingDirectory(invocation);
   assertInputUnchanged(invocation);
   assertChildEnvironment(options.child_env, arm.allowed_environment_names);
   if (config.mode === "production") assertQualificationOAuthCredentialBoundary(options.child_env);
@@ -331,8 +342,9 @@ export async function superviseQualificationInvocation(options: {
     await finalizeWithoutChild({ invocation, spoolDir: paths.root, status: "aborted", supervisor: supervisorIdentity, auth, now: now(), error: "aborted after launch claim" , accountingEventSha, continuationSha });
     return;
   }
-  verifyQualificationExecutable(arm.executable);
-  for (const resource of arm.resources) verifyQualificationResource(resource);
+  assertQualificationExecutableIdentity(invocation, verifyQualificationExecutable(arm.executable));
+  for (const resource of invocation.execution.resources) verifyQualificationResource(resource);
+  assertQualificationWorkingDirectory(invocation);
   assertInputUnchanged(invocation);
   const artifactAbsolute = join(paths.root, invocation.expected_artifact.path);
   const argv = buildQualificationArgv(invocation, artifactAbsolute);
@@ -414,6 +426,7 @@ export async function superviseQualificationInvocation(options: {
   const outcome = await closed;
   clearTimeout(timeoutTimer);
   clearInterval(abortTimer);
+  await cleanupQualificationProcessGroupAfterLeaderExit(child.pid);
   // An operator can write the durable abort request and signal the process before
   // the supervisor's 20ms watcher observes it. The request, not which callback won
   // that race, is authoritative for terminal classification.
@@ -499,27 +512,46 @@ export async function abortQualificationInvocation(options: {
   reason: string;
   now?: () => string;
 }): Promise<QualificationInvocationStatus> {
-  const invocation = readQualificationInvocation(options.spool_dir, options.invocation_id);
-  const paths = qualificationSpoolPaths(options.spool_dir, options.invocation_id);
-  const current = qualificationInvocationStatus(options.spool_dir, options.invocation_id);
-  if (current.phase === "terminal") return current;
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(options.reason)) throw new Error("qualification abort reason must be a bounded identifier");
-  const request = { schema_version: "qualification-abort-request-v1", invocation_id: invocation.invocation_id, requested_at: timestamp((options.now ?? (() => new Date().toISOString()))(), "qualification abort time"), reason: options.reason };
-  const abortPath = join(paths.invocation!, "abort-request.json");
-  if (!existsSync(abortPath)) atomicWriteCanonical(abortPath, request, true);
-  if (current.child && current.child_alive) terminateByIdentity(current.child);
-  if (current.phase === "prepared") {
-    const authPath = join(paths.invocation!, "auth-evidence.json");
-    const auth = existsSync(authPath) ? readAuthEvidence(paths.root, invocation) : null;
-    await finalizeWithoutChild({ invocation, spoolDir: paths.root, status: "aborted", supervisor: qualificationProcessIdentity(process.pid), auth, now: request.requested_at, error: options.reason });
-  }
-  return qualificationInvocationStatus(paths.root, invocation.invocation_id);
+  const paths = qualificationSpoolPaths(options.spool_dir, options.invocation_id);
+  const requestedAt = timestamp((options.now ?? (() => new Date().toISOString()))(), "qualification abort time");
+  let childToTerminate: QualificationProcessIdentity | null = null;
+  await withAsyncLock(paths.lock, async () => {
+    await withAsyncLock(paths.invocationLock!, async () => {
+      const invocation = readQualificationInvocation(paths.root, options.invocation_id);
+      const lifecycle = readQualificationLifecycle(paths.root, options.invocation_id);
+      if (lifecycle.phase === "terminal" || existsSync(paths.terminal!)) return;
+      const request = { schema_version: "qualification-abort-request-v1", invocation_id: invocation.invocation_id, requested_at: requestedAt, reason: options.reason };
+      const abortPath = join(paths.invocation!, "abort-request.json");
+      if (!existsSync(abortPath)) atomicWriteCanonical(abortPath, request, true);
+      const accountingEvent = readQualificationAccounting(paths.root).events.find((event) => event.invocation_id === invocation.invocation_id);
+      if (lifecycle.phase === "prepared") {
+        const authPath = join(paths.invocation!, "auth-evidence.json");
+        const auth = existsSync(authPath) ? readAuthEvidence(paths.root, invocation) : null;
+        await finalizeWithoutChild({
+          invocation,
+          spoolDir: paths.root,
+          status: "aborted",
+          supervisor: qualificationProcessIdentity(process.pid),
+          auth,
+          now: requestedAt,
+          error: options.reason,
+          accountingEventSha: accountingEvent?.event_sha256,
+        });
+        return;
+      }
+      childToTerminate = processIdentityFrom(lifecycle.events.at(-1)?.detail.child);
+    });
+  });
+  if (childToTerminate && qualificationProcessMatches(childToTerminate)) terminateByIdentity(childToTerminate);
+  return qualificationInvocationStatus(paths.root, options.invocation_id);
 }
 
 export function validateQualificationRunnerSpool(spoolDir: string): ReturnType<typeof validateQualificationSpool> & { terminal: number } {
   const report = validateQualificationSpool(spoolDir);
   const paths = qualificationSpoolPaths(spoolDir);
   const invocationIds = readdirSync(paths.invocations, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+  const accountingLedger = readQualificationAccounting(paths.root);
   const expectedArtifacts = new Set<string>();
   let terminal = 0;
   for (const id of invocationIds) {
@@ -528,6 +560,17 @@ export function validateQualificationRunnerSpool(spoolDir: string): ReturnType<t
     const invocationPaths = qualificationSpoolPaths(paths.root, id);
     expectedArtifacts.add(invocation.expected_artifact.path.split("/").at(-1)!);
     const lifecycle = readQualificationLifecycle(paths.root, id);
+    const accountingEvent = accountingLedger.events.find((event) => event.invocation_id === id);
+    const launchAttemptPath = join(invocationPaths.invocation!, "launch-attempt.json");
+    const hasLaunchAttempt = existsSync(launchAttemptPath);
+    if (hasLaunchAttempt) {
+      const attempt = readCanonicalJson(launchAttemptPath, `qualification launch attempt ${id}`);
+      validateLaunchAttempt(attempt, invocation, paths.root);
+      if (!accountingEvent) throw new Error(`qualification launch attempt ${id} has no accounting claim`);
+    }
+    if ((lifecycle.phase === "launch-claimed" || lifecycle.phase === "running") && !accountingEvent) {
+      throw new Error(`qualification lifecycle ${id} advanced without an accounting claim`);
+    }
     const receiptPath = join(invocationPaths.terminal!, "receipt.json");
     if (existsSync(receiptPath)) {
       terminal += 1;
@@ -535,6 +578,18 @@ export function validateQualificationRunnerSpool(spoolDir: string): ReturnType<t
       if (lifecycle.phase !== "terminal" || lifecycle.terminal_status !== receipt.terminal_status) throw new Error(`qualification terminal receipt for ${id} contradicts lifecycle`);
       const receiptDigest = qualificationSha256(`${qualificationCanonicalJson(receipt)}\n`);
       if (lifecycle.events.at(-1)?.detail.receipt_sha256 !== receiptDigest) throw new Error(`qualification terminal receipt for ${id} is not bound by the lifecycle chain`);
+      const expectedAttempt = accountingEvent ? 1 : 0;
+      if (receipt.attempt !== expectedAttempt) throw new Error(`qualification terminal receipt for ${id} attempt contradicts accounting`);
+      if (receipt.accounting_event_sha256 !== (accountingEvent?.event_sha256 ?? null)) throw new Error(`qualification terminal receipt for ${id} accounting digest mismatch`);
+      if (receipt.terminal_status !== "aborted" && !hasLaunchAttempt) throw new Error(`qualification terminal receipt for ${id} has no immutable launch attempt`);
+      if (receipt.attempt === 0 && hasLaunchAttempt) throw new Error(`qualification attempt-zero receipt for ${id} has a launch-attempt record`);
+      if (receipt.authentication) {
+        const authEvidence = readAuthEvidence(paths.root, invocation, false);
+        const authDigest = qualificationSha256(`${qualificationCanonicalJson(authEvidence)}\n`);
+        if (receipt.authentication.evidence_sha256 !== authDigest) throw new Error(`qualification terminal receipt for ${id} authentication evidence mismatch`);
+      } else if (receipt.attempt !== 0 || receipt.terminal_status !== "aborted") {
+        throw new Error(`qualification terminal receipt for ${id} is missing authentication evidence`);
+      }
       verifyOutputReceipt(paths.root, receipt.stdout);
       verifyOutputReceipt(paths.root, receipt.stderr);
       if (receipt.artifact) {
@@ -671,7 +726,8 @@ async function finalizeAfterCapture(options: {
     signal: options.signal,
     requested: options.invocation.requested,
     actual: attestation.actual,
-    provider_model_attested: attestation.ok,
+    provider_model_identity_observed: attestation.ok,
+    successful_execution: status === "completed",
     fallback_detected: attestation.fallback,
     authentication: {
       evidence_sha256: qualificationSha256(`${qualificationCanonicalJson(options.auth)}\n`),
@@ -722,7 +778,8 @@ async function finalizeWithoutChild(options: {
     signal: null,
     requested: options.invocation.requested,
     actual: null,
-    provider_model_attested: false,
+    provider_model_identity_observed: false,
+    successful_execution: false,
     fallback_detected: false,
     authentication: options.auth ? {
       evidence_sha256: qualificationSha256(`${qualificationCanonicalJson(options.auth)}\n`),
@@ -765,6 +822,23 @@ function commitTerminalReceipt(spoolDir: string, invocation: QualificationInvoca
   }
 }
 
+function validateLaunchAttempt(value: unknown, invocation: QualificationInvocationV1, spoolRoot: string): void {
+  if (!plainObject(value)) throw new Error(`qualification launch attempt ${invocation.invocation_id} must be an object`);
+  exactKeys(value, ["schema_version", "invocation_id", "attempt", "at", "executable", "argv", "environment_names", "automatic_retry"], `qualification launch attempt ${invocation.invocation_id}`);
+  if (value.schema_version !== QUALIFICATION_LAUNCH_ATTEMPT_VERSION || value.invocation_id !== invocation.invocation_id || value.attempt !== 1 || value.automatic_retry !== false) {
+    throw new Error(`qualification launch attempt ${invocation.invocation_id} identity/version/retry policy mismatch`);
+  }
+  timestamp(String(value.at), `qualification launch attempt ${invocation.invocation_id} time`);
+  if (qualificationCanonicalJson(value.executable) !== qualificationCanonicalJson(invocation.execution.executable)) throw new Error(`qualification launch attempt ${invocation.invocation_id} executable mismatch`);
+  const expectedArgv = buildQualificationArgv(invocation, join(spoolRoot, invocation.expected_artifact.path));
+  if (qualificationCanonicalJson(value.argv) !== qualificationCanonicalJson(expectedArgv)) throw new Error(`qualification launch attempt ${invocation.invocation_id} argv mismatch`);
+  if (!Array.isArray(value.environment_names) || value.environment_names.some((name) => typeof name !== "string") ||
+      new Set(value.environment_names).size !== value.environment_names.length ||
+      value.environment_names.some((name) => !invocation.execution.allowed_environment_names.includes(name))) {
+    throw new Error(`qualification launch attempt ${invocation.invocation_id} environment-name set is invalid`);
+  }
+}
+
 function readTerminalReceipt(spoolDir: string, invocation: QualificationInvocationV1): QualificationTerminalReceiptV1 {
   const path = join(qualificationSpoolPaths(spoolDir, invocation.invocation_id).terminal!, "receipt.json");
   const value = readCanonicalJson(path, `qualification terminal receipt ${invocation.invocation_id}`);
@@ -774,25 +848,38 @@ function readTerminalReceipt(spoolDir: string, invocation: QualificationInvocati
 
 function validateTerminalReceipt(value: unknown, invocation: QualificationInvocationV1): void {
   if (!plainObject(value)) throw new Error(`qualification terminal receipt ${invocation.invocation_id} must be an object`);
-  const required = ["schema_version", "invocation_id", "terminal_status", "attempt", "started_at", "finished_at", "deadline_at", "requested_timeout_ms", "effective_timeout_ms", "supervisor", "child", "exit_code", "signal", "requested", "actual", "provider_model_attested", "fallback_detected", "authentication", "accounting_event_sha256", "continuation_authority_sha256", "stdout", "stderr", "artifact", "error"];
+  const required = ["schema_version", "invocation_id", "terminal_status", "attempt", "started_at", "finished_at", "deadline_at", "requested_timeout_ms", "effective_timeout_ms", "supervisor", "child", "exit_code", "signal", "requested", "actual", "provider_model_identity_observed", "successful_execution", "fallback_detected", "authentication", "accounting_event_sha256", "continuation_authority_sha256", "stdout", "stderr", "artifact", "error"];
   exactKeys(value, required, `qualification terminal receipt ${invocation.invocation_id}`);
   if (value.schema_version !== QUALIFICATION_TERMINAL_RECEIPT_VERSION || value.invocation_id !== invocation.invocation_id || (value.attempt !== 0 && value.attempt !== 1)) throw new Error(`qualification terminal receipt ${invocation.invocation_id} identity/version mismatch`);
   if (!["completed", "failed", "timed-out", "aborted", "refused", "invalid-artifact"].includes(String(value.terminal_status))) throw new Error(`qualification terminal receipt ${invocation.invocation_id} has unknown status`);
   if (qualificationCanonicalJson(value.requested) !== qualificationCanonicalJson(invocation.requested)) throw new Error(`qualification terminal receipt ${invocation.invocation_id} requested identity mismatch`);
+  if (value.successful_execution !== (value.terminal_status === "completed")) throw new Error(`qualification terminal receipt ${invocation.invocation_id} successful-execution flag contradicts terminal status`);
+  if (typeof value.provider_model_identity_observed !== "boolean" || typeof value.fallback_detected !== "boolean") throw new Error(`qualification terminal receipt ${invocation.invocation_id} identity/fallback flags are invalid`);
+  if (value.provider_model_identity_observed && qualificationCanonicalJson(value.actual) !== qualificationCanonicalJson(invocation.requested)) {
+    throw new Error(`qualification terminal receipt ${invocation.invocation_id} observed identity does not match the request`);
+  }
 }
 
-function readAuthEvidence(spoolDir: string, invocation: QualificationInvocationV1): QualificationAuthEvidenceV1 {
+function readAuthEvidence(spoolDir: string, invocation: QualificationInvocationV1, requireFresh = true): QualificationAuthEvidenceV1 {
   const path = join(qualificationSpoolPaths(spoolDir, invocation.invocation_id).invocation!, "auth-evidence.json");
   const evidence = readCanonicalJson(path, `qualification auth evidence ${invocation.invocation_id}`) as QualificationAuthEvidenceV1;
-  validateAuthEvidence(evidence, invocation);
+  validateAuthEvidence(evidence, invocation, requireFresh);
   return evidence;
 }
-function validateAuthEvidence(evidence: QualificationAuthEvidenceV1, invocation: QualificationInvocationV1): void {
+function validateAuthEvidence(evidence: QualificationAuthEvidenceV1, invocation: QualificationInvocationV1, requireFresh = true): void {
   if (!plainObject(evidence)) throw new Error("qualification auth evidence must be an object");
-  const keys = ["schema_version", "checked_at", "provider", "model", "status", "auth_type", "source", "credentials_included", "readiness_only", "removed_parent_environment_names", "child_environment_names", "executable_sha256"];
+  const keys = ["schema_version", "checked_at", "provider", "model", "status", "auth_type", "source", "credentials_included", "readiness_only", "removed_parent_environment_names", "child_environment_names", "executable_sha256", "evidence_sha256"];
   exactKeys(evidence as unknown as Record<string, unknown>, keys, `qualification auth evidence ${invocation.invocation_id}`);
   if (evidence.schema_version !== QUALIFICATION_AUTH_EVIDENCE_VERSION || evidence.provider !== invocation.requested.provider || evidence.model !== invocation.requested.model || evidence.status !== "ready" || evidence.auth_type !== "oauth" || evidence.credentials_included !== false || evidence.readiness_only !== true) {
     throw new Error(`qualification auth evidence contradicts invocation ${invocation.invocation_id}`);
+  }
+  const { evidence_sha256: recorded, ...digestInput } = evidence;
+  if (!/^[a-f0-9]{64}$/.test(recorded) || qualificationSha256(qualificationCanonicalJson(digestInput)) !== recorded) {
+    throw new Error(`qualification auth evidence digest mismatch for ${invocation.invocation_id}`);
+  }
+  const checkedAt = Date.parse(timestamp(evidence.checked_at, "qualification auth evidence time"));
+  if (requireFresh && (checkedAt > Date.now() + 60_000 || Date.now() - checkedAt > 5 * 60_000)) {
+    throw new Error(`qualification auth evidence for ${invocation.invocation_id} is stale; run start to perform a fresh Pi auth check`);
   }
 }
 
@@ -940,6 +1027,26 @@ function attestPiJsonl(text: string, requested: { provider: string; model: strin
   return { ok: true, actual, fallback: false, refused, error: refused ? errorMessage : null };
 }
 
+function assertQualificationExecutableIdentity(
+  invocation: QualificationInvocationV1,
+  current: ReturnType<typeof verifyQualificationExecutable>,
+): void {
+  if (qualificationCanonicalJson(current) !== qualificationCanonicalJson(invocation.execution.executable_identity)) {
+    throw new Error(`qualification executable filesystem identity changed after preparation for ${invocation.invocation_id}`);
+  }
+}
+
+function assertQualificationWorkingDirectory(invocation: QualificationInvocationV1): void {
+  let stat;
+  try { stat = lstatSync(invocation.scenario.working_directory); }
+  catch { throw new Error(`qualification working directory disappeared after preparation for ${invocation.invocation_id}`); }
+  if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error(`qualification working directory changed type after preparation for ${invocation.invocation_id}`);
+  const current = { realpath: realpathSync(invocation.scenario.working_directory), device: stat.dev, inode: stat.ino };
+  if (qualificationCanonicalJson(current) !== qualificationCanonicalJson(invocation.execution.working_directory_identity)) {
+    throw new Error(`qualification working directory identity changed after preparation for ${invocation.invocation_id}`);
+  }
+}
+
 function assertInputUnchanged(invocation: QualificationInvocationV1): void {
   assertRegularFile(invocation.scenario.input_path, `qualification input ${invocation.invocation_id}`);
   const digest = qualificationSha256(readFileSync(invocation.scenario.input_path));
@@ -952,6 +1059,15 @@ function assertChildEnvironment(env: NodeJS.ProcessEnv, allowedNames: readonly s
   // Re-run the policy over the already-sanitized map so a caller cannot bypass
   // the parent-boundary function by invoking the supervisor directly.
   sanitizeQualificationEnvironment(env, allowedNames, "refuse");
+}
+
+async function cleanupQualificationProcessGroupAfterLeaderExit(pid: number | undefined): Promise<void> {
+  if (process.platform === "win32" || !pid) return;
+  try { process.kill(-pid, "SIGTERM"); }
+  catch { return; }
+  await sleep(75);
+  try { process.kill(-pid, "SIGKILL"); }
+  catch { /* group is already gone */ }
 }
 
 function terminateQualificationProcess(child: ChildProcess, identity: QualificationProcessIdentity | null): void {
