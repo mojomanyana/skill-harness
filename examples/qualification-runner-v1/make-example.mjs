@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,13 +17,20 @@ const hex = (character, size = 64) => character.repeat(size);
 const executable = { path: fake, sha256: sha(readFileSync(fake)) };
 const arm = (id, kind, model) => ({
   id, kind, provider: "fake", model, authentication: "test-oauth", executable, resources: [],
-  arguments: ["@{input_path}"], allowed_environment_names: ["HOME", "PATH"],
+  arguments: ["@{input_path}"], allowed_environment_names: ["HOME", "PATH", "PI_CODING_AGENT_DIR"],
   timeout_ms: 5000, output_limit_bytes: 65536,
   artifact: { type: "pi-jsonl", relative_path_template: "artifacts/{invocation_id}.jsonl" },
   fallback: false, metered_override: false,
 });
+const oauthAgentDirectory = join(output, "oauth-agent");
+mkdirSync(oauthAgentDirectory, { mode: 0o700 });
+chmodSync(oauthAgentDirectory, 0o700);
+const authPath = join(oauthAgentDirectory, "auth.json");
+writeFileSync(authPath, JSON.stringify({ "openai-codex": { type: "oauth", access: "INERT-TEST-ONLY" } }), { mode: 0o600 });
+chmodSync(authPath, 0o600);
 const configuration = {
   schema_version: "qualification-config-v1",
+  oauth_directory_policy: "qualification-oauth-directory-policy-v2",
   mode: "test",
   product: { repository: "https://example.invalid/inert-product", commit: hex("1", 40), tree: hex("2", 40), checkout_path: output, package_path: fake, package_sha256: hex("3"), package_bytes: 1 },
   engine: { repository: "https://example.invalid/inert-engine", commit: hex("4", 40), tree: hex("5", 40), checkout_path: output, package_paths: { core: fake, adapters: fake, cli: fake, meta: fake }, package_sha256: { core: hex("6"), adapters: hex("7"), cli: hex("8"), meta: hex("9") } },

@@ -51,14 +51,27 @@ import {
   type QualificationLockIo,
 } from "./qualification-lock.js";
 import {
+  QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
+  qualificationOAuthDirectoryPolicy,
   sanitizeQualificationEnvironment,
   qualificationCanonicalJson,
   qualificationSha256,
   verifyQualificationExecutable,
   verifyQualificationPins,
   verifyQualificationResource,
+  type QualificationOAuthDirectoryPolicy,
   type QualificationRole,
 } from "./qualification-config.js";
+import {
+  assertQualificationOAuthDirectoryContinuityV2,
+  assertQualificationOAuthDirectoryPolicyV2,
+  inspectQualificationOAuthDirectoryPolicyV2,
+  invalidateQualificationOAuthDirectoryInventoryV2,
+  validateQualificationOAuthDirectoryInventoryV2,
+  type QualificationOAuthDirectoryBoundaryV2,
+  type QualificationOAuthDirectoryInventoryV2,
+  type QualificationOAuthDirectoryValidationPointV2,
+} from "./qualification-oauth-directory.js";
 import {
   appendQualificationAccountingEvent,
   atomicWriteBytes,
@@ -80,7 +93,9 @@ import {
 } from "./qualification-store.js";
 
 export const QUALIFICATION_AUTH_EVIDENCE_VERSION = "qualification-auth-evidence-v1" as const;
+export const QUALIFICATION_AUTH_EVIDENCE_VERSION_V2 = "qualification-auth-evidence-v2" as const;
 export const QUALIFICATION_TERMINAL_RECEIPT_VERSION = "qualification-terminal-receipt-v1" as const;
+export const QUALIFICATION_TERMINAL_RECEIPT_VERSION_V2 = "qualification-terminal-receipt-v2" as const;
 export const QUALIFICATION_LAUNCH_ATTEMPT_VERSION = "qualification-launch-attempt-v1" as const;
 
 export interface QualificationFilesystemOccurrence {
@@ -111,6 +126,26 @@ export interface QualificationAuthEvidenceV1 {
   oauth_models_file_identity: QualificationFilesystemOccurrence | null;
   oauth_directory_entries: string[];
   evidence_sha256: string;
+}
+
+export interface QualificationAuthEvidenceV2 extends Omit<QualificationAuthEvidenceV1,
+  "schema_version" | "oauth_agent_directory_identity" | "oauth_auth_file_identity" | "oauth_models_file_identity" | "oauth_directory_entries"> {
+  schema_version: typeof QUALIFICATION_AUTH_EVIDENCE_VERSION_V2;
+  oauth_directory_policy: typeof QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+  oauth_directory_validations: {
+    before_oauth_readiness: QualificationOAuthDirectoryInventoryV2;
+    after_oauth_readiness: QualificationOAuthDirectoryInventoryV2;
+  };
+}
+
+export type QualificationAuthEvidence = QualificationAuthEvidenceV1 | QualificationAuthEvidenceV2;
+
+export interface QualificationOAuthDirectoryValidationsV2 {
+  before_oauth_readiness: QualificationOAuthDirectoryInventoryV2 | null;
+  after_oauth_readiness: QualificationOAuthDirectoryInventoryV2 | null;
+  before_launch_claim: QualificationOAuthDirectoryInventoryV2 | null;
+  immediately_before_pi_launch: QualificationOAuthDirectoryInventoryV2 | null;
+  after_child_termination: QualificationOAuthDirectoryInventoryV2 | null;
 }
 
 export interface QualificationTerminalReceiptV1 {
@@ -145,6 +180,14 @@ export interface QualificationTerminalReceiptV1 {
   artifact: { path: string; type: "pi-jsonl"; bytes: number; sha256: string } | null;
   error: string | null;
 }
+
+export interface QualificationTerminalReceiptV2 extends Omit<QualificationTerminalReceiptV1, "schema_version"> {
+  schema_version: typeof QUALIFICATION_TERMINAL_RECEIPT_VERSION_V2;
+  oauth_directory_policy: typeof QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+  oauth_directory_validations: QualificationOAuthDirectoryValidationsV2;
+}
+
+export type QualificationTerminalReceipt = QualificationTerminalReceiptV1 | QualificationTerminalReceiptV2;
 
 type QualificationChildOutcome = { code: number | null; signal: NodeJS.Signals | null; error?: string };
 
@@ -235,12 +278,32 @@ export function assertQualificationOAuthCredentialBoundary(env: NodeJS.ProcessEn
   };
 }
 
+type QualificationOAuthBoundaryV1 = ReturnType<typeof assertQualificationOAuthCredentialBoundary>;
+type QualificationOAuthBoundary = QualificationOAuthBoundaryV1 | QualificationOAuthDirectoryBoundaryV2 | null;
+
+function assertConfiguredOAuthBoundary(
+  mode: "production" | "test",
+  policy: QualificationOAuthDirectoryPolicy,
+  env: NodeJS.ProcessEnv,
+  validationPoint: QualificationOAuthDirectoryValidationPointV2,
+  now?: () => string,
+): QualificationOAuthBoundary {
+  if (policy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) {
+    return assertQualificationOAuthDirectoryPolicyV2(env, { validation_point: validationPoint, now });
+  }
+  return mode === "production" ? assertQualificationOAuthCredentialBoundary(env) : null;
+}
+
+function isOAuthBoundaryV2(value: QualificationOAuthBoundary): value is QualificationOAuthDirectoryBoundaryV2 {
+  return value !== null && "policy" in value && value.policy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+}
+
 export async function checkQualificationAuthentication(options: {
   spool_dir: string;
   invocation_id: string;
   parent_env?: NodeJS.ProcessEnv;
   now?: () => string;
-}): Promise<{ evidence: QualificationAuthEvidenceV1; child_env: NodeJS.ProcessEnv; launch_authority: string }> {
+}): Promise<{ evidence: QualificationAuthEvidence; child_env: NodeJS.ProcessEnv; launch_authority: string }> {
   const invocation = readQualificationInvocation(options.spool_dir, options.invocation_id);
   const config = readQualificationSpoolConfig(options.spool_dir);
   const arm = config.arms.find((candidate) => candidate.id === invocation.arms.selected);
@@ -266,7 +329,14 @@ export async function checkQualificationAuthentication(options: {
     arm.allowed_environment_names,
     config.runner.conflicting_parent_environment,
   );
-  if (config.mode === "production") assertQualificationOAuthCredentialBoundary(sanitized.env);
+  const oauthPolicy = qualificationOAuthDirectoryPolicy(config);
+  const beforeOAuthBoundary = assertConfiguredOAuthBoundary(
+    config.mode,
+    oauthPolicy,
+    sanitized.env,
+    "before-oauth-readiness",
+    options.now,
+  );
   const result = await spawnCapture(
     arm.executable.path,
     ["auth", "check", "--provider", arm.provider, "--model", arm.model, "--json"],
@@ -284,32 +354,62 @@ export async function checkQualificationAuthentication(options: {
   if (parsed.provider !== arm.provider) throw new Error(`qualification auth check provider substitution: requested ${arm.provider}, reported ${String(parsed.provider)}`);
   if (parsed.model !== undefined && parsed.model !== arm.model) throw new Error(`qualification auth check model substitution: requested ${arm.model}, reported ${String(parsed.model)}`);
   if (parsed.authType !== "oauth") throw new Error(`qualification requires OAuth readiness; Pi reported ${String(parsed.authType ?? "missing auth type")}`);
-  const oauthBoundary = config.mode === "production" ? assertQualificationOAuthCredentialBoundary(sanitized.env) : null;
+  const afterOAuthBoundary = assertConfiguredOAuthBoundary(
+    config.mode,
+    oauthPolicy,
+    sanitized.env,
+    "after-oauth-readiness",
+    options.now,
+  );
+  if (oauthPolicy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) {
+    if (!isOAuthBoundaryV2(beforeOAuthBoundary) || !isOAuthBoundaryV2(afterOAuthBoundary)) {
+      throw new Error("qualification OAuth directory policy v2 did not produce both readiness inventories");
+    }
+    // The auth metadata subprocess is an authorized Pi execution. It may create
+    // or atomically replace Pi's own runtime-state file, but not auth/models.
+    assertQualificationOAuthDirectoryContinuityV2(beforeOAuthBoundary.inventory, afterOAuthBoundary.inventory, { allow_models_store_change: true });
+  }
   const launchAuthority = randomBytes(32).toString("base64url");
-  const evidenceBase: Omit<QualificationAuthEvidenceV1, "evidence_sha256"> = {
-    schema_version: QUALIFICATION_AUTH_EVIDENCE_VERSION,
+  const commonEvidence = {
     checked_at: timestamp((options.now ?? (() => new Date().toISOString()))(), "qualification auth check time"),
     provider: arm.provider,
     requested_model: arm.model,
-    model_identity_observed: false,
-    status: "ready",
-    auth_type: "oauth",
-    source: "pi-auth-check-json",
-    credentials_included: false,
-    readiness_only: true,
+    model_identity_observed: false as const,
+    status: "ready" as const,
+    auth_type: "oauth" as const,
+    source: "pi-auth-check-json" as const,
+    credentials_included: false as const,
+    readiness_only: true as const,
     removed_parent_environment_names: sanitized.removed_names,
     child_environment_names: Object.keys(sanitized.env).sort(),
     executable_sha256: executable.sha256,
     launch_authority_sha256: qualificationSha256(launchAuthority),
-    oauth_agent_directory_identity: oauthBoundary?.agent_directory_identity ?? null,
-    oauth_auth_file_identity: oauthBoundary?.auth_file_identity ?? null,
-    oauth_models_file_identity: oauthBoundary?.models_file_identity ?? null,
-    oauth_directory_entries: oauthBoundary?.directory_entries ?? [],
   };
-  const evidence: QualificationAuthEvidenceV1 = {
-    ...evidenceBase,
-    evidence_sha256: qualificationSha256(qualificationCanonicalJson(evidenceBase)),
-  };
+  let evidence: QualificationAuthEvidence;
+  if (oauthPolicy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) {
+    if (!isOAuthBoundaryV2(beforeOAuthBoundary) || !isOAuthBoundaryV2(afterOAuthBoundary)) throw new Error("qualification OAuth directory policy v2 evidence is incomplete");
+    const evidenceBase: Omit<QualificationAuthEvidenceV2, "evidence_sha256"> = {
+      schema_version: QUALIFICATION_AUTH_EVIDENCE_VERSION_V2,
+      ...commonEvidence,
+      oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
+      oauth_directory_validations: {
+        before_oauth_readiness: beforeOAuthBoundary.inventory,
+        after_oauth_readiness: afterOAuthBoundary.inventory,
+      },
+    };
+    evidence = { ...evidenceBase, evidence_sha256: qualificationSha256(qualificationCanonicalJson(evidenceBase)) };
+  } else {
+    const oauthBoundary = afterOAuthBoundary && !isOAuthBoundaryV2(afterOAuthBoundary) ? afterOAuthBoundary : null;
+    const evidenceBase: Omit<QualificationAuthEvidenceV1, "evidence_sha256"> = {
+      schema_version: QUALIFICATION_AUTH_EVIDENCE_VERSION,
+      ...commonEvidence,
+      oauth_agent_directory_identity: oauthBoundary?.agent_directory_identity ?? null,
+      oauth_auth_file_identity: oauthBoundary?.auth_file_identity ?? null,
+      oauth_models_file_identity: oauthBoundary?.models_file_identity ?? null,
+      oauth_directory_entries: oauthBoundary?.directory_entries ?? [],
+    };
+    evidence = { ...evidenceBase, evidence_sha256: qualificationSha256(qualificationCanonicalJson(evidenceBase)) };
+  }
   const authPath = join(paths.invocation!, "auth-evidence.json");
   const published = await withAsyncLock(paths.invocationLock!, async () => {
     const lifecycle = readQualificationLifecycle(paths.root, invocation.invocation_id);
@@ -321,7 +421,7 @@ export async function checkQualificationAuthentication(options: {
       throw new Error(`qualification authentication cannot be refreshed while invocation ${invocation.invocation_id} has a live supervisor`);
     }
     if (existsSync(authPath)) {
-      const existing = readCanonicalJson(authPath, `qualification auth evidence ${options.invocation_id}`) as QualificationAuthEvidenceV1;
+      const existing = readCanonicalJson(authPath, `qualification auth evidence ${options.invocation_id}`) as QualificationAuthEvidence;
       try {
         validateAuthEvidence(existing, invocation, true);
         if (existing.provider !== evidence.provider || existing.requested_model !== evidence.requested_model || existing.executable_sha256 !== evidence.executable_sha256) {
@@ -357,6 +457,7 @@ export async function superviseQualificationInvocation(options: {
   const now = options.now ?? (() => new Date().toISOString());
   const invocation = readQualificationInvocation(options.spool_dir, options.invocation_id);
   const config = readQualificationSpoolConfig(options.spool_dir);
+  const oauthPolicy = qualificationOAuthDirectoryPolicy(config);
   const arm = config.arms.find((candidate) => candidate.id === invocation.arms.selected);
   if (!arm) throw new Error(`qualification selected arm ${invocation.arms.selected} disappeared from configuration`);
   const paths = qualificationSpoolPaths(options.spool_dir, options.invocation_id);
@@ -372,8 +473,10 @@ export async function superviseQualificationInvocation(options: {
   assertQualificationWorkingDirectory(invocation);
   assertInputUnchanged(invocation);
   assertChildEnvironment(options.child_env, arm.allowed_environment_names);
-  if (config.mode === "production") assertQualificationOAuthCredentialBoundary(options.child_env);
-  let auth: QualificationAuthEvidenceV1 | undefined;
+  if (config.mode === "production" && oauthPolicy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) {
+    assertQualificationOAuthCredentialBoundary(options.child_env);
+  }
+  let auth: QualificationAuthEvidence | undefined;
   const supervisorIdentity = qualificationProcessIdentity(process.pid);
   let ownsLaunch = false;
   let reconcileExistingAttempt = false;
@@ -388,7 +491,14 @@ export async function superviseQualificationInvocation(options: {
         return;
       }
       const currentAuth = readAuthEvidence(options.spool_dir, invocation);
-      if (config.mode === "production") assertOAuthBoundaryMatchesEvidence(currentAuth, assertQualificationOAuthCredentialBoundary(options.child_env));
+      const claimBoundary = assertConfiguredOAuthBoundary(
+        config.mode,
+        oauthPolicy,
+        options.child_env,
+        "before-launch-claim",
+        options.now,
+      );
+      assertConfiguredOAuthBoundaryMatchesEvidence(currentAuth, claimBoundary, false);
       if (config.mode === "production" && !options.authentication_authority) {
         throw new Error("qualification production launch requires the private authentication authority from its auth check");
       }
@@ -398,6 +508,16 @@ export async function superviseQualificationInvocation(options: {
       auth = currentAuth;
       const ledger = readQualificationAccounting(paths.root);
       const existingClaim = ledger.events.find((event) => event.invocation_id === invocation.invocation_id);
+      if (oauthPolicy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) {
+        if (!isOAuthBoundaryV2(claimBoundary)) throw new Error("qualification OAuth directory v2 launch-claim inventory is missing");
+        if (existingClaim) {
+          readOAuthDirectoryCheckpointV2(paths.invocation!, invocation, "before-launch-claim");
+        } else {
+          // Published before the accounting append. A crash before the append may
+          // replace this unclaimed checkpoint; once an event exists it is immutable.
+          writeOAuthDirectoryCheckpointV2(paths.invocation!, invocation, "before-launch-claim", claimBoundary.inventory, false);
+        }
+      }
       if (existingClaim) {
         accountingEventSha = existingClaim.event_sha256;
         const launchAttemptExists = existsSync(join(paths.invocation!, "launch-attempt.json"));
@@ -498,7 +618,20 @@ export async function superviseQualificationInvocation(options: {
     // The claim and immutable attempt already exist. Revalidate every external
     // production pin and every materialized launch input immediately before spawn.
     verifyQualificationPins(config);
-    if (config.mode === "production") assertOAuthBoundaryMatchesEvidence(auth, assertQualificationOAuthCredentialBoundary(options.child_env));
+    const prelaunchBoundary = assertConfiguredOAuthBoundary(
+      config.mode,
+      oauthPolicy,
+      options.child_env,
+      "immediately-before-pi-launch",
+      options.now,
+    );
+    assertConfiguredOAuthBoundaryMatchesEvidence(auth, prelaunchBoundary, false);
+    if (oauthPolicy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) {
+      if (!isOAuthBoundaryV2(prelaunchBoundary)) throw new Error("qualification OAuth directory v2 prelaunch inventory is missing");
+      const recordedClaim = readOAuthDirectoryCheckpointV2(paths.invocation!, invocation, "before-launch-claim");
+      assertQualificationOAuthDirectoryContinuityV2(recordedClaim, prelaunchBoundary.inventory, { allow_models_store_change: false });
+      writeOAuthDirectoryCheckpointV2(paths.invocation!, invocation, "immediately-before-pi-launch", prelaunchBoundary.inventory, true);
+    }
     assertQualificationExecutableIdentity(invocation, verifyQualificationExecutable(arm.executable));
     for (const resource of invocation.execution.resources) verifyQualificationResource(resource);
     assertQualificationWorkingDirectory(invocation);
@@ -838,6 +971,57 @@ export function validateQualificationRunnerSpool(spoolDir: string): ReturnType<t
   return { ...report, terminal };
 }
 
+const QUALIFICATION_OAUTH_DIRECTORY_CHECKPOINT_VERSION = "qualification-oauth-directory-checkpoint-v2" as const;
+
+type QualificationOAuthCheckpointPointV2 = "before-launch-claim" | "immediately-before-pi-launch";
+
+function oauthCheckpointPath(invocationDir: string, point: QualificationOAuthCheckpointPointV2): string {
+  return join(invocationDir, point === "before-launch-claim" ? "oauth-directory-launch-claim.json" : "oauth-directory-prelaunch.json");
+}
+
+function writeOAuthDirectoryCheckpointV2(
+  invocationDir: string,
+  invocation: QualificationInvocationV1,
+  point: QualificationOAuthCheckpointPointV2,
+  inventory: QualificationOAuthDirectoryInventoryV2,
+  exclusive: boolean,
+): void {
+  if (invocation.oauth_directory_policy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) throw new Error("qualification OAuth directory checkpoint requires a v2 invocation");
+  validateQualificationOAuthDirectoryInventoryV2(inventory, point);
+  if (!inventory.valid) throw new Error(`qualification OAuth directory ${point} checkpoint cannot bind an invalid inventory`);
+  const base = {
+    schema_version: QUALIFICATION_OAUTH_DIRECTORY_CHECKPOINT_VERSION,
+    invocation_id: invocation.invocation_id,
+    oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
+    validation_point: point,
+    inventory,
+  };
+  atomicWriteCanonical(
+    oauthCheckpointPath(invocationDir, point),
+    { ...base, checkpoint_sha256: qualificationSha256(qualificationCanonicalJson(base)) },
+    exclusive,
+  );
+}
+
+function readOAuthDirectoryCheckpointV2(
+  invocationDir: string,
+  invocation: QualificationInvocationV1,
+  point: QualificationOAuthCheckpointPointV2,
+): QualificationOAuthDirectoryInventoryV2 {
+  const value = readCanonicalJson(oauthCheckpointPath(invocationDir, point), `qualification OAuth directory ${point} checkpoint ${invocation.invocation_id}`);
+  if (!plainObject(value)) throw new Error(`qualification OAuth directory ${point} checkpoint must be an object`);
+  exactKeys(value, ["schema_version", "invocation_id", "oauth_directory_policy", "validation_point", "inventory", "checkpoint_sha256"], `qualification OAuth directory ${point} checkpoint`);
+  const { checkpoint_sha256: recorded, ...base } = value;
+  if (value.schema_version !== QUALIFICATION_OAUTH_DIRECTORY_CHECKPOINT_VERSION || value.invocation_id !== invocation.invocation_id ||
+      invocation.oauth_directory_policy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 || value.oauth_directory_policy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 ||
+      value.validation_point !== point || typeof recorded !== "string" || qualificationSha256(qualificationCanonicalJson(base)) !== recorded) {
+    throw new Error(`qualification OAuth directory ${point} checkpoint identity/digest mismatch`);
+  }
+  validateQualificationOAuthDirectoryInventoryV2(value.inventory, point);
+  if (!value.inventory.valid) throw new Error(`qualification OAuth directory ${point} checkpoint is invalid`);
+  return value.inventory;
+}
+
 function buildQualificationArgv(invocation: QualificationInvocationV1, artifactPath: string): string[] {
   const replacements: Record<string, string> = {
     input_path: invocation.scenario.input_path,
@@ -978,7 +1162,7 @@ async function reconcileInterruptedAttempt(options: {
   invocation: QualificationInvocationV1;
   spoolDir: string;
   supervisor: QualificationProcessIdentity;
-  auth: QualificationAuthEvidenceV1 | null;
+  auth: QualificationAuthEvidence | null;
   accountingEventSha: string;
   continuationSha: string | null;
   now: string;
@@ -1011,13 +1195,97 @@ async function reconcileInterruptedAttempt(options: {
   });
 }
 
+function collectOAuthDirectoryValidationsV2(
+  invocation: QualificationInvocationV1,
+  spoolDir: string,
+  auth: QualificationAuthEvidence | null,
+  terminalTime: string,
+  validateTerminal: boolean,
+): { validations: QualificationOAuthDirectoryValidationsV2; artifact_eligible: boolean; error: string | null } | null {
+  if (invocation.oauth_directory_policy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) return null;
+  const validations: QualificationOAuthDirectoryValidationsV2 = {
+    before_oauth_readiness: null,
+    after_oauth_readiness: null,
+    before_launch_claim: null,
+    immediately_before_pi_launch: null,
+    after_child_termination: null,
+  };
+  const errors: string[] = [];
+  if (auth?.schema_version === QUALIFICATION_AUTH_EVIDENCE_VERSION_V2 && auth.oauth_directory_policy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) {
+    validations.before_oauth_readiness = auth.oauth_directory_validations.before_oauth_readiness;
+    validations.after_oauth_readiness = auth.oauth_directory_validations.after_oauth_readiness;
+  } else if (auth !== null) {
+    errors.push("v2 authentication evidence is missing or historical");
+  }
+  const invocationDir = qualificationSpoolPaths(spoolDir, invocation.invocation_id).invocation!;
+  for (const point of ["before-launch-claim", "immediately-before-pi-launch"] as const) {
+    const path = oauthCheckpointPath(invocationDir, point);
+    if (!existsSync(path)) continue;
+    try {
+      const inventory = readOAuthDirectoryCheckpointV2(invocationDir, invocation, point);
+      if (point === "before-launch-claim") validations.before_launch_claim = inventory;
+      else validations.immediately_before_pi_launch = inventory;
+    } catch (error) {
+      errors.push(safeError(error));
+    }
+  }
+  if (validateTerminal) {
+    const source = validations.immediately_before_pi_launch ?? validations.before_launch_claim ?? validations.after_oauth_readiness;
+    if (!source) {
+      errors.push("no earlier v2 OAuth directory occurrence exists for terminal continuity");
+    } else {
+      try {
+        let terminal = inspectQualificationOAuthDirectoryPolicyV2(
+          { PI_CODING_AGENT_DIR: source.directory.path },
+          { validation_point: "after-child-termination", now: () => terminalTime },
+        ).inventory;
+        if (terminal.valid) {
+          try {
+            // Pi may create or atomically replace only models-store.json during
+            // the authorized child. Auth and models occurrences remain bound.
+            assertQualificationOAuthDirectoryContinuityV2(source, terminal, { allow_models_store_change: true });
+          } catch (error) {
+            terminal = invalidateQualificationOAuthDirectoryInventoryV2(terminal, safeError(error));
+          }
+        }
+        validations.after_child_termination = terminal;
+        if (!terminal.valid) errors.push(...terminal.errors);
+      } catch (error) {
+        errors.push(`terminal OAuth directory occurrence could not be inspected: ${safeError(error)}`);
+      }
+    }
+  }
+  return {
+    validations,
+    artifact_eligible: errors.length === 0,
+    error: errors.length > 0 ? `qualification OAuth terminal inventory validation failed: ${errors[0]}` : null,
+  };
+}
+
+function terminalReceiptForPolicy(
+  invocation: QualificationInvocationV1,
+  base: Omit<QualificationTerminalReceiptV1, "schema_version">,
+  oauth: ReturnType<typeof collectOAuthDirectoryValidationsV2>,
+): QualificationTerminalReceipt {
+  if (invocation.oauth_directory_policy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) {
+    if (!oauth) throw new Error("qualification terminal receipt v2 lacks OAuth directory evidence");
+    return {
+      schema_version: QUALIFICATION_TERMINAL_RECEIPT_VERSION_V2,
+      ...base,
+      oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
+      oauth_directory_validations: oauth.validations,
+    };
+  }
+  return { schema_version: QUALIFICATION_TERMINAL_RECEIPT_VERSION, ...base };
+}
+
 async function finalizeAfterCapture(options: {
   invocation: QualificationInvocationV1;
   spoolDir: string;
   terminalStatus?: QualificationTerminalStatus;
   supervisor: QualificationProcessIdentity;
   child: QualificationProcessIdentity | null;
-  auth: QualificationAuthEvidenceV1;
+  auth: QualificationAuthEvidence;
   accountingEventSha: string;
   continuationSha: string | null;
   startedAt: string;
@@ -1037,9 +1305,12 @@ async function finalizeAfterCapture(options: {
   }
   const stdout = outputReceipt(paths.root, stdoutFinal, options.stdoutCapture);
   const stderr = outputReceipt(paths.root, stderrFinal, options.stderrCapture);
+  const finishedAt = timestamp(options.now, "qualification terminal time");
+  const oauth = collectOAuthDirectoryValidationsV2(options.invocation, paths.root, options.auth, finishedAt, true);
+  const artifactEligible = oauth?.artifact_eligible ?? true;
   let artifact: QualificationTerminalReceiptV1["artifact"] = null;
   let attestation: ArtifactAttestation = { ok: false, actual: null, fallback: false, refused: false, error: "artifact was not validated" };
-  if (!stdout.truncated) {
+  if (!stdout.truncated && artifactEligible) {
     const artifactPath = join(paths.root, options.invocation.expected_artifact.path);
     try {
       atomicWriteBytes(artifactPath, readFileSync(stdoutFinal), true);
@@ -1049,21 +1320,23 @@ async function finalizeAfterCapture(options: {
     } catch (error) {
       attestation = { ok: false, actual: null, fallback: false, refused: false, error: safeError(error) };
     }
+  } else if (!artifactEligible) {
+    attestation = { ok: false, actual: null, fallback: false, refused: false, error: oauth?.error ?? "OAuth directory terminal inventory is invalid" };
   } else {
     attestation = { ok: false, actual: null, fallback: false, refused: false, error: "stdout exceeded the configured output limit" };
   }
   const status = options.terminalStatus
     ?? (options.exitCode !== 0 ? "failed"
-      : attestation.refused ? "refused"
-        : attestation.ok ? "completed" : "invalid-artifact");
-  const error = options.error ?? (status === "completed" ? null : attestation.error ?? `child exited ${String(options.exitCode)}`);
-  const receipt: QualificationTerminalReceiptV1 = {
-    schema_version: QUALIFICATION_TERMINAL_RECEIPT_VERSION,
+      : !artifactEligible ? "invalid-artifact"
+        : attestation.refused ? "refused"
+          : attestation.ok ? "completed" : "invalid-artifact");
+  const error = options.error ?? (status === "completed" ? null : oauth?.error ?? attestation.error ?? `child exited ${String(options.exitCode)}`);
+  const receipt = terminalReceiptForPolicy(options.invocation, {
     invocation_id: options.invocation.invocation_id,
     terminal_status: status,
     attempt: 1,
     started_at: options.startedAt,
-    finished_at: timestamp(options.now, "qualification terminal time"),
+    finished_at: finishedAt,
     deadline_at: options.deadlineAt,
     requested_timeout_ms: options.invocation.execution.timeout_ms,
     effective_timeout_ms: options.invocation.execution.timeout_ms,
@@ -1088,7 +1361,7 @@ async function finalizeAfterCapture(options: {
     stderr,
     artifact,
     error,
-  };
+  }, oauth);
   commitTerminalReceipt(paths.root, options.invocation, receipt);
 }
 
@@ -1097,7 +1370,7 @@ async function finalizeWithoutChild(options: {
   spoolDir: string;
   status: "aborted" | "failed";
   supervisor: QualificationProcessIdentity;
-  auth: QualificationAuthEvidenceV1 | null;
+  auth: QualificationAuthEvidence | null;
   now: string;
   error: string;
   accountingEventSha?: string;
@@ -1117,22 +1390,31 @@ async function finalizeWithoutChild(options: {
     const bytes = readFileSync(path).length;
     return { path, total_bytes: bytes, captured_bytes: bytes, truncated: options.outputIncomplete === true, write: () => {}, close: () => {} };
   };
+  const finishedAt = timestamp(options.now, "qualification terminal time");
+  const oauth = collectOAuthDirectoryValidationsV2(
+    options.invocation,
+    paths.root,
+    options.auth,
+    finishedAt,
+    Boolean(options.child || options.startedAt),
+  );
   const interruptedArtifactPath = join(paths.root, options.invocation.expected_artifact.path);
   let interruptedArtifact: QualificationTerminalReceiptV1["artifact"] = null;
   let interruptedAttestation: ArtifactAttestation = { ok: false, actual: null, fallback: false, refused: false, error: null };
-  if (existsSync(interruptedArtifactPath)) {
+  if (existsSync(interruptedArtifactPath) && (oauth?.artifact_eligible ?? true)) {
     assertRegularFile(interruptedArtifactPath, `qualification interrupted artifact ${options.invocation.invocation_id}`);
     const bytes = readFileSync(interruptedArtifactPath);
     interruptedArtifact = { path: options.invocation.expected_artifact.path, type: "pi-jsonl", bytes: bytes.length, sha256: qualificationSha256(bytes) };
     interruptedAttestation = attestPiJsonl(bytes.toString("utf8"), options.invocation.requested);
+  } else if (existsSync(interruptedArtifactPath) && oauth?.artifact_eligible === false) {
+    rmSync(interruptedArtifactPath, { force: true });
   }
-  const receipt: QualificationTerminalReceiptV1 = {
-    schema_version: QUALIFICATION_TERMINAL_RECEIPT_VERSION,
+  const receipt = terminalReceiptForPolicy(options.invocation, {
     invocation_id: options.invocation.invocation_id,
     terminal_status: options.status,
     attempt: options.accountingEventSha ? 1 : 0,
     started_at: options.startedAt ?? null,
-    finished_at: timestamp(options.now, "qualification terminal time"),
+    finished_at: finishedAt,
     deadline_at: options.deadlineAt ?? null,
     requested_timeout_ms: options.invocation.execution.timeout_ms,
     effective_timeout_ms: options.invocation.execution.timeout_ms,
@@ -1156,12 +1438,12 @@ async function finalizeWithoutChild(options: {
     stdout: outputReceipt(paths.root, stdoutPath, existingCapture(stdoutPath)),
     stderr: outputReceipt(paths.root, stderrPath, existingCapture(stderrPath)),
     artifact: interruptedArtifact,
-    error: options.error,
-  };
+    error: oauth?.error ?? options.error,
+  }, oauth);
   commitTerminalReceipt(paths.root, options.invocation, receipt);
 }
 
-function commitTerminalReceipt(spoolDir: string, invocation: QualificationInvocationV1, receipt: QualificationTerminalReceiptV1): void {
+function commitTerminalReceipt(spoolDir: string, invocation: QualificationInvocationV1, receipt: QualificationTerminalReceipt): void {
   const paths = qualificationSpoolPaths(spoolDir, invocation.invocation_id);
   if (existsSync(paths.terminal!)) {
     const existing = readTerminalReceipt(spoolDir, invocation);
@@ -1217,14 +1499,14 @@ function validateLaunchAttempt(value: unknown, invocation: QualificationInvocati
   }
 }
 
-function readTerminalReceipt(spoolDir: string, invocation: QualificationInvocationV1): QualificationTerminalReceiptV1 {
+function readTerminalReceipt(spoolDir: string, invocation: QualificationInvocationV1): QualificationTerminalReceipt {
   const path = join(qualificationSpoolPaths(spoolDir, invocation.invocation_id).terminal!, "receipt.json");
   const value = readCanonicalJson(path, `qualification terminal receipt ${invocation.invocation_id}`);
   validateTerminalReceipt(value, invocation);
-  return value as QualificationTerminalReceiptV1;
+  return value as QualificationTerminalReceipt;
 }
 
-function assertTerminalReceiptCrossBindings(spoolDir: string, invocation: QualificationInvocationV1, receipt: QualificationTerminalReceiptV1): void {
+function assertTerminalReceiptCrossBindings(spoolDir: string, invocation: QualificationInvocationV1, receipt: QualificationTerminalReceipt): void {
   const paths = qualificationSpoolPaths(spoolDir, invocation.invocation_id);
   const accountingEvent = readQualificationAccounting(paths.root).events.find((event) => event.invocation_id === invocation.invocation_id);
   const expectedAttempt = accountingEvent ? 1 : 0;
@@ -1245,10 +1527,37 @@ function assertTerminalReceiptCrossBindings(spoolDir: string, invocation: Qualif
   if (receipt.continuation_authority_sha256 !== (continuation ? String(continuation.authority_sha256) : null)) {
     throw new Error(`qualification terminal receipt for ${invocation.invocation_id} continuation authority mismatch`);
   }
+  let authEvidence: QualificationAuthEvidence | null = null;
   if (receipt.authentication) {
-    const evidence = readAuthEvidence(paths.root, invocation, false);
-    if (receipt.authentication.evidence_sha256 !== qualificationSha256(`${qualificationCanonicalJson(evidence)}\n`)) {
+    authEvidence = readAuthEvidence(paths.root, invocation, false);
+    if (receipt.authentication.evidence_sha256 !== qualificationSha256(`${qualificationCanonicalJson(authEvidence)}\n`)) {
       throw new Error(`qualification terminal receipt for ${invocation.invocation_id} authentication evidence mismatch`);
+    }
+  }
+  if (receipt.schema_version === QUALIFICATION_TERMINAL_RECEIPT_VERSION_V2) {
+    if (invocation.oauth_directory_policy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) throw new Error(`qualification terminal receipt for ${invocation.invocation_id} reinterprets historical policy as v2`);
+    const validations = receipt.oauth_directory_validations;
+    if (authEvidence?.schema_version === QUALIFICATION_AUTH_EVIDENCE_VERSION_V2) {
+      if (qualificationCanonicalJson(validations.before_oauth_readiness) !== qualificationCanonicalJson(authEvidence.oauth_directory_validations.before_oauth_readiness) ||
+          qualificationCanonicalJson(validations.after_oauth_readiness) !== qualificationCanonicalJson(authEvidence.oauth_directory_validations.after_oauth_readiness)) {
+        throw new Error(`qualification terminal receipt for ${invocation.invocation_id} OAuth readiness occurrence mismatch`);
+      }
+    } else if (receipt.attempt === 1) {
+      throw new Error(`qualification terminal receipt for ${invocation.invocation_id} lacks v2 auth occurrence evidence`);
+    }
+    if (receipt.attempt === 1) {
+      const claim = readOAuthDirectoryCheckpointV2(paths.invocation!, invocation, "before-launch-claim");
+      if (qualificationCanonicalJson(validations.before_launch_claim) !== qualificationCanonicalJson(claim)) {
+        throw new Error(`qualification terminal receipt for ${invocation.invocation_id} launch-claim OAuth occurrence mismatch`);
+      }
+      if (existsSync(oauthCheckpointPath(paths.invocation!, "immediately-before-pi-launch"))) {
+        const prelaunch = readOAuthDirectoryCheckpointV2(paths.invocation!, invocation, "immediately-before-pi-launch");
+        if (qualificationCanonicalJson(validations.immediately_before_pi_launch) !== qualificationCanonicalJson(prelaunch)) {
+          throw new Error(`qualification terminal receipt for ${invocation.invocation_id} prelaunch OAuth occurrence mismatch`);
+        }
+      } else if (validations.immediately_before_pi_launch !== null) {
+        throw new Error(`qualification terminal receipt for ${invocation.invocation_id} invents missing prelaunch OAuth occurrence evidence`);
+      }
     }
   }
   verifyOutputReceipt(paths.root, receipt.stdout);
@@ -1283,9 +1592,22 @@ function assertTerminalReceiptCrossBindings(spoolDir: string, invocation: Qualif
 
 function validateTerminalReceipt(value: unknown, invocation: QualificationInvocationV1): void {
   if (!plainObject(value)) throw new Error(`qualification terminal receipt ${invocation.invocation_id} must be an object`);
-  const required = ["schema_version", "invocation_id", "terminal_status", "attempt", "started_at", "finished_at", "deadline_at", "requested_timeout_ms", "effective_timeout_ms", "supervisor", "child", "exit_code", "signal", "requested", "actual", "provider_model_identity_observed", "successful_execution", "fallback_detected", "authentication", "accounting_event_sha256", "continuation_authority_sha256", "stdout", "stderr", "artifact", "error"];
-  exactKeys(value, required, `qualification terminal receipt ${invocation.invocation_id}`);
-  if (value.schema_version !== QUALIFICATION_TERMINAL_RECEIPT_VERSION || value.invocation_id !== invocation.invocation_id || (value.attempt !== 0 && value.attempt !== 1)) throw new Error(`qualification terminal receipt ${invocation.invocation_id} identity/version mismatch`);
+  const historical = ["schema_version", "invocation_id", "terminal_status", "attempt", "started_at", "finished_at", "deadline_at", "requested_timeout_ms", "effective_timeout_ms", "supervisor", "child", "exit_code", "signal", "requested", "actual", "provider_model_identity_observed", "successful_execution", "fallback_detected", "authentication", "accounting_event_sha256", "continuation_authority_sha256", "stdout", "stderr", "artifact", "error"];
+  const policyV2 = invocation.oauth_directory_policy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+  if (policyV2) {
+    if (value.schema_version !== QUALIFICATION_TERMINAL_RECEIPT_VERSION_V2) {
+      throw new Error(`qualification v2 terminal receipt ${invocation.invocation_id} identity/policy mismatch; historical receipts are not reinterpreted`);
+    }
+    exactKeys(value, [...historical, "oauth_directory_policy", "oauth_directory_validations"], `qualification terminal receipt ${invocation.invocation_id}`);
+    if (value.oauth_directory_policy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) {
+      throw new Error(`qualification v2 terminal receipt ${invocation.invocation_id} identity/policy mismatch; historical receipts are not reinterpreted`);
+    }
+    validateTerminalOAuthDirectoryValidationsV2(value.oauth_directory_validations, invocation.invocation_id);
+  } else {
+    exactKeys(value, historical, `qualification terminal receipt ${invocation.invocation_id}`);
+    if (value.schema_version !== QUALIFICATION_TERMINAL_RECEIPT_VERSION) throw new Error(`qualification historical terminal receipt ${invocation.invocation_id} identity/version mismatch`);
+  }
+  if (value.invocation_id !== invocation.invocation_id || (value.attempt !== 0 && value.attempt !== 1)) throw new Error(`qualification terminal receipt ${invocation.invocation_id} identity/version mismatch`);
   if (!["completed", "failed", "timed-out", "aborted", "refused", "invalid-artifact"].includes(String(value.terminal_status))) throw new Error(`qualification terminal receipt ${invocation.invocation_id} has unknown status`);
   timestamp(String(value.finished_at), `qualification terminal receipt ${invocation.invocation_id} finish time`);
   if (value.started_at !== null) timestamp(String(value.started_at), `qualification terminal receipt ${invocation.invocation_id} start time`);
@@ -1329,6 +1651,31 @@ function validateTerminalReceipt(value: unknown, invocation: QualificationInvoca
     }
   }
   if (value.error !== null && typeof value.error !== "string") throw new Error(`qualification terminal receipt ${invocation.invocation_id} error field is invalid`);
+  if (policyV2) {
+    const validations = value.oauth_directory_validations as unknown as QualificationOAuthDirectoryValidationsV2;
+    const terminal = validations.after_child_termination;
+    if (value.started_at !== null && terminal === null) throw new Error(`qualification terminal receipt ${invocation.invocation_id} lacks post-child OAuth inventory evidence`);
+    if (terminal?.valid === false && value.artifact !== null) throw new Error(`qualification terminal receipt ${invocation.invocation_id} accepts an artifact after invalid OAuth inventory`);
+    if ((value.terminal_status === "completed" || value.terminal_status === "refused") && terminal?.valid !== true) {
+      throw new Error(`qualification terminal receipt ${invocation.invocation_id} successful/refused artifact lacks valid terminal OAuth inventory`);
+    }
+  }
+}
+
+function validateTerminalOAuthDirectoryValidationsV2(value: unknown, invocationId: string): asserts value is QualificationOAuthDirectoryValidationsV2 {
+  if (!plainObject(value)) throw new Error(`qualification terminal receipt ${invocationId} OAuth directory validations are invalid`);
+  const fields: Array<[keyof QualificationOAuthDirectoryValidationsV2, QualificationOAuthDirectoryValidationPointV2]> = [
+    ["before_oauth_readiness", "before-oauth-readiness"],
+    ["after_oauth_readiness", "after-oauth-readiness"],
+    ["before_launch_claim", "before-launch-claim"],
+    ["immediately_before_pi_launch", "immediately-before-pi-launch"],
+    ["after_child_termination", "after-child-termination"],
+  ];
+  exactKeys(value, fields.map(([name]) => name), `qualification terminal receipt ${invocationId} OAuth directory validations`);
+  for (const [name, point] of fields) {
+    const inventory = value[name];
+    if (inventory !== null) validateQualificationOAuthDirectoryInventoryV2(inventory, point);
+  }
 }
 
 function validateOutputReceiptShape(value: unknown, invocationId: string, fileName: string): void {
@@ -1340,29 +1687,54 @@ function validateOutputReceiptShape(value: unknown, invocationId: string, fileNa
   }
 }
 
-function readAuthEvidence(spoolDir: string, invocation: QualificationInvocationV1, requireFresh = true): QualificationAuthEvidenceV1 {
+function readAuthEvidence(spoolDir: string, invocation: QualificationInvocationV1, requireFresh = true): QualificationAuthEvidence {
   const path = join(qualificationSpoolPaths(spoolDir, invocation.invocation_id).invocation!, "auth-evidence.json");
-  const evidence = readCanonicalJson(path, `qualification auth evidence ${invocation.invocation_id}`) as QualificationAuthEvidenceV1;
+  const evidence = readCanonicalJson(path, `qualification auth evidence ${invocation.invocation_id}`) as QualificationAuthEvidence;
   validateAuthEvidence(evidence, invocation, requireFresh);
   return evidence;
 }
-function validateAuthEvidence(evidence: QualificationAuthEvidenceV1, invocation: QualificationInvocationV1, requireFresh = true): void {
+function validateAuthEvidence(evidence: QualificationAuthEvidence, invocation: QualificationInvocationV1, requireFresh = true): void {
   if (!plainObject(evidence)) throw new Error("qualification auth evidence must be an object");
-  const keys = ["schema_version", "checked_at", "provider", "requested_model", "model_identity_observed", "status", "auth_type", "source", "credentials_included", "readiness_only", "removed_parent_environment_names", "child_environment_names", "executable_sha256", "launch_authority_sha256", "oauth_agent_directory_identity", "oauth_auth_file_identity", "oauth_models_file_identity", "oauth_directory_entries", "evidence_sha256"];
-  exactKeys(evidence as unknown as Record<string, unknown>, keys, `qualification auth evidence ${invocation.invocation_id}`);
-  if (evidence.schema_version !== QUALIFICATION_AUTH_EVIDENCE_VERSION || evidence.provider !== invocation.requested.provider || evidence.requested_model !== invocation.requested.model || evidence.model_identity_observed !== false || evidence.status !== "ready" || evidence.auth_type !== "oauth" || evidence.credentials_included !== false || evidence.readiness_only !== true || !/^[a-f0-9]{64}$/.test(evidence.launch_authority_sha256)) {
-    throw new Error(`qualification auth evidence contradicts invocation ${invocation.invocation_id}`);
-  }
-  const productionAuth = invocation.authentication === "chatgpt-oauth";
-  if (productionAuth) {
-    if (!isFilesystemOccurrence(evidence.oauth_agent_directory_identity) || !isFilesystemOccurrence(evidence.oauth_auth_file_identity) ||
-        (evidence.oauth_models_file_identity !== null && !isFilesystemOccurrence(evidence.oauth_models_file_identity)) ||
-        !Array.isArray(evidence.oauth_directory_entries) || evidence.oauth_directory_entries.some((entry) => typeof entry !== "string")) {
-      throw new Error(`qualification auth evidence OAuth filesystem occurrence is invalid for ${invocation.invocation_id}`);
+  const commonKeys = ["schema_version", "checked_at", "provider", "requested_model", "model_identity_observed", "status", "auth_type", "source", "credentials_included", "readiness_only", "removed_parent_environment_names", "child_environment_names", "executable_sha256", "launch_authority_sha256", "evidence_sha256"];
+  const policyV2 = invocation.oauth_directory_policy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+  if (policyV2) {
+    exactKeys(evidence as unknown as Record<string, unknown>, [...commonKeys, "oauth_directory_policy", "oauth_directory_validations"], `qualification auth evidence ${invocation.invocation_id}`);
+    if (evidence.schema_version !== QUALIFICATION_AUTH_EVIDENCE_VERSION_V2 || evidence.oauth_directory_policy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) {
+      throw new Error(`qualification auth evidence v2 policy contradicts invocation ${invocation.invocation_id}`);
     }
-  } else if (evidence.oauth_agent_directory_identity !== null || evidence.oauth_auth_file_identity !== null || evidence.oauth_models_file_identity !== null ||
-      !Array.isArray(evidence.oauth_directory_entries) || evidence.oauth_directory_entries.length !== 0) {
-    throw new Error(`qualification test auth evidence must not claim a production OAuth filesystem occurrence`);
+    if (!plainObject(evidence.oauth_directory_validations)) throw new Error(`qualification auth evidence v2 inventories are missing for ${invocation.invocation_id}`);
+    exactKeys(evidence.oauth_directory_validations, ["before_oauth_readiness", "after_oauth_readiness"], `qualification auth evidence v2 inventories ${invocation.invocation_id}`);
+    validateQualificationOAuthDirectoryInventoryV2(evidence.oauth_directory_validations.before_oauth_readiness, "before-oauth-readiness");
+    validateQualificationOAuthDirectoryInventoryV2(evidence.oauth_directory_validations.after_oauth_readiness, "after-oauth-readiness");
+    if (!evidence.oauth_directory_validations.before_oauth_readiness.valid || !evidence.oauth_directory_validations.after_oauth_readiness.valid) {
+      throw new Error(`qualification auth evidence v2 inventory is invalid for ${invocation.invocation_id}`);
+    }
+    assertQualificationOAuthDirectoryContinuityV2(
+      evidence.oauth_directory_validations.before_oauth_readiness,
+      evidence.oauth_directory_validations.after_oauth_readiness,
+      { allow_models_store_change: true },
+    );
+  } else {
+    exactKeys(evidence as unknown as Record<string, unknown>, [...commonKeys, "oauth_agent_directory_identity", "oauth_auth_file_identity", "oauth_models_file_identity", "oauth_directory_entries"], `qualification auth evidence ${invocation.invocation_id}`);
+    if (evidence.schema_version !== QUALIFICATION_AUTH_EVIDENCE_VERSION) {
+      throw new Error(`qualification historical auth evidence cannot be reinterpreted for invocation ${invocation.invocation_id}`);
+    }
+    const productionAuth = invocation.authentication === "chatgpt-oauth";
+    if (productionAuth) {
+      if (!isFilesystemOccurrence(evidence.oauth_agent_directory_identity) || !isFilesystemOccurrence(evidence.oauth_auth_file_identity) ||
+          (evidence.oauth_models_file_identity !== null && !isFilesystemOccurrence(evidence.oauth_models_file_identity)) ||
+          !Array.isArray(evidence.oauth_directory_entries) || evidence.oauth_directory_entries.some((entry) => typeof entry !== "string")) {
+        throw new Error(`qualification auth evidence OAuth filesystem occurrence is invalid for ${invocation.invocation_id}`);
+      }
+    } else if (evidence.oauth_agent_directory_identity !== null || evidence.oauth_auth_file_identity !== null || evidence.oauth_models_file_identity !== null ||
+        !Array.isArray(evidence.oauth_directory_entries) || evidence.oauth_directory_entries.length !== 0) {
+      throw new Error(`qualification test auth evidence must not claim a production OAuth filesystem occurrence`);
+    }
+  }
+  if (evidence.provider !== invocation.requested.provider || evidence.requested_model !== invocation.requested.model || evidence.model_identity_observed !== false ||
+      evidence.status !== "ready" || evidence.auth_type !== "oauth" || evidence.credentials_included !== false || evidence.readiness_only !== true ||
+      !/^[a-f0-9]{64}$/.test(evidence.launch_authority_sha256)) {
+    throw new Error(`qualification auth evidence contradicts invocation ${invocation.invocation_id}`);
   }
   const { evidence_sha256: recorded, ...digestInput } = evidence;
   if (!/^[a-f0-9]{64}$/.test(recorded) || qualificationSha256(qualificationCanonicalJson(digestInput)) !== recorded) {
@@ -1377,6 +1749,27 @@ function validateAuthEvidence(evidence: QualificationAuthEvidenceV1, invocation:
 function isFilesystemOccurrence(value: unknown): value is QualificationFilesystemOccurrence {
   return plainObject(value) && typeof value.realpath === "string" && Number.isSafeInteger(value.device) && Number.isSafeInteger(value.inode) &&
     typeof value.mtime_ms === "number" && Number.isFinite(value.mtime_ms) && Number.isSafeInteger(value.bytes) && Number(value.bytes) >= 0;
+}
+
+function assertConfiguredOAuthBoundaryMatchesEvidence(
+  evidence: QualificationAuthEvidence,
+  current: QualificationOAuthBoundary,
+  allowModelsStoreChange: boolean,
+): void {
+  if (evidence.schema_version === QUALIFICATION_AUTH_EVIDENCE_VERSION_V2) {
+    if (!isOAuthBoundaryV2(current) || evidence.oauth_directory_policy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) {
+      throw new Error("qualification OAuth directory policy v2 evidence cannot be matched to a historical boundary");
+    }
+    assertQualificationOAuthDirectoryContinuityV2(
+      evidence.oauth_directory_validations.after_oauth_readiness,
+      current.inventory,
+      { allow_models_store_change: allowModelsStoreChange },
+    );
+    return;
+  }
+  if (current === null) return;
+  if (isOAuthBoundaryV2(current)) throw new Error("qualification historical OAuth evidence cannot be reinterpreted under policy v2");
+  assertOAuthBoundaryMatchesEvidence(evidence, current);
 }
 
 function assertOAuthBoundaryMatchesEvidence(

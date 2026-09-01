@@ -1,11 +1,17 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { describe, expect, it } from "vitest";
-import { QUALIFICATION_ACCOUNTING_POLICY, qualificationCanonicalJson, qualificationSha256 } from "../src/qualification-config.js";
+import {
+  QUALIFICATION_ACCOUNTING_POLICY,
+  QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
+  qualificationCanonicalJson,
+  qualificationConfigDigest,
+  qualificationSha256,
+} from "../src/qualification-config.js";
 import {
   appendQualificationAccountingEvent,
   atomicWriteCanonical,
@@ -83,11 +89,24 @@ const finish = (actualProvider = provider, actualModel = model, extra = {}) => {
   if (command === 'refused') { line({ type: 'message_end', message: { role: 'assistant', provider, model, content: [], stopReason: 'error', errorMessage: 'model not supported for this subscription' } }); return; }
   if (command === 'fail') { finish(); process.exitCode = 7; return; }
   if (command === 'huge') { process.stdout.write('x'.repeat(200000)); finish(); return; }
+  if (command === 'create-models-store') {
+    const target = require('node:path').join(process.env.PI_CODING_AGENT_DIR, 'models-store.json');
+    fs.writeFileSync(target, 'inert Pi runtime state', { mode: 0o600 }); fs.chmodSync(target, 0o600); finish(); return;
+  }
+  if (command === 'replace-models-store') {
+    const path = require('node:path'); const target = path.join(process.env.PI_CODING_AGENT_DIR, 'models-store.json');
+    const temporary = path.join(process.env.PI_CODING_AGENT_DIR, '.models-store.tmp');
+    fs.writeFileSync(temporary, 'atomically replaced inert Pi runtime state', { mode: 0o600 }); fs.chmodSync(temporary, 0o600); fs.renameSync(temporary, target); finish(); return;
+  }
+  if (command === 'create-unexpected-oauth-entry') {
+    const target = require('node:path').join(process.env.PI_CODING_AGENT_DIR, 'unexpected.json');
+    fs.writeFileSync(target, '{}', { mode: 0o600 }); finish(); return;
+  }
   finish();
 })().catch((error) => { console.error(error.message); process.exit(8); });
 `;
 
-function setup(command = "complete", overrides: { timeout?: number; output?: number; conflict?: "refuse" | "remove-and-record" } = {}) {
+function setup(command = "complete", overrides: { timeout?: number; output?: number; conflict?: "refuse" | "remove-and-record"; oauthV2?: boolean } = {}) {
   const root = mkdtempSync(join(tmpdir(), "qualification-runner-"));
   const executable = join(root, "fake-pi.cjs");
   writeFileSync(executable, FAKE_PI);
@@ -96,9 +115,19 @@ function setup(command = "complete", overrides: { timeout?: number; output?: num
   writeFileSync(prompt, `${command}\n`);
   const count = join(root, "calls.txt");
   const executablePin = { path: executable, sha256: sha(readFileSync(executable)) };
-  const envNames = ["HOME", "PATH", "FAKE_AUTH_STATUS", "FAKE_AUTH_TYPE", "FAKE_AUTH_MODEL", "FAKE_COUNT_FILE"];
+  const oauthAgent = join(root, "oauth-agent");
+  if (overrides.oauthV2) {
+    mkdirSync(oauthAgent, { mode: 0o700 });
+    chmodSync(oauthAgent, 0o700);
+    const authPath = join(oauthAgent, "auth.json");
+    writeFileSync(authPath, JSON.stringify({ "openai-codex": { type: "oauth", access: "inert-test-only" } }), { mode: 0o600 });
+    chmodSync(authPath, 0o600);
+  }
+  const envNames = ["HOME", "PATH", "PI_CODING_AGENT_DIR", "FAKE_AUTH_STATUS", "FAKE_AUTH_TYPE", "FAKE_AUTH_MODEL", "FAKE_COUNT_FILE"];
   const config = {
-    schema_version: "qualification-config-v1", mode: "test",
+    schema_version: "qualification-config-v1",
+    ...(overrides.oauthV2 ? { oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 } : {}),
+    mode: "test",
     product: { repository: "https://example.invalid/product", commit: hex("1", 40), tree: hex("2", 40), checkout_path: root, package_path: executable, package_sha256: hex("3"), package_bytes: 1 },
     engine: { repository: "https://example.invalid/engine", commit: hex("4", 40), tree: hex("5", 40), checkout_path: root, package_paths: { core: executable, adapters: executable, cli: executable, meta: executable }, package_sha256: { core: hex("6"), adapters: hex("7"), cli: hex("8"), meta: hex("9") } },
     producer: { repository: "https://example.invalid/producer", commit: hex("a", 40), tree: hex("b", 40), checkout_path: root, version: "0.20.0", ledger_version: 3, ledger_schema_sha256: hex("a") },
@@ -119,8 +148,15 @@ function setup(command = "complete", overrides: { timeout?: number; output?: num
   const requestPath = join(root, "request.json"); writeFileSync(requestPath, JSON.stringify(request));
   const spool = join(root, "spool");
   prepareQualificationInvocation({ spool_dir: spool, config_path: configPath, request_path: requestPath });
-  const parent_env = { HOME: root, PATH: process.env.PATH, FAKE_AUTH_STATUS: "ready", FAKE_COUNT_FILE: count, OPENAI_API_KEY: "NEVER-PERSIST-THIS" };
-  return { root, spool, count, prompt, executable, configPath, requestPath, parent_env };
+  const parent_env = {
+    HOME: root,
+    PATH: process.env.PATH,
+    ...(overrides.oauthV2 ? { PI_CODING_AGENT_DIR: oauthAgent } : {}),
+    FAKE_AUTH_STATUS: "ready",
+    FAKE_COUNT_FILE: count,
+    OPENAI_API_KEY: "NEVER-PERSIST-THIS",
+  };
+  return { root, spool, count, prompt, executable, configPath, requestPath, parent_env, oauthAgent };
 }
 
 async function run(files: ReturnType<typeof setup>) {
@@ -210,8 +246,107 @@ describe("qualification OAuth boundary", () => {
     writeFileSync(undeclared, "{}", { mode: 0o600 });
     expect(() => assertQualificationOAuthCredentialBoundary({ HOME: home })).toThrow(/undeclared entries/i);
     rmSync(undeclared);
+    const historicalRuntimeState = join(agent, "models-store.json");
+    writeFileSync(historicalRuntimeState, "{}", { mode: 0o600 });
+    expect(() => assertQualificationOAuthCredentialBoundary({ HOME: home })).toThrow(/undeclared entries/i);
+    rmSync(historicalRuntimeState);
     writeFileSync(join(agent, "models.json"), JSON.stringify({ providers: { "openai-codex": { baseUrl: "https://proxy.invalid" } } }), { mode: 0o600 });
     expect(() => assertQualificationOAuthCredentialBoundary({ HOME: home })).toThrow(/dedicated OAuth agent directory.*must not carry models\.json/i);
+  });
+
+  it("binds the v2 absent-to-Pi-generated lifecycle and accepts the same entry on the next invocation", async () => {
+    const files = setup("create-models-store", { oauthV2: true });
+    const first = await run(files);
+    expect(first.terminal_status).toBe("completed");
+    expect(calls(files.count)).toBe(1);
+    const firstReceipt = JSON.parse(readFileSync(join(files.spool, "invocations", "invocation-0001", "terminal", "receipt.json"), "utf8"));
+    expect(firstReceipt).toMatchObject({
+      schema_version: "qualification-terminal-receipt-v2",
+      oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
+      successful_execution: true,
+    });
+    expect([
+      firstReceipt.oauth_directory_validations.before_oauth_readiness.validation_point,
+      firstReceipt.oauth_directory_validations.after_oauth_readiness.validation_point,
+      firstReceipt.oauth_directory_validations.before_launch_claim.validation_point,
+      firstReceipt.oauth_directory_validations.immediately_before_pi_launch.validation_point,
+      firstReceipt.oauth_directory_validations.after_child_termination.validation_point,
+    ]).toEqual(["before-oauth-readiness", "after-oauth-readiness", "before-launch-claim", "immediately-before-pi-launch", "after-child-termination"]);
+    expect(firstReceipt.oauth_directory_validations.before_oauth_readiness.entries[2]).toMatchObject({ basename: "models-store.json", present: false });
+    expect(firstReceipt.oauth_directory_validations.after_child_termination.entries[2]).toMatchObject({ basename: "models-store.json", present: true, mode: "0600", validated_at: expect.stringMatching(/Z$/) });
+    expect(firstReceipt.oauth_directory_validations.after_child_termination.entries[2]).not.toHaveProperty("sha256");
+    expect(firstReceipt.artifact).not.toBeNull();
+
+    const secondRequest = JSON.parse(readFileSync(files.requestPath, "utf8"));
+    secondRequest.invocation_id = "invocation-0002";
+    const secondRequestPath = join(files.root, "request-2.json");
+    writeFileSync(secondRequestPath, JSON.stringify(secondRequest));
+    const secondInvocation = prepareQualificationInvocation({ spool_dir: files.spool, config_path: files.configPath, request_path: secondRequestPath });
+    expect(secondInvocation).toMatchObject({
+      schema_version: "qualification-invocation-v2",
+      oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
+    });
+    const secondAuth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0002", parent_env: files.parent_env });
+    expect(secondAuth.evidence).toMatchObject({
+      schema_version: "qualification-auth-evidence-v2",
+      oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
+    });
+    expect((secondAuth.evidence as any).oauth_directory_validations.before_oauth_readiness.entries[2].present).toBe(true);
+    await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0002", child_env: secondAuth.child_env, authentication_authority: secondAuth.launch_authority });
+    expect(qualificationInvocationStatus(files.spool, "invocation-0002").terminal_status).toBe("completed");
+    expect(calls(files.count)).toBe(2);
+    expect(validateQualificationRunnerSpool(files.spool).terminal).toBe(2);
+  });
+
+  it("accepts an authorized atomic replacement and binds only the final models-store occurrence", async () => {
+    const files = setup("replace-models-store", { oauthV2: true });
+    const store = join(files.oauthAgent, "models-store.json");
+    writeFileSync(store, "pre-existing inert state", { mode: 0o600 });
+    chmodSync(store, 0o600);
+    const beforeInode = String(lstatSync(store).ino);
+    const status = await run(files);
+    expect(status.terminal_status).toBe("completed");
+    const receipt = JSON.parse(readFileSync(join(files.spool, "invocations", "invocation-0001", "terminal", "receipt.json"), "utf8"));
+    expect(receipt.oauth_directory_validations.immediately_before_pi_launch.entries[2].inode).toBe(beforeInode);
+    expect(receipt.oauth_directory_validations.after_child_termination.entries[2].inode).not.toBe(beforeInode);
+    expect(receipt.oauth_directory_validations.after_child_termination.entries[2].present).toBe(true);
+  });
+
+  it("makes an unexpected terminal entry artifact-ineligible while retaining exactly-once accounting and no retry", async () => {
+    const files = setup("create-unexpected-oauth-entry", { oauthV2: true });
+    const status = await run(files);
+    expect(status).toMatchObject({ terminal_status: "invalid-artifact", attempt: 1 });
+    expect(calls(files.count)).toBe(1);
+    expect(readQualificationAccounting(files.spool).events).toHaveLength(1);
+    const receipt = JSON.parse(readFileSync(join(files.spool, "invocations", "invocation-0001", "terminal", "receipt.json"), "utf8"));
+    expect(receipt.artifact).toBeNull();
+    expect(receipt.successful_execution).toBe(false);
+    expect(receipt.oauth_directory_validations.after_child_termination).toMatchObject({ valid: false, unexpected_entries: ["unexpected.json"] });
+    expect(existsSync(join(files.spool, "artifacts", "invocation-0001.jsonl"))).toBe(false);
+    await expect(superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: {} })).resolves.toBeUndefined();
+    expect(calls(files.count)).toBe(1);
+  });
+
+  it("does not reinterpret a historical v1 terminal receipt after a stale policy rebind", async () => {
+    const files = setup();
+    await run(files);
+    const receiptPath = join(files.spool, "invocations", "invocation-0001", "terminal", "receipt.json");
+    expect(JSON.parse(readFileSync(receiptPath, "utf8"))).not.toHaveProperty("oauth_directory_policy");
+
+    const configurationPath = join(files.spool, "configuration.json");
+    const envelope = JSON.parse(readFileSync(configurationPath, "utf8"));
+    envelope.configuration.oauth_directory_policy = QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+    envelope.configuration_sha256 = qualificationConfigDigest(envelope.configuration);
+    atomicWriteCanonical(configurationPath, envelope, false);
+    const invocationPath = join(files.spool, "invocations", "invocation-0001", "invocation.json");
+    const invocation = JSON.parse(readFileSync(invocationPath, "utf8"));
+    invocation.schema_version = "qualification-invocation-v2";
+    invocation.oauth_directory_policy = QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+    invocation.configuration_sha256 = envelope.configuration_sha256;
+    const { invocation_sha256: _oldDigest, ...digestInput } = invocation;
+    invocation.invocation_sha256 = qualificationSha256(qualificationCanonicalJson(digestInput));
+    atomicWriteCanonical(invocationPath, invocation, false);
+    expect(() => validateQualificationRunnerSpool(files.spool)).toThrow(/v2.*terminal receipt|terminal receipt.*v2/i);
   });
 
   it("redacts exact OAuth values and secret-shaped output before persistence", () => {
@@ -496,7 +631,7 @@ describe("qualification durable execution", () => {
     expect(String((settled.find((result) => result.status === "rejected") as PromiseRejectedResult).reason)).toMatch(/subject ceiling 700/i);
     expect(readQualificationAccounting(files.spool).events).toHaveLength(700);
     expect(calls(files.count)).toBe(1);
-  });
+  }, 10_000);
 
   it("cleans up inherited process-group descendants even when the group leader exits first", async () => {
     const markerRoot = mkdtempSync(join(tmpdir(), "qualification-orphan-marker-"));

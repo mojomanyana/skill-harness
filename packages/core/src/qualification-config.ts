@@ -6,6 +6,13 @@ import { isAbsolute, join } from "node:path";
 export const QUALIFICATION_CONFIG_VERSION = "qualification-config-v1" as const;
 export const QUALIFICATION_RUNNER_VERSION = "qualification-runner-v1" as const;
 export const QUALIFICATION_REQUEST_VERSION = "qualification-invocation-request-v1" as const;
+/** Historical configurations omit this field and retain the original closed policy. */
+export const QUALIFICATION_OAUTH_DIRECTORY_POLICY_V1 = "qualification-oauth-directory-policy-v1" as const;
+/** New qualification configurations select this policy explicitly. */
+export const QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 = "qualification-oauth-directory-policy-v2" as const;
+export type QualificationOAuthDirectoryPolicy =
+  | typeof QUALIFICATION_OAUTH_DIRECTORY_POLICY_V1
+  | typeof QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
 export const PRINCIPAL_QUALIFICATION_PRODUCT_PIN = {
   repository: "https://github.com/mojomanyana/principal-pi-skills",
   commit: "a6596950d64a3a525f95329d5dbd3e38948be408",
@@ -96,6 +103,8 @@ export interface QualificationArmV1 {
 
 export interface QualificationConfigV1 {
   schema_version: typeof QUALIFICATION_CONFIG_VERSION;
+  /** Omission is the historical v1 policy and is preserved in canonical digests. */
+  oauth_directory_policy?: typeof QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
   mode: QualificationConfigMode;
   product: QualificationProductPin;
   engine: QualificationEnginePin;
@@ -197,6 +206,10 @@ export function qualificationSha256(value: string | Buffer): string {
 
 export function qualificationConfigDigest(config: QualificationConfigV1): string {
   return qualificationSha256(qualificationCanonicalJson(config));
+}
+
+export function qualificationOAuthDirectoryPolicy(config: QualificationConfigV1): QualificationOAuthDirectoryPolicy {
+  return config.oauth_directory_policy ?? QUALIFICATION_OAUTH_DIRECTORY_POLICY_V1;
 }
 
 export function verifyQualificationPins(config: QualificationConfigV1): void {
@@ -303,8 +316,16 @@ export function verifyQualificationExecutable(pin: QualificationExecutablePin): 
 
 export function parseQualificationConfig(value: unknown): QualificationConfigV1 {
   const root = object(value, "qualification configuration");
-  exactKeys(root, ["schema_version", "mode", "product", "engine", "producer", "runner", "accounting", "arms"], "qualification configuration");
+  exactKeys(
+    root,
+    ["schema_version", "mode", "product", "engine", "producer", "runner", "accounting", "arms"],
+    "qualification configuration",
+    ["oauth_directory_policy"],
+  );
   if (root.schema_version !== QUALIFICATION_CONFIG_VERSION) throw new Error(`qualification configuration schema_version must be ${QUALIFICATION_CONFIG_VERSION}`);
+  const oauthDirectoryPolicy = Object.hasOwn(root, "oauth_directory_policy")
+    ? enumValue(root.oauth_directory_policy, [QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2], "qualification oauth_directory_policy") as typeof QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2
+    : undefined;
   const mode = enumValue(root.mode, ["production", "test"], "qualification configuration mode") as QualificationConfigMode;
   const productObject = object(root.product, "qualification configuration product");
   exactKeys(productObject, ["repository", "commit", "tree", "checkout_path", "package_path", "package_sha256", "package_bytes"], "qualification configuration product");
@@ -390,6 +411,7 @@ export function parseQualificationConfig(value: unknown): QualificationConfigV1 
 
   return {
     schema_version: QUALIFICATION_CONFIG_VERSION,
+    ...(oauthDirectoryPolicy ? { oauth_directory_policy: oauthDirectoryPolicy } : {}),
     mode,
     product,
     engine,
@@ -547,8 +569,8 @@ function object(value: unknown, ctx: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function exactKeys(value: Record<string, unknown>, keys: readonly string[], ctx: string): void {
-  const allowed = new Set(keys);
+function exactKeys(value: Record<string, unknown>, keys: readonly string[], ctx: string, optionalKeys: readonly string[] = []): void {
+  const allowed = new Set([...keys, ...optionalKeys]);
   const unknown = Object.keys(value).find((key) => !allowed.has(key));
   if (unknown) throw new Error(`${ctx} contains unknown field ${unknown}`);
   const missing = keys.find((key) => !Object.hasOwn(value, key));
