@@ -1433,12 +1433,16 @@ async function finalizeWithoutChild(options: {
   const interruptedArtifactPath = join(paths.root, options.invocation.expected_artifact.path);
   let interruptedArtifact: QualificationTerminalReceiptV1["artifact"] = null;
   let interruptedAttestation: ArtifactAttestation = { ok: false, actual: null, fallback: false, refused: false, error: null };
-  if (existsSync(interruptedArtifactPath) && (oauth?.artifact_eligible ?? true)) {
+  if (existsSync(interruptedArtifactPath) && options.invocation.oauth_directory_policy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) {
+    // This path did not complete the normal post-child terminal validation,
+    // so no pre-existing artifact can become eligible under policy v2.
+    rmSync(interruptedArtifactPath, { force: true });
+  } else if (existsSync(interruptedArtifactPath) && (oauth?.artifact_eligible ?? true)) {
     assertRegularFile(interruptedArtifactPath, `qualification interrupted artifact ${options.invocation.invocation_id}`);
     const bytes = readFileSync(interruptedArtifactPath);
     interruptedArtifact = { path: options.invocation.expected_artifact.path, type: "pi-jsonl", bytes: bytes.length, sha256: qualificationSha256(bytes) };
     interruptedAttestation = attestPiJsonl(bytes.toString("utf8"), options.invocation.requested);
-  } else if (existsSync(interruptedArtifactPath) && oauth?.artifact_eligible === false) {
+  } else if (existsSync(interruptedArtifactPath)) {
     rmSync(interruptedArtifactPath, { force: true });
   }
   const receipt = terminalReceiptForPolicy(options.invocation, {

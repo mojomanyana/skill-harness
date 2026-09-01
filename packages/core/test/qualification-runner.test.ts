@@ -401,6 +401,8 @@ describe("qualification OAuth boundary", () => {
   it("aborts after v2 auth readiness but before accounting with a valid attempt-zero receipt", async () => {
     const files = setup("complete", { oauthV2: true });
     await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
+    const unlaunchedArtifact = join(files.spool, "artifacts", "invocation-0001.jsonl");
+    writeFileSync(unlaunchedArtifact, "untrusted prelaunch bytes\n", { mode: 0o600 });
     const status = await abortQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", reason: "operator-after-auth" });
     expect(status).toMatchObject({ phase: "terminal", terminal_status: "aborted", attempt: 0 });
     const receipt = JSON.parse(readFileSync(join(files.spool, "invocations", "invocation-0001", "terminal", "receipt.json"), "utf8"));
@@ -409,7 +411,9 @@ describe("qualification OAuth boundary", () => {
       oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
       attempt: 0,
       authentication: null,
+      artifact: null,
     });
+    expect(existsSync(unlaunchedArtifact)).toBe(false);
     expect(readQualificationAccounting(files.spool).events).toHaveLength(0);
     expect(calls(files.count)).toBe(0);
     expect(validateQualificationRunnerSpool(files.spool).ok).toBe(true);
