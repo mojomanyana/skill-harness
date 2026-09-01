@@ -530,6 +530,35 @@ describe("qualification durable execution", () => {
     expect(lifecycle.events[1].detail.continuation_authority_sha256).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it("continues a v2 claim interrupted after accounting without replaying or losing its OAuth checkpoint", async () => {
+    const files = setup("complete", { oauthV2: true });
+    const auth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
+    let nowCalls = 0;
+    await expect(superviseQualificationInvocation({
+      spool_dir: files.spool,
+      invocation_id: "invocation-0001",
+      child_env: auth.child_env,
+      now: () => {
+        nowCalls += 1;
+        if (nowCalls === 3) throw new Error("injected post-accounting interruption");
+        return new Date().toISOString();
+      },
+    })).rejects.toThrow(/injected post-accounting interruption/i);
+    expect(readQualificationAccounting(files.spool).events).toHaveLength(1);
+    expect(readQualificationLifecycle(files.spool, "invocation-0001").phase).toBe("prepared");
+    expect(calls(files.count)).toBe(0);
+    await superviseQualificationInvocation({
+      spool_dir: files.spool,
+      invocation_id: "invocation-0001",
+      child_env: auth.child_env,
+      continuation_authority: CONTINUATION_AUTHORITY,
+    });
+    expect(qualificationInvocationStatus(files.spool, "invocation-0001").terminal_status).toBe("completed");
+    expect(readQualificationAccounting(files.spool).events).toHaveLength(1);
+    expect(calls(files.count)).toBe(1);
+    expect(validateQualificationRunnerSpool(files.spool).ok).toBe(true);
+  });
+
   it("resumes a stale launch-claimed supervisor only with explicit continuation authority", async () => {
     const files = setup();
     const auth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
