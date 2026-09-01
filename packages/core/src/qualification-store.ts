@@ -18,7 +18,14 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, extname, join, resolve } from "node:path";
-import { qualificationProcessIdentity, qualificationProcessMatches, type QualificationProcessIdentity } from "./qualification-process.js";
+import {
+  qualificationLockOwnerIsLive,
+  readQualificationLockOwner,
+  reclaimQualificationLock,
+  releaseQualificationLock,
+  tryPublishQualificationLock,
+  type QualificationLockIo,
+} from "./qualification-lock.js";
 import {
   QUALIFICATION_ACCOUNTING_POLICY,
   type QualificationArmV1,
@@ -45,6 +52,8 @@ export interface QualificationInvocationV1 {
   schema_version: typeof QUALIFICATION_INVOCATION_VERSION;
   invocation_id: string;
   measurement_identity_sha256: string;
+  continuation_authority_sha256: string;
+  continuation_authority_expires_at: string;
   scenario: QualificationInvocationRequestV1["scenario"];
   role: QualificationRole;
   counts_as_measurement: boolean;
@@ -198,6 +207,8 @@ export function prepareQualificationInvocation(options: {
         schema_version: QUALIFICATION_INVOCATION_VERSION,
         invocation_id: request.invocation_id,
         measurement_identity_sha256: request.measurement_identity_sha256,
+        continuation_authority_sha256: request.continuation_authority_sha256,
+        continuation_authority_expires_at: request.continuation_authority_expires_at,
         scenario: { ...structuredClone(request.scenario), input_path: preparedInputPath },
         role: request.role,
         counts_as_measurement: request.counts_as_measurement,
@@ -421,43 +432,16 @@ export function readQualificationSpoolConfig(spoolDir: string): QualificationCon
 
 export function withQualificationFileLock<T>(lockPath: string, action: () => T): T {
   const token = randomBytes(16).toString("hex");
+  const io: QualificationLockIo = { read: readCanonicalJson, write: atomicWriteCanonical };
   while (true) {
-    const candidate = `${lockPath}.candidate-${token}`;
-    try {
-      mkdirSync(candidate, { mode: 0o700 });
-      atomicWriteCanonical(join(candidate, "owner.json"), {
-        schema_version: "qualification-lock-owner-v1",
-        token,
-        process: qualificationProcessIdentity(process.pid),
-      }, true);
-      renameSync(candidate, lockPath);
-      break;
-    } catch (error) {
-      rmSync(candidate, { recursive: true, force: true });
-      if (!["EEXIST", "ENOTEMPTY"].includes(String((error as NodeJS.ErrnoException).code))) throw error;
-      const ownerPath = join(lockPath, "owner.json");
-      if (!existsSync(ownerPath)) throw new Error(`qualification state lock has no owner receipt: ${lockPath}`);
-      const owner = readCanonicalJson(ownerPath, `qualification lock owner ${lockPath}`);
-      const identity = plainObject(owner) ? qualificationProcessIdentityFrom(owner.process) : null;
-      if (!identity) throw new Error(`qualification state lock owner is corrupt: ${lockPath}`);
-      if (qualificationProcessMatches(identity)) throw new Error(`qualification state is busy: lock exists at ${lockPath}`);
-      const stale = `${lockPath}.stale-${token}`;
-      try { renameSync(lockPath, stale); }
-      catch (renameError) {
-        if ((renameError as NodeJS.ErrnoException).code === "ENOENT") continue;
-        throw renameError;
-      }
-      rmSync(stale, { recursive: true, force: true });
-    }
+    if (tryPublishQualificationLock(lockPath, token, io)) break;
+    const owner = readQualificationLockOwner(lockPath, io);
+    if (!owner) continue;
+    if (qualificationLockOwnerIsLive(owner)) throw new Error(`qualification state is busy: lock exists at ${lockPath}`);
+    reclaimQualificationLock(lockPath, owner.token, token, io);
   }
   try { return action(); }
-  finally {
-    const ownerPath = join(lockPath, "owner.json");
-    if (existsSync(ownerPath)) {
-      const owner = readCanonicalJson(ownerPath, `qualification lock owner ${lockPath}`) as Record<string, unknown>;
-      if (owner.token === token) rmSync(lockPath, { recursive: true, force: true });
-    }
-  }
+  finally { releaseQualificationLock(lockPath, token, io); }
 }
 
 export function atomicWriteCanonical(path: string, value: unknown, exclusive: boolean): void {
@@ -590,10 +574,11 @@ function validateQualificationLifecycle(value: unknown, invocationId: string): Q
 
 function validateQualificationInvocationRecord(value: unknown): asserts value is QualificationInvocationV1 {
   if (!plainObject(value)) throw new Error("qualification invocation record must be an object");
-  const required = ["schema_version", "invocation_id", "measurement_identity_sha256", "scenario", "role", "counts_as_measurement", "arms", "repetition", "requested", "authentication", "pins", "configuration_sha256", "created_at", "ceiling_policy", "execution", "expected_artifact", "invocation_sha256"];
+  const required = ["schema_version", "invocation_id", "measurement_identity_sha256", "continuation_authority_sha256", "continuation_authority_expires_at", "scenario", "role", "counts_as_measurement", "arms", "repetition", "requested", "authentication", "pins", "configuration_sha256", "created_at", "ceiling_policy", "execution", "expected_artifact", "invocation_sha256"];
   exactObjectKeys(value, required, `qualification invocation ${String(value.invocation_id)}`);
   if (value.schema_version !== QUALIFICATION_INVOCATION_VERSION || typeof value.invocation_id !== "string") throw new Error("qualification invocation version/identity is invalid");
-  if (!/^[a-f0-9]{64}$/.test(String(value.measurement_identity_sha256)) || !/^[a-f0-9]{64}$/.test(String(value.configuration_sha256))) throw new Error(`qualification invocation ${value.invocation_id} digest identity is invalid`);
+  if (!/^[a-f0-9]{64}$/.test(String(value.measurement_identity_sha256)) || !/^[a-f0-9]{64}$/.test(String(value.continuation_authority_sha256)) || !/^[a-f0-9]{64}$/.test(String(value.configuration_sha256))) throw new Error(`qualification invocation ${value.invocation_id} digest identity is invalid`);
+  validTimestamp(String(value.continuation_authority_expires_at), `qualification invocation ${value.invocation_id} continuation authority expiry`);
   validTimestamp(String(value.created_at), `qualification invocation ${value.invocation_id} creation time`);
   if (qualificationCanonicalJson(value.ceiling_policy) !== qualificationCanonicalJson(QUALIFICATION_ACCOUNTING_POLICY)) throw new Error(`qualification invocation ${value.invocation_id} ceiling policy is corrupt`);
   const { invocation_sha256: recordedDigest, ...digestInput } = value;
@@ -656,17 +641,6 @@ function validTimestamp(value: string, ctx: string): string {
 function isTerminalStatus(value: unknown): value is QualificationTerminalStatus {
   return ["completed", "failed", "timed-out", "aborted", "refused", "invalid-artifact"].includes(String(value));
 }
-function qualificationProcessIdentityFrom(value: unknown): QualificationProcessIdentity | null {
-  if (!plainObject(value) || !Number.isInteger(value.pid) || typeof value.platform !== "string" ||
-      (value.boot_id !== null && typeof value.boot_id !== "string") || (value.start_ticks !== null && typeof value.start_ticks !== "string")) return null;
-  return {
-    pid: Number(value.pid),
-    platform: value.platform as NodeJS.Platform,
-    boot_id: value.boot_id,
-    start_ticks: value.start_ticks,
-  };
-}
-
 function plainObject(value: unknown): value is Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);

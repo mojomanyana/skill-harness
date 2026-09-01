@@ -27,10 +27,10 @@ function fixture(delay = 0) {
   const prompt = join(root, "prompt.txt"); writeFileSync(prompt, `${delay}\n`);
   const count = join(root, "calls.txt");
   const pin = { path: executable, sha256: sha(readFileSync(executable)) };
-  const arm = (id: string, kind: "subject" | "judge", model: string) => ({ id, kind, provider: "fake", model, authentication: "test-oauth", executable: pin, resources: [], arguments: ["@{input_path}"], allowed_environment_names: ["HOME", "PATH", "FAKE_COUNT_FILE"], timeout_ms: 2000, output_limit_bytes: 65536, artifact: { type: "pi-jsonl", relative_path_template: "artifacts/{invocation_id}.jsonl" }, fallback: false, metered_override: false });
+  const arm = (id: string, kind: "subject" | "judge", model: string) => ({ id, kind, provider: "fake", model, authentication: "test-oauth", executable: pin, resources: [], arguments: ["@{input_path}"], allowed_environment_names: ["HOME", "PATH", "FAKE_COUNT_FILE"], timeout_ms: 10000, output_limit_bytes: 65536, artifact: { type: "pi-jsonl", relative_path_template: "artifacts/{invocation_id}.jsonl" }, fallback: false, metered_override: false });
   const config = { schema_version: "qualification-config-v1", mode: "test", product: { repository: "https://example.invalid/product", commit: hex("1",40), tree: hex("2",40), checkout_path: root, package_path: executable, package_sha256: hex("3"), package_bytes: 1 }, engine: { repository: "https://example.invalid/engine", commit: hex("4",40), tree: hex("5",40), checkout_path: root, package_paths: { core: executable, adapters: executable, cli: executable, meta: executable }, package_sha256: { core: hex("6"), adapters: hex("7"), cli: hex("8"), meta: hex("9") } }, producer: { repository: "https://example.invalid/producer", commit: hex("a",40), tree: hex("b",40), checkout_path: root, version: "0.20.0", ledger_version: 3, ledger_schema_sha256: hex("a") }, runner: { version: "qualification-runner-v1", executable: pin, conflicting_parent_environment: "remove-and-record" }, accounting: structuredClone(QUALIFICATION_ACCOUNTING_POLICY), arms: [arm("fake-subject","subject","fake-luna"),arm("fake-judge","judge","fake-sol")] };
   const configPath=join(root,"config.json");writeFileSync(configPath,JSON.stringify(config));
-  const request={schema_version:"qualification-invocation-request-v1",measurement_identity_sha256:hex("c"),invocation_id:"invocation-cli-1",scenario:{id:"fake-A1",version:"1",stimulus_sha256:hex("d"),rubric_sha256:hex("e"),input_path:prompt,input_sha256:sha(readFileSync(prompt)),working_directory:root},role:"subject",counts_as_measurement:true,arms:{subject:"fake-subject",judge:"fake-judge"},selected_arm:"fake-subject",repetition:0};
+  const request={schema_version:"qualification-invocation-request-v1",measurement_identity_sha256:hex("c"),invocation_id:"invocation-cli-1",continuation_authority_sha256:sha("inert-cli-continuation-authority"),continuation_authority_expires_at:"2099-01-01T00:00:00.000Z",scenario:{id:"fake-A1",version:"1",stimulus_sha256:hex("d"),rubric_sha256:hex("e"),input_path:prompt,input_sha256:sha(readFileSync(prompt)),working_directory:root},role:"subject",counts_as_measurement:true,arms:{subject:"fake-subject",judge:"fake-judge"},selected_arm:"fake-subject",repetition:0};
   const requestPath=join(root,"request.json");writeFileSync(requestPath,JSON.stringify(request));
   return {root,spool:join(root,"spool"),configPath,requestPath,count};
 }
@@ -46,8 +46,8 @@ describe("qualification CLI lifecycle",()=>{
   it("consumes continuation authority from a private one-use file instead of argv or environment", () => {
     const root = mkdtempSync(join(tmpdir(), "qualification-continuation-"));
     const path = join(root, "authority");
-    writeFileSync(path, "sentinel-continuation-authority", { mode: 0o600 });
-    expect(consumeQualificationContinuationAuthority(path)).toBe("sentinel-continuation-authority");
+    writeFileSync(path, "sentinel-continuation-authority-value", { mode: 0o600 });
+    expect(consumeQualificationContinuationAuthority(path)).toBe("sentinel-continuation-authority-value");
     expect(existsSync(path)).toBe(false);
   });
 
@@ -83,7 +83,7 @@ describe("qualification CLI lifecycle",()=>{
   });
 
   it("abort is explicit and terminal; polling never launches another process",()=>{
-    const f=fixture(1200);
+    const f=fixture(5000);
     expect(cli(f,["qualification","prepare","--spool",f.spool,"--config",f.configPath,"--request",f.requestPath]).status).toBe(0);
     expect(cli(f,["qualification","start","--spool",f.spool,"--id","invocation-cli-1"]).status).toBe(0);
     const aborted=cli(f,["qualification","abort","--spool",f.spool,"--id","invocation-cli-1","--reason","operator-request"]);

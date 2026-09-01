@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -34,6 +34,7 @@ import {
 
 const hex = (value: string, length = 64) => value.repeat(length);
 const sha = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
+const CONTINUATION_AUTHORITY = "inert-prebound-continuation-authority";
 
 const FAKE_PI = `#!/usr/bin/env node
 const fs = require('node:fs');
@@ -45,7 +46,7 @@ if (args[0] === 'auth' && args[1] === 'check') {
   if (status === 'nonzero') process.exit(9);
   if (status === 'malformed') { console.log('{bad'); process.exit(0); }
   console.log(JSON.stringify(status === 'ready'
-    ? { status: 'ready', provider, authType: process.env.FAKE_AUTH_TYPE || 'oauth' }
+    ? { status: 'ready', provider, authType: process.env.FAKE_AUTH_TYPE || 'oauth', ...(process.env.FAKE_AUTH_MODEL ? { model: process.env.FAKE_AUTH_MODEL } : {}) }
     : { status: 'not_ready', provider, reason: 'credentials_not_configured' }));
   process.exit(0);
 }
@@ -57,7 +58,7 @@ const inputPath = inputArg.startsWith('@') ? inputArg.slice(1) : inputArg;
 const command = fs.readFileSync(inputPath, 'utf8').trim();
 if (process.env.FAKE_COUNT_FILE) fs.appendFileSync(process.env.FAKE_COUNT_FILE, 'launch\\n');
 const line = (value) => process.stdout.write(JSON.stringify(value) + '\\n');
-line({ type: 'session', version: 3, id: 'fake-session', timestamp: new Date().toISOString(), cwd: process.cwd() });
+line({ type: 'session', version: 3, id: 'fake-session', timestamp: new Date().toISOString(), cwd: process.cwd(), home: process.env.HOME });
 const finish = (actualProvider = provider, actualModel = model, extra = {}) => {
   line({ type: 'message_end', message: { role: 'assistant', provider: actualProvider, model: actualModel, content: [{ type: 'text', text: 'inert' }], stopReason: 'stop', ...extra } });
 };
@@ -95,7 +96,7 @@ function setup(command = "complete", overrides: { timeout?: number; output?: num
   writeFileSync(prompt, `${command}\n`);
   const count = join(root, "calls.txt");
   const executablePin = { path: executable, sha256: sha(readFileSync(executable)) };
-  const envNames = ["HOME", "PATH", "FAKE_AUTH_STATUS", "FAKE_AUTH_TYPE", "FAKE_COUNT_FILE"];
+  const envNames = ["HOME", "PATH", "FAKE_AUTH_STATUS", "FAKE_AUTH_TYPE", "FAKE_AUTH_MODEL", "FAKE_COUNT_FILE"];
   const config = {
     schema_version: "qualification-config-v1", mode: "test",
     product: { repository: "https://example.invalid/product", commit: hex("1", 40), tree: hex("2", 40), checkout_path: root, package_path: executable, package_sha256: hex("3"), package_bytes: 1 },
@@ -111,6 +112,7 @@ function setup(command = "complete", overrides: { timeout?: number; output?: num
   const configPath = join(root, "config.json"); writeFileSync(configPath, JSON.stringify(config));
   const request = {
     schema_version: "qualification-invocation-request-v1", measurement_identity_sha256: hex("c"), invocation_id: "invocation-0001",
+    continuation_authority_sha256: sha(CONTINUATION_AUTHORITY), continuation_authority_expires_at: "2099-01-01T00:00:00.000Z",
     scenario: { id: "fake-A1", version: "1", stimulus_sha256: hex("d"), rubric_sha256: hex("e"), input_path: prompt, input_sha256: sha(readFileSync(prompt)), working_directory: root },
     role: "subject", counts_as_measurement: true, arms: { subject: "fake-subject", judge: "fake-judge" }, selected_arm: "fake-subject", repetition: 0,
   };
@@ -123,7 +125,7 @@ function setup(command = "complete", overrides: { timeout?: number; output?: num
 
 async function run(files: ReturnType<typeof setup>) {
   const auth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
-  await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env });
+  await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env, authentication_authority: auth.launch_authority });
   return qualificationInvocationStatus(files.spool, "invocation-0001");
 }
 
@@ -139,6 +141,7 @@ async function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void
 function publishInterruptedClaim(files: ReturnType<typeof setup>, environmentNames: string[], options: {
   launchAttempt?: boolean;
   child?: ReturnType<typeof qualificationProcessIdentity>;
+  supervisor?: ReturnType<typeof qualificationProcessIdentity>;
   startedAt?: string;
   deadlineAt?: string;
 } = {}): void {
@@ -153,7 +156,7 @@ function publishInterruptedClaim(files: ReturnType<typeof setup>, environmentNam
   writeQualificationAccounting(files.spool, claim);
   let lifecycle = transitionQualificationLifecycle(readQualificationLifecycle(files.spool, invocation.invocation_id), "launch-claimed", {
     at: "2026-08-28T12:00:00.000Z",
-    detail: { attempt: 1, accounting_event_sha256: claim.chain_head, supervisor: { pid: 99999999, platform: process.platform, boot_id: "stale", start_ticks: "1" }, continuation_authority_sha256: null },
+    detail: { attempt: 1, accounting_event_sha256: claim.chain_head, supervisor: options.supervisor ?? { pid: 99999999, platform: process.platform, boot_id: "stale", start_ticks: "1" }, continuation_authority_sha256: null },
   });
   if (options.launchAttempt) {
     const artifact = join(files.spool, invocation.expected_artifact.path);
@@ -177,7 +180,7 @@ function publishInterruptedClaim(files: ReturnType<typeof setup>, environmentNam
     }, true);
     lifecycle = transitionQualificationLifecycle(lifecycle, "running", {
       at: startedAt,
-      detail: { attempt: 1, supervisor: { pid: 99999999, platform: process.platform, boot_id: "stale", start_ticks: "1" }, child: options.child, deadline_at: deadlineAt },
+      detail: { attempt: 1, supervisor: options.supervisor ?? { pid: 99999999, platform: process.platform, boot_id: "stale", start_ticks: "1" }, child: options.child, deadline_at: deadlineAt },
     });
   }
   writeQualificationLifecycle(files.spool, lifecycle);
@@ -192,7 +195,8 @@ describe("qualification OAuth boundary", () => {
     const authPath = join(agent, "auth.json");
     writeFileSync(authPath, JSON.stringify({ "openai-codex": { type: "oauth", access: "sentinel-oauth-value", refresh: "sentinel-refresh-value" } }), { mode: 0o600 });
     const result = assertQualificationOAuthCredentialBoundary({ HOME: home });
-    expect(result).toEqual({ agent_directory: agent, provider: "openai-codex", auth_type: "oauth" });
+    expect(result).toMatchObject({ agent_directory: agent, provider: "openai-codex", auth_type: "oauth", directory_entries: ["auth.json"] });
+    expect(result.auth_file_identity).toMatchObject({ realpath: authPath });
     expect(JSON.stringify(result)).not.toContain("sentinel-oauth-value");
 
     writeFileSync(authPath, JSON.stringify({ "openai-codex": { type: "oauth", access: "sentinel-oauth-value" }, openai: { type: "api_key", key: "sentinel-api-value" } }), { mode: 0o600 });
@@ -202,6 +206,10 @@ describe("qualification OAuth boundary", () => {
     expect(() => assertQualificationOAuthCredentialBoundary({ HOME: home })).toThrow(/exactly.*openai-codex/i);
 
     writeFileSync(authPath, JSON.stringify({ "openai-codex": { type: "oauth", access: "sentinel-oauth-value" } }), { mode: 0o600 });
+    const undeclared = join(agent, "settings.json");
+    writeFileSync(undeclared, "{}", { mode: 0o600 });
+    expect(() => assertQualificationOAuthCredentialBoundary({ HOME: home })).toThrow(/undeclared entries/i);
+    rmSync(undeclared);
     writeFileSync(join(agent, "models.json"), JSON.stringify({ providers: { "openai-codex": { baseUrl: "https://proxy.invalid" } } }), { mode: 0o600 });
     expect(() => assertQualificationOAuthCredentialBoundary({ HOME: home })).toThrow(/dedicated OAuth agent directory.*must not carry models\.json/i);
   });
@@ -233,21 +241,32 @@ describe("qualification OAuth boundary", () => {
   it("serializes concurrent auth refreshes so launch and receipt bind one immutable evidence record", async () => {
     const files = setup();
     const [one, two] = await Promise.all([
-      checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env }),
-      checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env }),
+      checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: { ...files.parent_env, HOME: join(files.root, "auth-home-a") } }),
+      checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: { ...files.parent_env, HOME: join(files.root, "auth-home-b") } }),
     ]);
-    expect(one.evidence).toEqual(two.evidence);
-    await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: one.child_env });
+    expect(one.evidence.launch_authority_sha256).not.toBe(two.evidence.launch_authority_sha256);
+    const settled = await Promise.allSettled([
+      superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: one.child_env, authentication_authority: one.launch_authority }),
+      superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: two.child_env, authentication_authority: two.launch_authority }),
+    ]);
+    expect(settled.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(settled.filter((result) => result.status === "rejected")).toHaveLength(1);
+    expect(calls(files.count)).toBe(1);
+    const persisted = JSON.parse(readFileSync(join(files.spool, "invocations", "invocation-0001", "auth-evidence.json"), "utf8"));
+    const winner = persisted.launch_authority_sha256 === one.evidence.launch_authority_sha256 ? one : two;
+    expect(readFileSync(join(files.spool, "artifacts", "invocation-0001.jsonl"), "utf8")).toContain(`"home":${JSON.stringify(winner.child_env.HOME)}`);
     expect(validateQualificationRunnerSpool(files.spool).ok).toBe(true);
   });
 
   it("records metadata-only OAuth readiness and only environment names, never values", async () => {
     const files = setup();
     const auth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
-    expect(auth.evidence).toMatchObject({ status: "ready", provider: "fake", auth_type: "oauth", credentials_included: false, readiness_only: true });
+    expect(auth.evidence).toMatchObject({ status: "ready", provider: "fake", requested_model: "fake-luna", model_identity_observed: false, auth_type: "oauth", credentials_included: false, readiness_only: true });
     expect(auth.evidence.removed_parent_environment_names).toContain("OPENAI_API_KEY");
     expect(auth.child_env.OPENAI_API_KEY).toBeUndefined();
     expect(JSON.stringify(auth.evidence)).not.toContain("NEVER-PERSIST-THIS");
+    expect(JSON.stringify(auth.evidence)).not.toContain(auth.launch_authority);
+    expect(auth.evidence.launch_authority_sha256).toBe(qualificationSha256(auth.launch_authority));
   });
 
   it.each([
@@ -255,6 +274,7 @@ describe("qualification OAuth boundary", () => {
     [{ FAKE_AUTH_STATUS: "malformed" }, /invalid JSON/i],
     [{ FAKE_AUTH_STATUS: "nonzero" }, /auth check exited/i],
     [{ FAKE_AUTH_STATUS: "ready", FAKE_AUTH_TYPE: "api_key" }, /OAuth/i],
+    [{ FAKE_AUTH_STATUS: "ready", FAKE_AUTH_MODEL: "other-model" }, /model substitution/i],
   ])("refuses missing/malformed/non-OAuth readiness before accounting or launch", async (override, expected) => {
     const files = setup();
     await expect(checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: { ...files.parent_env, ...override } })).rejects.toThrow(expected);
@@ -366,10 +386,12 @@ describe("qualification durable execution", () => {
     await expect(superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env }))
       .rejects.toThrow(/explicit continuation authority/i);
     expect(calls(files.count)).toBe(0);
-    await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env, continuation_authority: "operator-authority-1" });
+    await expect(superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env, continuation_authority: "unbound-authority-which-is-at-least-thirty-two-bytes" }))
+      .rejects.toThrow(/immutable invocation capability/i);
+    await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env, continuation_authority: CONTINUATION_AUTHORITY });
     expect(calls(files.count)).toBe(1);
     const lifecycle = readQualificationLifecycle(files.spool, "invocation-0001");
-    expect(JSON.stringify(lifecycle)).not.toContain("operator-authority-1");
+    expect(JSON.stringify(lifecycle)).not.toContain(CONTINUATION_AUTHORITY);
     expect(lifecycle.events[1].detail.continuation_authority_sha256).toMatch(/^[a-f0-9]{64}$/);
   });
 
@@ -388,7 +410,7 @@ describe("qualification durable execution", () => {
     }));
     await expect(superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env }))
       .rejects.toThrow(/launch claim.*continuation authority/i);
-    await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env, continuation_authority: "operator-authority-2" });
+    await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env, continuation_authority: CONTINUATION_AUTHORITY });
     expect(qualificationInvocationStatus(files.spool, "invocation-0001").terminal_status).toBe("completed");
     expect(calls(files.count)).toBe(1);
   });
@@ -399,7 +421,7 @@ describe("qualification durable execution", () => {
     publishInterruptedClaim(files, Object.keys(auth.child_env), { launchAttempt: true });
     await expect(superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env }))
       .rejects.toThrow(/continuation authority/i);
-    await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env, continuation_authority: "operator-reconcile-attempt" });
+    await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env, continuation_authority: CONTINUATION_AUTHORITY });
     expect(qualificationInvocationStatus(files.spool, "invocation-0001").terminal_status).toBe("failed");
     expect(calls(files.count)).toBe(0);
     expect(validateQualificationRunnerSpool(files.spool).ok).toBe(true);
@@ -413,7 +435,7 @@ describe("qualification durable execution", () => {
     if (!child.pid) throw new Error("inert child did not expose a pid");
     const childIdentity = qualificationProcessIdentity(child.pid);
     publishInterruptedClaim(files, Object.keys(auth.child_env), { launchAttempt: true, child: childIdentity });
-    await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env, continuation_authority: "operator-reconcile-live-child" });
+    await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env, continuation_authority: CONTINUATION_AUTHORITY });
     expect(qualificationProcessMatches(childIdentity)).toBe(false);
     expect(qualificationInvocationStatus(files.spool, "invocation-0001").terminal_status).toBe("failed");
     expect(calls(files.count)).toBe(0);
@@ -429,7 +451,10 @@ describe("qualification durable execution", () => {
       schema_version: "qualification-lock-owner-v1", token: "stale-owner",
       process: { pid: 99999999, platform: process.platform, boot_id: "stale", start_ticks: "1" },
     }, true);
-    await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env });
+    await Promise.all([
+      superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env }),
+      superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env }),
+    ]);
     expect(qualificationInvocationStatus(files.spool, "invocation-0001").terminal_status).toBe("completed");
     expect(calls(files.count)).toBe(1);
   });
@@ -520,6 +545,21 @@ describe("qualification durable execution", () => {
     expect(validateQualificationRunnerSpool(files.spool).ok).toBe(true);
   });
 
+  it("terminates a live external supervisor with no child before reconciling abort", async () => {
+    if (process.platform !== "linux") return;
+    const files = setup();
+    const auth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
+    const supervisor = spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], { detached: true, stdio: "ignore" });
+    if (!supervisor.pid) throw new Error("inert supervisor did not expose a pid");
+    const identity = qualificationProcessIdentity(supervisor.pid);
+    publishInterruptedClaim(files, Object.keys(auth.child_env), { supervisor: identity });
+    const status = await abortQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", reason: "operator-live-supervisor-abort" });
+    expect(status).toMatchObject({ phase: "terminal", terminal_status: "aborted", attempt: 1 });
+    expect(qualificationProcessMatches(identity)).toBe(false);
+    expect(calls(files.count)).toBe(0);
+    expect(validateQualificationRunnerSpool(files.spool).ok).toBe(true);
+  });
+
   it("aborts a prepared reservation without consuming a call", async () => {
     const files = setup("sleep:5000");
     const status = await abortQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", reason: "operator-request" });
@@ -564,6 +604,29 @@ describe("qualification durable execution", () => {
     expect(qualificationInvocationStatus(files.spool, "invocation-0001").terminal_status).toBe("completed");
     expect(readQualificationLifecycle(files.spool, "invocation-0001").phase).toBe("terminal");
     expect(validateQualificationRunnerSpool(files.spool).ok).toBe(true);
+  });
+
+  it("re-attests retained artifact semantics instead of trusting a self-consistent completed receipt", async () => {
+    const files = setup();
+    await run(files);
+    const artifactPath = join(files.spool, "artifacts", "invocation-0001.jsonl");
+    const stdoutPath = join(files.spool, "invocations", "invocation-0001", "stdout.partial");
+    const receiptPath = join(files.spool, "invocations", "invocation-0001", "terminal", "receipt.json");
+    const refusedBytes = Buffer.from([
+      JSON.stringify({ type: "session", version: 3, id: "fake", timestamp: new Date().toISOString(), cwd: files.root }),
+      JSON.stringify({ type: "message_end", message: { role: "assistant", provider: "fake", model: "fake-luna", content: [], stopReason: "error", errorMessage: "model not supported for this subscription" } }),
+      "",
+    ].join("\n"));
+    writeFileSync(artifactPath, refusedBytes);
+    writeFileSync(stdoutPath, refusedBytes);
+    const receipt = JSON.parse(readFileSync(receiptPath, "utf8"));
+    receipt.artifact.bytes = refusedBytes.length;
+    receipt.artifact.sha256 = qualificationSha256(refusedBytes);
+    receipt.stdout.total_bytes = refusedBytes.length;
+    receipt.stdout.captured_bytes = refusedBytes.length;
+    receipt.stdout.sha256 = qualificationSha256(refusedBytes);
+    writeFileSync(receiptPath, `${qualificationCanonicalJson(receipt)}\n`);
+    expect(() => validateQualificationRunnerSpool(files.spool)).toThrow(/cannot substantiate completed execution/i);
   });
 
   it("detects artifact mutation after atomic terminal publication", async () => {

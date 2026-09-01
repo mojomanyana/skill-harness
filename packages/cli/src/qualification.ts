@@ -49,7 +49,7 @@ export function consumeQualificationContinuationAuthority(path: string): string 
     const stat = fstatSync(fd);
     if (!stat.isFile()) throw new Error("qualification continuation authority must be a regular non-symlink file");
     if (process.platform !== "win32" && ((stat.mode & 0o077) !== 0 || stat.uid !== process.getuid?.())) throw new Error("qualification continuation authority file must be mode 0600 and owned by the qualification user");
-    if (stat.size < 1 || stat.size > 4096) throw new Error("qualification continuation authority must be 1..4096 bytes");
+    if (stat.size < 32 || stat.size > 4096) throw new Error("qualification continuation authority must be 32..4096 bytes");
     const authority = readFileSync(fd, "utf8");
     const pathStat = lstatSync(path);
     if (pathStat.isSymbolicLink() || pathStat.dev !== stat.dev || pathStat.ino !== stat.ino) throw new Error("qualification continuation authority path changed while it was consumed");
@@ -105,14 +105,27 @@ export async function cmdQualification(args: QualificationCliArgs): Promise<void
     return;
   }
   if (operation === "__supervise") {
-    const fdRaw = flag(args, "continuation-fd");
-    if (fdRaw !== undefined && fdRaw !== "3") throw new Error("qualification internal continuation descriptor must be fd 3");
-    const continuation = fdRaw === undefined ? undefined : readFileSync(3, "utf8");
+    const fdRaw = flag(args, "authority-fd");
+    if (fdRaw !== "3") throw new Error("qualification internal authority descriptor must be fd 3");
+    let authority: unknown;
+    try { authority = JSON.parse(readFileSync(3, "utf8")); }
+    catch { throw new Error("qualification internal authority payload is invalid JSON"); }
+    finally { closeSync(3); }
+    if (!authority || typeof authority !== "object" || Array.isArray(authority) ||
+        Object.keys(authority).sort().join(",") !== "authentication_authority,continuation_authority") {
+      throw new Error("qualification internal authority payload is not closed");
+    }
+    const payload = authority as { authentication_authority?: unknown; continuation_authority?: unknown };
+    if (typeof payload.authentication_authority !== "string" ||
+        (payload.continuation_authority !== null && typeof payload.continuation_authority !== "string")) {
+      throw new Error("qualification internal authority payload has invalid fields");
+    }
     await superviseQualificationInvocation({
       spool_dir: spool,
       invocation_id: id,
       child_env: process.env,
-      continuation_authority: continuation,
+      authentication_authority: payload.authentication_authority,
+      continuation_authority: payload.continuation_authority ?? undefined,
     });
     return;
   }
@@ -144,23 +157,21 @@ export async function cmdQualification(args: QualificationCliArgs): Promise<void
       "qualification", "__supervise",
       "--spool", spool,
       "--id", id,
-      ...(continuation ? ["--continuation-fd", "3"] : []),
+      "--authority-fd", "3",
     ];
     const supervisor = spawn(process.execPath, childArgs, {
       cwd: process.cwd(),
       env: auth.child_env,
       detached: true,
-      stdio: continuation ? ["ignore", "ignore", "ignore", "pipe"] : "ignore",
+      stdio: ["ignore", "ignore", "ignore", "pipe"],
     });
     await new Promise<void>((resolve, reject) => {
       supervisor.once("spawn", resolve);
       supervisor.once("error", reject);
     });
-    if (continuation) {
-      const authorityPipe = supervisor.stdio[3];
-      if (!authorityPipe || !("write" in authorityPipe)) throw new Error("qualification continuation authority pipe was not created");
-      authorityPipe.end(continuation);
-    }
+    const authorityPipe = supervisor.stdio[3];
+    if (!authorityPipe || !("write" in authorityPipe)) throw new Error("qualification private authority pipe was not created");
+    authorityPipe.end(JSON.stringify({ authentication_authority: auth.launch_authority, continuation_authority: continuation ?? null }));
     supervisor.unref();
     const deadline = Date.now() + integerFlag(args, "ack-wait-ms", 1500);
     const priorSupervisor = qualificationCanonicalJson(before.supervisor);

@@ -113,6 +113,8 @@ export interface QualificationInvocationRequestV1 {
   schema_version: typeof QUALIFICATION_REQUEST_VERSION;
   measurement_identity_sha256: string;
   invocation_id: string;
+  continuation_authority_sha256: string;
+  continuation_authority_expires_at: string;
   scenario: {
     id: string;
     version: string;
@@ -233,10 +235,11 @@ function verifyRepository(pin: QualificationRepositoryPin & { checkout_path: str
   if (checkoutStat.isSymbolicLink() || !checkoutStat.isDirectory()) throw new Error(`qualification ${label} checkout must be a regular non-symlink directory`);
   let head: string, tree: string, dirty: string, remote: string;
   try {
-    head = execFileSync("git", ["-C", pin.checkout_path, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-    tree = execFileSync("git", ["-C", pin.checkout_path, "rev-parse", "HEAD^{tree}"], { encoding: "utf8" }).trim();
-    dirty = execFileSync("git", ["-C", pin.checkout_path, "status", "--porcelain=v1", "--untracked-files=all"], { encoding: "utf8" }).trim();
-    remote = execFileSync("git", ["-C", pin.checkout_path, "remote", "get-url", "origin"], { encoding: "utf8" }).trim();
+    const gitOptions = { encoding: "utf8" as const, timeout: 30_000, killSignal: "SIGKILL" as const };
+    head = execFileSync("git", ["-C", pin.checkout_path, "rev-parse", "HEAD"], gitOptions).trim();
+    tree = execFileSync("git", ["-C", pin.checkout_path, "rev-parse", "HEAD^{tree}"], gitOptions).trim();
+    dirty = execFileSync("git", ["-C", pin.checkout_path, "status", "--porcelain=v1", "--untracked-files=all"], gitOptions).trim();
+    remote = execFileSync("git", ["-C", pin.checkout_path, "remote", "get-url", "origin"], gitOptions).trim();
   } catch { throw new Error(`qualification ${label} checkout is not a readable pinned Git repository`); }
   const finalStat = lstatSync(pin.checkout_path);
   if (finalStat.isSymbolicLink() || finalStat.dev !== checkoutStat.dev || finalStat.ino !== checkoutStat.ino) throw new Error(`qualification ${label} checkout identity changed while it was verified`);
@@ -403,7 +406,7 @@ export function parseQualificationConfig(value: unknown): QualificationConfigV1 
 
 export function parseQualificationRequest(value: unknown, config: QualificationConfigV1): QualificationInvocationRequestV1 {
   const root = object(value, "qualification invocation request");
-  exactKeys(root, ["schema_version", "measurement_identity_sha256", "invocation_id", "scenario", "role", "counts_as_measurement", "arms", "selected_arm", "repetition"], "qualification invocation request");
+  exactKeys(root, ["schema_version", "measurement_identity_sha256", "invocation_id", "continuation_authority_sha256", "continuation_authority_expires_at", "scenario", "role", "counts_as_measurement", "arms", "selected_arm", "repetition"], "qualification invocation request");
   if (root.schema_version !== QUALIFICATION_REQUEST_VERSION) throw new Error(`qualification request schema_version must be ${QUALIFICATION_REQUEST_VERSION}`);
   const scenarioObject = object(root.scenario, "qualification request scenario");
   exactKeys(scenarioObject, ["id", "version", "stimulus_sha256", "rubric_sha256", "input_path", "input_sha256", "working_directory"], "qualification request scenario");
@@ -431,6 +434,8 @@ export function parseQualificationRequest(value: unknown, config: QualificationC
     schema_version: QUALIFICATION_REQUEST_VERSION,
     measurement_identity_sha256: digest(root.measurement_identity_sha256, "measurement_identity_sha256"),
     invocation_id: identifier(root.invocation_id, "invocation_id"),
+    continuation_authority_sha256: digest(root.continuation_authority_sha256, "continuation_authority_sha256"),
+    continuation_authority_expires_at: utcTimestamp(root.continuation_authority_expires_at, "continuation_authority_expires_at"),
     scenario: {
       id: identifier(scenarioObject.id, "scenario.id"),
       version: identifier(scenarioObject.version, "scenario.version"),
@@ -572,6 +577,11 @@ function gitSha(value: unknown, ctx: string): string {
 function absolutePath(value: unknown, ctx: string): string {
   const text = nonEmpty(value, ctx);
   if (!isAbsolute(text)) throw new Error(`${ctx} must be an absolute path`);
+  return text;
+}
+function utcTimestamp(value: unknown, ctx: string): string {
+  const text = nonEmpty(value, ctx);
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(text) || !Number.isFinite(Date.parse(text))) throw new Error(`${ctx} must be an RFC 3339 UTC timestamp`);
   return text;
 }
 function positiveInteger(value: unknown, ctx: string): number { return boundedInteger(value, 1, Number.MAX_SAFE_INTEGER, ctx); }

@@ -16,8 +16,8 @@ prepared → launch-claimed → running → terminal
 
 Preparation costs nothing. The atomic launch claim costs one. A timeout, refusal,
 spawn failure, truncated stream, or invalid artifact still costs one. There is no
-automatic retry. An interrupted claim needs explicit continuation authority. If no
-attempt was published, that authority can finish the consumed launch path; if an
+automatic retry. An interrupted claim needs an unexpired one-time capability whose
+digest was bound before preparation. If no attempt was published, that authority can finish the consumed launch path; if an
 attempt exists, it is never replayed—the runner terminates any matching recorded child
 and reconciles the invocation as failed or explicitly aborted.
 

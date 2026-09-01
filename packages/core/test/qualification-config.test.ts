@@ -79,6 +79,7 @@ function request() {
     schema_version: "qualification-invocation-request-v1",
     measurement_identity_sha256: h("c"),
     invocation_id: "invocation-0001",
+    continuation_authority_sha256: h("b"), continuation_authority_expires_at: "2099-01-01T00:00:00.000Z",
     scenario: {
       id: "fake-A1", version: "1", stimulus_sha256: h("d"), rubric_sha256: h("e"),
       input_path: "/tmp/inert-prompt.txt", input_sha256: h("f"), working_directory: "/tmp",

@@ -38,6 +38,8 @@ const request = {
   schema_version: "qualification-invocation-request-v1",
   measurement_identity_sha256: hex("c"),
   invocation_id: "inert-calibration-1",
+  continuation_authority_sha256: sha("inert-example-continuation-authority"),
+  continuation_authority_expires_at: "2099-01-01T00:00:00.000Z",
   scenario: {
     id: "inert-A1", version: "1", stimulus_sha256: hex("d"), rubric_sha256: hex("e"),
     input_path: promptPath, input_sha256: sha(readFileSync(promptPath)), working_directory: output,

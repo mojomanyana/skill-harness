@@ -2,7 +2,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { QUALIFICATION_ACCOUNTING_POLICY, parseQualificationConfig, parseQualificationRequest } from "../src/qualification-config.js";
+import { PI_DADDY_QUALIFICATION_PRODUCER_PIN, PRINCIPAL_QUALIFICATION_PRODUCT_PIN, QUALIFICATION_ACCOUNTING_POLICY, parseQualificationConfig, parseQualificationRequest } from "../src/qualification-config.js";
 
 const root = join(__dirname, "../../../schemas");
 
@@ -41,6 +41,7 @@ describe("versioned public schemas", () => {
     };
     const request: any = {
       schema_version: "qualification-invocation-request-v1", measurement_identity_sha256: h("e"), invocation_id: "invocation-1",
+      continuation_authority_sha256: h("a"), continuation_authority_expires_at: "2099-01-01T00:00:00.000Z",
       scenario: { id: "A1", version: "1", stimulus_sha256: h("f"), rubric_sha256: h("0"), input_path: "/tmp/input", input_sha256: h("1"), working_directory: "/tmp" },
       role: "subject", counts_as_measurement: true, arms: { subject: "subject", judge: "judge" }, selected_arm: "subject", repetition: 0,
     };
@@ -49,12 +50,44 @@ describe("versioned public schemas", () => {
     expect(validateRequest(request), JSON.stringify(validateRequest.errors)).toBe(true);
     expect(parseQualificationRequest(request, parsed).selected_arm).toBe("subject");
 
+    const production = structuredClone(config);
+    production.mode = "production";
+    Object.assign(production.product, PRINCIPAL_QUALIFICATION_PRODUCT_PIN);
+    Object.assign(production.producer, PI_DADDY_QUALIFICATION_PRODUCER_PIN);
+    production.engine.repository = "https://github.com/mojomanyana/skill-harness";
+    production.arms.forEach((arm: any) => {
+      arm.provider = "openai-codex";
+      arm.authentication = "chatgpt-oauth";
+      arm.model = arm.kind === "subject" ? "gpt-5.6-luna" : "gpt-5.6-sol";
+    });
+    expect(validateConfig(production), JSON.stringify(validateConfig.errors)).toBe(true);
+    expect(parseQualificationConfig(production).mode).toBe("production");
+    const wrongProductionPin = structuredClone(production); wrongProductionPin.product.commit = h("f", 40);
+    expect(validateConfig(wrongProductionPin)).toBe(false);
+    expect(() => parseQualificationConfig(wrongProductionPin)).toThrow(/authorized principal-pi-skills/i);
+
     const optionInjection = structuredClone(config); optionInjection.arms[0].arguments = ["-e/tmp/unpinned", "{input_path}"];
     expect(validateConfig(optionInjection)).toBe(false);
     expect(() => parseQualificationConfig(optionInjection)).toThrow(/positional inputs/i);
+    const unknownPlaceholder = structuredClone(config); unknownPlaceholder.arms[0].arguments = ["{future_path}", "{input_path}"];
+    expect(validateConfig(unknownPlaceholder)).toBe(false);
+    expect(() => parseQualificationConfig(unknownPlaceholder)).toThrow(/unknown placeholder/i);
+    const relativeExecutable = structuredClone(config); relativeExecutable.arms[0].executable.path = "relative/pi";
+    expect(validateConfig(relativeExecutable)).toBe(false);
+    expect(() => parseQualificationConfig(relativeExecutable)).toThrow(/absolute path/i);
+    const duplicateResource = structuredClone(config);
+    duplicateResource.arms[0].resources = [
+      { kind: "skill", path: "/tmp/skill.md", sha256: h("2") },
+      { kind: "skill", path: "/tmp/skill.md", sha256: h("2") },
+    ];
+    expect(validateConfig(duplicateResource)).toBe(false);
+    expect(() => parseQualificationConfig(duplicateResource)).toThrow(/duplicate kind\/path/i);
     const contradictoryRole = { ...request, role: "calibration", counts_as_measurement: true };
     expect(validateRequest(contradictoryRole)).toBe(false);
     expect(() => parseQualificationRequest(contradictoryRole, parsed)).toThrow(/non-measurement/i);
+    const badExpiry = { ...request, continuation_authority_expires_at: "tomorrow" };
+    expect(validateRequest(badExpiry)).toBe(false);
+    expect(() => parseQualificationRequest(badExpiry, parsed)).toThrow(/RFC 3339/i);
     const unknown = { ...config, surprise: true };
     expect(validateConfig(unknown)).toBe(false);
     expect(() => parseQualificationConfig(unknown)).toThrow(/unknown field/i);

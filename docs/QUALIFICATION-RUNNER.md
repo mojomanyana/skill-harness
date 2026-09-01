@@ -17,7 +17,11 @@ Create a closed `qualification-config-v1` JSON file and one
 - `schemas/qualification-config-v1.schema.json`
 - `schemas/qualification-invocation-request-v1.schema.json`
 
-Then use the source-built binary pinned by that configuration:
+Each request pre-binds `continuation_authority_sha256` and an RFC3339
+`continuation_authority_expires_at`. Generate at least 32 random bytes outside the
+spool, put only their SHA-256 in the request, and retain the raw capability as a private
+mode-0600 recovery file until the invocation is terminal. Then use the source-built
+binary pinned by that configuration:
 
 ```bash
 # Reservation only: validates pins/config/input and consumes zero calls.
@@ -72,14 +76,20 @@ signature and a malicious local owner can rewrite a record and its hashes.
 The accounting event is the atomic launch claim. A crash after that claim remains a
 consumed call. If the lifecycle write was interrupted, a later supervisor refuses to
 continue without `start --continuation-authority-file <0600-one-use-file>`. The outer
-CLI consumes and removes that file, sends the value over a private inherited descriptor,
-and records only its digest—never raw argv, environment, or spool text. If no immutable
-launch-attempt exists, that authority may finish the already-consumed launch path. Once
+request pre-commits a one-time capability digest and expiry. The CLI consumes and
+removes the matching private file, sends the raw capability over a private inherited
+descriptor, and records only its digest—never raw argv, environment, or spool text.
+Arbitrary text, a mismatched invocation capability, reuse, and expiry fail closed. If
+no immutable launch-attempt exists, that authority may finish the already-consumed
+launch path. Once
 a launch-attempt exists, it is never launched again: continuation terminates any still
 matching recorded child occurrence and publishes a failed (or explicitly aborted)
 terminal receipt from retained evidence. It never converts ambiguous output into
 success. A stale `abort` is itself explicit reconciliation authority and terminalizes
-the consumed invocation without replay.
+the consumed invocation without replay. If the one-time continuation was already
+consumed and its supervisor is later lost, abort remains the only reconciliation path.
+A live external supervisor with no child is occurrence-terminated by abort before the
+claim is terminalized; bounded Git subprocesses prevent pin checks from hanging forever.
 
 Terminal receipt publication and lifecycle publication are separate atomic writes. If
 a crash lands between them, `status`, `poll`, `abort`, `start`, or `validate` first
@@ -155,15 +165,24 @@ pi auth check --provider openai-codex --model <exact-model> --json
 It requires `status: ready`, the exact provider, and `authType: oauth`. Before that
 probe, the production boundary checks the selected Pi agent directory: `auth.json`
 must be a private regular file with an `openai-codex` OAuth entry; every stored
-credential must be OAuth; the private directory must contain **exactly** that one
-`openai-codex` credential; and it may not carry non-empty `models.json` overrides or
-embedded provider credentials. Final credential files are opened without following
-symlinks and ownership/privacy are checked. Use a
+credential must be OAuth; the private directory must contain **exactly** `auth.json`
+(and optionally an empty `models.json`), with exactly one `openai-codex` credential.
+Final credential files are opened without following symlinks and ownership/privacy are
+checked. File/directory occurrence metadata—not credential bytes or credential digests—is
+bound into auth evidence and rechecked under the launch lock and immediately before
+spawn. The runner deliberately does not copy token bytes into the retained spool; an
+adversarial same-user mutation after the final check remains part of the explicit
+malicious-local-owner/non-containment non-claim. Use a
 dedicated OAuth-only `PI_CODING_AGENT_DIR` when a normal developer profile also holds
-API keys. The persisted evidence contains classifications, executable digest, and
-environment **names** only—never token/key bytes or credential hashes. Readiness is
-explicitly not successful model execution; the completed JSONL artifact must
-separately attest execution.
+API keys. The persisted evidence contains classifications, executable digest,
+filesystem occurrence metadata, environment **names**, and a random launch-capability
+digest only—never token/key bytes or credential hashes. The raw launch capability
+travels to the detached supervisor over the same private descriptor boundary and binds
+the exact winning sanitized environment to the evidence read under the claim lock.
+The auth response may omit model identity; evidence therefore records
+`requested_model` with `model_identity_observed: false` (and rejects a contradictory
+model if one is returned). Readiness is explicitly not model readiness or successful
+model execution; the completed JSONL artifact must separately attest execution.
 
 The child environment starts empty and copies only arm-declared names. API-key,
 provider, base-URL, endpoint, organization/project, proxy, cloud-routing, dynamic
@@ -196,8 +215,10 @@ readiness, identity observation, and execution success are separate facts.
 The terminal receipt binds requested and observed identities, exact attempt count,
 process identities, deadline/effective timeout, exit/signal, output byte counts and
 digests, artifact path/type/size/digest, authentication-evidence digest, and accounting
-event digest. `qualification validate` reopens regular non-symlink files and checks the
-bytes again.
+event digest. `qualification validate` reopens regular non-symlink files, requires the
+artifact to equal retained stdout, reruns provider/model/fallback/refusal attestation,
+and checks that those semantics agree with terminal status and receipt flags—not only
+that the bytes match their digest.
 
 ## External arms and source-built pins
 
@@ -226,10 +247,12 @@ fake repositories/models and a non-measurement `calibration` role. It is not a p
 or a measurement identity.
 
 The public JSON Schemas and runtime parsers share positive/negative CI fixtures. The
-schemas enforce closed shape, mode/provider/model/auth constraints, positional argv,
-and the role/measurement matrix. Cross-object joins (selected arm ID/kind), tuple
-uniqueness, absolute-path policy, and materialized filesystem/Git identity remain
-runtime checks and are tested as that explicit semantic boundary.
+schemas enforce closed shape, portable absolute paths, mode/provider/model/auth
+constraints, known positional placeholders, exact duplicate objects, and the
+role/measurement matrix. Cross-object joins (selected arm ID/kind), duplicate IDs or
+kind/path tuples whose other fields differ, sensitive environment-name classification,
+fixed production pin equality, and materialized filesystem/Git identity remain runtime
+checks and are documented/tested as that explicit semantic boundary.
 
 ## pi-daddy ledger v3
 

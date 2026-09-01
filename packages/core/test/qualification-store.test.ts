@@ -48,6 +48,7 @@ function request(files: ReturnType<typeof setupFiles>, id = "invocation-0001", r
   return {
     schema_version: "qualification-invocation-request-v1",
     measurement_identity_sha256: hex("c"), invocation_id: id,
+    continuation_authority_sha256: sha("inert-prebound-continuation-authority"), continuation_authority_expires_at: "2099-01-01T00:00:00.000Z",
     scenario: { id: "fake-A1", version: "1", stimulus_sha256: hex("d"), rubric_sha256: hex("e"), input_path: files.prompt, input_sha256: sha(readFileSync(files.prompt)), working_directory: files.root },
     role, counts_as_measurement: role === "subject" || role === "judge",
     arms: { subject: "fake-subject", judge: "fake-judge" }, selected_arm: selected, repetition: 0,

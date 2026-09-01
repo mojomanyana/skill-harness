@@ -14,6 +14,7 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  type Stats,
 } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -41,6 +42,14 @@ import {
 } from "./qualification-process.js";
 export { qualificationProcessIdentity, qualificationProcessMatches } from "./qualification-process.js";
 export type { QualificationProcessIdentity } from "./qualification-process.js";
+import {
+  qualificationLockOwnerIsLive,
+  readQualificationLockOwner,
+  reclaimQualificationLock,
+  releaseQualificationLock,
+  tryPublishQualificationLock,
+  type QualificationLockIo,
+} from "./qualification-lock.js";
 import {
   sanitizeQualificationEnvironment,
   qualificationCanonicalJson,
@@ -74,11 +83,20 @@ export const QUALIFICATION_AUTH_EVIDENCE_VERSION = "qualification-auth-evidence-
 export const QUALIFICATION_TERMINAL_RECEIPT_VERSION = "qualification-terminal-receipt-v1" as const;
 export const QUALIFICATION_LAUNCH_ATTEMPT_VERSION = "qualification-launch-attempt-v1" as const;
 
+export interface QualificationFilesystemOccurrence {
+  realpath: string;
+  device: number;
+  inode: number;
+  mtime_ms: number;
+  bytes: number;
+}
+
 export interface QualificationAuthEvidenceV1 {
   schema_version: typeof QUALIFICATION_AUTH_EVIDENCE_VERSION;
   checked_at: string;
   provider: string;
-  model: string;
+  requested_model: string;
+  model_identity_observed: false;
   status: "ready";
   auth_type: "oauth";
   source: "pi-auth-check-json";
@@ -87,6 +105,11 @@ export interface QualificationAuthEvidenceV1 {
   removed_parent_environment_names: string[];
   child_environment_names: string[];
   executable_sha256: string;
+  launch_authority_sha256: string;
+  oauth_agent_directory_identity: QualificationFilesystemOccurrence | null;
+  oauth_auth_file_identity: QualificationFilesystemOccurrence | null;
+  oauth_models_file_identity: QualificationFilesystemOccurrence | null;
+  oauth_directory_entries: string[];
   evidence_sha256: string;
 }
 
@@ -123,6 +146,8 @@ export interface QualificationTerminalReceiptV1 {
   error: string | null;
 }
 
+type QualificationChildOutcome = { code: number | null; signal: NodeJS.Signals | null; error?: string };
+
 export interface QualificationInvocationStatus {
   invocation_id: string;
   phase: QualificationLifecycleV1["phase"];
@@ -145,7 +170,15 @@ export interface QualificationInvocationStatus {
  * models.json override capable of redirecting that provider. No credential
  * value or digest leaves this function.
  */
-export function assertQualificationOAuthCredentialBoundary(env: NodeJS.ProcessEnv): { agent_directory: string; provider: "openai-codex"; auth_type: "oauth" } {
+export function assertQualificationOAuthCredentialBoundary(env: NodeJS.ProcessEnv): {
+  agent_directory: string;
+  provider: "openai-codex";
+  auth_type: "oauth";
+  agent_directory_identity: QualificationFilesystemOccurrence;
+  auth_file_identity: QualificationFilesystemOccurrence;
+  models_file_identity: QualificationFilesystemOccurrence | null;
+  directory_entries: string[];
+} {
   const agentDirectory = env.PI_CODING_AGENT_DIR
     ?? (env.HOME ? join(env.HOME, ".pi", "agent") : undefined);
   if (!agentDirectory || !isAbsolute(agentDirectory)) throw new Error("qualification OAuth boundary requires an absolute PI_CODING_AGENT_DIR or HOME");
@@ -156,9 +189,14 @@ export function assertQualificationOAuthCredentialBoundary(env: NodeJS.ProcessEn
   if (process.platform !== "win32" && ((agentStat.mode & 0o077) !== 0 || agentStat.uid !== process.getuid?.())) {
     throw new Error("qualification OAuth agent directory must be private and owned by the qualification user");
   }
+  const directoryEntries = readdirSync(agentDirectory, { withFileTypes: true }).map((entry) => entry.name).sort();
+  if (directoryEntries.some((entry) => entry !== "auth.json" && entry !== "models.json")) {
+    throw new Error("qualification dedicated OAuth agent directory contains undeclared entries");
+  }
   const authPath = join(agentDirectory, "auth.json");
+  const openedAuth = readPrivateRegularFileOccurrence(authPath, "qualification OAuth auth.json");
   let auth: unknown;
-  try { auth = JSON.parse(readPrivateRegularFile(authPath, "qualification OAuth auth.json").toString("utf8")); }
+  try { auth = JSON.parse(openedAuth.bytes.toString("utf8")); }
   catch (error) {
     if (error instanceof SyntaxError) throw new Error("qualification OAuth auth.json is invalid JSON");
     throw error;
@@ -170,16 +208,31 @@ export function assertQualificationOAuthCredentialBoundary(env: NodeJS.ProcessEn
   const codex = auth["openai-codex"];
   if (!plainObject(codex) || codex.type !== "oauth") throw new Error("qualification openai-codex credential is missing or is not OAuth");
   const modelsPath = join(agentDirectory, "models.json");
+  let modelsIdentity: QualificationFilesystemOccurrence | null = null;
   if (existsSync(modelsPath)) {
+    const openedModels = readPrivateRegularFileOccurrence(modelsPath, "qualification Pi models.json");
+    modelsIdentity = openedModels.identity;
     let models: unknown;
-    try { models = JSON.parse(readPrivateRegularFile(modelsPath, "qualification Pi models.json").toString("utf8")); }
+    try { models = JSON.parse(openedModels.bytes.toString("utf8")); }
     catch { throw new Error("qualification Pi models.json is invalid JSON"); }
     if (!plainObject(models)) throw new Error("qualification Pi models.json must be an object");
     if (Object.keys(models).length > 0) {
       throw new Error("qualification dedicated OAuth agent directory must not carry models.json overrides or embedded provider credentials");
     }
   }
-  return { agent_directory: agentDirectory, provider: "openai-codex", auth_type: "oauth" };
+  const finalAgentStat = lstatSync(agentDirectory);
+  if (finalAgentStat.dev !== agentStat.dev || finalAgentStat.ino !== agentStat.ino || finalAgentStat.mtimeMs !== agentStat.mtimeMs) {
+    throw new Error("qualification OAuth agent directory changed while it was verified");
+  }
+  return {
+    agent_directory: agentDirectory,
+    provider: "openai-codex",
+    auth_type: "oauth",
+    agent_directory_identity: filesystemOccurrence(agentDirectory, agentStat),
+    auth_file_identity: openedAuth.identity,
+    models_file_identity: modelsIdentity,
+    directory_entries: directoryEntries,
+  };
 }
 
 export async function checkQualificationAuthentication(options: {
@@ -187,7 +240,7 @@ export async function checkQualificationAuthentication(options: {
   invocation_id: string;
   parent_env?: NodeJS.ProcessEnv;
   now?: () => string;
-}): Promise<{ evidence: QualificationAuthEvidenceV1; child_env: NodeJS.ProcessEnv }> {
+}): Promise<{ evidence: QualificationAuthEvidenceV1; child_env: NodeJS.ProcessEnv; launch_authority: string }> {
   const invocation = readQualificationInvocation(options.spool_dir, options.invocation_id);
   const config = readQualificationSpoolConfig(options.spool_dir);
   const arm = config.arms.find((candidate) => candidate.id === invocation.arms.selected);
@@ -197,7 +250,7 @@ export async function checkQualificationAuthentication(options: {
   if (initialLifecycle.phase === "terminal" || existsSync(paths.terminal!)) {
     throw new Error(`qualification authentication cannot be refreshed after invocation ${invocation.invocation_id} is terminal`);
   }
-  const initialSupervisor = latestContinuationSupervisor(paths.invocation!) ?? latestProcessIdentity(initialLifecycle, "supervisor");
+  const initialSupervisor = latestContinuationSupervisor(paths.invocation!, invocation) ?? latestProcessIdentity(initialLifecycle, "supervisor");
   if (initialLifecycle.phase !== "prepared" && initialSupervisor && qualificationProcessMatches(initialSupervisor)) {
     throw new Error(`qualification authentication cannot be refreshed while invocation ${invocation.invocation_id} has a live supervisor`);
   }
@@ -225,14 +278,20 @@ export async function checkQualificationAuthentication(options: {
   try { parsed = JSON.parse(result.stdout.trim()); }
   catch { throw new Error("qualification auth check returned invalid JSON"); }
   if (!plainObject(parsed)) throw new Error("qualification auth check returned a non-object response");
+  const unknownAuthField = Object.keys(parsed).find((key) => !["status", "provider", "reason", "authType", "model"].includes(key));
+  if (unknownAuthField) throw new Error(`qualification auth check returned unknown field ${unknownAuthField}`);
   if (parsed.status !== "ready") throw new Error(`qualification OAuth readiness is not ready for ${arm.provider}:${arm.model}`);
   if (parsed.provider !== arm.provider) throw new Error(`qualification auth check provider substitution: requested ${arm.provider}, reported ${String(parsed.provider)}`);
+  if (parsed.model !== undefined && parsed.model !== arm.model) throw new Error(`qualification auth check model substitution: requested ${arm.model}, reported ${String(parsed.model)}`);
   if (parsed.authType !== "oauth") throw new Error(`qualification requires OAuth readiness; Pi reported ${String(parsed.authType ?? "missing auth type")}`);
+  const oauthBoundary = config.mode === "production" ? assertQualificationOAuthCredentialBoundary(sanitized.env) : null;
+  const launchAuthority = randomBytes(32).toString("base64url");
   const evidenceBase: Omit<QualificationAuthEvidenceV1, "evidence_sha256"> = {
     schema_version: QUALIFICATION_AUTH_EVIDENCE_VERSION,
     checked_at: timestamp((options.now ?? (() => new Date().toISOString()))(), "qualification auth check time"),
     provider: arm.provider,
-    model: arm.model,
+    requested_model: arm.model,
+    model_identity_observed: false,
     status: "ready",
     auth_type: "oauth",
     source: "pi-auth-check-json",
@@ -241,6 +300,11 @@ export async function checkQualificationAuthentication(options: {
     removed_parent_environment_names: sanitized.removed_names,
     child_environment_names: Object.keys(sanitized.env).sort(),
     executable_sha256: executable.sha256,
+    launch_authority_sha256: qualificationSha256(launchAuthority),
+    oauth_agent_directory_identity: oauthBoundary?.agent_directory_identity ?? null,
+    oauth_auth_file_identity: oauthBoundary?.auth_file_identity ?? null,
+    oauth_models_file_identity: oauthBoundary?.models_file_identity ?? null,
+    oauth_directory_entries: oauthBoundary?.directory_entries ?? [],
   };
   const evidence: QualificationAuthEvidenceV1 = {
     ...evidenceBase,
@@ -252,7 +316,7 @@ export async function checkQualificationAuthentication(options: {
     if (lifecycle.phase === "terminal" || existsSync(paths.terminal!)) {
       throw new Error(`qualification authentication cannot be refreshed after invocation ${invocation.invocation_id} is terminal`);
     }
-    const activeSupervisor = latestContinuationSupervisor(paths.invocation!) ?? latestProcessIdentity(lifecycle, "supervisor");
+    const activeSupervisor = latestContinuationSupervisor(paths.invocation!, invocation) ?? latestProcessIdentity(lifecycle, "supervisor");
     if (lifecycle.phase !== "prepared" && activeSupervisor && qualificationProcessMatches(activeSupervisor)) {
       throw new Error(`qualification authentication cannot be refreshed while invocation ${invocation.invocation_id} has a live supervisor`);
     }
@@ -260,10 +324,12 @@ export async function checkQualificationAuthentication(options: {
       const existing = readCanonicalJson(authPath, `qualification auth evidence ${options.invocation_id}`) as QualificationAuthEvidenceV1;
       try {
         validateAuthEvidence(existing, invocation, true);
-        if (existing.provider !== evidence.provider || existing.model !== evidence.model || existing.executable_sha256 !== evidence.executable_sha256) {
+        if (existing.provider !== evidence.provider || existing.requested_model !== evidence.requested_model || existing.executable_sha256 !== evidence.executable_sha256) {
           throw new Error("qualification auth evidence contradicts the current invocation");
         }
-        return existing;
+        // A separately computed child environment must never reuse another
+        // start contender's evidence. Validation above is corruption checking;
+        // this contender always publishes its own opaque launch binding.
       } catch (error) {
         if (!(error instanceof Error) || !/auth evidence.*stale/i.test(error.message)) throw error;
       }
@@ -273,7 +339,7 @@ export async function checkQualificationAuthentication(options: {
     atomicWriteCanonical(authPath, evidence, true);
     return evidence;
   });
-  return { evidence: published, child_env: sanitized.env };
+  return { evidence: published, child_env: sanitized.env, launch_authority: launchAuthority };
 }
 
 /**
@@ -284,6 +350,7 @@ export async function superviseQualificationInvocation(options: {
   spool_dir: string;
   invocation_id: string;
   child_env: NodeJS.ProcessEnv;
+  authentication_authority?: string;
   continuation_authority?: string;
   now?: () => string;
 }): Promise<void> {
@@ -306,7 +373,7 @@ export async function superviseQualificationInvocation(options: {
   assertInputUnchanged(invocation);
   assertChildEnvironment(options.child_env, arm.allowed_environment_names);
   if (config.mode === "production") assertQualificationOAuthCredentialBoundary(options.child_env);
-  const auth = readAuthEvidence(options.spool_dir, invocation);
+  let auth: QualificationAuthEvidenceV1 | undefined;
   const supervisorIdentity = qualificationProcessIdentity(process.pid);
   let ownsLaunch = false;
   let reconcileExistingAttempt = false;
@@ -320,12 +387,21 @@ export async function superviseQualificationInvocation(options: {
         if (existsSync(paths.terminal!)) reconcileTerminalLifecycle(paths.root, invocation);
         return;
       }
+      const currentAuth = readAuthEvidence(options.spool_dir, invocation);
+      if (config.mode === "production") assertOAuthBoundaryMatchesEvidence(currentAuth, assertQualificationOAuthCredentialBoundary(options.child_env));
+      if (config.mode === "production" && !options.authentication_authority) {
+        throw new Error("qualification production launch requires the private authentication authority from its auth check");
+      }
+      if (options.authentication_authority && qualificationSha256(options.authentication_authority) !== currentAuth.launch_authority_sha256) {
+        throw new Error("qualification authentication authority does not bind the current auth evidence");
+      }
+      auth = currentAuth;
       const ledger = readQualificationAccounting(paths.root);
       const existingClaim = ledger.events.find((event) => event.invocation_id === invocation.invocation_id);
       if (existingClaim) {
         accountingEventSha = existingClaim.event_sha256;
         const launchAttemptExists = existsSync(join(paths.invocation!, "launch-attempt.json"));
-        const priorSupervisor = latestContinuationSupervisor(paths.invocation!) ?? latestProcessIdentity(lifecycle, "supervisor");
+        const priorSupervisor = latestContinuationSupervisor(paths.invocation!, invocation) ?? latestProcessIdentity(lifecycle, "supervisor");
         if (lifecycle.phase !== "prepared" && priorSupervisor && qualificationProcessMatches(priorSupervisor)) return;
         if (!options.continuation_authority) {
           throw new Error("qualification launch claim was interrupted; explicit continuation authority is required and no relaunch is permitted automatically");
@@ -371,6 +447,7 @@ export async function superviseQualificationInvocation(options: {
     });
   });
   if (!ownsLaunch) return;
+  if (!auth) throw new Error("qualification launch ownership lacks authentication evidence");
   if (reconcileExistingAttempt) {
     await reconcileInterruptedAttempt({
       invocation,
@@ -421,6 +498,7 @@ export async function superviseQualificationInvocation(options: {
     // The claim and immutable attempt already exist. Revalidate every external
     // production pin and every materialized launch input immediately before spawn.
     verifyQualificationPins(config);
+    if (config.mode === "production") assertOAuthBoundaryMatchesEvidence(auth, assertQualificationOAuthCredentialBoundary(options.child_env));
     assertQualificationExecutableIdentity(invocation, verifyQualificationExecutable(arm.executable));
     for (const resource of invocation.execution.resources) verifyQualificationResource(resource);
     assertQualificationWorkingDirectory(invocation);
@@ -434,86 +512,97 @@ export async function superviseQualificationInvocation(options: {
     return;
   }
   if (!stdoutCapture || !stderrCapture) throw new Error("qualification output capture setup did not complete");
-  let child: ChildProcess;
-  try {
-    child = spawn(arm.executable.path, argv, {
-      cwd: invocation.scenario.working_directory,
-      env: options.child_env,
-      stdio: ["ignore", "pipe", "pipe"],
-      detached: process.platform !== "win32",
-    });
-  } catch (error) {
-    stdoutCapture.close(); stderrCapture.close();
-    await finalizeAfterCapture({ invocation, spoolDir: paths.root, terminalStatus: "failed", supervisor: supervisorIdentity, child: null, auth, accountingEventSha, continuationSha, startedAt: attemptAt, deadlineAt: new Date(Date.parse(attemptAt) + arm.timeout_ms).toISOString(), exitCode: null, signal: null, stdoutCapture, stderrCapture, now: now(), error: safeError(error) });
-    return;
-  }
-  const closed = new Promise<{ code: number | null; signal: NodeJS.Signals | null; error?: string }>((resolve) => {
-    let settled = false;
-    const finish = (value: { code: number | null; signal: NodeJS.Signals | null; error?: string }) => {
-      if (settled) return;
-      settled = true;
-      resolve(value);
-    };
-    child.once("error", (error) => finish({ code: null, signal: null, error: safeError(error) }));
-    child.once("close", (code, signal) => finish({ code, signal }));
-  });
-  child.stdout?.on("data", (chunk: Buffer) => stdoutCapture.write(chunk));
-  child.stderr?.on("data", (chunk: Buffer) => stderrCapture.write(chunk));
+  let child: ChildProcess | null = null;
+  let closed: Promise<QualificationChildOutcome> | null = null;
   let childIdentity: QualificationProcessIdentity | null = null;
   let childIdentityError: string | null = null;
-  if (child.pid) {
-    try { childIdentity = qualificationProcessIdentity(child.pid); }
-    catch (error) { childIdentityError = safeError(error); }
-  } else {
-    childIdentityError = "child process did not expose a PID occurrence identity";
-  }
-  const startedAt = timestamp(now(), "qualification process start time");
-  const deadlineAt = new Date(Date.parse(startedAt) + arm.timeout_ms).toISOString();
+  let startedAt = attemptAt;
+  let deadlineAt = new Date(Date.parse(attemptAt) + arm.timeout_ms).toISOString();
   try {
-    if (!childIdentity) throw new Error(childIdentityError ?? "child process occurrence identity is unavailable");
-    atomicWriteCanonical(join(paths.invocation!, "child-occurrence.json"), {
-      schema_version: "qualification-child-occurrence-v1",
-      invocation_id: invocation.invocation_id,
-      attempt: 1,
-      started_at: startedAt,
-      deadline_at: deadlineAt,
-      child: childIdentity,
-    }, true);
     await withAsyncLock(paths.invocationLock!, async () => {
+      if (existsSync(join(paths.invocation!, "abort-request.json"))) throw new Error("aborted before process spawn");
       const lifecycle = readQualificationLifecycle(paths.root, invocation.invocation_id);
       if (lifecycle.phase !== "launch-claimed") throw new Error(`qualification invocation entered ${lifecycle.phase} before process start could be recorded`);
+      child = spawn(arm.executable.path, argv, {
+        cwd: invocation.scenario.working_directory,
+        env: options.child_env,
+        stdio: ["ignore", "pipe", "pipe"],
+        detached: process.platform !== "win32",
+      });
+      const launchedChild = child;
+      closed = new Promise((resolve) => {
+        let settled = false;
+        const finish = (value: { code: number | null; signal: NodeJS.Signals | null; error?: string }) => {
+          if (settled) return;
+          settled = true;
+          resolve(value);
+        };
+        launchedChild!.once("error", (error) => finish({ code: null, signal: null, error: safeError(error) }));
+        launchedChild!.once("close", (code, signal) => finish({ code, signal }));
+      });
+      launchedChild.stdout?.on("data", (chunk: Buffer) => stdoutCapture.write(chunk));
+      launchedChild.stderr?.on("data", (chunk: Buffer) => stderrCapture.write(chunk));
+      if (launchedChild.pid) {
+        try { childIdentity = qualificationProcessIdentity(launchedChild.pid); }
+        catch (error) { childIdentityError = safeError(error); }
+      } else {
+        childIdentityError = "child process did not expose a PID occurrence identity";
+      }
+      startedAt = timestamp(now(), "qualification process start time");
+      deadlineAt = new Date(Date.parse(startedAt) + arm.timeout_ms).toISOString();
+      if (!childIdentity) throw new Error(childIdentityError ?? "child process occurrence identity is unavailable");
+      atomicWriteCanonical(join(paths.invocation!, "child-occurrence.json"), {
+        schema_version: "qualification-child-occurrence-v1",
+        invocation_id: invocation.invocation_id,
+        attempt: 1,
+        started_at: startedAt,
+        deadline_at: deadlineAt,
+        child: childIdentity,
+      }, true);
       writeQualificationLifecycle(paths.root, transitionQualificationLifecycle(lifecycle, "running", {
         at: startedAt,
         detail: { attempt: 1, supervisor: supervisorIdentity, child: childIdentity, deadline_at: deadlineAt, continuation_authority_sha256: continuationSha },
       }));
     });
   } catch (error) {
-    terminateQualificationProcess(child, childIdentity);
-    const outcome = await closed;
-    await cleanupQualificationProcessGroupAfterLeaderExit(child.pid, childIdentity);
+    const aborted = existsSync(join(paths.invocation!, "abort-request.json"));
+    const failedChild = child as unknown as ChildProcess | null;
+    const failedClosed = closed as unknown as Promise<QualificationChildOutcome> | null;
+    if (!failedChild || !failedClosed) {
+      stdoutCapture.close();
+      stderrCapture.close();
+      await finalizeWithoutChild({ invocation, spoolDir: paths.root, status: aborted ? "aborted" : "failed", supervisor: supervisorIdentity, auth, now: now(), error: safeError(error), accountingEventSha, continuationSha });
+      return;
+    }
+    terminateQualificationProcess(failedChild, childIdentity);
+    const outcome = await failedClosed;
+    await cleanupQualificationProcessGroupAfterLeaderExit(failedChild.pid, childIdentity);
     stdoutCapture.close();
     stderrCapture.close();
-    await finalizeAfterCapture({ invocation, spoolDir: paths.root, terminalStatus: "failed", supervisor: supervisorIdentity, child: childIdentity, auth, accountingEventSha, continuationSha, startedAt, deadlineAt, exitCode: outcome.code, signal: outcome.signal, stdoutCapture, stderrCapture, now: now(), error: `process occurrence publication failed: ${safeError(error)}` });
+    await finalizeAfterCapture({ invocation, spoolDir: paths.root, terminalStatus: aborted ? "aborted" : "failed", supervisor: supervisorIdentity, child: childIdentity, auth, accountingEventSha, continuationSha, startedAt, deadlineAt, exitCode: outcome.code, signal: outcome.signal, stdoutCapture, stderrCapture, now: now(), error: `process occurrence publication failed: ${safeError(error)}` });
     return;
   }
+  const runningChild = child as unknown as ChildProcess | null;
+  const runningClosed = closed as unknown as Promise<QualificationChildOutcome> | null;
+  if (!runningChild || !runningClosed) throw new Error("qualification process launch did not publish a child occurrence");
 
   let termination: "exit" | "timeout" | "abort" = "exit";
   const timeoutTimer = setTimeout(() => {
     if (termination !== "exit") return;
     termination = "timeout";
-    terminateQualificationProcess(child, childIdentity);
+    terminateQualificationProcess(runningChild, childIdentity);
   }, arm.timeout_ms);
   const abortTimer = setInterval(() => {
     if (termination !== "exit") return;
     if (existsSync(join(paths.invocation!, "abort-request.json"))) {
       termination = "abort";
-      terminateQualificationProcess(child, childIdentity);
+      terminateQualificationProcess(runningChild, childIdentity);
     }
   }, 20);
-  const outcome = await closed;
+  const outcome = await runningClosed;
   clearTimeout(timeoutTimer);
   clearInterval(abortTimer);
-  await cleanupQualificationProcessGroupAfterLeaderExit(child.pid, childIdentity);
+  await cleanupQualificationProcessGroupAfterLeaderExit(runningChild.pid, childIdentity);
   // An operator can write the durable abort request and signal the process before
   // the supervisor's 20ms watcher observes it. The request, not which callback won
   // that race, is authoritative for terminal classification.
@@ -552,7 +641,7 @@ export function qualificationInvocationStatus(spoolDir: string, invocationId: st
     throw new Error(`qualification invocation ${invocationId} terminal receipt contradicts lifecycle state`);
   }
   const latest = lifecycle.events[lifecycle.events.length - 1]?.detail ?? {};
-  const supervisor = receipt?.supervisor ?? latestContinuationSupervisor(paths.invocation!) ?? latestProcessIdentity(lifecycle, "supervisor");
+  const supervisor = receipt?.supervisor ?? latestContinuationSupervisor(paths.invocation!, invocation) ?? latestProcessIdentity(lifecycle, "supervisor");
   const child = receipt?.child ?? processIdentityFrom(latest.child);
   return {
     invocation_id: invocationId,
@@ -628,10 +717,29 @@ export async function abortQualificationInvocation(options: {
         return;
       }
       if (!accountingEvent) throw new Error(`qualification nonterminal invocation ${invocation.invocation_id} has no accounting claim`);
-      const priorSupervisor = latestContinuationSupervisor(paths.invocation!) ?? latestProcessIdentity(lifecycle, "supervisor");
+      const priorSupervisor = latestContinuationSupervisor(paths.invocation!, invocation) ?? latestProcessIdentity(lifecycle, "supervisor");
       const child = readChildOccurrence(paths.invocation!, invocation, false)?.child ?? latestProcessIdentity(lifecycle, "child");
       if (priorSupervisor && qualificationProcessMatches(priorSupervisor)) {
-        childToTerminate = child;
+        if (child) {
+          childToTerminate = child;
+          return;
+        }
+        if (priorSupervisor.pid === process.pid) return;
+        await terminateInterruptedQualificationProcessGroup(priorSupervisor);
+        if (qualificationProcessMatches(priorSupervisor)) throw new Error(`qualification live supervisor ${priorSupervisor.pid} could not be terminated for abort reconciliation`);
+        const continuationRecord = readContinuationRecord(paths.invocation!);
+        await reconcileInterruptedAttempt({
+          invocation,
+          spoolDir: paths.root,
+          supervisor: qualificationProcessIdentity(process.pid),
+          auth,
+          accountingEventSha: accountingEvent.event_sha256,
+          continuationSha: continuationRecord ? String(continuationRecord.authority_sha256) : null,
+          now: requestedAt,
+          status: "aborted",
+          error: options.reason,
+          child: null,
+        });
         return;
       }
       const continuationRecord = readContinuationRecord(paths.invocation!);
@@ -679,7 +787,7 @@ export function validateQualificationRunnerSpool(spoolDir: string): ReturnType<t
       throw new Error(`qualification lifecycle ${id} advanced without an accounting claim`);
     }
     const continuationRecord = readContinuationRecord(invocationPaths.invocation!);
-    if (continuationRecord && continuationRecord.invocation_id !== id) throw new Error(`qualification continuation authority ${id} has the wrong invocation identity`);
+    if (continuationRecord) assertContinuationRecordBound(continuationRecord, invocation);
     const childOccurrence = readChildOccurrence(invocationPaths.invocation!, invocation, false);
     if (childOccurrence && (!hasLaunchAttempt || !accountingEvent)) throw new Error(`qualification child occurrence ${id} has no launch/accounting claim`);
     if (lifecycle.phase === "running" && (!childOccurrence || qualificationCanonicalJson(latestProcessIdentity(lifecycle, "child")) !== qualificationCanonicalJson(childOccurrence.child))) {
@@ -799,6 +907,7 @@ function readContinuationRecord(invocationDir: string): Record<string, unknown> 
   const stat = lstatSync(directory);
   if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error("qualification continuation authority directory is invalid");
   const entries = readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name));
+  if (entries.length > 1) throw new Error("qualification continuation authority is one-time but multiple records exist");
   let previousSha: string | null = null;
   let latest: Record<string, unknown> | null = null;
   entries.forEach((entry, index) => {
@@ -820,9 +929,18 @@ function readContinuationRecord(invocationDir: string): Record<string, unknown> 
   return latest;
 }
 
-function latestContinuationSupervisor(invocationDir: string): QualificationProcessIdentity | null {
+function assertContinuationRecordBound(record: Record<string, unknown>, invocation: QualificationInvocationV1): void {
+  if (record.invocation_id !== invocation.invocation_id || record.authority_sha256 !== invocation.continuation_authority_sha256 ||
+      Date.parse(String(record.authorized_at)) > Date.parse(invocation.continuation_authority_expires_at)) {
+    throw new Error(`qualification continuation authority for ${invocation.invocation_id} is not bound to its immutable capability/expiry`);
+  }
+}
+
+function latestContinuationSupervisor(invocationDir: string, invocation: QualificationInvocationV1): QualificationProcessIdentity | null {
   const record = readContinuationRecord(invocationDir);
-  return record ? processIdentityFrom(record.new_supervisor) : null;
+  if (!record) return null;
+  assertContinuationRecordBound(record, invocation);
+  return processIdentityFrom(record.new_supervisor);
 }
 
 function recordContinuationAuthority(
@@ -833,19 +951,21 @@ function recordContinuationAuthority(
   newSupervisor: QualificationProcessIdentity,
   authorizedAt: string,
 ): string {
-  if (!authority.trim() || Buffer.byteLength(authority, "utf8") > 4096) throw new Error("qualification continuation authority must be nonblank and at most 4096 bytes");
+  if (!authority.trim() || Buffer.byteLength(authority, "utf8") < 32 || Buffer.byteLength(authority, "utf8") > 4096) throw new Error("qualification continuation authority must be a 32..4096 byte one-time capability");
   const paths = qualificationSpoolPaths(spoolDir, invocation.invocation_id);
   const directory = join(paths.invocation!, "continuations");
   const previous = readContinuationRecord(paths.invocation!);
-  if (previous && previous.invocation_id !== invocation.invocation_id) throw new Error("qualification continuation authority invocation mismatch");
+  if (previous) throw new Error("qualification continuation authority was already consumed");
   const authoritySha = qualificationSha256(authority);
+  if (authoritySha !== invocation.continuation_authority_sha256) throw new Error("qualification continuation authority does not match the immutable invocation capability");
+  if (Date.parse(authorizedAt) > Date.parse(invocation.continuation_authority_expires_at)) throw new Error("qualification continuation authority is expired");
   const base = {
     schema_version: "qualification-continuation-authority-v1",
     invocation_id: invocation.invocation_id,
-    seq: previous ? Number(previous.seq) + 1 : 1,
+    seq: 1,
     authorized_at: timestamp(authorizedAt, "qualification continuation authority time"),
     authority_sha256: authoritySha,
-    previous_record_sha256: previous ? String(previous.record_sha256) : null,
+    previous_record_sha256: null,
     prior_supervisor: priorSupervisor,
     new_supervisor: newSupervisor,
   };
@@ -999,10 +1119,12 @@ async function finalizeWithoutChild(options: {
   };
   const interruptedArtifactPath = join(paths.root, options.invocation.expected_artifact.path);
   let interruptedArtifact: QualificationTerminalReceiptV1["artifact"] = null;
+  let interruptedAttestation: ArtifactAttestation = { ok: false, actual: null, fallback: false, refused: false, error: null };
   if (existsSync(interruptedArtifactPath)) {
     assertRegularFile(interruptedArtifactPath, `qualification interrupted artifact ${options.invocation.invocation_id}`);
     const bytes = readFileSync(interruptedArtifactPath);
     interruptedArtifact = { path: options.invocation.expected_artifact.path, type: "pi-jsonl", bytes: bytes.length, sha256: qualificationSha256(bytes) };
+    interruptedAttestation = attestPiJsonl(bytes.toString("utf8"), options.invocation.requested);
   }
   const receipt: QualificationTerminalReceiptV1 = {
     schema_version: QUALIFICATION_TERMINAL_RECEIPT_VERSION,
@@ -1019,10 +1141,10 @@ async function finalizeWithoutChild(options: {
     exit_code: null,
     signal: null,
     requested: options.invocation.requested,
-    actual: null,
-    provider_model_identity_observed: false,
+    actual: interruptedAttestation.actual,
+    provider_model_identity_observed: interruptedAttestation.ok,
     successful_execution: false,
-    fallback_detected: false,
+    fallback_detected: interruptedAttestation.fallback,
     authentication: options.auth ? {
       evidence_sha256: qualificationSha256(`${qualificationCanonicalJson(options.auth)}\n`),
       status: "ready",
@@ -1119,6 +1241,7 @@ function assertTerminalReceiptCrossBindings(spoolDir: string, invocation: Qualif
     throw new Error(`qualification terminal receipt for ${invocation.invocation_id} contradicts child occurrence evidence`);
   }
   const continuation = readContinuationRecord(paths.invocation!);
+  if (continuation) assertContinuationRecordBound(continuation, invocation);
   if (receipt.continuation_authority_sha256 !== (continuation ? String(continuation.authority_sha256) : null)) {
     throw new Error(`qualification terminal receipt for ${invocation.invocation_id} continuation authority mismatch`);
   }
@@ -1137,6 +1260,24 @@ function assertTerminalReceiptCrossBindings(spoolDir: string, invocation: Qualif
     if (bytes.length !== receipt.artifact.bytes || qualificationSha256(bytes) !== receipt.artifact.sha256) {
       throw new Error(`qualification artifact ${invocation.invocation_id} digest/size mismatch`);
     }
+    const stdoutBytes = readFileSync(join(paths.root, receipt.stdout.path));
+    if (!bytes.equals(stdoutBytes)) throw new Error(`qualification artifact ${invocation.invocation_id} does not equal retained stdout evidence`);
+    const attestation = attestPiJsonl(bytes.toString("utf8"), invocation.requested);
+    if (qualificationCanonicalJson(receipt.actual) !== qualificationCanonicalJson(attestation.actual) ||
+        receipt.provider_model_identity_observed !== attestation.ok || receipt.fallback_detected !== attestation.fallback) {
+      throw new Error(`qualification artifact ${invocation.invocation_id} semantic identity contradicts terminal receipt`);
+    }
+    if (receipt.terminal_status === "completed" && (receipt.exit_code !== 0 || receipt.stdout.truncated || !attestation.ok || attestation.refused)) {
+      throw new Error(`qualification artifact ${invocation.invocation_id} cannot substantiate completed execution`);
+    }
+    if (receipt.terminal_status === "refused" && (receipt.exit_code !== 0 || receipt.stdout.truncated || !attestation.ok || !attestation.refused)) {
+      throw new Error(`qualification artifact ${invocation.invocation_id} cannot substantiate refusal`);
+    }
+    if (receipt.terminal_status === "invalid-artifact" && receipt.exit_code === 0 && !receipt.stdout.truncated && attestation.ok) {
+      throw new Error(`qualification artifact ${invocation.invocation_id} contradicts invalid-artifact classification`);
+    }
+  } else if (receipt.terminal_status === "completed" || receipt.terminal_status === "refused") {
+    throw new Error(`qualification terminal ${receipt.terminal_status} for ${invocation.invocation_id} has no semantic artifact evidence`);
   }
 }
 
@@ -1207,10 +1348,21 @@ function readAuthEvidence(spoolDir: string, invocation: QualificationInvocationV
 }
 function validateAuthEvidence(evidence: QualificationAuthEvidenceV1, invocation: QualificationInvocationV1, requireFresh = true): void {
   if (!plainObject(evidence)) throw new Error("qualification auth evidence must be an object");
-  const keys = ["schema_version", "checked_at", "provider", "model", "status", "auth_type", "source", "credentials_included", "readiness_only", "removed_parent_environment_names", "child_environment_names", "executable_sha256", "evidence_sha256"];
+  const keys = ["schema_version", "checked_at", "provider", "requested_model", "model_identity_observed", "status", "auth_type", "source", "credentials_included", "readiness_only", "removed_parent_environment_names", "child_environment_names", "executable_sha256", "launch_authority_sha256", "oauth_agent_directory_identity", "oauth_auth_file_identity", "oauth_models_file_identity", "oauth_directory_entries", "evidence_sha256"];
   exactKeys(evidence as unknown as Record<string, unknown>, keys, `qualification auth evidence ${invocation.invocation_id}`);
-  if (evidence.schema_version !== QUALIFICATION_AUTH_EVIDENCE_VERSION || evidence.provider !== invocation.requested.provider || evidence.model !== invocation.requested.model || evidence.status !== "ready" || evidence.auth_type !== "oauth" || evidence.credentials_included !== false || evidence.readiness_only !== true) {
+  if (evidence.schema_version !== QUALIFICATION_AUTH_EVIDENCE_VERSION || evidence.provider !== invocation.requested.provider || evidence.requested_model !== invocation.requested.model || evidence.model_identity_observed !== false || evidence.status !== "ready" || evidence.auth_type !== "oauth" || evidence.credentials_included !== false || evidence.readiness_only !== true || !/^[a-f0-9]{64}$/.test(evidence.launch_authority_sha256)) {
     throw new Error(`qualification auth evidence contradicts invocation ${invocation.invocation_id}`);
+  }
+  const productionAuth = invocation.authentication === "chatgpt-oauth";
+  if (productionAuth) {
+    if (!isFilesystemOccurrence(evidence.oauth_agent_directory_identity) || !isFilesystemOccurrence(evidence.oauth_auth_file_identity) ||
+        (evidence.oauth_models_file_identity !== null && !isFilesystemOccurrence(evidence.oauth_models_file_identity)) ||
+        !Array.isArray(evidence.oauth_directory_entries) || evidence.oauth_directory_entries.some((entry) => typeof entry !== "string")) {
+      throw new Error(`qualification auth evidence OAuth filesystem occurrence is invalid for ${invocation.invocation_id}`);
+    }
+  } else if (evidence.oauth_agent_directory_identity !== null || evidence.oauth_auth_file_identity !== null || evidence.oauth_models_file_identity !== null ||
+      !Array.isArray(evidence.oauth_directory_entries) || evidence.oauth_directory_entries.length !== 0) {
+    throw new Error(`qualification test auth evidence must not claim a production OAuth filesystem occurrence`);
   }
   const { evidence_sha256: recorded, ...digestInput } = evidence;
   if (!/^[a-f0-9]{64}$/.test(recorded) || qualificationSha256(qualificationCanonicalJson(digestInput)) !== recorded) {
@@ -1219,6 +1371,32 @@ function validateAuthEvidence(evidence: QualificationAuthEvidenceV1, invocation:
   const checkedAt = Date.parse(timestamp(evidence.checked_at, "qualification auth evidence time"));
   if (requireFresh && (checkedAt > Date.now() + 60_000 || Date.now() - checkedAt > 5 * 60_000)) {
     throw new Error(`qualification auth evidence for ${invocation.invocation_id} is stale; run start to perform a fresh Pi auth check`);
+  }
+}
+
+function isFilesystemOccurrence(value: unknown): value is QualificationFilesystemOccurrence {
+  return plainObject(value) && typeof value.realpath === "string" && Number.isSafeInteger(value.device) && Number.isSafeInteger(value.inode) &&
+    typeof value.mtime_ms === "number" && Number.isFinite(value.mtime_ms) && Number.isSafeInteger(value.bytes) && Number(value.bytes) >= 0;
+}
+
+function assertOAuthBoundaryMatchesEvidence(
+  evidence: QualificationAuthEvidenceV1,
+  current: ReturnType<typeof assertQualificationOAuthCredentialBoundary>,
+): void {
+  const expected = {
+    agent: evidence.oauth_agent_directory_identity,
+    auth: evidence.oauth_auth_file_identity,
+    models: evidence.oauth_models_file_identity,
+    entries: evidence.oauth_directory_entries,
+  };
+  const observed = {
+    agent: current.agent_directory_identity,
+    auth: current.auth_file_identity,
+    models: current.models_file_identity,
+    entries: current.directory_entries,
+  };
+  if (qualificationCanonicalJson(expected) !== qualificationCanonicalJson(observed)) {
+    throw new Error("qualification OAuth credential occurrence changed between auth check and launch");
   }
 }
 
@@ -1284,67 +1462,52 @@ function assertChildEnvironment(env: NodeJS.ProcessEnv, allowedNames: readonly s
 async function withAsyncLock<T>(path: string, action: () => Promise<T>, timeoutMs = 5000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   const token = randomBytes(16).toString("hex");
+  const io: QualificationLockIo = { read: readCanonicalJson, write: atomicWriteCanonical };
   while (true) {
-    const candidate = `${path}.candidate-${token}`;
-    try {
-      mkdirSync(candidate, { mode: 0o700 });
-      atomicWriteCanonical(join(candidate, "owner.json"), {
-        schema_version: "qualification-lock-owner-v1",
-        token,
-        process: qualificationProcessIdentity(process.pid),
-      }, true);
-      renameSync(candidate, path);
-      break;
-    } catch (error) {
-      rmSync(candidate, { recursive: true, force: true });
-      if (!["EEXIST", "ENOTEMPTY"].includes(String((error as NodeJS.ErrnoException).code))) throw error;
-      const ownerPath = join(path, "owner.json");
-      // A lock is published only after its owner receipt is durable, so a visible
-      // ownerless lock is corruption rather than a live publication window.
-      if (!existsSync(ownerPath)) throw new Error(`qualification state lock has no owner receipt: ${path}`);
-      const owner = readCanonicalJson(ownerPath, `qualification lock owner ${path}`);
-      const identity = plainObject(owner) ? processIdentityFrom(owner.process) : null;
-      if (!identity) throw new Error(`qualification state lock owner is corrupt: ${path}`);
-      if (!qualificationProcessMatches(identity)) {
-        const stale = `${path}.stale-${token}`;
-        try { renameSync(path, stale); }
-        catch (renameError) {
-          if ((renameError as NodeJS.ErrnoException).code === "ENOENT") continue;
-          throw renameError;
-        }
-        rmSync(stale, { recursive: true, force: true });
-        continue;
-      }
-      if (Date.now() >= deadline) throw new Error(`qualification state lock timed out: ${path}`);
-      await sleep(10);
+    if (tryPublishQualificationLock(path, token, io)) break;
+    const owner = readQualificationLockOwner(path, io);
+    if (!owner) continue;
+    if (!qualificationLockOwnerIsLive(owner)) {
+      reclaimQualificationLock(path, owner.token, token, io);
+      continue;
     }
+    if (Date.now() >= deadline) throw new Error(`qualification state lock timed out: ${path}`);
+    await sleep(10);
   }
   try { return await action(); }
-  finally {
-    const ownerPath = join(path, "owner.json");
-    if (existsSync(ownerPath)) {
-      const owner = readCanonicalJson(ownerPath, `qualification lock owner ${path}`) as Record<string, unknown>;
-      if (owner.token === token) rmSync(path, { recursive: true, force: true });
-    }
-  }
+  finally { releaseQualificationLock(path, token, io); }
 }
 
-function readPrivateRegularFile(path: string, ctx: string): Buffer {
+function filesystemOccurrence(path: string, stat: Stats): QualificationFilesystemOccurrence {
+  return { realpath: realpathSync(path), device: stat.dev, inode: stat.ino, mtime_ms: stat.mtimeMs, bytes: stat.size };
+}
+
+function readPrivateRegularFileOccurrence(path: string, ctx: string): { bytes: Buffer; identity: QualificationFilesystemOccurrence } {
   let fd: number | undefined;
   try {
     fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
     const stat = fstatSync(fd);
-    if (!stat.isFile()) throw new Error(`${ctx} must be a regular non-symlink file`);
+    const pathStat = lstatSync(path);
+    if (!stat.isFile() || pathStat.isSymbolicLink() || stat.dev !== pathStat.dev || stat.ino !== pathStat.ino) throw new Error(`${ctx} must be a stable regular non-symlink file`);
     if (process.platform !== "win32" && ((stat.mode & 0o077) !== 0 || stat.uid !== process.getuid?.())) {
       throw new Error(`${ctx} must be private and owned by the qualification user`);
     }
-    return readFileSync(fd);
+    const bytes = readFileSync(fd);
+    const finalStat = lstatSync(path);
+    if (finalStat.isSymbolicLink() || finalStat.dev !== stat.dev || finalStat.ino !== stat.ino || finalStat.mtimeMs !== stat.mtimeMs || finalStat.size !== stat.size) {
+      throw new Error(`${ctx} changed while it was opened`);
+    }
+    return { bytes, identity: filesystemOccurrence(path, stat) };
   } catch (error) {
     if (error instanceof Error && error.message.startsWith(ctx)) throw error;
     throw new Error(`${ctx} is missing, unreadable, or a symlink`);
   } finally {
     if (fd !== undefined) closeSync(fd);
   }
+}
+
+function readPrivateRegularFile(path: string, ctx: string): Buffer {
+  return readPrivateRegularFileOccurrence(path, ctx).bytes;
 }
 
 function assertRegularFile(path: string, ctx: string): void {
