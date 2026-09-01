@@ -629,7 +629,11 @@ export async function superviseQualificationInvocation(options: {
     if (oauthPolicy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) {
       if (!isOAuthBoundaryV2(prelaunchBoundary)) throw new Error("qualification OAuth directory v2 prelaunch inventory is missing");
       const recordedClaim = readOAuthDirectoryCheckpointV2(paths.invocation!, invocation, "before-launch-claim");
-      assertQualificationOAuthDirectoryContinuityV2(recordedClaim, prelaunchBoundary.inventory, { allow_models_store_change: false });
+      assertQualificationOAuthDirectoryContinuityV2(recordedClaim, prelaunchBoundary.inventory, {
+        // A continuation performs a fresh authorized Pi auth check after the
+        // original claim. That subprocess may legitimately update runtime state.
+        allow_models_store_change: continuationSha !== null,
+      });
       writeOAuthDirectoryCheckpointV2(paths.invocation!, invocation, "immediately-before-pi-launch", prelaunchBoundary.inventory, true);
     }
     assertQualificationExecutableIdentity(invocation, verifyQualificationExecutable(arm.executable));
@@ -923,6 +927,14 @@ export function validateQualificationRunnerSpool(spoolDir: string): ReturnType<t
     if (continuationRecord) assertContinuationRecordBound(continuationRecord, invocation);
     const childOccurrence = readChildOccurrence(invocationPaths.invocation!, invocation, false);
     if (childOccurrence && (!hasLaunchAttempt || !accountingEvent)) throw new Error(`qualification child occurrence ${id} has no launch/accounting claim`);
+    if (invocation.oauth_directory_policy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) {
+      const claimPath = oauthCheckpointPath(invocationPaths.invocation!, "before-launch-claim");
+      const prelaunchPath = oauthCheckpointPath(invocationPaths.invocation!, "immediately-before-pi-launch");
+      if (accountingEvent && !existsSync(claimPath)) throw new Error(`qualification invocation ${id} launch-claim OAuth checkpoint is missing`);
+      if (existsSync(claimPath)) readOAuthDirectoryCheckpointV2(invocationPaths.invocation!, invocation, "before-launch-claim");
+      if (existsSync(prelaunchPath)) readOAuthDirectoryCheckpointV2(invocationPaths.invocation!, invocation, "immediately-before-pi-launch");
+      if (childOccurrence && !existsSync(prelaunchPath)) throw new Error(`qualification invocation ${id} child occurrence lacks its prelaunch OAuth checkpoint`);
+    }
     if (lifecycle.phase === "running" && (!childOccurrence || qualificationCanonicalJson(latestProcessIdentity(lifecycle, "child")) !== qualificationCanonicalJson(childOccurrence.child))) {
       throw new Error(`qualification running lifecycle ${id} is not bound to its child occurrence`);
     }
@@ -1427,7 +1439,7 @@ async function finalizeWithoutChild(options: {
     provider_model_identity_observed: interruptedAttestation.ok,
     successful_execution: false,
     fallback_detected: interruptedAttestation.fallback,
-    authentication: options.auth ? {
+    authentication: options.accountingEventSha && options.auth ? {
       evidence_sha256: qualificationSha256(`${qualificationCanonicalJson(options.auth)}\n`),
       status: "ready",
       auth_type: "oauth",

@@ -49,6 +49,10 @@ const args = process.argv.slice(2);
 if (args[0] === 'auth' && args[1] === 'check') {
   const provider = args[args.indexOf('--provider') + 1];
   const status = process.env.FAKE_AUTH_STATUS || 'ready';
+  if (process.env.FAKE_AUTH_CREATE_STORE === '1') {
+    const target = require('node:path').join(process.env.PI_CODING_AGENT_DIR, 'models-store.json');
+    fs.writeFileSync(target, 'inert auth-check runtime state', { mode: 0o600 }); fs.chmodSync(target, 0o600);
+  }
   if (status === 'nonzero') process.exit(9);
   if (status === 'malformed') { console.log('{bad'); process.exit(0); }
   console.log(JSON.stringify(status === 'ready'
@@ -123,7 +127,7 @@ function setup(command = "complete", overrides: { timeout?: number; output?: num
     writeFileSync(authPath, JSON.stringify({ "openai-codex": { type: "oauth", access: "inert-test-only" } }), { mode: 0o600 });
     chmodSync(authPath, 0o600);
   }
-  const envNames = ["HOME", "PATH", "PI_CODING_AGENT_DIR", "FAKE_AUTH_STATUS", "FAKE_AUTH_TYPE", "FAKE_AUTH_MODEL", "FAKE_COUNT_FILE"];
+  const envNames = ["HOME", "PATH", "PI_CODING_AGENT_DIR", "FAKE_AUTH_STATUS", "FAKE_AUTH_TYPE", "FAKE_AUTH_MODEL", "FAKE_AUTH_CREATE_STORE", "FAKE_COUNT_FILE"];
   const config = {
     schema_version: "qualification-config-v1",
     ...(overrides.oauthV2 ? { oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 } : {}),
@@ -349,6 +353,23 @@ describe("qualification OAuth boundary", () => {
     expect(() => validateQualificationRunnerSpool(files.spool)).toThrow(/v2.*terminal receipt|terminal receipt.*v2/i);
   });
 
+  it("aborts after v2 auth readiness but before accounting with a valid attempt-zero receipt", async () => {
+    const files = setup("complete", { oauthV2: true });
+    await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
+    const status = await abortQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", reason: "operator-after-auth" });
+    expect(status).toMatchObject({ phase: "terminal", terminal_status: "aborted", attempt: 0 });
+    const receipt = JSON.parse(readFileSync(join(files.spool, "invocations", "invocation-0001", "terminal", "receipt.json"), "utf8"));
+    expect(receipt).toMatchObject({
+      schema_version: "qualification-terminal-receipt-v2",
+      oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
+      attempt: 0,
+      authentication: null,
+    });
+    expect(readQualificationAccounting(files.spool).events).toHaveLength(0);
+    expect(calls(files.count)).toBe(0);
+    expect(validateQualificationRunnerSpool(files.spool).ok).toBe(true);
+  });
+
   it("redacts exact OAuth values and secret-shaped output before persistence", () => {
     const token = ["eyJhbGciOiJIUzI1NiJ9", "sentinelpayloadvalue", "sentinelsignaturevalue"].join(".");
     const apiValue = "sentinel-api-value-for-redaction";
@@ -547,16 +568,41 @@ describe("qualification durable execution", () => {
     expect(readQualificationAccounting(files.spool).events).toHaveLength(1);
     expect(readQualificationLifecycle(files.spool, "invocation-0001").phase).toBe("prepared");
     expect(calls(files.count)).toBe(0);
+    const refreshed = await checkQualificationAuthentication({
+      spool_dir: files.spool,
+      invocation_id: "invocation-0001",
+      parent_env: { ...files.parent_env, FAKE_AUTH_CREATE_STORE: "1" },
+    });
+    expect(existsSync(join(files.oauthAgent, "models-store.json"))).toBe(true);
     await superviseQualificationInvocation({
       spool_dir: files.spool,
       invocation_id: "invocation-0001",
-      child_env: auth.child_env,
+      child_env: refreshed.child_env,
+      authentication_authority: refreshed.launch_authority,
       continuation_authority: CONTINUATION_AUTHORITY,
     });
     expect(qualificationInvocationStatus(files.spool, "invocation-0001").terminal_status).toBe("completed");
     expect(readQualificationAccounting(files.spool).events).toHaveLength(1);
     expect(calls(files.count)).toBe(1);
     expect(validateQualificationRunnerSpool(files.spool).ok).toBe(true);
+  });
+
+  it("validate rejects a claimed v2 invocation whose mandatory OAuth checkpoint is missing", async () => {
+    const files = setup("complete", { oauthV2: true });
+    const auth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
+    let nowCalls = 0;
+    await expect(superviseQualificationInvocation({
+      spool_dir: files.spool,
+      invocation_id: "invocation-0001",
+      child_env: auth.child_env,
+      now: () => {
+        nowCalls += 1;
+        if (nowCalls === 3) throw new Error("injected post-accounting interruption");
+        return new Date().toISOString();
+      },
+    })).rejects.toThrow(/injected post-accounting interruption/i);
+    rmSync(join(files.spool, "invocations", "invocation-0001", "oauth-directory-launch-claim.json"));
+    expect(() => validateQualificationRunnerSpool(files.spool)).toThrow(/launch-claim OAuth checkpoint.*missing/i);
   });
 
   it("resumes a stale launch-claimed supervisor only with explicit continuation authority", async () => {
