@@ -84,7 +84,7 @@ function request() {
       input_path: "/tmp/inert-prompt.txt", input_sha256: h("f"), working_directory: "/tmp",
     },
     role: "subject",
-    counts_as_measurement: false,
+    counts_as_measurement: true,
     arms: { subject: "fake-luna-subject", judge: "fake-sol-judge" },
     selected_arm: "fake-luna-subject",
     repetition: 0,
@@ -127,6 +127,8 @@ describe("qualification configuration v1", () => {
       (value: any) => { value.arms[0].arguments = ["--provider", "openai-codex", "{input_path}"]; },
       (value: any) => { value.arms[0].arguments = ["--api-key", "not-a-real-key", "{input_path}"]; },
       (value: any) => { value.arms[0].arguments = ["--extension", "/tmp/unpinned.js", "{input_path}"]; },
+      (value: any) => { value.arms[0].arguments = ["-e/tmp/unpinned.js", "{input_path}"]; },
+      (value: any) => { value.arms[0].arguments = ["-popenai-codex", "{input_path}"]; },
     ]) {
       const value = config();
       mutate(value);
@@ -159,6 +161,10 @@ describe("qualification configuration v1", () => {
     expect(() => parseQualificationRequest({ ...request(), extra: 1 }, parsedConfig)).toThrow(/unknown field.*extra/i);
     expect(() => parseQualificationRequest({ ...request(), role: "holdout-author", counts_as_measurement: true }, parsedConfig))
       .toThrow(/holdout.*non-measurement/i);
+    expect(() => parseQualificationRequest({ ...request(), role: "subject", counts_as_measurement: false }, parsedConfig))
+      .toThrow(/subject.*measurement/i);
+    expect(() => parseQualificationRequest({ ...request(), role: "calibration", counts_as_measurement: true }, parsedConfig))
+      .toThrow(/calibration.*non-measurement/i);
     expect(() => parseQualificationRequest({ ...request(), selected_arm: "fake-sol-judge" }, parsedConfig))
       .toThrow(/subject.*subject arm/i);
   });

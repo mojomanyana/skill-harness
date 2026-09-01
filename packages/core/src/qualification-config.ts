@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { lstatSync, readFileSync, realpathSync } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, realpathSync, type Stats } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
 export const QUALIFICATION_CONFIG_VERSION = "qualification-config-v1" as const;
@@ -135,12 +135,6 @@ const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const ENV_RE = /^[A-Z_][A-Z0-9_]*$/;
 const PLACEHOLDER_RE = /\{([a-z_]+)\}/g;
 const ALLOWED_ARGUMENT_PLACEHOLDERS = new Set(["input_path", "scenario_id", "invocation_id", "artifact_path"]);
-const PROHIBITED_ARGUMENT_FLAGS = [
-  "--api-key", "--provider", "--model", "--models", "--thinking", "--mode", "--print", "-p",
-  "--session", "--session-id", "--session-dir", "--continue", "--resume", "--fork",
-  "--extension", "-e", "--skill", "--append-system-prompt",
-  "--allow-metered-judge",
-] as const;
 
 /**
  * Names that can alter provider credentials/routing or inject code into the child.
@@ -150,6 +144,7 @@ const PROHIBITED_ARGUMENT_FLAGS = [
 export function isQualificationConflictingEnvironmentName(name: string): boolean {
   const upper = name.toUpperCase();
   if (/^(?:LD_|DYLD_)/.test(upper)) return true;
+  if (upper.startsWith("PI_") && upper !== "PI_CODING_AGENT_DIR") return true;
   if (["NODE_OPTIONS", "BASH_ENV", "ENV", "CDPATH", "GIT_SSH_COMMAND", "SSH_ASKPASS"].includes(upper)) return true;
   if (["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY"].includes(upper)) return true;
   if (/^SKILL_(?:HARNESS|CHECK)_ALLOW_METERED_JUDGE$/.test(upper)) return true;
@@ -159,7 +154,7 @@ export function isQualificationConflictingEnvironmentName(name: string): boolean
   // Provider-prefixed ambient configuration is excluded as a class, not only
   // for today's documented key names. That closes both credentials and routing
   // knobs added by a future Pi/provider release without inheriting them first.
-  if (/^(?:OPENAI|AZURE_OPENAI|ANTHROPIC|ANT_LING|FIREWORKS|DEEPSEEK|OPENROUTER|XAI|GOOGLE|GEMINI|VERTEX|BEDROCK|AWS|CLOUDFLARE|TOGETHER|BASETEN|KIMI|MINIMAX|QWEN|XIAOMI|MISTRAL|GROQ|CEREBRAS|NVIDIA|ZAI|OPENCODE|RADIUS|VERCEL|AI_GATEWAY)_/.test(upper)) return true;
+  if (/^(?:OPENAI|AZURE_OPENAI|CODEX|CHATGPT|ANTHROPIC|ANT_LING|FIREWORKS|DEEPSEEK|OPENROUTER|XAI|GOOGLE|GEMINI|VERTEX|BEDROCK|AWS|CLOUDFLARE|TOGETHER|BASETEN|KIMI|MINIMAX|QWEN|XIAOMI|MISTRAL|GROQ|CEREBRAS|NVIDIA|ZAI|OPENCODE|RADIUS|VERCEL|AI_GATEWAY)_/.test(upper)) return true;
   return false;
 }
 
@@ -209,6 +204,7 @@ export function verifyQualificationPins(config: QualificationConfigV1): void {
     for (const resource of arm.resources) verifyQualificationResource(resource);
   }
   if (config.mode !== "production") return;
+  if (process.platform !== "linux") throw new Error("qualification production execution requires Linux process-occurrence and process-group identity support");
   verifyRepository(config.product, "product");
   verifyRepository(config.engine, "engine");
   verifyRepository(config.producer, "producer");
@@ -231,6 +227,10 @@ export function verifyQualificationPins(config: QualificationConfigV1): void {
 }
 
 function verifyRepository(pin: QualificationRepositoryPin & { checkout_path: string }, label: string): void {
+  let checkoutStat: Stats;
+  try { checkoutStat = lstatSync(pin.checkout_path); }
+  catch { throw new Error(`qualification ${label} checkout is missing`); }
+  if (checkoutStat.isSymbolicLink() || !checkoutStat.isDirectory()) throw new Error(`qualification ${label} checkout must be a regular non-symlink directory`);
   let head: string, tree: string, dirty: string, remote: string;
   try {
     head = execFileSync("git", ["-C", pin.checkout_path, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
@@ -238,6 +238,8 @@ function verifyRepository(pin: QualificationRepositoryPin & { checkout_path: str
     dirty = execFileSync("git", ["-C", pin.checkout_path, "status", "--porcelain=v1", "--untracked-files=all"], { encoding: "utf8" }).trim();
     remote = execFileSync("git", ["-C", pin.checkout_path, "remote", "get-url", "origin"], { encoding: "utf8" }).trim();
   } catch { throw new Error(`qualification ${label} checkout is not a readable pinned Git repository`); }
+  const finalStat = lstatSync(pin.checkout_path);
+  if (finalStat.isSymbolicLink() || finalStat.dev !== checkoutStat.dev || finalStat.ino !== checkoutStat.ino) throw new Error(`qualification ${label} checkout identity changed while it was verified`);
   if (head !== pin.commit || tree !== pin.tree) throw new Error(`qualification ${label} checkout commit/tree does not match its pin`);
   if (dirty) throw new Error(`qualification ${label} checkout must be clean`);
   if (repositorySlug(remote) !== repositorySlug(pin.repository)) throw new Error(`qualification ${label} checkout origin does not match its repository pin`);
@@ -249,42 +251,51 @@ function repositorySlug(value: string): string {
   return match[1].replace(/\.git$/i, "").toLowerCase();
 }
 
+function readPinnedRegularFile(path: string, label: string): { bytes: Buffer; stat: Stats; realpath: string } {
+  let fd: number | undefined;
+  try {
+    fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const stat = fstatSync(fd);
+    const pathStat = lstatSync(path);
+    if (!stat.isFile() || pathStat.isSymbolicLink() || !pathStat.isFile() || stat.dev !== pathStat.dev || stat.ino !== pathStat.ino) {
+      throw new Error(`qualification ${label} must be a stable regular non-symlink file`);
+    }
+    const bytes = readFileSync(fd);
+    const resolved = realpathSync(path);
+    const finalStat = lstatSync(path);
+    if (finalStat.isSymbolicLink() || finalStat.dev !== stat.dev || finalStat.ino !== stat.ino) throw new Error(`qualification ${label} path changed while it was verified`);
+    return { bytes, stat, realpath: resolved };
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith(`qualification ${label}`)) throw error;
+    throw new Error(`qualification ${label} is missing or unreadable: ${path}`);
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
 function verifyFileIdentity(path: string, expectedSha256: string, expectedBytes: number | undefined, label: string): void {
-  let stat;
-  try { stat = lstatSync(path); }
-  catch { throw new Error(`qualification ${label} is missing: ${path}`); }
-  if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(`qualification ${label} must be a regular non-symlink file`);
-  if (expectedBytes !== undefined && stat.size !== expectedBytes) throw new Error(`qualification ${label} byte size does not match its pin`);
-  const actual = qualificationSha256(readFileSync(path));
+  const opened = readPinnedRegularFile(path, label);
+  if (expectedBytes !== undefined && opened.stat.size !== expectedBytes) throw new Error(`qualification ${label} byte size does not match its pin`);
+  const actual = qualificationSha256(opened.bytes);
   if (actual !== expectedSha256) throw new Error(`qualification ${label} digest does not match its pin`);
 }
 
 export function verifyQualificationResource(pin: QualificationResourcePin): { realpath: string; bytes: number; sha256: string } {
   const path = absolutePath(pin.path, "qualification resource.path");
   const expected = digest(pin.sha256, "qualification resource.sha256");
-  let stat;
-  try { stat = lstatSync(path); }
-  catch { throw new Error(`qualification resource does not exist: ${path}`); }
-  if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(`qualification resource must be a pinned regular non-symlink file: ${path}`);
-  const actual = qualificationSha256(readFileSync(path));
+  const opened = readPinnedRegularFile(path, "resource");
+  const actual = qualificationSha256(opened.bytes);
   if (actual !== expected) throw new Error(`qualification resource digest mismatch for ${path}: expected ${expected}, got ${actual}`);
-  return { realpath: realpathSync(path), bytes: stat.size, sha256: actual };
+  return { realpath: opened.realpath, bytes: opened.stat.size, sha256: actual };
 }
 
 export function verifyQualificationExecutable(pin: QualificationExecutablePin): { realpath: string; bytes: number; sha256: string; device: number; inode: number; mtime_ms: number } {
   const parsed = parseExecutablePin(pin, "executable");
-  let stat;
-  try {
-    stat = lstatSync(parsed.path);
-  } catch {
-    throw new Error(`qualification executable does not exist: ${parsed.path}`);
-  }
-  if (stat.isSymbolicLink()) throw new Error(`qualification executable path must be a pinned regular file, not a symlink: ${parsed.path}`);
-  if (!stat.isFile()) throw new Error(`qualification executable path is not a regular file: ${parsed.path}`);
-  if (process.platform !== "win32" && (stat.mode & 0o111) === 0) throw new Error(`qualification executable is not executable: ${parsed.path}`);
-  const digest = qualificationSha256(readFileSync(parsed.path));
+  const opened = readPinnedRegularFile(parsed.path, "executable");
+  if (process.platform !== "win32" && (opened.stat.mode & 0o111) === 0) throw new Error(`qualification executable is not executable: ${parsed.path}`);
+  const digest = qualificationSha256(opened.bytes);
   if (digest !== parsed.sha256) throw new Error(`qualification executable digest mismatch for ${parsed.path}: expected ${parsed.sha256}, got ${digest}`);
-  return { realpath: realpathSync(parsed.path), bytes: stat.size, sha256: digest, device: stat.dev, inode: stat.ino, mtime_ms: stat.mtimeMs };
+  return { realpath: opened.realpath, bytes: opened.stat.size, sha256: digest, device: opened.stat.dev, inode: opened.stat.ino, mtime_ms: opened.stat.mtimeMs };
 }
 
 export function parseQualificationConfig(value: unknown): QualificationConfigV1 {
@@ -400,8 +411,9 @@ export function parseQualificationRequest(value: unknown, config: QualificationC
   exactKeys(armsObject, ["subject", "judge"], "qualification request arms");
   const role = enumValue(root.role, ["holdout-author", "holdout-reviewer", "subject", "judge", "calibration", "canary"], "qualification role") as QualificationRole;
   if (typeof root.counts_as_measurement !== "boolean") throw new Error("qualification counts_as_measurement must be boolean");
-  if ((role === "holdout-author" || role === "holdout-reviewer") && root.counts_as_measurement) {
-    throw new Error(`${role} calls must be recorded as non-measurement`);
+  const requiredMeasurement = role === "subject" || role === "judge";
+  if (root.counts_as_measurement !== requiredMeasurement) {
+    throw new Error(`qualification ${role} calls must be recorded as ${requiredMeasurement ? "measurement" : "non-measurement"}`);
   }
   const subjectArm = identifier(armsObject.subject, "qualification request subject arm");
   const judgeArm = identifier(armsObject.judge, "qualification request judge arm");
@@ -471,9 +483,9 @@ function parseArm(value: unknown, mode: QualificationConfigMode, index: number):
   if (new Set(resourceKeys).size !== resourceKeys.length) throw new Error(`${ctx}.resources contains a duplicate kind/path`);
   if (!Array.isArray(arm.arguments) || arm.arguments.some((entry) => typeof entry !== "string")) throw new Error(`${ctx}.arguments must be an array of strings`);
   const argumentsList = arm.arguments as string[];
-  const lowerArgs = argumentsList.map((entry) => entry.toLowerCase());
-  const prohibited = PROHIBITED_ARGUMENT_FLAGS.find((flag) => lowerArgs.some((entry) => entry === flag || entry.startsWith(`${flag}=`)));
-  if (prohibited) throw new Error(`${ctx}.arguments must not supply ${prohibited}; the runner binds provider/model/auth policy`);
+  if (argumentsList.some((entry) => entry.startsWith("-"))) {
+    throw new Error(`${ctx}.arguments must be positional inputs only; option-looking arguments are runner-owned`);
+  }
   const placeholders = argumentsList.flatMap((entry) => [...entry.matchAll(PLACEHOLDER_RE)].map((match) => match[1]));
   const unknownPlaceholder = placeholders.find((name) => !ALLOWED_ARGUMENT_PLACEHOLDERS.has(name));
   if (unknownPlaceholder) throw new Error(`${ctx}.arguments contains unknown placeholder {${unknownPlaceholder}}`);

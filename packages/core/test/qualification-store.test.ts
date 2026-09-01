@@ -109,6 +109,27 @@ describe("qualification preparation", () => {
     expect(existsSync(files.spool)).toBe(false);
   });
 
+  it("recovers stale and ownerless prepare locks through atomic owner publication", () => {
+    const files = setupFiles();
+    const firstPath = join(files.root, "request-1.json");
+    writeFileSync(firstPath, JSON.stringify(request(files)));
+    prepareQualificationInvocation({ spool_dir: files.spool, config_path: files.configPath, request_path: firstPath });
+
+    const lock = join(files.spool, ".qualification.lock");
+    mkdirSync(lock);
+    writeFileSync(join(lock, "owner.json"), `${qualificationCanonicalJson({
+      schema_version: "qualification-lock-owner-v1", token: "stale", process: { pid: 99999999, platform: process.platform, boot_id: "stale", start_ticks: "1" },
+    })}\n`, { mode: 0o600 });
+    const secondPath = join(files.root, "request-2.json");
+    writeFileSync(secondPath, JSON.stringify(request(files, "invocation-0002")));
+    expect(prepareQualificationInvocation({ spool_dir: files.spool, config_path: files.configPath, request_path: secondPath }).invocation_id).toBe("invocation-0002");
+
+    mkdirSync(lock);
+    const thirdPath = join(files.root, "request-3.json");
+    writeFileSync(thirdPath, JSON.stringify(request(files, "invocation-0003")));
+    expect(prepareQualificationInvocation({ spool_dir: files.spool, config_path: files.configPath, request_path: thirdPath }).invocation_id).toBe("invocation-0003");
+  });
+
   it("rejects duplicate IDs, changed config identity, input mutation, symlinked input, and pre-existing artifacts", () => {
     const files = setupFiles();
     const firstRequest = join(files.root, "request.json");
@@ -142,6 +163,7 @@ describe("qualification preparation", () => {
 
     const files2 = setupFiles();
     mkdirSync(join(files2.spool, "artifacts"), { recursive: true });
+    chmodSync(files2.spool, 0o700);
     writeFileSync(join(files2.spool, "artifacts", "invocation-0003.jsonl"), "occupied");
     const thirdPath = join(files2.root, "request-3.json");
     writeFileSync(thirdPath, JSON.stringify(request(files2, "invocation-0003")));

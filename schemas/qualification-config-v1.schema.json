@@ -25,6 +25,35 @@
     },
     "arms": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/arm" } }
   },
+  "allOf": [
+    { "type": "object", "properties": { "arms": { "type": "array", "contains": { "type": "object", "properties": { "kind": { "const": "subject" } }, "required": ["kind"] }, "minContains": 1 } } },
+    { "type": "object", "properties": { "arms": { "type": "array", "contains": { "type": "object", "properties": { "kind": { "const": "judge" } }, "required": ["kind"] }, "minContains": 1 } } },
+    {
+      "if": { "type": "object", "properties": { "mode": { "const": "production" } }, "required": ["mode"] },
+      "then": {
+        "type": "object", "properties": {
+          "arms": {
+            "type": "array", "items": {
+              "type": "object", "allOf": [
+                { "type": "object", "properties": { "provider": { "const": "openai-codex" }, "authentication": { "const": "chatgpt-oauth" } } },
+                {
+                  "if": { "type": "object", "properties": { "kind": { "const": "subject" } }, "required": ["kind"] },
+                  "then": { "type": "object", "properties": { "model": { "enum": ["gpt-5.6-luna", "gpt-5.6-terra"] } } },
+                  "else": { "type": "object", "properties": { "model": { "const": "gpt-5.6-sol" } } }
+                },
+                { "type": "object", "properties": { "allowed_environment_names": { "type": "array", "contains": { "enum": ["HOME", "PI_CODING_AGENT_DIR"] } } } }
+              ]
+            }
+          }
+        }
+      },
+      "else": {
+        "type": "object", "properties": {
+          "arms": { "type": "array", "items": { "type": "object", "properties": { "provider": { "const": "fake" }, "authentication": { "const": "test-oauth" } } } }
+        }
+      }
+    }
+  ],
   "$defs": {
     "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
     "gitSha": { "type": "string", "pattern": "^[a-fA-F0-9]{40}$" },
@@ -108,7 +137,7 @@
             "properties": { "kind": { "enum": ["extension", "skill", "system-prompt"] }, "path": { "type": "string", "minLength": 1 }, "sha256": { "$ref": "#/$defs/sha256" } }
           }
         },
-        "arguments": { "type": "array", "items": { "type": "string" } },
+        "arguments": { "type": "array", "items": { "type": "string", "pattern": "^(?!-)" }, "contains": { "type": "string", "pattern": "\\{input_path\\}" } },
         "allowed_environment_names": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z_][A-Z0-9_]*$" }, "uniqueItems": true },
         "timeout_ms": { "type": "integer", "minimum": 1, "maximum": 86400000 },
         "output_limit_bytes": { "type": "integer", "minimum": 1, "maximum": 104857600 },

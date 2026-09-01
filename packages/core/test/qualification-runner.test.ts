@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -12,6 +13,7 @@ import {
   prepareQualificationInvocation,
   qualificationSpoolPaths,
   readQualificationAccounting,
+  readQualificationInvocation,
   readQualificationLifecycle,
   transitionQualificationLifecycle,
   writeQualificationAccounting,
@@ -134,11 +136,59 @@ async function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void
   }
 }
 
+function publishInterruptedClaim(files: ReturnType<typeof setup>, environmentNames: string[], options: {
+  launchAttempt?: boolean;
+  child?: ReturnType<typeof qualificationProcessIdentity>;
+  startedAt?: string;
+  deadlineAt?: string;
+} = {}): void {
+  const invocation = readQualificationInvocation(files.spool, "invocation-0001");
+  const claim = appendQualificationAccountingEvent(createQualificationAccountingLedger(), {
+    invocation_id: invocation.invocation_id,
+    role: invocation.role,
+    call_class: "subject",
+    counts_as_measurement: invocation.counts_as_measurement,
+    launched_at: "2026-08-28T12:00:00.000Z",
+  });
+  writeQualificationAccounting(files.spool, claim);
+  let lifecycle = transitionQualificationLifecycle(readQualificationLifecycle(files.spool, invocation.invocation_id), "launch-claimed", {
+    at: "2026-08-28T12:00:00.000Z",
+    detail: { attempt: 1, accounting_event_sha256: claim.chain_head, supervisor: { pid: 99999999, platform: process.platform, boot_id: "stale", start_ticks: "1" }, continuation_authority_sha256: null },
+  });
+  if (options.launchAttempt) {
+    const artifact = join(files.spool, invocation.expected_artifact.path);
+    atomicWriteCanonical(join(files.spool, "invocations", invocation.invocation_id, "launch-attempt.json"), {
+      schema_version: "qualification-launch-attempt-v1",
+      invocation_id: invocation.invocation_id,
+      attempt: 1,
+      at: "2026-08-28T12:00:00.000Z",
+      executable: invocation.execution.executable,
+      argv: ["--provider", invocation.requested.provider, "--model", invocation.requested.model, "--mode", "json", "--print", "--no-session", "--no-context-files", "--no-extensions", "--no-skills", `@${invocation.scenario.input_path}`],
+      environment_names: [...environmentNames].sort(),
+      automatic_retry: false,
+    }, true);
+  }
+  if (options.child) {
+    const startedAt = options.startedAt ?? new Date().toISOString();
+    const deadlineAt = options.deadlineAt ?? new Date(Date.parse(startedAt) + 10_000).toISOString();
+    atomicWriteCanonical(join(files.spool, "invocations", invocation.invocation_id, "child-occurrence.json"), {
+      schema_version: "qualification-child-occurrence-v1", invocation_id: invocation.invocation_id, attempt: 1,
+      started_at: startedAt, deadline_at: deadlineAt, child: options.child,
+    }, true);
+    lifecycle = transitionQualificationLifecycle(lifecycle, "running", {
+      at: startedAt,
+      detail: { attempt: 1, supervisor: { pid: 99999999, platform: process.platform, boot_id: "stale", start_ticks: "1" }, child: options.child, deadline_at: deadlineAt },
+    });
+  }
+  writeQualificationLifecycle(files.spool, lifecycle);
+}
+
 describe("qualification OAuth boundary", () => {
   it("requires a dedicated stored OAuth credential and refuses stored API keys or Codex routing overrides", () => {
     const home = mkdtempSync(join(tmpdir(), "qualification-oauth-home-"));
     const agent = join(home, ".pi", "agent");
     mkdirSync(agent, { recursive: true });
+    chmodSync(agent, 0o700);
     const authPath = join(agent, "auth.json");
     writeFileSync(authPath, JSON.stringify({ "openai-codex": { type: "oauth", access: "sentinel-oauth-value", refresh: "sentinel-refresh-value" } }), { mode: 0o600 });
     const result = assertQualificationOAuthCredentialBoundary({ HOME: home });
@@ -146,7 +196,10 @@ describe("qualification OAuth boundary", () => {
     expect(JSON.stringify(result)).not.toContain("sentinel-oauth-value");
 
     writeFileSync(authPath, JSON.stringify({ "openai-codex": { type: "oauth", access: "sentinel-oauth-value" }, openai: { type: "api_key", key: "sentinel-api-value" } }), { mode: 0o600 });
-    expect(() => assertQualificationOAuthCredentialBoundary({ HOME: home })).toThrow(/API-key or unclassified.*dedicated OAuth-only/i);
+    expect(() => assertQualificationOAuthCredentialBoundary({ HOME: home })).toThrow(/dedicated OAuth credential store.*exactly.*openai-codex/i);
+
+    writeFileSync(authPath, JSON.stringify({ "openai-codex": { type: "oauth", access: "sentinel-oauth-value" }, "claude-code": { type: "oauth", access: "unrelated-oauth-value" } }), { mode: 0o600 });
+    expect(() => assertQualificationOAuthCredentialBoundary({ HOME: home })).toThrow(/exactly.*openai-codex/i);
 
     writeFileSync(authPath, JSON.stringify({ "openai-codex": { type: "oauth", access: "sentinel-oauth-value" } }), { mode: 0o600 });
     writeFileSync(join(agent, "models.json"), JSON.stringify({ providers: { "openai-codex": { baseUrl: "https://proxy.invalid" } } }), { mode: 0o600 });
@@ -175,6 +228,17 @@ describe("qualification OAuth boundary", () => {
     const refreshed = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
     await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: refreshed.child_env });
     expect(qualificationInvocationStatus(files.spool, "invocation-0001").terminal_status).toBe("completed");
+  });
+
+  it("serializes concurrent auth refreshes so launch and receipt bind one immutable evidence record", async () => {
+    const files = setup();
+    const [one, two] = await Promise.all([
+      checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env }),
+      checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env }),
+    ]);
+    expect(one.evidence).toEqual(two.evidence);
+    await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: one.child_env });
+    expect(validateQualificationRunnerSpool(files.spool).ok).toBe(true);
   });
 
   it("records metadata-only OAuth readiness and only environment names, never values", async () => {
@@ -238,10 +302,37 @@ describe("qualification durable execution", () => {
     expect(calls(files.count)).toBe(1);
     expect(readQualificationAccounting(files.spool).events).toHaveLength(1);
     if (command === "huge") expect(status.output.stdout.truncated).toBe(true);
+    expect(existsSync(join(files.spool, "invocations", "invocation-0001", "stdout.partial"))).toBe(true);
+    expect(existsSync(join(files.spool, "invocations", "invocation-0001", "stdout.txt"))).toBe(false);
     if (command === "refused") {
       const receipt = JSON.parse(readFileSync(join(files.spool, "invocations", "invocation-0001", "terminal", "receipt.json"), "utf8"));
       expect(receipt).toMatchObject({ provider_model_identity_observed: true, successful_execution: false, terminal_status: "refused" });
     }
+  });
+
+  it("terminalizes a post-claim pin/setup failure as one consumed call without spawning", async () => {
+    const files = setup();
+    const originalExecutable = readFileSync(files.executable);
+    const auth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
+    let mutated = false;
+    await superviseQualificationInvocation({
+      spool_dir: files.spool,
+      invocation_id: "invocation-0001",
+      child_env: auth.child_env,
+      now: () => {
+        if (!mutated) {
+          mutated = true;
+          writeFileSync(files.executable, `${originalExecutable.toString("utf8")}\n// post-claim mutation\n`);
+        }
+        return new Date().toISOString();
+      },
+    });
+    writeFileSync(files.executable, originalExecutable);
+    chmodSync(files.executable, 0o755);
+    expect(qualificationInvocationStatus(files.spool, "invocation-0001")).toMatchObject({ terminal_status: "failed", attempt: 1 });
+    expect(readQualificationAccounting(files.spool).events).toHaveLength(1);
+    expect(calls(files.count)).toBe(0);
+    expect(validateQualificationRunnerSpool(files.spool).ok).toBe(true);
   });
 
   it("retains durable partial output while running and permits safe concurrent polling", async () => {
@@ -296,10 +387,37 @@ describe("qualification durable execution", () => {
       detail: { attempt: 1, accounting_event_sha256: claim.chain_head, supervisor: { pid: 99999999, platform: process.platform, boot_id: "stale", start_ticks: "1" }, continuation_authority_sha256: null },
     }));
     await expect(superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env }))
-      .rejects.toThrow(/launch-claimed supervisor.*continuation authority/i);
+      .rejects.toThrow(/launch claim.*continuation authority/i);
     await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env, continuation_authority: "operator-authority-2" });
     expect(qualificationInvocationStatus(files.spool, "invocation-0001").terminal_status).toBe("completed");
     expect(calls(files.count)).toBe(1);
+  });
+
+  it("reconciles an existing launch attempt without replay only under explicit continuation authority", async () => {
+    const files = setup();
+    const auth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
+    publishInterruptedClaim(files, Object.keys(auth.child_env), { launchAttempt: true });
+    await expect(superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env }))
+      .rejects.toThrow(/continuation authority/i);
+    await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env, continuation_authority: "operator-reconcile-attempt" });
+    expect(qualificationInvocationStatus(files.spool, "invocation-0001").terminal_status).toBe("failed");
+    expect(calls(files.count)).toBe(0);
+    expect(validateQualificationRunnerSpool(files.spool).ok).toBe(true);
+  });
+
+  it("terminates and reconciles a live recorded child occurrence without replay", async () => {
+    if (process.platform !== "linux") return;
+    const files = setup();
+    const auth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
+    const child = spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], { detached: true, stdio: "ignore" });
+    if (!child.pid) throw new Error("inert child did not expose a pid");
+    const childIdentity = qualificationProcessIdentity(child.pid);
+    publishInterruptedClaim(files, Object.keys(auth.child_env), { launchAttempt: true, child: childIdentity });
+    await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env, continuation_authority: "operator-reconcile-live-child" });
+    expect(qualificationProcessMatches(childIdentity)).toBe(false);
+    expect(qualificationInvocationStatus(files.spool, "invocation-0001").terminal_status).toBe("failed");
+    expect(calls(files.count)).toBe(0);
+    expect(validateQualificationRunnerSpool(files.spool).ok).toBe(true);
   });
 
   it("removes a stale PID-bound filesystem lock without treating that as launch authority", async () => {
@@ -392,6 +510,16 @@ describe("qualification durable execution", () => {
     expect(calls(files.count)).toBeLessThanOrEqual(1);
   });
 
+  it("terminalizes abort for a stale launch claim with no live supervisor or child", async () => {
+    const files = setup();
+    const auth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
+    publishInterruptedClaim(files, Object.keys(auth.child_env));
+    const status = await abortQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", reason: "operator-reconcile-abort" });
+    expect(status).toMatchObject({ phase: "terminal", terminal_status: "aborted", attempt: 1 });
+    expect(calls(files.count)).toBe(0);
+    expect(validateQualificationRunnerSpool(files.spool).ok).toBe(true);
+  });
+
   it("aborts a prepared reservation without consuming a call", async () => {
     const files = setup("sleep:5000");
     const status = await abortQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", reason: "operator-request" });
@@ -419,7 +547,23 @@ describe("qualification durable execution", () => {
       launched_at: "2026-08-28T12:00:00.000Z",
     });
     writeQualificationAccounting(files.spool, contradictory);
-    expect(() => validateQualificationRunnerSpool(files.spool)).toThrow(/attempt contradicts accounting/i);
+    expect(() => validateQualificationRunnerSpool(files.spool)).toThrow(/contradicts accounting/i);
+  });
+
+  it("idempotently reconciles a published terminal receipt after lifecycle publication interruption", async () => {
+    const files = setup();
+    await run(files);
+    const lifecyclePath = join(files.spool, "invocations", "invocation-0001", "lifecycle.json");
+    const lifecycle = JSON.parse(readFileSync(lifecyclePath, "utf8"));
+    lifecycle.events.pop();
+    const prior = lifecycle.events.at(-1);
+    lifecycle.phase = prior.to;
+    lifecycle.terminal_status = prior.terminal_status;
+    lifecycle.chain_head = prior.event_sha256;
+    atomicWriteCanonical(lifecyclePath, lifecycle, false);
+    expect(qualificationInvocationStatus(files.spool, "invocation-0001").terminal_status).toBe("completed");
+    expect(readQualificationLifecycle(files.spool, "invocation-0001").phase).toBe("terminal");
+    expect(validateQualificationRunnerSpool(files.spool).ok).toBe(true);
   });
 
   it("detects artifact mutation after atomic terminal publication", async () => {

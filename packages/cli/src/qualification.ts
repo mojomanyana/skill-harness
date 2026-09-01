@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { lstatSync, readFileSync, realpathSync, unlinkSync } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, realpathSync, unlinkSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 import {
   abortQualificationInvocation,
@@ -43,14 +43,22 @@ export function qualificationSupervisorRuntimeArgs(mode: "production" | "test", 
 }
 
 export function consumeQualificationContinuationAuthority(path: string): string {
-  const stat = lstatSync(path);
-  if (stat.isSymbolicLink() || !stat.isFile()) throw new Error("qualification continuation authority must be a regular non-symlink file");
-  if (process.platform !== "win32" && (stat.mode & 0o077) !== 0) throw new Error("qualification continuation authority file must be mode 0600");
-  if (stat.size < 1 || stat.size > 4096) throw new Error("qualification continuation authority must be 1..4096 bytes");
-  const authority = readFileSync(path, "utf8");
-  unlinkSync(path);
-  if (!authority.trim()) throw new Error("qualification continuation authority must not be blank");
-  return authority;
+  let fd: number | undefined;
+  try {
+    fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const stat = fstatSync(fd);
+    if (!stat.isFile()) throw new Error("qualification continuation authority must be a regular non-symlink file");
+    if (process.platform !== "win32" && ((stat.mode & 0o077) !== 0 || stat.uid !== process.getuid?.())) throw new Error("qualification continuation authority file must be mode 0600 and owned by the qualification user");
+    if (stat.size < 1 || stat.size > 4096) throw new Error("qualification continuation authority must be 1..4096 bytes");
+    const authority = readFileSync(fd, "utf8");
+    const pathStat = lstatSync(path);
+    if (pathStat.isSymbolicLink() || pathStat.dev !== stat.dev || pathStat.ino !== stat.ino) throw new Error("qualification continuation authority path changed while it was consumed");
+    unlinkSync(path);
+    if (!authority.trim()) throw new Error("qualification continuation authority must not be blank");
+    return authority;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
 }
 
 function print(value: unknown): void {
@@ -111,12 +119,13 @@ export async function cmdQualification(args: QualificationCliArgs): Promise<void
   if (operation === "start") {
     const config = readQualificationSpoolConfig(spool);
     const before = qualificationInvocationStatus(spool, id);
-    if (before.phase === "terminal" || before.phase === "running" || (before.phase === "launch-claimed" && before.supervisor_alive)) {
+    if (before.phase === "terminal" || ((before.phase === "running" || before.phase === "launch-claimed") && before.supervisor_alive === true)) {
       print(before);
       return;
     }
-    if (before.phase === "launch-claimed" && !flag(args, "continuation-authority-file")) {
-      throw new Error("qualification stale launch-claimed invocation requires --continuation-authority-file");
+    const needsContinuation = before.attempt === 1 && before.supervisor_alive !== true;
+    if (needsContinuation && !flag(args, "continuation-authority-file")) {
+      throw new Error("qualification interrupted claimed invocation requires --continuation-authority-file");
     }
     if (config.mode === "production") {
       const pinned = verifyQualificationExecutable(config.runner.executable);
@@ -154,13 +163,17 @@ export async function cmdQualification(args: QualificationCliArgs): Promise<void
     }
     supervisor.unref();
     const deadline = Date.now() + integerFlag(args, "ack-wait-ms", 1500);
+    const priorSupervisor = qualificationCanonicalJson(before.supervisor);
     let status = qualificationInvocationStatus(spool, id);
-    while (status.phase === "prepared" && Date.now() < deadline) {
+    const acknowledged = () => needsContinuation
+      ? status.phase === "terminal" || (status.supervisor_alive === true && qualificationCanonicalJson(status.supervisor) !== priorSupervisor)
+      : status.phase !== "prepared";
+    while (!acknowledged() && Date.now() < deadline) {
       await sleep(10);
       status = qualificationInvocationStatus(spool, id);
     }
-    if (status.phase === "prepared") {
-      throw new Error(`qualification supervisor did not durably claim ${id} before the acknowledgement deadline`);
+    if (!acknowledged()) {
+      throw new Error(`qualification supervisor did not durably acknowledge ${id} before the acknowledgement deadline`);
     }
     print(status);
     return;

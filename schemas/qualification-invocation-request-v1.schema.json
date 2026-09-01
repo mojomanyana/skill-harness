@@ -28,6 +28,13 @@
     "selected_arm": { "$ref": "#/$defs/id" },
     "repetition": { "type": "integer", "minimum": 0 }
   },
+  "allOf": [
+    {
+      "if": { "type": "object", "properties": { "role": { "enum": ["subject", "judge"] } }, "required": ["role"] },
+      "then": { "type": "object", "properties": { "counts_as_measurement": { "const": true } } },
+      "else": { "type": "object", "properties": { "counts_as_measurement": { "const": false } } }
+    }
+  ],
   "$defs": {
     "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" },
     "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" }

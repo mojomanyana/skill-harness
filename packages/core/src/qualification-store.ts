@@ -4,6 +4,7 @@ import {
   constants,
   existsSync,
   fsyncSync,
+  fstatSync,
   linkSync,
   lstatSync,
   mkdirSync,
@@ -17,6 +18,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, extname, join, resolve } from "node:path";
+import { qualificationProcessIdentity, qualificationProcessMatches, type QualificationProcessIdentity } from "./qualification-process.js";
 import {
   QUALIFICATION_ACCOUNTING_POLICY,
   type QualificationArmV1,
@@ -418,16 +420,43 @@ export function readQualificationSpoolConfig(spoolDir: string): QualificationCon
 }
 
 export function withQualificationFileLock<T>(lockPath: string, action: () => T): T {
-  try {
-    mkdirSync(lockPath, { mode: 0o700 });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error(`qualification state is busy: lock exists at ${lockPath}`);
-    throw error;
+  const token = randomBytes(16).toString("hex");
+  while (true) {
+    const candidate = `${lockPath}.candidate-${token}`;
+    try {
+      mkdirSync(candidate, { mode: 0o700 });
+      atomicWriteCanonical(join(candidate, "owner.json"), {
+        schema_version: "qualification-lock-owner-v1",
+        token,
+        process: qualificationProcessIdentity(process.pid),
+      }, true);
+      renameSync(candidate, lockPath);
+      break;
+    } catch (error) {
+      rmSync(candidate, { recursive: true, force: true });
+      if (!["EEXIST", "ENOTEMPTY"].includes(String((error as NodeJS.ErrnoException).code))) throw error;
+      const ownerPath = join(lockPath, "owner.json");
+      if (!existsSync(ownerPath)) throw new Error(`qualification state lock has no owner receipt: ${lockPath}`);
+      const owner = readCanonicalJson(ownerPath, `qualification lock owner ${lockPath}`);
+      const identity = plainObject(owner) ? qualificationProcessIdentityFrom(owner.process) : null;
+      if (!identity) throw new Error(`qualification state lock owner is corrupt: ${lockPath}`);
+      if (qualificationProcessMatches(identity)) throw new Error(`qualification state is busy: lock exists at ${lockPath}`);
+      const stale = `${lockPath}.stale-${token}`;
+      try { renameSync(lockPath, stale); }
+      catch (renameError) {
+        if ((renameError as NodeJS.ErrnoException).code === "ENOENT") continue;
+        throw renameError;
+      }
+      rmSync(stale, { recursive: true, force: true });
+    }
   }
-  try {
-    return action();
-  } finally {
-    rmSync(lockPath, { recursive: true, force: true });
+  try { return action(); }
+  finally {
+    const ownerPath = join(lockPath, "owner.json");
+    if (existsSync(ownerPath)) {
+      const owner = readCanonicalJson(ownerPath, `qualification lock owner ${lockPath}`) as Record<string, unknown>;
+      if (owner.token === token) rmSync(lockPath, { recursive: true, force: true });
+    }
   }
 }
 
@@ -453,14 +482,14 @@ export function atomicWriteCanonical(path: string, value: unknown, exclusive: bo
     } else {
       renameSync(temporary, path);
     }
-    fsyncDirectory(dirname(path));
+    fsyncQualificationDirectory(dirname(path));
   } finally {
     if (fd !== undefined) closeSync(fd);
     rmSync(temporary, { force: true });
   }
 }
 
-function atomicWriteBytes(path: string, bytes: Buffer, exclusive: boolean): void {
+export function atomicWriteBytes(path: string, bytes: Buffer, exclusive: boolean): void {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const temporary = join(dirname(path), `.${randomBytes(12).toString("hex")}.tmp`);
   let fd: number | undefined;
@@ -472,7 +501,7 @@ function atomicWriteBytes(path: string, bytes: Buffer, exclusive: boolean): void
     fd = undefined;
     if (exclusive) { linkSync(temporary, path); unlinkSync(temporary); }
     else renameSync(temporary, path);
-    fsyncDirectory(dirname(path));
+    fsyncQualificationDirectory(dirname(path));
   } finally {
     if (fd !== undefined) closeSync(fd);
     rmSync(temporary, { force: true });
@@ -481,13 +510,17 @@ function atomicWriteBytes(path: string, bytes: Buffer, exclusive: boolean): void
 
 export function readCanonicalJson(path: string, ctx: string): unknown {
   let text: string;
+  let fd: number | undefined;
   try {
-    const stat = lstatSync(path);
-    if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(`${ctx} is not a regular file`);
-    text = readFileSync(path, "utf8");
+    fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const stat = fstatSync(fd);
+    if (!stat.isFile()) throw new Error(`${ctx} is not a regular file`);
+    text = readFileSync(fd, "utf8");
   } catch (error) {
     if (error instanceof Error && error.message.includes("not a regular file")) throw error;
     throw new Error(`${ctx} is missing or unreadable: ${path}`);
+  } finally {
+    if (fd !== undefined) closeSync(fd);
   }
   let value: unknown;
   try { value = JSON.parse(text); }
@@ -575,7 +608,10 @@ function validateAccountingInput(value: QualificationAccountingEventInput): void
   if (!["holdout-author", "holdout-reviewer", "subject", "judge", "calibration", "canary"].includes(value.role)) throw new Error("qualification accounting role is invalid");
   if (value.call_class !== "subject" && value.call_class !== "judge") throw new Error("qualification accounting call_class is invalid");
   if (typeof value.counts_as_measurement !== "boolean") throw new Error("qualification accounting measurement flag is invalid");
-  if ((value.role === "holdout-author" || value.role === "holdout-reviewer") && value.counts_as_measurement) throw new Error("qualification holdout author/reviewer accounting must be non-measurement");
+  const requiredMeasurement = value.role === "subject" || value.role === "judge";
+  if (value.counts_as_measurement !== requiredMeasurement) {
+    throw new Error(`qualification ${value.role} accounting must be ${requiredMeasurement ? "measurement" : "non-measurement"}`);
+  }
   validTimestamp(value.launched_at, "qualification accounting launch time");
 }
 
@@ -596,6 +632,9 @@ function assertWorkingDirectory(path: string): void {
 function assertDirectory(path: string, ctx: string): void {
   const stat = lstatSync(path);
   if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error(`${ctx} must be a non-symlink directory: ${path}`);
+  if (process.platform !== "win32" && ((stat.mode & 0o077) !== 0 || stat.uid !== process.getuid?.())) {
+    throw new Error(`${ctx} must be private and owned by the qualification user: ${path}`);
+  }
 }
 function parseJsonFile(path: string, ctx: string): unknown {
   let text: string;
@@ -617,6 +656,17 @@ function validTimestamp(value: string, ctx: string): string {
 function isTerminalStatus(value: unknown): value is QualificationTerminalStatus {
   return ["completed", "failed", "timed-out", "aborted", "refused", "invalid-artifact"].includes(String(value));
 }
+function qualificationProcessIdentityFrom(value: unknown): QualificationProcessIdentity | null {
+  if (!plainObject(value) || !Number.isInteger(value.pid) || typeof value.platform !== "string" ||
+      (value.boot_id !== null && typeof value.boot_id !== "string") || (value.start_ticks !== null && typeof value.start_ticks !== "string")) return null;
+  return {
+    pid: Number(value.pid),
+    platform: value.platform as NodeJS.Platform,
+    boot_id: value.boot_id,
+    start_ticks: value.start_ticks,
+  };
+}
+
 function plainObject(value: unknown): value is Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
@@ -636,7 +686,7 @@ function sanitizeDetail(value: Record<string, unknown>): Record<string, unknown>
   if (secretLike) throw new Error(`qualification lifecycle detail must not contain secret-like field ${secretLike}`);
   return JSON.parse(encoded) as Record<string, unknown>;
 }
-function fsyncDirectory(path: string): void {
+export function fsyncQualificationDirectory(path: string): void {
   if (process.platform === "win32") return;
   let fd: number | undefined;
   try {

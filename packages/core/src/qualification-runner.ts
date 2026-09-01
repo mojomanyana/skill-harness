@@ -5,8 +5,7 @@ import {
   constants,
   copyFileSync,
   existsSync,
-  fsyncSync,
-  linkSync,
+  fstatSync,
   lstatSync,
   mkdirSync,
   openSync,
@@ -15,25 +14,47 @@ import {
   realpathSync,
   renameSync,
   rmSync,
-  unlinkSync,
-  writeFileSync,
-  writeSync,
 } from "node:fs";
-import { dirname, isAbsolute, join } from "node:path";
-import { StringDecoder } from "node:string_decoder";
+import { isAbsolute, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import { redactText } from "./capture.js";
+import {
+  attestQualificationPiJsonl as attestPiJsonl,
+  openQualificationBoundedCapture as openBoundedCapture,
+  qualificationOutputReceipt as outputReceipt,
+  redactQualificationOutput,
+  spawnQualificationCapture as spawnCapture,
+  verifyQualificationOutputReceipt as verifyOutputReceipt,
+  type QualificationArtifactAttestation as ArtifactAttestation,
+  type QualificationBoundedCapture as BoundedCapture,
+  type QualificationOutputReceipt,
+} from "./qualification-capture.js";
+export { redactQualificationOutput } from "./qualification-capture.js";
+export type { QualificationOutputReceipt } from "./qualification-capture.js";
+import {
+  cleanupQualificationProcessGroupAfterLeaderExit,
+  qualificationProcessIdentity,
+  qualificationProcessMatches,
+  terminateInterruptedQualificationProcessGroup,
+  terminateQualificationByIdentity,
+  terminateQualificationProcess,
+  type QualificationProcessIdentity,
+} from "./qualification-process.js";
+export { qualificationProcessIdentity, qualificationProcessMatches } from "./qualification-process.js";
+export type { QualificationProcessIdentity } from "./qualification-process.js";
 import {
   sanitizeQualificationEnvironment,
   qualificationCanonicalJson,
   qualificationSha256,
   verifyQualificationExecutable,
+  verifyQualificationPins,
   verifyQualificationResource,
   type QualificationRole,
 } from "./qualification-config.js";
 import {
   appendQualificationAccountingEvent,
+  atomicWriteBytes,
   atomicWriteCanonical,
+  fsyncQualificationDirectory,
   qualificationSpoolPaths,
   readCanonicalJson,
   readQualificationAccounting,
@@ -53,13 +74,6 @@ export const QUALIFICATION_AUTH_EVIDENCE_VERSION = "qualification-auth-evidence-
 export const QUALIFICATION_TERMINAL_RECEIPT_VERSION = "qualification-terminal-receipt-v1" as const;
 export const QUALIFICATION_LAUNCH_ATTEMPT_VERSION = "qualification-launch-attempt-v1" as const;
 
-export interface QualificationProcessIdentity {
-  pid: number;
-  platform: NodeJS.Platform;
-  boot_id: string | null;
-  start_ticks: string | null;
-}
-
 export interface QualificationAuthEvidenceV1 {
   schema_version: typeof QUALIFICATION_AUTH_EVIDENCE_VERSION;
   checked_at: string;
@@ -74,14 +88,6 @@ export interface QualificationAuthEvidenceV1 {
   child_environment_names: string[];
   executable_sha256: string;
   evidence_sha256: string;
-}
-
-export interface QualificationOutputReceipt {
-  path: string;
-  total_bytes: number;
-  captured_bytes: number;
-  truncated: boolean;
-  sha256: string;
 }
 
 export interface QualificationTerminalReceiptV1 {
@@ -143,27 +149,30 @@ export function assertQualificationOAuthCredentialBoundary(env: NodeJS.ProcessEn
   const agentDirectory = env.PI_CODING_AGENT_DIR
     ?? (env.HOME ? join(env.HOME, ".pi", "agent") : undefined);
   if (!agentDirectory || !isAbsolute(agentDirectory)) throw new Error("qualification OAuth boundary requires an absolute PI_CODING_AGENT_DIR or HOME");
+  let agentStat;
+  try { agentStat = lstatSync(agentDirectory); }
+  catch { throw new Error("qualification OAuth agent directory is missing"); }
+  if (agentStat.isSymbolicLink() || !agentStat.isDirectory()) throw new Error("qualification OAuth agent directory must be a regular non-symlink directory");
+  if (process.platform !== "win32" && ((agentStat.mode & 0o077) !== 0 || agentStat.uid !== process.getuid?.())) {
+    throw new Error("qualification OAuth agent directory must be private and owned by the qualification user");
+  }
   const authPath = join(agentDirectory, "auth.json");
-  let authStat;
-  try { authStat = lstatSync(authPath); }
-  catch { throw new Error("qualification OAuth credential store is missing auth.json"); }
-  if (authStat.isSymbolicLink() || !authStat.isFile()) throw new Error("qualification OAuth auth.json must be a regular non-symlink file");
-  if (process.platform !== "win32" && (authStat.mode & 0o077) !== 0) throw new Error("qualification OAuth auth.json must not be group/world accessible");
   let auth: unknown;
-  try { auth = JSON.parse(readFileSync(authPath, "utf8")); }
-  catch { throw new Error("qualification OAuth auth.json is invalid JSON"); }
+  try { auth = JSON.parse(readPrivateRegularFile(authPath, "qualification OAuth auth.json").toString("utf8")); }
+  catch (error) {
+    if (error instanceof SyntaxError) throw new Error("qualification OAuth auth.json is invalid JSON");
+    throw error;
+  }
   if (!plainObject(auth)) throw new Error("qualification OAuth auth.json must be an object");
-  const credentials = Object.values(auth);
-  if (credentials.some((credential) => !plainObject(credential) || credential.type !== "oauth")) {
-    throw new Error("qualification OAuth credential store contains an API-key or unclassified credential; use a dedicated OAuth-only Pi agent directory");
+  if (qualificationCanonicalJson(Object.keys(auth).sort()) !== qualificationCanonicalJson(["openai-codex"])) {
+    throw new Error("qualification dedicated OAuth credential store must contain exactly the openai-codex OAuth credential");
   }
   const codex = auth["openai-codex"];
   if (!plainObject(codex) || codex.type !== "oauth") throw new Error("qualification openai-codex credential is missing or is not OAuth");
   const modelsPath = join(agentDirectory, "models.json");
   if (existsSync(modelsPath)) {
-    assertRegularFile(modelsPath, "qualification Pi models.json");
     let models: unknown;
-    try { models = JSON.parse(readFileSync(modelsPath, "utf8")); }
+    try { models = JSON.parse(readPrivateRegularFile(modelsPath, "qualification Pi models.json").toString("utf8")); }
     catch { throw new Error("qualification Pi models.json is invalid JSON"); }
     if (!plainObject(models)) throw new Error("qualification Pi models.json must be an object");
     if (Object.keys(models).length > 0) {
@@ -183,6 +192,17 @@ export async function checkQualificationAuthentication(options: {
   const config = readQualificationSpoolConfig(options.spool_dir);
   const arm = config.arms.find((candidate) => candidate.id === invocation.arms.selected);
   if (!arm) throw new Error(`qualification selected arm ${invocation.arms.selected} disappeared from configuration`);
+  const paths = qualificationSpoolPaths(options.spool_dir, options.invocation_id);
+  const initialLifecycle = readQualificationLifecycle(paths.root, invocation.invocation_id);
+  if (initialLifecycle.phase === "terminal" || existsSync(paths.terminal!)) {
+    throw new Error(`qualification authentication cannot be refreshed after invocation ${invocation.invocation_id} is terminal`);
+  }
+  const initialSupervisor = latestContinuationSupervisor(paths.invocation!) ?? latestProcessIdentity(initialLifecycle, "supervisor");
+  if (initialLifecycle.phase !== "prepared" && initialSupervisor && qualificationProcessMatches(initialSupervisor)) {
+    throw new Error(`qualification authentication cannot be refreshed while invocation ${invocation.invocation_id} has a live supervisor`);
+  }
+  verifyQualificationPins(config);
+  assertRunningQualificationRunner(config.mode, config.runner.executable);
   verifyQualificationExecutable(config.runner.executable);
   const executable = verifyQualificationExecutable(arm.executable);
   assertQualificationExecutableIdentity(invocation, executable);
@@ -226,18 +246,34 @@ export async function checkQualificationAuthentication(options: {
     ...evidenceBase,
     evidence_sha256: qualificationSha256(qualificationCanonicalJson(evidenceBase)),
   };
-  const authPath = join(qualificationSpoolPaths(options.spool_dir, options.invocation_id).invocation!, "auth-evidence.json");
-  if (existsSync(authPath)) {
-    const existing = readCanonicalJson(authPath, `qualification auth evidence ${options.invocation_id}`) as QualificationAuthEvidenceV1;
-    validateAuthEvidence(existing, invocation, false);
-    if (existing.provider !== evidence.provider || existing.model !== evidence.model || existing.executable_sha256 !== evidence.executable_sha256) {
-      throw new Error("qualification auth evidence contradicts the current invocation");
+  const authPath = join(paths.invocation!, "auth-evidence.json");
+  const published = await withAsyncLock(paths.invocationLock!, async () => {
+    const lifecycle = readQualificationLifecycle(paths.root, invocation.invocation_id);
+    if (lifecycle.phase === "terminal" || existsSync(paths.terminal!)) {
+      throw new Error(`qualification authentication cannot be refreshed after invocation ${invocation.invocation_id} is terminal`);
     }
-    atomicWriteCanonical(authPath, evidence, false);
-  } else {
+    const activeSupervisor = latestContinuationSupervisor(paths.invocation!) ?? latestProcessIdentity(lifecycle, "supervisor");
+    if (lifecycle.phase !== "prepared" && activeSupervisor && qualificationProcessMatches(activeSupervisor)) {
+      throw new Error(`qualification authentication cannot be refreshed while invocation ${invocation.invocation_id} has a live supervisor`);
+    }
+    if (existsSync(authPath)) {
+      const existing = readCanonicalJson(authPath, `qualification auth evidence ${options.invocation_id}`) as QualificationAuthEvidenceV1;
+      try {
+        validateAuthEvidence(existing, invocation, true);
+        if (existing.provider !== evidence.provider || existing.model !== evidence.model || existing.executable_sha256 !== evidence.executable_sha256) {
+          throw new Error("qualification auth evidence contradicts the current invocation");
+        }
+        return existing;
+      } catch (error) {
+        if (!(error instanceof Error) || !/auth evidence.*stale/i.test(error.message)) throw error;
+      }
+      atomicWriteCanonical(authPath, evidence, false);
+      return evidence;
+    }
     atomicWriteCanonical(authPath, evidence, true);
-  }
-  return { evidence, child_env: sanitized.env };
+    return evidence;
+  });
+  return { evidence: published, child_env: sanitized.env };
 }
 
 /**
@@ -256,6 +292,13 @@ export async function superviseQualificationInvocation(options: {
   const config = readQualificationSpoolConfig(options.spool_dir);
   const arm = config.arms.find((candidate) => candidate.id === invocation.arms.selected);
   if (!arm) throw new Error(`qualification selected arm ${invocation.arms.selected} disappeared from configuration`);
+  const paths = qualificationSpoolPaths(options.spool_dir, options.invocation_id);
+  if (existsSync(paths.terminal!)) {
+    reconcileTerminalLifecycle(paths.root, invocation);
+    return;
+  }
+  verifyQualificationPins(config);
+  assertRunningQualificationRunner(config.mode, config.runner.executable);
   verifyQualificationExecutable(config.runner.executable);
   assertQualificationExecutableIdentity(invocation, verifyQualificationExecutable(arm.executable));
   for (const resource of invocation.execution.resources) verifyQualificationResource(resource);
@@ -265,46 +308,37 @@ export async function superviseQualificationInvocation(options: {
   if (config.mode === "production") assertQualificationOAuthCredentialBoundary(options.child_env);
   const auth = readAuthEvidence(options.spool_dir, invocation);
   const supervisorIdentity = qualificationProcessIdentity(process.pid);
-  const paths = qualificationSpoolPaths(options.spool_dir, options.invocation_id);
   let ownsLaunch = false;
+  let reconcileExistingAttempt = false;
   let accountingEventSha = "";
   let continuationSha: string | null = null;
 
   await withAsyncLock(paths.lock, async () => {
     await withAsyncLock(paths.invocationLock!, async () => {
       let lifecycle = readQualificationLifecycle(paths.root, invocation.invocation_id);
-      if (lifecycle.phase === "terminal" || existsSync(paths.terminal!)) return;
+      if (lifecycle.phase === "terminal" || existsSync(paths.terminal!)) {
+        if (existsSync(paths.terminal!)) reconcileTerminalLifecycle(paths.root, invocation);
+        return;
+      }
       const ledger = readQualificationAccounting(paths.root);
       const existingClaim = ledger.events.find((event) => event.invocation_id === invocation.invocation_id);
       if (existingClaim) {
         accountingEventSha = existingClaim.event_sha256;
-        if (lifecycle.phase === "launch-claimed") {
-          if (existsSync(join(paths.invocation!, "launch-attempt.json"))) {
-            throw new Error("qualification launch attempt already exists; automatic retry is prohibited");
-          }
-          const priorSupervisor = processIdentityFrom(lifecycle.events.at(-1)?.detail.supervisor);
-          if (priorSupervisor && qualificationProcessMatches(priorSupervisor)) return;
-          if (!options.continuation_authority) {
-            throw new Error("qualification launch-claimed supervisor was interrupted; explicit continuation authority is required and no relaunch is permitted automatically");
-          }
-          continuationSha = qualificationSha256(options.continuation_authority);
-          const continuationPath = join(paths.invocation!, "continuation-authority.json");
-          atomicWriteCanonical(continuationPath, {
-            schema_version: "qualification-continuation-authority-v1",
-            invocation_id: invocation.invocation_id,
-            authorized_at: timestamp(now(), "qualification continuation authority time"),
-            authority_sha256: continuationSha,
-            prior_supervisor: priorSupervisor,
-            new_supervisor: supervisorIdentity,
-          }, true);
-          ownsLaunch = true;
-          return;
-        }
-        if (lifecycle.phase !== "prepared") return;
+        const launchAttemptExists = existsSync(join(paths.invocation!, "launch-attempt.json"));
+        const priorSupervisor = latestContinuationSupervisor(paths.invocation!) ?? latestProcessIdentity(lifecycle, "supervisor");
+        if (lifecycle.phase !== "prepared" && priorSupervisor && qualificationProcessMatches(priorSupervisor)) return;
         if (!options.continuation_authority) {
           throw new Error("qualification launch claim was interrupted; explicit continuation authority is required and no relaunch is permitted automatically");
         }
-        continuationSha = qualificationSha256(options.continuation_authority);
+        continuationSha = recordContinuationAuthority(paths.root, invocation, options.continuation_authority, priorSupervisor, supervisorIdentity, now());
+        if (launchAttemptExists || lifecycle.phase === "running") {
+          reconcileExistingAttempt = true;
+          ownsLaunch = true;
+          return;
+        }
+        if (lifecycle.phase !== "prepared" && lifecycle.phase !== "launch-claimed") {
+          throw new Error(`qualification interrupted lifecycle ${lifecycle.phase} cannot be continued`);
+        }
       } else {
         if (lifecycle.phase !== "prepared") throw new Error("qualification lifecycle claims launch without an accounting event");
         if (existsSync(join(paths.invocation!, "abort-request.json"))) {
@@ -321,51 +355,85 @@ export async function superviseQualificationInvocation(options: {
         writeQualificationAccounting(paths.root, next);
         accountingEventSha = next.chain_head!;
       }
-      if (ownsLaunch) return;
-      lifecycle = transitionQualificationLifecycle(lifecycle, "launch-claimed", {        at: timestamp(now(), "qualification launch claim time"),
-        detail: {
-          attempt: 1,
-          accounting_event_sha256: accountingEventSha,
-          supervisor: supervisorIdentity,
-          continuation_authority_sha256: continuationSha,
-        },
-      });
-      writeQualificationLifecycle(paths.root, lifecycle);
+      if (lifecycle.phase === "prepared") {
+        lifecycle = transitionQualificationLifecycle(lifecycle, "launch-claimed", {
+          at: timestamp(now(), "qualification launch claim time"),
+          detail: {
+            attempt: 1,
+            accounting_event_sha256: accountingEventSha,
+            supervisor: supervisorIdentity,
+            continuation_authority_sha256: continuationSha,
+          },
+        });
+        writeQualificationLifecycle(paths.root, lifecycle);
+      }
       ownsLaunch = true;
     });
   });
   if (!ownsLaunch) return;
+  if (reconcileExistingAttempt) {
+    await reconcileInterruptedAttempt({
+      invocation,
+      spoolDir: paths.root,
+      supervisor: supervisorIdentity,
+      auth,
+      accountingEventSha,
+      continuationSha,
+      now: now(),
+      status: existsSync(join(paths.invocation!, "abort-request.json")) ? "aborted" : "failed",
+      error: existsSync(join(paths.invocation!, "abort-request.json")) ? "aborted during interrupted launch" : "interrupted launch reconciled without replay",
+    });
+    return;
+  }
 
   const launchAttemptPath = join(paths.invocation!, "launch-attempt.json");
   if (existsSync(launchAttemptPath)) throw new Error("qualification launch attempt already exists; automatic retry is prohibited");
   if (existsSync(join(paths.invocation!, "abort-request.json"))) {
-    await finalizeWithoutChild({ invocation, spoolDir: paths.root, status: "aborted", supervisor: supervisorIdentity, auth, now: now(), error: "aborted after launch claim" , accountingEventSha, continuationSha });
+    await finalizeWithoutChild({ invocation, spoolDir: paths.root, status: "aborted", supervisor: supervisorIdentity, auth, now: now(), error: "aborted after launch claim", accountingEventSha, continuationSha });
     return;
   }
-  assertQualificationExecutableIdentity(invocation, verifyQualificationExecutable(arm.executable));
-  for (const resource of invocation.execution.resources) verifyQualificationResource(resource);
-  assertQualificationWorkingDirectory(invocation);
-  assertInputUnchanged(invocation);
   const artifactAbsolute = join(paths.root, invocation.expected_artifact.path);
   const argv = buildQualificationArgv(invocation, artifactAbsolute);
   const attemptAt = timestamp(now(), "qualification launch attempt time");
-  atomicWriteCanonical(launchAttemptPath, {
-    schema_version: QUALIFICATION_LAUNCH_ATTEMPT_VERSION,
-    invocation_id: invocation.invocation_id,
-    attempt: 1,
-    at: attemptAt,
-    executable: arm.executable,
-    argv,
-    environment_names: Object.keys(options.child_env).sort(),
-    automatic_retry: false,
-  }, true);
+  try {
+    atomicWriteCanonical(launchAttemptPath, {
+      schema_version: QUALIFICATION_LAUNCH_ATTEMPT_VERSION,
+      invocation_id: invocation.invocation_id,
+      attempt: 1,
+      at: attemptAt,
+      executable: arm.executable,
+      argv,
+      environment_names: Object.keys(options.child_env).sort(),
+      automatic_retry: false,
+    }, true);
+  } catch (error) {
+    await finalizeWithoutChild({ invocation, spoolDir: paths.root, status: "failed", supervisor: supervisorIdentity, auth, now: now(), error: `launch-attempt publication failed: ${safeError(error)}`, accountingEventSha, continuationSha });
+    return;
+  }
 
   const stdoutPartial = join(paths.invocation!, "stdout.partial");
   const stderrPartial = join(paths.invocation!, "stderr.partial");
   const credentialValues = config.mode === "production" ? qualificationCredentialRedactionValues(options.child_env) : [];
   const outputRedactor = (text: string) => redactQualificationOutput(text, credentialValues);
-  const stdoutCapture = openBoundedCapture(stdoutPartial, arm.output_limit_bytes, outputRedactor);
-  const stderrCapture = openBoundedCapture(stderrPartial, arm.output_limit_bytes, outputRedactor);
+  let stdoutCapture: BoundedCapture | null = null;
+  let stderrCapture: BoundedCapture | null = null;
+  try {
+    // The claim and immutable attempt already exist. Revalidate every external
+    // production pin and every materialized launch input immediately before spawn.
+    verifyQualificationPins(config);
+    assertQualificationExecutableIdentity(invocation, verifyQualificationExecutable(arm.executable));
+    for (const resource of invocation.execution.resources) verifyQualificationResource(resource);
+    assertQualificationWorkingDirectory(invocation);
+    assertInputUnchanged(invocation);
+    stdoutCapture = openBoundedCapture(stdoutPartial, arm.output_limit_bytes, outputRedactor);
+    stderrCapture = openBoundedCapture(stderrPartial, arm.output_limit_bytes, outputRedactor);
+  } catch (error) {
+    stdoutCapture?.close();
+    stderrCapture?.close();
+    await finalizeWithoutChild({ invocation, spoolDir: paths.root, status: "failed", supervisor: supervisorIdentity, auth, now: now(), error: `post-claim setup failed: ${safeError(error)}`, accountingEventSha, continuationSha });
+    return;
+  }
+  if (!stdoutCapture || !stderrCapture) throw new Error("qualification output capture setup did not complete");
   let child: ChildProcess;
   try {
     child = spawn(arm.executable.path, argv, {
@@ -379,28 +447,6 @@ export async function superviseQualificationInvocation(options: {
     await finalizeAfterCapture({ invocation, spoolDir: paths.root, terminalStatus: "failed", supervisor: supervisorIdentity, child: null, auth, accountingEventSha, continuationSha, startedAt: attemptAt, deadlineAt: new Date(Date.parse(attemptAt) + arm.timeout_ms).toISOString(), exitCode: null, signal: null, stdoutCapture, stderrCapture, now: now(), error: safeError(error) });
     return;
   }
-  child.stdout!.on("data", (chunk: Buffer) => stdoutCapture.write(chunk));
-  child.stderr!.on("data", (chunk: Buffer) => stderrCapture.write(chunk));
-  let childIdentity: QualificationProcessIdentity | null = null;
-  let childIdentityError: string | null = null;
-  if (child.pid) {
-    try { childIdentity = qualificationProcessIdentity(child.pid); }
-    catch (error) { childIdentityError = safeError(error); }
-  } else {
-    childIdentityError = "child process did not expose a PID occurrence identity";
-  }
-  const startedAt = timestamp(now(), "qualification process start time");
-  const deadlineAt = new Date(Date.parse(startedAt) + arm.timeout_ms).toISOString();
-  await withAsyncLock(paths.invocationLock!, async () => {
-    const lifecycle = readQualificationLifecycle(paths.root, invocation.invocation_id);
-    if (lifecycle.phase !== "launch-claimed") throw new Error(`qualification invocation entered ${lifecycle.phase} before process start could be recorded`);
-    writeQualificationLifecycle(paths.root, transitionQualificationLifecycle(lifecycle, "running", {
-      at: startedAt,
-      detail: { attempt: 1, supervisor: supervisorIdentity, child: childIdentity, deadline_at: deadlineAt },
-    }));
-  });
-
-  let termination: "exit" | "timeout" | "abort" = "exit";
   const closed = new Promise<{ code: number | null; signal: NodeJS.Signals | null; error?: string }>((resolve) => {
     let settled = false;
     const finish = (value: { code: number | null; signal: NodeJS.Signals | null; error?: string }) => {
@@ -411,6 +457,47 @@ export async function superviseQualificationInvocation(options: {
     child.once("error", (error) => finish({ code: null, signal: null, error: safeError(error) }));
     child.once("close", (code, signal) => finish({ code, signal }));
   });
+  child.stdout?.on("data", (chunk: Buffer) => stdoutCapture.write(chunk));
+  child.stderr?.on("data", (chunk: Buffer) => stderrCapture.write(chunk));
+  let childIdentity: QualificationProcessIdentity | null = null;
+  let childIdentityError: string | null = null;
+  if (child.pid) {
+    try { childIdentity = qualificationProcessIdentity(child.pid); }
+    catch (error) { childIdentityError = safeError(error); }
+  } else {
+    childIdentityError = "child process did not expose a PID occurrence identity";
+  }
+  const startedAt = timestamp(now(), "qualification process start time");
+  const deadlineAt = new Date(Date.parse(startedAt) + arm.timeout_ms).toISOString();
+  try {
+    if (!childIdentity) throw new Error(childIdentityError ?? "child process occurrence identity is unavailable");
+    atomicWriteCanonical(join(paths.invocation!, "child-occurrence.json"), {
+      schema_version: "qualification-child-occurrence-v1",
+      invocation_id: invocation.invocation_id,
+      attempt: 1,
+      started_at: startedAt,
+      deadline_at: deadlineAt,
+      child: childIdentity,
+    }, true);
+    await withAsyncLock(paths.invocationLock!, async () => {
+      const lifecycle = readQualificationLifecycle(paths.root, invocation.invocation_id);
+      if (lifecycle.phase !== "launch-claimed") throw new Error(`qualification invocation entered ${lifecycle.phase} before process start could be recorded`);
+      writeQualificationLifecycle(paths.root, transitionQualificationLifecycle(lifecycle, "running", {
+        at: startedAt,
+        detail: { attempt: 1, supervisor: supervisorIdentity, child: childIdentity, deadline_at: deadlineAt, continuation_authority_sha256: continuationSha },
+      }));
+    });
+  } catch (error) {
+    terminateQualificationProcess(child, childIdentity);
+    const outcome = await closed;
+    await cleanupQualificationProcessGroupAfterLeaderExit(child.pid, childIdentity);
+    stdoutCapture.close();
+    stderrCapture.close();
+    await finalizeAfterCapture({ invocation, spoolDir: paths.root, terminalStatus: "failed", supervisor: supervisorIdentity, child: childIdentity, auth, accountingEventSha, continuationSha, startedAt, deadlineAt, exitCode: outcome.code, signal: outcome.signal, stdoutCapture, stderrCapture, now: now(), error: `process occurrence publication failed: ${safeError(error)}` });
+    return;
+  }
+
+  let termination: "exit" | "timeout" | "abort" = "exit";
   const timeoutTimer = setTimeout(() => {
     if (termination !== "exit") return;
     termination = "timeout";
@@ -426,7 +513,7 @@ export async function superviseQualificationInvocation(options: {
   const outcome = await closed;
   clearTimeout(timeoutTimer);
   clearInterval(abortTimer);
-  await cleanupQualificationProcessGroupAfterLeaderExit(child.pid);
+  await cleanupQualificationProcessGroupAfterLeaderExit(child.pid, childIdentity);
   // An operator can write the durable abort request and signal the process before
   // the supervisor's 20ms watcher observes it. The request, not which callback won
   // that race, is authoritative for terminal classification.
@@ -458,17 +545,14 @@ export async function superviseQualificationInvocation(options: {
 export function qualificationInvocationStatus(spoolDir: string, invocationId: string): QualificationInvocationStatus {
   const invocation = readQualificationInvocation(spoolDir, invocationId);
   const paths = qualificationSpoolPaths(spoolDir, invocationId);
+  if (existsSync(join(paths.terminal!, "receipt.json"))) reconcileTerminalLifecycle(paths.root, invocation);
   const lifecycle = readQualificationLifecycle(spoolDir, invocationId);
   const receipt = existsSync(join(paths.terminal!, "receipt.json")) ? readTerminalReceipt(spoolDir, invocation) : null;
-  // The receipt directory is published atomically before the lifecycle snapshot
-  // is advanced. Concurrent pollers may observe that short, valid publication
-  // window; the immutable receipt is already terminal and prevents late success.
-  // A lifecycle that is itself terminal with a different status is contradictory.
   if (receipt && lifecycle.phase === "terminal" && lifecycle.terminal_status !== receipt.terminal_status) {
     throw new Error(`qualification invocation ${invocationId} terminal receipt contradicts lifecycle state`);
   }
   const latest = lifecycle.events[lifecycle.events.length - 1]?.detail ?? {};
-  const supervisor = receipt?.supervisor ?? processIdentityFrom(latest.supervisor);
+  const supervisor = receipt?.supervisor ?? latestContinuationSupervisor(paths.invocation!) ?? latestProcessIdentity(lifecycle, "supervisor");
   const child = receipt?.child ?? processIdentityFrom(latest.child);
   return {
     invocation_id: invocationId,
@@ -520,14 +604,17 @@ export async function abortQualificationInvocation(options: {
     await withAsyncLock(paths.invocationLock!, async () => {
       const invocation = readQualificationInvocation(paths.root, options.invocation_id);
       const lifecycle = readQualificationLifecycle(paths.root, options.invocation_id);
-      if (lifecycle.phase === "terminal" || existsSync(paths.terminal!)) return;
+      if (lifecycle.phase === "terminal" || existsSync(paths.terminal!)) {
+        if (existsSync(paths.terminal!)) reconcileTerminalLifecycle(paths.root, invocation);
+        return;
+      }
       const request = { schema_version: "qualification-abort-request-v1", invocation_id: invocation.invocation_id, requested_at: requestedAt, reason: options.reason };
       const abortPath = join(paths.invocation!, "abort-request.json");
       if (!existsSync(abortPath)) atomicWriteCanonical(abortPath, request, true);
       const accountingEvent = readQualificationAccounting(paths.root).events.find((event) => event.invocation_id === invocation.invocation_id);
+      const authPath = join(paths.invocation!, "auth-evidence.json");
+      const auth = existsSync(authPath) ? readAuthEvidence(paths.root, invocation, false) : null;
       if (lifecycle.phase === "prepared") {
-        const authPath = join(paths.invocation!, "auth-evidence.json");
-        const auth = existsSync(authPath) ? readAuthEvidence(paths.root, invocation) : null;
         await finalizeWithoutChild({
           invocation,
           spoolDir: paths.root,
@@ -540,10 +627,29 @@ export async function abortQualificationInvocation(options: {
         });
         return;
       }
-      childToTerminate = processIdentityFrom(lifecycle.events.at(-1)?.detail.child);
+      if (!accountingEvent) throw new Error(`qualification nonterminal invocation ${invocation.invocation_id} has no accounting claim`);
+      const priorSupervisor = latestContinuationSupervisor(paths.invocation!) ?? latestProcessIdentity(lifecycle, "supervisor");
+      const child = readChildOccurrence(paths.invocation!, invocation, false)?.child ?? latestProcessIdentity(lifecycle, "child");
+      if (priorSupervisor && qualificationProcessMatches(priorSupervisor)) {
+        childToTerminate = child;
+        return;
+      }
+      const continuationRecord = readContinuationRecord(paths.invocation!);
+      await reconcileInterruptedAttempt({
+        invocation,
+        spoolDir: paths.root,
+        supervisor: qualificationProcessIdentity(process.pid),
+        auth,
+        accountingEventSha: accountingEvent.event_sha256,
+        continuationSha: continuationRecord ? String(continuationRecord.authority_sha256) : null,
+        now: requestedAt,
+        status: "aborted",
+        error: options.reason,
+        child,
+      });
     });
   });
-  if (childToTerminate && qualificationProcessMatches(childToTerminate)) terminateByIdentity(childToTerminate);
+  if (childToTerminate && qualificationProcessMatches(childToTerminate)) terminateQualificationByIdentity(childToTerminate);
   return qualificationInvocationStatus(paths.root, options.invocation_id);
 }
 
@@ -557,8 +663,9 @@ export function validateQualificationRunnerSpool(spoolDir: string): ReturnType<t
   for (const id of invocationIds) {
     const invocation = readQualificationInvocation(paths.root, id);
     assertInputUnchanged(invocation);
+    for (const resource of invocation.execution.resources) verifyQualificationResource(resource);
     const invocationPaths = qualificationSpoolPaths(paths.root, id);
-    expectedArtifacts.add(invocation.expected_artifact.path.split("/").at(-1)!);
+    if (existsSync(join(invocationPaths.terminal!, "receipt.json"))) reconcileTerminalLifecycle(paths.root, invocation);
     const lifecycle = readQualificationLifecycle(paths.root, id);
     const accountingEvent = accountingLedger.events.find((event) => event.invocation_id === id);
     const launchAttemptPath = join(invocationPaths.invocation!, "launch-attempt.json");
@@ -571,6 +678,13 @@ export function validateQualificationRunnerSpool(spoolDir: string): ReturnType<t
     if ((lifecycle.phase === "launch-claimed" || lifecycle.phase === "running") && !accountingEvent) {
       throw new Error(`qualification lifecycle ${id} advanced without an accounting claim`);
     }
+    const continuationRecord = readContinuationRecord(invocationPaths.invocation!);
+    if (continuationRecord && continuationRecord.invocation_id !== id) throw new Error(`qualification continuation authority ${id} has the wrong invocation identity`);
+    const childOccurrence = readChildOccurrence(invocationPaths.invocation!, invocation, false);
+    if (childOccurrence && (!hasLaunchAttempt || !accountingEvent)) throw new Error(`qualification child occurrence ${id} has no launch/accounting claim`);
+    if (lifecycle.phase === "running" && (!childOccurrence || qualificationCanonicalJson(latestProcessIdentity(lifecycle, "child")) !== qualificationCanonicalJson(childOccurrence.child))) {
+      throw new Error(`qualification running lifecycle ${id} is not bound to its child occurrence`);
+    }
     const receiptPath = join(invocationPaths.terminal!, "receipt.json");
     if (existsSync(receiptPath)) {
       terminal += 1;
@@ -581,8 +695,13 @@ export function validateQualificationRunnerSpool(spoolDir: string): ReturnType<t
       const expectedAttempt = accountingEvent ? 1 : 0;
       if (receipt.attempt !== expectedAttempt) throw new Error(`qualification terminal receipt for ${id} attempt contradicts accounting`);
       if (receipt.accounting_event_sha256 !== (accountingEvent?.event_sha256 ?? null)) throw new Error(`qualification terminal receipt for ${id} accounting digest mismatch`);
-      if (receipt.terminal_status !== "aborted" && !hasLaunchAttempt) throw new Error(`qualification terminal receipt for ${id} has no immutable launch attempt`);
+      if (receipt.started_at !== null && !hasLaunchAttempt) throw new Error(`qualification started terminal receipt for ${id} has no immutable launch attempt`);
       if (receipt.attempt === 0 && hasLaunchAttempt) throw new Error(`qualification attempt-zero receipt for ${id} has a launch-attempt record`);
+      if (childOccurrence && (qualificationCanonicalJson(receipt.child) !== qualificationCanonicalJson(childOccurrence.child) || receipt.started_at !== childOccurrence.started_at || receipt.deadline_at !== childOccurrence.deadline_at)) {
+        throw new Error(`qualification terminal receipt for ${id} contradicts child occurrence evidence`);
+      }
+      const expectedContinuationSha = continuationRecord ? String(continuationRecord.authority_sha256) : null;
+      if (receipt.continuation_authority_sha256 !== expectedContinuationSha) throw new Error(`qualification terminal receipt for ${id} continuation authority mismatch`);
       if (receipt.authentication) {
         const authEvidence = readAuthEvidence(paths.root, invocation, false);
         const authDigest = qualificationSha256(`${qualificationCanonicalJson(authEvidence)}\n`);
@@ -593,6 +712,7 @@ export function validateQualificationRunnerSpool(spoolDir: string): ReturnType<t
       verifyOutputReceipt(paths.root, receipt.stdout);
       verifyOutputReceipt(paths.root, receipt.stderr);
       if (receipt.artifact) {
+        expectedArtifacts.add(receipt.artifact.path.split("/").at(-1)!);
         const artifactPath = join(paths.root, receipt.artifact.path);
         assertRegularFile(artifactPath, `qualification artifact ${id}`);
         const bytes = readFileSync(artifactPath);
@@ -608,34 +728,6 @@ export function validateQualificationRunnerSpool(spoolDir: string): ReturnType<t
     }
   }
   return { ...report, terminal };
-}
-
-export function qualificationProcessIdentity(pid: number): QualificationProcessIdentity {
-  if (!Number.isInteger(pid) || pid < 1) throw new Error(`qualification process ${String(pid)} is not live`);
-  if (process.platform === "linux") {
-    let stat: string;
-    try { stat = readFileSync(`/proc/${pid}/stat`, "utf8"); }
-    catch { throw new Error(`qualification process ${pid} is not live`); }
-    const close = stat.lastIndexOf(")");
-    if (close < 0) throw new Error(`qualification process ${pid} identity is unreadable`);
-    const remainder = stat.slice(close + 2).trim().split(/\s+/);
-    const startTicks = remainder[19]; // field 22; remainder starts at field 3
-    if (!/^\d+$/.test(startTicks ?? "")) throw new Error(`qualification process ${pid} start identity is unreadable`);
-    let bootId: string;
-    try { bootId = readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim(); }
-    catch { throw new Error("qualification Linux boot identity is unreadable"); }
-    return { pid, platform: process.platform, boot_id: bootId, start_ticks: startTicks };
-  }
-  try { process.kill(pid, 0); }
-  catch { throw new Error(`qualification process ${pid} is not live`); }
-  return { pid, platform: process.platform, boot_id: null, start_ticks: null };
-}
-
-export function qualificationProcessMatches(identity: QualificationProcessIdentity): boolean {
-  try {
-    const current = qualificationProcessIdentity(identity.pid);
-    return current.platform === identity.platform && current.boot_id === identity.boot_id && current.start_ticks === identity.start_ticks;
-  } catch { return false; }
 }
 
 function buildQualificationArgv(invocation: QualificationInvocationV1, artifactPath: string): string[] {
@@ -665,6 +757,140 @@ function buildQualificationArgv(invocation: QualificationInvocationV1, artifactP
   ];
 }
 
+interface QualificationChildOccurrence {
+  schema_version: "qualification-child-occurrence-v1";
+  invocation_id: string;
+  attempt: 1;
+  started_at: string;
+  deadline_at: string;
+  child: QualificationProcessIdentity;
+}
+
+function readChildOccurrence(invocationDir: string, invocation: QualificationInvocationV1, required: boolean): QualificationChildOccurrence | null {
+  const path = join(invocationDir, "child-occurrence.json");
+  if (!existsSync(path)) {
+    if (required) throw new Error(`qualification child occurrence for ${invocation.invocation_id} is missing`);
+    return null;
+  }
+  const value = readCanonicalJson(path, `qualification child occurrence ${invocation.invocation_id}`);
+  if (!plainObject(value)) throw new Error(`qualification child occurrence ${invocation.invocation_id} must be an object`);
+  exactKeys(value, ["schema_version", "invocation_id", "attempt", "started_at", "deadline_at", "child"], `qualification child occurrence ${invocation.invocation_id}`);
+  const child = processIdentityFrom(value.child);
+  if (value.schema_version !== "qualification-child-occurrence-v1" || value.invocation_id !== invocation.invocation_id || value.attempt !== 1 || !child) {
+    throw new Error(`qualification child occurrence ${invocation.invocation_id} identity/version mismatch`);
+  }
+  const startedAt = timestamp(String(value.started_at), `qualification child occurrence ${invocation.invocation_id} start time`);
+  const deadlineAt = timestamp(String(value.deadline_at), `qualification child occurrence ${invocation.invocation_id} deadline`);
+  if (Date.parse(deadlineAt) < Date.parse(startedAt)) throw new Error(`qualification child occurrence ${invocation.invocation_id} deadline precedes start`);
+  return { schema_version: "qualification-child-occurrence-v1", invocation_id: invocation.invocation_id, attempt: 1, started_at: startedAt, deadline_at: deadlineAt, child };
+}
+
+function latestProcessIdentity(lifecycle: QualificationLifecycleV1, field: "supervisor" | "child"): QualificationProcessIdentity | null {
+  for (let index = lifecycle.events.length - 1; index >= 0; index -= 1) {
+    const identity = processIdentityFrom(lifecycle.events[index].detail[field]);
+    if (identity) return identity;
+  }
+  return null;
+}
+
+function readContinuationRecord(invocationDir: string): Record<string, unknown> | null {
+  const directory = join(invocationDir, "continuations");
+  if (!existsSync(directory)) return null;
+  const stat = lstatSync(directory);
+  if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error("qualification continuation authority directory is invalid");
+  const entries = readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name));
+  let previousSha: string | null = null;
+  let latest: Record<string, unknown> | null = null;
+  entries.forEach((entry, index) => {
+    const expectedName = `${String(index + 1).padStart(6, "0")}.json`;
+    if (!entry.isFile() || entry.name !== expectedName) throw new Error("qualification continuation authority sequence is non-contiguous");
+    const value = readCanonicalJson(join(directory, entry.name), `qualification continuation authority ${index + 1}`);
+    if (!plainObject(value)) throw new Error("qualification continuation authority must be an object");
+    exactKeys(value, ["schema_version", "invocation_id", "seq", "authorized_at", "authority_sha256", "previous_record_sha256", "prior_supervisor", "new_supervisor", "record_sha256"], "qualification continuation authority");
+    const { record_sha256: digest, ...base } = value;
+    if (value.schema_version !== "qualification-continuation-authority-v1" || value.seq !== index + 1 || value.previous_record_sha256 !== previousSha ||
+        typeof digest !== "string" || qualificationSha256(qualificationCanonicalJson(base)) !== digest ||
+        !/^[a-f0-9]{64}$/.test(String(value.authority_sha256)) || !processIdentityFrom(value.new_supervisor)) {
+      throw new Error("qualification continuation authority is corrupt");
+    }
+    timestamp(String(value.authorized_at), "qualification continuation authority time");
+    previousSha = digest;
+    latest = value;
+  });
+  return latest;
+}
+
+function latestContinuationSupervisor(invocationDir: string): QualificationProcessIdentity | null {
+  const record = readContinuationRecord(invocationDir);
+  return record ? processIdentityFrom(record.new_supervisor) : null;
+}
+
+function recordContinuationAuthority(
+  spoolDir: string,
+  invocation: QualificationInvocationV1,
+  authority: string,
+  priorSupervisor: QualificationProcessIdentity | null,
+  newSupervisor: QualificationProcessIdentity,
+  authorizedAt: string,
+): string {
+  if (!authority.trim() || Buffer.byteLength(authority, "utf8") > 4096) throw new Error("qualification continuation authority must be nonblank and at most 4096 bytes");
+  const paths = qualificationSpoolPaths(spoolDir, invocation.invocation_id);
+  const directory = join(paths.invocation!, "continuations");
+  const previous = readContinuationRecord(paths.invocation!);
+  if (previous && previous.invocation_id !== invocation.invocation_id) throw new Error("qualification continuation authority invocation mismatch");
+  const authoritySha = qualificationSha256(authority);
+  const base = {
+    schema_version: "qualification-continuation-authority-v1",
+    invocation_id: invocation.invocation_id,
+    seq: previous ? Number(previous.seq) + 1 : 1,
+    authorized_at: timestamp(authorizedAt, "qualification continuation authority time"),
+    authority_sha256: authoritySha,
+    previous_record_sha256: previous ? String(previous.record_sha256) : null,
+    prior_supervisor: priorSupervisor,
+    new_supervisor: newSupervisor,
+  };
+  const nextPath = join(directory, `${String(base.seq).padStart(6, "0")}.json`);
+  atomicWriteCanonical(nextPath, { ...base, record_sha256: qualificationSha256(qualificationCanonicalJson(base)) }, true);
+  return authoritySha;
+}
+
+async function reconcileInterruptedAttempt(options: {
+  invocation: QualificationInvocationV1;
+  spoolDir: string;
+  supervisor: QualificationProcessIdentity;
+  auth: QualificationAuthEvidenceV1 | null;
+  accountingEventSha: string;
+  continuationSha: string | null;
+  now: string;
+  status: "aborted" | "failed";
+  error: string;
+  child?: QualificationProcessIdentity | null;
+}): Promise<void> {
+  if (!options.accountingEventSha) throw new Error(`qualification interrupted invocation ${options.invocation.invocation_id} has no accounting claim`);
+  const paths = qualificationSpoolPaths(options.spoolDir, options.invocation.invocation_id);
+  const occurrence = readChildOccurrence(paths.invocation!, options.invocation, false);
+  const child = options.child ?? occurrence?.child ?? latestProcessIdentity(readQualificationLifecycle(paths.root, options.invocation.invocation_id), "child");
+  if (child) {
+    await terminateInterruptedQualificationProcessGroup(child);
+    if (qualificationProcessMatches(child)) throw new Error(`qualification interrupted child ${child.pid} could not be terminated safely`);
+  }
+  await finalizeWithoutChild({
+    invocation: options.invocation,
+    spoolDir: paths.root,
+    status: options.status,
+    supervisor: options.supervisor,
+    auth: options.auth,
+    now: options.now,
+    error: options.error,
+    accountingEventSha: options.accountingEventSha,
+    continuationSha: options.continuationSha,
+    child,
+    startedAt: occurrence?.started_at ?? null,
+    deadlineAt: occurrence?.deadline_at ?? null,
+    outputIncomplete: Boolean(occurrence) || existsSync(join(paths.invocation!, "launch-attempt.json")),
+  });
+}
+
 async function finalizeAfterCapture(options: {
   invocation: QualificationInvocationV1;
   spoolDir: string;
@@ -684,10 +910,11 @@ async function finalizeAfterCapture(options: {
   error: string | null;
 }): Promise<void> {
   const paths = qualificationSpoolPaths(options.spoolDir, options.invocation.invocation_id);
-  const stdoutFinal = join(paths.invocation!, "stdout.txt");
-  const stderrFinal = join(paths.invocation!, "stderr.txt");
-  renameSync(options.stdoutCapture.path, stdoutFinal);
-  renameSync(options.stderrCapture.path, stderrFinal);
+  const stdoutFinal = join(paths.invocation!, "stdout.partial");
+  const stderrFinal = join(paths.invocation!, "stderr.partial");
+  if (options.stdoutCapture.path !== stdoutFinal || options.stderrCapture.path !== stderrFinal) {
+    throw new Error("qualification output capture paths do not match the durable partial-output contract");
+  }
   const stdout = outputReceipt(paths.root, stdoutFinal, options.stdoutCapture);
   const stderr = outputReceipt(paths.root, stderrFinal, options.stderrCapture);
   let artifact: QualificationTerminalReceiptV1["artifact"] = null;
@@ -695,7 +922,7 @@ async function finalizeAfterCapture(options: {
   if (!stdout.truncated) {
     const artifactPath = join(paths.root, options.invocation.expected_artifact.path);
     try {
-      atomicWriteRaw(artifactPath, readFileSync(stdoutFinal), true);
+      atomicWriteBytes(artifactPath, readFileSync(stdoutFinal), true);
       const bytes = readFileSync(artifactPath);
       artifact = { path: options.invocation.expected_artifact.path, type: "pi-jsonl", bytes: bytes.length, sha256: qualificationSha256(bytes) };
       attestation = attestPiJsonl(bytes.toString("utf8"), options.invocation.requested);
@@ -755,25 +982,40 @@ async function finalizeWithoutChild(options: {
   error: string;
   accountingEventSha?: string;
   continuationSha?: string | null;
+  child?: QualificationProcessIdentity | null;
+  startedAt?: string | null;
+  deadlineAt?: string | null;
+  outputIncomplete?: boolean;
 }): Promise<void> {
   const paths = qualificationSpoolPaths(options.spoolDir, options.invocation.invocation_id);
-  const stdoutPath = join(paths.invocation!, "stdout.txt");
-  const stderrPath = join(paths.invocation!, "stderr.txt");
-  if (!existsSync(stdoutPath)) atomicWriteRaw(stdoutPath, Buffer.alloc(0), true);
-  if (!existsSync(stderrPath)) atomicWriteRaw(stderrPath, Buffer.alloc(0), true);
-  const emptyCapture = (path: string): BoundedCapture => ({ path, total_bytes: 0, captured_bytes: 0, truncated: false, write: () => {}, close: () => {} });
+  const stdoutPath = join(paths.invocation!, "stdout.partial");
+  const stderrPath = join(paths.invocation!, "stderr.partial");
+  if (!existsSync(stdoutPath)) atomicWriteBytes(stdoutPath, Buffer.alloc(0), true);
+  if (!existsSync(stderrPath)) atomicWriteBytes(stderrPath, Buffer.alloc(0), true);
+  const existingCapture = (path: string): BoundedCapture => {
+    assertRegularFile(path, `qualification interrupted output ${path}`);
+    const bytes = readFileSync(path).length;
+    return { path, total_bytes: bytes, captured_bytes: bytes, truncated: options.outputIncomplete === true, write: () => {}, close: () => {} };
+  };
+  const interruptedArtifactPath = join(paths.root, options.invocation.expected_artifact.path);
+  let interruptedArtifact: QualificationTerminalReceiptV1["artifact"] = null;
+  if (existsSync(interruptedArtifactPath)) {
+    assertRegularFile(interruptedArtifactPath, `qualification interrupted artifact ${options.invocation.invocation_id}`);
+    const bytes = readFileSync(interruptedArtifactPath);
+    interruptedArtifact = { path: options.invocation.expected_artifact.path, type: "pi-jsonl", bytes: bytes.length, sha256: qualificationSha256(bytes) };
+  }
   const receipt: QualificationTerminalReceiptV1 = {
     schema_version: QUALIFICATION_TERMINAL_RECEIPT_VERSION,
     invocation_id: options.invocation.invocation_id,
     terminal_status: options.status,
     attempt: options.accountingEventSha ? 1 : 0,
-    started_at: null,
+    started_at: options.startedAt ?? null,
     finished_at: timestamp(options.now, "qualification terminal time"),
-    deadline_at: null,
+    deadline_at: options.deadlineAt ?? null,
     requested_timeout_ms: options.invocation.execution.timeout_ms,
     effective_timeout_ms: options.invocation.execution.timeout_ms,
     supervisor: options.supervisor,
-    child: null,
+    child: options.child ?? null,
     exit_code: null,
     signal: null,
     requested: options.invocation.requested,
@@ -789,9 +1031,9 @@ async function finalizeWithoutChild(options: {
     } : null,
     accounting_event_sha256: options.accountingEventSha ?? null,
     continuation_authority_sha256: options.continuationSha ?? null,
-    stdout: outputReceipt(paths.root, stdoutPath, emptyCapture(stdoutPath)),
-    stderr: outputReceipt(paths.root, stderrPath, emptyCapture(stderrPath)),
-    artifact: null,
+    stdout: outputReceipt(paths.root, stdoutPath, existingCapture(stdoutPath)),
+    stderr: outputReceipt(paths.root, stderrPath, existingCapture(stderrPath)),
+    artifact: interruptedArtifact,
     error: options.error,
   };
   commitTerminalReceipt(paths.root, options.invocation, receipt);
@@ -802,6 +1044,7 @@ function commitTerminalReceipt(spoolDir: string, invocation: QualificationInvoca
   if (existsSync(paths.terminal!)) {
     const existing = readTerminalReceipt(spoolDir, invocation);
     if (qualificationCanonicalJson(existing) !== qualificationCanonicalJson(receipt)) throw new Error(`qualification terminal receipt for ${invocation.invocation_id} is immutable`);
+    reconcileTerminalLifecycle(spoolDir, invocation);
     return;
   }
   const temp = join(paths.invocation!, `.terminal-${randomBytes(10).toString("hex")}`);
@@ -809,17 +1052,30 @@ function commitTerminalReceipt(spoolDir: string, invocation: QualificationInvoca
   try {
     atomicWriteCanonical(join(temp, "receipt.json"), receipt, true);
     renameSync(temp, paths.terminal!);
+    fsyncQualificationDirectory(paths.invocation!);
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }
+  reconcileTerminalLifecycle(spoolDir, invocation);
+}
+
+function reconcileTerminalLifecycle(spoolDir: string, invocation: QualificationInvocationV1): void {
+  const paths = qualificationSpoolPaths(spoolDir, invocation.invocation_id);
+  if (!existsSync(join(paths.terminal!, "receipt.json"))) return;
+  const receipt = readTerminalReceipt(spoolDir, invocation);
+  assertTerminalReceiptCrossBindings(spoolDir, invocation, receipt);
   const lifecycle = readQualificationLifecycle(spoolDir, invocation.invocation_id);
-  if (lifecycle.phase !== "terminal") {
-    writeQualificationLifecycle(spoolDir, transitionQualificationLifecycle(lifecycle, "terminal", {
-      at: receipt.finished_at,
-      terminal_status: receipt.terminal_status,
-      detail: { receipt_sha256: qualificationSha256(`${qualificationCanonicalJson(receipt)}\n`) },
-    }));
+  if (lifecycle.phase === "terminal") {
+    if (lifecycle.terminal_status !== receipt.terminal_status || lifecycle.events.at(-1)?.detail.receipt_sha256 !== qualificationSha256(`${qualificationCanonicalJson(receipt)}\n`)) {
+      throw new Error(`qualification terminal receipt for ${invocation.invocation_id} contradicts lifecycle`);
+    }
+    return;
   }
+  writeQualificationLifecycle(spoolDir, transitionQualificationLifecycle(lifecycle, "terminal", {
+    at: receipt.finished_at,
+    terminal_status: receipt.terminal_status,
+    detail: { receipt_sha256: qualificationSha256(`${qualificationCanonicalJson(receipt)}\n`) },
+  }));
 }
 
 function validateLaunchAttempt(value: unknown, invocation: QualificationInvocationV1, spoolRoot: string): void {
@@ -846,17 +1102,100 @@ function readTerminalReceipt(spoolDir: string, invocation: QualificationInvocati
   return value as QualificationTerminalReceiptV1;
 }
 
+function assertTerminalReceiptCrossBindings(spoolDir: string, invocation: QualificationInvocationV1, receipt: QualificationTerminalReceiptV1): void {
+  const paths = qualificationSpoolPaths(spoolDir, invocation.invocation_id);
+  const accountingEvent = readQualificationAccounting(paths.root).events.find((event) => event.invocation_id === invocation.invocation_id);
+  const expectedAttempt = accountingEvent ? 1 : 0;
+  if (receipt.attempt !== expectedAttempt || receipt.accounting_event_sha256 !== (accountingEvent?.event_sha256 ?? null)) {
+    throw new Error(`qualification terminal receipt for ${invocation.invocation_id} contradicts accounting`);
+  }
+  const launchAttemptPath = join(paths.invocation!, "launch-attempt.json");
+  const hasLaunchAttempt = existsSync(launchAttemptPath);
+  if (hasLaunchAttempt) validateLaunchAttempt(readCanonicalJson(launchAttemptPath, `qualification launch attempt ${invocation.invocation_id}`), invocation, paths.root);
+  if (receipt.started_at !== null && !hasLaunchAttempt) throw new Error(`qualification started terminal receipt for ${invocation.invocation_id} has no launch attempt`);
+  if (receipt.attempt === 0 && hasLaunchAttempt) throw new Error(`qualification attempt-zero receipt for ${invocation.invocation_id} has a launch attempt`);
+  const occurrence = readChildOccurrence(paths.invocation!, invocation, false);
+  if (occurrence && (qualificationCanonicalJson(receipt.child) !== qualificationCanonicalJson(occurrence.child) || receipt.started_at !== occurrence.started_at || receipt.deadline_at !== occurrence.deadline_at)) {
+    throw new Error(`qualification terminal receipt for ${invocation.invocation_id} contradicts child occurrence evidence`);
+  }
+  const continuation = readContinuationRecord(paths.invocation!);
+  if (receipt.continuation_authority_sha256 !== (continuation ? String(continuation.authority_sha256) : null)) {
+    throw new Error(`qualification terminal receipt for ${invocation.invocation_id} continuation authority mismatch`);
+  }
+  if (receipt.authentication) {
+    const evidence = readAuthEvidence(paths.root, invocation, false);
+    if (receipt.authentication.evidence_sha256 !== qualificationSha256(`${qualificationCanonicalJson(evidence)}\n`)) {
+      throw new Error(`qualification terminal receipt for ${invocation.invocation_id} authentication evidence mismatch`);
+    }
+  }
+  verifyOutputReceipt(paths.root, receipt.stdout);
+  verifyOutputReceipt(paths.root, receipt.stderr);
+  if (receipt.artifact) {
+    const artifactPath = join(paths.root, receipt.artifact.path);
+    assertRegularFile(artifactPath, `qualification artifact ${invocation.invocation_id}`);
+    const bytes = readFileSync(artifactPath);
+    if (bytes.length !== receipt.artifact.bytes || qualificationSha256(bytes) !== receipt.artifact.sha256) {
+      throw new Error(`qualification artifact ${invocation.invocation_id} digest/size mismatch`);
+    }
+  }
+}
+
 function validateTerminalReceipt(value: unknown, invocation: QualificationInvocationV1): void {
   if (!plainObject(value)) throw new Error(`qualification terminal receipt ${invocation.invocation_id} must be an object`);
   const required = ["schema_version", "invocation_id", "terminal_status", "attempt", "started_at", "finished_at", "deadline_at", "requested_timeout_ms", "effective_timeout_ms", "supervisor", "child", "exit_code", "signal", "requested", "actual", "provider_model_identity_observed", "successful_execution", "fallback_detected", "authentication", "accounting_event_sha256", "continuation_authority_sha256", "stdout", "stderr", "artifact", "error"];
   exactKeys(value, required, `qualification terminal receipt ${invocation.invocation_id}`);
   if (value.schema_version !== QUALIFICATION_TERMINAL_RECEIPT_VERSION || value.invocation_id !== invocation.invocation_id || (value.attempt !== 0 && value.attempt !== 1)) throw new Error(`qualification terminal receipt ${invocation.invocation_id} identity/version mismatch`);
   if (!["completed", "failed", "timed-out", "aborted", "refused", "invalid-artifact"].includes(String(value.terminal_status))) throw new Error(`qualification terminal receipt ${invocation.invocation_id} has unknown status`);
+  timestamp(String(value.finished_at), `qualification terminal receipt ${invocation.invocation_id} finish time`);
+  if (value.started_at !== null) timestamp(String(value.started_at), `qualification terminal receipt ${invocation.invocation_id} start time`);
+  if (value.deadline_at !== null) timestamp(String(value.deadline_at), `qualification terminal receipt ${invocation.invocation_id} deadline`);
+  if ((value.started_at === null) !== (value.deadline_at === null)) throw new Error(`qualification terminal receipt ${invocation.invocation_id} start/deadline mismatch`);
+  if (value.requested_timeout_ms !== invocation.execution.timeout_ms || value.effective_timeout_ms !== invocation.execution.timeout_ms) throw new Error(`qualification terminal receipt ${invocation.invocation_id} timeout policy mismatch`);
+  if (!processIdentityFrom(value.supervisor) || (value.child !== null && !processIdentityFrom(value.child))) throw new Error(`qualification terminal receipt ${invocation.invocation_id} process identity is invalid`);
   if (qualificationCanonicalJson(value.requested) !== qualificationCanonicalJson(invocation.requested)) throw new Error(`qualification terminal receipt ${invocation.invocation_id} requested identity mismatch`);
+  if (value.actual !== null && (!plainObject(value.actual) || Object.keys(value.actual).sort().join(",") !== "model,provider" || typeof value.actual.provider !== "string" || typeof value.actual.model !== "string")) {
+    throw new Error(`qualification terminal receipt ${invocation.invocation_id} actual identity is invalid`);
+  }
+  if (value.exit_code !== null && !Number.isInteger(value.exit_code)) throw new Error(`qualification terminal receipt ${invocation.invocation_id} exit code is invalid`);
+  if (value.signal !== null && typeof value.signal !== "string") throw new Error(`qualification terminal receipt ${invocation.invocation_id} signal is invalid`);
   if (value.successful_execution !== (value.terminal_status === "completed")) throw new Error(`qualification terminal receipt ${invocation.invocation_id} successful-execution flag contradicts terminal status`);
   if (typeof value.provider_model_identity_observed !== "boolean" || typeof value.fallback_detected !== "boolean") throw new Error(`qualification terminal receipt ${invocation.invocation_id} identity/fallback flags are invalid`);
   if (value.provider_model_identity_observed && qualificationCanonicalJson(value.actual) !== qualificationCanonicalJson(invocation.requested)) {
     throw new Error(`qualification terminal receipt ${invocation.invocation_id} observed identity does not match the request`);
+  }
+  if (value.terminal_status === "completed" && (!value.provider_model_identity_observed || value.fallback_detected || value.actual === null || value.artifact === null)) {
+    throw new Error(`qualification terminal receipt ${invocation.invocation_id} completed without exact identity/artifact evidence`);
+  }
+  if (value.attempt === 0 && (value.terminal_status !== "aborted" || value.started_at !== null || value.child !== null || value.authentication !== null || value.accounting_event_sha256 !== null)) {
+    throw new Error(`qualification terminal receipt ${invocation.invocation_id} attempt-zero evidence is contradictory`);
+  }
+  if (value.attempt === 1 && (!/^[a-f0-9]{64}$/.test(String(value.accounting_event_sha256)) || !plainObject(value.authentication))) {
+    throw new Error(`qualification terminal receipt ${invocation.invocation_id} attempt-one evidence is incomplete`);
+  }
+  if (value.authentication !== null) {
+    if (!plainObject(value.authentication)) throw new Error(`qualification terminal receipt ${invocation.invocation_id} authentication evidence is invalid`);
+    exactKeys(value.authentication, ["evidence_sha256", "status", "auth_type", "readiness_only"], `qualification terminal receipt ${invocation.invocation_id} authentication`);
+    if (!/^[a-f0-9]{64}$/.test(String(value.authentication.evidence_sha256)) || value.authentication.status !== "ready" || value.authentication.auth_type !== "oauth" || value.authentication.readiness_only !== true) {
+      throw new Error(`qualification terminal receipt ${invocation.invocation_id} authentication evidence is invalid`);
+    }
+  }
+  if (value.continuation_authority_sha256 !== null && !/^[a-f0-9]{64}$/.test(String(value.continuation_authority_sha256))) throw new Error(`qualification terminal receipt ${invocation.invocation_id} continuation digest is invalid`);
+  validateOutputReceiptShape(value.stdout, invocation.invocation_id, "stdout.partial");
+  validateOutputReceiptShape(value.stderr, invocation.invocation_id, "stderr.partial");
+  if (value.artifact !== null) {
+    if (!plainObject(value.artifact) || value.artifact.path !== invocation.expected_artifact.path || value.artifact.type !== "pi-jsonl" || !Number.isSafeInteger(value.artifact.bytes) || Number(value.artifact.bytes) < 0 || !/^[a-f0-9]{64}$/.test(String(value.artifact.sha256))) {
+      throw new Error(`qualification terminal receipt ${invocation.invocation_id} artifact evidence is invalid`);
+    }
+  }
+  if (value.error !== null && typeof value.error !== "string") throw new Error(`qualification terminal receipt ${invocation.invocation_id} error field is invalid`);
+}
+
+function validateOutputReceiptShape(value: unknown, invocationId: string, fileName: string): void {
+  if (!plainObject(value)) throw new Error(`qualification terminal receipt ${invocationId} output evidence is invalid`);
+  exactKeys(value, ["path", "total_bytes", "captured_bytes", "truncated", "sha256"], `qualification terminal receipt ${invocationId} output`);
+  if (value.path !== `invocations/${invocationId}/${fileName}` || !Number.isSafeInteger(value.total_bytes) || !Number.isSafeInteger(value.captured_bytes) ||
+      Number(value.total_bytes) < Number(value.captured_bytes) || Number(value.captured_bytes) < 0 || typeof value.truncated !== "boolean" || !/^[a-f0-9]{64}$/.test(String(value.sha256))) {
+    throw new Error(`qualification terminal receipt ${invocationId} output evidence is invalid`);
   }
 }
 
@@ -883,25 +1222,12 @@ function validateAuthEvidence(evidence: QualificationAuthEvidenceV1, invocation:
   }
 }
 
-export function redactQualificationOutput(text: string, secretValues: readonly string[] = []): string {
-  let output = text;
-  for (const secret of [...new Set(secretValues)].sort((left, right) => right.length - left.length)) {
-    if (secret.length >= 8) output = output.split(secret).join("[REDACTED credential]");
-  }
-  output = output
-    .replace(/\b([A-Z][A-Z0-9_]*(?:API_KEY|ACCESS_KEY|SECRET_KEY|AUTH_TOKEN|BEARER_TOKEN|SESSION_TOKEN))\s*[:=]\s*[^\s,;"']+/gi, "$1=[REDACTED credential]")
-    .replace(/\bBearer\s+[A-Za-z0-9._~+\/-]{8,}/gi, "Bearer [REDACTED credential]")
-    .replace(/\b(?:sk|sess|key|token)-[A-Za-z0-9._-]{8,}/gi, "[REDACTED credential]")
-    .replace(/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, "[REDACTED credential]");
-  return redactText(output);
-}
-
 function qualificationCredentialRedactionValues(env: NodeJS.ProcessEnv): string[] {
   const agentDirectory = env.PI_CODING_AGENT_DIR ?? (env.HOME ? join(env.HOME, ".pi", "agent") : undefined);
   if (!agentDirectory) return [];
   let auth: unknown;
-  try { auth = JSON.parse(readFileSync(join(agentDirectory, "auth.json"), "utf8")); }
-  catch { return []; }
+  try { auth = JSON.parse(readPrivateRegularFile(join(agentDirectory, "auth.json"), "qualification OAuth auth.json").toString("utf8")); }
+  catch { throw new Error("qualification OAuth credential values could not be reopened for output redaction"); }
   const credential = plainObject(auth) ? auth["openai-codex"] : undefined;
   const values: string[] = [];
   const visit = (value: unknown) => {
@@ -913,118 +1239,12 @@ function qualificationCredentialRedactionValues(env: NodeJS.ProcessEnv): string[
   return values;
 }
 
-interface BoundedCapture {
-  path: string;
-  total_bytes: number;
-  captured_bytes: number;
-  truncated: boolean;
-  write(chunk: Buffer): void;
-  close(): void;
-}
-function openBoundedCapture(path: string, limit: number, redact: (text: string) => string): BoundedCapture {
-  const fd = openSync(path, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
-  const decoder = new StringDecoder("utf8");
-  let pending = "";
-  let acceptedRawBytes = 0;
-  let closed = false;
-  const persist = (text: string) => {
-    if (!text) return;
-    const sanitized = Buffer.from(redact(text), "utf8");
-    const remaining = Math.max(0, limit - state.captured_bytes);
-    const part = sanitized.subarray(0, remaining);
-    if (part.length > 0) {
-      writeSync(fd, part);
-      state.captured_bytes += part.length;
-      fsyncSync(fd);
-    }
-    if (sanitized.length > remaining) state.truncated = true;
-  };
-  const flushLines = () => {
-    let newline = pending.indexOf("\n");
-    while (newline >= 0) {
-      persist(pending.slice(0, newline + 1));
-      pending = pending.slice(newline + 1);
-      newline = pending.indexOf("\n");
-    }
-  };
-  const state: BoundedCapture = {
-    path, total_bytes: 0, captured_bytes: 0, truncated: false,
-    write(chunk) {
-      state.total_bytes += chunk.length;
-      const remainingRaw = Math.max(0, limit - acceptedRawBytes);
-      const accepted = chunk.subarray(0, remainingRaw);
-      acceptedRawBytes += accepted.length;
-      if (accepted.length > 0) {
-        pending += decoder.write(accepted);
-        flushLines();
-      }
-      if (chunk.length > remainingRaw) state.truncated = true;
-    },
-    close() {
-      if (closed) return;
-      pending += decoder.end();
-      persist(pending);
-      pending = "";
-      fsyncSync(fd);
-      closeSync(fd);
-      closed = true;
-    },
-  };
-  return state;
-}
-
-function outputReceipt(spoolRoot: string, path: string, capture: BoundedCapture): QualificationOutputReceipt {
-  const bytes = readFileSync(path);
-  return {
-    path: path.slice(spoolRoot.length + 1),
-    total_bytes: capture.total_bytes,
-    captured_bytes: bytes.length,
-    truncated: capture.truncated,
-    sha256: qualificationSha256(bytes),
-  };
-}
-function verifyOutputReceipt(spoolRoot: string, receipt: QualificationOutputReceipt): void {
-  const path = join(spoolRoot, receipt.path);
-  assertRegularFile(path, `qualification output ${receipt.path}`);
-  const bytes = readFileSync(path);
-  if (bytes.length !== receipt.captured_bytes || qualificationSha256(bytes) !== receipt.sha256) throw new Error(`qualification output ${receipt.path} digest/size mismatch`);
-}
-
-interface ArtifactAttestation {
-  ok: boolean;
-  actual: { provider: string; model: string } | null;
-  fallback: boolean;
-  refused: boolean;
-  error: string | null;
-}
-function attestPiJsonl(text: string, requested: { provider: string; model: string }): ArtifactAttestation {
-  const records: Record<string, unknown>[] = [];
-  try {
-    for (const line of text.split("\n")) {
-      if (!line.trim()) continue;
-      const value = JSON.parse(line) as unknown;
-      if (!plainObject(value)) throw new Error("event is not an object");
-      records.push(value);
-    }
-  } catch {
-    return { ok: false, actual: null, fallback: false, refused: false, error: "artifact is not valid JSONL" };
+function assertRunningQualificationRunner(mode: "production" | "test", pin: { path: string; sha256: string }): void {
+  if (mode !== "production") return;
+  const script = process.argv[1];
+  if (!script || realpathSync(script) !== verifyQualificationExecutable(pin).realpath) {
+    throw new Error("qualification production core must run through the pinned source-built runner executable");
   }
-  const fallback = records.some((record) => record.type === "provider_fallback" || record.type === "model_fallback" || Object.hasOwn(record, "fallback_provider") || Object.hasOwn(record, "fallback_model"));
-  const messages = records
-    .filter((record) => record.type === "message_end" && plainObject(record.message) && record.message.role === "assistant")
-    .map((record) => record.message as Record<string, unknown>);
-  if (messages.length === 0) return { ok: false, actual: null, fallback, refused: false, error: "artifact has no authoritative assistant provider/model identity" };
-  const identities = messages.map((message) => ({ provider: stringValue(message.provider), model: stringValue(message.model) }));
-  if (identities.some((identity) => !identity.provider || !identity.model)) return { ok: false, actual: null, fallback, refused: false, error: "artifact assistant identity is missing provider or model" };
-  const actual = { provider: identities.at(-1)!.provider!, model: identities.at(-1)!.model! };
-  if (fallback) return { ok: false, actual, fallback: true, refused: false, error: "artifact reports provider/model fallback" };
-  if (identities.some((identity) => identity.provider !== requested.provider)) return { ok: false, actual, fallback: false, refused: false, error: `provider substitution: requested ${requested.provider}, observed ${actual.provider}` };
-  if (identities.some((identity) => identity.model !== requested.model)) return { ok: false, actual, fallback: false, refused: false, error: `model substitution: requested ${requested.model}, observed ${actual.model}` };
-  const terminal = messages.at(-1)!;
-  const errorMessage = stringValue(terminal.errorMessage) ?? "";
-  const refused = terminal.stopReason === "error" && /(?:refus|not supported|not available|subscription|usage limit|unauthor)/i.test(errorMessage);
-  if (terminal.stopReason === "error" && !refused) return { ok: false, actual, fallback: false, refused: false, error: errorMessage || "assistant ended with an error" };
-  return { ok: true, actual, fallback: false, refused, error: refused ? errorMessage : null };
 }
 
 function assertQualificationExecutableIdentity(
@@ -1061,79 +1281,27 @@ function assertChildEnvironment(env: NodeJS.ProcessEnv, allowedNames: readonly s
   sanitizeQualificationEnvironment(env, allowedNames, "refuse");
 }
 
-async function cleanupQualificationProcessGroupAfterLeaderExit(pid: number | undefined): Promise<void> {
-  if (process.platform === "win32" || !pid) return;
-  try { process.kill(-pid, "SIGTERM"); }
-  catch { return; }
-  await sleep(75);
-  try { process.kill(-pid, "SIGKILL"); }
-  catch { /* group is already gone */ }
-}
-
-function terminateQualificationProcess(child: ChildProcess, identity: QualificationProcessIdentity | null): void {
-  if (identity && !qualificationProcessMatches(identity)) return;
-  try {
-    if (process.platform !== "win32" && child.pid) process.kill(-child.pid, "SIGTERM");
-    else child.kill("SIGTERM");
-  } catch { /* process already exited */ }
-  setTimeout(() => {
-    if (identity && !qualificationProcessMatches(identity)) return;
-    try {
-      if (process.platform !== "win32" && child.pid) process.kill(-child.pid, "SIGKILL");
-      else child.kill("SIGKILL");
-    } catch { /* process already exited */ }
-  }, 75).unref();
-}
-function terminateByIdentity(identity: QualificationProcessIdentity): void {
-  if (!qualificationProcessMatches(identity)) throw new Error(`qualification process identity for pid ${identity.pid} is stale or reused`);
-  try {
-    if (process.platform !== "win32") process.kill(-identity.pid, "SIGTERM");
-    else process.kill(identity.pid, "SIGTERM");
-  } catch { /* supervisor will reconcile the terminal state */ }
-  setTimeout(() => {
-    if (!qualificationProcessMatches(identity)) return;
-    try {
-      if (process.platform !== "win32") process.kill(-identity.pid, "SIGKILL");
-      else process.kill(identity.pid, "SIGKILL");
-    } catch { /* process already exited */ }
-  }, 75).unref();
-}
-
-async function spawnCapture(command: string, argv: string[], options: { cwd: string; env: NodeJS.ProcessEnv; timeout_ms: number; output_limit_bytes: number }): Promise<{ stdout: string; stderr: string; code: number | null; timed_out: boolean }> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, argv, { cwd: options.cwd, env: options.env, stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = Buffer.alloc(0), stderr = Buffer.alloc(0), timedOut = false;
-    const append = (current: Buffer, chunk: Buffer) => Buffer.concat([current, chunk]).subarray(0, options.output_limit_bytes);
-    child.stdout.on("data", (chunk: Buffer) => { stdout = append(stdout, chunk); });
-    child.stderr.on("data", (chunk: Buffer) => { stderr = append(stderr, chunk); });
-    const timer = setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, options.timeout_ms);
-    child.once("error", (error) => { clearTimeout(timer); reject(error); });
-    child.once("close", (code) => { clearTimeout(timer); resolve({ stdout: stdout.toString("utf8"), stderr: stderr.toString("utf8"), code, timed_out: timedOut }); });
-  });
-}
-
 async function withAsyncLock<T>(path: string, action: () => Promise<T>, timeoutMs = 5000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   const token = randomBytes(16).toString("hex");
   while (true) {
+    const candidate = `${path}.candidate-${token}`;
     try {
-      mkdirSync(path, { mode: 0o700 });
-      atomicWriteCanonical(join(path, "owner.json"), {
+      mkdirSync(candidate, { mode: 0o700 });
+      atomicWriteCanonical(join(candidate, "owner.json"), {
         schema_version: "qualification-lock-owner-v1",
         token,
         process: qualificationProcessIdentity(process.pid),
       }, true);
+      renameSync(candidate, path);
       break;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      rmSync(candidate, { recursive: true, force: true });
+      if (!["EEXIST", "ENOTEMPTY"].includes(String((error as NodeJS.ErrnoException).code))) throw error;
       const ownerPath = join(path, "owner.json");
-      // Give the winning mkdir a moment to publish its owner receipt. An empty
-      // persistent lock is contradictory state, not permission to delete it.
-      if (!existsSync(ownerPath)) {
-        if (Date.now() >= deadline) throw new Error(`qualification state lock has no owner receipt: ${path}`);
-        await sleep(10);
-        continue;
-      }
+      // A lock is published only after its owner receipt is durable, so a visible
+      // ownerless lock is corruption rather than a live publication window.
+      if (!existsSync(ownerPath)) throw new Error(`qualification state lock has no owner receipt: ${path}`);
       const owner = readCanonicalJson(ownerPath, `qualification lock owner ${path}`);
       const identity = plainObject(owner) ? processIdentityFrom(owner.process) : null;
       if (!identity) throw new Error(`qualification state lock owner is corrupt: ${path}`);
@@ -1161,25 +1329,24 @@ async function withAsyncLock<T>(path: string, action: () => Promise<T>, timeoutM
   }
 }
 
-function atomicWriteRaw(path: string, bytes: Buffer, exclusive: boolean): void {
-  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-  const temp = join(dirname(path), `.${randomBytes(12).toString("hex")}.tmp`);
+function readPrivateRegularFile(path: string, ctx: string): Buffer {
   let fd: number | undefined;
   try {
-    fd = openSync(temp, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
-    writeFileSync(fd, bytes);
-    fsyncSync(fd);
-    closeSync(fd); fd = undefined;
-    if (exclusive) { linkSync(temp, path); unlinkSync(temp); }
-    else renameSync(temp, path);
+    fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const stat = fstatSync(fd);
+    if (!stat.isFile()) throw new Error(`${ctx} must be a regular non-symlink file`);
+    if (process.platform !== "win32" && ((stat.mode & 0o077) !== 0 || stat.uid !== process.getuid?.())) {
+      throw new Error(`${ctx} must be private and owned by the qualification user`);
+    }
+    return readFileSync(fd);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error(`qualification immutable artifact already exists: ${path}`);
-    throw error;
+    if (error instanceof Error && error.message.startsWith(ctx)) throw error;
+    throw new Error(`${ctx} is missing, unreadable, or a symlink`);
   } finally {
     if (fd !== undefined) closeSync(fd);
-    rmSync(temp, { force: true });
   }
 }
+
 function assertRegularFile(path: string, ctx: string): void {
   let stat;
   try { stat = lstatSync(path); }
@@ -1187,8 +1354,9 @@ function assertRegularFile(path: string, ctx: string): void {
   if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(`${ctx} must be a regular non-symlink file`);
 }
 function processIdentityFrom(value: unknown): QualificationProcessIdentity | null {
-  if (!plainObject(value) || !Number.isInteger(value.pid)) return null;
-  return { pid: Number(value.pid), platform: String(value.platform) as NodeJS.Platform, boot_id: stringValue(value.boot_id) ?? null, start_ticks: stringValue(value.start_ticks) ?? null };
+  if (!plainObject(value) || !Number.isInteger(value.pid) || typeof value.platform !== "string" ||
+      (value.boot_id !== null && typeof value.boot_id !== "string") || (value.start_ticks !== null && typeof value.start_ticks !== "string")) return null;
+  return { pid: Number(value.pid), platform: value.platform as NodeJS.Platform, boot_id: value.boot_id, start_ticks: value.start_ticks };
 }
 function plainObject(value: unknown): value is Record<string, any> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;

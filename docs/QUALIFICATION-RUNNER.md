@@ -73,16 +73,27 @@ The accounting event is the atomic launch claim. A crash after that claim remain
 consumed call. If the lifecycle write was interrupted, a later supervisor refuses to
 continue without `start --continuation-authority-file <0600-one-use-file>`. The outer
 CLI consumes and removes that file, sends the value over a private inherited descriptor,
-and records only its digest—never raw argv, environment, or spool text. Once a
-launch-attempt record exists, the process is never launched again.
-Ambiguous interruption therefore fails closed rather than replaying a paid call.
+and records only its digest—never raw argv, environment, or spool text. If no immutable
+launch-attempt exists, that authority may finish the already-consumed launch path. Once
+a launch-attempt exists, it is never launched again: continuation terminates any still
+matching recorded child occurrence and publishes a failed (or explicitly aborted)
+terminal receipt from retained evidence. It never converts ambiguous output into
+success. A stale `abort` is itself explicit reconciliation authority and terminalizes
+the consumed invocation without replay.
 
-Linux process receipts include PID, kernel boot ID, and `/proc/<pid>/stat` start ticks.
-Timeout and abort signal the recorded process group only while that occurrence identity
-still matches. Other platforms retain PID liveness but do not claim equivalent reuse
-protection. stdout and stderr stream to durable `.partial` files, are bounded by the
-arm's output limit, and are retained after failure. Truncation is explicit. A terminal
-timeout/abort cannot later be replaced by success.
+Terminal receipt publication and lifecycle publication are separate atomic writes. If
+a crash lands between them, `status`, `poll`, `abort`, `start`, or `validate` first
+checks the receipt against accounting, launch, auth, occurrence, output, and artifact
+bytes, then idempotently appends the missing lifecycle terminal event.
+
+Production execution is Linux-only. Linux process receipts include PID, kernel boot ID,
+and `/proc/<pid>/stat` start ticks. Timeout, abort, and descendant cleanup enumerate
+process-group members and signal only still-matching recorded occurrences; they never
+signal a bare reused numeric process-group ID. Test mode can exercise other platforms
+but makes no production occurrence-safety claim there. stdout and stderr stream to
+durable `.partial` files, are bounded by the arm's output limit, and remain at those
+paths after every terminal status. Truncation is explicit. A terminal timeout/abort
+cannot later be replaced by success.
 
 Operational cleanup is coordinator-owned: first run `qualification validate`, retain
 the canonical spool with the packet evidence, and remove only disposable inert/test
@@ -109,11 +120,12 @@ Rules:
 5. Duplicate invocation IDs and duplicate accounting events fail closed.
 6. The global spool lock serializes the pre-claim ceiling check and append, so
    concurrent starts cannot cross 700.
-7. `holdout-author` and `holdout-reviewer` are always non-measurement and retain their
-   own role counts. Subject, judge, calibration, and canary roles are also explicit;
-   the selected subject/judge arm determines the relevant call ceiling.
-8. `counts_as_measurement` is recorded per invocation and per accounting event. It
-   does not make a holdout-author/reviewer call into measurement.
+7. `subject` and `judge` roles are always measurement. `holdout-author`,
+   `holdout-reviewer`, `calibration`, and `canary` are always non-measurement. Every
+   role retains its own count; the selected subject/judge arm determines the relevant
+   call ceiling.
+8. `counts_as_measurement` is explicit but not requester-discretionary: request,
+   invocation, and accounting validation all enforce that fixed role matrix.
 
 The ledger proves consistency relative to the trusted local files it reads. It does
 not prove that a local owner did not replace the entire spool.
@@ -143,8 +155,10 @@ pi auth check --provider openai-codex --model <exact-model> --json
 It requires `status: ready`, the exact provider, and `authType: oauth`. Before that
 probe, the production boundary checks the selected Pi agent directory: `auth.json`
 must be a private regular file with an `openai-codex` OAuth entry; every stored
-credential must be OAuth; and the dedicated directory may not carry non-empty
-`models.json` overrides or embedded provider credentials. Use a
+credential must be OAuth; the private directory must contain **exactly** that one
+`openai-codex` credential; and it may not carry non-empty `models.json` overrides or
+embedded provider credentials. Final credential files are opened without following
+symlinks and ownership/privacy are checked. Use a
 dedicated OAuth-only `PI_CODING_AGENT_DIR` when a normal developer profile also holds
 API keys. The persisted evidence contains classifications, executable digest, and
 environment **names** only—never token/key bytes or credential hashes. Readiness is
@@ -162,8 +176,10 @@ Pi is invoked with runner-owned exact `--provider`, `--model`, `--mode json`,
 `--print`, `--no-session`, `--no-context-files`, `--no-extensions`, and `--no-skills`
 arguments. Extensions, skills, and system-prompt files are separate arm `resources`
 with absolute paths and SHA-256 pins, rechecked at prepare, auth preflight, and launch.
-Raw arm arguments cannot add an unpinned resource or set provider, model, thinking,
-mode, session, API key, metered override, or fallback.
+Raw arm arguments are positional-only: every option-looking argument (including
+attached short forms such as `-e/path`) is rejected. They cannot add an unpinned
+resource or set provider, model, thinking, mode, session, API key, metered override,
+or fallback.
 
 ## Post-run provider/model attestation
 
@@ -200,12 +216,20 @@ Configuration binds:
 
 Production `prepare` resolves each checkout's origin/HEAD/tree/cleanliness, hashes
 package/schema bytes, and verifies runner/arm executable and resource bytes before it
-publishes prepared state. Executable/resource and filesystem occurrence identities
-are checked again at auth and launch. Production execution additionally verifies that
+publishes prepared state. The full repository/package/schema pin set is checked again
+at auth and after the consumed claim immediately before spawn; executable/resource,
+working-directory, and filesystem occurrence identities are also rebound there.
+Production execution additionally verifies that
 the running CLI is the configured source-built runner executable. The inert example under
 `examples/qualification-runner-v1/` generates a valid `mode: test` configuration with
-fake repositories/models and `counts_as_measurement: false`. It is not a packet or a
-measurement identity.
+fake repositories/models and a non-measurement `calibration` role. It is not a packet
+or a measurement identity.
+
+The public JSON Schemas and runtime parsers share positive/negative CI fixtures. The
+schemas enforce closed shape, mode/provider/model/auth constraints, positional argv,
+and the role/measurement matrix. Cross-object joins (selected arm ID/kind), tuple
+uniqueness, absolute-path policy, and materialized filesystem/Git identity remain
+runtime checks and are tested as that explicit semantic boundary.
 
 ## pi-daddy ledger v3
 
