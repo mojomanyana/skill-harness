@@ -2,7 +2,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PI_DADDY_QUALIFICATION_PRODUCER_PIN, PRINCIPAL_QUALIFICATION_PRODUCT_PIN, QUALIFICATION_ACCOUNTING_POLICY, parseQualificationConfig, parseQualificationRequest } from "../src/qualification-config.js";
+import { PI_DADDY_QUALIFICATION_PRODUCER_PIN, PRINCIPAL_QUALIFICATION_PRODUCT_PIN, QUALIFICATION_ACCOUNTING_POLICY, QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2, parseQualificationConfig, parseQualificationRequest } from "../src/qualification-config.js";
 
 const root = join(__dirname, "../../../schemas");
 
@@ -46,6 +46,12 @@ describe("versioned public schemas", () => {
       role: "subject", counts_as_measurement: true, arms: { subject: "subject", judge: "judge" }, selected_arm: "subject", repetition: 0,
     };
     expect(validateConfig(config), JSON.stringify(validateConfig.errors)).toBe(true);
+    const v2Config = { ...config, oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 };
+    expect(validateConfig(v2Config), JSON.stringify(validateConfig.errors)).toBe(true);
+    expect(parseQualificationConfig(v2Config).oauth_directory_policy).toBe(QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2);
+    const unknownOAuthPolicy = { ...config, oauth_directory_policy: "qualification-oauth-directory-policy-v3" };
+    expect(validateConfig(unknownOAuthPolicy)).toBe(false);
+    expect(() => parseQualificationConfig(unknownOAuthPolicy)).toThrow(/oauth_directory_policy/i);
     const parsed = parseQualificationConfig(config);
     expect(validateRequest(request), JSON.stringify(validateRequest.errors)).toBe(true);
     expect(parseQualificationRequest(request, parsed).selected_arm).toBe("subject");

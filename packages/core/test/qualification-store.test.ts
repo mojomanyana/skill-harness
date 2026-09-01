@@ -3,7 +3,7 @@ import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, symlinkSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { QUALIFICATION_ACCOUNTING_POLICY, qualificationCanonicalJson } from "../src/qualification-config.js";
+import { QUALIFICATION_ACCOUNTING_POLICY, QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2, qualificationCanonicalJson, qualificationConfigDigest, qualificationSha256 } from "../src/qualification-config.js";
 import {
   appendQualificationAccountingEvent,
   createQualificationAccountingLedger,
@@ -87,6 +87,37 @@ describe("qualification preparation", () => {
     const report = validateQualificationSpool(files.spool);
     expect(report.ok).toBe(true);
     expect(report.accounting.counts).toMatchObject({ subject: 0, judge: 0, measurement: 0 });
+  });
+
+  it("binds explicit policy v2 into both configuration and invocation digests without rebinding a historical spool", () => {
+    const files = setupFiles();
+    const v2Config = JSON.parse(readFileSync(files.configPath, "utf8"));
+    v2Config.oauth_directory_policy = QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+    const v2ConfigPath = join(files.root, "config-v2.json");
+    writeFileSync(v2ConfigPath, JSON.stringify(v2Config));
+    const firstRequest = join(files.root, "request-v2.json");
+    writeFileSync(firstRequest, JSON.stringify(request(files)));
+    const prepared = prepareQualificationInvocation({ spool_dir: files.spool, config_path: v2ConfigPath, request_path: firstRequest });
+    expect(prepared).toMatchObject({
+      schema_version: "qualification-invocation-v2",
+      oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
+      configuration_sha256: qualificationConfigDigest(v2Config),
+    });
+    const { invocation_sha256: recorded, ...digestInput } = prepared;
+    expect(recorded).toBe(qualificationSha256(qualificationCanonicalJson(digestInput)));
+
+    const historical = setupFiles();
+    const historicalRequest = join(historical.root, "historical-request.json");
+    writeFileSync(historicalRequest, JSON.stringify(request(historical)));
+    prepareQualificationInvocation({ spool_dir: historical.spool, config_path: historical.configPath, request_path: historicalRequest });
+    const superseding = JSON.parse(readFileSync(historical.configPath, "utf8"));
+    superseding.oauth_directory_policy = QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+    const supersedingPath = join(historical.root, "superseding-config.json");
+    writeFileSync(supersedingPath, JSON.stringify(superseding));
+    const laterRequest = join(historical.root, "later-request.json");
+    writeFileSync(laterRequest, JSON.stringify(request(historical, "invocation-0002")));
+    expect(() => prepareQualificationInvocation({ spool_dir: historical.spool, config_path: supersedingPath, request_path: laterRequest }))
+      .toThrow(/spool.*different configuration identity/i);
   });
 
   it("detects mutation of the immutable invocation record", () => {

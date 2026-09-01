@@ -7,9 +7,12 @@ import {
   PI_DADDY_QUALIFICATION_PRODUCER_PIN,
   PRINCIPAL_QUALIFICATION_PRODUCT_PIN,
   QUALIFICATION_ACCOUNTING_POLICY,
+  QUALIFICATION_OAUTH_DIRECTORY_POLICY_V1,
+  QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
   parseQualificationConfig,
   parseQualificationRequest,
   qualificationConfigDigest,
+  qualificationOAuthDirectoryPolicy,
   isQualificationConflictingEnvironmentName,
   sanitizeQualificationEnvironment,
   verifyQualificationExecutable,
@@ -104,6 +107,20 @@ describe("qualification configuration v1", () => {
     (withResource.arms[0] as any).resources = [{ kind: "extension", path: withResource.runner.executable.path, sha256: withResource.runner.executable.sha256 }];
     const resource = parseQualificationConfig(withResource).arms[0].resources[0];
     expect(verifyQualificationResource(resource).sha256).toBe(resource.sha256);
+  });
+
+  it("preserves omitted historical policy bytes while explicit v2 changes configuration identity", () => {
+    const historical = parseQualificationConfig(config());
+    expect(historical).not.toHaveProperty("oauth_directory_policy");
+    expect(qualificationOAuthDirectoryPolicy(historical)).toBe(QUALIFICATION_OAUTH_DIRECTORY_POLICY_V1);
+    const v2Value = config() as any;
+    v2Value.oauth_directory_policy = QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+    const v2 = parseQualificationConfig(v2Value);
+    expect(v2.oauth_directory_policy).toBe(QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2);
+    expect(qualificationOAuthDirectoryPolicy(v2)).toBe(QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2);
+    expect(qualificationConfigDigest(v2)).not.toBe(qualificationConfigDigest(historical));
+    expect(() => parseQualificationConfig({ ...config(), oauth_directory_policy: "qualification-oauth-directory-policy-v3" }))
+      .toThrow(/oauth_directory_policy.*v2/i);
   });
 
   it("fails closed on unknown fields, duplicate arms, unpinned repositories, and policy drift", () => {

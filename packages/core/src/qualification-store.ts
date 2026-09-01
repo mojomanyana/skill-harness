@@ -28,6 +28,8 @@ import {
 } from "./qualification-lock.js";
 import {
   QUALIFICATION_ACCOUNTING_POLICY,
+  QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
+  qualificationOAuthDirectoryPolicy,
   type QualificationArmV1,
   type QualificationConfigV1,
   type QualificationInvocationRequestV1,
@@ -43,13 +45,16 @@ import {
 } from "./qualification-config.js";
 
 export const QUALIFICATION_INVOCATION_VERSION = "qualification-invocation-v1" as const;
+export const QUALIFICATION_INVOCATION_VERSION_V2 = "qualification-invocation-v2" as const;
 export const QUALIFICATION_LIFECYCLE_VERSION = "qualification-lifecycle-v1" as const;
 export const QUALIFICATION_ACCOUNTING_VERSION = "qualification-accounting-v1" as const;
 export type QualificationLifecyclePhase = "prepared" | "launch-claimed" | "running" | "terminal";
 export type QualificationTerminalStatus = "completed" | "failed" | "timed-out" | "aborted" | "refused" | "invalid-artifact";
 
 export interface QualificationInvocationV1 {
-  schema_version: typeof QUALIFICATION_INVOCATION_VERSION;
+  schema_version: typeof QUALIFICATION_INVOCATION_VERSION | typeof QUALIFICATION_INVOCATION_VERSION_V2;
+  /** Present only in v2 records; omission retains the historical digest. */
+  oauth_directory_policy?: typeof QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
   invocation_id: string;
   measurement_identity_sha256: string;
   continuation_authority_sha256: string;
@@ -208,8 +213,14 @@ export function prepareQualificationInvocation(options: {
       // source path; the spool copy is the launch material bound by input_sha256.
       const preparedInputPath = join(paths.invocation!, "input.bin");
       atomicWriteBytes(preparedInputPath, readFileSync(request.scenario.input_path), true);
+      const oauthDirectoryPolicy = qualificationOAuthDirectoryPolicy(config);
       const baseRecord: Omit<QualificationInvocationV1, "invocation_sha256"> = {
-        schema_version: QUALIFICATION_INVOCATION_VERSION,
+        schema_version: oauthDirectoryPolicy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2
+          ? QUALIFICATION_INVOCATION_VERSION_V2
+          : QUALIFICATION_INVOCATION_VERSION,
+        ...(oauthDirectoryPolicy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2
+          ? { oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 }
+          : {}),
         invocation_id: request.invocation_id,
         measurement_identity_sha256: request.measurement_identity_sha256,
         continuation_authority_sha256: request.continuation_authority_sha256,
@@ -412,6 +423,13 @@ export function validateQualificationSpool(spoolDir: string): QualificationSpool
   for (const id of dirs) {
     const record = readQualificationInvocation(paths.root, id);
     if (record.configuration_sha256 !== configSha) throw new Error(`qualification invocation ${id} has the wrong configuration digest`);
+    const expectedOAuthPolicy = qualificationOAuthDirectoryPolicy(config);
+    if ((expectedOAuthPolicy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 &&
+        (record.schema_version !== QUALIFICATION_INVOCATION_VERSION_V2 || record.oauth_directory_policy !== expectedOAuthPolicy)) ||
+        (expectedOAuthPolicy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 &&
+        (record.schema_version !== QUALIFICATION_INVOCATION_VERSION || Object.hasOwn(record, "oauth_directory_policy")))) {
+      throw new Error(`qualification invocation ${id} OAuth directory policy does not match its configuration identity`);
+    }
     const lifecycle = readQualificationLifecycle(paths.root, id);
     if (lifecycle.invocation_id !== id) throw new Error(`qualification invocation ${id} lifecycle identity mismatch`);
     records.set(id, record);
@@ -579,9 +597,16 @@ function validateQualificationLifecycle(value: unknown, invocationId: string): Q
 
 function validateQualificationInvocationRecord(value: unknown): asserts value is QualificationInvocationV1 {
   if (!plainObject(value)) throw new Error("qualification invocation record must be an object");
-  const required = ["schema_version", "invocation_id", "measurement_identity_sha256", "continuation_authority_sha256", "continuation_authority_expires_at", "scenario", "role", "counts_as_measurement", "arms", "repetition", "requested", "authentication", "pins", "configuration_sha256", "created_at", "ceiling_policy", "execution", "expected_artifact", "invocation_sha256"];
-  exactObjectKeys(value, required, `qualification invocation ${String(value.invocation_id)}`);
-  if (value.schema_version !== QUALIFICATION_INVOCATION_VERSION || typeof value.invocation_id !== "string") throw new Error("qualification invocation version/identity is invalid");
+  const historical = ["schema_version", "invocation_id", "measurement_identity_sha256", "continuation_authority_sha256", "continuation_authority_expires_at", "scenario", "role", "counts_as_measurement", "arms", "repetition", "requested", "authentication", "pins", "configuration_sha256", "created_at", "ceiling_policy", "execution", "expected_artifact", "invocation_sha256"];
+  if (value.schema_version === QUALIFICATION_INVOCATION_VERSION) {
+    exactObjectKeys(value, historical, `qualification invocation ${String(value.invocation_id)}`);
+  } else if (value.schema_version === QUALIFICATION_INVOCATION_VERSION_V2) {
+    exactObjectKeys(value, [...historical, "oauth_directory_policy"], `qualification invocation ${String(value.invocation_id)}`);
+    if (value.oauth_directory_policy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) throw new Error("qualification invocation v2 OAuth directory policy is invalid");
+  } else {
+    throw new Error("qualification invocation version/identity is invalid");
+  }
+  if (typeof value.invocation_id !== "string") throw new Error("qualification invocation version/identity is invalid");
   if (!/^[a-f0-9]{64}$/.test(String(value.measurement_identity_sha256)) || !/^[a-f0-9]{64}$/.test(String(value.continuation_authority_sha256)) || !/^[a-f0-9]{64}$/.test(String(value.configuration_sha256))) throw new Error(`qualification invocation ${value.invocation_id} digest identity is invalid`);
   validTimestamp(String(value.continuation_authority_expires_at), `qualification invocation ${value.invocation_id} continuation authority expiry`);
   validTimestamp(String(value.created_at), `qualification invocation ${value.invocation_id} creation time`);

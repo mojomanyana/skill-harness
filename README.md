@@ -262,8 +262,11 @@ skill-harness qualification validate --spool DIR               # qualification-r
 The separately versioned [`qualification-runner-v1`](docs/QUALIFICATION-RUNNER.md)
 uses external, closed configuration; exact source-built pins; an OAuth-only child
 environment; atomic exactly-once call accounting; detached supervision; and
-post-run provider/model attestation. It contains no Principal board, holdout, or
-measurement identity. Its inert example invokes no model.
+post-run provider/model attestation. New configurations explicitly select
+`qualification-oauth-directory-policy-v2`, which permits only `auth.json`, optional
+empty `models.json`, and metadata-only Pi runtime state `models-store.json` while
+leaving omitted-policy historical evidence unchanged. It contains no Principal board,
+holdout, or measurement identity. Its inert example invokes no model.
 
 `capture` is deliberately absent from this list: it exists only as
 `/skill-harness capture` inside the pi extension, and it refuses to run headless

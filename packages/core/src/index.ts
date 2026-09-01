@@ -42,5 +42,6 @@ export * from "./sandbox.js";
 export * from "./provider-failure.js";
 export * from "./arms.js";
 export * from "./qualification-config.js";
+export * from "./qualification-oauth-directory.js";
 export * from "./qualification-store.js";
 export * from "./qualification-runner.js";

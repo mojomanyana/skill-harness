@@ -156,6 +156,23 @@ Direct `openai`, provider aliases, API-key auth, unknown configuration fields,
 provider/model flags hidden in arm arguments, duplicate arms, and unpinned repository
 or executable identities are rejected before launch.
 
+OAuth-directory inventory is prospectively versioned. A historical
+`qualification-config-v1` with no `oauth_directory_policy` retains the original
+`qualification-oauth-directory-policy-v1` bytes, digest, invocation, auth-evidence,
+and terminal-receipt semantics: `models-store.json` remains undeclared there. A new
+configuration selects this repair explicitly at the top level:
+
+```json
+"oauth_directory_policy": "qualification-oauth-directory-policy-v2"
+```
+
+Unknown values fail closed. The field participates in the canonical configuration
+digest; v2 prepared records use `qualification-invocation-v2` and put the policy in
+their self-digest. A spool already bound to an omitted-policy configuration cannot be
+rebound: create and externally approve a superseding configuration, use a new spool,
+and prepare new invocation IDs. Historical records are never upgraded or interpreted
+as v2 merely because newer runner code reads them.
+
 Before accounting, the runner executes Pi's supported metadata command without
 `--credentials`:
 
@@ -163,23 +180,62 @@ Before accounting, the runner executes Pi's supported metadata command without
 pi auth check --provider openai-codex --model <exact-model> --json
 ```
 
-It requires `status: ready`, the exact provider, and `authType: oauth`. Before that
-probe, the production boundary checks the selected Pi agent directory: `auth.json`
-must be a private regular file with an `openai-codex` OAuth entry; every stored
-credential must be OAuth; the private directory must contain **exactly** `auth.json`
-(and optionally an empty `models.json`), with exactly one `openai-codex` credential.
-Final credential files are opened without following symlinks and ownership/privacy are
-checked. File/directory occurrence metadata—not credential bytes or credential digests—is
-bound into auth evidence and rechecked under the launch lock and immediately before
-spawn. The runner deliberately does not copy token bytes into the retained spool; an
-adversarial same-user mutation after the final check remains part of the explicit
-malicious-local-owner/non-containment non-claim. Use a
+It requires `status: ready`, the exact provider, and `authType: oauth`.
+
+Policy v2 closes the direct-entry inventory to exactly these basenames:
+
+| Entry | Status |
+|---|---|
+| `auth.json` | required; exactly one `openai-codex` OAuth credential |
+| `models.json` | optional; if present, an empty object (no routing/credential override) |
+| `models-store.json` | optional before first Pi launch; allowed Pi-generated runtime state afterward |
+
+Every present allowed entry is no-follow `lstat`ed and then opened with `O_NOFOLLOW`
+against the opened directory occurrence. It must be a regular non-symlink file, owned
+by the effective qualification UID, exact mode `0600`, and have one hard link where
+the platform reports link counts. The basename is runner-owned and the resolved file
+must be a direct child of the canonical bound directory—no traversal, path alias, or
+alternate spelling. The directory is a real non-symlink directory at its canonical
+absolute path, owned by the effective UID, exact mode `0700`. On Linux POSIX-ACL
+filesystems the group mode class is the ACL mask, so `0700` also excludes effective
+non-owner ACL access. Rich filesystem ACL models not reflected by `stat` mode are not
+enumerated; run on the documented Linux/local-filesystem boundary and treat a richer
+ACL filesystem as outside this claim.
+
+`models-store.json` is metadata-only. The runner does **not** read, parse, copy,
+relocate, rewrite, delete, or content-hash it. Each validation records a fixed
+three-entry canonical inventory with basename, present/absent state, file type,
+UID/GID, mode, device/inode, link count, size, modification/change nanoseconds, and
+validation timestamp (nullable only where unsupported). The points are before OAuth
+readiness, after readiness, under the launch lock immediately before the accounting
+claim, again at final pre-spawn validation, and after child termination before any
+artifact can be accepted. The next invocation starts with the same closed validation,
+so a valid retained runtime-state entry is accepted. `qualification-auth-evidence-v2`
+records the readiness pair; immutable checkpoint records bind claim/prelaunch; and
+`qualification-terminal-receipt-v2` records the policy and all five inventories.
+
+Auth and optional `models.json` occurrences remain stable from readiness through
+launch. An authorized Pi auth subprocess or model child may create or atomically
+replace `models-store.json`; the next checkpoint binds the resulting occurrence, and
+its inode is deliberately not required to survive that authorized execution. An
+unexpected/invalid terminal entry makes the output artifact ineligible. The consumed
+accounting claim remains exactly once and the invocation is not retried.
+
+The validator opens the directory and direct children by occurrence and rechecks names
+and metadata before closing them, but userspace validation is not an OS filesystem
+sandbox. There is an unavoidable interval between the final check and `spawn`, and an
+authorized child can mutate its user-owned directory while it runs. Final validation
+makes that mutation visible and fail-closed; it does not provide continuous kernel
+containment. An adversarial same-user mutation after the terminal check remains part of
+the malicious-local-owner/non-containment non-claim.
+
+The runner deliberately does not copy token bytes into the retained spool. Use a
 dedicated OAuth-only `PI_CODING_AGENT_DIR` when a normal developer profile also holds
-API keys. The persisted evidence contains classifications, executable digest,
-filesystem occurrence metadata, environment **names**, and a random launch-capability
-digest only—never token/key bytes or credential hashes. The raw launch capability
-travels to the detached supervisor over the same private descriptor boundary and binds
-the exact winning sanitized environment to the evidence read under the claim lock.
+API keys. Persisted evidence contains classifications, executable digest, filesystem
+occurrence metadata, environment **names**, and a random launch-capability digest
+only—never token/key bytes or credential hashes. The raw launch capability travels to
+the detached supervisor over the same private descriptor boundary and binds the exact
+winning sanitized environment to the evidence read under the claim lock.
 The auth response may omit model identity; evidence therefore records
 `requested_model` with `model_identity_observed: false` (and rejects a contradictory
 model if one is returned). Readiness is explicitly not model readiness or successful
@@ -235,6 +291,7 @@ because those upstream identities were known before this runner revision was bui
 
 Configuration binds:
 
+- the explicit v2 OAuth-directory policy identity (or historical omission for v1);
 - principal-pi-skills repository, clean checkout path, commit, tree, package path,
   digest and bytes;
 - skill-harness repository, clean checkout path, commit, tree, and paths/digests for
@@ -289,6 +346,9 @@ This implementation makes none of these claims:
   consumer should approve—the externally approved configuration digest is that trust root;
 - no remote attestation of Pi, OpenAI, an account, or a model;
 - no protection against a malicious owner with write access to the repository/spool;
+- no continuous OS-level filesystem race containment; v2 performs repeated
+  occurrence checks and terminal fail-closed validation, not a mount namespace or
+  kernel policy;
 - no general OS, filesystem, network, process, or credential containment;
 - no proof that OAuth readiness means a future request will succeed;
 - no proof of model efficacy, quality, or qualification outcome;
