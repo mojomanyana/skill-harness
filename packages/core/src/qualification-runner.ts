@@ -930,10 +930,14 @@ export function validateQualificationRunnerSpool(spoolDir: string): ReturnType<t
     if (invocation.oauth_directory_policy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) {
       const claimPath = oauthCheckpointPath(invocationPaths.invocation!, "before-launch-claim");
       const prelaunchPath = oauthCheckpointPath(invocationPaths.invocation!, "immediately-before-pi-launch");
-      if (accountingEvent && !existsSync(claimPath)) throw new Error(`qualification invocation ${id} launch-claim OAuth checkpoint is missing`);
+      if (accountingEvent && !existsSync(claimPath) && !existsSync(join(invocationPaths.terminal!, "receipt.json"))) {
+        throw new Error(`qualification invocation ${id} launch-claim OAuth checkpoint is missing`);
+      }
       if (existsSync(claimPath)) readOAuthDirectoryCheckpointV2(invocationPaths.invocation!, invocation, "before-launch-claim");
       if (existsSync(prelaunchPath)) readOAuthDirectoryCheckpointV2(invocationPaths.invocation!, invocation, "immediately-before-pi-launch");
-      if (childOccurrence && !existsSync(prelaunchPath)) throw new Error(`qualification invocation ${id} child occurrence lacks its prelaunch OAuth checkpoint`);
+      if (childOccurrence && !existsSync(prelaunchPath) && !existsSync(join(invocationPaths.terminal!, "receipt.json"))) {
+        throw new Error(`qualification invocation ${id} child occurrence lacks its prelaunch OAuth checkpoint`);
+      }
     }
     if (lifecycle.phase === "running" && (!childOccurrence || qualificationCanonicalJson(latestProcessIdentity(lifecycle, "child")) !== qualificationCanonicalJson(childOccurrence.child))) {
       throw new Error(`qualification running lifecycle ${id} is not bound to its child occurrence`);
@@ -942,6 +946,20 @@ export function validateQualificationRunnerSpool(spoolDir: string): ReturnType<t
     if (existsSync(receiptPath)) {
       terminal += 1;
       const receipt = readTerminalReceipt(paths.root, invocation);
+      if (invocation.oauth_directory_policy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 && accountingEvent &&
+          !existsSync(oauthCheckpointPath(invocationPaths.invocation!, "before-launch-claim"))) {
+        const handledMissingClaim = receipt.schema_version === QUALIFICATION_TERMINAL_RECEIPT_VERSION_V2 &&
+          receipt.oauth_directory_validations.before_launch_claim === null && receipt.artifact === null &&
+          receipt.terminal_status !== "completed" && receipt.terminal_status !== "refused";
+        if (!handledMissingClaim) throw new Error(`qualification terminal receipt for ${id} did not fail closed over its missing launch-claim OAuth checkpoint`);
+      }
+      if (invocation.oauth_directory_policy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 && childOccurrence &&
+          !existsSync(oauthCheckpointPath(invocationPaths.invocation!, "immediately-before-pi-launch"))) {
+        const handledMissingCheckpoint = receipt.schema_version === QUALIFICATION_TERMINAL_RECEIPT_VERSION_V2 &&
+          receipt.oauth_directory_validations.immediately_before_pi_launch === null && receipt.artifact === null &&
+          receipt.terminal_status !== "completed" && receipt.terminal_status !== "refused";
+        if (!handledMissingCheckpoint) throw new Error(`qualification terminal receipt for ${id} did not fail closed over its missing prelaunch OAuth checkpoint`);
+      }
       if (lifecycle.phase !== "terminal" || lifecycle.terminal_status !== receipt.terminal_status) throw new Error(`qualification terminal receipt for ${id} contradicts lifecycle`);
       const receiptDigest = qualificationSha256(`${qualificationCanonicalJson(receipt)}\n`);
       if (lifecycle.events.at(-1)?.detail.receipt_sha256 !== receiptDigest) throw new Error(`qualification terminal receipt for ${id} is not bound by the lifecycle chain`);
@@ -1242,6 +1260,8 @@ function collectOAuthDirectoryValidationsV2(
     }
   }
   if (validateTerminal) {
+    if (validations.before_launch_claim === null) errors.push("launch-claim OAuth directory checkpoint is missing after accounting");
+    if (validations.immediately_before_pi_launch === null) errors.push("prelaunch OAuth directory checkpoint is missing after child start");
     const source = validations.immediately_before_pi_launch ?? validations.before_launch_claim ?? validations.after_oauth_readiness;
     if (!source) {
       errors.push("no earlier v2 OAuth directory occurrence exists for terminal continuity");
@@ -1558,9 +1578,15 @@ function assertTerminalReceiptCrossBindings(spoolDir: string, invocation: Qualif
       throw new Error(`qualification terminal receipt for ${invocation.invocation_id} lacks v2 auth occurrence evidence`);
     }
     if (receipt.attempt === 1) {
-      const claim = readOAuthDirectoryCheckpointV2(paths.invocation!, invocation, "before-launch-claim");
-      if (qualificationCanonicalJson(validations.before_launch_claim) !== qualificationCanonicalJson(claim)) {
-        throw new Error(`qualification terminal receipt for ${invocation.invocation_id} launch-claim OAuth occurrence mismatch`);
+      const claimPath = oauthCheckpointPath(paths.invocation!, "before-launch-claim");
+      if (existsSync(claimPath)) {
+        const claim = readOAuthDirectoryCheckpointV2(paths.invocation!, invocation, "before-launch-claim");
+        if (qualificationCanonicalJson(validations.before_launch_claim) !== qualificationCanonicalJson(claim)) {
+          throw new Error(`qualification terminal receipt for ${invocation.invocation_id} launch-claim OAuth occurrence mismatch`);
+        }
+      } else if (validations.before_launch_claim !== null || receipt.artifact !== null ||
+          receipt.terminal_status === "completed" || receipt.terminal_status === "refused") {
+        throw new Error(`qualification terminal receipt for ${invocation.invocation_id} did not fail closed over missing launch-claim OAuth evidence`);
       }
       if (existsSync(oauthCheckpointPath(paths.invocation!, "immediately-before-pi-launch"))) {
         const prelaunch = readOAuthDirectoryCheckpointV2(paths.invocation!, invocation, "immediately-before-pi-launch");
@@ -1667,6 +1693,14 @@ function validateTerminalReceipt(value: unknown, invocation: QualificationInvoca
     const validations = value.oauth_directory_validations as unknown as QualificationOAuthDirectoryValidationsV2;
     const terminal = validations.after_child_termination;
     if (value.started_at !== null && terminal === null) throw new Error(`qualification terminal receipt ${invocation.invocation_id} lacks post-child OAuth inventory evidence`);
+    if (value.attempt === 1 && validations.before_launch_claim === null &&
+        (value.terminal_status === "completed" || value.terminal_status === "refused" || value.artifact !== null)) {
+      throw new Error(`qualification terminal receipt ${invocation.invocation_id} accepts an artifact without launch-claim OAuth checkpoint evidence`);
+    }
+    if (value.started_at !== null && validations.immediately_before_pi_launch === null &&
+        (value.terminal_status === "completed" || value.terminal_status === "refused" || value.artifact !== null)) {
+      throw new Error(`qualification terminal receipt ${invocation.invocation_id} accepts an artifact without prelaunch OAuth checkpoint evidence`);
+    }
     if (terminal?.valid === false && value.artifact !== null) throw new Error(`qualification terminal receipt ${invocation.invocation_id} accepts an artifact after invalid OAuth inventory`);
     if ((value.terminal_status === "completed" || value.terminal_status === "refused") && terminal?.valid !== true) {
       throw new Error(`qualification terminal receipt ${invocation.invocation_id} successful/refused artifact lacks valid terminal OAuth inventory`);

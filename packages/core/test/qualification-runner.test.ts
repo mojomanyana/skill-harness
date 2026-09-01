@@ -316,6 +316,51 @@ describe("qualification OAuth boundary", () => {
     expect(receipt.oauth_directory_validations.after_child_termination.entries[2].present).toBe(true);
   });
 
+  it("makes a missing prelaunch checkpoint artifact-ineligible before terminal acceptance", async () => {
+    const files = setup("sleep:180", { oauthV2: true, timeout: 1000 });
+    const auth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
+    const supervisor = superviseQualificationInvocation({
+      spool_dir: files.spool,
+      invocation_id: "invocation-0001",
+      child_env: auth.child_env,
+      authentication_authority: auth.launch_authority,
+    });
+    const prelaunch = join(files.spool, "invocations", "invocation-0001", "oauth-directory-prelaunch.json");
+    await waitFor(() => readQualificationLifecycle(files.spool, "invocation-0001").phase === "running" && existsSync(prelaunch));
+    rmSync(prelaunch);
+    await supervisor;
+    const status = qualificationInvocationStatus(files.spool, "invocation-0001");
+    expect(status).toMatchObject({ terminal_status: "invalid-artifact", attempt: 1 });
+    expect(calls(files.count)).toBe(1);
+    expect(readQualificationAccounting(files.spool).events).toHaveLength(1);
+    const receipt = JSON.parse(readFileSync(join(files.spool, "invocations", "invocation-0001", "terminal", "receipt.json"), "utf8"));
+    expect(receipt).toMatchObject({ artifact: null, successful_execution: false });
+    expect(receipt.oauth_directory_validations.immediately_before_pi_launch).toBeNull();
+    expect(validateQualificationRunnerSpool(files.spool).ok).toBe(true);
+  });
+
+  it("makes a missing launch-claim checkpoint artifact-ineligible before terminal acceptance", async () => {
+    const files = setup("sleep:180", { oauthV2: true, timeout: 1000 });
+    const auth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
+    const supervisor = superviseQualificationInvocation({
+      spool_dir: files.spool,
+      invocation_id: "invocation-0001",
+      child_env: auth.child_env,
+      authentication_authority: auth.launch_authority,
+    });
+    const claim = join(files.spool, "invocations", "invocation-0001", "oauth-directory-launch-claim.json");
+    await waitFor(() => readQualificationLifecycle(files.spool, "invocation-0001").phase === "running" && existsSync(claim));
+    rmSync(claim);
+    await supervisor;
+    expect(qualificationInvocationStatus(files.spool, "invocation-0001")).toMatchObject({ terminal_status: "invalid-artifact", attempt: 1 });
+    const receipt = JSON.parse(readFileSync(join(files.spool, "invocations", "invocation-0001", "terminal", "receipt.json"), "utf8"));
+    expect(receipt).toMatchObject({ artifact: null, successful_execution: false });
+    expect(receipt.oauth_directory_validations.before_launch_claim).toBeNull();
+    expect(calls(files.count)).toBe(1);
+    expect(readQualificationAccounting(files.spool).events).toHaveLength(1);
+    expect(validateQualificationRunnerSpool(files.spool).ok).toBe(true);
+  });
+
   it("makes an unexpected terminal entry artifact-ineligible while retaining exactly-once accounting and no retry", async () => {
     const files = setup("create-unexpected-oauth-entry", { oauthV2: true });
     const status = await run(files);
