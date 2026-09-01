@@ -664,15 +664,15 @@ never enter `specification.yaml` before a human promotes them.
 
 ### Sprint 1.11 — Qualification packet execution integrity (owner repair, 2026-08-28)
 
-- [ ] **`qualification-runner-v1` + pi-daddy ledger-v3 consumer.** A separately
+- [x] **`qualification-runner-v1` + pi-daddy ledger-v3 consumer.** A separately
       versioned, external-config-only runner for future Principal qualification
       packets: durable prepare/start/status/poll/validate/abort lifecycle; exact-once
       launch accounting; OAuth-only sanitized child environment; detached deadline
       supervision; no automatic retry; provider/model artifact attestation; and a
       separate production ledger-v3 selector preserving execution ancestry and
       workflow facts while leaving 0.17/v2 unchanged. Infrastructure only — no board,
-      holdout, measurement identity, or model call. Implementation branch:
-      `feat/qualification-runner-v1`; replace with PR/merge identities when landed.
+      holdout, measurement identity, or model call. (2026-09-01, PR #65,
+      implementation commit `91479b0`; final reviewed head recorded in the PR.)
       Post: `docs/posts/2026-08-28-one-call-means-one-launch.md`
 
 ## PHASE 2 — Launch & first 100 fans (weeks 5–10)

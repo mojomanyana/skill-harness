@@ -7,7 +7,8 @@ deliberately does not restate them.*
 
 ## Qualification-runner-v1 repair — current implementation
 
-**State:** implementation on `feat/qualification-runner-v1`, based on exact
+**State:** PR [#65](https://github.com/mojomanyana/skill-harness/pull/65) on
+`feat/qualification-runner-v1`, based on exact
 `f765e37189e55306ae28a6c07bb70fc11db7652a` / tree
 `24f9ecf74cea4485a924af96fbef6aa3272eeaa0`. This is qualification infrastructure,
 not a measurement: no board, Wave A manifest, holdout, final measurement identity,
@@ -29,8 +30,9 @@ The historical `pi-daddy-v1` selector remains 0.17/v2 only.
 
 Do not describe this as signer authenticity, remote attestation, protection from a
 malicious local owner, general OS containment, proof of OAuth usability, model
-efficacy, or completed qualification. The PR/review/merge identities replace this
-branch-state paragraph when the work lands.
+efficacy, or completed qualification. Implementation commit is `91479b0fd4d6a2428d34d897f305b77fc74c5c79`.
+The final exact-head review and merge identities replace this branch-state paragraph
+when the work lands.
 
 ## Pi-daddy 0.19.0 ledger-v2 contract re-pin — historical handoff
 
