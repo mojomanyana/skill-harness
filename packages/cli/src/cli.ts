@@ -933,7 +933,7 @@ export function help(): string {
   coverage <skill|all> --skills <root> [--strict]   which instruction sections have a declared test (free, offline)
   affected <skill>   --skills <root> [--base ref]   which scenarios a change could touch (free, offline)
   qualification <prepare|start|status|poll|validate|abort>  durable qualification-runner-v1 lifecycle
-                     prepare --spool DIR --config FILE --request FILE
+                     prepare --spool DIR --config FILE --request FILE [--expected-config-sha256 HEX] (required in production)
                      start|status|poll|abort --spool DIR --id ID  (abort also requires --reason ID)
                      start may resume only with --continuation-authority-file <private-0600-prebound-one-use-capability>
                      validate --spool DIR  (all calls use external, schema-validated arms; no automatic retry)

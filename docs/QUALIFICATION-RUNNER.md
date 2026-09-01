@@ -28,7 +28,8 @@ binary pinned by that configuration:
 node bin/skill-harness.js qualification prepare \
   --spool /absolute/spool \
   --config /absolute/qualification-config.json \
-  --request /absolute/invocation-request.json
+  --request /absolute/invocation-request.json \
+  --expected-config-sha256 "$APPROVED_CONFIG_SHA256"  # required in production
 
 # Auth metadata check, atomic accounting claim, and one detached supervisor.
 node bin/skill-harness.js qualification start \
@@ -222,6 +223,16 @@ that the bytes match their digest.
 
 ## External arms and source-built pins
 
+The externally approved configuration (and its recorded SHA-256) is the authority for
+the engine/runner revision. The runner cannot hardcode the Git commit that will contain
+itself without a circular self-reference; instead it requires every identity field,
+materializes and rechecks those bytes, requires its externally approved SHA-256 on
+production `prepare`, and binds the whole closed configuration into each invocation. A qualification consumer must approve the final exact-head handoff
+(commit, tree, four source-built package digests, and runner executable digest) before
+`prepare`; accepting an arbitrary caller-authored configuration is outside this local
+runner's authorization claim. Product and producer pins are additionally fixed in v1
+because those upstream identities were known before this runner revision was built.
+
 Configuration binds:
 
 - principal-pi-skills repository, clean checkout path, commit, tree, package path,
@@ -274,6 +285,8 @@ and reproduces fixtures through its real production builders.
 This implementation makes none of these claims:
 
 - no production signer authenticity or cryptographic authentication;
+- no internal authorization decision about which future skill-harness engine commit a
+  consumer should approve—the externally approved configuration digest is that trust root;
 - no remote attestation of Pi, OpenAI, an account, or a model;
 - no protection against a malicious owner with write access to the repository/spool;
 - no general OS, filesystem, network, process, or credential containment;

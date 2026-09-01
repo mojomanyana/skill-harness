@@ -73,6 +73,7 @@ export async function cmdQualification(args: QualificationCliArgs): Promise<void
       spool_dir: required(args, "spool"),
       config_path: required(args, "config"),
       request_path: required(args, "request"),
+      expected_configuration_sha256: flag(args, "expected-config-sha256"),
     });
     print({ invocation_id: invocation.invocation_id, phase: "prepared", consumed_calls: 0 });
     return;

@@ -159,10 +159,15 @@ export function prepareQualificationInvocation(options: {
   spool_dir: string;
   config_path: string;
   request_path: string;
+  expected_configuration_sha256?: string;
   now?: () => string;
 }): QualificationInvocationV1 {
   const config = parseQualificationConfig(parseJsonFile(options.config_path, "qualification configuration"));
   const request = parseQualificationRequest(parseJsonFile(options.request_path, "qualification invocation request"), config);
+  const approvedConfigSha = qualificationConfigDigest(config);
+  if (config.mode === "production" && (!/^[a-f0-9]{64}$/.test(options.expected_configuration_sha256 ?? "") || options.expected_configuration_sha256 !== approvedConfigSha)) {
+    throw new Error("qualification production prepare requires the externally approved exact configuration SHA-256");
+  }
   verifyQualificationPins(config);
   const now = options.now ?? (() => new Date().toISOString());
   assertRegularInput(request.scenario.input_path, request.scenario.input_sha256);
@@ -174,7 +179,7 @@ export function prepareQualificationInvocation(options: {
   return withQualificationFileLock(paths.lock, () => {
     mkdirSync(paths.invocations, { recursive: true, mode: 0o700 });
     mkdirSync(paths.artifacts, { recursive: true, mode: 0o700 });
-    const configSha = qualificationConfigDigest(config);
+    const configSha = approvedConfigSha;
     initializeSpoolConfiguration(paths.configuration, config, configSha);
     initializeAccounting(paths.accounting);
     const expectedArtifact = `artifacts/${request.invocation_id}.jsonl`;

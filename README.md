@@ -254,7 +254,7 @@ skill-harness init   <skill>     --skills <root> [--force]     # scaffold a comm
 skill-harness suggest <skill>    --skills <root> [--model prov:model] [--force]  # LLM-draft a spec from SKILL.md (spends tokens)
 skill-harness list   --skills <root>                          # discovered skills + spec status
 skill-harness lint   <skill|all> --skills <root>               # validate specs/fixtures + results-consistency; CI gate (exits non-zero on findings)
-skill-harness qualification prepare --spool DIR --config FILE --request FILE
+skill-harness qualification prepare --spool DIR --config FILE --request FILE [--expected-config-sha256 HEX]  # digest required in production
 skill-harness qualification start|status|poll|abort --spool DIR --id ID
 skill-harness qualification validate --spool DIR               # qualification-runner-v1 durable spool; separate from ordinary run/grade
 ```

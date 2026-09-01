@@ -87,6 +87,8 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
+      - name: Verify committed Pi extension bundle is source-fresh without rewriting it
+        run: npm run check:ext
       - run: npm run typecheck
       - name: Reproduce canonical release archives
         run: npm run release:pack -- --output "$RUNNER_TEMP/skill-harness-release"
