@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-harness.dev/schemas/qualification-config-v1.schema.json",
+  "title": "skill-harness qualification runner configuration v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "mode", "product", "engine", "producer", "runner", "accounting", "arms"],
+  "properties": {
+    "schema_version": { "const": "qualification-config-v1" },
+    "mode": { "enum": ["production", "test"] },
+    "product": { "$ref": "#/$defs/productPin" },
+    "engine": { "$ref": "#/$defs/enginePin" },
+    "producer": { "$ref": "#/$defs/producerPin" },
+    "runner": { "$ref": "#/$defs/runner" },
+    "accounting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["wave_a", "complete_program", "ceilings", "initial"],
+      "properties": {
+        "wave_a": { "$ref": "#/$defs/waveA" },
+        "complete_program": { "$ref": "#/$defs/completeProgram" },
+        "ceilings": { "$ref": "#/$defs/ceilings" },
+        "initial": { "$ref": "#/$defs/initial" }
+      }
+    },
+    "arms": { "type": "array", "minItems": 2, "uniqueItems": true, "items": { "$ref": "#/$defs/arm" } }
+  },
+  "allOf": [
+    { "type": "object", "properties": { "arms": { "type": "array", "contains": { "type": "object", "properties": { "kind": { "const": "subject" } }, "required": ["kind"] }, "minContains": 1 } } },
+    { "type": "object", "properties": { "arms": { "type": "array", "contains": { "type": "object", "properties": { "kind": { "const": "judge" } }, "required": ["kind"] }, "minContains": 1 } } },
+    {
+      "if": { "type": "object", "properties": { "mode": { "const": "production" } }, "required": ["mode"] },
+      "then": {
+        "type": "object", "properties": {
+          "product": { "type": "object", "properties": {
+            "repository": { "const": "https://github.com/mojomanyana/principal-pi-skills" },
+            "commit": { "const": "a6596950d64a3a525f95329d5dbd3e38948be408" },
+            "tree": { "const": "960359d69deb6f216724b86e13eef67e2f6a6aa1" },
+            "package_sha256": { "const": "3677f76fb31dcaf6a28c9e8b9cf9d6358f998b78bd370f0a0f250d05e136fcc8" },
+            "package_bytes": { "const": 110168 }
+          } },
+          "engine": { "type": "object", "properties": { "repository": { "const": "https://github.com/mojomanyana/skill-harness" } } },
+          "producer": { "type": "object", "properties": {
+            "repository": { "const": "https://github.com/mojomanyana/pi-daddy" },
+            "commit": { "const": "591abb4a358bf8a84455486812b83609e2a47e3f" },
+            "tree": { "const": "c9fe1b324ffbf0d72e7d904972594b3a936e9928" },
+            "version": { "const": "0.20.0" },
+            "ledger_version": { "const": 3 },
+            "ledger_schema_sha256": { "const": "906ed8a89a516e66c9fe9a5e4e40521015bd710502e0225a1518d61903887ad3" }
+          } },
+          "arms": {
+            "type": "array", "items": {
+              "type": "object", "allOf": [
+                { "type": "object", "properties": { "provider": { "const": "openai-codex" }, "authentication": { "const": "chatgpt-oauth" } } },
+                {
+                  "if": { "type": "object", "properties": { "kind": { "const": "subject" } }, "required": ["kind"] },
+                  "then": { "type": "object", "properties": { "model": { "enum": ["gpt-5.6-luna", "gpt-5.6-terra"] } } },
+                  "else": { "type": "object", "properties": { "model": { "const": "gpt-5.6-sol" } } }
+                },
+                { "type": "object", "properties": { "allowed_environment_names": { "type": "array", "contains": { "enum": ["HOME", "PI_CODING_AGENT_DIR"] } } } }
+              ]
+            }
+          }
+        }
+      },
+      "else": {
+        "type": "object", "properties": {
+          "arms": { "type": "array", "items": { "type": "object", "properties": { "provider": { "const": "fake" }, "authentication": { "const": "test-oauth" } } } }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+    "gitSha": { "type": "string", "pattern": "^[a-fA-F0-9]{40}$" },
+    "absolutePath": { "type": "string", "pattern": "^(?:/|[A-Za-z]:[\\\\/])" },
+    "executable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": { "path": { "$ref": "#/$defs/absolutePath" }, "sha256": { "$ref": "#/$defs/sha256" } }
+    },
+    "repositoryPin": {
+      "type": "object",
+      "required": ["repository", "commit", "tree"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "commit": { "$ref": "#/$defs/gitSha" },
+        "tree": { "$ref": "#/$defs/gitSha" }
+      }
+    },
+    "productPin": {
+      "allOf": [
+        { "$ref": "#/$defs/repositoryPin" },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["repository", "commit", "tree", "checkout_path", "package_path", "package_sha256", "package_bytes"],
+          "properties": {
+            "repository": { "type": "string", "minLength": 1 }, "commit": { "$ref": "#/$defs/gitSha" }, "tree": { "$ref": "#/$defs/gitSha" },
+            "checkout_path": { "$ref": "#/$defs/absolutePath" }, "package_path": { "$ref": "#/$defs/absolutePath" },
+            "package_sha256": { "$ref": "#/$defs/sha256" }, "package_bytes": { "type": "integer", "minimum": 1 }
+          }
+        }
+      ]
+    },
+    "enginePin": {
+      "type": "object", "additionalProperties": false,
+      "required": ["repository", "commit", "tree", "checkout_path", "package_paths", "package_sha256"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 }, "commit": { "$ref": "#/$defs/gitSha" }, "tree": { "$ref": "#/$defs/gitSha" },
+        "checkout_path": { "$ref": "#/$defs/absolutePath" },
+        "package_paths": {
+          "type": "object", "additionalProperties": false, "required": ["core", "adapters", "cli", "meta"],
+          "properties": { "core": { "$ref": "#/$defs/absolutePath" }, "adapters": { "$ref": "#/$defs/absolutePath" }, "cli": { "$ref": "#/$defs/absolutePath" }, "meta": { "$ref": "#/$defs/absolutePath" } }
+        },
+        "package_sha256": {
+          "type": "object", "additionalProperties": false, "required": ["core", "adapters", "cli", "meta"],
+          "properties": { "core": { "$ref": "#/$defs/sha256" }, "adapters": { "$ref": "#/$defs/sha256" }, "cli": { "$ref": "#/$defs/sha256" }, "meta": { "$ref": "#/$defs/sha256" } }
+        }
+      }
+    },
+    "producerPin": {
+      "type": "object", "additionalProperties": false,
+      "required": ["repository", "commit", "tree", "checkout_path", "version", "ledger_version", "ledger_schema_sha256"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 }, "commit": { "$ref": "#/$defs/gitSha" }, "tree": { "$ref": "#/$defs/gitSha" },
+        "checkout_path": { "$ref": "#/$defs/absolutePath" }, "version": { "type": "string", "minLength": 1 },
+        "ledger_version": { "const": 3 }, "ledger_schema_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "runner": {
+      "type": "object", "additionalProperties": false,
+      "required": ["version", "executable", "conflicting_parent_environment"],
+      "properties": {
+        "version": { "const": "qualification-runner-v1" }, "executable": { "$ref": "#/$defs/executable" },
+        "conflicting_parent_environment": { "enum": ["refuse", "remove-and-record"] }
+      }
+    },
+    "artifact": {
+      "type": "object", "additionalProperties": false, "required": ["type", "relative_path_template"],
+      "properties": { "type": { "const": "pi-jsonl" }, "relative_path_template": { "const": "artifacts/{invocation_id}.jsonl" } }
+    },
+    "arm": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "kind", "provider", "model", "authentication", "executable", "resources", "arguments", "allowed_environment_names", "timeout_ms", "output_limit_bytes", "artifact", "fallback", "metered_override"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" },
+        "kind": { "enum": ["subject", "judge"] }, "provider": { "type": "string", "minLength": 1 }, "model": { "type": "string", "minLength": 1 },
+        "authentication": { "enum": ["chatgpt-oauth", "test-oauth"] }, "executable": { "$ref": "#/$defs/executable" },
+        "resources": {
+          "type": "array", "uniqueItems": true,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["kind", "path", "sha256"],
+            "properties": { "kind": { "enum": ["extension", "skill", "system-prompt"] }, "path": { "$ref": "#/$defs/absolutePath" }, "sha256": { "$ref": "#/$defs/sha256" } }
+          }
+        },
+        "arguments": { "type": "array", "items": { "type": "string", "pattern": "^(?!-)(?:[^{}]|\\{(?:input_path|scenario_id|invocation_id|artifact_path)\\})+$" }, "contains": { "type": "string", "pattern": "\\{input_path\\}" } },
+        "allowed_environment_names": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z_][A-Z0-9_]*$" }, "uniqueItems": true },
+        "timeout_ms": { "type": "integer", "minimum": 1, "maximum": 86400000 },
+        "output_limit_bytes": { "type": "integer", "minimum": 1, "maximum": 104857600 },
+        "artifact": { "$ref": "#/$defs/artifact" }, "fallback": { "const": false }, "metered_override": { "const": false }
+      }
+    },
+    "pair": {
+      "type": "object", "additionalProperties": false, "required": ["subject", "judge"],
+      "properties": { "subject": { "type": "integer" }, "judge": { "type": "integer" } }
+    },
+    "waveA": {
+      "type": "object", "additionalProperties": false, "required": ["subject", "judge"],
+      "properties": { "subject": { "const": 54 }, "judge": { "const": 54 } }
+    },
+    "completeProgram": {
+      "type": "object", "additionalProperties": false, "required": ["subject", "judge"],
+      "properties": { "subject": { "const": 642 }, "judge": { "const": 642 } }
+    },
+    "ceilings": {
+      "type": "object", "additionalProperties": false, "required": ["subject", "judge"],
+      "properties": { "subject": { "const": 700 }, "judge": { "const": 700 } }
+    },
+    "initial": {
+      "type": "object", "additionalProperties": false, "required": ["subject", "judge"],
+      "properties": { "subject": { "const": 0 }, "judge": { "const": 0 } }
+    }
+  }
+}

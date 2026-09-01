@@ -541,8 +541,10 @@ describe("pinned pi-daddy ledger v2 contract", () => {
     expect(events.find((event) => event.type === "child_started")).toBeDefined();
     // A legacy record is not validated against — nor rejected by — the v2 schema.
     expect(validateClosedSchema(PI_DADDY_LEDGER_V2_SCHEMA, legacy).length).toBeGreaterThan(0);
-    // An explicit non-2 version is never reinterpreted as a legacy grant line.
-    expect(() => normalizePiDaddyLedger(line({ ...legacy, ledgerVersion: 3 }))).toThrow(/unsupported pi-daddy ledgerVersion 3/);
+    // An explicit version is never reinterpreted as a legacy grant line. V3 is
+    // now separately supported, and its discriminator/occurrence identity gate
+    // rejects this v2-shaped lookalike.
+    expect(() => normalizePiDaddyLedger(line({ ...legacy, ledgerVersion: 3 }))).toThrow(/invalid pi-daddy v3 event.*discriminator/i);
     // Nor is a legacy body admitted by stamping the current version on it: it has no
     // discriminator, which the producer's dispatch rules also require to fail closed.
     expect(() => normalizePiDaddyLedger(line({ ...legacy, ledgerVersion: 2 })))

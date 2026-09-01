@@ -3,8 +3,15 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { ExecutionTraceV1, TrajectoryEventSource, TrajectoryEventV1 } from "@skill-harness/core";
 import { TRAJECTORY_EVENT_VERSION, deserializeTrajectoryEvents, matchesGlob, redactArgs, redactText } from "@skill-harness/core";
-import { assertSupportedSchema, declaredPropertyNames, validateClosedSchema } from "./closed-schema.js";
+import {
+  assertSupportedSchema,
+  assertSupportedSchemaV3,
+  declaredPropertyNames,
+  validateClosedSchema,
+  validateClosedSchemaV3,
+} from "./closed-schema.js";
 import { PI_DADDY_CONTRACT_COMMIT, PI_DADDY_LEDGER_V2_SCHEMA } from "./pi-daddy-ledger-v2.js";
+import { PI_DADDY_LEDGER_V3_CONTRACT_COMMIT, PI_DADDY_LEDGER_V3_SCHEMA } from "./pi-daddy-ledger-v3.js";
 
 export interface CollectedTrajectorySources {
   events: TrajectoryEventV1[];
@@ -35,14 +42,18 @@ export function collectTrajectorySources(cwd: string, sources: TrajectoryEventSo
         const normalized = source.adapter === "principal-assurance-v1"
           ? normalizePrincipalAssuranceLedger(text)
           : source.adapter === "pi-daddy-v1"
-            ? normalizePiDaddyLedger(text)
-            : deserializeTrajectoryEvents(text);
+            ? normalizePiDaddyLegacyLedger(text)
+            : source.adapter === "pi-daddy-ledger-v3"
+              ? normalizePiDaddyLedgerV3(text)
+              : deserializeTrajectoryEvents(text);
         if (!normalized) throw new Error("normalized-v1 source is empty, malformed, or unsupported");
         const times = normalized.map((event) => validTime(event.at) ? Date.parse(event.at!) : null);
         if (times.every((time) => time !== null)) {
           const highWaterByStream = new Map<string, number>();
           for (let index = 0; index < times.length; index += 1) {
-            const stream = source.adapter === "pi-daddy-v1" ? normalizedPiDaddyStreamKey(normalized[index], index) : "source";
+            const stream = source.adapter === "pi-daddy-v1" || source.adapter === "pi-daddy-ledger-v3"
+              ? normalizedPiDaddyStreamKey(normalized[index], index)
+              : "source";
             const highWater = highWaterByStream.get(stream);
             if (highWater !== undefined && times[index]! < highWater && !isAllowedPiDaddyReceiptInversion(source.adapter, normalized, index)) {
               throw new Error("native event timestamps move backwards relative to the source's recorded sequence");
@@ -187,10 +198,28 @@ export function normalizePrincipalAssuranceLedger(text: string): TrajectoryEvent
 }
 
 /**
- * Normalize pi-daddy's public ledgers: unversioned 0.17 GrantRecord lines and
- * ledgerVersion 2 runtime events emitted by 0.18.0. Version detection precedes
- * the legacy fallback so a new event can never be misdiagnosed as an old grant.
+ * Normalize pi-daddy's public ledgers: unversioned 0.17 GrantRecord lines,
+ * frozen ledgerVersion 2 events, and separately pinned production ledgerVersion
+ * 3 events. Explicit version dispatch precedes legacy fallback, so an unknown or
+ * malformed new record is never reinterpreted as an old grant.
  */
+/** Historical selector behavior: unversioned 0.17 and frozen ledger v2 only. */
+export function normalizePiDaddyLegacyLedger(text: string): TrajectoryEventV1[] {
+  const records = parseJsonl(text, "pi-daddy");
+  const explicitV3 = records.findIndex((record) => record.ledgerVersion === 3);
+  if (explicitV3 >= 0) throw new Error(`pi-daddy-v1 selector does not admit ledgerVersion 3 at line ${explicitV3 + 1}; use pi-daddy-ledger-v3`);
+  return normalizePiDaddyLedger(text);
+}
+
+/** Separately versioned selector: every line must be an explicit ledgerVersion 3 event. */
+export function normalizePiDaddyLedgerV3(text: string): TrajectoryEventV1[] {
+  const records = parseJsonl(text, "pi-daddy");
+  const wrong = records.findIndex((record) => record.ledgerVersion !== 3);
+  if (wrong >= 0) throw new Error(`pi-daddy-ledger-v3 requires explicit ledgerVersion 3 at line ${wrong + 1}`);
+  return normalizePiDaddyLedger(text);
+}
+
+/** Programmatic mixed-version dispatcher; source declarations use explicit selectors above. */
 export function normalizePiDaddyLedger(text: string): TrajectoryEventV1[] {
   const records = parseJsonl(text, "pi-daddy");
   validatePiDaddyTimestampOrder(records);
@@ -198,22 +227,28 @@ export function normalizePiDaddyLedger(text: string): TrajectoryEventV1[] {
   let seq = 1;
   records.forEach((record, index) => {
     if (record.ledgerVersion !== undefined) {
-      if (record.ledgerVersion !== 2) {
-        throw new Error(`unsupported pi-daddy ledgerVersion ${safeDiagnosticValue(record.ledgerVersion)} at line ${index + 1}; expected 2 or an unversioned 0.17 GrantRecord`);
+      if (record.ledgerVersion === 2) {
+        // The discriminator first (it names the four public variants), then the
+        // producer's own closed schema, then semantic normalization. Nothing
+        // downstream may assume a field the pinned contract has not admitted.
+        requireV2Discriminator(record, index + 1);
+        assertPinnedV2Contract(record, index + 1);
+        for (const event of normalizePiDaddyV2(record, index)) out.push({ ...event, seq: seq++ });
+        return;
       }
-      // The discriminator first (it names the four public variants), then the
-      // producer's own closed schema, then semantic normalization. Nothing
-      // downstream may assume a field the pinned contract has not admitted.
-      requireV2Discriminator(record, index + 1);
-      assertPinnedV2Contract(record, index + 1);
-      for (const event of normalizePiDaddyV2(record, index)) out.push({ ...event, seq: seq++ });
-      return;
+      if (record.ledgerVersion === 3) {
+        requireV3Discriminator(record, index + 1);
+        assertPinnedV3Contract(record, index + 1);
+        for (const event of normalizePiDaddyV3(record, index)) out.push({ ...event, seq: seq++ });
+        return;
+      }
+      throw new Error(`unsupported pi-daddy ledgerVersion ${safeDiagnosticValue(record.ledgerVersion)} at line ${index + 1}; expected 2, 3, or an unversioned 0.17 GrantRecord`);
     }
     if (record.schema_version !== undefined) {
-      throw new Error(`pi-daddy schema_version/record_type at line ${index + 1} is not a public pi-daddy ledger format; expected ledgerVersion 2 or an unversioned 0.17 GrantRecord`);
+      throw new Error(`pi-daddy schema_version/record_type at line ${index + 1} is not a public pi-daddy ledger format; expected ledgerVersion 2, ledgerVersion 3, or an unversioned 0.17 GrantRecord`);
     }
     if (record.event !== undefined) {
-      throw new Error(`pi-daddy event [REDACTED invalid value] at line ${index + 1} is missing explicit ledgerVersion 2`);
+      throw new Error(`pi-daddy event [REDACTED invalid value] at line ${index + 1} is missing explicit ledgerVersion 2 or 3`);
     }
     for (const event of normalizeLegacyGrant(record, index)) out.push({ ...event, seq: seq++ });
   });
@@ -261,6 +296,38 @@ function assertPinnedV2Contract(record: Record<string, unknown>, line: number): 
   throw new Error(
     `invalid pi-daddy v2 ${label} at line ${line}: closed contract violation — ${first.path ? `${first.path} ` : ""}${first.message}${extra}` +
     ` [pi-daddy ${PI_DADDY_CONTRACT_COMMIT.slice(0, 12)}]`,
+  );
+}
+
+/** The five public `ledgerVersion: 3` event discriminators. */
+const V3_EVENTS = new Set(["capability_decision", "workspace_lease", "child_lifecycle", "check_receipt", "workflow_fact"]);
+
+function requireV3Discriminator(record: Record<string, unknown>, line: number): string {
+  const nativeEvent = string(record.event);
+  if (!nativeEvent || !V3_EVENTS.has(nativeEvent)) {
+    throw new Error(`invalid pi-daddy v3 event at line ${line}: event discriminator is required and must be capability_decision, workspace_lease, child_lifecycle, check_receipt, or workflow_fact`);
+  }
+  return nativeEvent;
+}
+
+let pinnedV3ContractChecked = false;
+let pinnedV3ContractFieldNames: ReadonlySet<string> | undefined;
+
+function assertPinnedV3Contract(record: Record<string, unknown>, line: number): void {
+  if (!pinnedV3ContractChecked) {
+    assertSupportedSchemaV3(PI_DADDY_LEDGER_V3_SCHEMA, "pinned pi-daddy ledger v3 schema");
+    pinnedV3ContractFieldNames = declaredPropertyNames(PI_DADDY_LEDGER_V3_SCHEMA);
+    pinnedV3ContractChecked = true;
+  }
+  const violations = validateClosedSchemaV3(PI_DADDY_LEDGER_V3_SCHEMA, record, { knownFieldNames: pinnedV3ContractFieldNames });
+  if (violations.length === 0) return;
+  const nativeEvent = string(record.event);
+  const label = nativeEvent && V3_EVENTS.has(nativeEvent) ? nativeEvent : "record";
+  const [first] = violations;
+  const extra = violations.length > 1 ? ` (+${violations.length - 1} more contract violation${violations.length > 2 ? "s" : ""})` : "";
+  throw new Error(
+    `invalid pi-daddy v3 ${label} at line ${line}: closed contract violation — ${first.path ? `${first.path} ` : ""}${first.message}${extra}` +
+    ` [pi-daddy ${PI_DADDY_LEDGER_V3_CONTRACT_COMMIT.slice(0, 12)}]`,
   );
 }
 
@@ -344,6 +411,11 @@ const V2_CORRELATION_MAX_SCOPE_BYTES = 4 * 1024;
 
 function piDaddyStreamKey(record: Record<string, unknown>, index: number): string {
   if (record.ledgerVersion === undefined) return JSON.stringify(["legacy", string(record.childId) ?? `missing-child:${index}`]);
+  if (record.ledgerVersion === 3) {
+    return record.event === "workflow_fact"
+      ? JSON.stringify(["v3-fact", string(record.factId) ?? `missing-fact:${index}`])
+      : JSON.stringify(["v3-execution", string(record.executionId) ?? `missing-execution:${index}`]);
+  }
   const correlation = object(record.correlation);
   return JSON.stringify([
     string(correlation?.run_id) ?? `missing-run:${index}`,
@@ -355,6 +427,11 @@ function piDaddyStreamKey(record: Record<string, unknown>, index: number): strin
 
 function normalizedPiDaddyStreamKey(event: TrajectoryEventV1, index: number): string {
   if (event.source === "pi-daddy-0.17") return JSON.stringify(["legacy", event.child_id ?? `missing-child:${index}`]);
+  if (event.source === "pi-daddy-v3") {
+    return event.workflow_fact_id
+      ? JSON.stringify(["v3-fact", event.workflow_fact_id])
+      : JSON.stringify(["v3-execution", event.execution_id ?? `missing-execution:${index}`]);
+  }
   const correlation = object(event.attributes?.correlation);
   return JSON.stringify([
     event.run_id ?? `missing-run:${index}`,
@@ -374,9 +451,9 @@ function sameRawCorrelationIdentity(left: Record<string, unknown>, right: Record
 function validatePiDaddyTimestampOrder(records: Record<string, unknown>[]): void {
   const highWaterByChild = new Map<string, number>();
   records.forEach((record, index) => {
-    const supportedV2 = record.ledgerVersion === 2;
+    const supportedVersion = record.ledgerVersion === 2 || record.ledgerVersion === 3;
     const legacy = record.ledgerVersion === undefined && record.schema_version === undefined && record.event === undefined;
-    if (!supportedV2 && !legacy) return;
+    if (!supportedVersion && !legacy) return;
     const at = string(record.ts);
     if (!validTime(at)) throw new Error(`invalid pi-daddy ledger timestamp at line ${index + 1}: ts must be a date-time`);
     const time = Date.parse(at!);
@@ -392,10 +469,10 @@ function validatePiDaddyTimestampOrder(records: Record<string, unknown>[]): void
 function isRawPiDaddyReceiptInversion(records: Record<string, unknown>[], index: number, receiptTime: number): boolean {
   const receipt = records[index];
   const release = records[index - 1];
-  if (receipt?.ledgerVersion !== 2 || receipt.event !== "check_receipt" || release?.ledgerVersion !== 2 || release.event !== "workspace_lease") return false;
+  if ((receipt?.ledgerVersion !== 2 && receipt?.ledgerVersion !== 3) || receipt.event !== "check_receipt" || release?.ledgerVersion !== receipt.ledgerVersion || release.event !== "workspace_lease") return false;
   if (receipt.childId !== release.childId || receipt.workspaceId !== release.workspaceId || !sameRawCorrelationIdentity(receipt, release) || !V2_RECEIPT_RELEASE_OUTCOMES.has(string(release.outcome) ?? "")) return false;
   const previousLease = records.slice(0, index - 1).reverse().find((record) =>
-    record.ledgerVersion === 2 && record.event === "workspace_lease" && record.childId === receipt.childId &&
+    record.ledgerVersion === receipt.ledgerVersion && record.event === "workspace_lease" && record.childId === receipt.childId &&
     record.workspaceId === receipt.workspaceId && sameRawCorrelationIdentity(receipt, record),
   );
   return Boolean(
@@ -409,7 +486,7 @@ function isAllowedPiDaddyReceiptInversion(
   events: TrajectoryEventV1[],
   index: number,
 ): boolean {
-  if (adapter !== "pi-daddy-v1") return false;
+  if (adapter !== "pi-daddy-v1" && adapter !== "pi-daddy-ledger-v3") return false;
   const receipt = events[index];
   const release = events[index - 1];
   if (receipt?.type !== "check_receipt_recorded" || !NORMALIZED_RECEIPT_RELEASE_EVENTS.has(release?.type)) return false;
@@ -685,6 +762,250 @@ function normalizePiDaddyV2(record: Record<string, unknown>, index: number): Omi
   }) as Omit<TrajectoryEventV1, "seq">];
 }
 
+function normalizePiDaddyV3(record: Record<string, unknown>, index: number): Omit<TrajectoryEventV1, "seq">[] {
+  const line = index + 1;
+  const nativeEvent = requireV3Discriminator(record, line);
+  const at = requireV3String(record, "ts", nativeEvent, line);
+  const correlation = object(record.correlation) ?? {};
+  const correlationDigests = anyDefined({
+    correlation_plan: string(correlation.plan_digest),
+    correlation_task: string(correlation.task_digest),
+    correlation_definition: string(correlation.definition_digest),
+    correlation_base: string(correlation.base_sha),
+    correlation_head: string(correlation.head_sha),
+    correlation_tree: string(correlation.tree_sha),
+  });
+  const correlationAttributes = safeAttributes({
+    ledger_version: 3,
+    native_event: nativeEvent,
+    correlation: Object.keys(correlation).length ? sanitizeAttributes(correlation) : undefined,
+    event_seq: finiteNumber(correlation.event_seq),
+    last_change_seq: finiteNumber(correlation.last_change_seq),
+    last_authority_seq: finiteNumber(correlation.last_authority_seq),
+    check_receipt_id: string(correlation.check_receipt_id),
+    assurance: string(correlation.assurance),
+    assurance_effective: string(correlation.assurance_effective),
+    policy_label: string(correlation.policy_label),
+    assurance_source: string(correlation.assurance_source),
+    assurance_scope: correlation.assurance_scope,
+    activated_at: string(correlation.activated_at),
+  });
+
+  if (nativeEvent === "workflow_fact") {
+    return [cleanEvent({
+      event_version: TRAJECTORY_EVENT_VERSION,
+      type: "workflow_fact",
+      source: "pi-daddy-v3",
+      at,
+      run_id: string(correlation.run_id),
+      task_id: string(correlation.task_id),
+      workspace_id: string(correlation.workspace_id),
+      context_id: string(correlation.context_id),
+      phase: string(correlation.phase),
+      workflow_fact_id: requireV3String(record, "factId", nativeEvent, line),
+      digests: correlationDigests,
+      attributes: safeAttributes({
+        ...correlationAttributes,
+        source: string(record.source),
+        provenance: string(record.provenance),
+        fact_kind: string(record.kind),
+        fact_subject: string(record.subject),
+        fact_state: string(record.state),
+      }),
+    }) as Omit<TrajectoryEventV1, "seq">];
+  }
+
+  const executionId = requireV3String(record, "executionId", nativeEvent, line);
+  const parentExecutionId = record.parentExecutionId === null ? null : requireV3String(record, "parentExecutionId", nativeEvent, line);
+  if (parentExecutionId === executionId) throw new Error(`invalid pi-daddy v3 ${nativeEvent} at line ${line}: an execution cannot be its own parent`);
+  const childId = requireV3String(record, "childId", nativeEvent, line);
+  const carriesTopWorkspace = nativeEvent === "workspace_lease" || nativeEvent === "check_receipt";
+  const topWorkspace = carriesTopWorkspace ? string(record.workspaceId) : undefined;
+  const correlationWorkspace = string(correlation.workspace_id);
+  if (topWorkspace && correlationWorkspace && topWorkspace !== correlationWorkspace) {
+    throw new Error(`invalid pi-daddy v3 ${nativeEvent} at line ${line}: workspaceId disagrees with correlation.workspace_id`);
+  }
+  const common = {
+    event_version: TRAJECTORY_EVENT_VERSION,
+    source: "pi-daddy-v3",
+    at,
+    run_id: string(correlation.run_id),
+    task_id: string(correlation.task_id),
+    workspace_id: topWorkspace,
+    context_id: string(correlation.context_id),
+    child_id: childId,
+    execution_id: executionId,
+    parent_execution_id: parentExecutionId,
+    phase: string(correlation.phase),
+    digests: correlationDigests,
+  } as const;
+
+  if (nativeEvent === "capability_decision") {
+    const requested = record.requested as string[];
+    const parentGrant = record.parentGrant as string[];
+    const effective = record.effective as string[];
+    const denied = record.denied as string[];
+    const clipped = record.clipped as string[];
+    const gated = record.gatedBlocked as string[];
+    const approved = record.approved as string[] | undefined;
+    validateCapabilityPartition(requested, effective, denied, clipped, gated, approved, Boolean(record.blocked), line, 3);
+    const approvalSources = object(record.approvalSources) as Record<string, string> | undefined;
+    const approvalScopes = object(record.approvalScopes) as Record<string, string> | undefined;
+    const approvalExpiresAt = object(record.approvalExpiresAt) as Record<string, string> | undefined;
+    const approvalUses = object(record.approvalUses) as Record<string, { max: number; remaining: number }> | undefined;
+    if (approvalUses && Object.values(approvalUses).some((use) =>
+      !object(use) || !Number.isInteger(use.max) || !Number.isInteger(use.remaining) || use.max < 0 || use.remaining < 0 || use.remaining > use.max
+    )) throw new Error(`invalid pi-daddy v3 capability_decision at line ${line}: approvalUses requires remaining <= max integer bounds`);
+    validateApprovalEvidence(approved ?? [], string(record.approvalSource), approvalSources, approvalScopes, approvalExpiresAt, approvalUses, line, 3);
+    const refusal = structuredRefusal(record.refusal, nativeEvent, line, 3);
+    if (!record.blocked && refusal) throw new Error(`invalid pi-daddy v3 capability_decision at line ${line}: an allowed decision cannot carry a refusal`);
+    const definition = object(record.definitionDigest);
+    const taskDigest = requireV3String(record, "taskDigest", nativeEvent, line);
+    const trustedDefinition = string(definition?.sha256);
+    const normalizedRequested = [...new Set(requested)];
+    const attributes = safeAttributes({
+      ...correlationAttributes,
+      depth: record.depth,
+      agent_type: string(record.agentType),
+      executor: string(record.executor),
+      task_from: string(record.taskFrom),
+      parent_grant: parentGrant,
+      denied,
+      clipped,
+      gated_blocked: gated,
+      blocked: record.blocked,
+      reason: string(record.reason),
+      approved,
+      approval_source: string(record.approvalSource),
+      approval_sources: approvalSources,
+      approval_scope: string(record.approvalScope),
+      approval_scopes: approvalScopes,
+      approval_expires_at: approvalExpiresAt,
+      approval_uses: approvalUses,
+      human_denied: record.humanDenied,
+      gate_outcome: string(record.gateOutcome),
+      definition_name: string(definition?.name),
+      definition_source: string(definition?.source),
+      structured_refusal: refusal,
+    });
+    const base = {
+      ...common,
+      parent_id: requireV3String(record, "parentId", nativeEvent, line),
+      task_from_execution_id: string(record.taskFromExecutionId),
+      requested_capabilities: normalizedRequested,
+      effective_capabilities: effective,
+      digests: anyDefined({ ...correlationDigests, task: taskDigest, definition: trustedDefinition }),
+      attributes,
+    };
+    const refusalCode = string(refusal?.code);
+    const events: Omit<TrajectoryEventV1, "seq">[] = normalizedRequested.map((capability) => ({ ...base, type: "capability_requested", capability }));
+    for (const capability of approved ?? []) {
+      events.push(cleanEvent({
+        ...base,
+        type: "approval_used",
+        capability,
+        approval: cleanObject({
+          capability,
+          subject: approvalSubject(record.agentType),
+          source: string(approvalSources?.[capability]) ?? string(record.approvalSource),
+          scope: string(approvalScopes?.[capability]) ?? string(record.approvalScope),
+          expires_at: string(approvalExpiresAt?.[capability]),
+          used_at: at,
+        }),
+        attributes: safeAttributes({ ...attributes, approval_uses: object(approvalUses?.[capability]) }),
+      }) as Omit<TrajectoryEventV1, "seq">);
+    }
+    const approvedSet = new Set(approved ?? []);
+    if (!record.blocked) events.push(...effective.map((capability) => ({ ...base, type: "capability_granted", capability })));
+    events.push(...[...new Set([...denied, ...gated.filter((capability) => !approvedSet.has(capability))])].map((capability) => ({
+      ...base,
+      type: "capability_refused",
+      capability,
+      refusal_code: denied.includes(capability) ? "CAPABILITY_ESCALATION" : refusalCode,
+    })));
+    events.push(cleanEvent({ ...base, type: record.blocked ? "child_spawn_refused" : "capability_decision", refusal_code: refusalCode }) as Omit<TrajectoryEventV1, "seq">);
+    return events;
+  }
+
+  if (nativeEvent === "workspace_lease") {
+    const workspaceId = requireV3String(record, "workspaceId", nativeEvent, line);
+    const access = requireV3String(record, "access", nativeEvent, line);
+    const outcome = requireV3String(record, "outcome", nativeEvent, line);
+    const refusal = structuredRefusal(record.refusal, nativeEvent, line, 3);
+    const type = access === "read"
+      ? `workspace_read_${outcome.replaceAll("-", "_")}`
+      : outcome === "refused" && refusal?.code === "WORKSPACE_WRITE_CONFLICT"
+        ? "writer_lease_conflict"
+        : `writer_lease_${outcome.replaceAll("-", "_")}`;
+    return [cleanEvent({
+      ...common,
+      workspace_id: workspaceId,
+      type,
+      refusal_code: string(refusal?.code),
+      attributes: safeAttributes({
+        ...correlationAttributes,
+        root: string(record.root),
+        access,
+        outcome,
+        recovered: record.recovered,
+        release_reason: string(record.releaseReason),
+        structured_refusal: refusal,
+      }),
+    }) as Omit<TrajectoryEventV1, "seq">];
+  }
+
+  if (nativeEvent === "child_lifecycle") {
+    const state = requireV3String(record, "state", nativeEvent, line);
+    const type = state === "starting" ? "child_started" : state === "running" ? "child_running" : state === "completed" ? "child_completed" : "child_failed";
+    return [cleanEvent({
+      ...common,
+      type,
+      deadline_at: string(record.deadlineAt),
+      exit_code: Number.isInteger(record.exitCode) ? Number(record.exitCode) : undefined,
+      attributes: safeAttributes({
+        ...correlationAttributes,
+        state,
+        executor: string(record.executor),
+        exit_code: record.exitCode,
+        signal: record.signal,
+        timed_out: record.timedOut,
+        aborted: record.aborted,
+        truncated: record.truncated,
+        reason: string(record.reason),
+        deadline_at: string(record.deadlineAt),
+        herdr_pane_id: string(record.herdrPaneId),
+        herdr_agent_name: string(record.herdrAgentName),
+      }),
+    }) as Omit<TrajectoryEventV1, "seq">];
+  }
+
+  const workspaceId = requireV3String(record, "workspaceId", nativeEvent, line);
+  const receiptId = requireV3String(record, "receiptId", nativeEvent, line);
+  const treeSha = requireV3String(record, "treeSha", nativeEvent, line);
+  if (!/^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/.test(treeSha)) {
+    throw new Error(`invalid pi-daddy v3 check_receipt at line ${line}: treeSha must be a git object id for normalized tree evidence`);
+  }
+  return [cleanEvent({
+    ...common,
+    workspace_id: workspaceId,
+    type: "check_receipt_recorded",
+    digests: anyDefined({ ...correlationDigests, tree: treeSha }),
+    attributes: safeAttributes({
+      ...correlationAttributes,
+      receipt_id: receiptId,
+      check_id: string(record.checkId),
+      check_receipt_id: string(correlation.check_receipt_id),
+    }),
+  }) as Omit<TrajectoryEventV1, "seq">];
+}
+
+function requireV3String(record: Record<string, unknown>, field: string, event: string, line: number): string {
+  const value = string(record[field]);
+  if (!value) throw new Error(`invalid pi-daddy v3 ${event} at line ${line}: ${field} is required`);
+  if (redactText(value) !== value) throw new Error(`invalid pi-daddy v3 ${event} at line ${line}: ${field} contains a sensitive value`);
+  return value;
+}
+
 function requireV2Correlation(record: Record<string, unknown>, event: string, line: number): Record<string, unknown> {
   const correlation = object(record.correlation);
   if (!correlation) {
@@ -821,43 +1142,43 @@ function optionalV2ApprovalUses(value: unknown, event: string, line: number): Re
 
 function validateCapabilityPartition(
   requested: string[], effective: string[], denied: string[], clipped: string[], gated: string[], approved: string[] | undefined,
-  blocked: boolean, line: number,
+  blocked: boolean, line: number, version = 2,
 ): void {
   const groups = [effective, denied, clipped, gated];
   if (groups.some((values) => new Set(values).size !== values.length)) {
-    throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: result capability arrays must not contain duplicates`);
+    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: result capability arrays must not contain duplicates`);
   }
   const requestedSet = new Set(requested);
   if (groups.some((values) => values.some((capability) => !requestedSet.has(capability)))) {
-    throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: effective, denied, clipped, and gatedBlocked must partition requested`);
+    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: effective, denied, clipped, and gatedBlocked must partition requested`);
   }
   const flattened = groups.flat();
   if (new Set(flattened).size !== flattened.length) {
-    throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: effective, denied, clipped, and gatedBlocked must be disjoint subsets of requested`);
+    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: effective, denied, clipped, and gatedBlocked must be disjoint subsets of requested`);
   }
   if ((approved ?? []).some((capability) =>
     !requestedSet.has(capability) || (blocked ? !effective.includes(capability) && !gated.includes(capability) : !effective.includes(capability))
   )) {
-    throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: approved capabilities must be requested and reflected in the resolved decision`);
+    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: approved capabilities must be requested and reflected in the resolved decision`);
   }
 }
 
 function validateApprovalEvidence(
   approved: string[], scalarSource: string | undefined, sources: Record<string, string> | undefined,
   scopes: Record<string, string> | undefined, expiries: Record<string, string> | undefined,
-  uses: Record<string, { max: number; remaining: number }> | undefined, line: number,
+  uses: Record<string, { max: number; remaining: number }> | undefined, line: number, version = 2,
 ): void {
   const approvedSet = new Set(approved);
   for (const [field, map] of [["approvalSources", sources], ["approvalScopes", scopes], ["approvalExpiresAt", expiries], ["approvalUses", uses]] as const) {
     if (map && Object.keys(map).some((capability) => !approvedSet.has(capability))) {
-      throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: ${field} keys must be approved capabilities`);
+      throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: ${field} keys must be approved capabilities`);
     }
   }
   if (approved.some((capability) => !sources?.[capability] && !scalarSource)) {
-    throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: each approved capability requires an approval source`);
+    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: each approved capability requires an approval source`);
   }
   if (approved.length === 0 && (scalarSource || sources || scopes || expiries || uses)) {
-    throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: approval evidence requires approved capabilities`);
+    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: approval evidence requires approved capabilities`);
   }
 }
 
@@ -873,21 +1194,21 @@ function approvalSubject(value: unknown): string {
   return agentType === undefined || agentType === "delegate" ? "<delegate>" : agentType;
 }
 
-function structuredRefusal(value: unknown, event: string, line: number): Record<string, unknown> | undefined {
+function structuredRefusal(value: unknown, event: string, line: number, version = 2): Record<string, unknown> | undefined {
   if (value === undefined) return undefined;
   const parsed = object(value);
   const code = string(parsed?.code);
   if (!parsed || !code || !string(parsed.message)) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal requires code and message`);
+    throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal requires code and message`);
   }
   if (!V2_REFUSAL_CODES.has(code)) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal has unsupported code ${safeDiagnosticValue(code)}`);
+    throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal has unsupported code ${safeDiagnosticValue(code)}`);
   }
   const unknown = Object.keys(parsed).filter((key) => !V2_REFUSAL_FIELDS.has(key));
-  if (unknown.length > 0) throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal carries unsupported fields`);
+  if (unknown.length > 0) throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal carries unsupported fields`);
   const details = parsed.details === undefined ? undefined : object(parsed.details);
   if (parsed.details !== undefined && (!details || Object.values(details).some((entry) => !V2_REFUSAL_DETAIL_TYPES.has(entry === null ? "null" : typeof entry)))) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal.details must contain scalar values`);
+    throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal.details must contain scalar values`);
   }
   return parsed;
 }

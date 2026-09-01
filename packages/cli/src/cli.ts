@@ -36,6 +36,7 @@ import {
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
 import { runCompareCommand } from "./compare.js";
+import { cmdQualification } from "./qualification.js";
 
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 // The judge default lives in core (`defaultJudge()`), which resolves
@@ -931,6 +932,11 @@ export function help(): string {
   lint   <skill|all> --skills <root>           validate specs/fixtures + results-consistency (CI gate; exits non-zero on findings)
   coverage <skill|all> --skills <root> [--strict]   which instruction sections have a declared test (free, offline)
   affected <skill>   --skills <root> [--base ref]   which scenarios a change could touch (free, offline)
+  qualification <prepare|start|status|poll|validate|abort>  durable qualification-runner-v1 lifecycle
+                     prepare --spool DIR --config FILE --request FILE [--expected-config-sha256 HEX] (required in production)
+                     start|status|poll|abort --spool DIR --id ID  (abort also requires --reason ID)
+                     start may resume only with --continuation-authority-file <private-0600-prebound-one-use-capability>
+                     validate --spool DIR  (all calls use external, schema-validated arms; no automatic retry)
 
   version  print ${HARNESS_VERSION} and exit (also --version / -v)
 
@@ -962,6 +968,7 @@ export async function main(argv: string[]): Promise<void> {
     case "lint": return cmdLint(args);
     case "coverage": return cmdCoverage(args);
     case "affected": return cmdAffected(args);
+    case "qualification": return cmdQualification(args);
     case "version":
     case "--version":
     case "-v":

@@ -187,7 +187,7 @@
                 "additionalProperties": false,
                 "required": ["adapter", "path"],
                 "properties": {
-                  "adapter": { "enum": ["normalized-v1", "principal-assurance-v1", "pi-daddy-v1"] },
+                  "adapter": { "enum": ["normalized-v1", "principal-assurance-v1", "pi-daddy-v1", "pi-daddy-ledger-v3"] },
                   "path": {
                     "type": "string",
                     "minLength": 1,

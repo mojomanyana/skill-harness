@@ -17,11 +17,13 @@
     "scripts": {
         "build": "tsc -b packages/core packages/adapters packages/cli",
         "build:ext": "npm run build && node packages/pi-extension/build.mjs",
+        "check:ext": "npm run build && vitest run packages/pi-extension/test/bundle.test.ts",
         "release:pack": "node scripts/release-pack.mjs",
         "dev": "tsx packages/cli/src/cli.ts",
         "test": "vitest run",
         "typecheck": "tsc -b packages/core packages/adapters packages/cli && tsc --noEmit -p packages/pi-extension/tsconfig.json",
-        "verify:pi-daddy-contract": "node scripts/verify-pi-daddy-builders.mjs"
+        "verify:pi-daddy-contract": "node scripts/verify-pi-daddy-builders.mjs",
+        "verify:pi-daddy-v3-contract": "node scripts/verify-pi-daddy-v3-builders.mjs"
     },
     "engines": {
         "node": ">=20"
@@ -29,6 +31,7 @@
     "devDependencies": {
         "@types/js-yaml": "^4.0.9",
         "@types/node": "^22.0.0",
+        "ajv": "8.20.0",
         "esbuild": "^0.28.0",
         "tsx": "^4.19.0",
         "typescript": "^5.6.0",

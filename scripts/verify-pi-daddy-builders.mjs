@@ -271,7 +271,10 @@ assert(receipt.attributes?.check_receipt_id === correlation.check_receipt_id, "n
 console.log(`  ✓ ${ledger.WORKSPACE_LEASE_OUTCOMES.length} lease outcomes, ${ledger.CHILD_LIFECYCLE_STATES.length} lifecycle states, and receipt identity preserved`);
 
 console.log("\nfail-closed mutations from builder output");
-expectRejected("unsupported explicit version", { ...approvalCase.record, ledgerVersion: 3 }, /unsupported pi-daddy ledgerVersion 3/);
+// V3 is now separately supported. A v2 builder record merely stamped `3`
+// still fails closed at the v3 occurrence-identity contract rather than being
+// reinterpreted as either valid v3 or legacy.
+expectRejected("v2-shaped lookalike stamped v3", { ...approvalCase.record, ledgerVersion: 3 }, /invalid pi-daddy v3 capability_decision.*executionId/);
 expectRejected("v2 cannot become legacy", Object.fromEntries(Object.entries(approvalCase.record).filter(([key]) => key !== "event")), /event must be capability_decision/);
 expectRejected("unsupported event variant", { ...approvalCase.record, event: "future_event" }, /event must be capability_decision/);
 for (const field of ["run_id", "task_id"]) {

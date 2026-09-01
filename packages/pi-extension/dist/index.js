@@ -1,11 +1,11 @@
 // packages/pi-extension/src/index.ts
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { dirname as dirname10, join as join29 } from "node:path";
+import { dirname as dirname11, join as join34 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
-import { existsSync as existsSync22 } from "node:fs";
+import { existsSync as existsSync25 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
-import { dirname as dirname9, join as join28, resolve as resolve13, relative as relative5 } from "node:path";
+import { dirname as dirname10, join as join33, resolve as resolve14, relative as relative5 } from "node:path";
 
 // packages/core/dist/spec.js
 import { readFileSync } from "node:fs";
@@ -3884,6 +3884,11 @@ var EVENT_KEYS = /* @__PURE__ */ new Set([
   "finding_id",
   "parent_id",
   "child_id",
+  "execution_id",
+  "parent_execution_id",
+  "task_from_execution_id",
+  "workflow_fact_id",
+  "deadline_at",
   "phase",
   "tool",
   "capability",
@@ -3918,10 +3923,14 @@ function validateEvent(event) {
     return "source must be a non-empty string";
   if (event.at !== void 0 && !validDate(event.at))
     return "at must be an RFC 3339 date-time";
-  for (const field of ["run_id", "task_id", "workspace_id", "context_id", "finding_id", "parent_id", "child_id"]) {
+  for (const field of ["run_id", "task_id", "workspace_id", "context_id", "finding_id", "parent_id", "child_id", "execution_id", "task_from_execution_id", "workflow_fact_id"]) {
     if (event[field] !== void 0 && (typeof event[field] !== "string" || !ID_RE.test(event[field])))
       return `${field} is not a valid bounded identifier`;
   }
+  if (event.parent_execution_id !== void 0 && event.parent_execution_id !== null && (typeof event.parent_execution_id !== "string" || !ID_RE.test(event.parent_execution_id)))
+    return "parent_execution_id is not a valid bounded identifier or null";
+  if (event.deadline_at !== void 0 && !validDate(event.deadline_at))
+    return "deadline_at must be an RFC 3339 date-time";
   for (const field of ["phase", "tool", "capability"]) {
     if (event[field] !== void 0 && (typeof event[field] !== "string" || !event[field]))
       return `${field} must be a non-empty string`;
@@ -4113,7 +4122,8 @@ function resolveEventSources(env, id, file) {
   const allowedAdapters = /* @__PURE__ */ new Set([
     "normalized-v1",
     "principal-assurance-v1",
-    "pi-daddy-v1"
+    "pi-daddy-v1",
+    "pi-daddy-ledger-v3"
   ]);
   return raw.map((entry, index) => {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
@@ -5503,7 +5513,7 @@ import { spawn } from "node:child_process";
 import { existsSync as existsSync7 } from "node:fs";
 import { join as join8, delimiter } from "node:path";
 function exec(cmd, args, opts = {}) {
-  return new Promise((resolve14, reject) => {
+  return new Promise((resolve15, reject) => {
     const child2 = spawn(cmd, args, {
       cwd: opts.cwd,
       env: opts.env ?? process.env,
@@ -5529,7 +5539,7 @@ function exec(cmd, args, opts = {}) {
     child2.on("close", (code) => {
       if (timer)
         clearTimeout(timer);
-      resolve14({ stdout, stderr, code });
+      resolve15({ stdout, stderr, code });
     });
   });
 }
@@ -8262,19 +8272,51 @@ function formatAdjudicationPlan(plan, judges) {
   return [...lines, ...stuck].join("\n");
 }
 
+// packages/core/dist/qualification-config.js
+import { execFileSync as execFileSync3 } from "node:child_process";
+import { createHash as createHash8 } from "node:crypto";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync as readFileSync17, realpathSync as realpathSync2 } from "node:fs";
+import { isAbsolute as isAbsolute7, join as join23 } from "node:path";
+
+// packages/core/dist/qualification-store.js
+import { randomBytes } from "node:crypto";
+import { closeSync as closeSync2, constants as constants2, existsSync as existsSync19, fsyncSync, fstatSync as fstatSync2, linkSync, lstatSync as lstatSync2, mkdirSync as mkdirSync6, openSync as openSync2, readFileSync as readFileSync19, readdirSync as readdirSync12, realpathSync as realpathSync3, renameSync as renameSync5, rmSync as rmSync4, unlinkSync as unlinkSync2, writeFileSync as writeFileSync8 } from "node:fs";
+import { dirname as dirname7, extname as extname2, join as join25, resolve as resolve11 } from "node:path";
+
+// packages/core/dist/qualification-lock.js
+import { existsSync as existsSync18, mkdirSync as mkdirSync5, renameSync as renameSync4, rmSync as rmSync3 } from "node:fs";
+import { join as join24 } from "node:path";
+
+// packages/core/dist/qualification-process.js
+import { readFileSync as readFileSync18, readdirSync as readdirSync11 } from "node:fs";
+import { setTimeout as sleep } from "node:timers/promises";
+
+// packages/core/dist/qualification-runner.js
+import { spawn as spawn3 } from "node:child_process";
+import { randomBytes as randomBytes2 } from "node:crypto";
+import { closeSync as closeSync4, constants as constants4, existsSync as existsSync20, fstatSync as fstatSync4, lstatSync as lstatSync3, mkdirSync as mkdirSync7, openSync as openSync4, readFileSync as readFileSync21, readdirSync as readdirSync13, realpathSync as realpathSync4, renameSync as renameSync6, rmSync as rmSync5 } from "node:fs";
+import { isAbsolute as isAbsolute8, join as join27 } from "node:path";
+import { setTimeout as sleep2 } from "node:timers/promises";
+
+// packages/core/dist/qualification-capture.js
+import { spawn as spawn2 } from "node:child_process";
+import { closeSync as closeSync3, constants as constants3, fstatSync as fstatSync3, fsyncSync as fsyncSync2, openSync as openSync3, readFileSync as readFileSync20, writeSync } from "node:fs";
+import { join as join26 } from "node:path";
+import { StringDecoder } from "node:string_decoder";
+
 // packages/adapters/dist/pi.js
-import { existsSync as existsSync18, mkdtempSync as mkdtempSync2, readFileSync as readFileSync18, statSync as statSync9 } from "node:fs";
+import { existsSync as existsSync21, mkdtempSync as mkdtempSync2, readFileSync as readFileSync23, statSync as statSync9 } from "node:fs";
 import { tmpdir as tmpdir2, homedir as homedir2 } from "node:os";
-import { join as join24, resolve as resolve11 } from "node:path";
+import { join as join29, resolve as resolve12 } from "node:path";
 
 // packages/adapters/dist/pi-json.js
-import { spawn as spawn2 } from "node:child_process";
+import { spawn as spawn4 } from "node:child_process";
 import { createInterface } from "node:readline";
 var SKIPPED_TYPE_RE = /^\s*\{\s*"type"\s*:\s*"(?:message_update|tool_execution_update)"/;
 var MAX_STDERR_CHARS = 8e3;
 function runPiJson(opts) {
-  return new Promise((resolve14, reject) => {
-    const child2 = spawn2("pi", opts.args, {
+  return new Promise((resolve15, reject) => {
+    const child2 = spawn4("pi", opts.args, {
       cwd: opts.cwd,
       env: opts.env,
       // stdin from /dev/null: pi hangs waiting on it otherwise, and a hang in a
@@ -8328,15 +8370,15 @@ function runPiJson(opts) {
         changedPaths: opts.changedPaths,
         homeDir: opts.homeDir
       });
-      resolve14({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS), providerFailure });
+      resolve15({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS), providerFailure });
     });
   });
 }
 
 // packages/adapters/dist/trajectory.js
-import { createHash as createHash8 } from "node:crypto";
-import { readFileSync as readFileSync17, readdirSync as readdirSync11 } from "node:fs";
-import { join as join23 } from "node:path";
+import { createHash as createHash9 } from "node:crypto";
+import { readFileSync as readFileSync22, readdirSync as readdirSync14 } from "node:fs";
+import { join as join28 } from "node:path";
 
 // packages/adapters/dist/closed-schema.js
 var ANNOTATION_KEYWORDS = /* @__PURE__ */ new Set(["$schema", "$id", "title", "description", "$defs"]);
@@ -8359,9 +8401,22 @@ var SUPPORTED_KEYWORDS = /* @__PURE__ */ new Set([
   "pattern",
   "format"
 ]);
+var V3_SUPPORTED_KEYWORDS = /* @__PURE__ */ new Set([
+  ...SUPPORTED_KEYWORDS,
+  "allOf",
+  "anyOf",
+  "if",
+  "then",
+  "propertyNames"
+]);
 var KEYWORD_SHAPES = {
   $ref: { check: (value) => typeof value === "string", expected: "a string" },
   oneOf: { check: (value) => Array.isArray(value) && value.length > 0, expected: "a non-empty array" },
+  allOf: { check: (value) => Array.isArray(value) && value.length > 0, expected: "a non-empty array" },
+  anyOf: { check: (value) => Array.isArray(value) && value.length > 0, expected: "a non-empty array" },
+  if: { check: (value) => isSchemaObject(value), expected: "a schema object" },
+  then: { check: (value) => isSchemaObject(value), expected: "a schema object" },
+  propertyNames: { check: (value) => isSchemaObject(value), expected: "a schema object" },
   type: { check: (value) => typeof value === "string" || Array.isArray(value) && value.length > 0 && value.every((entry) => typeof entry === "string"), expected: "a string or array of strings" },
   properties: { check: (value) => isSchemaObject(value), expected: "an object" },
   required: { check: (value) => Array.isArray(value) && value.every((entry) => typeof entry === "string"), expected: "an array of strings" },
@@ -8378,12 +8433,19 @@ var KEYWORD_SHAPES = {
 var SUPPORTED_FORMATS = /* @__PURE__ */ new Set(["date-time"]);
 var SUPPORTED_TYPES = /* @__PURE__ */ new Set(["object", "array", "string", "number", "integer", "boolean", "null"]);
 function assertSupportedSchema(schema2, label, path = "#") {
+  assertSchemaSupported(schema2, label, path, false);
+}
+function assertSupportedSchemaV3(schema2, label, path = "#") {
+  assertSchemaSupported(schema2, label, path, true);
+}
+function assertSchemaSupported(schema2, label, path, v3) {
   if (typeof schema2 !== "object" || schema2 === null || Array.isArray(schema2)) {
     throw new Error(`${label} is not a JSON Schema object at ${path}`);
   }
   const node = schema2;
+  const supported = v3 ? V3_SUPPORTED_KEYWORDS : SUPPORTED_KEYWORDS;
   for (const keyword of Object.keys(node)) {
-    if (!SUPPORTED_KEYWORDS.has(keyword)) {
+    if (!supported.has(keyword)) {
       throw new Error(`${label} uses unsupported JSON Schema keyword \`${keyword}\` at ${path}; the closed-contract evaluator refuses to validate less than the schema declares`);
     }
     const shape = KEYWORD_SHAPES[keyword];
@@ -8408,18 +8470,26 @@ function assertSupportedSchema(schema2, label, path = "#") {
     }
   }
   for (const [name, entry] of Object.entries(object(node.$defs) ?? {}))
-    assertSupportedSchema(entry, label, `${path}/$defs/${name}`);
-  for (const [index, entry] of (Array.isArray(node.oneOf) ? node.oneOf : []).entries())
-    assertSupportedSchema(entry, label, `${path}/oneOf/${index}`);
+    assertSchemaSupported(entry, label, `${path}/$defs/${name}`, v3);
+  for (const keyword of ["oneOf", "allOf", "anyOf"]) {
+    for (const [index, entry] of (Array.isArray(node[keyword]) ? node[keyword] : []).entries()) {
+      assertSchemaSupported(entry, label, `${path}/${keyword}/${index}`, v3);
+    }
+  }
   for (const [name, entry] of Object.entries(object(node.properties) ?? {}))
-    assertSupportedSchema(entry, label, `${path}/properties/${name}`);
-  if (node.items !== void 0)
-    assertSupportedSchema(node.items, label, `${path}/items`);
+    assertSchemaSupported(entry, label, `${path}/properties/${name}`, v3);
+  for (const keyword of ["items", "propertyNames", "if", "then"]) {
+    if (node[keyword] !== void 0)
+      assertSchemaSupported(node[keyword], label, `${path}/${keyword}`, v3);
+  }
   if (node.additionalProperties !== void 0 && node.additionalProperties !== false && node.additionalProperties !== true) {
-    assertSupportedSchema(node.additionalProperties, label, `${path}/additionalProperties`);
+    assertSchemaSupported(node.additionalProperties, label, `${path}/additionalProperties`, v3);
   }
 }
 function validateClosedSchema(schema2, value, options = {}) {
+  return validate(schema2, schema2, value, "", options.knownFieldNames ?? /* @__PURE__ */ new Set());
+}
+function validateClosedSchemaV3(schema2, value, options = {}) {
   return validate(schema2, schema2, value, "", options.knownFieldNames ?? /* @__PURE__ */ new Set());
 }
 function declaredPropertyNames(schema2) {
@@ -8434,10 +8504,13 @@ function declaredPropertyNames(schema2) {
     }
     for (const entry of Object.values(object(current.$defs) ?? {}))
       walk2(entry);
-    for (const entry of Array.isArray(current.oneOf) ? current.oneOf : [])
-      walk2(entry);
-    if (current.items !== void 0)
-      walk2(current.items);
+    for (const keyword of ["oneOf", "allOf", "anyOf"]) {
+      for (const entry of Array.isArray(current[keyword]) ? current[keyword] : [])
+        walk2(entry);
+    }
+    for (const keyword of ["items", "propertyNames", "if", "then"])
+      if (current[keyword] !== void 0)
+        walk2(current[keyword]);
     if (current.additionalProperties && typeof current.additionalProperties === "object")
       walk2(current.additionalProperties);
   };
@@ -8450,6 +8523,18 @@ function validate(root, schema2, value, path, known) {
     return validate(root, resolved, value, path, known);
   }
   const violations = [];
+  if (Array.isArray(schema2.allOf)) {
+    for (const branch of schema2.allOf)
+      violations.push(...validate(root, branch, value, path, known));
+  }
+  if (Array.isArray(schema2.anyOf)) {
+    const branches = schema2.anyOf.map((branch) => validate(root, branch, value, path, known));
+    if (!branches.some((branch) => branch.length === 0))
+      violations.push(...bestBranch(root, schema2.anyOf, branches, value, path));
+  }
+  if (schema2.if !== void 0 && validate(root, schema2.if, value, path, known).length === 0 && schema2.then !== void 0) {
+    violations.push(...validate(root, schema2.then, value, path, known));
+  }
   const types2 = typeList(schema2);
   if (types2.length && !types2.some((type2) => matchesType(type2, value))) {
     return [{ path, message: `must be ${describeTypes(types2)}` }];
@@ -8483,6 +8568,10 @@ function validate(root, schema2, value, path, known) {
 function validateObject(root, schema2, record, path, known) {
   const violations = [];
   const properties = object(schema2.properties) ?? {};
+  if (schema2.propertyNames !== void 0) {
+    for (const name of Object.keys(record))
+      violations.push(...validate(root, schema2.propertyNames, name, path, known));
+  }
   for (const name of Array.isArray(schema2.required) ? schema2.required : []) {
     if (!Object.hasOwn(record, name))
       violations.push({ path: child(path, name), message: "is required" });
@@ -9257,6 +9346,939 @@ var PI_DADDY_LEDGER_V2_SCHEMA = {
   }
 };
 
+// packages/adapters/dist/pi-daddy-ledger-v3.js
+var PI_DADDY_LEDGER_V3_CONTRACT_COMMIT = "591abb4a358bf8a84455486812b83609e2a47e3f";
+var PI_DADDY_LEDGER_V3_SCHEMA = {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mojomanyana/pi-daddy/contracts/ledger/v3/ledger-event.schema.json",
+  "title": "pi-daddy ledgerVersion 3 event",
+  "description": "One JSON object per JSONL line. Version 3 adds unique execution identity and explicit parent execution identity; legacy and v2 lines are intentionally outside this schema.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/capabilityDecision"
+    },
+    {
+      "$ref": "#/$defs/workspaceLease"
+    },
+    {
+      "$ref": "#/$defs/childLifecycle"
+    },
+    {
+      "$ref": "#/$defs/checkReceipt"
+    },
+    {
+      "$ref": "#/$defs/workflowFact"
+    }
+  ],
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": ":[0-5][0-9](?:\\.[0-9]+)?(?:[Zz]|[+-][0-9]{2}:[0-9]{2})$"
+    },
+    "correlation": {
+      "type": "object",
+      "description": "Opaque, non-authoritative controller metadata. String and aggregate byte limits are additionally enforced by the runtime and cannot be represented exactly in JSON Schema.",
+      "properties": {
+        "schema_version": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "run_id": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "task_id": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "workspace_id": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "context_id": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "phase": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "assurance": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "assurance_effective": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "policy_label": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "assurance_source": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "assurance_scope": {
+          "oneOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            }
+          ]
+        },
+        "activated_at": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "plan_digest": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "definition_digest": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "task_digest": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "base_sha": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "head_sha": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "tree_sha": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "event_seq": {
+          "type": "number"
+        },
+        "last_change_seq": {
+          "type": "number"
+        },
+        "last_authority_seq": {
+          "type": "number"
+        },
+        "check_receipt_id": {
+          "type": "string",
+          "maxLength": 512
+        }
+      },
+      "additionalProperties": false
+    },
+    "ledgerDisplayIdentifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9@*][A-Za-z0-9@*._:/-]{0,511}$"
+    },
+    "ledgerCorrelationIdentifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9@*][A-Za-z0-9@*._:/-]{0,127}$"
+    },
+    "ledgerCapabilityIdentifier": {
+      "type": "string",
+      "pattern": "^(tool|skill|agent|workspace|ext):[A-Za-z0-9@*][A-Za-z0-9@*._/-]{0,255}$"
+    },
+    "refusalCode": {
+      "type": "string",
+      "enum": [
+        "CAPABILITY_ESCALATION",
+        "GRANT_ID_MALFORMED",
+        "DEFINITION_NOT_AUTHORIZED",
+        "UNDECLARED_TOOLS",
+        "UNKNOWN_TOOL",
+        "GATED_UNAPPROVED",
+        "APPROVAL_EXPIRED",
+        "APPROVAL_SCOPE_MISMATCH",
+        "APPROVAL_FLOW_FAILED",
+        "DEPTH_EXCEEDED",
+        "FANOUT_EXCEEDED",
+        "EXECUTOR_UNAVAILABLE",
+        "CHILD_TIMED_OUT",
+        "CHILD_CANCELLED",
+        "CHILD_EXIT_NONZERO",
+        "TASK_MISSING",
+        "UNKNOWN_DEFINITION",
+        "CEILING_PATTERNS_UNRESOLVED",
+        "NARROWING_VIOLATED",
+        "DEFINITION_UNREADABLE",
+        "CORRELATION_TOO_LARGE",
+        "CORRELATION_INVALID",
+        "LEDGER_WRITE_FAILED",
+        "FANOUT_FAILED",
+        "WORKSPACE_NOT_REGISTERED",
+        "WORKSPACE_NOT_AUTHORIZED",
+        "WORKSPACE_WRITE_CONFLICT",
+        "WORKSPACE_LEASE_STALE",
+        "CHECK_NOT_CONFIGURED",
+        "CHECK_CONFIGURATION_INVALID",
+        "CHECK_IDENTITY_UNAVAILABLE",
+        "CHECK_IDENTITY_MISMATCH"
+      ]
+    },
+    "refusal": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/refusalCode"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "approvalSource": {
+      "type": "string",
+      "enum": [
+        "prompt",
+        "session",
+        "persisted",
+        "inherited"
+      ]
+    },
+    "approvalScope": {
+      "type": "string",
+      "enum": [
+        "once",
+        "session",
+        "always"
+      ]
+    },
+    "approvalUse": {
+      "type": "object",
+      "properties": {
+        "max": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "remaining": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "max",
+        "remaining"
+      ],
+      "additionalProperties": false
+    },
+    "definitionDigest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        }
+      },
+      "required": [
+        "name",
+        "source",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "capabilityDecision": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 3
+        },
+        "event": {
+          "const": "capability_decision"
+        },
+        "ts": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "parentId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "childId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "agentType": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "requested": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "parentGrant": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "effective": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "denied": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "clipped": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "gatedBlocked": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "blocked": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "approved": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "approvalSource": {
+          "$ref": "#/$defs/approvalSource"
+        },
+        "approvalSources": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/approvalSource"
+          }
+        },
+        "approvalScopes": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/approvalScope"
+          }
+        },
+        "approvalExpiresAt": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/timestamp"
+          }
+        },
+        "approvalUses": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/approvalUse"
+          }
+        },
+        "approvalScope": {
+          "$ref": "#/$defs/approvalScope"
+        },
+        "humanDenied": {
+          "const": true
+        },
+        "gateOutcome": {
+          "type": "string",
+          "enum": [
+            "declined",
+            "dismissed",
+            "no-ui",
+            "error"
+          ]
+        },
+        "definitionDigest": {
+          "$ref": "#/$defs/definitionDigest"
+        },
+        "executor": {
+          "type": "string",
+          "enum": [
+            "process",
+            "herdr"
+          ]
+        },
+        "taskFrom": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "taskDigest": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "correlation": {
+          "$ref": "#/$defs/correlation"
+        },
+        "refusal": {
+          "$ref": "#/$defs/refusal"
+        },
+        "executionId": {
+          "$ref": "#/$defs/executionId"
+        },
+        "parentExecutionId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/executionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "taskFromExecutionId": {
+          "$ref": "#/$defs/executionId"
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "executionId",
+        "parentExecutionId",
+        "parentId",
+        "childId",
+        "depth",
+        "requested",
+        "parentGrant",
+        "effective",
+        "denied",
+        "clipped",
+        "gatedBlocked",
+        "blocked",
+        "executor",
+        "taskDigest"
+      ],
+      "additionalProperties": false
+    },
+    "workspaceLease": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 3
+        },
+        "event": {
+          "const": "workspace_lease"
+        },
+        "ts": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "childId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "access": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write"
+          ]
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "acquired",
+            "uncontended",
+            "refused",
+            "released",
+            "released-unrecorded",
+            "lost",
+            "retained",
+            "timeout",
+            "recovered"
+          ]
+        },
+        "recovered": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "unknown"
+            }
+          ]
+        },
+        "releaseReason": {
+          "type": "string"
+        },
+        "refusal": {
+          "$ref": "#/$defs/refusal"
+        },
+        "correlation": {
+          "$ref": "#/$defs/correlation"
+        },
+        "executionId": {
+          "$ref": "#/$defs/executionId"
+        },
+        "parentExecutionId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/executionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "executionId",
+        "parentExecutionId",
+        "childId",
+        "workspaceId",
+        "root",
+        "access",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "childLifecycle": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 3
+        },
+        "event": {
+          "const": "child_lifecycle"
+        },
+        "ts": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "childId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "starting",
+            "running",
+            "completed",
+            "failed"
+          ]
+        },
+        "executor": {
+          "type": "string",
+          "enum": [
+            "process",
+            "herdr"
+          ]
+        },
+        "exitCode": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "signal": {
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "SIGABRT",
+                "SIGALRM",
+                "SIGBUS",
+                "SIGCHLD",
+                "SIGCONT",
+                "SIGFPE",
+                "SIGHUP",
+                "SIGILL",
+                "SIGINT",
+                "SIGIO",
+                "SIGIOT",
+                "SIGKILL",
+                "SIGPIPE",
+                "SIGPOLL",
+                "SIGPROF",
+                "SIGPWR",
+                "SIGQUIT",
+                "SIGSEGV",
+                "SIGSTKFLT",
+                "SIGSTOP",
+                "SIGSYS",
+                "SIGTERM",
+                "SIGTRAP",
+                "SIGTSTP",
+                "SIGTTIN",
+                "SIGTTOU",
+                "SIGUNUSED",
+                "SIGURG",
+                "SIGUSR1",
+                "SIGUSR2",
+                "SIGVTALRM",
+                "SIGWINCH",
+                "SIGXCPU",
+                "SIGXFSZ",
+                "SIGBREAK",
+                "SIGLOST",
+                "SIGINFO"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timedOut": {
+          "const": true
+        },
+        "aborted": {
+          "const": true
+        },
+        "truncated": {
+          "const": true
+        },
+        "reason": {
+          "type": "string"
+        },
+        "correlation": {
+          "$ref": "#/$defs/correlation"
+        },
+        "executionId": {
+          "$ref": "#/$defs/executionId"
+        },
+        "parentExecutionId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/executionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deadlineAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "herdrPaneId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "herdrAgentName": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "executionId",
+        "parentExecutionId",
+        "childId",
+        "state",
+        "executor"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "starting",
+                  "running"
+                ]
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "required": [
+              "deadlineAt"
+            ]
+          }
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "required": [
+                  "herdrPaneId"
+                ]
+              },
+              {
+                "required": [
+                  "herdrAgentName"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "required": [
+              "herdrPaneId",
+              "herdrAgentName"
+            ],
+            "properties": {
+              "executor": {
+                "const": "herdr"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "checkReceipt": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 3
+        },
+        "event": {
+          "const": "check_receipt"
+        },
+        "ts": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "childId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "receiptId": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "checkId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "treeSha": {
+          "type": "string",
+          "minLength": 1
+        },
+        "correlation": {
+          "$ref": "#/$defs/correlation"
+        },
+        "executionId": {
+          "$ref": "#/$defs/executionId"
+        },
+        "parentExecutionId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/executionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "executionId",
+        "parentExecutionId",
+        "childId",
+        "receiptId",
+        "workspaceId",
+        "checkId",
+        "treeSha"
+      ],
+      "additionalProperties": false
+    },
+    "executionId": {
+      "type": "string",
+      "pattern": "^exec:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "workflowFact": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 3
+        },
+        "event": {
+          "const": "workflow_fact"
+        },
+        "ts": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "factId": {
+          "type": "string",
+          "pattern": "^fact:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        },
+        "source": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
+        },
+        "provenance": {
+          "enum": [
+            "planned",
+            "observed",
+            "controller_validated"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "workflow_phase",
+            "inline_skill",
+            "transition"
+          ]
+        },
+        "subject": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "observed",
+            "started",
+            "completed",
+            "blocked"
+          ]
+        },
+        "correlation": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/correlation"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "run_id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "run_id"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "factId",
+        "source",
+        "provenance",
+        "kind",
+        "subject",
+        "state",
+        "correlation"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "provenance": {
+                "const": "planned"
+              }
+            },
+            "required": [
+              "provenance"
+            ]
+          },
+          "then": {
+            "properties": {
+              "state": {
+                "const": "pending"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provenance": {
+                "const": "observed"
+              }
+            },
+            "required": [
+              "provenance"
+            ]
+          },
+          "then": {
+            "properties": {
+              "state": {
+                "const": "observed"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provenance": {
+                "const": "controller_validated"
+              }
+            },
+            "required": [
+              "provenance"
+            ]
+          },
+          "then": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "started",
+                  "completed",
+                  "blocked"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+};
+
 // packages/adapters/dist/trajectory.js
 function collectTrajectorySources(cwd, sources) {
   const files = walkFiles(cwd);
@@ -9278,15 +10300,15 @@ function collectTrajectorySources(cwd, sources) {
       }
       seenFiles.add(sourceFile);
       try {
-        const text = readFileSync17(join23(cwd, file), "utf8");
-        const normalized = source.adapter === "principal-assurance-v1" ? normalizePrincipalAssuranceLedger(text) : source.adapter === "pi-daddy-v1" ? normalizePiDaddyLedger(text) : deserializeTrajectoryEvents(text);
+        const text = readFileSync22(join28(cwd, file), "utf8");
+        const normalized = source.adapter === "principal-assurance-v1" ? normalizePrincipalAssuranceLedger(text) : source.adapter === "pi-daddy-v1" ? normalizePiDaddyLegacyLedger(text) : source.adapter === "pi-daddy-ledger-v3" ? normalizePiDaddyLedgerV3(text) : deserializeTrajectoryEvents(text);
         if (!normalized)
           throw new Error("normalized-v1 source is empty, malformed, or unsupported");
         const times = normalized.map((event) => validTime(event.at) ? Date.parse(event.at) : null);
         if (times.every((time) => time !== null)) {
           const highWaterByStream = /* @__PURE__ */ new Map();
           for (let index = 0; index < times.length; index += 1) {
-            const stream = source.adapter === "pi-daddy-v1" ? normalizedPiDaddyStreamKey(normalized[index], index) : "source";
+            const stream = source.adapter === "pi-daddy-v1" || source.adapter === "pi-daddy-ledger-v3" ? normalizedPiDaddyStreamKey(normalized[index], index) : "source";
             const highWater = highWaterByStream.get(stream);
             if (highWater !== void 0 && times[index] < highWater && !isAllowedPiDaddyReceiptInversion(source.adapter, normalized, index)) {
               throw new Error("native event timestamps move backwards relative to the source's recorded sequence");
@@ -9437,6 +10459,20 @@ function normalizePrincipalAssuranceLedger(text) {
     });
   });
 }
+function normalizePiDaddyLegacyLedger(text) {
+  const records = parseJsonl(text, "pi-daddy");
+  const explicitV3 = records.findIndex((record) => record.ledgerVersion === 3);
+  if (explicitV3 >= 0)
+    throw new Error(`pi-daddy-v1 selector does not admit ledgerVersion 3 at line ${explicitV3 + 1}; use pi-daddy-ledger-v3`);
+  return normalizePiDaddyLedger(text);
+}
+function normalizePiDaddyLedgerV3(text) {
+  const records = parseJsonl(text, "pi-daddy");
+  const wrong = records.findIndex((record) => record.ledgerVersion !== 3);
+  if (wrong >= 0)
+    throw new Error(`pi-daddy-ledger-v3 requires explicit ledgerVersion 3 at line ${wrong + 1}`);
+  return normalizePiDaddyLedger(text);
+}
 function normalizePiDaddyLedger(text) {
   const records = parseJsonl(text, "pi-daddy");
   validatePiDaddyTimestampOrder(records);
@@ -9444,20 +10480,27 @@ function normalizePiDaddyLedger(text) {
   let seq2 = 1;
   records.forEach((record, index) => {
     if (record.ledgerVersion !== void 0) {
-      if (record.ledgerVersion !== 2) {
-        throw new Error(`unsupported pi-daddy ledgerVersion ${safeDiagnosticValue(record.ledgerVersion)} at line ${index + 1}; expected 2 or an unversioned 0.17 GrantRecord`);
+      if (record.ledgerVersion === 2) {
+        requireV2Discriminator(record, index + 1);
+        assertPinnedV2Contract(record, index + 1);
+        for (const event of normalizePiDaddyV2(record, index))
+          out.push({ ...event, seq: seq2++ });
+        return;
       }
-      requireV2Discriminator(record, index + 1);
-      assertPinnedV2Contract(record, index + 1);
-      for (const event of normalizePiDaddyV2(record, index))
-        out.push({ ...event, seq: seq2++ });
-      return;
+      if (record.ledgerVersion === 3) {
+        requireV3Discriminator(record, index + 1);
+        assertPinnedV3Contract(record, index + 1);
+        for (const event of normalizePiDaddyV3(record, index))
+          out.push({ ...event, seq: seq2++ });
+        return;
+      }
+      throw new Error(`unsupported pi-daddy ledgerVersion ${safeDiagnosticValue(record.ledgerVersion)} at line ${index + 1}; expected 2, 3, or an unversioned 0.17 GrantRecord`);
     }
     if (record.schema_version !== void 0) {
-      throw new Error(`pi-daddy schema_version/record_type at line ${index + 1} is not a public pi-daddy ledger format; expected ledgerVersion 2 or an unversioned 0.17 GrantRecord`);
+      throw new Error(`pi-daddy schema_version/record_type at line ${index + 1} is not a public pi-daddy ledger format; expected ledgerVersion 2, ledgerVersion 3, or an unversioned 0.17 GrantRecord`);
     }
     if (record.event !== void 0) {
-      throw new Error(`pi-daddy event [REDACTED invalid value] at line ${index + 1} is missing explicit ledgerVersion 2`);
+      throw new Error(`pi-daddy event [REDACTED invalid value] at line ${index + 1} is missing explicit ledgerVersion 2 or 3`);
     }
     for (const event of normalizeLegacyGrant(record, index))
       out.push({ ...event, seq: seq2++ });
@@ -9488,6 +10531,31 @@ function assertPinnedV2Contract(record, line) {
   const [first] = violations;
   const extra = violations.length > 1 ? ` (+${violations.length - 1} more contract violation${violations.length > 2 ? "s" : ""})` : "";
   throw new Error(`invalid pi-daddy v2 ${label} at line ${line}: closed contract violation \u2014 ${first.path ? `${first.path} ` : ""}${first.message}${extra} [pi-daddy ${PI_DADDY_CONTRACT_COMMIT.slice(0, 12)}]`);
+}
+var V3_EVENTS = /* @__PURE__ */ new Set(["capability_decision", "workspace_lease", "child_lifecycle", "check_receipt", "workflow_fact"]);
+function requireV3Discriminator(record, line) {
+  const nativeEvent = string(record.event);
+  if (!nativeEvent || !V3_EVENTS.has(nativeEvent)) {
+    throw new Error(`invalid pi-daddy v3 event at line ${line}: event discriminator is required and must be capability_decision, workspace_lease, child_lifecycle, check_receipt, or workflow_fact`);
+  }
+  return nativeEvent;
+}
+var pinnedV3ContractChecked = false;
+var pinnedV3ContractFieldNames;
+function assertPinnedV3Contract(record, line) {
+  if (!pinnedV3ContractChecked) {
+    assertSupportedSchemaV3(PI_DADDY_LEDGER_V3_SCHEMA, "pinned pi-daddy ledger v3 schema");
+    pinnedV3ContractFieldNames = declaredPropertyNames(PI_DADDY_LEDGER_V3_SCHEMA);
+    pinnedV3ContractChecked = true;
+  }
+  const violations = validateClosedSchemaV3(PI_DADDY_LEDGER_V3_SCHEMA, record, { knownFieldNames: pinnedV3ContractFieldNames });
+  if (violations.length === 0)
+    return;
+  const nativeEvent = string(record.event);
+  const label = nativeEvent && V3_EVENTS.has(nativeEvent) ? nativeEvent : "record";
+  const [first] = violations;
+  const extra = violations.length > 1 ? ` (+${violations.length - 1} more contract violation${violations.length > 2 ? "s" : ""})` : "";
+  throw new Error(`invalid pi-daddy v3 ${label} at line ${line}: closed contract violation \u2014 ${first.path ? `${first.path} ` : ""}${first.message}${extra} [pi-daddy ${PI_DADDY_LEDGER_V3_CONTRACT_COMMIT.slice(0, 12)}]`);
 }
 var V2_LEASE_OUTCOMES = /* @__PURE__ */ new Set([
   "acquired",
@@ -9547,6 +10615,9 @@ var V2_CORRELATION_MAX_SCOPE_BYTES = 4 * 1024;
 function piDaddyStreamKey(record, index) {
   if (record.ledgerVersion === void 0)
     return JSON.stringify(["legacy", string(record.childId) ?? `missing-child:${index}`]);
+  if (record.ledgerVersion === 3) {
+    return record.event === "workflow_fact" ? JSON.stringify(["v3-fact", string(record.factId) ?? `missing-fact:${index}`]) : JSON.stringify(["v3-execution", string(record.executionId) ?? `missing-execution:${index}`]);
+  }
   const correlation = object2(record.correlation);
   return JSON.stringify([
     string(correlation?.run_id) ?? `missing-run:${index}`,
@@ -9558,6 +10629,9 @@ function piDaddyStreamKey(record, index) {
 function normalizedPiDaddyStreamKey(event, index) {
   if (event.source === "pi-daddy-0.17")
     return JSON.stringify(["legacy", event.child_id ?? `missing-child:${index}`]);
+  if (event.source === "pi-daddy-v3") {
+    return event.workflow_fact_id ? JSON.stringify(["v3-fact", event.workflow_fact_id]) : JSON.stringify(["v3-execution", event.execution_id ?? `missing-execution:${index}`]);
+  }
   const correlation = object2(event.attributes?.correlation);
   return JSON.stringify([
     event.run_id ?? `missing-run:${index}`,
@@ -9574,9 +10648,9 @@ function sameRawCorrelationIdentity(left, right) {
 function validatePiDaddyTimestampOrder(records) {
   const highWaterByChild = /* @__PURE__ */ new Map();
   records.forEach((record, index) => {
-    const supportedV2 = record.ledgerVersion === 2;
+    const supportedVersion = record.ledgerVersion === 2 || record.ledgerVersion === 3;
     const legacy = record.ledgerVersion === void 0 && record.schema_version === void 0 && record.event === void 0;
-    if (!supportedV2 && !legacy)
+    if (!supportedVersion && !legacy)
       return;
     const at = string(record.ts);
     if (!validTime(at))
@@ -9593,15 +10667,15 @@ function validatePiDaddyTimestampOrder(records) {
 function isRawPiDaddyReceiptInversion(records, index, receiptTime) {
   const receipt = records[index];
   const release = records[index - 1];
-  if (receipt?.ledgerVersion !== 2 || receipt.event !== "check_receipt" || release?.ledgerVersion !== 2 || release.event !== "workspace_lease")
+  if (receipt?.ledgerVersion !== 2 && receipt?.ledgerVersion !== 3 || receipt.event !== "check_receipt" || release?.ledgerVersion !== receipt.ledgerVersion || release.event !== "workspace_lease")
     return false;
   if (receipt.childId !== release.childId || receipt.workspaceId !== release.workspaceId || !sameRawCorrelationIdentity(receipt, release) || !V2_RECEIPT_RELEASE_OUTCOMES.has(string(release.outcome) ?? ""))
     return false;
-  const previousLease = records.slice(0, index - 1).reverse().find((record) => record.ledgerVersion === 2 && record.event === "workspace_lease" && record.childId === receipt.childId && record.workspaceId === receipt.workspaceId && sameRawCorrelationIdentity(receipt, record));
+  const previousLease = records.slice(0, index - 1).reverse().find((record) => record.ledgerVersion === receipt.ledgerVersion && record.event === "workspace_lease" && record.childId === receipt.childId && record.workspaceId === receipt.workspaceId && sameRawCorrelationIdentity(receipt, record));
   return Boolean(previousLease && V2_RECEIPT_PRIOR_LEASE_OUTCOMES.has(string(previousLease.outcome) ?? "") && validTime(string(previousLease.ts)) && Date.parse(string(previousLease.ts)) <= receiptTime);
 }
 function isAllowedPiDaddyReceiptInversion(adapter, events, index) {
-  if (adapter !== "pi-daddy-v1")
+  if (adapter !== "pi-daddy-v1" && adapter !== "pi-daddy-ledger-v3")
     return false;
   const receipt = events[index];
   const release = events[index - 1];
@@ -9853,6 +10927,242 @@ function normalizePiDaddyV2(record, index) {
     })
   })];
 }
+function normalizePiDaddyV3(record, index) {
+  const line = index + 1;
+  const nativeEvent = requireV3Discriminator(record, line);
+  const at = requireV3String(record, "ts", nativeEvent, line);
+  const correlation = object2(record.correlation) ?? {};
+  const correlationDigests = anyDefined({
+    correlation_plan: string(correlation.plan_digest),
+    correlation_task: string(correlation.task_digest),
+    correlation_definition: string(correlation.definition_digest),
+    correlation_base: string(correlation.base_sha),
+    correlation_head: string(correlation.head_sha),
+    correlation_tree: string(correlation.tree_sha)
+  });
+  const correlationAttributes = safeAttributes({
+    ledger_version: 3,
+    native_event: nativeEvent,
+    correlation: Object.keys(correlation).length ? sanitizeAttributes(correlation) : void 0,
+    event_seq: finiteNumber(correlation.event_seq),
+    last_change_seq: finiteNumber(correlation.last_change_seq),
+    last_authority_seq: finiteNumber(correlation.last_authority_seq),
+    check_receipt_id: string(correlation.check_receipt_id),
+    assurance: string(correlation.assurance),
+    assurance_effective: string(correlation.assurance_effective),
+    policy_label: string(correlation.policy_label),
+    assurance_source: string(correlation.assurance_source),
+    assurance_scope: correlation.assurance_scope,
+    activated_at: string(correlation.activated_at)
+  });
+  if (nativeEvent === "workflow_fact") {
+    return [cleanEvent({
+      event_version: TRAJECTORY_EVENT_VERSION,
+      type: "workflow_fact",
+      source: "pi-daddy-v3",
+      at,
+      run_id: string(correlation.run_id),
+      task_id: string(correlation.task_id),
+      workspace_id: string(correlation.workspace_id),
+      context_id: string(correlation.context_id),
+      phase: string(correlation.phase),
+      workflow_fact_id: requireV3String(record, "factId", nativeEvent, line),
+      digests: correlationDigests,
+      attributes: safeAttributes({
+        ...correlationAttributes,
+        source: string(record.source),
+        provenance: string(record.provenance),
+        fact_kind: string(record.kind),
+        fact_subject: string(record.subject),
+        fact_state: string(record.state)
+      })
+    })];
+  }
+  const executionId = requireV3String(record, "executionId", nativeEvent, line);
+  const parentExecutionId = record.parentExecutionId === null ? null : requireV3String(record, "parentExecutionId", nativeEvent, line);
+  if (parentExecutionId === executionId)
+    throw new Error(`invalid pi-daddy v3 ${nativeEvent} at line ${line}: an execution cannot be its own parent`);
+  const childId = requireV3String(record, "childId", nativeEvent, line);
+  const carriesTopWorkspace = nativeEvent === "workspace_lease" || nativeEvent === "check_receipt";
+  const topWorkspace = carriesTopWorkspace ? string(record.workspaceId) : void 0;
+  const correlationWorkspace = string(correlation.workspace_id);
+  if (topWorkspace && correlationWorkspace && topWorkspace !== correlationWorkspace) {
+    throw new Error(`invalid pi-daddy v3 ${nativeEvent} at line ${line}: workspaceId disagrees with correlation.workspace_id`);
+  }
+  const common2 = {
+    event_version: TRAJECTORY_EVENT_VERSION,
+    source: "pi-daddy-v3",
+    at,
+    run_id: string(correlation.run_id),
+    task_id: string(correlation.task_id),
+    workspace_id: topWorkspace,
+    context_id: string(correlation.context_id),
+    child_id: childId,
+    execution_id: executionId,
+    parent_execution_id: parentExecutionId,
+    phase: string(correlation.phase),
+    digests: correlationDigests
+  };
+  if (nativeEvent === "capability_decision") {
+    const requested = record.requested;
+    const parentGrant = record.parentGrant;
+    const effective = record.effective;
+    const denied = record.denied;
+    const clipped = record.clipped;
+    const gated = record.gatedBlocked;
+    const approved = record.approved;
+    validateCapabilityPartition(requested, effective, denied, clipped, gated, approved, Boolean(record.blocked), line, 3);
+    const approvalSources = object2(record.approvalSources);
+    const approvalScopes = object2(record.approvalScopes);
+    const approvalExpiresAt = object2(record.approvalExpiresAt);
+    const approvalUses = object2(record.approvalUses);
+    if (approvalUses && Object.values(approvalUses).some((use) => !object2(use) || !Number.isInteger(use.max) || !Number.isInteger(use.remaining) || use.max < 0 || use.remaining < 0 || use.remaining > use.max))
+      throw new Error(`invalid pi-daddy v3 capability_decision at line ${line}: approvalUses requires remaining <= max integer bounds`);
+    validateApprovalEvidence(approved ?? [], string(record.approvalSource), approvalSources, approvalScopes, approvalExpiresAt, approvalUses, line, 3);
+    const refusal = structuredRefusal(record.refusal, nativeEvent, line, 3);
+    if (!record.blocked && refusal)
+      throw new Error(`invalid pi-daddy v3 capability_decision at line ${line}: an allowed decision cannot carry a refusal`);
+    const definition = object2(record.definitionDigest);
+    const taskDigest = requireV3String(record, "taskDigest", nativeEvent, line);
+    const trustedDefinition = string(definition?.sha256);
+    const normalizedRequested = [...new Set(requested)];
+    const attributes = safeAttributes({
+      ...correlationAttributes,
+      depth: record.depth,
+      agent_type: string(record.agentType),
+      executor: string(record.executor),
+      task_from: string(record.taskFrom),
+      parent_grant: parentGrant,
+      denied,
+      clipped,
+      gated_blocked: gated,
+      blocked: record.blocked,
+      reason: string(record.reason),
+      approved,
+      approval_source: string(record.approvalSource),
+      approval_sources: approvalSources,
+      approval_scope: string(record.approvalScope),
+      approval_scopes: approvalScopes,
+      approval_expires_at: approvalExpiresAt,
+      approval_uses: approvalUses,
+      human_denied: record.humanDenied,
+      gate_outcome: string(record.gateOutcome),
+      definition_name: string(definition?.name),
+      definition_source: string(definition?.source),
+      structured_refusal: refusal
+    });
+    const base = {
+      ...common2,
+      parent_id: requireV3String(record, "parentId", nativeEvent, line),
+      task_from_execution_id: string(record.taskFromExecutionId),
+      requested_capabilities: normalizedRequested,
+      effective_capabilities: effective,
+      digests: anyDefined({ ...correlationDigests, task: taskDigest, definition: trustedDefinition }),
+      attributes
+    };
+    const refusalCode = string(refusal?.code);
+    const events = normalizedRequested.map((capability) => ({ ...base, type: "capability_requested", capability }));
+    for (const capability of approved ?? []) {
+      events.push(cleanEvent({
+        ...base,
+        type: "approval_used",
+        capability,
+        approval: cleanObject({
+          capability,
+          subject: approvalSubject(record.agentType),
+          source: string(approvalSources?.[capability]) ?? string(record.approvalSource),
+          scope: string(approvalScopes?.[capability]) ?? string(record.approvalScope),
+          expires_at: string(approvalExpiresAt?.[capability]),
+          used_at: at
+        }),
+        attributes: safeAttributes({ ...attributes, approval_uses: object2(approvalUses?.[capability]) })
+      }));
+    }
+    const approvedSet = new Set(approved ?? []);
+    if (!record.blocked)
+      events.push(...effective.map((capability) => ({ ...base, type: "capability_granted", capability })));
+    events.push(...[.../* @__PURE__ */ new Set([...denied, ...gated.filter((capability) => !approvedSet.has(capability))])].map((capability) => ({
+      ...base,
+      type: "capability_refused",
+      capability,
+      refusal_code: denied.includes(capability) ? "CAPABILITY_ESCALATION" : refusalCode
+    })));
+    events.push(cleanEvent({ ...base, type: record.blocked ? "child_spawn_refused" : "capability_decision", refusal_code: refusalCode }));
+    return events;
+  }
+  if (nativeEvent === "workspace_lease") {
+    const workspaceId2 = requireV3String(record, "workspaceId", nativeEvent, line);
+    const access = requireV3String(record, "access", nativeEvent, line);
+    const outcome = requireV3String(record, "outcome", nativeEvent, line);
+    const refusal = structuredRefusal(record.refusal, nativeEvent, line, 3);
+    const type2 = access === "read" ? `workspace_read_${outcome.replaceAll("-", "_")}` : outcome === "refused" && refusal?.code === "WORKSPACE_WRITE_CONFLICT" ? "writer_lease_conflict" : `writer_lease_${outcome.replaceAll("-", "_")}`;
+    return [cleanEvent({
+      ...common2,
+      workspace_id: workspaceId2,
+      type: type2,
+      refusal_code: string(refusal?.code),
+      attributes: safeAttributes({
+        ...correlationAttributes,
+        root: string(record.root),
+        access,
+        outcome,
+        recovered: record.recovered,
+        release_reason: string(record.releaseReason),
+        structured_refusal: refusal
+      })
+    })];
+  }
+  if (nativeEvent === "child_lifecycle") {
+    const state = requireV3String(record, "state", nativeEvent, line);
+    const type2 = state === "starting" ? "child_started" : state === "running" ? "child_running" : state === "completed" ? "child_completed" : "child_failed";
+    return [cleanEvent({
+      ...common2,
+      type: type2,
+      deadline_at: string(record.deadlineAt),
+      exit_code: Number.isInteger(record.exitCode) ? Number(record.exitCode) : void 0,
+      attributes: safeAttributes({
+        ...correlationAttributes,
+        state,
+        executor: string(record.executor),
+        exit_code: record.exitCode,
+        signal: record.signal,
+        timed_out: record.timedOut,
+        aborted: record.aborted,
+        truncated: record.truncated,
+        reason: string(record.reason),
+        deadline_at: string(record.deadlineAt),
+        herdr_pane_id: string(record.herdrPaneId),
+        herdr_agent_name: string(record.herdrAgentName)
+      })
+    })];
+  }
+  const workspaceId = requireV3String(record, "workspaceId", nativeEvent, line);
+  const receiptId = requireV3String(record, "receiptId", nativeEvent, line);
+  const treeSha = requireV3String(record, "treeSha", nativeEvent, line);
+  if (!/^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/.test(treeSha)) {
+    throw new Error(`invalid pi-daddy v3 check_receipt at line ${line}: treeSha must be a git object id for normalized tree evidence`);
+  }
+  return [cleanEvent({
+    ...common2,
+    workspace_id: workspaceId,
+    type: "check_receipt_recorded",
+    digests: anyDefined({ ...correlationDigests, tree: treeSha }),
+    attributes: safeAttributes({
+      ...correlationAttributes,
+      receipt_id: receiptId,
+      check_id: string(record.checkId),
+      check_receipt_id: string(correlation.check_receipt_id)
+    })
+  })];
+}
+function requireV3String(record, field, event, line) {
+  const value = string(record[field]);
+  if (!value)
+    throw new Error(`invalid pi-daddy v3 ${event} at line ${line}: ${field} is required`);
+  if (redactText(value) !== value)
+    throw new Error(`invalid pi-daddy v3 ${event} at line ${line}: ${field} contains a sensitive value`);
+  return value;
+}
 function requireV2Correlation(record, event, line) {
   const correlation = object2(record.correlation);
   if (!correlation) {
@@ -9985,35 +11295,35 @@ function optionalV2ApprovalUses(value, event, line) {
   }
   return output;
 }
-function validateCapabilityPartition(requested, effective, denied, clipped, gated, approved, blocked, line) {
+function validateCapabilityPartition(requested, effective, denied, clipped, gated, approved, blocked, line, version = 2) {
   const groups = [effective, denied, clipped, gated];
   if (groups.some((values) => new Set(values).size !== values.length)) {
-    throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: result capability arrays must not contain duplicates`);
+    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: result capability arrays must not contain duplicates`);
   }
   const requestedSet = new Set(requested);
   if (groups.some((values) => values.some((capability) => !requestedSet.has(capability)))) {
-    throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: effective, denied, clipped, and gatedBlocked must partition requested`);
+    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: effective, denied, clipped, and gatedBlocked must partition requested`);
   }
   const flattened = groups.flat();
   if (new Set(flattened).size !== flattened.length) {
-    throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: effective, denied, clipped, and gatedBlocked must be disjoint subsets of requested`);
+    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: effective, denied, clipped, and gatedBlocked must be disjoint subsets of requested`);
   }
   if ((approved ?? []).some((capability) => !requestedSet.has(capability) || (blocked ? !effective.includes(capability) && !gated.includes(capability) : !effective.includes(capability)))) {
-    throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: approved capabilities must be requested and reflected in the resolved decision`);
+    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: approved capabilities must be requested and reflected in the resolved decision`);
   }
 }
-function validateApprovalEvidence(approved, scalarSource, sources, scopes, expiries, uses, line) {
+function validateApprovalEvidence(approved, scalarSource, sources, scopes, expiries, uses, line, version = 2) {
   const approvedSet = new Set(approved);
   for (const [field, map2] of [["approvalSources", sources], ["approvalScopes", scopes], ["approvalExpiresAt", expiries], ["approvalUses", uses]]) {
     if (map2 && Object.keys(map2).some((capability) => !approvedSet.has(capability))) {
-      throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: ${field} keys must be approved capabilities`);
+      throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: ${field} keys must be approved capabilities`);
     }
   }
   if (approved.some((capability) => !sources?.[capability] && !scalarSource)) {
-    throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: each approved capability requires an approval source`);
+    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: each approved capability requires an approval source`);
   }
   if (approved.length === 0 && (scalarSource || sources || scopes || expiries || uses)) {
-    throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: approval evidence requires approved capabilities`);
+    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: approval evidence requires approved capabilities`);
   }
 }
 function optionalV2Boolean(record, field, event, line) {
@@ -10028,23 +11338,23 @@ function approvalSubject(value) {
   const agentType = string(value);
   return agentType === void 0 || agentType === "delegate" ? "<delegate>" : agentType;
 }
-function structuredRefusal(value, event, line) {
+function structuredRefusal(value, event, line, version = 2) {
   if (value === void 0)
     return void 0;
   const parsed = object2(value);
   const code = string(parsed?.code);
   if (!parsed || !code || !string(parsed.message)) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal requires code and message`);
+    throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal requires code and message`);
   }
   if (!V2_REFUSAL_CODES.has(code)) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal has unsupported code ${safeDiagnosticValue(code)}`);
+    throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal has unsupported code ${safeDiagnosticValue(code)}`);
   }
   const unknown = Object.keys(parsed).filter((key) => !V2_REFUSAL_FIELDS.has(key));
   if (unknown.length > 0)
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal carries unsupported fields`);
+    throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal carries unsupported fields`);
   const details = parsed.details === void 0 ? void 0 : object2(parsed.details);
   if (parsed.details !== void 0 && (!details || Object.values(details).some((entry) => !V2_REFUSAL_DETAIL_TYPES.has(entry === null ? "null" : typeof entry)))) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: refusal.details must contain scalar values`);
+    throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal.details must contain scalar values`);
   }
   return parsed;
 }
@@ -10083,7 +11393,7 @@ function normalizeLegacyGrant(record, index) {
     legacy_schema: "pi-daddy-grant-ledger/0.17"
   });
   const refusal = record.blocked ? legacyRefusalCode(record) : void 0;
-  const spawn4 = cleanEvent({
+  const spawn6 = cleanEvent({
     ...common2,
     type: record.blocked ? "child_spawn_refused" : "child_started",
     requested_capabilities: requested,
@@ -10113,7 +11423,7 @@ function normalizeLegacyGrant(record, index) {
       attributes
     }));
   }
-  events.push(spawn4);
+  events.push(spawn6);
   return events;
 }
 function legacyRefusalCode(record) {
@@ -10171,7 +11481,7 @@ function validatePrincipalIntegrity(records) {
     }
     const copy = { ...record };
     delete copy.event_digest;
-    const expected = createHash8("sha256").update(canonicalJson(copy)).digest("hex");
+    const expected = createHash9("sha256").update(canonicalJson(copy)).digest("hex");
     if (record.event_digest !== expected)
       throw new Error(`principal assurance integrity failure at line ${line}: event digest mismatch`);
     if (!validTime(typeof record.at === "string" ? record.at : void 0))
@@ -10227,7 +11537,7 @@ function sanitizeAttributes(value) {
     if (sensitiveKey.test(key))
       return "[REDACTED]";
     if (typeof current === "string" && freeTextKey.test(key)) {
-      return `[REDACTED sha256:${createHash8("sha256").update(current).digest("hex")}]`;
+      return `[REDACTED sha256:${createHash9("sha256").update(current).digest("hex")}]`;
     }
     if (Array.isArray(current))
       return current.map((entry) => walk2(entry));
@@ -10282,7 +11592,7 @@ function walkFiles(root, relative6 = "") {
   const out = [];
   let entries;
   try {
-    entries = readdirSync11(join23(root, relative6), { withFileTypes: true });
+    entries = readdirSync14(join28(root, relative6), { withFileTypes: true });
   } catch {
     return out;
   }
@@ -10308,10 +11618,10 @@ function providerStderr(stderr) {
   return PROVIDER_STDERR_SIGNATURES.some((sig) => hay.includes(sig)) ? stderr.trim() : null;
 }
 function requireSkillDir(skillDir, mode) {
-  const abs = resolve11(skillDir);
-  const md = join24(abs, "SKILL.md");
-  const isDir3 = existsSync18(abs) && statSync9(abs).isDirectory();
-  if (!isDir3 || !existsSync18(md)) {
+  const abs = resolve12(skillDir);
+  const md = join29(abs, "SKILL.md");
+  const isDir3 = existsSync21(abs) && statSync9(abs).isDirectory();
+  if (!isDir3 || !existsSync21(md)) {
     throw new Error(`mode=${mode} needs a skill directory with a SKILL.md, but ${abs} ${isDir3 ? "has none" : "is not a directory"}` + (abs === skillDir ? "" : ` (given \`${skillDir}\`, resolved against ${process.cwd()})`) + ` \u2014 pi accepts \`--skill <nonexistent>\` silently (exit 0, a normal answer, no skill in context), so this run would measure a model with no skill and report it as a result.`);
   }
   return abs;
@@ -10323,7 +11633,7 @@ function skillFlags(mode, skillDir) {
     case "green":
       return ["--skill", requireSkillDir(skillDir, mode)];
     case "force": {
-      const body = readFileSync18(join24(requireSkillDir(skillDir, mode), "SKILL.md"), "utf8");
+      const body = readFileSync23(join29(requireSkillDir(skillDir, mode), "SKILL.md"), "utf8");
       return ["--no-skills", "--append-system-prompt", body];
     }
   }
@@ -10332,8 +11642,8 @@ function extensionFlags(extensions) {
   if (!extensions || extensions.length === 0)
     return [];
   return extensions.flatMap((p) => {
-    const abs = resolve11(p);
-    if (!existsSync18(abs)) {
+    const abs = resolve12(p);
+    if (!existsSync21(abs)) {
       throw new Error(`env.extensions names ${abs}, which does not exist \u2014 pi would start without it and the scenario would silently test an agent with no subagent tool at all.`);
     }
     return ["--extension", abs];
@@ -10384,7 +11694,7 @@ var piAdapter = {
       "--model",
       req.model.model
     ];
-    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync18(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
+    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync23(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
     const total = req.turns.length;
     const parts = [];
     const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
@@ -10405,7 +11715,7 @@ ${r.stderr.trim()}
       }
       return withProviderFailure(parts.join("\n"), providerFailure);
     }
-    const session = mkdtempSync2(join24(tmpdir2(), "sc-pi-session-"));
+    const session = mkdtempSync2(join29(tmpdir2(), "sc-pi-session-"));
     for (let i = 0; i < total; i++) {
       const turnFlags = i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common2, ...turnFlags, "-p", req.turns[i]];
@@ -10448,12 +11758,12 @@ ${r.stderr.trim()}
       "--model",
       req.model.model
     ];
-    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync18(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
+    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync23(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
     const piVersion = await this.version();
     const total = req.turns.length;
     const traces = [];
     const parts = [];
-    const session = total === 1 ? null : mkdtempSync2(join24(tmpdir2(), "sc-pi-session-"));
+    const session = total === 1 ? null : mkdtempSync2(join29(tmpdir2(), "sc-pi-session-"));
     let providerFailure = null;
     const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
     for (let i = 0; i < total; i++) {
@@ -10563,33 +11873,33 @@ function getAdapter(name) {
 
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
-import { readFileSync as readFileSync19, existsSync as existsSync19 } from "node:fs";
-import { join as join25, dirname as dirname7 } from "node:path";
+import { readFileSync as readFileSync24, existsSync as existsSync22 } from "node:fs";
+import { join as join30, dirname as dirname8 } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawn as spawn3 } from "node:child_process";
-var __dirname = dirname7(fileURLToPath(import.meta.url));
+import { spawn as spawn5 } from "node:child_process";
+var __dirname = dirname8(fileURLToPath(import.meta.url));
 function templatePath(assetsDir) {
   if (assetsDir)
-    return join25(assetsDir, "report.template.html");
+    return join30(assetsDir, "report.template.html");
   const candidates = [
-    join25(__dirname, "..", "..", "..", "assets", "report.template.html"),
+    join30(__dirname, "..", "..", "..", "assets", "report.template.html"),
     // packages/cli/{dist,src} -> ../../../assets
-    join25(__dirname, "..", "assets", "report.template.html"),
-    join25(__dirname, "..", "..", "assets", "report.template.html")
+    join30(__dirname, "..", "assets", "report.template.html"),
+    join30(__dirname, "..", "..", "assets", "report.template.html")
   ];
   for (const c of candidates)
-    if (existsSync19(c))
+    if (existsSync22(c))
       return c;
   throw new Error("cannot find assets/report.template.html");
 }
 function gradeScriptPath(assetsDir) {
-  return join25(dirname7(templatePath(assetsDir)), "report.grade.js");
+  return join30(dirname8(templatePath(assetsDir)), "report.grade.js");
 }
 function readBody(req) {
-  return new Promise((resolve14) => {
+  return new Promise((resolve15) => {
     let b = "";
     req.on("data", (c) => b += c);
-    req.on("end", () => resolve14(b));
+    req.on("end", () => resolve15(b));
   });
 }
 function findTranscript(runDir, id) {
@@ -10597,22 +11907,22 @@ function findTranscript(runDir, id) {
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync19(join25(runDir, files[0]), "utf8");
+    return readFileSync24(join30(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync19(join25(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync24(join30(runDir, f), "utf8")}`).join("\n\n");
 }
 function findJudgeRaw(runDir, id) {
   const files = findJudgeRawFiles(runDir, id);
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync19(join25(runDir, files[0]), "utf8");
+    return readFileSync24(join30(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync19(join25(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync24(join30(runDir, f), "utf8")}`).join("\n\n");
 }
 async function serveReview(opts) {
-  const template = readFileSync19(templatePath(opts.assetsDir), "utf8");
-  const gradeScript = readFileSync19(gradeScriptPath(opts.assetsDir), "utf8");
+  const template = readFileSync24(templatePath(opts.assetsDir), "utf8");
+  const gradeScript = readFileSync24(gradeScriptPath(opts.assetsDir), "utf8");
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://localhost");
@@ -10662,7 +11972,7 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be re-judged here \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
           return;
         }
-        const specPath = join25(opts.skillDir, "tests", "specification.yaml");
+        const specPath = join30(opts.skillDir, "tests", "specification.yaml");
         const spec = loadSpec(specPath);
         const scenario = spec.scenarios.find((s) => s.id === body.scenarioId);
         if (!scenario) {
@@ -10688,7 +11998,7 @@ async function serveReview(opts) {
             scenario,
             adapter,
             judge: results.judge,
-            specDir: dirname7(specPath),
+            specDir: dirname8(specPath),
             threshold,
             mode: results.mode,
             expectedReps: prev.reps ?? 1
@@ -10723,7 +12033,7 @@ async function serveReview(opts) {
             // the same doctrine `grade` follows (see refreshRubricHashes).
             source_hashes: refreshRubricHashes(results.source_hashes, spec, [body.scenarioId])
           }, scoreContextFor(results, spec));
-          ensureResultsGitignore(join25(opts.skillDir, "tests", "results"));
+          ensureResultsGitignore(join30(opts.skillDir, "tests", "results"));
           const g = written.effective_grade;
           appendJournal(column.runDir, { event: "score", ts: (/* @__PURE__ */ new Date()).toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
           res.writeHead(200, { "content-type": "application/json" });
@@ -10748,7 +12058,7 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be adjudicated \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
           return;
         }
-        const specPath = join25(opts.skillDir, "tests", "specification.yaml");
+        const specPath = join30(opts.skillDir, "tests", "specification.yaml");
         const spec = loadSpec(specPath);
         const adapter = opts.adapter ?? getAdapter(results.harness);
         const cells = cellsFromResults(column.runDir, results);
@@ -10788,10 +12098,10 @@ async function serveReview(opts) {
             // ~2% self-disagreement on identical transcripts, so this is a real
             // second opinion rather than a no-op.
             secondaryJudge: results.judge,
-            specDir: dirname7(specPath),
+            specDir: dirname8(specPath),
             now: () => (/* @__PURE__ */ new Date()).toISOString()
           });
-          ensureResultsGitignore(join25(opts.skillDir, "tests", "results"));
+          ensureResultsGitignore(join30(opts.skillDir, "tests", "results"));
           res.writeHead(200, { "content-type": "application/json" });
           res.end(JSON.stringify({ ok: true, step: "run", grade: written.effective_grade }));
         } catch (e) {
@@ -10817,11 +12127,11 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
           return;
         }
-        const spec = loadSpec(join25(opts.skillDir, "tests", "specification.yaml"));
+        const spec = loadSpec(join30(opts.skillDir, "tests", "specification.yaml"));
         writeResults(column.runDir, patched, scoreContextFor(patched, spec));
-        ensureResultsGitignore(join25(opts.skillDir, "tests", "results"));
+        ensureResultsGitignore(join30(opts.skillDir, "tests", "results"));
         if (body.override != null) {
-          preserveTranscript(join25(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
+          preserveTranscript(join30(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
         }
         appendJournal(column.runDir, {
           event: "override",
@@ -10840,7 +12150,7 @@ async function serveReview(opts) {
       res.end(`server error: ${e instanceof Error ? e.message : e}`);
     }
   });
-  await new Promise((resolve14) => server.listen(opts.port ?? 0, "127.0.0.1", resolve14));
+  await new Promise((resolve15) => server.listen(opts.port ?? 0, "127.0.0.1", resolve15));
   const addr = server.address();
   const port = typeof addr === "object" && addr ? addr.port : opts.port;
   const link = `http://127.0.0.1:${port}/`;
@@ -10857,7 +12167,7 @@ async function serveReview(opts) {
 function tryOpen(url, cmd) {
   const opener = cmd ?? (process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open");
   try {
-    const child2 = spawn3(opener, [url], { stdio: "ignore", detached: true });
+    const child2 = spawn5(opener, [url], { stdio: "ignore", detached: true });
     child2.on("error", () => {
     });
     child2.unref();
@@ -10866,18 +12176,18 @@ function tryOpen(url, cmd) {
 }
 
 // packages/pi-extension/src/runner.ts
-import { existsSync as existsSync20 } from "node:fs";
-import { dirname as dirname8, join as join26, resolve as resolve12 } from "node:path";
+import { existsSync as existsSync23 } from "node:fs";
+import { dirname as dirname9, join as join31, resolve as resolve13 } from "node:path";
 function resolveSkillDir(cwd, arg) {
   if (arg) {
-    const dir2 = resolve12(cwd, arg);
-    if (existsSync20(join26(dir2, "tests", "specification.yaml"))) return dir2;
+    const dir2 = resolve13(cwd, arg);
+    if (existsSync23(join31(dir2, "tests", "specification.yaml"))) return dir2;
     throw new Error(`no tests/specification.yaml found at ${dir2}`);
   }
   let dir = cwd;
   for (; ; ) {
-    if (existsSync20(join26(dir, "tests", "specification.yaml"))) return dir;
-    const parent = dirname8(dir);
+    if (existsSync23(join31(dir, "tests", "specification.yaml"))) return dir;
+    const parent = dirname9(dir);
     if (parent === dir) break;
     dir = parent;
   }
@@ -10885,7 +12195,7 @@ function resolveSkillDir(cwd, arg) {
 }
 var DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 async function runViaExtension(opts) {
-  const specPath = join26(opts.skillDir, "tests", "specification.yaml");
+  const specPath = join31(opts.skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const modelToken = opts.model ?? DEFAULT_MODEL;
   const model = parseModelRef(modelToken);
@@ -10913,7 +12223,7 @@ async function runViaExtension(opts) {
   });
   const g = summary.results.effective_grade;
   const verdicts = effectiveVerdicts(summary.results.scenarios);
-  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join26(summary.runDir, f)));
+  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join31(summary.runDir, f)));
   return {
     skill: summary.results.skill,
     model: summary.results.model,
@@ -10924,9 +12234,9 @@ async function runViaExtension(opts) {
 }
 
 // packages/pi-extension/src/capture-cmd.ts
-import { existsSync as existsSync21, mkdirSync as mkdirSync5, writeFileSync as writeFileSync8, readdirSync as readdirSync12, readFileSync as readFileSync20 } from "node:fs";
-import { join as join27 } from "node:path";
-import { createHash as createHash9 } from "node:crypto";
+import { existsSync as existsSync24, mkdirSync as mkdirSync8, writeFileSync as writeFileSync9, readdirSync as readdirSync15, readFileSync as readFileSync25 } from "node:fs";
+import { join as join32 } from "node:path";
+import { createHash as createHash10 } from "node:crypto";
 var CANCELLED = { status: "cancelled", files: [] };
 var CAPTURES_GITIGNORE = "# Local review evidence for captured cases \u2014 never commit.\n.local/\n";
 async function runCapture(skillDir, ctx) {
@@ -10936,12 +12246,12 @@ async function runCapture(skillDir, ctx) {
     ui.say("the agent is still streaming \u2014 let it finish, then run capture again");
     return CANCELLED;
   }
-  const specPath = join27(skillDir, "tests", "specification.yaml");
-  if (!existsSync21(specPath)) {
+  const specPath = join32(skillDir, "tests", "specification.yaml");
+  if (!existsSync24(specPath)) {
     ui.say(`${specPath} does not exist \u2014 run \`skill-harness init\` before capturing into this skill`);
     return CANCELLED;
   }
-  const baseSha256 = specSha256(readFileSync20(specPath, "utf8"));
+  const baseSha256 = specSha256(readFileSync25(specPath, "utf8"));
   const turns = projectTurns(activeBranch(ctx.sessionEntries()), ctx.homeDir);
   if (turns.length === 0) {
     ui.say("no user turns in this session yet \u2014 nothing to capture");
@@ -10978,8 +12288,8 @@ async function runCapture(skillDir, ctx) {
     ui.say("cancelled \u2014 a capture needs at least one checklist item");
     return CANCELLED;
   }
-  const capturesDir = join27(skillDir, "tests", "captures");
-  const existingIds = existsSync21(capturesDir) ? readdirSync12(capturesDir).filter((f) => f.endsWith(".yaml")).map((f) => f.replace(/\.yaml$/, "")) : [];
+  const capturesDir = join32(skillDir, "tests", "captures");
+  const existingIds = existsSync24(capturesDir) ? readdirSync15(capturesDir).filter((f) => f.endsWith(".yaml")).map((f) => f.replace(/\.yaml$/, "")) : [];
   const capture = buildCaptureCase({
     turns,
     range: { start, end },
@@ -11027,7 +12337,7 @@ ${previewYaml}---`);
     baseSha256
   });
   const promoted = { ...capture, status: "promoted", scenario_id: scenarioId.trim() };
-  writeFileSync8(join27(capturesDir, `${capture.id}.yaml`), yaml.dump(promoted, { lineWidth: -1, noRefs: true }), "utf8");
+  writeFileSync9(join32(capturesDir, `${capture.id}.yaml`), yaml.dump(promoted, { lineWidth: -1, noRefs: true }), "utf8");
   ui.say(`promoted ${capture.id} \u2192 scenario ${scenarioId.trim()} in ${specPath}`);
   if (ctx.runOnly && await ui.confirm(`run scenario ${scenarioId.trim()} now? (spends subject + judge tokens for 1 scenario)`)) {
     ui.say(await ctx.runOnly(skillDir, scenarioId.trim()));
@@ -11046,12 +12356,12 @@ function defaultTitle(capture) {
 }
 async function chooseTarget(skillDir, ctx) {
   const candidates = [];
-  const skillMd = join27(skillDir, "SKILL.md");
-  if (existsSync21(skillMd)) candidates.push({ label: "SKILL.md (this skill)", kind: "skill", path: "SKILL.md", abs: skillMd });
-  const agentsDir = join27(ctx.cwd, ".pi", "agents");
-  if (existsSync21(agentsDir)) {
-    for (const f of readdirSync12(agentsDir).filter((x) => x.endsWith(".md"))) {
-      candidates.push({ label: `subagent: ${f}`, kind: "subagent", path: join27(".pi", "agents", f), abs: join27(agentsDir, f) });
+  const skillMd = join32(skillDir, "SKILL.md");
+  if (existsSync24(skillMd)) candidates.push({ label: "SKILL.md (this skill)", kind: "skill", path: "SKILL.md", abs: skillMd });
+  const agentsDir = join32(ctx.cwd, ".pi", "agents");
+  if (existsSync24(agentsDir)) {
+    for (const f of readdirSync15(agentsDir).filter((x) => x.endsWith(".md"))) {
+      candidates.push({ label: `subagent: ${f}`, kind: "subagent", path: join32(".pi", "agents", f), abs: join32(agentsDir, f) });
     }
   }
   if (candidates.length === 0) {
@@ -11064,7 +12374,7 @@ async function chooseTarget(skillDir, ctx) {
   return {
     kind: chosen.kind,
     path: chosen.path,
-    content_sha256: createHash9("sha256").update(readFileSync20(chosen.abs, "utf8"), "utf8").digest("hex")
+    content_sha256: createHash10("sha256").update(readFileSync25(chosen.abs, "utf8"), "utf8").digest("hex")
   };
 }
 function suggestScenarioId(specPath, fallback) {
@@ -11079,16 +12389,16 @@ function suggestScenarioId(specPath, fallback) {
   return fallback;
 }
 function writeCapture(capturesDir, capture, selected2, homeDir) {
-  mkdirSync5(join27(capturesDir, ".local"), { recursive: true });
-  const gitignore = join27(capturesDir, ".gitignore");
-  const existingIgnore = existsSync21(gitignore) ? readFileSync20(gitignore, "utf8") : "";
+  mkdirSync8(join32(capturesDir, ".local"), { recursive: true });
+  const gitignore = join32(capturesDir, ".gitignore");
+  const existingIgnore = existsSync24(gitignore) ? readFileSync25(gitignore, "utf8") : "";
   if (!existingIgnore.split("\n").some((l) => l.trim() === ".local/" || l.trim() === ".local")) {
-    writeFileSync8(gitignore, existingIgnore ? `${existingIgnore.replace(/\n*$/, "\n")}${CAPTURES_GITIGNORE}` : CAPTURES_GITIGNORE, "utf8");
+    writeFileSync9(gitignore, existingIgnore ? `${existingIgnore.replace(/\n*$/, "\n")}${CAPTURES_GITIGNORE}` : CAPTURES_GITIGNORE, "utf8");
   }
-  const casePath = join27(capturesDir, `${capture.id}.yaml`);
-  writeFileSync8(casePath, yaml.dump(capture, { lineWidth: -1, noRefs: true }), "utf8");
-  const evidencePath = join27(capturesDir, ".local", `${capture.id}.evidence.json`);
-  writeFileSync8(
+  const casePath = join32(capturesDir, `${capture.id}.yaml`);
+  writeFileSync9(casePath, yaml.dump(capture, { lineWidth: -1, noRefs: true }), "utf8");
+  const evidencePath = join32(capturesDir, ".local", `${capture.id}.evidence.json`);
+  writeFileSync9(
     evidencePath,
     JSON.stringify(
       {
@@ -11161,10 +12471,10 @@ ${card.failedTranscripts.join("\n")}`);
     return;
   }
   if (sub === "judge") {
-    const runDir = resolve13(ctx.cwd, positional[0] ?? ".");
-    const testsDir = dirname9(dirname9(dirname9(runDir)));
-    const spec = loadSpec(join28(testsDir, "specification.yaml"));
-    const prev = existsSync22(join28(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const runDir = resolve14(ctx.cwd, positional[0] ?? ".");
+    const testsDir = dirname10(dirname10(dirname10(runDir)));
+    const spec = loadSpec(join33(testsDir, "specification.yaml"));
+    const prev = existsSync25(join33(runDir, "results.yaml")) ? readResults(runDir) : null;
     const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? parseModelRef(defaultJudge());
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge"
@@ -11230,23 +12540,23 @@ ${card.failedTranscripts.join("\n")}`);
   }
   if (sub === "coverage") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const specPath = join28(skillDir, "tests", "specification.yaml");
+    const specPath = join33(skillDir, "tests", "specification.yaml");
     const spec = loadSpec(specPath);
-    const specDir = dirname9(specPath);
+    const specDir = dirname10(specPath);
     const report = computeCoverage({
       specDir,
       scenarios: spec.scenarios,
-      baseFiles: [relative5(specDir, join28(skillDir, "SKILL.md")).split("\\").join("/")]
+      baseFiles: [relative5(specDir, join33(skillDir, "SKILL.md")).split("\\").join("/")]
     });
     say(ctx, formatCoverage(report, spec.skill), report.broken.length ? "warning" : "info");
     return;
   }
   if (sub === "affected") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const specPath = join28(skillDir, "tests", "specification.yaml");
+    const specPath = join33(skillDir, "tests", "specification.yaml");
     const spec = loadSpec(specPath);
     const base = flags.base || "HEAD";
-    const rev = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: dirname9(specPath), timeoutMs: 3e4 });
+    const rev = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: dirname10(specPath), timeoutMs: 3e4 });
     if (rev.code !== 0) {
       say(ctx, "affected needs a git repository to diff against", "error");
       return;
@@ -11254,7 +12564,7 @@ ${card.failedTranscripts.join("\n")}`);
     const repoRoot = rev.stdout.trim();
     const result = selectAffected({
       scenarios: spec.scenarios,
-      specDir: dirname9(specPath),
+      specDir: dirname10(specPath),
       diff: await gitDiff(repoRoot, base),
       repoRoot
     });
@@ -11301,7 +12611,7 @@ ${card.failedTranscripts.join("\n")}`);
   }
   if (sub === "review") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const spec = loadSpec(join28(skillDir, "tests", "specification.yaml"));
+    const spec = loadSpec(join33(skillDir, "tests", "specification.yaml"));
     const handle = await serveReview({
       skillDir,
       skillName: spec.skill,
@@ -11373,7 +12683,7 @@ function registerTool(pi) {
 
 // packages/pi-extension/src/index.ts
 function index_default(pi) {
-  const assetsDir = join29(dirname10(fileURLToPath2(import.meta.url)), "..", "..", "..", "assets");
+  const assetsDir = join34(dirname11(fileURLToPath2(import.meta.url)), "..", "..", "..", "assets");
   registerCommand(pi, assetsDir);
   registerTool(pi);
   pi.on("session_shutdown", async () => {

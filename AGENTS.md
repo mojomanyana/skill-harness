@@ -42,7 +42,10 @@ coverage <skill|all> --skills root [--strict]   which instruction sections have 
 affected <skill> --skills root [--base ref]     which scenarios a change could touch — free, offline; feed to run --only, or run --affected
 init  <skill> --skills root [--force]                    scaffold a commented template spec (free, offline)
 suggest <skill> --skills root [--model prov:model] [--force]  LLM-draft a spec from the skill's SKILL.md (spends tokens)
+qualification prepare|start|status|poll|validate|abort          durable qualification-runner-v1; external closed config only
 ```
+
+**Qualification runner is a separate boundary.** Read `docs/QUALIFICATION-RUNNER.md` before touching it. `prepare` consumes no call; the atomic launch claim consumes exactly one; failure/timeout remains counted; no automatic retry is permitted. Production accepts only exact `openai-codex` + ChatGPT OAuth metadata, a sanitized allowlisted child environment, no fallback, and no metered override. Never put Principal arms, a board, holdout, or measurement identity in this repository.
 
 Defaults: subject `fireworks:accounts/fireworks/models/deepseek-v4-pro` · judge `claude-code:claude-opus-4-8` · mode `green` · harness `pi`. `SKILL_HARNESS_JUDGE` overrides the judge default for a repo or a shell; `--judge` beats both.
 
@@ -107,5 +110,7 @@ by version X needs version ≥ X to lint (see `PUBLISHING.md`).
 - **`SKILL.md`** — the pi front door (install via `pi install https://github.com/mojomanyana/skill-harness`); drives the loop conversationally.
 - **`docs/USAGE.md`** — the step-by-step human walkthrough (setup → list → lint → run → review → grade → add-test).
 - **`README.md`** — overview, spec format, results schema.
-- **`contracts/pi-daddy/ledger/v2/`** — the pinned producer contract the `pi-daddy-v1` event adapter validates against, including the producer refusal source, vendored byte-exact with per-artifact SHA-256. Its `README.md` says what is contract and what is harness-only, and how to re-pin/check deterministically. `node scripts/check-pi-daddy-contract.mjs` runs vendored conformance; `npm run verify:pi-daddy-contract -- <clean-pi-daddy-checkout>` builds the immutable producer and exercises its real builders (both free/offline after dependencies are installed). Never hand-edit `packages/adapters/src/pi-daddy-ledger-v2.ts` — it is generated.
+- **`contracts/pi-daddy/ledger/v2/`** — the frozen producer contract the historical `pi-daddy-v1` selector validates against, including unversioned 0.17 compatibility. Never hand-edit generated `packages/adapters/src/pi-daddy-ledger-v2.ts`.
+- **`contracts/pi-daddy/ledger/v3/`** — the separate production-v3 pin used by `pi-daddy-ledger-v3`: byte-exact schema, refusal source, and real-builder fixtures. Re-pin with `scripts/vendor-pi-daddy-ledger-v3-contract.mjs`; verify with `scripts/check-pi-daddy-v3-contract.mjs` and `npm run verify:pi-daddy-v3-contract -- <clean pinned checkout>`. Never hand-edit generated `packages/adapters/src/pi-daddy-ledger-v3.ts`.
+- **`docs/QUALIFICATION-RUNNER.md`** — durable lifecycle, OAuth child boundary, exact accounting, recovery, external configuration, and explicit non-claims.
 - Working on the codebase itself: `npm test` (vitest), `npm run typecheck`; the monorepo is `packages/core` (engine), `packages/adapters` (pi + claude-code judge), `packages/cli` (commands + review server), `packages/pi-extension` (the pi extension; its `dist/index.js` is a committed esbuild bundle — regenerate with `npm run build:ext` and commit it whenever the bundled core/cli source changes; a `bundle.test.ts` guard fails if it goes stale).

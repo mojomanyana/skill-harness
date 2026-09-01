@@ -43,6 +43,16 @@ export interface TrajectoryEventV1 {
   finding_id?: string;
   parent_id?: string;
   child_id?: string;
+  /** Unique pi-daddy v3 execution occurrence; never synthesized for v2/0.17. */
+  execution_id?: string;
+  /** Explicit v3 execution parent. Null is a meaningful root identity. */
+  parent_execution_id?: string | null;
+  /** Unique v3 occurrence whose output composed this task. */
+  task_from_execution_id?: string;
+  /** Identity of a pi-daddy v3 workflow_fact occurrence. */
+  workflow_fact_id?: string;
+  /** Immutable v3 nonterminal lifecycle deadline. */
+  deadline_at?: string;
   phase?: string;
   tool?: string;
   capability?: string;
@@ -580,7 +590,8 @@ export function runTrajectoryMutationSelfTest(): MutationSelfTestReport {
 
 const EVENT_KEYS = new Set([
   "event_version", "seq", "type", "source", "at", "run_id", "task_id", "workspace_id", "context_id", "finding_id",
-  "parent_id", "child_id", "phase", "tool", "capability", "requested_capabilities", "effective_capabilities", "refusal_code",
+  "parent_id", "child_id", "execution_id", "parent_execution_id", "task_from_execution_id", "workflow_fact_id", "deadline_at",
+  "phase", "tool", "capability", "requested_capabilities", "effective_capabilities", "refusal_code",
   "exit_code", "digests", "approval", "requirements", "attributes",
 ]);
 const APPROVAL_KEYS = new Set(["id", "capability", "subject", "source", "scope", "approved_at", "expires_at", "used_at"]);
@@ -600,9 +611,12 @@ function validateEvent(event: TrajectoryEventV1): string | null {
   if (typeof event.type !== "string" || !event.type) return "type must be a non-empty string";
   if (typeof event.source !== "string" || !event.source) return "source must be a non-empty string";
   if (event.at !== undefined && !validDate(event.at)) return "at must be an RFC 3339 date-time";
-  for (const field of ["run_id", "task_id", "workspace_id", "context_id", "finding_id", "parent_id", "child_id"] as const) {
+  for (const field of ["run_id", "task_id", "workspace_id", "context_id", "finding_id", "parent_id", "child_id", "execution_id", "task_from_execution_id", "workflow_fact_id"] as const) {
     if (event[field] !== undefined && (typeof event[field] !== "string" || !ID_RE.test(event[field]))) return `${field} is not a valid bounded identifier`;
   }
+  if (event.parent_execution_id !== undefined && event.parent_execution_id !== null &&
+      (typeof event.parent_execution_id !== "string" || !ID_RE.test(event.parent_execution_id))) return "parent_execution_id is not a valid bounded identifier or null";
+  if (event.deadline_at !== undefined && !validDate(event.deadline_at)) return "deadline_at must be an RFC 3339 date-time";
   for (const field of ["phase", "tool", "capability"] as const) {
     if (event[field] !== undefined && (typeof event[field] !== "string" || !event[field])) return `${field} must be a non-empty string`;
   }

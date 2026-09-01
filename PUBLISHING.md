@@ -31,6 +31,15 @@ vocabulary has 32 members after adding production-reachable
 pinned schema instead of maintaining another list. No OS sandbox is introduced by
 this repair.
 
+The next publish must also keep `pi-daddy-ledger-v3-contract` green. That independent
+lane pins pi-daddy 0.20.0 commit `591abb4a358bf8a84455486812b83609e2a47e3f`
+and tree `c9fe1b324ffbf0d72e7d904972594b3a936e9928`, reproduces all five
+positive v3 fixtures through production builders, exercises non-vacuous v3 mutations,
+and leaves the v2/0.17 lane unchanged. `qualification-runner-v1` is source-built and
+unpublished; release evidence must include its public schemas, CLI lifecycle tests,
+two byte-identical package builds, and clean installed-artifact probes. This work
+contains no authorization to publish, tag, or run a qualification measurement.
+
 The registry has `0.1.0`, `0.1.1`, `0.1.2`, `0.2.1`, `0.3.0`, `0.3.1`, `0.3.2`, `0.4.0`,
 `0.5.0`, `0.6.0`, `0.7.0`, `0.8.0`, `0.9.0`. This repo is at `0.10.0`, so these commands publish
 a **new version over an existing line** — the `@skill-harness` scope is already claimed, and
