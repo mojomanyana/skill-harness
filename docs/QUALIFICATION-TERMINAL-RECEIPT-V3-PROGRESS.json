@@ -8,15 +8,29 @@
     "read AGENTS.md and docs/NEXT-SESSION.md",
     "read docs/QUALIFICATION-RUNNER.md completely",
     "created and pushed the required feature branch",
-    "recorded the backward-compatible v3 implementation scope"
+    "recorded the backward-compatible v3 implementation scope",
+    "ran clean npm ci: 64 packages installed; npm reported the pre-existing 7 audit findings",
+    "recovered local/remote branch at identical pushed head b50ab73e5f3a504f2d415f115cc215f951b06017",
+    "confirmed origin/main remains 68e3de6c592a59b77bcabcb7f3a831f6481526e6",
+    "confirmed no PR exists yet",
+    "mapped configuration, prepare-store, receipt construction, and validation implementation locations"
   ],
   "implementation_status": "not_started",
   "tests": {
-    "run": [],
+    "run": [
+      "npm ci (exit 0)"
+    ],
     "failing": [],
     "not_yet_run": true
   },
-  "next_command": "npm ci",
-  "next_implementation_step": "Add explicit prospective receipt-version selection and exact prepared invocation-input binding in packages/core/src/qualification-config.ts and packages/core/src/qualification-store.ts.",
-  "model_or_qualification_calls": 0
+  "next_command": "Edit packages/core/src/qualification-config.ts and schemas/qualification-config-v1.schema.json to add optional prospective terminal_receipt_version selection with omitted legacy behavior and closed unknown-version rejection.",
+  "next_implementation_step": "Add terminal_receipt_version to runner configuration, then persist exact invocation_input binding in qualification-invocation-v3 and verify input.bin occurrences at launch boundaries.",
+  "model_or_qualification_calls": 0,
+  "checkpoint": {
+    "prior_head": "b50ab73e5f3a504f2d415f115cc215f951b06017",
+    "prior_tree": "ee94881ef15464d36e94e37899681c87a18bc50d",
+    "pushed": true,
+    "pr_url": null,
+    "pr_state": "not-created"
+  }
 }
