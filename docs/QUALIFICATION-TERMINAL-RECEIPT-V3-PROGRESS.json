@@ -34,9 +34,10 @@
     "two authorized release builds were byte-identical and an offline installed CLI reported 0.11.0",
     "independent security review found prepare source-input TOCTOU between initial digest check and later snapshot",
     "repaired snapshot to no-follow open/read/hash the same source occurrence and compare exact bytes to request digest",
-    "added deterministic post-initial-validation replacement mutation; failed prepare leaves zero accounting and no invocation"
+    "added deterministic post-initial-validation replacement mutation; failed prepare leaves zero accounting and no invocation",
+    "post-review full Node 20.20.2 suite passed after source-snapshot race repair"
   ],
-  "implementation_status": "review-finding-repaired",
+  "implementation_status": "post-review-repair-full-validation-passed",
   "tests": {
     "run": [
       "npm ci (exit 0)",
@@ -59,7 +60,8 @@
       "npm audit --omit=dev --audit-level=high: 0 vulnerabilities",
       "exact-head CI c4982fe: all four jobs passed",
       "post-review qualification-store: 27/27 passed",
-      "post-review npm run typecheck: passed"
+      "post-review npm run typecheck: passed",
+      "post-review Node 20.20.2 npm test: 1534/1534 passed across 94 files"
     ],
     "failing": [],
     "not_yet_run": true,
@@ -68,8 +70,8 @@
       "first and second Node 20 full-suite attempts exhausted /tmp tmpfs; rerun on non-tmpfs passed 1533/1533"
     ]
   },
-  "next_command": "Run full Node 20.20.2 npm test with TMPDIR on disk, then push and obtain fresh four-axis exact-head review.",
-  "next_implementation_step": "Repair review findings if any; otherwise merge with immutable-head protection.",
+  "next_command": "Wait for exact-head CI, then obtain four fresh independent no-edit reviews of the new exact head.",
+  "next_implementation_step": "If all four approve, record review evidence and merge normally; otherwise repair findings and rereview changed head.",
   "model_or_qualification_calls": 0,
   "checkpoint": {
     "head_before_checkpoint": "98f2ec5f4fec90b0b1e09d0a2eca9f2caf10771b",
