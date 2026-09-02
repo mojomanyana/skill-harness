@@ -471,10 +471,14 @@ export function validateQualificationSpool(spoolDir: string): QualificationSpool
     const record = readQualificationInvocation(paths.root, id);
     if (record.configuration_sha256 !== configSha) throw new Error(`qualification invocation ${id} has the wrong configuration digest`);
     const expectedOAuthPolicy = qualificationOAuthDirectoryPolicy(config);
-    if ((expectedOAuthPolicy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 &&
-        (record.schema_version !== QUALIFICATION_INVOCATION_VERSION_V2 || record.oauth_directory_policy !== expectedOAuthPolicy)) ||
-        (expectedOAuthPolicy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 &&
-        (record.schema_version !== QUALIFICATION_INVOCATION_VERSION || Object.hasOwn(record, "oauth_directory_policy")))) {
+    const expectedInvocationVersion = config.terminal_receipt_version === QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3
+      ? QUALIFICATION_INVOCATION_VERSION_V3
+      : expectedOAuthPolicy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2
+        ? QUALIFICATION_INVOCATION_VERSION_V2
+        : QUALIFICATION_INVOCATION_VERSION;
+    if (record.schema_version !== expectedInvocationVersion ||
+        (expectedOAuthPolicy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 && record.oauth_directory_policy !== expectedOAuthPolicy) ||
+        (expectedOAuthPolicy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 && Object.hasOwn(record, "oauth_directory_policy"))) {
       throw new Error(`qualification invocation ${id} OAuth directory policy does not match its configuration identity`);
     }
     const lifecycle = readQualificationLifecycle(paths.root, id);

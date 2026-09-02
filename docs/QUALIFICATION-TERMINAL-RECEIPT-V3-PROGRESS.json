@@ -21,9 +21,13 @@
     "added focused v3 persistence, byte-equivalence, truncation, extension, reorder, deletion, atomic replacement, forged metadata, and stale legacy retrofit tests",
     "implemented distinct v3 exact-input validation immediately before accounting launch claim and immediately before child spawn",
     "added immutable input-launch-claim-v1, launch-attempt-v2, child-occurrence-v2, and lifecycle bindings to the same input digest/accounting occurrence",
-    "added deterministic preclaim and postclaim race mutations proving zero accounting before claim and one consumed/no-child after claim"
+    "added deterministic preclaim and postclaim race mutations proving zero accounting before claim and one consumed/no-child after claim",
+    "implemented closed qualification-terminal-receipt-v3 carrying configuration, invocation, exact input, launch-claim, attempt, and child-occurrence identities",
+    "implemented exact durable receipt byte identity with canonical atomic terminal-directory publication and same-byte parse/validation",
+    "added v3 completed/failed/invalid-artifact/timeout/abort/repeated-validation/no-replay coverage plus receipt substitution and mixed-version attacks",
+    "documented prospective v3 semantics and historical non-upgrade behavior"
   ],
-  "implementation_status": "runtime-input-binding-complete",
+  "implementation_status": "terminal-receipt-v3-core-complete",
   "tests": {
     "run": [
       "npm ci (exit 0)",
@@ -32,13 +36,15 @@
       "npx vitest run qualification-store/config/schema: 33/33 passed",
       "npm run typecheck after prepared-input implementation: passed",
       "focused config/store/runner/schema suite: 87/87 passed",
-      "npm run typecheck after runtime binding: passed"
+      "npm run typecheck after runtime binding: passed",
+      "qualification-runner focused suite: 57/57 passed",
+      "npm run typecheck after terminal receipt v3: passed"
     ],
     "failing": [],
     "not_yet_run": true
   },
-  "next_command": "Implement QualificationTerminalReceiptV3 construction, exact invocation_input inclusion, and durable receipt-byte validation in packages/core/src/qualification-runner.ts.",
-  "next_implementation_step": "Add v3 receipt type/build/closed validation and cross-bind it to invocation, input claim, attempt, child occurrence, accounting, and exact canonical receipt bytes while preserving v1/v2.",
+  "next_command": "Add remaining v3 receipt/input mutation matrix (missing/additional fields, wrong evidence digests/occurrences, symlink/type/hardlink) and run npm test.",
+  "next_implementation_step": "Complete non-vacuous mutations, then build, extension regeneration/freshness, lint, package audits, and full CI.",
   "model_or_qualification_calls": 0,
   "checkpoint": {
     "prior_head": "b50ab73e5f3a504f2d415f115cc215f951b06017",

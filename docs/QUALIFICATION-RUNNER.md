@@ -272,7 +272,19 @@ readiness, identity observation, and execution success are separate facts.
 The terminal receipt binds requested and observed identities, exact attempt count,
 process identities, deadline/effective timeout, exit/signal, output byte counts and
 digests, artifact path/type/size/digest, authentication-evidence digest, and accounting
-event digest. `qualification validate` reopens regular non-symlink files, requires the
+event digest. `qualification-terminal-receipt-v3` is selected prospectively by an
+explicit configuration field and additionally binds the exact governed
+`application/json` invocation-input bytes. Its prepared record, input launch claim,
+launch attempt, child occurrence, and terminal receipt carry one closed
+`qualification-invocation-input-binding-v1` byte count and SHA-256. The runner opens
+the private single-link input without following symlinks immediately before accounting
+and again immediately before child spawn. Its v3 terminal directory also carries a
+closed byte identity computed from the exact canonical durable receipt bytes. Omission
+retains historical v1/v2 behavior; no historical invocation or receipt is upgraded.
+These checks bind bytes to the governed launch and do not claim that the child
+semantically obeyed them.
+
+`qualification validate` reopens regular non-symlink files, requires the
 artifact to equal retained stdout, reruns provider/model/fallback/refusal attestation,
 and checks that those semantics agree with terminal status and receipt flags—not only
 that the bytes match their digest.

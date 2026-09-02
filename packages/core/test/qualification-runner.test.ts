@@ -66,7 +66,9 @@ const provider = get('--provider');
 const model = get('--model');
 const inputArg = args.find((value) => value.startsWith('@')) || args[args.length - 1];
 const inputPath = inputArg.startsWith('@') ? inputArg.slice(1) : inputArg;
-const command = fs.readFileSync(inputPath, 'utf8').trim();
+const rawCommand = fs.readFileSync(inputPath, 'utf8').trim();
+let command = rawCommand;
+try { const decoded = JSON.parse(rawCommand); if (typeof decoded === 'string') command = decoded; } catch {}
 if (process.env.FAKE_COUNT_FILE) fs.appendFileSync(process.env.FAKE_COUNT_FILE, 'launch\\n');
 const line = (value) => process.stdout.write(JSON.stringify(value) + '\\n');
 line({ type: 'session', version: 3, id: 'fake-session', timestamp: new Date().toISOString(), cwd: process.cwd(), home: process.env.HOME });
@@ -504,6 +506,66 @@ describe("qualification durable execution", () => {
     expect(claim.invocation_input).toEqual(invocation.invocation_input);
     expect(attempt).toMatchObject({ schema_version: "qualification-launch-attempt-v2", invocation_input: invocation.invocation_input, accounting_event_sha256: claim.accounting_event_sha256 });
     expect(child).toMatchObject({ schema_version: "qualification-child-occurrence-v2", invocation_input: invocation.invocation_input, accounting_event_sha256: claim.accounting_event_sha256 });
+    const terminalDir = join(dir, "terminal");
+    const receiptBytes = readFileSync(join(terminalDir, "receipt.json"));
+    const receipt = JSON.parse(receiptBytes.toString("utf8"));
+    const receiptIdentity = JSON.parse(readFileSync(join(terminalDir, "receipt-identity.json"), "utf8"));
+    expect(receipt).toMatchObject({
+      schema_version: "qualification-terminal-receipt-v3",
+      configuration_sha256: invocation.configuration_sha256,
+      invocation_sha256: invocation.invocation_sha256,
+      invocation_input: invocation.invocation_input,
+      input_launch_claim_sha256: sha(readFileSync(join(dir, "input-launch-claim.json"))),
+      launch_attempt_sha256: sha(readFileSync(join(dir, "launch-attempt.json"))),
+      child_occurrence_sha256: sha(readFileSync(join(dir, "child-occurrence.json"))),
+    });
+    expect(receiptIdentity).toEqual({ schema_version: "qualification-terminal-receipt-byte-identity-v1", invocation_id: invocation.invocation_id, bytes: receiptBytes.length, sha256: sha(receiptBytes) });
+    expect(validateQualificationRunnerSpool(files.spool).terminal).toBe(1);
+  });
+
+  it("rejects substituted canonical v3 receipt bytes against their durable byte identity", async () => {
+    const files = setup("complete", { receiptV3: true });
+    await run(files);
+    const receiptPath = join(files.spool, "invocations", "invocation-0001", "terminal", "receipt.json");
+    const receipt = JSON.parse(readFileSync(receiptPath, "utf8"));
+    receipt.error = "substituted";
+    writeFileSync(receiptPath, `${qualificationCanonicalJson(receipt)}\n`);
+    expect(() => validateQualificationRunnerSpool(files.spool)).toThrow(/byte identity.*mismatch/i);
+  });
+
+  it("rejects mixed v2 and unknown receipt versions for a v3 invocation", async () => {
+    for (const version of ["qualification-terminal-receipt-v2", "qualification-terminal-receipt-v4"]) {
+      const files = setup("complete", { receiptV3: true });
+      await run(files);
+      const receiptPath = join(files.spool, "invocations", "invocation-0001", "terminal", "receipt.json");
+      const receipt = JSON.parse(readFileSync(receiptPath, "utf8"));
+      receipt.schema_version = version;
+      writeFileSync(receiptPath, `${qualificationCanonicalJson(receipt)}\n`);
+      expect(() => validateQualificationRunnerSpool(files.spool)).toThrow(/v3 terminal receipt.*identity\/policy mismatch/i);
+    }
+  });
+
+  it("emits and repeatedly validates v3 receipts for failure, invalid artifact, timeout, and abort without replay", async () => {
+    for (const [command, overrides, expected] of [
+      ["fail", { receiptV3: true }, "failed"],
+      ["invalid", { receiptV3: true }, "invalid-artifact"],
+      ["sleep:300", { receiptV3: true, timeout: 100 }, "timed-out"],
+    ] as const) {
+      const files = setup(command, overrides);
+      const status = await run(files);
+      expect(status.terminal_status).toBe(expected);
+      expect(validateQualificationRunnerSpool(files.spool).terminal).toBe(1);
+      expect(validateQualificationRunnerSpool(files.spool).terminal).toBe(1);
+      await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: files.parent_env });
+      expect(calls(files.count)).toBe(1);
+    }
+    const aborted = setup("complete", { receiptV3: true });
+    const status = await abortQualificationInvocation({ spool_dir: aborted.spool, invocation_id: "invocation-0001", reason: "operator-request" });
+    expect(status.terminal_status).toBe("aborted");
+    const receipt = JSON.parse(readFileSync(join(aborted.spool, "invocations", "invocation-0001", "terminal", "receipt.json"), "utf8"));
+    expect(receipt).toMatchObject({ schema_version: "qualification-terminal-receipt-v3", attempt: 0, invocation_input: readQualificationInvocation(aborted.spool, "invocation-0001").invocation_input });
+    expect(validateQualificationRunnerSpool(aborted.spool).terminal).toBe(1);
+    expect(calls(aborted.count)).toBe(0);
   });
 
   it("rejects a v3 input mutation before claim without accounting or child launch", async () => {
