@@ -1,0 +1,22 @@
+{
+  "schema_version": "qualification-terminal-receipt-v3-progress-v1",
+  "branch": "feature/qualification-terminal-receipt-v3",
+  "base_commit": "68e3de6c592a59b77bcabcb7f3a831f6481526e6",
+  "base_tree": "022d908212c592526127452d000ebbb76a95d161",
+  "remote_main_verified": "68e3de6c592a59b77bcabcb7f3a831f6481526e6",
+  "completed": [
+    "read AGENTS.md and docs/NEXT-SESSION.md",
+    "read docs/QUALIFICATION-RUNNER.md completely",
+    "created and pushed the required feature branch",
+    "recorded the backward-compatible v3 implementation scope"
+  ],
+  "implementation_status": "not_started",
+  "tests": {
+    "run": [],
+    "failing": [],
+    "not_yet_run": true
+  },
+  "next_command": "npm ci",
+  "next_implementation_step": "Add explicit prospective receipt-version selection and exact prepared invocation-input binding in packages/core/src/qualification-config.ts and packages/core/src/qualification-store.ts.",
+  "model_or_qualification_calls": 0
+}
