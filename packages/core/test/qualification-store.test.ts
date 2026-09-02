@@ -1,13 +1,14 @@
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, linkSync, mkdtempSync, mkdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { QUALIFICATION_ACCOUNTING_POLICY, QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2, qualificationCanonicalJson, qualificationConfigDigest, qualificationSha256 } from "../src/qualification-config.js";
+import { QUALIFICATION_ACCOUNTING_POLICY, QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2, QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3, qualificationCanonicalJson, qualificationConfigDigest, qualificationSha256 } from "../src/qualification-config.js";
 import {
   appendQualificationAccountingEvent,
   createQualificationAccountingLedger,
   prepareQualificationInvocation,
+  readQualificationAccounting,
   readQualificationInvocation,
   readQualificationLifecycle,
   validateQualificationAccountingLedger,
@@ -53,6 +54,19 @@ function request(files: ReturnType<typeof setupFiles>, id = "invocation-0001", r
     role, counts_as_measurement: role === "subject" || role === "judge",
     arms: { subject: "fake-subject", judge: "fake-judge" }, selected_arm: selected, repetition: 0,
   };
+}
+
+function prepareV3(command = { command: "complete" }) {
+  const files = setupFiles();
+  writeFileSync(files.prompt, `${JSON.stringify(command)}\n`);
+  const config = JSON.parse(readFileSync(files.configPath, "utf8"));
+  config.oauth_directory_policy = QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+  config.terminal_receipt_version = QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3;
+  writeFileSync(files.configPath, JSON.stringify(config));
+  const requestPath = join(files.root, "request-v3.json");
+  writeFileSync(requestPath, JSON.stringify(request(files)));
+  const prepared = prepareQualificationInvocation({ spool_dir: files.spool, config_path: files.configPath, request_path: requestPath });
+  return { files, prepared, recordPath: join(files.spool, "invocations", prepared.invocation_id, "invocation.json") };
 }
 
 const event = (id: string, role: QualificationAccountingEventInput["role"] = "subject", callClass: "subject" | "judge" = "subject"): QualificationAccountingEventInput => ({
@@ -118,6 +132,129 @@ describe("qualification preparation", () => {
     writeFileSync(laterRequest, JSON.stringify(request(historical, "invocation-0002")));
     expect(() => prepareQualificationInvocation({ spool_dir: historical.spool, config_path: supersedingPath, request_path: laterRequest }))
       .toThrow(/spool.*different configuration identity/i);
+  });
+
+  it("rejects source replacement between initial validation and governed v3 snapshot", () => {
+    const files = setupFiles();
+    const original = Buffer.from('{"version":"approved"}\n');
+    const replacement = Buffer.from('{"version":"substituted"}\n');
+    writeFileSync(files.prompt, original);
+    const config = JSON.parse(readFileSync(files.configPath, "utf8"));
+    config.oauth_directory_policy = QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+    config.terminal_receipt_version = QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3;
+    writeFileSync(files.configPath, JSON.stringify(config));
+    const requestPath = join(files.root, "request-race.json");
+    writeFileSync(requestPath, JSON.stringify(request(files)));
+    expect(() => prepareQualificationInvocation({
+      spool_dir: files.spool,
+      config_path: files.configPath,
+      request_path: requestPath,
+      test_hooks: { after_initial_input_validation: () => writeFileSync(files.prompt, replacement) },
+    })).toThrow(/input digest mismatch/i);
+    expect(existsSync(join(files.spool, "invocations", "invocation-0001"))).toBe(false);
+    expect(readQualificationAccounting(files.spool).events).toHaveLength(0);
+  });
+
+  it("persists and reloads the exact v3 application/json input bytes and occurrence", () => {
+    const files = setupFiles();
+    const exact = Buffer.from('{"b":2, "a":1}\n');
+    writeFileSync(files.prompt, exact);
+    const config = JSON.parse(readFileSync(files.configPath, "utf8"));
+    config.oauth_directory_policy = QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+    config.terminal_receipt_version = QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3;
+    writeFileSync(files.configPath, JSON.stringify(config));
+    const requestValue = request(files);
+    const requestPath = join(files.root, "request-v3.json");
+    writeFileSync(requestPath, JSON.stringify(requestValue));
+    const prepared = prepareQualificationInvocation({ spool_dir: files.spool, config_path: files.configPath, request_path: requestPath });
+    expect(prepared).toMatchObject({
+      schema_version: "qualification-invocation-v3",
+      oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
+      terminal_receipt_version: QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3,
+      prepared_attempt: 0,
+      accounting_event_sha256: null,
+      invocation_input: { schema_version: "qualification-invocation-input-binding-v1", content_type: "application/json", bytes: exact.length, sha256: sha(exact) },
+      invocation_input_occurrence: { mode: 0o600, link_count: 1, bytes: exact.length, sha256: sha(exact) },
+    });
+    expect(readFileSync(prepared.scenario.input_path)).toEqual(exact);
+    expect(readQualificationInvocation(files.spool, prepared.invocation_id)).toEqual(prepared);
+
+    const semanticallyEqual = Buffer.from('{"a":1,"b":2}\n');
+    expect(sha(semanticallyEqual)).not.toBe(prepared.invocation_input?.sha256);
+    writeFileSync(prepared.scenario.input_path, semanticallyEqual);
+    expect(() => readQualificationInvocation(files.spool, prepared.invocation_id)).toThrow(/input binding mismatch/i);
+  });
+
+  it.each([
+    ["truncation", (path: string) => writeFileSync(path, '{"a":1}')],
+    ["extension", (path: string) => writeFileSync(path, '{"b":2, "a":1}\n ')],
+    ["reordered bytes", (path: string) => writeFileSync(path, '{"a":1, "b":2}\n')],
+    ["deletion", (path: string) => rmSync(path)],
+    ["atomic replacement", (path: string) => { const next = `${path}.next`; writeFileSync(next, '{"b":2, "a":1}\n', { mode: 0o600 }); renameSync(next, path); }],
+  ])("rejects governed v3 input %s on deterministic reload", (_name, mutate) => {
+    const files = setupFiles();
+    writeFileSync(files.prompt, '{"b":2, "a":1}\n');
+    const config = JSON.parse(readFileSync(files.configPath, "utf8"));
+    config.oauth_directory_policy = QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+    config.terminal_receipt_version = QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3;
+    writeFileSync(files.configPath, JSON.stringify(config));
+    const requestPath = join(files.root, "request-v3.json");
+    writeFileSync(requestPath, JSON.stringify(request(files)));
+    const prepared = prepareQualificationInvocation({ spool_dir: files.spool, config_path: files.configPath, request_path: requestPath });
+    mutate(prepared.scenario.input_path);
+    expect(() => readQualificationInvocation(files.spool, prepared.invocation_id)).toThrow(/governed invocation input|input binding|input occurrence/i);
+  });
+
+  it("rejects forged v3 metadata and refuses to retrofit a stale legacy invocation", () => {
+    const files = setupFiles();
+    const requestPath = join(files.root, "request.json");
+    writeFileSync(requestPath, JSON.stringify(request(files)));
+    const legacy = prepareQualificationInvocation({ spool_dir: files.spool, config_path: files.configPath, request_path: requestPath });
+    const path = join(files.spool, "invocations", legacy.invocation_id, "invocation.json");
+    const forged: any = JSON.parse(readFileSync(path, "utf8"));
+    forged.schema_version = "qualification-invocation-v3";
+    forged.oauth_directory_policy = QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+    forged.terminal_receipt_version = QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3;
+    forged.invocation_input = { schema_version: "qualification-invocation-input-binding-v1", content_type: "text/plain", bytes: 13, sha256: sha(readFileSync(legacy.scenario.input_path)) };
+    forged.invocation_input_occurrence = { path: legacy.scenario.input_path, realpath: legacy.scenario.input_path, device: 0, inode: 0, mode: 0o600, uid: 0, gid: 0, link_count: 1, bytes: 13, sha256: forged.invocation_input.sha256 };
+    forged.prepared_attempt = 0;
+    forged.accounting_event_sha256 = null;
+    const { invocation_sha256: _old, ...digestInput } = forged;
+    forged.invocation_sha256 = qualificationSha256(qualificationCanonicalJson(digestInput));
+    writeFileSync(path, `${qualificationCanonicalJson(forged)}\n`);
+    expect(() => readQualificationInvocation(files.spool, legacy.invocation_id)).toThrow(/content type/i);
+  });
+
+  it.each([
+    ["path", (record: any) => { record.invocation_input_occurrence.path += ".other"; }],
+    ["realpath", (record: any) => { record.invocation_input_occurrence.realpath += ".other"; }],
+    ["owner", (record: any) => { record.invocation_input_occurrence.uid += 1; }],
+    ["mode", (record: any) => { record.invocation_input_occurrence.mode = 0o644; }],
+    ["link count", (record: any) => { record.invocation_input_occurrence.link_count = 2; }],
+    ["inode", (record: any) => { record.invocation_input_occurrence.inode += 1; }],
+    ["device", (record: any) => { record.invocation_input_occurrence.device += 1; }],
+    ["bytes", (record: any) => { record.invocation_input_occurrence.bytes += 1; }],
+    ["digest", (record: any) => { record.invocation_input_occurrence.sha256 = hex("f"); }],
+  ])("rejects forged governed input occurrence metadata: %s", (_name, mutate) => {
+    const { files, prepared, recordPath } = prepareV3();
+    const record = JSON.parse(readFileSync(recordPath, "utf8"));
+    mutate(record);
+    const { invocation_sha256: _old, ...digestInput } = record;
+    record.invocation_sha256 = qualificationSha256(qualificationCanonicalJson(digestInput));
+    writeFileSync(recordPath, `${qualificationCanonicalJson(record)}\n`);
+    expect(() => readQualificationInvocation(files.spool, prepared.invocation_id)).toThrow(/input occurrence|identity/i);
+  });
+
+  it("rejects hardlink, symlink, directory, and private-mode substitutions of governed v3 input", () => {
+    for (const mutation of ["hardlink", "symlink", "directory", "mode"] as const) {
+      const { files, prepared } = prepareV3();
+      const path = prepared.scenario.input_path;
+      if (mutation === "hardlink") linkSync(path, `${path}.alias`);
+      if (mutation === "symlink") { const target = `${path}.target`; renameSync(path, target); symlinkSync(target, path); }
+      if (mutation === "directory") { rmSync(path); mkdirSync(path, { mode: 0o700 }); }
+      if (mutation === "mode") chmodSync(path, 0o640);
+      expect(() => readQualificationInvocation(files.spool, prepared.invocation_id)).toThrow(/hard link|missing, replaced, or unsafe|regular file|private and owned/i);
+    }
   });
 
   it("detects mutation of the immutable invocation record", () => {

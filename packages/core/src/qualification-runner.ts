@@ -52,6 +52,7 @@ import {
 } from "./qualification-lock.js";
 import {
   QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
+  QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3,
   qualificationOAuthDirectoryPolicy,
   sanitizeQualificationEnvironment,
   qualificationCanonicalJson,
@@ -87,6 +88,9 @@ import {
   validateQualificationSpool,
   writeQualificationAccounting,
   writeQualificationLifecycle,
+  verifyQualificationInvocationInput,
+  QUALIFICATION_INVOCATION_VERSION_V3,
+  type QualificationInvocationInputBindingV1,
   type QualificationInvocationV1,
   type QualificationLifecycleV1,
   type QualificationTerminalStatus,
@@ -97,6 +101,8 @@ export const QUALIFICATION_AUTH_EVIDENCE_VERSION_V2 = "qualification-auth-eviden
 export const QUALIFICATION_TERMINAL_RECEIPT_VERSION = "qualification-terminal-receipt-v1" as const;
 export const QUALIFICATION_TERMINAL_RECEIPT_VERSION_V2 = "qualification-terminal-receipt-v2" as const;
 export const QUALIFICATION_LAUNCH_ATTEMPT_VERSION = "qualification-launch-attempt-v1" as const;
+export const QUALIFICATION_LAUNCH_ATTEMPT_VERSION_V2 = "qualification-launch-attempt-v2" as const;
+export const QUALIFICATION_INPUT_LAUNCH_CLAIM_VERSION = "qualification-input-launch-claim-v1" as const;
 
 export interface QualificationFilesystemOccurrence {
   realpath: string;
@@ -187,7 +193,17 @@ export interface QualificationTerminalReceiptV2 extends Omit<QualificationTermin
   oauth_directory_validations: QualificationOAuthDirectoryValidationsV2;
 }
 
-export type QualificationTerminalReceipt = QualificationTerminalReceiptV1 | QualificationTerminalReceiptV2;
+export interface QualificationTerminalReceiptV3 extends Omit<QualificationTerminalReceiptV2, "schema_version"> {
+  schema_version: typeof QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3;
+  configuration_sha256: string;
+  invocation_sha256: string;
+  invocation_input: QualificationInvocationInputBindingV1;
+  input_launch_claim_sha256: string | null;
+  launch_attempt_sha256: string | null;
+  child_occurrence_sha256: string | null;
+}
+
+export type QualificationTerminalReceipt = QualificationTerminalReceiptV1 | QualificationTerminalReceiptV2 | QualificationTerminalReceiptV3;
 
 type QualificationChildOutcome = { code: number | null; signal: NodeJS.Signals | null; error?: string };
 
@@ -453,11 +469,14 @@ export async function superviseQualificationInvocation(options: {
   authentication_authority?: string;
   continuation_authority?: string;
   now?: () => string;
+  /** Deterministic race injection for offline tests only; production rejects it. */
+  test_hooks?: { immediately_before_child_input_validation?: () => void };
 }): Promise<void> {
   const now = options.now ?? (() => new Date().toISOString());
   const invocation = readQualificationInvocation(options.spool_dir, options.invocation_id);
   const config = readQualificationSpoolConfig(options.spool_dir);
   const oauthPolicy = qualificationOAuthDirectoryPolicy(config);
+  if (options.test_hooks && config.mode !== "test") throw new Error("qualification runner test hooks are prohibited in production");
   const arm = config.arms.find((candidate) => candidate.id === invocation.arms.selected);
   if (!arm) throw new Error(`qualification selected arm ${invocation.arms.selected} disappeared from configuration`);
   const paths = qualificationSpoolPaths(options.spool_dir, options.invocation_id);
@@ -482,6 +501,7 @@ export async function superviseQualificationInvocation(options: {
   let reconcileExistingAttempt = false;
   let accountingEventSha = "";
   let continuationSha: string | null = null;
+  let claimedInputBinding: QualificationInvocationInputBindingV1 | null = null;
 
   await withAsyncLock(paths.lock, async () => {
     await withAsyncLock(paths.invocationLock!, async () => {
@@ -491,6 +511,9 @@ export async function superviseQualificationInvocation(options: {
         return;
       }
       const currentAuth = readAuthEvidence(options.spool_dir, invocation);
+      const claimInputBinding = invocation.schema_version === QUALIFICATION_INVOCATION_VERSION_V3
+        ? verifyQualificationInvocationInput(invocation)
+        : null;
       const claimBoundary = assertConfiguredOAuthBoundary(
         config.mode,
         oauthPolicy,
@@ -520,6 +543,9 @@ export async function superviseQualificationInvocation(options: {
       }
       if (existingClaim) {
         accountingEventSha = existingClaim.event_sha256;
+        claimedInputBinding = invocation.schema_version === QUALIFICATION_INVOCATION_VERSION_V3
+          ? readInputLaunchClaim(paths.invocation!, invocation, accountingEventSha)
+          : null;
         const launchAttemptExists = existsSync(join(paths.invocation!, "launch-attempt.json"));
         const priorSupervisor = latestContinuationSupervisor(paths.invocation!, invocation) ?? latestProcessIdentity(lifecycle, "supervisor");
         if (lifecycle.phase !== "prepared" && priorSupervisor && qualificationProcessMatches(priorSupervisor)) return;
@@ -550,6 +576,10 @@ export async function superviseQualificationInvocation(options: {
         });
         writeQualificationAccounting(paths.root, next);
         accountingEventSha = next.chain_head!;
+        if (claimInputBinding) {
+          writeInputLaunchClaim(paths.invocation!, invocation, accountingEventSha, claimInputBinding, supervisorIdentity, timestamp(now(), "qualification input launch claim time"));
+          claimedInputBinding = claimInputBinding;
+        }
       }
       if (lifecycle.phase === "prepared") {
         lifecycle = transitionQualificationLifecycle(lifecycle, "launch-claimed", {
@@ -559,6 +589,7 @@ export async function superviseQualificationInvocation(options: {
             accounting_event_sha256: accountingEventSha,
             supervisor: supervisorIdentity,
             continuation_authority_sha256: continuationSha,
+            ...(claimedInputBinding ? { invocation_input: claimedInputBinding } : {}),
           },
         });
         writeQualificationLifecycle(paths.root, lifecycle);
@@ -594,7 +625,7 @@ export async function superviseQualificationInvocation(options: {
   const attemptAt = timestamp(now(), "qualification launch attempt time");
   try {
     atomicWriteCanonical(launchAttemptPath, {
-      schema_version: QUALIFICATION_LAUNCH_ATTEMPT_VERSION,
+      schema_version: claimedInputBinding ? QUALIFICATION_LAUNCH_ATTEMPT_VERSION_V2 : QUALIFICATION_LAUNCH_ATTEMPT_VERSION,
       invocation_id: invocation.invocation_id,
       attempt: 1,
       at: attemptAt,
@@ -602,6 +633,7 @@ export async function superviseQualificationInvocation(options: {
       argv,
       environment_names: Object.keys(options.child_env).sort(),
       automatic_retry: false,
+      ...(claimedInputBinding ? { invocation_input: claimedInputBinding, accounting_event_sha256: accountingEventSha } : {}),
     }, true);
   } catch (error) {
     await finalizeWithoutChild({ invocation, spoolDir: paths.root, status: "failed", supervisor: supervisorIdentity, auth, now: now(), error: `launch-attempt publication failed: ${safeError(error)}`, accountingEventSha, continuationSha });
@@ -658,6 +690,11 @@ export async function superviseQualificationInvocation(options: {
   try {
     await withAsyncLock(paths.invocationLock!, async () => {
       if (existsSync(join(paths.invocation!, "abort-request.json"))) throw new Error("aborted before process spawn");
+      options.test_hooks?.immediately_before_child_input_validation?.();
+      const spawnInputBinding = invocation.schema_version === QUALIFICATION_INVOCATION_VERSION_V3
+        ? verifyQualificationInvocationInput(invocation)
+        : null;
+      if (qualificationCanonicalJson(spawnInputBinding) !== qualificationCanonicalJson(claimedInputBinding)) throw new Error("qualification invocation input changed between launch claim and child spawn");
       const lifecycle = readQualificationLifecycle(paths.root, invocation.invocation_id);
       if (lifecycle.phase !== "launch-claimed") throw new Error(`qualification invocation entered ${lifecycle.phase} before process start could be recorded`);
       child = spawn(arm.executable.path, argv, {
@@ -689,16 +726,17 @@ export async function superviseQualificationInvocation(options: {
       deadlineAt = new Date(Date.parse(startedAt) + arm.timeout_ms).toISOString();
       if (!childIdentity) throw new Error(childIdentityError ?? "child process occurrence identity is unavailable");
       atomicWriteCanonical(join(paths.invocation!, "child-occurrence.json"), {
-        schema_version: "qualification-child-occurrence-v1",
+        schema_version: claimedInputBinding ? "qualification-child-occurrence-v2" : "qualification-child-occurrence-v1",
         invocation_id: invocation.invocation_id,
         attempt: 1,
         started_at: startedAt,
         deadline_at: deadlineAt,
         child: childIdentity,
+        ...(claimedInputBinding ? { invocation_input: claimedInputBinding, accounting_event_sha256: accountingEventSha } : {}),
       }, true);
       writeQualificationLifecycle(paths.root, transitionQualificationLifecycle(lifecycle, "running", {
         at: startedAt,
-        detail: { attempt: 1, supervisor: supervisorIdentity, child: childIdentity, deadline_at: deadlineAt, continuation_authority_sha256: continuationSha },
+        detail: { attempt: 1, supervisor: supervisorIdentity, child: childIdentity, deadline_at: deadlineAt, continuation_authority_sha256: continuationSha, ...(claimedInputBinding ? { invocation_input: claimedInputBinding } : {}) },
       }));
     });
   } catch (error) {
@@ -855,7 +893,7 @@ export async function abortQualificationInvocation(options: {
       }
       if (!accountingEvent) throw new Error(`qualification nonterminal invocation ${invocation.invocation_id} has no accounting claim`);
       const priorSupervisor = latestContinuationSupervisor(paths.invocation!, invocation) ?? latestProcessIdentity(lifecycle, "supervisor");
-      const child = readChildOccurrence(paths.invocation!, invocation, false)?.child ?? latestProcessIdentity(lifecycle, "child");
+      const child = readChildOccurrence(paths.invocation!, invocation, false, accountingEvent.event_sha256)?.child ?? latestProcessIdentity(lifecycle, "child");
       if (priorSupervisor && qualificationProcessMatches(priorSupervisor)) {
         if (child) {
           childToTerminate = child;
@@ -917,15 +955,20 @@ export function validateQualificationRunnerSpool(spoolDir: string): ReturnType<t
     const hasLaunchAttempt = existsSync(launchAttemptPath);
     if (hasLaunchAttempt) {
       const attempt = readCanonicalJson(launchAttemptPath, `qualification launch attempt ${id}`);
-      validateLaunchAttempt(attempt, invocation, paths.root);
       if (!accountingEvent) throw new Error(`qualification launch attempt ${id} has no accounting claim`);
+      validateLaunchAttempt(attempt, invocation, paths.root, accountingEvent.event_sha256);
     }
     if ((lifecycle.phase === "launch-claimed" || lifecycle.phase === "running") && !accountingEvent) {
       throw new Error(`qualification lifecycle ${id} advanced without an accounting claim`);
     }
+    if (invocation.schema_version === QUALIFICATION_INVOCATION_VERSION_V3) {
+      const inputClaimPath = join(invocationPaths.invocation!, "input-launch-claim.json");
+      if (accountingEvent) readInputLaunchClaim(invocationPaths.invocation!, invocation, accountingEvent.event_sha256);
+      else if (existsSync(inputClaimPath)) throw new Error(`qualification invocation ${id} has an input launch claim without accounting`);
+    }
     const continuationRecord = readContinuationRecord(invocationPaths.invocation!);
     if (continuationRecord) assertContinuationRecordBound(continuationRecord, invocation);
-    const childOccurrence = readChildOccurrence(invocationPaths.invocation!, invocation, false);
+    const childOccurrence = readChildOccurrence(invocationPaths.invocation!, invocation, false, accountingEvent?.event_sha256);
     if (childOccurrence && (!hasLaunchAttempt || !accountingEvent)) throw new Error(`qualification child occurrence ${id} has no launch/accounting claim`);
     if (invocation.oauth_directory_policy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) {
       const claimPath = oauthCheckpointPath(invocationPaths.invocation!, "before-launch-claim");
@@ -948,14 +991,14 @@ export function validateQualificationRunnerSpool(spoolDir: string): ReturnType<t
       const receipt = readTerminalReceipt(paths.root, invocation);
       if (invocation.oauth_directory_policy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 && accountingEvent &&
           !existsSync(oauthCheckpointPath(invocationPaths.invocation!, "before-launch-claim"))) {
-        const handledMissingClaim = receipt.schema_version === QUALIFICATION_TERMINAL_RECEIPT_VERSION_V2 &&
+        const handledMissingClaim = receipt.schema_version !== QUALIFICATION_TERMINAL_RECEIPT_VERSION &&
           receipt.oauth_directory_validations.before_launch_claim === null && receipt.artifact === null &&
           receipt.terminal_status !== "completed" && receipt.terminal_status !== "refused";
         if (!handledMissingClaim) throw new Error(`qualification terminal receipt for ${id} did not fail closed over its missing launch-claim OAuth checkpoint`);
       }
       if (invocation.oauth_directory_policy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 && childOccurrence &&
           !existsSync(oauthCheckpointPath(invocationPaths.invocation!, "immediately-before-pi-launch"))) {
-        const handledMissingCheckpoint = receipt.schema_version === QUALIFICATION_TERMINAL_RECEIPT_VERSION_V2 &&
+        const handledMissingCheckpoint = receipt.schema_version !== QUALIFICATION_TERMINAL_RECEIPT_VERSION &&
           receipt.oauth_directory_validations.immediately_before_pi_launch === null && receipt.artifact === null &&
           receipt.terminal_status !== "completed" && receipt.terminal_status !== "refused";
         if (!handledMissingCheckpoint) throw new Error(`qualification terminal receipt for ${id} did not fail closed over its missing prelaunch OAuth checkpoint`);
@@ -1080,15 +1123,41 @@ function buildQualificationArgv(invocation: QualificationInvocationV1, artifactP
 }
 
 interface QualificationChildOccurrence {
-  schema_version: "qualification-child-occurrence-v1";
+  schema_version: "qualification-child-occurrence-v1" | "qualification-child-occurrence-v2";
   invocation_id: string;
   attempt: 1;
   started_at: string;
   deadline_at: string;
   child: QualificationProcessIdentity;
+  invocation_input?: QualificationInvocationInputBindingV1;
+  accounting_event_sha256?: string;
 }
 
-function readChildOccurrence(invocationDir: string, invocation: QualificationInvocationV1, required: boolean): QualificationChildOccurrence | null {
+function writeInputLaunchClaim(invocationDir: string, invocation: QualificationInvocationV1, accountingSha: string, input: QualificationInvocationInputBindingV1, supervisor: QualificationProcessIdentity, claimedAt: string): void {
+  if (invocation.schema_version !== QUALIFICATION_INVOCATION_VERSION_V3 || !invocation.invocation_input_occurrence) throw new Error("qualification input launch claim requires invocation v3");
+  atomicWriteCanonical(join(invocationDir, "input-launch-claim.json"), {
+    schema_version: QUALIFICATION_INPUT_LAUNCH_CLAIM_VERSION,
+    invocation_id: invocation.invocation_id,
+    attempt: 1,
+    accounting_event_sha256: accountingSha,
+    claimed_at: claimedAt,
+    supervisor,
+    invocation_input: input,
+    invocation_input_occurrence: invocation.invocation_input_occurrence,
+  }, true);
+}
+
+function readInputLaunchClaim(invocationDir: string, invocation: QualificationInvocationV1, accountingSha: string): QualificationInvocationInputBindingV1 {
+  const value = readCanonicalJson(join(invocationDir, "input-launch-claim.json"), `qualification input launch claim ${invocation.invocation_id}`);
+  if (!plainObject(value)) throw new Error("qualification input launch claim must be an object");
+  exactKeys(value, ["schema_version", "invocation_id", "attempt", "accounting_event_sha256", "claimed_at", "supervisor", "invocation_input", "invocation_input_occurrence"], "qualification input launch claim");
+  if (value.schema_version !== QUALIFICATION_INPUT_LAUNCH_CLAIM_VERSION || value.invocation_id !== invocation.invocation_id || value.attempt !== 1 || value.accounting_event_sha256 !== accountingSha || !processIdentityFrom(value.supervisor)) throw new Error("qualification input launch claim identity mismatch");
+  timestamp(String(value.claimed_at), "qualification input launch claim time");
+  if (qualificationCanonicalJson(value.invocation_input) !== qualificationCanonicalJson(invocation.invocation_input) || qualificationCanonicalJson(value.invocation_input_occurrence) !== qualificationCanonicalJson(invocation.invocation_input_occurrence)) throw new Error("qualification input launch claim binding mismatch");
+  return invocation.invocation_input!;
+}
+
+function readChildOccurrence(invocationDir: string, invocation: QualificationInvocationV1, required: boolean, expectedAccountingSha?: string): QualificationChildOccurrence | null {
   const path = join(invocationDir, "child-occurrence.json");
   if (!existsSync(path)) {
     if (required) throw new Error(`qualification child occurrence for ${invocation.invocation_id} is missing`);
@@ -1096,15 +1165,17 @@ function readChildOccurrence(invocationDir: string, invocation: QualificationInv
   }
   const value = readCanonicalJson(path, `qualification child occurrence ${invocation.invocation_id}`);
   if (!plainObject(value)) throw new Error(`qualification child occurrence ${invocation.invocation_id} must be an object`);
-  exactKeys(value, ["schema_version", "invocation_id", "attempt", "started_at", "deadline_at", "child"], `qualification child occurrence ${invocation.invocation_id}`);
+  const v3 = invocation.schema_version === QUALIFICATION_INVOCATION_VERSION_V3;
+  exactKeys(value, v3 ? ["schema_version", "invocation_id", "attempt", "started_at", "deadline_at", "child", "invocation_input", "accounting_event_sha256"] : ["schema_version", "invocation_id", "attempt", "started_at", "deadline_at", "child"], `qualification child occurrence ${invocation.invocation_id}`);
   const child = processIdentityFrom(value.child);
-  if (value.schema_version !== "qualification-child-occurrence-v1" || value.invocation_id !== invocation.invocation_id || value.attempt !== 1 || !child) {
+  if (value.schema_version !== (v3 ? "qualification-child-occurrence-v2" : "qualification-child-occurrence-v1") || value.invocation_id !== invocation.invocation_id || value.attempt !== 1 || !child) {
     throw new Error(`qualification child occurrence ${invocation.invocation_id} identity/version mismatch`);
   }
+  if (v3 && (qualificationCanonicalJson(value.invocation_input) !== qualificationCanonicalJson(invocation.invocation_input) || typeof value.accounting_event_sha256 !== "string" || !/^[a-f0-9]{64}$/.test(value.accounting_event_sha256) || value.accounting_event_sha256 !== expectedAccountingSha)) throw new Error(`qualification child occurrence ${invocation.invocation_id} input binding mismatch`);
   const startedAt = timestamp(String(value.started_at), `qualification child occurrence ${invocation.invocation_id} start time`);
   const deadlineAt = timestamp(String(value.deadline_at), `qualification child occurrence ${invocation.invocation_id} deadline`);
   if (Date.parse(deadlineAt) < Date.parse(startedAt)) throw new Error(`qualification child occurrence ${invocation.invocation_id} deadline precedes start`);
-  return { schema_version: "qualification-child-occurrence-v1", invocation_id: invocation.invocation_id, attempt: 1, started_at: startedAt, deadline_at: deadlineAt, child };
+  return { schema_version: v3 ? "qualification-child-occurrence-v2" : "qualification-child-occurrence-v1", invocation_id: invocation.invocation_id, attempt: 1, started_at: startedAt, deadline_at: deadlineAt, child, ...(v3 ? { invocation_input: invocation.invocation_input, accounting_event_sha256: String(value.accounting_event_sha256) } : {}) };
 }
 
 function latestProcessIdentity(lifecycle: QualificationLifecycleV1, field: "supervisor" | "child"): QualificationProcessIdentity | null {
@@ -1202,7 +1273,7 @@ async function reconcileInterruptedAttempt(options: {
 }): Promise<void> {
   if (!options.accountingEventSha) throw new Error(`qualification interrupted invocation ${options.invocation.invocation_id} has no accounting claim`);
   const paths = qualificationSpoolPaths(options.spoolDir, options.invocation.invocation_id);
-  const occurrence = readChildOccurrence(paths.invocation!, options.invocation, false);
+  const occurrence = readChildOccurrence(paths.invocation!, options.invocation, false, options.accountingEventSha);
   const child = options.child ?? occurrence?.child ?? latestProcessIdentity(readQualificationLifecycle(paths.root, options.invocation.invocation_id), "child");
   if (child) {
     await terminateInterruptedQualificationProcessGroup(child);
@@ -1296,9 +1367,30 @@ function collectOAuthDirectoryValidationsV2(
 
 function terminalReceiptForPolicy(
   invocation: QualificationInvocationV1,
+  spoolDir: string,
   base: Omit<QualificationTerminalReceiptV1, "schema_version">,
   oauth: ReturnType<typeof collectOAuthDirectoryValidationsV2>,
 ): QualificationTerminalReceipt {
+  if (invocation.schema_version === QUALIFICATION_INVOCATION_VERSION_V3) {
+    if (!oauth || !invocation.invocation_input) throw new Error("qualification terminal receipt v3 lacks OAuth/input evidence");
+    const dir = qualificationSpoolPaths(spoolDir, invocation.invocation_id).invocation!;
+    const evidenceDigest = (name: string): string | null => {
+      const path = join(dir, name);
+      return existsSync(path) ? qualificationSha256(readExactRegularBytes(path, `qualification ${name}`)) : null;
+    };
+    return {
+      schema_version: QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3,
+      ...base,
+      oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
+      oauth_directory_validations: oauth.validations,
+      configuration_sha256: invocation.configuration_sha256,
+      invocation_sha256: invocation.invocation_sha256,
+      invocation_input: invocation.invocation_input,
+      input_launch_claim_sha256: evidenceDigest("input-launch-claim.json"),
+      launch_attempt_sha256: evidenceDigest("launch-attempt.json"),
+      child_occurrence_sha256: evidenceDigest("child-occurrence.json"),
+    };
+  }
   if (invocation.oauth_directory_policy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) {
     if (!oauth) throw new Error("qualification terminal receipt v2 lacks OAuth directory evidence");
     return {
@@ -1363,7 +1455,7 @@ async function finalizeAfterCapture(options: {
         : attestation.refused ? "refused"
           : attestation.ok ? "completed" : "invalid-artifact");
   const error = options.error ?? (status === "completed" ? null : oauth?.error ?? attestation.error ?? `child exited ${String(options.exitCode)}`);
-  const receipt = terminalReceiptForPolicy(options.invocation, {
+  const receipt = terminalReceiptForPolicy(options.invocation, paths.root, {
     invocation_id: options.invocation.invocation_id,
     terminal_status: status,
     attempt: 1,
@@ -1445,7 +1537,7 @@ async function finalizeWithoutChild(options: {
   } else if (existsSync(interruptedArtifactPath)) {
     rmSync(interruptedArtifactPath, { force: true });
   }
-  const receipt = terminalReceiptForPolicy(options.invocation, {
+  const receipt = terminalReceiptForPolicy(options.invocation, paths.root, {
     invocation_id: options.invocation.invocation_id,
     terminal_status: options.status,
     attempt: options.accountingEventSha ? 1 : 0,
@@ -1479,6 +1571,28 @@ async function finalizeWithoutChild(options: {
   commitTerminalReceipt(paths.root, options.invocation, receipt);
 }
 
+function readExactRegularBytes(path: string, ctx: string): Buffer {
+  let fd: number | undefined;
+  try {
+    fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0));
+    const stat = fstatSync(fd);
+    if (!stat.isFile() || stat.nlink !== 1) throw new Error(`${ctx} is not a single-link regular file`);
+    return readFileSync(fd);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("single-link")) throw error;
+    throw new Error(`${ctx} is missing, replaced, or unreadable`);
+  } finally { if (fd !== undefined) closeSync(fd); }
+}
+
+function parseCanonicalReceiptBytes(bytes: Buffer, invocation: QualificationInvocationV1): QualificationTerminalReceipt {
+  let value: unknown;
+  try { value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); }
+  catch { throw new Error(`qualification terminal receipt ${invocation.invocation_id} contains invalid JSON/UTF-8`); }
+  if (!bytes.equals(Buffer.from(`${qualificationCanonicalJson(value)}\n`))) throw new Error(`qualification terminal receipt ${invocation.invocation_id} is not canonical JSON`);
+  validateTerminalReceipt(value, invocation);
+  return value as QualificationTerminalReceipt;
+}
+
 function commitTerminalReceipt(spoolDir: string, invocation: QualificationInvocationV1, receipt: QualificationTerminalReceipt): void {
   const paths = qualificationSpoolPaths(spoolDir, invocation.invocation_id);
   if (existsSync(paths.terminal!)) {
@@ -1490,7 +1604,18 @@ function commitTerminalReceipt(spoolDir: string, invocation: QualificationInvoca
   const temp = join(paths.invocation!, `.terminal-${randomBytes(10).toString("hex")}`);
   mkdirSync(temp, { mode: 0o700 });
   try {
-    atomicWriteCanonical(join(temp, "receipt.json"), receipt, true);
+    const temporaryReceiptPath = join(temp, "receipt.json");
+    atomicWriteCanonical(temporaryReceiptPath, receipt, true);
+    const exactReceiptBytes = readExactRegularBytes(temporaryReceiptPath, `qualification terminal receipt ${invocation.invocation_id}`);
+    parseCanonicalReceiptBytes(exactReceiptBytes, invocation);
+    if (receipt.schema_version === QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3) {
+      atomicWriteCanonical(join(temp, "receipt-identity.json"), {
+        schema_version: "qualification-terminal-receipt-byte-identity-v1",
+        invocation_id: invocation.invocation_id,
+        bytes: exactReceiptBytes.length,
+        sha256: qualificationSha256(exactReceiptBytes),
+      }, true);
+    }
     renameSync(temp, paths.terminal!);
     fsyncQualificationDirectory(paths.invocation!);
   } finally {
@@ -1518,13 +1643,15 @@ function reconcileTerminalLifecycle(spoolDir: string, invocation: QualificationI
   }));
 }
 
-function validateLaunchAttempt(value: unknown, invocation: QualificationInvocationV1, spoolRoot: string): void {
+function validateLaunchAttempt(value: unknown, invocation: QualificationInvocationV1, spoolRoot: string, expectedAccountingSha?: string): void {
   if (!plainObject(value)) throw new Error(`qualification launch attempt ${invocation.invocation_id} must be an object`);
-  exactKeys(value, ["schema_version", "invocation_id", "attempt", "at", "executable", "argv", "environment_names", "automatic_retry"], `qualification launch attempt ${invocation.invocation_id}`);
-  if (value.schema_version !== QUALIFICATION_LAUNCH_ATTEMPT_VERSION || value.invocation_id !== invocation.invocation_id || value.attempt !== 1 || value.automatic_retry !== false) {
+  const v3 = invocation.schema_version === QUALIFICATION_INVOCATION_VERSION_V3;
+  exactKeys(value, v3 ? ["schema_version", "invocation_id", "attempt", "at", "executable", "argv", "environment_names", "automatic_retry", "invocation_input", "accounting_event_sha256"] : ["schema_version", "invocation_id", "attempt", "at", "executable", "argv", "environment_names", "automatic_retry"], `qualification launch attempt ${invocation.invocation_id}`);
+  if (value.schema_version !== (v3 ? QUALIFICATION_LAUNCH_ATTEMPT_VERSION_V2 : QUALIFICATION_LAUNCH_ATTEMPT_VERSION) || value.invocation_id !== invocation.invocation_id || value.attempt !== 1 || value.automatic_retry !== false) {
     throw new Error(`qualification launch attempt ${invocation.invocation_id} identity/version/retry policy mismatch`);
   }
   timestamp(String(value.at), `qualification launch attempt ${invocation.invocation_id} time`);
+  if (v3 && (qualificationCanonicalJson(value.invocation_input) !== qualificationCanonicalJson(invocation.invocation_input) || typeof value.accounting_event_sha256 !== "string" || !/^[a-f0-9]{64}$/.test(value.accounting_event_sha256) || value.accounting_event_sha256 !== expectedAccountingSha)) throw new Error(`qualification launch attempt ${invocation.invocation_id} input binding mismatch`);
   if (qualificationCanonicalJson(value.executable) !== qualificationCanonicalJson(invocation.execution.executable)) throw new Error(`qualification launch attempt ${invocation.invocation_id} executable mismatch`);
   const expectedArgv = buildQualificationArgv(invocation, join(spoolRoot, invocation.expected_artifact.path));
   if (qualificationCanonicalJson(value.argv) !== qualificationCanonicalJson(expectedArgv)) throw new Error(`qualification launch attempt ${invocation.invocation_id} argv mismatch`);
@@ -1536,10 +1663,17 @@ function validateLaunchAttempt(value: unknown, invocation: QualificationInvocati
 }
 
 function readTerminalReceipt(spoolDir: string, invocation: QualificationInvocationV1): QualificationTerminalReceipt {
-  const path = join(qualificationSpoolPaths(spoolDir, invocation.invocation_id).terminal!, "receipt.json");
-  const value = readCanonicalJson(path, `qualification terminal receipt ${invocation.invocation_id}`);
-  validateTerminalReceipt(value, invocation);
-  return value as QualificationTerminalReceipt;
+  const terminal = qualificationSpoolPaths(spoolDir, invocation.invocation_id).terminal!;
+  const path = join(terminal, "receipt.json");
+  const exactBytes = readExactRegularBytes(path, `qualification terminal receipt ${invocation.invocation_id}`);
+  const receipt = parseCanonicalReceiptBytes(exactBytes, invocation);
+  if (invocation.schema_version === QUALIFICATION_INVOCATION_VERSION_V3) {
+    const identity = readCanonicalJson(join(terminal, "receipt-identity.json"), `qualification terminal receipt byte identity ${invocation.invocation_id}`);
+    if (!plainObject(identity)) throw new Error(`qualification terminal receipt byte identity ${invocation.invocation_id} must be an object`);
+    exactKeys(identity, ["schema_version", "invocation_id", "bytes", "sha256"], `qualification terminal receipt byte identity ${invocation.invocation_id}`);
+    if (identity.schema_version !== "qualification-terminal-receipt-byte-identity-v1" || identity.invocation_id !== invocation.invocation_id || identity.bytes !== exactBytes.length || identity.sha256 !== qualificationSha256(exactBytes)) throw new Error(`qualification terminal receipt byte identity ${invocation.invocation_id} mismatch`);
+  }
+  return receipt;
 }
 
 function assertTerminalReceiptCrossBindings(spoolDir: string, invocation: QualificationInvocationV1, receipt: QualificationTerminalReceipt): void {
@@ -1551,10 +1685,21 @@ function assertTerminalReceiptCrossBindings(spoolDir: string, invocation: Qualif
   }
   const launchAttemptPath = join(paths.invocation!, "launch-attempt.json");
   const hasLaunchAttempt = existsSync(launchAttemptPath);
-  if (hasLaunchAttempt) validateLaunchAttempt(readCanonicalJson(launchAttemptPath, `qualification launch attempt ${invocation.invocation_id}`), invocation, paths.root);
+  if (hasLaunchAttempt) validateLaunchAttempt(readCanonicalJson(launchAttemptPath, `qualification launch attempt ${invocation.invocation_id}`), invocation, paths.root, accountingEvent?.event_sha256);
   if (receipt.started_at !== null && !hasLaunchAttempt) throw new Error(`qualification started terminal receipt for ${invocation.invocation_id} has no launch attempt`);
   if (receipt.attempt === 0 && hasLaunchAttempt) throw new Error(`qualification attempt-zero receipt for ${invocation.invocation_id} has a launch attempt`);
-  const occurrence = readChildOccurrence(paths.invocation!, invocation, false);
+  const occurrence = readChildOccurrence(paths.invocation!, invocation, false, accountingEvent?.event_sha256);
+  if (receipt.schema_version === QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3) {
+    const digestEvidence = (name: string): string | null => {
+      const path = join(paths.invocation!, name);
+      return existsSync(path) ? qualificationSha256(readExactRegularBytes(path, `qualification ${name}`)) : null;
+    };
+    const claimSha = digestEvidence("input-launch-claim.json");
+    const attemptSha = digestEvidence("launch-attempt.json");
+    const childSha = digestEvidence("child-occurrence.json");
+    if (receipt.configuration_sha256 !== invocation.configuration_sha256 || receipt.invocation_sha256 !== invocation.invocation_sha256 || qualificationCanonicalJson(receipt.invocation_input) !== qualificationCanonicalJson(invocation.invocation_input) || receipt.input_launch_claim_sha256 !== claimSha || receipt.launch_attempt_sha256 !== attemptSha || receipt.child_occurrence_sha256 !== childSha) throw new Error(`qualification terminal receipt for ${invocation.invocation_id} v3 evidence digest mismatch`);
+    if (accountingEvent) readInputLaunchClaim(paths.invocation!, invocation, accountingEvent.event_sha256);
+  }
   if (occurrence && (qualificationCanonicalJson(receipt.child) !== qualificationCanonicalJson(occurrence.child) || receipt.started_at !== occurrence.started_at || receipt.deadline_at !== occurrence.deadline_at)) {
     throw new Error(`qualification terminal receipt for ${invocation.invocation_id} contradicts child occurrence evidence`);
   }
@@ -1570,7 +1715,7 @@ function assertTerminalReceiptCrossBindings(spoolDir: string, invocation: Qualif
       throw new Error(`qualification terminal receipt for ${invocation.invocation_id} authentication evidence mismatch`);
     }
   }
-  if (receipt.schema_version === QUALIFICATION_TERMINAL_RECEIPT_VERSION_V2) {
+  if (receipt.schema_version === QUALIFICATION_TERMINAL_RECEIPT_VERSION_V2 || receipt.schema_version === QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3) {
     if (invocation.oauth_directory_policy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) throw new Error(`qualification terminal receipt for ${invocation.invocation_id} reinterprets historical policy as v2`);
     const validations = receipt.oauth_directory_validations;
     if (authEvidence?.schema_version === QUALIFICATION_AUTH_EVIDENCE_VERSION_V2) {
@@ -1636,15 +1781,23 @@ function validateTerminalReceipt(value: unknown, invocation: QualificationInvoca
   if (!plainObject(value)) throw new Error(`qualification terminal receipt ${invocation.invocation_id} must be an object`);
   const historical = ["schema_version", "invocation_id", "terminal_status", "attempt", "started_at", "finished_at", "deadline_at", "requested_timeout_ms", "effective_timeout_ms", "supervisor", "child", "exit_code", "signal", "requested", "actual", "provider_model_identity_observed", "successful_execution", "fallback_detected", "authentication", "accounting_event_sha256", "continuation_authority_sha256", "stdout", "stderr", "artifact", "error"];
   const policyV2 = invocation.oauth_directory_policy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+  const receiptV3 = invocation.schema_version === QUALIFICATION_INVOCATION_VERSION_V3;
   if (policyV2) {
-    if (value.schema_version !== QUALIFICATION_TERMINAL_RECEIPT_VERSION_V2) {
-      throw new Error(`qualification v2 terminal receipt ${invocation.invocation_id} identity/policy mismatch; historical receipts are not reinterpreted`);
+    const expectedVersion = receiptV3 ? QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3 : QUALIFICATION_TERMINAL_RECEIPT_VERSION_V2;
+    if (value.schema_version !== expectedVersion) {
+      throw new Error(`qualification ${receiptV3 ? "v3" : "v2"} terminal receipt ${invocation.invocation_id} identity/policy mismatch; historical receipts are not reinterpreted`);
     }
-    exactKeys(value, [...historical, "oauth_directory_policy", "oauth_directory_validations"], `qualification terminal receipt ${invocation.invocation_id}`);
+    exactKeys(value, receiptV3 ? [...historical, "oauth_directory_policy", "oauth_directory_validations", "configuration_sha256", "invocation_sha256", "invocation_input", "input_launch_claim_sha256", "launch_attempt_sha256", "child_occurrence_sha256"] : [...historical, "oauth_directory_policy", "oauth_directory_validations"], `qualification terminal receipt ${invocation.invocation_id}`);
     if (value.oauth_directory_policy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) {
-      throw new Error(`qualification v2 terminal receipt ${invocation.invocation_id} identity/policy mismatch; historical receipts are not reinterpreted`);
+      throw new Error(`qualification terminal receipt ${invocation.invocation_id} identity/policy mismatch; historical receipts are not reinterpreted`);
     }
     validateTerminalOAuthDirectoryValidationsV2(value.oauth_directory_validations, invocation.invocation_id);
+    if (receiptV3) {
+      if (value.configuration_sha256 !== invocation.configuration_sha256 || value.invocation_sha256 !== invocation.invocation_sha256 || qualificationCanonicalJson(value.invocation_input) !== qualificationCanonicalJson(invocation.invocation_input)) throw new Error(`qualification terminal receipt ${invocation.invocation_id} v3 immutable binding mismatch`);
+      for (const key of ["input_launch_claim_sha256", "launch_attempt_sha256", "child_occurrence_sha256"] as const) if (value[key] !== null && !/^[a-f0-9]{64}$/.test(String(value[key]))) throw new Error(`qualification terminal receipt ${invocation.invocation_id} ${key} is invalid`);
+      if (value.attempt === 1 && value.input_launch_claim_sha256 === null) throw new Error(`qualification terminal receipt ${invocation.invocation_id} lacks its v3 input launch claim`);
+      if ((value.started_at !== null) !== (value.child_occurrence_sha256 !== null)) throw new Error(`qualification terminal receipt ${invocation.invocation_id} child occurrence digest mismatch`);
+    }
   } else {
     exactKeys(value, historical, `qualification terminal receipt ${invocation.invocation_id}`);
     if (value.schema_version !== QUALIFICATION_TERMINAL_RECEIPT_VERSION) throw new Error(`qualification historical terminal receipt ${invocation.invocation_id} identity/version mismatch`);

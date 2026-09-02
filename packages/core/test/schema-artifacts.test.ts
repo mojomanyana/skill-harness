@@ -2,7 +2,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PI_DADDY_QUALIFICATION_PRODUCER_PIN, PRINCIPAL_QUALIFICATION_PRODUCT_PIN, QUALIFICATION_ACCOUNTING_POLICY, QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2, parseQualificationConfig, parseQualificationRequest } from "../src/qualification-config.js";
+import { PI_DADDY_QUALIFICATION_PRODUCER_PIN, PRINCIPAL_QUALIFICATION_PRODUCT_PIN, QUALIFICATION_ACCOUNTING_POLICY, QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2, QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3, parseQualificationConfig, parseQualificationRequest } from "../src/qualification-config.js";
 
 const root = join(__dirname, "../../../schemas");
 
@@ -52,6 +52,12 @@ describe("versioned public schemas", () => {
     const unknownOAuthPolicy = { ...config, oauth_directory_policy: "qualification-oauth-directory-policy-v3" };
     expect(validateConfig(unknownOAuthPolicy)).toBe(false);
     expect(() => parseQualificationConfig(unknownOAuthPolicy)).toThrow(/oauth_directory_policy/i);
+    const receiptV3Config = { ...config, oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2, terminal_receipt_version: QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3 };
+    expect(validateConfig(receiptV3Config), JSON.stringify(validateConfig.errors)).toBe(true);
+    expect(parseQualificationConfig(receiptV3Config).terminal_receipt_version).toBe(QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3);
+    const unknownReceiptVersion = { ...config, terminal_receipt_version: "qualification-terminal-receipt-v4" };
+    expect(validateConfig(unknownReceiptVersion)).toBe(false);
+    expect(() => parseQualificationConfig(unknownReceiptVersion)).toThrow(/terminal_receipt_version/i);
     const parsed = parseQualificationConfig(config);
     expect(validateRequest(request), JSON.stringify(validateRequest.errors)).toBe(true);
     expect(parseQualificationRequest(request, parsed).selected_arm).toBe("subject");

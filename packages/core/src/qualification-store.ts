@@ -29,6 +29,7 @@ import {
 import {
   QUALIFICATION_ACCOUNTING_POLICY,
   QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
+  QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3,
   qualificationOAuthDirectoryPolicy,
   type QualificationArmV1,
   type QualificationConfigV1,
@@ -46,15 +47,43 @@ import {
 
 export const QUALIFICATION_INVOCATION_VERSION = "qualification-invocation-v1" as const;
 export const QUALIFICATION_INVOCATION_VERSION_V2 = "qualification-invocation-v2" as const;
+export const QUALIFICATION_INVOCATION_VERSION_V3 = "qualification-invocation-v3" as const;
+export const QUALIFICATION_INVOCATION_INPUT_BINDING_VERSION = "qualification-invocation-input-binding-v1" as const;
 export const QUALIFICATION_LIFECYCLE_VERSION = "qualification-lifecycle-v1" as const;
 export const QUALIFICATION_ACCOUNTING_VERSION = "qualification-accounting-v1" as const;
 export type QualificationLifecyclePhase = "prepared" | "launch-claimed" | "running" | "terminal";
 export type QualificationTerminalStatus = "completed" | "failed" | "timed-out" | "aborted" | "refused" | "invalid-artifact";
 
+export interface QualificationInvocationInputBindingV1 {
+  schema_version: typeof QUALIFICATION_INVOCATION_INPUT_BINDING_VERSION;
+  content_type: "application/json";
+  bytes: number;
+  sha256: string;
+}
+
+export interface QualificationInvocationInputOccurrenceV1 {
+  path: string;
+  realpath: string;
+  device: number;
+  inode: number;
+  mode: number;
+  uid: number;
+  gid: number;
+  link_count: number;
+  bytes: number;
+  sha256: string;
+}
+
 export interface QualificationInvocationV1 {
-  schema_version: typeof QUALIFICATION_INVOCATION_VERSION | typeof QUALIFICATION_INVOCATION_VERSION_V2;
-  /** Present only in v2 records; omission retains the historical digest. */
+  schema_version: typeof QUALIFICATION_INVOCATION_VERSION | typeof QUALIFICATION_INVOCATION_VERSION_V2 | typeof QUALIFICATION_INVOCATION_VERSION_V3;
+  /** Present only in v2/v3 records; omission retains the historical digest. */
   oauth_directory_policy?: typeof QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+  /** Present only in v3 records; omission cannot be interpreted as v3. */
+  terminal_receipt_version?: typeof QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3;
+  invocation_input?: QualificationInvocationInputBindingV1;
+  invocation_input_occurrence?: QualificationInvocationInputOccurrenceV1;
+  prepared_attempt?: 0;
+  accounting_event_sha256?: null;
   invocation_id: string;
   measurement_identity_sha256: string;
   continuation_authority_sha256: string;
@@ -166,6 +195,8 @@ export function prepareQualificationInvocation(options: {
   request_path: string;
   expected_configuration_sha256?: string;
   now?: () => string;
+  /** Deterministic source-race injection for offline tests only. */
+  test_hooks?: { after_initial_input_validation?: () => void };
 }): QualificationInvocationV1 {
   const config = parseQualificationConfig(parseJsonFile(options.config_path, "qualification configuration"));
   const request = parseQualificationRequest(parseJsonFile(options.request_path, "qualification invocation request"), config);
@@ -174,8 +205,10 @@ export function prepareQualificationInvocation(options: {
     throw new Error("qualification production prepare requires the externally approved exact configuration SHA-256");
   }
   verifyQualificationPins(config);
+  if (options.test_hooks && config.mode !== "test") throw new Error("qualification prepare test hooks are prohibited in production");
   const now = options.now ?? (() => new Date().toISOString());
   assertRegularInput(request.scenario.input_path, request.scenario.input_sha256);
+  options.test_hooks?.after_initial_input_validation?.();
   assertWorkingDirectory(request.scenario.working_directory);
   const paths = qualificationSpoolPaths(options.spool_dir, request.invocation_id);
   mkdirSync(paths.root, { recursive: true, mode: 0o700 });
@@ -212,15 +245,32 @@ export function prepareQualificationInvocation(options: {
       // invocation record. The child never races a later edit to the coordinator's
       // source path; the spool copy is the launch material bound by input_sha256.
       const preparedInputPath = join(paths.invocation!, "input.bin");
-      atomicWriteBytes(preparedInputPath, readFileSync(request.scenario.input_path), true);
+      const exactInputBytes = readExactSourceInput(request.scenario.input_path, request.scenario.input_sha256);
+      if (config.terminal_receipt_version === QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3) {
+        try { JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(exactInputBytes)); }
+        catch { throw new Error("qualification terminal receipt v3 invocation input must be valid UTF-8 application/json bytes"); }
+      }
+      atomicWriteBytes(preparedInputPath, exactInputBytes, true);
       const oauthDirectoryPolicy = qualificationOAuthDirectoryPolicy(config);
+      const v3Input = config.terminal_receipt_version === QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3
+        ? inspectQualificationInvocationInput(preparedInputPath)
+        : null;
       const baseRecord: Omit<QualificationInvocationV1, "invocation_sha256"> = {
-        schema_version: oauthDirectoryPolicy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2
-          ? QUALIFICATION_INVOCATION_VERSION_V2
-          : QUALIFICATION_INVOCATION_VERSION,
+        schema_version: v3Input
+          ? QUALIFICATION_INVOCATION_VERSION_V3
+          : oauthDirectoryPolicy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2
+            ? QUALIFICATION_INVOCATION_VERSION_V2
+            : QUALIFICATION_INVOCATION_VERSION,
         ...(oauthDirectoryPolicy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2
           ? { oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 }
           : {}),
+        ...(v3Input ? {
+          terminal_receipt_version: QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3,
+          invocation_input: v3Input.binding,
+          invocation_input_occurrence: v3Input.occurrence,
+          prepared_attempt: 0 as const,
+          accounting_event_sha256: null,
+        } : {}),
         invocation_id: request.invocation_id,
         measurement_identity_sha256: request.measurement_identity_sha256,
         continuation_authority_sha256: request.continuation_authority_sha256,
@@ -273,6 +323,7 @@ export function readQualificationInvocation(spoolDir: string, invocationId: stri
   const path = qualificationSpoolPaths(spoolDir, invocationId).invocationRecord!;
   const value = readCanonicalJson(path, `qualification invocation ${invocationId}`) as QualificationInvocationV1;
   validateQualificationInvocationRecord(value);
+  if (value.schema_version === QUALIFICATION_INVOCATION_VERSION_V3) verifyQualificationInvocationInput(value);
   return value;
 }
 
@@ -424,10 +475,14 @@ export function validateQualificationSpool(spoolDir: string): QualificationSpool
     const record = readQualificationInvocation(paths.root, id);
     if (record.configuration_sha256 !== configSha) throw new Error(`qualification invocation ${id} has the wrong configuration digest`);
     const expectedOAuthPolicy = qualificationOAuthDirectoryPolicy(config);
-    if ((expectedOAuthPolicy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 &&
-        (record.schema_version !== QUALIFICATION_INVOCATION_VERSION_V2 || record.oauth_directory_policy !== expectedOAuthPolicy)) ||
-        (expectedOAuthPolicy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 &&
-        (record.schema_version !== QUALIFICATION_INVOCATION_VERSION || Object.hasOwn(record, "oauth_directory_policy")))) {
+    const expectedInvocationVersion = config.terminal_receipt_version === QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3
+      ? QUALIFICATION_INVOCATION_VERSION_V3
+      : expectedOAuthPolicy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2
+        ? QUALIFICATION_INVOCATION_VERSION_V2
+        : QUALIFICATION_INVOCATION_VERSION;
+    if (record.schema_version !== expectedInvocationVersion ||
+        (expectedOAuthPolicy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 && record.oauth_directory_policy !== expectedOAuthPolicy) ||
+        (expectedOAuthPolicy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 && Object.hasOwn(record, "oauth_directory_policy"))) {
       throw new Error(`qualification invocation ${id} OAuth directory policy does not match its configuration identity`);
     }
     const lifecycle = readQualificationLifecycle(paths.root, id);
@@ -603,6 +658,13 @@ function validateQualificationInvocationRecord(value: unknown): asserts value is
   } else if (value.schema_version === QUALIFICATION_INVOCATION_VERSION_V2) {
     exactObjectKeys(value, [...historical, "oauth_directory_policy"], `qualification invocation ${String(value.invocation_id)}`);
     if (value.oauth_directory_policy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) throw new Error("qualification invocation v2 OAuth directory policy is invalid");
+  } else if (value.schema_version === QUALIFICATION_INVOCATION_VERSION_V3) {
+    exactObjectKeys(value, [...historical, "oauth_directory_policy", "terminal_receipt_version", "invocation_input", "invocation_input_occurrence", "prepared_attempt", "accounting_event_sha256"], `qualification invocation ${String(value.invocation_id)}`);
+    if (value.oauth_directory_policy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) throw new Error("qualification invocation v3 OAuth directory policy is invalid");
+    if (value.terminal_receipt_version !== QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3) throw new Error("qualification invocation v3 terminal receipt selection is invalid");
+    validateInvocationInputBinding(value.invocation_input);
+    validateInvocationInputOccurrence(value.invocation_input_occurrence);
+    if (value.prepared_attempt !== 0 || value.accounting_event_sha256 !== null) throw new Error("qualification invocation v3 prepared accounting identity is invalid");
   } else {
     throw new Error("qualification invocation version/identity is invalid");
   }
@@ -630,11 +692,72 @@ function validateAccountingInput(value: QualificationAccountingEventInput): void
   validTimestamp(value.launched_at, "qualification accounting launch time");
 }
 
+function validateInvocationInputBinding(value: unknown): asserts value is QualificationInvocationInputBindingV1 {
+  if (!plainObject(value)) throw new Error("qualification invocation input binding must be an object");
+  exactObjectKeys(value, ["schema_version", "content_type", "bytes", "sha256"], "qualification invocation input binding");
+  if (value.schema_version !== QUALIFICATION_INVOCATION_INPUT_BINDING_VERSION) throw new Error("qualification invocation input binding version is invalid");
+  if (value.content_type !== "application/json") throw new Error("qualification invocation input content type is invalid");
+  if (!Number.isSafeInteger(value.bytes) || Number(value.bytes) < 1) throw new Error("qualification invocation input byte count is invalid");
+  if (typeof value.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(value.sha256)) throw new Error("qualification invocation input digest is invalid");
+}
+
+function validateInvocationInputOccurrence(value: unknown): asserts value is QualificationInvocationInputOccurrenceV1 {
+  if (!plainObject(value)) throw new Error("qualification invocation input occurrence must be an object");
+  exactObjectKeys(value, ["path", "realpath", "device", "inode", "mode", "uid", "gid", "link_count", "bytes", "sha256"], "qualification invocation input occurrence");
+  for (const key of ["path", "realpath", "sha256"] as const) if (typeof value[key] !== "string") throw new Error(`qualification invocation input occurrence ${key} is invalid`);
+  for (const key of ["device", "inode", "mode", "uid", "gid", "link_count", "bytes"] as const) if (!Number.isSafeInteger(value[key])) throw new Error(`qualification invocation input occurrence ${key} is invalid`);
+  if (!/^[a-f0-9]{64}$/.test(String(value.sha256)) || Number(value.bytes) < 1 || Number(value.link_count) !== 1) throw new Error("qualification invocation input occurrence identity is invalid");
+}
+
+function inspectQualificationInvocationInput(path: string): { binding: QualificationInvocationInputBindingV1; occurrence: QualificationInvocationInputOccurrenceV1 } {
+  let fd: number | undefined;
+  try {
+    fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    const stat = fstatSync(fd);
+    if (!stat.isFile()) throw new Error("qualification governed invocation input must be a regular file");
+    if (realpathSync(path) !== resolve(path)) throw new Error("qualification governed invocation input path traverses a symlink");
+    if (process.platform !== "win32" && (stat.uid !== process.getuid?.() || (stat.mode & 0o777) !== 0o600)) throw new Error("qualification governed invocation input must be private and owned by the qualification user");
+    if (stat.nlink !== 1) throw new Error("qualification governed invocation input must have exactly one hard link");
+    const bytes = readFileSync(fd);
+    if (bytes.length < 1 || bytes.length !== stat.size) throw new Error("qualification governed invocation input byte count is invalid");
+    const sha256 = qualificationSha256(bytes);
+    const binding: QualificationInvocationInputBindingV1 = { schema_version: QUALIFICATION_INVOCATION_INPUT_BINDING_VERSION, content_type: "application/json", bytes: bytes.length, sha256 };
+    const occurrence: QualificationInvocationInputOccurrenceV1 = { path, realpath: realpathSync(path), device: stat.dev, inode: stat.ino, mode: stat.mode & 0o777, uid: stat.uid, gid: stat.gid, link_count: stat.nlink, bytes: bytes.length, sha256 };
+    return { binding, occurrence };
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("qualification governed invocation input")) throw error;
+    throw new Error(`qualification governed invocation input is missing, replaced, or unsafe: ${path}`);
+  } finally { if (fd !== undefined) closeSync(fd); }
+}
+
+export function verifyQualificationInvocationInput(invocation: QualificationInvocationV1): QualificationInvocationInputBindingV1 {
+  if (invocation.schema_version !== QUALIFICATION_INVOCATION_VERSION_V3 || !invocation.invocation_input || !invocation.invocation_input_occurrence) throw new Error("qualification invocation does not carry a v3 input binding");
+  const inspected = inspectQualificationInvocationInput(invocation.scenario.input_path);
+  if (qualificationCanonicalJson(inspected.binding) !== qualificationCanonicalJson(invocation.invocation_input)) throw new Error("qualification governed invocation input binding mismatch");
+  if (qualificationCanonicalJson(inspected.occurrence) !== qualificationCanonicalJson(invocation.invocation_input_occurrence)) throw new Error("qualification governed invocation input occurrence mismatch");
+  return inspected.binding;
+}
+
+function readExactSourceInput(path: string, expectedSha: string): Buffer {
+  let fd: number | undefined;
+  try {
+    fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    const stat = fstatSync(fd);
+    if (!stat.isFile() || stat.nlink !== 1 || realpathSync(path) !== resolve(path)) throw new Error("qualification source input occurrence is unsafe");
+    const bytes = readFileSync(fd);
+    if (bytes.length !== stat.size || qualificationSha256(bytes) !== expectedSha) throw new Error(`qualification input digest mismatch: expected ${expectedSha}, got ${qualificationSha256(bytes)}`);
+    return bytes;
+  } catch (error) {
+    if (error instanceof Error && (error.message.includes("input digest mismatch") || error.message.includes("source input occurrence"))) throw error;
+    throw new Error(`qualification source input is missing, replaced, or unsafe: ${path}`);
+  } finally { if (fd !== undefined) closeSync(fd); }
+}
+
 function assertRegularInput(path: string, expectedSha: string): void {
   let stat;
   try { stat = lstatSync(path); }
   catch { throw new Error(`qualification input file does not exist: ${path}`); }
-  if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(`qualification input must be a regular non-symlink file: ${path}`);
+  if (stat.isSymbolicLink() || !stat.isFile() || realpathSync(path) !== resolve(path)) throw new Error(`qualification input must be a regular non-symlink file with no symlink path components: ${path}`);
   const actual = qualificationSha256(readFileSync(path));
   if (actual !== expectedSha) throw new Error(`qualification input digest mismatch: expected ${expectedSha}, got ${actual}`);
 }

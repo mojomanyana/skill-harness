@@ -1,0 +1,127 @@
+{
+  "schema_version": "qualification-terminal-receipt-v3-progress-v1",
+  "branch": "feature/qualification-terminal-receipt-v3",
+  "base_commit": "68e3de6c592a59b77bcabcb7f3a831f6481526e6",
+  "base_tree": "022d908212c592526127452d000ebbb76a95d161",
+  "remote_main_verified": "68e3de6c592a59b77bcabcb7f3a831f6481526e6",
+  "completed": [
+    "read AGENTS.md and docs/NEXT-SESSION.md",
+    "read docs/QUALIFICATION-RUNNER.md completely",
+    "created and pushed the required feature branch",
+    "recorded the backward-compatible v3 implementation scope",
+    "ran clean npm ci: 64 packages installed; npm reported the pre-existing 7 audit findings",
+    "recovered local/remote branch at identical pushed head b50ab73e5f3a504f2d415f115cc215f951b06017",
+    "confirmed origin/main remains 68e3de6c592a59b77bcabcb7f3a831f6481526e6",
+    "confirmed no PR exists yet",
+    "mapped configuration, prepare-store, receipt construction, and validation implementation locations",
+    "implemented explicit prospective terminal_receipt_version selection in runtime config parser and public JSON Schema",
+    "added runtime/schema parity tests proving omission remains historical and unknown versions fail closed",
+    "implemented qualification-invocation-v3 exact-byte application/json binding and governed input occurrence persistence",
+    "implemented no-follow private owner-only regular-file inspection with hardlink refusal and deterministic reload verification",
+    "added focused v3 persistence, byte-equivalence, truncation, extension, reorder, deletion, atomic replacement, forged metadata, and stale legacy retrofit tests",
+    "implemented distinct v3 exact-input validation immediately before accounting launch claim and immediately before child spawn",
+    "added immutable input-launch-claim-v1, launch-attempt-v2, child-occurrence-v2, and lifecycle bindings to the same input digest/accounting occurrence",
+    "added deterministic preclaim and postclaim race mutations proving zero accounting before claim and one consumed/no-child after claim",
+    "implemented closed qualification-terminal-receipt-v3 carrying configuration, invocation, exact input, launch-claim, attempt, and child-occurrence identities",
+    "implemented exact durable receipt byte identity with canonical atomic terminal-directory publication and same-byte parse/validation",
+    "added v3 completed/failed/invalid-artifact/timeout/abort/repeated-validation/no-replay coverage plus receipt substitution and mixed-version attacks",
+    "documented prospective v3 semantics and historical non-upgrade behavior",
+    "added nonblocking no-follow receipt reads and symlink-component confinement for governed v3 input",
+    "added forged path/realpath/owner/mode/link/inode/device/size/digest occurrence mutations",
+    "added hardlink, symlink, directory, private-mode, receipt missing/additional/binding-digest/noncanonical/truncated/extended/deleted/type/mixed-version mutations",
+    "full npm test passed under required Node 20.20.2 with TMPDIR on non-tmpfs after preserving two ENOSPC infrastructure failures",
+    "repository build, typecheck, extension freshness, both lint roots, production audit, and exact-head CI passed",
+    "two authorized release builds were byte-identical and an offline installed CLI reported 0.11.0",
+    "independent security review found prepare source-input TOCTOU between initial digest check and later snapshot",
+    "repaired snapshot to no-follow open/read/hash the same source occurrence and compare exact bytes to request digest",
+    "added deterministic post-initial-validation replacement mutation; failed prepare leaves zero accounting and no invocation",
+    "post-review full Node 20.20.2 suite passed after source-snapshot race repair",
+    "consolidated review blocked exact head e94f19f on missing accounting-event equality in v3 attempt/child validators",
+    "bound launch-attempt and child-occurrence accounting_event_sha256 to exact ledger event and added updated-receipt substitution regressions"
+  ],
+  "implementation_status": "consolidated-review-finding-repaired-full-validation-passed",
+  "tests": {
+    "run": [
+      "npm ci (exit 0)",
+      "npx vitest run packages/core/test/qualification-config.test.ts packages/core/test/schema-artifacts.test.ts: 17/17 passed",
+      "npm run typecheck: passed",
+      "npx vitest run qualification-store/config/schema: 33/33 passed",
+      "npm run typecheck after prepared-input implementation: passed",
+      "focused config/store/runner/schema suite: 87/87 passed",
+      "npm run typecheck after runtime binding: passed",
+      "qualification-runner focused suite: 57/57 passed",
+      "npm run typecheck after terminal receipt v3: passed",
+      "post-commit focused config/store/runner/schema suite: 90/90 passed",
+      "expanded focused config/store/runner/schema suite: 111/111 passed",
+      "npm run typecheck after hostile mutations: passed",
+      "Node 20.20.2 npm test: 1533/1533 passed across 94 files",
+      "npm run build: passed",
+      "npm run check:ext: 2/2 passed",
+      "lint packages/core/test/fixtures: 0 findings",
+      "lint scripts/smoke/skills: 0 findings",
+      "npm audit --omit=dev --audit-level=high: 0 vulnerabilities",
+      "exact-head CI c4982fe: all four jobs passed",
+      "post-review qualification-store: 27/27 passed",
+      "post-review npm run typecheck: passed",
+      "post-review Node 20.20.2 npm test: 1534/1534 passed across 94 files",
+      "post-accounting-repair qualification-runner: 70/70 passed",
+      "post-accounting-repair full Node 20.20.2 npm test: 1536/1536 passed across 94 files",
+      "post-accounting-repair typecheck: passed"
+    ],
+    "failing": [],
+    "not_yet_run": true,
+    "infrastructure_failures": [
+      "Node 26 full suite: 19 release-pack failures due required Node 20.20.2 mismatch",
+      "first and second Node 20 full-suite attempts exhausted /tmp tmpfs; rerun on non-tmpfs passed 1533/1533"
+    ]
+  },
+  "next_command": "Push repair, wait exact-head CI, obtain fresh consolidated rereview.",
+  "next_implementation_step": "If all four approve, record review evidence and merge normally; otherwise repair findings and rereview changed head.",
+  "model_or_qualification_calls": 0,
+  "checkpoint": {
+    "head_before_checkpoint": "98f2ec5f4fec90b0b1e09d0a2eca9f2caf10771b",
+    "tree_before_checkpoint": "9a03ceba573e9733650b90d65289a732add8f959",
+    "pushed": true,
+    "pr_url": "https://github.com/mojomanyana/skill-harness/pull/67",
+    "pr_state": "open-draft"
+  },
+  "release_builds": {
+    "byte_identical": true,
+    "core": {
+      "bytes": 266697,
+      "sha256": "3c6f33496c3c52e39c36e8e682d4d48c9c65514ca2dc5737558b94f0005055bc"
+    },
+    "adapters": {
+      "bytes": 41499,
+      "sha256": "eadad8e79e4b1c801069e952a0cd654215f4c122a053a5bdb0ed809ad58b2b6b"
+    },
+    "cli": {
+      "bytes": 38858,
+      "sha256": "90ce4d158e34b8226d351152a816be4ac93a64ccbbc3871eac38a75dc7f4c163"
+    },
+    "meta": {
+      "bytes": 2296,
+      "sha256": "e52fa3665c641973fc5a870b54694e7e71922c05be630a830fb5953e040ec830"
+    }
+  },
+  "installed_probe": {
+    "version": "0.11.0",
+    "cli_sha256": "3ace04f7a767a5b02c8bb51853b787aa0ebb7bb3329a9ce24f781f2f70584a09",
+    "v3_symbols_present": true
+  },
+  "review_findings": [
+    {
+      "axis": "security",
+      "head": "0d3ea1d5b31b8ca52fe432f3b69e3613eca22694",
+      "finding": "source input could change after initial digest validation but before snapshot",
+      "disposition": "repaired prospectively"
+    },
+    {
+      "axis": "consolidated",
+      "head": "e94f19f8fc79630a2ed5aac2f1a656c1b6a87676",
+      "finding": "v3 launch-attempt and child-occurrence accepted arbitrary 64-hex accounting digest",
+      "disposition": "repaired"
+    }
+  ],
+  "authorization": "USER_AUTHORIZED_FAST_CLOSURE_V1"
+}
