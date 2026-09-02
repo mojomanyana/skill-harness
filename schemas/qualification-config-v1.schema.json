@@ -8,6 +8,7 @@
   "properties": {
     "schema_version": { "const": "qualification-config-v1" },
     "oauth_directory_policy": { "const": "qualification-oauth-directory-policy-v2" },
+    "terminal_receipt_version": { "const": "qualification-terminal-receipt-v3" },
     "mode": { "enum": ["production", "test"] },
     "product": { "$ref": "#/$defs/productPin" },
     "engine": { "$ref": "#/$defs/enginePin" },

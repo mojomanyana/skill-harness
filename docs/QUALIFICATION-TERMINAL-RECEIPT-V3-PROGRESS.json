@@ -13,18 +13,22 @@
     "recovered local/remote branch at identical pushed head b50ab73e5f3a504f2d415f115cc215f951b06017",
     "confirmed origin/main remains 68e3de6c592a59b77bcabcb7f3a831f6481526e6",
     "confirmed no PR exists yet",
-    "mapped configuration, prepare-store, receipt construction, and validation implementation locations"
+    "mapped configuration, prepare-store, receipt construction, and validation implementation locations",
+    "implemented explicit prospective terminal_receipt_version selection in runtime config parser and public JSON Schema",
+    "added runtime/schema parity tests proving omission remains historical and unknown versions fail closed"
   ],
-  "implementation_status": "not_started",
+  "implementation_status": "configuration-selection-complete",
   "tests": {
     "run": [
-      "npm ci (exit 0)"
+      "npm ci (exit 0)",
+      "npx vitest run packages/core/test/qualification-config.test.ts packages/core/test/schema-artifacts.test.ts: 17/17 passed",
+      "npm run typecheck: passed"
     ],
     "failing": [],
     "not_yet_run": true
   },
-  "next_command": "Edit packages/core/src/qualification-config.ts and schemas/qualification-config-v1.schema.json to add optional prospective terminal_receipt_version selection with omitted legacy behavior and closed unknown-version rejection.",
-  "next_implementation_step": "Add terminal_receipt_version to runner configuration, then persist exact invocation_input binding in qualification-invocation-v3 and verify input.bin occurrences at launch boundaries.",
+  "next_command": "Implement qualification-invocation-v3 and exact invocation_input binding persistence in packages/core/src/qualification-store.ts.",
+  "next_implementation_step": "Persist content_type, exact bytes, SHA-256, and secure input.bin occurrence in the prepared v3 invocation record; keep v1/v2 records byte-compatible.",
   "model_or_qualification_calls": 0,
   "checkpoint": {
     "prior_head": "b50ab73e5f3a504f2d415f115cc215f951b06017",

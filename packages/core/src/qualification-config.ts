@@ -6,6 +6,7 @@ import { isAbsolute, join } from "node:path";
 export const QUALIFICATION_CONFIG_VERSION = "qualification-config-v1" as const;
 export const QUALIFICATION_RUNNER_VERSION = "qualification-runner-v1" as const;
 export const QUALIFICATION_REQUEST_VERSION = "qualification-invocation-request-v1" as const;
+export const QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3 = "qualification-terminal-receipt-v3" as const;
 /** Historical configurations omit this field and retain the original closed policy. */
 export const QUALIFICATION_OAUTH_DIRECTORY_POLICY_V1 = "qualification-oauth-directory-policy-v1" as const;
 /** New qualification configurations select this policy explicitly. */
@@ -105,6 +106,8 @@ export interface QualificationConfigV1 {
   schema_version: typeof QUALIFICATION_CONFIG_VERSION;
   /** Omission is the historical v1 policy and is preserved in canonical digests. */
   oauth_directory_policy?: typeof QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+  /** Omission preserves historical v1/v2 terminal-receipt selection. */
+  terminal_receipt_version?: typeof QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3;
   mode: QualificationConfigMode;
   product: QualificationProductPin;
   engine: QualificationEnginePin;
@@ -320,11 +323,14 @@ export function parseQualificationConfig(value: unknown): QualificationConfigV1 
     root,
     ["schema_version", "mode", "product", "engine", "producer", "runner", "accounting", "arms"],
     "qualification configuration",
-    ["oauth_directory_policy"],
+    ["oauth_directory_policy", "terminal_receipt_version"],
   );
   if (root.schema_version !== QUALIFICATION_CONFIG_VERSION) throw new Error(`qualification configuration schema_version must be ${QUALIFICATION_CONFIG_VERSION}`);
   const oauthDirectoryPolicy = Object.hasOwn(root, "oauth_directory_policy")
     ? enumValue(root.oauth_directory_policy, [QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2], "qualification oauth_directory_policy") as typeof QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2
+    : undefined;
+  const terminalReceiptVersion = Object.hasOwn(root, "terminal_receipt_version")
+    ? enumValue(root.terminal_receipt_version, [QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3], "qualification terminal_receipt_version") as typeof QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3
     : undefined;
   const mode = enumValue(root.mode, ["production", "test"], "qualification configuration mode") as QualificationConfigMode;
   const productObject = object(root.product, "qualification configuration product");
@@ -412,6 +418,7 @@ export function parseQualificationConfig(value: unknown): QualificationConfigV1 
   return {
     schema_version: QUALIFICATION_CONFIG_VERSION,
     ...(oauthDirectoryPolicy ? { oauth_directory_policy: oauthDirectoryPolicy } : {}),
+    ...(terminalReceiptVersion ? { terminal_receipt_version: terminalReceiptVersion } : {}),
     mode,
     product,
     engine,

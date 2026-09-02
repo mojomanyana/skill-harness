@@ -9,6 +9,7 @@ import {
   QUALIFICATION_ACCOUNTING_POLICY,
   QUALIFICATION_OAUTH_DIRECTORY_POLICY_V1,
   QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
+  QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3,
   parseQualificationConfig,
   parseQualificationRequest,
   qualificationConfigDigest,
@@ -121,6 +122,17 @@ describe("qualification configuration v1", () => {
     expect(qualificationConfigDigest(v2)).not.toBe(qualificationConfigDigest(historical));
     expect(() => parseQualificationConfig({ ...config(), oauth_directory_policy: "qualification-oauth-directory-policy-v3" }))
       .toThrow(/oauth_directory_policy.*v2/i);
+  });
+
+  it("selects terminal receipt v3 prospectively without upgrading historical configurations", () => {
+    const historical = parseQualificationConfig(config());
+    expect(historical).not.toHaveProperty("terminal_receipt_version");
+    const selectedValue = { ...config(), terminal_receipt_version: QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3 };
+    const selected = parseQualificationConfig(selectedValue);
+    expect(selected.terminal_receipt_version).toBe(QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3);
+    expect(qualificationConfigDigest(selected)).not.toBe(qualificationConfigDigest(historical));
+    expect(() => parseQualificationConfig({ ...config(), terminal_receipt_version: "qualification-terminal-receipt-v4" }))
+      .toThrow(/terminal_receipt_version.*v3/i);
   });
 
   it("fails closed on unknown fields, duplicate arms, unpinned repositories, and policy drift", () => {
