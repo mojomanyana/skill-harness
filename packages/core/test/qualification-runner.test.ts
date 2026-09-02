@@ -532,6 +532,20 @@ describe("qualification durable execution", () => {
     expect(validateQualificationRunnerSpool(files.spool).terminal).toBe(1);
   });
 
+  it.each(["launch-attempt.json", "child-occurrence.json"])("rejects %s accounting-digest substitution even when receipt evidence digests are updated", async (name) => {
+    const files = setup("complete", { receiptV3: true });
+    await run(files);
+    const dir = join(files.spool, "invocations", "invocation-0001");
+    const evidencePath = join(dir, name);
+    const evidence = JSON.parse(readFileSync(evidencePath, "utf8"));
+    evidence.accounting_event_sha256 = hex("f");
+    writeFileSync(evidencePath, `${qualificationCanonicalJson(evidence)}\n`);
+    rewriteV3Receipt(files, (receipt) => {
+      receipt[name === "launch-attempt.json" ? "launch_attempt_sha256" : "child_occurrence_sha256"] = sha(readFileSync(evidencePath));
+    });
+    expect(() => validateQualificationRunnerSpool(files.spool)).toThrow(/input binding mismatch/i);
+  });
+
   it("rejects substituted canonical v3 receipt bytes against their durable byte identity", async () => {
     const files = setup("complete", { receiptV3: true });
     await run(files);

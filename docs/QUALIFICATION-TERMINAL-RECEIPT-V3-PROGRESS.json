@@ -35,9 +35,11 @@
     "independent security review found prepare source-input TOCTOU between initial digest check and later snapshot",
     "repaired snapshot to no-follow open/read/hash the same source occurrence and compare exact bytes to request digest",
     "added deterministic post-initial-validation replacement mutation; failed prepare leaves zero accounting and no invocation",
-    "post-review full Node 20.20.2 suite passed after source-snapshot race repair"
+    "post-review full Node 20.20.2 suite passed after source-snapshot race repair",
+    "consolidated review blocked exact head e94f19f on missing accounting-event equality in v3 attempt/child validators",
+    "bound launch-attempt and child-occurrence accounting_event_sha256 to exact ledger event and added updated-receipt substitution regressions"
   ],
-  "implementation_status": "post-review-repair-full-validation-passed",
+  "implementation_status": "consolidated-review-finding-repaired-full-validation-passed",
   "tests": {
     "run": [
       "npm ci (exit 0)",
@@ -61,7 +63,10 @@
       "exact-head CI c4982fe: all four jobs passed",
       "post-review qualification-store: 27/27 passed",
       "post-review npm run typecheck: passed",
-      "post-review Node 20.20.2 npm test: 1534/1534 passed across 94 files"
+      "post-review Node 20.20.2 npm test: 1534/1534 passed across 94 files",
+      "post-accounting-repair qualification-runner: 70/70 passed",
+      "post-accounting-repair full Node 20.20.2 npm test: 1536/1536 passed across 94 files",
+      "post-accounting-repair typecheck: passed"
     ],
     "failing": [],
     "not_yet_run": true,
@@ -70,7 +75,7 @@
       "first and second Node 20 full-suite attempts exhausted /tmp tmpfs; rerun on non-tmpfs passed 1533/1533"
     ]
   },
-  "next_command": "Wait for exact-head CI, then obtain four fresh independent no-edit reviews of the new exact head.",
+  "next_command": "Push repair, wait exact-head CI, obtain fresh consolidated rereview.",
   "next_implementation_step": "If all four approve, record review evidence and merge normally; otherwise repair findings and rereview changed head.",
   "model_or_qualification_calls": 0,
   "checkpoint": {
@@ -110,6 +115,13 @@
       "head": "0d3ea1d5b31b8ca52fe432f3b69e3613eca22694",
       "finding": "source input could change after initial digest validation but before snapshot",
       "disposition": "repaired prospectively"
+    },
+    {
+      "axis": "consolidated",
+      "head": "e94f19f8fc79630a2ed5aac2f1a656c1b6a87676",
+      "finding": "v3 launch-attempt and child-occurrence accepted arbitrary 64-hex accounting digest",
+      "disposition": "repaired"
     }
-  ]
+  ],
+  "authorization": "USER_AUTHORIZED_FAST_CLOSURE_V1"
 }
