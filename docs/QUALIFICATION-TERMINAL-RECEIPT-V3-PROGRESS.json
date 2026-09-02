@@ -28,9 +28,12 @@
     "documented prospective v3 semantics and historical non-upgrade behavior",
     "added nonblocking no-follow receipt reads and symlink-component confinement for governed v3 input",
     "added forged path/realpath/owner/mode/link/inode/device/size/digest occurrence mutations",
-    "added hardlink, symlink, directory, private-mode, receipt missing/additional/binding-digest/noncanonical/truncated/extended/deleted/type/mixed-version mutations"
+    "added hardlink, symlink, directory, private-mode, receipt missing/additional/binding-digest/noncanonical/truncated/extended/deleted/type/mixed-version mutations",
+    "full npm test passed under required Node 20.20.2 with TMPDIR on non-tmpfs after preserving two ENOSPC infrastructure failures",
+    "repository build, typecheck, extension freshness, both lint roots, production audit, and exact-head CI passed",
+    "two authorized release builds were byte-identical and an offline installed CLI reported 0.11.0"
   ],
-  "implementation_status": "hostile-mutation-matrix-core-complete",
+  "implementation_status": "full-validation-passed-awaiting-review",
   "tests": {
     "run": [
       "npm ci (exit 0)",
@@ -44,13 +47,24 @@
       "npm run typecheck after terminal receipt v3: passed",
       "post-commit focused config/store/runner/schema suite: 90/90 passed",
       "expanded focused config/store/runner/schema suite: 111/111 passed",
-      "npm run typecheck after hostile mutations: passed"
+      "npm run typecheck after hostile mutations: passed",
+      "Node 20.20.2 npm test: 1533/1533 passed across 94 files",
+      "npm run build: passed",
+      "npm run check:ext: 2/2 passed",
+      "lint packages/core/test/fixtures: 0 findings",
+      "lint scripts/smoke/skills: 0 findings",
+      "npm audit --omit=dev --audit-level=high: 0 vulnerabilities",
+      "exact-head CI c4982fe: all four jobs passed"
     ],
     "failing": [],
-    "not_yet_run": true
+    "not_yet_run": true,
+    "infrastructure_failures": [
+      "Node 26 full suite: 19 release-pack failures due required Node 20.20.2 mismatch",
+      "first and second Node 20 full-suite attempts exhausted /tmp tmpfs; rerun on non-tmpfs passed 1533/1533"
+    ]
   },
-  "next_command": "npm run build && npm run build:ext && npm test",
-  "next_implementation_step": "Run complete repository gates, repair failures, then package twice and compare.",
+  "next_command": "Mark PR #67 ready and obtain four independent exact-head reviews after the progress commit CI is green.",
+  "next_implementation_step": "Repair review findings if any; otherwise merge with immutable-head protection.",
   "model_or_qualification_calls": 0,
   "checkpoint": {
     "head_before_checkpoint": "98f2ec5f4fec90b0b1e09d0a2eca9f2caf10771b",
@@ -58,5 +72,29 @@
     "pushed": true,
     "pr_url": "https://github.com/mojomanyana/skill-harness/pull/67",
     "pr_state": "open-draft"
+  },
+  "release_builds": {
+    "byte_identical": true,
+    "core": {
+      "bytes": 266697,
+      "sha256": "3c6f33496c3c52e39c36e8e682d4d48c9c65514ca2dc5737558b94f0005055bc"
+    },
+    "adapters": {
+      "bytes": 41499,
+      "sha256": "eadad8e79e4b1c801069e952a0cd654215f4c122a053a5bdb0ed809ad58b2b6b"
+    },
+    "cli": {
+      "bytes": 38858,
+      "sha256": "90ce4d158e34b8226d351152a816be4ac93a64ccbbc3871eac38a75dc7f4c163"
+    },
+    "meta": {
+      "bytes": 2296,
+      "sha256": "e52fa3665c641973fc5a870b54694e7e71922c05be630a830fb5953e040ec830"
+    }
+  },
+  "installed_probe": {
+    "version": "0.11.0",
+    "cli_sha256": "3ace04f7a767a5b02c8bb51853b787aa0ebb7bb3329a9ce24f781f2f70584a09",
+    "v3_symbols_present": true
   }
 }
