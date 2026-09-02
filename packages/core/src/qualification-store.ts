@@ -195,6 +195,8 @@ export function prepareQualificationInvocation(options: {
   request_path: string;
   expected_configuration_sha256?: string;
   now?: () => string;
+  /** Deterministic source-race injection for offline tests only. */
+  test_hooks?: { after_initial_input_validation?: () => void };
 }): QualificationInvocationV1 {
   const config = parseQualificationConfig(parseJsonFile(options.config_path, "qualification configuration"));
   const request = parseQualificationRequest(parseJsonFile(options.request_path, "qualification invocation request"), config);
@@ -203,8 +205,10 @@ export function prepareQualificationInvocation(options: {
     throw new Error("qualification production prepare requires the externally approved exact configuration SHA-256");
   }
   verifyQualificationPins(config);
+  if (options.test_hooks && config.mode !== "test") throw new Error("qualification prepare test hooks are prohibited in production");
   const now = options.now ?? (() => new Date().toISOString());
   assertRegularInput(request.scenario.input_path, request.scenario.input_sha256);
+  options.test_hooks?.after_initial_input_validation?.();
   assertWorkingDirectory(request.scenario.working_directory);
   const paths = qualificationSpoolPaths(options.spool_dir, request.invocation_id);
   mkdirSync(paths.root, { recursive: true, mode: 0o700 });
@@ -241,7 +245,7 @@ export function prepareQualificationInvocation(options: {
       // invocation record. The child never races a later edit to the coordinator's
       // source path; the spool copy is the launch material bound by input_sha256.
       const preparedInputPath = join(paths.invocation!, "input.bin");
-      const exactInputBytes = readFileSync(request.scenario.input_path);
+      const exactInputBytes = readExactSourceInput(request.scenario.input_path, request.scenario.input_sha256);
       if (config.terminal_receipt_version === QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3) {
         try { JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(exactInputBytes)); }
         catch { throw new Error("qualification terminal receipt v3 invocation input must be valid UTF-8 application/json bytes"); }
@@ -732,6 +736,21 @@ export function verifyQualificationInvocationInput(invocation: QualificationInvo
   if (qualificationCanonicalJson(inspected.binding) !== qualificationCanonicalJson(invocation.invocation_input)) throw new Error("qualification governed invocation input binding mismatch");
   if (qualificationCanonicalJson(inspected.occurrence) !== qualificationCanonicalJson(invocation.invocation_input_occurrence)) throw new Error("qualification governed invocation input occurrence mismatch");
   return inspected.binding;
+}
+
+function readExactSourceInput(path: string, expectedSha: string): Buffer {
+  let fd: number | undefined;
+  try {
+    fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    const stat = fstatSync(fd);
+    if (!stat.isFile() || stat.nlink !== 1 || realpathSync(path) !== resolve(path)) throw new Error("qualification source input occurrence is unsafe");
+    const bytes = readFileSync(fd);
+    if (bytes.length !== stat.size || qualificationSha256(bytes) !== expectedSha) throw new Error(`qualification input digest mismatch: expected ${expectedSha}, got ${qualificationSha256(bytes)}`);
+    return bytes;
+  } catch (error) {
+    if (error instanceof Error && (error.message.includes("input digest mismatch") || error.message.includes("source input occurrence"))) throw error;
+    throw new Error(`qualification source input is missing, replaced, or unsafe: ${path}`);
+  } finally { if (fd !== undefined) closeSync(fd); }
 }
 
 function assertRegularInput(path: string, expectedSha: string): void {

@@ -8,6 +8,7 @@ import {
   appendQualificationAccountingEvent,
   createQualificationAccountingLedger,
   prepareQualificationInvocation,
+  readQualificationAccounting,
   readQualificationInvocation,
   readQualificationLifecycle,
   validateQualificationAccountingLedger,
@@ -131,6 +132,27 @@ describe("qualification preparation", () => {
     writeFileSync(laterRequest, JSON.stringify(request(historical, "invocation-0002")));
     expect(() => prepareQualificationInvocation({ spool_dir: historical.spool, config_path: supersedingPath, request_path: laterRequest }))
       .toThrow(/spool.*different configuration identity/i);
+  });
+
+  it("rejects source replacement between initial validation and governed v3 snapshot", () => {
+    const files = setupFiles();
+    const original = Buffer.from('{"version":"approved"}\n');
+    const replacement = Buffer.from('{"version":"substituted"}\n');
+    writeFileSync(files.prompt, original);
+    const config = JSON.parse(readFileSync(files.configPath, "utf8"));
+    config.oauth_directory_policy = QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+    config.terminal_receipt_version = QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3;
+    writeFileSync(files.configPath, JSON.stringify(config));
+    const requestPath = join(files.root, "request-race.json");
+    writeFileSync(requestPath, JSON.stringify(request(files)));
+    expect(() => prepareQualificationInvocation({
+      spool_dir: files.spool,
+      config_path: files.configPath,
+      request_path: requestPath,
+      test_hooks: { after_initial_input_validation: () => writeFileSync(files.prompt, replacement) },
+    })).toThrow(/input digest mismatch/i);
+    expect(existsSync(join(files.spool, "invocations", "invocation-0001"))).toBe(false);
+    expect(readQualificationAccounting(files.spool).events).toHaveLength(0);
   });
 
   it("persists and reloads the exact v3 application/json input bytes and occurrence", () => {

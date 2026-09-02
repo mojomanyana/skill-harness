@@ -31,9 +31,12 @@
     "added hardlink, symlink, directory, private-mode, receipt missing/additional/binding-digest/noncanonical/truncated/extended/deleted/type/mixed-version mutations",
     "full npm test passed under required Node 20.20.2 with TMPDIR on non-tmpfs after preserving two ENOSPC infrastructure failures",
     "repository build, typecheck, extension freshness, both lint roots, production audit, and exact-head CI passed",
-    "two authorized release builds were byte-identical and an offline installed CLI reported 0.11.0"
+    "two authorized release builds were byte-identical and an offline installed CLI reported 0.11.0",
+    "independent security review found prepare source-input TOCTOU between initial digest check and later snapshot",
+    "repaired snapshot to no-follow open/read/hash the same source occurrence and compare exact bytes to request digest",
+    "added deterministic post-initial-validation replacement mutation; failed prepare leaves zero accounting and no invocation"
   ],
-  "implementation_status": "full-validation-passed-awaiting-review",
+  "implementation_status": "review-finding-repaired",
   "tests": {
     "run": [
       "npm ci (exit 0)",
@@ -54,7 +57,9 @@
       "lint packages/core/test/fixtures: 0 findings",
       "lint scripts/smoke/skills: 0 findings",
       "npm audit --omit=dev --audit-level=high: 0 vulnerabilities",
-      "exact-head CI c4982fe: all four jobs passed"
+      "exact-head CI c4982fe: all four jobs passed",
+      "post-review qualification-store: 27/27 passed",
+      "post-review npm run typecheck: passed"
     ],
     "failing": [],
     "not_yet_run": true,
@@ -63,7 +68,7 @@
       "first and second Node 20 full-suite attempts exhausted /tmp tmpfs; rerun on non-tmpfs passed 1533/1533"
     ]
   },
-  "next_command": "Mark PR #67 ready and obtain four independent exact-head reviews after the progress commit CI is green.",
+  "next_command": "Run full Node 20.20.2 npm test with TMPDIR on disk, then push and obtain fresh four-axis exact-head review.",
   "next_implementation_step": "Repair review findings if any; otherwise merge with immutable-head protection.",
   "model_or_qualification_calls": 0,
   "checkpoint": {
@@ -96,5 +101,13 @@
     "version": "0.11.0",
     "cli_sha256": "3ace04f7a767a5b02c8bb51853b787aa0ebb7bb3329a9ce24f781f2f70584a09",
     "v3_symbols_present": true
-  }
+  },
+  "review_findings": [
+    {
+      "axis": "security",
+      "head": "0d3ea1d5b31b8ca52fe432f3b69e3613eca22694",
+      "finding": "source input could change after initial digest validation but before snapshot",
+      "disposition": "repaired prospectively"
+    }
+  ]
 }
