@@ -87,6 +87,9 @@ import {
   validateQualificationSpool,
   writeQualificationAccounting,
   writeQualificationLifecycle,
+  verifyQualificationInvocationInput,
+  QUALIFICATION_INVOCATION_VERSION_V3,
+  type QualificationInvocationInputBindingV1,
   type QualificationInvocationV1,
   type QualificationLifecycleV1,
   type QualificationTerminalStatus,
@@ -97,6 +100,8 @@ export const QUALIFICATION_AUTH_EVIDENCE_VERSION_V2 = "qualification-auth-eviden
 export const QUALIFICATION_TERMINAL_RECEIPT_VERSION = "qualification-terminal-receipt-v1" as const;
 export const QUALIFICATION_TERMINAL_RECEIPT_VERSION_V2 = "qualification-terminal-receipt-v2" as const;
 export const QUALIFICATION_LAUNCH_ATTEMPT_VERSION = "qualification-launch-attempt-v1" as const;
+export const QUALIFICATION_LAUNCH_ATTEMPT_VERSION_V2 = "qualification-launch-attempt-v2" as const;
+export const QUALIFICATION_INPUT_LAUNCH_CLAIM_VERSION = "qualification-input-launch-claim-v1" as const;
 
 export interface QualificationFilesystemOccurrence {
   realpath: string;
@@ -453,11 +458,14 @@ export async function superviseQualificationInvocation(options: {
   authentication_authority?: string;
   continuation_authority?: string;
   now?: () => string;
+  /** Deterministic race injection for offline tests only; production rejects it. */
+  test_hooks?: { immediately_before_child_input_validation?: () => void };
 }): Promise<void> {
   const now = options.now ?? (() => new Date().toISOString());
   const invocation = readQualificationInvocation(options.spool_dir, options.invocation_id);
   const config = readQualificationSpoolConfig(options.spool_dir);
   const oauthPolicy = qualificationOAuthDirectoryPolicy(config);
+  if (options.test_hooks && config.mode !== "test") throw new Error("qualification runner test hooks are prohibited in production");
   const arm = config.arms.find((candidate) => candidate.id === invocation.arms.selected);
   if (!arm) throw new Error(`qualification selected arm ${invocation.arms.selected} disappeared from configuration`);
   const paths = qualificationSpoolPaths(options.spool_dir, options.invocation_id);
@@ -482,6 +490,7 @@ export async function superviseQualificationInvocation(options: {
   let reconcileExistingAttempt = false;
   let accountingEventSha = "";
   let continuationSha: string | null = null;
+  let claimedInputBinding: QualificationInvocationInputBindingV1 | null = null;
 
   await withAsyncLock(paths.lock, async () => {
     await withAsyncLock(paths.invocationLock!, async () => {
@@ -491,6 +500,9 @@ export async function superviseQualificationInvocation(options: {
         return;
       }
       const currentAuth = readAuthEvidence(options.spool_dir, invocation);
+      const claimInputBinding = invocation.schema_version === QUALIFICATION_INVOCATION_VERSION_V3
+        ? verifyQualificationInvocationInput(invocation)
+        : null;
       const claimBoundary = assertConfiguredOAuthBoundary(
         config.mode,
         oauthPolicy,
@@ -520,6 +532,9 @@ export async function superviseQualificationInvocation(options: {
       }
       if (existingClaim) {
         accountingEventSha = existingClaim.event_sha256;
+        claimedInputBinding = invocation.schema_version === QUALIFICATION_INVOCATION_VERSION_V3
+          ? readInputLaunchClaim(paths.invocation!, invocation, accountingEventSha)
+          : null;
         const launchAttemptExists = existsSync(join(paths.invocation!, "launch-attempt.json"));
         const priorSupervisor = latestContinuationSupervisor(paths.invocation!, invocation) ?? latestProcessIdentity(lifecycle, "supervisor");
         if (lifecycle.phase !== "prepared" && priorSupervisor && qualificationProcessMatches(priorSupervisor)) return;
@@ -550,6 +565,10 @@ export async function superviseQualificationInvocation(options: {
         });
         writeQualificationAccounting(paths.root, next);
         accountingEventSha = next.chain_head!;
+        if (claimInputBinding) {
+          writeInputLaunchClaim(paths.invocation!, invocation, accountingEventSha, claimInputBinding, supervisorIdentity, timestamp(now(), "qualification input launch claim time"));
+          claimedInputBinding = claimInputBinding;
+        }
       }
       if (lifecycle.phase === "prepared") {
         lifecycle = transitionQualificationLifecycle(lifecycle, "launch-claimed", {
@@ -559,6 +578,7 @@ export async function superviseQualificationInvocation(options: {
             accounting_event_sha256: accountingEventSha,
             supervisor: supervisorIdentity,
             continuation_authority_sha256: continuationSha,
+            ...(claimedInputBinding ? { invocation_input: claimedInputBinding } : {}),
           },
         });
         writeQualificationLifecycle(paths.root, lifecycle);
@@ -594,7 +614,7 @@ export async function superviseQualificationInvocation(options: {
   const attemptAt = timestamp(now(), "qualification launch attempt time");
   try {
     atomicWriteCanonical(launchAttemptPath, {
-      schema_version: QUALIFICATION_LAUNCH_ATTEMPT_VERSION,
+      schema_version: claimedInputBinding ? QUALIFICATION_LAUNCH_ATTEMPT_VERSION_V2 : QUALIFICATION_LAUNCH_ATTEMPT_VERSION,
       invocation_id: invocation.invocation_id,
       attempt: 1,
       at: attemptAt,
@@ -602,6 +622,7 @@ export async function superviseQualificationInvocation(options: {
       argv,
       environment_names: Object.keys(options.child_env).sort(),
       automatic_retry: false,
+      ...(claimedInputBinding ? { invocation_input: claimedInputBinding, accounting_event_sha256: accountingEventSha } : {}),
     }, true);
   } catch (error) {
     await finalizeWithoutChild({ invocation, spoolDir: paths.root, status: "failed", supervisor: supervisorIdentity, auth, now: now(), error: `launch-attempt publication failed: ${safeError(error)}`, accountingEventSha, continuationSha });
@@ -658,6 +679,11 @@ export async function superviseQualificationInvocation(options: {
   try {
     await withAsyncLock(paths.invocationLock!, async () => {
       if (existsSync(join(paths.invocation!, "abort-request.json"))) throw new Error("aborted before process spawn");
+      options.test_hooks?.immediately_before_child_input_validation?.();
+      const spawnInputBinding = invocation.schema_version === QUALIFICATION_INVOCATION_VERSION_V3
+        ? verifyQualificationInvocationInput(invocation)
+        : null;
+      if (qualificationCanonicalJson(spawnInputBinding) !== qualificationCanonicalJson(claimedInputBinding)) throw new Error("qualification invocation input changed between launch claim and child spawn");
       const lifecycle = readQualificationLifecycle(paths.root, invocation.invocation_id);
       if (lifecycle.phase !== "launch-claimed") throw new Error(`qualification invocation entered ${lifecycle.phase} before process start could be recorded`);
       child = spawn(arm.executable.path, argv, {
@@ -689,16 +715,17 @@ export async function superviseQualificationInvocation(options: {
       deadlineAt = new Date(Date.parse(startedAt) + arm.timeout_ms).toISOString();
       if (!childIdentity) throw new Error(childIdentityError ?? "child process occurrence identity is unavailable");
       atomicWriteCanonical(join(paths.invocation!, "child-occurrence.json"), {
-        schema_version: "qualification-child-occurrence-v1",
+        schema_version: claimedInputBinding ? "qualification-child-occurrence-v2" : "qualification-child-occurrence-v1",
         invocation_id: invocation.invocation_id,
         attempt: 1,
         started_at: startedAt,
         deadline_at: deadlineAt,
         child: childIdentity,
+        ...(claimedInputBinding ? { invocation_input: claimedInputBinding, accounting_event_sha256: accountingEventSha } : {}),
       }, true);
       writeQualificationLifecycle(paths.root, transitionQualificationLifecycle(lifecycle, "running", {
         at: startedAt,
-        detail: { attempt: 1, supervisor: supervisorIdentity, child: childIdentity, deadline_at: deadlineAt, continuation_authority_sha256: continuationSha },
+        detail: { attempt: 1, supervisor: supervisorIdentity, child: childIdentity, deadline_at: deadlineAt, continuation_authority_sha256: continuationSha, ...(claimedInputBinding ? { invocation_input: claimedInputBinding } : {}) },
       }));
     });
   } catch (error) {
@@ -923,6 +950,11 @@ export function validateQualificationRunnerSpool(spoolDir: string): ReturnType<t
     if ((lifecycle.phase === "launch-claimed" || lifecycle.phase === "running") && !accountingEvent) {
       throw new Error(`qualification lifecycle ${id} advanced without an accounting claim`);
     }
+    if (invocation.schema_version === QUALIFICATION_INVOCATION_VERSION_V3) {
+      const inputClaimPath = join(invocationPaths.invocation!, "input-launch-claim.json");
+      if (accountingEvent) readInputLaunchClaim(invocationPaths.invocation!, invocation, accountingEvent.event_sha256);
+      else if (existsSync(inputClaimPath)) throw new Error(`qualification invocation ${id} has an input launch claim without accounting`);
+    }
     const continuationRecord = readContinuationRecord(invocationPaths.invocation!);
     if (continuationRecord) assertContinuationRecordBound(continuationRecord, invocation);
     const childOccurrence = readChildOccurrence(invocationPaths.invocation!, invocation, false);
@@ -1080,12 +1112,39 @@ function buildQualificationArgv(invocation: QualificationInvocationV1, artifactP
 }
 
 interface QualificationChildOccurrence {
-  schema_version: "qualification-child-occurrence-v1";
+  schema_version: "qualification-child-occurrence-v1" | "qualification-child-occurrence-v2";
   invocation_id: string;
   attempt: 1;
   started_at: string;
   deadline_at: string;
   child: QualificationProcessIdentity;
+  invocation_input?: QualificationInvocationInputBindingV1;
+  accounting_event_sha256?: string;
+}
+
+function writeInputLaunchClaim(invocationDir: string, invocation: QualificationInvocationV1, accountingSha: string, input: QualificationInvocationInputBindingV1, supervisor: QualificationProcessIdentity, claimedAt: string): void {
+  if (invocation.schema_version !== QUALIFICATION_INVOCATION_VERSION_V3 || !invocation.invocation_input_occurrence) throw new Error("qualification input launch claim requires invocation v3");
+  atomicWriteCanonical(join(invocationDir, "input-launch-claim.json"), {
+    schema_version: QUALIFICATION_INPUT_LAUNCH_CLAIM_VERSION,
+    invocation_id: invocation.invocation_id,
+    attempt: 1,
+    accounting_event_sha256: accountingSha,
+    claimed_at: claimedAt,
+    supervisor,
+    invocation_input: input,
+    invocation_input_occurrence: invocation.invocation_input_occurrence,
+  }, true);
+}
+
+function readInputLaunchClaim(invocationDir: string, invocation: QualificationInvocationV1, accountingSha: string): QualificationInvocationInputBindingV1 {
+  const value = readCanonicalJson(join(invocationDir, "input-launch-claim.json"), `qualification input launch claim ${invocation.invocation_id}`);
+  if (!plainObject(value)) throw new Error("qualification input launch claim must be an object");
+  exactKeys(value, ["schema_version", "invocation_id", "attempt", "accounting_event_sha256", "claimed_at", "supervisor", "invocation_input", "invocation_input_occurrence"], "qualification input launch claim");
+  if (value.schema_version !== QUALIFICATION_INPUT_LAUNCH_CLAIM_VERSION || value.invocation_id !== invocation.invocation_id || value.attempt !== 1 || value.accounting_event_sha256 !== accountingSha || !processIdentityFrom(value.supervisor)) throw new Error("qualification input launch claim identity mismatch");
+  timestamp(String(value.claimed_at), "qualification input launch claim time");
+  if (qualificationCanonicalJson(value.invocation_input) !== qualificationCanonicalJson(invocation.invocation_input) || qualificationCanonicalJson(value.invocation_input_occurrence) !== qualificationCanonicalJson(invocation.invocation_input_occurrence)) throw new Error("qualification input launch claim binding mismatch");
+  verifyQualificationInvocationInput(invocation);
+  return invocation.invocation_input!;
 }
 
 function readChildOccurrence(invocationDir: string, invocation: QualificationInvocationV1, required: boolean): QualificationChildOccurrence | null {
@@ -1096,15 +1155,17 @@ function readChildOccurrence(invocationDir: string, invocation: QualificationInv
   }
   const value = readCanonicalJson(path, `qualification child occurrence ${invocation.invocation_id}`);
   if (!plainObject(value)) throw new Error(`qualification child occurrence ${invocation.invocation_id} must be an object`);
-  exactKeys(value, ["schema_version", "invocation_id", "attempt", "started_at", "deadline_at", "child"], `qualification child occurrence ${invocation.invocation_id}`);
+  const v3 = invocation.schema_version === QUALIFICATION_INVOCATION_VERSION_V3;
+  exactKeys(value, v3 ? ["schema_version", "invocation_id", "attempt", "started_at", "deadline_at", "child", "invocation_input", "accounting_event_sha256"] : ["schema_version", "invocation_id", "attempt", "started_at", "deadline_at", "child"], `qualification child occurrence ${invocation.invocation_id}`);
   const child = processIdentityFrom(value.child);
-  if (value.schema_version !== "qualification-child-occurrence-v1" || value.invocation_id !== invocation.invocation_id || value.attempt !== 1 || !child) {
+  if (value.schema_version !== (v3 ? "qualification-child-occurrence-v2" : "qualification-child-occurrence-v1") || value.invocation_id !== invocation.invocation_id || value.attempt !== 1 || !child) {
     throw new Error(`qualification child occurrence ${invocation.invocation_id} identity/version mismatch`);
   }
+  if (v3 && (qualificationCanonicalJson(value.invocation_input) !== qualificationCanonicalJson(invocation.invocation_input) || typeof value.accounting_event_sha256 !== "string" || !/^[a-f0-9]{64}$/.test(value.accounting_event_sha256))) throw new Error(`qualification child occurrence ${invocation.invocation_id} input binding mismatch`);
   const startedAt = timestamp(String(value.started_at), `qualification child occurrence ${invocation.invocation_id} start time`);
   const deadlineAt = timestamp(String(value.deadline_at), `qualification child occurrence ${invocation.invocation_id} deadline`);
   if (Date.parse(deadlineAt) < Date.parse(startedAt)) throw new Error(`qualification child occurrence ${invocation.invocation_id} deadline precedes start`);
-  return { schema_version: "qualification-child-occurrence-v1", invocation_id: invocation.invocation_id, attempt: 1, started_at: startedAt, deadline_at: deadlineAt, child };
+  return { schema_version: v3 ? "qualification-child-occurrence-v2" : "qualification-child-occurrence-v1", invocation_id: invocation.invocation_id, attempt: 1, started_at: startedAt, deadline_at: deadlineAt, child, ...(v3 ? { invocation_input: invocation.invocation_input, accounting_event_sha256: String(value.accounting_event_sha256) } : {}) };
 }
 
 function latestProcessIdentity(lifecycle: QualificationLifecycleV1, field: "supervisor" | "child"): QualificationProcessIdentity | null {
@@ -1520,11 +1581,13 @@ function reconcileTerminalLifecycle(spoolDir: string, invocation: QualificationI
 
 function validateLaunchAttempt(value: unknown, invocation: QualificationInvocationV1, spoolRoot: string): void {
   if (!plainObject(value)) throw new Error(`qualification launch attempt ${invocation.invocation_id} must be an object`);
-  exactKeys(value, ["schema_version", "invocation_id", "attempt", "at", "executable", "argv", "environment_names", "automatic_retry"], `qualification launch attempt ${invocation.invocation_id}`);
-  if (value.schema_version !== QUALIFICATION_LAUNCH_ATTEMPT_VERSION || value.invocation_id !== invocation.invocation_id || value.attempt !== 1 || value.automatic_retry !== false) {
+  const v3 = invocation.schema_version === QUALIFICATION_INVOCATION_VERSION_V3;
+  exactKeys(value, v3 ? ["schema_version", "invocation_id", "attempt", "at", "executable", "argv", "environment_names", "automatic_retry", "invocation_input", "accounting_event_sha256"] : ["schema_version", "invocation_id", "attempt", "at", "executable", "argv", "environment_names", "automatic_retry"], `qualification launch attempt ${invocation.invocation_id}`);
+  if (value.schema_version !== (v3 ? QUALIFICATION_LAUNCH_ATTEMPT_VERSION_V2 : QUALIFICATION_LAUNCH_ATTEMPT_VERSION) || value.invocation_id !== invocation.invocation_id || value.attempt !== 1 || value.automatic_retry !== false) {
     throw new Error(`qualification launch attempt ${invocation.invocation_id} identity/version/retry policy mismatch`);
   }
   timestamp(String(value.at), `qualification launch attempt ${invocation.invocation_id} time`);
+  if (v3 && (qualificationCanonicalJson(value.invocation_input) !== qualificationCanonicalJson(invocation.invocation_input) || typeof value.accounting_event_sha256 !== "string" || !/^[a-f0-9]{64}$/.test(value.accounting_event_sha256))) throw new Error(`qualification launch attempt ${invocation.invocation_id} input binding mismatch`);
   if (qualificationCanonicalJson(value.executable) !== qualificationCanonicalJson(invocation.execution.executable)) throw new Error(`qualification launch attempt ${invocation.invocation_id} executable mismatch`);
   const expectedArgv = buildQualificationArgv(invocation, join(spoolRoot, invocation.expected_artifact.path));
   if (qualificationCanonicalJson(value.argv) !== qualificationCanonicalJson(expectedArgv)) throw new Error(`qualification launch attempt ${invocation.invocation_id} argv mismatch`);

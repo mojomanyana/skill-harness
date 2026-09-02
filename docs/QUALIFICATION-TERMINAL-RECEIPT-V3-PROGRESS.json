@@ -18,22 +18,27 @@
     "added runtime/schema parity tests proving omission remains historical and unknown versions fail closed",
     "implemented qualification-invocation-v3 exact-byte application/json binding and governed input occurrence persistence",
     "implemented no-follow private owner-only regular-file inspection with hardlink refusal and deterministic reload verification",
-    "added focused v3 persistence, byte-equivalence, truncation, extension, reorder, deletion, atomic replacement, forged metadata, and stale legacy retrofit tests"
+    "added focused v3 persistence, byte-equivalence, truncation, extension, reorder, deletion, atomic replacement, forged metadata, and stale legacy retrofit tests",
+    "implemented distinct v3 exact-input validation immediately before accounting launch claim and immediately before child spawn",
+    "added immutable input-launch-claim-v1, launch-attempt-v2, child-occurrence-v2, and lifecycle bindings to the same input digest/accounting occurrence",
+    "added deterministic preclaim and postclaim race mutations proving zero accounting before claim and one consumed/no-child after claim"
   ],
-  "implementation_status": "prepared-input-binding-complete",
+  "implementation_status": "runtime-input-binding-complete",
   "tests": {
     "run": [
       "npm ci (exit 0)",
       "npx vitest run packages/core/test/qualification-config.test.ts packages/core/test/schema-artifacts.test.ts: 17/17 passed",
       "npm run typecheck: passed",
       "npx vitest run qualification-store/config/schema: 33/33 passed",
-      "npm run typecheck after prepared-input implementation: passed"
+      "npm run typecheck after prepared-input implementation: passed",
+      "focused config/store/runner/schema suite: 87/87 passed",
+      "npm run typecheck after runtime binding: passed"
     ],
     "failing": [],
     "not_yet_run": true
   },
-  "next_command": "Implement prelaunch invocation_input revalidation and bind it into launch-attempt/child occurrence evidence in packages/core/src/qualification-runner.ts.",
-  "next_implementation_step": "Call verifyQualificationInvocationInput before launch claim and immediately before spawn; version launch evidence prospectively and carry the exact binding.",
+  "next_command": "Implement QualificationTerminalReceiptV3 construction, exact invocation_input inclusion, and durable receipt-byte validation in packages/core/src/qualification-runner.ts.",
+  "next_implementation_step": "Add v3 receipt type/build/closed validation and cross-bind it to invocation, input claim, attempt, child occurrence, accounting, and exact canonical receipt bytes while preserving v1/v2.",
   "model_or_qualification_calls": 0,
   "checkpoint": {
     "prior_head": "b50ab73e5f3a504f2d415f115cc215f951b06017",

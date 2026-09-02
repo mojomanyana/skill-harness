@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   QUALIFICATION_ACCOUNTING_POLICY,
   QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
+  QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3,
   qualificationCanonicalJson,
   qualificationConfigDigest,
   qualificationSha256,
@@ -110,17 +111,17 @@ const finish = (actualProvider = provider, actualModel = model, extra = {}) => {
 })().catch((error) => { console.error(error.message); process.exit(8); });
 `;
 
-function setup(command = "complete", overrides: { timeout?: number; output?: number; conflict?: "refuse" | "remove-and-record"; oauthV2?: boolean } = {}) {
+function setup(command = "complete", overrides: { timeout?: number; output?: number; conflict?: "refuse" | "remove-and-record"; oauthV2?: boolean; receiptV3?: boolean } = {}) {
   const root = mkdtempSync(join(tmpdir(), "qualification-runner-"));
   const executable = join(root, "fake-pi.cjs");
   writeFileSync(executable, FAKE_PI);
   chmodSync(executable, 0o755);
   const prompt = join(root, "prompt.txt");
-  writeFileSync(prompt, `${command}\n`);
+  writeFileSync(prompt, overrides.receiptV3 ? `${JSON.stringify(command)}\n` : `${command}\n`);
   const count = join(root, "calls.txt");
   const executablePin = { path: executable, sha256: sha(readFileSync(executable)) };
   const oauthAgent = join(root, "oauth-agent");
-  if (overrides.oauthV2) {
+  if (overrides.oauthV2 || overrides.receiptV3) {
     mkdirSync(oauthAgent, { mode: 0o700 });
     chmodSync(oauthAgent, 0o700);
     const authPath = join(oauthAgent, "auth.json");
@@ -130,7 +131,8 @@ function setup(command = "complete", overrides: { timeout?: number; output?: num
   const envNames = ["HOME", "PATH", "PI_CODING_AGENT_DIR", "FAKE_AUTH_STATUS", "FAKE_AUTH_TYPE", "FAKE_AUTH_MODEL", "FAKE_AUTH_CREATE_STORE", "FAKE_COUNT_FILE"];
   const config = {
     schema_version: "qualification-config-v1",
-    ...(overrides.oauthV2 ? { oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 } : {}),
+    ...(overrides.oauthV2 || overrides.receiptV3 ? { oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 } : {}),
+    ...(overrides.receiptV3 ? { terminal_receipt_version: QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3 } : {}),
     mode: "test",
     product: { repository: "https://example.invalid/product", commit: hex("1", 40), tree: hex("2", 40), checkout_path: root, package_path: executable, package_sha256: hex("3"), package_bytes: 1 },
     engine: { repository: "https://example.invalid/engine", commit: hex("4", 40), tree: hex("5", 40), checkout_path: root, package_paths: { core: executable, adapters: executable, cli: executable, meta: executable }, package_sha256: { core: hex("6"), adapters: hex("7"), cli: hex("8"), meta: hex("9") } },
@@ -155,7 +157,7 @@ function setup(command = "complete", overrides: { timeout?: number; output?: num
   const parent_env = {
     HOME: root,
     PATH: process.env.PATH,
-    ...(overrides.oauthV2 ? { PI_CODING_AGENT_DIR: oauthAgent } : {}),
+    ...(overrides.oauthV2 || overrides.receiptV3 ? { PI_CODING_AGENT_DIR: oauthAgent } : {}),
     FAKE_AUTH_STATUS: "ready",
     FAKE_COUNT_FILE: count,
     OPENAI_API_KEY: "NEVER-PERSIST-THIS",
@@ -489,6 +491,49 @@ describe("qualification OAuth boundary", () => {
 });
 
 describe("qualification durable execution", () => {
+  it("binds the same exact v3 input at claim, attempt, and child occurrence", async () => {
+    const files = setup("complete", { receiptV3: true });
+    const status = await run(files);
+    expect(status.terminal_status).toBe("completed");
+    expect(calls(files.count)).toBe(1);
+    const invocation = readQualificationInvocation(files.spool, "invocation-0001");
+    const dir = join(files.spool, "invocations", "invocation-0001");
+    const claim = JSON.parse(readFileSync(join(dir, "input-launch-claim.json"), "utf8"));
+    const attempt = JSON.parse(readFileSync(join(dir, "launch-attempt.json"), "utf8"));
+    const child = JSON.parse(readFileSync(join(dir, "child-occurrence.json"), "utf8"));
+    expect(claim.invocation_input).toEqual(invocation.invocation_input);
+    expect(attempt).toMatchObject({ schema_version: "qualification-launch-attempt-v2", invocation_input: invocation.invocation_input, accounting_event_sha256: claim.accounting_event_sha256 });
+    expect(child).toMatchObject({ schema_version: "qualification-child-occurrence-v2", invocation_input: invocation.invocation_input, accounting_event_sha256: claim.accounting_event_sha256 });
+  });
+
+  it("rejects a v3 input mutation before claim without accounting or child launch", async () => {
+    const files = setup("complete", { receiptV3: true });
+    const auth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
+    const input = readQualificationInvocation(files.spool, "invocation-0001").scenario.input_path;
+    writeFileSync(input, JSON.stringify("changed-before-claim"));
+    await expect(superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env, authentication_authority: auth.launch_authority })).rejects.toThrow(/input binding mismatch/i);
+    expect(readQualificationAccounting(files.spool).events).toHaveLength(0);
+    expect(calls(files.count)).toBe(0);
+  });
+
+  it("fails closed after claim when v3 input is replaced before spawn and never launches a child", async () => {
+    const files = setup("complete", { receiptV3: true });
+    const auth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
+    const input = readQualificationInvocation(files.spool, "invocation-0001").scenario.input_path;
+    await superviseQualificationInvocation({
+      spool_dir: files.spool,
+      invocation_id: "invocation-0001",
+      child_env: auth.child_env,
+      authentication_authority: auth.launch_authority,
+      test_hooks: { immediately_before_child_input_validation: () => writeFileSync(input, JSON.stringify("changed-after-claim")) },
+    });
+    expect(readQualificationAccounting(files.spool).events).toHaveLength(1);
+    expect(calls(files.count)).toBe(0);
+    const terminal = JSON.parse(readFileSync(join(files.spool, "invocations", "invocation-0001", "terminal", "receipt.json"), "utf8"));
+    expect(terminal.terminal_status).toBe("failed");
+    expect(() => validateQualificationRunnerSpool(files.spool)).toThrow(/input binding mismatch/i);
+  });
+
   it("launches the prepared input snapshot, not a later edit to the coordinator source path", async () => {
     const files = setup();
     writeFileSync(files.prompt, "provider-substitution\n");
