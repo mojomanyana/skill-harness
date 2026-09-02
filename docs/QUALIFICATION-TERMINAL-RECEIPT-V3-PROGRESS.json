@@ -25,9 +25,12 @@
     "implemented closed qualification-terminal-receipt-v3 carrying configuration, invocation, exact input, launch-claim, attempt, and child-occurrence identities",
     "implemented exact durable receipt byte identity with canonical atomic terminal-directory publication and same-byte parse/validation",
     "added v3 completed/failed/invalid-artifact/timeout/abort/repeated-validation/no-replay coverage plus receipt substitution and mixed-version attacks",
-    "documented prospective v3 semantics and historical non-upgrade behavior"
+    "documented prospective v3 semantics and historical non-upgrade behavior",
+    "added nonblocking no-follow receipt reads and symlink-component confinement for governed v3 input",
+    "added forged path/realpath/owner/mode/link/inode/device/size/digest occurrence mutations",
+    "added hardlink, symlink, directory, private-mode, receipt missing/additional/binding-digest/noncanonical/truncated/extended/deleted/type/mixed-version mutations"
   ],
-  "implementation_status": "terminal-receipt-v3-core-complete",
+  "implementation_status": "hostile-mutation-matrix-core-complete",
   "tests": {
     "run": [
       "npm ci (exit 0)",
@@ -39,13 +42,15 @@
       "npm run typecheck after runtime binding: passed",
       "qualification-runner focused suite: 57/57 passed",
       "npm run typecheck after terminal receipt v3: passed",
-      "post-commit focused config/store/runner/schema suite: 90/90 passed"
+      "post-commit focused config/store/runner/schema suite: 90/90 passed",
+      "expanded focused config/store/runner/schema suite: 111/111 passed",
+      "npm run typecheck after hostile mutations: passed"
     ],
     "failing": [],
     "not_yet_run": true
   },
-  "next_command": "Add remaining v3 receipt/input mutation matrix (missing/additional fields, wrong evidence digests/occurrences, symlink/type/hardlink) and run npm test.",
-  "next_implementation_step": "Complete non-vacuous mutations, then build, extension regeneration/freshness, lint, package audits, and full CI.",
+  "next_command": "npm run build && npm run build:ext && npm test",
+  "next_implementation_step": "Run complete repository gates, repair failures, then package twice and compare.",
   "model_or_qualification_calls": 0,
   "checkpoint": {
     "head_before_checkpoint": "98f2ec5f4fec90b0b1e09d0a2eca9f2caf10771b",

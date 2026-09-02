@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -174,6 +174,15 @@ async function run(files: ReturnType<typeof setup>) {
 }
 
 function calls(path: string): number { return existsSync(path) ? readFileSync(path, "utf8").trim().split("\n").filter(Boolean).length : 0; }
+function rewriteV3Receipt(files: ReturnType<typeof setup>, mutate: (receipt: any) => void): void {
+  const terminal = join(files.spool, "invocations", "invocation-0001", "terminal");
+  const receiptPath = join(terminal, "receipt.json");
+  const receipt = JSON.parse(readFileSync(receiptPath, "utf8"));
+  mutate(receipt);
+  const bytes = Buffer.from(`${qualificationCanonicalJson(receipt)}\n`);
+  writeFileSync(receiptPath, bytes);
+  writeFileSync(join(terminal, "receipt-identity.json"), `${qualificationCanonicalJson({ schema_version: "qualification-terminal-receipt-byte-identity-v1", invocation_id: "invocation-0001", bytes: bytes.length, sha256: sha(bytes) })}\n`);
+}
 async function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (!predicate()) {
@@ -531,6 +540,41 @@ describe("qualification durable execution", () => {
     receipt.error = "substituted";
     writeFileSync(receiptPath, `${qualificationCanonicalJson(receipt)}\n`);
     expect(() => validateQualificationRunnerSpool(files.spool)).toThrow(/byte identity.*mismatch/i);
+  });
+
+  it.each([
+    ["missing field", (receipt: any) => { delete receipt.invocation_input; }, /unknown field|missing|v3 immutable binding/i],
+    ["additional field", (receipt: any) => { receipt.surprise = true; }, /unknown field.*surprise/i],
+    ["wrong content type", (receipt: any) => { receipt.invocation_input.content_type = "text/plain"; }, /v3 immutable binding/i],
+    ["wrong byte count", (receipt: any) => { receipt.invocation_input.bytes += 1; }, /v3 immutable binding/i],
+    ["wrong input digest", (receipt: any) => { receipt.invocation_input.sha256 = hex("f"); }, /v3 immutable binding/i],
+    ["wrong configuration", (receipt: any) => { receipt.configuration_sha256 = hex("f"); }, /v3 immutable binding/i],
+    ["wrong invocation", (receipt: any) => { receipt.invocation_sha256 = hex("f"); }, /v3 immutable binding/i],
+    ["wrong claim digest", (receipt: any) => { receipt.input_launch_claim_sha256 = hex("f"); }, /v3 evidence digest mismatch/i],
+    ["wrong attempt digest", (receipt: any) => { receipt.launch_attempt_sha256 = hex("f"); }, /v3 evidence digest mismatch/i],
+    ["wrong child digest", (receipt: any) => { receipt.child_occurrence_sha256 = hex("f"); }, /v3 evidence digest mismatch/i],
+  ])("rejects v3 receipt mutation: %s", async (_name, mutate, expected) => {
+    const files = setup("complete", { receiptV3: true });
+    await run(files);
+    rewriteV3Receipt(files, mutate);
+    expect(() => validateQualificationRunnerSpool(files.spool)).toThrow(expected);
+  });
+
+  it("rejects noncanonical, truncated, extended, deleted, symlinked, and directory receipt occurrences", async () => {
+    for (const mutation of ["noncanonical", "truncated", "extended", "deleted", "symlink", "directory"] as const) {
+      const files = setup("complete", { receiptV3: true });
+      await run(files);
+      const terminal = join(files.spool, "invocations", "invocation-0001", "terminal");
+      const path = join(terminal, "receipt.json");
+      const original = readFileSync(path);
+      if (mutation === "noncanonical") writeFileSync(path, JSON.stringify(JSON.parse(original.toString()), null, 2));
+      if (mutation === "truncated") writeFileSync(path, original.subarray(0, original.length - 1));
+      if (mutation === "extended") writeFileSync(path, Buffer.concat([original, Buffer.from(" ")]));
+      if (mutation === "deleted") rmSync(path);
+      if (mutation === "symlink") { rmSync(path); symlinkSync(join(terminal, "receipt-identity.json"), path); }
+      if (mutation === "directory") { rmSync(path); mkdirSync(path); }
+      expect(() => validateQualificationRunnerSpool(files.spool)).toThrow(/(?:receipt.*(?:canonical|invalid|missing|single-link|unreadable)|lifecycle.*terminal without an atomic receipt)/i);
+    }
   });
 
   it("rejects mixed v2 and unknown receipt versions for a v3 invocation", async () => {

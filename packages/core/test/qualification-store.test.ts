@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, linkSync, mkdtempSync, mkdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -53,6 +53,19 @@ function request(files: ReturnType<typeof setupFiles>, id = "invocation-0001", r
     role, counts_as_measurement: role === "subject" || role === "judge",
     arms: { subject: "fake-subject", judge: "fake-judge" }, selected_arm: selected, repetition: 0,
   };
+}
+
+function prepareV3(command = { command: "complete" }) {
+  const files = setupFiles();
+  writeFileSync(files.prompt, `${JSON.stringify(command)}\n`);
+  const config = JSON.parse(readFileSync(files.configPath, "utf8"));
+  config.oauth_directory_policy = QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+  config.terminal_receipt_version = QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3;
+  writeFileSync(files.configPath, JSON.stringify(config));
+  const requestPath = join(files.root, "request-v3.json");
+  writeFileSync(requestPath, JSON.stringify(request(files)));
+  const prepared = prepareQualificationInvocation({ spool_dir: files.spool, config_path: files.configPath, request_path: requestPath });
+  return { files, prepared, recordPath: join(files.spool, "invocations", prepared.invocation_id, "invocation.json") };
 }
 
 const event = (id: string, role: QualificationAccountingEventInput["role"] = "subject", callClass: "subject" | "judge" = "subject"): QualificationAccountingEventInput => ({
@@ -188,6 +201,38 @@ describe("qualification preparation", () => {
     forged.invocation_sha256 = qualificationSha256(qualificationCanonicalJson(digestInput));
     writeFileSync(path, `${qualificationCanonicalJson(forged)}\n`);
     expect(() => readQualificationInvocation(files.spool, legacy.invocation_id)).toThrow(/content type/i);
+  });
+
+  it.each([
+    ["path", (record: any) => { record.invocation_input_occurrence.path += ".other"; }],
+    ["realpath", (record: any) => { record.invocation_input_occurrence.realpath += ".other"; }],
+    ["owner", (record: any) => { record.invocation_input_occurrence.uid += 1; }],
+    ["mode", (record: any) => { record.invocation_input_occurrence.mode = 0o644; }],
+    ["link count", (record: any) => { record.invocation_input_occurrence.link_count = 2; }],
+    ["inode", (record: any) => { record.invocation_input_occurrence.inode += 1; }],
+    ["device", (record: any) => { record.invocation_input_occurrence.device += 1; }],
+    ["bytes", (record: any) => { record.invocation_input_occurrence.bytes += 1; }],
+    ["digest", (record: any) => { record.invocation_input_occurrence.sha256 = hex("f"); }],
+  ])("rejects forged governed input occurrence metadata: %s", (_name, mutate) => {
+    const { files, prepared, recordPath } = prepareV3();
+    const record = JSON.parse(readFileSync(recordPath, "utf8"));
+    mutate(record);
+    const { invocation_sha256: _old, ...digestInput } = record;
+    record.invocation_sha256 = qualificationSha256(qualificationCanonicalJson(digestInput));
+    writeFileSync(recordPath, `${qualificationCanonicalJson(record)}\n`);
+    expect(() => readQualificationInvocation(files.spool, prepared.invocation_id)).toThrow(/input occurrence|identity/i);
+  });
+
+  it("rejects hardlink, symlink, directory, and private-mode substitutions of governed v3 input", () => {
+    for (const mutation of ["hardlink", "symlink", "directory", "mode"] as const) {
+      const { files, prepared } = prepareV3();
+      const path = prepared.scenario.input_path;
+      if (mutation === "hardlink") linkSync(path, `${path}.alias`);
+      if (mutation === "symlink") { const target = `${path}.target`; renameSync(path, target); symlinkSync(target, path); }
+      if (mutation === "directory") { rmSync(path); mkdirSync(path, { mode: 0o700 }); }
+      if (mutation === "mode") chmodSync(path, 0o640);
+      expect(() => readQualificationInvocation(files.spool, prepared.invocation_id)).toThrow(/hard link|missing, replaced, or unsafe|regular file|private and owned/i);
+    }
   });
 
   it("detects mutation of the immutable invocation record", () => {

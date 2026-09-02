@@ -1574,7 +1574,7 @@ async function finalizeWithoutChild(options: {
 function readExactRegularBytes(path: string, ctx: string): Buffer {
   let fd: number | undefined;
   try {
-    fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0));
     const stat = fstatSync(fd);
     if (!stat.isFile() || stat.nlink !== 1) throw new Error(`${ctx} is not a single-link regular file`);
     return readFileSync(fd);

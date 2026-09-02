@@ -708,9 +708,10 @@ function validateInvocationInputOccurrence(value: unknown): asserts value is Qua
 function inspectQualificationInvocationInput(path: string): { binding: QualificationInvocationInputBindingV1; occurrence: QualificationInvocationInputOccurrenceV1 } {
   let fd: number | undefined;
   try {
-    fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     const stat = fstatSync(fd);
     if (!stat.isFile()) throw new Error("qualification governed invocation input must be a regular file");
+    if (realpathSync(path) !== resolve(path)) throw new Error("qualification governed invocation input path traverses a symlink");
     if (process.platform !== "win32" && (stat.uid !== process.getuid?.() || (stat.mode & 0o777) !== 0o600)) throw new Error("qualification governed invocation input must be private and owned by the qualification user");
     if (stat.nlink !== 1) throw new Error("qualification governed invocation input must have exactly one hard link");
     const bytes = readFileSync(fd);
@@ -737,7 +738,7 @@ function assertRegularInput(path: string, expectedSha: string): void {
   let stat;
   try { stat = lstatSync(path); }
   catch { throw new Error(`qualification input file does not exist: ${path}`); }
-  if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(`qualification input must be a regular non-symlink file: ${path}`);
+  if (stat.isSymbolicLink() || !stat.isFile() || realpathSync(path) !== resolve(path)) throw new Error(`qualification input must be a regular non-symlink file with no symlink path components: ${path}`);
   const actual = qualificationSha256(readFileSync(path));
   if (actual !== expectedSha) throw new Error(`qualification input digest mismatch: expected ${expectedSha}, got ${actual}`);
 }
