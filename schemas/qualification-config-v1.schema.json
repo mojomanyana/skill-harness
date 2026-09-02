@@ -28,6 +28,7 @@
     "arms": { "type": "array", "minItems": 2, "uniqueItems": true, "items": { "$ref": "#/$defs/arm" } }
   },
   "allOf": [
+    { "if": { "properties": { "terminal_receipt_version": { "const": "qualification-terminal-receipt-v3" } }, "required": ["terminal_receipt_version"] }, "then": { "properties": { "oauth_directory_policy": { "const": "qualification-oauth-directory-policy-v2" } }, "required": ["oauth_directory_policy"] } },
     { "type": "object", "properties": { "arms": { "type": "array", "contains": { "type": "object", "properties": { "kind": { "const": "subject" } }, "required": ["kind"] }, "minContains": 1 } } },
     { "type": "object", "properties": { "arms": { "type": "array", "contains": { "type": "object", "properties": { "kind": { "const": "judge" } }, "required": ["kind"] }, "minContains": 1 } } },
     {

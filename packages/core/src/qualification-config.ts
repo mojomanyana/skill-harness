@@ -332,6 +332,7 @@ export function parseQualificationConfig(value: unknown): QualificationConfigV1 
   const terminalReceiptVersion = Object.hasOwn(root, "terminal_receipt_version")
     ? enumValue(root.terminal_receipt_version, [QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3], "qualification terminal_receipt_version") as typeof QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3
     : undefined;
+  if (terminalReceiptVersion && oauthDirectoryPolicy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) throw new Error("qualification terminal receipt v3 requires oauth_directory_policy v2");
   const mode = enumValue(root.mode, ["production", "test"], "qualification configuration mode") as QualificationConfigMode;
   const productObject = object(root.product, "qualification configuration product");
   exactKeys(productObject, ["repository", "commit", "tree", "checkout_path", "package_path", "package_sha256", "package_bytes"], "qualification configuration product");

@@ -15,20 +15,25 @@
     "confirmed no PR exists yet",
     "mapped configuration, prepare-store, receipt construction, and validation implementation locations",
     "implemented explicit prospective terminal_receipt_version selection in runtime config parser and public JSON Schema",
-    "added runtime/schema parity tests proving omission remains historical and unknown versions fail closed"
+    "added runtime/schema parity tests proving omission remains historical and unknown versions fail closed",
+    "implemented qualification-invocation-v3 exact-byte application/json binding and governed input occurrence persistence",
+    "implemented no-follow private owner-only regular-file inspection with hardlink refusal and deterministic reload verification",
+    "added focused v3 persistence, byte-equivalence, truncation, extension, reorder, deletion, atomic replacement, forged metadata, and stale legacy retrofit tests"
   ],
-  "implementation_status": "configuration-selection-complete",
+  "implementation_status": "prepared-input-binding-complete",
   "tests": {
     "run": [
       "npm ci (exit 0)",
       "npx vitest run packages/core/test/qualification-config.test.ts packages/core/test/schema-artifacts.test.ts: 17/17 passed",
-      "npm run typecheck: passed"
+      "npm run typecheck: passed",
+      "npx vitest run qualification-store/config/schema: 33/33 passed",
+      "npm run typecheck after prepared-input implementation: passed"
     ],
     "failing": [],
     "not_yet_run": true
   },
-  "next_command": "Implement qualification-invocation-v3 and exact invocation_input binding persistence in packages/core/src/qualification-store.ts.",
-  "next_implementation_step": "Persist content_type, exact bytes, SHA-256, and secure input.bin occurrence in the prepared v3 invocation record; keep v1/v2 records byte-compatible.",
+  "next_command": "Implement prelaunch invocation_input revalidation and bind it into launch-attempt/child occurrence evidence in packages/core/src/qualification-runner.ts.",
+  "next_implementation_step": "Call verifyQualificationInvocationInput before launch claim and immediately before spawn; version launch evidence prospectively and carry the exact binding.",
   "model_or_qualification_calls": 0,
   "checkpoint": {
     "prior_head": "b50ab73e5f3a504f2d415f115cc215f951b06017",
