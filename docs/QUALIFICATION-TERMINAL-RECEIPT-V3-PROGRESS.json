@@ -38,7 +38,8 @@
       "focused config/store/runner/schema suite: 87/87 passed",
       "npm run typecheck after runtime binding: passed",
       "qualification-runner focused suite: 57/57 passed",
-      "npm run typecheck after terminal receipt v3: passed"
+      "npm run typecheck after terminal receipt v3: passed",
+      "post-commit focused config/store/runner/schema suite: 90/90 passed"
     ],
     "failing": [],
     "not_yet_run": true
@@ -47,10 +48,10 @@
   "next_implementation_step": "Complete non-vacuous mutations, then build, extension regeneration/freshness, lint, package audits, and full CI.",
   "model_or_qualification_calls": 0,
   "checkpoint": {
-    "prior_head": "b50ab73e5f3a504f2d415f115cc215f951b06017",
-    "prior_tree": "ee94881ef15464d36e94e37899681c87a18bc50d",
+    "head_before_checkpoint": "98f2ec5f4fec90b0b1e09d0a2eca9f2caf10771b",
+    "tree_before_checkpoint": "9a03ceba573e9733650b90d65289a732add8f959",
     "pushed": true,
-    "pr_url": null,
-    "pr_state": "not-created"
+    "pr_url": "https://github.com/mojomanyana/skill-harness/pull/67",
+    "pr_state": "open-draft"
   }
 }
