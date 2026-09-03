@@ -74,7 +74,7 @@ const resolution = (effective = [], denied = [], clipped = [], gatedBlocked = []
 const correlation = {
   schema_version: "1.0", run_id: "run-v3-builder", task_id: "task-v3-builder", workspace_id: "workspace-v3",
   context_id: "context-v3", phase: "verify", assurance: "critical", assurance_effective: "critical",
-  policy_label: "policy-v3", assurance_source: "policy", assurance_scope: { kind: "changed-files", paths: ["src/**"] },
+  policy_label: "policy-v3", assurance_source: "policy", assurance_scope: { type: "selectors", selectors: ["src/**"] },
   activated_at: "2026-08-28T12:00:00.000Z", plan_digest: "1".repeat(64), definition_digest: "2".repeat(64),
   task_digest: "3".repeat(64), base_sha: "4".repeat(40), head_sha: "5".repeat(40), tree_sha: "6".repeat(40),
   event_seq: 21, last_change_seq: 18, last_authority_seq: 20, check_receipt_id: "7".repeat(64),

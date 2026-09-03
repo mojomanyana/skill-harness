@@ -14,9 +14,9 @@ const REFUSAL_SOURCE = "packages/pi-daddy/src/refusals.ts";
 const GENERATOR_SOURCE = "packages/pi-daddy/scripts/generate-ledger-v3-contract.ts";
 const FIXTURES = ["capability-decision", "workspace-lease", "child-lifecycle", "check-receipt", "workflow-fact"];
 const PRODUCERS = {
-  "591abb4a358bf8a84455486812b83609e2a47e3f": {
-    tree: "c9fe1b324ffbf0d72e7d904972594b3a936e9928",
-    version: "0.20.0",
+  "4a9524394ca995fd74ed9bbb836dc4e73cda3b8c": {
+    tree: "7c006bff213142634f0f911ba9bd6add363ecaae",
+    version: "0.21.1",
   },
 };
 
@@ -72,7 +72,7 @@ const pinned = {
   source_refusal_enumeration: REFUSAL_SOURCE,
   schema_sha256: sha256(schemaText),
   source_dir: SOURCE_DIR,
-  note: "Byte-exact ledgerVersion 3 contract artifacts from the pinned producer. Positive fixtures are emitted by the producer's production builders through generate-ledger-v3-contract.ts; the independent real-builder verifier proves that lineage. This pin is separate from and does not alter the frozen ledger-v2/0.17 pin.",
+  note: "Byte-exact ledgerVersion 3 contract artifacts from the pinned producer merge head. Positive fixtures are emitted by the producer's production builders through generate-ledger-v3-contract.ts; the independent real-builder verifier proves that lineage. This pin is separate from and does not alter the frozen ledger-v2/0.17 pin.",
   artifacts,
 };
 generated.set(join(DEST, "PINNED.json"), `${JSON.stringify(pinned, null, 2)}\n`);

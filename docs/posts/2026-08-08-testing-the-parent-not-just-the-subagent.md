@@ -75,7 +75,7 @@ This distinction decides what a change costs you, and it's worth being precise
 about because the two look similar in the YAML.
 
 Editing `assert.trace` changes only what we *conclude* from evidence already on
-disk — so `regate` re-answers it for free. Editing an **extension** changes what
+disk — so `regate` re-answers it without a subject re-run (a fail→pass rep still needs a judge). Editing an **extension** changes what
 the model could *do*, so the old transcripts describe a different agent, and only
 a re-run can honestly answer. The staleness gate is told this, and lint names the
 right remedy for each.

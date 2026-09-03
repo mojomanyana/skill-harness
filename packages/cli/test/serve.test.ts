@@ -173,7 +173,16 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
       skill: "golden", harness: "pi", model: "fireworks:fake",
       judge: { provider: "claude-code", model: "opus" },
       timestamp: "2026-07-03T00:00:00Z", label: null, mode: "green",
-      scenarios: [{ id: "A1", judge_verdict: "FAIL", judge_reason: "disagreement", suspect: true, override: null, note: "" }],
+      scenarios: [{
+        id: "A1", judge_verdict: "FAIL", judge_reason: "disagreement", suspect: true, override: null, note: "",
+        adjudication: {
+          state: "unresolved", trigger: "contradictory",
+          judgments: [
+            { ordinal: 1, judge: { provider: "claude-code", model: "opus" }, verdict: "FAIL", reason: "first", suspect: false },
+            { ordinal: 2, judge: { provider: "openai-codex", model: "gpt-5.6-sol" }, verdict: "PASS", reason: "second", suspect: false },
+          ],
+        },
+      }],
     }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
 
     // Column 1: a RED-mode run — /rejudge must 400 at the mode guard, before
@@ -233,6 +242,9 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
     expect(a1.suspect).toBe(false); // suspect cleared by the re-judge
     expect(a1.judge_verdict).toBe("PASS");
     expect(a1.override).toBeNull(); // no override going in — still null coming out
+    expect(a1.adjudication).toBeUndefined();
+    expect(a1.judge_history).toHaveLength(3);
+    expect(a1.judge_history?.map((v) => v.reason)).toEqual(["first", "second", "fine"]);
     expect(after.effective_grade.ship).toBe(true); // no longer blocked by the suspect
   });
 

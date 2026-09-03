@@ -1,6 +1,9 @@
-# Qualification terminal receipt v3 implementation checkpoint
+# Historical checkpoint — qualification terminal receipt v3
 
-Status: implementation in progress on `feature/qualification-terminal-receipt-v3`.
+Status: **historical, completed and merged**. This file preserves the implementation
+checklist as process history; the active contract is `docs/QUALIFICATION-RUNNER.md`.
+The implementation landed before qualification-runner-v1 merged in PR #65 at
+`d768360`; none of the intermediate identities below are release evidence.
 
 Authority: repair the qualification runner so a prospectively selected
 `qualification-terminal-receipt-v3` binds the exact governed invocation-input bytes.

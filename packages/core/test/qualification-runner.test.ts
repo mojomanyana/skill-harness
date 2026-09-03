@@ -4,7 +4,7 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import {
   QUALIFICATION_ACCOUNTING_POLICY,
   QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
@@ -42,6 +42,10 @@ import {
 const hex = (value: string, length = 64) => value.repeat(length);
 const sha = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 const CONTINUATION_AUTHORITY = "inert-prebound-continuation-authority";
+const TEST_ROOTS = new Set<string>();
+afterAll(() => {
+  for (const root of TEST_ROOTS) rmSync(root, { recursive: true, force: true });
+});
 
 const FAKE_PI = `#!/usr/bin/env node
 const fs = require('node:fs');
@@ -115,6 +119,7 @@ const finish = (actualProvider = provider, actualModel = model, extra = {}) => {
 
 function setup(command = "complete", overrides: { timeout?: number; output?: number; conflict?: "refuse" | "remove-and-record"; oauthV2?: boolean; receiptV3?: boolean } = {}) {
   const root = mkdtempSync(join(tmpdir(), "qualification-runner-"));
+  TEST_ROOTS.add(root);
   const executable = join(root, "fake-pi.cjs");
   writeFileSync(executable, FAKE_PI);
   chmodSync(executable, 0o755);

@@ -50,7 +50,7 @@ be decided without it. There is a test whose entire job is counting judge calls
 and asserting zero.
 
 And because a trace is a saved artifact, editing an assertion is re-evaluated by
-`regate` — free, offline, no model. Only a rep that flips from gate-fail to
+`regate` — no subject-model call; it reads saved evidence. A rep that flips from gate-fail to
 gate-pass costs a judge call, because that rep genuinely never had a judgement.
 
 ## Missing evidence is ERROR, never a pass

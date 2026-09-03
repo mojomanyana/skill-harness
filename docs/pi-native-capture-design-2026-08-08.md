@@ -209,7 +209,7 @@ Restating the plan's §4.7, now with the measurements behind it:
   `specification.yaml`, so they cannot touch ship-bar totals, staleness, lift, or
   stability before a human promotes them.
 - New spec fields land in `sources.ts` facets so `lint` names the cheapest honest
-  remedy: `assert.trace` is a **gate** (`regate`, free); `env.extensions` is
+  remedy: `assert.trace` is a **gate** (`regate`, no subject re-run; fail→pass reps may need a judge); `env.extensions` is
   **stimulus** (`run`, costs tokens); `covers` is metadata and stales nothing.
 
 ## 9. Phase 0 exit criteria

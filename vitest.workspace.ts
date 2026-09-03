@@ -13,11 +13,12 @@ const alias = {
 };
 
 const packagesDir = fileURLToPath(new URL("./packages", import.meta.url));
+const tempCleanup = fileURLToPath(new URL("./scripts/vitest-temp-cleanup.mjs", import.meta.url));
 const packages = readdirSync(packagesDir).filter((name) => statSync(join(packagesDir, name)).isDirectory());
 
 export default defineWorkspace(
   packages.map((pkg) => ({
-    test: { name: pkg, root: `packages/${pkg}` },
+    test: { name: pkg, root: `packages/${pkg}`, globalSetup: tempCleanup },
     resolve: { alias },
   }))
 );

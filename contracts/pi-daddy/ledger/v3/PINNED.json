@@ -1,20 +1,20 @@
 {
   "producer": "pi-daddy",
   "repository": "mojomanyana/pi-daddy",
-  "commit": "591abb4a358bf8a84455486812b83609e2a47e3f",
-  "tree": "c9fe1b324ffbf0d72e7d904972594b3a936e9928",
-  "version": "0.20.0",
+  "commit": "4a9524394ca995fd74ed9bbb836dc4e73cda3b8c",
+  "tree": "7c006bff213142634f0f911ba9bd6add363ecaae",
+  "version": "0.21.1",
   "ledger_version": 3,
   "source_schema": "packages/pi-daddy/contracts/ledger/v3/ledger-event.schema.json",
   "source_fixture_generator": "packages/pi-daddy/scripts/generate-ledger-v3-contract.ts",
   "source_refusal_enumeration": "packages/pi-daddy/src/refusals.ts",
-  "schema_sha256": "906ed8a89a516e66c9fe9a5e4e40521015bd710502e0225a1518d61903887ad3",
+  "schema_sha256": "64e3d875e74bc32fa43fb96892605548259cd16f6ed6678646d73cc56280c511",
   "source_dir": "packages/pi-daddy/contracts/ledger/v3",
-  "note": "Byte-exact ledgerVersion 3 contract artifacts from the pinned producer. Positive fixtures are emitted by the producer's production builders through generate-ledger-v3-contract.ts; the independent real-builder verifier proves that lineage. This pin is separate from and does not alter the frozen ledger-v2/0.17 pin.",
+  "note": "Byte-exact ledgerVersion 3 contract artifacts from the pinned producer merge head. Positive fixtures are emitted by the producer's production builders through generate-ledger-v3-contract.ts; the independent real-builder verifier proves that lineage. This pin is separate from and does not alter the frozen ledger-v2/0.17 pin.",
   "artifacts": {
     "ledger-event.schema.json": {
       "source": "packages/pi-daddy/contracts/ledger/v3/ledger-event.schema.json",
-      "sha256": "906ed8a89a516e66c9fe9a5e4e40521015bd710502e0225a1518d61903887ad3"
+      "sha256": "64e3d875e74bc32fa43fb96892605548259cd16f6ed6678646d73cc56280c511"
     },
     "pi-daddy-README.md": {
       "source": "packages/pi-daddy/contracts/ledger/v3/README.md",
@@ -22,31 +22,31 @@
     },
     "refusals.ts": {
       "source": "packages/pi-daddy/src/refusals.ts",
-      "sha256": "2468cf60d49aa6bea372e772f7f5058f33526bf1d7412f294962aa9fd3f25e32"
+      "sha256": "beb4e0f9d48c17b27936b3f95c50813b9aa5de1a5eadea2c842f2f0be0b50452"
     },
     "fixtures/capability-decision.json": {
       "source": "packages/pi-daddy/contracts/ledger/v3/fixtures/capability-decision.json",
-      "sha256": "46dbf4b4c5b7ba1b0a104c301ba4b6a9431f9bac3ff74b6fe5024950c470f376",
+      "sha256": "a23d9b8fce0f7eec8336e8b38a08bb2cabca58754b5610e905d28b003389cfbd",
       "generated_by": "packages/pi-daddy/scripts/generate-ledger-v3-contract.ts"
     },
     "fixtures/workspace-lease.json": {
       "source": "packages/pi-daddy/contracts/ledger/v3/fixtures/workspace-lease.json",
-      "sha256": "c70f5beac304eebe79b5cc0c601628057d9347ea121f741a59a9699cc7a2f495",
+      "sha256": "40d8e0ef14d7e62619eb1c42299a12745d54011896fc1d17bd3365784250d3e7",
       "generated_by": "packages/pi-daddy/scripts/generate-ledger-v3-contract.ts"
     },
     "fixtures/child-lifecycle.json": {
       "source": "packages/pi-daddy/contracts/ledger/v3/fixtures/child-lifecycle.json",
-      "sha256": "560bbc341a44be006d6dec1e0fb2e216bde0ca1cfc51c05ebdb9d3b7415818f9",
+      "sha256": "a24d2aebbf89992d64cf169ae6c342a9032f9d58da8e7b30bf3ddce461e0bef3",
       "generated_by": "packages/pi-daddy/scripts/generate-ledger-v3-contract.ts"
     },
     "fixtures/check-receipt.json": {
       "source": "packages/pi-daddy/contracts/ledger/v3/fixtures/check-receipt.json",
-      "sha256": "0a176abae04a062d77eb223c408e8ae97f9c13f588ca6aef4da37a7f59841d43",
+      "sha256": "e71eeca0a6553e742e2a8c385ddf554fbace54dd8e31dee2e619dfa89a6b72cf",
       "generated_by": "packages/pi-daddy/scripts/generate-ledger-v3-contract.ts"
     },
     "fixtures/workflow-fact.json": {
       "source": "packages/pi-daddy/contracts/ledger/v3/fixtures/workflow-fact.json",
-      "sha256": "d5d46f3d412c3b980238ecd29b0bfc783fa8eb74f27fb1d240a786d4c4671410",
+      "sha256": "5be5d97bacc7717be01684b07d32a4d810bca643ac4d624034204c2e827f1bd3",
       "generated_by": "packages/pi-daddy/scripts/generate-ledger-v3-contract.ts"
     }
   }

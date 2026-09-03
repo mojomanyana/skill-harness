@@ -12,8 +12,9 @@ import {
 } from "../src/pi-daddy-ledger-v3.js";
 import { assertSupportedSchemaV3, declaredPropertyNames, validateClosedSchemaV3 } from "../src/closed-schema.js";
 
-const PRODUCER_COMMIT = "591abb4a358bf8a84455486812b83609e2a47e3f";
-const PRODUCER_TREE = "c9fe1b324ffbf0d72e7d904972594b3a936e9928";
+// PROVISIONAL: unmerged pi-daddy Wave 1 head; replace with its merge commit before release.
+const PRODUCER_COMMIT = "4a9524394ca995fd74ed9bbb836dc4e73cda3b8c";
+const PRODUCER_TREE = "7c006bff213142634f0f911ba9bd6add363ecaae";
 const REPO = fileURLToPath(new URL("../../..", import.meta.url));
 const CONTRACT = join(REPO, "contracts", "pi-daddy", "ledger", "v3");
 const bytes = (relative: string) => readFileSync(join(CONTRACT, relative), "utf8");
@@ -25,7 +26,7 @@ const pinned = JSON.parse(bytes("PINNED.json")) as { repository: string; commit:
 
 describe("pinned pi-daddy ledger v3 contract", () => {
   it("pins exact production source and byte-exact real-builder artifacts", () => {
-    expect(pinned).toMatchObject({ repository: "mojomanyana/pi-daddy", commit: PRODUCER_COMMIT, tree: PRODUCER_TREE, version: "0.20.0", ledger_version: 3 });
+    expect(pinned).toMatchObject({ repository: "mojomanyana/pi-daddy", commit: PRODUCER_COMMIT, tree: PRODUCER_TREE, version: "0.21.1", ledger_version: 3 });
     expect(PI_DADDY_LEDGER_V3_CONTRACT_COMMIT).toBe(PRODUCER_COMMIT);
     expect(PI_DADDY_LEDGER_V3_SCHEMA_SHA256).toBe(pinned.schema_sha256);
     expect(PI_DADDY_LEDGER_V3_SCHEMA_SHA256).toBe(sha(bytes("ledger-event.schema.json")));

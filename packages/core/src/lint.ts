@@ -291,7 +291,7 @@ export function lintSkill(skillDir: string): LintFinding[] {
         } else if (current !== recorded) {
           // The remedy is per key kind, and it is the whole point of the split: a
           // rubric edit is re-gradeable from saved transcripts, a policy edit is a
-          // free rescore, a needle edit is a free regate. Only stimulus drift costs
+          // free rescore, while a gate edit avoids a subject re-run via regate. Only stimulus drift costs
           // model spend. One message saying "re-run" for all four is what made
           // correcting a known-bad rubric expensive enough to skip.
           findings.push({ skill, scenario, code: "stale", message: `${what} changed since the newest ${basename(tagDir)} run (${newest}) — results are stale; ${remedyForKey(key)}` });

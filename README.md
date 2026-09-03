@@ -43,8 +43,8 @@ give you:
 
 - **Remedy-aware staleness** — a published result knows what it measured, split four
   ways: edit a checklist and lint says *re-grade* (judge only); change a threshold and it
-  says *rescore* (free); fix a `diff_contains` needle and it says *regate* (free, from the
-  saved diffs). Only a changed stimulus costs a re-run.
+  says *rescore* (free); fix a `diff_contains` needle and it says *regate* (no subject
+  call, but one judge call for each fail→pass rep). Only a changed stimulus costs a re-run.
 - **[Stability](#stability--run-over-run-verdict-flips)** — which cells flipped their verdict
   between runs, which within-run flakiness cannot see.
 - **[Lift](#lift--baseline-vs-skill)** — baseline vs skill, so you find out whether the model
@@ -239,13 +239,14 @@ skill-harness run    <skill|all> --skills <root> [--model prov:model ...] [--mod
 skill-harness compare <skill|all> --reference <git-ref-or-root> --candidate <skills-root> --model prov:model --reps N
                                                           # paired reference/candidate run; spends subject + judge calls
 skill-harness mutation-test                               # prove trajectory assertions turn red (free, offline)
+skill-harness judge-agreement <run-dir>                   # compare persisted votes after grading with two distinct judges (free, offline)
 skill-harness stability <skill|all> --skills <root> [--window N] [--all]  # run-over-run verdict flips (free, offline)
 skill-harness restamp <skill|all> --skills <root> [--from <git-ref>]  # one-time hash upgrade; see "what stales a run" (free, offline)
 skill-harness coverage <skill|all> --skills <root> [--strict]  # which instruction sections have a declared test (free, offline)
 skill-harness affected <skill>   --skills <root> [--base ref]  # which scenarios a change could touch (free, offline)
 skill-harness grade  <run-dir>   [--judge prov:model] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]
                                                           # re-grade saved transcripts (neutral judge)
-skill-harness regate <run-dir>...                          # re-evaluate gates against saved artifacts (free; one judge call per rep whose verdict flips)
+skill-harness regate <run-dir>...                          # re-evaluate saved gates; may judge each fail→pass rep
 skill-harness rescore <run-dir>...                         # re-apply the current pass threshold to saved reps (free, offline)
 skill-harness review <skill>     --skills <root> [--port N]   # serve the interactive UI
 skill-harness add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical]
@@ -281,6 +282,18 @@ judge reports no per-call usage and a dollar figure there would be invented. It 
 names any cell that no single second opinion can settle, which needs
 `--tie-break-judge`. An unresolved disagreement blocks SHIP rather than resolving
 itself.
+
+**Judge agreement is measured offline after two grades.** Grade the same saved run with
+two distinct judges, then run `judge-agreement <run-dir>`; the report makes no judge
+calls and reports agree/disagree/error per scenario plus an aggregate. Start with
+`openai-codex:gpt-5.6-sol` against `claude-code:claude-opus-4-8`: both are
+subscription-backed and have zero marginal per-token cost. Treat open-weight judges as
+secondary candidates until their agreement has been measured.
+
+Structured runs record `metrics.cost_source`. Subscription providers
+(`openai-codex`, `claude-code`) are labeled `subscription`; a non-subscription provider
+that reports positive subject tokens with zero cost is warned about rather than silently
+presented as free.
 
 **Defaults:** subject model `fireworks:accounts/fireworks/models/deepseek-v4-pro` ·
 judge `claude-code:claude-opus-4-8` · mode `green` · harness `pi`.
@@ -663,7 +676,7 @@ truncated.
   | `stimulus:<id>` | what the model was asked — turns, mode, workspace, fixture path, `assert.vitest` | `run` (subject + judge) |
   | `rubric:<id>`, `rubric:__persona` | the checklist, title, and judge persona the verdicts came from | `grade` (judge only) |
   | `policy:<id>` | `critical`, `reps`, `pass_threshold` — how verdicts collapse to a grade | `rescore` (free) |
-  | `gates:<id>` | `diff_contains` / `diff_excludes` needles | `regate` (free; one judge call per flipped rep) |
+  | `gates:<id>` | `diff_contains` / `diff_excludes` needles | `regate` (no subject call; one judge call per fail→pass rep) |
   | `fixture:<path>` | every file under one fixture dir, including `_staged/`/`_uncommitted/` | `run` (subject + judge) |
   | `<relative path>` | a `system_prompt_file`, or an `assert.post_test` file's contents | `run` (subject + judge) |
 

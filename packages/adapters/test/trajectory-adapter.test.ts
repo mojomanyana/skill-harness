@@ -62,6 +62,23 @@ describe("principal assurance v1 normalization", () => {
     expect(() => normalizePrincipalAssuranceLedger(rehash(rows))).toThrow(/timestamp moves backwards/);
   });
 
+  it("enum-validates assurance source and its closed structured scope", () => {
+    const rows = fixture("principal-assurance-v1.jsonl").trim().split("\n").map((line) => JSON.parse(line));
+    rows[0].assurance = {
+      requested: "critical", effective: "critical", source: "policy", reason: "production migration",
+      scope: { type: "selectors", selectors: ["packages/core/**"] }, activated_at: "2026-08-19T12:00:00Z",
+    };
+    expect(normalizePrincipalAssuranceLedger(rehash(rows))[0].attributes?.assurance).toMatchObject({
+      source: "policy", scope: { type: "selectors", selectors: ["packages/core/**"] },
+    });
+
+    rows[0].assurance.source = "trusted-looking-but-unknown";
+    expect(() => normalizePrincipalAssuranceLedger(rehash(rows))).toThrow(/assurance\.source is not a recognized source/);
+    rows[0].assurance.source = "policy";
+    rows[0].assurance.scope = { type: "entire-run", selectors: ["src/**"] };
+    expect(() => normalizePrincipalAssuranceLedger(rehash(rows))).toThrow(/assurance\.scope is not a closed structured scope/);
+  });
+
   it("redacts secret-like native payloads before persisting normalized attributes", () => {
     const rows = fixture("principal-assurance-v1.jsonl").trim().split("\n").map((line) => JSON.parse(line));
     rows[0].request = "use api_key=sk-super-secret-value";

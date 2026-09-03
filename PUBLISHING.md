@@ -1,6 +1,11 @@
-# Publishing skill-harness (0.10.0)
+# Publishing skill-harness (0.11.0 HEAD; next release proposed: 0.12.0)
 
-This is the npm-publish runbook.
+This is the npm-publish runbook. The registry already contains 0.11.0, while HEAD has
+46 unreleased commits at the Wave 1 baseline. Consequently `release:pack` currently
+names archives `*-0.11.0.tgz` whose bytes are **not** the published 0.11.0 bytes. Do not
+publish or overwrite them. The next release should bump to **0.12.0** because the closed
+ledger contract and measurement/reporting surface change; this document does not
+authorize that bump or a release.
 
 ## Unreleased cross-repository contract repair
 
@@ -32,8 +37,9 @@ pinned schema instead of maintaining another list. No OS sandbox is introduced b
 this repair.
 
 The next publish must also keep `pi-daddy-ledger-v3-contract` green. That independent
-lane pins pi-daddy 0.20.0 commit `591abb4a358bf8a84455486812b83609e2a47e3f`
-and tree `c9fe1b324ffbf0d72e7d904972594b3a936e9928`, reproduces all five
+lane pins pi-daddy Wave 1 merge head
+`4a9524394ca995fd74ed9bbb836dc4e73cda3b8c`, tree
+`7c006bff213142634f0f911ba9bd6add363ecaae`, version 0.21.1, reproduces all five
 positive v3 fixtures through production builders, exercises non-vacuous v3 mutations,
 and leaves the v2/0.17 lane unchanged. `qualification-runner-v1` is source-built and
 unpublished; release evidence must include its public schemas, CLI lifecycle tests,
@@ -173,7 +179,7 @@ assertions before any judge spend, and `--auto-rejudge` genuinely taking a secon
 
 Build, `npm run typecheck`, 1,368 tests across 86 files, the suite again with `pi` removed from
 `PATH` (the CI condition), the committed pi-extension bundle current against an in-memory
-rebuild, and `lint all --skills ../principal-pi-skills` reporting `7 skill(s), 101 finding(s),
+rebuild, and `lint all --skills ../principal-pi-skills` reporting `7 skill(s), 104 finding(s),
 32 note(s)` — the same figure measured before this work began, which is the evidence that no arm
 leaked into a result digest.
 

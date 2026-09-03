@@ -112,6 +112,20 @@ describe("regradeRun", () => {
     const persisted = readResults(runDir);
     expect(persisted.effective_grade).toEqual(out.effective_grade); // persisted
     expect(persisted.scenarios[0].judge_verdict).toBe("PASS");
+    expect(persisted.scenarios[0].judge_history).toHaveLength(2);
+  });
+
+  it("omits judge_history when grading a transcript directory with no prior result", async () => {
+    const runDir = tmp();
+    writeFileSync(join(runDir, "A1.green.txt"), "USER: hi\nASSISTANT: hello", "utf8");
+    const spec = scenarioOf(SPEC);
+    const out = await regradeRun({
+      runDir, spec,
+      adapter: judgeAdapter("1. PASS — ok\nVERDICT: PASS\nREASON: ok"),
+      judge: { provider: "claude-code", model: "opus" }, specDir: runDir, now: () => "t",
+    });
+    expect(out.scenarios[0].judge_history).toBeUndefined();
+    expect(readResults(runDir).scenarios[0].judge_history).toBeUndefined();
   });
 });
 

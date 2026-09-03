@@ -173,6 +173,16 @@ describe("trajectory assertion parsing and evaluation", () => {
     expect(result.assertions[0].detail).toMatch(/requirements must be an array/);
   });
 
+  it("reads legacy 1.0 events, writes 1.1, and reserves execution identity for 1.1", () => {
+    const legacy: TrajectoryEventV1 = { event_version: "1.0", seq: 1, type: "legacy", source: "test" };
+    expect(deserializeTrajectoryEvents(serializeTrajectoryEvents([legacy]))).toEqual([legacy]);
+
+    const current = event(1, "current", { execution_id: "exec:one", parent_execution_id: null });
+    expect(current.event_version).toBe("1.1");
+    expect(deserializeTrajectoryEvents(serializeTrajectoryEvents([current]))).toEqual([current]);
+    expect(deserializeTrajectoryEvents(`${JSON.stringify({ ...legacy, execution_id: "exec:one" })}\n`)).toBeNull();
+  });
+
   it("rejects gapped normalized JSONL before adapters can resequence it", () => {
     expect(deserializeTrajectoryEvents(serializeTrajectoryEvents([event(1, "a"), event(3, "b")]))).toBeNull();
   });
@@ -232,11 +242,11 @@ describe("offline assertion mutation self-test", () => {
   it("turns every required mutation red without model or judge calls", () => {
     const report = runTrajectoryMutationSelfTest();
     expect(report.baseline).toBe("PASS");
-    expect(report.cases).toHaveLength(15);
+    expect(report.cases).toHaveLength(21);
     expect(report.cases.every((c) => c.detected)).toBe(true);
     expect(report.cases.map((c) => c.id)).toEqual([
       "remove-required-event",
-      "add-forbidden-tool-side-effect",
+      "add-forbidden-tool-side-effect-approval",
       "reorder-transition",
       "substitute-workspace-id",
       "concurrent-writer",
@@ -250,6 +260,12 @@ describe("offline assertion mutation self-test", () => {
       "mutate-superseded-task",
       "reuse-context-id",
       "mismatch-finalization-identity",
+      "v3-blocked-critical-code",
+      "v3-stale-gate-must-block",
+      "v3-finalize-gate-must-be-ok",
+      "v3-discard-requires-explicit-request",
+      "v3-side-effect-approval-and-gate",
+      "v3-governed-spawn-started",
     ]);
   });
 });

@@ -6,7 +6,7 @@ import { buildJudgePrompt, judgeInWorkspace } from "./grade.js";
 import {
   findTranscriptFiles, judgeRawPath, repIndexOf, readResults, writeResults, effectiveThreshold,
   scoreContextFor, rebuildScenarioResult, mergeScenarioMetrics,
-  type ScenarioResult, type ResultsFile,
+  type Judgment, type ScenarioResult, type ResultsFile,
 } from "./results.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
 import { appendJournal } from "./journal.js";
@@ -166,6 +166,26 @@ export interface RegradeRunOptions {
  * results.yaml, emits the `score` journal event, and returns the new
  * ResultsFile. Shared by `cmdGrade` and the pi-extension's `judge` command.
  */
+/** Preserve prior panel votes and append a full-cell grade without writing invalid one-vote history. */
+export function appendJudgeHistory(
+  prior: ScenarioResult | undefined,
+  priorJudge: ModelRef | undefined,
+  fresh: Omit<Judgment, "ordinal">,
+): Judgment[] | undefined {
+  const history = prior?.judge_history ?? prior?.adjudication?.judgments ?? (prior && priorJudge ? [{
+    ordinal: 1,
+    judge: priorJudge,
+    verdict: prior.judge_verdict ?? "JUDGE-AMBIGUOUS",
+    reason: prior.judge_reason ?? "prior grade",
+    suspect: prior.suspect ?? true,
+  }] : []);
+  const next = [
+    ...history,
+    { ...fresh, ordinal: history.length + 1 },
+  ].slice(-3).map((judgment, index) => ({ ...judgment, ordinal: index + 1 }));
+  return next.length >= 2 ? next : undefined;
+}
+
 export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> {
   const { runDir, spec, adapter, judge, specDir } = opts;
   const now = opts.now ?? (() => new Date().toISOString());
@@ -242,6 +262,9 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     });
     const carry = overrides.get(id);
     rr.metrics = mergeScenarioMetrics(carry?.metrics, rr.metrics);
+    rr.judge_history = appendJudgeHistory(carry, prev?.judge, {
+      judge, verdict: rr.judge_verdict, reason: rr.judge_reason, suspect: rr.suspect,
+    });
     // `grade` re-judges the saved transcript. It does not re-evaluate trace gates
     // (that is `regate`), so `objective` still describes this run; and it replaced
     // the judgments a prior adjudication described, so that panel must go.

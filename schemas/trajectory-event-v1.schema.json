@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["event_version", "seq", "type", "source"],
   "properties": {
-    "event_version": { "const": "1.0" },
+    "event_version": { "enum": ["1.0", "1.1"] },
     "seq": { "type": "integer", "minimum": 1 },
     "type": { "type": "string", "minLength": 1 },
     "source": { "type": "string", "minLength": 1 },
@@ -58,6 +58,20 @@
     "requirements": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
     "attributes": { "type": "object" }
   },
+  "allOf": [
+    {
+      "if": { "properties": { "event_version": { "const": "1.0" } }, "required": ["event_version"] },
+      "then": {
+        "properties": {
+          "execution_id": false,
+          "parent_execution_id": false,
+          "task_from_execution_id": false,
+          "workflow_fact_id": false,
+          "deadline_at": false
+        }
+      }
+    }
+  ],
   "$defs": {
     "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" },
     "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },

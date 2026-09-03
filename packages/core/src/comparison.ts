@@ -41,6 +41,7 @@ export interface AggregateMetrics {
   cache_read_tokens: number | null;
   cache_write_tokens: number | null;
   subject_cost_usd: number | null;
+  cost_source: "provider-reported" | "subscription" | "unreported" | null;
   tool_calls: number | null;
   delegated_children: number | null;
   max_concurrency: number | null;
@@ -222,6 +223,10 @@ export function aggregateMetrics(scenarios: ScenarioResult[]): AggregateMetrics 
     cache_read_tokens: sumOptional("cache_read_tokens"),
     cache_write_tokens: sumOptional("cache_write_tokens"),
     subject_cost_usd: sumOptional("subject_cost_usd"),
+    cost_source: (() => {
+      const sources = scenarios.map((scenario) => scenario.metrics?.cost_source).filter((source): source is NonNullable<typeof source> => source !== undefined);
+      return sources.length === 0 ? null : sources.every((source) => source === sources[0]) ? sources[0] : "unreported";
+    })(),
     tool_calls: sumOptional("tool_calls"),
     delegated_children: sumOptional("delegated_children"),
     max_concurrency: maxValues.length ? Math.max(...maxValues) : null,

@@ -79,7 +79,7 @@ the judge's verdict; only an explicit author override beats it.
 
 ## Free, offline, and worth running first
 None of these spend a model or judge token. Reach for them before anything paid:
-`list`, `lint`, `stability`, `rescore`, `regate`, `mutation-test`, and —
+`list`, `lint`, `stability`, `rescore`, `mutation-test`, and —
 - `coverage <skill|all> --skills <root>` — which SKILL.md sections have a declared
   test. `covers` records that somebody LINKED a test to a section; it is not proof
   the behaviour is tested, and it is worth saying so when you report a percentage.
@@ -88,7 +88,8 @@ None of these spend a model or judge token. Reach for them before anything paid:
 
 **Match the remedy to the drift; `lint` names it.** `stimulus:` → `run` (spends),
 `rubric:` → `grade` (judge only), `policy:` → `rescore` (free), `gates:` → `regate`
-(free). Never reach for `run` when lint asked for one of the other three.
+(no subject call; one judge call for each fail→pass rep). Never reach for `run` when lint
+asked for one of the other three. Confirm that possible judge spend before running `regate`.
 
 ## Capturing a real failure
 `/skill-harness capture` (pi extension only — NOT a CLI command, and it refuses to

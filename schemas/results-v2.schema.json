@@ -49,9 +49,25 @@
         "cache_read_tokens": { "type": "integer", "minimum": 0 },
         "cache_write_tokens": { "type": "integer", "minimum": 0 },
         "subject_cost_usd": { "type": "number", "minimum": 0 },
+        "cost_source": { "enum": ["provider-reported", "subscription", "unreported"] },
         "tool_calls": { "type": "integer", "minimum": 0 },
         "delegated_children": { "type": "integer", "minimum": 0 },
         "max_concurrency": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "judgment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ordinal", "judge", "verdict", "reason", "suspect"],
+      "properties": {
+        "ordinal": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "judge": {
+          "type": "object", "additionalProperties": false, "required": ["provider", "model"],
+          "properties": { "provider": { "type": "string" }, "model": { "type": "string" } }
+        },
+        "verdict": { "$ref": "#/$defs/verdict" },
+        "reason": { "type": "string" },
+        "suspect": { "type": "boolean" }
       }
     },
     "scenario": {
@@ -105,28 +121,10 @@
             "state": { "enum": ["confirmed", "tie_broken", "unresolved"] },
             "trigger": { "enum": ["ambiguous", "contradictory", "non_unanimous", "ship_deciding"] },
             "verdict": { "enum": ["PASS", "FAIL"] },
-            "judgments": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["ordinal", "judge", "verdict", "reason", "suspect"],
-                "properties": {
-                  "ordinal": { "type": "integer", "minimum": 1, "maximum": 3 },
-                  "judge": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": ["provider", "model"],
-                    "properties": { "provider": { "type": "string" }, "model": { "type": "string" } }
-                  },
-                  "verdict": { "$ref": "#/$defs/verdict" },
-                  "reason": { "type": "string" },
-                  "suspect": { "type": "boolean" }
-                }
-              }
-            }
+            "judgments": { "type": "array", "items": { "$ref": "#/$defs/judgment" } }
           }
-        }
+        },
+        "judge_history": { "type": "array", "minItems": 2, "maxItems": 3, "items": { "$ref": "#/$defs/judgment" } }
       }
     }
   }

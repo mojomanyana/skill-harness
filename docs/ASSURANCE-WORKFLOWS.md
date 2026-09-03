@@ -2,11 +2,14 @@
 
 ## Contract and evidence boundary
 
-Implementation is based on immutable principal-pi-skills PR #31 head
-`961f8ccbdb2a12e92db1e1b2d4ab7ca50f9d7d21`. GitHub's `ci / spec-lint` check for that exact
-commit was `SUCCESS` when implementation began. The PR head had not advanced, so no contract delta
-was accepted. The source manifest calls itself unpublished `3.0.0`; skill-harness does not depend on
-that npm version.
+The qualification product pin is immutable principal-pi-skills merge head
+`a6596950d64a3a525f95329d5dbd3e38948be408` (tree
+`960359d69deb6f216724b86e13eef67e2f6a6aa1`), matching
+`PRINCIPAL_QUALIFICATION_PRODUCT_PIN` in `packages/core/src/qualification-config.ts`.
+The earlier implementation baseline was PR #31 head `961f8cc…`; the merge advanced after that
+snapshot, so the old statement that the head "had not advanced" is historical, not the active pin.
+The source manifest calls itself unpublished `3.0.0`; skill-harness does not depend on that npm
+version.
 
 The principal repository contributes **static contract inputs**, not model evidence:
 
@@ -84,7 +87,9 @@ judge`). An explicit author override remains the only override.
 
 ## Normalized event model and adapters
 
-Every normalized event has `event_version: "1.0"`, a replay sequence, `type`, `source`, promoted
+Writers emit normalized events with `event_version: "1.1"`; readers also accept legacy `1.0`
+events that do not carry the 1.1 execution-identity/deadline fields. A 1.0 event carrying those
+fields is rejected rather than pretending an older closed reader could consume it. Every event has a replay sequence, `type`, `source`, promoted
 join fields under adapter-specific trust semantics, separate `digests.head` and
 `digests.tree`, and optional capability, approval, refusal, receipt, and attribute fields. Native
 fields not promoted remain under `attributes`; normalization does not throw information needed for
@@ -280,7 +285,7 @@ skill-harness mutation-test
 ```
 
 This command is deterministic, offline, and makes no model or judge calls. It starts from known-good
-normalized artifacts and verifies 15 mutations turn objective assertions red: required-event removal,
+normalized artifacts and verifies 21 mutations turn objective assertions red: required-event removal,
 forbidden side effect, transition reorder, workspace substitution, concurrent writer, approval
 expiry, three freshness floors, head-equal/tree-different, non-zero receipt, missing requirements,
 superseded-task mutation, context reuse, and finalization mismatch.

@@ -23,7 +23,18 @@ import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 
 const REPO = fileURLToPath(new URL("../../..", import.meta.url));
-const TMP = mkdtempSync(join(tmpdir(), "skill-harness-release-pack-test-"));
+const REQUIRED_NODE_VERSION = "v20.20.2";
+const REQUIRED_NPM_VERSION = "10.8.2";
+const npmVersionResult = spawnSync("npm", ["--version"], { encoding: "utf8" });
+const npmVersion = npmVersionResult.status === 0 ? npmVersionResult.stdout.trim() : "unavailable";
+const pinnedToolchain = process.version === REQUIRED_NODE_VERSION && npmVersion === REQUIRED_NPM_VERSION;
+if (!pinnedToolchain) {
+  console.warn(
+    `[release-pack tests skipped] require Node ${REQUIRED_NODE_VERSION} and npm ${REQUIRED_NPM_VERSION}; `
+      + `running ${process.version} and npm ${npmVersion}. CI uses the pinned toolchain and runs these tests.`,
+  );
+}
+const TMP = pinnedToolchain ? mkdtempSync(join(tmpdir(), "skill-harness-release-pack-test-")) : "";
 const CLI_OUTPUT = join("packages", "cli", "dist", "cli.js");
 const MANIFEST = "release-manifest.json";
 const ARCHIVE_NAMES = [
@@ -137,9 +148,11 @@ function tarEntry(archive: string, wantedPath: string): { mode: number; content:
   throw new Error(`${archive} is missing ${wantedPath}`);
 }
 
-afterAll(() => rmSync(TMP, { recursive: true, force: true }));
+afterAll(() => {
+  if (TMP) rmSync(TMP, { recursive: true, force: true });
+});
 
-describe("authoritative release packaging", () => {
+describe.skipIf(!pinnedToolchain)("authoritative release packaging", () => {
   it("builds absent outputs, records digests, and packs cli.js as canonical 0644", () => {
     const root = cloneRepo("clean");
     expect(existsSync(join(root, CLI_OUTPUT))).toBe(false);
@@ -164,6 +177,42 @@ describe("authoritative release packaging", () => {
     const archivedCli = tarEntry(join(root, "release-artifacts", cli.filename), "package/dist/cli.js");
     expect(archivedCli.mode).toBe(CANONICAL_MODE);
     expect(archivedCli.content).toEqual(readFileSync(join(root, CLI_OUTPUT)));
+  }, 60_000);
+
+  it("rejects a real tracked Git gitlink", () => {
+    const root = cloneRepo("tracked-gitlink");
+    const auxiliary = join(root, "principal-pi-skills");
+    mkdirSync(auxiliary);
+    for (const args of [["init", "-q"], ["config", "user.name", "fixture"], ["config", "user.email", "fixture@example.invalid"]]) {
+      expect(spawnSync("git", args, { cwd: auxiliary, encoding: "utf8" }).status).toBe(0);
+    }
+    writeFileSync(join(auxiliary, "README.md"), "fixture producer\n");
+    expect(spawnSync("git", ["add", "README.md"], { cwd: auxiliary, encoding: "utf8" }).status).toBe(0);
+    expect(spawnSync("git", ["commit", "-qm", "fixture"], { cwd: auxiliary, encoding: "utf8", env: GIT_ENV }).status).toBe(0);
+    commitPaths(root, ["principal-pi-skills"], "track gitlink");
+
+    const result = runReleasePack(root);
+    expect(result.status).not.toBe(0);
+    expect(result.combined).toMatch(/tracked source principal-pi-skills has unsupported Git type\/mode commit\/160000/);
+  }, 30_000);
+
+  it("keeps an adjacent CI dependency checkout outside package inventory and source identity", () => {
+    const root = cloneRepo("isolated-ci-source");
+    const auxiliary = join(TMP, "principal-pi-skills");
+    mkdirSync(auxiliary);
+    writeFileSync(join(auxiliary, "README.md"), "auxiliary producer checkout\n");
+
+    const result = runReleasePack(root);
+    requireSuccess(result);
+    const manifest = readManifest(root);
+    expect(manifest.source).toEqual({
+      commit: spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim(),
+      tree: spawnSync("git", ["rev-parse", "HEAD^{tree}"], { cwd: root, encoding: "utf8" }).stdout.trim(),
+    });
+    expect(manifest.artifacts.map((artifact) => artifact.package).sort()).toEqual([
+      "@skill-harness/adapters", "@skill-harness/cli", "@skill-harness/core", "skill-harness",
+    ]);
+    expect(manifest.artifacts.flatMap((artifact) => artifact.files).some((file) => file.path.includes("principal-pi-skills"))).toBe(false);
   }, 60_000);
 
   it("turns a reused 0755 cli.js into the byte-identical clean 0644 archive", () => {

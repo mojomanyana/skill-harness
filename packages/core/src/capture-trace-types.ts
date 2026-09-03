@@ -93,12 +93,15 @@ export interface TraceResultMeta {
  * conversation carries in the session dir, not in the event stream). This
  * mirrors the loop the adapter already runs.
  */
+export type CostSource = "provider-reported" | "subscription" | "unreported";
+
 export interface TraceMetrics {
   input_tokens: number;
   output_tokens: number;
   cache_read_tokens: number;
   cache_write_tokens: number;
   cost_usd: number;
+  cost_source: CostSource;
   tool_calls: number;
   delegated_children: number;
   /** Maximum simultaneously outstanding tool calls observed in the pi stream. */

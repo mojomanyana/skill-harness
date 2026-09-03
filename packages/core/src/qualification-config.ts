@@ -21,13 +21,14 @@ export const PRINCIPAL_QUALIFICATION_PRODUCT_PIN = {
   package_sha256: "3677f76fb31dcaf6a28c9e8b9cf9d6358f998b78bd370f0a0f250d05e136fcc8",
   package_bytes: 110168,
 } as const;
+/** Immutable pi-daddy ledger-v3 producer merge head. */
 export const PI_DADDY_QUALIFICATION_PRODUCER_PIN = {
   repository: "https://github.com/mojomanyana/pi-daddy",
-  commit: "591abb4a358bf8a84455486812b83609e2a47e3f",
-  tree: "c9fe1b324ffbf0d72e7d904972594b3a936e9928",
-  version: "0.20.0",
+  commit: "4a9524394ca995fd74ed9bbb836dc4e73cda3b8c",
+  tree: "7c006bff213142634f0f911ba9bd6add363ecaae",
+  version: "0.21.1",
   ledger_version: 3,
-  ledger_schema_sha256: "906ed8a89a516e66c9fe9a5e4e40521015bd710502e0225a1518d61903887ad3",
+  ledger_schema_sha256: "64e3d875e74bc32fa43fb96892605548259cd16f6ed6678646d73cc56280c511",
 } as const;
 
 export const QUALIFICATION_ACCOUNTING_POLICY = {
