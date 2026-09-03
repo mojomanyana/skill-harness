@@ -125,7 +125,7 @@ describe("parseTrace — cost and latency inputs", () => {
   });
 
   it("labels subscription zero-cost usage and warns only through its recorded source", () => {
-    const raw = lines(readFileSync(join(FIXTURES, "tool-error.jsonl"), "utf8")).map((line) => {
+    const raw = Array.from(lines(readFileSync(join(FIXTURES, "tool-error.jsonl"), "utf8")), (line) => {
       const event = JSON.parse(line);
       if (event.type === "message_end" && event.message?.usage) delete event.message.usage.cost;
       return JSON.stringify(event);
@@ -151,6 +151,10 @@ describe("parseTrace — cost and latency inputs", () => {
 });
 
 describe("parseTrace — robustness", () => {
+  it("exposes saved JSONL as a portable iterable without runtime iterator helpers", () => {
+    expect(Array.from(lines("first\nsecond\n"))).toEqual(["first", "second"]);
+  });
+
   it("skips streaming updates rather than treating them as messages", () => {
     const raw = readFileSync(join(FIXTURES, "single-turn.jsonl"), "utf8");
     expect(raw).toContain('"message_update"');

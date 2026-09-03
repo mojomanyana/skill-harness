@@ -179,6 +179,42 @@ describe.skipIf(!pinnedToolchain)("authoritative release packaging", () => {
     expect(archivedCli.content).toEqual(readFileSync(join(root, CLI_OUTPUT)));
   }, 60_000);
 
+  it("rejects a real tracked Git gitlink", () => {
+    const root = cloneRepo("tracked-gitlink");
+    const auxiliary = join(root, "principal-pi-skills");
+    mkdirSync(auxiliary);
+    for (const args of [["init", "-q"], ["config", "user.name", "fixture"], ["config", "user.email", "fixture@example.invalid"]]) {
+      expect(spawnSync("git", args, { cwd: auxiliary, encoding: "utf8" }).status).toBe(0);
+    }
+    writeFileSync(join(auxiliary, "README.md"), "fixture producer\n");
+    expect(spawnSync("git", ["add", "README.md"], { cwd: auxiliary, encoding: "utf8" }).status).toBe(0);
+    expect(spawnSync("git", ["commit", "-qm", "fixture"], { cwd: auxiliary, encoding: "utf8", env: GIT_ENV }).status).toBe(0);
+    commitPaths(root, ["principal-pi-skills"], "track gitlink");
+
+    const result = runReleasePack(root);
+    expect(result.status).not.toBe(0);
+    expect(result.combined).toMatch(/tracked source principal-pi-skills has unsupported Git type\/mode commit\/160000/);
+  }, 30_000);
+
+  it("keeps an adjacent CI dependency checkout outside package inventory and source identity", () => {
+    const root = cloneRepo("isolated-ci-source");
+    const auxiliary = join(TMP, "principal-pi-skills");
+    mkdirSync(auxiliary);
+    writeFileSync(join(auxiliary, "README.md"), "auxiliary producer checkout\n");
+
+    const result = runReleasePack(root);
+    requireSuccess(result);
+    const manifest = readManifest(root);
+    expect(manifest.source).toEqual({
+      commit: spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim(),
+      tree: spawnSync("git", ["rev-parse", "HEAD^{tree}"], { cwd: root, encoding: "utf8" }).stdout.trim(),
+    });
+    expect(manifest.artifacts.map((artifact) => artifact.package).sort()).toEqual([
+      "@skill-harness/adapters", "@skill-harness/cli", "@skill-harness/core", "skill-harness",
+    ]);
+    expect(manifest.artifacts.flatMap((artifact) => artifact.files).some((file) => file.path.includes("principal-pi-skills"))).toBe(false);
+  }, 60_000);
+
   it("turns a reused 0755 cli.js into the byte-identical clean 0644 archive", () => {
     const clean = cloneRepo("reused-clean-reference");
     const cleanResult = runReleasePack(clean);

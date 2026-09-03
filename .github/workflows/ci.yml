@@ -78,22 +78,27 @@ jobs:
   build-test:
     needs: [pi-daddy-contract, pi-daddy-ledger-v3-contract]
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: skill-harness
     env:
       PRINCIPAL_PI_SKILLS_CHECKOUT: ${{ github.workspace }}/principal-pi-skills
     steps:
-      - uses: actions/checkout@v5
+      - name: Check out skill-harness
+        uses: actions/checkout@v5
+        with:
+          path: skill-harness
       - name: Check out immutable principal fixture producer
         uses: actions/checkout@v5
         with:
           repository: mojomanyana/principal-pi-skills
           ref: e438a605c2376d3b06132f3e2db21ae0706983d0
           path: principal-pi-skills
-      - name: Keep the provenance checkout outside the subject source inventory
-        run: echo /principal-pi-skills/ >> .git/info/exclude
       - uses: actions/setup-node@v5
         with:
           node-version: "20.20.2"
           cache: npm
+          cache-dependency-path: skill-harness/package-lock.json
       - run: npm ci
       - run: npm run build
       - run: npm test
