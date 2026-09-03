@@ -37,9 +37,11 @@ pinned schema instead of maintaining another list. No OS sandbox is introduced b
 this repair.
 
 The next publish must also keep `pi-daddy-ledger-v3-contract` green. That independent
-lane pins pi-daddy Wave 1 merge head
+lane pins pi-daddy Wave 1 commit
 `4a9524394ca995fd74ed9bbb836dc4e73cda3b8c`, tree
-`7c006bff213142634f0f911ba9bd6add363ecaae`, version 0.21.1, reproduces all five
+`7c006bff213142634f0f911ba9bd6add363ecaae`, version 0.21.1. The pin is reachable from
+pi-daddy's merged `main` at `62e9d027514e9fc6d689d505d7ef733a07f1470c` with the
+same tree and an empty full diff. It reproduces all five
 positive v3 fixtures through production builders, exercises non-vacuous v3 mutations,
 and leaves the v2/0.17 lane unchanged. `qualification-runner-v1` is source-built and
 unpublished; release evidence must include its public schemas, CLI lifecycle tests,

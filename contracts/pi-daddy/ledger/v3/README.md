@@ -9,6 +9,10 @@ tree        7c006bff213142634f0f911ba9bd6add363ecaae
 version     0.21.1
 ```
 
+This pinned commit is reachable from pi-daddy's merged `main` at merge commit
+`62e9d027514e9fc6d689d505d7ef733a07f1470c`. Both commits resolve to tree
+`7c006bff213142634f0f911ba9bd6add363ecaae`, and their full diff is empty.
+
 `PINNED.json` maps every byte-vendored artifact to its producer path and SHA-256.
 `pi-daddy-README.md` is the producer's contract text. Positive fixtures are not
 hand-authored here: pi-daddy commits them from

@@ -66,7 +66,7 @@ pi-daddy ledger-v3 pin is deterministic and current at 4a9524394ca995fd74ed9bbb8
 
 `npm run build && node scripts/check-pi-daddy-v3-contract.mjs` also passed: all eight hashes, the generated adapter pin, 5/5 canonical fixtures, and negative controls.
 
-However, `contracts/pi-daddy/ledger/v3/README.md:7-9,23` still claimed an older snapshot commit/tree, version `0.20.0`, and its obsolete vendor command. `packages/adapters/test/pi-daddy-v3-contract.test.ts:15` also labeled the now-merged pin provisional. The vendor script did not regenerate the consumer README, so its successful check did not cover this contradiction.
+However, `contracts/pi-daddy/ledger/v3/README.md:7-9,23` still claimed an older snapshot commit/tree, version `0.20.0`, and its obsolete vendor command. `packages/adapters/test/pi-daddy-v3-contract.test.ts:15` also carried a stale branch-head-only marker. The vendor script did not regenerate the consumer README, so its successful check did not cover this contradiction.
 
 ### 2. Six ship-gating field repairs — CLOSED for producer-field compatibility
 
@@ -253,7 +253,7 @@ The two newly skipped release-pack tests are “rejects a real tracked Git gitli
 
 ### Conflicts to repair
 
-1. Update `contracts/pi-daddy/ledger/v3/README.md` to the authoritative `4a95243...` identity and remove the stale provisional test comment; add coverage so consumer notes cannot drift from `PINNED.json`.
+1. Update `contracts/pi-daddy/ledger/v3/README.md` to the authoritative `4a95243...` identity and remove the stale branch-head-only test comment; add coverage so consumer notes cannot drift from `PINNED.json`.
 2. Replace the one-file provenance resolver with a check that enumerates every recorded provenance identity and resolves it in the named repository.
 3. Remove/correct every remaining claim that `regate` is free or asks no judge; do not claim preflight until calls are actually authorized before execution.
 4. Correct active 101/32 baseline statements.
@@ -339,3 +339,46 @@ All five cleanup items are now closed:
 The earlier `CONFLICT` verdict above is the immutable recheck result before cleanup. For these
 five scoped conflicts, the post-cleanup verdict is **CONSISTENT WITH THE EXISTING PROVISIONAL AND
 DEFERRED EXCEPTIONS** listed above.
+
+## Final pin status
+
+Date: 2026-09-04. No model or judge call was made. The ledger-v3 pin remains the immutable
+pi-daddy commit `4a9524394ca995fd74ed9bbb836dc4e73cda3b8c`; no contract bytes, generated adapter,
+qualification pin, digest, or CI configuration changed.
+
+The final upstream status was verified directly in the pi-daddy checkout:
+
+```text
+$ git merge-base --is-ancestor 4a95243 origin/main
+exit=0
+
+$ git rev-parse 4a95243^{tree}
+7c006bff213142634f0f911ba9bd6add363ecaae
+$ git rev-parse 62e9d02^{tree}
+7c006bff213142634f0f911ba9bd6add363ecaae
+
+$ git diff 4a95243 62e9d02
+(no output)
+exit=0; output_bytes=0
+```
+
+Thus the pinned commit is reachable from pi-daddy's `main` through merge commit
+`62e9d027514e9fc6d689d505d7ef733a07f1470c`, and the pinned and merged commits have the
+same tree and byte-identical repository contents. The pin did not need to move or be
+re-vendored. No provisional pi-daddy pin or producer-repin release blocker remains.
+
+Final free/offline verification:
+
+- `node scripts/vendor-pi-daddy-ledger-v3-contract.mjs ../pi-daddy 4a9524394ca995fd74ed9bbb836dc4e73cda3b8c --check` — PASS; deterministic/current.
+- `npm run build && node scripts/check-pi-daddy-v3-contract.mjs` — PASS; all eight recorded
+  artifact SHA-256 digests matched, the built adapter carried the pinned commit/schema,
+  5/5 canonical fixtures were accepted, and negative controls remained active.
+- `npm run typecheck` — PASS.
+- `npm test` — PASS: 98 files passed, 1 skipped; 1,535 tests passed, 25 skipped. The only
+  conditional skips were the derived pinned-toolchain block in
+  `packages/cli/test/release-pack.test.ts`.
+- `node bin/skill-harness.js mutation-test` — PASS: 21/21 mutations detected; no model or judge calls.
+- `node bin/skill-harness.js lint principal-v3-pack --skills examples` — PASS: 1 skill, 0 findings.
+- `node scripts/check-recorded-provenance.mjs` — PASS: all 6 recorded commit identities resolve.
+- Before and after the pi-daddy contract checks, the Node process-table check found no
+  `test/workspace.test.ts` process.

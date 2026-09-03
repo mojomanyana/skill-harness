@@ -20,9 +20,12 @@ timeout/abort; and exact provider/model attestation from the completed Pi JSONL.
 `prepare` is zero calls. The launch claim is one consumed call even when the child
 fails, times out, refuses, truncates, or produces an invalid artifact.
 
-The separate `pi-daddy-ledger-v3` selector pins pi-daddy Wave 1 merge head
+The separate `pi-daddy-ledger-v3` selector pins pi-daddy Wave 1 commit
 `4a9524394ca995fd74ed9bbb836dc4e73cda3b8c` / tree
-`7c006bff213142634f0f911ba9bd6add363ecaae` / 0.21.1. Its five positive fixtures
+`7c006bff213142634f0f911ba9bd6add363ecaae` / 0.21.1. Reachability from pi-daddy
+`main` and byte identity were verified at merge commit
+`62e9d027514e9fc6d689d505d7ef733a07f1470c`; the immutable pin does not need to move.
+Its five positive fixtures
 are byte-vendored producer artifacts generated through real production builders.
 The historical `pi-daddy-v1` selector remains 0.17/v2 only.
 
