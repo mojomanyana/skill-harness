@@ -77,7 +77,7 @@ node bin/skill-harness.js lint all --skills ../principal-pi-skills 2>&1 | tail -
 Expect exactly:
 
 ```
-7 skill(s), 101 finding(s), 32 note(s) (do not fail the gate)
+7 skill(s), 104 finding(s), 32 note(s) (do not fail the gate)
 ```
 
 That number has held across four measurements now; if it moved, something perturbed a

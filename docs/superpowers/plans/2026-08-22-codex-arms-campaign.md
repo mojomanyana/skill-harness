@@ -19,7 +19,7 @@
 - **Never add `packages/pi-extension` to an emitting `tsc -b`** — it clobbers the committed esbuild bundle. If `core`/`cli`/`adapters` source changes, run `npm run build:ext` and commit `packages/pi-extension/dist/index.js`. Ordering trap: `bundle.test.ts` compares against a rebuild from `dist`, so it can pass *before* `npm run build` and fail after.
 - **`grep -a` on `packages/core/src/trace-gates.ts`** — it contains literal NUL bytes, so plain `grep` reports no matches and exits 1.
 - **New env vars use the `SKILL_HARNESS_` prefix**, read through `packages/core/src/util/env.ts`. No new `SKILL_CHECK_*` names.
-- **Regression invariant, checked in Task 9:** `node bin/skill-harness.js lint all --skills ../principal-pi-skills` must still report exactly `7 skill(s), 101 finding(s), 32 note(s)`. Any change to that number means an arm leaked into a digest.
+- **Regression invariant, checked in Task 9:** `node bin/skill-harness.js lint all --skills ../principal-pi-skills` must still report exactly `7 skill(s), 104 finding(s), 32 note(s)`. Any change to that number means an arm leaked into a digest.
 - **Verify commands, don't trust them.** `npx vitest run` is the full suite (1,289 tests / 79 files green at `ba8f97f`).
 
 ---
@@ -1496,7 +1496,7 @@ npm run build
 node bin/skill-harness.js lint all --skills ../principal-pi-skills 2>&1 | tail -1
 ```
 
-Expected, exactly: `7 skill(s), 101 finding(s), 32 note(s) (do not fail the gate)`
+Expected, exactly: `7 skill(s), 104 finding(s), 32 note(s) (do not fail the gate)`
 
 If the number moved, an arm leaked into a digest — stop and find out why before continuing.
 
@@ -1572,7 +1572,7 @@ YAML
 node bin/skill-harness.js lint all --skills ../principal-pi-skills 2>&1 | tail -1
 ```
 
-Expected, unchanged: `7 skill(s), 101 finding(s), 32 note(s) (do not fail the gate)`
+Expected, unchanged: `7 skill(s), 104 finding(s), 32 note(s) (do not fail the gate)`
 
 - [ ] **Step 4: Commit in the sister repo**
 
@@ -1655,7 +1655,7 @@ git commit -m "docs: record whether pi binds a thinking suffix on --model"
 
 Structure, free and offline commands first, every command copy-pasteable:
 
-1. **Preflight (free).** `pi --version` (expect ≥ 0.84.2); the Task 11 Step 1 one-call probe with the explicit warning that `pi auth check` reports `ready` against an invalidated token and must not be used as the gate; `ls ~/.pi/agent/skills` must be empty or the arm refuses; `node bin/skill-harness.js lint all --skills ../principal-pi-skills | tail -1` recorded as the before-baseline (`101 finding(s), 32 note(s)`).
+1. **Preflight (free).** `pi --version` (expect ≥ 0.84.2); the Task 11 Step 1 one-call probe with the explicit warning that `pi auth check` reports `ready` against an invalidated token and must not be used as the gate; `ls ~/.pi/agent/skills` must be empty or the arm refuses; `node bin/skill-harness.js lint all --skills ../principal-pi-skills | tail -1` recorded as the before-baseline (`104 finding(s), 32 note(s)`).
 2. **Wave 0, control arm.**
    ```bash
    node bin/skill-harness.js run review --skills ../principal-pi-skills \

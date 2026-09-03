@@ -13,7 +13,7 @@ import {
 import { assertSupportedSchemaV3, declaredPropertyNames, validateClosedSchemaV3 } from "../src/closed-schema.js";
 
 // PROVISIONAL: unmerged pi-daddy Wave 1 head; replace with its merge commit before release.
-const PRODUCER_COMMIT = "58d09dd2431cd426be4b709a97926490bb583623";
+const PRODUCER_COMMIT = "4a9524394ca995fd74ed9bbb836dc4e73cda3b8c";
 const PRODUCER_TREE = "7c006bff213142634f0f911ba9bd6add363ecaae";
 const REPO = fileURLToPath(new URL("../../..", import.meta.url));
 const CONTRACT = join(REPO, "contracts", "pi-daddy", "ledger", "v3");

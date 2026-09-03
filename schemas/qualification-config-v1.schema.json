@@ -45,7 +45,7 @@
           "engine": { "type": "object", "properties": { "repository": { "const": "https://github.com/mojomanyana/skill-harness" } } },
           "producer": { "type": "object", "properties": {
             "repository": { "const": "https://github.com/mojomanyana/pi-daddy" },
-            "commit": { "const": "58d09dd2431cd426be4b709a97926490bb583623" },
+            "commit": { "const": "4a9524394ca995fd74ed9bbb836dc4e73cda3b8c" },
             "tree": { "const": "7c006bff213142634f0f911ba9bd6add363ecaae" },
             "version": { "const": "0.21.1" },
             "ledger_version": { "const": 3 },

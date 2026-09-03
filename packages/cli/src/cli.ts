@@ -521,7 +521,7 @@ export async function cmdRegate(args: Args, adapterOverride?: HarnessAdapter): P
     moved += changes.length;
     calls += judgeCalls;
   }
-  // The cost line matters: regate is advertised as free, and it is — except for the
+  // The cost line matters: regate makes no subject call, but fail→pass reps require a judge.
   // flipped reps, which it must not spend silently.
   console.log(`\n${runDirs.length} run(s) re-gated, ${moved} verdict(s) moved, ${calls} judge call(s) (no model re-runs).`);
 }
@@ -936,7 +936,7 @@ export function help(): string {
   mutation-test                                  prove trajectory assertions turn red (free, offline)
   judge-agreement <run-dir>                      compare two distinct persisted judge votes per scenario (free, offline)
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (free)
-  regate <run-dir>...  [--judge prov:model]     re-evaluate diff needles against the saved diffs (free; judges only reps whose gate flipped)
+  regate <run-dir>...  [--judge prov:model]     re-evaluate saved gates (no subject call; judges fail→pass reps)
   restamp <skill|all> --skills <root> [--from <git-ref>]   record the model-visible skill digest on runs that still match (free, offline; one-time migration)
   stability <skill|all> --skills <root> [--window N] [--all]  run-over-run verdict flips per scenario (free, offline)
   review <skill>     --skills <root> [--port N] serve the interactive review UI

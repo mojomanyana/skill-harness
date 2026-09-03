@@ -346,7 +346,7 @@ The v3 normalizer retains supplied run/task/workspace/context joins, trusted and
 correlation digests, measured receipt tree, event/change/authority sequences, check
 receipt identity, lifecycle deadlines, and refusal structure. A refused spawn emits
 no capability grants. The v3 schema, positive fixtures, and refusal source are
-byte-vendored provisionally from unmerged pi-daddy Wave 1 head `58d09dd…` (move to the merge commit before release); the independent verifier rebuilds the producer
+byte-vendored from pi-daddy Wave 1 merge head `4a95243…`; the independent verifier rebuilds the producer
 and reproduces fixtures through its real production builders.
 
 ## Explicit non-claims

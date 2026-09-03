@@ -49,7 +49,7 @@ Four digests, each mapped to the cheapest tool that can honestly restore freshne
 | `stimulus:<id>` | mode, turns, workspace, fixture path, `assert.vitest` | transcripts answer a different question | `run` | model + judge |
 | `rubric:<id>` | title, checklist | transcripts fine, verdicts wrong | `grade` | judge only |
 | `policy:<id>` | critical, reps, pass_threshold | only the scoring moved | `rescore` | free |
-| `gates:<id>` | `diff_contains`, `diff_excludes` | needle wrong, behavior fine | `regate` | free + judge on flip |
+| `gates:<id>` | `diff_contains`, `diff_excludes` | needle wrong, behavior fine | `regate` | no subject call; judge on fail→pass |
 
 And the lint message names it, because the message is the feature:
 

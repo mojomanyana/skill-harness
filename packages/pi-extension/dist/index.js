@@ -4424,7 +4424,7 @@ function facets(s) {
     // below. Changing which extensions load changes what the model can DO, so the
     // old transcripts describe a different agent and only a re-run can answer.
     // Changing an assertion only changes what we conclude from evidence already on
-    // disk, which `regate` can redo for free.
+    // disk, which `regate` can redo without a subject re-run.
     // APPENDED CONDITIONALLY, never as a fixed slot. This tuple is positional and
     // its hash is stored in every published results.yaml, so adding an
     // unconditional element re-hashes every scenario that never used the field —
@@ -9399,7 +9399,7 @@ var PI_DADDY_LEDGER_V2_SCHEMA = {
 };
 
 // packages/adapters/dist/pi-daddy-ledger-v3.js
-var PI_DADDY_LEDGER_V3_CONTRACT_COMMIT = "58d09dd2431cd426be4b709a97926490bb583623";
+var PI_DADDY_LEDGER_V3_CONTRACT_COMMIT = "4a9524394ca995fd74ed9bbb836dc4e73cda3b8c";
 var PI_DADDY_LEDGER_V3_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/mojomanyana/pi-daddy/contracts/ledger/v3/ledger-event.schema.json",

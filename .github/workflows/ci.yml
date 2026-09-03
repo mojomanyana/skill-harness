@@ -50,8 +50,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: mojomanyana/pi-daddy
-          # PROVISIONAL: unmerged pi-daddy Wave 1 head; replace with its merge commit before release.
-          ref: 58d09dd2431cd426be4b709a97926490bb583623
+          ref: 4a9524394ca995fd74ed9bbb836dc4e73cda3b8c
           path: pi-daddy-v3
       - uses: actions/setup-node@v5
         with:
@@ -67,7 +66,7 @@ jobs:
         run: npm ci
         working-directory: pi-daddy-v3
       - name: Check deterministic ledger-v3 vendoring
-        run: node scripts/vendor-pi-daddy-ledger-v3-contract.mjs ../pi-daddy-v3 58d09dd2431cd426be4b709a97926490bb583623 --check
+        run: node scripts/vendor-pi-daddy-ledger-v3-contract.mjs ../pi-daddy-v3 4a9524394ca995fd74ed9bbb836dc4e73cda3b8c --check
         working-directory: skill-harness
       - name: Verify real ledger-v3 production builders
         run: npm run verify:pi-daddy-v3-contract -- ../pi-daddy-v3
@@ -79,8 +78,18 @@ jobs:
   build-test:
     needs: [pi-daddy-contract, pi-daddy-ledger-v3-contract]
     runs-on: ubuntu-latest
+    env:
+      PRINCIPAL_PI_SKILLS_CHECKOUT: ${{ github.workspace }}/principal-pi-skills
     steps:
       - uses: actions/checkout@v5
+      - name: Check out immutable principal fixture producer
+        uses: actions/checkout@v5
+        with:
+          repository: mojomanyana/principal-pi-skills
+          ref: e438a605c2376d3b06132f3e2db21ae0706983d0
+          path: principal-pi-skills
+      - name: Keep the provenance checkout outside the subject source inventory
+        run: echo /principal-pi-skills/ >> .git/info/exclude
       - uses: actions/setup-node@v5
         with:
           node-version: "20.20.2"

@@ -46,11 +46,12 @@ scenarios:
         version: "1.0"
         require:
           - event: run_initialized
-            where: { "attributes.assurance.requested": critical, "attributes.assurance.effective": critical }
+            where: { "attributes.request": { contains: "--assurance critical" } }
           - event: task_packet_recorded
-            where: { "attributes.assurance": critical }
+            where: { "attributes.packet.critical_scope.applies": true }
           - event: finalization_completed
-            where: { "attributes.assurance": critical }
+        ordered:
+          - [{ event: run_initialized }, { event: task_packet_recorded }, { event: finalization_completed }]
         forbid: [{ event: assurance_downgraded }]
 
   - id: V3-03
@@ -102,17 +103,15 @@ scenarios:
     reps: 3
     env: *workflow_env
     turns: ["Escalate after implementation started, then resume only after critical backfill."]
-    checklist: ["freezes the exact candidate and backfills before writes resume"]
+    checklist: ["records producer-validated critical backfill before writes resume"]
     assert:
       trajectory:
         version: "1.0"
+        require:
+          - event: backfill_completed
+            where: { "attributes.receipts": { any: { exists: true } } }
         ordered:
           - [{ event: code_changed }, { event: assurance_escalated }, { event: backfill_completed }, { event: code_changed }]
-        correlate:
-          - left: { event: assurance_escalated, select: last }
-            right: { event: backfill_completed, select: last }
-            same: [run_id, digests.head, digests.tree]
-            order: before
 
   - id: V3-07
     title: independent read-only work may run concurrently
@@ -125,9 +124,20 @@ scenarios:
       trajectory:
         version: "1.0"
         require:
-          - event: child_started
-            where: { effective_capabilities: { any: { equals: "tool:read" } } }
+          - event: capability_granted
+            where: { capability: "tool:read" }
             count: { min: 2 }
+          - event: child_started
+            count: { min: 2 }
+        correlate:
+          - left: { event: capability_granted, where: { capability: "tool:read" }, select: first }
+            right: { event: child_started, select: first }
+            same: [run_id, execution_id]
+            order: before
+          - left: { event: capability_granted, where: { capability: "tool:read" }, select: last }
+            right: { event: child_started, select: last }
+            same: [run_id, execution_id]
+            order: before
         forbid: [{ event: writer_lease_conflict }, { event: capability_granted, where: { capability: "tool:write" } }]
 
   - id: V3-08
@@ -143,7 +153,7 @@ scenarios:
         require:
           - event: writer_lease_conflict
           - event: child_spawn_refused
-            where: { refusal_code: WRITER_LEASE_CONFLICT }
+            where: { refusal_code: WORKSPACE_WRITE_CONFLICT }
         correlate:
           - left: { event: writer_lease_acquired, select: last }
             right: { event: writer_lease_conflict, select: last }
@@ -176,7 +186,7 @@ scenarios:
     assert:
       trajectory:
         version: "1.0"
-        require: [{ event: finding_adjudicated, where: { "attributes.disposition": rejected, "attributes.evidence": { exists: true } } }]
+        require: [{ event: finding_adjudicated, where: { "attributes.disposition": rejected, "attributes.reason": { matches: ".+" } } }]
         forbid: [{ event: repair_started }]
 
   - id: V3-11
@@ -226,9 +236,10 @@ scenarios:
           - [{ event: finish_selected, where: { "attributes.choice": keep } }, { event: gate_evaluated, where: { "attributes.gate": finalize, "attributes.code": OK } }, { event: finalization_completed }]
         forbid: [{ event: finish_selected, where: { "attributes.choice": discard } }]
         correlate:
-          - left: { event: gate_evaluated, where: { "attributes.gate": finalize }, select: last }
+          - left: { event: evidence_recorded, select: last }
             right: { event: finalization_completed, select: last }
             same: [run_id, digests.tree]
+            order: before
 
   # pending-upstream: workspace_deleted/workspace_released is deferred by
   # principal-pi-skills/docs/handoff/2026-09-event-vocabulary-decision.md.

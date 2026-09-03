@@ -98,7 +98,7 @@ clears a skill for publishing.
 
 There are four staleness facets in this tool, each naming the cheapest honest
 remedy: `stimulus:` → re-run (tokens), `rubric:` → re-grade (judge only),
-`policy:` → re-score (free), `gates:` → regate (free).
+`policy:` → re-score (free), `gates:` → regate (no subject call; fail→pass reps may need a judge).
 
 `covers` is in **none** of them. It's metadata. Editing it changes which tests
 `--affected` selects *next time* — not what any past run measured. Charging a

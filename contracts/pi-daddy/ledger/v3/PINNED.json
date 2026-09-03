@@ -1,7 +1,7 @@
 {
   "producer": "pi-daddy",
   "repository": "mojomanyana/pi-daddy",
-  "commit": "58d09dd2431cd426be4b709a97926490bb583623",
+  "commit": "4a9524394ca995fd74ed9bbb836dc4e73cda3b8c",
   "tree": "7c006bff213142634f0f911ba9bd6add363ecaae",
   "version": "0.21.1",
   "ledger_version": 3,
@@ -10,7 +10,7 @@
   "source_refusal_enumeration": "packages/pi-daddy/src/refusals.ts",
   "schema_sha256": "64e3d875e74bc32fa43fb96892605548259cd16f6ed6678646d73cc56280c511",
   "source_dir": "packages/pi-daddy/contracts/ledger/v3",
-  "note": "PROVISIONAL: this pin targets an unmerged pi-daddy Wave 1 branch head and must move to its merge commit before release. Byte-exact ledgerVersion 3 contract artifacts from the pinned producer. Positive fixtures are emitted by the producer's production builders through generate-ledger-v3-contract.ts; the independent real-builder verifier proves that lineage. This pin is separate from and does not alter the frozen ledger-v2/0.17 pin.",
+  "note": "Byte-exact ledgerVersion 3 contract artifacts from the pinned producer merge head. Positive fixtures are emitted by the producer's production builders through generate-ledger-v3-contract.ts; the independent real-builder verifier proves that lineage. This pin is separate from and does not alter the frozen ledger-v2/0.17 pin.",
   "artifacts": {
     "ledger-event.schema.json": {
       "source": "packages/pi-daddy/contracts/ledger/v3/ledger-event.schema.json",

@@ -121,7 +121,7 @@ of the four costs model tokens:
 | turns, mode, fixture path, `assert.vitest`, agent file, `SKILL.md`, fixture contents | `stimulus:<id>` (+ path keys) | `run` | subject + judge |
 | a checklist item, a title, `judge_persona` | `rubric:<id>`, `rubric:__persona` | `grade <run-dir>` | judge only |
 | `critical`, `reps`, `pass_threshold` | `policy:<id>` | `rescore <run-dir>` | free, offline |
-| a `diff_contains` / `diff_excludes` needle | `gates:<id>` | `regate <run-dir>` | free + one judge call per flipped rep |
+| a `diff_contains` / `diff_excludes` needle | `gates:<id>` | `regate <run-dir>` | no subject call; one judge call per fail→pass rep |
 
 The lint message names the remedy, so you never have to work it out:
 
@@ -156,8 +156,8 @@ Per rep, one of four things happens — and only the last one costs anything:
   rep exists anywhere (one judge call)
 
 Measured on a real needle fix: **9 judge calls instead of 81 rep-executions across three
-models.** The command prints the judge-call count, so a "free" operation never spends
-silently.
+models.** `regate` performs those calls while it runs and reports the count afterward;
+confirm the possible judge spend before invoking it.
 
 **Limits.** `assert.vitest` and `assert.post_test` need the workspace and cannot be
 re-evaluated from any artifact — a scenario carrying either needs a `run`, and `regate`
@@ -418,8 +418,8 @@ scenario that called a forbidden tool fails on evidence and nothing is asked.
 that produced no trace, an unreadable saved trace — all `ERROR`. A result with no
 `objective` block means *no assertions were declared*, not that they passed.
 
-**Editing an assertion is free to re-check** (`regate`, offline, reads the saved
-`.trace.jsonl`). **Editing an extension is not** — it changes what the model could
+**Editing an assertion needs no subject re-run** (`regate` reads the saved
+`.trace.jsonl`, but may judge fail→pass reps). **Editing an extension is different** — it changes what the model could
 do, so it's stimulus and needs a re-run. Lint names the right remedy for each, and
 extension *contents* are hashed, so editing your subagent tool marks results stale
 even though the spec didn't change.

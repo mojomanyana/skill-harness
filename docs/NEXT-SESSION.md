@@ -20,10 +20,9 @@ timeout/abort; and exact provider/model attestation from the completed Pi JSONL.
 `prepare` is zero calls. The launch claim is one consumed call even when the child
 fails, times out, refuses, truncates, or produces an invalid artifact.
 
-The separate `pi-daddy-ledger-v3` selector provisionally pins unmerged pi-daddy Wave 1
-head `58d09dd2431cd426be4b709a97926490bb583623` / tree
-`7c006bff213142634f0f911ba9bd6add363ecaae` / 0.21.1. Move it to the merge commit
-before release. Its five positive fixtures
+The separate `pi-daddy-ledger-v3` selector pins pi-daddy Wave 1 merge head
+`4a9524394ca995fd74ed9bbb836dc4e73cda3b8c` / tree
+`7c006bff213142634f0f911ba9bd6add363ecaae` / 0.21.1. Its five positive fixtures
 are byte-vendored producer artifacts generated through real production builders.
 The historical `pi-daddy-v1` selector remains 0.17/v2 only.
 
@@ -245,7 +244,7 @@ event.
 
 ```bash
 node bin/skill-harness.js lint all --skills ../principal-pi-skills
-# 7 skill(s), 101 finding(s), 32 note(s) (do not fail the gate)
+# 7 skill(s), 104 finding(s), 32 note(s) (do not fail the gate)
 ```
 
 Measured **seven** times across this work, including after the corpus's `arms.yaml` landed
@@ -400,27 +399,25 @@ extension, recorded in the `arm` block, closes it.
 
 ## Open work, in the order I would do it
 
-### 1. `principal-pi-skills` — 100 paid re-runs
+### 1. `principal-pi-skills` — 103 paid re-runs
 
-Sister repo, on disk at `../principal-pi-skills` (HEAD `378627e` — it moved: PR #32 merged
+Sister repo, on disk at `../principal-pi-skills` (audited Wave 1 HEAD `e438a60`; PR #32 merged
 the arm declaration and its delivery guard). Re-measured on merged `main`, free and offline:
 
 ```bash
 node bin/skill-harness.js lint all --skills ../principal-pi-skills
-# 7 skill(s), 101 finding(s), 32 note(s) (do not fail the gate)
+# 7 skill(s), 104 finding(s), 32 note(s) (do not fail the gate)
 ```
 
-**100 findings demand a paid `run`; exactly 1 wants a judge-only `grade`** (`plan/A2`, whose
-rubric moved since the newest `kimi-k3` run); zero have a free remedy — no `regate`, no
-`rescore`. This is **unchanged from the 0.9.0 measurement**, which is itself worth knowing: the
-figure moved three times before that and has now held still across a release, so the earlier
-advice to re-measure rather than plan against a written number stands, but the number is
-currently stable.
+**103 findings demand a paid `run`; exactly 1 wants a judge-only `grade`** (`plan/A2`, whose
+rubric moved since the newest `kimi-k3` run); zero have an artifact-only remedy — no `regate`, no
+`rescore`. The count moved from the older baseline, so the earlier advice to re-measure
+rather than plan against a written number applies.
 
-Most of the 100 are `SKILL.md`-changed and scenario-set-drift staleness from edits in that repo,
+Most of the 103 are `SKILL.md`-changed and scenario-set-drift staleness from edits in that repo,
 not anything the harness did. Try `restamp` before assuming a wave is needed — it upgrades
 records whose model-visible text provably has not moved. Then decide scope deliberately: which
-skills, which models, how many reps. The whole 100 at `reps: 3` is a large bill.
+skills, which models, how many reps. The whole 103 at `reps: 3` is a large bill.
 
 Still unadopted there, both deferred on purpose and both still the right call: `assert.trace`
 needs a real captured `.trace.jsonl` to verify tool names against (a gate that silently never
@@ -520,8 +517,8 @@ Untouched, deliberately last, at the owner's call. See `docs/ROADMAP.md`.
 ### Cost and measurement
 
 - **Digest facets decide cost.** `stimulus:` → `run` (spends), `rubric:` → `grade`, `policy:` →
-  `rescore` (free), `gates:` → `regate` (free, *except* a rep whose gate flips fail→pass must be
-  judged — it prints the count). `covers` is in **no** digest. Before any spec-wide edit, measure
+  `rescore` (free), `gates:` → `regate` (no subject call; a fail→pass rep must be judged,
+  and the command reports the count afterward). `covers` is in **no** digest. Before any spec-wide edit, measure
   `lint` before and after on the same tree.
 - **`grade` CARRIES trace gates; only `run` and `regate` compute them.** `regrade.ts` says so and
   `field-roundtrip.test.ts` pins it. Worth knowing before you put an objective assertion after a
@@ -563,4 +560,4 @@ the 0.10.0 one, which left it describing a repo state that no longer existed:
 - Its `pi_version` item said `"0.83.0"` was hardcoded in "seven places". It is 26 occurrences
   across 12 test files.
 - Its sister-repo figure was carried from the 0.9.0 binary. Re-measured on 0.10.0: unchanged at
-  101 findings / 32 notes, and the one non-`run` remedy is now named.
+  104 findings / 32 notes, and the one non-`run` remedy is now named.

@@ -1,5 +1,6 @@
-{"event_version":"1.0","seq":1,"type":"finish_selected","source":"principal","run_id":"run-1","attributes":{"choice":"keep"}}
-{"event_version":"1.0","seq":2,"type":"phase_started","source":"principal","run_id":"run-1","phase":"git-ops"}
-{"event_version":"1.0","seq":3,"type":"gate_evaluated","source":"principal","run_id":"run-1","digests":{"head":"1111111111111111111111111111111111111111","tree":"2222222222222222222222222222222222222222"},"attributes":{"gate":"finalize","result":"pass"}}
-{"event_version":"1.0","seq":4,"type":"finalization_completed","source":"principal","run_id":"run-1","digests":{"head":"1111111111111111111111111111111111111111","tree":"2222222222222222222222222222222222222222"},"attributes":{"choice":"keep","final_branch":"feature"}}
-{"event_version":"1.0","seq":5,"type":"gate_evaluated","source":"principal","run_id":"run-1","digests":{"head":"1111111111111111111111111111111111111111","tree":"2222222222222222222222222222222222222222"},"attributes":{"gate":"finish","result":"pass"}}
+{"event_version":"1.0","seq":1,"type":"evidence_recorded","source":"principal-assurance-v1","run_id":"run-1","exit_code":0,"digests":{"head":"1111111111111111111111111111111111111111","tree":"2222222222222222222222222222222222222222"},"attributes":{"kind":"exact-target"}}
+{"event_version":"1.0","seq":2,"type":"finish_selected","source":"principal-assurance-v1","run_id":"run-1","attributes":{"choice":"keep"}}
+{"event_version":"1.0","seq":3,"type":"phase_started","source":"principal-assurance-v1","run_id":"run-1","phase":"git-ops"}
+{"event_version":"1.0","seq":4,"type":"gate_evaluated","source":"principal-assurance-v1","run_id":"run-1","attributes":{"gate":"finalize","code":"OK","missing_count":0}}
+{"event_version":"1.0","seq":5,"type":"finalization_completed","source":"principal-assurance-v1","run_id":"run-1","digests":{"head":"3333333333333333333333333333333333333333","tree":"2222222222222222222222222222222222222222"},"attributes":{"final_branch":"feature"}}
+{"event_version":"1.0","seq":6,"type":"gate_evaluated","source":"principal-assurance-v1","run_id":"run-1","attributes":{"gate":"finish","code":"OK","missing_count":0}}

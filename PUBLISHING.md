@@ -37,12 +37,11 @@ pinned schema instead of maintaining another list. No OS sandbox is introduced b
 this repair.
 
 The next publish must also keep `pi-daddy-ledger-v3-contract` green. That independent
-lane **provisionally** pins unmerged pi-daddy Wave 1 head
-`58d09dd2431cd426be4b709a97926490bb583623`, tree
+lane pins pi-daddy Wave 1 merge head
+`4a9524394ca995fd74ed9bbb836dc4e73cda3b8c`, tree
 `7c006bff213142634f0f911ba9bd6add363ecaae`, version 0.21.1, reproduces all five
 positive v3 fixtures through production builders, exercises non-vacuous v3 mutations,
-and leaves the v2/0.17 lane unchanged. **PROVISIONAL:** move every such pin to the
-producer's merge commit before any release. `qualification-runner-v1` is source-built and
+and leaves the v2/0.17 lane unchanged. `qualification-runner-v1` is source-built and
 unpublished; release evidence must include its public schemas, CLI lifecycle tests,
 two byte-identical package builds, and clean installed-artifact probes. This work
 contains no authorization to publish, tag, or run a qualification measurement.
@@ -180,7 +179,7 @@ assertions before any judge spend, and `--auto-rejudge` genuinely taking a secon
 
 Build, `npm run typecheck`, 1,368 tests across 86 files, the suite again with `pi` removed from
 `PATH` (the CI condition), the committed pi-extension bundle current against an in-memory
-rebuild, and `lint all --skills ../principal-pi-skills` reporting `7 skill(s), 101 finding(s),
+rebuild, and `lint all --skills ../principal-pi-skills` reporting `7 skill(s), 104 finding(s),
 32 note(s)` — the same figure measured before this work began, which is the evidence that no arm
 leaked into a result digest.
 

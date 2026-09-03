@@ -13,7 +13,7 @@ judge, publish, tag, push, or qualification measurement call was made.
 | Host is Node 26.7.0/npm 12.0.2; release pack requires 20.20.2/10.8.2 | CONFIRMED | version preflight and `scripts/release-pack.mjs` |
 | Release-pack suite has about 19 environmental failures | CONFIRMED | measured 19 failed, 4 passed, 8.07 s before Task 5c |
 | v3 producer pin is `591abb4…` and strict consumer rejects Wave 1 | CONFIRMED | vendor/config/schema/CI pins; initial real-builder path failed until the contract and vocabulary were re-vendored |
-| pi-daddy Wave 1 candidate is `58d09dd` with two added refusals and narrowed scope | CONFIRMED | commit `58d09dd2431cd426be4b709a97926490bb583623`, tree `7c006b…`, 0.21.1; 34 refusal codes; scope is closed `{type,selectors}` |
+| pi-daddy Wave 1 merge head is `4a95243` with two added refusals and narrowed scope | CONFIRMED | commit `4a9524394ca995fd74ed9bbb836dc4e73cda3b8c`, tree `7c006b…`, 0.21.1; 34 refusal codes; scope is closed `{type,selectors}` |
 | v2 must remain frozen | CONFIRMED | v3 verifier's legacy lane accepts frozen v2 and unversioned 0.17 |
 | principal docs pin `961f8cc` while qualification code pins `a659695` | CONFIRMED | `docs/ASSURANCE-WORKFLOWS.md` vs `qualification-config.ts`; active docs now use `a659695` |
 | principal `gate_evaluated` is now real | CONFIRMED | sibling commit `430af0f`; authoritative handoff and CLI contract |
@@ -33,9 +33,9 @@ judge, publish, tag, push, or qualification measurement call was made.
 
 Sibling inputs actually read: principal-pi-skills branch commits
 `430af0f`, `b6c306c`, `0474497`, `e438a60` (HEAD
-`e438a60516ca941c39c74bb3f62a7f2ba2b36f87`; active qualification product pin remains
-merged `a6596950d64a3a525f95329d5dbd3e38948be408`); pi-daddy candidate
-`58d09dd2431cd426be4b709a97926490bb583623`. Neither sibling checkout was modified.
+`e438a605c2376d3b06132f3e2db21ae0706983d0`; active qualification product pin remains
+merged `a6596950d64a3a525f95329d5dbd3e38948be408`); pi-daddy merge head
+`4a9524394ca995fd74ed9bbb836dc4e73cda3b8c`. Neither sibling checkout was modified.
 
 ## Task 5c first — toolchain baseline
 
@@ -45,10 +45,10 @@ intentional release pin. After: the same command reports a visible notice and **
 skipped**, wall **0.99 s**. CI remains pinned to Node 20.20.2 and runs the suite for real;
 the reproducible-build pin was not weakened.
 
-## Producer pin and digests — PROVISIONAL
+## Producer pin and digests — merge-head repin
 
-**PROVISIONAL:** `58d09dd` is an unmerged producer branch head. Every code/schema/CI/doc
-pin must move to the eventual merge commit before release.
+The producer identity is pi-daddy merge head `4a95243`; its tree and vendored bytes are
+identical to the earlier snapshot used during A3.
 
 ```text
 schema  64e3d875e74bc32fa43fb96892605548259cd16f6ed6678646d73cc56280c511
@@ -64,10 +64,10 @@ workflow-fact       5be5d97bacc7717be01684b07d32a4d810bca643ac4d624034204c2e827f
 Commands:
 
 ```bash
-node scripts/vendor-pi-daddy-ledger-v3-contract.mjs ../pi-daddy 58d09dd2431cd426be4b709a97926490bb583623
-node scripts/vendor-pi-daddy-ledger-v3-contract.mjs ../pi-daddy 58d09dd2431cd426be4b709a97926490bb583623 --check
+node scripts/vendor-pi-daddy-ledger-v3-contract.mjs ../pi-daddy 4a9524394ca995fd74ed9bbb836dc4e73cda3b8c
+node scripts/vendor-pi-daddy-ledger-v3-contract.mjs ../pi-daddy 4a9524394ca995fd74ed9bbb836dc4e73cda3b8c --check
 node scripts/check-pi-daddy-v3-contract.mjs
-npm run verify:pi-daddy-v3-contract -- /tmp/pi-daddy-58d09dd-clean
+npm run verify:pi-daddy-v3-contract -- /tmp/pi-daddy-4a95243-clean
 ```
 
 Results: deterministic check PASS; 5/5 canonical fixtures PASS; real-builder verifier

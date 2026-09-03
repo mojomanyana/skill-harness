@@ -59,7 +59,7 @@ export const FIXTURE_PREFIX = "fixture:";
  * | `stimulus:<id>` | mode, turns, workspace, remote, agent-file path, fixture path, `assert.vitest`, `post_test` path | the transcripts answer a different question | `run` (model + judge) |
  * | `rubric:<id>` | title, checklist | transcripts fine, verdicts wrong | `grade` (judge only) |
  * | `policy:<id>` | critical, reps, pass_threshold | only the scoring moved | `rescore` (free) |
- * | `gates:<id>` | `diff_contains`, `diff_excludes` | needle wrong, behavior fine | `regate` (free; judges only flipped reps) |
+ * | `gates:<id>` | `diff_contains`, `diff_excludes` | needle wrong, behavior fine | `regate` (no subject call; judges fail→pass reps) |
  * | `rubric:__persona` | spec-level `judge_persona` | every verdict in the skill | `grade` per model |
  *
  * Why this matters more than it looks: with one key, lint had exactly one remedy for
@@ -194,7 +194,7 @@ function facets(s: Scenario): { stimulus: string; rubric: string; policy: string
   void _assertExhaustive;
 
   // `traceAssert` is a GATE, not stimulus: it is evaluated against a trace the run
-  // already saved, so `regate` (free) can re-answer it without re-running the model.
+  // already saved, so `regate` can re-answer it without re-running the subject model.
   // Note the asymmetry with `env.extensions` in Phase 3, which IS stimulus — one
   // changes what gets executed, the other only what we conclude from it.
   const hasGates = diff_contains !== undefined || diff_excludes !== undefined || traceAssert !== undefined || trajectoryAssert !== undefined;
@@ -206,7 +206,7 @@ function facets(s: Scenario): { stimulus: string; rubric: string; policy: string
     // below. Changing which extensions load changes what the model can DO, so the
     // old transcripts describe a different agent and only a re-run can answer.
     // Changing an assertion only changes what we conclude from evidence already on
-    // disk, which `regate` can redo for free.
+    // disk, which `regate` can redo without a subject re-run.
     // APPENDED CONDITIONALLY, never as a fixed slot. This tuple is positional and
     // its hash is stored in every published results.yaml, so adding an
     // unconditional element re-hashes every scenario that never used the field —
@@ -483,7 +483,7 @@ export function remedyForKey(key: string): string {
     return "re-score the saved reps (`rescore <run-dir>`) — free, offline";
   }
   if (key.startsWith(GATES_PREFIX)) {
-    return "re-evaluate the needles against the saved diffs (`regate <run-dir>`) — free, and it judges only the reps whose gate verdict flipped";
+    return "re-evaluate gates against saved artifacts (`regate <run-dir>`) — no subject call; fail→pass reps require judge calls";
   }
   // A pre-split run recorded one hash over stimulus + rubric + policy + gates, so
   // which of them moved is genuinely unknowable from the record. Naming a cheap

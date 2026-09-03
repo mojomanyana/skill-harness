@@ -378,7 +378,7 @@ natural design; dry-run by default, refuse on a dirty tree, refuse a match-every
 without an explicit opt-in, and report irrecoverable transcript count on its own line.
 
 **Retiring beats deleting.** The only thing the old tags cost is `lint` noise — 100 of the
-101 findings are staleness on those three tags. A `retired:` marker in a corpus-side file
+104 findings are staleness on those three tags. A `retired:` marker in a corpus-side file
 (same home as `arms.yaml`, no digest interaction) makes `lint` skip them: clean gate,
 evidence intact, reversible. It also fixes a documented wart properly — the smoke fixture's
 retired `deepseek-v4-flash` tag produces a permanent stale finding that "cannot be cleared

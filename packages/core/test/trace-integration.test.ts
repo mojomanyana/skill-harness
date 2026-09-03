@@ -293,7 +293,7 @@ describe("forbidden tools and protected paths", () => {
   });
 });
 
-describe("regate re-decides a trace gate for free", () => {
+describe("regate re-decides a trace gate from saved evidence", () => {
   it("flips FAIL→PASS from the saved trace with no judge call when the spec relaxes", async () => {
     writeSpec(REQUIRE_AGENT);
     const spy = spyAdapter([traceOf([{ name: "read" }])]);

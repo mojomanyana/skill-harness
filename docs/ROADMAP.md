@@ -253,8 +253,8 @@ make truth cheap to restore.
       so lint's only remedy for any drift was "re-run" — and correcting a rubric
       therefore cost model spend. Now four keys, each naming the cheapest honest remedy
       in the finding itself: `stimulus:` → `run`, `rubric:` (+ `rubric:__persona`) →
-      `grade` (judge-only), `policy:` → `rescore` (free), `gates:` → `regate` (free +
-      one judge call per flipped rep). Strictness unchanged; only the price of getting
+      `grade` (judge-only), `policy:` → `rescore` (free), `gates:` → `regate` (no subject
+      call; one judge call per fail→pass rep). Strictness unchanged; only the price of getting
       back to fresh moved.
       - `facets()` keeps the exhaustive-destructure guard, so a new `Scenario`/
         `SeededAssert` field fails the build until someone assigns it a bucket — and a
@@ -477,8 +477,8 @@ never enter `specification.yaml` before a human promotes them.
         "add a test" and "run arbitrary code in CI" the same act. Unknown keys are
         rejected rather than ignored — a silently-dropped `forbid_call` reads in
         review as protection while asserting nothing.
-      - `assert.trace` is bucketed as a **gate** facet, so lint names `regate` (free)
-        as the remedy — and `regate` was extended to honour it, reading saved
+      - `assert.trace` is bucketed as a **gate** facet, so lint names `regate` (no subject
+        call; fail→pass reps may require a judge) as the remedy — and `regate` was extended to honour it, reading saved
         `.trace.jsonl` artifacts. A run predating trace capture is refused with "needs
         a re-run" rather than answered from no evidence.
       - **Bug caught while wiring regate:** prior-gate state was read only from the
@@ -503,7 +503,7 @@ never enter `specification.yaml` before a human promotes them.
         pi is spawned — pi would otherwise start fine, the tool simply wouldn't
         exist, and the scenario would grade a model that never had the option.
       - **Extensions are STIMULUS; assertions are GATES.** Editing an assertion
-        changes only what we conclude from evidence on disk (`regate`, free); editing
+        changes only what we conclude from evidence on disk (`regate`, no subject re-run); editing
         an extension changes what the model could DO, so only a re-run can answer.
         Extension *contents* are hashed, so editing your subagent tool marks results
         stale without a character of the spec changing.
