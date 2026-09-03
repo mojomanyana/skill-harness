@@ -176,7 +176,10 @@ function gitBaseline(cwd: string): void {
  * claim in the prompt, and needs no network.
  */
 function addLocalRemote(cwd: string): string {
-  const bare = mkdtempSync(join(tmpdir(), "sc-remote-")) + ".git";
+  // Use the directory mkdtemp created. Appending `.git` orphaned the original
+  // empty directory on every remote-backed scenario because cleanup removed only
+  // the suffixed repository.
+  const bare = mkdtempSync(join(tmpdir(), "sc-remote-"));
   execFileSync("git", ["init", "-q", "--bare", "-b", "main", bare], { timeout: GIT_TIMEOUT_MS });
   execFileSync("git", ["remote", "add", "origin", bare], { cwd, timeout: GIT_TIMEOUT_MS });
   execFileSync("git", ["push", "-q", "-u", "origin", "main"], { cwd, timeout: GIT_TIMEOUT_MS });

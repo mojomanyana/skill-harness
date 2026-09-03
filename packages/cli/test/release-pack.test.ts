@@ -23,7 +23,18 @@ import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 
 const REPO = fileURLToPath(new URL("../../..", import.meta.url));
-const TMP = mkdtempSync(join(tmpdir(), "skill-harness-release-pack-test-"));
+const REQUIRED_NODE_VERSION = "v20.20.2";
+const REQUIRED_NPM_VERSION = "10.8.2";
+const npmVersionResult = spawnSync("npm", ["--version"], { encoding: "utf8" });
+const npmVersion = npmVersionResult.status === 0 ? npmVersionResult.stdout.trim() : "unavailable";
+const pinnedToolchain = process.version === REQUIRED_NODE_VERSION && npmVersion === REQUIRED_NPM_VERSION;
+if (!pinnedToolchain) {
+  console.warn(
+    `[release-pack tests skipped] require Node ${REQUIRED_NODE_VERSION} and npm ${REQUIRED_NPM_VERSION}; `
+      + `running ${process.version} and npm ${npmVersion}. CI uses the pinned toolchain and runs these tests.`,
+  );
+}
+const TMP = pinnedToolchain ? mkdtempSync(join(tmpdir(), "skill-harness-release-pack-test-")) : "";
 const CLI_OUTPUT = join("packages", "cli", "dist", "cli.js");
 const MANIFEST = "release-manifest.json";
 const ARCHIVE_NAMES = [
@@ -137,9 +148,11 @@ function tarEntry(archive: string, wantedPath: string): { mode: number; content:
   throw new Error(`${archive} is missing ${wantedPath}`);
 }
 
-afterAll(() => rmSync(TMP, { recursive: true, force: true }));
+afterAll(() => {
+  if (TMP) rmSync(TMP, { recursive: true, force: true });
+});
 
-describe("authoritative release packaging", () => {
+describe.skipIf(!pinnedToolchain)("authoritative release packaging", () => {
   it("builds absent outputs, records digests, and packs cli.js as canonical 0644", () => {
     const root = cloneRepo("clean");
     expect(existsSync(join(root, CLI_OUTPUT))).toBe(false);

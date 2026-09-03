@@ -1,5 +1,7 @@
 {
   "schema_version": "qualification-terminal-receipt-v3-progress-v1",
+  "status": "historical-completed-checkpoint-not-release-evidence",
+  "superseded_by": "docs/QUALIFICATION-RUNNER.md and merge d768360",
   "branch": "feature/qualification-terminal-receipt-v3",
   "base_commit": "68e3de6c592a59b77bcabcb7f3a831f6481526e6",
   "base_tree": "022d908212c592526127452d000ebbb76a95d161",

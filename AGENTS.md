@@ -28,6 +28,7 @@ lint  <skill|all> --skills root           validate specs/fixtures + results-cons
 run   <skill|all> --skills root [--model prov:model ...] [--mode red|green|force] [--judge prov:model] [--reps N] [--pass-threshold T] [--label name] [--parallel N] [--canary]
 compare <skill|all> --reference ref|root --candidate root --model p:m --reps N  paired candidate regression (spends subject + judge)
 mutation-test                             prove trajectory assertions turn red — free, offline
+judge-agreement <run-dir>                 compare two persisted full-cell judge grades — free, offline
 grade <run-dir> [--judge prov:model]      re-judge saved transcripts with a (different) judge — no model re-run
       [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]  ask untrustworthy cells again (OFF by default; prints the exact MAX extra call count first; unresolved disagreement blocks SHIP)
 rescore <run-dir>...                      re-score saved reps against current spec thresholds — free, offline

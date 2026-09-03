@@ -239,6 +239,7 @@ skill-harness run    <skill|all> --skills <root> [--model prov:model ...] [--mod
 skill-harness compare <skill|all> --reference <git-ref-or-root> --candidate <skills-root> --model prov:model --reps N
                                                           # paired reference/candidate run; spends subject + judge calls
 skill-harness mutation-test                               # prove trajectory assertions turn red (free, offline)
+skill-harness judge-agreement <run-dir>                   # compare persisted votes after grading with two distinct judges (free, offline)
 skill-harness stability <skill|all> --skills <root> [--window N] [--all]  # run-over-run verdict flips (free, offline)
 skill-harness restamp <skill|all> --skills <root> [--from <git-ref>]  # one-time hash upgrade; see "what stales a run" (free, offline)
 skill-harness coverage <skill|all> --skills <root> [--strict]  # which instruction sections have a declared test (free, offline)
@@ -281,6 +282,18 @@ judge reports no per-call usage and a dollar figure there would be invented. It 
 names any cell that no single second opinion can settle, which needs
 `--tie-break-judge`. An unresolved disagreement blocks SHIP rather than resolving
 itself.
+
+**Judge agreement is measured offline after two grades.** Grade the same saved run with
+two distinct judges, then run `judge-agreement <run-dir>`; the report makes no judge
+calls and reports agree/disagree/error per scenario plus an aggregate. Start with
+`openai-codex:gpt-5.6-sol` against `claude-code:claude-opus-4-8`: both are
+subscription-backed and have zero marginal per-token cost. Treat open-weight judges as
+secondary candidates until their agreement has been measured.
+
+Structured runs record `metrics.cost_source`. Subscription providers
+(`openai-codex`, `claude-code`) are labeled `subscription`; a non-subscription provider
+that reports positive subject tokens with zero cost is warned about rather than silently
+presented as free.
 
 **Defaults:** subject model `fireworks:accounts/fireworks/models/deepseek-v4-pro` ·
 judge `claude-code:claude-opus-4-8` · mode `green` · harness `pi`.

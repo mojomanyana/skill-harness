@@ -10,7 +10,7 @@ import {
   appendJournal,
   type Verdict, type ResultsFile,
   loadSpec,
-  regradeScenario, refreshRubricHashes, findJudgeRawFiles,
+  regradeScenario, appendJudgeHistory, refreshRubricHashes, findJudgeRawFiles,
   effectiveThreshold, scoreContextFor, isScoredMode, rebuildScenarioResult, mergeScenarioMetrics,
   envFlag,
   planAdjudication, adjudicateRun, assertJudgeAllowed, cellsFromResults,
@@ -155,12 +155,21 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
             specDir: dirname(specPath), threshold, mode: results.mode,
             expectedReps: prev.reps ?? 1,
           });
-          const merged = results.scenarios.map((s) =>
+          const merged = results.scenarios.map((s) => {
+            if (s.id !== body.scenarioId) return s;
+            const judge_history = appendJudgeHistory(s, results.judge, {
+              judge: results.judge,
+              verdict: rr.judge_verdict,
+              reason: rr.judge_reason,
+              suspect: rr.suspect,
+            });
             // Same contract as `grade`, through the same choke point.
-            s.id === body.scenarioId
-              ? rebuildScenarioResult({ ...rr, metrics: mergeScenarioMetrics(s.metrics, rr.metrics) }, s, { objective: "carry", adjudication: "drop" })
-              : s
-          );
+            return rebuildScenarioResult(
+              { ...rr, metrics: mergeScenarioMetrics(s.metrics, rr.metrics), judge_history },
+              s,
+              { objective: "carry", adjudication: "drop" },
+            );
+          });
           const written = writeResults(column.runDir, {
             skill: results.skill, harness: results.harness, model: results.model, judge: results.judge,
             timestamp: results.timestamp, label: results.label, mode: results.mode, scenarios: merged,

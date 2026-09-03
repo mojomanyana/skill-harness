@@ -52,16 +52,16 @@ describe("pi adapter nested-run safety", () => {
     expect(args).toContain("--no-extensions");
   });
 
-  it("routes exact openai-codex subject and judge identities through Pi without API-key or Codex CLI flags", async () => {
+  it("preserves thinking suffixes and colon-bearing exact model ids in Pi argv", async () => {
     await piAdapter.run({
       skillDir: fakeSkill(),
-      model: { provider: "openai-codex", model: "gpt-5.6-luna" },
+      model: { provider: "openai-codex", model: "gpt-5.6-terra:high" },
       mode: "force",
       turns: ["hi"],
       cwd: "/tmp",
     });
     await piAdapter.judge({
-      model: { provider: "openai-codex", model: "gpt-5.6-sol" },
+      model: { provider: "ollama", model: "qwen3-coder:30b" },
       prompt: "p",
       cwd: "/tmp",
     });
@@ -77,7 +77,7 @@ describe("pi adapter nested-run safety", () => {
       "--provider",
       "openai-codex",
       "--model",
-      "gpt-5.6-luna",
+      "gpt-5.6-terra:high",
       "--no-session",
       "-p",
       "hi",
@@ -91,9 +91,9 @@ describe("pi adapter nested-run safety", () => {
       "--no-extensions",
       "--no-session",
       "--provider",
-      "openai-codex",
+      "ollama",
       "--model",
-      "gpt-5.6-sol",
+      "qwen3-coder:30b",
       "-p",
       "p",
     ]);

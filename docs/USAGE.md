@@ -312,6 +312,24 @@ node bin/skill-harness.js grade <run-dir> --judge claude-code:opus
 
 Re-scores the **saved transcripts** of a prior run with a (possibly different) judge — no model re-runs. Use it to de-confound a suspicious result before a fresh `run`. It reads the transcripts of the run's own mode, so a force run and a red baseline are both re-gradable, and a force run comes back scored.
 
+## 6b. Judge agreement — offline after two distinct grades
+
+A normal `grade` now retains the prior full-cell verdict before replacing it. After the
+same saved run has been graded by two distinct judges, report agreement without making
+another call:
+
+```bash
+node bin/skill-harness.js judge-agreement <run-dir>
+```
+
+It prints agree/disagree/error per scenario and an aggregate; missing, suspect, or
+ambiguous votes are errors, never agreements. Start with
+`openai-codex:gpt-5.6-sol` against `claude-code:claude-opus-4-8`; both are
+subscription-backed with zero marginal per-token cost. Open-weight judges remain a
+secondary tier until this report measures their agreement. Structured results record
+`metrics.cost_source`; positive tokens plus zero recorded cost warn unless the provider
+is a recognized subscription provider.
+
 ## 7. Add a test case
 
 ```bash
@@ -444,7 +462,7 @@ replayable with `regate` from `.events.jsonl`. Run the free evaluator proof any 
 node bin/skill-harness.js mutation-test
 ```
 
-It detects 15 mutations including stale-authority/Build evidence, equal-HEAD/different-tree,
+It detects 21 mutations including stale-authority/Build evidence, the rewritten principal gate/side-effect assertions, equal-HEAD/different-tree,
 superseded-task mutation, context reuse, approval expiry, writer conflict, and invalid finalization.
 Full schema and adapter details: [`ASSURANCE-WORKFLOWS.md`](ASSURANCE-WORKFLOWS.md).
 

@@ -308,11 +308,12 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
   const repField = repCount > 1 ? { rep } : {};
   const arm = ctx.arm ?? NONE_ARM;
   const skillsRoot = ctx.skillsRoot ?? dirname(ctx.skillDir);
-  // `<run-dir>` in an arm's env values is a real path (temp dirs on this box
-  // routinely contain characters a regex would treat specially), so this is a
-  // plain split/join, not a `.replace(/<run-dir>/g, …)`.
-  const armEnv: Record<string, string> | undefined = Object.keys(arm.env).length
-    ? Object.fromEntries(Object.entries(arm.env).map(([k, v]) => [k, v.split("<run-dir>").join(runDir)]))
+  // Arm paths are per-run/per-workspace values. Plain split/join avoids treating
+  // temp-path characters as regex syntax.
+  const armEnvFor = (workspace: string): Record<string, string> | undefined => Object.keys(arm.env).length
+    ? Object.fromEntries(Object.entries(arm.env).map(([k, v]) => [k, v
+        .split("<run-dir>").join(runDir)
+        .split("<workspace>").join(workspace)]))
     : undefined;
   if (rep === 0) {
     log(`  ${scenario.id} (${scenario.title})${repCount > 1 ? ` ×${repCount}` : ""} …`);
@@ -423,7 +424,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
               // builds the RunReq — the arm's extensions and env (with `<run-dir>`
               // already substituted) both must reach pi.
               armExtensions: arm.extensions,
-              ...(armEnv ? { armEnv } : {}),
+              ...(armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {}),
             });
             transcript = r.transcript;
             gatePrefix = r.gateFailure;
@@ -447,7 +448,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
                 ...arm.extensions,
               ],
               eventSources: scenario.eventSources,
-              ...(armEnv ? { armEnv } : {}),
+              ...(armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {}),
             };
             if (useStructured) {
               const structured = await ctx.adapter.runStructured!({ ...req, scenarioId: scenario.id, rep });
@@ -693,7 +694,18 @@ export function formatScorecard(summary: RunSummary, lift?: Lift, stability?: Sc
       ? "subject tokens unavailable"
       : `subject tokens ${metrics.input_tokens} in / ${metrics.output_tokens ?? 0} out / ${metrics.cache_read_tokens ?? 0} cache-read`;
     const tools = metrics.tool_calls === null ? "tool calls unavailable" : `${metrics.tool_calls} tool call(s), ${metrics.delegated_children ?? 0} delegated, max concurrency ${metrics.max_concurrency ?? 0}`;
-    lines.push(`  COST:   ${tokens} (${metrics.subject_metrics_reps}/${metrics.total_reps} reps reported) · ${metrics.judge_calls} judge + ${metrics.judge_rejudge_calls} re-judge call(s) · ${metrics.wall_time_ms}ms · ${tools}`);
+    const cost = metrics.cost_source === "subscription"
+      ? " · subscription ($0 marginal cost recorded)"
+      : metrics.cost_source === "unreported"
+        ? metrics.input_tokens !== null && metrics.input_tokens > 0
+          ? " · WARNING: subject tokens were used but subject cost was not reported"
+          : " · subject cost unavailable"
+        : metrics.input_tokens !== null && metrics.input_tokens > 0 && metrics.subject_cost_usd === 0
+          ? " · WARNING: subject tokens were used but the provider reported $0 cost"
+          : metrics.subject_cost_usd === null
+            ? " · subject cost unavailable"
+            : ` · $${metrics.subject_cost_usd.toFixed(6)} provider-reported`;
+    lines.push(`  COST:   ${tokens} (${metrics.subject_metrics_reps}/${metrics.total_reps} reps reported)${cost} · ${metrics.judge_calls} judge + ${metrics.judge_rejudge_calls} re-judge call(s) · ${metrics.wall_time_ms}ms · ${tools}`);
   }
   // Lift is a statement about a skill-delivered run (green or force). On a red run
   // the caller may still have a lift in hand (a scored run exists in the same tag),

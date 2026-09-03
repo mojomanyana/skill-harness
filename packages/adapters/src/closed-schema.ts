@@ -37,7 +37,7 @@ const SUPPORTED_KEYWORDS = new Set([
 /** Ledger v3 adds only closed composition/conditionals and property-name schemas. */
 const V3_SUPPORTED_KEYWORDS = new Set([
   ...SUPPORTED_KEYWORDS,
-  "allOf", "anyOf", "if", "then", "propertyNames",
+  "allOf", "anyOf", "if", "then", "propertyNames", "minItems", "maxItems",
 ]);
 
 /**
@@ -63,6 +63,8 @@ const KEYWORD_SHAPES: Record<string, { check: (value: unknown) => boolean; expec
   minLength: { check: (value) => typeof value === "number", expected: "a number" },
   maxLength: { check: (value) => typeof value === "number", expected: "a number" },
   minimum: { check: (value) => typeof value === "number", expected: "a number" },
+  minItems: { check: (value) => Number.isInteger(value) && Number(value) >= 0, expected: "a non-negative integer" },
+  maxItems: { check: (value) => Number.isInteger(value) && Number(value) >= 0, expected: "a non-negative integer" },
   pattern: { check: (value) => typeof value === "string", expected: "a string" },
   format: { check: (value) => typeof value === "string", expected: "a string" },
   // `const` may legitimately be any JSON value, including null.
@@ -224,8 +226,16 @@ function validate(root: Schema, schema: Schema, value: unknown, path: string, kn
   }
   if (typeof value === "string") violations.push(...validateString(schema, value, path));
   if (typeof value === "number") violations.push(...validateNumber(schema, value, path));
-  if (Array.isArray(value) && schema.items !== undefined) {
-    value.forEach((entry, index) => violations.push(...validate(root, schema.items as Schema, entry, `${path}[${index}]`, known)));
+  if (Array.isArray(value)) {
+    if (typeof schema.minItems === "number" && value.length < schema.minItems) {
+      violations.push({ path, message: `must contain at least ${schema.minItems} item(s)` });
+    }
+    if (typeof schema.maxItems === "number" && value.length > schema.maxItems) {
+      violations.push({ path, message: `must contain at most ${schema.maxItems} item(s)` });
+    }
+    if (schema.items !== undefined) {
+      value.forEach((entry, index) => violations.push(...validate(root, schema.items as Schema, entry, `${path}[${index}]`, known)));
+    }
   }
   const record = object(value);
   if (record) violations.push(...validateObject(root, schema, record, path, known));

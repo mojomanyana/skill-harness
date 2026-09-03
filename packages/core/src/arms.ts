@@ -23,7 +23,7 @@ export interface Arm {
   seedSkills: string[];
   /** Minimum definitions the seeding must produce, else the run ERRORs. */
   requireDefinitions: number;
-  /** Env for the subject process. `<run-dir>` is substituted per run. */
+  /** Env for the subject process. `<run-dir>` and `<workspace>` are substituted per rep. */
   env: Record<string, string>;
 }
 

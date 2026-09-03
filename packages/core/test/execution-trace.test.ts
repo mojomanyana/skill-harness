@@ -121,6 +121,17 @@ describe("parseTrace — cost and latency inputs", () => {
       max_concurrency: 1,
     });
     expect(trace.metrics?.cost_usd).toBeCloseTo(0.00015945, 8);
+    expect(trace.metrics?.cost_source).toBe("provider-reported");
+  });
+
+  it("labels subscription zero-cost usage and warns only through its recorded source", () => {
+    const raw = lines(readFileSync(join(FIXTURES, "tool-error.jsonl"), "utf8")).map((line) => {
+      const event = JSON.parse(line);
+      if (event.type === "message_end" && event.message?.usage) delete event.message.usage.cost;
+      return JSON.stringify(event);
+    });
+    const parsed = parseTrace(raw, { ...META, subject: { provider: "openai-codex", model: "gpt-5.6-terra" } });
+    expect(parsed.trace.metrics).toMatchObject({ input_tokens: 1356, cost_usd: 0, cost_source: "subscription" });
   });
 
   it("records delegated child count and maximum observed tool concurrency", () => {

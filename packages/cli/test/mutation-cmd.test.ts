@@ -9,7 +9,7 @@ describe("mutation-test command", () => {
     vi.spyOn(console, "log").mockImplementation((value) => lines.push(String(value)));
     await cmdMutationTest();
     const output = lines.join("\n");
-    expect(output).toContain("15/15 mutations detected");
+    expect(output).toContain("21/21 mutations detected");
     expect(output).toContain("head-equal-tree-different");
     expect(output).toContain("evidence-before-authority");
     expect(output).toContain("mismatch-finalization-identity");

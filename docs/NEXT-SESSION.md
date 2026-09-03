@@ -1,18 +1,16 @@
 # Next session — start here
 
-*Written 2026-08-21 at the close of the 0.10.0 release session. Read this before
-`docs/ROADMAP.md`: the roadmap says where the project is going, this says what is
-half-finished and what will bite you. Release notes live in `PUBLISHING.md` — this file
-deliberately does not restate them.*
+*Reconciled 2026-09-03 against `main` `51f0f82`. Read this before
+`docs/ROADMAP.md`: the roadmap says where the project is going, this says what remains
+open and what will bite you. Release notes live in `PUBLISHING.md`.*
 
-## Qualification-runner-v1 repair — current implementation
+## Current state after qualification-runner-v1
 
-**State:** PR [#65](https://github.com/mojomanyana/skill-harness/pull/65) on
-`feat/qualification-runner-v1`, based on exact
-`f765e37189e55306ae28a6c07bb70fc11db7652a` / tree
-`24f9ecf74cea4485a924af96fbef6aa3272eeaa0`. This is qualification infrastructure,
-not a measurement: no board, Wave A manifest, holdout, final measurement identity,
-subject, judge, calibration, or canary belongs in the repository or in its validation.
+PR [#65](https://github.com/mojomanyana/skill-harness/pull/65) is **merged**
+(`d768360`); it is not an open feature branch. The package version remains 0.11.0 but
+HEAD contains unreleased post-0.11.0 work. This is qualification infrastructure, not a
+measurement: no board, Wave A manifest, holdout, final measurement identity, subject,
+judge, calibration, or canary belongs in the repository or in its validation.
 
 The runner is separately versioned and documented in `docs/QUALIFICATION-RUNNER.md`.
 It uses external closed configuration; an allowlisted OAuth-only child environment;
@@ -22,9 +20,10 @@ timeout/abort; and exact provider/model attestation from the completed Pi JSONL.
 `prepare` is zero calls. The launch claim is one consumed call even when the child
 fails, times out, refuses, truncates, or produces an invalid artifact.
 
-The separate `pi-daddy-ledger-v3` selector pins production pi-daddy
-`591abb4a358bf8a84455486812b83609e2a47e3f` / tree
-`c9fe1b324ffbf0d72e7d904972594b3a936e9928` / 0.20.0. Its five positive fixtures
+The separate `pi-daddy-ledger-v3` selector provisionally pins unmerged pi-daddy Wave 1
+head `58d09dd2431cd426be4b709a97926490bb583623` / tree
+`7c006bff213142634f0f911ba9bd6add363ecaae` / 0.21.1. Move it to the merge commit
+before release. Its five positive fixtures
 are byte-vendored producer artifacts generated through real production builders.
 The historical `pi-daddy-v1` selector remains 0.17/v2 only.
 

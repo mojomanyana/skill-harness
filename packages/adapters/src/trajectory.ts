@@ -150,6 +150,27 @@ export function normalizePiTraces(traces: ExecutionTraceV1[]): TrajectoryEventV1
   return events;
 }
 
+const PRINCIPAL_ASSURANCE_SOURCES = new Set([
+  "default", "flag", "alias", "natural-language", "policy", "user", "user-downgrade",
+]);
+
+function validatePrincipalAssurance(record: Record<string, unknown>, line: number): void {
+  if (record.assurance === undefined) return;
+  const assurance = object(record.assurance);
+  if (!assurance || typeof assurance.source !== "string" || !PRINCIPAL_ASSURANCE_SOURCES.has(assurance.source)) {
+    throw new Error(`invalid principal assurance v1 event at line ${line}: assurance.source is not a recognized source`);
+  }
+  const scope = object(assurance.scope);
+  if (!scope || Object.keys(scope).some((key) => key !== "type" && key !== "selectors") ||
+      (scope.type !== "entire-run" && scope.type !== "selectors") || !Array.isArray(scope.selectors) ||
+      scope.selectors.some((selector) => typeof selector !== "string" || !selector) ||
+      new Set(scope.selectors).size !== scope.selectors.length ||
+      (scope.type === "entire-run" && scope.selectors.length !== 0) ||
+      (scope.type === "selectors" && scope.selectors.length === 0)) {
+    throw new Error(`invalid principal assurance v1 event at line ${line}: assurance.scope is not a closed structured scope`);
+  }
+}
+
 /** Normalize principal-pi-skills' immutable assurance event schema v1.0. */
 export function normalizePrincipalAssuranceLedger(text: string): TrajectoryEventV1[] {
   const records = parseJsonl(text, "principal assurance");
@@ -161,6 +182,7 @@ export function normalizePrincipalAssuranceLedger(text: string): TrajectoryEvent
     if (!Number.isInteger(record.seq) || Number(record.seq) < 1 || typeof record.type !== "string" || typeof record.run_id !== "string") {
       throw new Error(`invalid principal assurance v1 event at line ${index + 1}: seq, type, and run_id are required`);
     }
+    validatePrincipalAssurance(record, index + 1);
     const packet = object(record.packet);
     const definitionDigests = object(packet?.definition_digests);
     const definition = typeof record.definition_digest === "string"
@@ -362,6 +384,7 @@ const V2_APPROVAL_SCOPES = new Set(["once", "session", "always"]);
  * forget when pi-daddy adds a contract-valid code.
  */
 export const V2_REFUSAL_CODES = new Set<string>(PI_DADDY_LEDGER_V2_SCHEMA.$defs.refusalCode.enum);
+export const V3_REFUSAL_CODES = new Set<string>(PI_DADDY_LEDGER_V3_SCHEMA.$defs.refusalCode.enum);
 /**
  * Every vocabulary the adapter restates from the pinned contract, paired with the
  * place in the schema it must equal.
@@ -1201,7 +1224,8 @@ function structuredRefusal(value: unknown, event: string, line: number, version 
   if (!parsed || !code || !string(parsed.message)) {
     throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal requires code and message`);
   }
-  if (!V2_REFUSAL_CODES.has(code)) {
+  const refusalCodes = version === 3 ? V3_REFUSAL_CODES : V2_REFUSAL_CODES;
+  if (!refusalCodes.has(code)) {
     throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal has unsupported code ${safeDiagnosticValue(code)}`);
   }
   const unknown = Object.keys(parsed).filter((key) => !V2_REFUSAL_FIELDS.has(key));

@@ -106,18 +106,15 @@ That's **44 subject runs total (22 × 2 arms), ~44 judge calls** — the whole W
 
 ## 4. The four pass criteria, and how to check each
 
-**1. Provider and thinking level confirmed.** The section 1b probe already confirms the
-provider and credential. Separately, `pi --help` documents `--model <pattern>` as
-supporting `"provider/id"` and an optional `:<thinking>` suffix, and a standalone
-`--thinking <level>` flag (`off, minimal, low, medium, high, xhigh, max`). **Whether
-skill-harness's `--model openai-codex:gpt-5.6-sol:medium` actually binds a thinking level
-through that `:medium` suffix when it calls pi is still UNVERIFIED** — the spike that
-would have answered it died on the invalidated token. Do not assert it works; if it
-matters for Wave 0's read, cross-check by running the same scenario once more with an
-explicit `--thinking medium` and comparing. If the suffix does not bind, the failure is
-silent: the run falls back to the provider's **default** thinking level while the run
-directory, the results record, and every later comparison all still say `medium` — so the
-numbers look fine and are measuring something else.
+**1. Provider and thinking level confirmed (VERIFIED).** The section 1b probe confirms
+the provider and credential. Installed pi 0.84.2's `parseModelPattern`
+(`dist/core/model-resolver.js`, `parseModelPattern` lines 156–200 in installed 0.84.2) tries an exact model match
+first, then splits on the **last** colon and accepts the suffix only when it is a valid
+thinking level; strict provider selection remains strict. skill-harness splits
+`provider:model` on the first colon and forwards the model remainder unchanged. Therefore
+`openai-codex:gpt-5.6-terra:high` binds thinking `high`, while exact colon-bearing IDs such
+as `ollama:qwen3-coder:30b` remain safe because exact matching wins first. The adapter argv
+contract is pinned by `packages/adapters/test/pi.test.ts`.
 
 **2. Cost and latency recorded.** `--structured` must be on both Wave 0 commands above, or
 no subject token/cost data is written at all. Check:

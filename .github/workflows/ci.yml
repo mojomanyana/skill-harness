@@ -50,7 +50,8 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: mojomanyana/pi-daddy
-          ref: 591abb4a358bf8a84455486812b83609e2a47e3f
+          # PROVISIONAL: unmerged pi-daddy Wave 1 head; replace with its merge commit before release.
+          ref: 58d09dd2431cd426be4b709a97926490bb583623
           path: pi-daddy-v3
       - uses: actions/setup-node@v5
         with:
@@ -66,7 +67,7 @@ jobs:
         run: npm ci
         working-directory: pi-daddy-v3
       - name: Check deterministic ledger-v3 vendoring
-        run: node scripts/vendor-pi-daddy-ledger-v3-contract.mjs ../pi-daddy-v3 591abb4a358bf8a84455486812b83609e2a47e3f --check
+        run: node scripts/vendor-pi-daddy-ledger-v3-contract.mjs ../pi-daddy-v3 58d09dd2431cd426be4b709a97926490bb583623 --check
         working-directory: skill-harness
       - name: Verify real ledger-v3 production builders
         run: npm run verify:pi-daddy-v3-contract -- ../pi-daddy-v3
@@ -90,8 +91,8 @@ jobs:
       - name: Verify committed Pi extension bundle is source-fresh without rewriting it
         run: npm run check:ext
       - run: npm run typecheck
-      - name: Reproduce canonical release archives
-        run: npm run release:pack -- --output "$RUNNER_TEMP/skill-harness-release"
+      - name: Reproduce, install, and smoke-test canonical release archives
+        run: npm run smoke:packed
   dogfood-lint:
     needs: [pi-daddy-contract, pi-daddy-ledger-v3-contract]
     runs-on: ubuntu-latest

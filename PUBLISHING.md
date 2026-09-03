@@ -1,6 +1,11 @@
-# Publishing skill-harness (0.10.0)
+# Publishing skill-harness (0.11.0 HEAD; next release proposed: 0.12.0)
 
-This is the npm-publish runbook.
+This is the npm-publish runbook. The registry already contains 0.11.0, while HEAD has
+46 unreleased commits at the Wave 1 baseline. Consequently `release:pack` currently
+names archives `*-0.11.0.tgz` whose bytes are **not** the published 0.11.0 bytes. Do not
+publish or overwrite them. The next release should bump to **0.12.0** because the closed
+ledger contract and measurement/reporting surface change; this document does not
+authorize that bump or a release.
 
 ## Unreleased cross-repository contract repair
 
@@ -32,10 +37,12 @@ pinned schema instead of maintaining another list. No OS sandbox is introduced b
 this repair.
 
 The next publish must also keep `pi-daddy-ledger-v3-contract` green. That independent
-lane pins pi-daddy 0.20.0 commit `591abb4a358bf8a84455486812b83609e2a47e3f`
-and tree `c9fe1b324ffbf0d72e7d904972594b3a936e9928`, reproduces all five
+lane **provisionally** pins unmerged pi-daddy Wave 1 head
+`58d09dd2431cd426be4b709a97926490bb583623`, tree
+`7c006bff213142634f0f911ba9bd6add363ecaae`, version 0.21.1, reproduces all five
 positive v3 fixtures through production builders, exercises non-vacuous v3 mutations,
-and leaves the v2/0.17 lane unchanged. `qualification-runner-v1` is source-built and
+and leaves the v2/0.17 lane unchanged. **PROVISIONAL:** move every such pin to the
+producer's merge commit before any release. `qualification-runner-v1` is source-built and
 unpublished; release evidence must include its public schemas, CLI lifecycle tests,
 two byte-identical package builds, and clean installed-artifact probes. This work
 contains no authorization to publish, tag, or run a qualification measurement.

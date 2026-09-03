@@ -3473,7 +3473,8 @@ function parsePredicate(raw, ctx) {
 
 // packages/core/dist/trajectory-gates.js
 import { createHash } from "node:crypto";
-var TRAJECTORY_EVENT_VERSION = "1.0";
+var LEGACY_TRAJECTORY_EVENT_VERSION = "1.0";
+var TRAJECTORY_EVENT_VERSION = "1.1";
 var TRAJECTORY_ASSERT_VERSION = "1.0";
 function trajectoryEventsSha256(events) {
   return createHash("sha256").update(stableStringify(events)).digest("hex");
@@ -3871,6 +3872,7 @@ function parseCount2(raw, ctx) {
     throw new Error(`${ctx}.min exceeds max`);
   return out;
 }
+var V11_EVENT_KEYS = /* @__PURE__ */ new Set(["execution_id", "parent_execution_id", "task_from_execution_id", "workflow_fact_id", "deadline_at"]);
 var EVENT_KEYS = /* @__PURE__ */ new Set([
   "event_version",
   "seq",
@@ -3884,11 +3886,7 @@ var EVENT_KEYS = /* @__PURE__ */ new Set([
   "finding_id",
   "parent_id",
   "child_id",
-  "execution_id",
-  "parent_execution_id",
-  "task_from_execution_id",
-  "workflow_fact_id",
-  "deadline_at",
+  ...V11_EVENT_KEYS,
   "phase",
   "tool",
   "capability",
@@ -3913,8 +3911,14 @@ function validateEvent(event) {
   const unknown = Object.keys(object3).find((key) => !EVENT_KEYS.has(key));
   if (unknown)
     return `unknown field ${unknown}`;
-  if (event.event_version !== TRAJECTORY_EVENT_VERSION)
+  if (event.event_version !== LEGACY_TRAJECTORY_EVENT_VERSION && event.event_version !== TRAJECTORY_EVENT_VERSION) {
     return `unsupported event_version ${String(event.event_version)}`;
+  }
+  if (event.event_version === LEGACY_TRAJECTORY_EVENT_VERSION) {
+    const versionedField = Object.keys(object3).find((key) => V11_EVENT_KEYS.has(key));
+    if (versionedField)
+      return `${versionedField} requires event_version ${TRAJECTORY_EVENT_VERSION}`;
+  }
   if (!Number.isInteger(event.seq) || event.seq < 1)
     return "seq must be a positive integer";
   if (typeof event.type !== "string" || !event.type)
@@ -4647,7 +4651,7 @@ function gitBaseline(cwd) {
   execFileSync("git", ["-c", "user.email=sh@local", "-c", "user.name=skill-harness", "commit", "-q", "--allow-empty", "-m", "baseline"], { cwd, timeout: GIT_TIMEOUT_MS });
 }
 function addLocalRemote(cwd) {
-  const bare = mkdtempSync(join3(tmpdir(), "sc-remote-")) + ".git";
+  const bare = mkdtempSync(join3(tmpdir(), "sc-remote-"));
   execFileSync("git", ["init", "-q", "--bare", "-b", "main", bare], { timeout: GIT_TIMEOUT_MS });
   execFileSync("git", ["remote", "add", "origin", bare], { cwd, timeout: GIT_TIMEOUT_MS });
   execFileSync("git", ["push", "-q", "-u", "origin", "main"], { cwd, timeout: GIT_TIMEOUT_MS });
@@ -5010,6 +5014,7 @@ function mergeScenarioMetrics(prior, fresh) {
     ...subject.cache_read_tokens === void 0 ? {} : { cache_read_tokens: subject.cache_read_tokens },
     ...subject.cache_write_tokens === void 0 ? {} : { cache_write_tokens: subject.cache_write_tokens },
     ...subject.subject_cost_usd === void 0 ? {} : { subject_cost_usd: subject.subject_cost_usd },
+    ...subject.cost_source === void 0 ? {} : { cost_source: subject.cost_source },
     ...subject.tool_calls === void 0 ? {} : { tool_calls: subject.tool_calls },
     ...subject.delegated_children === void 0 ? {} : { delegated_children: subject.delegated_children },
     ...subject.max_concurrency === void 0 ? {} : { max_concurrency: subject.max_concurrency }
@@ -5210,7 +5215,7 @@ function diffPath(runDir, scenarioId, mode, rep) {
   return join5(runDir, `${base}.diff.txt`);
 }
 function rebuildScenarioResult(fresh, prior, policy) {
-  const { id, judge_verdict, judge_reason, suspect, override: _freshOverride, note: _freshNote, reps: reps2, passes, clean, flakiness, pass_threshold, metrics: freshMetrics, objective: freshObjective, adjudication: freshAdjudication, ...rest } = fresh;
+  const { id, judge_verdict, judge_reason, suspect, override: _freshOverride, note: _freshNote, reps: reps2, passes, clean, flakiness, pass_threshold, metrics: freshMetrics, objective: freshObjective, adjudication: freshAdjudication, judge_history: freshJudgeHistory, ...rest } = fresh;
   const _exhaustive = rest;
   void _exhaustive;
   void _freshOverride;
@@ -5246,7 +5251,8 @@ function rebuildScenarioResult(fresh, prior, policy) {
     // with no evidence serialises byte-identically to one from before the field
     // existed.
     ...objective ? { objective } : {},
-    ...adjudication ? { adjudication } : {}
+    ...adjudication ? { adjudication } : {},
+    ...freshJudgeHistory ?? prior?.judge_history ? { judge_history: freshJudgeHistory ?? prior.judge_history } : {}
   };
 }
 function tracePath(runDir, scenarioId, mode, rep) {
@@ -6163,12 +6169,15 @@ function parseTrace(lines, meta) {
     }
   }
   const toolCalls = [...calls.values()].sort((a, b) => a.issueIndex - b.issueIndex);
+  const subscription = meta.subject.provider === "openai-codex" || meta.subject.provider === "claude-code";
+  const costSource = subscription ? "subscription" : cost !== null ? "provider-reported" : "unreported";
   const metrics = {
     input_tokens: inputTokens,
     output_tokens: outputTokens,
     cache_read_tokens: cacheReadTokens,
     cache_write_tokens: cacheWriteTokens,
     cost_usd: cost ?? 0,
+    cost_source: costSource,
     tool_calls: toolCalls.length,
     delegated_children: toolCalls.filter((call) => call.name === "Agent").reduce((count, call) => count + normalizeSubagentCall(call.args).length, 0),
     max_concurrency: maxConcurrency
@@ -6277,6 +6286,7 @@ function mergeTraces(traces) {
     cache_read_tokens: sum.cache_read_tokens + trace.metrics.cache_read_tokens,
     cache_write_tokens: sum.cache_write_tokens + trace.metrics.cache_write_tokens,
     cost_usd: sum.cost_usd + trace.metrics.cost_usd,
+    cost_source: sum.cost_source === trace.metrics.cost_source ? sum.cost_source : "unreported",
     tool_calls: sum.tool_calls + trace.metrics.tool_calls,
     delegated_children: sum.delegated_children + trace.metrics.delegated_children,
     max_concurrency: Math.max(sum.max_concurrency, trace.metrics.max_concurrency)
@@ -6286,6 +6296,7 @@ function mergeTraces(traces) {
     cache_read_tokens: 0,
     cache_write_tokens: 0,
     cost_usd: 0,
+    cost_source: traces[0].metrics.cost_source,
     tool_calls: 0,
     delegated_children: 0,
     max_concurrency: 0
@@ -6407,6 +6418,7 @@ function aggregateMetrics(outcomes) {
     cache_read_tokens: subjects.reduce((sum, metrics) => sum + metrics.cache_read_tokens, 0),
     cache_write_tokens: subjects.reduce((sum, metrics) => sum + metrics.cache_write_tokens, 0),
     subject_cost_usd: subjects.reduce((sum, metrics) => sum + metrics.cost_usd, 0),
+    cost_source: subjects.every((metrics) => metrics.cost_source === subjects[0].cost_source) ? subjects[0].cost_source : "unreported",
     tool_calls: subjects.reduce((sum, metrics) => sum + metrics.tool_calls, 0),
     delegated_children: subjects.reduce((sum, metrics) => sum + metrics.delegated_children, 0),
     max_concurrency: Math.max(...subjects.map((metrics) => metrics.max_concurrency))
@@ -6538,6 +6550,20 @@ async function regradeScenario(opts) {
   }
   return outcomesToResult(opts.scenario.id, outcomes, repCount, opts.threshold);
 }
+function appendJudgeHistory(prior, priorJudge, fresh) {
+  const history = prior?.judge_history ?? prior?.adjudication?.judgments ?? (prior && priorJudge ? [{
+    ordinal: 1,
+    judge: priorJudge,
+    verdict: prior.judge_verdict ?? "JUDGE-AMBIGUOUS",
+    reason: prior.judge_reason ?? "prior grade",
+    suspect: prior.suspect ?? true
+  }] : []);
+  const next = [
+    ...history,
+    { ...fresh, ordinal: history.length + 1 }
+  ].slice(-3).map((judgment, index) => ({ ...judgment, ordinal: index + 1 }));
+  return next.length >= 2 ? next : void 0;
+}
 async function regradeRun(opts) {
   const { runDir, spec, adapter, judge, specDir } = opts;
   const now = opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
@@ -6595,6 +6621,12 @@ async function regradeRun(opts) {
     });
     const carry = overrides.get(id);
     rr.metrics = mergeScenarioMetrics(carry?.metrics, rr.metrics);
+    rr.judge_history = appendJudgeHistory(carry, prev?.judge, {
+      judge,
+      verdict: rr.judge_verdict,
+      reason: rr.judge_reason,
+      suspect: rr.suspect
+    });
     scenarioResults.push(rebuildScenarioResult(rr, carry, { objective: "carry", adjudication: "drop" }));
   }
   const ctx = scoreContextFor({ mode, partial: prev?.partial }, spec);
@@ -6973,6 +7005,10 @@ function aggregateMetrics2(scenarios) {
     cache_read_tokens: sumOptional("cache_read_tokens"),
     cache_write_tokens: sumOptional("cache_write_tokens"),
     subject_cost_usd: sumOptional("subject_cost_usd"),
+    cost_source: (() => {
+      const sources = scenarios.map((scenario) => scenario.metrics?.cost_source).filter((source) => source !== void 0);
+      return sources.length === 0 ? null : sources.every((source) => source === sources[0]) ? sources[0] : "unreported";
+    })(),
     tool_calls: sumOptional("tool_calls"),
     delegated_children: sumOptional("delegated_children"),
     max_concurrency: maxValues.length ? Math.max(...maxValues) : null
@@ -7134,7 +7170,7 @@ async function runRep(scenario, rep, repCount, ctx) {
   const repField = repCount > 1 ? { rep } : {};
   const arm = ctx.arm ?? NONE_ARM;
   const skillsRoot = ctx.skillsRoot ?? dirname(ctx.skillDir);
-  const armEnv = Object.keys(arm.env).length ? Object.fromEntries(Object.entries(arm.env).map(([k, v]) => [k, v.split("<run-dir>").join(runDir)])) : void 0;
+  const armEnvFor = (workspace) => Object.keys(arm.env).length ? Object.fromEntries(Object.entries(arm.env).map(([k, v]) => [k, v.split("<run-dir>").join(runDir).split("<workspace>").join(workspace)])) : void 0;
   if (rep === 0) {
     log(`  ${scenario.id} (${scenario.title})${repCount > 1 ? ` \xD7${repCount}` : ""} \u2026`);
     appendJournal(runDir, { event: "scenario-started", ts: now(), id: scenario.id, title: scenario.title });
@@ -7202,7 +7238,7 @@ async function runRep(scenario, rep, repCount, ctx) {
               // builds the RunReq — the arm's extensions and env (with `<run-dir>`
               // already substituted) both must reach pi.
               armExtensions: arm.extensions,
-              ...armEnv ? { armEnv } : {}
+              ...armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {}
             });
             transcript = r.transcript;
             gatePrefix = r.gateFailure;
@@ -7228,7 +7264,7 @@ async function runRep(scenario, rep, repCount, ctx) {
                 ...arm.extensions
               ],
               eventSources: scenario.eventSources,
-              ...armEnv ? { armEnv } : {}
+              ...armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {}
             };
             if (useStructured) {
               const structured = await ctx.adapter.runStructured({ ...req, scenarioId: scenario.id, rep });
@@ -8411,7 +8447,9 @@ var V3_SUPPORTED_KEYWORDS = /* @__PURE__ */ new Set([
   "anyOf",
   "if",
   "then",
-  "propertyNames"
+  "propertyNames",
+  "minItems",
+  "maxItems"
 ]);
 var KEYWORD_SHAPES = {
   $ref: { check: (value) => typeof value === "string", expected: "a string" },
@@ -8430,6 +8468,8 @@ var KEYWORD_SHAPES = {
   minLength: { check: (value) => typeof value === "number", expected: "a number" },
   maxLength: { check: (value) => typeof value === "number", expected: "a number" },
   minimum: { check: (value) => typeof value === "number", expected: "a number" },
+  minItems: { check: (value) => Number.isInteger(value) && Number(value) >= 0, expected: "a non-negative integer" },
+  maxItems: { check: (value) => Number.isInteger(value) && Number(value) >= 0, expected: "a non-negative integer" },
   pattern: { check: (value) => typeof value === "string", expected: "a string" },
   format: { check: (value) => typeof value === "string", expected: "a string" }
   // `const` may legitimately be any JSON value, including null.
@@ -8561,8 +8601,16 @@ function validate(root, schema2, value, path, known) {
     violations.push(...validateString(schema2, value, path));
   if (typeof value === "number")
     violations.push(...validateNumber(schema2, value, path));
-  if (Array.isArray(value) && schema2.items !== void 0) {
-    value.forEach((entry, index) => violations.push(...validate(root, schema2.items, entry, `${path}[${index}]`, known)));
+  if (Array.isArray(value)) {
+    if (typeof schema2.minItems === "number" && value.length < schema2.minItems) {
+      violations.push({ path, message: `must contain at least ${schema2.minItems} item(s)` });
+    }
+    if (typeof schema2.maxItems === "number" && value.length > schema2.maxItems) {
+      violations.push({ path, message: `must contain at most ${schema2.maxItems} item(s)` });
+    }
+    if (schema2.items !== void 0) {
+      value.forEach((entry, index) => violations.push(...validate(root, schema2.items, entry, `${path}[${index}]`, known)));
+    }
   }
   const record = object(value);
   if (record)
@@ -9351,7 +9399,7 @@ var PI_DADDY_LEDGER_V2_SCHEMA = {
 };
 
 // packages/adapters/dist/pi-daddy-ledger-v3.js
-var PI_DADDY_LEDGER_V3_CONTRACT_COMMIT = "591abb4a358bf8a84455486812b83609e2a47e3f";
+var PI_DADDY_LEDGER_V3_CONTRACT_COMMIT = "58d09dd2431cd426be4b709a97926490bb583623";
 var PI_DADDY_LEDGER_V3_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/mojomanyana/pi-daddy/contracts/ledger/v3/ledger-event.schema.json",
@@ -9382,10 +9430,10 @@ var PI_DADDY_LEDGER_V3_SCHEMA = {
     },
     "correlation": {
       "type": "object",
-      "description": "Opaque, non-authoritative controller metadata. String and aggregate byte limits are additionally enforced by the runtime and cannot be represented exactly in JSON Schema.",
+      "description": "Non-authoritative controller metadata under the pinned 1.0 contract. String and aggregate byte limits are additionally enforced by the runtime and cannot be represented exactly in JSON Schema.",
       "properties": {
         "schema_version": {
-          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+          "const": "1.0"
         },
         "run_id": {
           "$ref": "#/$defs/ledgerCorrelationIdentifier"
@@ -9417,19 +9465,42 @@ var PI_DADDY_LEDGER_V3_SCHEMA = {
         "assurance_scope": {
           "oneOf": [
             {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "type": {
+                  "const": "entire-run"
+                },
+                "selectors": {
+                  "type": "array",
+                  "maxItems": 0
+                }
+              },
+              "required": [
+                "type",
+                "selectors"
+              ],
+              "additionalProperties": false
             },
             {
-              "type": "array"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "number"
-            },
-            {
-              "type": "boolean"
+              "type": "object",
+              "properties": {
+                "type": {
+                  "const": "selectors"
+                },
+                "selectors": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "required": [
+                "type",
+                "selectors"
+              ],
+              "additionalProperties": false
             }
           ]
         },
@@ -9504,6 +9575,8 @@ var PI_DADDY_LEDGER_V3_SCHEMA = {
         "DEPTH_EXCEEDED",
         "FANOUT_EXCEEDED",
         "EXECUTOR_UNAVAILABLE",
+        "MODEL_UNRESOLVED",
+        "GRANT_STORE_INVALID",
         "CHILD_TIMED_OUT",
         "CHILD_CANCELLED",
         "CHILD_EXIT_NONZERO",
@@ -10409,6 +10482,27 @@ function normalizePiTraces(traces) {
   }
   return events;
 }
+var PRINCIPAL_ASSURANCE_SOURCES = /* @__PURE__ */ new Set([
+  "default",
+  "flag",
+  "alias",
+  "natural-language",
+  "policy",
+  "user",
+  "user-downgrade"
+]);
+function validatePrincipalAssurance(record, line) {
+  if (record.assurance === void 0)
+    return;
+  const assurance = object2(record.assurance);
+  if (!assurance || typeof assurance.source !== "string" || !PRINCIPAL_ASSURANCE_SOURCES.has(assurance.source)) {
+    throw new Error(`invalid principal assurance v1 event at line ${line}: assurance.source is not a recognized source`);
+  }
+  const scope = object2(assurance.scope);
+  if (!scope || Object.keys(scope).some((key) => key !== "type" && key !== "selectors") || scope.type !== "entire-run" && scope.type !== "selectors" || !Array.isArray(scope.selectors) || scope.selectors.some((selector) => typeof selector !== "string" || !selector) || new Set(scope.selectors).size !== scope.selectors.length || scope.type === "entire-run" && scope.selectors.length !== 0 || scope.type === "selectors" && scope.selectors.length === 0) {
+    throw new Error(`invalid principal assurance v1 event at line ${line}: assurance.scope is not a closed structured scope`);
+  }
+}
 function normalizePrincipalAssuranceLedger(text) {
   const records = parseJsonl(text, "principal assurance");
   validatePrincipalIntegrity(records);
@@ -10419,6 +10513,7 @@ function normalizePrincipalAssuranceLedger(text) {
     if (!Number.isInteger(record.seq) || Number(record.seq) < 1 || typeof record.type !== "string" || typeof record.run_id !== "string") {
       throw new Error(`invalid principal assurance v1 event at line ${index + 1}: seq, type, and run_id are required`);
     }
+    validatePrincipalAssurance(record, index + 1);
     const packet = object2(record.packet);
     const definitionDigests = object2(packet?.definition_digests);
     const definition = typeof record.definition_digest === "string" ? record.definition_digest : typeof definitionDigests?.["skill:build"] === "string" ? definitionDigests["skill:build"] : void 0;
@@ -10613,6 +10708,7 @@ var V2_CORRELATION_NUMERIC_FIELDS = /* @__PURE__ */ new Set(["event_seq", "last_
 var V2_APPROVAL_SOURCES = /* @__PURE__ */ new Set(["prompt", "session", "persisted", "inherited"]);
 var V2_APPROVAL_SCOPES = /* @__PURE__ */ new Set(["once", "session", "always"]);
 var V2_REFUSAL_CODES = new Set(PI_DADDY_LEDGER_V2_SCHEMA.$defs.refusalCode.enum);
+var V3_REFUSAL_CODES = new Set(PI_DADDY_LEDGER_V3_SCHEMA.$defs.refusalCode.enum);
 var V2_CORRELATION_MAX_BYTES = 32 * 1024;
 var V2_CORRELATION_MAX_FIELD_CHARS = 512;
 var V2_CORRELATION_MAX_SCOPE_BYTES = 4 * 1024;
@@ -11350,7 +11446,8 @@ function structuredRefusal(value, event, line, version = 2) {
   if (!parsed || !code || !string(parsed.message)) {
     throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal requires code and message`);
   }
-  if (!V2_REFUSAL_CODES.has(code)) {
+  const refusalCodes = version === 3 ? V3_REFUSAL_CODES : V2_REFUSAL_CODES;
+  if (!refusalCodes.has(code)) {
     throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal has unsupported code ${safeDiagnosticValue(code)}`);
   }
   const unknown = Object.keys(parsed).filter((key) => !V2_REFUSAL_FIELDS.has(key));
@@ -12007,10 +12104,17 @@ async function serveReview(opts) {
             mode: results.mode,
             expectedReps: prev.reps ?? 1
           });
-          const merged = results.scenarios.map((s) => (
-            // Same contract as `grade`, through the same choke point.
-            s.id === body.scenarioId ? rebuildScenarioResult({ ...rr, metrics: mergeScenarioMetrics(s.metrics, rr.metrics) }, s, { objective: "carry", adjudication: "drop" }) : s
-          ));
+          const merged = results.scenarios.map((s) => {
+            if (s.id !== body.scenarioId)
+              return s;
+            const judge_history = appendJudgeHistory(s, results.judge, {
+              judge: results.judge,
+              verdict: rr.judge_verdict,
+              reason: rr.judge_reason,
+              suspect: rr.suspect
+            });
+            return rebuildScenarioResult({ ...rr, metrics: mergeScenarioMetrics(s.metrics, rr.metrics), judge_history }, s, { objective: "carry", adjudication: "drop" });
+          });
           const written = writeResults(column.runDir, {
             skill: results.skill,
             harness: results.harness,

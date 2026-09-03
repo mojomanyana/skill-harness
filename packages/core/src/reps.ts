@@ -129,6 +129,9 @@ function aggregateMetrics(outcomes: RepOutcome[]): ScenarioMetrics | undefined {
     cache_read_tokens: subjects.reduce((sum, metrics) => sum + metrics.cache_read_tokens, 0),
     cache_write_tokens: subjects.reduce((sum, metrics) => sum + metrics.cache_write_tokens, 0),
     subject_cost_usd: subjects.reduce((sum, metrics) => sum + metrics.cost_usd, 0),
+    cost_source: subjects.every((metrics) => metrics.cost_source === subjects[0].cost_source)
+      ? subjects[0].cost_source
+      : "unreported",
     tool_calls: subjects.reduce((sum, metrics) => sum + metrics.tool_calls, 0),
     delegated_children: subjects.reduce((sum, metrics) => sum + metrics.delegated_children, 0),
     max_concurrency: Math.max(...subjects.map((metrics) => metrics.max_concurrency)),

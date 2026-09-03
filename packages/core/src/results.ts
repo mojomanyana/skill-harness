@@ -6,6 +6,7 @@ import { score, type ScenarioVerdict } from "./score.js";
 import { HARNESS_VERSION } from "./version.js";
 import type { Verdict } from "./score.js";
 import type { ShipBar, Scenario } from "./spec.js";
+import type { CostSource } from "./capture-trace-types.js";
 
 export interface ScenarioMetrics {
   wall_time_ms: number;
@@ -18,6 +19,7 @@ export interface ScenarioMetrics {
   cache_read_tokens?: number;
   cache_write_tokens?: number;
   subject_cost_usd?: number;
+  cost_source?: CostSource;
   tool_calls?: number;
   delegated_children?: number;
   max_concurrency?: number;
@@ -39,6 +41,7 @@ export function mergeScenarioMetrics(prior: ScenarioMetrics | undefined, fresh: 
     ...(subject.cache_read_tokens === undefined ? {} : { cache_read_tokens: subject.cache_read_tokens }),
     ...(subject.cache_write_tokens === undefined ? {} : { cache_write_tokens: subject.cache_write_tokens }),
     ...(subject.subject_cost_usd === undefined ? {} : { subject_cost_usd: subject.subject_cost_usd }),
+    ...(subject.cost_source === undefined ? {} : { cost_source: subject.cost_source }),
     ...(subject.tool_calls === undefined ? {} : { tool_calls: subject.tool_calls }),
     ...(subject.delegated_children === undefined ? {} : { delegated_children: subject.delegated_children }),
     ...(subject.max_concurrency === undefined ? {} : { max_concurrency: subject.max_concurrency }),
@@ -75,6 +78,8 @@ export interface ScenarioResult {
    * actually blocks SHIP; this field is the audit trail behind that flag.
    */
   adjudication?: AdjudicationResult;
+  /** Latest three full-cell grades; enables offline agreement reports with distinct judges. */
+  judge_history?: Judgment[];
 }
 
 /** One judge's answer for a cell, kept verbatim however the collapse turned out. */
@@ -198,8 +203,8 @@ export interface ResultsFile {
    * from 1 to 3 and re-running lands both runs in the same `+<arm>` tag with
    * byte-identical `arm` records, and `stability` reads a verdict flip between two
    * different conditions as one lineage being bimodal — the exact misreading the
-   * tag placement exists to prevent. Recorded as DECLARED, with `<run-dir>`
-   * unsubstituted: the substituted form differs every run for the same condition,
+   * tag placement exists to prevent. Recorded as DECLARED, with `<run-dir>` and
+   * `<workspace>` unsubstituted: the substituted form differs every run for the same condition,
    * which would make two identical conditions look like two.
    *
    * Optional only for records written before it was added; every writer emits it.
@@ -662,6 +667,7 @@ export function rebuildScenarioResult(
     metrics: freshMetrics,
     objective: freshObjective,
     adjudication: freshAdjudication,
+    judge_history: freshJudgeHistory,
     ...rest
   } = fresh;
   const _exhaustive: Record<string, never> = rest;
@@ -731,6 +737,7 @@ export function rebuildScenarioResult(
     // existed.
     ...(objective ? { objective } : {}),
     ...(adjudication ? { adjudication } : {}),
+    ...((freshJudgeHistory ?? prior?.judge_history) ? { judge_history: freshJudgeHistory ?? prior!.judge_history } : {}),
   };
 }
 

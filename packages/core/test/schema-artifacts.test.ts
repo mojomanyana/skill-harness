@@ -19,6 +19,16 @@ describe("versioned public schemas", () => {
     expect(schema.$id).toBe(id);
   });
 
+  it("accepts legacy 1.0 events, emits 1.1 fields only under 1.1, and stays closed", () => {
+    const ajv = new Ajv2020({ allErrors: true, strict: true, formats: { "date-time": true } });
+    const schema = JSON.parse(readFileSync(join(root, "trajectory-event-v1.schema.json"), "utf8"));
+    const validate = ajv.compile(schema);
+    expect(validate({ event_version: "1.0", seq: 1, type: "legacy", source: "test" })).toBe(true);
+    expect(validate({ event_version: "1.0", seq: 1, type: "legacy", source: "test", execution_id: "exec:one" })).toBe(false);
+    expect(validate({ event_version: "1.1", seq: 1, type: "current", source: "test", execution_id: "exec:one", parent_execution_id: null })).toBe(true);
+    expect(validate({ event_version: "1.1", seq: 1, type: "current", source: "test", invented: true })).toBe(false);
+  });
+
   it("keeps qualification schema fixtures aligned with runtime parsing and documents semantic-only joins", () => {
     const ajv = new Ajv2020({ allErrors: true, strict: true });
     const configSchema = JSON.parse(readFileSync(join(root, "qualification-config-v1.schema.json"), "utf8"));

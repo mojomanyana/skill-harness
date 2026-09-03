@@ -2,7 +2,9 @@ import { createHash } from "node:crypto";
 import { parsePredicate, testPredicate, type ArgPredicate, type CountConstraint } from "./trace-gates.js";
 
 /** Adapter-neutral event contract used by objective trajectory assertions. */
-export const TRAJECTORY_EVENT_VERSION = "1.0" as const;
+export const LEGACY_TRAJECTORY_EVENT_VERSION = "1.0" as const;
+export const TRAJECTORY_EVENT_VERSION = "1.1" as const;
+export type TrajectoryEventVersion = typeof LEGACY_TRAJECTORY_EVENT_VERSION | typeof TRAJECTORY_EVENT_VERSION;
 export const TRAJECTORY_ASSERT_VERSION = "1.0" as const;
 
 export interface TrajectoryApproval {
@@ -31,7 +33,7 @@ export interface TrajectoryDigests {
  * needs to know whether the source was pi, pi-daddy, or principal assurance.
  */
 export interface TrajectoryEventV1 {
-  event_version: typeof TRAJECTORY_EVENT_VERSION;
+  event_version: TrajectoryEventVersion;
   seq: number;
   type: string;
   source: string;
@@ -559,7 +561,7 @@ export function runTrajectoryMutationSelfTest(): MutationSelfTestReport {
   const h = "a".repeat(40), t = "b".repeat(40), p = "1".repeat(64);
   const cases: Array<{ id: string; assertion: TrajectoryAssert; good: TrajectoryEventV1[]; mutate: (events: TrajectoryEventV1[]) => TrajectoryEventV1[] }> = [
     { id: "remove-required-event", assertion: { version: "1.0", require: [{ event: "risk_classified" }] }, good: [e(1, "risk_classified")], mutate: () => [e(1, "unrelated")] },
-    { id: "add-forbidden-tool-side-effect", assertion: { version: "1.0", forbid: [{ event: "tool_called", where: { tool: { equals: "rm" } } }, { event: "side_effect_performed" }] }, good: [e(1, "tool_called", { tool: "read" })], mutate: (events) => [...events, e(2, "side_effect_performed", { attributes: { destructive: true } })] },
+    { id: "add-forbidden-tool-side-effect-approval", assertion: { version: "1.0", forbid: [{ event: "tool_called", where: { tool: { equals: "rm" } } }, { event: "side_effect_approved" }] }, good: [e(1, "tool_called", { tool: "read" })], mutate: (events) => [...events, e(2, "side_effect_approved", { attributes: { action: "migration" } })] },
     { id: "reorder-transition", assertion: { version: "1.0", ordered: [[{ event: "phase_started" }, { event: "phase_completed" }]] }, good: [e(1, "phase_started"), e(2, "phase_completed")], mutate: () => [e(2, "phase_started"), e(1, "phase_completed")] },
     { id: "substitute-workspace-id", assertion: { version: "1.0", correlate: [{ left: { event: "code_changed" }, right: { event: "evidence_recorded" }, same: ["workspace_id"] }] }, good: [e(1, "code_changed", { workspace_id: "ws-1" }), e(2, "evidence_recorded", { workspace_id: "ws-1" })], mutate: (events) => events.map((x) => x.type === "evidence_recorded" ? { ...x, workspace_id: "ws-2" } : x) },
     { id: "concurrent-writer", assertion: { version: "1.0", forbid: [{ event: "writer_lease_conflict" }] }, good: [e(1, "writer_lease_acquired", { workspace_id: "ws-1" })], mutate: (events) => [...events, e(2, "writer_lease_conflict", { workspace_id: "ws-1" })] },
@@ -572,7 +574,13 @@ export function runTrajectoryMutationSelfTest(): MutationSelfTestReport {
     { id: "remove-requirement-coverage", assertion: { version: "1.0", coverage: [{ requirements: ["AUTH-7"], events: { event: "evidence_recorded" } }] }, good: [e(1, "evidence_recorded", { requirements: ["AUTH-7"] })], mutate: (events) => events.map((x) => ({ ...x, requirements: [] })) },
     { id: "mutate-superseded-task", assertion: { version: "1.0", forbid_after: [{ anchor: { event: "task_packet_superseded" }, forbidden: [{ event: "code_changed" }, { event: "repair_started" }], same: ["task_id"] }] }, good: [e(1, "task_packet_superseded", { task_id: "old" }), e(2, "code_changed", { task_id: "new" })], mutate: (events) => events.map((x) => x.type === "code_changed" ? { ...x, task_id: "old" } : x) },
     { id: "reuse-context-id", assertion: { version: "1.0", unique: [{ events: { event: "review_recorded" }, fields: ["context_id"] }] }, good: [e(1, "review_recorded", { context_id: "c1" }), e(2, "review_recorded", { context_id: "c2" })], mutate: (events) => events.map((x) => x.seq === 2 ? { ...x, context_id: "c1" } : x) },
-    { id: "mismatch-finalization-identity", assertion: { version: "1.0", correlate: [{ left: { event: "gate_evaluated", where: { "attributes.gate": { equals: "finalize" } } }, right: { event: "finalization_completed" }, same: ["digests.head", "digests.tree"], order: "before" }] }, good: [e(1, "gate_evaluated", { digests: { head: h, tree: t }, attributes: { gate: "finalize", result: "pass" } }), e(2, "finalization_completed", { digests: { head: h, tree: t } })], mutate: (events) => events.map((x) => x.type === "finalization_completed" ? { ...x, digests: { head: h, tree: "d".repeat(40) } } : x) },
+    { id: "mismatch-finalization-identity", assertion: { version: "1.0", correlate: [{ left: { event: "gate_evaluated", where: { "attributes.gate": { equals: "finalize" } } }, right: { event: "finalization_completed" }, same: ["digests.head", "digests.tree"], order: "before" }] }, good: [e(1, "gate_evaluated", { digests: { head: h, tree: t }, attributes: { gate: "finalize", code: "OK" } }), e(2, "finalization_completed", { digests: { head: h, tree: t } })], mutate: (events) => events.map((x) => x.type === "finalization_completed" ? { ...x, digests: { head: h, tree: "d".repeat(40) } } : x) },
+    { id: "v3-blocked-critical-code", assertion: { version: "1.0", require: [{ event: "gate_evaluated", where: { "attributes.code": { equals: "BLOCKED_CRITICAL_ASSURANCE" } } }] }, good: [e(1, "gate_evaluated", { attributes: { gate: "finalize", code: "BLOCKED_CRITICAL_ASSURANCE", missing_count: 2 } })], mutate: (events) => events.map((x) => ({ ...x, attributes: { ...x.attributes, code: "OK" } })) },
+    { id: "v3-stale-gate-must-block", assertion: { version: "1.0", require: [{ event: "gate_evaluated", where: { "attributes.code": { matches: "^BLOCKED_" } } }] }, good: [e(1, "gate_evaluated", { attributes: { gate: "finalize", code: "BLOCKED_ASSURANCE" } })], mutate: (events) => events.map((x) => ({ ...x, attributes: { ...x.attributes, code: "OK" } })) },
+    { id: "v3-finalize-gate-must-be-ok", assertion: { version: "1.0", require: [{ event: "gate_evaluated", where: { "attributes.gate": { equals: "finalize" }, "attributes.code": { equals: "OK" } } }] }, good: [e(1, "gate_evaluated", { attributes: { gate: "finalize", code: "OK" } })], mutate: (events) => events.map((x) => ({ ...x, attributes: { ...x.attributes, code: "BLOCKED_ASSURANCE" } })) },
+    { id: "v3-discard-requires-explicit-request", assertion: { version: "1.0", forbid: [{ event: "finish_selected", where: { "attributes.choice": { equals: "discard" }, "attributes.explicit_request": { equals: false } } }] }, good: [e(1, "finish_selected", { attributes: { choice: "discard", explicit_request: true } })], mutate: (events) => events.map((x) => ({ ...x, attributes: { ...x.attributes, explicit_request: false } })) },
+    { id: "v3-side-effect-approval-and-gate", assertion: { version: "1.0", ordered: [[{ event: "side_effect_approved", where: { "attributes.action": { equals: "migration" } } }, { event: "gate_evaluated", where: { "attributes.gate": { equals: "side-effect" }, "attributes.code": { equals: "OK" } } }]] }, good: [e(1, "side_effect_approved", { attributes: { action: "migration" } }), e(2, "gate_evaluated", { attributes: { gate: "side-effect", code: "OK" } })], mutate: (events) => events.map((x) => x.type === "gate_evaluated" ? { ...x, attributes: { ...x.attributes, code: "BLOCKED_ASSURANCE" } } : x) },
+    { id: "v3-governed-spawn-started", assertion: { version: "1.0", require: [{ event: "child_started", where: { source: { equals: "pi-daddy-v3" }, "attributes.state": { equals: "starting" } } }] }, good: [e(1, "child_started", { source: "pi-daddy-v3", attributes: { state: "starting" } })], mutate: (events) => events.map((x) => ({ ...x, attributes: { ...x.attributes, state: "failed" } })) },
   ];
 
   const results = cases.map((testCase): MutationSelfTestCase => {
@@ -588,9 +596,10 @@ export function runTrajectoryMutationSelfTest(): MutationSelfTestReport {
 // Internals
 // ---------------------------------------------------------------------------
 
+const V11_EVENT_KEYS = new Set(["execution_id", "parent_execution_id", "task_from_execution_id", "workflow_fact_id", "deadline_at"]);
 const EVENT_KEYS = new Set([
   "event_version", "seq", "type", "source", "at", "run_id", "task_id", "workspace_id", "context_id", "finding_id",
-  "parent_id", "child_id", "execution_id", "parent_execution_id", "task_from_execution_id", "workflow_fact_id", "deadline_at",
+  "parent_id", "child_id", ...V11_EVENT_KEYS,
   "phase", "tool", "capability", "requested_capabilities", "effective_capabilities", "refusal_code",
   "exit_code", "digests", "approval", "requirements", "attributes",
 ]);
@@ -606,7 +615,13 @@ function validateEvent(event: TrajectoryEventV1): string | null {
   const object = event as unknown as Record<string, unknown>;
   const unknown = Object.keys(object).find((key) => !EVENT_KEYS.has(key));
   if (unknown) return `unknown field ${unknown}`;
-  if (event.event_version !== TRAJECTORY_EVENT_VERSION) return `unsupported event_version ${String(event.event_version)}`;
+  if (event.event_version !== LEGACY_TRAJECTORY_EVENT_VERSION && event.event_version !== TRAJECTORY_EVENT_VERSION) {
+    return `unsupported event_version ${String(event.event_version)}`;
+  }
+  if (event.event_version === LEGACY_TRAJECTORY_EVENT_VERSION) {
+    const versionedField = Object.keys(object).find((key) => V11_EVENT_KEYS.has(key));
+    if (versionedField) return `${versionedField} requires event_version ${TRAJECTORY_EVENT_VERSION}`;
+  }
   if (!Number.isInteger(event.seq) || event.seq < 1) return "seq must be a positive integer";
   if (typeof event.type !== "string" || !event.type) return "type must be a non-empty string";
   if (typeof event.source !== "string" || !event.source) return "source must be a non-empty string";

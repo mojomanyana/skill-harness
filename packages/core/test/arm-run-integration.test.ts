@@ -100,7 +100,7 @@ const ARM = (root: string): Arm => ({
   extensions: [join(root, "agents", "plan.md")], // any existing file: the adapter is faked
   seedSkills: ["agents"],
   requireDefinitions: 2,
-  env: { PI_GRANTS_LEDGER: "<run-dir>/pi-daddy.ledger.jsonl", PI_GRANTS_GRANT: "tool:read" },
+  env: { PI_GRANTS_LEDGER: "<run-dir>/pi-daddy.ledger.jsonl", WORKSPACE_LEDGER: "<workspace>/events.jsonl", PI_GRANTS_GRANT: "tool:read" },
 });
 
 describe("an arm reaches the subject and the record", () => {
@@ -135,12 +135,13 @@ describe("an arm reaches the subject and the record", () => {
       // conditions as one lineage flipping. Recorded as DECLARED: the substituted
       // form carries this run's temp path, which would make one condition look
       // like a new one on every run.
-      env: { PI_GRANTS_GRANT: "tool:read", PI_GRANTS_LEDGER: "<run-dir>/pi-daddy.ledger.jsonl" },
+      env: { PI_GRANTS_GRANT: "tool:read", PI_GRANTS_LEDGER: "<run-dir>/pi-daddy.ledger.jsonl", WORKSPACE_LEDGER: "<workspace>/events.jsonl" },
     });
 
     const req = reqs[0];
     expect(req.extensions).toContain(join(root, "agents", "plan.md"));
     expect(req.armEnv!.PI_GRANTS_LEDGER).toBe(join(summary.runDir, "pi-daddy.ledger.jsonl"));
+    expect(req.armEnv!.WORKSPACE_LEDGER).toBe(join(req.cwd, "events.jsonl"));
     expect(req.armEnv!.PI_GRANTS_GRANT).toBe("tool:read");
     expect(seededAtCallTime[0]).toBe(true);
   });
@@ -199,7 +200,7 @@ describe("an arm reaches a seeded scenario's subject", () => {
       // conditions as one lineage flipping. Recorded as DECLARED: the substituted
       // form carries this run's temp path, which would make one condition look
       // like a new one on every run.
-      env: { PI_GRANTS_GRANT: "tool:read", PI_GRANTS_LEDGER: "<run-dir>/pi-daddy.ledger.jsonl" },
+      env: { PI_GRANTS_GRANT: "tool:read", PI_GRANTS_LEDGER: "<run-dir>/pi-daddy.ledger.jsonl", WORKSPACE_LEDGER: "<workspace>/events.jsonl" },
     });
 
     // A seeded scenario declares no `env.extensions` of its own here, so
@@ -208,6 +209,7 @@ describe("an arm reaches a seeded scenario's subject", () => {
     const req = reqs[0];
     expect(req.extensions).toEqual([join(root, "agents", "plan.md")]);
     expect(req.armEnv!.PI_GRANTS_LEDGER).toBe(join(summary.runDir, "pi-daddy.ledger.jsonl"));
+    expect(req.armEnv!.WORKSPACE_LEDGER).toBe(join(req.cwd, "events.jsonl"));
     expect(req.armEnv!.PI_GRANTS_GRANT).toBe("tool:read");
   });
 });

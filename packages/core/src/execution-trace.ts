@@ -191,12 +191,19 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
   }
 
   const toolCalls = [...calls.values()].sort((a, b) => a.issueIndex - b.issueIndex);
+  const subscription = meta.subject.provider === "openai-codex" || meta.subject.provider === "claude-code";
+  const costSource: TraceMetrics["cost_source"] = subscription
+    ? "subscription"
+    : cost !== null
+      ? "provider-reported"
+      : "unreported";
   const metrics: TraceMetrics = {
     input_tokens: inputTokens,
     output_tokens: outputTokens,
     cache_read_tokens: cacheReadTokens,
     cache_write_tokens: cacheWriteTokens,
     cost_usd: cost ?? 0,
+    cost_source: costSource,
     tool_calls: toolCalls.length,
     delegated_children: toolCalls
       .filter((call) => call.name === "Agent")
@@ -387,12 +394,13 @@ export function mergeTraces(traces: ExecutionTraceV1[]): ExecutionTraceV1 | null
         cache_read_tokens: sum.cache_read_tokens + trace.metrics!.cache_read_tokens,
         cache_write_tokens: sum.cache_write_tokens + trace.metrics!.cache_write_tokens,
         cost_usd: sum.cost_usd + trace.metrics!.cost_usd,
+        cost_source: sum.cost_source === trace.metrics!.cost_source ? sum.cost_source : "unreported",
         tool_calls: sum.tool_calls + trace.metrics!.tool_calls,
         delegated_children: sum.delegated_children + trace.metrics!.delegated_children,
         max_concurrency: Math.max(sum.max_concurrency, trace.metrics!.max_concurrency),
       }), {
         input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0,
-        cost_usd: 0, tool_calls: 0, delegated_children: 0, max_concurrency: 0,
+        cost_usd: 0, cost_source: traces[0].metrics!.cost_source, tool_calls: 0, delegated_children: 0, max_concurrency: 0,
       })
     : undefined;
   const last = traces[traces.length - 1];

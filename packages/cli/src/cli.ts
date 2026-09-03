@@ -27,6 +27,7 @@ import {
   HARNESS_VERSION,
   defaultJudge,
   assertJudgeAllowed,
+  judgeAgreement,
   assertNotDowngraded,
   downgradeWarning,
   isScoredMode,
@@ -436,6 +437,19 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
  * Reps are the measurement; thresholds are policy. When policy changes, recompute rather
  * than reconcile two numbers in prose.
  */
+export function cmdJudgeAgreement(args: Args): void {
+  const raw = args._[0];
+  if (!raw) throw new Error("usage: skill-harness judge-agreement <run-dir>");
+  const runDir = resolve(raw);
+  if (!existsSync(runDir)) throw new Error(`run dir not found: ${runDir}`);
+  const report = judgeAgreement(readResults(runDir));
+  for (const cell of report.cells) {
+    console.log(`  ${cell.status === "agree" ? "=" : cell.status === "disagree" ? "≠" : "?"} ${cell.scenario}: ${cell.status} — ${cell.detail}${cell.judges.length ? ` (${cell.judges.join(" vs ")})` : ""}`);
+  }
+  console.log(`\njudge agreement: ${report.agree} agree / ${report.disagree} disagree / ${report.error} error; ${report.rate === null ? "n/a" : `${(report.rate * 100).toFixed(1)}%`} across ${report.comparable} comparable scenario(s).`);
+  console.log("offline report only; no model or judge calls.");
+}
+
 export async function cmdMutationTest(): Promise<void> {
   const report = runTrajectoryMutationSelfTest();
   console.log(`trajectory assertion mutation self-test: baseline ${report.baseline}`);
@@ -920,6 +934,7 @@ export function help(): string {
                        ask again about untrustworthy cells (ambiguous / contradictory / non-unanimous /
                        ship-deciding). OFF by default; prints the exact MAX extra call count first.
   mutation-test                                  prove trajectory assertions turn red (free, offline)
+  judge-agreement <run-dir>                      compare two distinct persisted judge votes per scenario (free, offline)
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (free)
   regate <run-dir>...  [--judge prov:model]     re-evaluate diff needles against the saved diffs (free; judges only reps whose gate flipped)
   restamp <skill|all> --skills <root> [--from <git-ref>]   record the model-visible skill digest on runs that still match (free, offline; one-time migration)
@@ -956,6 +971,7 @@ export async function main(argv: string[]): Promise<void> {
     case "compare": return cmdCompare(args);
     case "grade": return cmdGrade(args);
     case "mutation-test": return cmdMutationTest();
+    case "judge-agreement": return cmdJudgeAgreement(args);
     case "rescore": return cmdRescore(args);
     case "regate": return cmdRegate(args);
     case "restamp": return cmdRestamp(args);

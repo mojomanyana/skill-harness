@@ -1,0 +1,15 @@
+# Specification-only Wave 1 arm. Do not run as part of this audit.
+arms:
+  - name: pi-daddy
+    extensions:
+      - /home/neman/Code/pi-daddy/packages/pi-daddy/extensions/grants.ts
+    seed_skills:
+      - principal-v3-pack/tests/fixtures/agents
+    require_definitions: 6
+    env:
+      PI_GRANTS_GRANT: "agent:debug,agent:plan,agent:principal-debug,agent:principal-plan,agent:principal-review,agent:review,tool:delegate,tool:read,tool:grep,tool:find,tool:ls,tool:bash"
+      PI_GRANTS_GATED: ""
+      # Absent means probe; under pi -p that previously hung for the full adapter timeout.
+      PI_GRANTS_HERDR: "0"
+      PI_GRANTS_MAX_DEPTH: "1"
+      PI_GRANTS_LEDGER: "<workspace>/pi-daddy/events.jsonl"
