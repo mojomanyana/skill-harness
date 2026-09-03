@@ -12,7 +12,7 @@ judge, publish, tag, push, or qualification measurement call was made.
 | `.pi/` is unrelated generated config | CONFIRMED | untracked initially and left unmodified/uncommitted |
 | Host is Node 26.7.0/npm 12.0.2; release pack requires 20.20.2/10.8.2 | CONFIRMED | version preflight and `scripts/release-pack.mjs` |
 | Release-pack suite has about 19 environmental failures | CONFIRMED | measured 19 failed, 4 passed, 8.07 s before Task 5c |
-| v3 producer pin is `591abb4…` and strict consumer rejects Wave 1 | CONFIRMED | vendor/config/schema/CI pins; initial real-builder path failed until the contract and vocabulary were re-vendored |
+| pre-Wave-1 v3 producer pin and strict consumer reject Wave 1 | CONFIRMED | the obsolete snapshot identity was removed during the A6 cleanup; initial real-builder path failed until the contract and vocabulary were re-vendored |
 | pi-daddy Wave 1 merge head is `4a95243` with two added refusals and narrowed scope | CONFIRMED | commit `4a9524394ca995fd74ed9bbb836dc4e73cda3b8c`, tree `7c006b…`, 0.21.1; 34 refusal codes; scope is closed `{type,selectors}` |
 | v2 must remain frozen | CONFIRMED | v3 verifier's legacy lane accepts frozen v2 and unversioned 0.17 |
 | principal docs pin `961f8cc` while qualification code pins `a659695` | CONFIRMED | `docs/ASSURANCE-WORKFLOWS.md` vs `qualification-config.ts`; active docs now use `a659695` |

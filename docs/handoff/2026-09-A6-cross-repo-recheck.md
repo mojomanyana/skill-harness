@@ -32,7 +32,7 @@ All required branches and heads matched. The sibling repositories were read and 
 
 ### 1. Producer repin — STILL OPEN
 
-The exact obsolete `58d09dd2431cd426be4b709a97926490bb583623` no longer occurs at HEAD. Runtime, generated adapter, qualification config/schema, CI, `PINNED.json`, vendor metadata, and current handoff instructions name:
+The obsolete pre-merge snapshot identity no longer occurs at HEAD. Runtime, generated adapter, qualification config/schema, CI, `PINNED.json`, vendor metadata, and current handoff instructions name:
 
 ```text
 commit  4a9524394ca995fd74ed9bbb836dc4e73cda3b8c
@@ -66,7 +66,7 @@ pi-daddy ledger-v3 pin is deterministic and current at 4a9524394ca995fd74ed9bbb8
 
 `npm run build && node scripts/check-pi-daddy-v3-contract.mjs` also passed: all eight hashes, the generated adapter pin, 5/5 canonical fixtures, and negative controls.
 
-However, `contracts/pi-daddy/ledger/v3/README.md:7-9,23` still claims commit `591abb4a358bf8a84455486812b83609e2a47e3f`, tree `c9fe1b324ffbf0d72e7d904972594b3a936e9928`, version `0.20.0`, and gives that obsolete vendor command. `packages/adapters/test/pi-daddy-v3-contract.test.ts:15` still labels the now-merged pin provisional. The vendor script does not regenerate the consumer README, so its successful check does not cover this contradiction.
+However, `contracts/pi-daddy/ledger/v3/README.md:7-9,23` still claimed an older snapshot commit/tree, version `0.20.0`, and its obsolete vendor command. `packages/adapters/test/pi-daddy-v3-contract.test.ts:15` also labeled the now-merged pin provisional. The vendor script did not regenerate the consumer README, so its successful check did not cover this contradiction.
 
 ### 2. Six ship-gating field repairs — CLOSED for producer-field compatibility
 
@@ -121,7 +121,7 @@ git -C ../principal-pi-skills cat-file -t \
 
 The fabricated `e438a60516ca941c39c74bb3f62a7f2ba2b36f87` does not resolve. The principal fixture and A3 handoff now record the real SHA.
 
-The new test does not enforce the requested general rule. It regexes only the first `commit <40-hex>` in one principal `PROVENANCE.md` and checks that object. It does not enumerate every provenance document/PINNED record, map each named repository, or ensure every recorded provenance SHA resolves there. Existing pi-daddy provenance identities were manually checked and currently resolve (`dde8eeb...`, `c364a67...`, `4a95243...`, and the stale README's `591abb4...`), but there is no check making that repository-wide property durable.
+The new test does not enforce the requested general rule. It regexes only the first `commit <40-hex>` in one principal `PROVENANCE.md` and checks that object. It does not enumerate every provenance document/PINNED record, map each named repository, or ensure every recorded provenance SHA resolves there. Existing pi-daddy provenance identities were manually checked and currently resolved, but there was no check making that repository-wide property durable.
 
 ### 5. `regate` free-command honesty — STILL OPEN
 
@@ -276,3 +276,66 @@ The two newly skipped release-pack tests are “rejects a real tracked Git gitli
 - Two-model validation and live workflow/runtime evidence remain unrun.
 - Exact-toolchain release-pack and packed-smoke evidence remain unrun.
 - No release, publish, tag, push, qualification measurement, model run, or judge call was performed.
+
+## Cleanup
+
+Date: 2026-09-03
+Starting identity: skill-harness `wave1/audit-followups` at `9932b64`; principal-pi-skills
+`wave1/audit-followups` at `e438a60`; pi-daddy `wave1/audit-followups` at `4a95243` with only
+its expected untracked `.pi/`. No sibling repository was modified and no model or judge call was made.
+
+All five cleanup items are now closed:
+
+1. **Ledger-v3 identity — CLOSED.** `contracts/pi-daddy/ledger/v3/README.md` now agrees with
+   `PINNED.json`: pi-daddy commit `4a9524394ca995fd74ed9bbb836dc4e73cda3b8c`, tree
+   `7c006bff213142634f0f911ba9bd6add363ecaae`, version `0.21.1`. The adapter test now checks
+   all four README identity/command lines against `PINNED.json`. A whole-repository search for
+   both obsolete commit prefixes returned no matches.
+2. **Provenance resolution — CLOSED.** `scripts/check-recorded-provenance.mjs` discovers every
+   tracked-style `*PROVENANCE.md` and contract `PINNED.json`, extracts every recorded commit,
+   maps the repositories named by each file to the immutable sibling checkouts, and requires
+   `git cat-file -t` to return `commit`. It resolved all 6 recorded identities. Its negative
+   test supplies a syntactically valid nonexistent commit and proves the check exits nonzero.
+   CI now checks out full pi-daddy history outside the skill-harness source tree so historical
+   fixture commits remain resolvable; workspace-isolation coverage pins that layout.
+3. **Free-command honesty — CLOSED.** `FREE_OFFLINE_COMMANDS` is the closed ten-command set:
+   `affected`, `coverage`, `init`, `judge-agreement`, `lint`, `list`, `mutation-test`,
+   `rescore`, `restamp`, and `stability`. `regate` is excluded. CLI help uses this set, and
+   one test compares the complete SKILL.md list, AGENTS.md list, and every CLI free/offline
+   claim to it. Remaining regate comments/test titles now say that a fail→pass rep can require
+   a judge call and that the call count is reported after completion, not before it.
+4. **Principal lint baseline — CLOSED.** Active campaign design text now records 104 findings,
+   all exempt, 0 blocking, and 32 notes. The old appendix measurement is explicitly labeled
+   historical rather than presented as the current invariant.
+5. **Toolchain skip contract — CLOSED.** The skip-contract test finds every conditional
+   `describe`/`it`/`test` marker under `packages/**.test.ts`, requires the sole marker to be
+   `release-pack.test.ts`'s toolchain `describe.skipIf`, derives the skipped count by counting
+   the tests inside that block, and proves every test in that file is inside it. No numeric
+   skip count is hardcoded. On this non-pinned host the derived runtime result is 25 skips,
+   all and only in `release-pack.test.ts`.
+
+### Cleanup verification
+
+- Red evidence before implementation: the new command-cost test could not import its missing
+  canonical set; the provenance tests failed because their checker did not exist; the skip
+  contract exposed its own initial scanner boundary and was tightened to exclude the checker
+  file itself.
+- `npm run build:ext` — PASS; committed extension bundle regenerated after core/CLI changes.
+- `npm run typecheck` — PASS.
+- `npm test` — PASS: 98 files passed, 1 skipped; 1,535 tests passed, 25 skipped; the sole
+  conditional skip block is `packages/cli/test/release-pack.test.ts`.
+- Targeted cleanup tests — PASS: 5/5 across command-cost, provenance positive/negative, and
+  derived skip-set checks.
+- `node bin/skill-harness.js mutation-test` — PASS: 21/21 mutations detected; no model or judge calls.
+- `node bin/skill-harness.js lint principal-v3-pack --skills examples` — PASS: 1 skill, 0 findings.
+- Before and after the pi-daddy contract commands, a process-table check restricted to Node
+  processes found no `test/workspace.test.ts` process.
+- V3 vendor write and `--check` at `4a95243...` — PASS: 8 artifacts; deterministic/current.
+- `npm run build && node scripts/check-pi-daddy-v3-contract.mjs` — PASS: all 8 hashes,
+  generated adapter identity, 5/5 canonical fixtures, and negative controls.
+- `node scripts/check-recorded-provenance.mjs` — PASS: all 6 recorded commit identities resolve.
+- `git diff --check` — PASS.
+
+The earlier `CONFLICT` verdict above is the immutable recheck result before cleanup. For these
+five scoped conflicts, the post-cleanup verdict is **CONSISTENT WITH THE EXISTING PROVISIONAL AND
+DEFERRED EXCEPTIONS** listed above.

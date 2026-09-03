@@ -26,7 +26,7 @@ import type { ObjectiveResult, AdjudicationResult, ScenarioResult } from "../src
  *   | command | `objective`            | `adjudication`         |
  *   |---------|------------------------|------------------------|
  *   | grade   | carried (gates not re-evaluated) | dropped (judgments replaced) |
- *   | regate  | RECOMPUTED (that is the job)     | carried (no judge was asked) |
+ *   | regate  | RECOMPUTED (that is the job)     | carried unless a fail→pass rep needs judging |
  *   | rescore | carried (nothing re-measured)    | carried (nothing re-measured) |
  */
 
@@ -165,7 +165,7 @@ describe("grade (regradeRun)", () => {
 });
 
 describe("regate (regateRun)", () => {
-  it("carries `adjudication` forward — regate asks no judge anything", async () => {
+  it("carries `adjudication` on the saved-PASS path that needs no judge call", async () => {
     writeTrace();
     await regateRun({ runDir, spec: loadSpec(specPath), adapter: judge, judge: { provider: "claude-code", model: "j1" }, specDir: join(skillDir, "tests") });
     expect(cell().adjudication).toEqual(ADJUDICATION);
@@ -268,7 +268,7 @@ describe("rebuildScenarioResult", () => {
     // records why, but `suspect` is what the ship bar reads. Taking `suspect`
     // from `fresh` while carrying the block published a record reading
     // `state: "unresolved"` that scored as a clean SHIP. `regate` did exactly
-    // that, so a free offline command resolved a judge disagreement in favour of
+    // that, so a gate-only rewrite resolved a judge disagreement in favour of
     // shipping.
     const r = rebuildScenarioResult(fresh(), prior(), { objective: "carry", adjudication: "carry" });
     expect(r.adjudication!.state).toBe("unresolved");

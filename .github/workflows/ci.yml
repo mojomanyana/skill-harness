@@ -83,6 +83,7 @@ jobs:
         working-directory: skill-harness
     env:
       PRINCIPAL_PI_SKILLS_CHECKOUT: ${{ github.workspace }}/principal-pi-skills
+      PI_DADDY_CHECKOUT: ${{ github.workspace }}/pi-daddy-provenance
     steps:
       - name: Check out skill-harness
         uses: actions/checkout@v5
@@ -94,6 +95,13 @@ jobs:
           repository: mojomanyana/principal-pi-skills
           ref: e438a605c2376d3b06132f3e2db21ae0706983d0
           path: principal-pi-skills
+      - name: Check out pi-daddy provenance history
+        uses: actions/checkout@v5
+        with:
+          repository: mojomanyana/pi-daddy
+          ref: 4a9524394ca995fd74ed9bbb836dc4e73cda3b8c
+          fetch-depth: 0
+          path: pi-daddy-provenance
       - uses: actions/setup-node@v5
         with:
           node-version: "20.20.2"

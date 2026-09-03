@@ -33,6 +33,7 @@ import {
   isScoredMode,
   runTrajectoryMutationSelfTest,
   resolveArm,
+  isFreeOfflineCommand,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
@@ -483,9 +484,9 @@ async function cmdRescore(args: Args): Promise<void> {
 }
 
 /**
- * Re-evaluate needle gates against the saved staged diffs — free, except for the reps
- * whose gate verdict flips from fail to pass, which the judge never saw and must now
- * be shown. Prints the cost before making those calls.
+ * Re-evaluate needle gates against the saved staged diffs — no subject call. A rep
+ * whose gate verdict flips from fail to pass was never judged and costs one judge call.
+ * The completion summary reports how many judge calls were made.
  */
 export async function cmdRegate(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
   const runDirs = args._;
@@ -916,6 +917,10 @@ export async function cmdLint(args: Args): Promise<void> {
  * prints none.
  */
 export function help(): string {
+  const free = (command: string): string => {
+    if (!isFreeOfflineCommand(command)) throw new Error(`${command} is not a free/offline command`);
+    return "free, offline";
+  };
   return `skill-harness ${HARNESS_VERSION} — test/optimize loop for agent skills (pi harness)
 
   run    <skill|all> --skills <root> [--model prov:model ...] [--models file] [--only A1,D2]
@@ -933,20 +938,20 @@ export function help(): string {
                      [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]
                        ask again about untrustworthy cells (ambiguous / contradictory / non-unanimous /
                        ship-deciding). OFF by default; prints the exact MAX extra call count first.
-  mutation-test                                  prove trajectory assertions turn red (free, offline)
-  judge-agreement <run-dir>                      compare two distinct persisted judge votes per scenario (free, offline)
-  rescore <run-dir>...                          re-score saved reps vs current spec thresholds (free)
+  mutation-test                                  prove trajectory assertions turn red (${free("mutation-test")})
+  judge-agreement <run-dir>                      compare two distinct persisted judge votes per scenario (${free("judge-agreement")})
+  rescore <run-dir>...                          re-score saved reps vs current spec thresholds (${free("rescore")})
   regate <run-dir>...  [--judge prov:model]     re-evaluate saved gates (no subject call; judges fail→pass reps)
-  restamp <skill|all> --skills <root> [--from <git-ref>]   record the model-visible skill digest on runs that still match (free, offline; one-time migration)
-  stability <skill|all> --skills <root> [--window N] [--all]  run-over-run verdict flips per scenario (free, offline)
+  restamp <skill|all> --skills <root> [--from <git-ref>]   record the model-visible skill digest on runs that still match (${free("restamp")}; one-time migration)
+  stability <skill|all> --skills <root> [--window N] [--all]  run-over-run verdict flips per scenario (${free("stability")})
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]
-  init   <skill>     --skills <root> [--force]     scaffold a commented template spec (free, offline)
+  init   <skill>     --skills <root> [--force]     scaffold a commented template spec (${free("init")})
   suggest <skill>    --skills <root> [--model prov:model] [--force]  LLM-draft a spec from SKILL.md (spends tokens)
-  list   --skills <root>                        discovered skills + spec status
-  lint   <skill|all> --skills <root>           validate specs/fixtures + results-consistency (CI gate; exits non-zero on findings)
-  coverage <skill|all> --skills <root> [--strict]   which instruction sections have a declared test (free, offline)
-  affected <skill>   --skills <root> [--base ref]   which scenarios a change could touch (free, offline)
+  list   --skills <root>                        discovered skills + spec status (${free("list")})
+  lint   <skill|all> --skills <root>           validate specs/fixtures + results-consistency (${free("lint")}; CI gate; exits non-zero on findings)
+  coverage <skill|all> --skills <root> [--strict]   which instruction sections have a declared test (${free("coverage")})
+  affected <skill>   --skills <root> [--base ref]   which scenarios a change could touch (${free("affected")})
   qualification <prepare|start|status|poll|validate|abort>  durable qualification-runner-v1 lifecycle
                      prepare --spool DIR --config FILE --request FILE [--expected-config-sha256 HEX] (required in production)
                      start|status|poll|abort --spool DIR --id ID  (abort also requires --reason ID)

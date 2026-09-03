@@ -699,8 +699,8 @@ export function rebuildScenarioResult(
   // Taking `suspect` from `fresh` while carrying the block therefore published a
   // record that said `state: "unresolved"` and scored as a clean SHIP. `regate`
   // did exactly that: it rebuilds verdict and suspect from the saved first-wave
-  // judge file, so a free, offline command silently resolved a disagreement in
-  // favour of shipping — inverting this module's stated invariant that an
+  // judge file, so a gate-only rewrite silently resolved a disagreement in favour
+  // of shipping — inverting this module's stated invariant that an
   // unresolved disagreement must not resolve itself.
   const unresolved = adjudication?.state === "unresolved";
 

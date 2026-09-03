@@ -342,9 +342,9 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
     next.metrics = mergeScenarioMetrics(rec.metrics, next.metrics);
     // Overrides and their notes survive: a regate re-decides the gate, and an author
     // override is a statement about the judge, not about the needle.
-    // `regate` re-evaluates gates from saved artifacts and asks no judge anything:
-    // `objective` is freshly recomputed above, and the recorded judge panel still
-    // describes the current judgments.
+    // `regate` re-evaluates gates from saved artifacts. It may judge a previously
+    // blocked fail→pass rep above; carrying the recorded panel still preserves any
+    // earlier multi-judge decision for judgments that were not replaced.
     scenarios.push(rebuildScenarioResult(next, rec, { objective: "fresh", adjudication: "carry" }));
 
     const to = next.judge_verdict;
