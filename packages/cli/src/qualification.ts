@@ -7,6 +7,8 @@ import {
   pollQualificationInvocation,
   prepareQualificationInvocation,
   qualificationCanonicalJson,
+  recordQualificationCell,
+  recordQualificationJudgePanel,
   qualificationInvocationStatus,
   readQualificationSpoolConfig,
   superviseQualificationInvocation,
@@ -67,7 +69,7 @@ function print(value: unknown): void {
 
 export async function cmdQualification(args: QualificationCliArgs): Promise<void> {
   const operation = args._[0];
-  if (!operation) throw new Error("usage: skill-harness qualification <prepare|start|status|poll|validate|abort> ...");
+  if (!operation) throw new Error("usage: skill-harness qualification <prepare|start|status|poll|validate|panel|cell|abort> ...");
   if (operation === "prepare") {
     const invocation = prepareQualificationInvocation({
       spool_dir: required(args, "spool"),
@@ -81,6 +83,21 @@ export async function cmdQualification(args: QualificationCliArgs): Promise<void
   const spool = required(args, "spool");
   if (operation === "validate") {
     print(validateQualificationRunnerSpool(spool));
+    return;
+  }
+  if (operation === "panel") {
+    print(recordQualificationJudgePanel({
+      spool_dir: spool,
+      panel_id: required(args, "panel-id"),
+      member_invocation_ids: required(args, "members").split(",").filter(Boolean),
+    }));
+    return;
+  }
+  if (operation === "cell") {
+    print(recordQualificationCell({
+      spool_dir: spool,
+      cell_id: required(args, "cell-id"),
+    }));
     return;
   }
   const id = required(args, "id");

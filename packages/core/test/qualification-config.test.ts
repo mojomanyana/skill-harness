@@ -9,6 +9,7 @@ import {
   QUALIFICATION_ACCOUNTING_POLICY,
   QUALIFICATION_OAUTH_DIRECTORY_POLICY_V1,
   QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
+  QUALIFICATION_PANEL_ACCOUNTING_POLICY,
   QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3,
   parseQualificationConfig,
   parseQualificationRequest,
@@ -19,6 +20,7 @@ import {
   verifyQualificationExecutable,
   verifyQualificationResource,
 } from "../src/qualification-config.js";
+import { QUALIFICATION_JUDGE_PANEL_POLICY } from "../src/qualification-panels.js";
 
 const h = (character: string, size = 64) => character.repeat(size);
 
@@ -78,6 +80,10 @@ function config() {
   };
 }
 
+function board(critical = false) {
+  return { schema_version: "qualification-board-v1", read_only: true, cells: [{ id: "fake-A1-luna", scenario_id: "fake-A1", measurement_identity_sha256: h("c"), scenario_version: "1", stimulus_sha256: h("d"), rubric_sha256: h("e"), subject_input_sha256: h("f"), subject_arm: "fake-luna-subject", judge_arms: ["fake-sol-judge", "fake-sol-judge", "fake-sol-judge"], panels: [{ id: "fake-A1-r0", repetition: 0 }], critical, pass_threshold: 1 }] };
+}
+
 function request() {
   return {
     schema_version: "qualification-invocation-request-v1",
@@ -122,6 +128,20 @@ describe("qualification configuration v1", () => {
     expect(qualificationConfigDigest(v2)).not.toBe(qualificationConfigDigest(historical));
     expect(() => parseQualificationConfig({ ...config(), oauth_directory_policy: "qualification-oauth-directory-policy-v3" }))
       .toThrow(/oauth_directory_policy.*v2/i);
+  });
+
+  it("selects the closed judge-panel agreement and call budget prospectively", () => {
+    const historical = parseQualificationConfig(config());
+    expect(historical).not.toHaveProperty("judge_panel");
+    const value = { ...config(), oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2, terminal_receipt_version: QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3, judge_panel: structuredClone(QUALIFICATION_JUDGE_PANEL_POLICY), board: board(), accounting: structuredClone(QUALIFICATION_PANEL_ACCOUNTING_POLICY) };
+    const selected = parseQualificationConfig(value);
+    expect(selected.judge_panel).toEqual(QUALIFICATION_JUDGE_PANEL_POLICY);
+    expect(qualificationConfigDigest(selected)).not.toBe(qualificationConfigDigest(historical));
+    expect(selected.accounting).toEqual(QUALIFICATION_PANEL_ACCOUNTING_POLICY);
+    const { board: _missing, ...withoutBoard } = value;
+    expect(() => parseQualificationConfig(withoutBoard)).toThrow(/requires.*read-only board/i);
+    expect(() => parseQualificationConfig({ ...value, judge_panel: { ...QUALIFICATION_JUDGE_PANEL_POLICY, initial_judge_calls: 1 } }))
+      .toThrow(/judge_panel.*canonical/i);
   });
 
   it("selects terminal receipt v3 prospectively without upgrading historical configurations", () => {
@@ -197,6 +217,16 @@ describe("qualification configuration v1", () => {
       .toThrow(/calibration.*non-measurement/i);
     expect(() => parseQualificationRequest({ ...request(), selected_arm: "fake-sol-judge" }, parsedConfig))
       .toThrow(/subject.*subject arm/i);
+
+    const panelConfig = parseQualificationConfig({ ...config(), oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2, terminal_receipt_version: QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3, judge_panel: structuredClone(QUALIFICATION_JUDGE_PANEL_POLICY), board: board(), accounting: structuredClone(QUALIFICATION_PANEL_ACCOUNTING_POLICY) });
+    const judgeRequest = {
+      ...request(), role: "judge", selected_arm: "fake-sol-judge",
+      panel: { id: "fake-A1-r0", member_ordinal: 1, subject_invocation_id: "subject-0001", subject_artifact_sha256: h("a") },
+    };
+    expect(parseQualificationRequest(judgeRequest, panelConfig).panel).toEqual(judgeRequest.panel);
+    expect(() => parseQualificationRequest({ ...request(), measurement_identity_sha256: h("a") }, panelConfig)).toThrow(/approved board/i);
+    expect(() => parseQualificationRequest({ ...judgeRequest, panel: { ...judgeRequest.panel, member_ordinal: 4 } }, panelConfig)).toThrow(/member_ordinal/i);
+    expect(() => parseQualificationRequest(judgeRequest, parsedConfig)).toThrow(/panel.*configuration/i);
   });
 });
 

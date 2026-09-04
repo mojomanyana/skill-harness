@@ -9,25 +9,18 @@
     "schema_version": { "const": "qualification-config-v1" },
     "oauth_directory_policy": { "const": "qualification-oauth-directory-policy-v2" },
     "terminal_receipt_version": { "const": "qualification-terminal-receipt-v3" },
+    "judge_panel": { "$ref": "#/$defs/judgePanel" },
+    "board": { "$ref": "#/$defs/board" },
     "mode": { "enum": ["production", "test"] },
     "product": { "$ref": "#/$defs/productPin" },
     "engine": { "$ref": "#/$defs/enginePin" },
     "producer": { "$ref": "#/$defs/producerPin" },
     "runner": { "$ref": "#/$defs/runner" },
-    "accounting": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["wave_a", "complete_program", "ceilings", "initial"],
-      "properties": {
-        "wave_a": { "$ref": "#/$defs/waveA" },
-        "complete_program": { "$ref": "#/$defs/completeProgram" },
-        "ceilings": { "$ref": "#/$defs/ceilings" },
-        "initial": { "$ref": "#/$defs/initial" }
-      }
-    },
+    "accounting": { "oneOf": [{ "$ref": "#/$defs/accountingLegacy" }, { "$ref": "#/$defs/accountingPanel" }] },
     "arms": { "type": "array", "minItems": 2, "uniqueItems": true, "items": { "$ref": "#/$defs/arm" } }
   },
   "allOf": [
+    { "if": { "properties": { "judge_panel": { "$ref": "#/$defs/judgePanel" } }, "required": ["judge_panel"] }, "then": { "required": ["oauth_directory_policy", "terminal_receipt_version", "board"], "properties": { "accounting": { "$ref": "#/$defs/accountingPanel" }, "board": { "$ref": "#/$defs/board" }, "oauth_directory_policy": { "const": "qualification-oauth-directory-policy-v2" }, "terminal_receipt_version": { "const": "qualification-terminal-receipt-v3" } } }, "else": { "properties": { "accounting": { "$ref": "#/$defs/accountingLegacy" }, "board": false } } },
     { "if": { "properties": { "terminal_receipt_version": { "const": "qualification-terminal-receipt-v3" } }, "required": ["terminal_receipt_version"] }, "then": { "properties": { "oauth_directory_policy": { "const": "qualification-oauth-directory-policy-v2" } }, "required": ["oauth_directory_policy"] } },
     { "type": "object", "properties": { "arms": { "type": "array", "contains": { "type": "object", "properties": { "kind": { "const": "subject" } }, "required": ["kind"] }, "minContains": 1 } } },
     { "type": "object", "properties": { "arms": { "type": "array", "contains": { "type": "object", "properties": { "kind": { "const": "judge" } }, "required": ["kind"] }, "minContains": 1 } } },
@@ -139,6 +132,49 @@
         "conflicting_parent_environment": { "enum": ["refuse", "remove-and-record"] }
       }
     },
+    "board": {
+      "type": "object", "additionalProperties": false, "required": ["schema_version", "read_only", "cells"],
+      "properties": {
+        "schema_version": { "const": "qualification-board-v1" }, "read_only": { "const": true },
+        "cells": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/boardCell" } }
+      }
+    },
+    "boardCell": {
+      "type": "object", "additionalProperties": false, "required": ["id", "scenario_id", "measurement_identity_sha256", "scenario_version", "stimulus_sha256", "rubric_sha256", "subject_input_sha256", "subject_arm", "judge_arms", "panels", "critical", "pass_threshold"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" },
+        "scenario_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" },
+        "measurement_identity_sha256": { "$ref": "#/$defs/sha256" }, "scenario_version": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" },
+        "stimulus_sha256": { "$ref": "#/$defs/sha256" }, "rubric_sha256": { "$ref": "#/$defs/sha256" }, "subject_input_sha256": { "$ref": "#/$defs/sha256" },
+        "subject_arm": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" },
+        "judge_arms": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" } },
+        "panels": { "type": "array", "minItems": 1, "items": { "type": "object", "additionalProperties": false, "required": ["id", "repetition"], "properties": { "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" }, "repetition": { "type": "integer", "minimum": 0 } } } },
+        "critical": { "type": "boolean" }, "pass_threshold": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "judgePanel": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "initial_judge_calls", "agreement", "split", "max_judge_calls", "error", "unresolved", "behavioral_failure", "integrity_failure", "wave_a_call_budget", "complete_program_call_budget"],
+      "properties": {
+        "schema_version": { "const": "qualification-judge-panel-policy-v1" },
+        "initial_judge_calls": { "const": 2 },
+        "agreement": { "const": "two-matching-clean-votes" },
+        "split": { "const": "one-conditional-tie-break" },
+        "max_judge_calls": { "const": 3 },
+        "error": { "const": "record-as-non-vote" },
+        "unresolved": { "const": "inconclusive-blocks-acceptance" },
+        "behavioral_failure": { "const": "record-and-continue-read-only-board" },
+        "integrity_failure": { "const": "halt" },
+        "wave_a_call_budget": {
+          "type": "object", "additionalProperties": false, "required": ["artifacts", "minimum", "maximum"],
+          "properties": { "artifacts": { "const": 54 }, "minimum": { "const": 108 }, "maximum": { "const": 162 } }
+        },
+        "complete_program_call_budget": {
+          "type": "object", "additionalProperties": false, "required": ["artifacts", "minimum", "maximum"],
+          "properties": { "artifacts": { "const": 642 }, "minimum": { "const": 1284 }, "maximum": { "const": 1926 } }
+        }
+      }
+    },
     "artifact": {
       "type": "object", "additionalProperties": false, "required": ["type", "relative_path_template"],
       "properties": { "type": { "const": "pi-jsonl" }, "relative_path_template": { "const": "artifacts/{invocation_id}.jsonl" } }
@@ -164,6 +200,14 @@
         "artifact": { "$ref": "#/$defs/artifact" }, "fallback": { "const": false }, "metered_override": { "const": false }
       }
     },
+    "accountingLegacy": {
+      "type": "object", "additionalProperties": false, "required": ["wave_a", "complete_program", "ceilings", "initial"],
+      "properties": { "wave_a": { "$ref": "#/$defs/waveA" }, "complete_program": { "$ref": "#/$defs/completeProgram" }, "ceilings": { "$ref": "#/$defs/ceilings" }, "initial": { "$ref": "#/$defs/initial" } }
+    },
+    "accountingPanel": {
+      "type": "object", "additionalProperties": false, "required": ["wave_a", "complete_program", "ceilings", "initial"],
+      "properties": { "wave_a": { "$ref": "#/$defs/waveAPanel" }, "complete_program": { "$ref": "#/$defs/completeProgramPanel" }, "ceilings": { "$ref": "#/$defs/ceilingsPanel" }, "initial": { "$ref": "#/$defs/initial" } }
+    },
     "pair": {
       "type": "object", "additionalProperties": false, "required": ["subject", "judge"],
       "properties": { "subject": { "type": "integer" }, "judge": { "type": "integer" } }
@@ -175,6 +219,18 @@
     "completeProgram": {
       "type": "object", "additionalProperties": false, "required": ["subject", "judge"],
       "properties": { "subject": { "const": 642 }, "judge": { "const": 642 } }
+    },
+    "waveAPanel": {
+      "type": "object", "additionalProperties": false, "required": ["subject", "judge"],
+      "properties": { "subject": { "const": 54 }, "judge": { "const": 162 } }
+    },
+    "completeProgramPanel": {
+      "type": "object", "additionalProperties": false, "required": ["subject", "judge"],
+      "properties": { "subject": { "const": 642 }, "judge": { "const": 1926 } }
+    },
+    "ceilingsPanel": {
+      "type": "object", "additionalProperties": false, "required": ["subject", "judge"],
+      "properties": { "subject": { "const": 700 }, "judge": { "const": 2100 } }
     },
     "ceilings": {
       "type": "object", "additionalProperties": false, "required": ["subject", "judge"],

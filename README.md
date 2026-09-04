@@ -257,13 +257,19 @@ skill-harness list   --skills <root>                          # discovered skill
 skill-harness lint   <skill|all> --skills <root>               # validate specs/fixtures + results-consistency; CI gate (exits non-zero on findings)
 skill-harness qualification prepare --spool DIR --config FILE --request FILE [--expected-config-sha256 HEX]  # digest required in production
 skill-harness qualification start|status|poll|abort --spool DIR --id ID
-skill-harness qualification validate --spool DIR               # qualification-runner-v1 durable spool; separate from ordinary run/grade
+skill-harness qualification panel --spool DIR --panel-id ID --members ID,ID[,ID]  # offline collapse under approved board
+skill-harness qualification cell --spool DIR --cell-id ID  # offline aggregate under approved board
+skill-harness qualification validate --spool DIR               # validates invocations plus derived panel/cell evidence
 ```
 
 The separately versioned [`qualification-runner-v1`](docs/QUALIFICATION-RUNNER.md)
 uses external, closed configuration; exact source-built pins; an OAuth-only child
 environment; atomic exactly-once call accounting; detached supervision; and
-post-run provider/model attestation. New configurations explicitly select
+post-run provider/model attestation. A prospective `qualification-judge-panel-policy-v1`
+configuration reuses the adjudication clean-vote collapse: two initial calls, a third only
+on a clean split, and persisted per-cell disagreement rates; each member remains its own
+exactly-once invocation. Critical behavioral failures fail acceptance but do not halt a
+read-only board. New configurations explicitly select
 `qualification-oauth-directory-policy-v2`, which permits only `auth.json`, optional
 empty `models.json`, and metadata-only Pi runtime state `models-store.json` while
 leaving omitted-policy historical evidence unchanged. It contains no Principal board,

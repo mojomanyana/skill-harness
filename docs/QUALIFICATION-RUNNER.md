@@ -9,6 +9,14 @@ OAuth/environment policy, and what durable artifacts did it leave?**
 No measurement or holdout is embedded here. Product, engine, producer, runner, arms,
 private input, and measurement identity are external inputs.
 
+A prospective configuration may select `qualification-judge-panel-policy-v1`. This does
+not turn the runner into a rubric owner: it makes the judging methodology explicit and
+reuses skill-harness's clean-vote collapse. Every saved subject artifact gets two initial
+judge invocations; two matching clean votes confirm it; a clean 1–1 split authorizes one
+third invocation; a clean 2-of-3 majority tie-breaks it. ERROR, ambiguous, and internally
+contradictory answers are retained but are not votes. Fewer than two matching clean votes
+is `inconclusive`, which blocks acceptance without being relabeled as behavioral FAIL.
+
 ## Coordinator lifecycle
 
 Create a closed `qualification-config-v1` JSON file and one
@@ -16,6 +24,8 @@ Create a closed `qualification-config-v1` JSON file and one
 
 - `schemas/qualification-config-v1.schema.json`
 - `schemas/qualification-invocation-request-v1.schema.json`
+- `schemas/qualification-judge-panel-result-v1.schema.json`
+- `schemas/qualification-cell-result-v1.schema.json`
 
 Each request pre-binds `continuation_authority_sha256` and an RFC3339
 `continuation_authority_expires_at`. Generate at least 32 random bytes outside the
@@ -44,6 +54,12 @@ node bin/skill-harness.js qualification poll \
 # Validate canonical state, hash chains, terminal receipts, and artifact bytes.
 node bin/skill-harness.js qualification validate --spool /absolute/spool
 
+# Offline: collapse already-terminal judge member invocations and then aggregate reps.
+node bin/skill-harness.js qualification panel --spool /absolute/spool \
+  --panel-id scenario-arm-r0 --members judge-r0-1,judge-r0-2[,judge-r0-3]
+node bin/skill-harness.js qualification cell --spool /absolute/spool \
+  --cell-id scenario-arm
+
 # Durable operator abort. Reason is a bounded identifier, never free-form secrets.
 node bin/skill-harness.js qualification abort \
   --spool /absolute/spool --id invocation-id --reason operator-request
@@ -52,7 +68,12 @@ node bin/skill-harness.js qualification abort \
 `start` launches a detached local supervisor and waits only for its durable claim.
 The caller may exit while the supervisor continues until the configured deadline.
 A controller timeout is not authority to restart it. `status` and `poll` always read
-the same invocation.
+the same invocation. `panel`, `cell`, and `validate` launch no model or judge: they
+reopen validated receipts/artifacts and write or verify canonical derived evidence.
+A third panel member is valid only after the first two clean votes split. That gate runs
+before OAuth readiness and before the atomic launch claim, so an unneeded tie-break consumes
+zero calls. A two-member clean split is not publishable as a final immutable panel; record it
+after the authorized third member terminates.
 
 ## State and crash behavior
 
@@ -110,9 +131,65 @@ Operational cleanup is coordinator-owned: first run `qualification validate`, re
 the canonical spool with the packet evidence, and remove only disposable inert/test
 spools. Never delete a nonterminal production spool as a substitute for aborting it.
 
+## Judge-panel configuration
+
+The rule is data, not an implementation default. Select it together with OAuth-directory
+policy v2, terminal receipt v3, and the panel accounting policy:
+
+```json
+{
+  "oauth_directory_policy": "qualification-oauth-directory-policy-v2",
+  "terminal_receipt_version": "qualification-terminal-receipt-v3",
+  "judge_panel": {
+    "schema_version": "qualification-judge-panel-policy-v1",
+    "initial_judge_calls": 2,
+    "agreement": "two-matching-clean-votes",
+    "split": "one-conditional-tie-break",
+    "max_judge_calls": 3,
+    "error": "record-as-non-vote",
+    "unresolved": "inconclusive-blocks-acceptance",
+    "behavioral_failure": "record-and-continue-read-only-board",
+    "integrity_failure": "halt",
+    "wave_a_call_budget": { "artifacts": 54, "minimum": 108, "maximum": 162 },
+    "complete_program_call_budget": { "artifacts": 642, "minimum": 1284, "maximum": 1926 }
+  },
+  "board": {
+    "schema_version": "qualification-board-v1",
+    "read_only": true,
+    "cells": [{
+      "id": "scenario-arm",
+      "scenario_id": "scenario",
+      "measurement_identity_sha256": "<64 hex>",
+      "scenario_version": "1",
+      "stimulus_sha256": "<64 hex>",
+      "rubric_sha256": "<64 hex>",
+      "subject_input_sha256": "<64 hex>",
+      "subject_arm": "subject-arm",
+      "judge_arms": ["judge-arm", "judge-arm", "judge-arm"],
+      "panels": [{ "id": "scenario-arm-r0", "repetition": 0 }],
+      "critical": false,
+      "pass_threshold": 1
+    }]
+  },
+  "accounting": {
+    "wave_a": { "subject": 54, "judge": 162 },
+    "complete_program": { "subject": 642, "judge": 1926 },
+    "ceilings": { "subject": 700, "judge": 2100 },
+    "initial": { "subject": 0, "judge": 0 }
+  }
+}
+```
+
+Omission preserves historical single-draw configuration and record bytes. The externally
+approved board binds exact cell IDs, measurement/scenario/stimulus/rubric/subject-input
+identity, subject arm, each judge ordinal's arm, panel/repetition membership, Criticality,
+and thresholds; derived commands do not accept caller-authored replacements. A panel-enabled
+judge request must additionally bind `panel.id`, `member_ordinal`,
+`subject_invocation_id`, and `subject_artifact_sha256`.
+
 ## Exactly-once call accounting
 
-The fixed v1 policy is:
+The historical single-draw v1 policy is:
 
 | Scope | Subject | Judge |
 |---|---:|---:|
@@ -120,6 +197,15 @@ The fixed v1 policy is:
 | Complete-program target | 642 | 642 |
 | Hard ceiling | 700 | 700 |
 | Initial post-fix count | 0 | 0 |
+
+A configuration selecting `qualification-judge-panel-policy-v1` instead records the
+maximum authorized call budget: Wave A subject 54 / judge 162, complete program subject
+642 / judge 1926, hard ceilings subject 700 / judge 2100. Its panel policy records the
+minimum too: 108 judge calls for 54 Wave A artifacts and 1284 for 642 complete-program
+artifacts. The exact realized count is the accounting ledger's event count: 2 per artifact,
+plus exactly 1 for each clean initial split. A range is necessary because the third call is
+conditional; treating the maximum as calls already consumed would be as false as omitting
+those calls from the ceiling.
 
 Rules:
 
@@ -137,9 +223,50 @@ Rules:
    call ceiling.
 8. `counts_as_measurement` is explicit but not requester-discretionary: request,
    invocation, and accounting validation all enforce that fixed role matrix.
+9. A panel is not one invocation. Every member has a distinct invocation ID, OAuth
+   readiness evidence, launch claim, accounting event, process occurrence, artifact, and
+   terminal receipt. Panel collapse launches nothing and cannot erase a consumed claim.
+10. Panel judge requests bind panel ID, ordinal, subject invocation ID, and validated
+    subject-artifact SHA-256. `qualification-invocation-v4` carries that binding under
+    terminal-receipt-v3's immutable invocation digest.
 
 The ledger proves consistency relative to the trusted local files it reads. It does
 not prove that a local owner did not replace the entire spool.
+
+## Behavioral failure versus collection halt
+
+The configured policy separates two decisions. As in ordinary skill-harness repetition
+aggregation, a declared threshold cannot weaken Critical semantics: every settled Critical
+repetition must pass. A settled panel FAIL, including a Critical FAIL, sets cell acceptance
+to `fail` and `critical_failure: true` where applicable, but a
+predetermined read-only behavioral board records `collection: continue`. Execution order
+therefore cannot decide how much of the board exists. An unresolved panel records
+`acceptance: inconclusive`; it is not a behavioral FAIL. Authorization, identity,
+authentication, accounting-ceiling, corruption, receipt/artifact-integrity, or launch
+failures remain operational failures and may halt collection. “Wave fails acceptance” and
+“runner must stop collecting valid independent evidence” are deliberately different axes.
+
+Final validation compares the complete persisted panel/cell set with the externally
+approved board declaration. Missing, extra, duplicated, or wrong-repetition evidence fails
+closed; a caller cannot duplicate a passing panel, omit a failing repetition, or weaken a
+Critical threshold through `qualification cell` flags.
+
+Each persisted cell has a first-class `disagreement` block:
+
+```json
+{
+  "judge_calls": 7,
+  "clean_votes": 7,
+  "split_artifacts": 1,
+  "artifacts_with_two_clean_initial_votes": 3,
+  "unresolved_artifacts": 0,
+  "judge_split_rate": 0.3333333333333333
+}
+```
+
+Each artifact panel also records `initial_split` and `minority_rate` (`0` when unanimous,
+`1/3` for a clean 2–1 panel). `qualification validate` recomputes derived files from fully
+validated member receipts and artifact bytes; a hand-edited aggregate is rejected.
 
 ## OAuth-only execution boundary
 

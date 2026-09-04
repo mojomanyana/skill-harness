@@ -3,7 +3,8 @@ import { chmodSync, existsSync, linkSync, mkdtempSync, mkdirSync, readFileSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { QUALIFICATION_ACCOUNTING_POLICY, QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2, QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3, qualificationCanonicalJson, qualificationConfigDigest, qualificationSha256 } from "../src/qualification-config.js";
+import { QUALIFICATION_ACCOUNTING_POLICY, QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2, QUALIFICATION_PANEL_ACCOUNTING_POLICY, QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3, qualificationCanonicalJson, qualificationConfigDigest, qualificationSha256 } from "../src/qualification-config.js";
+import { QUALIFICATION_JUDGE_PANEL_POLICY } from "../src/qualification-panels.js";
 import {
   appendQualificationAccountingEvent,
   createQualificationAccountingLedger,
@@ -132,6 +133,39 @@ describe("qualification preparation", () => {
     writeFileSync(laterRequest, JSON.stringify(request(historical, "invocation-0002")));
     expect(() => prepareQualificationInvocation({ spool_dir: historical.spool, config_path: supersedingPath, request_path: laterRequest }))
       .toThrow(/spool.*different configuration identity/i);
+  });
+
+  it("binds panel identity and the subject artifact into a prospective v4 judge invocation", () => {
+    const files = setupFiles();
+    writeFileSync(files.prompt, `{\"judge\":\"prompt\",\"subject_artifact_sha256\":\"${hex("c")}\"}\n`);
+    const config = JSON.parse(readFileSync(files.configPath, "utf8"));
+    config.oauth_directory_policy = QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+    config.terminal_receipt_version = QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3;
+    config.judge_panel = structuredClone(QUALIFICATION_JUDGE_PANEL_POLICY);
+    config.board = { schema_version: "qualification-board-v1", read_only: true, cells: [{ id: "fake-A1-luna", scenario_id: "fake-A1", measurement_identity_sha256: hex("c"), scenario_version: "1", stimulus_sha256: hex("d"), rubric_sha256: hex("e"), subject_input_sha256: sha(readFileSync(files.prompt)), subject_arm: "fake-subject", judge_arms: ["fake-judge", "fake-judge", "fake-judge"], panels: [{ id: "fake-A1-r0", repetition: 0 }], critical: false, pass_threshold: 1 }] };
+    config.accounting = structuredClone(QUALIFICATION_PANEL_ACCOUNTING_POLICY);
+    writeFileSync(files.configPath, JSON.stringify(config));
+    const value = request(files, "judge-1", "judge", "fake-judge") as any;
+    value.panel = { id: "fake-A1-r0", member_ordinal: 1, subject_invocation_id: "subject-1", subject_artifact_sha256: hex("c") };
+    const path = join(files.root, "judge-request.json");
+    writeFileSync(path, JSON.stringify(value));
+    const prepared = prepareQualificationInvocation({ spool_dir: files.spool, config_path: files.configPath, request_path: path });
+    expect(prepared).toMatchObject({ schema_version: "qualification-invocation-v4", panel: value.panel, ceiling_policy: QUALIFICATION_PANEL_ACCOUNTING_POLICY });
+    expect(readQualificationInvocation(files.spool, prepared.invocation_id)).toEqual(prepared);
+
+    const missing = setupFiles();
+    writeFileSync(missing.prompt, '{"judge":"prompt without subject binding"}\n');
+    const missingConfig = JSON.parse(readFileSync(missing.configPath, "utf8"));
+    missingConfig.oauth_directory_policy = QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
+    missingConfig.terminal_receipt_version = QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3;
+    missingConfig.judge_panel = structuredClone(QUALIFICATION_JUDGE_PANEL_POLICY);
+    missingConfig.board = { ...config.board, cells: [{ ...config.board.cells[0], subject_input_sha256: sha(readFileSync(missing.prompt)) }] };
+    missingConfig.accounting = structuredClone(QUALIFICATION_PANEL_ACCOUNTING_POLICY);
+    writeFileSync(missing.configPath, JSON.stringify(missingConfig));
+    const missingValue = request(missing, "judge-1", "judge", "fake-judge") as any;
+    missingValue.panel = value.panel;
+    const missingPath = join(missing.root, "judge-request.json"); writeFileSync(missingPath, JSON.stringify(missingValue));
+    expect(() => prepareQualificationInvocation({ spool_dir: missing.spool, config_path: missing.configPath, request_path: missingPath })).toThrow(/structurally contain.*subject artifact/i);
   });
 
   it("rejects source replacement between initial validation and governed v3 snapshot", () => {
@@ -354,6 +388,15 @@ describe("qualification accounting", () => {
     expect(report.counts).toMatchObject({ subject: 4, judge: 2, measurement: 2, total: 6 });
     expect(report.roles).toMatchObject({ subject: 1, judge: 1, "holdout-author": 1, "holdout-reviewer": 1, calibration: 1, canary: 1 });
     expect(() => appendQualificationAccountingEvent(ledger, event("subject-1"))).toThrow(/duplicate invocation/i);
+  });
+
+  it("records the panel call budget in the ledger and counts every member independently", () => {
+    let ledger = createQualificationAccountingLedger(QUALIFICATION_PANEL_ACCOUNTING_POLICY);
+    ledger = appendQualificationAccountingEvent(ledger, event("panel-1", "judge", "judge"));
+    ledger = appendQualificationAccountingEvent(ledger, event("panel-2", "judge", "judge"));
+    ledger = appendQualificationAccountingEvent(ledger, event("panel-3", "judge", "judge"));
+    expect(validateQualificationAccountingLedger(ledger)).toMatchObject({ counts: { judge: 3, measurement: 3, total: 3 } });
+    expect(ledger.policy).toEqual(QUALIFICATION_PANEL_ACCOUNTING_POLICY);
   });
 
   it("enforces the exact 700/700 ceiling before claim", () => {

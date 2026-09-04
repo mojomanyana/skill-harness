@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-harness.dev/schemas/qualification-judge-panel-result-v1.schema.json",
+  "title": "skill-harness qualification judge panel result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "panel_id", "scenario_id", "subject_arm", "repetition", "critical", "state", "members", "judge_calls", "clean_votes", "disagreement", "acceptance", "collection"],
+  "properties": {
+    "schema_version": { "const": "qualification-judge-panel-result-v1" },
+    "panel_id": { "$ref": "#/$defs/id" }, "scenario_id": { "$ref": "#/$defs/id" }, "subject_arm": { "$ref": "#/$defs/id" },
+    "repetition": { "type": "integer", "minimum": 0 }, "critical": { "type": "boolean" },
+    "state": { "enum": ["confirmed", "tie_broken", "unresolved"] }, "verdict": { "enum": ["PASS", "FAIL"] },
+    "members": { "type": "array", "minItems": 2, "maxItems": 3, "items": { "$ref": "#/$defs/member" } },
+    "judge_calls": { "type": "integer", "minimum": 2, "maximum": 3 }, "clean_votes": { "type": "integer", "minimum": 0, "maximum": 3 },
+    "disagreement": { "type": "object", "additionalProperties": false, "required": ["initial_split", "minority_rate"], "properties": { "initial_split": { "type": "boolean" }, "minority_rate": { "type": "number", "minimum": 0, "maximum": 0.5 } } },
+    "acceptance": { "enum": ["pass", "fail", "inconclusive"] }, "collection": { "const": "continue" }
+  },
+  "allOf": [
+    { "if": { "properties": { "state": { "const": "unresolved" } }, "required": ["state"] }, "then": { "properties": { "acceptance": { "const": "inconclusive" } }, "not": { "properties": { "verdict": {} }, "required": ["verdict"] } }, "else": { "required": ["verdict"], "properties": { "acceptance": { "enum": ["pass", "fail"] } } } },
+    { "if": { "properties": { "state": { "const": "tie_broken" } }, "required": ["state"] }, "then": { "properties": { "members": { "type": "array", "minItems": 3, "maxItems": 3 }, "disagreement": { "type": "object", "properties": { "initial_split": { "const": true } } } } } },
+    { "if": { "properties": { "verdict": { "const": "PASS" } }, "required": ["verdict"] }, "then": { "properties": { "acceptance": { "const": "pass" } } } },
+    { "if": { "properties": { "verdict": { "const": "FAIL" } }, "required": ["verdict"] }, "then": { "properties": { "acceptance": { "const": "fail" } } } },
+    { "if": { "properties": { "judge_calls": { "const": 2 } }, "required": ["judge_calls"] }, "then": { "properties": { "members": { "type": "array", "minItems": 2, "maxItems": 2 } } } },
+    { "if": { "properties": { "judge_calls": { "const": 3 } }, "required": ["judge_calls"] }, "then": { "properties": { "members": { "type": "array", "minItems": 3, "maxItems": 3 } } } },
+    { "if": { "properties": { "disagreement": { "type": "object", "properties": { "initial_split": { "const": true } }, "required": ["initial_split"] } }, "required": ["disagreement"] }, "then": { "properties": { "state": { "const": "tie_broken" }, "members": { "type": "array", "minItems": 3, "maxItems": 3 } } } }
+  ],
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "member": {
+      "type": "object", "additionalProperties": false,
+      "required": ["invocation_id", "ordinal", "judge", "verdict", "reason", "suspect", "artifact", "terminal_receipt_sha256"],
+      "properties": {
+        "invocation_id": { "$ref": "#/$defs/id" }, "ordinal": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "judge": { "type": "object", "additionalProperties": false, "required": ["provider", "model"], "properties": { "provider": { "type": "string", "minLength": 1 }, "model": { "type": "string", "minLength": 1 } } },
+        "verdict": { "enum": ["PASS", "FAIL", "ERROR", "JUDGE-AMBIGUOUS"] }, "reason": { "type": "string" }, "suspect": { "type": "boolean" },
+        "artifact": { "oneOf": [{ "type": "null" }, { "type": "object", "additionalProperties": false, "required": ["sha256", "bytes"], "properties": { "sha256": { "$ref": "#/$defs/sha256" }, "bytes": { "type": "integer", "minimum": 0 } } }] },
+        "terminal_receipt_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}
