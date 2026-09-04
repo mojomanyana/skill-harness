@@ -28,6 +28,7 @@ import {
 } from "./qualification-lock.js";
 import {
   QUALIFICATION_ACCOUNTING_POLICY,
+  QUALIFICATION_PANEL_ACCOUNTING_POLICY,
   QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
   QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3,
   qualificationOAuthDirectoryPolicy,
@@ -35,6 +36,7 @@ import {
   type QualificationConfigV1,
   type QualificationInvocationRequestV1,
   type QualificationRole,
+  type QualificationAccountingPolicy,
   parseQualificationConfig,
   parseQualificationRequest,
   qualificationCanonicalJson,
@@ -48,6 +50,7 @@ import {
 export const QUALIFICATION_INVOCATION_VERSION = "qualification-invocation-v1" as const;
 export const QUALIFICATION_INVOCATION_VERSION_V2 = "qualification-invocation-v2" as const;
 export const QUALIFICATION_INVOCATION_VERSION_V3 = "qualification-invocation-v3" as const;
+export const QUALIFICATION_INVOCATION_VERSION_V4 = "qualification-invocation-v4" as const;
 export const QUALIFICATION_INVOCATION_INPUT_BINDING_VERSION = "qualification-invocation-input-binding-v1" as const;
 export const QUALIFICATION_LIFECYCLE_VERSION = "qualification-lifecycle-v1" as const;
 export const QUALIFICATION_ACCOUNTING_VERSION = "qualification-accounting-v1" as const;
@@ -75,7 +78,7 @@ export interface QualificationInvocationInputOccurrenceV1 {
 }
 
 export interface QualificationInvocationV1 {
-  schema_version: typeof QUALIFICATION_INVOCATION_VERSION | typeof QUALIFICATION_INVOCATION_VERSION_V2 | typeof QUALIFICATION_INVOCATION_VERSION_V3;
+  schema_version: typeof QUALIFICATION_INVOCATION_VERSION | typeof QUALIFICATION_INVOCATION_VERSION_V2 | typeof QUALIFICATION_INVOCATION_VERSION_V3 | typeof QUALIFICATION_INVOCATION_VERSION_V4;
   /** Present only in v2/v3 records; omission retains the historical digest. */
   oauth_directory_policy?: typeof QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
   /** Present only in v3 records; omission cannot be interpreted as v3. */
@@ -93,6 +96,8 @@ export interface QualificationInvocationV1 {
   counts_as_measurement: boolean;
   arms: { subject: string; judge: string; selected: string };
   repetition: number;
+  /** Present only in v4 judge-panel member invocations. */
+  panel?: NonNullable<QualificationInvocationRequestV1["panel"]>;
   requested: { provider: string; model: string };
   authentication: QualificationArmV1["authentication"];
   pins: {
@@ -103,7 +108,7 @@ export interface QualificationInvocationV1 {
   };
   configuration_sha256: string;
   created_at: string;
-  ceiling_policy: typeof QUALIFICATION_ACCOUNTING_POLICY;
+  ceiling_policy: QualificationAccountingPolicy;
   execution: {
     executable: QualificationArmV1["executable"];
     executable_identity: ReturnType<typeof verifyQualificationExecutable>;
@@ -155,7 +160,7 @@ export interface QualificationAccountingEvent extends QualificationAccountingEve
 }
 export interface QualificationAccountingLedgerV1 {
   schema_version: typeof QUALIFICATION_ACCOUNTING_VERSION;
-  policy: typeof QUALIFICATION_ACCOUNTING_POLICY;
+  policy: QualificationAccountingPolicy;
   events: QualificationAccountingEvent[];
   chain_head: string | null;
 }
@@ -172,6 +177,7 @@ export interface QualificationSpoolValidation {
 }
 
 export function qualificationSpoolPaths(spoolDir: string, invocationId?: string) {
+  if (invocationId !== undefined) assertQualificationIdentifier(invocationId, "invocation_id");
   const root = resolve(spoolDir);
   const invocation = invocationId ? join(root, "invocations", invocationId) : undefined;
   return {
@@ -219,7 +225,20 @@ export function prepareQualificationInvocation(options: {
     mkdirSync(paths.artifacts, { recursive: true, mode: 0o700 });
     const configSha = approvedConfigSha;
     initializeSpoolConfiguration(paths.configuration, config, configSha);
-    initializeAccounting(paths.accounting);
+    initializeAccounting(paths.accounting, config.accounting);
+    if (config.judge_panel) {
+      const existingIds = readdirSync(paths.invocations, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+      for (const existingId of existingIds) {
+        const existing = readQualificationInvocation(paths.root, existingId);
+        if (request.panel && existing.panel?.id === request.panel.id && existing.panel.member_ordinal === request.panel.member_ordinal) {
+          throw new Error(`qualification panel ${request.panel.id} already has member ordinal ${request.panel.member_ordinal}`);
+        }
+        if (request.role === "subject" && existing.role === "subject" && existing.scenario.id === request.scenario.id &&
+            existing.repetition === request.repetition && existing.arms.selected === request.selected_arm) {
+          throw new Error("qualification approved board already has this subject scenario/arm/repetition invocation");
+        }
+      }
+    }
     const expectedArtifact = `artifacts/${request.invocation_id}.jsonl`;
     const artifactPath = join(paths.root, expectedArtifact);
     if (existsSync(artifactPath)) throw new Error(`qualification artifact path already exists: ${expectedArtifact}`);
@@ -246,9 +265,13 @@ export function prepareQualificationInvocation(options: {
       // source path; the spool copy is the launch material bound by input_sha256.
       const preparedInputPath = join(paths.invocation!, "input.bin");
       const exactInputBytes = readExactSourceInput(request.scenario.input_path, request.scenario.input_sha256);
+      let parsedInput: unknown;
       if (config.terminal_receipt_version === QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3) {
-        try { JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(exactInputBytes)); }
+        try { parsedInput = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(exactInputBytes)); }
         catch { throw new Error("qualification terminal receipt v3 invocation input must be valid UTF-8 application/json bytes"); }
+      }
+      if (request.panel && !jsonContainsExactString(parsedInput, request.panel.subject_artifact_sha256)) {
+        throw new Error("qualification judge-panel input must structurally contain its bound subject artifact SHA-256");
       }
       atomicWriteBytes(preparedInputPath, exactInputBytes, true);
       const oauthDirectoryPolicy = qualificationOAuthDirectoryPolicy(config);
@@ -257,7 +280,7 @@ export function prepareQualificationInvocation(options: {
         : null;
       const baseRecord: Omit<QualificationInvocationV1, "invocation_sha256"> = {
         schema_version: v3Input
-          ? QUALIFICATION_INVOCATION_VERSION_V3
+          ? request.panel ? QUALIFICATION_INVOCATION_VERSION_V4 : QUALIFICATION_INVOCATION_VERSION_V3
           : oauthDirectoryPolicy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2
             ? QUALIFICATION_INVOCATION_VERSION_V2
             : QUALIFICATION_INVOCATION_VERSION,
@@ -280,6 +303,7 @@ export function prepareQualificationInvocation(options: {
         counts_as_measurement: request.counts_as_measurement,
         arms: { subject: request.arms.subject, judge: request.arms.judge, selected: request.selected_arm },
         repetition: request.repetition,
+        ...(request.panel ? { panel: structuredClone(request.panel) } : {}),
         requested: { provider: selected.provider, model: selected.model },
         authentication: selected.authentication,
         pins: {
@@ -290,7 +314,7 @@ export function prepareQualificationInvocation(options: {
         },
         configuration_sha256: configSha,
         created_at: validTimestamp(now(), "qualification creation time"),
-        ceiling_policy: structuredClone(QUALIFICATION_ACCOUNTING_POLICY),
+        ceiling_policy: structuredClone(config.accounting),
         execution: {
           executable: structuredClone(selected.executable),
           executable_identity: executableIdentity,
@@ -323,7 +347,8 @@ export function readQualificationInvocation(spoolDir: string, invocationId: stri
   const path = qualificationSpoolPaths(spoolDir, invocationId).invocationRecord!;
   const value = readCanonicalJson(path, `qualification invocation ${invocationId}`) as QualificationInvocationV1;
   validateQualificationInvocationRecord(value);
-  if (value.schema_version === QUALIFICATION_INVOCATION_VERSION_V3) verifyQualificationInvocationInput(value);
+  if (value.invocation_id !== invocationId) throw new Error(`qualification invocation ${invocationId} record identity mismatch`);
+  if (isInputBoundInvocation(value)) verifyQualificationInvocationInput(value);
   return value;
 }
 
@@ -373,10 +398,11 @@ export function transitionQualificationLifecycle(
   };
 }
 
-export function createQualificationAccountingLedger(): QualificationAccountingLedgerV1 {
+export function createQualificationAccountingLedger(policy: QualificationAccountingPolicy = QUALIFICATION_ACCOUNTING_POLICY): QualificationAccountingLedgerV1 {
+  assertKnownAccountingPolicy(policy);
   return {
     schema_version: QUALIFICATION_ACCOUNTING_VERSION,
-    policy: structuredClone(QUALIFICATION_ACCOUNTING_POLICY),
+    policy: structuredClone(policy),
     events: [],
     chain_head: null,
   };
@@ -392,7 +418,7 @@ export function appendQualificationAccountingEvent(
     throw new Error(`duplicate invocation id ${input.invocation_id} in qualification accounting ledger`);
   }
   const next = report.counts[input.call_class] + 1;
-  const ceiling = QUALIFICATION_ACCOUNTING_POLICY.ceilings[input.call_class];
+  const ceiling = inputLedger.policy.ceilings[input.call_class];
   if (next > ceiling) throw new Error(`qualification ${input.call_class} ceiling ${ceiling} would be exceeded before launch claim`);
   const base = {
     seq: inputLedger.events.length + 1,
@@ -411,7 +437,8 @@ export function validateQualificationAccountingLedger(value: unknown): Qualifica
   if (!plainObject(value)) throw new Error("qualification accounting ledger must be an object");
   exactObjectKeys(value, ["schema_version", "policy", "events", "chain_head"], "qualification accounting ledger");
   if (value.schema_version !== QUALIFICATION_ACCOUNTING_VERSION) throw new Error(`unsupported qualification accounting schema ${String(value.schema_version)}`);
-  if (qualificationCanonicalJson(value.policy) !== qualificationCanonicalJson(QUALIFICATION_ACCOUNTING_POLICY)) throw new Error("qualification accounting policy is corrupt");
+  assertKnownAccountingPolicy(value.policy);
+  const policy = value.policy as QualificationAccountingPolicy;
   if (!Array.isArray(value.events)) throw new Error("qualification accounting events must be an array");
   let previous: string | null = null;
   const ids = new Set<string>();
@@ -435,8 +462,8 @@ export function validateQualificationAccountingLedger(value: unknown): Qualifica
     counts.total += 1;
     if (input.counts_as_measurement) counts.measurement += 1;
     roles[input.role] = (roles[input.role] ?? 0) + 1;
-    if (counts[input.call_class] > QUALIFICATION_ACCOUNTING_POLICY.ceilings[input.call_class]) {
-      throw new Error(`qualification ${input.call_class} ceiling ${QUALIFICATION_ACCOUNTING_POLICY.ceilings[input.call_class]} exceeded`);
+    if (counts[input.call_class] > policy.ceilings[input.call_class]) {
+      throw new Error(`qualification ${input.call_class} ceiling ${policy.ceilings[input.call_class]} exceeded`);
     }
   });
   if (value.chain_head !== previous) throw new Error("qualification accounting chain head does not match the event ledger");
@@ -466,6 +493,7 @@ export function validateQualificationSpool(spoolDir: string): QualificationSpool
   if (envelope.configuration_sha256 !== configSha) throw new Error("qualification spool configuration digest mismatch");
   const ledger = readQualificationAccounting(paths.root);
   const accounting = validateQualificationAccountingLedger(ledger);
+  if (qualificationCanonicalJson(ledger.policy) !== qualificationCanonicalJson(config.accounting)) throw new Error("qualification accounting ledger policy does not match spool configuration");
   const invocationEntries = existsSync(paths.invocations) ? readdirSync(paths.invocations, { withFileTypes: true }) : [];
   const invalidEntry = invocationEntries.find((entry) => !entry.isDirectory());
   if (invalidEntry) throw new Error(`qualification invocations contain undeclared non-directory entry ${invalidEntry.name}`);
@@ -476,7 +504,7 @@ export function validateQualificationSpool(spoolDir: string): QualificationSpool
     if (record.configuration_sha256 !== configSha) throw new Error(`qualification invocation ${id} has the wrong configuration digest`);
     const expectedOAuthPolicy = qualificationOAuthDirectoryPolicy(config);
     const expectedInvocationVersion = config.terminal_receipt_version === QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3
-      ? QUALIFICATION_INVOCATION_VERSION_V3
+      ? record.panel ? QUALIFICATION_INVOCATION_VERSION_V4 : QUALIFICATION_INVOCATION_VERSION_V3
       : expectedOAuthPolicy === QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2
         ? QUALIFICATION_INVOCATION_VERSION_V2
         : QUALIFICATION_INVOCATION_VERSION;
@@ -603,9 +631,13 @@ function initializeSpoolConfiguration(path: string, config: QualificationConfigV
   }
 }
 
-function initializeAccounting(path: string): void {
-  if (!existsSync(path)) atomicWriteCanonical(path, createQualificationAccountingLedger(), true);
-  else validateQualificationAccountingLedger(readCanonicalJson(path, "qualification accounting ledger"));
+function initializeAccounting(path: string, policy: QualificationAccountingPolicy): void {
+  if (!existsSync(path)) atomicWriteCanonical(path, createQualificationAccountingLedger(policy), true);
+  else {
+    const existing = readCanonicalJson(path, "qualification accounting ledger") as QualificationAccountingLedgerV1;
+    validateQualificationAccountingLedger(existing);
+    if (qualificationCanonicalJson(existing.policy) !== qualificationCanonicalJson(policy)) throw new Error("qualification accounting ledger policy does not match spool configuration");
+  }
 }
 
 function createQualificationLifecycle(invocationId: string, at: string): QualificationLifecycleV1 {
@@ -658,24 +690,33 @@ function validateQualificationInvocationRecord(value: unknown): asserts value is
   } else if (value.schema_version === QUALIFICATION_INVOCATION_VERSION_V2) {
     exactObjectKeys(value, [...historical, "oauth_directory_policy"], `qualification invocation ${String(value.invocation_id)}`);
     if (value.oauth_directory_policy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) throw new Error("qualification invocation v2 OAuth directory policy is invalid");
-  } else if (value.schema_version === QUALIFICATION_INVOCATION_VERSION_V3) {
-    exactObjectKeys(value, [...historical, "oauth_directory_policy", "terminal_receipt_version", "invocation_input", "invocation_input_occurrence", "prepared_attempt", "accounting_event_sha256"], `qualification invocation ${String(value.invocation_id)}`);
+  } else if (value.schema_version === QUALIFICATION_INVOCATION_VERSION_V3 || value.schema_version === QUALIFICATION_INVOCATION_VERSION_V4) {
+    const panelVersion = value.schema_version === QUALIFICATION_INVOCATION_VERSION_V4;
+    exactObjectKeys(value, [...historical, "oauth_directory_policy", "terminal_receipt_version", "invocation_input", "invocation_input_occurrence", "prepared_attempt", "accounting_event_sha256", ...(panelVersion ? ["panel"] : [])], `qualification invocation ${String(value.invocation_id)}`);
     if (value.oauth_directory_policy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) throw new Error("qualification invocation v3 OAuth directory policy is invalid");
     if (value.terminal_receipt_version !== QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3) throw new Error("qualification invocation v3 terminal receipt selection is invalid");
     validateInvocationInputBinding(value.invocation_input);
     validateInvocationInputOccurrence(value.invocation_input_occurrence);
-    if (value.prepared_attempt !== 0 || value.accounting_event_sha256 !== null) throw new Error("qualification invocation v3 prepared accounting identity is invalid");
+    if (value.prepared_attempt !== 0 || value.accounting_event_sha256 !== null) throw new Error("qualification invocation input-bound prepared accounting identity is invalid");
+    if (panelVersion) validateInvocationPanel(value.panel);
   } else {
     throw new Error("qualification invocation version/identity is invalid");
   }
-  if (typeof value.invocation_id !== "string") throw new Error("qualification invocation version/identity is invalid");
+  assertQualificationIdentifier(value.invocation_id, "invocation_id");
   if (!/^[a-f0-9]{64}$/.test(String(value.measurement_identity_sha256)) || !/^[a-f0-9]{64}$/.test(String(value.continuation_authority_sha256)) || !/^[a-f0-9]{64}$/.test(String(value.configuration_sha256))) throw new Error(`qualification invocation ${value.invocation_id} digest identity is invalid`);
   validTimestamp(String(value.continuation_authority_expires_at), `qualification invocation ${value.invocation_id} continuation authority expiry`);
   validTimestamp(String(value.created_at), `qualification invocation ${value.invocation_id} creation time`);
-  if (qualificationCanonicalJson(value.ceiling_policy) !== qualificationCanonicalJson(QUALIFICATION_ACCOUNTING_POLICY)) throw new Error(`qualification invocation ${value.invocation_id} ceiling policy is corrupt`);
+  assertKnownAccountingPolicy(value.ceiling_policy);
   const { invocation_sha256: recordedDigest, ...digestInput } = value;
   if (typeof recordedDigest !== "string" || !/^[a-f0-9]{64}$/.test(recordedDigest) || qualificationSha256(qualificationCanonicalJson(digestInput)) !== recordedDigest) {
     throw new Error(`qualification invocation ${value.invocation_id} immutable digest mismatch`);
+  }
+}
+
+function assertKnownAccountingPolicy(value: unknown): asserts value is QualificationAccountingPolicy {
+  const encoded = qualificationCanonicalJson(value);
+  if (encoded !== qualificationCanonicalJson(QUALIFICATION_ACCOUNTING_POLICY) && encoded !== qualificationCanonicalJson(QUALIFICATION_PANEL_ACCOUNTING_POLICY)) {
+    throw new Error("qualification accounting policy is corrupt");
   }
 }
 
@@ -730,8 +771,20 @@ function inspectQualificationInvocationInput(path: string): { binding: Qualifica
   } finally { if (fd !== undefined) closeSync(fd); }
 }
 
+function isInputBoundInvocation(invocation: QualificationInvocationV1): boolean {
+  return invocation.schema_version === QUALIFICATION_INVOCATION_VERSION_V3 || invocation.schema_version === QUALIFICATION_INVOCATION_VERSION_V4;
+}
+
+function validateInvocationPanel(value: unknown): void {
+  if (!plainObject(value)) throw new Error("qualification invocation v4 panel binding must be an object");
+  exactObjectKeys(value, ["id", "member_ordinal", "subject_invocation_id", "subject_artifact_sha256"], "qualification invocation v4 panel binding");
+  assertQualificationIdentifier(value.id, "panel.id");
+  assertQualificationIdentifier(value.subject_invocation_id, "panel.subject_invocation_id");
+  if (![1, 2, 3].includes(Number(value.member_ordinal)) || !/^[a-f0-9]{64}$/.test(String(value.subject_artifact_sha256))) throw new Error("qualification invocation v4 panel binding is invalid");
+}
+
 export function verifyQualificationInvocationInput(invocation: QualificationInvocationV1): QualificationInvocationInputBindingV1 {
-  if (invocation.schema_version !== QUALIFICATION_INVOCATION_VERSION_V3 || !invocation.invocation_input || !invocation.invocation_input_occurrence) throw new Error("qualification invocation does not carry a v3 input binding");
+  if (!isInputBoundInvocation(invocation) || !invocation.invocation_input || !invocation.invocation_input_occurrence) throw new Error("qualification invocation does not carry an input binding");
   const inspected = inspectQualificationInvocationInput(invocation.scenario.input_path);
   if (qualificationCanonicalJson(inspected.binding) !== qualificationCanonicalJson(invocation.invocation_input)) throw new Error("qualification governed invocation input binding mismatch");
   if (qualificationCanonicalJson(inspected.occurrence) !== qualificationCanonicalJson(invocation.invocation_input_occurrence)) throw new Error("qualification governed invocation input occurrence mismatch");
@@ -751,6 +804,17 @@ function readExactSourceInput(path: string, expectedSha: string): Buffer {
     if (error instanceof Error && (error.message.includes("input digest mismatch") || error.message.includes("source input occurrence"))) throw error;
     throw new Error(`qualification source input is missing, replaced, or unsafe: ${path}`);
   } finally { if (fd !== undefined) closeSync(fd); }
+}
+
+function jsonContainsExactString(value: unknown, expected: string): boolean {
+  if (value === expected) return true;
+  if (Array.isArray(value)) return value.some((entry) => jsonContainsExactString(entry, expected));
+  if (plainObject(value)) return Object.values(value).some((entry) => jsonContainsExactString(entry, expected));
+  return false;
+}
+
+function assertQualificationIdentifier(value: unknown, label: string): asserts value is string {
+  if (typeof value !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value)) throw new Error(`qualification ${label} must be a bounded ASCII identifier`);
 }
 
 function assertRegularInput(path: string, expectedSha: string): void {

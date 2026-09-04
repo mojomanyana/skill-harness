@@ -2,7 +2,8 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PI_DADDY_QUALIFICATION_PRODUCER_PIN, PRINCIPAL_QUALIFICATION_PRODUCT_PIN, QUALIFICATION_ACCOUNTING_POLICY, QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2, QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3, parseQualificationConfig, parseQualificationRequest } from "../src/qualification-config.js";
+import { PI_DADDY_QUALIFICATION_PRODUCER_PIN, PRINCIPAL_QUALIFICATION_PRODUCT_PIN, QUALIFICATION_ACCOUNTING_POLICY, QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2, QUALIFICATION_PANEL_ACCOUNTING_POLICY, QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3, parseQualificationConfig, parseQualificationRequest } from "../src/qualification-config.js";
+import { QUALIFICATION_JUDGE_PANEL_POLICY } from "../src/qualification-panels.js";
 
 const root = join(__dirname, "../../../schemas");
 
@@ -13,6 +14,8 @@ describe("versioned public schemas", () => {
     ["results-v2.schema.json", "https://skill-harness.dev/schemas/results-v2.schema.json"],
     ["qualification-config-v1.schema.json", "https://skill-harness.dev/schemas/qualification-config-v1.schema.json"],
     ["qualification-invocation-request-v1.schema.json", "https://skill-harness.dev/schemas/qualification-invocation-request-v1.schema.json"],
+    ["qualification-judge-panel-result-v1.schema.json", "https://skill-harness.dev/schemas/qualification-judge-panel-result-v1.schema.json"],
+    ["qualification-cell-result-v1.schema.json", "https://skill-harness.dev/schemas/qualification-cell-result-v1.schema.json"],
   ])("ships parseable %s", (file, id) => {
     const schema = JSON.parse(readFileSync(join(root, file), "utf8"));
     expect(schema.$schema).toContain("2020-12");
@@ -65,6 +68,21 @@ describe("versioned public schemas", () => {
     const receiptV3Config = { ...config, oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2, terminal_receipt_version: QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3 };
     expect(validateConfig(receiptV3Config), JSON.stringify(validateConfig.errors)).toBe(true);
     expect(parseQualificationConfig(receiptV3Config).terminal_receipt_version).toBe(QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3);
+    const panelConfig = {
+      ...receiptV3Config,
+      judge_panel: structuredClone(QUALIFICATION_JUDGE_PANEL_POLICY),
+      board: { schema_version: "qualification-board-v1", read_only: true, cells: [{ id: "A1-subject", scenario_id: "A1", measurement_identity_sha256: h("e"), scenario_version: "1", stimulus_sha256: h("f"), rubric_sha256: h("0"), subject_input_sha256: h("1"), subject_arm: "subject", judge_arms: ["judge", "judge", "judge"], panels: [{ id: "A1-r0", repetition: 0 }], critical: false, pass_threshold: 1 }] },
+      accounting: structuredClone(QUALIFICATION_PANEL_ACCOUNTING_POLICY),
+    };
+    expect(validateConfig(panelConfig), JSON.stringify(validateConfig.errors)).toBe(true);
+    expect(parseQualificationConfig(panelConfig).board?.cells[0].panels[0]).toEqual({ id: "A1-r0", repetition: 0 });
+    const panelJudgeRequest = { ...request, role: "judge", selected_arm: "judge", panel: { id: "A1-r0", member_ordinal: 1, subject_invocation_id: "subject-r0", subject_artifact_sha256: h("a") } };
+    expect(validateRequest(panelJudgeRequest), JSON.stringify(validateRequest.errors)).toBe(true);
+    expect(parseQualificationRequest(panelJudgeRequest, parseQualificationConfig(panelConfig)).panel?.member_ordinal).toBe(1);
+    const panelOnSubject = { ...request, panel: panelJudgeRequest.panel };
+    expect(validateRequest(panelOnSubject)).toBe(false);
+    expect(() => parseQualificationRequest(panelOnSubject, parseQualificationConfig(panelConfig))).toThrow(/only for judge/i);
+
     const unknownReceiptVersion = { ...config, terminal_receipt_version: "qualification-terminal-receipt-v4" };
     expect(validateConfig(unknownReceiptVersion)).toBe(false);
     expect(() => parseQualificationConfig(unknownReceiptVersion)).toThrow(/terminal_receipt_version/i);
@@ -119,6 +137,27 @@ describe("versioned public schemas", () => {
     const wrongJoin = { ...request, selected_arm: "judge" };
     expect(validateRequest(wrongJoin)).toBe(true);
     expect(() => parseQualificationRequest(wrongJoin, parsed)).toThrow(/subject arm/i);
+  });
+
+  it("validates the closed qualification panel and cell output shapes", () => {
+    const ajv = new Ajv2020({ allErrors: true, strict: true });
+    const panelSchema = JSON.parse(readFileSync(join(root, "qualification-judge-panel-result-v1.schema.json"), "utf8"));
+    const cellSchema = JSON.parse(readFileSync(join(root, "qualification-cell-result-v1.schema.json"), "utf8"));
+    ajv.addSchema(panelSchema);
+    const validatePanel = ajv.getSchema(panelSchema.$id)!;
+    const validateCell = ajv.compile(cellSchema);
+    const h = (value: string) => value.repeat(64);
+    const member = (ordinal: number, verdict: string) => ({ invocation_id: `judge-${ordinal}`, ordinal, judge: { provider: "fake", model: "fake-sol" }, verdict, reason: "r", suspect: false, artifact: { sha256: h(String(ordinal)), bytes: 1 }, terminal_receipt_sha256: h(String(ordinal + 3)) });
+    const panel = { schema_version: "qualification-judge-panel-result-v1", panel_id: "A1-r0", scenario_id: "A1", subject_arm: "subject", repetition: 0, critical: false, state: "confirmed", verdict: "PASS", members: [member(1, "PASS"), member(2, "PASS")], judge_calls: 2, clean_votes: 2, disagreement: { initial_split: false, minority_rate: 0 }, acceptance: "pass", collection: "continue" };
+    expect(validatePanel(panel), JSON.stringify(validatePanel.errors)).toBe(true);
+    const cell = { schema_version: "qualification-cell-result-v1", cell_id: "A1-subject", scenario_id: "A1", subject_arm: "subject", critical: false, pass_threshold: 1, panels: [panel], verdict: "PASS", critical_failure: false, acceptance: "pass", collection: "continue", disagreement: { judge_calls: 2, clean_votes: 2, split_artifacts: 0, artifacts_with_two_clean_initial_votes: 1, unresolved_artifacts: 0, judge_split_rate: 0 } };
+    expect(validateCell(cell), JSON.stringify(validateCell.errors)).toBe(true);
+    expect(validatePanel({ ...panel, state: "unresolved", acceptance: "inconclusive" })).toBe(false);
+    expect(validatePanel({ ...panel, judge_calls: 3 })).toBe(false);
+    expect(validatePanel({ ...panel, state: "unresolved", verdict: undefined, acceptance: "inconclusive", members: [member(1, "PASS"), member(2, "FAIL")], disagreement: { initial_split: true, minority_rate: 0.5 } })).toBe(false);
+    expect(validatePanel({ ...panel, collection: "halt" })).toBe(false);
+    expect(validateCell({ ...cell, acceptance: "pass", verdict: "FAIL" })).toBe(false);
+    expect(validateCell({ ...cell, collection: "halt" })).toBe(false);
   });
 
   it("types every trajectory assertion class instead of accepting arbitrary objects", () => {

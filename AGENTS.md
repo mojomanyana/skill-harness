@@ -43,7 +43,7 @@ coverage <skill|all> --skills root [--strict]   which instruction sections have 
 affected <skill> --skills root [--base ref]     which scenarios a change could touch — free, offline; feed to run --only, or run --affected
 init  <skill> --skills root [--force]                    scaffold a commented template spec (free, offline)
 suggest <skill> --skills root [--model prov:model] [--force]  LLM-draft a spec from the skill's SKILL.md (spends tokens)
-qualification prepare|start|status|poll|validate|abort          durable qualification-runner-v1; external closed config only
+qualification prepare|start|status|poll|validate|panel|cell|abort  durable qualification-runner-v1; panel/cell are offline derived-evidence commands
 ```
 
 **Qualification runner is a separate boundary.** Read `docs/QUALIFICATION-RUNNER.md` before touching it. `prepare` consumes no call; the atomic launch claim consumes exactly one; failure/timeout remains counted; no automatic retry is permitted. Production accepts only exact `openai-codex` + ChatGPT OAuth metadata, a sanitized allowlisted child environment, no fallback, and no metered override. Never put Principal arms, a board, holdout, or measurement identity in this repository.

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-harness.dev/schemas/qualification-cell-result-v1.schema.json",
+  "title": "skill-harness qualification cell result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "cell_id", "scenario_id", "subject_arm", "critical", "pass_threshold", "panels", "critical_failure", "acceptance", "collection", "disagreement"],
+  "properties": {
+    "schema_version": { "const": "qualification-cell-result-v1" },
+    "cell_id": { "$ref": "#/$defs/id" }, "scenario_id": { "$ref": "#/$defs/id" }, "subject_arm": { "$ref": "#/$defs/id" },
+    "critical": { "type": "boolean" }, "pass_threshold": { "type": "integer", "minimum": 1 },
+    "panels": { "type": "array", "minItems": 1, "items": { "$ref": "qualification-judge-panel-result-v1.schema.json" } },
+    "verdict": { "enum": ["PASS", "FAIL"] }, "critical_failure": { "type": "boolean" },
+    "acceptance": { "enum": ["pass", "fail", "inconclusive"] }, "collection": { "const": "continue" },
+    "disagreement": {
+      "type": "object", "additionalProperties": false,
+      "required": ["judge_calls", "clean_votes", "split_artifacts", "artifacts_with_two_clean_initial_votes", "unresolved_artifacts", "judge_split_rate"],
+      "properties": {
+        "judge_calls": { "type": "integer", "minimum": 0 }, "clean_votes": { "type": "integer", "minimum": 0 },
+        "split_artifacts": { "type": "integer", "minimum": 0 }, "artifacts_with_two_clean_initial_votes": { "type": "integer", "minimum": 0 },
+        "unresolved_artifacts": { "type": "integer", "minimum": 0 }, "judge_split_rate": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  },
+  "allOf": [
+    { "if": { "properties": { "acceptance": { "const": "inconclusive" } }, "required": ["acceptance"] }, "then": { "not": { "properties": { "verdict": {} }, "required": ["verdict"] }, "properties": { "critical_failure": { "const": false } } }, "else": { "required": ["verdict"] } },
+    { "if": { "properties": { "acceptance": { "const": "pass" } }, "required": ["acceptance"] }, "then": { "properties": { "verdict": { "const": "PASS" }, "critical_failure": { "const": false } } } },
+    { "if": { "properties": { "acceptance": { "const": "fail" } }, "required": ["acceptance"] }, "then": { "properties": { "verdict": { "const": "FAIL" } }, "required": ["verdict"] } },
+    { "if": { "properties": { "critical_failure": { "const": true } }, "required": ["critical_failure"] }, "then": { "properties": { "critical": { "const": true }, "acceptance": { "const": "fail" }, "verdict": { "const": "FAIL" } }, "required": ["verdict"] } }
+  ],
+  "$defs": { "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" } }
+}

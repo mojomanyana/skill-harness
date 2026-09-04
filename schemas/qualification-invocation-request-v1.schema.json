@@ -28,9 +28,23 @@
       "properties": { "subject": { "$ref": "#/$defs/id" }, "judge": { "$ref": "#/$defs/id" } }
     },
     "selected_arm": { "$ref": "#/$defs/id" },
-    "repetition": { "type": "integer", "minimum": 0 }
+    "repetition": { "type": "integer", "minimum": 0 },
+    "panel": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "member_ordinal", "subject_invocation_id", "subject_artifact_sha256"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "member_ordinal": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "subject_invocation_id": { "$ref": "#/$defs/id" },
+        "subject_artifact_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
   },
   "allOf": [
+    {
+      "if": { "properties": { "panel": { "type": "object" } }, "required": ["panel"] },
+      "then": { "properties": { "role": { "const": "judge" }, "selected_arm": { "$ref": "#/$defs/id" } }, "required": ["role", "selected_arm"] }
+    },
     {
       "if": { "type": "object", "properties": { "role": { "enum": ["subject", "judge"] } }, "required": ["role"] },
       "then": { "type": "object", "properties": { "counts_as_measurement": { "const": true } } },
