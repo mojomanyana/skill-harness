@@ -675,6 +675,19 @@ never enter `specification.yaml` before a human promotes them.
       implementation commit `91479b0`; final reviewed head recorded in the PR.)
       Post: `docs/posts/2026-08-28-one-call-means-one-launch.md`
 
+### Sprint 1.12 — Reproducible qualification judging (owner finding, 2026-09-03)
+
+- [x] **Per-artifact judge panels through shared adjudication machinery.** A frozen
+      same-input calibration produced both PASS and FAIL from the same judge. Prospective
+      qualification configs now bind an approved read-only board and a two-clean-vote plus
+      conditional-third policy; every vote remains an independently OAuth-authenticated,
+      exactly-once invocation. Derived panel/cell evidence records disagreement rates,
+      Critical behavioral failures fail acceptance without halting collection, and final
+      validation recomputes complete board evidence from receipts/artifacts. Historical
+      single-draw records remain unchanged. Handoff:
+      `docs/handoff/2026-09-B2-judge-panels.md`. Post:
+      `docs/posts/2026-09-03-one-judge-call-is-one-draw.md`.
+
 ## PHASE 2 — Launch & first 100 fans (weeks 5–10)
 
 **Goal:** exist in the heads of everyone who writes skills.

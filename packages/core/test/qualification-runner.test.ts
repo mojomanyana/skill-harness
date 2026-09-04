@@ -8,11 +8,14 @@ import { afterAll, describe, expect, it } from "vitest";
 import {
   QUALIFICATION_ACCOUNTING_POLICY,
   QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2,
+  QUALIFICATION_PANEL_ACCOUNTING_POLICY,
   QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3,
   qualificationCanonicalJson,
   qualificationConfigDigest,
   qualificationSha256,
 } from "../src/qualification-config.js";
+import { collapseQualificationJudgePanel, QUALIFICATION_JUDGE_PANEL_POLICY } from "../src/qualification-panels.js";
+import { recordQualificationCell, recordQualificationJudgePanel, validateQualificationPanelOutputs } from "../src/qualification-panel-store.js";
 import {
   appendQualificationAccountingEvent,
   atomicWriteCanonical,
@@ -36,8 +39,11 @@ import {
   qualificationProcessMatches,
   redactQualificationOutput,
   superviseQualificationInvocation,
-  validateQualificationRunnerSpool,
+  validateQualificationBaseSpool as validateQualificationRunnerSpool,
+  readValidatedQualificationTerminalReceipt,
+  readQualificationJudgePanelMember,
 } from "../src/qualification-runner.js";
+import { validateQualificationRunnerSpool as validateCompleteQualificationSpool } from "../src/qualification-validation.js";
 
 const hex = (value: string, length = 64) => value.repeat(length);
 const sha = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
@@ -72,12 +78,13 @@ const inputArg = args.find((value) => value.startsWith('@')) || args[args.length
 const inputPath = inputArg.startsWith('@') ? inputArg.slice(1) : inputArg;
 const rawCommand = fs.readFileSync(inputPath, 'utf8').trim();
 let command = rawCommand;
-try { const decoded = JSON.parse(rawCommand); if (typeof decoded === 'string') command = decoded; } catch {}
+try { const decoded = JSON.parse(rawCommand); if (typeof decoded === 'string') command = decoded; else if (decoded && typeof decoded.command === 'string') command = decoded.command; } catch {}
 if (process.env.FAKE_COUNT_FILE) fs.appendFileSync(process.env.FAKE_COUNT_FILE, 'launch\\n');
 const line = (value) => process.stdout.write(JSON.stringify(value) + '\\n');
 line({ type: 'session', version: 3, id: 'fake-session', timestamp: new Date().toISOString(), cwd: process.cwd(), home: process.env.HOME });
 const finish = (actualProvider = provider, actualModel = model, extra = {}) => {
-  line({ type: 'message_end', message: { role: 'assistant', provider: actualProvider, model: actualModel, content: [{ type: 'text', text: 'inert' }], stopReason: 'stop', ...extra } });
+  const text = command === 'judge-pass' ? '1. PASS — met\\nVERDICT: PASS\\nREASON: met' : command === 'judge-fail' ? '1. FAIL — missed\\nVERDICT: FAIL\\nREASON: missed' : 'inert';
+  line({ type: 'message_end', message: { role: 'assistant', provider: actualProvider, model: actualModel, content: [{ type: 'text', text }], stopReason: 'stop', ...extra } });
 };
 (async () => {
   if (command.startsWith('sleep:')) { await new Promise(r => setTimeout(r, Number(command.slice(6)))); finish(); return; }
@@ -117,7 +124,7 @@ const finish = (actualProvider = provider, actualModel = model, extra = {}) => {
 })().catch((error) => { console.error(error.message); process.exit(8); });
 `;
 
-function setup(command = "complete", overrides: { timeout?: number; output?: number; conflict?: "refuse" | "remove-and-record"; oauthV2?: boolean; receiptV3?: boolean } = {}) {
+function setup(command = "complete", overrides: { timeout?: number; output?: number; conflict?: "refuse" | "remove-and-record"; oauthV2?: boolean; receiptV3?: boolean; panel?: boolean } = {}) {
   const root = mkdtempSync(join(tmpdir(), "qualification-runner-"));
   TEST_ROOTS.add(root);
   const executable = join(root, "fake-pi.cjs");
@@ -140,12 +147,16 @@ function setup(command = "complete", overrides: { timeout?: number; output?: num
     schema_version: "qualification-config-v1",
     ...(overrides.oauthV2 || overrides.receiptV3 ? { oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 } : {}),
     ...(overrides.receiptV3 ? { terminal_receipt_version: QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3 } : {}),
+    ...(overrides.panel ? {
+      judge_panel: structuredClone(QUALIFICATION_JUDGE_PANEL_POLICY),
+      board: { schema_version: "qualification-board-v1", read_only: true, cells: [{ id: "fake-A1-luna", scenario_id: "fake-A1", measurement_identity_sha256: hex("c"), scenario_version: "1", stimulus_sha256: hex("d"), rubric_sha256: hex("e"), subject_input_sha256: sha(readFileSync(prompt)), subject_arm: "fake-subject", judge_arms: ["fake-judge", "fake-judge", "fake-judge"], panels: [{ id: "fake-A1-r0", repetition: 0 }], critical: true, pass_threshold: 1 }] },
+    } : {}),
     mode: "test",
     product: { repository: "https://example.invalid/product", commit: hex("1", 40), tree: hex("2", 40), checkout_path: root, package_path: executable, package_sha256: hex("3"), package_bytes: 1 },
     engine: { repository: "https://example.invalid/engine", commit: hex("4", 40), tree: hex("5", 40), checkout_path: root, package_paths: { core: executable, adapters: executable, cli: executable, meta: executable }, package_sha256: { core: hex("6"), adapters: hex("7"), cli: hex("8"), meta: hex("9") } },
     producer: { repository: "https://example.invalid/producer", commit: hex("a", 40), tree: hex("b", 40), checkout_path: root, version: "0.20.0", ledger_version: 3, ledger_schema_sha256: hex("a") },
     runner: { version: "qualification-runner-v1", executable: executablePin, conflicting_parent_environment: overrides.conflict ?? "remove-and-record" },
-    accounting: structuredClone(QUALIFICATION_ACCOUNTING_POLICY),
+    accounting: structuredClone(overrides.panel ? QUALIFICATION_PANEL_ACCOUNTING_POLICY : QUALIFICATION_ACCOUNTING_POLICY),
     arms: [
       { id: "fake-subject", kind: "subject", provider: "fake", model: "fake-luna", authentication: "test-oauth", executable: executablePin, resources: [], arguments: ["@{input_path}"], allowed_environment_names: envNames, timeout_ms: overrides.timeout ?? 1000, output_limit_bytes: overrides.output ?? 65536, artifact: { type: "pi-jsonl", relative_path_template: "artifacts/{invocation_id}.jsonl" }, fallback: false, metered_override: false },
       { id: "fake-judge", kind: "judge", provider: "fake", model: "fake-sol", authentication: "test-oauth", executable: executablePin, resources: [], arguments: ["@{input_path}"], allowed_environment_names: envNames, timeout_ms: overrides.timeout ?? 1000, output_limit_bytes: overrides.output ?? 65536, artifact: { type: "pi-jsonl", relative_path_template: "artifacts/{invocation_id}.jsonl" }, fallback: false, metered_override: false },
@@ -172,10 +183,25 @@ function setup(command = "complete", overrides: { timeout?: number; output?: num
   return { root, spool, count, prompt, executable, configPath, requestPath, parent_env, oauthAgent };
 }
 
-async function run(files: ReturnType<typeof setup>) {
-  const auth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env });
-  await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: "invocation-0001", child_env: auth.child_env, authentication_authority: auth.launch_authority });
-  return qualificationInvocationStatus(files.spool, "invocation-0001");
+async function runId(files: ReturnType<typeof setup>, invocationId: string) {
+  const auth = await checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: invocationId, parent_env: files.parent_env });
+  await superviseQualificationInvocation({ spool_dir: files.spool, invocation_id: invocationId, child_env: auth.child_env, authentication_authority: auth.launch_authority });
+  return qualificationInvocationStatus(files.spool, invocationId);
+}
+async function run(files: ReturnType<typeof setup>) { return runId(files, "invocation-0001"); }
+
+function preparePanelJudge(files: ReturnType<typeof setup>, ordinal: 1 | 2 | 3, command: "judge-pass" | "judge-fail" | "fail", subjectArtifactSha256: string): void {
+  const input = join(files.root, `judge-${ordinal}.json`);
+  writeFileSync(input, `${JSON.stringify({ command, subject_artifact_sha256: subjectArtifactSha256 })}\n`);
+  const requestPath = join(files.root, `judge-${ordinal}-request.json`);
+  writeFileSync(requestPath, JSON.stringify({
+    schema_version: "qualification-invocation-request-v1", measurement_identity_sha256: hex("c"), invocation_id: `judge-${ordinal}`,
+    continuation_authority_sha256: sha(`${CONTINUATION_AUTHORITY}-${ordinal}`), continuation_authority_expires_at: "2099-01-01T00:00:00.000Z",
+    scenario: { id: "fake-A1", version: "1", stimulus_sha256: hex("d"), rubric_sha256: hex("e"), input_path: input, input_sha256: sha(readFileSync(input)), working_directory: files.root },
+    role: "judge", counts_as_measurement: true, arms: { subject: "fake-subject", judge: "fake-judge" }, selected_arm: "fake-judge", repetition: 0,
+    panel: { id: "fake-A1-r0", member_ordinal: ordinal, subject_invocation_id: "invocation-0001", subject_artifact_sha256: subjectArtifactSha256 },
+  }));
+  prepareQualificationInvocation({ spool_dir: files.spool, config_path: files.configPath, request_path: requestPath });
 }
 
 function calls(path: string): number { return existsSync(path) ? readFileSync(path, "utf8").trim().split("\n").filter(Boolean).length : 0; }
@@ -507,6 +533,90 @@ describe("qualification OAuth boundary", () => {
 });
 
 describe("qualification durable execution", () => {
+  it("runs panel members through the unchanged OAuth, receipt, artifact, and exactly-once path", async () => {
+    const files = setup("complete", { receiptV3: true, panel: true });
+    expect((await run(files)).terminal_status).toBe("completed");
+    const subjectReceipt = readValidatedQualificationTerminalReceipt(files.spool, "invocation-0001");
+    expect(subjectReceipt.artifact).not.toBeNull();
+
+    for (const ordinal of [1, 2] as const) {
+      preparePanelJudge(files, ordinal, "judge-pass", subjectReceipt.artifact!.sha256);
+      expect((await runId(files, `judge-${ordinal}`)).terminal_status).toBe("completed");
+    }
+    expect(() => validateCompleteQualificationSpool(files.spool)).toThrow(/panel outputs are incomplete/i);
+
+    const panel = recordQualificationJudgePanel({ spool_dir: files.spool, panel_id: "fake-A1-r0", member_invocation_ids: ["judge-1", "judge-2"] });
+    expect(panel).toMatchObject({ state: "confirmed", verdict: "PASS", judge_calls: 2, disagreement: { initial_split: false, minority_rate: 0 } });
+    expect(readQualificationAccounting(files.spool).events.map((event) => event.invocation_id)).toEqual(["invocation-0001", "judge-1", "judge-2"]);
+    expect(() => validateQualificationPanelOutputs(files.spool)).toThrow(/cell outputs are incomplete/i);
+    const cell = recordQualificationCell({ spool_dir: files.spool, cell_id: "fake-A1-luna" });
+    expect(cell.disagreement).toEqual({ judge_calls: 2, clean_votes: 2, split_artifacts: 0, artifacts_with_two_clean_initial_votes: 1, unresolved_artifacts: 0, judge_split_rate: 0 });
+    expect(validateQualificationPanelOutputs(files.spool)).toEqual({ panels: 1, cells: 1 });
+    expect(validateCompleteQualificationSpool(files.spool).derived).toEqual({ panels: 1, cells: 1 });
+    const cellPath = join(files.spool, "cells", "fake-A1-luna.json");
+    const tampered = JSON.parse(readFileSync(cellPath, "utf8"));
+    tampered.disagreement.judge_split_rate = 1;
+    writeFileSync(cellPath, `${qualificationCanonicalJson(tampered)}\n`);
+    expect(() => validateQualificationPanelOutputs(files.spool)).toThrow(/does not match validated panel evidence/i);
+  });
+
+  it("authorizes and accounts for exactly one tie-break after a clean split", async () => {
+    const files = setup("complete", { receiptV3: true, panel: true });
+    await run(files);
+    const subjectReceipt = readValidatedQualificationTerminalReceipt(files.spool, "invocation-0001");
+    preparePanelJudge(files, 1, "judge-pass", subjectReceipt.artifact!.sha256);
+    await runId(files, "judge-1");
+    preparePanelJudge(files, 2, "judge-fail", subjectReceipt.artifact!.sha256);
+    await runId(files, "judge-2");
+    const incomplete = collapseQualificationJudgePanel({ panel_id: "fake-A1-r0", scenario_id: "fake-A1", subject_arm: "fake-subject", repetition: 0, critical: true, members: [readQualificationJudgePanelMember(files.spool, "judge-1"), readQualificationJudgePanelMember(files.spool, "judge-2")] });
+    atomicWriteCanonical(join(files.spool, "panels", "fake-A1-r0.json"), incomplete, true);
+    expect(() => validateQualificationPanelOutputs(files.spool)).toThrow(/clean split requires.*tie-break/i);
+    rmSync(join(files.spool, "panels"), { recursive: true, force: true });
+    preparePanelJudge(files, 3, "judge-fail", subjectReceipt.artifact!.sha256);
+    expect((await runId(files, "judge-3")).terminal_status).toBe("completed");
+    const panel = recordQualificationJudgePanel({ spool_dir: files.spool, panel_id: "fake-A1-r0", member_invocation_ids: ["judge-1", "judge-2", "judge-3"] });
+    expect(panel).toMatchObject({ state: "tie_broken", verdict: "FAIL", judge_calls: 3, disagreement: { initial_split: true, minority_rate: 1 / 3 } });
+    expect(readQualificationAccounting(files.spool).events.filter((event) => event.call_class === "judge")).toHaveLength(3);
+    const cell = recordQualificationCell({ spool_dir: files.spool, cell_id: "fake-A1-luna" });
+    expect(cell).toMatchObject({ verdict: "FAIL", critical_failure: true, collection: "continue" });
+    expect(validateQualificationPanelOutputs(files.spool)).toEqual({ panels: 1, cells: 1 });
+    const panelPath = join(files.spool, "panels", "fake-A1-r0.json");
+    const cellPath = join(files.spool, "cells", "fake-A1-luna.json");
+    const weakenedPanel = JSON.parse(readFileSync(panelPath, "utf8")); weakenedPanel.critical = false;
+    const weakenedCell = JSON.parse(readFileSync(cellPath, "utf8")); weakenedCell.critical = false; weakenedCell.critical_failure = false; weakenedCell.panels[0].critical = false;
+    writeFileSync(panelPath, `${qualificationCanonicalJson(weakenedPanel)}\n`);
+    writeFileSync(cellPath, `${qualificationCanonicalJson(weakenedCell)}\n`);
+    expect(() => validateQualificationPanelOutputs(files.spool)).toThrow(/validated invocation evidence|approved board/i);
+  });
+
+  it("records an attempted judge failure as a non-vote rather than a behavioral FAIL", async () => {
+    const files = setup("complete", { receiptV3: true, panel: true });
+    await run(files);
+    const subjectReceipt = readValidatedQualificationTerminalReceipt(files.spool, "invocation-0001");
+    preparePanelJudge(files, 1, "judge-pass", subjectReceipt.artifact!.sha256);
+    await runId(files, "judge-1");
+    preparePanelJudge(files, 2, "fail", subjectReceipt.artifact!.sha256);
+    expect((await runId(files, "judge-2")).terminal_status).toBe("failed");
+    const panel = recordQualificationJudgePanel({ spool_dir: files.spool, panel_id: "fake-A1-r0", member_invocation_ids: ["judge-1", "judge-2"] });
+    expect(panel).toMatchObject({ state: "unresolved", acceptance: "inconclusive", clean_votes: 1, judge_calls: 2 });
+    expect(panel.members[1]).toMatchObject({ verdict: "ERROR", artifact: null });
+    recordQualificationCell({ spool_dir: files.spool, cell_id: "fake-A1-luna" });
+    expect(validateQualificationPanelOutputs(files.spool)).toEqual({ panels: 1, cells: 1 });
+  });
+
+  it("refuses a tie-break before accounting unless the first two clean votes split", async () => {
+    const files = setup("complete", { receiptV3: true, panel: true });
+    await run(files);
+    const subjectReceipt = readValidatedQualificationTerminalReceipt(files.spool, "invocation-0001");
+    for (const ordinal of [1, 2] as const) {
+      preparePanelJudge(files, ordinal, "judge-pass", subjectReceipt.artifact!.sha256);
+      await runId(files, `judge-${ordinal}`);
+    }
+    preparePanelJudge(files, 3, "judge-fail", subjectReceipt.artifact!.sha256);
+    await expect(checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "judge-3", parent_env: files.parent_env })).rejects.toThrow(/tie-break is unauthorized/i);
+    expect(readQualificationAccounting(files.spool).events.filter((event) => event.call_class === "judge")).toHaveLength(2);
+    expect(qualificationInvocationStatus(files.spool, "judge-3").attempt).toBe(0);
+  });
   it("binds the same exact v3 input at claim, attempt, and child occurrence", async () => {
     const files = setup("complete", { receiptV3: true });
     const status = await run(files);

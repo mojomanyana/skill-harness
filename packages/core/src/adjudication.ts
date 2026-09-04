@@ -11,6 +11,7 @@ import type { Verdict } from "./score.js";
 import { score, type ScenarioVerdict } from "./score.js";
 import { buildJudgePrompt, judgeInWorkspace, parseVerdict } from "./grade.js";
 import { appendJournal } from "./journal.js";
+import { collapseVotePanel } from "./vote-panel.js";
 
 /**
  * Confidence-aware adjudication: decide which judged cells are untrustworthy
@@ -202,25 +203,13 @@ export type AdjudicationState = "confirmed" | "tie_broken" | "unresolved";
  * cast a deciding vote would launder exactly the unreliability being measured.
  */
 export function collapseJudgments(judgments: Judgment[], trigger: TriggerKind): AdjudicationResult {
-  const clean = judgments.filter((j) => !j.suspect && (j.verdict === "PASS" || j.verdict === "FAIL"));
-  const base = { trigger, judgments } as const;
-
-  if (clean.length < 2) {
-    // Nothing to compare: one clean vote (or none) cannot confirm anything.
-    return { ...base, state: "unresolved" };
-  }
-
-  const passes = clean.filter((j) => j.verdict === "PASS").length;
-  const fails = clean.length - passes;
-
-  if (passes === 0 || fails === 0) {
-    return { ...base, state: "confirmed", verdict: clean[0].verdict as "PASS" | "FAIL" };
-  }
-  // A clean strict majority breaks the tie. With exactly 2 clean votes that
-  // disagree there is no majority, so this correctly falls through.
-  if (passes > fails) return { ...base, state: "tie_broken", verdict: "PASS" };
-  if (fails > passes) return { ...base, state: "tie_broken", verdict: "FAIL" };
-  return { ...base, state: "unresolved" };
+  const collapsed = collapseVotePanel(judgments);
+  return {
+    trigger,
+    judgments,
+    state: collapsed.state,
+    ...(collapsed.verdict ? { verdict: collapsed.verdict } : {}),
+  };
 }
 
 /**

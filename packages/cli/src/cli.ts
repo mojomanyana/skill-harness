@@ -952,7 +952,7 @@ export function help(): string {
   lint   <skill|all> --skills <root>           validate specs/fixtures + results-consistency (${free("lint")}; CI gate; exits non-zero on findings)
   coverage <skill|all> --skills <root> [--strict]   which instruction sections have a declared test (${free("coverage")})
   affected <skill>   --skills <root> [--base ref]   which scenarios a change could touch (${free("affected")})
-  qualification <prepare|start|status|poll|validate|abort>  durable qualification-runner-v1 lifecycle
+  qualification <prepare|start|status|poll|validate|panel|cell|abort>  durable qualification-runner-v1 lifecycle + offline panel collapse
                      prepare --spool DIR --config FILE --request FILE [--expected-config-sha256 HEX] (required in production)
                      start|status|poll|abort --spool DIR --id ID  (abort also requires --reason ID)
                      start may resume only with --continuation-authority-file <private-0600-prebound-one-use-capability>

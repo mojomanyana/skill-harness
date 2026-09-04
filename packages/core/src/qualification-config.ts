@@ -2,10 +2,12 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, realpathSync, type Stats } from "node:fs";
 import { isAbsolute, join } from "node:path";
+import { QUALIFICATION_JUDGE_PANEL_POLICY } from "./qualification-panels.js";
 
 export const QUALIFICATION_CONFIG_VERSION = "qualification-config-v1" as const;
 export const QUALIFICATION_RUNNER_VERSION = "qualification-runner-v1" as const;
 export const QUALIFICATION_REQUEST_VERSION = "qualification-invocation-request-v1" as const;
+export const QUALIFICATION_BOARD_VERSION = "qualification-board-v1" as const;
 export const QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3 = "qualification-terminal-receipt-v3" as const;
 /** Historical configurations omit this field and retain the original closed policy. */
 export const QUALIFICATION_OAUTH_DIRECTORY_POLICY_V1 = "qualification-oauth-directory-policy-v1" as const;
@@ -37,6 +39,17 @@ export const QUALIFICATION_ACCOUNTING_POLICY = {
   ceilings: { subject: 700, judge: 700 },
   initial: { subject: 0, judge: 0 },
 } as const;
+
+/** Prospective call ceilings for the universal two-plus-conditional-third panel. */
+export const QUALIFICATION_PANEL_ACCOUNTING_POLICY = {
+  wave_a: { subject: 54, judge: 162 },
+  complete_program: { subject: 642, judge: 1926 },
+  ceilings: { subject: 700, judge: 2100 },
+  initial: { subject: 0, judge: 0 },
+} as const;
+export type QualificationAccountingPolicy =
+  | typeof QUALIFICATION_ACCOUNTING_POLICY
+  | typeof QUALIFICATION_PANEL_ACCOUNTING_POLICY;
 
 export type QualificationRole =
   | "holdout-author"
@@ -103,12 +116,35 @@ export interface QualificationArmV1 {
   metered_override: false;
 }
 
+export interface QualificationBoardV1 {
+  schema_version: typeof QUALIFICATION_BOARD_VERSION;
+  read_only: true;
+  cells: {
+    id: string;
+    scenario_id: string;
+    measurement_identity_sha256: string;
+    scenario_version: string;
+    stimulus_sha256: string;
+    rubric_sha256: string;
+    subject_input_sha256: string;
+    subject_arm: string;
+    judge_arms: [string, string, string];
+    panels: { id: string; repetition: number }[];
+    critical: boolean;
+    pass_threshold: number;
+  }[];
+}
+
 export interface QualificationConfigV1 {
   schema_version: typeof QUALIFICATION_CONFIG_VERSION;
   /** Omission is the historical v1 policy and is preserved in canonical digests. */
   oauth_directory_policy?: typeof QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2;
   /** Omission preserves historical v1/v2 terminal-receipt selection. */
   terminal_receipt_version?: typeof QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3;
+  /** Omission preserves the historical single-draw judge methodology. */
+  judge_panel?: typeof QUALIFICATION_JUDGE_PANEL_POLICY;
+  /** Externally approved board authority; required with judge_panel. */
+  board?: QualificationBoardV1;
   mode: QualificationConfigMode;
   product: QualificationProductPin;
   engine: QualificationEnginePin;
@@ -118,7 +154,7 @@ export interface QualificationConfigV1 {
     executable: QualificationExecutablePin;
     conflicting_parent_environment: QualificationConflictPolicy;
   };
-  accounting: typeof QUALIFICATION_ACCOUNTING_POLICY;
+  accounting: QualificationAccountingPolicy;
   arms: QualificationArmV1[];
 }
 
@@ -142,6 +178,13 @@ export interface QualificationInvocationRequestV1 {
   arms: { subject: string; judge: string };
   selected_arm: string;
   repetition: number;
+  /** Present only for judge calls under the prospective panel policy. */
+  panel?: {
+    id: string;
+    member_ordinal: 1 | 2 | 3;
+    subject_invocation_id: string;
+    subject_artifact_sha256: string;
+  };
 }
 
 const SHA256_RE = /^[a-f0-9]{64}$/i;
@@ -324,7 +367,7 @@ export function parseQualificationConfig(value: unknown): QualificationConfigV1 
     root,
     ["schema_version", "mode", "product", "engine", "producer", "runner", "accounting", "arms"],
     "qualification configuration",
-    ["oauth_directory_policy", "terminal_receipt_version"],
+    ["oauth_directory_policy", "terminal_receipt_version", "judge_panel", "board"],
   );
   if (root.schema_version !== QUALIFICATION_CONFIG_VERSION) throw new Error(`qualification configuration schema_version must be ${QUALIFICATION_CONFIG_VERSION}`);
   const oauthDirectoryPolicy = Object.hasOwn(root, "oauth_directory_policy")
@@ -333,7 +376,14 @@ export function parseQualificationConfig(value: unknown): QualificationConfigV1 
   const terminalReceiptVersion = Object.hasOwn(root, "terminal_receipt_version")
     ? enumValue(root.terminal_receipt_version, [QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3], "qualification terminal_receipt_version") as typeof QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3
     : undefined;
+  const judgePanel = Object.hasOwn(root, "judge_panel")
+    ? parseCanonicalJudgePanelPolicy(root.judge_panel)
+    : undefined;
+  const board = Object.hasOwn(root, "board") ? parseQualificationBoard(root.board) : undefined;
   if (terminalReceiptVersion && oauthDirectoryPolicy !== QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2) throw new Error("qualification terminal receipt v3 requires oauth_directory_policy v2");
+  if (judgePanel && terminalReceiptVersion !== QUALIFICATION_TERMINAL_RECEIPT_VERSION_V3) throw new Error("qualification judge_panel requires terminal_receipt_version v3 and oauth_directory_policy v2");
+  if (judgePanel && !board) throw new Error("qualification judge_panel requires an externally approved read-only board");
+  if (!judgePanel && board) throw new Error("qualification board requires judge_panel");
   const mode = enumValue(root.mode, ["production", "test"], "qualification configuration mode") as QualificationConfigMode;
   const productObject = object(root.product, "qualification configuration product");
   exactKeys(productObject, ["repository", "commit", "tree", "checkout_path", "package_path", "package_sha256", "package_bytes"], "qualification configuration product");
@@ -398,8 +448,13 @@ export function parseQualificationConfig(value: unknown): QualificationConfigV1 
   const conflictPolicy = enumValue(runnerObject.conflicting_parent_environment, ["refuse", "remove-and-record"], "runner.conflicting_parent_environment") as QualificationConflictPolicy;
 
   const accounting = object(root.accounting, "qualification accounting");
-  if (qualificationCanonicalJson(accounting) !== qualificationCanonicalJson(QUALIFICATION_ACCOUNTING_POLICY)) {
-    throw new Error("qualification accounting must equal the canonical policy (Wave A 54/54, complete 642/642, ceilings 700/700, initial 0/0)");
+  const expectedAccounting: QualificationAccountingPolicy = judgePanel
+    ? QUALIFICATION_PANEL_ACCOUNTING_POLICY
+    : QUALIFICATION_ACCOUNTING_POLICY;
+  if (qualificationCanonicalJson(accounting) !== qualificationCanonicalJson(expectedAccounting)) {
+    throw new Error(judgePanel
+      ? "qualification accounting must equal the canonical panel policy (Wave A 54/162, complete 642/1926, ceilings 700/2100, initial 0/0)"
+      : "qualification accounting must equal the canonical policy (Wave A 54/54, complete 642/642, ceilings 700/700, initial 0/0)");
   }
 
   if (!Array.isArray(root.arms) || root.arms.length === 0) throw new Error("qualification configuration arms must be a non-empty array");
@@ -416,11 +471,19 @@ export function parseQualificationConfig(value: unknown): QualificationConfigV1 
   if (!arms.some((arm) => arm.kind === "subject") || !arms.some((arm) => arm.kind === "judge")) {
     throw new Error("qualification configuration requires at least one subject arm and one judge arm");
   }
+  if (board) {
+    for (const cell of board.cells) {
+      if (!arms.some((arm) => arm.id === cell.subject_arm && arm.kind === "subject")) throw new Error(`qualification board cell ${cell.id} names undeclared subject arm ${cell.subject_arm}`);
+      for (const judgeArm of cell.judge_arms) if (!arms.some((arm) => arm.id === judgeArm && arm.kind === "judge")) throw new Error(`qualification board cell ${cell.id} names undeclared judge arm ${judgeArm}`);
+    }
+  }
 
   return {
     schema_version: QUALIFICATION_CONFIG_VERSION,
     ...(oauthDirectoryPolicy ? { oauth_directory_policy: oauthDirectoryPolicy } : {}),
     ...(terminalReceiptVersion ? { terminal_receipt_version: terminalReceiptVersion } : {}),
+    ...(judgePanel ? { judge_panel: judgePanel } : {}),
+    ...(board ? { board } : {}),
     mode,
     product,
     engine,
@@ -430,14 +493,14 @@ export function parseQualificationConfig(value: unknown): QualificationConfigV1 
       executable: parseExecutablePin(runnerObject.executable, "runner.executable"),
       conflicting_parent_environment: conflictPolicy,
     },
-    accounting: structuredClone(QUALIFICATION_ACCOUNTING_POLICY),
+    accounting: structuredClone(expectedAccounting),
     arms,
   };
 }
 
 export function parseQualificationRequest(value: unknown, config: QualificationConfigV1): QualificationInvocationRequestV1 {
   const root = object(value, "qualification invocation request");
-  exactKeys(root, ["schema_version", "measurement_identity_sha256", "invocation_id", "continuation_authority_sha256", "continuation_authority_expires_at", "scenario", "role", "counts_as_measurement", "arms", "selected_arm", "repetition"], "qualification invocation request");
+  exactKeys(root, ["schema_version", "measurement_identity_sha256", "invocation_id", "continuation_authority_sha256", "continuation_authority_expires_at", "scenario", "role", "counts_as_measurement", "arms", "selected_arm", "repetition"], "qualification invocation request", ["panel"]);
   if (root.schema_version !== QUALIFICATION_REQUEST_VERSION) throw new Error(`qualification request schema_version must be ${QUALIFICATION_REQUEST_VERSION}`);
   const scenarioObject = object(root.scenario, "qualification request scenario");
   exactKeys(scenarioObject, ["id", "version", "stimulus_sha256", "rubric_sha256", "input_path", "input_sha256", "working_directory"], "qualification request scenario");
@@ -459,6 +522,30 @@ export function parseQualificationRequest(value: unknown, config: QualificationC
   if (role === "subject" && (selectedArm !== subjectArm || selected.kind !== "subject")) throw new Error("qualification subject role must select the request's subject arm");
   if (role === "judge" && (selectedArm !== judgeArm || selected.kind !== "judge")) throw new Error("qualification judge role must select the request's judge arm");
   if (![subjectArm, judgeArm].includes(selectedArm)) throw new Error("qualification selected arm must be the bound subject or judge arm");
+  if (config.board && role === "subject" && !config.board.cells.some((cell) =>
+    boardCellMatchesRequest(cell, root, scenarioObject, subjectArm) &&
+    cell.subject_input_sha256 === String(scenarioObject.input_sha256).toLowerCase() &&
+    cell.panels.some((panel) => panel.repetition === root.repetition))) {
+    throw new Error("qualification subject request identity/input is not declared by the approved board");
+  }
+  let panel: QualificationInvocationRequestV1["panel"];
+  if (Object.hasOwn(root, "panel")) {
+    if (!config.judge_panel) throw new Error("qualification request panel metadata requires a judge_panel configuration");
+    if (role !== "judge") throw new Error("qualification request panel metadata is valid only for judge role");
+    const panelObject = object(root.panel, "qualification request panel");
+    exactKeys(panelObject, ["id", "member_ordinal", "subject_invocation_id", "subject_artifact_sha256"], "qualification request panel");
+    const ordinal = boundedInteger(panelObject.member_ordinal, 1, 3, "qualification request panel.member_ordinal") as 1 | 2 | 3;
+    panel = {
+      id: identifier(panelObject.id, "qualification request panel.id"),
+      member_ordinal: ordinal,
+      subject_invocation_id: identifier(panelObject.subject_invocation_id, "qualification request panel.subject_invocation_id"),
+      subject_artifact_sha256: digest(panelObject.subject_artifact_sha256, "qualification request panel.subject_artifact_sha256"),
+    };
+    const cell = config.board?.cells.find((candidate) => candidate.panels.some((declared) => declared.id === panel!.id && declared.repetition === root.repetition));
+    if (!cell || !boardCellMatchesRequest(cell, root, scenarioObject, subjectArm) || cell.judge_arms[ordinal - 1] !== selectedArm) throw new Error("qualification request panel is not declared for this board identity/scenario/arm/repetition/judge ordinal");
+  } else if (config.judge_panel && role === "judge") {
+    throw new Error("qualification judge request under judge_panel configuration requires panel metadata");
+  }
   const inputPath = absolutePath(scenarioObject.input_path, "scenario.input_path");
   const workingDirectory = absolutePath(scenarioObject.working_directory, "scenario.working_directory");
   return {
@@ -481,6 +568,7 @@ export function parseQualificationRequest(value: unknown, config: QualificationC
     arms: { subject: subjectArm, judge: judgeArm },
     selected_arm: selectedArm,
     repetition: nonNegativeInteger(root.repetition, "repetition"),
+    ...(panel ? { panel } : {}),
   };
 }
 
@@ -555,6 +643,65 @@ function parseArm(value: unknown, mode: QualificationConfigMode, index: number):
     fallback: false,
     metered_override: false,
   };
+}
+
+function boardCellMatchesRequest(
+  cell: QualificationBoardV1["cells"][number],
+  request: Record<string, unknown>,
+  scenario: Record<string, unknown>,
+  subjectArm: string,
+): boolean {
+  return cell.measurement_identity_sha256 === String(request.measurement_identity_sha256).toLowerCase() &&
+    cell.scenario_id === scenario.id && cell.scenario_version === scenario.version &&
+    cell.stimulus_sha256 === String(scenario.stimulus_sha256).toLowerCase() &&
+    cell.rubric_sha256 === String(scenario.rubric_sha256).toLowerCase() && cell.subject_arm === subjectArm;
+}
+
+function parseQualificationBoard(value: unknown): QualificationBoardV1 {
+  const board = object(value, "qualification board");
+  exactKeys(board, ["schema_version", "read_only", "cells"], "qualification board");
+  if (board.schema_version !== QUALIFICATION_BOARD_VERSION || board.read_only !== true) throw new Error("qualification board must be qualification-board-v1 with read_only true");
+  if (!Array.isArray(board.cells) || board.cells.length === 0) throw new Error("qualification board cells must be a non-empty array");
+  const cells = board.cells.map((entry, index) => {
+    const cell = object(entry, `qualification board cell ${index}`);
+    exactKeys(cell, ["id", "scenario_id", "measurement_identity_sha256", "scenario_version", "stimulus_sha256", "rubric_sha256", "subject_input_sha256", "subject_arm", "judge_arms", "panels", "critical", "pass_threshold"], `qualification board cell ${index}`);
+    if (!Array.isArray(cell.panels) || cell.panels.length === 0) throw new Error(`qualification board cell ${index}.panels must be non-empty`);
+    const panels = cell.panels.map((raw, panelIndex) => {
+      const panel = object(raw, `qualification board cell ${index}.panels[${panelIndex}]`);
+      exactKeys(panel, ["id", "repetition"], `qualification board cell ${index}.panels[${panelIndex}]`);
+      return { id: identifier(panel.id, `qualification board cell ${index} panel id`), repetition: nonNegativeInteger(panel.repetition, `qualification board cell ${index} panel repetition`) };
+    });
+    if (new Set(panels.map((panel) => panel.id)).size !== panels.length || new Set(panels.map((panel) => panel.repetition)).size !== panels.length) throw new Error(`qualification board cell ${index} contains duplicate panel ids or repetitions`);
+    if (!Array.isArray(cell.judge_arms) || cell.judge_arms.length !== 3) throw new Error(`qualification board cell ${index}.judge_arms must contain exactly three arm ids`);
+    const judgeArms = cell.judge_arms.map((arm, judgeIndex) => identifier(arm, `qualification board cell ${index}.judge_arms[${judgeIndex}]`)) as [string, string, string];
+    if (typeof cell.critical !== "boolean") throw new Error(`qualification board cell ${index}.critical must be boolean`);
+    const passThreshold = positiveInteger(cell.pass_threshold, `qualification board cell ${index}.pass_threshold`);
+    if (passThreshold > panels.length || (cell.critical && passThreshold !== panels.length)) throw new Error(`qualification board cell ${index}.pass_threshold contradicts its repetitions or Critical policy`);
+    return {
+      id: identifier(cell.id, `qualification board cell ${index}.id`),
+      scenario_id: identifier(cell.scenario_id, `qualification board cell ${index}.scenario_id`),
+      measurement_identity_sha256: digest(cell.measurement_identity_sha256, `qualification board cell ${index}.measurement_identity_sha256`),
+      scenario_version: identifier(cell.scenario_version, `qualification board cell ${index}.scenario_version`),
+      stimulus_sha256: digest(cell.stimulus_sha256, `qualification board cell ${index}.stimulus_sha256`),
+      rubric_sha256: digest(cell.rubric_sha256, `qualification board cell ${index}.rubric_sha256`),
+      subject_input_sha256: digest(cell.subject_input_sha256, `qualification board cell ${index}.subject_input_sha256`),
+      subject_arm: identifier(cell.subject_arm, `qualification board cell ${index}.subject_arm`), judge_arms: judgeArms,
+      panels, critical: cell.critical, pass_threshold: passThreshold,
+    };
+  });
+  if (new Set(cells.map((cell) => cell.id)).size !== cells.length) throw new Error("qualification board contains duplicate cell ids");
+  const logicalSlots = cells.flatMap((cell) => cell.panels.map((panel) => `${cell.scenario_id}\0${cell.subject_arm}\0${panel.repetition}`));
+  if (new Set(logicalSlots).size !== logicalSlots.length) throw new Error("qualification board duplicates a scenario/subject-arm/repetition slot");
+  const allPanelIds = cells.flatMap((cell) => cell.panels.map((panel) => panel.id));
+  if (new Set(allPanelIds).size !== allPanelIds.length) throw new Error("qualification board contains duplicate panel ids across cells");
+  return { schema_version: QUALIFICATION_BOARD_VERSION, read_only: true, cells };
+}
+
+function parseCanonicalJudgePanelPolicy(value: unknown): typeof QUALIFICATION_JUDGE_PANEL_POLICY {
+  if (qualificationCanonicalJson(value) !== qualificationCanonicalJson(QUALIFICATION_JUDGE_PANEL_POLICY)) {
+    throw new Error("qualification judge_panel must equal the canonical qualification-judge-panel-policy-v1 agreement, split, failure, and Wave A call-budget policy");
+  }
+  return structuredClone(QUALIFICATION_JUDGE_PANEL_POLICY);
 }
 
 function parseRepositoryPin(value: Record<string, unknown>, ctx: string): QualificationRepositoryPin {
