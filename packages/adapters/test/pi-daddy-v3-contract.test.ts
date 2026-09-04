@@ -12,7 +12,7 @@ import {
 } from "../src/pi-daddy-ledger-v3.js";
 import { assertSupportedSchemaV3, declaredPropertyNames, validateClosedSchemaV3 } from "../src/closed-schema.js";
 
-// PROVISIONAL: unmerged pi-daddy Wave 1 head; replace with its merge commit before release.
+// Immutable pi-daddy Wave 1 merge head; PINNED.json and consumer notes must agree.
 const PRODUCER_COMMIT = "4a9524394ca995fd74ed9bbb836dc4e73cda3b8c";
 const PRODUCER_TREE = "7c006bff213142634f0f911ba9bd6add363ecaae";
 const REPO = fileURLToPath(new URL("../../..", import.meta.url));
@@ -31,6 +31,11 @@ describe("pinned pi-daddy ledger v3 contract", () => {
     expect(PI_DADDY_LEDGER_V3_SCHEMA_SHA256).toBe(pinned.schema_sha256);
     expect(PI_DADDY_LEDGER_V3_SCHEMA_SHA256).toBe(sha(bytes("ledger-event.schema.json")));
     expect(PI_DADDY_LEDGER_V3_SCHEMA).toEqual(JSON.parse(bytes("ledger-event.schema.json")));
+    const consumerNotes = bytes("README.md");
+    expect(consumerNotes).toContain(`commit      ${pinned.commit}`);
+    expect(consumerNotes).toContain(`tree        ${pinned.tree}`);
+    expect(consumerNotes).toContain(`version     ${pinned.version}`);
+    expect(consumerNotes).toContain(`/clean/pi-daddy ${pinned.commit} --check`);
     expect(Object.keys(pinned.artifacts).sort()).toEqual([
       "fixtures/capability-decision.json", "fixtures/check-receipt.json", "fixtures/child-lifecycle.json",
       "fixtures/workflow-fact.json", "fixtures/workspace-lease.json", "ledger-event.schema.json", "pi-daddy-README.md", "refusals.ts",

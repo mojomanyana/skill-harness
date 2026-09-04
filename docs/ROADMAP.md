@@ -612,8 +612,8 @@ never enter `specification.yaml` before a human promotes them.
         Fixed per command, because the correct contract differs: `grade` carries
         `objective` (it does not re-evaluate gates) and drops `adjudication` (it replaced
         those judgments); `regate` recomputes `objective` (that is its job) and carries
-        `adjudication` (it asks no judge anything); `rescore` carries both (it
-        re-measures nothing). `packages/core/test/field-roundtrip.test.ts` now covers
+        `adjudication` (except when a newly passing rep must be judged); `rescore` carries
+        both (it re-measures nothing). `packages/core/test/field-roundtrip.test.ts` now covers
         every writer × every optional field — the round-trip suite the plan asked for
         and nobody had written.
       - Also observed live, on the third run: the judge **disagreed with itself** on the

@@ -4,10 +4,14 @@ This directory pins the production `ledgerVersion: 3` contract from:
 
 ```text
 repository  mojomanyana/pi-daddy
-commit      591abb4a358bf8a84455486812b83609e2a47e3f
-tree        c9fe1b324ffbf0d72e7d904972594b3a936e9928
-version     0.20.0
+commit      4a9524394ca995fd74ed9bbb836dc4e73cda3b8c
+tree        7c006bff213142634f0f911ba9bd6add363ecaae
+version     0.21.1
 ```
+
+This pinned commit is reachable from pi-daddy's merged `main` at merge commit
+`62e9d027514e9fc6d689d505d7ef733a07f1470c`. Both commits resolve to tree
+`7c006bff213142634f0f911ba9bd6add363ecaae`, and their full diff is empty.
 
 `PINNED.json` maps every byte-vendored artifact to its producer path and SHA-256.
 `pi-daddy-README.md` is the producer's contract text. Positive fixtures are not
@@ -20,7 +24,7 @@ Deterministic checks, after dependencies are installed:
 
 ```bash
 node scripts/vendor-pi-daddy-ledger-v3-contract.mjs \
-  /clean/pi-daddy 591abb4a358bf8a84455486812b83609e2a47e3f --check
+  /clean/pi-daddy 4a9524394ca995fd74ed9bbb836dc4e73cda3b8c --check
 npm run build
 node scripts/check-pi-daddy-v3-contract.mjs
 npm run verify:pi-daddy-v3-contract -- /clean/pi-daddy

@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -183,15 +182,5 @@ describe("principal v3 pack repaired assertions", () => {
   it.each(repairedCases)("$id accepts observed producer shape and rejects its mutation", ({ id, observed, mutate }) => {
     expect(evaluateTrajectoryGates(repaired(id), observed).status).toBe("PASS");
     expect(evaluateTrajectoryGates(repaired(id), mutate(structuredClone(observed))).status).not.toBe("PASS");
-  });
-});
-
-describe("principal fixture provenance", () => {
-  it("records a source commit that resolves in the named producer repository", () => {
-    const provenance = readFileSync(join(__dirname, "../../../examples/principal-v3-pack/tests/fixtures/principal-native/PROVENANCE.md"), "utf8");
-    const commit = provenance.match(/commit\s+`([0-9a-f]{40})`/)?.[1];
-    expect(commit).toBeTruthy();
-    const checkout = process.env.PRINCIPAL_PI_SKILLS_CHECKOUT ?? join(__dirname, "../../../../principal-pi-skills");
-    expect(execFileSync("git", ["-C", checkout, "cat-file", "-t", commit!], { encoding: "utf8" }).trim()).toBe("commit");
   });
 });

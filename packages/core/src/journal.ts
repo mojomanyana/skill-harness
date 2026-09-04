@@ -45,7 +45,7 @@ export type JournalEvent =
   | { event: "rescore"; ts: string; changed: string[]; passed: number; total: number; pct: number; ship: boolean }
   /**
    * A regate: needle gates re-evaluated against the saved staged diffs. `judge_calls`
-   * is on the record because regate is advertised as free apart from the reps whose
+   * is on the record because regate may spend only on the reps whose
    * gate verdict flipped — a claim the journal should be able to settle. `skipped`
    * names scenarios it could not regate (vitest/post_test, or missing diff artifacts).
    */

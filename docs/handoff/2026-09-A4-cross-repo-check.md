@@ -7,7 +7,7 @@ Mode: read-only audit; no model/judge, publish, tag, push, or commit action was 
 
 # CONFLICT
 
-The repository identities and most wire fields agree, and the provisional pi-daddy bytes are identical to the merge-head bytes. However, six ship-gating assertions in `examples/principal-v3-pack` cannot be satisfied by the real producer/adapter field placement, one critical refusal assertion uses a nonexistent code, the principal fixture provenance records a nonexistent commit, and `regate` is still described unconditionally as free/offline although one path calls a judge. These are release blockers, not documentation-only exceptions.
+The repository identities and most wire fields agree, and the then-branch-head pi-daddy bytes are identical to the eventual merge bytes. However, six ship-gating assertions in `examples/principal-v3-pack` cannot be satisfied by the real producer/adapter field placement, one critical refusal assertion uses a nonexistent code, the principal fixture provenance records a nonexistent commit, and `regate` is still described unconditionally as free/offline although one path calls a judge. These are release blockers, not documentation-only exceptions.
 
 ## Identity gate
 
@@ -39,22 +39,16 @@ All three identities passed the gate. No other path under `/home/neman/Code` was
 
 Post-test status was unchanged. `git diff --check` passed in all three repositories.
 
-## Provisional pi-daddy pin equivalence
+## Pi-daddy pin reachability and equivalence
 
-The former snapshot pin and authoritative merge head
-`4a9524394ca995fd74ed9bbb836dc4e73cda3b8c` both resolve to tree
-`7c006bff213142634f0f911ba9bd6add363ecaae`.
+Final verification after pi-daddy PR #31 merged established that pinned commit
+`4a9524394ca995fd74ed9bbb836dc4e73cda3b8c` is an ancestor of `origin/main` at merge commit
+`62e9d027514e9fc6d689d505d7ef733a07f1470c`. Both commits resolve to tree
+`7c006bff213142634f0f911ba9bd6add363ecaae`, and their full diff is empty.
 
-The content is exactly equivalent. The pin **still must move to `4a95243...` before release**: the authoritative merged/current producer identity is the merge-head commit, while the existing pin names a snapshot/mutation-audit identity. Preserve the identical tree, version, schema digest, and artifact digests.
-
-Running the vendor check against current HEAD correctly exposed the missing repin:
-
-```text
-no authoritative ledger-v3 producer metadata recorded for 4a9524394ca995fd74ed9bbb836dc4e73cda3b8c
-exit=2
-```
-
-The existing provisional snapshot check passed, and the direct contract checker accepted 5/5 canonical fixtures.
+The immutable pin therefore stays at `4a95243...`; it now names a commit reachable from
+pi-daddy's merged `main`. No re-vendor or digest change is needed. The pinned vendor check
+passed, and the direct contract checker accepted 5/5 canonical fixtures.
 
 ## Field-by-field contract comparison
 
@@ -66,7 +60,7 @@ The existing provisional snapshot check passed, and the direct contract checker 
 | assurance event/run-state `schema_version` | principal-pi-skills | `"1.0"` | Unchanged snapshot shape (`assurance-state.mjs:25,471`; schema const at `schemas/assurance-run-state-v1.schema.json:39`). Harness requires exactly 1.0 (`trajectory.ts:179-180`). |
 | pi-daddy correlation `schema_version` | pi-daddy | optional `"1.0"` | Runtime rejects any other value (`correlation.ts:181-184`); generated v3 schema agrees. This is correlation metadata, not trajectory version. |
 | qualification formats | skill-harness | config v1; runner v1; request v1; terminal receipt v3; OAuth directory policy v1/v2 | Distinct constants in `qualification-config.ts:6-15`; none is substituted for a trajectory, principal, or correlation version. |
-| qualification product pins | skill-harness | principal `a659695...`; pi-daddy provisional snapshot | Internally schema/runtime-consistent, but the pi-daddy commit must become `4a95243...`. The principal pin predates `gate_evaluated`; it cannot support a claim that production qualification exercises the new pack semantics without a later explicit product repin. |
+| qualification product pins | skill-harness | principal `a659695...`; pi-daddy `4a95243...` | The pi-daddy pin is reachable from merged `main` at `62e9d02` with identical tree/bytes. The principal pin predates `gate_evaluated`; it cannot support a claim that production qualification exercises the new pack semantics without a later explicit product repin. |
 
 ### Assurance source
 
@@ -209,8 +203,7 @@ Before any pi-daddy test, `pgrep -af 'test/workspace.test.ts'` returned only the
 |---|---|
 | skill-harness `lint principal-v3-pack --skills examples` | PASS — 1 skill, 0 findings |
 | skill-harness `mutation-test` | PASS — 21/21 mutations detected; no model/judge calls |
-| v3 vendor snapshot `--check` | PASS — deterministic/current at provisional pin |
-| v3 vendor current HEAD `4a95243... --check` | EXPECTED RELEASE-BLOCKING FAIL — current authoritative metadata not recorded |
+| v3 vendor pin `--check` | PASS — deterministic/current; pin is reachable from merged pi-daddy `main` at `62e9d02` with identical tree/bytes |
 | v3 direct contract check | PASS — 5/5 canonical fixtures and negative control |
 | principal `npm test` with exact local harness substituted for moving `@latest` | PASS — generated 13/13; unit 190 total, 189 pass, 1 skip; install 25/25; pack 28 required files; lint 104 findings, all 104 exempt, 0 blocking, 32 notes |
 | pi-daddy `npm test` | PASS — 739/739 |
@@ -235,17 +228,19 @@ e438a605c2376d3b06132f3e2db21ae0706983d0
 
 The fixture ledger digest still matches its recorded SHA-256 (`5297f64e...fc542`), and all six copied agent files are byte-identical to current principal HEAD, but the immutable provenance claim is not reproducible. Ownership: **skill-harness**. Smallest fix: correct the commit identity and regenerate/re-hash only if reproduction shows bytes differ.
 
-## Provisional and deferred release blockers
+## Deferred release blockers
 
-1. **Mandatory producer repin:** replace every skill-harness v3/qualification/CI/doc snapshot pin with authoritative `4a95243...`, retaining tree `7c006b...` and unchanged bytes/digests.
-2. **Pack assertion conflicts:** repair V3-02, V3-06, V3-07, V3-08, V3-10, and V3-13 against fields real producers emit. These are critical/ship-bar cells.
-3. **Protocol fixture drift:** replace synthetic gate `result:"pass"` with real `code:"OK", missing_count:0` and ensure tests fail on the old shape.
-4. **Broken principal provenance SHA:** correct/reproduce the fixture source identity.
-5. **Pending upstream, explicitly excluded from SHIP:** V3-14 needs real `workspace_deleted`/`workspace_released`; V3-15 needs real `side_effect_performed`; principal `approval_granted` has no producer and must not be invented.
-6. **Principal qualification product pin:** remains merged `a659695...`, which predates `gate_evaluated`. Keep it only if qualification intentionally targets that older product; otherwise repin after the principal branch merges and package bytes are rebuilt.
-7. **Pi-daddy decisions not implemented:** ADR-0040 shared Git-common-directory lease coordination (R-148), ADR-0041 approve-before-exclusive-acquisition/revalidation (R-145), and ADR-0042 inherited destination pins (R-137). Do not describe them as shipped.
-8. **Pi-daddy documented gap:** named-check receipt durable persistence/recovery remains controller-owned.
-9. **Principal deferred behavior:** abandoned `ppw-*` directory discovery/pruning is characterized but not implemented; Plan syntax/discovery/authority/event-log enforcement remains a future runtime contract; two-model validation and live workflow/runtime evidence remain unrun.
-10. **Skill-harness free-command wording/control:** resolve the `regate` judge-call contradiction before claiming every listed free command is token-free.
-11. **Toolchain release evidence:** the 23 release-pack tests and packed smoke must run on the pinned Node 20.20.2/npm 10.8.2 CI/release host; their intentional Node 26 skip is not release evidence.
-12. **No release actions yet:** proposed skill-harness 0.12.0 remains unbumped/unpublished; no qualification measurement, model wave, judge-agreement pair, publish, tag, push, or commit was performed here.
+The producer-pin blocker is closed: `4a95243...` is reachable from merged pi-daddy `main`
+at `62e9d02`, both commits have tree `7c006b...`, and their full diff is empty.
+
+1. **Pack assertion conflicts:** repair V3-02, V3-06, V3-07, V3-08, V3-10, and V3-13 against fields real producers emit. These are critical/ship-bar cells.
+2. **Protocol fixture drift:** replace synthetic gate `result:"pass"` with real `code:"OK", missing_count:0` and ensure tests fail on the old shape.
+3. **Broken principal provenance SHA:** correct/reproduce the fixture source identity.
+4. **Pending upstream, explicitly excluded from SHIP:** V3-14 needs real `workspace_deleted`/`workspace_released`; V3-15 needs real `side_effect_performed`; principal `approval_granted` has no producer and must not be invented.
+5. **Principal qualification product pin:** remains merged `a659695...`, which predates `gate_evaluated`. Keep it only if qualification intentionally targets that older product; otherwise repin after the principal branch merges and package bytes are rebuilt.
+6. **Pi-daddy decisions not implemented:** ADR-0040 shared Git-common-directory lease coordination (R-148), ADR-0041 approve-before-exclusive-acquisition/revalidation (R-145), and ADR-0042 inherited destination pins (R-137). Do not describe them as shipped.
+7. **Pi-daddy documented gap:** named-check receipt durable persistence/recovery remains controller-owned.
+8. **Principal deferred behavior:** abandoned `ppw-*` directory discovery/pruning is characterized but not implemented; Plan syntax/discovery/authority/event-log enforcement remains a future runtime contract; two-model validation and live workflow/runtime evidence remain unrun.
+9. **Skill-harness free-command wording/control:** resolve the `regate` judge-call contradiction before claiming every listed free command is token-free.
+10. **Toolchain release evidence:** the 23 release-pack tests and packed smoke must run on the pinned Node 20.20.2/npm 10.8.2 CI/release host; their intentional Node 26 skip is not release evidence.
+11. **No release actions yet:** proposed skill-harness 0.12.0 remains unbumped/unpublished; no qualification measurement, model wave, judge-agreement pair, publish, tag, push, or commit was performed here.

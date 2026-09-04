@@ -59,7 +59,8 @@ And the lint message names it, because the message is the feature:
 ```
 
 Nothing about the gate's strictness changed. Every edit still marks something stale.
-What changed is that three of the four ways back are now free.
+What changed is that three of the four ways back avoid a subject re-run; `regate` may
+still spend one judge call for each previously blocked rep whose gate now passes.
 
 ## `regate`, or: the artifact was already on disk
 

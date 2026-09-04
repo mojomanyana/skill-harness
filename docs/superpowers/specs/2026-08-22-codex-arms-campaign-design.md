@@ -156,7 +156,7 @@ back into model and arm. This is the load-bearing choice: `lint` and `stability`
 on the tag, so the two arms become separate
 lineages that can never be misread as a run-over-run verdict flip of the same thing — and
 because no `specification.yaml` byte moves, **all 202 committed runs stay valid and the
-101 lint findings do not grow.** (202 is measured — one `results.yaml` per run dir. The
+current 104 lint findings (all exempt, 0 blocking) do not grow.** (202 is measured — one `results.yaml` per run dir. The
 roadmap's "~104 runs" dates from 2026-08-04 and is stale.)
 
 `results.yaml` records an `arm:` block — name, resolved extension paths, seeded definition
@@ -312,8 +312,9 @@ how many reps — as a separate decision.
 - **No arm test may shell out to `pi`** — CI has none on PATH.
 - If `cli`/`core` source moves, `npm run build:ext` and commit
   `packages/pi-extension/dist/index.js`. Never add pi-extension to an emitting `tsc -b`.
-- Run `lint all --skills ../principal-pi-skills` before and after: the finding count must
-  stay at 101/32. A change in that number means the arm leaked into a digest.
+- Run `lint all --skills ../principal-pi-skills` before and after: the baseline must stay
+  at 104 findings / 32 notes, with all findings exempt and 0 blocking. A change in that
+  result means the arm leaked into a digest.
 
 ## 10. Finding: force delivers frontmatter, and the digest says it cannot
 
@@ -418,7 +419,7 @@ Neither belongs in this spec; both are free.
 | skill-harness | `0.10.0`, `main` at `ba8f97f`, 1,289 tests / 79 files green |
 | pi | `0.84.2` |
 | pi-daddy | `0.18.1`, `8feaacb` |
-| principal-pi-skills | HEAD `2c53559`, 7 skills, 106 scenarios, 202 runs, 101 lint findings / 32 notes |
+| principal-pi-skills | HEAD `2c53559`, 7 skills, 106 scenarios, 202 runs; historical 101/32 measurement (current audited baseline: 104 findings / 32 notes, all exempt, 0 blocking) |
 | Corpus modes | 94 green, 59 force, 12 red |
 | Scenario counts | architect 15, build 10, debug 12, decide 13, git-ops 21, plan 13, review 22 |
 | §4 spike | Run 2026-08-22 — blocked on an invalidated `openai-codex` OAuth token; thinking-suffix question still open |
