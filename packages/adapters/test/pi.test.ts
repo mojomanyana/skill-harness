@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -10,6 +10,7 @@ vi.mock("@skill-harness/core", async (importOriginal) => {
 });
 
 import { piAdapter } from "../src/pi.js";
+import { observeProviderPayload } from "../src/prompt-provenance.js";
 import { exec, PROVIDER_FAILURE_MARKER, providerFailureFromTranscript } from "@skill-harness/core";
 
 const mockedExec = vi.mocked(exec);
@@ -24,6 +25,29 @@ function fakeSkill(body = "---\nname: s\ndescription: d\n---\n\n## Do the thing\
 beforeEach(() => {
   mockedExec.mockReset();
   mockedExec.mockResolvedValue({ code: 0, stdout: "USER: hi\nASSISTANT: ok\nVERDICT: PASS", stderr: "" });
+});
+
+describe("Pi prompt observation plumbing", () => {
+  it("computes delivery from the captured provider payload rather than caller status (breaks if the internal observer is not wired)", async () => {
+    const skillDir = fakeSkill();
+    const body = "\n## Do the thing\n";
+    mockedExec.mockImplementation(async (_cmd, _args, opts) => {
+      const target = opts?.env?.SKILL_HARNESS_PROMPT_CAPTURE_FILE;
+      expect(target).toBeTruthy();
+      const contract = JSON.parse(readFileSync(opts?.env?.SKILL_HARNESS_PROMPT_CONTRACT_FILE!, "utf8"));
+      writeFileSync(target!, JSON.stringify(observeProviderPayload({ instructions: `generic${body}` }, contract.text, contract.mechanism, 0)) + "\n", "utf8");
+      return { code: 0, stdout: "ok", stderr: "" };
+    });
+    const seen: any[] = [];
+    const userExtension = join(mkdtempSync(join(tmpdir(), "user-extension-")), "user.ts"); writeFileSync(userExtension, "export default () => {}", "utf8");
+    await piAdapter.run({ skillDir, model: { provider: "fake", model: "m" }, mode: "force", turns: ["hi"], cwd: "/tmp", extensions: [userExtension], onPromptObservation: observation => seen.push(observation) });
+    const args = mockedExec.mock.calls[0][1] as string[];
+    const extensionPaths = args.flatMap((arg, index) => arg === "--extension" ? [args[index + 1]] : []);
+    expect(extensionPaths[0]).toBe(userExtension);
+    expect(extensionPaths.at(-1)).toMatch(/prompt-capture-extension\.js$/);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ mechanism: "append-system-prompt", contract_occurrences: 1, status: "PASS", normalization_rule: "cwd-line-v1" });
+  });
 });
 
 describe("pi adapter nested-run safety", () => {

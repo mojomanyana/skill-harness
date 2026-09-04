@@ -5,8 +5,8 @@ import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
 import { buildJudgePrompt, judgeInWorkspace } from "./grade.js";
 import {
   findTranscriptFiles, judgeRawPath, repIndexOf, readResults, writeResults, effectiveThreshold,
-  scoreContextFor, rebuildScenarioResult, mergeScenarioMetrics,
-  type Judgment, type ScenarioResult, type ResultsFile,
+  scoreContextFor, rebuildScenarioResult, mergeScenarioMetrics, carryRepObjectives,
+  type Judgment, type ScenarioResult, type ResultsFile, completeCriterionVotes,
 } from "./results.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
 import { appendJournal } from "./journal.js";
@@ -101,6 +101,7 @@ export async function judgeOneRep(opts: {
   if (g.suspect) appendJournal(runDir, { event: "misfire-flag", ts: now(), id: scenario.id, reason: g.reason, ...repField });
   return {
     verdict: g.verdict, reason: g.reason, suspect: g.suspect,
+    judgment: { ordinal: 1, judge: { ...judge }, verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, scenario.checklist.length) },
     metrics: {
       wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
       judge_calls: 1,
@@ -178,10 +179,11 @@ export function appendJudgeHistory(
     verdict: prior.judge_verdict ?? "JUDGE-AMBIGUOUS",
     reason: prior.judge_reason ?? "prior grade",
     suspect: prior.suspect ?? true,
+    criteria: prior.rep_judgments?.flatMap(panel => panel.judgments[0]?.criteria ?? []) ?? [],
   }] : []);
   const next = [
     ...history,
-    { ...fresh, ordinal: history.length + 1 },
+    { ...fresh, criteria: fresh.criteria ?? [], ordinal: history.length + 1 },
   ].slice(-3).map((judgment, index) => ({ ...judgment, ordinal: index + 1 }));
   return next.length >= 2 ? next : undefined;
 }
@@ -262,8 +264,10 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     });
     const carry = overrides.get(id);
     rr.metrics = mergeScenarioMetrics(carry?.metrics, rr.metrics);
+    rr.rep_judgments = carryRepObjectives(rr.rep_judgments, carry?.rep_judgments);
     rr.judge_history = appendJudgeHistory(carry, prev?.judge, {
       judge, verdict: rr.judge_verdict, reason: rr.judge_reason, suspect: rr.suspect,
+      criteria: rr.rep_judgments?.flatMap(panel => panel.judgments.flatMap(judgment => judgment.criteria ?? [])),
     });
     // `grade` re-judges the saved transcript. It does not re-evaluate trace gates
     // (that is `regate`), so `objective` still describes this run; and it replaced
@@ -273,6 +277,8 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
 
   const ctx = scoreContextFor({ mode, partial: prev?.partial }, spec);
   const results = writeResults(runDir, {
+    schema: prev?.schema,
+    subject_invocations: prev?.subject_invocations,
     skill: spec.skill,
     harness: prev?.harness ?? "pi",
     // The harness CLI that produced these transcripts, carried verbatim: a re-grade

@@ -1,0 +1,645 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-harness.dev/schemas/results-v3.schema.json",
+  "title": "skill-harness results v3",
+  "type": "object",
+  "required": [
+    "schema",
+    "skill",
+    "harness",
+    "model",
+    "judge",
+    "timestamp",
+    "label",
+    "mode",
+    "effective_grade",
+    "scenarios",
+    "subject_invocations"
+  ],
+  "properties": {
+    "schema": {
+      "const": 3
+    },
+    "harness_version": {
+      "type": "string"
+    },
+    "harness_cli_version": {
+      "type": "string"
+    },
+    "delivery_canary": {
+      "enum": [
+        "pass",
+        "skipped"
+      ]
+    },
+    "skill": {
+      "type": "string"
+    },
+    "harness": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "judge": {
+      "type": "object",
+      "required": [
+        "provider",
+        "model"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        }
+      }
+    },
+    "timestamp": {
+      "type": "string"
+    },
+    "label": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "mode": {
+      "enum": [
+        "red",
+        "green",
+        "force"
+      ]
+    },
+    "partial": {
+      "type": "boolean"
+    },
+    "source_hashes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "effective_grade": {
+      "$ref": "#/$defs/grade"
+    },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/scenario"
+      }
+    },
+    "subject_invocations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/subject_invocation"
+      }
+    },
+    "arm": {
+      "$ref": "#/$defs/arm"
+    }
+  },
+  "$defs": {
+    "verdict": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "ERROR",
+        "JUDGE-AMBIGUOUS"
+      ]
+    },
+    "grade": {
+      "type": "object",
+      "required": [
+        "passed",
+        "total",
+        "pct",
+        "letter",
+        "ship",
+        "note"
+      ],
+      "properties": {
+        "passed": {
+          "type": "integer"
+        },
+        "total": {
+          "type": "integer"
+        },
+        "pct": {
+          "type": "number"
+        },
+        "letter": {
+          "type": "string"
+        },
+        "ship": {
+          "type": "boolean"
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": [
+        "wall_time_ms",
+        "judge_calls",
+        "judge_rejudge_calls",
+        "subject_metrics_reps",
+        "total_reps"
+      ],
+      "properties": {
+        "wall_time_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "judge_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "judge_rejudge_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "subject_metrics_reps": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_reps": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "input_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cache_read_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cache_write_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "subject_cost_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "cost_source": {
+          "enum": [
+            "provider-reported",
+            "subscription",
+            "unreported"
+          ]
+        },
+        "tool_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "delegated_children": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_concurrency": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "judgment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordinal",
+        "judge",
+        "verdict",
+        "reason",
+        "suspect",
+        "criteria"
+      ],
+      "properties": {
+        "ordinal": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "judge": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider",
+            "model"
+          ],
+          "properties": {
+            "provider": {
+              "type": "string"
+            },
+            "model": {
+              "type": "string"
+            }
+          }
+        },
+        "verdict": {
+          "$ref": "#/$defs/verdict"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "suspect": {
+          "type": "boolean"
+        },
+        "criteria": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/criterion"
+          }
+        }
+      }
+    },
+    "scenario": {
+      "type": "object",
+      "required": [
+        "id",
+        "judge_verdict",
+        "judge_reason",
+        "suspect",
+        "override",
+        "note",
+        "rep_judgments",
+        "objective"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "judge_verdict": {
+          "$ref": "#/$defs/verdict"
+        },
+        "judge_reason": {
+          "type": "string"
+        },
+        "suspect": {
+          "type": "boolean"
+        },
+        "override": {
+          "oneOf": [
+            {
+              "const": null
+            },
+            {
+              "enum": [
+                "PASS",
+                "FAIL"
+              ]
+            }
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "reps": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "passes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "clean": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "flakiness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "pass_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "metrics": {
+          "$ref": "#/$defs/metrics"
+        },
+        "objective": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "assertions"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "PASS",
+                "FAIL",
+                "ERROR"
+              ]
+            },
+            "trace_version": {
+              "type": "integer"
+            },
+            "trace_sha256": {
+              "type": "string"
+            },
+            "trajectory_version": {
+              "const": "1.0"
+            },
+            "events_sha256": {
+              "type": "string"
+            },
+            "rep_events_sha256": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-fA-F0-9]{64}$"
+              }
+            },
+            "rep_trace_sha256": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-fA-F0-9]{64}$"
+              }
+            },
+            "assertions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "status",
+                  "detail"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "status": {
+                    "enum": [
+                      "PASS",
+                      "FAIL",
+                      "ERROR"
+                    ]
+                  },
+                  "detail": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "adjudication": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "trigger",
+            "judgments",
+            "repetition"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "confirmed",
+                "tie_broken",
+                "unresolved"
+              ]
+            },
+            "trigger": {
+              "enum": [
+                "ambiguous",
+                "contradictory",
+                "non_unanimous",
+                "ship_deciding"
+              ]
+            },
+            "verdict": {
+              "enum": [
+                "PASS",
+                "FAIL"
+              ]
+            },
+            "judgments": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/judgment"
+              }
+            },
+            "repetition": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "judge_history": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/judgment"
+          }
+        },
+        "rep_judgments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/rep_judgment"
+          }
+        }
+      }
+    },
+    "criterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "verdict",
+        "reason"
+      ],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "verdict": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "ERROR"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "rep_judgment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repetition",
+        "judgments",
+        "recorded_verdict",
+        "objective"
+      ],
+      "properties": {
+        "repetition": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "judgments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/judgment"
+          }
+        },
+        "recorded_verdict": {
+          "$ref": "#/$defs/verdict"
+        },
+        "objective": {
+          "$ref": "#/$defs/scenario/properties/objective"
+        }
+      }
+    },
+    "prompt_provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capture_version",
+        "request_index",
+        "raw_sha256",
+        "normalized_sha256",
+        "normalization_rule",
+        "bytes",
+        "contract_sha256",
+        "contract_bytes",
+        "contract_occurrences",
+        "mechanism",
+        "status"
+      ],
+      "properties": {
+        "capture_version": {
+          "const": "prompt-provenance-v1"
+        },
+        "request_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "raw_sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "normalized_sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "normalization_rule": {
+          "const": "cwd-line-v1"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "contract_sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "contract_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "contract_occurrences": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mechanism": {
+          "enum": [
+            "none",
+            "pi-skill",
+            "append-system-prompt",
+            "system-prompt-file"
+          ]
+        },
+        "status": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "ERROR"
+          ]
+        },
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "subject_invocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scenario_id",
+        "repetition",
+        "prompt"
+      ],
+      "properties": {
+        "scenario_id": {
+          "type": "string"
+        },
+        "repetition": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "prompt": {
+          "$ref": "#/$defs/prompt_provenance"
+        }
+      }
+    },
+    "arm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "extensions",
+        "definitions",
+        "ledger_events"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "extensions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "definitions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ledger_events": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

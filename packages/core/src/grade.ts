@@ -2,6 +2,7 @@ import type { Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
 import type { Verdict } from "./score.js";
 import { createWorkspace } from "./workspace.js";
+import { parseCriterionVotes, type CriterionVote } from "./results.js";
 
 export interface JudgePromptInput {
   skill: string;
@@ -111,6 +112,7 @@ export function judgeResemblesSubject(judge: ModelRef, subject: ModelRef): boole
 
 export interface GradeResult extends ParsedVerdict {
   raw: string;
+  criteria: CriterionVote[];
   /** Judge misfire: the overall verdict disagrees with AND(per-item grades). Recorded, never auto-passed; blocks SHIP until re-judged or overridden. */
   suspect: boolean;
 }
@@ -167,7 +169,7 @@ export async function gradeTranscript(
     if (snippet) parsed.reason = `judge unparseable: ${snippet}`;
   }
   const suspect = detectMisfire(raw, parsed.verdict);
-  return { ...parsed, raw, suspect };
+  return { ...parsed, raw, suspect, criteria: parseCriterionVotes(raw) };
 }
 
 /**

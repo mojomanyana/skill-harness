@@ -14,6 +14,7 @@ export const FREE_OFFLINE_COMMANDS = [
   "mutation-test",
   "rescore",
   "restamp",
+  "screen",
   "stability",
 ] as const;
 

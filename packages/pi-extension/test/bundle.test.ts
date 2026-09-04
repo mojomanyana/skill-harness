@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { build } from "esbuild";
-import { buildOptions } from "../build.mjs";
+import { buildOptions, observerBuildOptions } from "../build.mjs";
 
 // build:ext bundles @skill-harness/core, which resolves through packages/core/dist.
 // Run it before `tsc -b` and esbuild inlines a stale core — and the freshness test
@@ -30,5 +30,11 @@ describe("dist/index.js bundle freshness", () => {
     const fresh = result.outputFiles[0].text;
     const committed = readFileSync("packages/pi-extension/dist/index.js", "utf8");
     expect(fresh).toBe(committed);
+  });
+
+  it("ships the self-contained observer module the bundled adapter loads (breaks if build:ext emits only index.js)", async () => {
+    const result = await build({ ...observerBuildOptions, outfile: undefined, write: false });
+    expect(readFileSync("packages/pi-extension/dist/prompt-capture-extension.js", "utf8")).toBe(result.outputFiles[0].text);
+    expect(result.outputFiles[0].text).not.toContain('from "@skill-harness/core"');
   });
 });

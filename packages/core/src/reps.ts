@@ -1,5 +1,5 @@
 import type { Verdict } from "./score.js";
-import type { ScenarioResult, ObjectiveResult, ScenarioMetrics } from "./results.js";
+import type { ScenarioResult, ObjectiveResult, ScenarioMetrics, Judgment, SubjectInvocationObservation } from "./results.js";
 import type { TraceMetrics } from "./capture-trace-types.js";
 
 /** One rep's outcome (subject run + judge). */
@@ -9,6 +9,8 @@ export interface RepOutcome {
   suspect: boolean;
   /** Present only when the scenario declared structured objective assertions. */
   objective?: ObjectiveResult;
+  judgment?: Judgment;
+  subject_invocations?: SubjectInvocationObservation[];
   metrics?: {
     wall_time_ms: number;
     judge_calls: number;
@@ -98,15 +100,17 @@ export function outcomesToResult(id: string, outcomes: RepOutcome[], repCount: n
   const objectiveField = objective ? { objective } : {};
   const metrics = aggregateMetrics(outcomes);
   const metricsField = metrics ? { metrics } : {};
+  const repJudgments = outcomes.map((outcome, repetition) => ({ repetition, judgments: outcome.judgment ? [outcome.judgment] : [], recorded_verdict: outcome.verdict, ...(outcome.objective ? { objective: outcome.objective } : {}) }));
+  const repJudgmentField = outcomes.some(outcome => outcome.judgment) ? { rep_judgments: repJudgments } : {};
   if (repCount === 1) {
     const o = outcomes[0];
-    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, ...metricsField, override: null, note: "", ...objectiveField };
+    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, ...metricsField, override: null, note: "", ...objectiveField, ...repJudgmentField };
   }
   const agg = aggregateReps(outcomes, threshold);
   return {
     id, judge_verdict: agg.verdict, judge_reason: agg.reason, suspect: agg.suspect,
     reps: agg.reps, passes: agg.passes, clean: agg.clean, flakiness: agg.flakiness,
-    pass_threshold: threshold, ...metricsField, override: null, note: "", ...objectiveField,
+    pass_threshold: threshold, ...metricsField, override: null, note: "", ...objectiveField, ...repJudgmentField,
   };
 }
 

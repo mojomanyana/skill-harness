@@ -3,6 +3,8 @@ import { readFileSync, readdirSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import yaml from "js-yaml";
 import type { Scenario } from "./spec.js";
+import { PROMPT_NORMALIZATION_SOURCE_DIGEST, PROMPT_NORMALIZATION_SOURCE_KEY } from "./prompt-normalization.js";
+export { PROMPT_NORMALIZATION_SOURCE_DIGEST, PROMPT_NORMALIZATION_SOURCE_KEY } from "./prompt-normalization.js";
 
 /**
  * What a run measured, as a map of `key -> sha256`, recorded in results.yaml so
@@ -404,6 +406,7 @@ export function sourceHashes(ctx: SourceContext): Record<string, string> {
  * from drifting: a new key kind is defined once, for both sides.
  */
 export function currentHashFor(key: string, ctx: SourceContext): string | null | undefined {
+  if (key === PROMPT_NORMALIZATION_SOURCE_KEY) return PROMPT_NORMALIZATION_SOURCE_DIGEST;
   if (key === SKILL_KEY) return fileSha256(resolve(ctx.skillDir, "SKILL.md"));
   if (key === SKILL_PROMPT_KEY) return promptDocDigestOfFile(resolve(ctx.skillDir, "SKILL.md"));
 
@@ -450,6 +453,7 @@ export function currentHashFor(key: string, ctx: SourceContext): string | null |
 
 /** Human label for a recorded key, used in lint messages. */
 export function describeSourceKey(key: string): string {
+  if (key === PROMPT_NORMALIZATION_SOURCE_KEY) return "the prompt normalization rule registry";
   if (key === PERSONA_KEY) return "the judge persona";
   // Deliberately the same label as the raw-bytes key: only one of the pair is ever
   // compared (see `isSupersededKey`), and a reader of a lint finding cares which FILE
@@ -473,6 +477,7 @@ export function describeSourceKey(key: string): string {
  * in place. Naming the actual remedy is what converts that into a free command.
  */
 export function remedyForKey(key: string): string {
+  if (key === PROMPT_NORMALIZATION_SOURCE_KEY) return "re-run — prompt provenance cannot be recomputed without the original model-visible payload";
   if (key === PERSONA_KEY) {
     return "re-grade each model's saved transcripts (`grade <run-dir>`) — judge-only, no model spend";
   }
@@ -537,7 +542,7 @@ const CAPABILITY_KEYS = new Set(["allowed-tools", "tools"]);
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
 
 /** A prompt document split into its frontmatter text (null when it has none) and its body. */
-function splitPromptDoc(text: string): { frontmatter: string | null; body: string } {
+export function splitPromptDoc(text: string): { frontmatter: string | null; body: string } {
   const m = FRONTMATTER_RE.exec(text);
   // Unterminated frontmatter falls through to "all body", the same call
   // instruction-coverage.ts makes: treat the whole file as content rather than lose it.

@@ -3,7 +3,7 @@ import { extname, isAbsolute, join, resolve } from "node:path";
 import type { Scenario } from "./spec.js";
 import type { ExecutionTraceV1 } from "./capture-trace-types.js";
 import type { TrajectoryEventV1 } from "./trajectory-gates.js";
-import type { HarnessAdapter, ModelRef, RunMode } from "./adapters/types.js";
+import type { HarnessAdapter, ModelRef, RunMode, PromptProvenance } from "./adapters/types.js";
 import { exec, type ExecResult } from "./util/exec.js";
 import { envNum } from "./util/env.js";
 
@@ -38,6 +38,7 @@ interface SeededOpts {
   armExtensions?: string[];
   /** The arm's env for the subject process; `<run-dir>` already substituted by the caller. */
   armEnv?: Record<string, string>;
+  onPromptObservation?: (observation: PromptProvenance) => void;
 }
 
 /**
@@ -248,6 +249,7 @@ export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<S
     ],
     eventSources: scenario.eventSources,
     ...(opts.armEnv ? { armEnv: opts.armEnv } : {}),
+    ...(opts.onPromptObservation ? { onPromptObservation: opts.onPromptObservation } : {}),
   };
   // A trace-gated seeded scenario runs through the structured path so the tool
   // calls are recorded; everything downstream (gates, diff, transcript) is

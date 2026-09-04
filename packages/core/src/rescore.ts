@@ -106,6 +106,7 @@ export function rescoreRun(opts: RescoreOptions): RescoreResult {
 
   const ctx = scoreContextFor(prev, opts.spec);
   const results = writeResults(opts.runDir, {
+    schema: prev.schema, subject_invocations: prev.subject_invocations,
     skill: prev.skill, harness: prev.harness, model: prev.model, judge: prev.judge,
     timestamp: prev.timestamp, label: prev.label, mode: prev.mode,
     partial: prev.partial,

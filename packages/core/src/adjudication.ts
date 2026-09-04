@@ -1,10 +1,10 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
-import type { ScenarioResult, AdjudicationResult, Judgment, ResultsFile } from "./results.js";
+import type { ScenarioResult, AdjudicationResult, Judgment, ResultsFile, CriterionVote } from "./results.js";
 import {
   judgeRawPath, writeResults, scoreContextFor, findTranscriptFiles, repIndexOf,
-  rebuildScenarioResult, mergeScenarioMetrics, effectiveThreshold,
+  rebuildScenarioResult, mergeScenarioMetrics, effectiveThreshold, completeCriterionVotes,
 } from "./results.js";
 import type { Scenario, ShipBar, Spec } from "./spec.js";
 import type { Verdict } from "./score.js";
@@ -51,6 +51,7 @@ export interface CellState {
   suspect: boolean;
   /** Per-rep verdicts, when the cell ran with reps. Empty for a single-rep cell. */
   repVerdicts?: Verdict[];
+  criteria?: CriterionVote[];
 }
 
 export interface TriggerDecision {
@@ -263,7 +264,7 @@ function reasonFor(adj: AdjudicationResult): string {
 // ---------------------------------------------------------------------------
 
 /** Ask one judge about one cell's saved transcript. Supplied by the caller. */
-export type RejudgeFn = (id: string, judge: ModelRef) => Promise<{ verdict: Verdict; reason: string; suspect: boolean }>;
+export type RejudgeFn = (id: string, judge: ModelRef) => Promise<{ verdict: Verdict; reason: string; suspect: boolean; criteria?: CriterionVote[] }>;
 
 export interface RunAdjudicationOptions {
   plan: AdjudicationPlan;
@@ -309,7 +310,7 @@ export async function runAdjudication(opts: RunAdjudicationOptions): Promise<Run
     const trigger = decision.triggers[0];
 
     const judgments: Judgment[] = [
-      { ordinal: 1, judge: { ...opts.primaryJudge }, verdict: cell.verdict, reason: cell.reason, suspect: cell.suspect },
+      { ordinal: 1, judge: { ...opts.primaryJudge }, verdict: cell.verdict, reason: cell.reason, suspect: cell.suspect, criteria: cell.criteria ?? [] },
     ];
 
     const second = await opts.rejudge(decision.id, opts.secondaryJudge);
@@ -395,7 +396,8 @@ export async function adjudicateRun(opts: AdjudicateRunOptions): Promise<Results
     // outvote the author.
     if (!adj) return s;
     const scenario = byIdScenario.get(s.id);
-    const boundedAdj = scenario ? boundAdjudicationToRepetitions(s, scenario, adj) : adj;
+    const withRepetition = { ...adj, repetition: s.rep_judgments?.[0]?.repetition ?? 0 };
+    const boundedAdj = scenario ? boundAdjudicationToRepetitions(s, scenario, withRepetition) : withRepetition;
     const projected = projectAdjudication(s, boundedAdj);
     if (boundedAdj !== adj) {
       projected.judge_reason = `${adj.judgments.length} judgments on one transcript cannot replace a critical all-repetitions aggregate`;
@@ -435,7 +437,7 @@ export async function adjudicateRun(opts: AdjudicateRunOptions): Promise<Results
  * The extra judgment is written to `.judge2.txt` / `.judge3.txt`, leaving the
  * first-wave `.judge.txt` untouched — the audit trail is the point.
  */
-async function judgeCell(opts: AdjudicateRunOptions & { scenario: Scenario; judge: ModelRef; mode: string }): Promise<{ verdict: Verdict; reason: string; suspect: boolean }> {
+async function judgeCell(opts: AdjudicateRunOptions & { scenario: Scenario; judge: ModelRef; mode: string }): Promise<{ verdict: Verdict; reason: string; suspect: boolean; criteria: CriterionVote[] }> {
   const files = findTranscriptFiles(opts.runDir, opts.scenario.id, opts.mode);
   if (files.length === 0) {
     throw new Error(
@@ -460,7 +462,7 @@ async function judgeCell(opts: AdjudicateRunOptions & { scenario: Scenario; judg
     verdict: g.verdict, reason: g.reason, suspect: g.suspect,
   });
 
-  return { verdict: g.verdict, reason: g.reason, suspect: g.suspect };
+  return { verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, opts.scenario.checklist.length) };
 }
 
 /**
@@ -479,6 +481,7 @@ export function cellsFromResults(runDir: string, results: ResultsFile): CellStat
     reason: s.judge_reason,
     suspect: s.suspect,
     repVerdicts: repVerdictsOf(runDir, s, results.mode),
+    criteria: s.rep_judgments?.[0]?.judgments[0]?.criteria,
   }));
 }
 

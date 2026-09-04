@@ -11,7 +11,7 @@ import {
   type Verdict, type ResultsFile,
   loadSpec,
   regradeScenario, appendJudgeHistory, refreshRubricHashes, findJudgeRawFiles,
-  effectiveThreshold, scoreContextFor, isScoredMode, rebuildScenarioResult, mergeScenarioMetrics,
+  effectiveThreshold, scoreContextFor, isScoredMode, rebuildScenarioResult, mergeScenarioMetrics, carryRepObjectives,
   envFlag,
   planAdjudication, adjudicateRun, assertJudgeAllowed, cellsFromResults,
 } from "@skill-harness/core";
@@ -162,15 +162,17 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
               verdict: rr.judge_verdict,
               reason: rr.judge_reason,
               suspect: rr.suspect,
+              criteria: rr.rep_judgments?.flatMap(panel => panel.judgments.flatMap(judgment => judgment.criteria ?? [])),
             });
             // Same contract as `grade`, through the same choke point.
             return rebuildScenarioResult(
-              { ...rr, metrics: mergeScenarioMetrics(s.metrics, rr.metrics), judge_history },
+              { ...rr, metrics: mergeScenarioMetrics(s.metrics, rr.metrics), rep_judgments: carryRepObjectives(rr.rep_judgments, s.rep_judgments), judge_history },
               s,
               { objective: "carry", adjudication: "drop" },
             );
           });
           const written = writeResults(column.runDir, {
+            schema: results.schema, subject_invocations: results.subject_invocations,
             skill: results.skill, harness: results.harness, model: results.model, judge: results.judge,
             timestamp: results.timestamp, label: results.label, mode: results.mode, scenarios: merged,
             partial: results.partial,

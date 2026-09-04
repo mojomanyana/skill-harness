@@ -29,7 +29,8 @@ The machine-readable schemas are:
 
 - `schemas/specification-v1.schema.json`
 - `schemas/trajectory-event-v1.schema.json`
-- `schemas/results-v2.schema.json`
+- `schemas/results-v2.schema.json` (legacy/read-compatible)
+- `schemas/results-v3.schema.json` (prompt delivery + criterion-vote observations)
 
 Trajectory assertions are additive under `assert.trajectory`:
 

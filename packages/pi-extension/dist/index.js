@@ -1,5 +1,5 @@
 // packages/pi-extension/src/index.ts
-import { fileURLToPath as fileURLToPath2 } from "node:url";
+import { fileURLToPath as fileURLToPath3 } from "node:url";
 import { dirname as dirname12, join as join36 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
@@ -4357,9 +4357,26 @@ import { mkdirSync as mkdirSync4, writeFileSync as writeFileSync3, readFileSync 
 import { dirname, join as join14, resolve as resolve6 } from "node:path";
 
 // packages/core/dist/sources.js
-import { createHash as createHash2 } from "node:crypto";
+import { createHash as createHash3 } from "node:crypto";
 import { readFileSync as readFileSync2, readdirSync as readdirSync2 } from "node:fs";
 import { isAbsolute, join as join2, resolve as resolve2 } from "node:path";
+
+// packages/core/dist/prompt-normalization.js
+import { createHash as createHash2 } from "node:crypto";
+var PROMPT_NORMALIZATION_RULE = "cwd-line-v1";
+var PROMPT_NORMALIZATION_PATTERN = "^(Current working directory:)[^\\r\\n]*(\\r?)$";
+var PROMPT_NORMALIZATION_FLAGS = "gm";
+var PROMPT_NORMALIZATION_REPLACEMENT = "$1<normalized>$2";
+var PROMPT_NORMALIZATION_SOURCE_KEY = "observation:prompt-normalization";
+var PROMPT_NORMALIZATION_SOURCE_DIGEST = createHash2("sha256").update(JSON.stringify([
+  "prompt-normalization-registry",
+  PROMPT_NORMALIZATION_RULE,
+  PROMPT_NORMALIZATION_PATTERN,
+  PROMPT_NORMALIZATION_FLAGS,
+  PROMPT_NORMALIZATION_REPLACEMENT
+])).digest("hex");
+
+// packages/core/dist/sources.js
 var SCENARIO_PREFIX = "scenario:";
 var FIXTURE_PREFIX = "fixture:";
 var STIMULUS_PREFIX = "stimulus:";
@@ -4370,7 +4387,7 @@ var PERSONA_KEY = `${RUBRIC_PREFIX}__persona`;
 var UNREADABLE = "unreadable";
 function fileSha256(path) {
   try {
-    return createHash2("sha256").update(readFileSync2(path)).digest("hex");
+    return createHash3("sha256").update(readFileSync2(path)).digest("hex");
   } catch {
     return null;
   }
@@ -4382,7 +4399,7 @@ function dirSha256(dir) {
   } catch {
     return null;
   }
-  const h = createHash2("sha256");
+  const h = createHash3("sha256");
   for (const rel of files) {
     h.update(rel);
     h.update("\0");
@@ -4460,7 +4477,7 @@ function facets(s) {
   };
 }
 function sha(canonical) {
-  return createHash2("sha256").update(canonical).digest("hex");
+  return createHash3("sha256").update(canonical).digest("hex");
 }
 function stimulusDigest(s) {
   return sha(facets(s).stimulus);
@@ -4518,6 +4535,8 @@ function sourceHashes(ctx) {
   return hashes;
 }
 function describeSourceKey(key) {
+  if (key === PROMPT_NORMALIZATION_SOURCE_KEY)
+    return "the prompt normalization rule registry";
   if (key === PERSONA_KEY)
     return "the judge persona";
   if (key === SKILL_PROMPT_KEY)
@@ -4619,7 +4638,7 @@ function scenarioSourceKeys(s) {
 // packages/core/dist/workspace.js
 import { appendFileSync, cpSync, existsSync as existsSync2, mkdtempSync, readFileSync as readFileSync3, readdirSync as readdirSync3, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { createHash as createHash3 } from "node:crypto";
+import { createHash as createHash4 } from "node:crypto";
 import { tmpdir } from "node:os";
 import { isAbsolute as isAbsolute2, join as join3, resolve as resolve3 } from "node:path";
 var GIT_TIMEOUT_MS = 3e4;
@@ -4723,7 +4742,7 @@ function snapshotPaths(cwd, kind) {
         walk2(abs, rel);
       } else if (e.isFile()) {
         try {
-          out.set(rel, createHash3("sha256").update(readFileSync3(abs)).digest("hex"));
+          out.set(rel, createHash4("sha256").update(readFileSync3(abs)).digest("hex"));
         } catch {
           out.set(rel, "<unreadable>");
         }
@@ -4746,175 +4765,9 @@ function diffSnapshots(before, after) {
   return [...changed].sort();
 }
 
-// packages/core/dist/grade.js
-var STAGED_DIFF_HEADING = "=== STAGED DIFF ===";
-var SEEDED_DIFF_GUIDANCE = `
-This transcript ends with a "=== STAGED DIFF ===" section: the actual code the assistant wrote, as \`git diff --cached\`. It is the primary evidence. Grade what the diff shows the code DOES, not what the assistant's prose claims it does \u2014 a confident description of behavior the diff does not implement is a FAIL, and behavior the diff plainly implements passes even if the assistant described it poorly or not at all. The "=== SEEDED GATES ===" lines above it are keyword and test-run checks only; they do not establish that the required behavior exists. If the diff is marked truncated, judge only what you can see and never infer that cut-off code is missing.
-`;
-function buildJudgePrompt(input) {
-  const { skill, persona, scenario, transcript } = input;
-  const numbered = scenario.checklist.map((c, i) => `${i + 1}. ${c}`).join("\n");
-  const diffGuidance = scenario.mode === "seeded" && transcript.includes(STAGED_DIFF_HEADING) ? SEEDED_DIFF_GUIDANCE : "";
-  return `You are grading ONE response from an AI assistant using a "${skill}" skill \u2014 ${persona} Judge it ONLY against the checklist below \u2014 do not add requirements beyond it.
-
-CHECKLIST (every numbered item must hold for a PASS):
-${numbered}
-
-TRANSCRIPT (the assistant is the model under test):
-${transcript}
-${diffGuidance}
-Grade each checklist item PASS or FAIL with a <=12-word justification quoting the transcript. Be skeptical: if an item is not clearly satisfied, mark it FAIL. Then output exactly these two lines:
-VERDICT: PASS      (only if EVERY item passed)   \u2014 or \u2014   VERDICT: FAIL
-REASON: <15 words or fewer>`;
-}
-var VERDICT_RE = /^\s*\**\s*VERDICT\**\s*:\s*\**\s*(PASS|FAIL)/gim;
-var REASON_RE = /^\s*\**\s*REASON\**\s*:\s*\**\s*(.*)$/gim;
-function parseVerdict(out) {
-  const verdicts = [...out.matchAll(VERDICT_RE)].map((m) => m[1].toUpperCase());
-  if (verdicts.length === 0) {
-    return { verdict: "ERROR", reason: "judge produced no parseable verdict" };
-  }
-  const reasons = [...out.matchAll(REASON_RE)].map((m) => m[1].trim());
-  const reason = reasons.length > 0 ? reasons[reasons.length - 1] : "";
-  const unique = [...new Set(verdicts)];
-  if (unique.length > 1) {
-    return {
-      verdict: "JUDGE-AMBIGUOUS",
-      reason: `judge emitted conflicting verdicts (${verdicts.join(", ")}) \u2014 needs rejudge; last reason: ${reason}`
-    };
-  }
-  return { verdict: unique[0], reason };
-}
-function judgeResemblesSubject(judge, subject) {
-  if (judge.provider !== subject.provider)
-    return false;
-  const a = judge.model;
-  const b = subject.model;
-  return a === b || a.includes(b) || b.includes(a);
-}
-var ITEM_RE = /^\s*\d+[.)]\s*\**\s*(PASS|FAIL)\b/gim;
-function detectMisfire(raw, verdict) {
-  if (verdict === "ERROR")
-    return false;
-  if (verdict === "JUDGE-AMBIGUOUS")
-    return true;
-  const items = [...raw.matchAll(ITEM_RE)].map((m) => m[1].toUpperCase() === "PASS");
-  if (items.length === 0) {
-    if (verdict === "FAIL") {
-      const reason = (raw.match(REASON_LINE_RE)?.[1] ?? "").trim();
-      const totalPass = /\b(all|every)\b[^.]*\b(pass(es|ed)?|satisf(y|ies|ied)|hold(s)?|met)\b/i.test(reason);
-      const negated = /\b(not|no|n't|fails?|failed|missing|except|but|however)\b/i.test(reason);
-      return totalPass && !negated;
-    }
-    return false;
-  }
-  const andItems = items.every((ok) => ok);
-  const verdictBool = verdict === "PASS";
-  return verdictBool !== andItems;
-}
-var REASON_LINE_RE = /^\s*\**\s*REASON\**\s*:\s*\**\s*(.*)$/im;
-async function gradeTranscript(adapter, judge, prompt, cwd) {
-  const raw = await adapter.judge({ model: judge, prompt, cwd });
-  const parsed = parseVerdict(raw);
-  if (parsed.verdict === "ERROR") {
-    const snippet2 = raw.trim().replace(/\s+/g, " ").slice(0, 160);
-    if (snippet2)
-      parsed.reason = `judge unparseable: ${snippet2}`;
-  }
-  const suspect = detectMisfire(raw, parsed.verdict);
-  return { ...parsed, raw, suspect };
-}
-async function judgeInWorkspace(adapter, judge, prompt, specDir) {
-  const ws = createWorkspace("none", { specDir });
-  try {
-    return await gradeTranscript(adapter, judge, prompt, ws.cwd);
-  } finally {
-    ws.cleanup();
-  }
-}
-
-// packages/core/dist/arms.js
-import { copyFileSync, existsSync as existsSync3, mkdirSync, readdirSync as readdirSync4, readFileSync as readFileSync4, realpathSync, statSync as statSync2 } from "node:fs";
-import { homedir } from "node:os";
-import { isAbsolute as isAbsolute3, join as join4, resolve as resolve4, sep } from "node:path";
-var NONE_ARM = { name: "none", extensions: [], seedSkills: [], requireDefinitions: 0, env: {} };
-function realpathOr(p) {
-  try {
-    return realpathSync(p);
-  } catch {
-    return p;
-  }
-}
-function defaultAmbientSkillsDir() {
-  return join4(homedir(), ".pi", "agent", "skills");
-}
-function seedArmDefinitions(arm, skillsRoot, workspaceCwd, opts = {}) {
-  if (arm.name === NONE_ARM.name)
-    return 0;
-  const ambient = opts.ambientSkillsDir ?? defaultAmbientSkillsDir();
-  let ambientEntries = [];
-  try {
-    ambientEntries = readdirSync4(ambient);
-  } catch (err) {
-    if (err.code === "ENOENT") {
-      ambientEntries = [];
-    } else {
-      throw new Error(`arm \`${arm.name}\`: could not read the ambient skill root ${ambient}: ${err.message} \u2014 pi-daddy reads it as well as the workspace, so this can't be verified empty.`);
-    }
-  }
-  if (ambientEntries.length > 0) {
-    throw new Error(`arm \`${arm.name}\`: the ambient skill root ${ambient} is not empty (${ambientEntries.slice(0, 5).join(", ")}) \u2014 pi-daddy reads it as well as the workspace, so those definitions would be an uncontrolled variable in the measurement. Move them aside for the run.`);
-  }
-  if (arm.seedSkills.length === 0) {
-    if (arm.requireDefinitions > 0) {
-      throw new Error(`arm \`${arm.name}\`: seeded 0 definition(s) (no \`seed_skills\` declared) but require_definitions is ${arm.requireDefinitions} \u2014 pi-daddy would have nothing to spawn, and the arm would measure nothing while looking green.`);
-    }
-    return 0;
-  }
-  const dest = join4(workspaceCwd, ".pi", "skills");
-  mkdirSync(dest, { recursive: true });
-  const resolvedRoot = realpathOr(resolve4(skillsRoot));
-  const seen = /* @__PURE__ */ new Set();
-  for (const rel of arm.seedSkills) {
-    const src = realpathOr(resolve4(skillsRoot, rel));
-    if (src !== resolvedRoot && !src.startsWith(resolvedRoot + sep)) {
-      throw new Error(`arm \`${arm.name}\`: seed_skills entry ${JSON.stringify(rel)} resolves to ${src}, which is outside the skills root ${resolvedRoot} \u2014 refusing to seed from outside the corpus`);
-    }
-    let names;
-    try {
-      names = readdirSync4(src);
-    } catch {
-      throw new Error(`arm \`${arm.name}\`: seed_skills names ${src}, which cannot be read \u2014 pi would start with nothing to spawn`);
-    }
-    for (const name of names) {
-      const from = join4(src, name);
-      if (!name.endsWith(".md"))
-        continue;
-      let isFile;
-      try {
-        isFile = statSync2(from).isFile();
-      } catch (err) {
-        throw new Error(`arm \`${arm.name}\`: seed_skills entry ${JSON.stringify(rel)} contains ${from}, which cannot be read (${err.message}) \u2014 likely a dangling symlink`);
-      }
-      if (!isFile)
-        continue;
-      if (seen.has(name)) {
-        throw new Error(`arm \`${arm.name}\`: two seed_skills entries both provide \`${name}\` (latest: ${from}) \u2014 they are copied into the one flat directory ${dest}, so one would silently overwrite the other. Rename one, or drop the duplicate entry.`);
-      }
-      seen.add(name);
-      copyFileSync(from, join4(dest, name));
-    }
-  }
-  const count = seen.size;
-  if (count < arm.requireDefinitions) {
-    throw new Error(`arm \`${arm.name}\`: seeded ${count} definition(s) into ${dest} but require_definitions is ${arm.requireDefinitions} \u2014 pi-daddy would have nothing (or too little) to spawn, and the arm would measure nothing while looking green.`);
-  }
-  return count;
-}
-
 // packages/core/dist/results.js
-import { mkdirSync as mkdirSync2, readFileSync as readFileSync5, writeFileSync, existsSync as existsSync4, readdirSync as readdirSync5, appendFileSync as appendFileSync2 } from "node:fs";
-import { join as join5, relative, sep as sep2 } from "node:path";
+import { mkdirSync, readFileSync as readFileSync4, writeFileSync, existsSync as existsSync3, readdirSync as readdirSync4, appendFileSync as appendFileSync2 } from "node:fs";
+import { join as join4, relative, sep } from "node:path";
 
 // packages/core/dist/adapters/types.js
 function parseModelRef(token) {
@@ -4996,6 +4849,35 @@ import { createRequire } from "node:module";
 var require2 = createRequire(import.meta.url);
 var HARNESS_VERSION = require2("../package.json").version;
 
+// packages/core/dist/vote-panel.js
+function isCleanPanelVote(vote) {
+  return !vote.suspect && (vote.verdict === "PASS" || vote.verdict === "FAIL");
+}
+function collapseVotePanel(votes) {
+  const clean = votes.filter(isCleanPanelVote);
+  const passVotes = clean.filter((vote) => vote.verdict === "PASS").length;
+  const failVotes = clean.length - passVotes;
+  const firstTwo = votes.filter((vote) => vote.ordinal === 1 || vote.ordinal === 2);
+  const split = firstTwo.length === 2 && firstTwo.every(isCleanPanelVote) && firstTwo[0].verdict !== firstTwo[1].verdict;
+  const minority = Math.min(passVotes, failVotes);
+  const base = {
+    clean_votes: clean.length,
+    pass_votes: passVotes,
+    fail_votes: failVotes,
+    split,
+    minority_rate: clean.length === 0 ? 0 : minority / clean.length
+  };
+  if (clean.length < 2)
+    return { ...base, state: "unresolved" };
+  if (passVotes === 0 || failVotes === 0)
+    return { ...base, state: "confirmed", verdict: clean[0].verdict };
+  if (passVotes > failVotes)
+    return { ...base, state: "tie_broken", verdict: "PASS" };
+  if (failVotes > passVotes)
+    return { ...base, state: "tie_broken", verdict: "FAIL" };
+  return { ...base, state: "unresolved" };
+}
+
 // packages/core/dist/results.js
 function mergeScenarioMetrics(prior, fresh) {
   if (!prior)
@@ -5020,6 +4902,14 @@ function mergeScenarioMetrics(prior, fresh) {
     ...subject.max_concurrency === void 0 ? {} : { max_concurrency: subject.max_concurrency }
   };
 }
+function carryRepObjectives(fresh, prior) {
+  if (!fresh)
+    return prior;
+  return fresh.map((panel) => {
+    const objective = prior?.find((candidate) => candidate.repetition === panel.repetition)?.objective;
+    return objective ? { ...panel, objective } : panel;
+  });
+}
 var SCORED_MODES = ["green", "force"];
 function isScoredMode(mode) {
   return SCORED_MODES.includes(mode);
@@ -5039,14 +4929,14 @@ function timestampSlug(iso) {
 }
 function runDirFor(skillDir, harness, model, timestamp2, armName) {
   const arm = armName && armName !== "none" ? `+${armName}` : "";
-  return join5(skillDir, "tests", "results", `${harness}-${modelSlug(model)}${arm}`, timestampSlug(timestamp2));
+  return join4(skillDir, "tests", "results", `${harness}-${modelSlug(model)}${arm}`, timestampSlug(timestamp2));
 }
 function transcriptPath(runDir, scenarioId, mode, rep) {
   const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
-  return join5(runDir, `${base}.txt`);
+  return join4(runDir, `${base}.txt`);
 }
 function resultsPath(runDir) {
-  return join5(runDir, "results.yaml");
+  return join4(runDir, "results.yaml");
 }
 function effectiveVerdicts(scenarios) {
   return scenarios.map((s) => ({
@@ -5074,8 +4964,9 @@ function finalizeResults(draft, ctx) {
     const why = draft.partial ? "partial run (--only) \u2014 not scored" : `mode=${draft.mode} (not scored)`;
     effective_grade = { passed: 0, total: 0, pct: 0, letter: "-", ship: false, note: why };
   }
+  const schema2 = draft.schema ?? (draft.subject_invocations ? 3 : 2);
   return {
-    schema: 2,
+    schema: schema2,
     // Stamped here, the single place every writer passes through, so `run`,
     // `grade`, `rescore` and the review UI's override save all record which tool
     // produced the record they leave behind.
@@ -5095,12 +4986,14 @@ function finalizeResults(draft, ctx) {
     ...draft.partial ? { partial: true } : {},
     ...draft.source_hashes ? { source_hashes: draft.source_hashes } : {},
     effective_grade,
-    scenarios: draft.scenarios
+    scenarios: draft.scenarios,
+    ...draft.subject_invocations ? { subject_invocations: draft.subject_invocations } : {}
   };
 }
 function writeResults(runDir, draft, ctx) {
   const results = finalizeResults(draft, ctx);
-  mkdirSync2(runDir, { recursive: true });
+  validateResults(results);
+  mkdirSync(runDir, { recursive: true });
   writeFileSync(resultsPath(runDir), yaml.dump(results, { lineWidth: 100 }), "utf8");
   return results;
 }
@@ -5110,8 +5003,8 @@ function migrateResults(raw) {
     throw new Error("empty or invalid results.yaml");
   }
   const o = raw;
-  if (o.schema === 2)
-    return raw;
+  if (o.schema === 2 || o.schema === 3)
+    return validateResults(raw);
   const v1 = raw;
   const modeMatch = /^mode=(\w+)/.exec(v1.grade?.note ?? "");
   return {
@@ -5139,8 +5032,150 @@ function migrateResults(raw) {
   };
 }
 function readResults(runDir) {
-  const text = readFileSync5(resultsPath(runDir), "utf8");
+  const text = readFileSync4(resultsPath(runDir), "utf8");
   return migrateResults(yaml.load(text));
+}
+var CRITERION_RE = /^\s*(\d+)[.)]\s*\**\s*(PASS|FAIL)\b\**\s*(.*)$/gim;
+function parseCriterionVotes(raw) {
+  return [...raw.matchAll(CRITERION_RE)].map((match) => ({
+    index: Number(match[1]),
+    verdict: match[2].toUpperCase(),
+    reason: match[3].trim().replace(/^[-—:]\s*/, "")
+  }));
+}
+function completeCriterionVotes(votes, expected) {
+  return Array.from({ length: expected }, (_, offset) => votes.find((vote) => vote.index === offset + 1) ?? {
+    index: offset + 1,
+    verdict: "ERROR",
+    reason: "judge emitted no parseable vote for this criterion"
+  });
+}
+function deliveryStatusForObservations(observations) {
+  if (observations.length === 0)
+    return "ERROR";
+  const terminalAttempt = Math.max(...observations.map((observation) => observation.attempt ?? 0));
+  const terminal = observations.filter((observation) => (observation.attempt ?? 0) === terminalAttempt);
+  if (terminal.some((observation) => observation.prompt.status === "ERROR"))
+    return "ERROR";
+  const mechanism = terminal[0].prompt.mechanism;
+  if (terminal.some((observation) => observation.prompt.mechanism !== mechanism))
+    return "ERROR";
+  const counts = terminal.map((observation) => observation.prompt.contract_occurrences);
+  if (mechanism === "none")
+    return counts.every((count) => count === 0) ? "PASS" : "FAIL";
+  if (mechanism === "pi-skill") {
+    const firstDelivered = counts.indexOf(1);
+    return firstDelivered >= 0 && counts.slice(0, firstDelivered).every((count) => count === 0) && counts.slice(firstDelivered).every((count) => count === 1) ? "PASS" : "FAIL";
+  }
+  return counts.every((count) => count === 1) ? "PASS" : "FAIL";
+}
+function recomputeRecordedPanels(results) {
+  const out = [];
+  for (const scenario of results.scenarios)
+    for (const panel of scenario.rep_judgments ?? []) {
+      const clean = panel.judgments.filter((j) => !j.suspect && (j.verdict === "PASS" || j.verdict === "FAIL"));
+      let verdict = panel.recorded_verdict;
+      if (clean.length === 1)
+        verdict = clean[0].verdict;
+      else if (clean.length >= 2)
+        verdict = collapseVotePanel(panel.judgments).verdict ?? "JUDGE-AMBIGUOUS";
+      out.push({ scenario_id: scenario.id, repetition: panel.repetition, verdict });
+    }
+  return out;
+}
+function validateResults(raw) {
+  if (!raw || typeof raw !== "object")
+    throw new Error("invalid results");
+  const result = raw;
+  if (result.schema !== 2 && result.schema !== 3)
+    throw new Error(`unsupported results schema ${String(raw.schema)}`);
+  if (!Array.isArray(result.scenarios))
+    throw new Error("results scenarios missing");
+  if (result.schema === 2)
+    return result;
+  if (!Array.isArray(result.subject_invocations))
+    throw new Error("schema v3 delivery observations missing");
+  for (const observation of result.subject_invocations) {
+    const p = observation?.prompt;
+    if (!p || !["PASS", "FAIL", "ERROR"].includes(p.status))
+      throw new Error("delivery status missing");
+    if (p.normalization_rule !== "cwd-line-v1")
+      throw new Error("unknown prompt normalization rule");
+    if (!/^[a-f0-9]{64}$/i.test(p.raw_sha256) || !/^[a-f0-9]{64}$/i.test(p.normalized_sha256) || !/^[a-f0-9]{64}$/i.test(p.contract_sha256))
+      throw new Error("invalid prompt provenance digest");
+    if (!Number.isInteger(p.bytes) || p.bytes < 0 || !Number.isInteger(p.contract_bytes) || p.contract_bytes < 0)
+      throw new Error("invalid prompt provenance byte length");
+    if (!Number.isInteger(p.contract_occurrences) || p.contract_occurrences < 0)
+      throw new Error("invalid delivery occurrence count");
+    const expected = p.mechanism === "none" ? 0 : 1;
+    const computed = p.contract_occurrences === expected ? "PASS" : "FAIL";
+    if (p.status !== "ERROR" && p.status !== computed)
+      throw new Error("delivery status contradicts occurrence count");
+  }
+  const scenarioIds = new Set(result.scenarios.map((scenario) => scenario.id));
+  const repsByScenario = new Map(result.scenarios.map((scenario) => [scenario.id, scenario.reps ?? 1]));
+  if (result.subject_invocations.some((observation) => !scenarioIds.has(observation.scenario_id) || !Number.isInteger(observation.repetition) || observation.repetition < 0 || observation.repetition >= (repsByScenario.get(observation.scenario_id) ?? 0)))
+    throw new Error("schema v3 contains orphan or out-of-range subject invocation observation");
+  const recomputed = recomputeRecordedPanels(result);
+  for (const scenario of result.scenarios) {
+    const reps2 = scenario.reps ?? 1;
+    if (!Array.isArray(scenario.rep_judgments) || scenario.rep_judgments.length !== reps2)
+      throw new Error(`schema v3 repetition judgments missing for ${scenario.id}`);
+    const panelRepetitions = scenario.rep_judgments.map((panel) => panel.repetition).sort((a, b) => a - b);
+    if (panelRepetitions.some((repetition, index) => repetition !== index))
+      throw new Error(`schema v3 repetition judgments duplicate, missing, or out of range for ${scenario.id}`);
+    for (let repetition = 0; repetition < reps2; repetition++) {
+      const observations = result.subject_invocations.filter((o) => o.scenario_id === scenario.id && o.repetition === repetition);
+      const attempts = [...new Set(observations.map((observation) => observation.attempt ?? 0))].sort((a, b) => a - b);
+      if (attempts.some((attempt, index) => !Number.isInteger(attempt) || attempt !== index))
+        throw new Error(`delivery attempts are duplicate, missing, or out of range for ${scenario.id}#${repetition}`);
+      for (const attempt of attempts) {
+        const indexes = observations.filter((observation) => (observation.attempt ?? 0) === attempt).map((observation) => observation.prompt.request_index).sort((a, b) => a - b);
+        if (indexes.some((requestIndex, index) => !Number.isInteger(requestIndex) || requestIndex !== index))
+          throw new Error(`prompt request indexes are duplicate, missing, or out of range for ${scenario.id}#${repetition} attempt ${attempt}`);
+      }
+    }
+    const repStatuses = Array.from({ length: reps2 }, (_, repetition) => deliveryStatusForObservations(result.subject_invocations.filter((o) => o.scenario_id === scenario.id && o.repetition === repetition)));
+    const expectedStatus = repStatuses.includes("ERROR") ? "ERROR" : repStatuses.includes("FAIL") ? "FAIL" : "PASS";
+    const gate = scenario.objective?.assertions.find((assertion) => assertion.kind === "skill_delivered");
+    if (!gate || gate.status !== expectedStatus)
+      throw new Error(`skill_delivered gate missing or inconsistent for ${scenario.id}`);
+    for (const panel of scenario.rep_judgments) {
+      for (const judgment of panel.judgments)
+        if (!Array.isArray(judgment.criteria))
+          throw new Error("schema v3 criterion votes missing");
+      const actual = recomputed.find((x) => x.scenario_id === scenario.id && x.repetition === panel.repetition);
+      if (panel.judgments.length > 0 && actual.verdict !== panel.recorded_verdict)
+        throw new Error(`recorded panel verdict diverges from recomputed votes for ${scenario.id}#${panel.repetition}`);
+      if (!panel.objective)
+        throw new Error(`schema v3 per-repetition objective missing for ${scenario.id}#${panel.repetition}`);
+      const observations = result.subject_invocations.filter((o) => o.scenario_id === scenario.id && o.repetition === panel.repetition);
+      const deliveryStatus = deliveryStatusForObservations(observations);
+      const delivery = panel.objective.assertions.find((assertion) => assertion.kind === "skill_delivered");
+      if (!delivery || delivery.status !== deliveryStatus)
+        throw new Error(`per-repetition skill_delivered gate missing or inconsistent for ${scenario.id}#${panel.repetition}`);
+      if (deliveryStatus === "ERROR" && panel.objective.status !== "ERROR")
+        throw new Error(`per-repetition objective weakens delivery ERROR for ${scenario.id}#${panel.repetition}`);
+      if (deliveryStatus === "FAIL" && panel.objective.status === "PASS")
+        throw new Error(`per-repetition objective weakens delivery FAIL for ${scenario.id}#${panel.repetition}`);
+    }
+    const objectiveStatuses = scenario.rep_judgments.map((panel) => panel.objective.status);
+    const aggregateObjectiveStatus = objectiveStatuses.includes("ERROR") ? "ERROR" : objectiveStatuses.includes("FAIL") ? "FAIL" : "PASS";
+    if (!scenario.objective || scenario.objective.status !== aggregateObjectiveStatus)
+      throw new Error(`scenario objective diverges from per-repetition objectives for ${scenario.id}`);
+    for (const judgment of [...scenario.judge_history ?? [], ...scenario.adjudication?.judgments ?? []]) {
+      if (!Array.isArray(judgment.criteria))
+        throw new Error("schema v3 criterion votes missing from judgment history");
+    }
+    if (scenario.adjudication) {
+      if (!Number.isInteger(scenario.adjudication.repetition) || scenario.adjudication.repetition < 0 || scenario.adjudication.repetition >= reps2)
+        throw new Error(`schema v3 adjudication repetition missing or out of range for ${scenario.id}`);
+      const collapsed = collapseVotePanel(scenario.adjudication.judgments);
+      if (scenario.adjudication.verdict !== void 0 && scenario.adjudication.verdict !== collapsed.verdict)
+        throw new Error(`recorded adjudication verdict diverges from recomputed votes for ${scenario.id}`);
+    }
+  }
+  return result;
 }
 function applyOverride(results, scenarioId, override, note) {
   if (override !== null && note.trim() === "") {
@@ -5165,9 +5200,9 @@ report.html
 !results.yaml
 `;
 function ensureResultsGitignore(resultsRoot) {
-  mkdirSync2(resultsRoot, { recursive: true });
-  const giPath = join5(resultsRoot, ".gitignore");
-  const existing = existsSync4(giPath) ? readFileSync5(giPath, "utf8") : "";
+  mkdirSync(resultsRoot, { recursive: true });
+  const giPath = join4(resultsRoot, ".gitignore");
+  const existing = existsSync3(giPath) ? readFileSync4(giPath, "utf8") : "";
   if (existing.startsWith(GITIGNORE_BODY))
     return;
   const preserved = existing.split("\n").filter((l) => l.startsWith("!") && l.trim() !== "!results.yaml");
@@ -5192,30 +5227,30 @@ function sortByRep(files) {
   });
 }
 function findTranscriptFiles(runDir, scenarioId, mode) {
-  if (!existsSync4(runDir))
+  if (!existsSync3(runDir))
     return [];
   const escapedId = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const matcher = mode !== void 0 ? new RegExp(`^${escapedId}\\.${mode}(\\.rep\\d+)?\\.txt$`) : null;
-  const files = readdirSync5(runDir).filter((f) => matcher ? matcher.test(f) : f.startsWith(`${scenarioId}.`) && f.endsWith(".txt") && !f.endsWith(".judge.txt") && !f.endsWith(".diff.txt"));
+  const files = readdirSync4(runDir).filter((f) => matcher ? matcher.test(f) : f.startsWith(`${scenarioId}.`) && f.endsWith(".txt") && !f.endsWith(".judge.txt") && !f.endsWith(".diff.txt"));
   return sortByRep(files);
 }
 function judgeRawPath(runDir, scenarioId, mode, rep) {
   const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
-  return join5(runDir, `${base}.judge.txt`);
+  return join4(runDir, `${base}.judge.txt`);
 }
 function findJudgeRawFiles(runDir, scenarioId, mode) {
-  if (!existsSync4(runDir))
+  if (!existsSync3(runDir))
     return [];
   const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.judge\\d*\\.txt$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.judge\\d*\\.txt$`);
-  return sortByRep(readdirSync5(runDir).filter((f) => re.test(f)));
+  return sortByRep(readdirSync4(runDir).filter((f) => re.test(f)));
 }
 function diffPath(runDir, scenarioId, mode, rep) {
   const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
-  return join5(runDir, `${base}.diff.txt`);
+  return join4(runDir, `${base}.diff.txt`);
 }
 function rebuildScenarioResult(fresh, prior, policy) {
-  const { id, judge_verdict, judge_reason, suspect, override: _freshOverride, note: _freshNote, reps: reps2, passes, clean, flakiness, pass_threshold, metrics: freshMetrics, objective: freshObjective, adjudication: freshAdjudication, judge_history: freshJudgeHistory, ...rest } = fresh;
+  const { id, judge_verdict, judge_reason, suspect, override: _freshOverride, note: _freshNote, reps: reps2, passes, clean, flakiness, pass_threshold, metrics: freshMetrics, objective: freshObjective, adjudication: freshAdjudication, judge_history: freshJudgeHistory, rep_judgments: freshRepJudgments, ...rest } = fresh;
   const _exhaustive = rest;
   void _exhaustive;
   void _freshOverride;
@@ -5252,37 +5287,38 @@ function rebuildScenarioResult(fresh, prior, policy) {
     // existed.
     ...objective ? { objective } : {},
     ...adjudication ? { adjudication } : {},
-    ...freshJudgeHistory ?? prior?.judge_history ? { judge_history: freshJudgeHistory ?? prior.judge_history } : {}
+    ...freshJudgeHistory ?? prior?.judge_history ? { judge_history: freshJudgeHistory ?? prior.judge_history } : {},
+    ...freshRepJudgments ?? prior?.rep_judgments ? { rep_judgments: freshRepJudgments ?? prior.rep_judgments } : {}
   };
 }
 function tracePath(runDir, scenarioId, mode, rep) {
   const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
-  return join5(runDir, `${base}.trace.jsonl`);
+  return join4(runDir, `${base}.trace.jsonl`);
 }
 function trajectoryPath(runDir, scenarioId, mode, rep) {
   const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
-  return join5(runDir, `${base}.events.jsonl`);
+  return join4(runDir, `${base}.events.jsonl`);
 }
 function findTrajectoryFiles(runDir, scenarioId, mode) {
-  if (!existsSync4(runDir))
+  if (!existsSync3(runDir))
     return [];
   const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.events\\.jsonl$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.events\\.jsonl$`);
-  return sortByRep(readdirSync5(runDir).filter((f) => re.test(f)));
+  return sortByRep(readdirSync4(runDir).filter((f) => re.test(f)));
 }
 function findDiffFiles(runDir, scenarioId, mode) {
-  if (!existsSync4(runDir))
+  if (!existsSync3(runDir))
     return [];
   const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.diff\\.txt$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.diff\\.txt$`);
-  return sortByRep(readdirSync5(runDir).filter((f) => re.test(f)));
+  return sortByRep(readdirSync4(runDir).filter((f) => re.test(f)));
 }
 function findTraceFiles(runDir, scenarioId, mode) {
-  if (!existsSync4(runDir))
+  if (!existsSync3(runDir))
     return [];
   const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.trace\\.jsonl$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.trace\\.jsonl$`);
-  return sortByRep(readdirSync5(runDir).filter((f) => re.test(f)));
+  return sortByRep(readdirSync4(runDir).filter((f) => re.test(f)));
 }
 function preserveTranscript(resultsRoot, runDir, scenarioId) {
   const files = [
@@ -5299,11 +5335,11 @@ function preserveTranscript(resultsRoot, runDir, scenarioId) {
   if (files.length === 0)
     return;
   ensureResultsGitignore(resultsRoot);
-  const giPath = join5(resultsRoot, ".gitignore");
-  const existingLines = readFileSync5(giPath, "utf8").split("\n");
+  const giPath = join4(resultsRoot, ".gitignore");
+  const existingLines = readFileSync4(giPath, "utf8").split("\n");
   const newLines = [];
   for (const file of files) {
-    const rel = relative(resultsRoot, join5(runDir, file)).split(sep2).join("/");
+    const rel = relative(resultsRoot, join4(runDir, file)).split(sep).join("/");
     const line = `!${rel}`;
     if (!existingLines.includes(line) && !newLines.includes(line)) {
       newLines.push(line);
@@ -5312,6 +5348,172 @@ function preserveTranscript(resultsRoot, runDir, scenarioId) {
   if (newLines.length > 0) {
     appendFileSync2(giPath, newLines.map((l) => l + "\n").join(""), "utf8");
   }
+}
+
+// packages/core/dist/grade.js
+var STAGED_DIFF_HEADING = "=== STAGED DIFF ===";
+var SEEDED_DIFF_GUIDANCE = `
+This transcript ends with a "=== STAGED DIFF ===" section: the actual code the assistant wrote, as \`git diff --cached\`. It is the primary evidence. Grade what the diff shows the code DOES, not what the assistant's prose claims it does \u2014 a confident description of behavior the diff does not implement is a FAIL, and behavior the diff plainly implements passes even if the assistant described it poorly or not at all. The "=== SEEDED GATES ===" lines above it are keyword and test-run checks only; they do not establish that the required behavior exists. If the diff is marked truncated, judge only what you can see and never infer that cut-off code is missing.
+`;
+function buildJudgePrompt(input) {
+  const { skill, persona, scenario, transcript } = input;
+  const numbered = scenario.checklist.map((c, i) => `${i + 1}. ${c}`).join("\n");
+  const diffGuidance = scenario.mode === "seeded" && transcript.includes(STAGED_DIFF_HEADING) ? SEEDED_DIFF_GUIDANCE : "";
+  return `You are grading ONE response from an AI assistant using a "${skill}" skill \u2014 ${persona} Judge it ONLY against the checklist below \u2014 do not add requirements beyond it.
+
+CHECKLIST (every numbered item must hold for a PASS):
+${numbered}
+
+TRANSCRIPT (the assistant is the model under test):
+${transcript}
+${diffGuidance}
+Grade each checklist item PASS or FAIL with a <=12-word justification quoting the transcript. Be skeptical: if an item is not clearly satisfied, mark it FAIL. Then output exactly these two lines:
+VERDICT: PASS      (only if EVERY item passed)   \u2014 or \u2014   VERDICT: FAIL
+REASON: <15 words or fewer>`;
+}
+var VERDICT_RE = /^\s*\**\s*VERDICT\**\s*:\s*\**\s*(PASS|FAIL)/gim;
+var REASON_RE = /^\s*\**\s*REASON\**\s*:\s*\**\s*(.*)$/gim;
+function parseVerdict(out) {
+  const verdicts = [...out.matchAll(VERDICT_RE)].map((m) => m[1].toUpperCase());
+  if (verdicts.length === 0) {
+    return { verdict: "ERROR", reason: "judge produced no parseable verdict" };
+  }
+  const reasons = [...out.matchAll(REASON_RE)].map((m) => m[1].trim());
+  const reason = reasons.length > 0 ? reasons[reasons.length - 1] : "";
+  const unique = [...new Set(verdicts)];
+  if (unique.length > 1) {
+    return {
+      verdict: "JUDGE-AMBIGUOUS",
+      reason: `judge emitted conflicting verdicts (${verdicts.join(", ")}) \u2014 needs rejudge; last reason: ${reason}`
+    };
+  }
+  return { verdict: unique[0], reason };
+}
+function judgeResemblesSubject(judge, subject) {
+  if (judge.provider !== subject.provider)
+    return false;
+  const a = judge.model;
+  const b = subject.model;
+  return a === b || a.includes(b) || b.includes(a);
+}
+var ITEM_RE = /^\s*\d+[.)]\s*\**\s*(PASS|FAIL)\b/gim;
+function detectMisfire(raw, verdict) {
+  if (verdict === "ERROR")
+    return false;
+  if (verdict === "JUDGE-AMBIGUOUS")
+    return true;
+  const items = [...raw.matchAll(ITEM_RE)].map((m) => m[1].toUpperCase() === "PASS");
+  if (items.length === 0) {
+    if (verdict === "FAIL") {
+      const reason = (raw.match(REASON_LINE_RE)?.[1] ?? "").trim();
+      const totalPass = /\b(all|every)\b[^.]*\b(pass(es|ed)?|satisf(y|ies|ied)|hold(s)?|met)\b/i.test(reason);
+      const negated = /\b(not|no|n't|fails?|failed|missing|except|but|however)\b/i.test(reason);
+      return totalPass && !negated;
+    }
+    return false;
+  }
+  const andItems = items.every((ok) => ok);
+  const verdictBool = verdict === "PASS";
+  return verdictBool !== andItems;
+}
+var REASON_LINE_RE = /^\s*\**\s*REASON\**\s*:\s*\**\s*(.*)$/im;
+async function gradeTranscript(adapter, judge, prompt, cwd) {
+  const raw = await adapter.judge({ model: judge, prompt, cwd });
+  const parsed = parseVerdict(raw);
+  if (parsed.verdict === "ERROR") {
+    const snippet2 = raw.trim().replace(/\s+/g, " ").slice(0, 160);
+    if (snippet2)
+      parsed.reason = `judge unparseable: ${snippet2}`;
+  }
+  const suspect = detectMisfire(raw, parsed.verdict);
+  return { ...parsed, raw, suspect, criteria: parseCriterionVotes(raw) };
+}
+async function judgeInWorkspace(adapter, judge, prompt, specDir) {
+  const ws = createWorkspace("none", { specDir });
+  try {
+    return await gradeTranscript(adapter, judge, prompt, ws.cwd);
+  } finally {
+    ws.cleanup();
+  }
+}
+
+// packages/core/dist/arms.js
+import { copyFileSync, existsSync as existsSync4, mkdirSync as mkdirSync2, readdirSync as readdirSync5, readFileSync as readFileSync5, realpathSync, statSync as statSync2 } from "node:fs";
+import { homedir } from "node:os";
+import { isAbsolute as isAbsolute3, join as join5, resolve as resolve4, sep as sep2 } from "node:path";
+var NONE_ARM = { name: "none", extensions: [], seedSkills: [], requireDefinitions: 0, env: {} };
+function realpathOr(p) {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
+}
+function defaultAmbientSkillsDir() {
+  return join5(homedir(), ".pi", "agent", "skills");
+}
+function seedArmDefinitions(arm, skillsRoot, workspaceCwd, opts = {}) {
+  if (arm.name === NONE_ARM.name)
+    return 0;
+  const ambient = opts.ambientSkillsDir ?? defaultAmbientSkillsDir();
+  let ambientEntries = [];
+  try {
+    ambientEntries = readdirSync5(ambient);
+  } catch (err) {
+    if (err.code === "ENOENT") {
+      ambientEntries = [];
+    } else {
+      throw new Error(`arm \`${arm.name}\`: could not read the ambient skill root ${ambient}: ${err.message} \u2014 pi-daddy reads it as well as the workspace, so this can't be verified empty.`);
+    }
+  }
+  if (ambientEntries.length > 0) {
+    throw new Error(`arm \`${arm.name}\`: the ambient skill root ${ambient} is not empty (${ambientEntries.slice(0, 5).join(", ")}) \u2014 pi-daddy reads it as well as the workspace, so those definitions would be an uncontrolled variable in the measurement. Move them aside for the run.`);
+  }
+  if (arm.seedSkills.length === 0) {
+    if (arm.requireDefinitions > 0) {
+      throw new Error(`arm \`${arm.name}\`: seeded 0 definition(s) (no \`seed_skills\` declared) but require_definitions is ${arm.requireDefinitions} \u2014 pi-daddy would have nothing to spawn, and the arm would measure nothing while looking green.`);
+    }
+    return 0;
+  }
+  const dest = join5(workspaceCwd, ".pi", "skills");
+  mkdirSync2(dest, { recursive: true });
+  const resolvedRoot = realpathOr(resolve4(skillsRoot));
+  const seen = /* @__PURE__ */ new Set();
+  for (const rel of arm.seedSkills) {
+    const src = realpathOr(resolve4(skillsRoot, rel));
+    if (src !== resolvedRoot && !src.startsWith(resolvedRoot + sep2)) {
+      throw new Error(`arm \`${arm.name}\`: seed_skills entry ${JSON.stringify(rel)} resolves to ${src}, which is outside the skills root ${resolvedRoot} \u2014 refusing to seed from outside the corpus`);
+    }
+    let names;
+    try {
+      names = readdirSync5(src);
+    } catch {
+      throw new Error(`arm \`${arm.name}\`: seed_skills names ${src}, which cannot be read \u2014 pi would start with nothing to spawn`);
+    }
+    for (const name of names) {
+      const from = join5(src, name);
+      if (!name.endsWith(".md"))
+        continue;
+      let isFile;
+      try {
+        isFile = statSync2(from).isFile();
+      } catch (err) {
+        throw new Error(`arm \`${arm.name}\`: seed_skills entry ${JSON.stringify(rel)} contains ${from}, which cannot be read (${err.message}) \u2014 likely a dangling symlink`);
+      }
+      if (!isFile)
+        continue;
+      if (seen.has(name)) {
+        throw new Error(`arm \`${arm.name}\`: two seed_skills entries both provide \`${name}\` (latest: ${from}) \u2014 they are copied into the one flat directory ${dest}, so one would silently overwrite the other. Rename one, or drop the duplicate entry.`);
+      }
+      seen.add(name);
+      copyFileSync(from, join5(dest, name));
+    }
+  }
+  const count = seen.size;
+  if (count < arm.requireDefinitions) {
+    throw new Error(`arm \`${arm.name}\`: seeded ${count} definition(s) into ${dest} but require_definitions is ${arm.requireDefinitions} \u2014 pi-daddy would have nothing (or too little) to spawn, and the arm would measure nothing while looking green.`);
+  }
+  return count;
 }
 
 // packages/core/dist/journal.js
@@ -5672,7 +5874,8 @@ async function runSeeded(scenario, opts) {
       ...opts.armExtensions ?? []
     ],
     eventSources: scenario.eventSources,
-    ...opts.armEnv ? { armEnv: opts.armEnv } : {}
+    ...opts.armEnv ? { armEnv: opts.armEnv } : {},
+    ...opts.onPromptObservation ? { onPromptObservation: opts.onPromptObservation } : {}
   };
   let traces = [];
   let events = [];
@@ -5824,14 +6027,14 @@ function vitestTally(out) {
 }
 
 // packages/core/dist/execution-trace.js
-import { createHash as createHash5 } from "node:crypto";
+import { createHash as createHash6 } from "node:crypto";
 
 // packages/core/dist/capture-trace-types.js
 var EXECUTION_TRACE_VERSION = 2;
 var CAPTURE_SCHEMA_VERSION = 1;
 
 // packages/core/dist/capture.js
-import { createHash as createHash4 } from "node:crypto";
+import { createHash as createHash5 } from "node:crypto";
 import { sep as sep3 } from "node:path";
 function activeBranch(entries, leafId) {
   const byId = /* @__PURE__ */ new Map();
@@ -5987,7 +6190,7 @@ function redactValue(value, homeDir, depth) {
   return String(value);
 }
 function sha256(text) {
-  return createHash4("sha256").update(text, "utf8").digest("hex");
+  return createHash5("sha256").update(text, "utf8").digest("hex");
 }
 function captureId(seed, existing = []) {
   const taken = new Set(existing);
@@ -6236,7 +6439,7 @@ function isoTime(value) {
   return Number.isNaN(date.getTime()) ? void 0 : date.toISOString();
 }
 function sha2562(text) {
-  return createHash5("sha256").update(text, "utf8").digest("hex");
+  return createHash6("sha256").update(text, "utf8").digest("hex");
 }
 function traceSha256(trace) {
   const { trace_sha256: _omit, ...rest } = trace;
@@ -6376,9 +6579,11 @@ function outcomesToResult(id, outcomes, repCount, threshold) {
   const objectiveField = objective ? { objective } : {};
   const metrics = aggregateMetrics(outcomes);
   const metricsField = metrics ? { metrics } : {};
+  const repJudgments = outcomes.map((outcome, repetition) => ({ repetition, judgments: outcome.judgment ? [outcome.judgment] : [], recorded_verdict: outcome.verdict, ...outcome.objective ? { objective: outcome.objective } : {} }));
+  const repJudgmentField = outcomes.some((outcome) => outcome.judgment) ? { rep_judgments: repJudgments } : {};
   if (repCount === 1) {
     const o = outcomes[0];
-    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, ...metricsField, override: null, note: "", ...objectiveField };
+    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, ...metricsField, override: null, note: "", ...objectiveField, ...repJudgmentField };
   }
   const agg = aggregateReps(outcomes, threshold);
   return {
@@ -6394,7 +6599,8 @@ function outcomesToResult(id, outcomes, repCount, threshold) {
     ...metricsField,
     override: null,
     note: "",
-    ...objectiveField
+    ...objectiveField,
+    ...repJudgmentField
   };
 }
 function aggregateMetrics(outcomes) {
@@ -6510,6 +6716,7 @@ async function judgeOneRep(opts) {
     verdict: g.verdict,
     reason: g.reason,
     suspect: g.suspect,
+    judgment: { ordinal: 1, judge: { ...judge }, verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, scenario.checklist.length) },
     metrics: {
       wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
       judge_calls: 1,
@@ -6556,11 +6763,12 @@ function appendJudgeHistory(prior, priorJudge, fresh) {
     judge: priorJudge,
     verdict: prior.judge_verdict ?? "JUDGE-AMBIGUOUS",
     reason: prior.judge_reason ?? "prior grade",
-    suspect: prior.suspect ?? true
+    suspect: prior.suspect ?? true,
+    criteria: prior.rep_judgments?.flatMap((panel) => panel.judgments[0]?.criteria ?? []) ?? []
   }] : []);
   const next = [
     ...history,
-    { ...fresh, ordinal: history.length + 1 }
+    { ...fresh, criteria: fresh.criteria ?? [], ordinal: history.length + 1 }
   ].slice(-3).map((judgment, index) => ({ ...judgment, ordinal: index + 1 }));
   return next.length >= 2 ? next : void 0;
 }
@@ -6621,16 +6829,20 @@ async function regradeRun(opts) {
     });
     const carry = overrides.get(id);
     rr.metrics = mergeScenarioMetrics(carry?.metrics, rr.metrics);
+    rr.rep_judgments = carryRepObjectives(rr.rep_judgments, carry?.rep_judgments);
     rr.judge_history = appendJudgeHistory(carry, prev?.judge, {
       judge,
       verdict: rr.judge_verdict,
       reason: rr.judge_reason,
-      suspect: rr.suspect
+      suspect: rr.suspect,
+      criteria: rr.rep_judgments?.flatMap((panel) => panel.judgments.flatMap((judgment) => judgment.criteria ?? []))
     });
     scenarioResults.push(rebuildScenarioResult(rr, carry, { objective: "carry", adjudication: "drop" }));
   }
   const ctx = scoreContextFor({ mode, partial: prev?.partial }, spec);
   const results = writeResults(runDir, {
+    schema: prev?.schema,
+    subject_invocations: prev?.subject_invocations,
     skill: spec.skill,
     harness: prev?.harness ?? "pi",
     // The harness CLI that produced these transcripts, carried verbatim: a re-grade
@@ -7110,11 +7322,16 @@ async function runSkillModel(opts) {
     }
   });
   const flat = await runPool(tasks, opts.concurrency ?? 1);
+  const subjectInvocations = flat.flatMap((outcome) => outcome.subject_invocations ?? []);
   const grouped = scenarios.map(() => []);
   flat.forEach((outcome, i) => grouped[owners[i]].push(outcome));
   const scenarioResults = scenarios.map((scenario, si) => {
     const threshold = scenario.critical ? effectiveThreshold(void 0, scenario) : scenario.passThreshold ?? opts.passThreshold ?? 0.5;
-    return outcomesToResult(scenario.id, grouped[si], repCounts[si], threshold);
+    const result = outcomesToResult(scenario.id, grouped[si], repCounts[si], threshold);
+    if (adapter.observesPrompts && !result.rep_judgments) {
+      result.rep_judgments = grouped[si].map((outcome, repetition) => ({ repetition, judgments: [], recorded_verdict: outcome.verdict, ...outcome.objective ? { objective: outcome.objective } : {} }));
+    }
+    return result;
   });
   const ctx = scoreContextFor({ mode, partial }, spec);
   const results = writeResults(runDir, {
@@ -7130,8 +7347,12 @@ async function runSkillModel(opts) {
     ...partial ? { partial: true } : {},
     // Only the scenarios this run actually measured: a --only run must not claim
     // coverage of scenarios it skipped.
-    source_hashes: sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios, judgePersona: spec.judge_persona }),
+    source_hashes: {
+      ...sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios, judgePersona: spec.judge_persona }),
+      ...adapter.observesPrompts ? { [PROMPT_NORMALIZATION_SOURCE_KEY]: PROMPT_NORMALIZATION_SOURCE_DIGEST } : {}
+    },
     scenarios: scenarioResults,
+    ...adapter.observesPrompts ? { schema: 3, subject_invocations: subjectInvocations } : {},
     ...arm.name === NONE_ARM.name ? {} : {
       arm: {
         name: arm.name,
@@ -7180,6 +7401,7 @@ async function runRep(scenario, rep, repCount, ctx) {
   let gatePrefix = null;
   let infrastructureFailure = null;
   let stagedDiff = null;
+  const subjectInvocations = [];
   try {
     try {
       ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath), remote: scenario.remote });
@@ -7205,6 +7427,7 @@ async function runRep(scenario, rep, repCount, ctx) {
       }
       const useStructured = (Boolean(ctx.structured) || needsStructuredEvidence) && Boolean(ctx.adapter.runStructured);
       for (let attempt = 0; attempt < 2; attempt++) {
+        const observe = (prompt) => subjectInvocations.push({ scenario_id: scenario.id, repetition: rep, attempt, prompt });
         if (attempt > 0) {
           const why = adapterFailure ? `adapter failed (${adapterFailure})` : "empty response";
           appendJournal(runDir, { event: "empty-response-retry", ts: now(), id: scenario.id, attempt, reason: why, ...repField });
@@ -7238,7 +7461,8 @@ async function runRep(scenario, rep, repCount, ctx) {
               // builds the RunReq — the arm's extensions and env (with `<run-dir>`
               // already substituted) both must reach pi.
               armExtensions: arm.extensions,
-              ...armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {}
+              ...armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {},
+              ...ctx.adapter.observesPrompts ? { onPromptObservation: observe } : {}
             });
             transcript = r.transcript;
             gatePrefix = r.gateFailure;
@@ -7264,7 +7488,8 @@ async function runRep(scenario, rep, repCount, ctx) {
                 ...arm.extensions
               ],
               eventSources: scenario.eventSources,
-              ...armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {}
+              ...armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {},
+              ...ctx.adapter.observesPrompts ? { onPromptObservation: observe } : {}
             };
             if (useStructured) {
               const structured = await ctx.adapter.runStructured({ ...req, scenarioId: scenario.id, rep });
@@ -7319,7 +7544,15 @@ async function runRep(scenario, rep, repCount, ctx) {
         });
       }
     }
-    let objective;
+    let deliveryObjective;
+    if (ctx.adapter.observesPrompts) {
+      const statuses = subjectInvocations.map((observation) => observation.prompt.status);
+      const status = deliveryStatusForObservations(subjectInvocations);
+      deliveryObjective = { status, assertions: [{ kind: "skill_delivered", status, detail: statuses.length === 0 ? "no model-visible prompt observation was retained" : `${statuses.length} provider request(s): ${statuses.join(", ")}` }] };
+      if (status !== "PASS")
+        gatePrefix = `objective: skill_delivered ${status.toLowerCase()} \u2014 ${deliveryObjective.assertions[0].detail}`;
+    }
+    let objective = deliveryObjective;
     if ((scenario.traceAssert || scenario.trajectoryAssert) && !adapterFailure) {
       const assertionResults = [];
       let status = "PASS";
@@ -7361,6 +7594,11 @@ async function runRep(scenario, rep, repCount, ctx) {
           trajectoryMeta = { trajectory_version: gate.event_version, events_sha256: gate.events_sha256 };
         }
       }
+      if (deliveryObjective) {
+        if (deliveryObjective.status === "ERROR" || deliveryObjective.status === "FAIL" && status === "PASS")
+          status = deliveryObjective.status;
+        assertionResults.unshift(...deliveryObjective.assertions);
+      }
       objective = { status, ...traceMeta, ...trajectoryMeta, assertions: assertionResults };
       if (status !== "PASS") {
         const details = assertionResults.filter((result) => result.status === status).map((result) => result.detail);
@@ -7378,6 +7616,7 @@ async function runRep(scenario, rep, repCount, ctx) {
     let verdict;
     let reason;
     let suspect = false;
+    let judgment;
     let judgeCalls = 0;
     if (objective?.status === "ERROR") {
       verdict = "ERROR";
@@ -7411,6 +7650,7 @@ async function runRep(scenario, rep, repCount, ctx) {
       verdict = o.verdict;
       reason = o.reason;
       suspect = o.suspect;
+      judgment = o.judgment;
       judgeCalls = 1;
     }
     log(`  \u2192 ${scenario.id}${repCount > 1 ? `#${rep}` : ""} ${verdict}${reason ? `: ${reason}` : ""}${suspect ? "  \u26A0 suspect" : ""}`);
@@ -7420,6 +7660,8 @@ async function runRep(scenario, rep, repCount, ctx) {
       reason,
       suspect,
       objective,
+      judgment,
+      subject_invocations: subjectInvocations,
       metrics: {
         wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
         judge_calls: judgeCalls,
@@ -7755,7 +7997,7 @@ import { existsSync as existsSync13, readdirSync as readdirSync9, statSync as st
 import { join as join17 } from "node:path";
 
 // packages/core/dist/restamp.js
-import { createHash as createHash6 } from "node:crypto";
+import { createHash as createHash7 } from "node:crypto";
 import { execFileSync as execFileSync2 } from "node:child_process";
 import { readFileSync as readFileSync12, renameSync, rmSync as rmSync2, writeFileSync as writeFileSync4 } from "node:fs";
 import { dirname as dirname4, join as join19, relative as relative3, resolve as resolve9 } from "node:path";
@@ -7792,7 +8034,7 @@ import { existsSync as existsSync15, readFileSync as readFileSync13, renameSync 
 import { basename as basename2, join as join20 } from "node:path";
 
 // packages/core/dist/spec-write.js
-import { createHash as createHash7 } from "node:crypto";
+import { createHash as createHash8 } from "node:crypto";
 import { readFileSync as readFileSync14, renameSync as renameSync3, unlinkSync, writeFileSync as writeFileSync6 } from "node:fs";
 import { dirname as dirname5, join as join21 } from "node:path";
 var ConcurrentSpecModification = class extends Error {
@@ -7808,7 +8050,7 @@ var DuplicateScenarioId = class extends Error {
   }
 };
 function specSha256(text) {
-  return createHash7("sha256").update(text, "utf8").digest("hex");
+  return createHash8("sha256").update(text, "utf8").digest("hex");
 }
 function renderScenarioBlock(scenario) {
   const dumped = yaml.dump({ scenarios: [scenario] }, { lineWidth: -1, noRefs: true });
@@ -8036,37 +8278,6 @@ function describe(r) {
 // packages/core/dist/adjudication.js
 import { existsSync as existsSync17, readFileSync as readFileSync16, writeFileSync as writeFileSync7 } from "node:fs";
 import { join as join22 } from "node:path";
-
-// packages/core/dist/vote-panel.js
-function isCleanPanelVote(vote) {
-  return !vote.suspect && (vote.verdict === "PASS" || vote.verdict === "FAIL");
-}
-function collapseVotePanel(votes) {
-  const clean = votes.filter(isCleanPanelVote);
-  const passVotes = clean.filter((vote) => vote.verdict === "PASS").length;
-  const failVotes = clean.length - passVotes;
-  const firstTwo = votes.filter((vote) => vote.ordinal === 1 || vote.ordinal === 2);
-  const split = firstTwo.length === 2 && firstTwo.every(isCleanPanelVote) && firstTwo[0].verdict !== firstTwo[1].verdict;
-  const minority = Math.min(passVotes, failVotes);
-  const base = {
-    clean_votes: clean.length,
-    pass_votes: passVotes,
-    fail_votes: failVotes,
-    split,
-    minority_rate: clean.length === 0 ? 0 : minority / clean.length
-  };
-  if (clean.length < 2)
-    return { ...base, state: "unresolved" };
-  if (passVotes === 0 || failVotes === 0)
-    return { ...base, state: "confirmed", verdict: clean[0].verdict };
-  if (passVotes > failVotes)
-    return { ...base, state: "tie_broken", verdict: "PASS" };
-  if (failVotes > passVotes)
-    return { ...base, state: "tie_broken", verdict: "FAIL" };
-  return { ...base, state: "unresolved" };
-}
-
-// packages/core/dist/adjudication.js
 function planAdjudication(input) {
   const enabled = new Set(input.enabled ?? ["ambiguous", "contradictory", "non_unanimous", "ship_deciding"]);
   const decisions = [];
@@ -8157,7 +8368,7 @@ async function runAdjudication(opts) {
       continue;
     const trigger = decision.triggers[0];
     const judgments = [
-      { ordinal: 1, judge: { ...opts.primaryJudge }, verdict: cell.verdict, reason: cell.reason, suspect: cell.suspect }
+      { ordinal: 1, judge: { ...opts.primaryJudge }, verdict: cell.verdict, reason: cell.reason, suspect: cell.suspect, criteria: cell.criteria ?? [] }
     ];
     const second = await opts.rejudge(decision.id, opts.secondaryJudge);
     callsMade++;
@@ -8209,7 +8420,8 @@ async function adjudicateRun(opts) {
     if (!adj)
       return s;
     const scenario = byIdScenario.get(s.id);
-    const boundedAdj = scenario ? boundAdjudicationToRepetitions(s, scenario, adj) : adj;
+    const withRepetition = { ...adj, repetition: s.rep_judgments?.[0]?.repetition ?? 0 };
+    const boundedAdj = scenario ? boundAdjudicationToRepetitions(s, scenario, withRepetition) : withRepetition;
     const projected = projectAdjudication(s, boundedAdj);
     if (boundedAdj !== adj) {
       projected.judge_reason = `${adj.judgments.length} judgments on one transcript cannot replace a critical all-repetitions aggregate`;
@@ -8259,7 +8471,7 @@ async function judgeCell(opts) {
     reason: g.reason,
     suspect: g.suspect
   });
-  return { verdict: g.verdict, reason: g.reason, suspect: g.suspect };
+  return { verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, opts.scenario.checklist.length) };
 }
 function cellsFromResults(runDir, results) {
   return results.scenarios.map((s) => ({
@@ -8267,7 +8479,8 @@ function cellsFromResults(runDir, results) {
     verdict: s.judge_verdict,
     reason: s.judge_reason,
     suspect: s.suspect,
-    repVerdicts: repVerdictsOf(runDir, s, results.mode)
+    repVerdicts: repVerdictsOf(runDir, s, results.mode),
+    criteria: s.rep_judgments?.[0]?.judgments[0]?.criteria
   }));
 }
 function repVerdictsOf(runDir, s, mode) {
@@ -8350,7 +8563,7 @@ import { StringDecoder } from "node:string_decoder";
 
 // packages/core/dist/qualification-config.js
 import { execFileSync as execFileSync3 } from "node:child_process";
-import { createHash as createHash8 } from "node:crypto";
+import { createHash as createHash9 } from "node:crypto";
 import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync as readFileSync17, realpathSync as realpathSync2 } from "node:fs";
 import { isAbsolute as isAbsolute7, join as join23 } from "node:path";
 
@@ -8372,9 +8585,10 @@ import { closeSync as closeSync4, constants as constants4, existsSync as existsS
 import { dirname as dirname8, extname as extname2, join as join27, resolve as resolve12 } from "node:path";
 
 // packages/adapters/dist/pi.js
-import { existsSync as existsSync22, mkdtempSync as mkdtempSync2, readFileSync as readFileSync24, statSync as statSync9 } from "node:fs";
+import { existsSync as existsSync22, mkdtempSync as mkdtempSync2, readFileSync as readFileSync24, rmSync as rmSync6, statSync as statSync9, writeFileSync as writeFileSync9 } from "node:fs";
 import { tmpdir as tmpdir2, homedir as homedir2 } from "node:os";
 import { join as join31, resolve as resolve13 } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // packages/adapters/dist/pi-json.js
 import { spawn as spawn4 } from "node:child_process";
@@ -8443,7 +8657,7 @@ function runPiJson(opts) {
 }
 
 // packages/adapters/dist/trajectory.js
-import { createHash as createHash9 } from "node:crypto";
+import { createHash as createHash10 } from "node:crypto";
 import { readFileSync as readFileSync23, readdirSync as readdirSync16 } from "node:fs";
 import { join as join30 } from "node:path";
 
@@ -11609,7 +11823,7 @@ function validatePrincipalIntegrity(records) {
     }
     const copy = { ...record };
     delete copy.event_digest;
-    const expected = createHash9("sha256").update(canonicalJson(copy)).digest("hex");
+    const expected = createHash10("sha256").update(canonicalJson(copy)).digest("hex");
     if (record.event_digest !== expected)
       throw new Error(`principal assurance integrity failure at line ${line}: event digest mismatch`);
     if (!validTime(typeof record.at === "string" ? record.at : void 0))
@@ -11665,7 +11879,7 @@ function sanitizeAttributes(value) {
     if (sensitiveKey.test(key))
       return "[REDACTED]";
     if (typeof current === "string" && freeTextKey.test(key)) {
-      return `[REDACTED sha256:${createHash9("sha256").update(current).digest("hex")}]`;
+      return `[REDACTED sha256:${createHash10("sha256").update(current).digest("hex")}]`;
     }
     if (Array.isArray(current))
       return current.map((entry) => walk2(entry));
@@ -11734,8 +11948,118 @@ function walkFiles(root, relative6 = "") {
   return out;
 }
 
+// packages/adapters/dist/prompt-provenance.js
+import { createHash as createHash11 } from "node:crypto";
+function sha2(bytes) {
+  return createHash11("sha256").update(bytes, "utf8").digest("hex");
+}
+function normalizePromptPayload(value, rule) {
+  if (rule !== PROMPT_NORMALIZATION_RULE)
+    throw new Error(`unknown prompt normalization rule ${String(rule)}`);
+  if (typeof value === "string")
+    return value.replace(new RegExp(PROMPT_NORMALIZATION_PATTERN, PROMPT_NORMALIZATION_FLAGS), PROMPT_NORMALIZATION_REPLACEMENT);
+  if (Array.isArray(value))
+    return value.map((entry) => normalizePromptPayload(entry, rule));
+  if (value && typeof value === "object")
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, normalizePromptPayload(entry, rule)]));
+  return value;
+}
+function countInStrings(value, needle) {
+  if (typeof value === "string") {
+    if (!needle)
+      return 0;
+    let count = 0, at = 0;
+    while ((at = value.indexOf(needle, at)) !== -1) {
+      count++;
+      at += needle.length;
+    }
+    return count;
+  }
+  if (Array.isArray(value))
+    return value.reduce((sum, entry) => sum + countInStrings(entry, needle), 0);
+  if (value && typeof value === "object") {
+    const record = value;
+    if (record.role === "user") {
+      const content = Array.isArray(record.content) ? record.content : Array.isArray(record.parts) ? record.parts : [];
+      return content.filter((block) => block && typeof block === "object" && (["tool_result", "tool_response", "function_response"].includes(String(block.type ?? "")) || "functionResponse" in block || "function_response" in block)).reduce((sum, block) => sum + countInStrings(block, needle), 0);
+    }
+    return Object.values(record).reduce((sum, entry) => sum + countInStrings(entry, needle), 0);
+  }
+  return 0;
+}
+var PROMPT_FIELDS = /* @__PURE__ */ new Set(["instructions", "input", "system", "messages", "prompt", "contents"]);
+function promptProjection(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload))
+    return null;
+  const record = payload;
+  const projected = Object.fromEntries(Object.entries(record).filter(([key]) => PROMPT_FIELDS.has(key)));
+  const config = record.config && typeof record.config === "object" ? record.config : null;
+  if (config?.systemInstruction !== void 0)
+    projected.systemInstruction = config.systemInstruction;
+  return Object.keys(projected).length ? projected : null;
+}
+function observeProviderPayload(payload, contract, mechanism, requestIndex) {
+  const projection = promptProjection(payload);
+  const raw = JSON.stringify(projection ?? {});
+  const normalized = JSON.stringify(normalizePromptPayload(projection ?? {}, PROMPT_NORMALIZATION_RULE));
+  const occurrences = countInStrings(projection ?? {}, contract);
+  const expectsDelivery = mechanism !== "none";
+  const observable = projection !== null;
+  return {
+    capture_version: "prompt-provenance-v1",
+    request_index: requestIndex,
+    raw_sha256: sha2(raw),
+    normalized_sha256: sha2(normalized),
+    normalization_rule: PROMPT_NORMALIZATION_RULE,
+    bytes: Buffer.byteLength(raw),
+    contract_sha256: sha2(contract),
+    contract_bytes: Buffer.byteLength(contract),
+    contract_occurrences: occurrences,
+    mechanism,
+    status: observable ? occurrences === (expectsDelivery ? 1 : 0) ? "PASS" : "FAIL" : "ERROR",
+    ...observable ? {} : { error: "provider payload has no supported model-visible prompt field" }
+  };
+}
+
 // packages/adapters/dist/pi.js
 var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
+var PROMPT_CAPTURE_EXTENSION = fileURLToPath(new URL("./prompt-capture-extension.js", import.meta.url));
+function contractFor(req) {
+  if (req.systemPromptFile) {
+    const raw2 = readFileSync24(req.systemPromptFile, "utf8");
+    return { text: raw2, raw: raw2, mechanism: "system-prompt-file" };
+  }
+  const raw = readFileSync24(join31(requireSkillDir(req.skillDir, req.mode), "SKILL.md"), "utf8");
+  const body = splitPromptDoc(raw).body;
+  if (req.mode === "red")
+    return { text: body, raw, mechanism: "none" };
+  return { text: body, raw, mechanism: req.mode === "green" ? "pi-skill" : "append-system-prompt" };
+}
+function captureSetup(req, env, contract, counter) {
+  if (!req.onPromptObservation)
+    return { env, finish: () => {
+    } };
+  const dir = mkdtempSync2(join31(tmpdir2(), "skill-harness-prompt-"));
+  const path = join31(dir, "observations.jsonl"), contractPath = join31(dir, "contract.json");
+  writeFileSync9(path, "", { mode: 384 });
+  writeFileSync9(contractPath, JSON.stringify({ text: contract.text, mechanism: contract.mechanism }), { mode: 384 });
+  const finish2 = () => {
+    try {
+      const lines = readFileSync24(path, "utf8").split("\n").filter(Boolean);
+      if (lines.length === 0) {
+        const empty = observeProviderPayload({}, contract.text, contract.mechanism, counter.value++);
+        req.onPromptObservation?.({ ...empty, status: "ERROR", error: "Pi emitted no provider payload observation" });
+      } else
+        lines.forEach((line) => {
+          const observation = JSON.parse(line);
+          req.onPromptObservation?.({ ...observation, request_index: counter.value++ });
+        });
+    } finally {
+      rmSync6(dir, { recursive: true, force: true });
+    }
+  };
+  return { env: { ...env ?? process.env, SKILL_HARNESS_PROMPT_CAPTURE_FILE: path, SKILL_HARNESS_PROMPT_CONTRACT_FILE: contractPath }, finish: finish2 };
+}
 var PROVIDER_STDERR_SIGNATURES = [
   "invalidated oauth token",
   "invalid_api_key",
@@ -11754,14 +12078,15 @@ function requireSkillDir(skillDir, mode) {
   }
   return abs;
 }
-function skillFlags(mode, skillDir) {
+function skillFlags(mode, skillDir, boundRaw) {
   switch (mode) {
     case "red":
       return ["--no-skills"];
     case "green":
       return ["--skill", requireSkillDir(skillDir, mode)];
     case "force": {
-      const body = readFileSync24(join31(requireSkillDir(skillDir, mode), "SKILL.md"), "utf8");
+      requireSkillDir(skillDir, mode);
+      const body = boundRaw ?? readFileSync24(join31(resolve13(skillDir), "SKILL.md"), "utf8");
       return ["--no-skills", "--append-system-prompt", body];
     }
   }
@@ -11785,6 +12110,7 @@ ${text}
 }
 var piAdapter = {
   name: "pi",
+  observesPrompts: true,
   available() {
     return Promise.resolve(onPath("pi"));
   },
@@ -11817,19 +12143,28 @@ var piAdapter = {
       "--no-context-files",
       "--no-extensions",
       ...extensionFlags(req.extensions),
+      ...req.onPromptObservation ? ["--extension", PROMPT_CAPTURE_EXTENSION] : [],
       "--provider",
       req.model.provider,
       "--model",
       req.model.model
     ];
-    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync24(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
+    const contract = contractFor(req);
+    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", contract.raw] : skillFlags(req.mode, req.skillDir, contract.raw);
+    const requestCounter = { value: 0 };
     const total = req.turns.length;
     const parts = [];
     const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
     let providerFailure = null;
     if (total === 1) {
       const args = [...flags, ...common2, "--no-session", "-p", req.turns[0]];
-      const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env });
+      const capture = captureSetup(req, env, contract, requestCounter);
+      let r;
+      try {
+        r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env: capture.env });
+      } finally {
+        capture.finish();
+      }
       parts.push(header(1, 1, req.turns[0]));
       parts.push(`<<< ASSISTANT:
 ${r.stdout.trim()}
@@ -11847,7 +12182,13 @@ ${r.stderr.trim()}
     for (let i = 0; i < total; i++) {
       const turnFlags = i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common2, ...turnFlags, "-p", req.turns[i]];
-      const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env });
+      const capture = captureSetup(req, env, contract, requestCounter);
+      let r;
+      try {
+        r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env: capture.env });
+      } finally {
+        capture.finish();
+      }
       parts.push(header(i + 1, total, req.turns[i]));
       parts.push(`<<< ASSISTANT:
 ${r.stdout.trim()}
@@ -11881,12 +12222,15 @@ ${r.stderr.trim()}
       "--no-context-files",
       "--no-extensions",
       ...extensionFlags(req.extensions),
+      ...req.onPromptObservation ? ["--extension", PROMPT_CAPTURE_EXTENSION] : [],
       "--provider",
       req.model.provider,
       "--model",
       req.model.model
     ];
-    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync24(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
+    const contract = contractFor(req);
+    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", contract.raw] : skillFlags(req.mode, req.skillDir, contract.raw);
+    const requestCounter = { value: 0 };
     const piVersion = await this.version();
     const total = req.turns.length;
     const traces = [];
@@ -11897,19 +12241,25 @@ ${r.stderr.trim()}
     for (let i = 0; i < total; i++) {
       const turnFlags = session === null ? ["--no-session"] : i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common2, "--mode", "json", ...turnFlags, "-p", req.turns[i]];
-      const r = await runPiJson({
-        args,
-        cwd: req.cwd,
-        timeoutMs: PI_TIMEOUT_MS,
-        piVersion,
-        subject: req.model,
-        scenarioId: req.scenarioId ?? "(unknown)",
-        mode: req.mode,
-        rep: req.rep ?? 0,
-        turn: i,
-        homeDir: homedir2(),
-        env
-      });
+      const capture = captureSetup(req, env, contract, requestCounter);
+      let r;
+      try {
+        r = await runPiJson({
+          args,
+          cwd: req.cwd,
+          timeoutMs: PI_TIMEOUT_MS,
+          piVersion,
+          subject: req.model,
+          scenarioId: req.scenarioId ?? "(unknown)",
+          mode: req.mode,
+          rep: req.rep ?? 0,
+          turn: i,
+          homeDir: homedir2(),
+          env: capture.env
+        });
+      } finally {
+        capture.finish();
+      }
       if (!r.isComplete) {
         throw new Error(`pi --mode json produced no terminal events for turn ${i + 1}/${total} (exit ${r.code}${r.malformedLines ? `, ${r.malformedLines} malformed line(s)` : ""})` + (r.stderr.trim() ? `: ${r.stderr.trim()}` : ""));
       }
@@ -12003,9 +12353,9 @@ function getAdapter(name) {
 import { createServer } from "node:http";
 import { readFileSync as readFileSync25, existsSync as existsSync23 } from "node:fs";
 import { join as join32, dirname as dirname9 } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
 import { spawn as spawn5 } from "node:child_process";
-var __dirname = dirname9(fileURLToPath(import.meta.url));
+var __dirname = dirname9(fileURLToPath2(import.meta.url));
 function templatePath(assetsDir) {
   if (assetsDir)
     return join32(assetsDir, "report.template.html");
@@ -12138,11 +12488,14 @@ async function serveReview(opts) {
               judge: results.judge,
               verdict: rr.judge_verdict,
               reason: rr.judge_reason,
-              suspect: rr.suspect
+              suspect: rr.suspect,
+              criteria: rr.rep_judgments?.flatMap((panel) => panel.judgments.flatMap((judgment) => judgment.criteria ?? []))
             });
-            return rebuildScenarioResult({ ...rr, metrics: mergeScenarioMetrics(s.metrics, rr.metrics), judge_history }, s, { objective: "carry", adjudication: "drop" });
+            return rebuildScenarioResult({ ...rr, metrics: mergeScenarioMetrics(s.metrics, rr.metrics), rep_judgments: carryRepObjectives(rr.rep_judgments, s.rep_judgments), judge_history }, s, { objective: "carry", adjudication: "drop" });
           });
           const written = writeResults(column.runDir, {
+            schema: results.schema,
+            subject_invocations: results.subject_invocations,
             skill: results.skill,
             harness: results.harness,
             model: results.model,
@@ -12369,9 +12722,9 @@ async function runViaExtension(opts) {
 }
 
 // packages/pi-extension/src/capture-cmd.ts
-import { existsSync as existsSync25, mkdirSync as mkdirSync8, writeFileSync as writeFileSync9, readdirSync as readdirSync17, readFileSync as readFileSync26 } from "node:fs";
+import { existsSync as existsSync25, mkdirSync as mkdirSync8, writeFileSync as writeFileSync10, readdirSync as readdirSync17, readFileSync as readFileSync26 } from "node:fs";
 import { join as join34 } from "node:path";
-import { createHash as createHash10 } from "node:crypto";
+import { createHash as createHash12 } from "node:crypto";
 var CANCELLED = { status: "cancelled", files: [] };
 var CAPTURES_GITIGNORE = "# Local review evidence for captured cases \u2014 never commit.\n.local/\n";
 async function runCapture(skillDir, ctx) {
@@ -12472,7 +12825,7 @@ ${previewYaml}---`);
     baseSha256
   });
   const promoted = { ...capture, status: "promoted", scenario_id: scenarioId.trim() };
-  writeFileSync9(join34(capturesDir, `${capture.id}.yaml`), yaml.dump(promoted, { lineWidth: -1, noRefs: true }), "utf8");
+  writeFileSync10(join34(capturesDir, `${capture.id}.yaml`), yaml.dump(promoted, { lineWidth: -1, noRefs: true }), "utf8");
   ui.say(`promoted ${capture.id} \u2192 scenario ${scenarioId.trim()} in ${specPath}`);
   if (ctx.runOnly && await ui.confirm(`run scenario ${scenarioId.trim()} now? (spends subject + judge tokens for 1 scenario)`)) {
     ui.say(await ctx.runOnly(skillDir, scenarioId.trim()));
@@ -12509,7 +12862,7 @@ async function chooseTarget(skillDir, ctx) {
   return {
     kind: chosen.kind,
     path: chosen.path,
-    content_sha256: createHash10("sha256").update(readFileSync26(chosen.abs, "utf8"), "utf8").digest("hex")
+    content_sha256: createHash12("sha256").update(readFileSync26(chosen.abs, "utf8"), "utf8").digest("hex")
   };
 }
 function suggestScenarioId(specPath, fallback) {
@@ -12528,12 +12881,12 @@ function writeCapture(capturesDir, capture, selected2, homeDir) {
   const gitignore = join34(capturesDir, ".gitignore");
   const existingIgnore = existsSync25(gitignore) ? readFileSync26(gitignore, "utf8") : "";
   if (!existingIgnore.split("\n").some((l) => l.trim() === ".local/" || l.trim() === ".local")) {
-    writeFileSync9(gitignore, existingIgnore ? `${existingIgnore.replace(/\n*$/, "\n")}${CAPTURES_GITIGNORE}` : CAPTURES_GITIGNORE, "utf8");
+    writeFileSync10(gitignore, existingIgnore ? `${existingIgnore.replace(/\n*$/, "\n")}${CAPTURES_GITIGNORE}` : CAPTURES_GITIGNORE, "utf8");
   }
   const casePath = join34(capturesDir, `${capture.id}.yaml`);
-  writeFileSync9(casePath, yaml.dump(capture, { lineWidth: -1, noRefs: true }), "utf8");
+  writeFileSync10(casePath, yaml.dump(capture, { lineWidth: -1, noRefs: true }), "utf8");
   const evidencePath = join34(capturesDir, ".local", `${capture.id}.evidence.json`);
-  writeFileSync9(
+  writeFileSync10(
     evidencePath,
     JSON.stringify(
       {
@@ -12818,7 +13171,7 @@ function registerTool(pi) {
 
 // packages/pi-extension/src/index.ts
 function index_default(pi) {
-  const assetsDir = join36(dirname12(fileURLToPath2(import.meta.url)), "..", "..", "..", "assets");
+  const assetsDir = join36(dirname12(fileURLToPath3(import.meta.url)), "..", "..", "..", "assets");
   registerCommand(pi, assetsDir);
   registerTool(pi);
   pi.on("session_shutdown", async () => {
