@@ -17,7 +17,7 @@ function file(mode: "red" | "force", rows: Array<[string, "PASS" | "FAIL" | "ERR
     schema: 3, skill: "x", harness: "pi", model: "fake:m", judge: { provider: "fake", model: "j" },
     timestamp: "t", label: null, mode, effective_grade: grade,
     subject_invocations: rows.map(([id,, rep]) => ({ scenario_id: id, repetition: rep, prompt: prompt(mode === "red" ? 0 : 1) })),
-    scenarios: ids.map(id => { const reps = rows.filter(row => row[0] === id); return { id, judge_verdict: reps[0][1], judge_reason: reps[0][1], suspect: false, override: null, note: "",
+    scenarios: ids.map(id => { const reps = rows.filter(row => row[0] === id); return { id, criterion_count: 1, judge_verdict: reps[0][1], judge_reason: reps[0][1], suspect: false, override: null, note: "",
       ...(reps.length > 1 ? { reps: reps.length } : {}), objective: { status: "PASS" as const, assertions: [{ kind: "skill_delivered", status: "PASS" as const, detail: "observed" }] },
       rep_judgments: reps.map(([,v,rep]) => ({ repetition: rep, recorded_verdict: v, objective: { status: "PASS" as const, assertions: [{ kind: "skill_delivered", status: "PASS" as const, detail: "observed" }] }, judgments: v === "ERROR" ? [] : [{ ordinal: 1, judge: { provider: "fake", model: "j" }, verdict: v, reason: v, suspect: false, criteria: criterion(v) }] })),
     }; }),
@@ -43,10 +43,21 @@ describe("offline discriminating-power screen", () => {
 
   it("requires all terminal provider requests and ignores failed retry attempts (breaks if last observation wins)", () => {
     const r=file("force",[["A1","PASS",0]]);const base=r.subject_invocations![0];
-    r.subject_invocations=[{...base,prompt:{...base.prompt,status:"FAIL",contract_occurrences:0,request_index:0}},{...base,prompt:{...base.prompt,request_index:1}}];
+    r.subject_invocations=[{...base,prompt:{...base.prompt,status:"NOT-MEASURED",contract_occurrences:0,request_index:0}},{...base,prompt:{...base.prompt,request_index:1}}];
     expect(screenResults([r]).scenarios[0].treatment.n).toBe(0);
     r.subject_invocations=[{...base,attempt:0,prompt:{...base.prompt,status:"ERROR",request_index:0}},{...base,attempt:1,prompt:{...base.prompt,request_index:1}}];
     expect(screenResults([r]).scenarios[0].treatment.n).toBe(1);
+  });
+
+  it("does not count an unsupported recorded PASS when no clean judgment was retained", () => {
+    const r=file("red",[["A1","PASS",0]]);r.scenarios[0].rep_judgments![0].judgments=[];
+    expect(screenResults([r]).scenarios[0].control.n).toBe(0);
+  });
+
+  it("never promotes a retained unresolved adjudication by recomputing it as settled", () => {
+    const r=file("red",[["A1","PASS",0]]), primary=r.scenarios[0].rep_judgments![0].judgments[0];
+    r.scenarios[0].adjudication={repetition:0,trigger:"ship_deciding",state:"unresolved",judgments:[primary,{...structuredClone(primary),ordinal:2}]};
+    expect(screenResults([r]).scenarios[0].control.n).toBe(0);
   });
 
   it("excludes suspect-only panels from pass rates (breaks if recorded_verdict is trusted over clean votes)", () => {
@@ -64,7 +75,18 @@ describe("offline discriminating-power screen", () => {
     expect(screenResults([r]).scenarios[0].treatment).toEqual({ passes: 1, n: 1 });
     r.subject_invocations![0].prompt = { ...r.subject_invocations![0].prompt, mechanism: "none", contract_occurrences: 0, status: "PASS" };
     expect(screenResults([r]).scenarios[0].control).toEqual({ passes: 1, n: 1 });
-    const bad:any=file("force", [["A1","PASS",0]]);bad.subject_invocations[0].prompt.contract_occurrences=0;bad.subject_invocations[0].prompt.status="FAIL";
-    expect(screenResults([bad]).scenarios[0].treatment).toEqual({passes:0,n:0});
+  });
+
+  it("reports undelivered repetitions as NOT-MEASURED without depressing efficacy rates", () => {
+    const r:any=file("force", [["A1","PASS",0],["A1","PASS",1]]);
+    r.subject_invocations[1].prompt.contract_occurrences=0;
+    r.subject_invocations[1].prompt.status="NOT-MEASURED";
+    r.scenarios[0].rep_judgments[1].recorded_verdict="NOT-MEASURED";
+    r.scenarios[0].rep_judgments[1].judgments=[];
+    r.scenarios[0].rep_judgments[1].objective.status="NOT-MEASURED";
+    r.scenarios[0].rep_judgments[1].objective.assertions[0].status="NOT-MEASURED";
+    r.scenarios[0].objective.status="NOT-MEASURED";
+    r.scenarios[0].objective.assertions[0].status="NOT-MEASURED";
+    expect(screenResults([r]).scenarios[0]).toMatchObject({treatment:{passes:1,n:1},not_measured:1});
   });
 });

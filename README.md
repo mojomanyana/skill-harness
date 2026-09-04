@@ -238,7 +238,7 @@ skill-harness run    <skill|all> --skills <root> [--model prov:model ...] [--mod
                                [--auto-rejudge] [--secondary-judge prov:model] [--tie-break-judge prov:model]
 skill-harness compare <skill|all> --reference <git-ref-or-root> --candidate <skills-root> --model prov:model --reps N
                                                           # paired reference/candidate run; spends subject + judge calls
-skill-harness mutation-test                               # prove trajectory assertions turn red (free, offline)
+skill-harness mutation-test                               # prove trajectory + results/delivery/screen gates turn red (free, offline)
 skill-harness judge-agreement <run-dir>                   # compare persisted votes after grading with two distinct judges (free, offline)
 skill-harness stability <skill|all> --skills <root> [--window N] [--all]  # run-over-run verdict flips (free, offline)
 skill-harness screen <run-dir>...                         # retained delivery-aware scenario/criterion rates (free, offline)
@@ -646,12 +646,12 @@ the model's description of it. Cap the judge's copy with
 `SKILL_HARNESS_DIFF_MAX_BYTES` (default 64000); the artifact on disk is never
 truncated.
 
-New runs write `results.yaml` **schema 3**. Schema-1 and schema-2 files remain readable at their own version and are never migrated or rewritten merely by reading them. Schema 3 adds the observations needed to recompute rather than trust a score:
+New runs write `results.yaml` **schema 3**. Schema-1 and schema-2 files remain readable at their own version and are never migrated or rewritten merely by reading them. Schema 3 is also an intentional meaning boundary: behavioral efficacy is counted only after delivery is established. Earlier schemas made no such guarantee. It adds the observations needed to recompute rather than trust a score:
 
 - `subject_invocations[]` records each provider request's adapter-computed delivery status, mechanism, contract SHA-256/bytes/occurrences, and prompt provenance. `raw_sha256` commits to the model-visible prompt fields projected from the captured final provider payload JSON (`instructions`/`system` plus message/input content). `normalized_sha256` applies the named registry rule `cwd-line-v1`, which replaces exactly lines beginning `Current working directory:` and no other bytes. The payload itself is not retained.
 - every scenario has `rep_judgments[]`; each panel member retains every numbered criterion verdict/reason. Readers recompute each recorded panel verdict from those votes and reject divergence.
-- `skill_delivered` is an objective assertion. Force/system-prompt requests require exactly one contract occurrence per provider request; red/control requests require zero. Green progressive disclosure may begin with zero, but must eventually deliver exactly one and may never duplicate it. Absent, duplicate, missing, or malformed effective-attempt evidence becomes FAIL/ERROR and is surfaced before judging.
-- `screen <run-dir>...` reads only these retained fields. It reports skill/model/scenario control and treatment pass rates plus criterion failure rates. Control pass rate ≥80% is CEILING, ≤10% FLOOR, 20–70% INFORMATIVE; absent/inconclusive evidence is UNKNOWN. It makes no model or judge call.
+- `skill_delivered` is an objective assertion. Force/system-prompt requests require exactly one contract occurrence per provider request; red/control requests require zero. Green progressive disclosure may begin with zero, but must eventually deliver exactly one and may never duplicate it. Known zero/duplicate delivery becomes `NOT-MEASURED`: it is not judged, is excluded from efficacy denominators, and blocks SHIP without blaming the product. Missing, malformed, or unauthenticated instrumentation is `ERROR`. The extension-free observer HMAC-authenticates its complete log and shutdown count; the parent rejects mutation, replay, or truncation and rebinds contract identity. Because arbitrary scenario/arm extensions or arm runtime environment share Pi's process, their payload provenance cannot be authenticated in-process; those runs fail this observation closed until an out-of-process recorder exists.
+- `screen <run-dir>...` reads only these retained fields. It reports skill/model/scenario control and treatment pass rates, a separate not-measured bucket, and criterion failure rates. Control pass rate ≥80% is CEILING, ≤10% FLOOR, 20–70% INFORMATIVE; absent/inconclusive evidence is UNKNOWN. It makes no model or judge call.
 
 Fields retained from schema 2:
 

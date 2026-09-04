@@ -4806,9 +4806,14 @@ function score(verdicts, input) {
   let bSeriesFails = 0;
   let suspectCount = 0;
   let errorCount = 0;
+  let notMeasuredCount = 0;
   for (const v of verdicts) {
     if (v.suspect) {
       suspectCount++;
+      continue;
+    }
+    if (v.verdict === "NOT-MEASURED") {
+      notMeasuredCount++;
       continue;
     }
     if (v.verdict === "ERROR" || v.verdict === "JUDGE-AMBIGUOUS") {
@@ -4828,7 +4833,7 @@ function score(verdicts, input) {
   const pct = total > 0 ? Math.round(passed * 100 / total) : 0;
   const letter = letterFor(pct);
   const validBar = Number.isInteger(shipBar.total) && shipBar.total >= 1 && Number.isInteger(shipBar.min_pass) && shipBar.min_pass >= 1 && shipBar.min_pass <= shipBar.total;
-  const ship = validBar && total >= shipBar.total && passed >= shipBar.min_pass && (!shipBar.no_critical_fail || criticalFails === 0) && bSeriesFails === 0 && suspectCount === 0 && errorCount === 0;
+  const ship = validBar && total >= shipBar.total && passed >= shipBar.min_pass && (!shipBar.no_critical_fail || criticalFails === 0) && bSeriesFails === 0 && suspectCount === 0 && errorCount === 0 && notMeasuredCount === 0;
   let note = "";
   if (!validBar) {
     note = "invalid ship bar: total/min_pass must be positive integers with min_pass <= total";
@@ -4836,12 +4841,14 @@ function score(verdicts, input) {
     note = `${suspectCount} suspect: re-judge/resolve`;
   } else if (errorCount > 0) {
     note = `${errorCount} infrastructure error${errorCount === 1 ? "" : "s"}: retry/repair evidence`;
+  } else if (notMeasuredCount > 0) {
+    note = `${notMeasuredCount} not measured: skill delivery was not established`;
   } else if (criticalFails > 0) {
     note = `gated: ${criticalFails} critical fail${criticalFails === 1 ? "" : "s"}`;
   } else if (bSeriesFails > 0) {
     note = `gated: ${bSeriesFails} B-series fail${bSeriesFails === 1 ? "" : "s"}`;
   }
-  return { passed, total, pct, letter, ship, criticalFails, bSeriesFails, suspectCount, errorCount, note };
+  return { passed, total, pct, letter, ship, criticalFails, bSeriesFails, suspectCount, errorCount, notMeasuredCount, note };
 }
 
 // packages/core/dist/version.js
@@ -4951,6 +4958,8 @@ function objectiveVerdict(s) {
     return void 0;
   if (s.objective.status === "ERROR")
     return "ERROR";
+  if (s.objective.status === "NOT-MEASURED")
+    return "NOT-MEASURED";
   if (s.objective.status === "FAIL")
     return "FAIL";
   return void 0;
@@ -5062,12 +5071,12 @@ function deliveryStatusForObservations(observations) {
     return "ERROR";
   const counts = terminal.map((observation) => observation.prompt.contract_occurrences);
   if (mechanism === "none")
-    return counts.every((count) => count === 0) ? "PASS" : "FAIL";
+    return counts.every((count) => count === 0) ? "PASS" : "NOT-MEASURED";
   if (mechanism === "pi-skill") {
     const firstDelivered = counts.indexOf(1);
-    return firstDelivered >= 0 && counts.slice(0, firstDelivered).every((count) => count === 0) && counts.slice(firstDelivered).every((count) => count === 1) ? "PASS" : "FAIL";
+    return firstDelivered >= 0 && counts.slice(0, firstDelivered).every((count) => count === 0) && counts.slice(firstDelivered).every((count) => count === 1) ? "PASS" : "NOT-MEASURED";
   }
-  return counts.every((count) => count === 1) ? "PASS" : "FAIL";
+  return counts.every((count) => count === 1) ? "PASS" : "NOT-MEASURED";
 }
 function recomputeRecordedPanels(results) {
   const out = [];
@@ -5097,7 +5106,7 @@ function validateResults(raw) {
     throw new Error("schema v3 delivery observations missing");
   for (const observation of result.subject_invocations) {
     const p = observation?.prompt;
-    if (!p || !["PASS", "FAIL", "ERROR"].includes(p.status))
+    if (!p || !["PASS", "NOT-MEASURED", "ERROR"].includes(p.status))
       throw new Error("delivery status missing");
     if (p.normalization_rule !== "cwd-line-v1")
       throw new Error("unknown prompt normalization rule");
@@ -5108,7 +5117,7 @@ function validateResults(raw) {
     if (!Number.isInteger(p.contract_occurrences) || p.contract_occurrences < 0)
       throw new Error("invalid delivery occurrence count");
     const expected = p.mechanism === "none" ? 0 : 1;
-    const computed = p.contract_occurrences === expected ? "PASS" : "FAIL";
+    const computed = p.contract_occurrences === expected ? "PASS" : "NOT-MEASURED";
     if (p.status !== "ERROR" && p.status !== computed)
       throw new Error("delivery status contradicts occurrence count");
   }
@@ -5136,14 +5145,26 @@ function validateResults(raw) {
       }
     }
     const repStatuses = Array.from({ length: reps2 }, (_, repetition) => deliveryStatusForObservations(result.subject_invocations.filter((o) => o.scenario_id === scenario.id && o.repetition === repetition)));
-    const expectedStatus = repStatuses.includes("ERROR") ? "ERROR" : repStatuses.includes("FAIL") ? "FAIL" : "PASS";
+    const expectedStatus = repStatuses.includes("ERROR") ? "ERROR" : repStatuses.includes("NOT-MEASURED") ? "NOT-MEASURED" : "PASS";
     const gate = scenario.objective?.assertions.find((assertion) => assertion.kind === "skill_delivered");
     if (!gate || gate.status !== expectedStatus)
       throw new Error(`skill_delivered gate missing or inconsistent for ${scenario.id}`);
+    if (!Number.isInteger(scenario.criterion_count) || scenario.criterion_count < 1)
+      throw new Error(`schema v3 criterion count missing for ${scenario.id}`);
+    const assertCriteria = (judgment) => {
+      if (!Array.isArray(judgment.criteria))
+        throw new Error("schema v3 criterion votes missing");
+      const indexes = judgment.criteria.map((vote) => vote.index).sort((a, b) => a - b);
+      if (indexes.length !== scenario.criterion_count || indexes.some((index, offset) => index !== offset + 1))
+        throw new Error(`schema v3 criterion votes are not complete contiguous indexes for ${scenario.id}`);
+    };
     for (const panel of scenario.rep_judgments) {
       for (const judgment of panel.judgments)
-        if (!Array.isArray(judgment.criteria))
-          throw new Error("schema v3 criterion votes missing");
+        assertCriteria(judgment);
+      const cleanJudgments = panel.judgments.filter((judgment) => !judgment.suspect && (judgment.verdict === "PASS" || judgment.verdict === "FAIL"));
+      const objectiveBehavioralFail = panel.objective?.status === "FAIL" && panel.recorded_verdict === "FAIL";
+      if ((panel.recorded_verdict === "PASS" || panel.recorded_verdict === "FAIL") && cleanJudgments.length === 0 && !objectiveBehavioralFail)
+        throw new Error(`recorded behavioral verdict is unsupported by a clean judgment for ${scenario.id}#${panel.repetition}`);
       const actual = recomputed.find((x) => x.scenario_id === scenario.id && x.repetition === panel.repetition);
       if (panel.judgments.length > 0 && actual.verdict !== panel.recorded_verdict)
         throw new Error(`recorded panel verdict diverges from recomputed votes for ${scenario.id}#${panel.repetition}`);
@@ -5156,24 +5177,52 @@ function validateResults(raw) {
         throw new Error(`per-repetition skill_delivered gate missing or inconsistent for ${scenario.id}#${panel.repetition}`);
       if (deliveryStatus === "ERROR" && panel.objective.status !== "ERROR")
         throw new Error(`per-repetition objective weakens delivery ERROR for ${scenario.id}#${panel.repetition}`);
-      if (deliveryStatus === "FAIL" && panel.objective.status === "PASS")
-        throw new Error(`per-repetition objective weakens delivery FAIL for ${scenario.id}#${panel.repetition}`);
+      if (deliveryStatus === "NOT-MEASURED" && !["ERROR", "NOT-MEASURED"].includes(panel.objective.status))
+        throw new Error(`per-repetition objective weakens delivery NOT-MEASURED for ${scenario.id}#${panel.repetition}`);
+      const objectiveVerdict2 = panel.objective.status === "ERROR" ? "ERROR" : panel.objective.status === "NOT-MEASURED" ? "NOT-MEASURED" : panel.objective.status === "FAIL" ? "FAIL" : void 0;
+      if (objectiveVerdict2 && panel.recorded_verdict !== objectiveVerdict2)
+        throw new Error(`recorded panel verdict weakens objective evidence for ${scenario.id}#${panel.repetition}`);
     }
     const objectiveStatuses = scenario.rep_judgments.map((panel) => panel.objective.status);
-    const aggregateObjectiveStatus = objectiveStatuses.includes("ERROR") ? "ERROR" : objectiveStatuses.includes("FAIL") ? "FAIL" : "PASS";
+    const aggregateObjectiveStatus = objectiveStatuses.includes("ERROR") ? "ERROR" : objectiveStatuses.includes("NOT-MEASURED") ? "NOT-MEASURED" : objectiveStatuses.includes("FAIL") ? "FAIL" : "PASS";
     if (!scenario.objective || scenario.objective.status !== aggregateObjectiveStatus)
       throw new Error(`scenario objective diverges from per-repetition objectives for ${scenario.id}`);
-    for (const judgment of [...scenario.judge_history ?? [], ...scenario.adjudication?.judgments ?? []]) {
-      if (!Array.isArray(judgment.criteria))
-        throw new Error("schema v3 criterion votes missing from judgment history");
-    }
+    for (const judgment of [...scenario.judge_history ?? [], ...scenario.adjudication?.judgments ?? []])
+      assertCriteria(judgment);
+    let adjudicatedVerdict;
     if (scenario.adjudication) {
       if (!Number.isInteger(scenario.adjudication.repetition) || scenario.adjudication.repetition < 0 || scenario.adjudication.repetition >= reps2)
         throw new Error(`schema v3 adjudication repetition missing or out of range for ${scenario.id}`);
       const collapsed = collapseVotePanel(scenario.adjudication.judgments);
-      if (scenario.adjudication.verdict !== void 0 && scenario.adjudication.verdict !== collapsed.verdict)
-        throw new Error(`recorded adjudication verdict diverges from recomputed votes for ${scenario.id}`);
+      const boundedCriticalAggregate = (scenario.reps ?? 1) > 1 && scenario.pass_threshold === 1 && scenario.judge_verdict !== "PASS" && collapsed.verdict === "PASS" && scenario.adjudication.state === "unresolved" && scenario.adjudication.verdict === void 0;
+      if (!boundedCriticalAggregate && (scenario.adjudication.state !== collapsed.state || scenario.adjudication.verdict !== collapsed.verdict))
+        throw new Error(`recorded adjudication state/verdict diverges from recomputed votes for ${scenario.id}`);
+      if (scenario.adjudication.state !== "unresolved")
+        adjudicatedVerdict = scenario.adjudication.verdict;
     }
+    const panels = scenario.rep_judgments;
+    const errorCount = panels.filter((panel) => panel.recorded_verdict === "ERROR").length;
+    const notMeasuredCount = panels.filter((panel) => panel.recorded_verdict === "NOT-MEASURED").length;
+    const cleanPanels = panels.filter((panel) => !(panel.judgments[0]?.suspect ?? false));
+    const passes = cleanPanels.filter((panel) => panel.recorded_verdict === "PASS").length;
+    let aggregateVerdict;
+    let aggregateSuspect = false;
+    if (panels.length === 1) {
+      aggregateVerdict = panels[0].recorded_verdict;
+      aggregateSuspect = panels[0].judgments[0]?.suspect ?? false;
+    } else if (errorCount > 0)
+      aggregateVerdict = "ERROR";
+    else if (notMeasuredCount > 0)
+      aggregateVerdict = "NOT-MEASURED";
+    else if (cleanPanels.length * 2 < panels.length) {
+      aggregateVerdict = "FAIL";
+      aggregateSuspect = true;
+    } else
+      aggregateVerdict = passes / cleanPanels.length >= (scenario.pass_threshold ?? 0.5) ? "PASS" : "FAIL";
+    const expectedVerdict = adjudicatedVerdict ?? aggregateVerdict;
+    const expectedSuspect = scenario.adjudication ? scenario.adjudication.state === "unresolved" : aggregateSuspect;
+    if (scenario.judge_verdict !== expectedVerdict || scenario.suspect !== expectedSuspect)
+      throw new Error(`schema v3 scenario verdict/suspect diverges from repetition aggregate for ${scenario.id}`);
   }
   return result;
 }
@@ -5250,7 +5299,7 @@ function diffPath(runDir, scenarioId, mode, rep) {
   return join4(runDir, `${base}.diff.txt`);
 }
 function rebuildScenarioResult(fresh, prior, policy) {
-  const { id, judge_verdict, judge_reason, suspect, override: _freshOverride, note: _freshNote, reps: reps2, passes, clean, flakiness, pass_threshold, metrics: freshMetrics, objective: freshObjective, adjudication: freshAdjudication, judge_history: freshJudgeHistory, rep_judgments: freshRepJudgments, ...rest } = fresh;
+  const { id, criterion_count: freshCriterionCount, judge_verdict, judge_reason, suspect, override: _freshOverride, note: _freshNote, reps: reps2, passes, clean, flakiness, pass_threshold, metrics: freshMetrics, objective: freshObjective, adjudication: freshAdjudication, judge_history: freshJudgeHistory, rep_judgments: freshRepJudgments, ...rest } = fresh;
   const _exhaustive = rest;
   void _exhaustive;
   void _freshOverride;
@@ -5262,12 +5311,13 @@ function rebuildScenarioResult(fresh, prior, policy) {
   };
   const objective = pick(policy.objective, freshObjective, prior?.objective);
   const pickedAdjudication = pick(policy.adjudication, freshAdjudication, prior?.adjudication);
-  const conflictsWithFreshEvidence = Boolean(pickedAdjudication?.verdict && (objective?.status === "FAIL" || objective?.status === "ERROR" || pass_threshold === 1 && (reps2 ?? 1) > 1 && judge_verdict !== "PASS"));
+  const conflictsWithFreshEvidence = Boolean(pickedAdjudication?.verdict && (objective?.status === "FAIL" || objective?.status === "ERROR" || objective?.status === "NOT-MEASURED" || pass_threshold === 1 && (reps2 ?? 1) > 1 && judge_verdict !== "PASS"));
   const adjudication = conflictsWithFreshEvidence && pickedAdjudication ? { ...pickedAdjudication, state: "unresolved", verdict: void 0 } : pickedAdjudication;
   const unresolved = adjudication?.state === "unresolved";
   const settled = policy.adjudication === "carry" && !conflictsWithFreshEvidence ? adjudication?.verdict : void 0;
   return {
     id,
+    ...(freshCriterionCount ?? prior?.criterion_count) === void 0 ? {} : { criterion_count: freshCriterionCount ?? prior.criterion_count },
     judge_verdict: settled ?? judge_verdict,
     judge_reason,
     suspect: suspect || unresolved,
@@ -5538,7 +5588,7 @@ function comparableAggregation(red, green) {
   return red.reps === green.reps && red.threshold === green.threshold;
 }
 function conclusive(verdict, suspect) {
-  return !suspect && verdict !== "ERROR" && verdict !== "JUDGE-AMBIGUOUS";
+  return !suspect && verdict !== "ERROR" && verdict !== "NOT-MEASURED" && verdict !== "JUDGE-AMBIGUOUS";
 }
 function classify(red, green) {
   if (!conclusive(red.verdict, red.suspect) || !conclusive(green.verdict, green.suspect))
@@ -6546,7 +6596,7 @@ function aggregateObjective(outcomes) {
   const present = outcomes.map((o) => o.objective).filter((o) => o !== void 0);
   if (present.length === 0)
     return void 0;
-  const picked = present.find((o) => o.status === "ERROR") ?? present.find((o) => o.status === "FAIL") ?? present[0];
+  const picked = present.find((o) => o.status === "ERROR") ?? present.find((o) => o.status === "NOT-MEASURED") ?? present.find((o) => o.status === "FAIL") ?? present[0];
   if (present.length === 1)
     return picked;
   const eventHashes = present.map((objective) => objective.events_sha256);
@@ -6564,6 +6614,10 @@ function aggregateReps(outcomes, threshold) {
   const errored = outcomes.filter((o) => o.verdict === "ERROR").length;
   if (errored > 0) {
     return { verdict: "ERROR", reason: `${errored}/${reps2} reps errored \u2014 infrastructure, not behavior`, passes, reps: reps2, clean: clean.length, flakiness: 0, suspect: false };
+  }
+  const notMeasured = outcomes.filter((o) => o.verdict === "NOT-MEASURED").length;
+  if (notMeasured > 0) {
+    return { verdict: "NOT-MEASURED", reason: `${notMeasured}/${reps2} reps not measured \u2014 skill delivery was not established`, passes, reps: reps2, clean: clean.length - notMeasured, flakiness: 0, suspect: false };
   }
   if (clean.length * 2 < reps2) {
     return { verdict: "FAIL", reason: `${reps2 - clean.length}/${reps2} reps misfired \u2014 re-judge`, passes, reps: reps2, clean: clean.length, flakiness: 0, suspect: true };
@@ -6764,7 +6818,7 @@ function appendJudgeHistory(prior, priorJudge, fresh) {
     verdict: prior.judge_verdict ?? "JUDGE-AMBIGUOUS",
     reason: prior.judge_reason ?? "prior grade",
     suspect: prior.suspect ?? true,
-    criteria: prior.rep_judgments?.flatMap((panel) => panel.judgments[0]?.criteria ?? []) ?? []
+    criteria: prior.rep_judgments?.find((panel) => panel.repetition === 0)?.judgments[0]?.criteria ?? []
   }] : []);
   const next = [
     ...history,
@@ -6785,9 +6839,13 @@ async function regradeRun(opts) {
     if (!prev)
       throw new Error(`--suspect-only needs a prior results.yaml in ${runDir}`);
     targets = prev.scenarios.filter((s) => s.suspect || s.judge_verdict === "JUDGE-AMBIGUOUS").map((s) => s.id);
-    if (targets.length === 0) {
-      return prev;
-    }
+  }
+  if (prev?.schema === 3) {
+    const blocked = new Set(prev.scenarios.filter((s) => s.objective?.assertions.some((a) => a.kind === "skill_delivered" && a.status !== "PASS")).map((s) => s.id));
+    targets = targets.filter((id) => !blocked.has(id));
+  }
+  if (targets.length === 0 && prev) {
+    return prev;
   }
   const completeTranscripts = (record) => {
     const expected = record.reps ?? 1;
@@ -6828,6 +6886,8 @@ async function regradeRun(opts) {
       expectedReps: prevScenario?.reps ?? 1
     });
     const carry = overrides.get(id);
+    if (prev?.schema === 3)
+      rr.criterion_count = scenario.checklist.length;
     rr.metrics = mergeScenarioMetrics(carry?.metrics, rr.metrics);
     rr.rep_judgments = carryRepObjectives(rr.rep_judgments, carry?.rep_judgments);
     rr.judge_history = appendJudgeHistory(carry, prev?.judge, {
@@ -6835,7 +6895,7 @@ async function regradeRun(opts) {
       verdict: rr.judge_verdict,
       reason: rr.judge_reason,
       suspect: rr.suspect,
-      criteria: rr.rep_judgments?.flatMap((panel) => panel.judgments.flatMap((judgment) => judgment.criteria ?? []))
+      criteria: rr.rep_judgments?.find((panel) => panel.repetition === 0)?.judgments[0]?.criteria
     });
     scenarioResults.push(rebuildScenarioResult(rr, carry, { objective: "carry", adjudication: "drop" }));
   }
@@ -7021,7 +7081,7 @@ function collectTrends(skillDir, limit = 20) {
 // packages/core/dist/stability.js
 var DEFAULT_WINDOW = 5;
 function conclusive2(v) {
-  return !v.suspect && v.verdict !== "ERROR" && v.verdict !== "JUDGE-AMBIGUOUS";
+  return !v.suspect && v.verdict !== "ERROR" && v.verdict !== "NOT-MEASURED" && v.verdict !== "JUDGE-AMBIGUOUS";
 }
 function pointFor(r, s, verdict) {
   const reps2 = s.reps ?? 1;
@@ -7328,6 +7388,8 @@ async function runSkillModel(opts) {
   const scenarioResults = scenarios.map((scenario, si) => {
     const threshold = scenario.critical ? effectiveThreshold(void 0, scenario) : scenario.passThreshold ?? opts.passThreshold ?? 0.5;
     const result = outcomesToResult(scenario.id, grouped[si], repCounts[si], threshold);
+    if (adapter.observesPrompts)
+      result.criterion_count = scenario.checklist.length;
     if (adapter.observesPrompts && !result.rep_judgments) {
       result.rep_judgments = grouped[si].map((outcome, repetition) => ({ repetition, judgments: [], recorded_verdict: outcome.verdict, ...outcome.objective ? { objective: outcome.objective } : {} }));
     }
@@ -7595,7 +7657,7 @@ async function runRep(scenario, rep, repCount, ctx) {
         }
       }
       if (deliveryObjective) {
-        if (deliveryObjective.status === "ERROR" || deliveryObjective.status === "FAIL" && status === "PASS")
+        if (deliveryObjective.status === "ERROR" || deliveryObjective.status === "NOT-MEASURED" && status !== "ERROR" || deliveryObjective.status === "FAIL" && status === "PASS")
           status = deliveryObjective.status;
         assertionResults.unshift(...deliveryObjective.assertions);
       }
@@ -7621,6 +7683,10 @@ async function runRep(scenario, rep, repCount, ctx) {
     if (objective?.status === "ERROR") {
       verdict = "ERROR";
       reason = gatePrefix ?? "objective evidence missing";
+      appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
+    } else if (objective?.status === "NOT-MEASURED") {
+      verdict = "NOT-MEASURED";
+      reason = gatePrefix ?? "skill delivery was not established";
       appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
     } else if (infrastructureFailure) {
       verdict = "ERROR";
@@ -8282,6 +8348,8 @@ function planAdjudication(input) {
   const enabled = new Set(input.enabled ?? ["ambiguous", "contradictory", "non_unanimous", "ship_deciding"]);
   const decisions = [];
   for (const cell of input.cells) {
+    if (cell.deliveryStatus && cell.deliveryStatus !== "PASS")
+      continue;
     const triggers = [];
     if (enabled.has("ambiguous") && (cell.verdict === "JUDGE-AMBIGUOUS" || cell.verdict === "ERROR")) {
       triggers.push("ambiguous");
@@ -8350,6 +8418,14 @@ function projectAdjudication(result, adj) {
     adjudication: adj
   };
 }
+function projectAdjudicationForScenario(result, scenario, adj) {
+  const bounded = boundAdjudicationToRepetitions(result, scenario, adj);
+  const projected = projectAdjudication(result, bounded);
+  if (bounded !== adj) {
+    projected.judge_reason = `${adj.judgments.length} judgments on one transcript cannot replace a critical all-repetitions aggregate`;
+  }
+  return projected;
+}
 function reasonFor(adj) {
   const n = adj.judgments.length;
   const verb = adj.state === "confirmed" ? "confirmed by" : "resolved by majority of";
@@ -8368,7 +8444,7 @@ async function runAdjudication(opts) {
       continue;
     const trigger = decision.triggers[0];
     const judgments = [
-      { ordinal: 1, judge: { ...opts.primaryJudge }, verdict: cell.verdict, reason: cell.reason, suspect: cell.suspect, criteria: cell.criteria ?? [] }
+      cell.primaryJudgment ? { ...cell.primaryJudgment, ordinal: 1 } : { ordinal: 1, judge: { ...opts.primaryJudge }, verdict: cell.verdict, reason: cell.reason, suspect: cell.suspect, criteria: cell.criteria ?? [] }
     ];
     const second = await opts.rejudge(decision.id, opts.secondaryJudge);
     callsMade++;
@@ -8421,11 +8497,7 @@ async function adjudicateRun(opts) {
       return s;
     const scenario = byIdScenario.get(s.id);
     const withRepetition = { ...adj, repetition: s.rep_judgments?.[0]?.repetition ?? 0 };
-    const boundedAdj = scenario ? boundAdjudicationToRepetitions(s, scenario, withRepetition) : withRepetition;
-    const projected = projectAdjudication(s, boundedAdj);
-    if (boundedAdj !== adj) {
-      projected.judge_reason = `${adj.judgments.length} judgments on one transcript cannot replace a critical all-repetitions aggregate`;
-    }
+    const projected = scenario ? projectAdjudicationForScenario(s, scenario, withRepetition) : projectAdjudication(s, withRepetition);
     const extraCalls = adj.judgments.filter((judgment) => judgment.ordinal > 1).length;
     projected.metrics = mergeScenarioMetrics(s.metrics, {
       wall_time_ms: 0,
@@ -8474,14 +8546,20 @@ async function judgeCell(opts) {
   return { verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, opts.scenario.checklist.length) };
 }
 function cellsFromResults(runDir, results) {
-  return results.scenarios.map((s) => ({
-    id: s.id,
-    verdict: s.judge_verdict,
-    reason: s.judge_reason,
-    suspect: s.suspect,
-    repVerdicts: repVerdictsOf(runDir, s, results.mode),
-    criteria: s.rep_judgments?.[0]?.judgments[0]?.criteria
-  }));
+  return results.scenarios.map((s) => {
+    const primaryJudgment = s.rep_judgments?.find((panel) => panel.repetition === 0)?.judgments[0];
+    const deliveryStatus = s.objective?.assertions.find((assertion) => assertion.kind === "skill_delivered")?.status;
+    return {
+      id: s.id,
+      verdict: s.judge_verdict,
+      reason: s.judge_reason,
+      suspect: s.suspect,
+      repVerdicts: repVerdictsOf(runDir, s, results.mode),
+      criteria: primaryJudgment?.criteria,
+      ...deliveryStatus === "PASS" || deliveryStatus === "NOT-MEASURED" || deliveryStatus === "ERROR" ? { deliveryStatus } : {},
+      ...primaryJudgment ? { primaryJudgment } : {}
+    };
+  });
 }
 function repVerdictsOf(runDir, s, mode) {
   if (!s.reps || s.reps < 2)
@@ -8587,6 +8665,7 @@ import { dirname as dirname8, extname as extname2, join as join27, resolve as re
 // packages/adapters/dist/pi.js
 import { existsSync as existsSync22, mkdtempSync as mkdtempSync2, readFileSync as readFileSync24, rmSync as rmSync6, statSync as statSync9, writeFileSync as writeFileSync9 } from "node:fs";
 import { tmpdir as tmpdir2, homedir as homedir2 } from "node:os";
+import { randomBytes as randomBytes3 } from "node:crypto";
 import { join as join31, resolve as resolve13 } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11949,7 +12028,7 @@ function walkFiles(root, relative6 = "") {
 }
 
 // packages/adapters/dist/prompt-provenance.js
-import { createHash as createHash11 } from "node:crypto";
+import { createHash as createHash11, createHmac, timingSafeEqual } from "node:crypto";
 function sha2(bytes) {
   return createHash11("sha256").update(bytes, "utf8").digest("hex");
 }
@@ -11998,12 +12077,37 @@ function promptProjection(payload) {
     projected.systemInstruction = config.systemInstruction;
   return Object.keys(projected).length ? projected : null;
 }
+function promptCaptureIsTrusted(extensionCount, hasRuntimeInjection2 = false) {
+  return extensionCount === 0 && !hasRuntimeInjection2;
+}
+function observationMac(observation, authenticationKey) {
+  return createHmac("sha256", authenticationKey).update(JSON.stringify(observation)).digest("hex");
+}
+function validMac(supplied, expected) {
+  if (typeof supplied !== "string" || !/^[a-f0-9]{64}$/i.test(supplied))
+    return false;
+  const suppliedBytes = Buffer.from(supplied, "hex"), expectedBytes = Buffer.from(expected, "hex");
+  return suppliedBytes.length === expectedBytes.length && timingSafeEqual(suppliedBytes, expectedBytes);
+}
+function verifyPromptSummary(value, expectedCount, authenticationKey) {
+  if (!value || typeof value !== "object")
+    return false;
+  const envelope = value;
+  if (!envelope.summary || envelope.summary.count !== expectedCount)
+    return false;
+  const expected = createHmac("sha256", authenticationKey).update(JSON.stringify(envelope.summary)).digest("hex");
+  return validMac(envelope.mac, expected);
+}
+function statusFor(occurrences, mechanism, observable) {
+  if (!observable)
+    return "ERROR";
+  return occurrences === (mechanism === "none" ? 0 : 1) ? "PASS" : "NOT-MEASURED";
+}
 function observeProviderPayload(payload, contract, mechanism, requestIndex) {
   const projection = promptProjection(payload);
   const raw = JSON.stringify(projection ?? {});
   const normalized = JSON.stringify(normalizePromptPayload(projection ?? {}, PROMPT_NORMALIZATION_RULE));
   const occurrences = countInStrings(projection ?? {}, contract);
-  const expectsDelivery = mechanism !== "none";
   const observable = projection !== null;
   return {
     capture_version: "prompt-provenance-v1",
@@ -12016,8 +12120,40 @@ function observeProviderPayload(payload, contract, mechanism, requestIndex) {
     contract_bytes: Buffer.byteLength(contract),
     contract_occurrences: occurrences,
     mechanism,
-    status: observable ? occurrences === (expectsDelivery ? 1 : 0) ? "PASS" : "FAIL" : "ERROR",
+    status: statusFor(occurrences, mechanism, observable),
     ...observable ? {} : { error: "provider payload has no supported model-visible prompt field" }
+  };
+}
+function bindPromptObservation(value, contract, mechanism, requestIndex, authenticationKey, observerRequestIndex = requestIndex) {
+  const fallback = { ...observeProviderPayload({}, contract, mechanism, requestIndex), status: "ERROR" };
+  if (!value || typeof value !== "object")
+    return { ...fallback, error: "prompt observer emitted a non-object record" };
+  const envelope = value;
+  if (!envelope.observation)
+    return { ...fallback, error: "prompt observation authentication missing" };
+  const expectedMac = observationMac(envelope.observation, authenticationKey);
+  if (!validMac(envelope.mac, expectedMac))
+    return { ...fallback, error: "prompt observation authentication failed" };
+  const record = envelope.observation;
+  if (record.request_index !== observerRequestIndex)
+    return { ...fallback, error: "prompt observation replay or ordering mismatch" };
+  const expectedDigest = sha2(contract), expectedBytes = Buffer.byteLength(contract);
+  const valid = record.capture_version === "prompt-provenance-v1" && record.normalization_rule === PROMPT_NORMALIZATION_RULE && record.mechanism === mechanism && record.contract_sha256 === expectedDigest && record.contract_bytes === expectedBytes && typeof record.raw_sha256 === "string" && /^[a-f0-9]{64}$/i.test(record.raw_sha256) && typeof record.normalized_sha256 === "string" && /^[a-f0-9]{64}$/i.test(record.normalized_sha256) && Number.isInteger(record.bytes) && record.bytes >= 0 && Number.isInteger(record.contract_occurrences) && record.contract_occurrences >= 0;
+  if (!valid)
+    return { ...fallback, error: "prompt observation failed parent contract/provenance binding" };
+  const occurrences = record.contract_occurrences;
+  return {
+    capture_version: "prompt-provenance-v1",
+    request_index: requestIndex,
+    raw_sha256: record.raw_sha256,
+    normalized_sha256: record.normalized_sha256,
+    normalization_rule: PROMPT_NORMALIZATION_RULE,
+    bytes: record.bytes,
+    contract_sha256: expectedDigest,
+    contract_bytes: expectedBytes,
+    contract_occurrences: occurrences,
+    mechanism,
+    status: statusFor(occurrences, mechanism, true)
   };
 }
 
@@ -12035,30 +12171,50 @@ function contractFor(req) {
     return { text: body, raw, mechanism: "none" };
   return { text: body, raw, mechanism: req.mode === "green" ? "pi-skill" : "append-system-prompt" };
 }
+var RUNTIME_INJECTION_ENV = ["NODE_OPTIONS", "NODE_PATH", "LD_PRELOAD", "DYLD_INSERT_LIBRARIES"];
+function hasRuntimeInjection(req) {
+  return Boolean(req.armEnv && Object.keys(req.armEnv).length) || RUNTIME_INJECTION_ENV.some((key) => Boolean(process.env[key]));
+}
 function captureSetup(req, env, contract, counter) {
   if (!req.onPromptObservation)
     return { env, finish: () => {
     } };
+  if (!promptCaptureIsTrusted(req.extensions?.length ?? 0, hasRuntimeInjection(req)))
+    return { env, finish: () => {
+      const empty = observeProviderPayload({}, contract.text, contract.mechanism, counter.value++);
+      req.onPromptObservation?.({ ...empty, status: "ERROR", error: "prompt delivery provenance is unauthenticated when subject extensions or runtime-injection env share Pi's process" });
+    } };
   const dir = mkdtempSync2(join31(tmpdir2(), "skill-harness-prompt-"));
   const path = join31(dir, "observations.jsonl"), contractPath = join31(dir, "contract.json");
+  const authenticationKey = randomBytes3(32).toString("hex");
   writeFileSync9(path, "", { mode: 384 });
-  writeFileSync9(contractPath, JSON.stringify({ text: contract.text, mechanism: contract.mechanism }), { mode: 384 });
+  writeFileSync9(contractPath, JSON.stringify({ text: contract.text, mechanism: contract.mechanism, authentication_key: authenticationKey }), { mode: 384 });
   const finish2 = () => {
     try {
       const lines = readFileSync24(path, "utf8").split("\n").filter(Boolean);
-      if (lines.length === 0) {
+      const parsed = lines.map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return null;
+        }
+      });
+      const records = parsed.slice(0, -1), summary = parsed.at(-1);
+      if (!verifyPromptSummary(summary, records.length, authenticationKey)) {
         const empty = observeProviderPayload({}, contract.text, contract.mechanism, counter.value++);
-        req.onPromptObservation?.({ ...empty, status: "ERROR", error: "Pi emitted no provider payload observation" });
+        req.onPromptObservation?.({ ...empty, status: "ERROR", error: "Pi prompt observation log is missing, truncated, replayed, or unauthenticated" });
       } else
-        lines.forEach((line) => {
-          const observation = JSON.parse(line);
-          req.onPromptObservation?.({ ...observation, request_index: counter.value++ });
+        records.forEach((record, observerRequestIndex) => {
+          req.onPromptObservation?.(bindPromptObservation(record, contract.text, contract.mechanism, counter.value++, authenticationKey, observerRequestIndex));
         });
     } finally {
       rmSync6(dir, { recursive: true, force: true });
     }
   };
   return { env: { ...env ?? process.env, SKILL_HARNESS_PROMPT_CAPTURE_FILE: path, SKILL_HARNESS_PROMPT_CONTRACT_FILE: contractPath }, finish: finish2 };
+}
+function observerFlags(req) {
+  return req.onPromptObservation && promptCaptureIsTrusted(req.extensions?.length ?? 0, hasRuntimeInjection(req)) ? ["--extension", PROMPT_CAPTURE_EXTENSION] : [];
 }
 var PROVIDER_STDERR_SIGNATURES = [
   "invalidated oauth token",
@@ -12143,7 +12299,7 @@ var piAdapter = {
       "--no-context-files",
       "--no-extensions",
       ...extensionFlags(req.extensions),
-      ...req.onPromptObservation ? ["--extension", PROMPT_CAPTURE_EXTENSION] : [],
+      ...observerFlags(req),
       "--provider",
       req.model.provider,
       "--model",
@@ -12222,7 +12378,7 @@ ${r.stderr.trim()}
       "--no-context-files",
       "--no-extensions",
       ...extensionFlags(req.extensions),
-      ...req.onPromptObservation ? ["--extension", PROMPT_CAPTURE_EXTENSION] : [],
+      ...observerFlags(req),
       "--provider",
       req.model.provider,
       "--model",
@@ -12457,15 +12613,21 @@ async function serveReview(opts) {
           res.writeHead(404).end("unknown scenario");
           return;
         }
+        const prev = results.scenarios.find((s) => s.id === body.scenarioId);
+        if (!prev) {
+          res.writeHead(404).end("scenario not in this run");
+          return;
+        }
+        const delivery = prev.objective?.assertions.find((assertion) => assertion.kind === "skill_delivered");
+        if (results.schema === 3 && delivery?.status !== "PASS") {
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: `scenario ${body.scenarioId} is ${delivery?.status ?? "ERROR"}: delivery-gated evidence cannot be re-judged` }));
+          return;
+        }
         const adapter = opts.adapter ?? getAdapter(results.harness);
         if (!await adapter.available()) {
           res.writeHead(400, { "content-type": "application/json" });
           res.end(JSON.stringify({ ok: false, error: `harness \`${results.harness}\` is not on PATH` }));
-          return;
-        }
-        const prev = results.scenarios.find((s) => s.id === body.scenarioId);
-        if (!prev) {
-          res.writeHead(404).end("scenario not in this run");
           return;
         }
         const threshold = effectiveThreshold(prev, scenario);
@@ -12489,7 +12651,7 @@ async function serveReview(opts) {
               verdict: rr.judge_verdict,
               reason: rr.judge_reason,
               suspect: rr.suspect,
-              criteria: rr.rep_judgments?.flatMap((panel) => panel.judgments.flatMap((judgment) => judgment.criteria ?? []))
+              criteria: rr.rep_judgments?.find((panel) => panel.repetition === 0)?.judgments[0]?.criteria
             });
             return rebuildScenarioResult({ ...rr, metrics: mergeScenarioMetrics(s.metrics, rr.metrics), rep_judgments: carryRepObjectives(rr.rep_judgments, s.rep_judgments), judge_history }, s, { objective: "carry", adjudication: "drop" });
           });

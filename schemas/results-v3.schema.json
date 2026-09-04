@@ -106,6 +106,7 @@
         "PASS",
         "FAIL",
         "ERROR",
+        "NOT-MEASURED",
         "JUDGE-AMBIGUOUS"
       ]
     },
@@ -255,6 +256,7 @@
         },
         "criteria": {
           "type": "array",
+          "minItems": 1,
           "items": {
             "$ref": "#/$defs/criterion"
           }
@@ -265,6 +267,7 @@
       "type": "object",
       "required": [
         "id",
+        "criterion_count",
         "judge_verdict",
         "judge_reason",
         "suspect",
@@ -276,6 +279,10 @@
       "properties": {
         "id": {
           "type": "string"
+        },
+        "criterion_count": {
+          "type": "integer",
+          "minimum": 1
         },
         "judge_verdict": {
           "$ref": "#/$defs/verdict"
@@ -339,7 +346,8 @@
               "enum": [
                 "PASS",
                 "FAIL",
-                "ERROR"
+                "ERROR",
+                "NOT-MEASURED"
               ]
             },
             "trace_version": {
@@ -387,7 +395,8 @@
                     "enum": [
                       "PASS",
                       "FAIL",
-                      "ERROR"
+                      "ERROR",
+                      "NOT-MEASURED"
                     ]
                   },
                   "detail": {
@@ -572,7 +581,7 @@
         "status": {
           "enum": [
             "PASS",
-            "FAIL",
+            "NOT-MEASURED",
             "ERROR"
           ]
         },

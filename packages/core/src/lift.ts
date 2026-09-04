@@ -118,7 +118,7 @@ function conclusive(verdict: Verdict, suspect: boolean): boolean {
   // misfire are judge failures. Treating any of them as a FAIL would make
   // "red FAIL -> green PASS" fire on infrastructure noise, and lift would
   // measure flakiness while looking like skill value.
-  return !suspect && verdict !== "ERROR" && verdict !== "JUDGE-AMBIGUOUS";
+  return !suspect && verdict !== "ERROR" && verdict !== "NOT-MEASURED" && verdict !== "JUDGE-AMBIGUOUS";
 }
 
 function classify(red: { verdict: Verdict; suspect: boolean }, green: { verdict: Verdict; suspect: boolean }): LiftClass {

@@ -3,7 +3,7 @@ import { collapseVotePanel } from "./vote-panel.js";
 
 export type ScreenClassification = "CEILING" | "FLOOR" | "INFORMATIVE" | "UNKNOWN";
 export interface ScreenRate { passes: number; n: number }
-export interface ScreenScenario { skill: string; model: string; id: string; control: ScreenRate; treatment: ScreenRate; classification: ScreenClassification }
+export interface ScreenScenario { skill: string; model: string; id: string; control: ScreenRate; treatment: ScreenRate; not_measured: number; classification: ScreenClassification }
 export interface ScreenCriterion { skill: string; model: string; scenario_id: string; criterion: number; failures: number; n: number; fail_rate: number }
 export interface ScreenReport { scenarios: ScreenScenario[]; criteria: ScreenCriterion[] }
 
@@ -18,16 +18,18 @@ function classify(rate: ScreenRate): ScreenClassification {
 
 /** Pure/offline: derive only from v3 retained invocation and vote evidence. */
 export function screenResults(results: ResultsFile[]): ScreenReport {
-  const rows = new Map<string, { control: ScreenRate; treatment: ScreenRate }>();
+  const rows = new Map<string, { control: ScreenRate; treatment: ScreenRate; not_measured: number }>();
   const criteria = new Map<string, { skill: string; model: string; scenario_id: string; criterion: number; failures: number; n: number }>();
   for (const result of results) {
     const observations = result.schema === 3 ? result.subject_invocations! : [];
     for (const scenario of result.scenarios) {
       const rowKey = `${result.skill}\u0000${result.model}\u0000${scenario.id}`;
-      const row = rows.get(rowKey) ?? { control: { passes: 0, n: 0 }, treatment: { passes: 0, n: 0 } };
+      const row = rows.get(rowKey) ?? { control: { passes: 0, n: 0 }, treatment: { passes: 0, n: 0 }, not_measured: 0 };
       for (const rep of scenario.rep_judgments ?? []) {
         const repObservations = observations.filter(observation => observation.scenario_id === scenario.id && observation.repetition === rep.repetition);
-        if (deliveryStatusForObservations(repObservations) !== "PASS") continue;
+        const deliveryStatus = deliveryStatusForObservations(repObservations);
+        if (deliveryStatus === "NOT-MEASURED") row.not_measured++;
+        if (deliveryStatus !== "PASS") continue;
         const terminalAttempt = Math.max(...repObservations.map(observation => observation.attempt ?? 0));
         const mechanisms = new Set(repObservations.filter(observation => (observation.attempt ?? 0) === terminalAttempt).map(observation => observation.prompt.mechanism));
         if (mechanisms.size !== 1) continue;
@@ -37,13 +39,16 @@ export function screenResults(results: ResultsFile[]): ScreenReport {
           const clean = rep.judgments.filter(judgment => !judgment.suspect && (judgment.verdict === "PASS" || judgment.verdict === "FAIL"));
           if (clean.length === 0) continue;
           panelVerdict = clean.length === 1 ? clean[0].verdict : collapseVotePanel(rep.judgments).verdict ?? "JUDGE-AMBIGUOUS";
-        }
+        } else if (rep.objective?.status === "FAIL" && rep.recorded_verdict === "FAIL") {
+          panelVerdict = "FAIL"; // objective behavioral evidence needs no prose judge
+        } else continue;
         if (scenario.adjudication?.repetition === rep.repetition) {
+          if (scenario.adjudication.state === "unresolved" || !scenario.adjudication.verdict) continue;
           const adjudicated = collapseVotePanel(scenario.adjudication.judgments);
-          if (!adjudicated.verdict) continue;
+          if (adjudicated.state !== scenario.adjudication.state || adjudicated.verdict !== scenario.adjudication.verdict) continue;
           panelVerdict = adjudicated.verdict;
         }
-        const effective = rep.objective?.status === "ERROR" ? "ERROR" : rep.objective?.status === "FAIL" ? "FAIL" : panelVerdict;
+        const effective = rep.objective?.status === "ERROR" ? "ERROR" : rep.objective?.status === "NOT-MEASURED" ? "NOT-MEASURED" : rep.objective?.status === "FAIL" ? "FAIL" : panelVerdict;
         if (effective !== "PASS" && effective !== "FAIL") continue;
         rate.n++;
         if (effective === "PASS") rate.passes++;
@@ -74,8 +79,8 @@ function addCriterion(map: Map<string,{skill:string;model:string;scenario_id:str
 }
 
 export function formatScreen(report: ScreenReport): string {
-  const lines=["skill/model/scenario  control  treatment  class"];
-  for(const s of report.scenarios)lines.push(`${s.skill}/${s.model}/${s.id}  ${s.control.passes}/${s.control.n}  ${s.treatment.passes}/${s.treatment.n}  ${s.classification}`);
+  const lines=["skill/model/scenario  control  treatment  not-measured  class"];
+  for(const s of report.scenarios)lines.push(`${s.skill}/${s.model}/${s.id}  ${s.control.passes}/${s.control.n}  ${s.treatment.passes}/${s.treatment.n}  ${s.not_measured}  ${s.classification}`);
   lines.push("", "skill/model/criterion  failures/n  fail-rate");
   for(const c of report.criteria)lines.push(`${c.skill}/${c.model}/${c.scenario_id}.${c.criterion}  ${c.failures}/${c.n}  ${(c.fail_rate*100).toFixed(1)}%`);
   return lines.join("\n");

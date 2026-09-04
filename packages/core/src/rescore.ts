@@ -76,7 +76,7 @@ export function rescoreRun(opts: RescoreOptions): RescoreResult {
     const scenario = specById.get(s.id);
     // no rate to re-apply, or an untrustworthy verdict → carry verbatim
     if (!scenario || s.reps === undefined || s.clean === undefined || s.passes === undefined) return s;
-    if (s.judge_verdict === "ERROR" || s.judge_verdict === "JUDGE-AMBIGUOUS") return s;
+    if (s.judge_verdict === "ERROR" || s.judge_verdict === "NOT-MEASURED" || s.judge_verdict === "JUDGE-AMBIGUOUS") return s;
     if (s.clean === 0) return s;
 
     const toThreshold = effectiveThreshold(undefined, scenario);

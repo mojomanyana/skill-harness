@@ -4,7 +4,7 @@ We screened a large evaluation corpus for discriminating power. Almost every cel
 
 That makes every run a one-shot answer. It cannot cheaply answer the next question.
 
-New skill-harness runs retain three things in results schema 3: the model-visible prompt's byte provenance and exact skill occurrence count, every numbered criterion vote, and enough panel membership to recompute the recorded panel verdict. Delivery is now an objective gate rather than an assumption inferred from `--mode green`.
+New skill-harness runs retain three things in results schema 3: the model-visible prompt's byte provenance and exact skill occurrence count, every numbered criterion vote, and enough panel membership to recompute the recorded panel verdict. Delivery is now an objective gate rather than an assumption inferred from `--mode green`. That is an intentional meaning boundary: unlike schema 1/2, schema 3 counts behavior only after delivery is established. A known-undelivered invocation is NOT-MEASURED—not a product failure, not an instrumentation ERROR, and not part of an efficacy denominator.
 
 The new `screen` command reads those fields offline. It reports which baselines are ceiling, floor, informative, or still unknown, alongside criterion failure rates. No model. No judge. No silent promotion of legacy evidence: schema-1 and schema-2 files remain readable, but unknown evidence stays unknown.
 

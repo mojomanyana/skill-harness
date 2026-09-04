@@ -472,8 +472,7 @@ replayable with `regate` from `.events.jsonl`. Run the free evaluator proof any 
 node bin/skill-harness.js mutation-test
 ```
 
-It detects 21 mutations including stale-authority/Build evidence, the rewritten principal gate/side-effect assertions, equal-HEAD/different-tree,
-superseded-task mutation, context reuse, approval expiry, writer conflict, and invalid finalization.
+It detects 42 permanent mutations: the original 21 trajectory cases plus schema-v3 rejection, delivery zero/duplicate/unobservable outcomes, objective judge suppression, observer normalization/contract/extension provenance, and screen classification/filtering. The command remains free and offline.
 Full schema and adapter details: [`ASSURANCE-WORKFLOWS.md`](ASSURANCE-WORKFLOWS.md).
 
 ## 7d. Paired reference-versus-candidate comparison

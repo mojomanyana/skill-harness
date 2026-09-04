@@ -29,7 +29,7 @@ export function judgeAgreement(results: ResultsFile): JudgeAgreementReport {
       distinct.set(key, judgment);
     }
     const pair = [...distinct.entries()].slice(-2);
-    if (pair.length < 2 || pair.some(([, judgment]) => judgment.suspect || judgment.verdict === "ERROR" || judgment.verdict === "JUDGE-AMBIGUOUS")) {
+    if (pair.length < 2 || pair.some(([, judgment]) => judgment.suspect || judgment.verdict === "ERROR" || judgment.verdict === "NOT-MEASURED" || judgment.verdict === "JUDGE-AMBIGUOUS")) {
       return {
         scenario: scenario.id, status: "error", judges: pair.map(([judge]) => judge),
         verdicts: pair.map(([, judgment]) => judgment.verdict),

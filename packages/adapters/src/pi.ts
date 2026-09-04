@@ -1,11 +1,12 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
+import { randomBytes } from "node:crypto";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { HarnessAdapter, RunReq, JudgeReq, RunMode, StructuredRun, ExecutionTraceV1, PromptMechanism, PromptProvenance } from "@skill-harness/core";
+import type { HarnessAdapter, RunReq, JudgeReq, RunMode, StructuredRun, ExecutionTraceV1, PromptMechanism } from "@skill-harness/core";
 import { runPiJson } from "./pi-json.js";
 import { collectTrajectorySources, normalizePiTraces, resequence } from "./trajectory.js";
-import { observeProviderPayload } from "./prompt-provenance.js";
+import { bindPromptObservation, observeProviderPayload, promptCaptureIsTrusted, verifyPromptSummary } from "./prompt-provenance.js";
 import { exec, onPath, envNum, traceSha256, withProviderFailure, splitPromptDoc } from "@skill-harness/core";
 
 const PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 300_000);
@@ -20,25 +21,42 @@ function contractFor(req: RunReq): BoundContract {
   return { text: body, raw, mechanism: req.mode === "green" ? "pi-skill" : "append-system-prompt" };
 }
 
+const RUNTIME_INJECTION_ENV = ["NODE_OPTIONS", "NODE_PATH", "LD_PRELOAD", "DYLD_INSERT_LIBRARIES"] as const;
+function hasRuntimeInjection(req: RunReq): boolean {
+  return Boolean(req.armEnv && Object.keys(req.armEnv).length) || RUNTIME_INJECTION_ENV.some(key => Boolean(process.env[key]));
+}
+
 function captureSetup(req: RunReq, env: NodeJS.ProcessEnv | undefined, contract: BoundContract, counter: { value: number }): { env: NodeJS.ProcessEnv | undefined; finish: () => void } {
   if (!req.onPromptObservation) return { env, finish: () => {} };
+  // Arbitrary scenario/arm extensions and runtime-injection env execute in Pi's
+  // process with full Node authority. Refuse a forgeable positive observation.
+  if (!promptCaptureIsTrusted(req.extensions?.length ?? 0, hasRuntimeInjection(req))) return { env, finish: () => {
+    const empty = observeProviderPayload({}, contract.text, contract.mechanism, counter.value++);
+    req.onPromptObservation?.({ ...empty, status: "ERROR", error: "prompt delivery provenance is unauthenticated when subject extensions or runtime-injection env share Pi's process" });
+  } };
   const dir = mkdtempSync(join(tmpdir(), "skill-harness-prompt-"));
   const path = join(dir, "observations.jsonl"), contractPath = join(dir, "contract.json");
+  const authenticationKey = randomBytes(32).toString("hex");
   writeFileSync(path, "", { mode: 0o600 });
-  writeFileSync(contractPath, JSON.stringify({ text: contract.text, mechanism: contract.mechanism }), { mode: 0o600 });
+  writeFileSync(contractPath, JSON.stringify({ text: contract.text, mechanism: contract.mechanism, authentication_key: authenticationKey }), { mode: 0o600 });
   const finish = () => {
     try {
       const lines = readFileSync(path, "utf8").split("\n").filter(Boolean);
-      if (lines.length === 0) {
+      const parsed = lines.map(line => { try { return JSON.parse(line) as unknown; } catch { return null; } });
+      const records = parsed.slice(0, -1), summary = parsed.at(-1);
+      if (!verifyPromptSummary(summary, records.length, authenticationKey)) {
         const empty = observeProviderPayload({}, contract.text, contract.mechanism, counter.value++);
-        req.onPromptObservation?.({ ...empty, status: "ERROR", error: "Pi emitted no provider payload observation" });
-      } else lines.forEach(line => {
-        const observation = JSON.parse(line) as PromptProvenance;
-        req.onPromptObservation?.({ ...observation, request_index: counter.value++ });
+        req.onPromptObservation?.({ ...empty, status: "ERROR", error: "Pi prompt observation log is missing, truncated, replayed, or unauthenticated" });
+      } else records.forEach((record, observerRequestIndex) => {
+        req.onPromptObservation?.(bindPromptObservation(record, contract.text, contract.mechanism, counter.value++, authenticationKey, observerRequestIndex));
       });
     } finally { rmSync(dir, { recursive: true, force: true }); }
   };
   return { env: { ...(env ?? process.env), SKILL_HARNESS_PROMPT_CAPTURE_FILE: path, SKILL_HARNESS_PROMPT_CONTRACT_FILE: contractPath }, finish };
+}
+
+function observerFlags(req: RunReq): string[] {
+  return req.onPromptObservation && promptCaptureIsTrusted(req.extensions?.length ?? 0, hasRuntimeInjection(req)) ? ["--extension", PROMPT_CAPTURE_EXTENSION] : [];
 }
 
 /**
@@ -180,7 +198,7 @@ export const piAdapter: HarnessAdapter = {
       "--no-context-files",
       "--no-extensions",
       ...extensionFlags(req.extensions),
-      ...(req.onPromptObservation ? ["--extension", PROMPT_CAPTURE_EXTENSION] : []),
+      ...observerFlags(req),
       "--provider",
       req.model.provider,
       "--model",
@@ -259,7 +277,7 @@ export const piAdapter: HarnessAdapter = {
       "--no-context-files",
       "--no-extensions",
       ...extensionFlags(req.extensions),
-      ...(req.onPromptObservation ? ["--extension", PROMPT_CAPTURE_EXTENSION] : []),
+      ...observerFlags(req),
       "--provider",
       req.model.provider,
       "--model",

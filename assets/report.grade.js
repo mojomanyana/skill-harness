@@ -28,6 +28,7 @@ export function effective(cell) {
   // Mechanical evidence outranks a prose judge. Objective PASS deliberately
   // forces nothing — the checklist judge still decides the behavioral rubric.
   if (cell.objective && cell.objective.status === "ERROR") return "ERROR";
+  if (cell.objective && cell.objective.status === "NOT-MEASURED") return "NOT-MEASURED";
   if (cell.objective && cell.objective.status === "FAIL") return "FAIL";
   return cell.judge_verdict;
 }
@@ -53,6 +54,7 @@ export function gradeColumn(col, shipBar, critical) {
   let bFails = 0;
   let suspect = 0;
   let errors = 0;
+  let notMeasured = 0;
 
   for (const id of Object.keys(col.cells)) {
     const cell = col.cells[id];
@@ -62,6 +64,10 @@ export function gradeColumn(col, shipBar, critical) {
       continue; // excluded, blocks ship
     }
     const verdict = effective(cell);
+    if (verdict === "NOT-MEASURED") {
+      notMeasured++;
+      continue;
+    }
     if (verdict === "ERROR" || verdict === "JUDGE-AMBIGUOUS") {
       errors++;
       continue;
@@ -76,7 +82,7 @@ export function gradeColumn(col, shipBar, critical) {
   }
 
   if (col.partial === true) {
-    return { passed: 0, total: 0, pct: 0, letter: "-", ship: false, criticalFails, bFails, suspect, errors };
+    return { passed: 0, total: 0, pct: 0, letter: "-", ship: false, criticalFails, bFails, suspect, errors, notMeasured };
   }
 
   const pct = total > 0 ? Math.round((passed * 100) / total) : 0;
@@ -89,9 +95,10 @@ export function gradeColumn(col, shipBar, critical) {
     (!shipBar.no_critical_fail || criticalFails === 0) &&
     bFails === 0 &&
     suspect === 0 &&
-    errors === 0;
+    errors === 0 &&
+    notMeasured === 0;
 
-  return { passed, total, pct, letter, ship, criticalFails, bFails, suspect, errors };
+  return { passed, total, pct, letter, ship, criticalFails, bFails, suspect, errors, notMeasured };
 }
 
 /**
@@ -107,7 +114,7 @@ export function gradeColumn(col, shipBar, critical) {
  */
 export function liftClass(liftCell, greenCell) {
   const conclusive = (verdict, suspect) =>
-    !suspect && verdict !== "ERROR" && verdict !== "JUDGE-AMBIGUOUS";
+    !suspect && verdict !== "ERROR" && verdict !== "NOT-MEASURED" && verdict !== "JUDGE-AMBIGUOUS";
 
   const redOk = conclusive(liftCell.red, liftCell.redSuspect);
   const greenOk = conclusive(effective(greenCell), !!greenCell.suspect && !greenCell.override);

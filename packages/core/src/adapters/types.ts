@@ -41,7 +41,7 @@ export interface PromptProvenance {
   contract_bytes: number;
   contract_occurrences: number;
   mechanism: PromptMechanism;
-  status: "PASS" | "FAIL" | "ERROR";
+  status: "PASS" | "NOT-MEASURED" | "ERROR";
   error?: string;
 }
 

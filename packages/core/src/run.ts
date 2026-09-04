@@ -231,6 +231,7 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
       ? effectiveThreshold(undefined, scenario)
       : scenario.passThreshold ?? opts.passThreshold ?? 0.5;
     const result = outcomesToResult(scenario.id, grouped[si], repCounts[si], threshold);
+    if (adapter.observesPrompts) result.criterion_count = scenario.checklist.length;
     if (adapter.observesPrompts && !result.rep_judgments) {
       result.rep_judgments = grouped[si].map((outcome, repetition) => ({ repetition, judgments: [], recorded_verdict: outcome.verdict, ...(outcome.objective ? { objective: outcome.objective } : {}) }));
     }
@@ -625,7 +626,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
       }
 
       if (deliveryObjective) {
-        if (deliveryObjective.status === "ERROR" || (deliveryObjective.status === "FAIL" && status === "PASS")) status = deliveryObjective.status;
+        if (deliveryObjective.status === "ERROR" || (deliveryObjective.status === "NOT-MEASURED" && status !== "ERROR") || (deliveryObjective.status === "FAIL" && status === "PASS")) status = deliveryObjective.status;
         assertionResults.unshift(...deliveryObjective.assertions);
       }
       objective = { status, ...traceMeta, ...trajectoryMeta, assertions: assertionResults };
@@ -647,6 +648,10 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
     if (objective?.status === "ERROR") {
       verdict = "ERROR";
       reason = gatePrefix ?? "objective evidence missing";
+      appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
+    } else if (objective?.status === "NOT-MEASURED") {
+      verdict = "NOT-MEASURED";
+      reason = gatePrefix ?? "skill delivery was not established";
       appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
     } else if (infrastructureFailure) {
       verdict = "ERROR";
@@ -707,8 +712,8 @@ export function formatScorecard(summary: RunSummary, lift?: Lift, stability?: Sc
   const lines: string[] = [];
   lines.push(`── ${results.skill} · ${results.harness} · ${results.model} ──`);
   for (const s of results.scenarios) {
-    const v = s.override ?? (s.objective?.status === "ERROR" ? "ERROR" : s.objective?.status === "FAIL" ? "FAIL" : s.judge_verdict);
-    const mark = v === "PASS" ? "✓" : v === "FAIL" ? "✗" : "?";
+    const v = s.override ?? (s.objective?.status === "ERROR" ? "ERROR" : s.objective?.status === "NOT-MEASURED" ? "NOT-MEASURED" : s.objective?.status === "FAIL" ? "FAIL" : s.judge_verdict);
+    const mark = v === "PASS" ? "✓" : v === "FAIL" ? "✗" : v === "NOT-MEASURED" ? "∅" : "?";
     const ov = s.override ? " (override)" : "";
     const susp = s.suspect ? " ⚠suspect" : "";
     const misfired = s.clean !== undefined && s.reps !== undefined && s.clean < s.reps ? ` · ${s.reps - s.clean} misfired` : "";

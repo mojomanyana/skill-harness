@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { normalizePromptPayload, observeProviderPayload } from "../src/prompt-provenance.js";
+import { authenticatePromptObservation, bindPromptObservation, normalizePromptPayload, observeProviderPayload } from "../src/prompt-provenance.js";
 import promptCapture from "../src/prompt-capture-extension.js";
 
 const contract = "# Contract\nDo the thing.\n";
@@ -10,18 +10,21 @@ const contract = "# Contract\nDo the thing.\n";
 describe("Pi prompt provenance", () => {
   it("the observer handler writes digests, not payload plaintext (breaks if before_provider_request is disconnected or leaks content)", () => {
     const dir = mkdtempSync(join(tmpdir(), "prompt-extension-")), output = join(dir, "out.jsonl"), config = join(dir, "contract.json");
-    writeFileSync(output, "", "utf8"); writeFileSync(config, JSON.stringify({ text: contract, mechanism: "append-system-prompt" }), "utf8");
+    writeFileSync(output, "", "utf8"); writeFileSync(config, JSON.stringify({ text: contract, mechanism: "append-system-prompt", authentication_key: "test-key" }), "utf8");
     const oldOut = process.env.SKILL_HARNESS_PROMPT_CAPTURE_FILE, oldConfig = process.env.SKILL_HARNESS_PROMPT_CONTRACT_FILE;
     process.env.SKILL_HARNESS_PROMPT_CAPTURE_FILE = output; process.env.SKILL_HARNESS_PROMPT_CONTRACT_FILE = config;
-    let handler: ((event: { payload: unknown }) => void) | undefined;
+    let handler: ((event: { payload: unknown }) => void) | undefined, shutdown: (() => void) | undefined;
     try {
-      promptCapture({ on: (_name, candidate) => { handler = candidate; } });
+      promptCapture({ on: (name: string, candidate: any) => { if (name === "before_provider_request") handler = candidate; else shutdown = candidate; } } as any);
       expect(process.env.SKILL_HARNESS_PROMPT_CAPTURE_FILE).toBeUndefined();
       expect(process.env.SKILL_HARNESS_PROMPT_CONTRACT_FILE).toBeUndefined();
       expect(() => readFileSync(config, "utf8")).toThrow();
       handler!({ payload: { instructions: contract, messages: [{ role: "user", content: "secret stimulus" }] } });
+      shutdown!();
       const retained = readFileSync(output, "utf8");
-      expect(JSON.parse(retained)).toMatchObject({ contract_occurrences: 1, status: "PASS" });
+      const [record, summary] = retained.trim().split("\n").map(line => JSON.parse(line));
+      expect(record.observation).toMatchObject({ contract_occurrences: 1, status: "PASS" });
+      expect(summary.summary).toEqual({ count: 1 });
       expect(retained).not.toContain(contract); expect(retained).not.toContain("secret stimulus");
     } finally {
       if (oldOut === undefined) delete process.env.SKILL_HARNESS_PROMPT_CAPTURE_FILE; else process.env.SKILL_HARNESS_PROMPT_CAPTURE_FILE = oldOut;
@@ -39,11 +42,23 @@ describe("Pi prompt provenance", () => {
     expect(JSON.stringify(a)).not.toContain(contract);
   });
 
+  it("parent-binds contract identity and recomputes status instead of trusting observer JSON", () => {
+    const key = "parent-secret", expected = observeProviderPayload({}, contract, "append-system-prompt", 0);
+    const forged = { ...observeProviderPayload({ instructions: contract }, contract, "append-system-prompt", 0), contract_sha256: "f".repeat(64), status: "PASS" as const };
+    expect(bindPromptObservation(authenticatePromptObservation(forged, key), contract, "append-system-prompt", 7, key)).toMatchObject({ status: "ERROR", request_index: 7, contract_sha256: expected.contract_sha256 });
+
+    const wrongStatus = { ...observeProviderPayload({ instructions: "none" }, contract, "append-system-prompt", 0), status: "PASS" as const };
+    expect(bindPromptObservation(authenticatePromptObservation(wrongStatus, key), contract, "append-system-prompt", 8, key, 0)).toMatchObject({ status: "NOT-MEASURED", contract_occurrences: 0 });
+    const tampered = authenticatePromptObservation(observeProviderPayload({ instructions: contract }, contract, "append-system-prompt", 0), key);
+    tampered.observation.contract_occurrences = 0;
+    expect(bindPromptObservation(tampered, contract, "append-system-prompt", 9, key, 0).status).toBe("ERROR");
+  });
+
   it("occurrence count catches zero and duplicate delivery (breaks if delivery is inferred from argv)", () => {
-    expect(observeProviderPayload({ instructions: "none" }, contract, "append-system-prompt", 0).status).toBe("FAIL");
+    expect(observeProviderPayload({ instructions: "none" }, contract, "append-system-prompt", 0).status).toBe("NOT-MEASURED");
     const dup = observeProviderPayload({ instructions: contract + contract }, contract, "append-system-prompt", 0);
     expect(dup.contract_occurrences).toBe(2);
-    expect(dup.status).toBe("FAIL");
+    expect(dup.status).toBe("NOT-MEASURED");
   });
 
   it("includes Google systemInstruction in the model-visible projection (breaks if force delivery is checked only at top level)", () => {

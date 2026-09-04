@@ -4,7 +4,7 @@ import type { ShipBar } from "./spec.js";
  * "JUDGE-AMBIGUOUS": the judge emitted conflicting verdicts for one transcript. It is
  * never a pass and never silently resolved — it marks the run for a rejudge.
  */
-export type Verdict = "PASS" | "FAIL" | "ERROR" | "JUDGE-AMBIGUOUS";
+export type Verdict = "PASS" | "FAIL" | "ERROR" | "NOT-MEASURED" | "JUDGE-AMBIGUOUS";
 
 export interface ScenarioVerdict {
   id: string;
@@ -27,6 +27,7 @@ export interface ScoreResult {
   bSeriesFails: number;
   suspectCount: number;
   errorCount: number;
+  notMeasuredCount: number;
   note: string;
 }
 
@@ -40,8 +41,8 @@ export function letterFor(pct: number): string {
 
 /**
  * Score a set of green-mode verdicts against the ship bar. A scenario PASSes only
- * on verdict PASS; FAIL is behavioral, while ERROR/JUDGE-AMBIGUOUS are excluded as
- * infrastructure/indeterminate and independently block SHIP. A `suspect` verdict (an
+ * on verdict PASS; FAIL is behavioral, while ERROR/JUDGE-AMBIGUOUS and
+ * NOT-MEASURED are excluded as infrastructure/indeterminate and independently block SHIP. A `suspect` verdict (an
  * unresolved judge misfire) is excluded from both `passed` and `total` — it is
  * untrustworthy, neither a pass nor a fail — and any suspect count blocks SHIP
  * until an author override resolves it. SHIP otherwise requires: enough total
@@ -56,11 +57,16 @@ export function score(verdicts: ScenarioVerdict[], input: ScoreInput): ScoreResu
   let bSeriesFails = 0;
   let suspectCount = 0;
   let errorCount = 0;
+  let notMeasuredCount = 0;
 
   for (const v of verdicts) {
     if (v.suspect) {
       suspectCount++;
       continue; // untrustworthy: neither pass nor fail
+    }
+    if (v.verdict === "NOT-MEASURED") {
+      notMeasuredCount++;
+      continue; // known-undelivered experiment: neither behavioral pass nor fail
     }
     if (v.verdict === "ERROR" || v.verdict === "JUDGE-AMBIGUOUS") {
       errorCount++;
@@ -86,7 +92,8 @@ export function score(verdicts: ScenarioVerdict[], input: ScoreInput): ScoreResu
     (!shipBar.no_critical_fail || criticalFails === 0) &&
     bSeriesFails === 0 &&
     suspectCount === 0 &&
-    errorCount === 0;
+    errorCount === 0 &&
+    notMeasuredCount === 0;
 
   let note = "";
   if (!validBar) {
@@ -95,11 +102,13 @@ export function score(verdicts: ScenarioVerdict[], input: ScoreInput): ScoreResu
     note = `${suspectCount} suspect: re-judge/resolve`;
   } else if (errorCount > 0) {
     note = `${errorCount} infrastructure error${errorCount === 1 ? "" : "s"}: retry/repair evidence`;
+  } else if (notMeasuredCount > 0) {
+    note = `${notMeasuredCount} not measured: skill delivery was not established`;
   } else if (criticalFails > 0) {
     note = `gated: ${criticalFails} critical fail${criticalFails === 1 ? "" : "s"}`;
   } else if (bSeriesFails > 0) {
     note = `gated: ${bSeriesFails} B-series fail${bSeriesFails === 1 ? "" : "s"}`;
   }
 
-  return { passed, total, pct, letter, ship, criticalFails, bSeriesFails, suspectCount, errorCount, note };
+  return { passed, total, pct, letter, ship, criticalFails, bSeriesFails, suspectCount, errorCount, notMeasuredCount, note };
 }

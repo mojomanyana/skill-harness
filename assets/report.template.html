@@ -25,6 +25,7 @@
   .cell.PASS { background: rgba(31,139,76,.22); }
   .cell.FAIL { background: rgba(192,57,43,.24); }
   .cell.ERROR { background: rgba(107,114,128,.22); }
+  .cell.NOT-MEASURED { background: rgba(180,83,9,.18); }
   .cell.empty { color: var(--dim); cursor: default; font-weight: 400; }
   .cell .ov { display: block; font-size: 11px; color: var(--over); font-weight: 600; }
   .cell .ov.unsaved { color: #b45309; font-style: italic; }
@@ -49,7 +50,7 @@
      amber rather than red — missing evidence is not a failing gate. */
   .cell .lm.obj-pass { color: var(--pass); }
   .cell .lm.obj-fail { color: var(--fail); }
-  .cell .lm.obj-error { color: #b45309; }
+  .cell .lm.obj-error, .cell .lm.obj-not-measured { color: #b45309; }
   /* Adjudication. `unresolved` is amber for the same reason `suspect` is: it must
      never read as a clean PASS or FAIL. */
   .cell .lm.adj-settled { color: var(--dim); }
@@ -94,6 +95,7 @@
   .tgrid td.tc.PASS { color: #16a34a; }
   .tgrid td.tc.FAIL { color: #dc2626; }
   .tgrid td.tc.ERROR { color: #a855f7; }
+  .tgrid td.tc.NOT-MEASURED { color: #b45309; }
   .tgrid td.tc.suspect { color: #b45309; }
   .tgrid td.tc.absent { color: var(--dim, #bbb); }
   .dim { color: var(--dim, #888); font-weight: 400; }
@@ -429,7 +431,7 @@ function sparkline(runs) {
 function renderTrends(data) {
   const box = document.getElementById("trends");
   if (!data.models.length) { box.innerHTML = `<div class="empty-state">No runs yet.</div>`; return; }
-  const glyph = { PASS: "✓", FAIL: "✗", ERROR: "!" };
+  const glyph = { PASS: "✓", FAIL: "✗", ERROR: "!", "NOT-MEASURED": "∅" };
   let html = "";
   for (const m of data.models) {
     const last = m.runs[m.runs.length - 1].grade;

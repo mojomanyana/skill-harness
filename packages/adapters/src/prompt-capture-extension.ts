@@ -1,10 +1,13 @@
 import { appendFileSync, readFileSync, rmSync } from "node:fs";
-import { observeProviderPayload } from "./prompt-provenance.js";
+import { authenticatePromptObservation, authenticatePromptSummary, observeProviderPayload } from "./prompt-provenance.js";
 import type { PromptMechanism } from "@skill-harness/core";
 
 interface PromptEvent { payload: unknown }
-interface MinimalExtensionApi { on(name: "before_provider_request", handler: (event: PromptEvent) => void): void }
-interface CaptureContract { text: string; mechanism: PromptMechanism }
+interface MinimalExtensionApi {
+  on(name: "before_provider_request", handler: (event: PromptEvent) => void): void;
+  on(name: "session_shutdown", handler: () => void): void;
+}
+interface CaptureContract { text: string; mechanism: PromptMechanism; authentication_key: string }
 
 /** Internal observation extension: hashes the final provider prompt in-process; never writes payload plaintext. */
 export default function promptCapture(pi: MinimalExtensionApi): void {
@@ -20,6 +23,11 @@ export default function promptCapture(pi: MinimalExtensionApi): void {
   let requestIndex = 0;
   pi.on("before_provider_request", (event) => {
     const observation = observeProviderPayload(event.payload, contract.text, contract.mechanism, requestIndex++);
-    appendFileSync(target, JSON.stringify(observation) + "\n", { encoding: "utf8", mode: 0o600 });
+    appendFileSync(target, JSON.stringify(authenticatePromptObservation(observation, contract.authentication_key)) + "\n", { encoding: "utf8", mode: 0o600 });
+  });
+  // Written after the agent loop, so a tool subprocess can at most corrupt the
+  // log into ERROR; it cannot truncate/replay a valid prefix into trusted PASS.
+  pi.on("session_shutdown", () => {
+    appendFileSync(target, JSON.stringify(authenticatePromptSummary(requestIndex, contract.authentication_key)) + "\n", { encoding: "utf8", mode: 0o600 });
   });
 }

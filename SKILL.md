@@ -21,6 +21,8 @@ repo with `npm run dev --` (dev) or the `skill-harness` bin (built).
 under test.** Subject ≠ judge — same-family grading inflates scores. Single runs
 lie on weak/stochastic models; re-run before trusting a delta.
 
+**Schema-3 efficacy requires established delivery.** A known-undelivered repetition is `NOT-MEASURED`, excluded from efficacy denominators and never sent to the judge; an instrumentation failure is ERROR. Both block SHIP without turning a broken experiment into product failure. Schema-1/2 meanings stay historical.
+
 **Where an objective gate exists, prefer it to the judge.** `assert.trace` states
 what the model DID — which tool it called, which path it touched. `assert.trajectory`
 states whether a multi-phase workflow obeyed state, capability, workspace, authority,

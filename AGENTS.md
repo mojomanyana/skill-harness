@@ -27,7 +27,7 @@ list  <--skills root>                     which skills have a spec (● testable
 lint  <skill|all> --skills root           validate specs/fixtures + results-consistency — CI gate, no models, no keys; exits non-zero on findings
 run   <skill|all> --skills root [--model prov:model ...] [--mode red|green|force] [--judge prov:model] [--reps N] [--pass-threshold T] [--label name] [--parallel N] [--canary]
 compare <skill|all> --reference ref|root --candidate root --model p:m --reps N  paired candidate regression (spends subject + judge)
-mutation-test                             prove trajectory assertions turn red — free, offline
+mutation-test                             prove trajectory + results/delivery/screen gates turn red — free, offline
 judge-agreement <run-dir>                 compare two persisted full-cell judge grades — free, offline
 grade <run-dir> [--judge prov:model]      re-judge saved transcripts with a (different) judge — no model re-run
       [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]  ask untrustworthy cells again (OFF by default; prints the exact MAX extra call count first; unresolved disagreement blocks SHIP)
@@ -52,6 +52,8 @@ qualification prepare|start|status|poll|validate|panel|cell|abort  durable quali
 Defaults: subject `fireworks:accounts/fireworks/models/deepseek-v4-pro` · judge `claude-code:claude-opus-4-8` · mode `green` · harness `pi`. `SKILL_HARNESS_JUDGE` overrides the judge default for a repo or a shell; `--judge` beats both.
 
 **Which modes are scored: `green` and `force`.** Both put the skill in front of the model, so both are graded against the ship bar; `red` is the baseline they are measured against and is never scored. A force run recorded by 0.4.x reads `not scored` — `rescore <run-dir>` (free, offline) writes the real grade, and `lint` names that remedy. Green and force are **not** interchangeable numbers: placement moves verdicts in both directions on identical skill text, so never pool them in one trend or scorecard claim.
+
+**Schema 3 counts efficacy only after delivery.** A known-undelivered repetition is `NOT-MEASURED`, never a behavioral FAIL: it is excluded from pass-rate denominators, skips the judge, and blocks SHIP. Missing/malformed/unauthenticated instrumentation is ERROR. Schema-1/2 results retain their historical meaning.
 
 **Green delivery can degrade silently; force cannot.** pi ≥ 0.83.0 delivers `--skill` by progressive disclosure (the description is in context, the instructions load on demand — "models don't always do this"), and pi accepts a nonexistent `--skill` path with exit 0 and a normal answer. A green wave can therefore measure a naked model and look plausible. When results are going to be published, prefer `--mode force`, or `--canary` (green only, one extra rep) which asks the model to quote a heading from its own instructions and aborts the run if the skill isn't reaching it. Every run records `harness_cli_version` so a reader can tell which harness produced the numbers.
 

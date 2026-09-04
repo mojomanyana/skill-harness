@@ -136,8 +136,8 @@ export function buildComparison(input: {
   const criticalRegressions = cells.filter((cell) => cell.change === "regression" && cell.critical).map((cell) => cell.id);
   const byReference = new Map(reference.scenarios.map((scenario) => [scenario.id, scenario]));
   const infrastructureErrors = cells.filter((cell) =>
-    cell.reference === "ERROR" || cell.reference === "JUDGE-AMBIGUOUS" || byReference.get(cell.id)?.suspect ||
-    cell.candidate === "ERROR" || cell.candidate === "JUDGE-AMBIGUOUS" || byCandidate.get(cell.id)?.suspect,
+    cell.reference === "ERROR" || cell.reference === "NOT-MEASURED" || cell.reference === "JUDGE-AMBIGUOUS" || byReference.get(cell.id)?.suspect ||
+    cell.candidate === "ERROR" || cell.candidate === "NOT-MEASURED" || cell.candidate === "JUDGE-AMBIGUOUS" || byCandidate.get(cell.id)?.suspect,
   ).map((cell) => cell.id);
   const metrics = { reference: aggregateMetrics(reference.scenarios), candidate: aggregateMetrics(candidate.scenarios) };
   const costRegressions = thresholdFindings(metrics.reference, metrics.candidate, input.thresholds);
@@ -236,10 +236,11 @@ export function aggregateMetrics(scenarios: ScenarioResult[]): AggregateMetrics 
 function effective(result: ScenarioResult): Verdict {
   if (result.override) return result.override;
   if (result.objective?.status === "ERROR") return "ERROR";
+  if (result.objective?.status === "NOT-MEASURED") return "NOT-MEASURED";
   if (result.objective?.status === "FAIL") return "FAIL";
   return result.judge_verdict;
 }
-function untrustworthy(result: ScenarioResult, verdict: Verdict): boolean { return result.suspect || verdict === "ERROR" || verdict === "JUDGE-AMBIGUOUS"; }
+function untrustworthy(result: ScenarioResult, verdict: Verdict): boolean { return result.suspect || verdict === "ERROR" || verdict === "NOT-MEASURED" || verdict === "JUDGE-AMBIGUOUS"; }
 function sorted<T>(value: Record<string, T>): Record<string, T> { return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))); }
 function increase(reference: number | null, candidate: number | null): number | null { return reference === null || candidate === null || reference <= 0 ? null : (candidate - reference) / reference; }
 function thresholdFindings(reference: AggregateMetrics, candidate: AggregateMetrics, thresholds?: ComparisonThresholds): string[] {

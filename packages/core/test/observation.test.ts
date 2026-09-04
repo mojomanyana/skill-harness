@@ -40,8 +40,8 @@ function result(): ResultsFile {
     schema: 3, skill: "x", harness: "pi", model: "fake:m",
     judge: { provider: "fake", model: "judge" }, timestamp: "t", label: null, mode: "force",
     effective_grade: { passed: 1, total: 1, pct: 100, letter: "A", ship: true, note: "" },
-    subject_invocations: [{ scenario_id: "A1", repetition: 0, prompt: { ...prompt } }],
-    scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "ok", suspect: false, override: null, note: "", objective: { status: "PASS", assertions: [{ kind: "skill_delivered", status: "PASS", detail: "one request" }] }, rep_judgments: [{ repetition: 0, judgments: [vote], recorded_verdict: "PASS", objective: { status: "PASS", assertions: [{ kind: "skill_delivered", status: "PASS", detail: "one request" }] } }] }],
+    subject_invocations: [{ scenario_id: "A1", repetition: 0, prompt: structuredClone(prompt) }],
+    scenarios: [{ id: "A1", criterion_count: 2, judge_verdict: "PASS", judge_reason: "ok", suspect: false, override: null, note: "", objective: { status: "PASS", assertions: [{ kind: "skill_delivered", status: "PASS", detail: "one request" }] }, rep_judgments: [{ repetition: 0, judgments: [structuredClone(vote)], recorded_verdict: "PASS", objective: { status: "PASS", assertions: [{ kind: "skill_delivered", status: "PASS", detail: "one request" }] } }] }],
   };
 }
 
@@ -54,10 +54,32 @@ describe("results-v3 retained observations", () => {
   it("requires per-repetition delivery objectives (breaks if aggregate evidence can mask one repetition)", () => {
     const missing:any=result(); delete missing.scenarios[0].rep_judgments[0].objective;
     expect(() => validateResults(missing)).toThrow(/per-repetition objective missing/);
-    const weaker:any=result(); weaker.subject_invocations[0].prompt.contract_occurrences=0; weaker.subject_invocations[0].prompt.status="FAIL"; weaker.scenarios[0].objective.status="FAIL"; weaker.scenarios[0].objective.assertions[0].status="FAIL";
+    const weaker:any=result(); weaker.subject_invocations[0].prompt.contract_occurrences=0; weaker.subject_invocations[0].prompt.status="NOT-MEASURED"; weaker.scenarios[0].objective.status="NOT-MEASURED"; weaker.scenarios[0].objective.assertions[0].status="NOT-MEASURED";
     expect(() => validateResults(weaker)).toThrow(/per-repetition skill_delivered/);
     const divergent:any=result(); divergent.scenarios[0].objective.status="FAIL";
     expect(() => validateResults(divergent)).toThrow(/scenario objective diverges/);
+  });
+
+  it("rejects a top-level PASS that contradicts retained repetition verdicts", () => {
+    const r = result();
+    const panel = r.scenarios[0].rep_judgments![0]; panel.judgments[0].verdict = "FAIL"; panel.judgments[0].criteria = panel.judgments[0].criteria!.map(vote => ({ ...vote, verdict: "FAIL" as const })); panel.recorded_verdict = "FAIL";
+    expect(() => validateResults(r)).toThrow(/scenario verdict.*repetition|aggregate/i);
+  });
+
+  it("rejects a behavioral PASS with no retained clean judgment", () => {
+    const r = result(); r.scenarios[0].rep_judgments![0].judgments = [];
+    expect(() => validateResults(r)).toThrow(/unsupported.*judgment|clean.*judgment/i);
+  });
+
+  it("rejects a truncated criterion array using the retained expected count", () => {
+    const r = result(); r.scenarios[0].rep_judgments![0].judgments[0].criteria!.pop();
+    expect(() => validateResults(r)).toThrow(/criterion.*complete|indexes/i);
+  });
+
+  it("rejects adjudication state/verdict that contradicts recomputed clean votes", () => {
+    const r = result();
+    r.scenarios[0].adjudication = { repetition: 0, trigger: "ship_deciding", state: "unresolved", judgments: [vote, { ...structuredClone(vote), ordinal: 2 }] };
+    expect(() => validateResults(r)).toThrow(/adjudication.*state|recomputed/i);
   });
 
   it("criterion votes round-trip and recorded panel verdict is recomputed (breaks if votes drop or panel validation is removed)", () => {
@@ -79,11 +101,11 @@ describe("results-v3 retained observations", () => {
   it("accepts green progressive disclosure only after eventual exactly-once delivery (breaks if leading absence or total absence is misclassified)", () => {
     const r = result();
     const first = r.subject_invocations![0];
-    first.prompt.mechanism = "pi-skill"; first.prompt.contract_occurrences = 0; first.prompt.status = "FAIL";
+    first.prompt.mechanism = "pi-skill"; first.prompt.contract_occurrences = 0; first.prompt.status = "NOT-MEASURED";
     r.subject_invocations!.push({ ...structuredClone(first), prompt: { ...first.prompt, request_index: 1, contract_occurrences: 1, status: "PASS" } });
     expect(() => validateResults(r)).not.toThrow();
     r.subject_invocations![0].prompt.contract_occurrences = 1; r.subject_invocations![0].prompt.status = "PASS";
-    r.subject_invocations![1].prompt.contract_occurrences = 0; r.subject_invocations![1].prompt.status = "FAIL";
+    r.subject_invocations![1].prompt.contract_occurrences = 0; r.subject_invocations![1].prompt.status = "NOT-MEASURED";
     expect(() => validateResults(r)).toThrow(/skill_delivered/);
   });
 
@@ -106,7 +128,7 @@ describe("results-v3 retained observations", () => {
   it("recomputes a split plus tie-break from all retained members (breaks if a panel trusts its stored aggregate)", () => {
     const r = result();
     const panel = r.scenarios[0].rep_judgments![0];
-    panel.judgments = [vote, { ...vote, ordinal: 2, verdict: "FAIL", criteria: [{ index: 1, verdict: "FAIL", reason: "missing" }] }, { ...vote, ordinal: 3 }];
+    panel.judgments = [vote, { ...vote, ordinal: 2, verdict: "FAIL", criteria: [{ index: 1, verdict: "FAIL", reason: "missing" }, { index: 2, verdict: "PASS", reason: "ok" }] }, { ...vote, ordinal: 3 }];
     panel.recorded_verdict = "PASS";
     expect(() => validateResults(r)).not.toThrow();
     panel.recorded_verdict = "FAIL";

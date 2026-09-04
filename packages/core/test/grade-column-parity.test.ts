@@ -10,10 +10,10 @@ import { gradeColumn } from "../../../assets/report.grade.js";
 
 interface CellFixture {
   id: string;
-  judge_verdict: "PASS" | "FAIL" | "ERROR";
+  judge_verdict: "PASS" | "FAIL" | "ERROR" | "NOT-MEASURED";
   override?: "PASS" | "FAIL" | "ERROR" | null;
   suspect?: boolean;
-  objective?: { status: "PASS" | "FAIL" | "ERROR" };
+  objective?: { status: "PASS" | "FAIL" | "ERROR" | "NOT-MEASURED" };
 }
 
 const SHIP_BAR: ShipBar = { total: 3, min_pass: 3, no_critical_fail: true };
@@ -28,7 +28,7 @@ const CRITICAL = ["A1"];
 function build(cells: CellFixture[]) {
   const verdicts: ScenarioVerdict[] = cells.map((c) => ({
     id: c.id,
-    verdict: c.override || (c.objective?.status === "ERROR" ? "ERROR" : c.objective?.status === "FAIL" ? "FAIL" : c.judge_verdict),
+    verdict: c.override || (c.objective?.status === "ERROR" ? "ERROR" : c.objective?.status === "NOT-MEASURED" ? "NOT-MEASURED" : c.objective?.status === "FAIL" ? "FAIL" : c.judge_verdict),
     suspect: !!c.suspect && !c.override,
   }));
   const col = {
@@ -84,6 +84,11 @@ const FIXTURES: Record<string, CellFixture[]> = {
     { id: "C2", judge_verdict: "PASS" },
     { id: "C3", judge_verdict: "PASS" },
   ],
+  "objective NOT-MEASURED is excluded and blocks without a critical failure": [
+    { id: "A1", judge_verdict: "PASS", objective: { status: "NOT-MEASURED" } },
+    { id: "C2", judge_verdict: "PASS" },
+    { id: "C3", judge_verdict: "PASS" },
+  ],
   "objective ERROR remains infrastructure and blocks critical ship": [
     { id: "A1", judge_verdict: "PASS", objective: { status: "ERROR" } },
     { id: "C2", judge_verdict: "PASS" },
@@ -115,6 +120,7 @@ describe("report.grade.js gradeColumn matches score.ts score() (drift guard)", (
       expect(actual.letter).toBe(expected.letter);
       expect(actual.suspect).toBe(expected.suspectCount);
       expect(actual.errors).toBe(expected.errorCount);
+      expect(actual.notMeasured).toBe(expected.notMeasuredCount);
     });
   }
 });

@@ -274,9 +274,11 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
           const priorStatus = objective?.status ?? "PASS";
           const status = priorStatus === "ERROR" || g.status === "ERROR" || priorEvidenceErrors.length || digestMismatch
             ? "ERROR"
-            : priorStatus === "FAIL" || g.status === "FAIL"
-              ? "FAIL"
-              : "PASS";
+            : priorStatus === "NOT-MEASURED"
+              ? "NOT-MEASURED"
+              : priorStatus === "FAIL" || g.status === "FAIL"
+                ? "FAIL"
+                : "PASS";
           objective = {
             ...(objective ?? {}),
             status,
@@ -305,7 +307,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
         : retainedDelivery;
       if (delivery) {
         const prior = objective?.status ?? "PASS";
-        const status = delivery.status === "ERROR" || prior === "ERROR" ? "ERROR" : delivery.status === "FAIL" || prior === "FAIL" ? "FAIL" : "PASS";
+        const status = delivery.status === "ERROR" || prior === "ERROR" ? "ERROR" : delivery.status === "NOT-MEASURED" ? "NOT-MEASURED" : prior === "FAIL" ? "FAIL" : "PASS";
         objective = { ...(objective ?? {}), status, assertions: [delivery, ...(objective?.assertions ?? [])] };
         if (delivery.status !== "PASS") traceFailure = `objective: ${delivery.detail}`;
       }
@@ -319,7 +321,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
       // trace gate leaves an `objective` block on the result. Reading only the
       // trailer meant a trace gate flipping to PASS never triggered the re-judge
       // it needs, leaving a stale FAIL verdict beside a PASS objective.
-      const oldObjectiveFailed = rec.objective?.status === "FAIL" || rec.objective?.status === "ERROR";
+      const oldObjectiveFailed = rec.objective?.status === "FAIL" || rec.objective?.status === "ERROR" || rec.objective?.status === "NOT-MEASURED";
       const oldGateFailed =
         GATE_FAILED_RE.test(before.slice(before.indexOf(TRAILER))) || oldObjectiveFailed;
 
@@ -329,9 +331,9 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
       if (existsSync(tPath)) rewriteTranscript(tPath, gate.lines);
 
       if (gate.failure) {
-        if (objective?.status === "ERROR") gateErroredHere = true;
+        if (objective?.status === "ERROR" || objective?.status === "NOT-MEASURED") gateErroredHere = true;
         else gateFailedHere = true;
-        outcomes.push({ verdict: objective?.status === "ERROR" ? "ERROR" : "FAIL", reason: gate.failure, suspect: false, objective });
+        outcomes.push({ verdict: objective?.status === "ERROR" ? "ERROR" : objective?.status === "NOT-MEASURED" ? "NOT-MEASURED" : "FAIL", reason: gate.failure, suspect: false, objective });
         continue;
       }
       if (!oldGateFailed) {
@@ -355,6 +357,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
     const threshold = effectiveThreshold(rec, scenario);
     const next = outcomesToResult(scenario.id, outcomes, outcomes.length, threshold);
     if (prev.schema === 3) {
+      next.criterion_count = scenario.checklist.length;
       next.rep_judgments = outcomes.map((outcome, repetition) => {
         const fresh = next.rep_judgments?.find(panel => panel.repetition === repetition);
         const prior = rec.rep_judgments?.find(panel => panel.repetition === repetition);
@@ -362,7 +365,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
         return {
           repetition,
           judgments,
-          recorded_verdict: judgments.length ? (fresh?.judgments.length ? fresh.recorded_verdict : prior!.recorded_verdict) : outcome.verdict,
+          recorded_verdict: outcome.verdict,
           ...(outcome.objective ? { objective: outcome.objective } : {}),
         };
       });

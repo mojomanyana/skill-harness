@@ -38,6 +38,7 @@ import {
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
+import { runSelfScreeningMutationCases } from "./mutation-catalogue.js";
 import { runCompareCommand } from "./compare.js";
 import { cmdQualification } from "./qualification.js";
 
@@ -453,8 +454,9 @@ export function cmdJudgeAgreement(args: Args): void {
 }
 
 export async function cmdMutationTest(): Promise<void> {
-  const report = runTrajectoryMutationSelfTest();
-  console.log(`trajectory assertion mutation self-test: baseline ${report.baseline}`);
+  const trajectory = runTrajectoryMutationSelfTest();
+  const report = { baseline: trajectory.baseline, cases: [...trajectory.cases, ...await runSelfScreeningMutationCases()] };
+  console.log(`mutation self-test: baseline ${report.baseline}`);
   for (const test of report.cases) {
     console.log(`  ${test.detected ? "✓" : "✗"} ${test.id}: ${test.status} — ${test.detail}`);
   }
@@ -946,7 +948,7 @@ export function help(): string {
                      [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]
                        ask again about untrustworthy cells (ambiguous / contradictory / non-unanimous /
                        ship-deciding). OFF by default; prints the exact MAX extra call count first.
-  mutation-test                                  prove trajectory assertions turn red (${free("mutation-test")})
+  mutation-test                                  prove trajectory + results/delivery/screen gates turn red (${free("mutation-test")})
   judge-agreement <run-dir>                      compare two distinct persisted judge votes per scenario (${free("judge-agreement")})
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (${free("rescore")})
   regate <run-dir>...  [--judge prov:model]     re-evaluate saved gates (no subject call; judges fail→pass reps)

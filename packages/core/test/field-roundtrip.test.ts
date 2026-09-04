@@ -122,7 +122,7 @@ beforeEach(() => {
     timestamp: "2026-08-08T00-00-00", label: null, mode: "green",
     arm: ARM,
     scenarios: [{
-      id: "A1", judge_verdict: "PASS", judge_reason: "ok", suspect: false,
+      id: "A1", criterion_count: 1, judge_verdict: "PASS", judge_reason: "ok", suspect: true,
       override: "PASS", note: "author says fine",
       objective: OBJECTIVE, adjudication: ADJUDICATION,
       rep_judgments: [{ repetition: 0, recorded_verdict: "PASS", objective: OBJECTIVE, judgments: [{ ordinal: 1, judge: { provider: "claude-code", model: "j1" }, verdict: "PASS", reason: "ok", suspect: false, criteria: [{ index: 1, verdict: "PASS", reason: "ok" }] }] }],
@@ -350,7 +350,7 @@ describe("rebuildScenarioResult", () => {
     // field is added and routed through here, it appears in this list and the
     // assertion names it.
     const known = new Set([
-      "id", "judge_verdict", "judge_reason", "suspect", "override", "note",
+      "id", "criterion_count", "judge_verdict", "judge_reason", "suspect", "override", "note",
       "reps", "passes", "clean", "flakiness", "pass_threshold",
       "objective", "adjudication",
     ]);

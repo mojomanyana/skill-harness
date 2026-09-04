@@ -1,5 +1,6 @@
 import { build } from "esbuild";
 import { pathToFileURL } from "node:url";
+import { resolve } from "node:path";
 
 export const buildOptions = {
   entryPoints: ["packages/pi-extension/src/index.ts"],
@@ -19,6 +20,9 @@ export const observerBuildOptions = {
   platform: "node",
   target: "node20",
   external: ["node:*"],
+  // The observer needs four dependency-free normalization constants, not the
+  // core barrel (which pulls YAML, trajectory and qualification code into Pi).
+  alias: { "@skill-harness/core": resolve("packages/core/src/prompt-normalization.ts") },
 };
 
 // Only run the build when this file is executed directly (`npm run

@@ -36,5 +36,6 @@ describe("dist/index.js bundle freshness", () => {
     const result = await build({ ...observerBuildOptions, outfile: undefined, write: false });
     expect(readFileSync("packages/pi-extension/dist/prompt-capture-extension.js", "utf8")).toBe(result.outputFiles[0].text);
     expect(result.outputFiles[0].text).not.toContain('from "@skill-harness/core"');
+    expect(result.outputFiles[0].text).not.toMatch(/js-yaml|trajectory|qualification/i);
   });
 });

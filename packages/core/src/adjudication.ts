@@ -52,6 +52,10 @@ export interface CellState {
   /** Per-rep verdicts, when the cell ran with reps. Empty for a single-rep cell. */
   repVerdicts?: Verdict[];
   criteria?: CriterionVote[];
+  /** Delivery prerequisite for schema-3 cells; non-PASS cells are never judged. */
+  deliveryStatus?: "PASS" | "NOT-MEASURED" | "ERROR";
+  /** The actual selected repetition's primary vote; aggregate fields remain for planning only. */
+  primaryJudgment?: Judgment;
 }
 
 export interface TriggerDecision {
@@ -112,6 +116,8 @@ export function planAdjudication(input: PlanInput): AdjudicationPlan {
   const decisions: TriggerDecision[] = [];
 
   for (const cell of input.cells) {
+    // Delivery-gated schema-3 cells carry no behavioral claim to adjudicate.
+    if (cell.deliveryStatus && cell.deliveryStatus !== "PASS") continue;
     const triggers: TriggerKind[] = [];
 
     // `JUDGE-AMBIGUOUS` is what the parser emits when a judge's verdict blocks
@@ -253,6 +259,16 @@ export function projectAdjudication(result: ScenarioResult, adj: AdjudicationRes
   };
 }
 
+/** Apply the one-transcript bound and label it only when the bound changed the panel result. */
+export function projectAdjudicationForScenario(result: ScenarioResult, scenario: Scenario, adj: AdjudicationResult): ScenarioResult {
+  const bounded = boundAdjudicationToRepetitions(result, scenario, adj);
+  const projected = projectAdjudication(result, bounded);
+  if (bounded !== adj) {
+    projected.judge_reason = `${adj.judgments.length} judgments on one transcript cannot replace a critical all-repetitions aggregate`;
+  }
+  return projected;
+}
+
 function reasonFor(adj: AdjudicationResult): string {
   const n = adj.judgments.length;
   const verb = adj.state === "confirmed" ? "confirmed by" : "resolved by majority of";
@@ -310,7 +326,9 @@ export async function runAdjudication(opts: RunAdjudicationOptions): Promise<Run
     const trigger = decision.triggers[0];
 
     const judgments: Judgment[] = [
-      { ordinal: 1, judge: { ...opts.primaryJudge }, verdict: cell.verdict, reason: cell.reason, suspect: cell.suspect, criteria: cell.criteria ?? [] },
+      cell.primaryJudgment
+        ? { ...cell.primaryJudgment, ordinal: 1 }
+        : { ordinal: 1, judge: { ...opts.primaryJudge }, verdict: cell.verdict, reason: cell.reason, suspect: cell.suspect, criteria: cell.criteria ?? [] },
     ];
 
     const second = await opts.rejudge(decision.id, opts.secondaryJudge);
@@ -397,11 +415,7 @@ export async function adjudicateRun(opts: AdjudicateRunOptions): Promise<Results
     if (!adj) return s;
     const scenario = byIdScenario.get(s.id);
     const withRepetition = { ...adj, repetition: s.rep_judgments?.[0]?.repetition ?? 0 };
-    const boundedAdj = scenario ? boundAdjudicationToRepetitions(s, scenario, withRepetition) : withRepetition;
-    const projected = projectAdjudication(s, boundedAdj);
-    if (boundedAdj !== adj) {
-      projected.judge_reason = `${adj.judgments.length} judgments on one transcript cannot replace a critical all-repetitions aggregate`;
-    }
+    const projected = scenario ? projectAdjudicationForScenario(s, scenario, withRepetition) : projectAdjudication(s, withRepetition);
     const extraCalls = adj.judgments.filter((judgment) => judgment.ordinal > 1).length;
     projected.metrics = mergeScenarioMetrics(s.metrics, {
       wall_time_ms: 0,
@@ -475,14 +489,20 @@ async function judgeCell(opts: AdjudicateRunOptions & { scenario: Scenario; judg
  * about — inverting the one invariant this feature actually promises.
  */
 export function cellsFromResults(runDir: string, results: ResultsFile): CellState[] {
-  return results.scenarios.map((s) => ({
-    id: s.id,
-    verdict: s.judge_verdict,
-    reason: s.judge_reason,
-    suspect: s.suspect,
-    repVerdicts: repVerdictsOf(runDir, s, results.mode),
-    criteria: s.rep_judgments?.[0]?.judgments[0]?.criteria,
-  }));
+  return results.scenarios.map((s) => {
+    const primaryJudgment = s.rep_judgments?.find(panel => panel.repetition === 0)?.judgments[0];
+    const deliveryStatus = s.objective?.assertions.find(assertion => assertion.kind === "skill_delivered")?.status;
+    return {
+      id: s.id,
+      verdict: s.judge_verdict,
+      reason: s.judge_reason,
+      suspect: s.suspect,
+      repVerdicts: repVerdictsOf(runDir, s, results.mode),
+      criteria: primaryJudgment?.criteria,
+      ...(deliveryStatus === "PASS" || deliveryStatus === "NOT-MEASURED" || deliveryStatus === "ERROR" ? { deliveryStatus } : {}),
+      ...(primaryJudgment ? { primaryJudgment } : {}),
+    };
+  });
 }
 
 /** Per-rep verdicts from saved judge artifacts, for the non-unanimous trigger. */

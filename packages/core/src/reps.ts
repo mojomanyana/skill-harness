@@ -26,13 +26,13 @@ export interface RepOutcome {
  * pass-threshold aggregation: an objective assertion is a statement about what
  * the model DID, so one rep that called a forbidden tool is a real finding, not
  * a minority draw to be voted away. ERROR dominates (missing evidence is never a
- * pass), then FAIL, then PASS. The retained assertion detail comes from the
+ * pass), then NOT-MEASURED (delivery absent), then FAIL, then PASS. The retained assertion detail comes from the
  * first non-passing rep, since that is the one worth reading.
  */
 export function aggregateObjective(outcomes: RepOutcome[]): ObjectiveResult | undefined {
   const present = outcomes.map((o) => o.objective).filter((o): o is ObjectiveResult => o !== undefined);
   if (present.length === 0) return undefined;
-  const picked = present.find((o) => o.status === "ERROR") ?? present.find((o) => o.status === "FAIL") ?? present[0];
+  const picked = present.find((o) => o.status === "ERROR") ?? present.find((o) => o.status === "NOT-MEASURED") ?? present.find((o) => o.status === "FAIL") ?? present[0];
   if (present.length === 1) return picked;
   const eventHashes = present.map((objective) => objective.events_sha256);
   const traceHashes = present.map((objective) => objective.trace_sha256);
@@ -72,6 +72,10 @@ export function aggregateReps(outcomes: RepOutcome[], threshold: number): RepAgg
   // state so a release blocks for missing evidence without blaming the skill.
   if (errored > 0) {
     return { verdict: "ERROR", reason: `${errored}/${reps} reps errored — infrastructure, not behavior`, passes, reps, clean: clean.length, flakiness: 0, suspect: false };
+  }
+  const notMeasured = outcomes.filter((o) => o.verdict === "NOT-MEASURED").length;
+  if (notMeasured > 0) {
+    return { verdict: "NOT-MEASURED", reason: `${notMeasured}/${reps} reps not measured — skill delivery was not established`, passes, reps, clean: clean.length - notMeasured, flakiness: 0, suspect: false };
   }
 
   if (clean.length * 2 < reps) {

@@ -179,7 +179,7 @@ export function appendJudgeHistory(
     verdict: prior.judge_verdict ?? "JUDGE-AMBIGUOUS",
     reason: prior.judge_reason ?? "prior grade",
     suspect: prior.suspect ?? true,
-    criteria: prior.rep_judgments?.flatMap(panel => panel.judgments[0]?.criteria ?? []) ?? [],
+    criteria: prior.rep_judgments?.find(panel => panel.repetition === 0)?.judgments[0]?.criteria ?? [],
   }] : []);
   const next = [
     ...history,
@@ -223,10 +223,16 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     targets = prev.scenarios
       .filter((s) => s.suspect || s.judge_verdict === "JUDGE-AMBIGUOUS")
       .map((s) => s.id);
-    if (targets.length === 0) {
-      // Nothing untrustworthy — a no-op, not an error. Return the file as-is.
-      return prev;
-    }
+  }
+  // Schema-3 delivery is a prerequisite for behavioral judging. A later `grade`
+  // cannot turn an undelivered or unauthenticated transcript into product evidence.
+  if (prev?.schema === 3) {
+    const blocked = new Set(prev.scenarios.filter(s => s.objective?.assertions.some(a => a.kind === "skill_delivered" && a.status !== "PASS")).map(s => s.id));
+    targets = targets.filter(id => !blocked.has(id));
+  }
+  if (targets.length === 0 && prev) {
+    // Nothing judgeable — a no-op, preserving both evidence and judge identity.
+    return prev;
   }
 
   const completeTranscripts = (record: ScenarioResult): boolean => {
@@ -263,11 +269,12 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
       expectedReps: prevScenario?.reps ?? 1,
     });
     const carry = overrides.get(id);
+    if (prev?.schema === 3) rr.criterion_count = scenario.checklist.length;
     rr.metrics = mergeScenarioMetrics(carry?.metrics, rr.metrics);
     rr.rep_judgments = carryRepObjectives(rr.rep_judgments, carry?.rep_judgments);
     rr.judge_history = appendJudgeHistory(carry, prev?.judge, {
       judge, verdict: rr.judge_verdict, reason: rr.judge_reason, suspect: rr.suspect,
-      criteria: rr.rep_judgments?.flatMap(panel => panel.judgments.flatMap(judgment => judgment.criteria ?? [])),
+      criteria: rr.rep_judgments?.find(panel => panel.repetition === 0)?.judgments[0]?.criteria,
     });
     // `grade` re-judges the saved transcript. It does not re-evaluate trace gates
     // (that is `regate`), so `objective` still describes this run; and it replaced
