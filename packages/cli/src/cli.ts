@@ -34,9 +34,11 @@ import {
   runTrajectoryMutationSelfTest,
   resolveArm,
   isFreeOfflineCommand,
+  screenResults, formatScreen,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
+import { runSelfScreeningMutationCases } from "./mutation-catalogue.js";
 import { runCompareCommand } from "./compare.js";
 import { cmdQualification } from "./qualification.js";
 
@@ -452,8 +454,9 @@ export function cmdJudgeAgreement(args: Args): void {
 }
 
 export async function cmdMutationTest(): Promise<void> {
-  const report = runTrajectoryMutationSelfTest();
-  console.log(`trajectory assertion mutation self-test: baseline ${report.baseline}`);
+  const trajectory = runTrajectoryMutationSelfTest();
+  const report = { baseline: trajectory.baseline, cases: [...trajectory.cases, ...await runSelfScreeningMutationCases()] };
+  console.log(`mutation self-test: baseline ${report.baseline}`);
   for (const test of report.cases) {
     console.log(`  ${test.detected ? "✓" : "✗"} ${test.id}: ${test.status} — ${test.detail}`);
   }
@@ -578,6 +581,13 @@ async function cmdRestamp(args: Args): Promise<void> {
     `\n${runs} run(s) examined: ${upgraded} upgraded, ${unprovable} left alone, ${unchanged} already current.` +
       `${partial > 0 ? ` (${partial} upgraded only in part.)` : ""} No models were called.`,
   );
+}
+
+export async function cmdScreen(args: Args): Promise<void> {
+  if (args._.length === 0) throw new Error("usage: skill-harness screen <run-dir> [<run-dir> ...]");
+  const results = args._.map(runDir => readResults(resolve(runDir)));
+  console.log(formatScreen(screenResults(results)));
+  console.log(`\n${results.length} retained result(s) screened; 0 subject calls, 0 judge calls.`);
 }
 
 async function cmdStability(args: Args): Promise<void> {
@@ -938,12 +948,13 @@ export function help(): string {
                      [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]
                        ask again about untrustworthy cells (ambiguous / contradictory / non-unanimous /
                        ship-deciding). OFF by default; prints the exact MAX extra call count first.
-  mutation-test                                  prove trajectory assertions turn red (${free("mutation-test")})
+  mutation-test                                  prove trajectory + results/delivery/screen gates turn red (${free("mutation-test")})
   judge-agreement <run-dir>                      compare two distinct persisted judge votes per scenario (${free("judge-agreement")})
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (${free("rescore")})
   regate <run-dir>...  [--judge prov:model]     re-evaluate saved gates (no subject call; judges fail→pass reps)
   restamp <skill|all> --skills <root> [--from <git-ref>]   record the model-visible skill digest on runs that still match (${free("restamp")}; one-time migration)
   stability <skill|all> --skills <root> [--window N] [--all]  run-over-run verdict flips per scenario (${free("stability")})
+  screen <run-dir>...                           retained control/treatment + criterion rates (${free("screen")})
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]
   init   <skill>     --skills <root> [--force]     scaffold a commented template spec (${free("init")})
@@ -981,6 +992,7 @@ export async function main(argv: string[]): Promise<void> {
     case "regate": return cmdRegate(args);
     case "restamp": return cmdRestamp(args);
     case "stability": return cmdStability(args);
+    case "screen": return cmdScreen(args);
     case "review": return cmdReview(args);
     case "add-test": return cmdAddTest(args);
     case "init": return cmdInit(args);

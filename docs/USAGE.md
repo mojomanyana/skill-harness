@@ -204,7 +204,7 @@ and two full waves ran before anyone noticed: the affected skill scored ≈ its 
 no-skill baseline while looking entirely plausible. The only tell was a contradictory
 failure mix — over-ceremony and capitulation at once — that no single skill edit produces.
 
-**What the harness does about it now.**
+**What the harness does about it now.** New runs use results schema 3. The Pi adapter loads a read-only observation extension last and computes delivery from final provider-payload prompt fields; callers never supply the status. Each provider request records contract SHA-256/bytes/occurrences, mechanism, and raw plus normalized prompt digests. `cwd-line-v1` is the first named normalization registry rule: it replaces exactly the `Current working directory:` line. The payload text itself is not retained.
 
 - the pi adapter **refuses** a skill dir with no `SKILL.md` rather than letting pi swallow
   the flag, and resolves the path first (a relative `--skills .` used to hand a child
@@ -295,6 +295,16 @@ It also shows up without being asked for: a `⇄` line under a fresh run's score
 (`ℹ`, and `::notice` in GitHub Actions); the skill keeps its `✓` and the exit code counts
 only gate-failing findings. A boundary cell is not a broken spec — the remedy is `--reps`
 on that scenario, or an override with a note once you have decided which side is right.
+
+## 4g. Screen retained evidence before buying another run
+
+```bash
+node bin/skill-harness.js screen <run-dir> [<run-dir> ...]
+```
+
+`screen` is free, offline, and read-only: it never resolves an adapter and makes zero subject or judge calls. From schema-v3 fields alone it groups by skill × model × scenario, reports delivery-proven control and treatment pass rates, and reports each retained criterion's fail rate. Control ≥80% is `CEILING`, ≤10% is `FLOOR`, 20–70% is `INFORMATIVE`; incomplete, legacy, or inconclusive evidence is `UNKNOWN`. An informative baseline means headroom exists, not that the skill helps.
+
+Schema 1/2 records remain valid and byte-identical, but cannot acquire prompt/vote evidence that was never retained. Reading never upgrades them. Re-running writes schema 3; `grade`, `rescore`, `regate`, adjudication, and review carry the observations without re-attributing delivery.
 
 ## 5. Review — flip verdicts, read transcripts
 
@@ -462,8 +472,7 @@ replayable with `regate` from `.events.jsonl`. Run the free evaluator proof any 
 node bin/skill-harness.js mutation-test
 ```
 
-It detects 21 mutations including stale-authority/Build evidence, the rewritten principal gate/side-effect assertions, equal-HEAD/different-tree,
-superseded-task mutation, context reuse, approval expiry, writer conflict, and invalid finalization.
+It detects 42 permanent mutations: the original 21 trajectory cases plus schema-v3 rejection, delivery zero/duplicate/unobservable outcomes, objective judge suppression, observer normalization/contract/extension provenance, and screen classification/filtering. The command remains free and offline.
 Full schema and adapter details: [`ASSURANCE-WORKFLOWS.md`](ASSURANCE-WORKFLOWS.md).
 
 ## 7d. Paired reference-versus-candidate comparison

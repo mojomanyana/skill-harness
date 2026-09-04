@@ -1,12 +1,63 @@
-import { existsSync, mkdtempSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
+import { randomBytes } from "node:crypto";
 import { join, resolve } from "node:path";
-import type { HarnessAdapter, RunReq, JudgeReq, RunMode, StructuredRun, ExecutionTraceV1 } from "@skill-harness/core";
+import { fileURLToPath } from "node:url";
+import type { HarnessAdapter, RunReq, JudgeReq, RunMode, StructuredRun, ExecutionTraceV1, PromptMechanism } from "@skill-harness/core";
 import { runPiJson } from "./pi-json.js";
 import { collectTrajectorySources, normalizePiTraces, resequence } from "./trajectory.js";
-import { exec, onPath, envNum, traceSha256, withProviderFailure } from "@skill-harness/core";
+import { bindPromptObservation, observeProviderPayload, promptCaptureIsTrusted, verifyPromptSummary } from "./prompt-provenance.js";
+import { exec, onPath, envNum, traceSha256, withProviderFailure, splitPromptDoc } from "@skill-harness/core";
 
 const PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 300_000);
+const PROMPT_CAPTURE_EXTENSION = fileURLToPath(new URL("./prompt-capture-extension.js", import.meta.url));
+
+interface BoundContract { text: string; raw: string; mechanism: PromptMechanism }
+function contractFor(req: RunReq): BoundContract {
+  if (req.systemPromptFile) { const raw = readFileSync(req.systemPromptFile, "utf8"); return { text: raw, raw, mechanism: "system-prompt-file" }; }
+  const raw = readFileSync(join(requireSkillDir(req.skillDir, req.mode), "SKILL.md"), "utf8");
+  const body = splitPromptDoc(raw).body;
+  if (req.mode === "red") return { text: body, raw, mechanism: "none" };
+  return { text: body, raw, mechanism: req.mode === "green" ? "pi-skill" : "append-system-prompt" };
+}
+
+const RUNTIME_INJECTION_ENV = ["NODE_OPTIONS", "NODE_PATH", "LD_PRELOAD", "DYLD_INSERT_LIBRARIES"] as const;
+function hasRuntimeInjection(req: RunReq): boolean {
+  return Boolean(req.armEnv && Object.keys(req.armEnv).length) || RUNTIME_INJECTION_ENV.some(key => Boolean(process.env[key]));
+}
+
+function captureSetup(req: RunReq, env: NodeJS.ProcessEnv | undefined, contract: BoundContract, counter: { value: number }): { env: NodeJS.ProcessEnv | undefined; finish: () => void } {
+  if (!req.onPromptObservation) return { env, finish: () => {} };
+  // Arbitrary scenario/arm extensions and runtime-injection env execute in Pi's
+  // process with full Node authority. Refuse a forgeable positive observation.
+  if (!promptCaptureIsTrusted(req.extensions?.length ?? 0, hasRuntimeInjection(req))) return { env, finish: () => {
+    const empty = observeProviderPayload({}, contract.text, contract.mechanism, counter.value++);
+    req.onPromptObservation?.({ ...empty, status: "ERROR", error: "prompt delivery provenance is unauthenticated when subject extensions or runtime-injection env share Pi's process" });
+  } };
+  const dir = mkdtempSync(join(tmpdir(), "skill-harness-prompt-"));
+  const path = join(dir, "observations.jsonl"), contractPath = join(dir, "contract.json");
+  const authenticationKey = randomBytes(32).toString("hex");
+  writeFileSync(path, "", { mode: 0o600 });
+  writeFileSync(contractPath, JSON.stringify({ text: contract.text, mechanism: contract.mechanism, authentication_key: authenticationKey }), { mode: 0o600 });
+  const finish = () => {
+    try {
+      const lines = readFileSync(path, "utf8").split("\n").filter(Boolean);
+      const parsed = lines.map(line => { try { return JSON.parse(line) as unknown; } catch { return null; } });
+      const records = parsed.slice(0, -1), summary = parsed.at(-1);
+      if (!verifyPromptSummary(summary, records.length, authenticationKey)) {
+        const empty = observeProviderPayload({}, contract.text, contract.mechanism, counter.value++);
+        req.onPromptObservation?.({ ...empty, status: "ERROR", error: "Pi prompt observation log is missing, truncated, replayed, or unauthenticated" });
+      } else records.forEach((record, observerRequestIndex) => {
+        req.onPromptObservation?.(bindPromptObservation(record, contract.text, contract.mechanism, counter.value++, authenticationKey, observerRequestIndex));
+      });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  };
+  return { env: { ...(env ?? process.env), SKILL_HARNESS_PROMPT_CAPTURE_FILE: path, SKILL_HARNESS_PROMPT_CONTRACT_FILE: contractPath }, finish };
+}
+
+function observerFlags(req: RunReq): string[] {
+  return req.onPromptObservation && promptCaptureIsTrusted(req.extensions?.length ?? 0, hasRuntimeInjection(req)) ? ["--extension", PROMPT_CAPTURE_EXTENSION] : [];
+}
 
 /**
  * stderr fragments that mean the provider refused the request, so the run measured
@@ -65,14 +116,15 @@ function requireSkillDir(skillDir: string, mode: RunMode): string {
  * made conditional. Both are checked the same way, because the failure being
  * prevented — a skill dir that isn't there — costs a whole wave either way.
  */
-function skillFlags(mode: RunMode, skillDir: string): string[] {
+function skillFlags(mode: RunMode, skillDir: string, boundRaw?: string): string[] {
   switch (mode) {
     case "red":
       return ["--no-skills"];
     case "green":
       return ["--skill", requireSkillDir(skillDir, mode)];
     case "force": {
-      const body = readFileSync(join(requireSkillDir(skillDir, mode), "SKILL.md"), "utf8");
+      requireSkillDir(skillDir, mode);
+      const body = boundRaw ?? readFileSync(join(resolve(skillDir), "SKILL.md"), "utf8");
       return ["--no-skills", "--append-system-prompt", body];
     }
   }
@@ -109,6 +161,7 @@ function header(turnNo: number, total: number, text: string): string {
 
 export const piAdapter: HarnessAdapter = {
   name: "pi",
+  observesPrompts: true,
 
   available() {
     return Promise.resolve(onPath("pi"));
@@ -145,15 +198,18 @@ export const piAdapter: HarnessAdapter = {
       "--no-context-files",
       "--no-extensions",
       ...extensionFlags(req.extensions),
+      ...observerFlags(req),
       "--provider",
       req.model.provider,
       "--model",
       req.model.model,
     ];
-    // An agent-file run IS the system prompt: no skill activation, whatever the mode.
+    // Bind bytes once: argv and provenance must describe the same contract even if a file changes mid-run.
+    const contract = contractFor(req);
     const flags = req.systemPromptFile
-      ? ["--no-skills", "--append-system-prompt", readFileSync(req.systemPromptFile, "utf8")]
-      : skillFlags(req.mode, req.skillDir);
+      ? ["--no-skills", "--append-system-prompt", contract.raw]
+      : skillFlags(req.mode, req.skillDir, contract.raw);
+    const requestCounter = { value: 0 };
     const total = req.turns.length;
     const parts: string[] = [];
     // The arm's env, merged over the harness's own — undefined (not `process.env`)
@@ -170,7 +226,10 @@ export const piAdapter: HarnessAdapter = {
 
     if (total === 1) {
       const args = [...flags, ...common, "--no-session", "-p", req.turns[0]];
-      const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env });
+      const capture = captureSetup(req, env, contract, requestCounter);
+      let r;
+      try { r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env: capture.env }); }
+      finally { capture.finish(); }
       parts.push(header(1, 1, req.turns[0]));
       parts.push(`<<< ASSISTANT:\n${r.stdout.trim()}\n`);
       if (r.code !== 0) {
@@ -184,7 +243,10 @@ export const piAdapter: HarnessAdapter = {
     for (let i = 0; i < total; i++) {
       const turnFlags = i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common, ...turnFlags, "-p", req.turns[i]];
-      const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env });
+      const capture = captureSetup(req, env, contract, requestCounter);
+      let r;
+      try { r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env: capture.env }); }
+      finally { capture.finish(); }
       parts.push(header(i + 1, total, req.turns[i]));
       parts.push(`<<< ASSISTANT:\n${r.stdout.trim()}\n`);
       if (r.code !== 0) {
@@ -215,14 +277,17 @@ export const piAdapter: HarnessAdapter = {
       "--no-context-files",
       "--no-extensions",
       ...extensionFlags(req.extensions),
+      ...observerFlags(req),
       "--provider",
       req.model.provider,
       "--model",
       req.model.model,
     ];
+    const contract = contractFor(req);
     const flags = req.systemPromptFile
-      ? ["--no-skills", "--append-system-prompt", readFileSync(req.systemPromptFile, "utf8")]
-      : skillFlags(req.mode, req.skillDir);
+      ? ["--no-skills", "--append-system-prompt", contract.raw]
+      : skillFlags(req.mode, req.skillDir, contract.raw);
+    const requestCounter = { value: 0 };
 
     const piVersion = await this.version!();
     const total = req.turns.length;
@@ -243,19 +308,23 @@ export const piAdapter: HarnessAdapter = {
             : ["--session-dir", session, "-c"];
       const args = [...flags, ...common, "--mode", "json", ...turnFlags, "-p", req.turns[i]];
 
-      const r = await runPiJson({
-        args,
-        cwd: req.cwd,
-        timeoutMs: PI_TIMEOUT_MS,
-        piVersion,
-        subject: req.model,
-        scenarioId: req.scenarioId ?? "(unknown)",
-        mode: req.mode,
-        rep: req.rep ?? 0,
-        turn: i,
-        homeDir: homedir(),
-        env,
-      });
+      const capture = captureSetup(req, env, contract, requestCounter);
+      let r;
+      try {
+        r = await runPiJson({
+          args,
+          cwd: req.cwd,
+          timeoutMs: PI_TIMEOUT_MS,
+          piVersion,
+          subject: req.model,
+          scenarioId: req.scenarioId ?? "(unknown)",
+          mode: req.mode,
+          rep: req.rep ?? 0,
+          turn: i,
+          homeDir: homedir(),
+          env: capture.env,
+        });
+      } finally { capture.finish(); }
 
       // A stream with no terminal events at all is not evidence of a clean run.
       // Fail loudly here rather than let an empty trace satisfy a `forbid_calls`

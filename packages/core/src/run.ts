@@ -1,8 +1,8 @@
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { Spec, Scenario } from "./spec.js";
-import { sourceHashes } from "./sources.js";
-import type { HarnessAdapter, ModelRef, RunMode } from "./adapters/types.js";
+import { sourceHashes, PROMPT_NORMALIZATION_SOURCE_KEY, PROMPT_NORMALIZATION_SOURCE_DIGEST } from "./sources.js";
+import type { HarnessAdapter, ModelRef, RunMode, PromptProvenance } from "./adapters/types.js";
 import { judgeResemblesSubject } from "./grade.js";
 import { NONE_ARM, seedArmDefinitions, type Arm } from "./arms.js";
 import {
@@ -19,6 +19,8 @@ import {
   isScoredMode,
   type ResultsFile,
   type ScenarioResult,
+  type SubjectInvocationObservation,
+  deliveryStatusForObservations,
 } from "./results.js";
 import { appendJournal } from "./journal.js";
 import { liftHeadline, type Lift } from "./lift.js";
@@ -220,6 +222,7 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   });
   const flat = await runPool(tasks, opts.concurrency ?? 1);
 
+  const subjectInvocations = flat.flatMap(outcome => outcome.subject_invocations ?? []);
   const grouped: RepOutcome[][] = scenarios.map(() => []);
   flat.forEach((outcome, i) => grouped[owners[i]].push(outcome));
 
@@ -227,7 +230,12 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     const threshold = scenario.critical
       ? effectiveThreshold(undefined, scenario)
       : scenario.passThreshold ?? opts.passThreshold ?? 0.5;
-    return outcomesToResult(scenario.id, grouped[si], repCounts[si], threshold);
+    const result = outcomesToResult(scenario.id, grouped[si], repCounts[si], threshold);
+    if (adapter.observesPrompts) result.criterion_count = scenario.checklist.length;
+    if (adapter.observesPrompts && !result.rep_judgments) {
+      result.rep_judgments = grouped[si].map((outcome, repetition) => ({ repetition, judgments: [], recorded_verdict: outcome.verdict, ...(outcome.objective ? { objective: outcome.objective } : {}) }));
+    }
+    return result;
   });
 
   const ctx = scoreContextFor({ mode, partial }, spec);
@@ -244,8 +252,12 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     ...(partial ? { partial: true } : {}),
     // Only the scenarios this run actually measured: a --only run must not claim
     // coverage of scenarios it skipped.
-    source_hashes: sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios, judgePersona: spec.judge_persona }),
+    source_hashes: {
+      ...sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios, judgePersona: spec.judge_persona }),
+      ...(adapter.observesPrompts ? { [PROMPT_NORMALIZATION_SOURCE_KEY]: PROMPT_NORMALIZATION_SOURCE_DIGEST } : {}),
+    },
     scenarios: scenarioResults,
+    ...(adapter.observesPrompts ? { schema: 3 as const, subject_invocations: subjectInvocations } : {}),
     ...(arm.name === NONE_ARM.name ? {} : {
       arm: {
         name: arm.name,
@@ -328,6 +340,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
   // produces no diff, and writing an empty artifact there would misreport "the
   // model changed nothing" for a rep that never ran.
   let stagedDiff: string | null = null;
+  const subjectInvocations: SubjectInvocationObservation[] = [];
   try {
     try {
       ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath), remote: scenario.remote });
@@ -386,6 +399,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
       // it happens again the verdict is ERROR — never a judged FAIL on an empty reply.
       // An adapter that THREW is the same class of event and takes the same retry.
       for (let attempt = 0; attempt < 2; attempt++) {
+        const observe = (prompt: PromptProvenance) => subjectInvocations.push({ scenario_id: scenario.id, repetition: rep, attempt, prompt });
         if (attempt > 0) {
           const why = adapterFailure ? `adapter failed (${adapterFailure})` : "empty response";
           appendJournal(runDir, { event: "empty-response-retry", ts: now(), id: scenario.id, attempt, reason: why, ...repField });
@@ -425,6 +439,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
               // already substituted) both must reach pi.
               armExtensions: arm.extensions,
               ...(armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {}),
+              ...(ctx.adapter.observesPrompts ? { onPromptObservation: observe } : {}),
             });
             transcript = r.transcript;
             gatePrefix = r.gateFailure;
@@ -449,6 +464,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
               ],
               eventSources: scenario.eventSources,
               ...(armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {}),
+              ...(ctx.adapter.observesPrompts ? { onPromptObservation: observe } : {}),
             };
             if (useStructured) {
               const structured = await ctx.adapter.runStructured!({ ...req, scenarioId: scenario.id, rep });
@@ -540,6 +556,16 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
       }
     }
 
+    // Delivery is an objective gate on every Pi subject invocation. It is derived
+    // from captured provider payload bytes, never from mode/argv supplied by a caller.
+    let deliveryObjective: ObjectiveResult | undefined;
+    if (ctx.adapter.observesPrompts) {
+      const statuses = subjectInvocations.map(observation => observation.prompt.status);
+      const status: ObjectiveResult["status"] = deliveryStatusForObservations(subjectInvocations);
+      deliveryObjective = { status, assertions: [{ kind: "skill_delivered", status, detail: statuses.length === 0 ? "no model-visible prompt observation was retained" : `${statuses.length} provider request(s): ${statuses.join(", ")}` }] };
+      if (status !== "PASS") gatePrefix = `objective: skill_delivered ${status.toLowerCase()} — ${deliveryObjective.assertions[0].detail}`;
+    }
+
     // Objective evidence is persisted for every rep, pass or fail — a failing gate
     // is exactly when someone wants to read what the model actually did.
     // `!adapterFailure`: a rep whose adapter threw never ran, so there is nothing
@@ -547,7 +573,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
     // which is the symptom — it names the missing artifact instead of the crash or
     // timeout that caused it, and it is that text, not the real reason, that would
     // reach the results record. The verdict is ERROR either way.
-    let objective: ObjectiveResult | undefined;
+    let objective: ObjectiveResult | undefined = deliveryObjective;
     if ((scenario.traceAssert || scenario.trajectoryAssert) && !adapterFailure) {
       const assertionResults: ObjectiveResult["assertions"] = [];
       let status: ObjectiveResult["status"] = "PASS";
@@ -599,6 +625,10 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
         }
       }
 
+      if (deliveryObjective) {
+        if (deliveryObjective.status === "ERROR" || (deliveryObjective.status === "NOT-MEASURED" && status !== "ERROR") || (deliveryObjective.status === "FAIL" && status === "PASS")) status = deliveryObjective.status;
+        assertionResults.unshift(...deliveryObjective.assertions);
+      }
       objective = { status, ...traceMeta, ...trajectoryMeta, assertions: assertionResults };
       if (status !== "PASS") {
         const details = assertionResults.filter((result) => result.status === status).map((result) => result.detail);
@@ -613,10 +643,15 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
     let verdict: ScenarioResult["judge_verdict"];
     let reason: string;
     let suspect = false;
+    let judgment: RepOutcome["judgment"];
     let judgeCalls = 0;
     if (objective?.status === "ERROR") {
       verdict = "ERROR";
       reason = gatePrefix ?? "objective evidence missing";
+      appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
+    } else if (objective?.status === "NOT-MEASURED") {
+      verdict = "NOT-MEASURED";
+      reason = gatePrefix ?? "skill delivery was not established";
       appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict, reason, suspect, ...repField });
     } else if (infrastructureFailure) {
       verdict = "ERROR";
@@ -636,13 +671,13 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
         runDir, spec, scenario, transcript, adapter: ctx.adapter, judge,
         specDir: dirname(ctx.specPath), mode, rep: repCount > 1 ? rep : undefined, now,
       });
-      verdict = o.verdict; reason = o.reason; suspect = o.suspect; // judgeOneRep already journaled (verdict + misfire)
+      verdict = o.verdict; reason = o.reason; suspect = o.suspect; judgment = o.judgment; // judgeOneRep already journaled (verdict + misfire)
       judgeCalls = 1;
     }
     log(`  → ${scenario.id}${repCount > 1 ? `#${rep}` : ""} ${verdict}${reason ? `: ${reason}` : ""}${suspect ? "  ⚠ suspect" : ""}`);
     const subject = mergeTraces(traces)?.metrics;
     return {
-      verdict, reason, suspect, objective,
+      verdict, reason, suspect, objective, judgment, subject_invocations: subjectInvocations,
       metrics: {
         wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
         judge_calls: judgeCalls,
@@ -677,8 +712,8 @@ export function formatScorecard(summary: RunSummary, lift?: Lift, stability?: Sc
   const lines: string[] = [];
   lines.push(`── ${results.skill} · ${results.harness} · ${results.model} ──`);
   for (const s of results.scenarios) {
-    const v = s.override ?? (s.objective?.status === "ERROR" ? "ERROR" : s.objective?.status === "FAIL" ? "FAIL" : s.judge_verdict);
-    const mark = v === "PASS" ? "✓" : v === "FAIL" ? "✗" : "?";
+    const v = s.override ?? (s.objective?.status === "ERROR" ? "ERROR" : s.objective?.status === "NOT-MEASURED" ? "NOT-MEASURED" : s.objective?.status === "FAIL" ? "FAIL" : s.judge_verdict);
+    const mark = v === "PASS" ? "✓" : v === "FAIL" ? "✗" : v === "NOT-MEASURED" ? "∅" : "?";
     const ov = s.override ? " (override)" : "";
     const susp = s.suspect ? " ⚠suspect" : "";
     const misfired = s.clean !== undefined && s.reps !== undefined && s.clean < s.reps ? ` · ${s.reps - s.clean} misfired` : "";

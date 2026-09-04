@@ -11,7 +11,7 @@ import {
   type Verdict, type ResultsFile,
   loadSpec,
   regradeScenario, appendJudgeHistory, refreshRubricHashes, findJudgeRawFiles,
-  effectiveThreshold, scoreContextFor, isScoredMode, rebuildScenarioResult, mergeScenarioMetrics,
+  effectiveThreshold, scoreContextFor, isScoredMode, rebuildScenarioResult, mergeScenarioMetrics, carryRepObjectives,
   envFlag,
   planAdjudication, adjudicateRun, assertJudgeAllowed, cellsFromResults,
 } from "@skill-harness/core";
@@ -140,14 +140,20 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
         const spec = loadSpec(specPath);
         const scenario = spec.scenarios.find((s) => s.id === body.scenarioId);
         if (!scenario) { res.writeHead(404).end("unknown scenario"); return; }
+        const prev = results.scenarios.find((s) => s.id === body.scenarioId);
+        if (!prev) { res.writeHead(404).end("scenario not in this run"); return; }
+        const delivery = prev.objective?.assertions.find(assertion => assertion.kind === "skill_delivered");
+        if (results.schema === 3 && delivery?.status !== "PASS") {
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: `scenario ${body.scenarioId} is ${delivery?.status ?? "ERROR"}: delivery-gated evidence cannot be re-judged` }));
+          return;
+        }
         const adapter = opts.adapter ?? getAdapter(results.harness);
         if (!(await adapter.available())) {
           res.writeHead(400, { "content-type": "application/json" });
           res.end(JSON.stringify({ ok: false, error: `harness \`${results.harness}\` is not on PATH` }));
           return;
         }
-        const prev = results.scenarios.find((s) => s.id === body.scenarioId);
-        if (!prev) { res.writeHead(404).end("scenario not in this run"); return; }
         const threshold = effectiveThreshold(prev, scenario);
         try {
           const rr = await regradeScenario({
@@ -162,15 +168,17 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
               verdict: rr.judge_verdict,
               reason: rr.judge_reason,
               suspect: rr.suspect,
+              criteria: rr.rep_judgments?.find(panel => panel.repetition === 0)?.judgments[0]?.criteria,
             });
             // Same contract as `grade`, through the same choke point.
             return rebuildScenarioResult(
-              { ...rr, metrics: mergeScenarioMetrics(s.metrics, rr.metrics), judge_history },
+              { ...rr, metrics: mergeScenarioMetrics(s.metrics, rr.metrics), rep_judgments: carryRepObjectives(rr.rep_judgments, s.rep_judgments), judge_history },
               s,
               { objective: "carry", adjudication: "drop" },
             );
           });
           const written = writeResults(column.runDir, {
+            schema: results.schema, subject_invocations: results.subject_invocations,
             skill: results.skill, harness: results.harness, model: results.model, judge: results.judge,
             timestamp: results.timestamp, label: results.label, mode: results.mode, scenarios: merged,
             partial: results.partial,

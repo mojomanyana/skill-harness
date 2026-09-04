@@ -7,6 +7,14 @@ publish or overwrite them. The next release should bump to **0.12.0** because th
 ledger contract and measurement/reporting surface change; this document does not
 authorize that bump or a release.
 
+## Unreleased self-screenable results
+
+Results schema 3 is an intentional observation-and-meaning epoch. New Pi runs retain per-provider-request prompt provenance, byte-computed contract delivery, and every per-criterion judge vote under its repetition/panel member. Runtime validation recomputes recorded panel verdicts and rejects divergence. `skill_delivered` is an objective gate: known zero/duplicate delivery is NOT-MEASURED, excluded from efficacy denominators, and never judged; instrumentation failure is ERROR. Schema-1/2 meanings remain unchanged.
+
+`screen <run-dir>...` is free/offline and adapter-free. It derives control/treatment rates and criterion failures from schema-v3 fields. Schema 1/2 remains readable without an on-disk rewrite; absent historical observations remain UNKNOWN. The prompt, judge, verdict parser, panel collapse, and scorer are unchanged. The named normalization registry starts at `cwd-line-v1`, replacing exactly Pi's dynamic `Current working directory:` line.
+
+Release evidence must include the v2 compatibility test, v3 schema positive/negative controls, writer round trips, prompt occurrence mutations, the no-adapter screen CLI test, and the full mutation catalogue. Draft post: `docs/posts/2026-09-04-the-result-that-can-answer-the-next-question.md`.
+
 ## Unreleased cross-repository contract repair
 
 The next publish must not proceed unless CI's `pi-daddy-contract` job is green. That

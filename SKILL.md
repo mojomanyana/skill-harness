@@ -21,6 +21,8 @@ repo with `npm run dev --` (dev) or the `skill-harness` bin (built).
 under test.** Subject ≠ judge — same-family grading inflates scores. Single runs
 lie on weak/stochastic models; re-run before trusting a delta.
 
+**Schema-3 efficacy requires established delivery.** A known-undelivered repetition is `NOT-MEASURED`, excluded from efficacy denominators and never sent to the judge; an instrumentation failure is ERROR. Both block SHIP without turning a broken experiment into product failure. Schema-1/2 meanings stay historical.
+
 **Where an objective gate exists, prefer it to the judge.** `assert.trace` states
 what the model DID — which tool it called, which path it touched. `assert.trajectory`
 states whether a multi-phase workflow obeyed state, capability, workspace, authority,
@@ -79,13 +81,15 @@ the judge's verdict; only an explicit author override beats it.
 
 ## Free, offline, and worth running first
 None of these spend a model or judge token. Reach for them before anything paid:
-`init`, `lint`, `list`, `rescore`, `restamp`, `stability`, `coverage`, `affected`,
+`init`, `lint`, `list`, `rescore`, `restamp`, `screen`, `stability`, `coverage`, `affected`,
 `mutation-test`, and `judge-agreement`. In particular —
 - `coverage <skill|all> --skills <root>` — which SKILL.md sections have a declared
   test. `covers` records that somebody LINKED a test to a section; it is not proof
   the behaviour is tested, and it is worth saying so when you report a percentage.
 - `affected <skill> --skills <root> --base <ref>` — which scenarios a diff could
   touch. Resolves every ambiguity toward selecting more.
+- `screen <run-dir>...` — recompute control/treatment rates and criterion failures
+  from schema-v3 retained prompt observations and judge votes; older evidence stays UNKNOWN.
 
 **Match the remedy to the drift; `lint` names it.** `stimulus:` → `run` (spends),
 `rubric:` → `grade` (judge only), `policy:` → `rescore` (free), `gates:` → `regate`

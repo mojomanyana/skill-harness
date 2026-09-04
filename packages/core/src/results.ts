@@ -7,6 +7,7 @@ import { HARNESS_VERSION } from "./version.js";
 import type { Verdict } from "./score.js";
 import type { ShipBar, Scenario } from "./spec.js";
 import type { CostSource } from "./capture-trace-types.js";
+import { collapseVotePanel } from "./vote-panel.js";
 
 export interface ScenarioMetrics {
   wall_time_ms: number;
@@ -48,8 +49,39 @@ export function mergeScenarioMetrics(prior: ScenarioMetrics | undefined, fresh: 
   };
 }
 
+export interface CriterionVote {
+  index: number;
+  verdict: "PASS" | "FAIL" | "ERROR";
+  reason: string;
+}
+
+export interface RepJudgmentPanel {
+  repetition: number;
+  judgments: Judgment[];
+  recorded_verdict: Verdict;
+  /** Per-repetition objective result; needed because scenario.objective is a strict aggregate. */
+  objective?: ObjectiveResult;
+}
+
+export function carryRepObjectives(fresh: RepJudgmentPanel[] | undefined, prior: RepJudgmentPanel[] | undefined): RepJudgmentPanel[] | undefined {
+  if (!fresh) return prior;
+  return fresh.map(panel => {
+    const objective = prior?.find(candidate => candidate.repetition === panel.repetition)?.objective;
+    return objective ? { ...panel, objective } : panel;
+  });
+}
+
+export interface SubjectInvocationObservation {
+  scenario_id: string;
+  repetition: number;
+  attempt?: number;
+  prompt: import("./adapters/types.js").PromptProvenance;
+}
+
 export interface ScenarioResult {
   id: string;
+  /** Numbered rubric items expected on every schema-3 judgment. */
+  criterion_count?: number;
   judge_verdict: Verdict;
   judge_reason: string;
   suspect: boolean; // judge misfire (verdict disagrees with AND(items)); majority-misfired over reps
@@ -80,6 +112,8 @@ export interface ScenarioResult {
   adjudication?: AdjudicationResult;
   /** Latest three full-cell grades; enables offline agreement reports with distinct judges. */
   judge_history?: Judgment[];
+  /** Initial and panel judge members, by repetition, sufficient to recompute the recorded verdict. */
+  rep_judgments?: RepJudgmentPanel[];
 }
 
 /** One judge's answer for a cell, kept verbatim however the collapse turned out. */
@@ -91,9 +125,13 @@ export interface Judgment {
   reason: string;
   /** The judge misfired — recorded, never counted as a clean vote. */
   suspect: boolean;
+  /** Every numbered rubric-item vote parsed from this exact judge response. Required in schema v3. */
+  criteria?: CriterionVote[];
 }
 
 export interface AdjudicationResult {
+  /** The saved transcript repetition judged by every panel member (first rep by policy). */
+  repetition?: number;
   state: "confirmed" | "tie_broken" | "unresolved";
   /** Why the cell was re-judged. */
   trigger: "ambiguous" | "contradictory" | "non_unanimous" | "ship_deciding";
@@ -105,8 +143,8 @@ export interface AdjudicationResult {
 
 /** Objective gate outcome for one scenario cell. */
 export interface ObjectiveResult {
-  /** ERROR means the evidence was missing or malformed — never a pass. */
-  status: "PASS" | "FAIL" | "ERROR";
+  /** ERROR is malformed evidence; NOT-MEASURED is a known-undelivered experiment. */
+  status: "PASS" | "FAIL" | "ERROR" | "NOT-MEASURED";
   trace_version?: number;
   trace_sha256?: string;
   trajectory_version?: string;
@@ -114,7 +152,7 @@ export interface ObjectiveResult {
   /** Per-repetition hashes retained when an aggregate has more than one rep. */
   rep_events_sha256?: string[];
   rep_trace_sha256?: string[];
-  assertions: { kind: string; status: "PASS" | "FAIL" | "ERROR"; detail: string }[];
+  assertions: { kind: string; status: "PASS" | "FAIL" | "ERROR" | "NOT-MEASURED"; detail: string }[];
 }
 
 export interface GradeSummary {
@@ -127,7 +165,7 @@ export interface GradeSummary {
 }
 
 export interface ResultsFile {
-  schema: 2;
+  schema: 2 | 3;
   /**
    * The harness version that wrote this file — provenance for the numbers in it.
    *
@@ -224,6 +262,8 @@ export interface ResultsFile {
   source_hashes?: Record<string, string>;
   effective_grade: GradeSummary; // always override-aware; only finalizeResults writes it
   scenarios: ScenarioResult[];
+  /** Adapter-computed model-visible prompt observations. Required for schema v3. */
+  subject_invocations?: SubjectInvocationObservation[];
 }
 
 /**
@@ -288,7 +328,7 @@ export function effectiveThreshold(prevScenario: ScenarioResult | undefined, sce
 }
 
 /** Everything a caller may set. The grade is computed, never supplied. */
-export type ResultsDraft = Omit<ResultsFile, "schema" | "effective_grade">;
+export type ResultsDraft = Omit<ResultsFile, "schema" | "effective_grade"> & { schema?: 2 | 3 };
 
 export interface ScoreContext {
   shipBar: ShipBar;
@@ -381,6 +421,7 @@ export function effectiveVerdicts(scenarios: ScenarioResult[]): ScenarioVerdict[
 function objectiveVerdict(s: ScenarioResult): Verdict | undefined {
   if (!s.objective) return undefined;
   if (s.objective.status === "ERROR") return "ERROR";
+  if (s.objective.status === "NOT-MEASURED") return "NOT-MEASURED";
   if (s.objective.status === "FAIL") return "FAIL";
   return undefined;
 }
@@ -400,8 +441,9 @@ export function finalizeResults(draft: ResultsDraft, ctx: ScoreContext | null): 
     const why = draft.partial ? "partial run (--only) — not scored" : `mode=${draft.mode} (not scored)`;
     effective_grade = { passed: 0, total: 0, pct: 0, letter: "-", ship: false, note: why };
   }
+  const schema = draft.schema ?? (draft.subject_invocations ? 3 : 2);
   return {
-    schema: 2,
+    schema,
     // Stamped here, the single place every writer passes through, so `run`,
     // `grade`, `rescore` and the review UI's override save all record which tool
     // produced the record they leave behind.
@@ -422,12 +464,14 @@ export function finalizeResults(draft: ResultsDraft, ctx: ScoreContext | null): 
     ...(draft.source_hashes ? { source_hashes: draft.source_hashes } : {}),
     effective_grade,
     scenarios: draft.scenarios,
+    ...(draft.subject_invocations ? { subject_invocations: draft.subject_invocations } : {}),
   };
 }
 
 /** Finalize + persist results.yaml (creating the run dir). Returns what was written. */
 export function writeResults(runDir: string, draft: ResultsDraft, ctx: ScoreContext | null): ResultsFile {
   const results = finalizeResults(draft, ctx);
+  validateResults(results);
   mkdirSync(runDir, { recursive: true });
   writeFileSync(resultsPath(runDir), yaml.dump(results, { lineWidth: 100 }), "utf8");
   return results;
@@ -441,7 +485,7 @@ export function migrateResults(raw: unknown): ResultsFile {
     throw new Error("empty or invalid results.yaml");
   }
   const o = raw as Record<string, unknown>;
-  if (o.schema === 2) return raw as ResultsFile;
+  if (o.schema === 2 || o.schema === 3) return validateResults(raw);
   const v1 = raw as {
     skill: string; harness: string; model: string;
     judge: { provider: string; model: string };
@@ -479,6 +523,149 @@ export function migrateResults(raw: unknown): ResultsFile {
 export function readResults(runDir: string): ResultsFile {
   const text = readFileSync(resultsPath(runDir), "utf8");
   return migrateResults(yaml.load(text));
+}
+
+const CRITERION_RE = /^\s*(\d+)[.)]\s*\**\s*(PASS|FAIL)\b\**\s*(.*)$/gim;
+
+/** Parse rubric-item votes for retention only; verdict semantics remain in grade.ts. */
+export function parseCriterionVotes(raw: string): CriterionVote[] {
+  return [...raw.matchAll(CRITERION_RE)].map((match) => ({
+    index: Number(match[1]), verdict: match[2].toUpperCase() as "PASS" | "FAIL",
+    reason: match[3].trim().replace(/^[-—:]\s*/, ""),
+  }));
+}
+
+export function completeCriterionVotes(votes: CriterionVote[], expected: number): CriterionVote[] {
+  return Array.from({ length: expected }, (_, offset) => votes.find(vote => vote.index === offset + 1) ?? {
+    index: offset + 1, verdict: "ERROR" as const, reason: "judge emitted no parseable vote for this criterion",
+  });
+}
+
+export function deliveryStatusForObservations(observations: SubjectInvocationObservation[]): "PASS" | "NOT-MEASURED" | "ERROR" {
+  if (observations.length === 0) return "ERROR";
+  const terminalAttempt = Math.max(...observations.map(observation => observation.attempt ?? 0));
+  const terminal = observations.filter(observation => (observation.attempt ?? 0) === terminalAttempt);
+  if (terminal.some(observation => observation.prompt.status === "ERROR")) return "ERROR";
+  const mechanism = terminal[0].prompt.mechanism;
+  if (terminal.some(observation => observation.prompt.mechanism !== mechanism)) return "ERROR";
+  const counts = terminal.map(observation => observation.prompt.contract_occurrences);
+  if (mechanism === "none") return counts.every(count => count === 0) ? "PASS" : "NOT-MEASURED";
+  if (mechanism === "pi-skill") {
+    const firstDelivered = counts.indexOf(1);
+    return firstDelivered >= 0 && counts.slice(0, firstDelivered).every(count => count === 0) && counts.slice(firstDelivered).every(count => count === 1) ? "PASS" : "NOT-MEASURED";
+  }
+  return counts.every(count => count === 1) ? "PASS" : "NOT-MEASURED";
+}
+
+export function recomputeRecordedPanels(results: ResultsFile): Array<{ scenario_id: string; repetition: number; verdict: Verdict }> {
+  const out: Array<{ scenario_id: string; repetition: number; verdict: Verdict }> = [];
+  for (const scenario of results.scenarios) for (const panel of scenario.rep_judgments ?? []) {
+    const clean = panel.judgments.filter(j => !j.suspect && (j.verdict === "PASS" || j.verdict === "FAIL"));
+    let verdict: Verdict = panel.recorded_verdict;
+    if (clean.length === 1) verdict = clean[0].verdict;
+    else if (clean.length >= 2) verdict = collapseVotePanel(panel.judgments).verdict ?? "JUDGE-AMBIGUOUS";
+    out.push({ scenario_id: scenario.id, repetition: panel.repetition, verdict });
+  }
+  return out;
+}
+
+/** Runtime v2/v3 validator. v2 remains permissive; v3 fails closed on observation gaps. */
+export function validateResults(raw: unknown): ResultsFile {
+  if (!raw || typeof raw !== "object") throw new Error("invalid results");
+  const result = raw as ResultsFile;
+  if (result.schema !== 2 && result.schema !== 3) throw new Error(`unsupported results schema ${String((raw as { schema?: unknown }).schema)}`);
+  if (!Array.isArray(result.scenarios)) throw new Error("results scenarios missing");
+  if (result.schema === 2) return result;
+  if (!Array.isArray(result.subject_invocations)) throw new Error("schema v3 delivery observations missing");
+  for (const observation of result.subject_invocations) {
+    const p = observation?.prompt;
+    if (!p || !["PASS", "NOT-MEASURED", "ERROR"].includes(p.status)) throw new Error("delivery status missing");
+    if (p.normalization_rule !== "cwd-line-v1") throw new Error("unknown prompt normalization rule");
+    if (!/^[a-f0-9]{64}$/i.test(p.raw_sha256) || !/^[a-f0-9]{64}$/i.test(p.normalized_sha256) || !/^[a-f0-9]{64}$/i.test(p.contract_sha256)) throw new Error("invalid prompt provenance digest");
+    if (!Number.isInteger(p.bytes) || p.bytes < 0 || !Number.isInteger(p.contract_bytes) || p.contract_bytes < 0) throw new Error("invalid prompt provenance byte length");
+    if (!Number.isInteger(p.contract_occurrences) || p.contract_occurrences < 0) throw new Error("invalid delivery occurrence count");
+    const expected = p.mechanism === "none" ? 0 : 1;
+    const computed = p.contract_occurrences === expected ? "PASS" : "NOT-MEASURED";
+    if (p.status !== "ERROR" && p.status !== computed) throw new Error("delivery status contradicts occurrence count");
+  }
+  const scenarioIds = new Set(result.scenarios.map(scenario => scenario.id));
+  const repsByScenario = new Map(result.scenarios.map(scenario => [scenario.id, scenario.reps ?? 1]));
+  if (result.subject_invocations.some(observation => !scenarioIds.has(observation.scenario_id) || !Number.isInteger(observation.repetition) || observation.repetition < 0 || observation.repetition >= (repsByScenario.get(observation.scenario_id) ?? 0))) throw new Error("schema v3 contains orphan or out-of-range subject invocation observation");
+  const recomputed = recomputeRecordedPanels(result);
+  for (const scenario of result.scenarios) {
+    const reps = scenario.reps ?? 1;
+    if (!Array.isArray(scenario.rep_judgments) || scenario.rep_judgments.length !== reps) throw new Error(`schema v3 repetition judgments missing for ${scenario.id}`);
+    const panelRepetitions = scenario.rep_judgments.map(panel => panel.repetition).sort((a, b) => a - b);
+    if (panelRepetitions.some((repetition, index) => repetition !== index)) throw new Error(`schema v3 repetition judgments duplicate, missing, or out of range for ${scenario.id}`);
+    for (let repetition = 0; repetition < reps; repetition++) {
+      const observations = result.subject_invocations.filter(o => o.scenario_id === scenario.id && o.repetition === repetition);
+      // A pre-provider infrastructure failure legitimately has zero requests;
+      // its per-repetition skill_delivered objective must remain explicit ERROR.
+      const attempts = [...new Set(observations.map(observation => observation.attempt ?? 0))].sort((a, b) => a - b);
+      if (attempts.some((attempt, index) => !Number.isInteger(attempt) || attempt !== index)) throw new Error(`delivery attempts are duplicate, missing, or out of range for ${scenario.id}#${repetition}`);
+      for (const attempt of attempts) {
+        const indexes = observations.filter(observation => (observation.attempt ?? 0) === attempt).map(observation => observation.prompt.request_index).sort((a, b) => a - b);
+        if (indexes.some((requestIndex, index) => !Number.isInteger(requestIndex) || requestIndex !== index)) throw new Error(`prompt request indexes are duplicate, missing, or out of range for ${scenario.id}#${repetition} attempt ${attempt}`);
+      }
+    }
+    const repStatuses = Array.from({ length: reps }, (_, repetition) => deliveryStatusForObservations(result.subject_invocations!.filter(o => o.scenario_id === scenario.id && o.repetition === repetition)));
+    const expectedStatus: ObjectiveResult["status"] = repStatuses.includes("ERROR") ? "ERROR" : repStatuses.includes("NOT-MEASURED") ? "NOT-MEASURED" : "PASS";
+    const gate = scenario.objective?.assertions.find(assertion => assertion.kind === "skill_delivered");
+    if (!gate || gate.status !== expectedStatus) throw new Error(`skill_delivered gate missing or inconsistent for ${scenario.id}`);
+    if (!Number.isInteger(scenario.criterion_count) || scenario.criterion_count! < 1) throw new Error(`schema v3 criterion count missing for ${scenario.id}`);
+    const assertCriteria = (judgment: Judgment): void => {
+      if (!Array.isArray(judgment.criteria)) throw new Error("schema v3 criterion votes missing");
+      const indexes = judgment.criteria.map(vote => vote.index).sort((a, b) => a - b);
+      if (indexes.length !== scenario.criterion_count || indexes.some((index, offset) => index !== offset + 1)) throw new Error(`schema v3 criterion votes are not complete contiguous indexes for ${scenario.id}`);
+    };
+    for (const panel of scenario.rep_judgments) {
+      for (const judgment of panel.judgments) assertCriteria(judgment);
+      const cleanJudgments = panel.judgments.filter(judgment => !judgment.suspect && (judgment.verdict === "PASS" || judgment.verdict === "FAIL"));
+      const objectiveBehavioralFail = panel.objective?.status === "FAIL" && panel.recorded_verdict === "FAIL";
+      if ((panel.recorded_verdict === "PASS" || panel.recorded_verdict === "FAIL") && cleanJudgments.length === 0 && !objectiveBehavioralFail) throw new Error(`recorded behavioral verdict is unsupported by a clean judgment for ${scenario.id}#${panel.repetition}`);
+      const actual = recomputed.find(x => x.scenario_id === scenario.id && x.repetition === panel.repetition)!;
+      if (panel.judgments.length > 0 && actual.verdict !== panel.recorded_verdict) throw new Error(`recorded panel verdict diverges from recomputed votes for ${scenario.id}#${panel.repetition}`);
+      if (!panel.objective) throw new Error(`schema v3 per-repetition objective missing for ${scenario.id}#${panel.repetition}`);
+      const observations = result.subject_invocations.filter(o => o.scenario_id === scenario.id && o.repetition === panel.repetition);
+      const deliveryStatus = deliveryStatusForObservations(observations);
+      const delivery = panel.objective.assertions.find(assertion => assertion.kind === "skill_delivered");
+      if (!delivery || delivery.status !== deliveryStatus) throw new Error(`per-repetition skill_delivered gate missing or inconsistent for ${scenario.id}#${panel.repetition}`);
+      if (deliveryStatus === "ERROR" && panel.objective.status !== "ERROR") throw new Error(`per-repetition objective weakens delivery ERROR for ${scenario.id}#${panel.repetition}`);
+      if (deliveryStatus === "NOT-MEASURED" && !["ERROR", "NOT-MEASURED"].includes(panel.objective.status)) throw new Error(`per-repetition objective weakens delivery NOT-MEASURED for ${scenario.id}#${panel.repetition}`);
+      const objectiveVerdict = panel.objective.status === "ERROR" ? "ERROR" : panel.objective.status === "NOT-MEASURED" ? "NOT-MEASURED" : panel.objective.status === "FAIL" ? "FAIL" : undefined;
+      if (objectiveVerdict && panel.recorded_verdict !== objectiveVerdict) throw new Error(`recorded panel verdict weakens objective evidence for ${scenario.id}#${panel.repetition}`);
+    }
+    const objectiveStatuses = scenario.rep_judgments.map(panel => panel.objective!.status);
+    const aggregateObjectiveStatus: ObjectiveResult["status"] = objectiveStatuses.includes("ERROR") ? "ERROR" : objectiveStatuses.includes("NOT-MEASURED") ? "NOT-MEASURED" : objectiveStatuses.includes("FAIL") ? "FAIL" : "PASS";
+    if (!scenario.objective || scenario.objective.status !== aggregateObjectiveStatus) throw new Error(`scenario objective diverges from per-repetition objectives for ${scenario.id}`);
+    for (const judgment of [...(scenario.judge_history ?? []), ...(scenario.adjudication?.judgments ?? [])]) assertCriteria(judgment);
+    let adjudicatedVerdict: Verdict | undefined;
+    if (scenario.adjudication) {
+      if (!Number.isInteger(scenario.adjudication.repetition) || scenario.adjudication.repetition! < 0 || scenario.adjudication.repetition! >= reps) throw new Error(`schema v3 adjudication repetition missing or out of range for ${scenario.id}`);
+      const collapsed = collapseVotePanel(scenario.adjudication.judgments);
+      const boundedCriticalAggregate = (scenario.reps ?? 1) > 1 && scenario.pass_threshold === 1 && scenario.judge_verdict !== "PASS" && collapsed.verdict === "PASS" && scenario.adjudication.state === "unresolved" && scenario.adjudication.verdict === undefined;
+      if (!boundedCriticalAggregate && (scenario.adjudication.state !== collapsed.state || scenario.adjudication.verdict !== collapsed.verdict)) throw new Error(`recorded adjudication state/verdict diverges from recomputed votes for ${scenario.id}`);
+      if (scenario.adjudication.state !== "unresolved") adjudicatedVerdict = scenario.adjudication.verdict;
+    }
+    const panels = scenario.rep_judgments;
+    const errorCount = panels.filter(panel => panel.recorded_verdict === "ERROR").length;
+    const notMeasuredCount = panels.filter(panel => panel.recorded_verdict === "NOT-MEASURED").length;
+    const cleanPanels = panels.filter(panel => !(panel.judgments[0]?.suspect ?? false));
+    const passes = cleanPanels.filter(panel => panel.recorded_verdict === "PASS").length;
+    let aggregateVerdict: Verdict;
+    let aggregateSuspect = false;
+    if (panels.length === 1) {
+      aggregateVerdict = panels[0].recorded_verdict;
+      aggregateSuspect = panels[0].judgments[0]?.suspect ?? false;
+    } else if (errorCount > 0) aggregateVerdict = "ERROR";
+    else if (notMeasuredCount > 0) aggregateVerdict = "NOT-MEASURED";
+    else if (cleanPanels.length * 2 < panels.length) { aggregateVerdict = "FAIL"; aggregateSuspect = true; }
+    else aggregateVerdict = passes / cleanPanels.length >= (scenario.pass_threshold ?? 0.5) ? "PASS" : "FAIL";
+    const expectedVerdict = adjudicatedVerdict ?? aggregateVerdict;
+    const expectedSuspect = scenario.adjudication ? scenario.adjudication.state === "unresolved" : aggregateSuspect;
+    if (scenario.judge_verdict !== expectedVerdict || scenario.suspect !== expectedSuspect) throw new Error(`schema v3 scenario verdict/suspect diverges from repetition aggregate for ${scenario.id}`);
+  }
+  return result;
 }
 
 /** Pure: return a copy with override + note applied to one scenario. */
@@ -661,13 +848,14 @@ export function rebuildScenarioResult(
   // Exhaustive destructure. Do not replace with a spread: the spread is what
   // allowed a new field to pass through unconsidered in the first place.
   const {
-    id, judge_verdict, judge_reason, suspect,
+    id, criterion_count: freshCriterionCount, judge_verdict, judge_reason, suspect,
     override: _freshOverride, note: _freshNote,
     reps, passes, clean, flakiness, pass_threshold,
     metrics: freshMetrics,
     objective: freshObjective,
     adjudication: freshAdjudication,
     judge_history: freshJudgeHistory,
+    rep_judgments: freshRepJudgments,
     ...rest
   } = fresh;
   const _exhaustive: Record<string, never> = rest;
@@ -684,7 +872,7 @@ export function rebuildScenarioResult(
   const pickedAdjudication = pick(policy.adjudication, freshAdjudication, prior?.adjudication);
   const conflictsWithFreshEvidence = Boolean(
     pickedAdjudication?.verdict && (
-      objective?.status === "FAIL" || objective?.status === "ERROR" ||
+      objective?.status === "FAIL" || objective?.status === "ERROR" || objective?.status === "NOT-MEASURED" ||
       (pass_threshold === 1 && (reps ?? 1) > 1 && judge_verdict !== "PASS")
     ),
   );
@@ -718,6 +906,7 @@ export function rebuildScenarioResult(
   // corpus with a pure-noise diff.
   return {
     id,
+    ...((freshCriterionCount ?? prior?.criterion_count) === undefined ? {} : { criterion_count: freshCriterionCount ?? prior!.criterion_count }),
     judge_verdict: settled ?? judge_verdict,
     judge_reason,
     suspect: suspect || unresolved,
@@ -738,6 +927,7 @@ export function rebuildScenarioResult(
     ...(objective ? { objective } : {}),
     ...(adjudication ? { adjudication } : {}),
     ...((freshJudgeHistory ?? prior?.judge_history) ? { judge_history: freshJudgeHistory ?? prior!.judge_history } : {}),
+    ...((freshRepJudgments ?? prior?.rep_judgments) ? { rep_judgments: freshRepJudgments ?? prior!.rep_judgments } : {}),
   };
 }
 

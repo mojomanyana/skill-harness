@@ -29,7 +29,8 @@ The machine-readable schemas are:
 
 - `schemas/specification-v1.schema.json`
 - `schemas/trajectory-event-v1.schema.json`
-- `schemas/results-v2.schema.json`
+- `schemas/results-v2.schema.json` (legacy/read-compatible)
+- `schemas/results-v3.schema.json` (prompt delivery + criterion-vote observations)
 
 Trajectory assertions are additive under `assert.trajectory`:
 
@@ -278,17 +279,13 @@ outputs. Exit policy: 2 for a critical behavioral regression; 1 for an ordinary 
 regression or unresolved infrastructure error; 0 otherwise. `--only` and `--affected` comparisons
 are branch feedback and always say NOT READY/never SHIP.
 
-## Assertion mutation self-test
+## Permanent mutation self-test
 
 ```bash
 skill-harness mutation-test
 ```
 
-This command is deterministic, offline, and makes no model or judge calls. It starts from known-good
-normalized artifacts and verifies 21 mutations turn objective assertions red: required-event removal,
-forbidden side effect, transition reorder, workspace substitution, concurrent writer, approval
-expiry, three freshness floors, head-equal/tree-different, non-zero receipt, missing requirements,
-superseded-task mutation, context reuse, and finalization mismatch.
+This command is deterministic, offline, and makes no model or judge calls. It retains the original 21 trajectory mutations and adds 21 permanent schema-v3, delivery, observer-provenance, and screen cases. The required-ID test derives the expected count from its named catalogue, so removing a case fails the gate without hardcoding the total.
 
 ## Cost/latency availability
 

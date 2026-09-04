@@ -1,5 +1,9 @@
 node_modules/
 dist/
+!packages/pi-extension/dist/
+packages/pi-extension/dist/*
+!packages/pi-extension/dist/index.js
+!packages/pi-extension/dist/prompt-capture-extension.js
 *.log
 .DS_Store
 *.tsbuildinfo

@@ -7,6 +7,7 @@ import {
   runAdjudication,
   resolveAdjudicationJudges,
   boundAdjudicationToRepetitions,
+  projectAdjudicationForScenario,
   MAX_JUDGMENTS,
   type CellState,
 } from "../src/adjudication.js";
@@ -139,6 +140,13 @@ describe("trigger: ship_deciding", () => {
 });
 
 describe("trigger selection", () => {
+  it("never re-judges a non-PASS delivery outcome", () => {
+    for (const deliveryStatus of ["NOT-MEASURED", "ERROR"] as const) {
+      const p = plan([cell("A1", deliveryStatus === "NOT-MEASURED" ? "NOT-MEASURED" : "ERROR", { deliveryStatus })], { bar: { total: 1, min_pass: 1, no_critical_fail: true } });
+      expect(p.triggered).toEqual([]);
+      expect(p.maxAdditionalCalls).toBe(0);
+    }
+  });
   it("reports every applicable trigger for a cell", () => {
     const cells = [
       cell("A1", "PASS", { suspect: true, repVerdicts: ["PASS", "FAIL"] }),
@@ -249,6 +257,18 @@ const baseResult = (): ScenarioResult => ({
 });
 
 describe("projectAdjudication", () => {
+  it("labels only a bounded critical aggregate with the one-transcript warning", () => {
+    const adj = collapseJudgments([judgment(1, "PASS"), judgment(2, "PASS")], "non_unanimous");
+    const ordinary = projectAdjudicationForScenario(baseResult(), scenario("A1"), adj);
+    expect(ordinary.judge_reason).toMatch(/confirmed by 2 judgments/);
+    expect(ordinary.judge_reason).not.toMatch(/cannot replace/);
+
+    const criticalResult: ScenarioResult = { ...baseResult(), judge_verdict: "FAIL", reps: 3, passes: 2, clean: 3, pass_threshold: 1 };
+    const bounded = projectAdjudicationForScenario(criticalResult, { ...scenario("A1", true), reps: 3, passThreshold: 1 }, adj);
+    expect(bounded.judge_reason).toMatch(/cannot replace a critical all-repetitions aggregate/);
+    expect(bounded.judge_verdict).toBe("FAIL");
+  });
+
   it("cannot turn a failed all-clean repetition aggregate into PASS by rejudging one transcript", () => {
     const result: ScenarioResult = { ...baseResult(), judge_verdict: "FAIL", reps: 3, passes: 2, clean: 3, pass_threshold: 1 };
     const adj = collapseJudgments([judgment(1, "PASS"), judgment(2, "PASS")], "non_unanimous");
@@ -361,6 +381,15 @@ describe("runAdjudication — exact call counts", () => {
     });
     expect(s.calls).toEqual([]);
     expect(r.callsMade).toBe(0);
+  });
+
+  it("uses the selected repetition's real primary judgment, not the aggregate cell verdict", async () => {
+    const primaryJudgment = judgment(1, "FAIL", { reason: "rep zero failed" });
+    const cells = [cell("A1", "PASS", { repVerdicts: ["FAIL", "PASS"], primaryJudgment }), cell("A2", "PASS"), cell("A3", "PASS"), cell("A4", "PASS")];
+    const s = spy({ A1: [{ verdict: "FAIL" }] });
+    const r = await runAdjudication({ plan: plan(cells), cells, primaryJudge: primary, secondaryJudge: secondary, rejudge: s.rejudge });
+    expect(r.byId.get("A1")!.judgments[0]).toMatchObject({ verdict: "FAIL", reason: "rep zero failed" });
+    expect(r.byId.get("A1")!).toMatchObject({ state: "confirmed", verdict: "FAIL" });
   });
 
   it("makes exactly one call when the secondary agrees with a CLEAN first wave", async () => {

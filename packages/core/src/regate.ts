@@ -12,7 +12,7 @@ import {
   readResults, writeResults, diffPath, transcriptPath, judgeRawPath, repIndexOf,
   findDiffFiles, findTraceFiles, findTrajectoryFiles, tracePath, trajectoryPath,
   type ObjectiveResult, effectiveThreshold, scoreContextFor,
-  rebuildScenarioResult, mergeScenarioMetrics,
+  rebuildScenarioResult, mergeScenarioMetrics, deliveryStatusForObservations,
   type ResultsFile, type ScenarioResult,
 } from "./results.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
@@ -274,9 +274,11 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
           const priorStatus = objective?.status ?? "PASS";
           const status = priorStatus === "ERROR" || g.status === "ERROR" || priorEvidenceErrors.length || digestMismatch
             ? "ERROR"
-            : priorStatus === "FAIL" || g.status === "FAIL"
-              ? "FAIL"
-              : "PASS";
+            : priorStatus === "NOT-MEASURED"
+              ? "NOT-MEASURED"
+              : priorStatus === "FAIL" || g.status === "FAIL"
+                ? "FAIL"
+                : "PASS";
           objective = {
             ...(objective ?? {}),
             status,
@@ -295,6 +297,21 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
         }
       }
 
+      // Prompt delivery was observed during the subject invocation and cannot be
+      // replayed by regate. Carry its objective finding while refreshing only
+      // trace/trajectory/needle assertions.
+      const retainedDelivery = rec.objective?.assertions.find(assertion => assertion.kind === "skill_delivered");
+      const repObservations = prev.subject_invocations?.filter(observation => observation.scenario_id === scenario.id && observation.repetition === (rep ?? 0)) ?? [];
+      const delivery = prev.schema === 3
+        ? { kind: "skill_delivered", status: deliveryStatusForObservations(repObservations), detail: `${repObservations.length} retained provider request observation(s)` }
+        : retainedDelivery;
+      if (delivery) {
+        const prior = objective?.status ?? "PASS";
+        const status = delivery.status === "ERROR" || prior === "ERROR" ? "ERROR" : delivery.status === "NOT-MEASURED" ? "NOT-MEASURED" : prior === "FAIL" ? "FAIL" : "PASS";
+        objective = { ...(objective ?? {}), status, assertions: [delivery, ...(objective?.assertions ?? [])] };
+        if (delivery.status !== "PASS") traceFailure = `objective: ${delivery.detail}`;
+      }
+
       const gate = { lines: needleGate.lines, failure: needleGate.failure ?? traceFailure ?? trajectoryFailure };
 
       const tPath = transcriptPath(opts.runDir, scenario.id, mode, rep);
@@ -304,7 +321,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
       // trace gate leaves an `objective` block on the result. Reading only the
       // trailer meant a trace gate flipping to PASS never triggered the re-judge
       // it needs, leaving a stale FAIL verdict beside a PASS objective.
-      const oldObjectiveFailed = rec.objective?.status === "FAIL" || rec.objective?.status === "ERROR";
+      const oldObjectiveFailed = rec.objective?.status === "FAIL" || rec.objective?.status === "ERROR" || rec.objective?.status === "NOT-MEASURED";
       const oldGateFailed =
         GATE_FAILED_RE.test(before.slice(before.indexOf(TRAILER))) || oldObjectiveFailed;
 
@@ -314,9 +331,9 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
       if (existsSync(tPath)) rewriteTranscript(tPath, gate.lines);
 
       if (gate.failure) {
-        if (objective?.status === "ERROR") gateErroredHere = true;
+        if (objective?.status === "ERROR" || objective?.status === "NOT-MEASURED") gateErroredHere = true;
         else gateFailedHere = true;
-        outcomes.push({ verdict: objective?.status === "ERROR" ? "ERROR" : "FAIL", reason: gate.failure, suspect: false, objective });
+        outcomes.push({ verdict: objective?.status === "ERROR" ? "ERROR" : objective?.status === "NOT-MEASURED" ? "NOT-MEASURED" : "FAIL", reason: gate.failure, suspect: false, objective });
         continue;
       }
       if (!oldGateFailed) {
@@ -339,6 +356,20 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
 
     const threshold = effectiveThreshold(rec, scenario);
     const next = outcomesToResult(scenario.id, outcomes, outcomes.length, threshold);
+    if (prev.schema === 3) {
+      next.criterion_count = scenario.checklist.length;
+      next.rep_judgments = outcomes.map((outcome, repetition) => {
+        const fresh = next.rep_judgments?.find(panel => panel.repetition === repetition);
+        const prior = rec.rep_judgments?.find(panel => panel.repetition === repetition);
+        const judgments = fresh?.judgments.length ? fresh.judgments : prior?.judgments ?? [];
+        return {
+          repetition,
+          judgments,
+          recorded_verdict: outcome.verdict,
+          ...(outcome.objective ? { objective: outcome.objective } : {}),
+        };
+      });
+    }
     next.metrics = mergeScenarioMetrics(rec.metrics, next.metrics);
     // Overrides and their notes survive: a regate re-decides the gate, and an author
     // override is a statement about the judge, not about the needle.
@@ -360,6 +391,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
   const ctx = scoreContextFor(prev, opts.spec);
 
   const results = writeResults(opts.runDir, {
+    schema: prev.schema, subject_invocations: prev.subject_invocations,
     skill: prev.skill, harness: prev.harness, model: prev.model,
     // Carried verbatim: a regate re-reads saved diffs, it never re-runs the harness.
     harness_cli_version: prev.harness_cli_version, delivery_canary: prev.delivery_canary,

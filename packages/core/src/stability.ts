@@ -124,7 +124,7 @@ function conclusive(v: { verdict: Verdict; suspect?: boolean }): boolean {
   // Same rule lift.ts applies, for the same reason: ERROR is a harness failure and an
   // unresolved misfire is a judge failure. Counting either as a side of a flip would
   // report infrastructure noise as behavioural instability.
-  return !v.suspect && v.verdict !== "ERROR" && v.verdict !== "JUDGE-AMBIGUOUS";
+  return !v.suspect && v.verdict !== "ERROR" && v.verdict !== "NOT-MEASURED" && v.verdict !== "JUDGE-AMBIGUOUS";
 }
 
 function pointFor(r: ResultsFile, s: ScenarioResult, verdict: Verdict): StabilityPoint {

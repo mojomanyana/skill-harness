@@ -1,5 +1,5 @@
 import type { Verdict } from "./score.js";
-import type { ScenarioResult, ObjectiveResult, ScenarioMetrics } from "./results.js";
+import type { ScenarioResult, ObjectiveResult, ScenarioMetrics, Judgment, SubjectInvocationObservation } from "./results.js";
 import type { TraceMetrics } from "./capture-trace-types.js";
 
 /** One rep's outcome (subject run + judge). */
@@ -9,6 +9,8 @@ export interface RepOutcome {
   suspect: boolean;
   /** Present only when the scenario declared structured objective assertions. */
   objective?: ObjectiveResult;
+  judgment?: Judgment;
+  subject_invocations?: SubjectInvocationObservation[];
   metrics?: {
     wall_time_ms: number;
     judge_calls: number;
@@ -24,13 +26,13 @@ export interface RepOutcome {
  * pass-threshold aggregation: an objective assertion is a statement about what
  * the model DID, so one rep that called a forbidden tool is a real finding, not
  * a minority draw to be voted away. ERROR dominates (missing evidence is never a
- * pass), then FAIL, then PASS. The retained assertion detail comes from the
+ * pass), then NOT-MEASURED (delivery absent), then FAIL, then PASS. The retained assertion detail comes from the
  * first non-passing rep, since that is the one worth reading.
  */
 export function aggregateObjective(outcomes: RepOutcome[]): ObjectiveResult | undefined {
   const present = outcomes.map((o) => o.objective).filter((o): o is ObjectiveResult => o !== undefined);
   if (present.length === 0) return undefined;
-  const picked = present.find((o) => o.status === "ERROR") ?? present.find((o) => o.status === "FAIL") ?? present[0];
+  const picked = present.find((o) => o.status === "ERROR") ?? present.find((o) => o.status === "NOT-MEASURED") ?? present.find((o) => o.status === "FAIL") ?? present[0];
   if (present.length === 1) return picked;
   const eventHashes = present.map((objective) => objective.events_sha256);
   const traceHashes = present.map((objective) => objective.trace_sha256);
@@ -71,6 +73,10 @@ export function aggregateReps(outcomes: RepOutcome[], threshold: number): RepAgg
   if (errored > 0) {
     return { verdict: "ERROR", reason: `${errored}/${reps} reps errored — infrastructure, not behavior`, passes, reps, clean: clean.length, flakiness: 0, suspect: false };
   }
+  const notMeasured = outcomes.filter((o) => o.verdict === "NOT-MEASURED").length;
+  if (notMeasured > 0) {
+    return { verdict: "NOT-MEASURED", reason: `${notMeasured}/${reps} reps not measured — skill delivery was not established`, passes, reps, clean: clean.length - notMeasured, flakiness: 0, suspect: false };
+  }
 
   if (clean.length * 2 < reps) {
     // majority of reps misfired → untrustworthy
@@ -98,15 +104,17 @@ export function outcomesToResult(id: string, outcomes: RepOutcome[], repCount: n
   const objectiveField = objective ? { objective } : {};
   const metrics = aggregateMetrics(outcomes);
   const metricsField = metrics ? { metrics } : {};
+  const repJudgments = outcomes.map((outcome, repetition) => ({ repetition, judgments: outcome.judgment ? [outcome.judgment] : [], recorded_verdict: outcome.verdict, ...(outcome.objective ? { objective: outcome.objective } : {}) }));
+  const repJudgmentField = outcomes.some(outcome => outcome.judgment) ? { rep_judgments: repJudgments } : {};
   if (repCount === 1) {
     const o = outcomes[0];
-    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, ...metricsField, override: null, note: "", ...objectiveField };
+    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, ...metricsField, override: null, note: "", ...objectiveField, ...repJudgmentField };
   }
   const agg = aggregateReps(outcomes, threshold);
   return {
     id, judge_verdict: agg.verdict, judge_reason: agg.reason, suspect: agg.suspect,
     reps: agg.reps, passes: agg.passes, clean: agg.clean, flakiness: agg.flakiness,
-    pass_threshold: threshold, ...metricsField, override: null, note: "", ...objectiveField,
+    pass_threshold: threshold, ...metricsField, override: null, note: "", ...objectiveField, ...repJudgmentField,
   };
 }
 

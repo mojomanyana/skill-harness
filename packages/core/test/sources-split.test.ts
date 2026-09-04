@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   sourceHashes, currentHashFor, describeSourceKey, remedyForKey,
-  STIMULUS_PREFIX, RUBRIC_PREFIX, POLICY_PREFIX, GATES_PREFIX, SCENARIO_PREFIX, PERSONA_KEY,
+  STIMULUS_PREFIX, RUBRIC_PREFIX, POLICY_PREFIX, GATES_PREFIX, SCENARIO_PREFIX, PERSONA_KEY, PROMPT_NORMALIZATION_SOURCE_KEY,
   type SourceContext,
 } from "../src/sources.js";
 import { parseSpec, type Scenario, type Spec } from "../src/spec.js";
@@ -183,6 +183,8 @@ describe("each key kind names its own cheapest honest remedy", () => {
     expect(remedyForKey("SKILL.md")).toMatch(/re-run/);
     expect(remedyForKey("fixture:fixtures/A1")).toMatch(/re-run/);
     expect(remedyForKey("agents/review.md")).toMatch(/re-run/);
+    // Breaks if lint forgets the v3 provenance key or offers a false offline repair.
+    expect(remedyForKey(PROMPT_NORMALIZATION_SOURCE_KEY)).toMatch(/re-run.*cannot be recomputed/);
   });
 
   // A legacy key is one hash over everything, so which facet moved is unknowable.

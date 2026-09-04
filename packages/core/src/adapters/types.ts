@@ -29,6 +29,22 @@ export function modelSlug(ref: ModelRef): string {
   return `${ref.provider}-${ref.model}`.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
+export type PromptMechanism = "none" | "pi-skill" | "append-system-prompt" | "system-prompt-file";
+export interface PromptProvenance {
+  capture_version: "prompt-provenance-v1";
+  request_index: number;
+  raw_sha256: string;
+  normalized_sha256: string;
+  normalization_rule: "cwd-line-v1";
+  bytes: number;
+  contract_sha256: string;
+  contract_bytes: number;
+  contract_occurrences: number;
+  mechanism: PromptMechanism;
+  status: "PASS" | "NOT-MEASURED" | "ERROR";
+  error?: string;
+}
+
 export interface RunReq {
   skillDir: string; // abs path to the skill (for --skill / reading SKILL.md)
   model: ModelRef; // provider + model id
@@ -68,6 +84,8 @@ export interface RunReq {
    * inheriting a caller's copy of them.
    */
   armEnv?: Record<string, string>;
+  /** Adapter-produced observation callback. Callers receive evidence; they never supply delivery status. */
+  onPromptObservation?: (observation: PromptProvenance) => void;
 }
 
 /** A judge request: single prompt, no skills, no session. */
@@ -95,6 +113,8 @@ export interface StructuredRun {
 
 export interface HarnessAdapter {
   name: string;
+  /** True only when the adapter computes final provider-payload observations. */
+  observesPrompts?: boolean;
   available(): Promise<boolean>; // is the CLI on PATH?
   run(req: RunReq): Promise<string>; // returns the full transcript text
   /**

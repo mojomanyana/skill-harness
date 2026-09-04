@@ -5,7 +5,7 @@ import type { ShipBar } from "../src/spec.js";
 const SHIP_BAR: ShipBar = { total: 8, min_pass: 6, no_critical_fail: true };
 const CRITICAL = ["A1", "A2", "B1", "C1", "C2"];
 
-function verdicts(map: Record<string, "PASS" | "FAIL" | "ERROR">) {
+function verdicts(map: Record<string, "PASS" | "FAIL" | "ERROR" | "NOT-MEASURED">) {
   return Object.entries(map).map(([id, verdict]) => ({ id, verdict }));
 }
 
@@ -71,6 +71,15 @@ describe("score", () => {
     );
     expect(r.passed).toBe(5);
     expect(r.ship).toBe(false);
+  });
+
+  test("NOT-MEASURED is excluded from efficacy and blocks without becoming a product failure", () => {
+    const r = score(
+      verdicts({ A1: "NOT-MEASURED", A2: "PASS" }),
+      { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] }
+    );
+    expect(r).toMatchObject({ passed: 1, total: 1, notMeasuredCount: 1, criticalFails: 0, ship: false });
+    expect(r.note).toMatch(/not measured/i);
   });
 
   test("ERROR is excluded as infrastructure, cannot pass, and blocks without becoming a behavioral fail", () => {

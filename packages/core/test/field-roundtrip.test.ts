@@ -49,15 +49,19 @@ const OBJECTIVE: ObjectiveResult = {
   status: "PASS",
   trace_version: EXECUTION_TRACE_VERSION,
   trace_sha256: "a".repeat(64),
-  assertions: [{ kind: "forbid_call", status: "PASS", detail: "`write` not called" }],
+  assertions: [
+    { kind: "skill_delivered", status: "PASS", detail: "one provider request: PASS" },
+    { kind: "forbid_call", status: "PASS", detail: "`write` not called" },
+  ],
 };
 
 const ADJUDICATION: AdjudicationResult = {
+  repetition: 0,
   state: "unresolved",
   trigger: "non_unanimous",
   judgments: [
-    { ordinal: 1, judge: { provider: "claude-code", model: "j1" }, verdict: "PASS", reason: "a", suspect: false },
-    { ordinal: 2, judge: { provider: "claude-code", model: "j2" }, verdict: "FAIL", reason: "b", suspect: false },
+    { ordinal: 1, judge: { provider: "claude-code", model: "j1" }, verdict: "PASS", reason: "a", suspect: false, criteria: [{ index: 1, verdict: "PASS", reason: "a" }] },
+    { ordinal: 2, judge: { provider: "claude-code", model: "j2" }, verdict: "FAIL", reason: "b", suspect: false, criteria: [{ index: 1, verdict: "FAIL", reason: "b" }] },
   ],
 };
 
@@ -111,14 +115,17 @@ beforeEach(() => {
   writeFileSync(join(runDir, "A1.green.txt"), ">>> USER:\nx\n\n<<< ASSISTANT:\ndone\n", "utf8");
   writeFileSync(join(runDir, "A1.green.judge.txt"), "1. PASS\nVERDICT: PASS\nREASON: prior", "utf8");
   writeResults(runDir, {
+    schema: 3,
+    subject_invocations: [{ scenario_id: "A1", repetition: 0, prompt: { capture_version: "prompt-provenance-v1", request_index: 0, raw_sha256: "b".repeat(64), normalized_sha256: "b".repeat(64), normalization_rule: "cwd-line-v1", bytes: 1, contract_sha256: "c".repeat(64), contract_bytes: 1, contract_occurrences: 1, mechanism: "pi-skill", status: "PASS" } }],
     skill: "demo", harness: "pi", model: "fireworks:x",
     judge: { provider: "claude-code", model: "j1" },
     timestamp: "2026-08-08T00-00-00", label: null, mode: "green",
     arm: ARM,
     scenarios: [{
-      id: "A1", judge_verdict: "PASS", judge_reason: "ok", suspect: false,
+      id: "A1", criterion_count: 1, judge_verdict: "PASS", judge_reason: "ok", suspect: true,
       override: "PASS", note: "author says fine",
       objective: OBJECTIVE, adjudication: ADJUDICATION,
+      rep_judgments: [{ repetition: 0, recorded_verdict: "PASS", objective: OBJECTIVE, judgments: [{ ordinal: 1, judge: { provider: "claude-code", model: "j1" }, verdict: "PASS", reason: "ok", suspect: false, criteria: [{ index: 1, verdict: "PASS", reason: "ok" }] }] }],
     }],
   }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: [] });
 });
@@ -343,7 +350,7 @@ describe("rebuildScenarioResult", () => {
     // field is added and routed through here, it appears in this list and the
     // assertion names it.
     const known = new Set([
-      "id", "judge_verdict", "judge_reason", "suspect", "override", "note",
+      "id", "criterion_count", "judge_verdict", "judge_reason", "suspect", "override", "note",
       "reps", "passes", "clean", "flakiness", "pass_threshold",
       "objective", "adjudication",
     ]);

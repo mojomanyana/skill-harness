@@ -148,10 +148,11 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
   let base2: string;
   let close2: () => void;
   let judgeCalls = 0;
+  let availableCalls = 0;
 
   const fakeAdapter: HarnessAdapter = {
     name: "pi",
-    available: async () => true,
+    available: async () => { availableCalls++; return true; },
     run: async () => "",
     judge: async () => {
       judgeCalls++;
@@ -196,7 +197,7 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
       scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "n/a", suspect: false, override: null, note: "" }],
     }, null);
 
-    // Column 2 ("pi-forced" sorts last): a FORCE run with its own transcript.
+    // Column 2: a FORCE run with its own transcript.
     forceRunDir = join(skillDir2, "tests", "results", "pi-forced", "2026-07-03T00-00-00Z");
     mkdirSync(forceRunDir, { recursive: true });
     writeFileSync(join(forceRunDir, "A1.force.txt"), "USER: Say hello.\nASSISTANT: Hi there!", "utf8");
@@ -211,6 +212,17 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
         definitions: 6, ledger_events: 12, env: { PI_GRANTS_MAX_DEPTH: "1" },
       },
       scenarios: [{ id: "A1", judge_verdict: "FAIL", judge_reason: "old", suspect: false, override: null, note: "" }],
+    }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
+
+    // Column 3: schema-3 known-undelivered evidence. No review action may spend a judge call on it.
+    const undeliveredDir = join(skillDir2, "tests", "results", "pi-undelivered", "2026-07-03T00-00-00Z");
+    mkdirSync(undeliveredDir, { recursive: true });
+    writeFileSync(join(undeliveredDir, "A1.force.txt"), "USER: Say hello.\nASSISTANT: Hi there!", "utf8");
+    const h = "a".repeat(64);
+    writeResults(undeliveredDir, {
+      schema: 3, skill: "golden", harness: "pi", model: "fireworks:fake", judge: { provider: "claude-code", model: "opus" }, timestamp: "2026-07-03T00:00:00Z", label: null, mode: "force",
+      subject_invocations: [{ scenario_id: "A1", repetition: 0, prompt: { capture_version: "prompt-provenance-v1", request_index: 0, raw_sha256: h, normalized_sha256: h, normalization_rule: "cwd-line-v1", bytes: 1, contract_sha256: h, contract_bytes: 1, contract_occurrences: 0, mechanism: "append-system-prompt", status: "NOT-MEASURED" } }],
+      scenarios: [{ id: "A1", criterion_count: 1, judge_verdict: "NOT-MEASURED", judge_reason: "delivery absent", suspect: false, override: null, note: "", objective: { status: "NOT-MEASURED", assertions: [{ kind: "skill_delivered", status: "NOT-MEASURED", detail: "zero" }] }, rep_judgments: [{ repetition: 0, recorded_verdict: "NOT-MEASURED", judgments: [], objective: { status: "NOT-MEASURED", assertions: [{ kind: "skill_delivered", status: "NOT-MEASURED", detail: "zero" }] } }] }],
     }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
 
     const s = await serveReview({ skillDir: skillDir2, skillName: "golden", port: 0, open: false, adapter: fakeAdapter });
@@ -260,6 +272,15 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
     expect(body.error).toMatch(/only scored runs \(green\/force\)/);
     expect(judgeCalls).toBe(before); // mode guard short-circuits before the adapter is ever used
     expect(readFileSync(join(redRunDir, "results.yaml"), "utf8")).toBeTruthy(); // unchanged run left intact
+  });
+
+  test("schema-3 undelivered 400s before adapter resolution or judge spend", async () => {
+    const beforeJudge = judgeCalls, beforeAvailable = availableCalls;
+    const r = await fetch(`${base2}/rejudge`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ col: 3, scenarioId: "A1" }) });
+    expect(r.status).toBe(400);
+    expect(await r.json()).toMatchObject({ ok: false });
+    expect(judgeCalls).toBe(beforeJudge);
+    expect(availableCalls).toBe(beforeAvailable);
   });
 
   // Column 2 is a FORCE run: skill-as-system-prompt is a scored measurement since
