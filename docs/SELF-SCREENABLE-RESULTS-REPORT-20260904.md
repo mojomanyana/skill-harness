@@ -5,7 +5,8 @@
 - Repository: `mojomanyana/skill-harness`
 - Starting identity: `main` at `d4fe4134af25ccbf0ef69e37f85fc91ac419cac9`
 - Working branch: `feat/self-screenable-results`
-- Implementation commit: `db222298a74cf986423532cc25b6830f964a6713`
+- Initial implementation commit: `db222298a74cf986423532cc25b6830f964a6713`
+- Review-repair commit: `d4ba6143c20713020ea28e24796b1cefd1c85706`
 - Pull request: [#72](https://github.com/mojomanyana/skill-harness/pull/72)
 - Subject calls: 0; judge calls: 0
 - No principal-pi-skills content, derived agents, generated workflows, qualification evidence, release, publish, or tag was changed.
