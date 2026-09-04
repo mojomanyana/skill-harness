@@ -1,13 +1,11 @@
-# Publishing skill-harness (0.11.0 HEAD; next release proposed: 0.12.0)
+# Publishing skill-harness 0.12.0
 
-This is the npm-publish runbook. The registry already contains 0.11.0, while HEAD has
-46 unreleased commits at the Wave 1 baseline. Consequently `release:pack` currently
-names archives `*-0.11.0.tgz` whose bytes are **not** the published 0.11.0 bytes. Do not
-publish or overwrite them. The next release should bump to **0.12.0** because the closed
-ledger contract and measurement/reporting surface change; this document does not
-authorize that bump or a release.
+This is the npm-publish runbook. The registry contains 0.11.0; this release branch is
+bumped to 0.12.0 for the closed ledger contract and the schema-v3 measurement/reporting
+boundary. `release:pack` must produce only manifest-bound `*-0.12.0.tgz` archives from
+the final clean release commit. The owner authorized this release on 2026-09-04.
 
-## Unreleased self-screenable results
+## 0.12.0 — self-screenable results
 
 Results schema 3 is an intentional observation-and-meaning epoch. New Pi runs retain per-provider-request prompt provenance, byte-computed contract delivery, and every per-criterion judge vote under its repetition/panel member. Runtime validation recomputes recorded panel verdicts and rejects divergence. `skill_delivered` is an objective gate: known zero/duplicate delivery is NOT-MEASURED, excluded from efficacy denominators, and never judged; instrumentation failure is ERROR. Schema-1/2 meanings remain unchanged.
 
@@ -15,7 +13,18 @@ Results schema 3 is an intentional observation-and-meaning epoch. New Pi runs re
 
 Release evidence must include the v2 compatibility test, v3 schema positive/negative controls, writer round trips, prompt occurrence mutations, the no-adapter screen CLI test, and the full mutation catalogue. Draft post: `docs/posts/2026-09-04-the-result-that-can-answer-the-next-question.md`.
 
-## Unreleased cross-repository contract repair
+### 0.12.0 real-Pi smoke gate: RUN
+
+The two-probe smoke completed on Pi 0.84.2 with subject
+`openai-codex:gpt-5.6-luna` and judge `openai-codex:gpt-5.6-sol`. The extension
+probe recorded trace v2, the `Agent` call and one delegation, the expected
+authenticated-delivery ERROR, and zero judge calls. The extension-free probe
+recorded exactly-once delivery PASS, an initial PASS judgment, and a confirmed
+`ship_deciding` panel of two judgments after `grade --auto-rejudge`; delivery
+remained PASS across the rewrite. This is same-family path verification, not an
+efficacy measurement.
+
+## 0.12.0 — cross-repository contract repair
 
 The next publish must not proceed unless CI's `pi-daddy-contract` job is green. That
 job checks out `mojomanyana/pi-daddy` at the literal immutable 0.19.0 SHA
@@ -662,13 +671,17 @@ JSONL reader in `runStructured`, the `--no-extensions --extension` argv the
 harness passes to pi, and the live judge loop under `--auto-rejudge`.
 
 ```bash
-./scripts/smoke-real-pi.sh          # SPENDS TOKENS: 1–2 pi invocations + up to 3 judge calls
+./scripts/smoke-real-pi.sh          # SPENDS TOKENS: 2–4 Pi subject processes + up to 3 Pi judge calls
 ```
 
-One scenario exercises all three and asserts on the artifacts, not just the exit
-code: trace version and `pi_version` recorded, the declared extension's `Agent`
-tool actually present, no thinking / home paths / tool-result bodies persisted,
-and adjudication having genuinely taken a second opinion.
+Schema 3 cannot claim authenticated in-process provenance while an arbitrary subject
+extension shares Pi's process, so the gate deliberately uses two probes rather than
+laundering both claims through one run. The extension probe exercises structured JSONL
+and `--extension`, verifies the `Agent` tool and trace privacy limits, then requires
+`skill_delivered: ERROR` and zero judge calls. The extension-free probe requires an
+authenticated exactly-once prompt observation, an initial judgment, and `grade
+--auto-rejudge` retaining delivery plus a real second-opinion panel. Each subject
+invocation has one blank-response retry available, hence the four-process ceiling.
 
 **Worth running even though the suite is green.** It caught `grade` silently
 dropping the `objective` field from `results.yaml` — a gated scenario reading as
@@ -676,13 +689,14 @@ dropping the `objective` field from `results.yaml` — a gated scenario reading 
 (`packages/core/test/field-roundtrip.test.ts`) now covers that class, but the
 smoke run is what found it.
 
-A smoke run is **one draw on a cheap model, not a measurement**: its
+Each smoke probe is **one draw on a cheap model, not a measurement**: its
 `results.yaml` is gitignored so a throwaway scorecard never lands in the repo.
 
-For the same reason `run`'s own release exit code is deferred rather than allowed
-to end the script, and the objective gate is asserted **before** the judge spend
-rather than after — `grade` carries trace gates rather than re-evaluating them, so
-checking afterwards only paid to re-read a verdict already on disk.
+`run`'s own release exit code is deferred rather than allowed to end the script;
+the artifact assertions are the gate. The extension probe verifies its expected
+objective ERROR and judge suppression after the subject returns. The extension-free
+probe necessarily incurs its initial judge during `run`, then verifies delivery PASS
+before authorizing `grade --auto-rejudge`; `grade` must carry that evidence unchanged.
 
 What the gate fails on is mostly harness, not model: the spec's only content
 needle is a sentinel no model can emit. **Mostly, not entirely** — the delegation
@@ -691,12 +705,15 @@ behaviour, and a provider outage reddens the first of them. So read the failing
 assertion rather than assuming either cause. A `NOT READY` scorecard from `run` is
 separate and expected: reported, not fatal.
 
-The subject pin is `deepseek-v4-flash-0731`, dated deliberately so the provider
-cannot retire it out from under the script; `SMOKE_MODEL` overrides it per shell.
-The first preflight after any spec edit reports `stale` findings from earlier local
-runs — gitignored litter, stepped over rather than fatal, and clearable by deleting
-`scripts/smoke/skills/*/tests/results/` (not by `regate`, which costs a judge call
-when a gate verdict flips).
+The release pins are `openai-codex:gpt-5.6-luna` for the subject and
+`openai-codex:gpt-5.6-sol` for the judge, explicitly authorized for this smoke.
+They are distinct models but remain same-family, so this run is path verification—not
+independent efficacy evidence. Pi has no entitlement preflight: either model can still
+be unavailable at invocation time. `SMOKE_MODEL` and `SMOKE_JUDGE` override them.
+The first preflight after any spec edit may report `stale` findings from earlier
+local runs. The release smoke treats every nonzero lint exit as fatal before spend;
+clear that gitignored litter by deleting `scripts/smoke/skills/*/tests/results/`
+(not by `regate`, which can cost a judge call when a gate verdict flips).
 
 ### Smoke gate: deliberately skipped for 0.10.0
 
@@ -770,22 +787,21 @@ The version bump lives on `release-<version>`. Until that branch reaches `main`,
 a fresh clone of `main` reports a different version than the registry serves:
 
 ```bash
-gh pr create --base main --head release/0.10.0 \
-  --title "chore(release): 0.10.0" --body "Version bump + runbook."
+gh pr create --base main --head release/0.12.0 \
+  --title "chore(release): 0.12.0" --body "Version bump, two-probe smoke, and runbook."
 gh pr merge --merge   # or fast-forward main if there is nothing to reconcile
 ```
 
 ### 1b. Bump consumer pins when the results format grows
 
-`results.yaml` stays **schema 2**, but `source_hashes` gained new key *kinds*
-(`scenario:<id>`, `fixture:<path>`) after 0.2.1. An older skill-harness reading a
-newer results file resolves those keys as file paths, finds nothing, and reports
-one bogus `stale` finding per key — so a repo whose CI pins an older version will
-fail on a results file it cannot understand.
+0.12.0 introduces **results schema 3** for authenticated delivery observations,
+per-repetition criterion votes, and recomputable panel outcomes. Older readers do
+not understand that evidence or its `NOT-MEASURED` semantics, so every consumer
+that reads schema-3 results must upgrade to skill-harness ≥ 0.12.0.
 
-The rule: **a `results.yaml` written by version X needs version ≥ X to lint.**
-When a release changes what `source_hashes` records, every consuming repo needs a
-reader that new.
+The rule remains: **a `results.yaml` written by version X needs version ≥ X to
+lint or rewrite it.** Bump every exact consumer pin to `v0.12.0`; consumers using
+`@latest` receive the compatible reader when the release tag moves.
 
 A repo tracking `@latest` gets that automatically **once the release is tagged** —
 which is the one ordering trap left: results produced by a local checkout of
@@ -795,16 +811,14 @@ tag.
 
 A repo on an exact pin needs that pin bumped as part of the release.
 
-This is deliberately handled by documentation rather than a schema bump: the
-schema-1→2 migration precedent exists for *shape* changes, and adding key kinds
-is not one. Revisit if there is ever a consumer that cannot be upgraded in
-lockstep.
+Schema-1 and schema-2 evidence remains readable with its historical meaning; do
+not migrate or rewrite it merely to adopt schema 3.
 
 ### 2. Tag the release, and move `latest`
 
 ```bash
 git checkout main && git pull
-git tag v0.10.0 && git push origin v0.10.0     # the immutable release tag
+git tag v0.12.0 && git push origin v0.12.0     # the immutable release tag
 git tag -f latest && git push -f origin latest   # the ref the docs point at
 ```
 
@@ -822,17 +836,9 @@ is true, and the docs tell consumers to pin a release tag when they want to
 choose *when* new checks land.
 
 Consumers that pin need their pin bumped as part of the release
-(`.github/workflows/ci.yml`, the `ref:` on the skill-harness checkout).
-`principal-pi-skills` **is** that case, and deliberately: its CI checks out
-`ref: v0.3.0` at an exact pin, so a red build there means the skills changed rather
-than the harness underneath them. Moving `latest` reaches its CI not at all — the
-owner bumps the pin as its own commit, per release, and re-runs the affected skills
-in the same PR.
-
-Corrected 2026-08-05: `88c8ccd` and the 0.3.1 notes called that repo an `@latest`
-tracker. It never was, on either surface — its workflow pins, and its `package.json`
-contains no skill-harness reference at all. The pin-vs-latest *guidance* those commits
-added is right and stays; only the example was wrong.
+(`.github/workflows/ci.yml`, the `ref:` on the skill-harness checkout). Consumers
+tracking `latest`, including the current `principal-pi-skills` workflow as corrected
+in the 0.11.0 notes above, receive the compatible reader when `latest` moves.
 
 For a repo that genuinely tracks `@latest`, the release reaches CI the moment the tag
 moves, so **push the tag when you are ready for that gate to change**, not mid-flight

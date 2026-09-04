@@ -1,0 +1,18 @@
+# Costs real tokens. Run only through scripts/smoke-real-pi.sh.
+# One scenario with min_pass == total guarantees that a clean cell is ship-deciding.
+skill: delivery-smoke
+judge_persona: a strict reviewer.
+ship_bar:
+  total: 1
+  min_pass: 1
+  no_critical_fail: true
+critical: []
+scenarios:
+  - id: R1
+    title: receives the authenticated release prompt
+    turns:
+      - "Reply with the release sentinel requested by your instructions."
+    checklist:
+      - "replies with exactly DELIVERY-SMOKE-OK"
+    covers:
+      - "../SKILL.md#delivery-smoke"
