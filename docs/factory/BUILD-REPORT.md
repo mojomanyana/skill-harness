@@ -11,8 +11,8 @@ Session: `/home/neman/.pi/agent/sessions/--home-neman-Code-skill-harness--/2026-
 
 | Packet | Owner | Wave | State | Accepted source/tree or evidence | Next action |
 |---|---|---|---|---|---|
-| P00 | skill-harness | A | IN_REVIEW | P00-EVIDENCE.json; pinned v3 57 positives / 8 negatives | Final exact-target verification and standard review |
-| P01 | pi-daddy | A | TODO | — | Check P00, then plan contract |
+| P00 | skill-harness | A | DONE | `1e66c29b3c55d820f6d6bd3fbf7f3fbe4a5eee5f` / `3844ab1d75e0d5d083a0606286ee6b55e1035500`; native finish OK | Consume bounded baseline, not qualification |
+| P01 | pi-daddy | A | BLOCKED | P00 accepted; no pi-daddy owner session assigned | Use exact worker starter below; verify fresh critical contexts before Build |
 | P02 | pi-daddy | B | TODO | — | Check guide dependencies |
 | P03 | skill-harness | B | TODO | — | Check guide dependencies |
 | P04 | pi-daddy dashboard | C | TODO | — | Check guide dependencies |
@@ -20,7 +20,7 @@ Session: `/home/neman/.pi/agent/sessions/--home-neman-Code-skill-harness--/2026-
 | P06 | pi-daddy | B | TODO | — | Qualify explicit effect profile |
 | P07 | skill-harness | D | TODO | — | Check guide dependencies |
 | P08 | pi-daddy dashboard | D | TODO | — | Fixtures first; real casting gated |
-| P09 | skill-harness | B | TODO | — | Qualify each measurement route |
+| P09 | skill-harness | B | BLOCKED | Separate critical run `run-1788618130762-8cc254d6`; native pre-build exit 3 | Prepare critical design/critique/tasks; no positive qualification without charter |
 | P10 | skill-harness | E | TODO | — | Check guide dependencies |
 | P11 | pi-daddy | E | TODO | — | Check guide dependencies |
 | P12 | skill-harness | E | TODO | — | Check exact route qualifications |
@@ -37,7 +37,7 @@ Session: `/home/neman/.pi/agent/sessions/--home-neman-Code-skill-harness--/2026-
 
 Owner initialized tracker. Source trees: harness 506039c (0.12.0), pi-daddy f12eac3, Principal d42f431. Harness has untracked docs/factory; pi-daddy has untracked .pi; Principal is clean. No reset, stash, historical rewrite or benchmark call. Original documents copied byte-exact by workspace snapshot. Workspace tool initially chose /tmp; cross-device git move failed, then only our workspace was moved and repaired to the durable path above. No competing writer assigned. The broad `git worktree repair` also unexpectedly recreated two missing historical `.git` pointer files. Those exact newly created pointers were subsequently removed after verifying their contents, restoring their initial absence. No historical ref, source, node_modules or evidence was removed; remaining registrations were not pruned.
 
-P00 pending: installed-resource digests, passive pane/session join, reconnect coverage, historical-pin fixtures and review. No effect/measurement profile qualified. Proposer configuration from bash environment: openai-codex:gpt-6-astra, medium; not independent attestation. Subject/judge: not used. No new worker process yet.
+At this initial checkpoint P00 was pending installed-resource digests, passive pane/session join, reconnect coverage, historical-pin fixtures and review. The completion section below supersedes that pending state without rewriting the checkpoint's evidence. No effect/measurement profile qualified. Proposer configuration from bash environment: openai-codex:gpt-6-astra, medium; not independent attestation. Subject/judge: not used. No new worker process yet.
 
 ## Qualification register
 
@@ -109,8 +109,46 @@ Historical v3 producer is exactly `4a9524394ca995fd74ed9bbb836dc4e73cda3b8c`, tr
 - No consequential design was approved by inference. User authorization covers P00 disposable setup/read-only probes and branch retention, not merge/push/publish, installing packages, benchmark charters or unseen authority/effect designs.
 - P01 is next by guide dependency; P09 can begin its independent investigation after P00 acceptance. Both require separate **critical** runs. P02/P06/full-stack P09 remain downstream-gated. P03 and later packets are not ready. Owner sessions/source writers must be rooted in their repository workspaces; read-only roles must not become writers.
 
-## Resume paste
+## P00 completion and owner acceptance — 2026-09-05T14:23Z
+
+PACKET: P00 — real baseline and capability matrix. RESULT: COMPLETE for the recorded baseline scope, including explicit unsupported observation paths.
+
+OWNER: integration owner / session `01a071db-e946-7a6d-ba4b-f9da2aa0d3bd`, workspace ID `factory-01a071db-harness`. AUTHORIZATION: exact P00 kickoff plus handoff tracker administration; keep branch preselected. DEPENDENCIES: none; immutable producer identities above.
+
+FINISH: source/report candidate committed as `1e66c29b3c55d820f6d6bd3fbf7f3fbe4a5eee5f`, tree `3844ab1d75e0d5d083a0606286ee6b55e1035500`, branch `principal/run-1788616831615-f2b0354b`. Unchanged product base/tree: `506039c9cec194dd2d3b1fbbe52a8d7cfc38227e` / `aaca6fbddde0cec12f0a394777aef64618b0d262`. This completion/checkpoint update is **later report-only administration**, not a new verified product tree or a self-referential hash claim.
+
+ASSURANCE: standard run `run-1788616831615-f2b0354b`; pre-build, finalize and finish gates returned OK. Native records are under `/home/neman/Code/skill-harness/.git/principal-pi-skills/assurance-v1/`; `evidence/P00-final-state.json`, `review.txt`, `finalize.json` and `finish.json` retain receipts. Inline Plan/Build/combined Review/Git-Ops fallback was explicit; no independent review claimed; zero repair rounds. Substantive P00 was not downgraded. No immutable critical task packet was required for standard.
+
+DONE CHECKS: inventory/source/resource identities in `P00-EVIDENCE.json`; real RPC join and unchanged zero-message state in `rpc-output.jsonl`; reconnect recovered snapshot facts with an explicit interval gap; frozen v3 builders 57/8 and adapter tests 34/34; preservation verifier PASS. Fresh candidate-bound final exact-target command: `python3 /home/neman/Code/factory-01a071db/evidence/verify-p00.py && npm test -- packages/adapters/test/pi-daddy-contract.test.ts packages/adapters/test/pi-daddy-v3-contract.test.ts`, exit 0; `final-contract-tests.log`. Original source tracked trees and every recorded original document/skill byte remained identical. Staged whitespace/conflict/credential/size checks passed; final commit tree equals the reviewed candidate. No additional feature post is required: P00 ships no user-facing behavior.
+
+OWNER CHECK: inspected report against full P00 Done conditions and saved evidence; accepted the zero-call launched-RPC join, **not** TUI active-leaf/closing-pause detection. Unsupported runtime paths are baseline findings, not newly qualified guarantees. Both general-suite failures are retained and remain follow-ups. No source, contract or historical result was changed to produce a pass. Tracker changed IN_PROGRESS → IN_REVIEW → DONE by this integration owner; final acceptance at this timestamp.
+
+ADOPTION / EFFECTS: local owned branch, copied planning inputs, cached installs/builds, local exact-pin clone, read-only remote metadata refresh and two disposable pane/process probes only. No subject/judge evaluation, prompt, model-backed review, installation/configuration rewrite, merge, push, tag, release or publication. Mock test output saying “judge calls” is fixture evidence, not billed evaluation. Model generation spend in this owner conversation is not measured by P00 and is not claimed zero.
+
+## Successor preflight — separate runs, no cross-root writer
+
+**P01: BLOCKED (owner bootstrap).** No pi-daddy source writer/session was assigned. The exposed session tools have no governed delegation/fresh-context primitive; the raw idle pi/herdr launch demonstrated observation, not critical owner/critic/reviewer setup. The installed Principal package, namespaced agents and pi-daddy governance are absent. Do not treat the source checkout as a loaded runtime or pass critical self-review. No P01 native run was created in the wrong repository; the starter below starts its own run at the correct owner location. This does not claim that fresh contexts are impossible on this host—only that the required route is not verified in this session. No stakeholder design question is asked before a concrete design exists.
+
+**P09: BLOCKED_CRITICAL_ASSURANCE.** Continued its independently eligible preflight as separate critical run `run-1788618130762-8cc254d6`, not as more P00 work. Native pre-build returned exit 3 with: owned isolated workspace missing; single Build writer lease missing; approved design with rollback/abort/one-way doors missing; independent APPROVE plan critique missing; validated task packet missing. Evidence: `/home/neman/Code/factory-01a071db/evidence/P09-init.json` and `P09-prebuild-blocked.txt`. Plan phase is blocked; no source mutation, retry, subject or judge launch. No packet or design approval was fabricated merely to make the gate green.
+
+Completed independent P09 preparation: current trust rejection, ERROR/NOT-MEASURED split, unauthenticated extension threat, role-identity/configuration uncertainty and precise P02/P06 dependencies are inventoried above. Extension-free and governed full-stack qualifications both remain **not qualified**. Positive live evidence is forbidden by the current no-evaluation authorization; no concrete population/model/judge/budget charter exists. A future design must propose verifiable authority/evidence boundaries, corrupted/replayed/reordered/truncated cases, configuration and role conflict checks, limits, rollback and abort before asking for approval. No generic “allow all” question or implied installation approval is needed now.
+
+Affected dependents: P01 blocks P02/P03/P04/P05/P06/P14 and their downstream routes. P09 blocks evaluation consumers only for the unqualified route. No other packet is dependency-ready for source Build now; read-only design preparation can resume once its proper owner/fresh-context route is available. Unattended/full-stack claims remain blocked independently of daily visibility.
+
+### Exact pi-daddy owner starter
+
+Open an owner pi session in `/home/neman/Code/pi-daddy` (controller/planning location, **not** permission to Build on dirty main) with a verified fresh critical critique/review mechanism. Paste:
 
 ```text
-Resume campaign factory-01a071db as integration owner in /home/neman/Code/factory-01a071db/skill-harness. Read docs/factory/BUILD-REPORT.md, 06-implementing-agent-handoff.md and full P00/run rules in 05-build-guide.md there. Reconcile branch principal/run-1788616831615-f2b0354b, native run run-1788616831615-f2b0354b, recorded session and actual processes before writes. Continue P00 disposable observation and pinned-contract checks; preserve canonical checkout changes and historical evidence. No subject/judge calls, merge, push or publish. Keep the branch. Do not create another tracker or writer.
+/principal-feature --assurance critical Implement P01 from /home/neman/Code/skill-harness/docs/factory/05-build-guide.md. Extend pi-daddy's existing ledger/builders with skills-agnostic versioned intent, unique execution joins and revision-bound acceptance. Preserve provenance and authority separation; supply compatibility fixtures and independently checkable negative cases. Keep the branch.
+
+Campaign factory-01a071db; integration owner report is /home/neman/Code/factory-01a071db/skill-harness/docs/factory/BUILD-REPORT.md. Read that report and the central scope, full P01/run rules and 06-implementing-agent-handoff.md BEFORE binding Build. Accepted P00 commit 1e66c29b3c55d820f6d6bd3fbf7f3fbe4a5eee5f / tree 3844ab1d75e0d5d083a0606286ee6b55e1035500; pi-daddy source dependency f12eac37747e0a5ac7cd23542c9ac67613781371 / tree 701c1a479c455c8f8c9f53f5ae0cc667c8369671. Reconcile current state and preserve untracked .pi and all historical evidence. Source Principal d42f431880ca8b2235a7656c45c9c3448dbdb659 is not proof of an installed package; read its real contract and verify fresh contexts. Create exactly one owned critical writer worktree through the shipped workspace tool and keep Build inline there. Prepare the consequential contract/schema design with validation, observability, migration/rollback, abort and one-way effects before asking one focused approval question. No unseen design is approved. If critical controls are absent return BLOCKED_CRITICAL_ASSURANCE, not inline independent review. Return evidence to the integration owner; never edit its harness report or another writer root. No merge, push, publish, package reinstall or subject/judge evaluation calls are authorized.
+```
+
+## Final checkpoint and resume paste
+
+ACTIVE: no P00 work; P09 plan blocked, separate run above. LAST ACTION: P00 commit and native finish completed; owner tracker update is report-only. LIVE PROCESSES / LEASES: both disposable pi processes ended; owned panes p3/p4 closed; no evaluation or critical source writer started. Original owner pi PID 7023 / pane w14:p2 remains the active conversation; do not kill or take over other registered worktrees. ALLOWANCE: zero subject/judge evaluation calls used, zero authorized. APPROVALS: P00 baseline and branch retention only; no consequential design or live charter. NEXT: bootstrap the exact P01 owner starter, then concrete critical design/critique before source Build; independently resume P09's blocked preflight without resetting its run.
+
+```text
+Resume campaign factory-01a071db as integration owner in /home/neman/Code/factory-01a071db/skill-harness. Read /home/neman/Code/factory-01a071db/skill-harness/docs/factory/BUILD-REPORT.md, the handoff and relevant guide packets there. Reconcile actual branch principal/run-1788616831615-f2b0354b, completed P00 run run-1788616831615-f2b0354b, blocked P09 run run-1788618130762-8cc254d6, recorded session/processes and latest report-only commit before writes. P00 accepted commit is 1e66c29b3c55d820f6d6bd3fbf7f3fbe4a5eee5f / tree 3844ab1d75e0d5d083a0606286ee6b55e1035500; do not rerun it or infer a green full suite. Use the report's exact pi-daddy owner starter for P01; verify native fresh critical contexts, prepare the full design before asking, and never use this harness owner as a cross-root Build writer. Preserve all original working changes and evidence. No subject/judge calls, merge, push, publish or automatic package reinstall. Keep branches. Do not create a duplicate tracker or competing writer.
 ```
