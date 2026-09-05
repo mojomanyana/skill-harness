@@ -1,0 +1,190 @@
+{
+  "installation.json": {
+    "packages": [
+      {
+        "path": "/home/neman/.nvm/versions/node/v26.7.0/lib/node_modules/@earendil-works/pi-coding-agent",
+        "name": "@earendil-works/pi-coding-agent",
+        "version": "0.84.2",
+        "gitHead": null,
+        "manifest_sha256": "820f4adc6d61f2cefbc29ce17e9dfd9aa482248d54be5d0dfa2a868ca000c7b0"
+      },
+      {
+        "path": "/home/neman/.nvm/versions/node/v26.7.0/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-protocol",
+        "name": "@earendil-works/pi-protocol",
+        "version": "0.84.2",
+        "gitHead": null,
+        "manifest_sha256": "194ed3896da44fabe3cffef3b2abf28a41a4cc7c2e52375c630836274f54a6d7"
+      },
+      {
+        "path": "/home/neman/.nvm/versions/node/v26.7.0/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai",
+        "name": "@earendil-works/pi-ai",
+        "version": "0.84.2",
+        "gitHead": null,
+        "manifest_sha256": "9575365ce609dca8e1fd4fa72471d55006e1e0f81310c0808f93abc4bc14bbf9"
+      },
+      {
+        "path": "/home/neman/.nvm/versions/node/v26.7.0/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-client",
+        "name": "@earendil-works/pi-client",
+        "version": "0.84.2",
+        "gitHead": null,
+        "manifest_sha256": "beeb2fb7e577c83b372e7549362a58db8e24b03d50342cea7123cbc7407e9813"
+      },
+      {
+        "path": "/home/neman/.nvm/versions/node/v26.7.0/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-agent-core",
+        "name": "@earendil-works/pi-agent-core",
+        "version": "0.84.2",
+        "gitHead": null,
+        "manifest_sha256": "ac5e13d2a2aa0d6c78394417b59e18cb0fe92f482d2b075b39bf165312db6c06"
+      },
+      {
+        "path": "/home/neman/.nvm/versions/node/v26.7.0/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui",
+        "name": "@earendil-works/pi-tui",
+        "version": "0.84.2",
+        "gitHead": null,
+        "manifest_sha256": "2c19fb7e3d1e83a461b6f020b2ffc118b435dcd78a07af8c8def72864cd09e6e"
+      },
+      {
+        "path": "/home/neman/.nvm/versions/node/v26.7.0/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-telemetry",
+        "name": "@earendil-works/pi-telemetry",
+        "version": "0.84.2",
+        "gitHead": null,
+        "manifest_sha256": "ba3e45a83f94a06a0f311b9412f99e73c760d3eb0adee5909e4f2a356f109958"
+      }
+    ],
+    "resources": {
+      "/home/neman/Code/skill-harness/.pi/skills/plan/SKILL.md": "5b292c1aa84ac97ddb1d93b1fbe57bba4fa52434bd41a6a73485dec8c6c27c21",
+      "/home/neman/Code/skill-harness/.pi/skills/decide/SKILL.md": "0f6556ced7edfbd5d9eb89bad4f01cdd37a7652934c4d9bc5c2a3c897e6dc858",
+      "/home/neman/Code/skill-harness/.pi/skills/debug/SKILL.md": "0bb3c5881cbc925e606c0e97f821168c785064934a6a7d1eee42ef96c790233c",
+      "/home/neman/Code/skill-harness/.pi/skills/git-ops/SKILL.md": "af686ec3fa2ca2dd6c996f16886808a5bef27f6962919a5f7994c525328afcbd",
+      "/home/neman/Code/skill-harness/.pi/skills/architect/SKILL.md": "bac3d11c91de2d3b0801fd90975beaf14a9b671d3bd8da86caee89c0c4e74747",
+      "/home/neman/Code/skill-harness/.pi/skills/build/SKILL.md": "3f68ef479ccfef53c23f6c160da4d1d0458508dc6e6f57619093599ed6745d79",
+      "/home/neman/Code/skill-harness/.pi/skills/review/SKILL.md": "9cf455fa12bb597093dca031b281306df0f15fc06e3d9cd0fce802d43e0aad53",
+      "/home/neman/.nvm/versions/node/v26.7.0/lib/node_modules/@earendil-works/pi-coding-agent/dist/cli.js": "840d1e8e689ed9e4937bcb00b9a810e02a8567d9afb10a47097f11ca93ea1521",
+      "/home/neman/.nvm/versions/node/v26.7.0/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/session-manager.js": "af809d47818a3bf6a10173c167905e013ad7303261919a5a35a8466b801daf2e",
+      "/home/neman/.nvm/versions/node/v26.7.0/lib/node_modules/@earendil-works/pi-coding-agent/dist/modes/rpc/rpc-mode.js": "b8056af06447a3b89b680519bae1ce1d9063a266d827c3ca92f2dcd57c5ffd2b",
+      "/home/neman/.local/bin/herdr": "976150a14d490c94b243ea2e1a7eb2dfb67f12e36b182db90936f6728e6aecf4",
+      "/home/neman/Code/principal-pi-skills/scripts/assurance-state.mjs": "58c400d2c9f17d802d7b15131f58de306ed7c7ab82dc5f2f47674cc924f17413",
+      "/home/neman/Code/principal-pi-skills/prompts/principal-feature.md": "848ea1bba3670e49909ed51d8b693604ff0b53ff2c64215c63a50b7d1a636c47"
+    },
+    "pi_list": "No packages installed.",
+    "global_settings_path": "/home/neman/.pi/agent/settings.json",
+    "global_settings_sha256": "8352d860b237c5ad9e6ce3a0be61afcdd094abe382bdc9811f8eee297f2863af",
+    "exposed_tools": [
+      "read",
+      "bash",
+      "edit",
+      "write",
+      "multi_tool_use.parallel"
+    ],
+    "extensions": "No package configured; no extension tool exposed; no pi-daddy, Principal or skill-harness package installed. Runtime loader internals not remotely attested."
+  },
+  "source-baseline.json": [
+    {
+      "repo": "/home/neman/Code/skill-harness",
+      "head": "506039c9cec194dd2d3b1fbbe52a8d7cfc38227e",
+      "tree": "aaca6fbddde0cec12f0a394777aef64618b0d262",
+      "branch": "main",
+      "status": "?? docs/factory/",
+      "worktrees": "worktree /home/neman/Code/skill-harness\nHEAD 506039c9cec194dd2d3b1fbbe52a8d7cfc38227e\nbranch refs/heads/main\n\nworktree /home/neman/Code/.openai-codex-v3-demo-01a03b55/repair-skill-harness\nHEAD 28d568dac07dda0c3b784db21c76e284c55abfc6\nbranch refs/heads/fix/openai-codex-subscription-judge\n\nworktree /home/neman/Code/.openai-codex-v3-demo-01a03b55/skill-harness\nHEAD f765e37189e55306ae28a6c07bb70fc11db7652a\ndetached\n\nworktree /home/neman/Code/factory-01a071db/skill-harness\nHEAD 506039c9cec194dd2d3b1fbbe52a8d7cfc38227e\nbranch refs/heads/principal/run-1788616831615-f2b0354b\n\nworktree /tmp/ppw-mOpPyH\nHEAD 506039c9cec194dd2d3b1fbbe52a8d7cfc38227e\ndetached\nprunable gitdir file points to non-existent location\n\nworktree /tmp/ppw-qt5owK\nHEAD 506039c9cec194dd2d3b1fbbe52a8d7cfc38227e\nbranch refs/heads/principal/run-1788612998320-2dc0e33f\nprunable gitdir file points to non-existent location"
+    },
+    {
+      "repo": "/home/neman/Code/pi-daddy",
+      "head": "f12eac37747e0a5ac7cd23542c9ac67613781371",
+      "tree": "701c1a479c455c8f8c9f53f5ae0cc667c8369671",
+      "branch": "main",
+      "status": "?? .pi/",
+      "worktrees": "worktree /home/neman/Code/pi-daddy\nHEAD f12eac37747e0a5ac7cd23542c9ac67613781371\nbranch refs/heads/main\n\nworktree /home/neman/Code/.openai-codex-v3-demo-01a03b55/pi-daddy\nHEAD c364a6717e3d5e369ecd3298b9cbb595eb94d9b2\ndetached\nprunable gitdir file points to non-existent location\n\nworktree /home/neman/Code/.pi-daddy-child-timeout-20m\nHEAD 851e99b46069557a18d24fa6da78e6465cc4ec99\nbranch refs/heads/feat/child-timeout-20m\nprunable gitdir file points to non-existent location\n\nworktree /home/neman/Code/.pi-daddy-release-0.21.1\nHEAD 68c64f798018af31892e5988b2812a80b546e023\nbranch refs/heads/docs/record-0.21.1-release\nprunable gitdir file points to non-existent location\n\nworktree /tmp/pi-daddy-wave1-mutation\nHEAD 58d09dd2431cd426be4b709a97926490bb583623\ndetached\nprunable gitdir file points to non-existent location\n\nworktree /var/tmp/pi-daddy-timeout-20m/ppw-QN1zvH\nHEAD 2aae3fb83ad04181b3354f8d3e4e369c9b8b5587\ndetached"
+    },
+    {
+      "repo": "/home/neman/Code/principal-pi-skills",
+      "head": "d42f431880ca8b2235a7656c45c9c3448dbdb659",
+      "tree": "676740b571e500b1514c66c3caea7f7c4a2dc491",
+      "branch": "main",
+      "status": "",
+      "worktrees": "worktree /home/neman/Code/principal-pi-skills\nHEAD d42f431880ca8b2235a7656c45c9c3448dbdb659\nbranch refs/heads/main\n\nworktree /home/neman/Code/.openai-codex-v3-demo-01a03b55/principal-pi-skills\nHEAD 57dd53ef3c845974117b290e56732c5aa2e40aa2\ndetached\nprunable gitdir file points to non-existent location\n\nworktree /home/neman/Code/.openai-codex-v3-demo-01a03b55/repair-principal-plan-critical\nHEAD a6596950d64a3a525f95329d5dbd3e38948be408\ndetached\nprunable gitdir file points to non-existent location\n\nworktree /tmp/ppw-ORHCnc\nHEAD 57dd53ef3c845974117b290e56732c5aa2e40aa2\nbranch refs/heads/principal/run-1787702014226-cad38c0a\nprunable gitdir file points to non-existent location"
+    }
+  ],
+  "remote-baseline.json": [
+    {
+      "repo": "/home/neman/Code/skill-harness",
+      "origin_main": "506039c9cec194dd2d3b1fbbe52a8d7cfc38227e",
+      "open_prs": []
+    },
+    {
+      "repo": "/home/neman/Code/pi-daddy",
+      "origin_main": "f12eac37747e0a5ac7cd23542c9ac67613781371",
+      "open_prs": []
+    },
+    {
+      "repo": "/home/neman/Code/principal-pi-skills",
+      "origin_main": "d42f431880ca8b2235a7656c45c9c3448dbdb659",
+      "open_prs": []
+    }
+  ],
+  "preservation.json": {
+    "/home/neman/Code/skill-harness/docs/factory/06-implementing-agent-handoff.md": "58bb979473343edff7b382b874f68e4fdc5fc12697a7b782c2a87a0f02263173",
+    "/home/neman/Code/skill-harness/docs/factory/05-build-guide.md": "9d4c35cfda00bff647c3f4f93d00e81fec79aebd41df36d78b37aef90b248664",
+    "/home/neman/Code/skill-harness/docs/factory/04-one-page-scope.md": "757b576ced6e4b3ffc6622c8cb19560b6b81e136a671fd2dea2f9c551f32af73",
+    "/home/neman/Code/skill-harness/.pi/skills/plan/SKILL.md": "5b292c1aa84ac97ddb1d93b1fbe57bba4fa52434bd41a6a73485dec8c6c27c21",
+    "/home/neman/Code/skill-harness/.pi/skills/decide/SKILL.md": "0f6556ced7edfbd5d9eb89bad4f01cdd37a7652934c4d9bc5c2a3c897e6dc858",
+    "/home/neman/Code/skill-harness/.pi/skills/debug/SKILL.md": "0bb3c5881cbc925e606c0e97f821168c785064934a6a7d1eee42ef96c790233c",
+    "/home/neman/Code/skill-harness/.pi/skills/git-ops/SKILL.md": "af686ec3fa2ca2dd6c996f16886808a5bef27f6962919a5f7994c525328afcbd",
+    "/home/neman/Code/skill-harness/.pi/skills/architect/SKILL.md": "bac3d11c91de2d3b0801fd90975beaf14a9b671d3bd8da86caee89c0c4e74747",
+    "/home/neman/Code/skill-harness/.pi/skills/build/SKILL.md": "3f68ef479ccfef53c23f6c160da4d1d0458508dc6e6f57619093599ed6745d79",
+    "/home/neman/Code/skill-harness/.pi/skills/review/SKILL.md": "9cf455fa12bb597093dca031b281306df0f15fc06e3d9cd0fce802d43e0aad53"
+  },
+  "observation-summary.json": {
+    "rpc_session_id": "01a071e5-a7c0-7031-a939-cc7b09dbeac0",
+    "rpc_session_path": "/home/neman/Code/factory-01a071db/disposable/rpc-idle.jsonl",
+    "pane": "w14:p4",
+    "pid": 8212,
+    "zero_messages_before_after": true,
+    "session_file": "absent before/after (Pi defers persistence until assistant)",
+    "reconnect": "new herdr CLI connection resnapshotted same pane/process; RPC state unchanged",
+    "coverage_gap": "No continuous subscription; events during disconnected interval are not recovered or claimed. Active TUI leaf and closing pause remain unknown.",
+    "shutdown": "SIGTERM sent only to owned idle RPC PID"
+  },
+  "timestamp": "2026-09-05T14:13:24.905486+00:00",
+  "log_sha256": {
+    "build.log": "38802d16898ae0d896287cb344625f580af237859dabd45905430e38bc258d10",
+    "contract-tests.log": "7c837d63c68977d7e8f7b7761328d4ef56e1a759b8dd0aaabbc65f4c0c1efa73",
+    "full-suite-qualified-env.log": "13ba7f9c4d2c6f0c0fb5e220f7ba4fd412cb6d5bf9ac32e40a70fb01a81eedc0",
+    "full-suite.log": "3b3a37f5127be9b801cae346a09f95d36c40ecfaf6620500dde978ccc965115c",
+    "herdr-integrations.json": "7b53f48acab91bf54836aff47f3e493b5149bcc88f705cc82ad848ad3f169b9a",
+    "herdr-server-status.txt": "8c8ca18784a6ee36e2d86f920a668b8c230aa5bd371afc2ed7c76af62a3dddee",
+    "installation.json": "0bdbd4d9938269cb8582e4030621a08c406d57ed9c58c8574a4f1ff90e74f3ba",
+    "npm-ci.log": "bb11c2b4a71359ad907f20e2cd1c680bc8dba1512cc6a59ab50169f98fb1a993",
+    "observation-summary.json": "2fce56a8183f0b29d966663da8d892a9f90a5427ccdc801ac800fa6f95dc22c0",
+    "pane-before.json": "0e557cd6a1e131240fc68785ee01589fe6148dec01234d97384cdd71d1644ac1",
+    "pane-create.json": "4f1e8e6e1e13ff7c072c4de0ad38f65287d9b866972f06bae6e9f697a6d06b00",
+    "pane-idle-exit.json": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pane-launch.json": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pane-process.json": "0d89ed28a4ec417935a877d502fb257b419ec1d7318c983786d47a06226435f5",
+    "pane-reconnected.json": "ba4eea69a180215475497c32bc6f0ef13ca8606065fb742ca28aec8e6567c09e",
+    "pane-visible.json": "539f382b3fadcb2672d98a0aa61cbdb873c637e889a2dd827a87324a42a68a83",
+    "plan.txt": "a0ab6af4b8118f72f336276919b49ff1ea63a54936322234599731de2fdd09a7",
+    "pre-build.json": "a12b7cb43c9d9134b5bb1b35e9096b66775d9e92e7611d1cc92b02edd6782a87",
+    "preservation.json": "2332031f56fa97af99db7b3b6b32db31b10721df54a4d2a2287e9dd77f8a0e96",
+    "producer-ci.log": "a75244947d7650555c3a1227881352fba04cc9a06dee56aec945233d6aaa7881",
+    "producer-clone.log": "243a79a71db05ce84098f67c82a1ea5c0ce8700856c792fac1596ce8e5b04d08",
+    "provenance-corrected.log": "ceafe1d14c702604fdfd63120e3a9d1fa03eddfa0811c24447fb5f8c6f4417ee",
+    "qualification-isolated.log": "5f27456b03806f9fd36f3dad29c7080419d066101af88352935f91fb7065b666",
+    "remote-baseline.json": "bc5a758f59808e72f9c2d93ccc9cbea550a8f36376a84f7039f2581deffe7f6d",
+    "rpc-after-get.json": "bb10c3d50ccd807713bbb89f0f750ad1c4ef5e6ac719656b7302f459b0dbe414",
+    "rpc-after-process-info.json": "bee37f1210b23c8285884414c2e303d3c788868f8c4d8afd0a8a60a0bd4cd13f",
+    "rpc-before-get.json": "bb10c3d50ccd807713bbb89f0f750ad1c4ef5e6ac719656b7302f459b0dbe414",
+    "rpc-before-process-info.json": "bee37f1210b23c8285884414c2e303d3c788868f8c4d8afd0a8a60a0bd4cd13f",
+    "rpc-launch.json": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rpc-output.jsonl": "2e62dcab088face0451634c1f0de31871d9e4f8b375dd25e3a7f6f96e074fe61",
+    "rpc-pane-create.json": "3f9a24c7b398332007edc1f0196236fb8975bcee41b41e571e81e2c61cb982a6",
+    "source-baseline.json": "886cee0d0ab1904448edc04630dce53e1c00b5cef9de0f9ba20713a61a06a826",
+    "typecheck.log": "30a479f0b709b397c9c230bc07f75088466756356179c85934891ef9986f51ab",
+    "v2-contract.log": "0f1e7ddc4862679182a01fa5b1a2990868d8cacc13096d25b546750808cba191",
+    "v3-builders.log": "93b71ee71e7e090a03437471965fc5823bad6b5fa6a70a41751b9eaec6df771e",
+    "v3-contract.log": "c60e19ce2d3ad3bc0cb717314db8f0b490c6a28bc72c4f282695b6f921e074eb"
+  },
+  "toolchain": {
+    "node": "v26.7.0",
+    "npm": "12.0.2"
+  }
+}
