@@ -279,13 +279,9 @@ outputs. Exit policy: 2 for a critical behavioral regression; 1 for an ordinary 
 regression or unresolved infrastructure error; 0 otherwise. `--only` and `--affected` comparisons
 are branch feedback and always say NOT READY/never SHIP.
 
-## Permanent mutation self-test
+## Mutation testing removed
 
-```bash
-skill-harness mutation-test
-```
-
-This command is deterministic, offline, and makes no model or judge calls. It retains the original 21 trajectory mutations and adds 21 permanent schema-v3, delivery, observer-provenance, and screen cases. The required-ID test derives the expected count from its named catalogue, so removing a case fails the gate without hardcoding the total.
+Mutation-testing machinery was removed by explicit user instruction on 2026-09-07. This requirement was withdrawn, not passed. Runtime validators, ordinary behavioral regression tests and historical evidence remain.
 
 ## Cost/latency availability
 

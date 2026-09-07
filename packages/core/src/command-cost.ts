@@ -11,7 +11,6 @@ export const FREE_OFFLINE_COMMANDS = [
   "judge-agreement",
   "lint",
   "list",
-  "mutation-test",
   "rescore",
   "restamp",
   "screen",

@@ -11,7 +11,7 @@ Results schema 3 is an intentional observation-and-meaning epoch. New Pi runs re
 
 `screen <run-dir>...` is free/offline and adapter-free. It derives control/treatment rates and criterion failures from schema-v3 fields. Schema 1/2 remains readable without an on-disk rewrite; absent historical observations remain UNKNOWN. The prompt, judge, verdict parser, panel collapse, and scorer are unchanged. The named normalization registry starts at `cwd-line-v1`, replacing exactly Pi's dynamic `Current working directory:` line.
 
-Release evidence must include the v2 compatibility test, v3 schema positive/negative controls, writer round trips, prompt occurrence mutations, the no-adapter screen CLI test, and the full mutation catalogue. Draft post: `docs/posts/2026-09-04-the-result-that-can-answer-the-next-question.md`.
+Release evidence must include the v2 compatibility test, v3 schema positive/negative controls, writer round trips, ordinary prompt-occurrence regression tests, and the no-adapter screen CLI test. Mutation-testing machinery was removed by explicit user instruction on 2026-09-07: the catalogue requirement is withdrawn, not passed. Draft post: `docs/posts/2026-09-04-the-result-that-can-answer-the-next-question.md`.
 
 ### 0.12.0 real-Pi smoke gate: RUN
 
@@ -245,10 +245,10 @@ comparison costs nothing. Regression exit codes are distinct: `2` for a critical
 regression, `1` for an ordinary one. It spends subject and judge calls — confirm the
 skill, models and judge before running it.
 
-**`mutation-test`** — free, offline, no models. Proves the trajectory assertion
-classes can actually turn red, 15 mutations, and fails if any survives. It covers
-`assert.trajectory` only: `assert.trace` needles are evaluated by different code and
-get nothing from it.
+**Historical mutation command — withdrawn on 2026-09-07.** The former
+`mutation-test` command covered trajectory assertion classes, not trace needles.
+It is no longer available or a release requirement. Preserve its dated evidence;
+use surviving ordinary validator/regression tests. Withdrawn does not mean passed.
 
 **Critical scenarios now demand every clean repetition.** `critical: true` and
 membership in top-level `critical:` are one release-gating set, and for that set the
@@ -283,8 +283,9 @@ for what the gate proves now.
 
 **Consumer checklist for this release:**
 
-1. Nothing to migrate. `assert.trajectory`, `compare` and `mutation-test` are additive;
-   a spec that declares none of them behaves exactly as it did on 0.8.0.
+1. `assert.trajectory` and `compare` retain their compatibility behavior.
+   The former mutation command was removed by explicit user instruction; remove its
+   operational invocations rather than treating historical release notes as current commands.
 2. If you declare `critical:` scenarios, re-read their grades before trusting a green
    board: the threshold for that set is now every clean repetition, so a cell that
    passed 2 of 3 was previously green and is now a release failure. That is the point.
