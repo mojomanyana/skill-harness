@@ -6,6 +6,7 @@
  */
 export const FREE_OFFLINE_COMMANDS = [
   "affected",
+  "archive",
   "coverage",
   "init",
   "judge-agreement",

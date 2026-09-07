@@ -39,6 +39,7 @@ import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
 import { runCompareCommand } from "./compare.js";
 import { cmdQualification } from "./qualification.js";
+import { cmdArchive } from "./archive.js";
 
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 // The judge default lives in core (`defaultJudge()`), which resolves
@@ -934,6 +935,7 @@ export function help(): string {
                      [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]
                        ask again about untrustworthy cells (ambiguous / contradictory / non-unanimous /
                        ship-deciding). OFF by default; prints the exact MAX extra call count first.
+  archive ingest|inspect --policy file --source id  explicit external ingestion/metadata (${free("archive")})
   judge-agreement <run-dir>                      compare two distinct persisted judge votes per scenario (${free("judge-agreement")})
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (${free("rescore")})
   regate <run-dir>...  [--judge prov:model]     re-evaluate saved gates (no subject call; judges fail→pass reps)
@@ -971,6 +973,7 @@ export async function main(argv: string[]): Promise<void> {
     case "run": return cmdRun(args);
     case "compare": return cmdCompare(args);
     case "grade": return cmdGrade(args);
+    case "archive": return cmdArchive(args);
     case "judge-agreement": return cmdJudgeAgreement(args);
     case "rescore": return cmdRescore(args);
     case "regate": return cmdRegate(args);

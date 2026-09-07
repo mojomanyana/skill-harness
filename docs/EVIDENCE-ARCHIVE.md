@@ -15,6 +15,18 @@ Use an explicitly owned private local directory. Existing symlink ancestors and 
 
 `readArchiveCheckpoint(root, checkpointId)` reconstructs state without modifying the source or calling any worker. It rechecks retained source identity and recomputes byte/syntax coverage rather than trusting cursor counts. Persist the returned checkpoint ID in the caller's managed ingestion job. There is no automatic watcher or mutable latest-pointer service. The declared parser metadata is separate from the actual `jsonl-syntax-v1` reader; this reader does not validate native event semantics. Active branch stays null and acceptance stays not-assessed.
 
+## Explicit policy CLI
+
+`archive ingest --policy <file> --source <id> [--previous <checkpoint>]` captures one explicitly allowed source. `archive inspect --policy <file> --source <id> --checkpoint <id>` reports checkpoint metadata only. Neither command exports payload bytes, writes worker sessions, runs a worker, or calls a model. Exit zero means the operation succeeded, **not** complete evidence: inspect `sourceStatus`, `syntax`, gaps and `acceptance`.
+
+The selected policy is canonical `JSON.stringify` JSON in an owner-only regular file (mode0600). It has exactly:
+
+```json
+{"version":"archive-policy-v1","id":"local","revision":"1","sourceRoot":"/owned/private/producer","archiveRoot":"/owned/private/consumer","maxBytes":1048576,"retention":"exact","expiresAt":"2099-01-01T00:00:00.000Z","sources":[{"id":"source-1","path":"events.jsonl","parser":{"id":"jsonl","version":"1"}}]}
+```
+
+Use actual owned absolute roots and a deliberately chosen expiry, not these example paths/date. Source roots and files must be private, operator-owned and symlink-free. Relative source paths are allowlisted; traversal, known agent/auth paths, inline policy overrides, unknown keys, expired policy and oversize sources are refused. A digest-only policy receipt binds each checkpoint to the exact configuration bytes without retaining local policy paths. The policy is operator-selected configuration, **not** a signed approval or protection against a hostile same-user agent. Redacted mode expects already-redacted input; it does not perform or certify redaction. No automatic capture, retention deletion or public export is enabled.
+
 ## Not yet delivered
 
 P02 manifest ingestion and exact producer pin/fixture parity, native execution/call/session joins, approved operational retention/redaction/access policy, branch ancestry/semantic coverage projection, and credential-safe candidate export remain pending. The primitive may be used with synthetic fixtures independently, but does not complete P03 or qualify a live integration.

@@ -81,7 +81,7 @@ the judge's verdict; only an explicit author override beats it.
 
 ## Free, offline, and worth running first
 None of these spend a model or judge token. Reach for them before anything paid:
-`init`, `lint`, `list`, `rescore`, `restamp`, `screen`, `stability`, `coverage`, `affected`,
+`init`, `lint`, `list`, `rescore`, `restamp`, `screen`, `stability`, `coverage`, `affected`, `archive`,
 and `judge-agreement`. In particular —
 - `coverage <skill|all> --skills <root>` — which SKILL.md sections have a declared
   test. `covers` records that somebody LINKED a test to a section; it is not proof
