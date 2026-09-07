@@ -9,16 +9,22 @@
 
 Use an explicitly owned private local directory. Existing symlink ancestors and final-file symlinks are refused; regular files and bounded reads are required. This is not a sandbox or protection against a hostile same-user process changing directory ancestry concurrently. No default raw-content capture or candidate export is enabled. Reference-only metadata still exposes content digests, so even that choice requires a suitable policy.
 
+## Immutable ingestion checkpoints
+
+`ingestArchiveSnapshot(root, input)` adds a durable checkpoint for explicitly supplied snapshots, with an optional `previousCheckpointId`. Repeated identical observations return the same checkpoint and no new records. Exact byte-prefix growth preserves record IDs and resumes a pending line; source replacement starts a distinct lineage. Parser/representation changes and missing previous bytes explicitly break continuity. Duplicate logical labels/timestamps remain separate source records, not separate inferred outcomes.
+
+`readArchiveCheckpoint(root, checkpointId)` reconstructs state without modifying the source or calling any worker. It rechecks retained source identity and recomputes byte/syntax coverage rather than trusting cursor counts. Persist the returned checkpoint ID in the caller's managed ingestion job. There is no automatic watcher or mutable latest-pointer service. The declared parser metadata is separate from the actual `jsonl-syntax-v1` reader; this reader does not validate native event semantics. Active branch stays null and acceptance stays not-assessed.
+
 ## Not yet delivered
 
-P02 manifest ingestion and exact producer pin/fixture parity, native execution/call/session joins, persistent source checkpoints, approved operational retention/redaction/access policy, branch ancestry and coverage projection, and credential-safe candidate export remain pending. The primitive may be used with synthetic fixtures independently, but does not complete P03 or qualify a live integration.
+P02 manifest ingestion and exact producer pin/fixture parity, native execution/call/session joins, approved operational retention/redaction/access policy, branch ancestry/semantic coverage projection, and credential-safe candidate export remain pending. The primitive may be used with synthetic fixtures independently, but does not complete P03 or qualify a live integration.
 
 ## Deterministic checks
 
 From the campaign harness checkout (no package manager/lifecycle invocation needed):
 
 ```sh
-node node_modules/vitest/vitest.mjs run packages/adapters/test/evidence-archive.test.ts
+node node_modules/vitest/vitest.mjs run packages/adapters/test/evidence-archive.test.ts packages/adapters/test/archive-checkpoint.test.ts
 node node_modules/typescript/bin/tsc -b packages/core packages/adapters packages/cli
 ```
 

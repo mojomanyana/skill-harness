@@ -22,3 +22,4 @@ export * from "./prompt-provenance.js";
 export * from "./trajectory.js";
 export * from "./pi-daddy-ledger-v3.js";
 export * from "./evidence-archive.js";
+export * from "./archive-checkpoint.js";

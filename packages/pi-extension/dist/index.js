@@ -12499,6 +12499,10 @@ import { createHash as createHash12, randomUUID } from "node:crypto";
 import { join as join32, parse, resolve as resolve14, sep as sep4 } from "node:path";
 var LIMIT = 8 * 1024 * 1024;
 
+// packages/adapters/dist/archive-checkpoint.js
+import { createHash as createHash13 } from "node:crypto";
+var LIMIT2 = 8 * 1024 * 1024;
+
 // packages/adapters/dist/index.js
 var ADAPTERS = {
   pi: piAdapter
@@ -12892,7 +12896,7 @@ async function runViaExtension(opts) {
 // packages/pi-extension/src/capture-cmd.ts
 import { existsSync as existsSync25, mkdirSync as mkdirSync9, writeFileSync as writeFileSync11, readdirSync as readdirSync17, readFileSync as readFileSync26 } from "node:fs";
 import { join as join35 } from "node:path";
-import { createHash as createHash13 } from "node:crypto";
+import { createHash as createHash14 } from "node:crypto";
 var CANCELLED = { status: "cancelled", files: [] };
 var CAPTURES_GITIGNORE = "# Local review evidence for captured cases \u2014 never commit.\n.local/\n";
 async function runCapture(skillDir, ctx) {
@@ -13030,7 +13034,7 @@ async function chooseTarget(skillDir, ctx) {
   return {
     kind: chosen.kind,
     path: chosen.path,
-    content_sha256: createHash13("sha256").update(readFileSync26(chosen.abs, "utf8"), "utf8").digest("hex")
+    content_sha256: createHash14("sha256").update(readFileSync26(chosen.abs, "utf8"), "utf8").digest("hex")
   };
 }
 function suggestScenarioId(specPath, fallback) {
