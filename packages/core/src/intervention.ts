@@ -63,9 +63,9 @@ export interface InterventionAssessment {
 const assessments = new WeakSet<object>();
 const assessmentArtifacts = new WeakMap<object, ReadonlyMap<string, Buffer>>();
 function manifestValid(m: InterventionManifest): void {
-  const { version, id, inputDigest, changedAxes, deterministicSampling, ...draft } = clone(m);
-  if (version !== "intervention-comparison-v1" || deterministicSampling !== false || canonical(freezeIntervention(draft)) !== canonical(manifestWithDerived())) throw new Error("frozen intervention changed");
-  function manifestWithDerived() { return { ...draft, version, id, inputDigest, changedAxes, deterministicSampling }; }
+  const detached = clone(m);
+  const { version, id: _id, inputDigest: _inputs, changedAxes: _axes, deterministicSampling, ...draft } = detached;
+  if (version !== "intervention-comparison-v1" || deterministicSampling !== false || canonical(freezeIntervention(draft)) !== canonical(detached)) throw new Error("frozen intervention changed");
 }
 /** Pre-spend role gate: consumes independently resolved host facts, never guesses aliases or calls a provider. */
 export function assertInterventionRoles(manifest: InterventionManifest, qualification: InterventionQualification | null): asserts qualification is InterventionQualification {
