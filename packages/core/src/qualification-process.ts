@@ -132,9 +132,11 @@ function qualificationOwnedLinuxProcessGroupMembers(
 function qualificationLinuxProcessGroupMembers(processGroupId: number): QualificationProcessIdentity[] {
   if (process.platform !== "linux") return [];
   const members: QualificationProcessIdentity[] = [];
-  for (const entry of readdirSync("/proc", { withFileTypes: true })) {
-    if (!entry.isDirectory() || !/^\d+$/.test(entry.name)) continue;
-    const pid = Number(entry.name);
+  // Dirent construction may lstat an unrelated disappearing PID before our
+  // per-entry guard runs. Names need no metadata; validate each stat below.
+  for (const name of readdirSync("/proc")) {
+    if (!/^\d+$/.test(name)) continue;
+    const pid = Number(name);
     try {
       const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
       const close = stat.lastIndexOf(")");

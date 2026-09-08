@@ -121,7 +121,12 @@ bytes, then idempotently appends the missing lifecycle terminal event.
 Production execution is Linux-only. Linux process receipts include PID, kernel boot ID,
 and `/proc/<pid>/stat` start ticks. Timeout, abort, and descendant cleanup enumerate
 process-group members and signal only still-matching recorded occurrences; they never
-signal a bare reused numeric process-group ID. Test mode can exercise other platforms
+signal a bare reused numeric process-group ID. Enumeration reads directory names rather
+than asking Node to construct Dirents: Dirent construction can lstat a disappearing
+unrelated PID before the per-process guard runs. Per-process stat/identity checks and
+pre-signal occurrence validation remain; a whole `/proc` listing failure still throws.
+Ordinary filesystem-fault fixtures cover that distinction and reused identities, not a
+claim that an earlier CI startup failure had this cause. Test mode can exercise other platforms
 but makes no production occurrence-safety claim there. stdout and stderr stream to
 durable `.partial` files, are bounded by the arm's output limit, and remain at those
 paths after every terminal status. Truncation is explicit. A terminal timeout/abort
