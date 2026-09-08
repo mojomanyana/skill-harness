@@ -5,7 +5,7 @@ import { dirname as dirname13, join as join38 } from "node:path";
 // packages/pi-extension/src/commands.ts
 import { existsSync as existsSync26 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
-import { dirname as dirname12, join as join37, resolve as resolve17, relative as relative5 } from "node:path";
+import { dirname as dirname12, join as join37, resolve as resolve17, relative as relative6 } from "node:path";
 
 // packages/core/dist/spec.js
 import { readFileSync } from "node:fs";
@@ -42,10 +42,10 @@ function requireCommon() {
     }
     return target;
   }
-  function repeat(string2, count) {
+  function repeat(string3, count) {
     let result = "";
     for (let cycle = 0; cycle < count; cycle += 1) {
-      result += string2;
+      result += string3;
     }
     return result;
   }
@@ -122,8 +122,8 @@ function requireSnippet() {
       // relative position
     };
   }
-  function padStart(string2, max) {
-    return common2.repeat(" ", max - string2.length) + string2;
+  function padStart(string3, max) {
+    return common2.repeat(" ", max - string3.length) + string3;
   }
   function makeSnippet(mark, options) {
     options = Object.create(options || null);
@@ -2446,7 +2446,7 @@ function requireDumper() {
   function encodeHex(character) {
     let handle;
     let length;
-    const string2 = character.toString(16).toUpperCase();
+    const string3 = character.toString(16).toUpperCase();
     if (character <= 255) {
       handle = "x";
       length = 2;
@@ -2459,7 +2459,7 @@ function requireDumper() {
     } else {
       throw new YAMLException2("code point within a string may not be greater than 0xFFFFFFFF");
     }
-    return "\\" + handle + common2.repeat("0", length - string2.length) + string2;
+    return "\\" + handle + common2.repeat("0", length - string3.length) + string3;
   }
   const QUOTING_TYPE_SINGLE = 1;
   const QUOTING_TYPE_DOUBLE = 2;
@@ -2485,19 +2485,19 @@ function requireDumper() {
     this.duplicates = [];
     this.usedDuplicates = null;
   }
-  function indentString(string2, spaces) {
+  function indentString(string3, spaces) {
     const ind = common2.repeat(" ", spaces);
     let position = 0;
     let result = "";
-    const length = string2.length;
+    const length = string3.length;
     while (position < length) {
       let line;
-      const next = string2.indexOf("\n", position);
+      const next = string3.indexOf("\n", position);
       if (next === -1) {
-        line = string2.slice(position);
+        line = string3.slice(position);
         position = length;
       } else {
-        line = string2.slice(position, next + 1);
+        line = string3.slice(position, next + 1);
         position = next + 1;
       }
       if (line.length && line !== "\n") result += ind;
@@ -2551,27 +2551,27 @@ function requireDumper() {
   function isPlainSafeLast(c) {
     return !isWhitespace(c) && c !== CHAR_COLON;
   }
-  function codePointAt(string2, pos) {
-    const first = string2.charCodeAt(pos);
+  function codePointAt(string3, pos) {
+    const first = string3.charCodeAt(pos);
     let second;
-    if (first >= 55296 && first <= 56319 && pos + 1 < string2.length) {
-      second = string2.charCodeAt(pos + 1);
+    if (first >= 55296 && first <= 56319 && pos + 1 < string3.length) {
+      second = string3.charCodeAt(pos + 1);
       if (second >= 56320 && second <= 57343) {
         return (first - 55296) * 1024 + second - 56320 + 65536;
       }
     }
     return first;
   }
-  function needIndentIndicator(string2) {
+  function needIndentIndicator(string3) {
     const leadingSpaceRe = /^\n* /;
-    return leadingSpaceRe.test(string2);
+    return leadingSpaceRe.test(string3);
   }
   const STYLE_PLAIN = 1;
   const STYLE_SINGLE = 2;
   const STYLE_LITERAL = 3;
   const STYLE_FOLDED = 4;
   const STYLE_DOUBLE = 5;
-  function chooseScalarStyle(string2, singleLineOnly, indentPerLevel, lineWidth, testAmbiguousType, quotingType, forceQuotes, inblock) {
+  function chooseScalarStyle(string3, singleLineOnly, indentPerLevel, lineWidth, testAmbiguousType, quotingType, forceQuotes, inblock) {
     let i;
     let char = 0;
     let prevChar = null;
@@ -2579,10 +2579,10 @@ function requireDumper() {
     let hasFoldableLine = false;
     const shouldTrackWidth = lineWidth !== -1;
     let previousLineBreak = -1;
-    let plain = isPlainSafeFirst(codePointAt(string2, 0)) && isPlainSafeLast(codePointAt(string2, string2.length - 1));
+    let plain = isPlainSafeFirst(codePointAt(string3, 0)) && isPlainSafeLast(codePointAt(string3, string3.length - 1));
     if (singleLineOnly || forceQuotes) {
-      for (i = 0; i < string2.length; char >= 65536 ? i += 2 : i++) {
-        char = codePointAt(string2, i);
+      for (i = 0; i < string3.length; char >= 65536 ? i += 2 : i++) {
+        char = codePointAt(string3, i);
         if (!isPrintable(char)) {
           return STYLE_DOUBLE;
         }
@@ -2590,13 +2590,13 @@ function requireDumper() {
         prevChar = char;
       }
     } else {
-      for (i = 0; i < string2.length; char >= 65536 ? i += 2 : i++) {
-        char = codePointAt(string2, i);
+      for (i = 0; i < string3.length; char >= 65536 ? i += 2 : i++) {
+        char = codePointAt(string3, i);
         if (char === CHAR_LINE_FEED) {
           hasLineBreak = true;
           if (shouldTrackWidth) {
             hasFoldableLine = hasFoldableLine || // Foldable line = too long, and not more-indented.
-            i - previousLineBreak - 1 > lineWidth && string2[previousLineBreak + 1] !== " ";
+            i - previousLineBreak - 1 > lineWidth && string3[previousLineBreak + 1] !== " ";
             previousLineBreak = i;
           }
         } else if (!isPrintable(char)) {
@@ -2605,15 +2605,15 @@ function requireDumper() {
         plain = plain && isPlainSafe(char, prevChar, inblock);
         prevChar = char;
       }
-      hasFoldableLine = hasFoldableLine || shouldTrackWidth && (i - previousLineBreak - 1 > lineWidth && string2[previousLineBreak + 1] !== " ");
+      hasFoldableLine = hasFoldableLine || shouldTrackWidth && (i - previousLineBreak - 1 > lineWidth && string3[previousLineBreak + 1] !== " ");
     }
     if (!hasLineBreak && !hasFoldableLine) {
-      if (plain && !forceQuotes && !testAmbiguousType(string2)) {
+      if (plain && !forceQuotes && !testAmbiguousType(string3)) {
         return STYLE_PLAIN;
       }
       return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
     }
-    if (indentPerLevel > 9 && needIndentIndicator(string2)) {
+    if (indentPerLevel > 9 && needIndentIndicator(string3)) {
       return STYLE_DOUBLE;
     }
     if (!forceQuotes) {
@@ -2621,14 +2621,14 @@ function requireDumper() {
     }
     return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
   }
-  function writeScalar(state, string2, level, iskey, inblock) {
+  function writeScalar(state, string3, level, iskey, inblock) {
     state.dump = (function() {
-      if (string2.length === 0) {
+      if (string3.length === 0) {
         return state.quotingType === QUOTING_TYPE_DOUBLE ? '""' : "''";
       }
       if (!state.noCompatMode) {
-        if (DEPRECATED_BOOLEANS_SYNTAX.indexOf(string2) !== -1 || DEPRECATED_BASE60_SYNTAX.test(string2)) {
-          return state.quotingType === QUOTING_TYPE_DOUBLE ? '"' + string2 + '"' : "'" + string2 + "'";
+        if (DEPRECATED_BOOLEANS_SYNTAX.indexOf(string3) !== -1 || DEPRECATED_BASE60_SYNTAX.test(string3)) {
+          return state.quotingType === QUOTING_TYPE_DOUBLE ? '"' + string3 + '"' : "'" + string3 + "'";
         }
       }
       const indent2 = state.indent * Math.max(1, level);
@@ -2639,7 +2639,7 @@ function requireDumper() {
         return testImplicitResolving(state, string22);
       }
       switch (chooseScalarStyle(
-        string2,
+        string3,
         singleLineOnly,
         state.indent,
         lineWidth,
@@ -2649,42 +2649,42 @@ function requireDumper() {
         inblock
       )) {
         case STYLE_PLAIN:
-          return string2;
+          return string3;
         case STYLE_SINGLE:
-          return "'" + string2.replace(/'/g, "''") + "'";
+          return "'" + string3.replace(/'/g, "''") + "'";
         case STYLE_LITERAL:
-          return "|" + blockHeader(string2, state.indent) + dropEndingNewline(indentString(string2, indent2));
+          return "|" + blockHeader(string3, state.indent) + dropEndingNewline(indentString(string3, indent2));
         case STYLE_FOLDED:
-          return ">" + blockHeader(string2, state.indent) + dropEndingNewline(indentString(foldString(string2, lineWidth), indent2));
+          return ">" + blockHeader(string3, state.indent) + dropEndingNewline(indentString(foldString(string3, lineWidth), indent2));
         case STYLE_DOUBLE:
-          return '"' + escapeString(string2) + '"';
+          return '"' + escapeString(string3) + '"';
         default:
           throw new YAMLException2("impossible error: invalid scalar style");
       }
     })();
   }
-  function blockHeader(string2, indentPerLevel) {
-    const indentIndicator = needIndentIndicator(string2) ? String(indentPerLevel) : "";
-    const clip = string2[string2.length - 1] === "\n";
-    const keep = clip && (string2[string2.length - 2] === "\n" || string2 === "\n");
+  function blockHeader(string3, indentPerLevel) {
+    const indentIndicator = needIndentIndicator(string3) ? String(indentPerLevel) : "";
+    const clip = string3[string3.length - 1] === "\n";
+    const keep = clip && (string3[string3.length - 2] === "\n" || string3 === "\n");
     const chomp = keep ? "+" : clip ? "" : "-";
     return indentIndicator + chomp + "\n";
   }
-  function dropEndingNewline(string2) {
-    return string2[string2.length - 1] === "\n" ? string2.slice(0, -1) : string2;
+  function dropEndingNewline(string3) {
+    return string3[string3.length - 1] === "\n" ? string3.slice(0, -1) : string3;
   }
-  function foldString(string2, width) {
+  function foldString(string3, width) {
     const lineRe = /(\n+)([^\n]*)/g;
     let result = (function() {
-      let nextLF = string2.indexOf("\n");
-      nextLF = nextLF !== -1 ? nextLF : string2.length;
+      let nextLF = string3.indexOf("\n");
+      nextLF = nextLF !== -1 ? nextLF : string3.length;
       lineRe.lastIndex = nextLF;
-      return foldLine(string2.slice(0, nextLF), width);
+      return foldLine(string3.slice(0, nextLF), width);
     })();
-    let prevMoreIndented = string2[0] === "\n" || string2[0] === " ";
+    let prevMoreIndented = string3[0] === "\n" || string3[0] === " ";
     let moreIndented;
     let match;
-    while (match = lineRe.exec(string2)) {
+    while (match = lineRe.exec(string3)) {
       const prefix = match[1];
       const line = match[2];
       moreIndented = line[0] === " ";
@@ -2719,15 +2719,15 @@ function requireDumper() {
     }
     return result.slice(1);
   }
-  function escapeString(string2) {
+  function escapeString(string3) {
     let result = "";
     let char = 0;
-    for (let i = 0; i < string2.length; char >= 65536 ? i += 2 : i++) {
-      char = codePointAt(string2, i);
+    for (let i = 0; i < string3.length; char >= 65536 ? i += 2 : i++) {
+      char = codePointAt(string3, i);
       const escapeSeq = ESCAPE_SEQUENCES[char];
       if (!escapeSeq && isPrintable(char)) {
-        result += string2[i];
-        if (char >= 65536) result += string2[i + 1];
+        result += string3[i];
+        if (char >= 65536) result += string3[i + 1];
       } else {
         result += escapeSeq || encodeHex(char);
       }
@@ -3482,10 +3482,10 @@ function trajectoryEventsSha256(events) {
 function serializeTrajectoryEvents(events) {
   return events.map((event) => JSON.stringify(event)).join("\n") + (events.length ? "\n" : "");
 }
-function deserializeTrajectoryEvents(text) {
+function deserializeTrajectoryEvents(text2) {
   const out = [];
   try {
-    for (const line of text.split("\n").filter((entry) => entry.trim())) {
+    for (const line of text2.split("\n").filter((entry) => entry.trim())) {
       const event = JSON.parse(line);
       if (validateEvent(event) !== null)
         return null;
@@ -4171,10 +4171,10 @@ function resolveRemote(env, workspace, id, file) {
   }
   return raw;
 }
-function parseSpec(text, file) {
+function parseSpec(text2, file) {
   let doc;
   try {
-    doc = yaml.load(text);
+    doc = yaml.load(text2);
   } catch (e) {
     throw new SpecError(`not valid YAML \u2014 ${e.message}`, file);
   }
@@ -4339,13 +4339,13 @@ function parseSpec(text, file) {
   return { schema: 1, skill: o.skill, judge_persona: o.judge_persona, ship_bar, critical: effectiveCritical, scenarios };
 }
 function loadSpec(file) {
-  let text;
+  let text2;
   try {
-    text = readFileSync(file, "utf8");
+    text2 = readFileSync(file, "utf8");
   } catch (e) {
     throw new SpecError(`cannot read spec file \u2014 ${e.message}`, file);
   }
-  return parseSpec(text, file);
+  return parseSpec(text2, file);
 }
 
 // packages/core/dist/discover.js
@@ -4562,9 +4562,9 @@ var SKILL_PROMPT_KEY = "skill:prompt";
 var PROMPT_PREFIX = "prompt:";
 var CAPABILITY_KEYS = /* @__PURE__ */ new Set(["allowed-tools", "tools"]);
 var FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
-function splitPromptDoc(text) {
-  const m = FRONTMATTER_RE.exec(text);
-  return m ? { frontmatter: m[1], body: text.slice(m[0].length) } : { frontmatter: null, body: text };
+function splitPromptDoc(text2) {
+  const m = FRONTMATTER_RE.exec(text2);
+  return m ? { frontmatter: m[1], body: text2.slice(m[0].length) } : { frontmatter: null, body: text2 };
 }
 function canonicalValue(v) {
   if (typeof v === "string")
@@ -4592,8 +4592,8 @@ function modelVisibleFrontmatter(fm) {
     Object.entries(parsed).filter(([k]) => !CAPABILITY_KEYS.has(k)).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([k, v]) => [k, canonicalValue(v)])
   ];
 }
-function promptDocDigest(text) {
-  const { frontmatter, body } = splitPromptDoc(text);
+function promptDocDigest(text2) {
+  const { frontmatter, body } = splitPromptDoc(text2);
   return sha(JSON.stringify(["prompt-doc/1", modelVisibleFrontmatter(frontmatter), body]));
 }
 function promptDocDigestOfFile(path) {
@@ -4756,8 +4756,8 @@ function diffSnapshots(before, after) {
   if (!before || !after)
     return null;
   const changed = /* @__PURE__ */ new Set();
-  for (const [path, hash] of after)
-    if (before.get(path) !== hash)
+  for (const [path, hash3] of after)
+    if (before.get(path) !== hash3)
       changed.add(path);
   for (const path of before.keys())
     if (!after.has(path))
@@ -5041,8 +5041,8 @@ function migrateResults(raw) {
   };
 }
 function readResults(runDir) {
-  const text = readFileSync4(resultsPath(runDir), "utf8");
-  return migrateResults(yaml.load(text));
+  const text2 = readFileSync4(resultsPath(runDir), "utf8");
+  return migrateResults(yaml.load(text2));
 }
 var CRITERION_RE = /^\s*(\d+)[.)]\s*\**\s*(PASS|FAIL)\b\**\s*(.*)$/gim;
 function parseCriterionVotes(raw) {
@@ -6150,10 +6150,10 @@ function projectTurns(entries, homeDir) {
     if (id)
       current.entryIds.push(id);
     if (msg.role === "assistant") {
-      const text = visibleText(msg.content);
-      if (text)
+      const text2 = visibleText(msg.content);
+      if (text2)
         current.assistantText = current.assistantText ? `${current.assistantText}
-${text}` : text;
+${text2}` : text2;
       for (const b of msg.content ?? []) {
         if (b.type !== "toolCall")
           continue;
@@ -6239,8 +6239,8 @@ function redactValue(value, homeDir, depth) {
     return redactArgs(value, homeDir, depth + 1);
   return String(value);
 }
-function sha256(text) {
-  return createHash5("sha256").update(text, "utf8").digest("hex");
+function sha256(text2) {
+  return createHash5("sha256").update(text2, "utf8").digest("hex");
 }
 function captureId(seed, existing = []) {
   const taken = new Set(existing);
@@ -6395,11 +6395,11 @@ function parseTrace(lines, meta) {
       }
       if (msg?.role !== "assistant")
         continue;
-      const text = assistantText(msg);
-      if (text) {
-        lastAssistantText = text;
+      const text2 = assistantText(msg);
+      if (text2) {
+        lastAssistantText = text2;
         if (msg.stopReason === "stop")
-          finalText = text;
+          finalText = text2;
       }
       if (msg.usage && (typeof msg.usage.input === "number" || typeof msg.usage.output === "number" || typeof msg.usage.cacheRead === "number" || typeof msg.usage.cacheWrite === "number" || typeof msg.usage.cost?.total === "number"))
         sawUsage = true;
@@ -6488,8 +6488,8 @@ function isoTime(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? void 0 : date.toISOString();
 }
-function sha2562(text) {
-  return createHash6("sha256").update(text, "utf8").digest("hex");
+function sha2562(text2) {
+  return createHash6("sha256").update(text2, "utf8").digest("hex");
 }
 function traceSha256(trace) {
   const { trace_sha256: _omit, ...rest } = trace;
@@ -6603,8 +6603,8 @@ function aggregateObjective(outcomes) {
   const traceHashes = present.map((objective) => objective.trace_sha256);
   return {
     ...picked,
-    ...eventHashes.every((hash) => typeof hash === "string") ? { rep_events_sha256: eventHashes } : {},
-    ...traceHashes.every((hash) => typeof hash === "string") ? { rep_trace_sha256: traceHashes } : {}
+    ...eventHashes.every((hash3) => typeof hash3 === "string") ? { rep_events_sha256: eventHashes } : {},
+    ...traceHashes.every((hash3) => typeof hash3 === "string") ? { rep_trace_sha256: traceHashes } : {}
   };
 }
 function aggregateReps(outcomes, threshold) {
@@ -6952,9 +6952,9 @@ async function regradeRun(opts) {
 // packages/core/dist/canary.js
 import { readFileSync as readFileSync8 } from "node:fs";
 import { join as join11 } from "node:path";
-function skillBody(text) {
-  const m = /^---\r?\n[\s\S]*?\r?\n---\r?\n/.exec(text);
-  return m ? text.slice(m[0].length) : text;
+function skillBody(text2) {
+  const m = /^---\r?\n[\s\S]*?\r?\n---\r?\n/.exec(text2);
+  return m ? text2.slice(m[0].length) : text2;
 }
 function deliveryAnchor(skillMd) {
   const headings = [...skillBody(skillMd).matchAll(/^##[ \t]+(.+?)[ \t]*$/gm)].map((m) => m[1].trim());
@@ -7290,13 +7290,13 @@ function aggregateMetrics2(scenarios) {
 // packages/core/dist/run.js
 var LEDGER_FILENAME = "pi-daddy.ledger.jsonl";
 function countLedgerEvents(runDir) {
-  let text;
+  let text2;
   try {
-    text = readFileSync9(join14(runDir, LEDGER_FILENAME), "utf8");
+    text2 = readFileSync9(join14(runDir, LEDGER_FILENAME), "utf8");
   } catch {
     return 0;
   }
-  return text.split("\n").filter((line) => line.trim().length > 0).length;
+  return text2.split("\n").filter((line) => line.trim().length > 0).length;
 }
 async function runSkillModel(opts) {
   const { spec, skillDir, adapter, model, judge, mode, timestamp: timestamp2 } = opts;
@@ -7932,10 +7932,10 @@ function sectionAtLine(sections, line) {
   return sections.find((s) => line >= s.startLine && line <= s.endLine);
 }
 function parseCoversRef(raw) {
-  const hash = raw.indexOf("#");
-  if (hash < 0)
+  const hash3 = raw.indexOf("#");
+  if (hash3 < 0)
     return { raw, file: raw.trim() };
-  return { raw, file: raw.slice(0, hash).trim(), slug: raw.slice(hash + 1).trim() || void 0 };
+  return { raw, file: raw.slice(0, hash3).trim(), slug: raw.slice(hash3 + 1).trim() || void 0 };
 }
 function computeCoverage(opts) {
   const fileSections = /* @__PURE__ */ new Map();
@@ -8115,8 +8115,8 @@ var DuplicateScenarioId = class extends Error {
     this.name = "DuplicateScenarioId";
   }
 };
-function specSha256(text) {
-  return createHash8("sha256").update(text, "utf8").digest("hex");
+function specSha256(text2) {
+  return createHash8("sha256").update(text2, "utf8").digest("hex");
 }
 function renderScenarioBlock(scenario) {
   const dumped = yaml.dump({ scenarios: [scenario] }, { lineWidth: -1, noRefs: true });
@@ -8142,10 +8142,10 @@ function appendScenario(opts) {
   atomicWrite(specPath, merged);
   return { id, sha256: specSha256(merged), block };
 }
-function atomicWrite(path, text) {
+function atomicWrite(path, text2) {
   const tmp = join21(dirname5(path), `.${Date.now()}-${process.pid}.specwrite.tmp`);
   try {
-    writeFileSync6(tmp, text, "utf8");
+    writeFileSync6(tmp, text2, "utf8");
     renameSync3(tmp, path);
   } catch (err) {
     try {
@@ -8198,9 +8198,9 @@ function selectAffected(opts) {
   const { scenarios, specDir, diff, repoRoot } = opts;
   const reasons = /* @__PURE__ */ new Map();
   const add = (id, reason) => {
-    const list = reasons.get(id) ?? [];
-    list.push(reason);
-    reasons.set(id, list);
+    const list2 = reasons.get(id) ?? [];
+    list2.push(reason);
+    reasons.set(id, list2);
   };
   const selectAll = (why) => {
     for (const s of scenarios)
@@ -10697,8 +10697,8 @@ function collectTrajectorySources(cwd, sources) {
       }
       seenFiles.add(sourceFile);
       try {
-        const text = readFileSync23(join30(cwd, file), "utf8");
-        const normalized = source.adapter === "principal-assurance-v1" ? normalizePrincipalAssuranceLedger(text) : source.adapter === "pi-daddy-v1" ? normalizePiDaddyLegacyLedger(text) : source.adapter === "pi-daddy-ledger-v3" ? normalizePiDaddyLedgerV3(text) : deserializeTrajectoryEvents(text);
+        const text2 = readFileSync23(join30(cwd, file), "utf8");
+        const normalized = source.adapter === "principal-assurance-v1" ? normalizePrincipalAssuranceLedger(text2) : source.adapter === "pi-daddy-v1" ? normalizePiDaddyLegacyLedger(text2) : source.adapter === "pi-daddy-ledger-v3" ? normalizePiDaddyLedgerV3(text2) : deserializeTrajectoryEvents(text2);
         if (!normalized)
           throw new Error("normalized-v1 source is empty, malformed, or unsupported");
         const times = normalized.map((event) => validTime(event.at) ? Date.parse(event.at) : null);
@@ -10823,8 +10823,8 @@ function validatePrincipalAssurance(record, line) {
     throw new Error(`invalid principal assurance v1 event at line ${line}: assurance.scope is not a closed structured scope`);
   }
 }
-function normalizePrincipalAssuranceLedger(text) {
-  const records = parseJsonl(text, "principal assurance");
+function normalizePrincipalAssuranceLedger(text2) {
+  const records = parseJsonl(text2, "principal assurance");
   validatePrincipalIntegrity(records);
   return records.map((record, index) => {
     if (record.schema_version !== "1.0") {
@@ -10878,22 +10878,22 @@ function normalizePrincipalAssuranceLedger(text) {
     });
   });
 }
-function normalizePiDaddyLegacyLedger(text) {
-  const records = parseJsonl(text, "pi-daddy");
+function normalizePiDaddyLegacyLedger(text2) {
+  const records = parseJsonl(text2, "pi-daddy");
   const explicitV3 = records.findIndex((record) => record.ledgerVersion === 3);
   if (explicitV3 >= 0)
     throw new Error(`pi-daddy-v1 selector does not admit ledgerVersion 3 at line ${explicitV3 + 1}; use pi-daddy-ledger-v3`);
-  return normalizePiDaddyLedger(text);
+  return normalizePiDaddyLedger(text2);
 }
-function normalizePiDaddyLedgerV3(text) {
-  const records = parseJsonl(text, "pi-daddy");
+function normalizePiDaddyLedgerV3(text2) {
+  const records = parseJsonl(text2, "pi-daddy");
   const wrong = records.findIndex((record) => record.ledgerVersion !== 3);
   if (wrong >= 0)
     throw new Error(`pi-daddy-ledger-v3 requires explicit ledgerVersion 3 at line ${wrong + 1}`);
-  return normalizePiDaddyLedger(text);
+  return normalizePiDaddyLedger(text2);
 }
-function normalizePiDaddyLedger(text) {
-  const records = parseJsonl(text, "pi-daddy");
+function normalizePiDaddyLedger(text2) {
+  const records = parseJsonl(text2, "pi-daddy");
   validatePiDaddyTimestampOrder(records);
   const out = [];
   let seq2 = 1;
@@ -11968,8 +11968,8 @@ function sanitizeAttributes(value) {
   };
   return walk2(redacted);
 }
-function parseJsonl(text, label) {
-  const lines = text.split("\n").filter((line) => line.trim());
+function parseJsonl(text2, label) {
+  const lines = text2.split("\n").filter((line) => line.trim());
   if (!lines.length)
     throw new Error(`${label} ledger is empty`);
   return lines.map((line, index) => {
@@ -12009,16 +12009,16 @@ function without(record, keys) {
   const omitted = new Set(keys);
   return Object.fromEntries(Object.entries(record).filter(([key, value]) => !omitted.has(key) && value !== void 0));
 }
-function walkFiles(root, relative6 = "") {
+function walkFiles(root, relative7 = "") {
   const out = [];
   let entries;
   try {
-    entries = readdirSync16(join30(root, relative6), { withFileTypes: true });
+    entries = readdirSync16(join30(root, relative7), { withFileTypes: true });
   } catch {
     return out;
   }
   for (const entry of entries) {
-    const path = relative6 ? `${relative6}/${entry.name}` : entry.name;
+    const path = relative7 ? `${relative7}/${entry.name}` : entry.name;
     if (entry.isDirectory())
       out.push(...walkFiles(root, path));
     else if (entry.isFile())
@@ -12258,10 +12258,10 @@ function extensionFlags(extensions) {
     return ["--extension", abs];
   });
 }
-function header(turnNo, total, text) {
+function header(turnNo, total, text2) {
   const label = total === 1 ? "USER" : `USER (turn ${turnNo}/${total})`;
   return `>>> ${label}:
-${text}
+${text2}
 `;
 }
 var piAdapter = {
@@ -12508,6 +12508,159 @@ import { closeSync as closeSync7, constants as constants7, fstatSync as fstatSyn
 import { createHash as createHash14 } from "node:crypto";
 import { dirname as dirname9, isAbsolute as isAbsolute10, join as join33, parse as parse2, resolve as resolve15, sep as sep5 } from "node:path";
 
+// packages/adapters/dist/execution-retention-archive.js
+import { createHash as createHash17 } from "node:crypto";
+
+// packages/adapters/dist/generated/retention-v2-contract.js
+import { Compile } from "typebox/compile";
+
+// packages/adapters/dist/generated/retention-v2-json.js
+import { createHash as createHash15 } from "node:crypto";
+var WORK_EVENT_BYTES = 64 * 1024;
+var WORK_TEXT_BYTES = 16 * 1024 * 1024;
+
+// packages/adapters/dist/generated/retention-v2-contract.js
+var string2 = (maxLength = 512) => ({ type: "string", minLength: 1, maxLength, pattern: "^[^\\u0000-\\u001f\\u007f]+$" });
+var nullable = (schema2) => ({ anyOf: [schema2, { type: "null" }] });
+var literal = (value) => ({ const: value });
+var closed = (properties) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
+var hash = { type: "string", pattern: "^[a-f0-9]{64}$" };
+var integer = { type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER };
+var uuid = { type: "string", pattern: "^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$" };
+var RETENTION_CONTENT_KINDS = ["stdout", "stderr", "paneSnapshot", "checkReceipt", "result", "session"];
+var RETENTION_SCHEMA = freeze({
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  $id: "https://pi-daddy.local/contracts/execution-retention/v2/manifest.schema.json",
+  ...closed({
+    version: literal("2.0"),
+    archiveId: uuid,
+    identity: closed({
+      executionId: string2(),
+      parentExecutionId: nullable(string2()),
+      childId: string2(),
+      toolCallId: nullable(string2()),
+      executor: { enum: ["process", "herdr", "check"] },
+      taskDigest: nullable(hash),
+      definitionDigest: nullable(hash),
+      configurationDigest: hash,
+      workspaceId: nullable(string2())
+    }),
+    native: closed({
+      pid: nullable({ type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER }),
+      paneId: nullable(string2(4096)),
+      agentName: nullable(string2(4096)),
+      tabId: nullable(string2(4096)),
+      sessionId: nullable(uuid),
+      sessionPath: nullable(string2(4096)),
+      branchLeafId: nullable(string2(128))
+    }),
+    nativeSession: closed({
+      source: { enum: [null, "herdr-id", "herdr-path", "pi-session-file", "pi-session-manager"] },
+      status: { enum: ["missing", "verified", "invalid", "changed", "truncated", "unsupported"] },
+      sessionId: nullable(uuid),
+      sessionPath: nullable(string2(4096)),
+      parentSessionPath: nullable(string2(4096)),
+      branchLeafId: nullable(string2(128)),
+      branchState: { enum: ["unknown", "observed"] },
+      lastPersistedEntryId: nullable(string2(128)),
+      sha256: nullable(hash),
+      reason: nullable(string2())
+    }),
+    state: { enum: ["running", "terminal"] },
+    outcome: nullable(closed({
+      code: nullable({ type: "integer", minimum: -2147483648, maximum: 2147483647 }),
+      signal: nullable(string2(64)),
+      timedOut: { type: "boolean" },
+      aborted: { type: "boolean" },
+      truncated: { type: "boolean" },
+      failed: { type: "boolean" }
+    })),
+    content: closed(Object.fromEntries(RETENTION_CONTENT_KINDS.map((kind) => [kind, { oneOf: [
+      closed({ status: literal("missing"), path: literal(null), sha256: literal(null), bytes: literal(null) }),
+      closed({
+        status: literal("retained"),
+        path: { type: "string", pattern: `^${kind}-[a-f0-9]{64}\\.bin$` },
+        sha256: hash,
+        bytes: { ...integer, maximum: 1024 * 1024 }
+      })
+    ] }]))),
+    coverage: closed({ complete: literal(false), losses: { type: "array", items: string2(), maxItems: 64, uniqueItems: true } }),
+    acceptance: literal("not-assessed")
+  }),
+  allOf: [
+    {
+      if: { properties: { state: literal("running") } },
+      then: { properties: { outcome: literal(null) } },
+      else: { properties: { outcome: { type: "object" } } }
+    },
+    {
+      if: { properties: { nativeSession: { properties: { branchState: literal("unknown") } } } },
+      then: { properties: { nativeSession: { properties: { branchLeafId: literal(null) } }, native: { properties: { branchLeafId: literal(null) } } } }
+    }
+  ]
+});
+var validator = Compile(RETENTION_SCHEMA);
+function freeze(value) {
+  if (value && typeof value === "object") {
+    for (const child2 of Object.values(value))
+      freeze(child2);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+// packages/adapters/dist/generated/retention-v2-native.js
+import { constants as constants8 } from "node:fs";
+import { open, lstat, realpath } from "node:fs/promises";
+import { isAbsolute as isAbsolute11, relative as relative5, sep as sep6 } from "node:path";
+import { createHash as createHash16 } from "node:crypto";
+var MAX_NATIVE_SESSION_BYTES = 1024 * 1024;
+
+// packages/adapters/dist/execution-projection-schema.js
+import { Compile as Compile2 } from "typebox/compile";
+var text = { type: "string", minLength: 1, maxLength: 512 };
+var hash2 = { type: "string", pattern: "^[a-f0-9]{64}$" };
+var nullable2 = (schema2) => ({ anyOf: [schema2, { type: "null" }] });
+var list = (items) => ({ type: "array", items, maxItems: 4096, uniqueItems: true });
+var closed2 = (properties) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
+function freeze2(value) {
+  if (value && typeof value === "object") {
+    Object.values(value).forEach(freeze2);
+    Object.freeze(value);
+  }
+  return value;
+}
+var EXECUTION_ARCHIVE_PROJECTION_SCHEMA = freeze2({
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  $id: "https://github.com/mojomanyana/skill-harness/contracts/execution-archive/v1/projection.schema.json",
+  ...closed2({
+    version: { const: "execution-archive-projection-v1" },
+    executions: { type: "array", maxItems: 4096, items: closed2({
+      executionId: text,
+      parentExecutionIds: list(nullable2(text)),
+      retainedSessionIds: list(text),
+      activeBranch: { const: null },
+      toolCallIds: list(nullable2(text)),
+      archiveIds: list(text),
+      runtime: { enum: ["running", "terminal", "conflict"] },
+      outcome: nullable2(closed2({
+        code: nullable2({ type: "integer", minimum: -2147483648, maximum: 2147483647 }),
+        signal: nullable2(text),
+        timedOut: { type: "boolean" },
+        aborted: { type: "boolean" },
+        truncated: { type: "boolean" },
+        failed: { type: "boolean" }
+      })),
+      sourceReferences: list(hash2),
+      issues: list(text),
+      coverage: { const: "partial" },
+      acceptance: { const: "not-assessed" }
+    }) },
+    acceptance: { const: "not-assessed" }
+  })
+});
+var compiled = Compile2(EXECUTION_ARCHIVE_PROJECTION_SCHEMA);
+
 // packages/adapters/dist/index.js
 var ADAPTERS = {
   pi: piAdapter
@@ -12586,9 +12739,9 @@ async function serveReview(opts) {
         const id = url.searchParams.get("id") ?? "";
         const data = collectReport(opts.skillDir);
         const column = data.columns.find((c) => c.index === col);
-        const text = column ? findTranscript(column.runDir, id) : null;
-        res.writeHead(text ? 200 : 404, { "content-type": "text/plain; charset=utf-8" });
-        res.end(text ?? "transcript not found");
+        const text2 = column ? findTranscript(column.runDir, id) : null;
+        res.writeHead(text2 ? 200 : 404, { "content-type": "text/plain; charset=utf-8" });
+        res.end(text2 ?? "transcript not found");
         return;
       }
       if (req.method === "GET" && url.pathname === "/judge") {
@@ -12596,9 +12749,9 @@ async function serveReview(opts) {
         const id = url.searchParams.get("id") ?? "";
         const data = collectReport(opts.skillDir);
         const column = data.columns.find((c) => c.index === col);
-        const text = column ? findJudgeRaw(column.runDir, id) : null;
-        res.writeHead(text ? 200 : 404, { "content-type": "text/plain; charset=utf-8" });
-        res.end(text ?? "judge output not captured");
+        const text2 = column ? findJudgeRaw(column.runDir, id) : null;
+        res.writeHead(text2 ? 200 : 404, { "content-type": "text/plain; charset=utf-8" });
+        res.end(text2 ?? "judge output not captured");
         return;
       }
       if (req.method === "GET" && url.pathname === "/trends") {
@@ -12901,7 +13054,7 @@ async function runViaExtension(opts) {
 // packages/pi-extension/src/capture-cmd.ts
 import { existsSync as existsSync25, mkdirSync as mkdirSync9, writeFileSync as writeFileSync11, readdirSync as readdirSync17, readFileSync as readFileSync26 } from "node:fs";
 import { join as join36 } from "node:path";
-import { createHash as createHash15 } from "node:crypto";
+import { createHash as createHash18 } from "node:crypto";
 var CANCELLED = { status: "cancelled", files: [] };
 var CAPTURES_GITIGNORE = "# Local review evidence for captured cases \u2014 never commit.\n.local/\n";
 async function runCapture(skillDir, ctx) {
@@ -13039,7 +13192,7 @@ async function chooseTarget(skillDir, ctx) {
   return {
     kind: chosen.kind,
     path: chosen.path,
-    content_sha256: createHash15("sha256").update(readFileSync26(chosen.abs, "utf8"), "utf8").digest("hex")
+    content_sha256: createHash18("sha256").update(readFileSync26(chosen.abs, "utf8"), "utf8").digest("hex")
   };
 }
 function suggestScenarioId(specPath, fallback) {
@@ -13211,7 +13364,7 @@ ${card.failedTranscripts.join("\n")}`);
     const report = computeCoverage({
       specDir,
       scenarios: spec.scenarios,
-      baseFiles: [relative5(specDir, join37(skillDir, "SKILL.md")).split("\\").join("/")]
+      baseFiles: [relative6(specDir, join37(skillDir, "SKILL.md")).split("\\").join("/")]
     });
     say(ctx, formatCoverage(report, spec.skill), report.broken.length ? "warning" : "info");
     return;

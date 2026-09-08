@@ -27,9 +27,15 @@ The selected policy is canonical `JSON.stringify` JSON in an owner-only regular 
 
 Use actual owned absolute roots and a deliberately chosen expiry, not these example paths/date. Source roots and files must be private, operator-owned and symlink-free. Relative source paths are allowlisted; traversal, known agent/auth paths, inline policy overrides, unknown keys, expired policy and oversize sources are refused. A digest-only policy receipt binds each checkpoint to the exact configuration bytes without retaining local policy paths. The policy is operator-selected configuration, **not** a signed approval or protection against a hostile same-user agent. Redacted mode expects already-redacted input; it does not perform or certify redaction. No automatic capture, retention deletion or public export is enabled.
 
+## Pinned producer semantic ingestion
+
+`ingestRetainedExecution` and `readRetainedExecution` now consume execution-retention2.0 pinned to pi-daddy `7c78769c47177b1972b09e1f5c5474ad44cd2cac`. The source-owned validator, exact schema and six fixtures are generated through `scripts/vendor-execution-retention.mjs`; no historical selector is repinned. Actual blob bytes—not a producer's retained flag—determine availability. Re-reading rechecks deleted/corrupt content. Bounded mismatched bytes remain forensic input, not valid evidence.
+
+`projectRetainedExecutions` groups by execution identity, preserves exact public-call/parent joins, reports conflicts/cycles/missing parents, and does not infer accepted work or active branch. The versioned schema and actual-adapter fixture for downstream views are in [`contracts/execution-archive/v1`](../contracts/execution-archive/v1/README.md). Semantic ingestion requires an explicit exact-content policy and supplied policy-authorized blob bytes; the generic policy CLI does not implicitly traverse native content references.
+
 ## Not yet delivered
 
-P02 manifest ingestion and exact producer pin/fixture parity, native execution/call/session joins, approved operational retention/redaction/access policy, branch ancestry/semantic coverage projection, and credential-safe candidate export remain pending. The primitive may be used with synthetic fixtures independently, but does not complete P03 or qualify a live integration.
+A deployed archive/content-redaction policy, automatic source discovery/watching, trusted live-branch/acceptance authority, and credential-safe candidate export remain pending. Generic policy CLI and semantic ingestion are explicit APIs, not an automatically deployed observer. The primitive may be used with synthetic fixtures independently, but does not complete P03 or qualify a live integration.
 
 ## Deterministic checks
 
