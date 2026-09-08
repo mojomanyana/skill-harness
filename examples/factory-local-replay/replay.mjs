@@ -68,11 +68,11 @@ export function runLocalReplay(outputRoot){
   if(comparison.blind().length!==1)throw Error('objective gate failed before blind panel');
   comparison.panel('a',0,[[{verdict:'PASS',suspect:false},{verdict:'PASS',suspect:false}]]);
   const {assessment,blindReviewId}=comparison.finish();if(!blindReviewId)throw Error('complete inert panel did not yield durable blind choice');
-  writeFileSync(join(directory,'casting.json'),JSON.stringify(comparison.casting(castingScope),null,2)+'\n',{mode:0o600});
   const blind=openBlindIntervention(archive,blindReviewId,'operator:synthetic-fixture');
   blind.choose({kind:'one',labels:[blind.view().cards[0].label]});
   // Reopen the durable record instead of carrying an in-memory reveal permission.
   openBlindIntervention(archive,blindReviewId,'operator:synthetic-fixture').reveal();
+  writeFileSync(join(directory,'casting.json'),JSON.stringify(comparison.casting(castingScope),null,2)+'\n',{mode:0o600});
   const binding=buildAdoptionBinding({hypothesisDigest:hypothesis.id,experimentDigest:manifest.id,candidateDigest:h,scopeDigest:context.selectedSnapshot.snapshot.digest,assessmentPolicyDigest:h,rollbackCandidateDigest:sha('synthetic prior candidate'),activationBoundary:'next-orders',expiresAt:1000});
   const adoption=authorizeAdoption(binding,{id:'synthetic-controller',adoptions:[binding.id],rollbacks:[]},{experimentDigest:manifest.id,candidateDigest:h,scopeDigest:binding.scopeDigest,assessmentPolicyDigest:h,eligible:true},0);
   const later=classifyProductionObservation(adoption,{id:'synthetic-later-observation',adoptionId:adoption.id,candidateDigest:h,scopeDigest:binding.scopeDigest,originalRequirementDigest:h,currentRequirementDigest:h,outcome:'unknown',acceptanceDigest:null,acceptedArtifactDigest:null,observedArtifactDigest:outputHash,evidence:[]});

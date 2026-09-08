@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
+import { openBlindIntervention } from '../src/blind-intervention.js';
 import { createInterventionRun, openInterventionRun } from '../src/intervention-run.js';
 const roots:string[]=[];afterEach(()=>{for(const p of roots.splice(0))rmSync(p,{recursive:true,force:true});});
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
@@ -15,6 +16,7 @@ it('gates before panels, persists blind votes, and retains cheap failures withou
  expect(()=>run.panel('b',0,[[{verdict:'PASS',suspect:false},{verdict:'PASS',suspect:false}]])).toThrow(/objective/);
  expect(JSON.stringify(run.blind())).not.toContain('fixture:a');run.panel('a',0,[[{verdict:'PASS',suspect:false},{verdict:'PASS',suspect:false}]]);
  const reopened=openInterventionRun(f.path),result=reopened.finish();expect(result.assessment.arms.map(a=>a.state)).toEqual(['MEASURED','FAILED']);expect(result.assessment.cheapestEligible).toBe('a');expect(result.liveQualified).toBe(false);expect(result.blindReviewId).toMatch(/^[a-f0-9]{64}$/);expect(reopened.finish()).toEqual(result);
+ expect(()=>reopened.casting(f.input.scope)).toThrow(/quality choice/);const blind=openBlindIntervention(f.input.archiveRoot,result.blindReviewId!,'fixture-operator');blind.choose({kind:'one',labels:[blind.view().cards[0].label]});
  const rows=reopened.casting(f.input.scope);expect(rows.every(r=>r.routingDefault===null&&r.measuredAcceptance===null&&r.escapes===null)).toBe(true);expect(()=>reopened.casting({...f.input.scope,population:'layout'})).toThrow(/scope/);
 });
 it('records split panels and incomplete evidence without a successful comparison',()=>{const f=fixture(),run=createInterventionRun(f.path,f.input),cfg=run.configurations()[0];run.retain('a',0,{configurationDigest:cfg.digest,delivery:'PASS',outputBase64:Buffer.from('output').toString('base64'),cost:0});expect(()=>run.panel('a',0,[[{verdict:'PASS',suspect:false},{verdict:'FAIL',suspect:false}]])).toThrow(/tie/);run.panel('a',0,[[{verdict:'PASS',suspect:false},{verdict:'FAIL',suspect:false},{verdict:'PASS',suspect:false}]]);expect(run.finish().assessment.complete).toBe(false);expect(run.finish().blindReviewId).toBeNull();expect(()=>run.retain('a',0,{configurationDigest:cfg.digest,delivery:'ERROR',outputBase64:'',cost:0})).toThrow(/already/);});
