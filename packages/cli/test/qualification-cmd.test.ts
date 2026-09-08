@@ -47,6 +47,11 @@ function cli(f: ReturnType<typeof fixture>, args: string[], timeout=5000) {
   return result;
 }
 function lines(path:string){return existsSync(path)?readFileSync(path,"utf8").trim().split("\n").filter(Boolean).length:0}
+function expectCliSuccess(operation: string, result: ReturnType<typeof cli>) {
+  const diagnostic=JSON.stringify({operation,status:result.status,signal:result.signal,error:result.error?.message,code:(result.error as NodeJS.ErrnoException)?.code,stdout:result.stdout,stderr:result.stderr});
+  expect(result.error,diagnostic).toBeUndefined();
+  expect(result,diagnostic).toMatchObject({status:0,signal:null});
+}
 
 describe("qualification CLI lifecycle",()=>{
   it("consumes continuation authority from a private one-use file instead of argv or environment", () => {
@@ -83,9 +88,7 @@ describe("qualification CLI lifecycle",()=>{
       // This bounds a hung test, not CLI startup latency. The worker CANNOT finish
       // before release, so a caller that waits for completion still fails here.
       const started=cli(f,["qualification","start","--spool",f.spool,"--id","invocation-cli-1","--ack-wait-ms","5000"],15000);
-      const diagnostic=JSON.stringify({status:started.status,signal:started.signal,error:started.error?.message,code:(started.error as NodeJS.ErrnoException)?.code,stdout:started.stdout,stderr:started.stderr});
-      expect(started.error,diagnostic).toBeUndefined();
-      expect(started,diagnostic).toMatchObject({status:0,signal:null});
+      expectCliSuccess("detached start",started);
       expect(["launch-claimed","running"]).toContain(JSON.parse(started.stdout).phase);
       await vi.waitFor(()=>{
         expect(existsSync(f.ready)).toBe(true);
@@ -107,16 +110,31 @@ describe("qualification CLI lifecycle",()=>{
     expect(lines(f.count)).toBe(1);
   },30000);
 
-  it("abort is explicit and terminal; polling never launches another process",()=>{
-    const f=fixture(5000);
-    expect(cli(f,["qualification","prepare","--spool",f.spool,"--config",f.configPath,"--request",f.requestPath]).status).toBe(0);
-    expect(cli(f,["qualification","start","--spool",f.spool,"--id","invocation-cli-1"]).status).toBe(0);
-    const aborted=cli(f,["qualification","abort","--spool",f.spool,"--id","invocation-cli-1","--reason","operator-request"]);
-    expect(aborted.status).toBe(0);
-    const done=cli(f,["qualification","poll","--spool",f.spool,"--id","invocation-cli-1","--wait-ms","3000"]);
-    expect(JSON.parse(done.stdout).terminal_status).toBe("aborted");
-    expect(lines(f.count)).toBe(1);
-  });
+  it("abort is explicit and terminal; polling never launches another process",async()=>{
+    const f=fixture(0,true);
+    expectCliSuccess("abort prepare",cli(f,["qualification","prepare","--spool",f.spool,"--config",f.configPath,"--request",f.requestPath]));
+    try {
+      // Observe actual running state; neither a start acknowledgement nor a5000ms
+      // fixture timer proves that an interruptible child is still there.
+      expectCliSuccess("abort start",cli(f,["qualification","start","--spool",f.spool,"--id","invocation-cli-1","--ack-wait-ms","5000"],15000));
+      await vi.waitFor(()=>{
+        expect(existsSync(f.ready)).toBe(true);
+        const live=qualificationInvocationStatus(f.spool,"invocation-cli-1");
+        expect(live).toMatchObject({phase:"running",attempt:1,child_alive:true,supervisor_alive:true});
+        expect(live.child?.pid).toBe(Number(readFileSync(f.ready,"utf8")));
+      },{timeout:5000,interval:10});
+      expect(existsSync(f.release)).toBe(false);
+      expect(lines(f.count)).toBe(1);
+      const aborted=cli(f,["qualification","abort","--spool",f.spool,"--id","invocation-cli-1","--reason","operator-request"],15000);
+      expectCliSuccess("abort request",aborted);
+      const done=cli(f,["qualification","poll","--spool",f.spool,"--id","invocation-cli-1","--wait-ms","5000"],15000);
+      expectCliSuccess("abort poll",done);
+      expect(JSON.parse(done.stdout)).toMatchObject({phase:"terminal",terminal_status:"aborted",attempt:1,child_alive:false});
+      expect(existsSync(f.release)).toBe(false); // Natural successful completion was still impossible.
+      expectCliSuccess("abort validate",cli(f,["qualification","validate","--spool",f.spool]));
+      expect(lines(f.count)).toBe(1);
+    } finally { writeFileSync(f.release,"release\n"); }
+  },30000);
 
   it("fails closed on missing required flags and unknown lifecycle operations",()=>{
     const f=fixture();

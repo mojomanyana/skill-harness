@@ -487,7 +487,13 @@ a validated terminal spool. This proves lifetime independence rather than assumi
 that a350ms worker and a1500ms caller timeout measure detachment. The outer test
 watchdog includes source-loader/auth startup; the runner's acknowledgement deadline
 starts later. Process error/signal/stdout/stderr are included in assertion diagnostics.
-No production timeout, authority, accounting or launch policy is relaxed by this test.
+The abort regression uses the same unreleased worker and waits for its actual running
+occurrence before requesting cancellation. Terminal `aborted`, a no-longer-live child,
+validated spool and one launch are required while natural completion is still blocked.
+Prepare/start/abort/poll diagnostics name the failing operation separately. Tests declare
+an acknowledgement budget distinct from the outer startup watchdog; expiry is still an
+error, not authority to repeat a possibly consumed invocation.
+No production timeout, authority, accounting or launch policy is relaxed by these tests.
 This is deterministic local-process coverage, not live Pi/model qualification.
 
 ## Explicit non-claims
