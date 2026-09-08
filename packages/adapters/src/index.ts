@@ -32,4 +32,5 @@ export * from "./work-signal-cases.js";
 export * from "./work-case-review.js";
 export * from "./archive-read-capability.js";
 export * from "./archived-work.js";
+export * from "./blind-intervention.js";
 export * from "./archive-observer.js";

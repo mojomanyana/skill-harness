@@ -13,7 +13,13 @@ function canonical(x: unknown, depth = 0): string {
   }
   return `{${Reflect.ownKeys(d).sort((a, b) => String(a) < String(b) ? -1 : 1).map(k => { if (typeof k !== "string" || !d[k].enumerable || !Object.hasOwn(d[k], "value")) throw new Error("plain object required"); return `${JSON.stringify(k)}:${canonical(d[k].value, depth + 1)}`; }).join(",")}}`;
 }
-const digest = (value: unknown) => { const bytes = canonical(value); if (Buffer.byteLength(bytes) > 2 * 1024 * 1024) throw new Error("intervention data exceeds byte bound"); return createHash("sha256").update(bytes).digest("hex"); };
+/** Plain, bounded JSON encoding for retained intervention inputs; not semantic validation. */
+export function interventionCanonicalJson(value: unknown): string {
+  const bytes = canonical(value);
+  if (Buffer.byteLength(bytes) > 2 * 1024 * 1024) throw new Error("intervention data exceeds byte bound");
+  return bytes;
+}
+const digest = (value: unknown) => createHash("sha256").update(interventionCanonicalJson(value)).digest("hex");
 function frozen<T>(value: T): T { if (value && typeof value === "object") { Object.values(value).forEach(frozen); Object.freeze(value); } return value; }
 const clone = <T>(value: T): T => JSON.parse(canonical(value));
 export type InterventionAxis = "model" | "effort" | "skill" | "prompt" | "configuration";
