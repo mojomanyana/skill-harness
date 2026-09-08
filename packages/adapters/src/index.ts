@@ -35,4 +35,5 @@ export * from "./archived-work.js";
 export * from "./blind-intervention.js";
 export * from "./archive-observer.js";
 export * from "./weekly-investigation.js";
+export * from "./intervention-run.js";
 export * from "./trust-lifecycle.js";

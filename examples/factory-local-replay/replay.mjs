@@ -3,10 +3,10 @@ import { createHash } from 'node:crypto';
 import { join, isAbsolute, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
-  freezeIntervention, interventionEvidenceDigest, assessIntervention,
+  freezeIntervention,
   buildAdoptionBinding, authorizeAdoption, classifyProductionObservation,
 } from '../../packages/core/dist/index.js';
-import { retainArchiveSource, readWorkCandidate, captureArchivedWorkCandidates, createWorkCaseReviewer, retainBlindIntervention, openBlindIntervention, createWeeklyInvestigation, openWeeklyInvestigation, createTrustLifecycle, trustPolicyDigest } from '../../packages/adapters/dist/index.js';
+import { retainArchiveSource, readWorkCandidate, captureArchivedWorkCandidates, createWorkCaseReviewer, createInterventionRun, openBlindIntervention, createWeeklyInvestigation, openWeeklyInvestigation, createTrustLifecycle, trustPolicyDigest } from '../../packages/adapters/dist/index.js';
 import { buildWorkRevisionEvent, buildWorkSnapshotEvent, buildWorkOccurrenceEvent, buildWorkAcceptanceEvent, projectWorkLedger } from '../../packages/adapters/dist/generated/work-v4/reader.js';
 const sha=value=>createHash('sha256').update(value).digest('hex');
 const revisionRef=e=>({kind:e.payload.revision.kind,id:e.payload.revision.id,revision:e.payload.revision.revision,digest:e.payload.revision.digest});
@@ -61,10 +61,14 @@ export function runLocalReplay(outputRoot){
   const calibration=trust.inspect(0).calibration.reports[0];
   const manifest=freezeIntervention({family:'intervention',investigationSha256:frozen.digest,resourceMetric:'wall_ms',axes:['model'],common:{mode:'force',scenarioSha256:h,rubricSha256:h,fixtureSha256:h,heldoutSha256:h,harnessSha256:h,judgePolicySha256:h},proposer:'fixture:proposer',judge:'fixture:judge',cases:[{id:'A1',criteria:1,reps:1,threshold:1,critical:false}],arms:['a','b'].map(id=>({id,configuration:{model:`fixture:${id}`,effort:'fixture',skill:h,prompt:h,configuration:h}}))});
   const output=Buffer.from(`${domain} synthetic output`),outputHash=sha(output);
-  const evidence=['a','b'].map(armId=>({armId,inputDigest:manifest.inputDigest,artifactDigests:[outputHash],cells:[{caseId:'A1',repetition:0,delivery:'PASS',objective:armId==='a'?'PASS':'FAIL',criteria:armId==='a'?['PASS']:[],suspect:false,artifactSha256:outputHash}],cost:armId==='a'?10:1,costUnit:'wall_ms'}));
-  const qualified={manifestId:manifest.id,proposer:{requested:'fixture:proposer',canonical:'fixture-proposer'},judge:{requested:'fixture:judge',canonical:'fixture-judge'},subjects:{a:{requested:'fixture:a',canonical:'fixture-a'},b:{requested:'fixture:b',canonical:'fixture-b'}},evidenceDigests:Object.fromEntries(evidence.map(e=>[e.armId,interventionEvidenceDigest(e)])),artifacts:new Map([[outputHash,output]])};
-  const assessment=assessIntervention(manifest,evidence,qualified);
-  const blindReviewId=retainBlindIntervention(archive,manifest,evidence,qualified,'operator:synthetic-fixture');
+  const {version:_version,id:_id,inputDigest:_inputs,changedAxes:_axes,deterministicSampling:_sampling,...draft}=manifest;
+  const castingScope={station:'fixture-build',taskClass:'fixed-constraint',risk:'fixture',population:domain,version:h};
+  const comparison=createInterventionRun(join(directory,'comparison'),{kind:'inert-retained-v1',author:'operator:synthetic-fixture',catalogue:['proposer','judge','second','tie','a','b'].map(id=>({requested:`fixture:${id}`,canonical:`fixture-${id}`,efforts:['fixture'],lineage:'synthetic-shared-lineage'})),archiveRoot:archive,scope:castingScope,draft,roles:{proposer:{requested:draft.proposer,canonical:'fixture-proposer'},judges:[{requested:draft.judge,canonical:'fixture-judge'},{requested:'fixture:second',canonical:'fixture-second'},{requested:'fixture:tie',canonical:'fixture-tie'}],subjects:{a:{requested:'fixture:a',canonical:'fixture-a',effort:'fixture'},b:{requested:'fixture:b',canonical:'fixture-b',effort:'fixture'}}},expected:{a:[outputHash],b:['f'.repeat(64)]}});
+  for(const config of comparison.configurations())comparison.retain(config.armId,0,{configurationDigest:config.digest,delivery:'PASS',outputBase64:output.toString('base64'),cost:config.armId==='a'?10:1});
+  if(comparison.blind().length!==1)throw Error('objective gate failed before blind panel');
+  comparison.panel('a',0,[[{verdict:'PASS',suspect:false},{verdict:'PASS',suspect:false}]]);
+  const {assessment,blindReviewId}=comparison.finish();if(!blindReviewId)throw Error('complete inert panel did not yield durable blind choice');
+  writeFileSync(join(directory,'casting.json'),JSON.stringify(comparison.casting(castingScope),null,2)+'\n',{mode:0o600});
   const blind=openBlindIntervention(archive,blindReviewId,'operator:synthetic-fixture');
   blind.choose({kind:'one',labels:[blind.view().cards[0].label]});
   // Reopen the durable record instead of carrying an in-memory reveal permission.

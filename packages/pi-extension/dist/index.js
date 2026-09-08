@@ -12782,6 +12782,10 @@ var LIMIT4 = 4 * 1024 * 1024;
 // packages/adapters/dist/weekly-investigation.js
 import { ftruncateSync as truncateCandidate } from "node:fs";
 
+// packages/adapters/dist/intervention-run.js
+import { createHash as createHash30, randomBytes as randomBytes6 } from "node:crypto";
+import { mkdirSync as mkdirSync12 } from "node:fs";
+
 // packages/adapters/dist/trust-lifecycle.js
 import { isAbsolute as isAbsolute14 } from "node:path";
 
@@ -13176,9 +13180,9 @@ async function runViaExtension(opts) {
 }
 
 // packages/pi-extension/src/capture-cmd.ts
-import { existsSync as existsSync25, mkdirSync as mkdirSync12, writeFileSync as writeFileSync12, readdirSync as readdirSync17, readFileSync as readFileSync27 } from "node:fs";
+import { existsSync as existsSync25, mkdirSync as mkdirSync13, writeFileSync as writeFileSync12, readdirSync as readdirSync17, readFileSync as readFileSync27 } from "node:fs";
 import { join as join40 } from "node:path";
-import { createHash as createHash30 } from "node:crypto";
+import { createHash as createHash31 } from "node:crypto";
 var CANCELLED = { status: "cancelled", files: [] };
 var CAPTURES_GITIGNORE = "# Local review evidence for captured cases \u2014 never commit.\n.local/\n";
 async function runCapture(skillDir, ctx) {
@@ -13316,7 +13320,7 @@ async function chooseTarget(skillDir, ctx) {
   return {
     kind: chosen.kind,
     path: chosen.path,
-    content_sha256: createHash30("sha256").update(readFileSync27(chosen.abs, "utf8"), "utf8").digest("hex")
+    content_sha256: createHash31("sha256").update(readFileSync27(chosen.abs, "utf8"), "utf8").digest("hex")
   };
 }
 function suggestScenarioId(specPath, fallback) {
@@ -13331,7 +13335,7 @@ function suggestScenarioId(specPath, fallback) {
   return fallback;
 }
 function writeCapture(capturesDir, capture, selected2, homeDir) {
-  mkdirSync12(join40(capturesDir, ".local"), { recursive: true });
+  mkdirSync13(join40(capturesDir, ".local"), { recursive: true });
   const gitignore = join40(capturesDir, ".gitignore");
   const existingIgnore = existsSync25(gitignore) ? readFileSync27(gitignore, "utf8") : "";
   if (!existingIgnore.split("\n").some((l) => l.trim() === ".local/" || l.trim() === ".local")) {
