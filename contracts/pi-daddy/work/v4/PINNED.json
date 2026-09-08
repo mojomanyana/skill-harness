@@ -1,0 +1,42 @@
+{
+  "repository": "https://github.com/mojomanyana/pi-daddy",
+  "commit": "7c78769c47177b1972b09e1f5c5474ad44cd2cac",
+  "tree": "aecd85da64f66438dab029277c5105ca369661f1",
+  "source_sha256": {
+    "packages/pi-daddy/contracts/ledger/v4/README.md": "12994ea8470b4d7e18d1f7e5b33b39bda5e68f8d2a82143e1c9386af3adc4b4b",
+    "packages/pi-daddy/contracts/ledger/v4/fixtures/layout-options.json": "b3b80213978fbc3da91e571ae2493cb9c98c2a06fb8f6b874658860c9c793be7",
+    "packages/pi-daddy/contracts/ledger/v4/fixtures/work-acceptance.json": "073ac51d217bfe597646a75d6827e802519b7e4ab65646d717307edaf89f0b95",
+    "packages/pi-daddy/contracts/ledger/v4/fixtures/work-occurrence.json": "1378e0f581e7471c653fa687bb3c1935a2f9db34ddb94bc5665c7cd5403f7beb",
+    "packages/pi-daddy/contracts/ledger/v4/fixtures/work-revision.json": "9e14a3a0227bb57a4a66e720cff2c7312cbb6138c40f54ed3b2a71e55ea44407",
+    "packages/pi-daddy/contracts/ledger/v4/fixtures/work-snapshot.json": "0e60bfab2793b0ecec94ac4d93c3da52bdfa1b50e17244e5812e2fdcc293bbed",
+    "packages/pi-daddy/contracts/ledger/v4/ledger-event.schema.json": "3ccc05053f18b298833a2abf3e6a12e108cee6eb32d97ed52c93d5e7f251222d",
+    "packages/pi-daddy/src/work-ledger.ts": "c06b71dbf8aa3c1cae1ac4885f2e10eb0e511eb791a7bdffcec5c3fdce596977",
+    "packages/pi-daddy/src/work-ledger-types.ts": "e1d1265c8643f1386bf98f43ee544755d9c44ec0a5cb21e91c819a9324c388a8",
+    "packages/pi-daddy/src/work-ledger-json.ts": "7fffbc81b739ae07271232ef92b4aa7a6dc5b6a9f913a833505251eec0774b72",
+    "packages/pi-daddy/src/work-ledger-validation.ts": "b93213c5d895addb5da7355a97472ed8694356864d78b61bf43644dd5830bb49",
+    "packages/pi-daddy/src/work-ledger-projection.ts": "0ef3ca51123f50ddf1b2799069e963044fcc8408ea7027b23d2f36e1d0350485",
+    "packages/pi-daddy/src/work-ledger-snapshot.ts": "86e721ff018dab45f0adf6e4ecf1256a2c0f55368dbfa471b146af4071782d02",
+    "packages/pi-daddy/src/work-ledger-occurrences.ts": "9f7ce69dd2404a15e92839b183e5cbf5cad2d60ca9e95f4cc096d75c31fc1cfc",
+    "packages/pi-daddy/src/execution-id.ts": "786ccc839012d3b8d85a21de4c8d28d13bbbc1545ad86bebb61f3dba8f560717"
+  },
+  "generated_sha256": {
+    "contracts/pi-daddy/work/v4/README.md": "12994ea8470b4d7e18d1f7e5b33b39bda5e68f8d2a82143e1c9386af3adc4b4b",
+    "contracts/pi-daddy/work/v4/fixtures/layout-options.json": "b3b80213978fbc3da91e571ae2493cb9c98c2a06fb8f6b874658860c9c793be7",
+    "contracts/pi-daddy/work/v4/fixtures/work-acceptance.json": "073ac51d217bfe597646a75d6827e802519b7e4ab65646d717307edaf89f0b95",
+    "contracts/pi-daddy/work/v4/fixtures/work-occurrence.json": "1378e0f581e7471c653fa687bb3c1935a2f9db34ddb94bc5665c7cd5403f7beb",
+    "contracts/pi-daddy/work/v4/fixtures/work-revision.json": "9e14a3a0227bb57a4a66e720cff2c7312cbb6138c40f54ed3b2a71e55ea44407",
+    "contracts/pi-daddy/work/v4/fixtures/work-snapshot.json": "0e60bfab2793b0ecec94ac4d93c3da52bdfa1b50e17244e5812e2fdcc293bbed",
+    "contracts/pi-daddy/work/v4/ledger-event.schema.json": "3ccc05053f18b298833a2abf3e6a12e108cee6eb32d97ed52c93d5e7f251222d",
+    "packages/adapters/src/generated/work-v4/reader.ts": "0e7009465b6acf27f0286b2aa92af36b8c748ac4a238a1c08f7d301ecf72f1c8",
+    "packages/adapters/src/generated/work-v4/types.ts": "b8339314b7d31e89054316d2bd950b9725cf39381ca852daf67347e1c00e56cb",
+    "packages/adapters/src/generated/work-v4/json.ts": "b100de834869fe1213ca211d7e278f0b0b610d982fd8efe5799e9aea379bd16a",
+    "packages/adapters/src/generated/work-v4/validation.ts": "3c91f8c7f44989ca09c05329a96438a3942250b67d3d982e68bcaed608ccf73b",
+    "packages/adapters/src/generated/work-v4/projection.ts": "06e9e23a0c54dfded65a2c4077fb4b42f8223095a3a15a1c357b0b546f6b6503",
+    "packages/adapters/src/generated/work-v4/snapshot.ts": "78bf70cd9ea9d0ed9a0c8ddc16a8aca11221eb8d502f0ebb309db77c818298fe",
+    "packages/adapters/src/generated/work-v4/occurrences.ts": "66302e3dece3dfd935254a67ca45a2e3c14fb5c408c239378df44de7883ec615",
+    "packages/adapters/src/generated/work-v4/execution-id.ts": "2a7c3dd7c7fc308e1c2985dcb97129b83ee1c15bdf120d4acc19a5e479a083ef",
+    "packages/adapters/src/generated/work-v4/pin.ts": "ea7928102b3a7d2e46b8c8b5c418004b8660fa3935c2eb96c20c7e62a3b4393a",
+    "contracts/pi-daddy/work/v4/PRODUCER-LICENSE": "50bb449e7a3a45f5e9e775d9b921ce5e80a895edd7dae00df595cb6c9c6acdca"
+  },
+  "extraction": "Only append/inspect functions and their filesystem imports removed from public facade; original pure builders/parser/projector retained."
+}

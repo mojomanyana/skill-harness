@@ -12742,6 +12742,17 @@ import { join as join35 } from "node:path";
 import { createHash as createHash24 } from "node:crypto";
 import { performance as performance2 } from "node:perf_hooks";
 
+// packages/adapters/dist/generated/work-v4/reader.js
+import { isDate } from "node:util/types";
+
+// packages/adapters/dist/generated/work-v4/json.js
+import { createHash as createHash25 } from "node:crypto";
+var WORK_EVENT_BYTES2 = 64 * 1024;
+var WORK_TEXT_BYTES2 = 16 * 1024 * 1024;
+
+// packages/adapters/dist/generated/work-v4/execution-id.js
+import { randomUUID as randomUUID3 } from "node:crypto";
+
 // packages/adapters/dist/index.js
 var ADAPTERS = {
   pi: piAdapter
@@ -13135,7 +13146,7 @@ async function runViaExtension(opts) {
 // packages/pi-extension/src/capture-cmd.ts
 import { existsSync as existsSync25, mkdirSync as mkdirSync10, writeFileSync as writeFileSync12, readdirSync as readdirSync17, readFileSync as readFileSync27 } from "node:fs";
 import { join as join38 } from "node:path";
-import { createHash as createHash25 } from "node:crypto";
+import { createHash as createHash26 } from "node:crypto";
 var CANCELLED = { status: "cancelled", files: [] };
 var CAPTURES_GITIGNORE = "# Local review evidence for captured cases \u2014 never commit.\n.local/\n";
 async function runCapture(skillDir, ctx) {
@@ -13273,7 +13284,7 @@ async function chooseTarget(skillDir, ctx) {
   return {
     kind: chosen.kind,
     path: chosen.path,
-    content_sha256: createHash25("sha256").update(readFileSync27(chosen.abs, "utf8"), "utf8").digest("hex")
+    content_sha256: createHash26("sha256").update(readFileSync27(chosen.abs, "utf8"), "utf8").digest("hex")
   };
 }
 function suggestScenarioId(specPath, fallback) {

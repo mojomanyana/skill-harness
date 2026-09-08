@@ -29,3 +29,4 @@ export * from "./work-candidates.js";
 export * from "./work-case-archive.js";
 export * from "./work-case-review.js";
 export * from "./archive-read-capability.js";
+export * from "./archived-work.js";
