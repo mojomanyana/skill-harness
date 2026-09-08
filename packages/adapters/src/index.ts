@@ -36,4 +36,6 @@ export * from "./blind-intervention.js";
 export * from "./archive-observer.js";
 export * from "./weekly-investigation.js";
 export * from "./intervention-run.js";
+export * from "./principal-payload-port.js";
+export * from "./reviewed-archive-export.js";
 export * from "./trust-lifecycle.js";
