@@ -25,3 +25,5 @@ export * from "./evidence-archive.js";
 export * from "./archive-checkpoint.js";
 export * from "./archive-policy.js";
 export * from "./execution-retention-archive.js";
+export * from "./work-candidates.js";
+export * from "./work-case-archive.js";

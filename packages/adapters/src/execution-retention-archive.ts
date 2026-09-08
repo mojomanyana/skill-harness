@@ -68,7 +68,7 @@ function project(manifest: ExecutionRetentionManifest, manifestBytes: Uint8Array
 
 /** Caller already owns an exact-content policy. No paths from the producer are opened here. */
 export function ingestRetainedExecution(root: string, input: {
-  manifest: Uint8Array; blobs: ReadonlyMap<string, Uint8Array>; retention: "exact";
+  manifest: Uint8Array; blobs: ReadonlyMap<string, Uint8Array>; retention: "exact"; sourceId?: string;
 }) {
   if (input.retention !== "exact") throw new Error("native semantic ingestion requires explicit exact-content policy; archive redacted/reference-only data as opaque evidence");
   const bytes = Buffer.from(input.manifest); const manifest = parseManifest(bytes);
@@ -77,7 +77,7 @@ export function ingestRetainedExecution(root: string, input: {
     if (supplied !== undefined && (!(supplied instanceof Uint8Array) || supplied.byteLength > 1024 * 1024)) throw new Error("retention blob exceeds input bounds");
   }
   const projection = project(manifest, bytes, input.blobs);
-  const source = retainArchiveSource(root, { sourceId: `retention-${manifest.archiveId}`, parser: { id: "pi-daddy-execution-retention", version: "2.0" }, retention: "exact", bytes });
+  const source = retainArchiveSource(root, { sourceId: input.sourceId ?? `retention-${manifest.archiveId}`, parser: { id: "pi-daddy-execution-retention", version: "2.0" }, retention: "exact", bytes });
   const blobs = {} as Snapshot["blobs"];
   for (const kind of RETENTION_CONTENT_KINDS) {
     blobs[kind] = null;
@@ -108,7 +108,7 @@ export function readRetainedExecution(root: string, snapshotId: string) {
     const content = readArchiveSource(root, id);
     if (content.status === "available" && content.reference.retention === "exact") supplied.set(ref.path, content.bytes);
   }
-  return { snapshotId, manifest, projection: project(manifest, source.bytes, supplied) };
+  return { snapshotId, sourceId: source.reference.sourceId, manifest, projection: project(manifest, source.bytes, supplied) };
 }
 
 /** Order-independent joins, not an acceptance engine. Logical child names and native parents are not execution keys. */

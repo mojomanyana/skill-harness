@@ -1,11 +1,11 @@
 // packages/pi-extension/src/index.ts
 import { fileURLToPath as fileURLToPath3 } from "node:url";
-import { dirname as dirname13, join as join38 } from "node:path";
+import { dirname as dirname14, join as join39 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
 import { existsSync as existsSync26 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
-import { dirname as dirname12, join as join37, resolve as resolve17, relative as relative6 } from "node:path";
+import { dirname as dirname13, join as join38, resolve as resolve17, relative as relative6 } from "node:path";
 
 // packages/core/dist/spec.js
 import { readFileSync } from "node:fs";
@@ -8099,8 +8099,11 @@ function assertJudgeAllowed(judge, opts) {
 import { existsSync as existsSync15, readFileSync as readFileSync13, renameSync as renameSync2, writeFileSync as writeFileSync5 } from "node:fs";
 import { basename as basename2, join as join20 } from "node:path";
 
-// packages/core/dist/spec-write.js
+// packages/core/dist/work-capture.js
 import { createHash as createHash8 } from "node:crypto";
+
+// packages/core/dist/spec-write.js
+import { createHash as createHash9 } from "node:crypto";
 import { readFileSync as readFileSync14, renameSync as renameSync3, unlinkSync, writeFileSync as writeFileSync6 } from "node:fs";
 import { dirname as dirname5, join as join21 } from "node:path";
 var ConcurrentSpecModification = class extends Error {
@@ -8116,7 +8119,7 @@ var DuplicateScenarioId = class extends Error {
   }
 };
 function specSha256(text2) {
-  return createHash8("sha256").update(text2, "utf8").digest("hex");
+  return createHash9("sha256").update(text2, "utf8").digest("hex");
 }
 function renderScenarioBlock(scenario) {
   const dumped = yaml.dump({ scenarios: [scenario] }, { lineWidth: -1, noRefs: true });
@@ -8641,7 +8644,7 @@ import { StringDecoder } from "node:string_decoder";
 
 // packages/core/dist/qualification-config.js
 import { execFileSync as execFileSync3 } from "node:child_process";
-import { createHash as createHash9 } from "node:crypto";
+import { createHash as createHash10 } from "node:crypto";
 import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync as readFileSync17, realpathSync as realpathSync2 } from "node:fs";
 import { isAbsolute as isAbsolute7, join as join23 } from "node:path";
 
@@ -8736,7 +8739,7 @@ function runPiJson(opts) {
 }
 
 // packages/adapters/dist/trajectory.js
-import { createHash as createHash10 } from "node:crypto";
+import { createHash as createHash11 } from "node:crypto";
 import { readFileSync as readFileSync23, readdirSync as readdirSync16 } from "node:fs";
 import { join as join30 } from "node:path";
 
@@ -11902,7 +11905,7 @@ function validatePrincipalIntegrity(records) {
     }
     const copy = { ...record };
     delete copy.event_digest;
-    const expected = createHash10("sha256").update(canonicalJson(copy)).digest("hex");
+    const expected = createHash11("sha256").update(canonicalJson(copy)).digest("hex");
     if (record.event_digest !== expected)
       throw new Error(`principal assurance integrity failure at line ${line}: event digest mismatch`);
     if (!validTime(typeof record.at === "string" ? record.at : void 0))
@@ -11958,7 +11961,7 @@ function sanitizeAttributes(value) {
     if (sensitiveKey.test(key))
       return "[REDACTED]";
     if (typeof current === "string" && freeTextKey.test(key)) {
-      return `[REDACTED sha256:${createHash10("sha256").update(current).digest("hex")}]`;
+      return `[REDACTED sha256:${createHash11("sha256").update(current).digest("hex")}]`;
     }
     if (Array.isArray(current))
       return current.map((entry) => walk2(entry));
@@ -12028,9 +12031,9 @@ function walkFiles(root, relative7 = "") {
 }
 
 // packages/adapters/dist/prompt-provenance.js
-import { createHash as createHash11, createHmac, timingSafeEqual } from "node:crypto";
+import { createHash as createHash12, createHmac, timingSafeEqual } from "node:crypto";
 function sha2(bytes) {
-  return createHash11("sha256").update(bytes, "utf8").digest("hex");
+  return createHash12("sha256").update(bytes, "utf8").digest("hex");
 }
 function normalizePromptPayload(value, rule) {
   if (rule !== PROMPT_NORMALIZATION_RULE)
@@ -12495,21 +12498,21 @@ ${r.stderr.trim()}
 
 // packages/adapters/dist/evidence-archive.js
 import { closeSync as closeSync6, constants as constants6, fsyncSync as fsyncSync3, fstatSync as fstatSync6, linkSync as linkSync2, lstatSync as lstatSync5, mkdirSync as mkdirSync8, openSync as openSync6, readSync, unlinkSync as unlinkSync3, writeFileSync as writeFileSync10 } from "node:fs";
-import { createHash as createHash12, randomUUID } from "node:crypto";
+import { createHash as createHash13, randomUUID } from "node:crypto";
 import { join as join32, parse, resolve as resolve14, sep as sep4 } from "node:path";
 var LIMIT = 8 * 1024 * 1024;
 
 // packages/adapters/dist/archive-checkpoint.js
-import { createHash as createHash13 } from "node:crypto";
+import { createHash as createHash14 } from "node:crypto";
 var LIMIT2 = 8 * 1024 * 1024;
 
 // packages/adapters/dist/archive-policy.js
-import { closeSync as closeSync7, constants as constants7, fstatSync as fstatSync7, lstatSync as lstatSync6, openSync as openSync7, readSync as readSync2 } from "node:fs";
-import { createHash as createHash14 } from "node:crypto";
-import { dirname as dirname9, isAbsolute as isAbsolute10, join as join33, parse as parse2, resolve as resolve15, sep as sep5 } from "node:path";
+import { closeSync as closeSync7, constants as constants8, fstatSync as fstatSync7, lstatSync as lstatSync6, openSync as openSync7, readSync as readSync2 } from "node:fs";
+import { createHash as createHash18 } from "node:crypto";
+import { dirname as dirname10, isAbsolute as isAbsolute11, join as join34, parse as parse2, resolve as resolve15, sep as sep6 } from "node:path";
 
-// packages/adapters/dist/execution-retention-archive.js
-import { createHash as createHash17 } from "node:crypto";
+// packages/adapters/dist/archive-retention-policy.js
+import { dirname as dirname9, join as join33 } from "node:path";
 
 // packages/adapters/dist/generated/retention-v2-contract.js
 import { Compile } from "typebox/compile";
@@ -12609,10 +12612,13 @@ function freeze(value) {
   return value;
 }
 
+// packages/adapters/dist/execution-retention-archive.js
+import { createHash as createHash17 } from "node:crypto";
+
 // packages/adapters/dist/generated/retention-v2-native.js
-import { constants as constants8 } from "node:fs";
+import { constants as constants7 } from "node:fs";
 import { open, lstat, realpath } from "node:fs/promises";
-import { isAbsolute as isAbsolute11, relative as relative5, sep as sep6 } from "node:path";
+import { isAbsolute as isAbsolute10, relative as relative5, sep as sep5 } from "node:path";
 import { createHash as createHash16 } from "node:crypto";
 var MAX_NATIVE_SESSION_BYTES = 1024 * 1024;
 
@@ -12661,6 +12667,9 @@ var EXECUTION_ARCHIVE_PROJECTION_SCHEMA = freeze2({
 });
 var compiled = Compile2(EXECUTION_ARCHIVE_PROJECTION_SCHEMA);
 
+// packages/adapters/dist/work-candidates.js
+import { createHash as createHash19 } from "node:crypto";
+
 // packages/adapters/dist/index.js
 var ADAPTERS = {
   pi: piAdapter
@@ -12676,18 +12685,18 @@ function getAdapter(name) {
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
 import { readFileSync as readFileSync25, existsSync as existsSync23 } from "node:fs";
-import { join as join34, dirname as dirname10 } from "node:path";
+import { join as join35, dirname as dirname11 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 import { spawn as spawn5 } from "node:child_process";
-var __dirname = dirname10(fileURLToPath2(import.meta.url));
+var __dirname = dirname11(fileURLToPath2(import.meta.url));
 function templatePath(assetsDir) {
   if (assetsDir)
-    return join34(assetsDir, "report.template.html");
+    return join35(assetsDir, "report.template.html");
   const candidates = [
-    join34(__dirname, "..", "..", "..", "assets", "report.template.html"),
+    join35(__dirname, "..", "..", "..", "assets", "report.template.html"),
     // packages/cli/{dist,src} -> ../../../assets
-    join34(__dirname, "..", "assets", "report.template.html"),
-    join34(__dirname, "..", "..", "assets", "report.template.html")
+    join35(__dirname, "..", "assets", "report.template.html"),
+    join35(__dirname, "..", "..", "assets", "report.template.html")
   ];
   for (const c of candidates)
     if (existsSync23(c))
@@ -12695,7 +12704,7 @@ function templatePath(assetsDir) {
   throw new Error("cannot find assets/report.template.html");
 }
 function gradeScriptPath(assetsDir) {
-  return join34(dirname10(templatePath(assetsDir)), "report.grade.js");
+  return join35(dirname11(templatePath(assetsDir)), "report.grade.js");
 }
 function readBody(req) {
   return new Promise((resolve18) => {
@@ -12709,18 +12718,18 @@ function findTranscript(runDir, id) {
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync25(join34(runDir, files[0]), "utf8");
+    return readFileSync25(join35(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync25(join34(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync25(join35(runDir, f), "utf8")}`).join("\n\n");
 }
 function findJudgeRaw(runDir, id) {
   const files = findJudgeRawFiles(runDir, id);
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync25(join34(runDir, files[0]), "utf8");
+    return readFileSync25(join35(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync25(join34(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync25(join35(runDir, f), "utf8")}`).join("\n\n");
 }
 async function serveReview(opts) {
   const template = readFileSync25(templatePath(opts.assetsDir), "utf8");
@@ -12774,7 +12783,7 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be re-judged here \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
           return;
         }
-        const specPath = join34(opts.skillDir, "tests", "specification.yaml");
+        const specPath = join35(opts.skillDir, "tests", "specification.yaml");
         const spec = loadSpec(specPath);
         const scenario = spec.scenarios.find((s) => s.id === body.scenarioId);
         if (!scenario) {
@@ -12806,7 +12815,7 @@ async function serveReview(opts) {
             scenario,
             adapter,
             judge: results.judge,
-            specDir: dirname10(specPath),
+            specDir: dirname11(specPath),
             threshold,
             mode: results.mode,
             expectedReps: prev.reps ?? 1
@@ -12851,7 +12860,7 @@ async function serveReview(opts) {
             // the same doctrine `grade` follows (see refreshRubricHashes).
             source_hashes: refreshRubricHashes(results.source_hashes, spec, [body.scenarioId])
           }, scoreContextFor(results, spec));
-          ensureResultsGitignore(join34(opts.skillDir, "tests", "results"));
+          ensureResultsGitignore(join35(opts.skillDir, "tests", "results"));
           const g = written.effective_grade;
           appendJournal(column.runDir, { event: "score", ts: (/* @__PURE__ */ new Date()).toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
           res.writeHead(200, { "content-type": "application/json" });
@@ -12876,7 +12885,7 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be adjudicated \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
           return;
         }
-        const specPath = join34(opts.skillDir, "tests", "specification.yaml");
+        const specPath = join35(opts.skillDir, "tests", "specification.yaml");
         const spec = loadSpec(specPath);
         const adapter = opts.adapter ?? getAdapter(results.harness);
         const cells = cellsFromResults(column.runDir, results);
@@ -12916,10 +12925,10 @@ async function serveReview(opts) {
             // ~2% self-disagreement on identical transcripts, so this is a real
             // second opinion rather than a no-op.
             secondaryJudge: results.judge,
-            specDir: dirname10(specPath),
+            specDir: dirname11(specPath),
             now: () => (/* @__PURE__ */ new Date()).toISOString()
           });
-          ensureResultsGitignore(join34(opts.skillDir, "tests", "results"));
+          ensureResultsGitignore(join35(opts.skillDir, "tests", "results"));
           res.writeHead(200, { "content-type": "application/json" });
           res.end(JSON.stringify({ ok: true, step: "run", grade: written.effective_grade }));
         } catch (e) {
@@ -12945,11 +12954,11 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
           return;
         }
-        const spec = loadSpec(join34(opts.skillDir, "tests", "specification.yaml"));
+        const spec = loadSpec(join35(opts.skillDir, "tests", "specification.yaml"));
         writeResults(column.runDir, patched, scoreContextFor(patched, spec));
-        ensureResultsGitignore(join34(opts.skillDir, "tests", "results"));
+        ensureResultsGitignore(join35(opts.skillDir, "tests", "results"));
         if (body.override != null) {
-          preserveTranscript(join34(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
+          preserveTranscript(join35(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
         }
         appendJournal(column.runDir, {
           event: "override",
@@ -12995,17 +13004,17 @@ function tryOpen(url, cmd) {
 
 // packages/pi-extension/src/runner.ts
 import { existsSync as existsSync24 } from "node:fs";
-import { dirname as dirname11, join as join35, resolve as resolve16 } from "node:path";
+import { dirname as dirname12, join as join36, resolve as resolve16 } from "node:path";
 function resolveSkillDir(cwd, arg) {
   if (arg) {
     const dir2 = resolve16(cwd, arg);
-    if (existsSync24(join35(dir2, "tests", "specification.yaml"))) return dir2;
+    if (existsSync24(join36(dir2, "tests", "specification.yaml"))) return dir2;
     throw new Error(`no tests/specification.yaml found at ${dir2}`);
   }
   let dir = cwd;
   for (; ; ) {
-    if (existsSync24(join35(dir, "tests", "specification.yaml"))) return dir;
-    const parent = dirname11(dir);
+    if (existsSync24(join36(dir, "tests", "specification.yaml"))) return dir;
+    const parent = dirname12(dir);
     if (parent === dir) break;
     dir = parent;
   }
@@ -13013,7 +13022,7 @@ function resolveSkillDir(cwd, arg) {
 }
 var DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 async function runViaExtension(opts) {
-  const specPath = join35(opts.skillDir, "tests", "specification.yaml");
+  const specPath = join36(opts.skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const modelToken = opts.model ?? DEFAULT_MODEL;
   const model = parseModelRef(modelToken);
@@ -13041,7 +13050,7 @@ async function runViaExtension(opts) {
   });
   const g = summary.results.effective_grade;
   const verdicts = effectiveVerdicts(summary.results.scenarios);
-  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join35(summary.runDir, f)));
+  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join36(summary.runDir, f)));
   return {
     skill: summary.results.skill,
     model: summary.results.model,
@@ -13053,8 +13062,8 @@ async function runViaExtension(opts) {
 
 // packages/pi-extension/src/capture-cmd.ts
 import { existsSync as existsSync25, mkdirSync as mkdirSync9, writeFileSync as writeFileSync11, readdirSync as readdirSync17, readFileSync as readFileSync26 } from "node:fs";
-import { join as join36 } from "node:path";
-import { createHash as createHash18 } from "node:crypto";
+import { join as join37 } from "node:path";
+import { createHash as createHash20 } from "node:crypto";
 var CANCELLED = { status: "cancelled", files: [] };
 var CAPTURES_GITIGNORE = "# Local review evidence for captured cases \u2014 never commit.\n.local/\n";
 async function runCapture(skillDir, ctx) {
@@ -13064,7 +13073,7 @@ async function runCapture(skillDir, ctx) {
     ui.say("the agent is still streaming \u2014 let it finish, then run capture again");
     return CANCELLED;
   }
-  const specPath = join36(skillDir, "tests", "specification.yaml");
+  const specPath = join37(skillDir, "tests", "specification.yaml");
   if (!existsSync25(specPath)) {
     ui.say(`${specPath} does not exist \u2014 run \`skill-harness init\` before capturing into this skill`);
     return CANCELLED;
@@ -13106,7 +13115,7 @@ async function runCapture(skillDir, ctx) {
     ui.say("cancelled \u2014 a capture needs at least one checklist item");
     return CANCELLED;
   }
-  const capturesDir = join36(skillDir, "tests", "captures");
+  const capturesDir = join37(skillDir, "tests", "captures");
   const existingIds = existsSync25(capturesDir) ? readdirSync17(capturesDir).filter((f) => f.endsWith(".yaml")).map((f) => f.replace(/\.yaml$/, "")) : [];
   const capture = buildCaptureCase({
     turns,
@@ -13155,7 +13164,7 @@ ${previewYaml}---`);
     baseSha256
   });
   const promoted = { ...capture, status: "promoted", scenario_id: scenarioId.trim() };
-  writeFileSync11(join36(capturesDir, `${capture.id}.yaml`), yaml.dump(promoted, { lineWidth: -1, noRefs: true }), "utf8");
+  writeFileSync11(join37(capturesDir, `${capture.id}.yaml`), yaml.dump(promoted, { lineWidth: -1, noRefs: true }), "utf8");
   ui.say(`promoted ${capture.id} \u2192 scenario ${scenarioId.trim()} in ${specPath}`);
   if (ctx.runOnly && await ui.confirm(`run scenario ${scenarioId.trim()} now? (spends subject + judge tokens for 1 scenario)`)) {
     ui.say(await ctx.runOnly(skillDir, scenarioId.trim()));
@@ -13174,12 +13183,12 @@ function defaultTitle(capture) {
 }
 async function chooseTarget(skillDir, ctx) {
   const candidates = [];
-  const skillMd = join36(skillDir, "SKILL.md");
+  const skillMd = join37(skillDir, "SKILL.md");
   if (existsSync25(skillMd)) candidates.push({ label: "SKILL.md (this skill)", kind: "skill", path: "SKILL.md", abs: skillMd });
-  const agentsDir = join36(ctx.cwd, ".pi", "agents");
+  const agentsDir = join37(ctx.cwd, ".pi", "agents");
   if (existsSync25(agentsDir)) {
     for (const f of readdirSync17(agentsDir).filter((x) => x.endsWith(".md"))) {
-      candidates.push({ label: `subagent: ${f}`, kind: "subagent", path: join36(".pi", "agents", f), abs: join36(agentsDir, f) });
+      candidates.push({ label: `subagent: ${f}`, kind: "subagent", path: join37(".pi", "agents", f), abs: join37(agentsDir, f) });
     }
   }
   if (candidates.length === 0) {
@@ -13192,7 +13201,7 @@ async function chooseTarget(skillDir, ctx) {
   return {
     kind: chosen.kind,
     path: chosen.path,
-    content_sha256: createHash18("sha256").update(readFileSync26(chosen.abs, "utf8"), "utf8").digest("hex")
+    content_sha256: createHash20("sha256").update(readFileSync26(chosen.abs, "utf8"), "utf8").digest("hex")
   };
 }
 function suggestScenarioId(specPath, fallback) {
@@ -13207,15 +13216,15 @@ function suggestScenarioId(specPath, fallback) {
   return fallback;
 }
 function writeCapture(capturesDir, capture, selected2, homeDir) {
-  mkdirSync9(join36(capturesDir, ".local"), { recursive: true });
-  const gitignore = join36(capturesDir, ".gitignore");
+  mkdirSync9(join37(capturesDir, ".local"), { recursive: true });
+  const gitignore = join37(capturesDir, ".gitignore");
   const existingIgnore = existsSync25(gitignore) ? readFileSync26(gitignore, "utf8") : "";
   if (!existingIgnore.split("\n").some((l) => l.trim() === ".local/" || l.trim() === ".local")) {
     writeFileSync11(gitignore, existingIgnore ? `${existingIgnore.replace(/\n*$/, "\n")}${CAPTURES_GITIGNORE}` : CAPTURES_GITIGNORE, "utf8");
   }
-  const casePath = join36(capturesDir, `${capture.id}.yaml`);
+  const casePath = join37(capturesDir, `${capture.id}.yaml`);
   writeFileSync11(casePath, yaml.dump(capture, { lineWidth: -1, noRefs: true }), "utf8");
-  const evidencePath = join36(capturesDir, ".local", `${capture.id}.evidence.json`);
+  const evidencePath = join37(capturesDir, ".local", `${capture.id}.evidence.json`);
   writeFileSync11(
     evidencePath,
     JSON.stringify(
@@ -13290,9 +13299,9 @@ ${card.failedTranscripts.join("\n")}`);
   }
   if (sub === "judge") {
     const runDir = resolve17(ctx.cwd, positional[0] ?? ".");
-    const testsDir = dirname12(dirname12(dirname12(runDir)));
-    const spec = loadSpec(join37(testsDir, "specification.yaml"));
-    const prev = existsSync26(join37(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const testsDir = dirname13(dirname13(dirname13(runDir)));
+    const spec = loadSpec(join38(testsDir, "specification.yaml"));
+    const prev = existsSync26(join38(runDir, "results.yaml")) ? readResults(runDir) : null;
     const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? parseModelRef(defaultJudge());
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge"
@@ -13358,23 +13367,23 @@ ${card.failedTranscripts.join("\n")}`);
   }
   if (sub === "coverage") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const specPath = join37(skillDir, "tests", "specification.yaml");
+    const specPath = join38(skillDir, "tests", "specification.yaml");
     const spec = loadSpec(specPath);
-    const specDir = dirname12(specPath);
+    const specDir = dirname13(specPath);
     const report = computeCoverage({
       specDir,
       scenarios: spec.scenarios,
-      baseFiles: [relative6(specDir, join37(skillDir, "SKILL.md")).split("\\").join("/")]
+      baseFiles: [relative6(specDir, join38(skillDir, "SKILL.md")).split("\\").join("/")]
     });
     say(ctx, formatCoverage(report, spec.skill), report.broken.length ? "warning" : "info");
     return;
   }
   if (sub === "affected") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const specPath = join37(skillDir, "tests", "specification.yaml");
+    const specPath = join38(skillDir, "tests", "specification.yaml");
     const spec = loadSpec(specPath);
     const base = flags.base || "HEAD";
-    const rev = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: dirname12(specPath), timeoutMs: 3e4 });
+    const rev = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: dirname13(specPath), timeoutMs: 3e4 });
     if (rev.code !== 0) {
       say(ctx, "affected needs a git repository to diff against", "error");
       return;
@@ -13382,7 +13391,7 @@ ${card.failedTranscripts.join("\n")}`);
     const repoRoot = rev.stdout.trim();
     const result = selectAffected({
       scenarios: spec.scenarios,
-      specDir: dirname12(specPath),
+      specDir: dirname13(specPath),
       diff: await gitDiff(repoRoot, base),
       repoRoot
     });
@@ -13429,7 +13438,7 @@ ${card.failedTranscripts.join("\n")}`);
   }
   if (sub === "review") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const spec = loadSpec(join37(skillDir, "tests", "specification.yaml"));
+    const spec = loadSpec(join38(skillDir, "tests", "specification.yaml"));
     const handle = await serveReview({
       skillDir,
       skillName: spec.skill,
@@ -13501,7 +13510,7 @@ function registerTool(pi) {
 
 // packages/pi-extension/src/index.ts
 function index_default(pi) {
-  const assetsDir = join38(dirname13(fileURLToPath3(import.meta.url)), "..", "..", "..", "assets");
+  const assetsDir = join39(dirname14(fileURLToPath3(import.meta.url)), "..", "..", "..", "assets");
   registerCommand(pi, assetsDir);
   registerTool(pi);
   pi.on("session_shutdown", async () => {

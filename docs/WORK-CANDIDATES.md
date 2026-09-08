@@ -1,0 +1,28 @@
+# Work-target cases and silent structural nominations (P07 partial)
+
+The existing human-authored capture_schema1 and its skill/subagent promotion path are unchanged. `WorkCaptureCaseV2` is a separate work-target nomination, not a scored test or confirmed diagnosis. It carries exact selected snapshot/obligation identities, detector version/population, evidence hashes and bounded metrics. State is always unresolved, visibility silent, causal attribution not established. Promotion into a skill specification is not authorized by this record.
+
+`detectWorkCandidates(work, options)` consumes the actual P01 `WorkProjection` under the host's independently established context—not arbitrary wire, a caller's acceptance claim, or reconstructed P04 summary. P04 intentionally omits configuration provenance, so its display rows alone cannot establish equivalent attempts. Options are bound to the exact selected scope and a named version/population; threshold/exemplar policy is fingerprinted.
+
+Implemented rules:
+
+- Repeated distinct, resolved executions with observed terminal occurrences, identical recorded configuration and matching current obligation/artifact/variant bindings can nominate repeat-without-progress.
+- Declared-only state, different configurations, prior obligation revisions, declared waits and explicitly expected failures do not become that candidate.
+- Missing/conflicted artifact/evidence coverage or unresolved acceptance produces a coverage issue, never a worker defect. Unresolved scope produces no case.
+- An economical exemplar requires acceptance under supplied authority plus observed, cited usage in one explicit unit and below its predeclared limit. Missing/estimated usage cannot qualify. This is not a first-pass-acceptance calculation or a universal agent score.
+
+`captureWorkCandidates(root, work, options)` explicitly retains the actual structural snapshot before its candidate records and an immutable batch manifest. It runs outside workers; it is not a monitoring hook or automatic timer. Repetition is idempotent. `retainWorkCandidate`/`readWorkCandidate` validate identity/state; `groupWorkIncidents` groups multiple observations/versions of the same scoped work instead of counting each alert as an independent incident. All data stays in an explicitly selected private archive; no raw session text or source export is performed by the detector. A host must authorize capture of its supplied projection.
+
+`appendWorkCaseDecision` produces an immutable, digest-bound correction chain and rejects stale parents or altered history. Skip stays skip, not agreement. The calling controller must establish the registered case and authorized author; this function does not authenticate a caller or promote a scenario. Decisions require their own durable controller storage/integration; the nominator never supplies them.
+
+## Remaining scope
+
+Checkpoint-overdue, reopened-acceptance and separately proved intent-violation rules need their corresponding frozen host facts; they are not inferred from timestamps/display rows. Deployed silent/calibration scheduling, authenticated decision UI/storage, exposure policy, trusted independent labels, and scenario promotion remain pending. P08/P13 must not treat these unresolved candidates as calibrated truth or activation authority. Model interpretation, if later authorized, remains asynchronous/advisory.
+
+Ordinary checks:
+
+```sh
+node node_modules/vitest/vitest.mjs run packages/core/test/work-capture.test.ts packages/adapters/test/work-candidates.test.ts packages/adapters/test/work-case-archive.test.ts
+```
+
+Fixtures here are deterministic synthetic host projections, not live observation, authority authentication or full P07 acceptance.

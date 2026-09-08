@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, writeFileSync, mkdirSync, symlinkSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync, symlinkSync, readFileSync } from "node:fs";
 import { rmSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { ingestPolicySource, inspectPolicyCheckpoint } from "../src/archive-policy.js";
 const roots: string[] = [];
@@ -23,6 +23,19 @@ describe("explicit local archive policy", () => {
     expect(inspectPolicyCheckpoint(f.path, "source", result.checkpointId).checkpointId).toBe(result.checkpointId);
     expect(ingestPolicySource(f.path, "source", result.checkpointId).change).toBe("repeat");
     expect(() => ingestPolicySource(f.path, "not-allowed")).toThrow(/policy/);
+  });
+  it("requires explicit v2 consent before following validated native content references", () => {
+    const f = fixture(); const fixtures = resolve(__dirname, '../../../contracts/pi-daddy/execution-retention/v2/fixtures');
+    const raw = readFileSync(join(fixtures, 'native-live-branch.json')); const wire = JSON.parse(raw.toString());
+    writeFileSync(join(f.sourceRoot, 'manifest.json'), raw, { mode: 0o600 });
+    for (const ref of Object.values(wire.content) as any[]) if (ref.path) writeFileSync(join(f.sourceRoot, ref.path), readFileSync(join(fixtures, ref.path)), { mode: 0o600 });
+    const policy = f.policy as any; policy.version = 'archive-policy-v2'; policy.maxBytes = 65536;
+    policy.sources = [{ id: 'source', path: 'manifest.json', parser: { id: 'pi-daddy-execution-retention', version: '2.0' }, contentPolicy: 'referenced-blobs' }]; f.save();
+    const result = ingestPolicySource(f.path, 'source');
+    expect(result.kind).toBe('execution-retention-v2'); expect(result.content.session.status).toBe('available');
+    expect(result.activeBranch).toBeNull(); expect(JSON.stringify(result)).not.toContain('/fixture/private');
+    expect(inspectPolicyCheckpoint(f.path, 'source', result.checkpointId).kind).toBe('execution-retention-v2');
+    policy.version = 'archive-policy-v1'; f.save(); expect(() => ingestPolicySource(f.path, 'source')).toThrow(/policy/);
   });
   it("refuses expired, unknown-key and unsafe-path policies", () => {
     const f = fixture(); f.policy.expiresAt = "2000-01-01T00:00:00.000Z"; f.save(); expect(() => ingestPolicySource(f.path, "source")).toThrow(/policy/);

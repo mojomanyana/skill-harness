@@ -3,10 +3,11 @@ import { createHash } from "node:crypto";
 import { dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
 import { ingestArchiveSnapshot, readArchiveCheckpoint, type CheckpointRead } from "./archive-checkpoint.js";
 import { retainArchiveSource, type ArchiveRetention } from "./evidence-archive.js";
+import { ingestNativePolicy, inspectNativePolicy } from "./archive-retention-policy.js";
 
-interface PolicySource { id: string; path: string; parser: { id: string; version: string } }
+export interface PolicySource { id: string; path: string; parser: { id: string; version: string }; contentPolicy?: "manifest-only" | "referenced-blobs" }
 export interface ArchiveIngestionPolicy {
-  version: "archive-policy-v1";
+  version: "archive-policy-v1" | "archive-policy-v2";
   id: string;
   revision: string;
   sourceRoot: string;
@@ -46,7 +47,7 @@ function selectedPolicy(path: string, sourceId: string) {
   const p = JSON.parse(text) as ArchiveIngestionPolicy;
   // Canonical JSON excludes duplicate-key ambiguity. This is a selected operator configuration, not a signed approval.
   if (JSON.stringify(p) !== text || !keys(p, ["version", "id", "revision", "sourceRoot", "archiveRoot", "maxBytes", "retention", "expiresAt", "sources"])
-    || p.version !== "archive-policy-v1" || !identifier(p.id) || !identifier(p.revision)
+    || !["archive-policy-v1", "archive-policy-v2"].includes(p.version) || !identifier(p.id) || !identifier(p.revision)
     || typeof p.sourceRoot !== "string" || !isAbsolute(p.sourceRoot) || typeof p.archiveRoot !== "string" || !isAbsolute(p.archiveRoot)
     || resolve(p.sourceRoot) === resolve(p.archiveRoot)
     || [p.sourceRoot, p.archiveRoot].some(root => root.split(/[\\/]/).some(part => forbidden.has(part)))
@@ -57,10 +58,12 @@ function selectedPolicy(path: string, sourceId: string) {
     || !Array.isArray(p.sources) || p.sources.length < 1 || p.sources.length > 128) fail();
   const ids = new Set<string>();
   for (const item of p.sources) {
-    if (!keys(item, ["id", "path", "parser"]) || !identifier(item.id) || ids.has(item.id)
+    if (!keys(item, p.version === "archive-policy-v2" ? ["id", "path", "parser", "contentPolicy"] : ["id", "path", "parser"]) || !identifier(item.id) || ids.has(item.id)
       || typeof item.path !== "string" || !item.path || isAbsolute(item.path) || item.path.includes("\\")
       || item.path.split("/").some(part => !part || part === "." || part === ".." || forbidden.has(part))
       || !keys(item.parser, ["id", "version"]) || !identifier(item.parser.id) || !identifier(item.parser.version)) fail();
+    if (p.version === "archive-policy-v2" && !["manifest-only", "referenced-blobs"].includes(item.contentPolicy!)) fail();
+    if (item.contentPolicy === "referenced-blobs" && (p.retention !== "exact" || item.parser.id !== "pi-daddy-execution-retention" || item.parser.version !== "2.0")) fail();
     ids.add(item.id);
   }
   const source = p.sources.find(s => s.id === sourceId); if (!source) fail();
@@ -80,6 +83,7 @@ function metadata(result: CheckpointRead, checkpointId: string, policySha256: st
 export function ingestPolicySource(policyPath: string, sourceId: string, previousCheckpointId?: string) {
   try {
     const { policy, source, archiveSourceId, policySha256 } = selectedPolicy(policyPath, sourceId);
+    if (source.contentPolicy === "referenced-blobs") return ingestNativePolicy({ policy, source, archiveSourceId, policySha256 }, previousCheckpointId, regularBytes);
     const bytes = regularBytes(join(policy.sourceRoot, source.path), policy.maxBytes);
     const result = ingestArchiveSnapshot(policy.archiveRoot, { sourceId: archiveSourceId, parser: source.parser, retention: policy.retention, bytes, previousCheckpointId });
     const receipt = retainArchiveSource(policy.archiveRoot, {
@@ -93,6 +97,7 @@ export function ingestPolicySource(policyPath: string, sourceId: string, previou
 export function inspectPolicyCheckpoint(policyPath: string, sourceId: string, checkpointId: string) {
   try {
     const { policy, source, archiveSourceId, policySha256 } = selectedPolicy(policyPath, sourceId);
+    if (source.contentPolicy === "referenced-blobs") return inspectNativePolicy({ policy, source, archiveSourceId, policySha256 }, checkpointId);
     const result = readArchiveCheckpoint(policy.archiveRoot, checkpointId); const c = result.checkpoint;
     if (c.sourceId !== archiveSourceId || c.retention !== policy.retention || c.sourceBytes > policy.maxBytes
       || c.declaredParser.id !== source.parser.id || c.declaredParser.version !== source.parser.version) fail();
