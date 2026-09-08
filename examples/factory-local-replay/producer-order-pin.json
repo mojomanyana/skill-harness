@@ -1,8 +1,8 @@
 {
   "version": "factory-replay-producer-pin-v1",
   "repository": "https://github.com/mojomanyana/pi-daddy",
-  "commit": "f6f10b0f6a9f4a1f5afd44afdb1c22c71edcce4d",
-  "tree": "58a9d35e4fb8a0dd70cf62bf1609e55121833143",
+  "commit": "6212b9dfdfe1f07c1ea6f8d96b630e7e9c6873ed",
+  "tree": "32c0449f2803680951105ff560f65804a62e05b8",
   "files": {
     "packages/pi-daddy/contracts/factory-order/v1/README.md": "889240eaa3aaa0675c295b6caa95eaf859fe85b1cece32852054e5db664edbd2",
     "packages/pi-daddy/contracts/experiment/v1/README.md": "7df0d5dad17699b88dba4eb50d157bba127d6bf5c381852ca57fd2206a3d189c",
@@ -11,10 +11,14 @@
     "packages/pi-daddy/src/experiment.ts": "2fe3cf6dcf357f9d7895d0a080c91154296271a12f6136e8251d061b0efaed15",
     "packages/pi-daddy/src/experiment-state.ts": "ed6591c1a6e9074a12e0bd01387e0d45448ad8d20e574cb3aacb1bcf26da1e22",
     "packages/pi-daddy/src/effect-profile-runtime.ts": "75da4bf616e86bfd4f6b8018e953bd03e1a7aaa1fd8707e49b7e379d9ccdaa86",
-    "packages/pi-daddy/src/dashboard-host.ts": "d714a93d83848fbe951455271b44ca4e8af5e0b27dc5cc834aa12b4bacb0a33d",
-    "packages/pi-daddy/src/dashboard-host-contract.ts": "c82dde42a36edff37279a03b292be21ab12c5e6fe9379c69479a0ca02bb54f8f",
+    "packages/pi-daddy/src/dashboard-host.ts": "5f69ec2a50739bded0211cad1d9abcc1777ea0487b61b3540ba14cdc4c144185",
+    "packages/pi-daddy/src/dashboard-host-contract.ts": "aa1a94dbaefc856603673eaedf241740e07a0090158e9389bde8b05d8fd2c693",
     "packages/pi-daddy/src/dashboard-harness.ts": "7b3cb0f0f96df2ee686c121112bc7a7c15bbf92202a9b580dcde0ac05ceb0215",
-    "packages/pi-daddy/src/dashboard-observation.ts": "5738f18289f531ce48ec8a117b2acea53d7ef1b081944cf7ddda3cc5d7590fa7"
+    "packages/pi-daddy/src/dashboard-observation.ts": "5738f18289f531ce48ec8a117b2acea53d7ef1b081944cf7ddda3cc5d7590fa7",
+    "packages/pi-daddy/src/ordinary-children.ts": "e6df8238de934b76b0f30821f7ea25cd471cff427a5fab6e82f8a68f97fe3344",
+    "packages/pi-daddy/src/intent-control.ts": "0ba0dd6c3c720cf87cb23b1c6edfbfdcaee50efabd2c99528d52b787e2e17d3c",
+    "packages/pi-daddy/test/ordinary-host-fixture.ts": "efb271ad64e7ab0dafaddd9c161ffa6ef5e28c351fefc37c5beff94dca0de29c"
   },
-  "claim": "Exact source for an opt-in local fixed-profile replay; no deployment or live acceptance"
+  "claim": "Exact source for an opt-in local fixed-profile replay; no deployment or live acceptance",
+  "availability": "local inspected receipt; source publication requires separate root clearance"
 }

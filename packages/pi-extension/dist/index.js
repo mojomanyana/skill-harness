@@ -12745,41 +12745,39 @@ import { randomUUID as randomUUID2 } from "node:crypto";
 import { join as join35 } from "node:path";
 
 // packages/adapters/dist/archive-read-capability.js
-import { createHash as createHash25 } from "node:crypto";
+import { createHash as createHash26 } from "node:crypto";
 import { performance as performance2 } from "node:perf_hooks";
+
+// packages/adapters/dist/learning-journal.js
+import { constants as constants10, openSync as openSync9, closeSync as closeSync9, readSync as readSync4, writeSync as writeSync3, fstatSync as fstatSync9, lstatSync as lstatSync8, fsyncSync as fsyncSync5, mkdirSync as mkdirSync10, unlinkSync as unlinkSync5 } from "node:fs";
+import { createHash as createHash25, randomUUID as randomUUID3 } from "node:crypto";
+import { types as types2 } from "node:util";
+import { isAbsolute as isAbsolute12, join as join36, dirname as dirname11, parse as parse3, resolve as resolve16 } from "node:path";
+var LIMIT4 = 4 * 1024 * 1024;
 
 // packages/adapters/dist/generated/work-v4/reader.js
 import { isDate } from "node:util/types";
 
 // packages/adapters/dist/generated/work-v4/json.js
-import { createHash as createHash26 } from "node:crypto";
+import { createHash as createHash27 } from "node:crypto";
 var WORK_EVENT_BYTES2 = 64 * 1024;
 var WORK_TEXT_BYTES2 = 16 * 1024 * 1024;
 
 // packages/adapters/dist/generated/work-v4/execution-id.js
-import { randomUUID as randomUUID3 } from "node:crypto";
+import { randomUUID as randomUUID4 } from "node:crypto";
 
 // packages/adapters/dist/blind-intervention.js
-import { constants as constants10, closeSync as closeSync9, fstatSync as fstatSync9, fsyncSync as fsyncSync5, lstatSync as lstatSync8, mkdirSync as mkdirSync10, openSync as openSync9, readSync as readSync4, writeSync as writeSync3 } from "node:fs";
-import { createHash as createHash27, randomBytes as randomBytes5 } from "node:crypto";
-import { join as join36 } from "node:path";
+import { constants as constants11, closeSync as closeSync10, fstatSync as fstatSync10, fsyncSync as fsyncSync6, lstatSync as lstatSync9, mkdirSync as mkdirSync11, openSync as openSync10, readSync as readSync5, writeSync as writeSync4 } from "node:fs";
+import { createHash as createHash28, randomBytes as randomBytes5 } from "node:crypto";
+import { join as join37 } from "node:path";
 
 // packages/adapters/dist/archive-observer.js
-import { randomUUID as randomUUID4 } from "node:crypto";
+import { randomUUID as randomUUID5 } from "node:crypto";
 
 // packages/adapters/dist/weekly-investigation.js
 import { createHash as createHash29 } from "node:crypto";
 import { isAbsolute as isAbsolute13 } from "node:path";
 import { constants as constants12, openSync as openSync11, fstatSync as fstatSync11, writeSync as writeSync5, fsyncSync as fsyncSync7, closeSync as closeSync11, realpathSync as realpathSync7 } from "node:fs";
-
-// packages/adapters/dist/learning-journal.js
-import { constants as constants11, openSync as openSync10, closeSync as closeSync10, readSync as readSync5, writeSync as writeSync4, fstatSync as fstatSync10, lstatSync as lstatSync9, fsyncSync as fsyncSync6, mkdirSync as mkdirSync11, unlinkSync as unlinkSync5 } from "node:fs";
-import { createHash as createHash28, randomUUID as randomUUID5 } from "node:crypto";
-import { types as types2 } from "node:util";
-import { isAbsolute as isAbsolute12, join as join37, dirname as dirname11, parse as parse3, resolve as resolve16 } from "node:path";
-var LIMIT4 = 4 * 1024 * 1024;
-
-// packages/adapters/dist/weekly-investigation.js
 import { ftruncateSync as truncateCandidate } from "node:fs";
 
 // packages/adapters/dist/intervention-run.js
@@ -12794,6 +12792,9 @@ import { isAbsolute as isAbsolute14 } from "node:path";
 import { constants as constants13, openSync as openSync12, closeSync as closeSync12, writeSync as writeSync6, fsyncSync as fsyncSync8, realpathSync as realpathSync8, lstatSync as lstatSync10 } from "node:fs";
 import { dirname as dirname12, isAbsolute as isAbsolute15, resolve as resolve17 } from "node:path";
 import { createHash as createHash32 } from "node:crypto";
+
+// packages/adapters/dist/archive-facts.js
+import { createHash as createHash33 } from "node:crypto";
 
 // packages/adapters/dist/trust-lifecycle.js
 import { isAbsolute as isAbsolute16 } from "node:path";
@@ -13191,7 +13192,7 @@ async function runViaExtension(opts) {
 // packages/pi-extension/src/capture-cmd.ts
 import { existsSync as existsSync25, mkdirSync as mkdirSync13, writeFileSync as writeFileSync12, readdirSync as readdirSync17, readFileSync as readFileSync27 } from "node:fs";
 import { join as join40 } from "node:path";
-import { createHash as createHash33 } from "node:crypto";
+import { createHash as createHash34 } from "node:crypto";
 var CANCELLED = { status: "cancelled", files: [] };
 var CAPTURES_GITIGNORE = "# Local review evidence for captured cases \u2014 never commit.\n.local/\n";
 async function runCapture(skillDir, ctx) {
@@ -13329,7 +13330,7 @@ async function chooseTarget(skillDir, ctx) {
   return {
     kind: chosen.kind,
     path: chosen.path,
-    content_sha256: createHash33("sha256").update(readFileSync27(chosen.abs, "utf8"), "utf8").digest("hex")
+    content_sha256: createHash34("sha256").update(readFileSync27(chosen.abs, "utf8"), "utf8").digest("hex")
   };
 }
 function suggestScenarioId(specPath, fallback) {

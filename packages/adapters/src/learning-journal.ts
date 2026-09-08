@@ -69,13 +69,13 @@ export function learningJournal(path:string,initial?:Record<string,unknown>){
  }};
 }
 /** One authoritative store per weekly key/policy in this archive; a renamed directory cannot refill it. */
-export function registerLearningStore(root:string,kind:'weekly'|'trust'|'intervention',key:string,target:string,binding:string){
- if(!/^[a-f0-9]{64}$/.test(key)||!isAbsolute(target)||!['weekly','trust','intervention'].includes(kind))throw Error('invalid learning registration');directory(root);directory(dirname(target));
+export function registerLearningStore(root:string,kind:'weekly'|'trust'|'intervention'|'access',key:string,target:string,binding:string){
+ if(!/^[a-f0-9]{64}$/.test(key)||!isAbsolute(target)||!['weekly','trust','intervention','access'].includes(kind))throw Error('invalid learning registration');directory(root);directory(dirname(target));
  const parent=join(root,'learning-stores');try{mkdirSync(parent,{mode:0o700});sync(root);}catch(e){if((e as NodeJS.ErrnoException).code!=='EEXIST')throw e;}directory(parent);
  const path=join(parent,`${kind}-${key}`),initial={type:'learning-registration-v1',target:resolve(target),binding};
  try{learningJournal(path,initial);}catch(e){if((e as NodeJS.ErrnoException).code!=='EEXIST')throw e;const records=learningJournal(path).read();if(records.length!==1||learningHash(records[0].value)!==learningHash(initial))throw Error('learning key already bound to another store or input');}
 }
-export function verifyLearningStore(root:string,kind:'weekly'|'trust'|'intervention',key:string,target:string,binding:string){
+export function verifyLearningStore(root:string,kind:'weekly'|'trust'|'intervention'|'access',key:string,target:string,binding:string){
  if(!/^[a-f0-9]{64}$/.test(key)||!isAbsolute(target))throw Error('invalid learning registration');
  const records=learningJournal(join(root,'learning-stores',`${kind}-${key}`)).read();
  if(records.length!==1||learningHash(records[0].value)!==learningHash({type:'learning-registration-v1',target:resolve(target),binding}))throw Error('learning store registration mismatch');

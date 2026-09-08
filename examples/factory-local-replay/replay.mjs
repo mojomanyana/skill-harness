@@ -1,3 +1,4 @@
+import { learningHash } from '../../packages/adapters/dist/learning-journal.js';
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, isAbsolute, resolve } from 'node:path';
@@ -6,7 +7,7 @@ import {
   freezeIntervention,
   buildAdoptionBinding, authorizeAdoption, classifyProductionObservation,
 } from '../../packages/core/dist/index.js';
-import { retainArchiveSource, readWorkCandidate, captureArchivedWorkCandidates, createWorkCaseReviewer, createInterventionRun, openBlindIntervention, createWeeklyInvestigation, openWeeklyInvestigation, createTrustLifecycle, trustPolicyDigest } from '../../packages/adapters/dist/index.js';
+import { createArchiveAccess, retainArchiveSource, readWorkCandidate, captureArchivedWorkCandidates, createWorkCaseReviewer, createInterventionRun, openBlindIntervention, createWeeklyInvestigation, openWeeklyInvestigation, createTrustLifecycle, trustPolicyDigest } from '../../packages/adapters/dist/index.js';
 import { buildWorkRevisionEvent, buildWorkSnapshotEvent, buildWorkOccurrenceEvent, buildWorkAcceptanceEvent, projectWorkLedger } from '../../packages/adapters/dist/generated/work-v4/reader.js';
 const sha=value=>createHash('sha256').update(value).digest('hex');
 const revisionRef=e=>({kind:e.payload.revision.kind,id:e.payload.revision.id,revision:e.payload.revision.revision,digest:e.payload.revision.digest});
@@ -38,6 +39,9 @@ export function runLocalReplay(outputRoot){
   const expected=buildReplayWorld(domain),context=fixedAuthority(domain),text=expected.events.map(e=>JSON.stringify(e)).join('\n')+'\n';
   const projection=projectWorkLedger(text,context);
   const source=retainArchiveSource(archive,{sourceId:`${domain}-work`,parser:{id:'pi-daddy-work-ledger',version:'4'},retention:'exact',bytes:Buffer.from(text)});
+  const accessPolicy={archiveRoot:archive,id:`${domain}-access-v1`,expiresAt:Date.now()+600000,maxCalls:64,maxBytes:64*1024*1024,purposes:['investigation','facts','payload','export']};
+  const accessDirectory=join(directory,'archive-access'),access=createArchiveAccess(accessDirectory,accessPolicy,[learningHash(accessPolicy)]);
+  const consent={manifestId:source.manifestId,purpose:'investigation',expiresAt:accessPolicy.expiresAt};access.consent(consent,[access.previewConsent(consent)],Date.now());
   const usage=Object.fromEntries(expected.occurrences.map(o=>[o.payload.executionId,{observed:true,cost:1,unit:'wall_ms',evidence:sha('synthetic usage receipt')} ]));
   const captured=captureArchivedWorkCandidates(archive,source.manifestId,context,{version:'synthetic-fixture-v1',population:domain,scopeDigest:context.selectedSnapshot.snapshot.digest,minEquivalentAttempts:2,expectedWaits:[],expectedFailures:[],usage,exemplar:{unit:'wall_ms',maximum:10}});
   const candidates=captured.candidateIds.map(id=>readWorkCandidate(archive,id));const defectIndex=candidates.findIndex(c=>c.classification==='candidate_defect');
@@ -45,7 +49,7 @@ export function runLocalReplay(outputRoot){
   const reviewer=createWorkCaseReviewer(archive,captured.caseBatchId,'operator:synthetic-fixture');
   const decision=reviewer.decide({caseManifestId:captured.candidateIds[defectIndex],priorDecisionId:null,disposition:'confirmed_defect',note:'Synthetic fixed reference, not a live human judgment.'}).current;
   const caseReference={version:2,batchId:captured.caseBatchId,manifestId:captured.candidateIds[defectIndex],decisionId:decision.id};
-  const job=createWeeklyInvestigation(join(directory,'investigation'),{archiveRoot:archive,week:'2026-W01',population:domain,policyDigest:sha('fixture weekly policy'),maxCases:1,cases:[caseReference],reader:{manifestIds:[source.manifestId],maxCalls:1,maxBytes:65536,durationMs:30000,representations:['exact']}});
+  const job=createWeeklyInvestigation(join(directory,'investigation'),{archiveRoot:archive,week:'2026-W01',population:domain,policyDigest:sha('fixture weekly policy'),maxCases:1,cases:[caseReference],reader:{access:{directory:accessDirectory,purpose:'investigation'},manifestIds:[source.manifestId],maxCalls:1,maxBytes:65536,durationMs:30000,representations:['exact']}});
   const hypothesis=job.run({kind:'inert-v1',requests:[{tool:'archive.read',manifestId:source.manifestId},{tool:'hypothesis',proposal:{archiveSnapshot:job.inspect().selection.archiveSnapshot,caseIds:[candidates[defectIndex].id],population:domain,intervention:`change ${domain} fixture configuration`,alternatives:['keep reference'],prediction:'satisfy the fixed fixture check',downside:'additional review work',disproof:'fixed check remains unsatisfied',rollback:'retain reference',limits:{subjectCalls:0,judgeCalls:0,wallMs:1000},effectProfile:null}}]});
   const specPath=join(directory,'specification.yaml');writeFileSync(specPath,'# synthetic replay only\nskill: fixture\njudge_persona: fixture\nship_bar: {total: 1, min_pass: 1, no_critical_fail: true}\ncritical: []\nscenarios:\n  - id: A0\n    title: baseline\n    turns: [hello]\n    checklist: [responds]\n',{mode:0o600});
   const authority={id:'synthetic-controller',investigations:[hypothesis.id],promotions:[]};job.approve(authority);

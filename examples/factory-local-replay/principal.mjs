@@ -3,7 +3,7 @@ import { isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { createPrincipalPayloadPort, createReviewedArchiveExport, retainArchiveSource, readArchiveSource } from '../../packages/adapters/dist/index.js';
+import { createPrincipalPayloadPort, createReviewedArchiveExport, openArchiveAccess, retainArchiveSource } from '../../packages/adapters/dist/index.js';
 import { learningHash } from '../../packages/adapters/dist/learning-journal.js';
 import { verifyOrderProducer } from './order.mjs';
 const parsed=JSON.parse(readFileSync(new URL('./principal-pin.json',import.meta.url),'utf8'));
@@ -65,7 +65,10 @@ export async function runPinnedPrincipal(root,producerRoot,directory,domain,work
  const selected={binding_id:'fixture-connector',check_id:'order-predicate',result:{source:'journal',reference:receipt.reference},generic_receipt_id:link.generic_receipt_id,generic_claim:link.generic_claim,generic_artifact:link.generic_artifact,generic_artifact_digest:link.generic_artifact_digest,generic_evidence:link.generic_evidence};
  const payloadPath=join(directory,'actual-order.json'),permission={id:'fixture-output-consent',path:payloadPath,sha256:sha(retainedOrder),max_bytes:retainedOrder.length,run_id:runId,check_id:'order-predicate',revision:receipt.reference,channel:'output',purpose:'retain-check-output'};
  const request={version:'principal-host-assembly-request-v1',expected_head:retired.reference,operation:null,selections:[selected],payloads:[{binding_id:selected.binding_id,check_id:selected.check_id,result:selected.result,channel:'output',path:payloadPath,sha256:sha(retainedOrder),byte_length:retainedOrder.length,permission_id:permission.id}]};
- const assembled=await assemblePrincipalHost({stateDir,runId,dailyViewText:JSON.stringify(daily),bindingsText:JSON.stringify(base),workContextText:JSON.stringify(workContext),request,archivePort:createPrincipalPayloadPort(join(directory,'archive'),`${domain}:archive`),sourcePermissions:[permission]});
+ const accessDirectory=join(directory,'archive-access'),access=openArchiveAccess(accessDirectory);
+ const payloadPort=createPrincipalPayloadPort(join(directory,'archive'),`${domain}:archive`,{directory:accessDirectory,purpose:'payload'});
+ const archivePort={...payloadPort,async retain(input){if(input.origin.run_id!==runId||input.origin.check_id!=='order-predicate'||input.origin.channel!=='output'||input.origin.revision.digest!==receipt.reference.digest)throw Error('payload outside explicit fixture consent');const retained=await payloadPort.retain(input);const grant={manifestId:retained.object_id,purpose:'payload',expiresAt:access.inspect().policy.expiresAt};access.consent(grant,[access.previewConsent(grant)],Date.now());return retained;}};
+ const assembled=await assemblePrincipalHost({stateDir,runId,dailyViewText:JSON.stringify(daily),bindingsText:JSON.stringify(base),workContextText:JSON.stringify(workContext),request,archivePort,sourcePermissions:[permission]});
  // Acquire a host pin from the invoked pinned producer and independently re-read its source projection.
  // Retained byte integrity is not authenticated consent or independent native acceptance.
  const projection=projectPrincipalAssociations({stateDir,runId,dailyViewText:JSON.stringify(daily),bindingsText:canonicalJson(assembled.assembled_bindings),workContextText:JSON.stringify(workContext)}),n=projection.native_references;
@@ -73,12 +76,14 @@ export async function runPinnedPrincipal(root,producerRoot,directory,domain,work
  const {digest:_exportDigest,...exportBody}=assembled.envelope;const expected={digest:digest(exportBody),source:expectedSource};
  const envelopeBytes=Buffer.from(canonicalJson(assembled.envelope)),stored=retainArchiveSource(join(directory,'archive'),{sourceId:`${domain}-principal-lifecycle`,parser:{id:'principal-generic-check-lifecycle',version:'1'},retention:'exact',bytes:envelopeBytes});
  save('export-pin.json',{...expected,manifestId:stored.manifestId,sha256:sha(envelopeBytes),authority:'synthetic fixture host; not authentication'});
- const readback=readArchiveSource(join(directory,'archive'),stored.manifestId);if(readback.status!=='available'||sha(readback.bytes)!==sha(envelopeBytes))throw Error('lifecycle export byte readback mismatch');
+ const lifecycleGrant={manifestId:stored.manifestId,purpose:'payload',expiresAt:access.inspect().policy.expiresAt};access.consent(lifecycleGrant,[access.previewConsent(lifecycleGrant)],Date.now());
+ const readback=access.read(stored.manifestId,'payload',1024*1024);if(readback.status!=='available'||sha(readback.bytes)!==sha(envelopeBytes))throw Error('lifecycle export byte readback mismatch');
  const consumed=consumePrincipalLifecycle(readback.bytes.toString('utf8'),expected);
  if(consumed.emissions.length!==1||consumed.emissions[0].retirement.state!=='emitted'||consumed.emissions[0].state!=='emitted')throw Error('generic retirement was not actually consumed');
  const payloads=consumed.emissions[0].payloads;if(payloads.output.state!=='retained'||payloads.output.readback_sha256!==sha(retainedOrder)||payloads.stdout.state!=='missing'||payloads.stderr.state!=='missing')throw Error('actual output retention or missing-channel semantics changed');
  save('assembly.json',assembled);save('generic-consumed.json',consumed);
- const exportPolicy={archiveRoot:join(directory,'archive'),manifestIds:[stored.manifestId],destination:join(stateDir,'reviewed-lifecycle.json'),expiresAt:Date.now()+60000,redact:[directory],maxBytes:1024*1024};
+ const exportGrant={manifestId:stored.manifestId,purpose:'export',expiresAt:access.inspect().policy.expiresAt};access.consent(exportGrant,[access.previewConsent(exportGrant)],Date.now());
+ const exportPolicy={archiveRoot:join(directory,'archive'),access:{directory:accessDirectory,purpose:'export'},manifestIds:[stored.manifestId],destination:join(stateDir,'reviewed-lifecycle.json'),expiresAt:Date.now()+60000,redact:[directory],maxBytes:1024*1024};
  const exporter=createReviewedArchiveExport(join(stateDir,'export-owner'),exportPolicy,[learningHash(exportPolicy)]),preview=exporter.preview(Date.now());
  if(preview.content.includes(directory))throw Error('explicit fixture workspace redaction failed');
  // Explicit fixture preview authorization, not a claim of authenticated human review.

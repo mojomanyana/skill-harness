@@ -38,4 +38,6 @@ export * from "./weekly-investigation.js";
 export * from "./intervention-run.js";
 export * from "./principal-payload-port.js";
 export * from "./reviewed-archive-export.js";
+export * from "./archive-access.js";
+export * from "./archive-facts.js";
 export * from "./trust-lifecycle.js";

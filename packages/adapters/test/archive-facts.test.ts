@@ -1,0 +1,10 @@
+import { it,expect,afterEach } from 'vitest';
+import { mkdtempSync,rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { readFixedOrderFacts } from '../src/index.js';
+import { createArchiveAccess } from '../src/archive-access.js';
+import { learningHash } from '../src/learning-journal.js';
+import { retainArchiveSource } from '../src/evidence-archive.js';
+const roots:string[]=[];afterEach(()=>{for(const p of roots.splice(0))rmSync(p,{recursive:true,force:true});});
+it('consumes actual scoped retained failures only with consent; missing/changed identities cannot become facts',()=>{const root=mkdtempSync(join(tmpdir(),'archive-facts-'));roots.push(root);const archiveRoot=join(root,'archive'),commit='a'.repeat(40),obligation='b'.repeat(64),source=retainArchiveSource(archiveRoot,{sourceId:'actual-fixture',parser:{id:'factory-order-readback',version:'1'},retention:'exact',bytes:Buffer.from(JSON.stringify({kind:'actual-fixed-profile-order',producerCommit:commit,nodes:[{state:'exhausted',obligation:{digest:obligation}}]}))});const policy={archiveRoot,id:'facts',expiresAt:100,maxCalls:4,maxBytes:4*1024*1024,purposes:['facts']},path=join(root,'policy'),access=createArchiveAccess(path,policy,[learningHash(policy)]),route={directory:path,purpose:'facts'},pins={producerCommit:commit,scopeDigest:'c'.repeat(64),population:'fixture',obligations:[obligation]};expect(()=>readFixedOrderFacts(archiveRoot,source.manifestId,route,pins,0)).toThrow(/consent/);const consent={manifestId:source.manifestId,purpose:'facts',expiresAt:90};access.consent(consent,[access.previewConsent(consent)],1);const value=readFixedOrderFacts(archiveRoot,source.manifestId,route,pins,2);expect(value.facts.violations).toHaveLength(1);expect(value.facts.checkpoints).toEqual([]);expect(value.acceptance).toBe('not-assessed');expect(()=>readFixedOrderFacts(archiveRoot,source.manifestId,route,{...pins,producerCommit:'d'.repeat(40)},3)).toThrow(/source\/scope/);expect(()=>readFixedOrderFacts(archiveRoot,source.manifestId,route,{...pins,population:'x'.repeat(513)},4)).toThrow(/pins/);});

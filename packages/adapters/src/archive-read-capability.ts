@@ -1,8 +1,11 @@
 import { createHash } from "node:crypto";
 import { performance } from "node:perf_hooks";
+import { readGovernedArchive, type GovernedArchiveRoute } from './archive-access.js';
 import { readArchiveSource } from "./evidence-archive.js";
 export interface ArchiveReadCapabilityOptions {
   root: string;
+  /** Optional durable shared policy; absent preserves the historical raw route. */
+  access?: GovernedArchiveRoute;
   /** Independently selected, content-reviewed artifact IDs; never accepted from model requests. */
   manifestIds: readonly string[];
   maxCalls: number;
@@ -23,7 +26,8 @@ export function createArchiveReadCapability(options: ArchiveReadCapabilityOption
   if (!representations.length || representations.some(r => r !== "exact" && r !== "redacted")) throw new Error("invalid archive representation policy");
   const ids = Object.freeze([...new Set(options.manifestIds)].sort()), allowed = new Set(ids), started = clock();
   if (!Number.isFinite(started)) throw new Error("invalid host clock");
-  const descriptor = { version: "archive-read-capability-v1", manifestIds: ids, maxCalls, maxBytes, durationMs, representations: Object.freeze(representations) };
+  const access=options.access?Object.freeze({...options.access}):undefined;
+  const descriptor = { ...(access?{access}:{}), version: "archive-read-capability-v1", manifestIds: ids, maxCalls, maxBytes, durationMs, representations: Object.freeze(representations) };
   const snapshot = Object.freeze({ ...descriptor, id: createHash("sha256").update(JSON.stringify(descriptor)).digest("hex") });
   let calls = 0, returned = 0;
   const elapsed = () => { const now = clock(); if (!Number.isFinite(now) || now < started) return Infinity; return now - started; };
@@ -34,7 +38,8 @@ export function createArchiveReadCapability(options: ArchiveReadCapabilityOption
       if (calls >= maxCalls || elapsed() >= durationMs) throw new Error("archive read refused");
       calls++;
       if (typeof manifestId !== "string" || !allowed.has(manifestId)) throw new Error("archive read refused");
-      const source = readArchiveSource(root, manifestId);
+      const limit=Math.min(8*1024*1024,maxBytes-returned);
+      const source = access?readGovernedArchive(root,manifestId,limit,access):readArchiveSource(root, manifestId,limit);
       if (source.status !== "available" || !representations.includes(source.reference.retention as "exact" | "redacted")
         || source.bytes.length > maxBytes - returned || elapsed() >= durationMs) throw new Error("archive read refused");
       returned += source.bytes.length;

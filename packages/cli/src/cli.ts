@@ -936,7 +936,7 @@ export function help(): string {
                        ask again about untrustworthy cells (ambiguous / contradictory / non-unanimous /
                        ship-deciding). OFF by default; prints the exact MAX extra call count first.
   archive ingest|inspect|watch --policy file --source id  explicit external ingestion/metadata (${free("archive")})
-  archive weekly|trust --state /private/dir --request file  durable inert learning lifecycle (${free("archive")})
+  archive weekly|trust|access --state /private/dir --request file  durable learning/consent lifecycle (${free("archive")})
                         watch requires --max-polls N; optional --interval-ms N and --previous checkpoint
   judge-agreement <run-dir>                      compare two distinct persisted judge votes per scenario (${free("judge-agreement")})
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (${free("rescore")})

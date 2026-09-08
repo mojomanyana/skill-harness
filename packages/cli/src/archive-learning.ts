@@ -1,18 +1,29 @@
 import { constants, openSync, readSync, fstatSync, closeSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
-import { createWeeklyInvestigation, openWeeklyInvestigation, createTrustLifecycle, openTrustLifecycle, type WeeklySupervisorInput, type TrustLifecycleInput, type TrustReferenceOutcome, type InvestigationFiles, type InvestigationScreenRequest } from '@skill-harness/adapters';
+import { createArchiveAccess, openArchiveAccess, readFixedOrderFacts, type ArchiveAccessPolicy, type ArchiveConsent, createWeeklyInvestigation, openWeeklyInvestigation, createTrustLifecycle, openTrustLifecycle, type WeeklySupervisorInput, type TrustLifecycleInput, type TrustReferenceOutcome, type InvestigationFiles, type InvestigationScreenRequest } from '@skill-harness/adapters';
 import { parseLearningRequest, type InvestigationAuthority, type InvestigationScenarioPreview, type CalibrationPrediction } from '@skill-harness/core';
 import type { Args } from './cli.js';
 /** Explicit operator requests, not a scheduler or model route. The inert host cannot invoke this CLI. */
 export function cmdArchiveLearning(args:Args){
- if(args._.length!==1||Object.keys(args.flags).sort().join()!=='request,state'||typeof args.flags.state!=='string'||!isAbsolute(args.flags.state)||typeof args.flags.request!=='string')throw Error('archive weekly|trust requires --state /absolute/directory --request file');
+ if(args._.length!==1||Object.keys(args.flags).sort().join()!=='request,state'||typeof args.flags.state!=='string'||!isAbsolute(args.flags.state)||typeof args.flags.request!=='string')throw Error('archive weekly|trust|access requires --state /absolute/directory --request file');
  const fd=openSync(args.flags.request,constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);let text:string;
  try{const stat=fstatSync(fd);if(!stat.isFile()||stat.size>65536)throw Error('bounded regular learning request required');const bytes=Buffer.alloc(65537);let n=0;while(n<bytes.length){const k=readSync(fd,bytes,n,bytes.length-n,n);if(!k)break;n+=k;}if(n>65536)throw Error('learning request exceeds bound');text=new TextDecoder('utf-8',{fatal:true}).decode(bytes.subarray(0,n));}finally{closeSync(fd);}
  const request=parseLearningRequest(text) as {operation:string;input:unknown;authority:unknown};
  if(Object.keys(request).sort().join()!=='authority,input,operation')throw Error('closed learning request required');
  const input=request.input,authority=request.authority,state=args.flags.state;
  let result:unknown;
- if(args._[0]==='weekly'){
+ if(args._[0]==='access'){
+  if(request.operation==='create')result=createArchiveAccess(state,input as ArchiveAccessPolicy,authority as string[]).inspect();
+  else{const access=openArchiveAccess(state);switch(request.operation){
+   case 'inspect':result=access.inspect();break;
+   case 'preview-consent':result=access.previewConsent(input as ArchiveConsent);break;
+   case 'consent':{const p=input as {grant:ArchiveConsent;now:number};result=access.consent(p.grant,authority as string[],p.now);break;}
+   case 'preview-revocation':result=access.previewRevocation(input as string);break;
+   case 'revoke':{const p=input as {id:string;now:number};access.revoke(p.id,authority as string[],p.now);result={recorded:true};break;}
+   case 'facts':{const p=input as {manifestId:string;purpose:string;expected:Parameters<typeof readFixedOrderFacts>[3];now:number};result=readFixedOrderFacts(access.inspect().policy.archiveRoot,p.manifestId,{directory:state,purpose:p.purpose},p.expected,p.now);break;}
+   default:throw Error('unsupported access operation; raw read/export is not a CLI operation');
+  }}
+ }else if(args._[0]==='weekly'){
   if(request.operation==='create'){result=createWeeklyInvestigation(state,input as WeeklySupervisorInput).inspect();}
   else {const job=openWeeklyInvestigation(state);switch(request.operation){
    case 'inspect':result=job.inspect();break;
