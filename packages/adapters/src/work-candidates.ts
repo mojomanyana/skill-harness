@@ -12,6 +12,7 @@ export interface WorkDetectionOptions {
   exemplar?: { unit: "wall_ms" | "tool_calls" | "usd"; maximum: number };
   usage?: Record<string, { observed: boolean; cost: number; unit: "wall_ms" | "tool_calls" | "usd"; evidence: string }>;
 }
+export const WORK_CANDIDATE_IMPLEMENTATION = "structural-work-v2";
 const hash = /^[a-f0-9]{64}$/;
 /** Consumes the actual P01 host projection, not arbitrary native wire or a new acceptance authority. */
 export function detectWorkCandidates(work: WorkProjection, options: WorkDetectionOptions) {
@@ -27,7 +28,7 @@ export function detectWorkCandidates(work: WorkProjection, options: WorkDetectio
     return { version: "work-candidates-v1" as const, cases: [] as WorkCaptureCaseV2[], issues: ["work-scope-not-resolved"], expected: [] as string[] };
   }
   const policyDigest = createHash("sha256").update(JSON.stringify({ minEquivalentAttempts: options.minEquivalentAttempts, exemplar: options.exemplar ? { unit: options.exemplar.unit, maximum: options.exemplar.maximum } : null })).digest("hex");
-  const version = `${options.version}:${policyDigest}`;
+  const version = `${WORK_CANDIDATE_IMPLEMENTATION}:${options.version}:${policyDigest}`;
   const cases: WorkCaptureCaseV2[] = [], expected: string[] = [];
   const waits = new Set(options.expectedWaits), expectedFailures = new Set(options.expectedFailures);
   const occurrences = work.runtime.occurrences;
@@ -39,7 +40,7 @@ export function detectWorkCandidates(work: WorkProjection, options: WorkDetectio
       cases.push(buildWorkCapture({ detector: { id: reason, version, population: options.population }, target, reason, classification, metrics, evidence: refs }));
     };
     if (waits.has(ref.digest)) { expected.push(`declared-wait:${ref.digest}`); continue; }
-    if (obligation.acceptance === "unresolved" || obligation.artifactCoverage.state !== "available" || obligation.evidenceCoverage.state !== "available" || obligation.problems.length) {
+    if (obligation.acceptance === "unresolved" || obligation.artifactCoverage.state !== "available" || obligation.evidenceCoverage.state !== "available" || obligation.problems.some(problem => problem.code !== "TRUSTED_REJECTION")) {
       add("coverage_gap", "coverage_issue", {}); continue;
     }
     for (const attempt of work.runtime.attempts) if (expectedFailures.has(attempt.executionId) && attempt.bindings.some(b => b.obligation.digest === ref.digest)) expected.push(`expected-failure:${attempt.executionId}`);

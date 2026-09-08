@@ -24,6 +24,10 @@ describe('silent structural work candidates', () => {
     expect(a.cases[0]).toMatchObject({ reason: 'repeat_without_progress', visibility: 'silent', status: 'unresolved', metrics: { equivalentAttempts: 2 } });
     expect(detectWorkCandidates(work(), options()).cases[0].id).toBe(a.cases[0].id);
   });
+  it('does not mistake a known trusted rejection for missing evidence', () => {
+    const w=work(); (w.obligations[0] as any).problems=[{code:'TRUSTED_REJECTION',reference:null,affectedObligations:[]}];
+    expect(detectWorkCandidates(w,options()).cases[0].reason).toBe('repeat_without_progress');
+  });
   it('does not attribute missing evidence or unresolved scope to a worker defect', () => {
     const w = work(); (w.obligations[0] as any).evidenceCoverage.state = 'unknown';
     expect(detectWorkCandidates(w, options()).cases[0].classification).toBe('coverage_issue');
