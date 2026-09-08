@@ -4,4 +4,6 @@ A CI lifecycle test allowed its start caller1500ms and reported only `status:nul
 
 A second CI failure occurred in the abort-named test, but its stack points to `start`, before `abort` was called. A zero-budget acknowledgement probe separately observed start exit1 followed by one running invocation that could be explicitly aborted; the missing original stderr prevents attributing that exact cause to CI. The abort test now waits for a held worker's actual running identity, checks cancellation before release, and reports operation-specific process diagnostics.
 
+A later CI run failed START in the general prepare/status/poll test too. All three subprocess lifecycle paths now use one held-worker fixture and one explicit acknowledgement budget, with diagnostics for every command. Invalid-command checks also require the intended error and a real exit1; a timeout cannot masquerade as rejection. Original CI startup causes remain unproven because those old assertions omitted stderr.
+
 The corrected detached test holds the worker behind a release barrier. The caller must exit successfully while the supervisor and exact child remain live; then release permits one terminal completion. A caller that waits for its worker cannot pass. No production authority, timeout or accounting check was relaxed, and no model was called.

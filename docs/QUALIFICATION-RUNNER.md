@@ -485,7 +485,11 @@ merged `main` at `62e9d027514e9fc6d689d505d7ef733a07f1470c`; both commits resolv
 
 ## Offline detached-lifecycle regression
 
-The CLI test uses an inert worker held behind an explicit release file. It requires
+All three CLI subprocess lifecycle tests use an inert worker held behind an explicit
+release file and share the same explicit start acknowledgement budget and exit diagnostics.
+The prepare/status/poll path now observes both running and completed states without an
+80ms worker timer. Even invalid-command tests require a real exit1 with the relevant
+error message, not an arbitrary nonzero/null process outcome. The detached path requires
 successful caller exit, then an observed running supervisor and matching live child
 before release; only afterward may the same invocation complete, with one launch and
 a validated terminal spool. This proves lifetime independence rather than assuming
