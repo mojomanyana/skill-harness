@@ -478,6 +478,18 @@ and reproduces fixtures through its real production builders. The pin is reachab
 merged `main` at `62e9d027514e9fc6d689d505d7ef733a07f1470c`; both commits resolve to tree
 `7c006bff213142634f0f911ba9bd6add363ecaae` and have an empty full diff.
 
+## Offline detached-lifecycle regression
+
+The CLI test uses an inert worker held behind an explicit release file. It requires
+successful caller exit, then an observed running supervisor and matching live child
+before release; only afterward may the same invocation complete, with one launch and
+a validated terminal spool. This proves lifetime independence rather than assuming
+that a350ms worker and a1500ms caller timeout measure detachment. The outer test
+watchdog includes source-loader/auth startup; the runner's acknowledgement deadline
+starts later. Process error/signal/stdout/stderr are included in assertion diagnostics.
+No production timeout, authority, accounting or launch policy is relaxed by this test.
+This is deterministic local-process coverage, not live Pi/model qualification.
+
 ## Explicit non-claims
 
 This implementation makes none of these claims:
