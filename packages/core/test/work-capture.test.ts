@@ -17,6 +17,8 @@ describe('work-target capture v2', () => {
     expect(() => buildWorkCapture({ ...nomination(), classification: 'candidate_exemplar' })).toThrow();
     expect(() => buildWorkCapture({ ...nomination(), detector: { ...nomination().detector, secret: 'not-a-field' } } as any)).toThrow();
     expect(() => buildWorkCapture({ ...nomination(), metrics: { equivalentAttempts: 1.5 } })).toThrow();
+    expect(() => buildWorkCapture({ ...nomination(), metrics: {} })).toThrow();
+    expect(() => buildWorkCapture({ ...nomination(), reason: 'economical_exemplar', classification: 'candidate_exemplar', metrics: { measuredCost: 11, costLimit: 10, costUnit: 'wall_ms' } })).toThrow();
   });
   it('appends explicit decisions without turning skip into agreement or accepting stale correction', () => {
     const caseId = buildWorkCapture(nomination()).id;

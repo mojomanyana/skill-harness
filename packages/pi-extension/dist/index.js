@@ -1,11 +1,11 @@
 // packages/pi-extension/src/index.ts
 import { fileURLToPath as fileURLToPath3 } from "node:url";
-import { dirname as dirname14, join as join39 } from "node:path";
+import { dirname as dirname14, join as join40 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
 import { existsSync as existsSync26 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
-import { dirname as dirname13, join as join38, resolve as resolve17, relative as relative6 } from "node:path";
+import { dirname as dirname13, join as join39, resolve as resolve17, relative as relative6 } from "node:path";
 
 // packages/core/dist/spec.js
 import { readFileSync } from "node:fs";
@@ -3482,10 +3482,10 @@ function trajectoryEventsSha256(events) {
 function serializeTrajectoryEvents(events) {
   return events.map((event) => JSON.stringify(event)).join("\n") + (events.length ? "\n" : "");
 }
-function deserializeTrajectoryEvents(text2) {
+function deserializeTrajectoryEvents(text3) {
   const out = [];
   try {
-    for (const line of text2.split("\n").filter((entry) => entry.trim())) {
+    for (const line of text3.split("\n").filter((entry) => entry.trim())) {
       const event = JSON.parse(line);
       if (validateEvent(event) !== null)
         return null;
@@ -4171,10 +4171,10 @@ function resolveRemote(env, workspace, id, file) {
   }
   return raw;
 }
-function parseSpec(text2, file) {
+function parseSpec(text3, file) {
   let doc;
   try {
-    doc = yaml.load(text2);
+    doc = yaml.load(text3);
   } catch (e) {
     throw new SpecError(`not valid YAML \u2014 ${e.message}`, file);
   }
@@ -4339,13 +4339,13 @@ function parseSpec(text2, file) {
   return { schema: 1, skill: o.skill, judge_persona: o.judge_persona, ship_bar, critical: effectiveCritical, scenarios };
 }
 function loadSpec(file) {
-  let text2;
+  let text3;
   try {
-    text2 = readFileSync(file, "utf8");
+    text3 = readFileSync(file, "utf8");
   } catch (e) {
     throw new SpecError(`cannot read spec file \u2014 ${e.message}`, file);
   }
-  return parseSpec(text2, file);
+  return parseSpec(text3, file);
 }
 
 // packages/core/dist/discover.js
@@ -4562,9 +4562,9 @@ var SKILL_PROMPT_KEY = "skill:prompt";
 var PROMPT_PREFIX = "prompt:";
 var CAPABILITY_KEYS = /* @__PURE__ */ new Set(["allowed-tools", "tools"]);
 var FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
-function splitPromptDoc(text2) {
-  const m = FRONTMATTER_RE.exec(text2);
-  return m ? { frontmatter: m[1], body: text2.slice(m[0].length) } : { frontmatter: null, body: text2 };
+function splitPromptDoc(text3) {
+  const m = FRONTMATTER_RE.exec(text3);
+  return m ? { frontmatter: m[1], body: text3.slice(m[0].length) } : { frontmatter: null, body: text3 };
 }
 function canonicalValue(v) {
   if (typeof v === "string")
@@ -4592,8 +4592,8 @@ function modelVisibleFrontmatter(fm) {
     Object.entries(parsed).filter(([k]) => !CAPABILITY_KEYS.has(k)).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([k, v]) => [k, canonicalValue(v)])
   ];
 }
-function promptDocDigest(text2) {
-  const { frontmatter, body } = splitPromptDoc(text2);
+function promptDocDigest(text3) {
+  const { frontmatter, body } = splitPromptDoc(text3);
   return sha(JSON.stringify(["prompt-doc/1", modelVisibleFrontmatter(frontmatter), body]));
 }
 function promptDocDigestOfFile(path) {
@@ -4756,8 +4756,8 @@ function diffSnapshots(before, after) {
   if (!before || !after)
     return null;
   const changed = /* @__PURE__ */ new Set();
-  for (const [path, hash3] of after)
-    if (before.get(path) !== hash3)
+  for (const [path, hash4] of after)
+    if (before.get(path) !== hash4)
       changed.add(path);
   for (const path of before.keys())
     if (!after.has(path))
@@ -5041,8 +5041,8 @@ function migrateResults(raw) {
   };
 }
 function readResults(runDir) {
-  const text2 = readFileSync4(resultsPath(runDir), "utf8");
-  return migrateResults(yaml.load(text2));
+  const text3 = readFileSync4(resultsPath(runDir), "utf8");
+  return migrateResults(yaml.load(text3));
 }
 var CRITERION_RE = /^\s*(\d+)[.)]\s*\**\s*(PASS|FAIL)\b\**\s*(.*)$/gim;
 function parseCriterionVotes(raw) {
@@ -6150,10 +6150,10 @@ function projectTurns(entries, homeDir) {
     if (id)
       current.entryIds.push(id);
     if (msg.role === "assistant") {
-      const text2 = visibleText(msg.content);
-      if (text2)
+      const text3 = visibleText(msg.content);
+      if (text3)
         current.assistantText = current.assistantText ? `${current.assistantText}
-${text2}` : text2;
+${text3}` : text3;
       for (const b of msg.content ?? []) {
         if (b.type !== "toolCall")
           continue;
@@ -6239,8 +6239,8 @@ function redactValue(value, homeDir, depth) {
     return redactArgs(value, homeDir, depth + 1);
   return String(value);
 }
-function sha256(text2) {
-  return createHash5("sha256").update(text2, "utf8").digest("hex");
+function sha256(text3) {
+  return createHash5("sha256").update(text3, "utf8").digest("hex");
 }
 function captureId(seed, existing = []) {
   const taken = new Set(existing);
@@ -6395,11 +6395,11 @@ function parseTrace(lines, meta) {
       }
       if (msg?.role !== "assistant")
         continue;
-      const text2 = assistantText(msg);
-      if (text2) {
-        lastAssistantText = text2;
+      const text3 = assistantText(msg);
+      if (text3) {
+        lastAssistantText = text3;
         if (msg.stopReason === "stop")
-          finalText = text2;
+          finalText = text3;
       }
       if (msg.usage && (typeof msg.usage.input === "number" || typeof msg.usage.output === "number" || typeof msg.usage.cacheRead === "number" || typeof msg.usage.cacheWrite === "number" || typeof msg.usage.cost?.total === "number"))
         sawUsage = true;
@@ -6488,8 +6488,8 @@ function isoTime(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? void 0 : date.toISOString();
 }
-function sha2562(text2) {
-  return createHash6("sha256").update(text2, "utf8").digest("hex");
+function sha2562(text3) {
+  return createHash6("sha256").update(text3, "utf8").digest("hex");
 }
 function traceSha256(trace) {
   const { trace_sha256: _omit, ...rest } = trace;
@@ -6603,8 +6603,8 @@ function aggregateObjective(outcomes) {
   const traceHashes = present.map((objective) => objective.trace_sha256);
   return {
     ...picked,
-    ...eventHashes.every((hash3) => typeof hash3 === "string") ? { rep_events_sha256: eventHashes } : {},
-    ...traceHashes.every((hash3) => typeof hash3 === "string") ? { rep_trace_sha256: traceHashes } : {}
+    ...eventHashes.every((hash4) => typeof hash4 === "string") ? { rep_events_sha256: eventHashes } : {},
+    ...traceHashes.every((hash4) => typeof hash4 === "string") ? { rep_trace_sha256: traceHashes } : {}
   };
 }
 function aggregateReps(outcomes, threshold) {
@@ -6952,9 +6952,9 @@ async function regradeRun(opts) {
 // packages/core/dist/canary.js
 import { readFileSync as readFileSync8 } from "node:fs";
 import { join as join11 } from "node:path";
-function skillBody(text2) {
-  const m = /^---\r?\n[\s\S]*?\r?\n---\r?\n/.exec(text2);
-  return m ? text2.slice(m[0].length) : text2;
+function skillBody(text3) {
+  const m = /^---\r?\n[\s\S]*?\r?\n---\r?\n/.exec(text3);
+  return m ? text3.slice(m[0].length) : text3;
 }
 function deliveryAnchor(skillMd) {
   const headings = [...skillBody(skillMd).matchAll(/^##[ \t]+(.+?)[ \t]*$/gm)].map((m) => m[1].trim());
@@ -7290,13 +7290,13 @@ function aggregateMetrics2(scenarios) {
 // packages/core/dist/run.js
 var LEDGER_FILENAME = "pi-daddy.ledger.jsonl";
 function countLedgerEvents(runDir) {
-  let text2;
+  let text3;
   try {
-    text2 = readFileSync9(join14(runDir, LEDGER_FILENAME), "utf8");
+    text3 = readFileSync9(join14(runDir, LEDGER_FILENAME), "utf8");
   } catch {
     return 0;
   }
-  return text2.split("\n").filter((line) => line.trim().length > 0).length;
+  return text3.split("\n").filter((line) => line.trim().length > 0).length;
 }
 async function runSkillModel(opts) {
   const { spec, skillDir, adapter, model, judge, mode, timestamp: timestamp2 } = opts;
@@ -7932,10 +7932,10 @@ function sectionAtLine(sections, line) {
   return sections.find((s) => line >= s.startLine && line <= s.endLine);
 }
 function parseCoversRef(raw) {
-  const hash3 = raw.indexOf("#");
-  if (hash3 < 0)
+  const hash4 = raw.indexOf("#");
+  if (hash4 < 0)
     return { raw, file: raw.trim() };
-  return { raw, file: raw.slice(0, hash3).trim(), slug: raw.slice(hash3 + 1).trim() || void 0 };
+  return { raw, file: raw.slice(0, hash4).trim(), slug: raw.slice(hash4 + 1).trim() || void 0 };
 }
 function computeCoverage(opts) {
   const fileSections = /* @__PURE__ */ new Map();
@@ -8102,6 +8102,56 @@ import { basename as basename2, join as join20 } from "node:path";
 // packages/core/dist/work-capture.js
 import { createHash as createHash8 } from "node:crypto";
 
+// packages/core/dist/work-capture-schema.js
+var text = { type: "string", minLength: 1, maxLength: 512, pattern: "^[^\\u0000-\\u001f\\u007f]+$" };
+var hash = { type: "string", pattern: "^[a-f0-9]{64}$" };
+var closed = (properties, required = Object.keys(properties)) => ({ type: "object", properties, required, additionalProperties: false });
+var evidence = { type: "array", items: hash, minItems: 1, maxItems: 256, uniqueItems: true };
+var metric = { type: "number", minimum: 0 };
+function freeze(value) {
+  if (value && typeof value === "object") {
+    Object.values(value).forEach(freeze);
+    Object.freeze(value);
+  }
+  return value;
+}
+var WORK_CAPTURE_SCHEMA = freeze({
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  $id: "https://github.com/mojomanyana/skill-harness/contracts/work-capture/v2/work-case.schema.json",
+  ...closed({
+    capture_schema: { const: 2 },
+    id: hash,
+    detector: closed({ id: text, version: text, population: text }),
+    target: closed({ kind: { const: "work" }, snapshotDigest: hash, obligationId: text, obligationDigest: hash }),
+    classification: { enum: ["candidate_defect", "candidate_exemplar", "coverage_issue"] },
+    reason: { enum: ["repeat_without_progress", "economical_exemplar", "coverage_gap"] },
+    evidence,
+    metrics: closed({
+      equivalentAttempts: { type: "integer", minimum: 2, maximum: Number.MAX_SAFE_INTEGER },
+      measuredCost: metric,
+      costLimit: metric,
+      costUnit: { enum: ["wall_ms", "tool_calls", "usd"] }
+    }, []),
+    status: { const: "unresolved" },
+    visibility: { const: "silent" },
+    causalAttribution: { const: "not-established" }
+  }),
+  oneOf: [
+    { properties: { reason: { const: "repeat_without_progress" }, classification: { const: "candidate_defect" }, metrics: { required: ["equivalentAttempts"] } } },
+    { properties: { reason: { const: "economical_exemplar" }, classification: { const: "candidate_exemplar" }, metrics: { required: ["measuredCost", "costLimit", "costUnit"] } } },
+    { properties: { reason: { const: "coverage_gap" }, classification: { const: "coverage_issue" } } }
+  ]
+});
+var WORK_CASE_REVIEW_REQUEST_SCHEMA = freeze({
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  ...closed({
+    caseManifestId: hash,
+    priorDecisionId: { anyOf: [hash, { type: "null" }] },
+    disposition: { enum: ["confirmed_defect", "expected_behavior", "exemplar", "uncertain", "skip"] },
+    note: { type: "string", maxLength: 4e3 }
+  })
+});
+
 // packages/core/dist/spec-write.js
 import { createHash as createHash9 } from "node:crypto";
 import { readFileSync as readFileSync14, renameSync as renameSync3, unlinkSync, writeFileSync as writeFileSync6 } from "node:fs";
@@ -8118,8 +8168,8 @@ var DuplicateScenarioId = class extends Error {
     this.name = "DuplicateScenarioId";
   }
 };
-function specSha256(text2) {
-  return createHash9("sha256").update(text2, "utf8").digest("hex");
+function specSha256(text3) {
+  return createHash9("sha256").update(text3, "utf8").digest("hex");
 }
 function renderScenarioBlock(scenario) {
   const dumped = yaml.dump({ scenarios: [scenario] }, { lineWidth: -1, noRefs: true });
@@ -8145,10 +8195,10 @@ function appendScenario(opts) {
   atomicWrite(specPath, merged);
   return { id, sha256: specSha256(merged), block };
 }
-function atomicWrite(path, text2) {
+function atomicWrite(path, text3) {
   const tmp = join21(dirname5(path), `.${Date.now()}-${process.pid}.specwrite.tmp`);
   try {
-    writeFileSync6(tmp, text2, "utf8");
+    writeFileSync6(tmp, text3, "utf8");
     renameSync3(tmp, path);
   } catch (err) {
     try {
@@ -10700,8 +10750,8 @@ function collectTrajectorySources(cwd, sources) {
       }
       seenFiles.add(sourceFile);
       try {
-        const text2 = readFileSync23(join30(cwd, file), "utf8");
-        const normalized = source.adapter === "principal-assurance-v1" ? normalizePrincipalAssuranceLedger(text2) : source.adapter === "pi-daddy-v1" ? normalizePiDaddyLegacyLedger(text2) : source.adapter === "pi-daddy-ledger-v3" ? normalizePiDaddyLedgerV3(text2) : deserializeTrajectoryEvents(text2);
+        const text3 = readFileSync23(join30(cwd, file), "utf8");
+        const normalized = source.adapter === "principal-assurance-v1" ? normalizePrincipalAssuranceLedger(text3) : source.adapter === "pi-daddy-v1" ? normalizePiDaddyLegacyLedger(text3) : source.adapter === "pi-daddy-ledger-v3" ? normalizePiDaddyLedgerV3(text3) : deserializeTrajectoryEvents(text3);
         if (!normalized)
           throw new Error("normalized-v1 source is empty, malformed, or unsupported");
         const times = normalized.map((event) => validTime(event.at) ? Date.parse(event.at) : null);
@@ -10826,8 +10876,8 @@ function validatePrincipalAssurance(record, line) {
     throw new Error(`invalid principal assurance v1 event at line ${line}: assurance.scope is not a closed structured scope`);
   }
 }
-function normalizePrincipalAssuranceLedger(text2) {
-  const records = parseJsonl(text2, "principal assurance");
+function normalizePrincipalAssuranceLedger(text3) {
+  const records = parseJsonl(text3, "principal assurance");
   validatePrincipalIntegrity(records);
   return records.map((record, index) => {
     if (record.schema_version !== "1.0") {
@@ -10881,22 +10931,22 @@ function normalizePrincipalAssuranceLedger(text2) {
     });
   });
 }
-function normalizePiDaddyLegacyLedger(text2) {
-  const records = parseJsonl(text2, "pi-daddy");
+function normalizePiDaddyLegacyLedger(text3) {
+  const records = parseJsonl(text3, "pi-daddy");
   const explicitV3 = records.findIndex((record) => record.ledgerVersion === 3);
   if (explicitV3 >= 0)
     throw new Error(`pi-daddy-v1 selector does not admit ledgerVersion 3 at line ${explicitV3 + 1}; use pi-daddy-ledger-v3`);
-  return normalizePiDaddyLedger(text2);
+  return normalizePiDaddyLedger(text3);
 }
-function normalizePiDaddyLedgerV3(text2) {
-  const records = parseJsonl(text2, "pi-daddy");
+function normalizePiDaddyLedgerV3(text3) {
+  const records = parseJsonl(text3, "pi-daddy");
   const wrong = records.findIndex((record) => record.ledgerVersion !== 3);
   if (wrong >= 0)
     throw new Error(`pi-daddy-ledger-v3 requires explicit ledgerVersion 3 at line ${wrong + 1}`);
-  return normalizePiDaddyLedger(text2);
+  return normalizePiDaddyLedger(text3);
 }
-function normalizePiDaddyLedger(text2) {
-  const records = parseJsonl(text2, "pi-daddy");
+function normalizePiDaddyLedger(text3) {
+  const records = parseJsonl(text3, "pi-daddy");
   validatePiDaddyTimestampOrder(records);
   const out = [];
   let seq2 = 1;
@@ -11971,8 +12021,8 @@ function sanitizeAttributes(value) {
   };
   return walk2(redacted);
 }
-function parseJsonl(text2, label) {
-  const lines = text2.split("\n").filter((line) => line.trim());
+function parseJsonl(text3, label) {
+  const lines = text3.split("\n").filter((line) => line.trim());
   if (!lines.length)
     throw new Error(`${label} ledger is empty`);
   return lines.map((line, index) => {
@@ -12261,10 +12311,10 @@ function extensionFlags(extensions) {
     return ["--extension", abs];
   });
 }
-function header(turnNo, total, text2) {
+function header(turnNo, total, text3) {
   const label = total === 1 ? "USER" : `USER (turn ${turnNo}/${total})`;
   return `>>> ${label}:
-${text2}
+${text3}
 `;
 }
 var piAdapter = {
@@ -12526,29 +12576,29 @@ var WORK_TEXT_BYTES = 16 * 1024 * 1024;
 var string2 = (maxLength = 512) => ({ type: "string", minLength: 1, maxLength, pattern: "^[^\\u0000-\\u001f\\u007f]+$" });
 var nullable = (schema2) => ({ anyOf: [schema2, { type: "null" }] });
 var literal = (value) => ({ const: value });
-var closed = (properties) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
-var hash = { type: "string", pattern: "^[a-f0-9]{64}$" };
+var closed2 = (properties) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
+var hash2 = { type: "string", pattern: "^[a-f0-9]{64}$" };
 var integer = { type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER };
 var uuid = { type: "string", pattern: "^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$" };
 var RETENTION_CONTENT_KINDS = ["stdout", "stderr", "paneSnapshot", "checkReceipt", "result", "session"];
-var RETENTION_SCHEMA = freeze({
+var RETENTION_SCHEMA = freeze2({
   $schema: "https://json-schema.org/draft/2020-12/schema",
   $id: "https://pi-daddy.local/contracts/execution-retention/v2/manifest.schema.json",
-  ...closed({
+  ...closed2({
     version: literal("2.0"),
     archiveId: uuid,
-    identity: closed({
+    identity: closed2({
       executionId: string2(),
       parentExecutionId: nullable(string2()),
       childId: string2(),
       toolCallId: nullable(string2()),
       executor: { enum: ["process", "herdr", "check"] },
-      taskDigest: nullable(hash),
-      definitionDigest: nullable(hash),
-      configurationDigest: hash,
+      taskDigest: nullable(hash2),
+      definitionDigest: nullable(hash2),
+      configurationDigest: hash2,
       workspaceId: nullable(string2())
     }),
-    native: closed({
+    native: closed2({
       pid: nullable({ type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER }),
       paneId: nullable(string2(4096)),
       agentName: nullable(string2(4096)),
@@ -12557,7 +12607,7 @@ var RETENTION_SCHEMA = freeze({
       sessionPath: nullable(string2(4096)),
       branchLeafId: nullable(string2(128))
     }),
-    nativeSession: closed({
+    nativeSession: closed2({
       source: { enum: [null, "herdr-id", "herdr-path", "pi-session-file", "pi-session-manager"] },
       status: { enum: ["missing", "verified", "invalid", "changed", "truncated", "unsupported"] },
       sessionId: nullable(uuid),
@@ -12566,11 +12616,11 @@ var RETENTION_SCHEMA = freeze({
       branchLeafId: nullable(string2(128)),
       branchState: { enum: ["unknown", "observed"] },
       lastPersistedEntryId: nullable(string2(128)),
-      sha256: nullable(hash),
+      sha256: nullable(hash2),
       reason: nullable(string2())
     }),
     state: { enum: ["running", "terminal"] },
-    outcome: nullable(closed({
+    outcome: nullable(closed2({
       code: nullable({ type: "integer", minimum: -2147483648, maximum: 2147483647 }),
       signal: nullable(string2(64)),
       timedOut: { type: "boolean" },
@@ -12578,16 +12628,16 @@ var RETENTION_SCHEMA = freeze({
       truncated: { type: "boolean" },
       failed: { type: "boolean" }
     })),
-    content: closed(Object.fromEntries(RETENTION_CONTENT_KINDS.map((kind) => [kind, { oneOf: [
-      closed({ status: literal("missing"), path: literal(null), sha256: literal(null), bytes: literal(null) }),
-      closed({
+    content: closed2(Object.fromEntries(RETENTION_CONTENT_KINDS.map((kind) => [kind, { oneOf: [
+      closed2({ status: literal("missing"), path: literal(null), sha256: literal(null), bytes: literal(null) }),
+      closed2({
         status: literal("retained"),
         path: { type: "string", pattern: `^${kind}-[a-f0-9]{64}\\.bin$` },
-        sha256: hash,
+        sha256: hash2,
         bytes: { ...integer, maximum: 1024 * 1024 }
       })
     ] }]))),
-    coverage: closed({ complete: literal(false), losses: { type: "array", items: string2(), maxItems: 64, uniqueItems: true } }),
+    coverage: closed2({ complete: literal(false), losses: { type: "array", items: string2(), maxItems: 64, uniqueItems: true } }),
     acceptance: literal("not-assessed")
   }),
   allOf: [
@@ -12603,10 +12653,10 @@ var RETENTION_SCHEMA = freeze({
   ]
 });
 var validator = Compile(RETENTION_SCHEMA);
-function freeze(value) {
+function freeze2(value) {
   if (value && typeof value === "object") {
     for (const child2 of Object.values(value))
-      freeze(child2);
+      freeze2(child2);
     Object.freeze(value);
   }
   return value;
@@ -12624,41 +12674,41 @@ var MAX_NATIVE_SESSION_BYTES = 1024 * 1024;
 
 // packages/adapters/dist/execution-projection-schema.js
 import { Compile as Compile2 } from "typebox/compile";
-var text = { type: "string", minLength: 1, maxLength: 512 };
-var hash2 = { type: "string", pattern: "^[a-f0-9]{64}$" };
+var text2 = { type: "string", minLength: 1, maxLength: 512 };
+var hash3 = { type: "string", pattern: "^[a-f0-9]{64}$" };
 var nullable2 = (schema2) => ({ anyOf: [schema2, { type: "null" }] });
 var list = (items) => ({ type: "array", items, maxItems: 4096, uniqueItems: true });
-var closed2 = (properties) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
-function freeze2(value) {
+var closed3 = (properties) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
+function freeze3(value) {
   if (value && typeof value === "object") {
-    Object.values(value).forEach(freeze2);
+    Object.values(value).forEach(freeze3);
     Object.freeze(value);
   }
   return value;
 }
-var EXECUTION_ARCHIVE_PROJECTION_SCHEMA = freeze2({
+var EXECUTION_ARCHIVE_PROJECTION_SCHEMA = freeze3({
   $schema: "https://json-schema.org/draft/2020-12/schema",
   $id: "https://github.com/mojomanyana/skill-harness/contracts/execution-archive/v1/projection.schema.json",
-  ...closed2({
+  ...closed3({
     version: { const: "execution-archive-projection-v1" },
-    executions: { type: "array", maxItems: 4096, items: closed2({
-      executionId: text,
-      parentExecutionIds: list(nullable2(text)),
-      retainedSessionIds: list(text),
+    executions: { type: "array", maxItems: 4096, items: closed3({
+      executionId: text2,
+      parentExecutionIds: list(nullable2(text2)),
+      retainedSessionIds: list(text2),
       activeBranch: { const: null },
-      toolCallIds: list(nullable2(text)),
-      archiveIds: list(text),
+      toolCallIds: list(nullable2(text2)),
+      archiveIds: list(text2),
       runtime: { enum: ["running", "terminal", "conflict"] },
-      outcome: nullable2(closed2({
+      outcome: nullable2(closed3({
         code: nullable2({ type: "integer", minimum: -2147483648, maximum: 2147483647 }),
-        signal: nullable2(text),
+        signal: nullable2(text2),
         timedOut: { type: "boolean" },
         aborted: { type: "boolean" },
         truncated: { type: "boolean" },
         failed: { type: "boolean" }
       })),
-      sourceReferences: list(hash2),
-      issues: list(text),
+      sourceReferences: list(hash3),
+      issues: list(text2),
       coverage: { const: "partial" },
       acceptance: { const: "not-assessed" }
     }) },
@@ -12669,6 +12719,11 @@ var compiled = Compile2(EXECUTION_ARCHIVE_PROJECTION_SCHEMA);
 
 // packages/adapters/dist/work-candidates.js
 import { createHash as createHash19 } from "node:crypto";
+
+// packages/adapters/dist/work-case-review.js
+import { constants as constants9, closeSync as closeSync8, fstatSync as fstatSync8, fsyncSync as fsyncSync4, lstatSync as lstatSync7, mkdirSync as mkdirSync9, openSync as openSync8, readSync as readSync3, unlinkSync as unlinkSync4, writeFileSync as writeFileSync11, writeSync as writeSync2 } from "node:fs";
+import { randomUUID as randomUUID2 } from "node:crypto";
+import { join as join35 } from "node:path";
 
 // packages/adapters/dist/index.js
 var ADAPTERS = {
@@ -12685,18 +12740,18 @@ function getAdapter(name) {
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
 import { readFileSync as readFileSync25, existsSync as existsSync23 } from "node:fs";
-import { join as join35, dirname as dirname11 } from "node:path";
+import { join as join36, dirname as dirname11 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 import { spawn as spawn5 } from "node:child_process";
 var __dirname = dirname11(fileURLToPath2(import.meta.url));
 function templatePath(assetsDir) {
   if (assetsDir)
-    return join35(assetsDir, "report.template.html");
+    return join36(assetsDir, "report.template.html");
   const candidates = [
-    join35(__dirname, "..", "..", "..", "assets", "report.template.html"),
+    join36(__dirname, "..", "..", "..", "assets", "report.template.html"),
     // packages/cli/{dist,src} -> ../../../assets
-    join35(__dirname, "..", "assets", "report.template.html"),
-    join35(__dirname, "..", "..", "assets", "report.template.html")
+    join36(__dirname, "..", "assets", "report.template.html"),
+    join36(__dirname, "..", "..", "assets", "report.template.html")
   ];
   for (const c of candidates)
     if (existsSync23(c))
@@ -12704,7 +12759,7 @@ function templatePath(assetsDir) {
   throw new Error("cannot find assets/report.template.html");
 }
 function gradeScriptPath(assetsDir) {
-  return join35(dirname11(templatePath(assetsDir)), "report.grade.js");
+  return join36(dirname11(templatePath(assetsDir)), "report.grade.js");
 }
 function readBody(req) {
   return new Promise((resolve18) => {
@@ -12718,18 +12773,18 @@ function findTranscript(runDir, id) {
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync25(join35(runDir, files[0]), "utf8");
+    return readFileSync25(join36(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync25(join35(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync25(join36(runDir, f), "utf8")}`).join("\n\n");
 }
 function findJudgeRaw(runDir, id) {
   const files = findJudgeRawFiles(runDir, id);
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync25(join35(runDir, files[0]), "utf8");
+    return readFileSync25(join36(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync25(join35(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync25(join36(runDir, f), "utf8")}`).join("\n\n");
 }
 async function serveReview(opts) {
   const template = readFileSync25(templatePath(opts.assetsDir), "utf8");
@@ -12748,9 +12803,9 @@ async function serveReview(opts) {
         const id = url.searchParams.get("id") ?? "";
         const data = collectReport(opts.skillDir);
         const column = data.columns.find((c) => c.index === col);
-        const text2 = column ? findTranscript(column.runDir, id) : null;
-        res.writeHead(text2 ? 200 : 404, { "content-type": "text/plain; charset=utf-8" });
-        res.end(text2 ?? "transcript not found");
+        const text3 = column ? findTranscript(column.runDir, id) : null;
+        res.writeHead(text3 ? 200 : 404, { "content-type": "text/plain; charset=utf-8" });
+        res.end(text3 ?? "transcript not found");
         return;
       }
       if (req.method === "GET" && url.pathname === "/judge") {
@@ -12758,9 +12813,9 @@ async function serveReview(opts) {
         const id = url.searchParams.get("id") ?? "";
         const data = collectReport(opts.skillDir);
         const column = data.columns.find((c) => c.index === col);
-        const text2 = column ? findJudgeRaw(column.runDir, id) : null;
-        res.writeHead(text2 ? 200 : 404, { "content-type": "text/plain; charset=utf-8" });
-        res.end(text2 ?? "judge output not captured");
+        const text3 = column ? findJudgeRaw(column.runDir, id) : null;
+        res.writeHead(text3 ? 200 : 404, { "content-type": "text/plain; charset=utf-8" });
+        res.end(text3 ?? "judge output not captured");
         return;
       }
       if (req.method === "GET" && url.pathname === "/trends") {
@@ -12783,7 +12838,7 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be re-judged here \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
           return;
         }
-        const specPath = join35(opts.skillDir, "tests", "specification.yaml");
+        const specPath = join36(opts.skillDir, "tests", "specification.yaml");
         const spec = loadSpec(specPath);
         const scenario = spec.scenarios.find((s) => s.id === body.scenarioId);
         if (!scenario) {
@@ -12860,7 +12915,7 @@ async function serveReview(opts) {
             // the same doctrine `grade` follows (see refreshRubricHashes).
             source_hashes: refreshRubricHashes(results.source_hashes, spec, [body.scenarioId])
           }, scoreContextFor(results, spec));
-          ensureResultsGitignore(join35(opts.skillDir, "tests", "results"));
+          ensureResultsGitignore(join36(opts.skillDir, "tests", "results"));
           const g = written.effective_grade;
           appendJournal(column.runDir, { event: "score", ts: (/* @__PURE__ */ new Date()).toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
           res.writeHead(200, { "content-type": "application/json" });
@@ -12885,7 +12940,7 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be adjudicated \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
           return;
         }
-        const specPath = join35(opts.skillDir, "tests", "specification.yaml");
+        const specPath = join36(opts.skillDir, "tests", "specification.yaml");
         const spec = loadSpec(specPath);
         const adapter = opts.adapter ?? getAdapter(results.harness);
         const cells = cellsFromResults(column.runDir, results);
@@ -12928,7 +12983,7 @@ async function serveReview(opts) {
             specDir: dirname11(specPath),
             now: () => (/* @__PURE__ */ new Date()).toISOString()
           });
-          ensureResultsGitignore(join35(opts.skillDir, "tests", "results"));
+          ensureResultsGitignore(join36(opts.skillDir, "tests", "results"));
           res.writeHead(200, { "content-type": "application/json" });
           res.end(JSON.stringify({ ok: true, step: "run", grade: written.effective_grade }));
         } catch (e) {
@@ -12954,11 +13009,11 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
           return;
         }
-        const spec = loadSpec(join35(opts.skillDir, "tests", "specification.yaml"));
+        const spec = loadSpec(join36(opts.skillDir, "tests", "specification.yaml"));
         writeResults(column.runDir, patched, scoreContextFor(patched, spec));
-        ensureResultsGitignore(join35(opts.skillDir, "tests", "results"));
+        ensureResultsGitignore(join36(opts.skillDir, "tests", "results"));
         if (body.override != null) {
-          preserveTranscript(join35(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
+          preserveTranscript(join36(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
         }
         appendJournal(column.runDir, {
           event: "override",
@@ -13004,16 +13059,16 @@ function tryOpen(url, cmd) {
 
 // packages/pi-extension/src/runner.ts
 import { existsSync as existsSync24 } from "node:fs";
-import { dirname as dirname12, join as join36, resolve as resolve16 } from "node:path";
+import { dirname as dirname12, join as join37, resolve as resolve16 } from "node:path";
 function resolveSkillDir(cwd, arg) {
   if (arg) {
     const dir2 = resolve16(cwd, arg);
-    if (existsSync24(join36(dir2, "tests", "specification.yaml"))) return dir2;
+    if (existsSync24(join37(dir2, "tests", "specification.yaml"))) return dir2;
     throw new Error(`no tests/specification.yaml found at ${dir2}`);
   }
   let dir = cwd;
   for (; ; ) {
-    if (existsSync24(join36(dir, "tests", "specification.yaml"))) return dir;
+    if (existsSync24(join37(dir, "tests", "specification.yaml"))) return dir;
     const parent = dirname12(dir);
     if (parent === dir) break;
     dir = parent;
@@ -13022,7 +13077,7 @@ function resolveSkillDir(cwd, arg) {
 }
 var DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 async function runViaExtension(opts) {
-  const specPath = join36(opts.skillDir, "tests", "specification.yaml");
+  const specPath = join37(opts.skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const modelToken = opts.model ?? DEFAULT_MODEL;
   const model = parseModelRef(modelToken);
@@ -13050,7 +13105,7 @@ async function runViaExtension(opts) {
   });
   const g = summary.results.effective_grade;
   const verdicts = effectiveVerdicts(summary.results.scenarios);
-  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join36(summary.runDir, f)));
+  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join37(summary.runDir, f)));
   return {
     skill: summary.results.skill,
     model: summary.results.model,
@@ -13061,8 +13116,8 @@ async function runViaExtension(opts) {
 }
 
 // packages/pi-extension/src/capture-cmd.ts
-import { existsSync as existsSync25, mkdirSync as mkdirSync9, writeFileSync as writeFileSync11, readdirSync as readdirSync17, readFileSync as readFileSync26 } from "node:fs";
-import { join as join37 } from "node:path";
+import { existsSync as existsSync25, mkdirSync as mkdirSync10, writeFileSync as writeFileSync12, readdirSync as readdirSync17, readFileSync as readFileSync26 } from "node:fs";
+import { join as join38 } from "node:path";
 import { createHash as createHash20 } from "node:crypto";
 var CANCELLED = { status: "cancelled", files: [] };
 var CAPTURES_GITIGNORE = "# Local review evidence for captured cases \u2014 never commit.\n.local/\n";
@@ -13073,7 +13128,7 @@ async function runCapture(skillDir, ctx) {
     ui.say("the agent is still streaming \u2014 let it finish, then run capture again");
     return CANCELLED;
   }
-  const specPath = join37(skillDir, "tests", "specification.yaml");
+  const specPath = join38(skillDir, "tests", "specification.yaml");
   if (!existsSync25(specPath)) {
     ui.say(`${specPath} does not exist \u2014 run \`skill-harness init\` before capturing into this skill`);
     return CANCELLED;
@@ -13115,7 +13170,7 @@ async function runCapture(skillDir, ctx) {
     ui.say("cancelled \u2014 a capture needs at least one checklist item");
     return CANCELLED;
   }
-  const capturesDir = join37(skillDir, "tests", "captures");
+  const capturesDir = join38(skillDir, "tests", "captures");
   const existingIds = existsSync25(capturesDir) ? readdirSync17(capturesDir).filter((f) => f.endsWith(".yaml")).map((f) => f.replace(/\.yaml$/, "")) : [];
   const capture = buildCaptureCase({
     turns,
@@ -13164,7 +13219,7 @@ ${previewYaml}---`);
     baseSha256
   });
   const promoted = { ...capture, status: "promoted", scenario_id: scenarioId.trim() };
-  writeFileSync11(join37(capturesDir, `${capture.id}.yaml`), yaml.dump(promoted, { lineWidth: -1, noRefs: true }), "utf8");
+  writeFileSync12(join38(capturesDir, `${capture.id}.yaml`), yaml.dump(promoted, { lineWidth: -1, noRefs: true }), "utf8");
   ui.say(`promoted ${capture.id} \u2192 scenario ${scenarioId.trim()} in ${specPath}`);
   if (ctx.runOnly && await ui.confirm(`run scenario ${scenarioId.trim()} now? (spends subject + judge tokens for 1 scenario)`)) {
     ui.say(await ctx.runOnly(skillDir, scenarioId.trim()));
@@ -13183,12 +13238,12 @@ function defaultTitle(capture) {
 }
 async function chooseTarget(skillDir, ctx) {
   const candidates = [];
-  const skillMd = join37(skillDir, "SKILL.md");
+  const skillMd = join38(skillDir, "SKILL.md");
   if (existsSync25(skillMd)) candidates.push({ label: "SKILL.md (this skill)", kind: "skill", path: "SKILL.md", abs: skillMd });
-  const agentsDir = join37(ctx.cwd, ".pi", "agents");
+  const agentsDir = join38(ctx.cwd, ".pi", "agents");
   if (existsSync25(agentsDir)) {
     for (const f of readdirSync17(agentsDir).filter((x) => x.endsWith(".md"))) {
-      candidates.push({ label: `subagent: ${f}`, kind: "subagent", path: join37(".pi", "agents", f), abs: join37(agentsDir, f) });
+      candidates.push({ label: `subagent: ${f}`, kind: "subagent", path: join38(".pi", "agents", f), abs: join38(agentsDir, f) });
     }
   }
   if (candidates.length === 0) {
@@ -13216,16 +13271,16 @@ function suggestScenarioId(specPath, fallback) {
   return fallback;
 }
 function writeCapture(capturesDir, capture, selected2, homeDir) {
-  mkdirSync9(join37(capturesDir, ".local"), { recursive: true });
-  const gitignore = join37(capturesDir, ".gitignore");
+  mkdirSync10(join38(capturesDir, ".local"), { recursive: true });
+  const gitignore = join38(capturesDir, ".gitignore");
   const existingIgnore = existsSync25(gitignore) ? readFileSync26(gitignore, "utf8") : "";
   if (!existingIgnore.split("\n").some((l) => l.trim() === ".local/" || l.trim() === ".local")) {
-    writeFileSync11(gitignore, existingIgnore ? `${existingIgnore.replace(/\n*$/, "\n")}${CAPTURES_GITIGNORE}` : CAPTURES_GITIGNORE, "utf8");
+    writeFileSync12(gitignore, existingIgnore ? `${existingIgnore.replace(/\n*$/, "\n")}${CAPTURES_GITIGNORE}` : CAPTURES_GITIGNORE, "utf8");
   }
-  const casePath = join37(capturesDir, `${capture.id}.yaml`);
-  writeFileSync11(casePath, yaml.dump(capture, { lineWidth: -1, noRefs: true }), "utf8");
-  const evidencePath = join37(capturesDir, ".local", `${capture.id}.evidence.json`);
-  writeFileSync11(
+  const casePath = join38(capturesDir, `${capture.id}.yaml`);
+  writeFileSync12(casePath, yaml.dump(capture, { lineWidth: -1, noRefs: true }), "utf8");
+  const evidencePath = join38(capturesDir, ".local", `${capture.id}.evidence.json`);
+  writeFileSync12(
     evidencePath,
     JSON.stringify(
       {
@@ -13300,8 +13355,8 @@ ${card.failedTranscripts.join("\n")}`);
   if (sub === "judge") {
     const runDir = resolve17(ctx.cwd, positional[0] ?? ".");
     const testsDir = dirname13(dirname13(dirname13(runDir)));
-    const spec = loadSpec(join38(testsDir, "specification.yaml"));
-    const prev = existsSync26(join38(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const spec = loadSpec(join39(testsDir, "specification.yaml"));
+    const prev = existsSync26(join39(runDir, "results.yaml")) ? readResults(runDir) : null;
     const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? parseModelRef(defaultJudge());
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge"
@@ -13367,20 +13422,20 @@ ${card.failedTranscripts.join("\n")}`);
   }
   if (sub === "coverage") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const specPath = join38(skillDir, "tests", "specification.yaml");
+    const specPath = join39(skillDir, "tests", "specification.yaml");
     const spec = loadSpec(specPath);
     const specDir = dirname13(specPath);
     const report = computeCoverage({
       specDir,
       scenarios: spec.scenarios,
-      baseFiles: [relative6(specDir, join38(skillDir, "SKILL.md")).split("\\").join("/")]
+      baseFiles: [relative6(specDir, join39(skillDir, "SKILL.md")).split("\\").join("/")]
     });
     say(ctx, formatCoverage(report, spec.skill), report.broken.length ? "warning" : "info");
     return;
   }
   if (sub === "affected") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const specPath = join38(skillDir, "tests", "specification.yaml");
+    const specPath = join39(skillDir, "tests", "specification.yaml");
     const spec = loadSpec(specPath);
     const base = flags.base || "HEAD";
     const rev = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: dirname13(specPath), timeoutMs: 3e4 });
@@ -13438,7 +13493,7 @@ ${card.failedTranscripts.join("\n")}`);
   }
   if (sub === "review") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const spec = loadSpec(join38(skillDir, "tests", "specification.yaml"));
+    const spec = loadSpec(join39(skillDir, "tests", "specification.yaml"));
     const handle = await serveReview({
       skillDir,
       skillName: spec.skill,
@@ -13510,7 +13565,7 @@ function registerTool(pi) {
 
 // packages/pi-extension/src/index.ts
 function index_default(pi) {
-  const assetsDir = join39(dirname14(fileURLToPath3(import.meta.url)), "..", "..", "..", "assets");
+  const assetsDir = join40(dirname14(fileURLToPath3(import.meta.url)), "..", "..", "..", "assets");
   registerCommand(pi, assetsDir);
   registerTool(pi);
   pi.on("session_shutdown", async () => {

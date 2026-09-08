@@ -50,7 +50,8 @@ export function buildWorkCapture(input: Omit<WorkCaptureCaseV2, "capture_schema"
     || !["repeat_without_progress", "economical_exemplar", "coverage_gap"].includes(input.reason)
     || Object.keys(input.metrics).some(k => !["equivalentAttempts", "measuredCost", "costLimit", "costUnit"].includes(k))
     || Object.entries(input.metrics).some(([key, n]) => key === "costUnit" ? !["wall_ms", "tool_calls", "usd"].includes(String(n)) : typeof n !== "number" || !Number.isFinite(n) || n < 0)
-    || (input.reason === "economical_exemplar" && (input.metrics.measuredCost === undefined || input.metrics.costLimit === undefined || input.metrics.costUnit === undefined))
+    || (input.reason === "repeat_without_progress" && (input.metrics.equivalentAttempts === undefined || input.metrics.equivalentAttempts < 2))
+    || (input.reason === "economical_exemplar" && (input.metrics.measuredCost === undefined || input.metrics.costLimit === undefined || input.metrics.costUnit === undefined || input.metrics.measuredCost > input.metrics.costLimit))
     || (input.metrics.equivalentAttempts !== undefined && !Number.isSafeInteger(input.metrics.equivalentAttempts))) throw new Error("invalid work capture nomination");
   const expected = { repeat_without_progress: "candidate_defect", economical_exemplar: "candidate_exemplar", coverage_gap: "coverage_issue" };
   if (input.classification !== expected[input.reason]) throw new Error("work capture classification mismatch");
