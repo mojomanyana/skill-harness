@@ -2,8 +2,9 @@ import { createHash, randomBytes } from 'node:crypto';
 import type { Readable, Writable } from 'node:stream';
 import { learningCopy, learningJournal, learningHash } from './learning-journal.js';
 import { collapseVotePanel, type PanelVote } from '@skill-harness/core';
+import { inertCodexSdkStreams, type CodexSdkBinding } from './codex-sdk-transport.js';
 
-/** LOCAL protocol implementation, deliberately no HTTP, auth loader, SDK runtime or live switch.
+/** LOCAL host protocol with an inert installed-SDK seam; no auth loader or live network switch.
  * The trusted host owns this module and transport streams; the subject gets framed IPC only.
  * Stream finish proves a host-side write, NOT provider receipt, backend identity or token limits.
  * Journal integrity assumes a trusted cooperative host/filesystem, not hostile same-UID rollback. */
@@ -29,9 +30,11 @@ export function inspectCodexRoleSeparation(raw:Array<{role:Role;model:string;can
  const rows=learningCopy(raw);const blocked=(reason:string)=>({state:'BLOCKED' as const,reason,liveQualified:false as const});
  if(!Array.isArray(rows)||rows.length<3||rows.length>16||!['proposer','subject','judge'].every(r=>rows.some(x=>x.role===r)))return blocked('required roles absent');
  for(const r of rows){closed(r,['role','model','canonical','lineage']);if(!['proposer','subject','judge'].includes(r.role)||!MODELS.includes(r.model))return blocked('unsupported exact subscription identity');}
- if(rows.some(r=>typeof r.canonical!=='string'||!r.canonical||r.canonical.length>512||/[\u0000-\u001f\u007f]/.test(r.canonical)||typeof r.lineage!=='string'||!r.lineage||r.lineage.length>512||/[\u0000-\u001f\u007f]/.test(r.lineage)))return blocked('unresolved canonical identity/lineage');
- if(new Set(rows.map(r=>r.model)).size!==rows.length||new Set(rows.map(r=>r.canonical)).size!==rows.length||new Set(rows.map(r=>r.lineage)).size!==rows.length)return blocked('identity/lineage conflict');
- return {state:'CONSISTENT_DECLARATION_ONLY' as const,reason:'independent policy authority and actual backend lineage still unverified',liveQualified:false as const};
+ if(rows.some(r=>typeof r.canonical!=='string'||!r.canonical||r.canonical.length>512||/[\u0000-\u001f\u007f]/.test(r.canonical)))return blocked('unresolved canonical identity');
+ if(rows.some(r=>r.lineage!==null&&(typeof r.lineage!=='string'||!r.lineage||r.lineage.length>512||/[\u0000-\u001f\u007f]/.test(r.lineage))))return blocked('malformed lineage disclosure');
+ if(new Set(rows.map(r=>r.model)).size!==rows.length||new Set(rows.map(r=>r.canonical)).size!==rows.length)return blocked('canonical identity conflict');
+ const disclosures=[...new Set(rows.flatMap(r=>r.lineage===null?['lineage unresolved; correlation unknown']:rows.filter(x=>x.lineage===r.lineage).length>1?[`shared lineage: ${r.lineage}`]:[]))];
+ return {state:'CONSISTENT_DECLARATION_ONLY' as const,reason:'canonical declarations are not authenticated resolution; lineage is disclosed, not proof of training independence',disclosures,liveQualified:false as const};
 }
 function readBounded(stream:Readable, limit:number, signal:AbortSignal):Promise<Buffer> {
  return new Promise((resolve,reject)=>{const chunks:Buffer[]=[];let size=0,ended=false;
@@ -54,15 +57,23 @@ function body(i:LocalCodexInvocation, blindInput?:string) {
  // service tier, cache/session key, extension onPayload, endpoint or sampling overrides.
  return JSON.stringify({model:i.model,store:false,stream:true,instructions:i.instructions,input:[{role:'user',content:[{type:'input_text',text:blindInput??i.input}]}],text:{verbosity:'low'},include:['reasoning.encrypted_content'],tool_choice:'none',parallel_tool_calls:false,reasoning:{effort:i.effort,summary:'auto'}});
 }
-export function createLocalCodexHost(path:string, input:LocalCodexHostSpec) {
- const spec=admit(input);learningJournal(path,{type:'codex-host-local-v1',spec,seed:randomBytes(32).toString('hex'),createdAt:Date.now()});return openLocalCodexHost(path);
+export function createLocalCodexHost(path:string, input:LocalCodexHostSpec, rolePolicy?:Parameters<typeof inspectCodexRoleSeparation>[0]) {
+ const spec=admit(input),policy=rolePolicy===undefined?null:learningCopy(rolePolicy);
+ if(policy){const separation=inspectCodexRoleSeparation(policy);if(separation.state==='BLOCKED')throw Error(separation.reason);for(const i of spec.invocations)if(!policy.some(r=>r.role===i.role&&r.model===i.model))throw Error('unbound canonical role policy');}
+ learningJournal(path,{type:'codex-host-local-v1',spec,rolePolicy:policy,seed:randomBytes(32).toString('hex'),createdAt:Date.now()});return openLocalCodexHost(path);
 }
 export function openLocalCodexHost(path:string) {
  const store=learningJournal(path),first=store.read()[0].value;if(first.type!=='codex-host-local-v1'||typeof first.createdAt!=='number'||typeof first.seed!=='string')throw Error('local host owner required');
  const spec=admit(first.spec as LocalCodexHostSpec);
  const append=(value:Record<string,unknown>)=>{const prior=store.read().at(-1)!.id;return store.append(prior,value);};
  const inspect=()=>{const rows=store.read().map(e=>e.value),claims=rows.filter(r=>r.type==='claim'),results=rows.filter(r=>r.type==='observation');return {calls:claims.length,complete:results.length===spec.invocations.length&&claims.length===results.length&&!rows.some(r=>r.type==='abort'),aborted:rows.some(r=>r.type==='abort')||claims.length!==results.length,liveQualified:false as const};};
- return {inspect,
+ const host={inspect,
+  async exchangeSdk(subjectFrames:Readable,binding:CodexSdkBinding,fixture:()=>Promise<Response>):Promise<LocalCodexObservation> {
+   if(!first.rolePolicy){subjectFrames.destroy();throw Error('frozen canonical policy required before SDK effects');}
+   const separation=inspectCodexRoleSeparation(first.rolePolicy as Parameters<typeof inspectCodexRoleSeparation>[0]);if(separation.state==='BLOCKED'){subjectFrames.destroy();throw Error(separation.reason);}
+   const streams=inertCodexSdkStreams(binding,fixture,value=>{const rows=store.read();if(value.type==='sdk-response-validated'&&rows.some(e=>e.value.type==='sdk-response-validated'&&e.value.responseId===value.responseId))throw Error('replayed SDK response');const claim=rows.filter(e=>e.value.type==='claim').at(-1)?.value;if(!claim||value.type==='sdk-wire-observed'&&value.requestSha256!==claim.requestSha256)throw Error('SDK observation without bound claim');append({...value,id:claim.id,sequence:claim.sequence});});
+   return host.exchange(subjectFrames,streams.transport,streams.response);
+  },
   async exchange(subjectFrames:Readable, hostTransport:Writable, hostResponse:Readable):Promise<LocalCodexObservation> {
    const state=inspect();if(state.aborted)throw Error('host aborted or stranded claim; no retry');if(state.calls>=spec.maxCalls)throw Error('call budget exhausted');
    const clockHistory=store.read(),now=Date.now(),lastClock=Math.max(Number(first.createdAt),...clockHistory.filter(e=>e.value.type==='clock').map(e=>Number(e.value.at)));
@@ -98,7 +109,7 @@ export function openLocalCodexHost(path:string) {
    finally {clearTimeout(timer);subjectFrames.destroy();hostTransport.destroy();hostResponse.destroy();}
   },
   panel(subjectId:string,judgeIds:string[],rawPolicy:Parameters<typeof inspectCodexRoleSeparation>[0]) {
-   const policy=learningCopy(rawPolicy),separation=inspectCodexRoleSeparation(policy);if(separation.state==='BLOCKED')throw Error(separation.reason);
+   const policy=learningCopy(rawPolicy);if(first.rolePolicy&&learningHash(policy)!==learningHash(first.rolePolicy))throw Error('frozen canonical policy changed');const separation=inspectCodexRoleSeparation(policy);if(separation.state==='BLOCKED')throw Error(separation.reason);
    if(!Array.isArray(judgeIds)||![2,3].includes(judgeIds.length)||new Set(judgeIds).size!==judgeIds.length)throw Error('panel cardinality');
    const subject=spec.invocations.find(i=>i.id===subjectId&&i.role==='subject');if(!subject)throw Error('subject binding');
    const judges=spec.invocations.filter(i=>i.role==='judge'&&i.subjectId===subjectId);if(judgeIds.some((id,k)=>judges[k]?.id!==id))throw Error('frozen panel order');
@@ -108,9 +119,9 @@ export function openLocalCodexHost(path:string) {
    const votes=judgeIds.map((id,k)=>{const r=rows.find(r=>r.type==='observation'&&r.id===id);if(!r)throw Error('panel observation missing');return parseVote(Buffer.from(String(r.outputBase64),'base64').toString('utf8'),k+1);});
    if(collapseVotePanel(votes.slice(0,2)).split!==(votes.length===3))throw Error('tie-break required exactly for clean split');
    const binding=learningHash({subjectId,judgeIds,policy}),old=rows.find(r=>r.type==='panel'&&r.subjectId===subjectId);if(old&&old.binding!==binding)throw Error('panel binding changed');
-   const result={label:sha(String(first.seed)+subjectId).slice(0,24),collapse:collapseVotePanel(votes),identityStatus:separation.state,liveQualified:false as const,routingDefault:null};
+   const result={label:sha(String(first.seed)+subjectId).slice(0,24),collapse:collapseVotePanel(votes),identityStatus:separation.state,disclosures:separation.disclosures,liveQualified:false as const,routingDefault:null};
    if(!old)append({type:'panel',subjectId,binding,result});return result;
   },
   eligibleOutputs(){return store.read().filter(e=>e.value.type==='observation'&&e.value.objective==='PASS'&&spec.invocations.some(i=>i.id===e.value.id&&i.role==='subject')).map(e=>({label:sha(String(first.seed)+String(e.value.id)).slice(0,24),outputBase64:String(e.value.outputBase64),outputSha256:String(e.value.outputSha256),liveQualified:false as const}));},
- };
+ };return host;
 }
