@@ -12736,6 +12736,9 @@ var compiled = Compile2(EXECUTION_ARCHIVE_PROJECTION_SCHEMA);
 // packages/adapters/dist/work-candidates.js
 import { createHash as createHash24 } from "node:crypto";
 
+// packages/adapters/dist/work-signal-observation.js
+var LIMIT3 = 1024 * 1024;
+
 // packages/adapters/dist/work-case-review.js
 import { constants as constants9, closeSync as closeSync8, fstatSync as fstatSync8, fsyncSync as fsyncSync4, lstatSync as lstatSync7, mkdirSync as mkdirSync9, openSync as openSync8, readSync as readSync3, unlinkSync as unlinkSync4, writeFileSync as writeFileSync11, writeSync as writeSync2 } from "node:fs";
 import { randomUUID as randomUUID2 } from "node:crypto";

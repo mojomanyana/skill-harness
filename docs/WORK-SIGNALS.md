@@ -10,7 +10,11 @@ The host must establish provenance, exact scope binding and availability of thos
 
 New defect signal records explicitly use `capture_schema:3`; the pinned capture_schema2/reviewer contract is NOT silently widened. Coverage issues retain their existing v2 meaning. Distinct observations are retained by content identity, not last-write-wins. This initial fact profile permits one unambiguous checkpoint observation per obligation; richer multi-checkpoint histories need a versioned input profile.
 
-Remaining integration: persist/validate the frozen host fact snapshots, add the v3 review/presentation bridge, bind actual declared checkpoints and independent outcomes, and complete deployed P07/P08/calibration policy. Existing v2 review clients must reject/defer unsupported v3 rather than reinterpret it. This rule slice is not full P07 acceptance.
+`retainWorkSignalObservation(root, snapshot, facts)` now retains closed, canonical private host-fact inputs under `work-signal-observation-v1`. `readWorkSignalObservation(root, manifestId)` reopens verified bytes and rederives the nominations; it never trusts cached case output. Unknown fields/accessors, sparse arrays, duplicate obligation digests, malformed scope and missing/corrupt bytes refuse. Input arrays preserve order, changed observations remain distinct, and invalid JSON diagnostics omit raw excerpts. This format binds the `work-signals-v1` rule semantics; a semantic revision requires a new explicit format/reader, not reinterpretation of old inputs.
+
+Retention proves the bytes of the supplied declarations, not their truth, host authentication, live P01 provenance or availability of separately referenced evidence. No extra unknown metadata (including credentials or worker prose) is accepted for retention. Existing v2 case/review APIs remain unchanged and reject these separate observation manifests.
+
+Remaining integration: add the v3 review/presentation bridge, bind actual declared checkpoints and independent outcomes, and complete deployed P07/P08/calibration policy. Existing v2 review clients must reject/defer unsupported v3 rather than reinterpret it. This rule slice is not full P07 acceptance.
 
 ```sh
 node node_modules/vitest/vitest.mjs run packages/core/test/work-signals.test.ts
