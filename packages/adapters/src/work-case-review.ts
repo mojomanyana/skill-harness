@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { appendWorkCaseDecision, type WorkCaseDecision, type WorkCaseDisposition } from "@skill-harness/core";
 import { readArchiveSource } from "./evidence-archive.js";
 import { readWorkCandidate } from "./work-case-archive.js";
+import { readWorkSignalBatch, readWorkSignalCase } from "./work-signal-cases.js";
 const SHA = /^[a-f0-9]{64}$/;
 const missing = (error: unknown) => (error as NodeJS.ErrnoException)?.code === "ENOENT";
 function assertDirectory(path: string): void {
@@ -52,16 +53,38 @@ function historyAt(directory: string, caseId: string, brandNew = false): WorkCas
   return valid;
 }
 export interface WorkCaseReviewRequest { caseManifestId: string; priorDecisionId: string | null; disposition: WorkCaseDisposition; note: string }
+function assertAuthor(author: string): void {
+  if (typeof author !== "string" || !author || author.length > 512 || /[\u0000-\u001f\u007f]/.test(author)) throw new Error("explicit operator author required");
+}
 /** Operator-selected batch/author capability. Not user authentication, worker authority or scenario promotion. */
 export function createWorkCaseReviewer(root: string, batchId: string, author: string) {
-  if (typeof author !== "string" || !author || author.length > 512 || /[\u0000-\u001f\u007f]/.test(author)) throw new Error("explicit operator author required");
+  assertAuthor(author);
   const source = readArchiveSource(root, batchId);
   if (source.status !== "available" || source.reference.parser.id !== "work-candidate-batch" || source.reference.parser.version !== "1" || source.reference.retention !== "exact") throw new Error("case batch missing or invalid");
   const batch = JSON.parse(source.bytes.toString("utf8"));
   if (batch.version !== "work-candidate-batch-v1" || batch.visibility !== "silent" || batch.promotion !== "not-authorized"
     || !Array.isArray(batch.candidateIds) || batch.candidateIds.length > 4096 || batch.candidateIds.some((id: unknown) => typeof id !== "string" || !SHA.test(id))) throw new Error("invalid selected case batch");
-  const allowed = new Set<string>(batch.candidateIds);
-  const selected = (id: string) => { if (!allowed.has(id)) throw new Error("case outside selected batch"); return readWorkCandidate(root, id); };
+  return createSelectedCaseReviewer(root, author, batch.candidateIds, id => readWorkCandidate(root, id));
+}
+
+/** Explicit new signal contract; the existing v2 entry point still refuses these batches. */
+export function createWorkSignalReviewer(root: string, batchId: string, author: string) {
+  assertAuthor(author);
+  const batch = readWorkSignalBatch(root, batchId);
+  const reviewer = createSelectedCaseReviewer(root, author, batch.candidateIds, id => {
+    const selected = readWorkSignalCase(root, id);
+    if (selected.observationId !== batch.observationId) throw new Error("work signal case outside frozen observation");
+    return selected.candidate;
+  });
+  return { ...reviewer, list(offset = 0, limit = 5) {
+    const current = readWorkSignalBatch(root, batchId);
+    return { ...reviewer.list(offset, limit), observationId: current.observationId, issues: current.issues };
+  } };
+}
+
+function createSelectedCaseReviewer<Candidate extends { id: string }>(root: string, author: string, ids: string[], readCandidate: (id: string) => Candidate) {
+  const allowed = new Set<string>(ids);
+  const selected = (id: string) => { if (!allowed.has(id)) throw new Error("case outside selected batch"); return readCandidate(id); };
   const getHistory = (caseManifestId: string): WorkCaseDecision[] => {
       const candidate = selected(caseManifestId), directory = join(root, "case-decisions", candidate.id);
       try { assertDirectory(join(root, "case-decisions")); assertDirectory(directory); }

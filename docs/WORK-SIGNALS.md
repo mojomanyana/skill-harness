@@ -14,7 +14,9 @@ New defect signal records explicitly use `capture_schema:3`; the pinned capture_
 
 Retention proves the bytes of the supplied declarations, not their truth, host authentication, live P01 provenance or availability of separately referenced evidence. No extra unknown metadata (including credentials or worker prose) is accepted for retention. Existing v2 case/review APIs remain unchanged and reject these separate observation manifests.
 
-Remaining integration: add the v3 review/presentation bridge, bind actual declared checkpoints and independent outcomes, and complete deployed P07/P08/calibration policy. Existing v2 review clients must reject/defer unsupported v3 rather than reinterpret it. This rule slice is not full P07 acceptance.
+`captureWorkSignalCases` plus the explicit `createWorkSignalReviewer` now bridge frozen observations to bounded case cards and the existing durable decision writer. Case references rederive their nomination from original bytes on every access; another observation's case or missing inputs cannot support a decision. The old v2 reviewer remains unchanged. See `contracts/work-signals/v1/README.md` for the separate wire/API contract.
+
+Remaining integration: opt actual dashboard clients into these card versions, bind live declared checkpoints and independent outcomes, and complete deployed P07/P08/calibration policy. Existing v2 review clients must reject/defer unsupported v3 rather than reinterpret it. This rule slice is not full P07 acceptance.
 
 ```sh
 node node_modules/vitest/vitest.mjs run packages/core/test/work-signals.test.ts
