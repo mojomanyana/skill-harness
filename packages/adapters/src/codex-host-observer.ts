@@ -20,6 +20,7 @@ function admit(raw:LocalCodexHostSpec) {
  if(s.version!=='codex-host-local-v1'||!Number.isSafeInteger(s.maxCalls)||s.maxCalls<1||s.maxCalls>16||!Number.isSafeInteger(s.wallMs)||s.wallMs<1||s.wallMs>150000||!Array.isArray(s.invocations)||!s.invocations.length||s.invocations.length>s.maxCalls)throw Error('bounded local host spec required');
  for(const i of s.invocations){closed(i,['id','role','model','effort','instructions','input','expectedSha256','subjectId']);if(!/^[a-zA-Z0-9_-]{1,64}$/.test(i.id)||!['proposer','subject','judge'].includes(i.role)||!MODELS.includes(i.model)||!['low','medium','high'].includes(i.effort)||typeof i.instructions!=='string'||typeof i.input!=='string'||Buffer.byteLength(i.instructions)+Buffer.byteLength(i.input)>4096||!/^[a-f0-9]{64}$/.test(i.expectedSha256))throw Error('unresolved or unbounded subscription invocation');}
  if(new Set(s.invocations.map(i=>i.id)).size!==s.invocations.length)throw Error('duplicate invocation');
+ if(s.invocations.some((i,k)=>s.invocations.some((j,l)=>k!==l&&i.model===j.model&&(i.role!==j.role||i.role==='judge'&&i.subjectId===j.subjectId))))throw Error('known model role conflict before effects');
  for(const i of s.invocations){if(i.role==='judge'?!s.invocations.some(t=>t.role==='subject'&&t.id===i.subjectId):i.subjectId!==null)throw Error('frozen subject/panel binding required');if(s.invocations.filter(t=>t.role==='judge'&&t.subjectId===i.id).length>3)throw Error('at most three panel roles');}
  return s;
 }
