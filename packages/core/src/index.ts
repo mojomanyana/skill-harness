@@ -36,6 +36,7 @@ export * from "./capture-trace-types.js";
 export * from "./work-capture.js";
 export * from "./work-capture-schema.js";
 export * from "./factory-calibration.js";
+export * from "./adoption.js";
 export * from "./investigation.js";
 export * from "./intervention.js";
 export * from "./intervention-results.js";
