@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { createWeeklyInvestigation, openWeeklyInvestigation } from '../src/weekly-investigation.js';
 import { retainWorkSignalObservation } from '../src/work-signal-observation.js';
 import { captureWorkSignalCases } from '../src/work-signal-cases.js';
+import { retainArchiveSource } from '../src/evidence-archive.js';
 import { createWorkSignalReviewer } from '../src/work-case-review.js';
 const h='a'.repeat(64),o='b'.repeat(64),p='c'.repeat(64);
 function fixture(confirm=true){
@@ -35,6 +36,14 @@ it('connects confirmed durable cases, weekly execution, exact promotion, freeze 
  const edit=reopened.previewEdit('candidate');expect(()=>reopened.edit('candidate',[])).toThrow(/authority/);
  reopened.edit('candidate',[edit]);expect(readFileSync(f.files.skill,'utf8')).toBe('candidate');
  const evaluated=reopened.evaluation();expect(evaluated.executionReady).toBe(false);expect(evaluated.caseIds).toEqual(hypothesis.proposal.caseIds);
+ const result=retainArchiveSource(f.input.archiveRoot,{sourceId:'legacy-screen-fixture',parser:{id:'skill-harness-results',version:'2'},retention:'exact',bytes:Buffer.from(JSON.stringify({schema:2,skill:'fixture',model:'fixture:subject',scenarios:[{id:'A1',judge_verdict:'PASS'}]}))});
+ const screenRequest={manifestIds:[result.manifestId],population:'different-population'};
+ expect(()=>reopened.screen(screenRequest,[])).toThrow(/authority/);
+ const previewScreen=reopened.previewScreen(screenRequest),screen=reopened.screen(screenRequest,[previewScreen.digest]);
+ expect(screen.exploratory).toBe(true);expect(screen.populationMatches).toBe(false);expect(screen.report.scenarios[0].classification).toBe('UNKNOWN');
+ expect(reopened.screen(screenRequest,[previewScreen.digest])).toEqual(screen);
+ const malformed=retainArchiveSource(f.input.archiveRoot,{sourceId:'missing-delivery-fixture',parser:{id:'skill-harness-results',version:'3'},retention:'exact',bytes:Buffer.from(JSON.stringify({schema:3,skill:'fixture',model:'fixture:subject',scenarios:[{id:'A1'}]}))});
+ const invalidRequest={manifestIds:[malformed.manifestId],population:'layout'};expect(()=>reopened.screen(invalidRequest,[reopened.previewScreen(invalidRequest).digest])).toThrow(/delivery observations/);
  writeFileSync(f.files.rubric,'changed rubric');expect(()=>reopened.evaluation()).toThrow(/frozen/);
  expect(readFileSync(f.files.spec,'utf8').match(/id: A1/g)).toHaveLength(1);
 });

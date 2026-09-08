@@ -1,11 +1,13 @@
 import { createHash } from 'node:crypto';
 import { isAbsolute } from 'node:path';
 import { constants, openSync, fstatSync, writeSync, fsyncSync, closeSync, realpathSync } from 'node:fs';
-import { buildHypothesis, selectWeeklyInvestigation, authorizeInvestigation, previewInvestigationScenario, applyInvestigationScenario, freezeInvestigation, assertFrozenInvestigation, type Hypothesis, type InvestigationAuthority, type InvestigationScenarioPreview, type FrozenInvestigationInputs } from '@skill-harness/core';
+import { screenResults, validateResults, parseLearningRequest, buildHypothesis, selectWeeklyInvestigation, authorizeInvestigation, previewInvestigationScenario, applyInvestigationScenario, freezeInvestigation, assertFrozenInvestigation, type Hypothesis, type InvestigationAuthority, type InvestigationScenarioPreview, type FrozenInvestigationInputs } from '@skill-harness/core';
 import { createArchiveReadCapability, type ArchiveReadCapabilityOptions } from './archive-read-capability.js';
+import { readArchiveSource } from './evidence-archive.js';
 import { readLearningCase } from './learning-case.js';
 import { learningJournal, learningCopy, learningHash, learningFile, registerLearningStore, verifyLearningStore } from './learning-journal.js';
 export interface WeeklySupervisorInput {archiveRoot:string;week:string;population:string;policyDigest:string;maxCases:number;cases:{version:2|3;batchId:string;manifestId:string;decisionId:string}[];reader:Omit<ArchiveReadCapabilityOptions,'root'>}
+export interface InvestigationScreenRequest {manifestIds:string[];population:string}
 export interface InvestigationFiles {spec:string;rubric:string;judgePolicy:string;heldout:string;configuration:string;skill:string}
 const sha=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
 function confirmed(input:WeeklySupervisorInput){
@@ -39,6 +41,7 @@ export function openWeeklyInvestigation(directory:string){
     case 'frozen':if(state!=='promoted')throw Error('invalid freeze phase');frozen=v.frozen as ReturnType<typeof freezeInvestigation>;files=v.files as unknown as InvestigationFiles;skillHash=String(v.skillHash);state='frozen';break;
     case 'edit-pending':if(state!=='frozen')throw Error('invalid edit phase');state='edit-pending';break;
     case 'edited':if(state!=='edit-pending')throw Error('invalid edit completion');skillHash=String(v.skillHash);state='edited';break;
+    case 'screened':if(!['frozen','edited'].includes(state))throw Error('invalid screen phase');break;
     default:throw Error('unknown supervisor event');
    }
   }
@@ -47,7 +50,16 @@ export function openWeeklyInvestigation(directory:string){
  inspect();const append=(prior:string,value:Record<string,unknown>)=>journal.append(prior,value);
  const inputs=(files:InvestigationFiles):FrozenInvestigationInputs=>({specSha256:sha(learningFile(files.spec)),rubricSha256:sha(learningFile(files.rubric)),judgePolicySha256:sha(learningFile(files.judgePolicy)),heldoutSha256:sha(learningFile(files.heldout)),configurationSha256:sha(learningFile(files.configuration))});
  const evaluation=()=>{const s=inspect();if(!s.frozen||!s.files||!['frozen','edited'].includes(s.state))throw Error('frozen investigation required');confirmed(input);assertFrozenInvestigation(s.frozen,inputs(s.files));if(sha(learningFile(s.files.skill))!==s.skillHash)throw Error('candidate changed outside authorized edit');return {frozen:s.frozen,caseIds:s.hypothesis!.proposal.caseIds,skillSha256:s.skillHash,executionReady:false as const};};
- return {inspect,evaluation,
+ const previewScreen=(request:InvestigationScreenRequest)=>{const evaluated=evaluation(),s=inspect(),input=learningCopy(request);if(Object.keys(input).sort().join()!=='manifestIds,population'||typeof input.population!=='string'||!input.population.length||input.population.length>512||!Array.isArray(input.manifestIds)||!input.manifestIds.length||input.manifestIds.length>16||new Set(input.manifestIds).size!==input.manifestIds.length||input.manifestIds.some(id=>!/^[a-f0-9]{64}$/.test(id)))throw Error('bounded distinct screen sources required');
+  const binding={input,freeze:evaluated.frozen.digest,skillSha256:evaluated.skillSha256,scenarioId:String(s.preview!.scenario.id)};return {...binding,digest:learningHash(binding)};};
+ return {inspect,evaluation,previewScreen,
+  screen(request:InvestigationScreenRequest,authorizedLinks:readonly string[]){const s=inspect(),preview=previewScreen(request);if(!authorizedLinks.includes(preview.digest))throw Error('independent exact screen linkage authority required');if(inspect().tip!==s.tip)throw Error('stale screen snapshot');const seen=new Set<string>();
+   const results=preview.input.manifestIds.map(id=>{const source=readArchiveSource(input.archiveRoot,id);if(source.status!=='available'||source.reference.retention!=='exact'||source.reference.parser.id!=='skill-harness-results'||source.bytes.length>65536)throw Error('retained screen results unavailable');if(seen.has(source.reference.sha256))throw Error('duplicate screen evidence bytes');seen.add(source.reference.sha256);
+    const result=validateResults(parseLearningRequest(source.bytes.toString('utf8')));if(source.reference.parser.version!==String(result.schema)||typeof result.skill!=='string'||typeof result.model!=='string'||new Set(result.scenarios.map(r=>r.id)).size!==result.scenarios.length||!result.scenarios.some(r=>r.id===preview.scenarioId))throw Error('screen result scenario/schema binding mismatch');return result;});
+   const report=screenResults(results),receipt={...preview,report:{scenarios:report.scenarios.filter(r=>r.id===preview.scenarioId),criteria:report.criteria.filter(r=>r.scenario_id===preview.scenarioId)},exploratory:true as const,populationMatches:preview.input.population===selected.population,comparisonQualified:false as const};
+   const old=journal.read().find(e=>e.value.type==='screened'&&(e.value.receipt as typeof receipt).digest===receipt.digest);if(old){if(learningHash(old.value.receipt)!==learningHash(receipt))throw Error('screen receipt changed');return receipt;}
+   append(s.tip,{type:'screened',receipt});return receipt;
+  },
   run(program:unknown){const before=inspect();if(before.state!=='prepared')throw Error('weekly job already claimed; no automatic retry');confirmed(input);
    let tip=journal.append(before.tip,{type:'claim'}).id;
    try{const host=learningCopy(program) as {kind:string;requests:Record<string,unknown>[]};if(host.kind!=='inert-v1'||Object.keys(host).sort().join()!=='kind,requests'||!Array.isArray(host.requests)||host.requests.length>128)throw Error('host denied');

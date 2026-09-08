@@ -8968,9 +8968,9 @@ function validate(root, schema2, value, path, known) {
   if (schema2.if !== void 0 && validate(root, schema2.if, value, path, known).length === 0 && schema2.then !== void 0) {
     violations.push(...validate(root, schema2.then, value, path, known));
   }
-  const types2 = typeList(schema2);
-  if (types2.length && !types2.some((type2) => matchesType(type2, value))) {
-    return [{ path, message: `must be ${describeTypes(types2)}` }];
+  const types3 = typeList(schema2);
+  if (types3.length && !types3.some((type2) => matchesType(type2, value))) {
+    return [{ path, message: `must be ${describeTypes(types3)}` }];
   }
   if (schema2.const !== void 0 && !sameJson(schema2.const, value)) {
     return [{ path, message: `must be ${JSON.stringify(schema2.const)}` }];
@@ -9113,11 +9113,11 @@ function matchesType(type2, value) {
       return false;
   }
 }
-function describeTypes(types2) {
+function describeTypes(types3) {
   const article = (type2) => ["object", "array", "integer"].includes(type2) ? `an ${type2}` : `a ${type2}`;
-  if (types2.length === 1)
-    return types2[0] === "null" ? "null" : article(types2[0]);
-  return types2.map((type2) => type2 === "null" ? "null" : article(type2)).join(" or ");
+  if (types3.length === 1)
+    return types3[0] === "null" ? "null" : article(types3[0]);
+  return types3.map((type2) => type2 === "null" ? "null" : article(type2)).join(" or ");
 }
 function stringifyAllowed(value) {
   return typeof value === "string" ? value : JSON.stringify(value);
@@ -12775,6 +12775,7 @@ import { constants as constants12, openSync as openSync11, fstatSync as fstatSyn
 // packages/adapters/dist/learning-journal.js
 import { constants as constants11, openSync as openSync10, closeSync as closeSync10, readSync as readSync5, writeSync as writeSync4, fstatSync as fstatSync10, lstatSync as lstatSync9, fsyncSync as fsyncSync6, mkdirSync as mkdirSync11, unlinkSync as unlinkSync5 } from "node:fs";
 import { createHash as createHash28, randomUUID as randomUUID5 } from "node:crypto";
+import { types as types2 } from "node:util";
 import { isAbsolute as isAbsolute12, join as join37, dirname as dirname11, parse as parse3, resolve as resolve16 } from "node:path";
 var LIMIT4 = 4 * 1024 * 1024;
 

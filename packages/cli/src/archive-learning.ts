@@ -1,6 +1,6 @@
 import { constants, openSync, readSync, fstatSync, closeSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
-import { createWeeklyInvestigation, openWeeklyInvestigation, createTrustLifecycle, openTrustLifecycle, type WeeklySupervisorInput, type TrustLifecycleInput, type TrustReferenceOutcome, type InvestigationFiles } from '@skill-harness/adapters';
+import { createWeeklyInvestigation, openWeeklyInvestigation, createTrustLifecycle, openTrustLifecycle, type WeeklySupervisorInput, type TrustLifecycleInput, type TrustReferenceOutcome, type InvestigationFiles, type InvestigationScreenRequest } from '@skill-harness/adapters';
 import { parseLearningRequest, type InvestigationAuthority, type InvestigationScenarioPreview, type CalibrationPrediction } from '@skill-harness/core';
 import type { Args } from './cli.js';
 /** Explicit operator requests, not a scheduler or model route. The inert host cannot invoke this CLI. */
@@ -24,6 +24,8 @@ export function cmdArchiveLearning(args:Args){
    case 'preview-edit':result=job.previewEdit(input as string);break;
    case 'edit':result=job.edit(input as string,authority as string[]);break;
    case 'evaluation':result=job.evaluation();break;
+   case 'preview-screen':result=job.previewScreen(input as InvestigationScreenRequest);break;
+   case 'screen':result=job.screen(input as InvestigationScreenRequest,authority as string[]);break;
    default:throw Error('unsupported weekly operation');
   }}
  }else if(args._[0]==='trust'){

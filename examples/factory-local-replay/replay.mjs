@@ -3,18 +3,17 @@ import { createHash } from 'node:crypto';
 import { join, isAbsolute, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
-  buildHypothesis, previewInvestigationScenario, applyInvestigationScenario, freezeInvestigation,
   freezeIntervention, interventionEvidenceDigest, assessIntervention,
   buildAdoptionBinding, authorizeAdoption, classifyProductionObservation,
 } from '../../packages/core/dist/index.js';
-import { retainArchiveSource, readWorkCandidate, captureArchivedWorkCandidates, createWorkCaseReviewer, retainBlindIntervention, openBlindIntervention } from '../../packages/adapters/dist/index.js';
+import { retainArchiveSource, readWorkCandidate, captureArchivedWorkCandidates, createWorkCaseReviewer, retainBlindIntervention, openBlindIntervention, createWeeklyInvestigation, openWeeklyInvestigation, createTrustLifecycle, trustPolicyDigest } from '../../packages/adapters/dist/index.js';
 import { buildWorkRevisionEvent, buildWorkSnapshotEvent, buildWorkOccurrenceEvent, buildWorkAcceptanceEvent, projectWorkLedger } from '../../packages/adapters/dist/generated/work-v4/reader.js';
 const sha=value=>createHash('sha256').update(value).digest('hex');
 const revisionRef=e=>({kind:e.payload.revision.kind,id:e.payload.revision.id,revision:e.payload.revision.revision,digest:e.payload.revision.digest});
 const eventRef=e=>({eventId:e.eventId,digest:e.digest});
-function world(domain){
+export function buildReplayWorld(domain){
  const now=new Date('2026-01-01T00:00:00.000Z'),content=sha(`synthetic ${domain} content`),scopeId=`${domain}-scope`;
- const revision=(kind,id,extra={})=>buildWorkRevisionEvent({eventId:`${domain}:${id}`,now,revision:{kind,id,revision:1,scopeId,predecessor:null,contentDigest:content,parent:null,dependencies:[],ownerId:'fixture-controller',permittedEffects:[],policy:null,...extra}});
+ const revision=(kind,id,extra={})=>buildWorkRevisionEvent({eventId:`${domain}:${id}`,now,revision:{kind,id,revision:1,scopeId,predecessor:null,contentDigest:content,parent:null,dependencies:[],ownerId:'fixture-controller',permittedEffects:['artifact','policy'].includes(kind)?[]:['read'],policy:null,...extra}});
  const scope=revision('scope',scopeId),policy=revision('policy',`${domain}-policy`);
  const goals=[1,2].map(i=>revision('goal',`${domain}-goal-${i}`,{parent:revisionRef(scope)}));
  const obligations=goals.map((g,i)=>revision('obligation',`${domain}-obligation-${i+1}`,{parent:revisionRef(g),policy:revisionRef(policy)}));
@@ -29,14 +28,14 @@ function world(domain){
 }
 function fixedAuthority(domain){
  // Rebuild the fixed expected world independently; no incoming wire/claim argument can grant itself authority.
- const expected=world(domain);return{selectedSnapshot:{snapshot:{id:expected.snapshot.payload.snapshot.snapshotId,digest:expected.snapshot.payload.snapshot.digest},event:eventRef(expected.snapshot)},authority:{snapshot:{id:expected.snapshot.payload.snapshot.snapshotId,digest:expected.snapshot.payload.snapshot.digest},decisions:expected.claims.map((c,i)=>({receiptId:`${domain}-fixture-receipt-${i}`,authorityId:'fixture-controller',claim:eventRef(c),binding:JSON.parse(JSON.stringify(c.payload.binding)),decision:i?'accept':'reject'})),availability:[0,1].flatMap(i=>[{kind:'artifact',id:expected.artifacts[i].payload.revision.id,digest:expected.content,available:true},{kind:'evidence',id:`${domain}-evidence-${i}`,digest:expected.content,available:true}])}};
+ const expected=buildReplayWorld(domain);return{selectedSnapshot:{snapshot:{id:expected.snapshot.payload.snapshot.snapshotId,digest:expected.snapshot.payload.snapshot.digest},event:eventRef(expected.snapshot)},authority:{snapshot:{id:expected.snapshot.payload.snapshot.snapshotId,digest:expected.snapshot.payload.snapshot.digest},decisions:expected.claims.map((c,i)=>({receiptId:`${domain}-fixture-receipt-${i}`,authorityId:'fixture-controller',claim:eventRef(c),binding:JSON.parse(JSON.stringify(c.payload.binding)),decision:i?'accept':'reject'})),availability:[0,1].flatMap(i=>[{kind:'artifact',id:expected.artifacts[i].payload.revision.id,digest:expected.content,available:true},{kind:'evidence',id:`${domain}-evidence-${i}`,digest:expected.content,available:true}])}};
 }
 export function runLocalReplay(outputRoot){
  if(!isAbsolute(outputRoot)||existsSync(outputRoot))throw Error('explicit output must be absolute and not exist');mkdirSync(outputRoot,{mode:0o700});
  const domains=[];
  for(const domain of ['software','layout']){
   const directory=join(outputRoot,domain);mkdirSync(directory,{mode:0o700});const archive=join(directory,'archive');
-  const expected=world(domain),context=fixedAuthority(domain),text=expected.events.map(e=>JSON.stringify(e)).join('\n')+'\n';
+  const expected=buildReplayWorld(domain),context=fixedAuthority(domain),text=expected.events.map(e=>JSON.stringify(e)).join('\n')+'\n';
   const projection=projectWorkLedger(text,context);
   const source=retainArchiveSource(archive,{sourceId:`${domain}-work`,parser:{id:'pi-daddy-work-ledger',version:'4'},retention:'exact',bytes:Buffer.from(text)});
   const usage=Object.fromEntries(expected.occurrences.map(o=>[o.payload.executionId,{observed:true,cost:1,unit:'wall_ms',evidence:sha('synthetic usage receipt')} ]));
@@ -44,13 +43,22 @@ export function runLocalReplay(outputRoot){
   const candidates=captured.candidateIds.map(id=>readWorkCandidate(archive,id));const defectIndex=candidates.findIndex(c=>c.classification==='candidate_defect');
   if(defectIndex<0)throw Error('fixture did not nominate repeated work');
   const reviewer=createWorkCaseReviewer(archive,captured.caseBatchId,'operator:synthetic-fixture');
-  reviewer.decide({caseManifestId:captured.candidateIds[defectIndex],priorDecisionId:null,disposition:'confirmed_defect',note:'Synthetic fixed reference, not a live human judgment.'});
-  const hypothesis=buildHypothesis({archiveSnapshot:captured.observationId,caseIds:[candidates[defectIndex].id],population:domain,intervention:`change ${domain} fixture configuration`,alternatives:['keep reference'],prediction:'satisfy the fixed fixture check',downside:'additional review work',disproof:'fixed check remains unsatisfied',rollback:'retain reference',limits:{subjectCalls:0,judgeCalls:0,wallMs:1000},effectProfile:null});
+  const decision=reviewer.decide({caseManifestId:captured.candidateIds[defectIndex],priorDecisionId:null,disposition:'confirmed_defect',note:'Synthetic fixed reference, not a live human judgment.'}).current;
+  const caseReference={version:2,batchId:captured.caseBatchId,manifestId:captured.candidateIds[defectIndex],decisionId:decision.id};
+  const job=createWeeklyInvestigation(join(directory,'investigation'),{archiveRoot:archive,week:'2026-W01',population:domain,policyDigest:sha('fixture weekly policy'),maxCases:1,cases:[caseReference],reader:{manifestIds:[source.manifestId],maxCalls:1,maxBytes:65536,durationMs:30000,representations:['exact']}});
+  const hypothesis=job.run({kind:'inert-v1',requests:[{tool:'archive.read',manifestId:source.manifestId},{tool:'hypothesis',proposal:{archiveSnapshot:job.inspect().selection.archiveSnapshot,caseIds:[candidates[defectIndex].id],population:domain,intervention:`change ${domain} fixture configuration`,alternatives:['keep reference'],prediction:'satisfy the fixed fixture check',downside:'additional review work',disproof:'fixed check remains unsatisfied',rollback:'retain reference',limits:{subjectCalls:0,judgeCalls:0,wallMs:1000},effectProfile:null}}]});
   const specPath=join(directory,'specification.yaml');writeFileSync(specPath,'# synthetic replay only\nskill: fixture\njudge_persona: fixture\nship_bar: {total: 1, min_pass: 1, no_critical_fail: true}\ncritical: []\nscenarios:\n  - id: A0\n    title: baseline\n    turns: [hello]\n    checklist: [responds]\n',{mode:0o600});
-  const preview=previewInvestigationScenario(hypothesis,specPath,{id:'A1',title:`${domain} fixed case`,turns:[`check ${domain} fixture`],checklist:['satisfies fixed constraint']});
-  const authority={id:'synthetic-controller',investigations:[hypothesis.id],promotions:[preview.digest]};applyInvestigationScenario(hypothesis,preview,authority);
-  const replay=applyInvestigationScenario(hypothesis,preview,authority);const h=sha(`${domain} fixed inputs`);
-  const frozen=freezeInvestigation(hypothesis,{specSha256:replay.sha256,rubricSha256:h,judgePolicySha256:h,heldoutSha256:h,configurationSha256:h},authority);
+  const authority={id:'synthetic-controller',investigations:[hypothesis.id],promotions:[]};job.approve(authority);
+  const preview=job.preview(specPath,{id:'A1',title:`${domain} fixed case`,turns:[`check ${domain} fixture`],checklist:['satisfies fixed constraint']});
+  authority.promotions=[preview.digest];job.promote(preview,authority);
+  const replay=job.promote(preview,authority),h=sha(`${domain} fixed inputs`),files={spec:specPath};
+  for(const key of ['rubric','judgePolicy','heldout','configuration','skill']){files[key]=join(directory,key+'.txt');writeFileSync(files[key],`${domain} fixed ${key}`,{mode:0o600});}
+  const frozen=job.freeze(files,authority),candidateText=`${domain} explicit candidate`;job.edit(candidateText,[job.previewEdit(candidateText)]);
+  const component={kind:'detector',...candidates[defectIndex].detector},trustInput={archiveRoot:archive,component,seed:h,maxUnflagged:0,cohort:[{incidentId:candidates[defectIndex].id,manifestId:caseReference.manifestId,flagged:true,split:'calibration'}],exposure:null};
+  const trust=createTrustLifecycle(join(directory,'trust'),trustInput,[trustPolicyDigest(trustInput)]);
+  trust.predict({id:'fixture-prediction',incidentId:candidates[defectIndex].id,component,kind:'positive',split:'calibration'});
+  const reference=trust.previewCaseOutcome('fixture-prediction',caseReference);trust.linkCaseOutcome('fixture-prediction',caseReference,[reference.digest]);
+  const calibration=trust.inspect(0).calibration.reports[0];
   const manifest=freezeIntervention({family:'intervention',investigationSha256:frozen.digest,resourceMetric:'wall_ms',axes:['model'],common:{mode:'force',scenarioSha256:h,rubricSha256:h,fixtureSha256:h,heldoutSha256:h,harnessSha256:h,judgePolicySha256:h},proposer:'fixture:proposer',judge:'fixture:judge',cases:[{id:'A1',criteria:1,reps:1,threshold:1,critical:false}],arms:['a','b'].map(id=>({id,configuration:{model:`fixture:${id}`,effort:'fixture',skill:h,prompt:h,configuration:h}}))});
   const output=Buffer.from(`${domain} synthetic output`),outputHash=sha(output);
   const evidence=['a','b'].map(armId=>({armId,inputDigest:manifest.inputDigest,artifactDigests:[outputHash],cells:[{caseId:'A1',repetition:0,delivery:'PASS',objective:armId==='a'?'PASS':'FAIL',criteria:armId==='a'?['PASS']:[],suspect:false,artifactSha256:outputHash}],cost:armId==='a'?10:1,costUnit:'wall_ms'}));
@@ -64,9 +72,19 @@ export function runLocalReplay(outputRoot){
   const binding=buildAdoptionBinding({hypothesisDigest:hypothesis.id,experimentDigest:manifest.id,candidateDigest:h,scopeDigest:context.selectedSnapshot.snapshot.digest,assessmentPolicyDigest:h,rollbackCandidateDigest:sha('synthetic prior candidate'),activationBoundary:'next-orders',expiresAt:1000});
   const adoption=authorizeAdoption(binding,{id:'synthetic-controller',adoptions:[binding.id],rollbacks:[]},{experimentDigest:manifest.id,candidateDigest:h,scopeDigest:binding.scopeDigest,assessmentPolicyDigest:h,eligible:true},0);
   const later=classifyProductionObservation(adoption,{id:'synthetic-later-observation',adoptionId:adoption.id,candidateDigest:h,scopeDigest:binding.scopeDigest,originalRequirementDigest:h,currentRequirementDigest:h,outcome:'unknown',acceptanceDigest:null,acceptedArtifactDigest:null,observedArtifactDigest:outputHash,evidence:[]});
-  domains.push({domain,blindReviewId,accepted:projection.progress?.accepted,total:projection.progress?.total,caseCount:candidates.length,scenarioReplayed:replay.replayed,routingDefault:assessment.routingDefault,grantExpansion:adoption.grantExpansion,laterOutcome:later.state,executionReady:frozen.executionReady});
+  domains.push({domain,investigationSelectionId:job.inspect().selection.id,evaluationFrozen:job.evaluation().executionReady===false,calibration:{correct:calibration.correct,resolved:calibration.resolved,reference:'synthetic-confirmation'},blindReviewId,accepted:projection.progress?.accepted,total:projection.progress?.total,caseCount:candidates.length,scenarioReplayed:replay.replayed,routingDefault:assessment.routingDefault,grantExpansion:adoption.grantExpansion,laterOutcome:later.state,executionReady:frozen.executionReady});
  }
  const result={kind:'synthetic-local-replay',liveQualified:false,domains,pending:['actual model/role/delivery qualification','bounded factory order execution and reserved decision','authenticated human debrief/blind workflow','real production adoption and later outcomes']};
  writeFileSync(join(outputRoot,'summary.json'),JSON.stringify(result,null,2)+'\n',{mode:0o600});return result;
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){if(process.argv[2]!=='--output'||!process.argv[3]||process.argv.length!==4)throw Error('use --output /absolute/new-owned-directory after direct build');console.log(JSON.stringify(runLocalReplay(resolve(process.argv[3])),null,2));}
+export async function runConnectedReplay(outputRoot,producerRoot){
+ const {verifyOrderProducer,runPinnedOrder}=await import('./order.mjs');verifyOrderProducer(producerRoot);
+ const result=runLocalReplay(outputRoot);writeFileSync(join(outputRoot,'harness-phase-summary.json'),JSON.stringify(result,null,2)+'\n',{mode:0o600});
+ for(const domain of result.domains){const directory=join(outputRoot,domain.domain),evaluation=openWeeklyInvestigation(join(directory,'investigation')).evaluation();domain.boundedOrder=await runPinnedOrder(producerRoot,directory,domain.domain,evaluation,buildReplayWorld(domain.domain));}
+ result.kind='inert-connected-replay';result.pending=result.pending.filter(p=>p!=='bounded factory order execution and reserved decision');result.pending.push('Principal SPEC-006 corrected native mapping pin/invocation');
+ writeFileSync(join(outputRoot,'summary.json'),JSON.stringify(result,null,2)+'\n',{mode:0o600});return result;
+}
+if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){
+ if(process.argv[2]!=='--output'||!process.argv[3]||![4,6].includes(process.argv.length)||(process.argv.length===6&&(process.argv[4]!=='--producer'||!process.argv[5])))throw Error('use --output /absolute/new-owned-directory [--producer /absolute/pinned-checkout] after direct build');
+ const result=process.argv.length===6?await runConnectedReplay(resolve(process.argv[3]),resolve(process.argv[5])):runLocalReplay(resolve(process.argv[3]));console.log(JSON.stringify(result,null,2));
+}

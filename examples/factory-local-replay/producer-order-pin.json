@@ -1,0 +1,16 @@
+{
+  "version": "factory-replay-producer-pin-v1",
+  "repository": "https://github.com/mojomanyana/pi-daddy",
+  "commit": "f276698322860172f0cd17dd32997528b3804b4b",
+  "tree": "8f83f2b71e4dc716451cb72acf9340e8825bda47",
+  "files": {
+    "packages/pi-daddy/contracts/factory-order/v1/README.md": "889240eaa3aaa0675c295b6caa95eaf859fe85b1cece32852054e5db664edbd2",
+    "packages/pi-daddy/contracts/experiment/v1/README.md": "7df0d5dad17699b88dba4eb50d157bba127d6bf5c381852ca57fd2206a3d189c",
+    "packages/pi-daddy/src/factory-order.ts": "1395dbc1abc1629f93032f7cc8fa52003f4b2a89547e38152cf3e837bd9d53e3",
+    "packages/pi-daddy/src/factory-registry.ts": "ebbd897e744df308b6558da080fe8b2ecbf1b818391d4ec6235ae21e7cdffa54",
+    "packages/pi-daddy/src/experiment.ts": "5c5e2aa2d0fef358a0c36230e4e321118cf86a7225629ab3010a6373cc75e6e7",
+    "packages/pi-daddy/src/experiment-state.ts": "ed6591c1a6e9074a12e0bd01387e0d45448ad8d20e574cb3aacb1bcf26da1e22",
+    "packages/pi-daddy/src/effect-profile-runtime.ts": "75da4bf616e86bfd4f6b8018e953bd03e1a7aaa1fd8707e49b7e379d9ccdaa86"
+  },
+  "claim": "Exact source for an opt-in local fixed-profile replay; no deployment or live acceptance"
+}

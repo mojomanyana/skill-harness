@@ -3,7 +3,13 @@ import { execFile } from 'node:child_process';
 import { mkdtempSync, writeFileSync, symlinkSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { learningJournal } from '../src/learning-journal.js';
+import { learningJournal, learningJson } from '../src/learning-journal.js';
+it('refuses executable proxy inputs without invoking their traps and bounds shared expansion',()=>{
+ let traps=0;const proxy=new Proxy({}, {ownKeys(){traps++;return [];}});
+ expect(()=>learningJson(proxy)).toThrow(/proxy/);expect(traps).toBe(0);
+ let value:unknown='leaf';for(let i=0;i<12;i++)value=[value,value,value,value];
+ expect(()=>learningJson(value)).toThrow(/bound/);
+});
 it('two real processes cannot both append against the same durable prior',async()=>{
  const root=mkdtempSync(join(tmpdir(),'learning-cas-')),directory=join(root,'journal'),journal=learningJournal(directory,{type:'initial'}),prior=journal.read()[0].id;
  const module=new URL('../dist/learning-journal.js',import.meta.url).href;
