@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import yaml from "js-yaml";
 import { readFileSync, realpathSync } from "node:fs";
 import { appendScenario, renderScenarioBlock, specSha256 } from "./spec-write.js";
 import { parseSpec } from "./spec.js";
@@ -25,6 +26,14 @@ function json<T>(input: T): T {
   };
   const result = visit(input, 0); if (Buffer.byteLength(JSON.stringify(result)) > 65536) throw new Error("investigation JSON exceeds byte bound");
   return result as T;
+}
+/** Bounded operator envelope; duplicate keys and over-expanded/cyclic objects are refused before dispatch. */
+export function parseLearningRequest(text: string): unknown {
+  if (typeof text !== "string" || Buffer.byteLength(text) > 65536) throw new Error("learning request exceeds bound");
+  let value: unknown;
+  try { value = yaml.load(text, { schema: yaml.JSON_SCHEMA, json: false }); }
+  catch { throw new Error("invalid learning request"); }
+  return json(value);
 }
 const digest = (x: unknown) => createHash("sha256").update(JSON.stringify(json(x))).digest("hex");
 function freeze<T>(value: T): T { if (value && typeof value === "object") { Object.values(value).forEach(freeze); Object.freeze(value); } return value; }

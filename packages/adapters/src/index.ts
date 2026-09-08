@@ -34,3 +34,5 @@ export * from "./archive-read-capability.js";
 export * from "./archived-work.js";
 export * from "./blind-intervention.js";
 export * from "./archive-observer.js";
+export * from "./weekly-investigation.js";
+export * from "./trust-lifecycle.js";

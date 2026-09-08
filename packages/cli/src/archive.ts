@@ -1,9 +1,11 @@
 import { ingestPolicySource, inspectPolicyCheckpoint, observeArchiveSource } from "@skill-harness/adapters";
 import type { Args } from "./cli.js";
+import { cmdArchiveLearning } from "./archive-learning.js";
 
 /** Explicit file ingestion/metadata inspection only; never launches a worker or publishes content. */
 export async function cmdArchive(args: Args): Promise<void> {
   const operation = args._[0];
+  if (operation === "weekly" || operation === "trust") { cmdArchiveLearning(args); return; }
   if (operation === "watch") {
     if (args._.length !== 1 || Object.keys(args.flags).some(key => !["policy", "source", "previous", "interval-ms", "max-polls"].includes(key))) throw new Error("unsupported archive watch option");
     const required = (key: string) => { const value = args.flags[key]; if (typeof value !== "string" || !value) throw new Error(`archive watch requires --${key}`); return value; };
