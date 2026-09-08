@@ -1,3 +1,4 @@
+import { replayAppliedAdoption } from './adoption.mjs';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -42,6 +43,8 @@ export async function runPinnedOrder(root,directory,domain,evaluation,w){
   const final=await run.completion,resources=await budgets.openResourceBudget(budget).inspect();
   if(final.control!=='not-assessed'||resources.active!==0||resources.attempts!==2||final.nodes[1].state!==(domain==='software'?'satisfied':'exhausted'))throw Error('fixed order result/accounting mismatch');
   const artifacts=[];for(const node of final.nodes){if(node.executionId){const bytes=await controller.readArtifact(node.executionId);artifacts.push({executionId:node.executionId,sha256:sha(bytes),bytes:bytes.length});}}
-  const result={kind:'actual-fixed-profile-order',producerCommit:pin.commit,producerTree:pin.tree,authority:'synthetic-fixture',modelCalls:0,acceptance:final.acceptance,orderDigest:final.orderDigest,investigationDigest:evaluation.frozen.digest,caseIds:evaluation.caseIds,policyPin:final.policyPin,nodes:final.nodes,resources,artifacts};writeFileSync(join(directory,'actual-order.json'),JSON.stringify(result,null,2)+'\n',{mode:0o600});return result;
+  const result={kind:'actual-fixed-profile-order',producerCommit:pin.commit,producerTree:pin.tree,authority:'synthetic-fixture',modelCalls:0,acceptance:final.acceptance,orderDigest:final.orderDigest,investigationDigest:evaluation.frozen.digest,caseIds:evaluation.caseIds,policyPin:final.policyPin,nodes:final.nodes,resources,artifacts};
+  result.appliedAdoption=await replayAppliedAdoption({order,budgets,effects,registry,baseline,charter,authority,evaluation,directory,domain,previousController:controller});
+  writeFileSync(join(directory,'actual-order.json'),JSON.stringify(result,null,2)+'\n',{mode:0o600});return result;
  }catch(error){failure=error;throw error;}finally{try{await run.completion;}catch(error){if(failure)throw new AggregateError([failure,error],'replay and original controller settlement failed');throw error;}}
 }

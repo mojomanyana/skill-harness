@@ -77,14 +77,15 @@ export function runLocalReplay(outputRoot){
  const result={kind:'synthetic-local-replay',liveQualified:false,domains,pending:['actual model/role/delivery qualification','bounded factory order execution and reserved decision','authenticated human debrief/blind workflow','real production adoption and later outcomes']};
  writeFileSync(join(outputRoot,'summary.json'),JSON.stringify(result,null,2)+'\n',{mode:0o600});return result;
 }
-export async function runConnectedReplay(outputRoot,producerRoot){
+export async function runConnectedReplay(outputRoot,producerRoot,principalRoot){
  const {verifyOrderProducer,runPinnedOrder}=await import('./order.mjs');verifyOrderProducer(producerRoot);
+ const principal=principalRoot?await import('./principal.mjs'):null;if(principal)principal.verifyPrincipalProducer(principalRoot);
  const result=runLocalReplay(outputRoot);writeFileSync(join(outputRoot,'harness-phase-summary.json'),JSON.stringify(result,null,2)+'\n',{mode:0o600});
- for(const domain of result.domains){const directory=join(outputRoot,domain.domain),evaluation=openWeeklyInvestigation(join(directory,'investigation')).evaluation();domain.boundedOrder=await runPinnedOrder(producerRoot,directory,domain.domain,evaluation,buildReplayWorld(domain.domain));}
- result.kind='inert-connected-replay';result.pending=result.pending.filter(p=>p!=='bounded factory order execution and reserved decision');result.pending.push('Principal SPEC-006 corrected native mapping pin/invocation');
+ for(const domain of result.domains){const directory=join(outputRoot,domain.domain),evaluation=openWeeklyInvestigation(join(directory,'investigation')).evaluation();domain.boundedOrder=await runPinnedOrder(producerRoot,directory,domain.domain,evaluation,buildReplayWorld(domain.domain));if(principal)domain.principal=await principal.runPinnedPrincipal(principalRoot,producerRoot,directory,domain.domain,fixedAuthority(domain.domain),domain.boundedOrder);}
+ result.kind='inert-connected-replay';result.pending=result.pending.filter(p=>p!=='bounded factory order execution and reserved decision');result.pending.push(principal?'generic lifecycle/payload connector and authentic Principal host qualification':'Principal SPEC-006 corrected native mapping pin/invocation');
  writeFileSync(join(outputRoot,'summary.json'),JSON.stringify(result,null,2)+'\n',{mode:0o600});return result;
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){
- if(process.argv[2]!=='--output'||!process.argv[3]||![4,6].includes(process.argv.length)||(process.argv.length===6&&(process.argv[4]!=='--producer'||!process.argv[5])))throw Error('use --output /absolute/new-owned-directory [--producer /absolute/pinned-checkout] after direct build');
- const result=process.argv.length===6?await runConnectedReplay(resolve(process.argv[3]),resolve(process.argv[5])):runLocalReplay(resolve(process.argv[3]));console.log(JSON.stringify(result,null,2));
+ if(process.argv[2]!=='--output'||!process.argv[3]||![4,6,8].includes(process.argv.length)||(process.argv.length>=6&&(process.argv[4]!=='--producer'||!process.argv[5]))||(process.argv.length===8&&(process.argv[6]!=='--principal'||!process.argv[7])))throw Error('use --output /absolute/new-owned-directory [--producer /absolute/pinned-checkout [--principal /absolute/pinned-checkout]] after direct build');
+ const result=process.argv.length>=6?await runConnectedReplay(resolve(process.argv[3]),resolve(process.argv[5]),process.argv[7]?resolve(process.argv[7]):undefined):runLocalReplay(resolve(process.argv[3]));console.log(JSON.stringify(result,null,2));
 }

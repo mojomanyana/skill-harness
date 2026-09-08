@@ -1,0 +1,12 @@
+{
+  "commit": "abf3525fa2efc925fab4bab846738180d7c5ec08",
+  "tree": "d2d403e27ed0c6a27144666ec7f07ba46369517a",
+  "files": {
+    "scripts/principal-association.mjs": "e97a8ccd4c794073814440986a614b4defb9c5bfdd8c2ac0218e282b9468286b",
+    "scripts/principal-native-references.mjs": "1fc106352b8c940bd2d627835a88e8e0ac165f5a54da847f5f8983cc177de488",
+    "scripts/assurance-state.mjs": "b9bd7a4bd7cb24d39d4c91181d1f4e7b19b02cac00dbd0fc7d53b71389412160",
+    "contracts/principal-native-references/v1/record.schema.json": "dc9f0facc0814d23bd7a2675b229df7dad5561513ea3684647e8972be6aa2343",
+    "contracts/principal-native-references/v1/README.md": "bcfd62655a12b1c47cd057d1b5c38d30bf47b3842b21be88db39e1dc915977bf"
+  },
+  "qualification": "source identity only; synthetic invocation, no authenticated authority or native campaign acceptance"
+}

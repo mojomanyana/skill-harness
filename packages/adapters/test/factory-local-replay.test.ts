@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runLocalReplay } from '../../../examples/factory-local-replay/replay.mjs';
+import { verifyPrincipalProducer } from '../../../examples/factory-local-replay/principal.mjs';
 import { verifyOrderProducer } from '../../../examples/factory-local-replay/order.mjs';
 import { openBlindIntervention } from '../src/blind-intervention.js';
 const roots:string[]=[];
@@ -10,6 +11,7 @@ afterEach(()=>{for(const root of roots.splice(0))rmSync(root,{recursive:true,for
 describe('two-domain local factory replay',()=>{
  it('requires an explicit pinned producer before any native profile loading',()=>{
   expect(()=>verifyOrderProducer('.')).toThrow(/explicit pinned Linux producer/);
+  expect(()=>verifyPrincipalProducer('.')).toThrow(/explicit pinned Principal/);
  });
  it('connects real implemented APIs without presenting fixtures as live qualification',async()=>{
   const root=mkdtempSync(join(tmpdir(),'factory-replay-'));roots.push(root);
