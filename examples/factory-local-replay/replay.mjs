@@ -4,10 +4,10 @@ import { join, isAbsolute, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   buildHypothesis, previewInvestigationScenario, applyInvestigationScenario, freezeInvestigation,
-  freezeIntervention, interventionEvidenceDigest, assessIntervention, createBlindComparison,
+  freezeIntervention, interventionEvidenceDigest, assessIntervention,
   buildAdoptionBinding, authorizeAdoption, classifyProductionObservation,
 } from '../../packages/core/dist/index.js';
-import { retainArchiveSource, readWorkCandidate, captureArchivedWorkCandidates, createWorkCaseReviewer } from '../../packages/adapters/dist/index.js';
+import { retainArchiveSource, readWorkCandidate, captureArchivedWorkCandidates, createWorkCaseReviewer, retainBlindIntervention, openBlindIntervention } from '../../packages/adapters/dist/index.js';
 import { buildWorkRevisionEvent, buildWorkSnapshotEvent, buildWorkOccurrenceEvent, buildWorkAcceptanceEvent, projectWorkLedger } from '../../packages/adapters/dist/generated/work-v4/reader.js';
 const sha=value=>createHash('sha256').update(value).digest('hex');
 const revisionRef=e=>({kind:e.payload.revision.kind,id:e.payload.revision.id,revision:e.payload.revision.revision,digest:e.payload.revision.digest});
@@ -55,11 +55,16 @@ export function runLocalReplay(outputRoot){
   const output=Buffer.from(`${domain} synthetic output`),outputHash=sha(output);
   const evidence=['a','b'].map(armId=>({armId,inputDigest:manifest.inputDigest,artifactDigests:[outputHash],cells:[{caseId:'A1',repetition:0,delivery:'PASS',objective:armId==='a'?'PASS':'FAIL',criteria:armId==='a'?['PASS']:[],suspect:false,artifactSha256:outputHash}],cost:armId==='a'?10:1,costUnit:'wall_ms'}));
   const qualified={manifestId:manifest.id,proposer:{requested:'fixture:proposer',canonical:'fixture-proposer'},judge:{requested:'fixture:judge',canonical:'fixture-judge'},subjects:{a:{requested:'fixture:a',canonical:'fixture-a'},b:{requested:'fixture:b',canonical:'fixture-b'}},evidenceDigests:Object.fromEntries(evidence.map(e=>[e.armId,interventionEvidenceDigest(e)])),artifacts:new Map([[outputHash,output]])};
-  const assessment=assessIntervention(manifest,evidence,qualified),blind=createBlindComparison(manifest,assessment,'0'.repeat(64));blind.choose({kind:'one',labels:[blind.view().cards[0].label]});blind.reveal();
+  const assessment=assessIntervention(manifest,evidence,qualified);
+  const blindReviewId=retainBlindIntervention(archive,manifest,evidence,qualified,'operator:synthetic-fixture');
+  const blind=openBlindIntervention(archive,blindReviewId,'operator:synthetic-fixture');
+  blind.choose({kind:'one',labels:[blind.view().cards[0].label]});
+  // Reopen the durable record instead of carrying an in-memory reveal permission.
+  openBlindIntervention(archive,blindReviewId,'operator:synthetic-fixture').reveal();
   const binding=buildAdoptionBinding({hypothesisDigest:hypothesis.id,experimentDigest:manifest.id,candidateDigest:h,scopeDigest:context.selectedSnapshot.snapshot.digest,assessmentPolicyDigest:h,rollbackCandidateDigest:sha('synthetic prior candidate'),activationBoundary:'next-orders',expiresAt:1000});
   const adoption=authorizeAdoption(binding,{id:'synthetic-controller',adoptions:[binding.id],rollbacks:[]},{experimentDigest:manifest.id,candidateDigest:h,scopeDigest:binding.scopeDigest,assessmentPolicyDigest:h,eligible:true},0);
   const later=classifyProductionObservation(adoption,{id:'synthetic-later-observation',adoptionId:adoption.id,candidateDigest:h,scopeDigest:binding.scopeDigest,originalRequirementDigest:h,currentRequirementDigest:h,outcome:'unknown',acceptanceDigest:null,acceptedArtifactDigest:null,observedArtifactDigest:outputHash,evidence:[]});
-  domains.push({domain,accepted:projection.progress?.accepted,total:projection.progress?.total,caseCount:candidates.length,scenarioReplayed:replay.replayed,routingDefault:assessment.routingDefault,grantExpansion:adoption.grantExpansion,laterOutcome:later.state,executionReady:frozen.executionReady});
+  domains.push({domain,blindReviewId,accepted:projection.progress?.accepted,total:projection.progress?.total,caseCount:candidates.length,scenarioReplayed:replay.replayed,routingDefault:assessment.routingDefault,grantExpansion:adoption.grantExpansion,laterOutcome:later.state,executionReady:frozen.executionReady});
  }
  const result={kind:'synthetic-local-replay',liveQualified:false,domains,pending:['actual model/role/delivery qualification','bounded factory order execution and reserved decision','authenticated human debrief/blind workflow','real production adoption and later outcomes']};
  writeFileSync(join(outputRoot,'summary.json'),JSON.stringify(result,null,2)+'\n',{mode:0o600});return result;
