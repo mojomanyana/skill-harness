@@ -19,6 +19,10 @@ describe("archive CLI", () => {
     await main(["archive", "inspect", "--policy", policy, "--source", "s1", "--checkpoint", result.checkpointId]);
     expect(JSON.parse(String(log.mock.calls.at(-1)![0])).checkpointId).toBe(result.checkpointId);
     expect(help()).toContain("archive");
+    const listeners = process.listenerCount('SIGTERM');
+    await main(['archive','watch','--policy',policy,'--source','s1','--max-polls','1']);
+    expect(JSON.parse(String(log.mock.calls.at(-1)![0])).polls).toBe(1);
+    expect(process.listenerCount('SIGTERM')).toBe(listeners);
   });
   it("rejects missing policy, unsupported operations and inline policy overrides", async () => {
     await expect(main(["archive", "ingest", "--source", "x"])).rejects.toThrow(/policy/);

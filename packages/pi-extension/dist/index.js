@@ -12753,6 +12753,9 @@ var WORK_TEXT_BYTES2 = 16 * 1024 * 1024;
 // packages/adapters/dist/generated/work-v4/execution-id.js
 import { randomUUID as randomUUID3 } from "node:crypto";
 
+// packages/adapters/dist/archive-observer.js
+import { randomUUID as randomUUID4 } from "node:crypto";
+
 // packages/adapters/dist/index.js
 var ADAPTERS = {
   pi: piAdapter

@@ -39,9 +39,15 @@ Use actual owned absolute roots and a deliberately chosen expiry, not these exam
 
 The source must be exact retained bytes tagged `pi-daddy-work-ledger` version `4`. Selection and authority are separate programmatic host inputs; authority is never loaded from the archived wire or a context file. Missing/redacted/invalid sources remain unavailable or diagnostically unresolved. `captureArchivedWorkCandidates` links the retained raw ledger, real derived projection and silent case batch. The producer Layout A fixture still resolves two attempts/three variants without inventing acceptance under absent authority. This does not authenticate host declarations or qualify a live observer.
 
+## Bounded external observation
+
+`archive watch --policy <file> --source <id> --max-polls <1..128> [--interval-ms <1..60000>] [--previous <checkpoint>]` now observes the explicitly allowed file in a separate operator process. Policy identity is pinned before capture and checked before every source read; policy drift/expiry stops observation rather than following a new destination. Source failures and optional consumer loss are durable gaps. Every poll retains an immutable observer receipt; only final receipts claim terminal observation. A restart can use the returned last checkpoint and never silently resets a missing/corrupt cursor.
+
+SIGINT/SIGTERM stop this observer, not a worker. The API accepts an AbortSignal and a synchronous optional metadata consumer. Capture never waits on an asynchronous consumer; its unsupported outcome is explicitly unobserved. Poll count/interval and byte limits are bounded, but synchronous filesystem I/O is not an OS deadline and no zero-overhead claim is made. This is file observation, not a native-session hook, active-branch proof or authenticated live transport. A real separate Node producer continued and completed after the compiled watcher stopped in the owned process fixture.
+
 ## Not yet delivered
 
-A deployed archive/content-redaction policy, automatic source discovery/watching, trusted live-branch/acceptance authority, and credential-safe candidate export remain pending. Generic policy CLI and semantic ingestion are explicit APIs, not an automatically deployed observer. The primitive may be used with synthetic fixtures independently, but does not complete P03 or qualify a live integration.
+A deployed archive/content-redaction policy, automatic source discovery, trusted live-branch/acceptance authority, and credential-safe candidate export remain pending. The bounded explicit watcher and semantic APIs are not automatically deployed or qualified as live Pi/Herdr observation. The primitive may be used with synthetic fixtures independently, but does not complete P03 or qualify a live integration.
 
 ## Deterministic checks
 

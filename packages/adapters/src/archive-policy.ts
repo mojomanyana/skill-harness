@@ -79,10 +79,17 @@ function metadata(result: CheckpointRead, checkpointId: string, policySha256: st
     invalidLines: result.checkpoint.invalidLines, issues: result.checkpoint.issues,
     activeBranch: result.checkpoint.activeBranch, acceptance: result.checkpoint.acceptance };
 }
+/** Host-only policy binding for bounded external observation; no source bytes are read. */
+export function archivePolicyBinding(policyPath: string, sourceId: string) {
+  const selected = selectedPolicy(policyPath, sourceId);
+  return Object.freeze({ policySha256: selected.policySha256, archiveRoot: selected.policy.archiveRoot,
+    sourceId, archiveSourceId: selected.archiveSourceId, expiresAt: selected.policy.expiresAt });
+}
 /** Explicit operator-selected file policy. Not a credential, authorization attestation or hostile-agent sandbox. */
-export function ingestPolicySource(policyPath: string, sourceId: string, previousCheckpointId?: string) {
+export function ingestPolicySource(policyPath: string, sourceId: string, previousCheckpointId?: string, expectedPolicySha256?: string) {
   try {
     const { policy, source, archiveSourceId, policySha256 } = selectedPolicy(policyPath, sourceId);
+    if (expectedPolicySha256 !== undefined && expectedPolicySha256 !== policySha256) throw new Error("archive policy changed");
     if (source.contentPolicy === "referenced-blobs") return ingestNativePolicy({ policy, source, archiveSourceId, policySha256 }, previousCheckpointId, regularBytes);
     const bytes = regularBytes(join(policy.sourceRoot, source.path), policy.maxBytes);
     const result = ingestArchiveSnapshot(policy.archiveRoot, { sourceId: archiveSourceId, parser: source.parser, retention: policy.retention, bytes, previousCheckpointId });

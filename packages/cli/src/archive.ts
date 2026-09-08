@@ -1,9 +1,24 @@
-import { ingestPolicySource, inspectPolicyCheckpoint } from "@skill-harness/adapters";
+import { ingestPolicySource, inspectPolicyCheckpoint, observeArchiveSource } from "@skill-harness/adapters";
 import type { Args } from "./cli.js";
 
 /** Explicit file ingestion/metadata inspection only; never launches a worker or publishes content. */
-export function cmdArchive(args: Args): void {
+export async function cmdArchive(args: Args): Promise<void> {
   const operation = args._[0];
+  if (operation === "watch") {
+    if (args._.length !== 1 || Object.keys(args.flags).some(key => !["policy", "source", "previous", "interval-ms", "max-polls"].includes(key))) throw new Error("unsupported archive watch option");
+    const required = (key: string) => { const value = args.flags[key]; if (typeof value !== "string" || !value) throw new Error(`archive watch requires --${key}`); return value; };
+    const signal = new AbortController(), abort = () => signal.abort();
+    process.on("SIGINT", abort); process.on("SIGTERM", abort);
+    try {
+      const result = await observeArchiveSource({ policyPath: required("policy"), sourceId: required("source"),
+        previousCheckpointId: args.flags.previous === undefined ? undefined : required("previous"),
+        intervalMs: args.flags["interval-ms"] === undefined ? 1000 : Number(required("interval-ms")), maxPolls: Number(required("max-polls")), signal: signal.signal,
+        onObservation: observation => console.log(JSON.stringify({ checkpointId: observation.checkpointId, policySha256: observation.policySha256, syntax: observation.syntax })),
+      });
+      console.log(JSON.stringify(result));
+    } finally { process.removeListener("SIGINT", abort); process.removeListener("SIGTERM", abort); }
+    return;
+  }
   if (args._.length !== 1 || !["ingest", "inspect"].includes(operation)) {
     throw new Error("usage: archive ingest|inspect --policy <file> --source <id> [--previous <checkpoint> | --checkpoint <id>]");
   }
