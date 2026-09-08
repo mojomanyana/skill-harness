@@ -3,6 +3,9 @@ import { projectWorkLedger, type WorkProjectionContext, type WorkFrozen, type Wo
 import { WORK_V4_READER_COMMIT } from "./generated/work-v4/pin.js";
 import { captureWorkCandidates } from "./work-case-archive.js";
 import type { WorkDetectionOptions } from "./work-candidates.js";
+import type { WorkSignalFacts, WorkSignalSnapshot } from "@skill-harness/core";
+import { retainWorkSignalObservation } from "./work-signal-observation.js";
+import { captureWorkSignalCases } from "./work-signal-cases.js";
 export type ArchivedWork =
   | { state: "available"; manifestId: string; sourceSha256: string; producerCommit: string; projection: WorkFrozen<WorkProjection> }
   | { state: "missing" | "error"; manifestId: string; reason: string };
@@ -25,5 +28,30 @@ export function captureArchivedWorkCandidates(root: string, manifestId: string, 
   const linkage = { version: "archived-work-candidates-v1", workManifestId: manifestId, workSha256: read.sourceSha256, producerCommit: read.producerCommit,
     observationId: cases.observationId, caseBatchId: cases.batchId, candidateIds: cases.candidateIds, authorityBasis: "independently-supplied-host-context", acceptance: "not-assessed" };
   const stored = retainArchiveSource(root, { sourceId: `work-case-link-${read.sourceSha256}`, parser: { id: "archived-work-candidates", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(linkage)) });
+  return { ...linkage, linkageManifestId: stored.manifestId };
+}
+
+/** Derive binding/coverage/acceptance fields from the real pinned P01 projection, not caller replacements. */
+export function captureArchivedWorkSignals(root: string, manifestId: string, context: WorkFrozen<WorkProjectionContext>, facts: WorkSignalFacts) {
+  const read = readArchivedWork(root, manifestId, context);
+  if (read.state !== "available" || read.projection.errors.length || read.projection.scopeState !== "valid" || !read.projection.selectedSnapshot || !read.projection.runtime) throw new Error("work source/selection incomplete; cannot capture signals");
+  const work = read.projection, snapshotDigest = read.projection.selectedSnapshot.digest;
+  const snapshot: WorkSignalSnapshot = { snapshotDigest, scopeValid: true,
+    obligations: work.obligations.map(o => ({ id: o.binding.obligation.id, digest: o.binding.obligation.digest,
+      intentDigest: o.binding.intent.digest, policyDigest: o.binding.policy.digest, artifactDigest: o.binding.artifact?.digest ?? null,
+      acceptance: o.acceptance,
+      coverage: [o.artifactCoverage.state, o.evidenceCoverage.state].includes("conflicted") ? "conflicted"
+        : [o.artifactCoverage.state, o.evidenceCoverage.state].includes("unavailable") ? "unavailable"
+        : o.artifactCoverage.state === "available" && o.evidenceCoverage.state === "available" && o.problems.every(p => p.code === "TRUSTED_REJECTION") ? "available" : "unknown" })) };
+  // All four digests here are REVISION identities, not artifact content digests.
+  // Duplicate obligation bindings cannot be collapsed by this input profile; its validator refuses them.
+  const observation = retainWorkSignalObservation(root, snapshot, facts);
+  const projection = retainArchiveSource(root, { sourceId: `work-signal-projection-${read.sourceSha256}`, parser: { id: "pi-daddy-work-projection", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(work)) });
+  const cases = captureWorkSignalCases(root, observation.manifestId);
+  const linkage = { version: "archived-work-signals-v1", bindingProfile: "work-v4-revision-digests-v1", workManifestId: manifestId,
+    workSha256: read.sourceSha256, producerCommit: read.producerCommit, projectionManifestId: projection.manifestId,
+    observationId: observation.manifestId, caseBatchId: cases.batchId, candidateIds: cases.candidateIds,
+    authorityBasis: "independently-supplied-host-context", acceptance: "not-assessed" };
+  const stored = retainArchiveSource(root, { sourceId: `work-signal-link-${read.sourceSha256}`, parser: { id: "archived-work-signals", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(linkage)) });
   return { ...linkage, linkageManifestId: stored.manifestId };
 }
