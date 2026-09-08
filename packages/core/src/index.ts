@@ -34,6 +34,7 @@ export * from "./canary.js";
 export * from "./stability.js";
 export * from "./capture-trace-types.js";
 export * from "./work-capture.js";
+export * from "./work-signals.js";
 export * from "./work-capture-schema.js";
 export * from "./factory-calibration.js";
 export * from "./adoption.js";

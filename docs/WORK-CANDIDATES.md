@@ -17,7 +17,7 @@ Implemented rules:
 
 ## Remaining scope
 
-Checkpoint-overdue, reopened-acceptance and separately proved intent-violation rules need their corresponding frozen host facts; they are not inferred from timestamps/display rows. Deployed silent/calibration scheduling, authenticated decision UI/host integration, exposure policy, trusted independent labels, and scenario promotion remain pending. P08/P13 must not treat these unresolved candidates as calibrated truth or activation authority. Model interpretation, if later authorized, remains asynchronous/advisory.
+Checkpoint-overdue, reopened-acceptance and separately proved intent-violation predicates are implemented by the opt-in `work-signals-v1` API in `docs/WORK-SIGNALS.md`. They require corresponding frozen host facts and explicitly emit new defect case version3; the existing v2 review contract is not silently widened. Actual fact capture and v3 presentation/storage integration remain pending; timestamps/display rows are not enough. Deployed silent/calibration scheduling, authenticated decision UI/host integration, exposure policy, trusted independent labels, and scenario promotion remain pending. P08/P13 must not treat these unresolved candidates as calibrated truth or activation authority. Model interpretation, if later authorized, remains asynchronous/advisory.
 
 Ordinary checks:
 
