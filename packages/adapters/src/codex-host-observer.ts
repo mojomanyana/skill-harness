@@ -64,7 +64,10 @@ export function openLocalCodexHost(path:string) {
  return {inspect,
   async exchange(subjectFrames:Readable, hostTransport:Writable, hostResponse:Readable):Promise<LocalCodexObservation> {
    const state=inspect();if(state.aborted)throw Error('host aborted or stranded claim; no retry');if(state.calls>=spec.maxCalls)throw Error('call budget exhausted');
-   const controller=new AbortController(),remaining=spec.wallMs-(Date.now()-Number(first.createdAt));const timer=setTimeout(()=>controller.abort(),Math.max(0,remaining));
+   const clockHistory=store.read(),now=Date.now(),lastClock=Math.max(Number(first.createdAt),...clockHistory.filter(e=>e.value.type==='clock').map(e=>Number(e.value.at)));
+   if(!Number.isFinite(now)||now<lastClock){store.append(clockHistory.at(-1)!.id,{type:'abort',reason:'host clock rollback refused'});throw Error('host clock rollback refused');}
+   store.append(clockHistory.at(-1)!.id,{type:'clock',at:now});
+   const controller=new AbortController(),remaining=spec.wallMs-(now-Number(first.createdAt));const timer=setTimeout(()=>controller.abort(),Math.max(0,remaining));
    try {
     if(remaining<=0)throw Error('host deadline exceeded');
     const frameBytes=await readBounded(subjectFrames,1024,controller.signal),text=new TextDecoder('utf8',{fatal:true}).decode(frameBytes),frame=JSON.parse(text);
