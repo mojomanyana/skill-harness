@@ -17,16 +17,23 @@ const fixtureCredential='fixture.'+Buffer.from(JSON.stringify({'https://api.open
 /** Narrow text-only SSE support. Unsupported reasoning/tools/event shapes fail closed.
  * The SDK decoder alone tolerates gaps/reordering; this validates correlation first. */
 export function validateCodexTextSse(bytes:Buffer, model:string):{text:string;responseId:string} {
- const text=new TextDecoder('utf8',{fatal:true}).decode(bytes);
+ const text=new TextDecoder('utf8',{fatal:true}).decode(bytes).replace(/\r\n/g,'\n');
  if(!text.endsWith('\n\n'))throw Error('truncated SSE framing');
  let sequence=0,phase=0,responseId='',itemId='',output='',completedItem:unknown;
+ let partOpen=false,partDone=false,textDone=false,progress=false;
  for(const block of text.slice(0,-2).split('\n\n')) {
-  const lines=block.split('\n');if(lines.length!==2||!lines[0].startsWith('event: ')||!lines[1].startsWith('data: '))throw Error('unsupported SSE framing');
-  const e=JSON.parse(lines[1].slice(6));if(e.type!==lines[0].slice(7)||e.sequence_number!==sequence++)throw Error('SSE sequence or event mismatch');
+  const lines=block.split('\n').filter(l=>l&&!l.startsWith(':'));if(!lines.length)continue;
+  const types=lines.filter(l=>l.startsWith('event:')).map(l=>l.slice(6).trim()),data=lines.filter(l=>l.startsWith('data:')).map(l=>l.slice(5).replace(/^ /,''));
+  if(types.length>1||!data.length||types.length+data.length!==lines.length)throw Error('unsupported SSE framing');
+  const e=JSON.parse(data.join('\n'));if(types.length&&e.type!==types[0]||e.sequence_number!==sequence++)throw Error('SSE sequence or event mismatch');
   if(e.type==='response.created'&&phase===0) {responseId=e.response?.id;if(typeof responseId!=='string'||!responseId||responseId.length>128||e.response.status!=='in_progress')throw Error('response identity missing');phase=1;}
+  else if(e.type==='response.in_progress'&&phase===1&&!progress){if(e.response?.id!==responseId||e.response.status!=='in_progress')throw Error('progress correlation');progress=true;}
   else if(e.type==='response.output_item.added'&&phase===1) {itemId=e.item?.id;if(typeof itemId!=='string'||!itemId||itemId.length>128||e.output_index!==0||e.item.type!=='message'||e.item.role!=='assistant'||e.item.status!=='in_progress'||!isDeepStrictEqual(e.item.content,[]))throw Error('unsupported output item');phase=2;}
-  else if(e.type==='response.output_text.delta'&&phase===2) {if(e.item_id!==itemId||e.output_index!==0||e.content_index!==0||typeof e.delta!=='string')throw Error('delta correlation');output+=e.delta;}
-  else if(e.type==='response.output_item.done'&&phase===2) {if(e.output_index!==0||e.item?.id!==itemId||e.item.type!=='message'||e.item.role!=='assistant'||e.item.status!=='completed'||e.item.content?.length!==1||e.item.content[0].type!=='output_text'||e.item.content[0].text!==output)throw Error('completed item mismatch');completedItem=e.item;phase=3;}
+  else if(e.type==='response.content_part.added'&&phase===2&&!partOpen&&!textDone){if(e.item_id!==itemId||e.output_index!==0||e.content_index!==0||e.part?.type!=='output_text'||e.part.text!=='')throw Error('content part correlation');partOpen=true;}
+  else if(e.type==='response.output_text.done'&&phase===2&&!textDone){if(e.item_id!==itemId||e.output_index!==0||e.content_index!==0||e.text!==output)throw Error('text completion mismatch');textDone=true;}
+  else if(e.type==='response.content_part.done'&&phase===2&&partOpen&&!partDone&&textDone){if(e.item_id!==itemId||e.output_index!==0||e.content_index!==0||e.part?.type!=='output_text'||e.part.text!==output)throw Error('content part completion mismatch');partDone=true;}
+  else if(e.type==='response.output_text.delta'&&phase===2&&!textDone) {if(e.item_id!==itemId||e.output_index!==0||e.content_index!==0||typeof e.delta!=='string')throw Error('delta correlation');output+=e.delta;}
+  else if(e.type==='response.output_item.done'&&phase===2) {if(partOpen&&!partDone||e.output_index!==0||e.item?.id!==itemId||e.item.type!=='message'||e.item.role!=='assistant'||e.item.status!=='completed'||e.item.content?.length!==1||e.item.content[0].type!=='output_text'||e.item.content[0].text!==output)throw Error('completed item mismatch');completedItem=e.item;phase=3;}
   else if(e.type==='response.completed'&&phase===3) {if(e.response?.id!==responseId||e.response.model!==model||e.response.status!=='completed'||e.response.output?.length!==1||!isDeepStrictEqual(e.response.output[0],completedItem))throw Error('completed response mismatch');phase=4;}
   else throw Error('unsupported or reordered SSE event');
  }
@@ -62,8 +69,9 @@ export function inertCodexSdkStreams(binding:CodexSdkBinding, fixture:()=>Promis
      finally {controller.signal.removeEventListener('abort',abort);await reader.cancel();reader.releaseLock();}
      if(cancellationError||controller.signal.aborted)throw Error('SDK response cancellation failed or deadline expired');
      const raw=Buffer.concat(parts);record({type:'sdk-response-observed',status:reply.status,responseBase64:raw.toString('base64'),responseSha256:hash(raw),liveQualified:false});
-     if(reply.ok){if(!reply.headers.get('content-type')?.startsWith('text/event-stream'))throw Error('unsupported response content type');const validated=validateCodexTextSse(raw,expected.model);expectedOutput=validated.text;record({type:'sdk-response-validated',responseId:validated.responseId,liveQualified:false});}
-     return new Response(raw,{status:reply.status,headers:reply.headers});
+     let decoderBody=raw;
+     if(reply.ok){if(!reply.headers.get('content-type')?.startsWith('text/event-stream'))throw Error('unsupported response content type');const validated=validateCodexTextSse(raw,expected.model);expectedOutput=validated.text;decoderBody=Buffer.from(new TextDecoder('utf8',{fatal:true}).decode(raw).replace(/\r\n/g,'\n'));record({type:'sdk-response-validated',responseId:validated.responseId,decoderInputSha256:hash(decoderBody),decoderNormalization:'SSE CRLF to LF; original response retained',liveQualified:false});}
+     return new Response(decoderBody,{status:reply.status,headers:reply.headers});
     }}).result();
    if(controller.signal.aborted||fetches!==1||result.stopReason!=='stop'||result.model!==expected.model||result.provider!=='openai-codex'||result.api!=='openai-codex-responses'||result.content?.length!==1||result.content[0].type!=='text'||result.content[0].text!==expectedOutput)throw Error('SDK response decoding failed: '+String(result.errorMessage??'decoded output mismatch').slice(0,512));
    record({type:'sdk-decoded',outputSha256:hash(expectedOutput!),model:result.model,provider:result.provider,api:result.api,providerInternalFacts:null,liveQualified:false});response.end(expectedOutput);done();
