@@ -40,7 +40,7 @@ It uses built `packages/adapters/dist`, already-installed Linux bubblewrap/prlim
 
 ## Subscription-only future boundary
 
-Only the user's existing **`openai-codex` ChatGPT subscription** may be considered for future evaluated proposer, subject or judge calls. Installed source maps this to `POST https://chatgpt.com/backend-api/codex/responses`. The provider declares OAuth `isSubscription: true`; its adapter uses a Bearer OAuth access token and ChatGPT account claim. These are source observations, not verification of this user's credentials, entitlement or remaining quota. Credential values are never read during preparation.
+Only the user's existing **`openai-codex` ChatGPT subscription** may be considered for future evaluated proposer, subject or judge calls. Installed source maps this to `POST https://chatgpt.com/backend-api/codex/responses`. The provider declares OAuth `isSubscription: true`; its adapter uses a Bearer OAuth access token and ChatGPT account claim. These are source observations, not verification of this user's credentials, entitlement or remaining quota. Credential values must never be exposed during preparation. An explicitly requested `pi auth check --provider openai-codex --json --no-refresh` may read the configured store internally, but emits only readiness/provider/auth-type metadata. Do not use `--credentials`; the default check without `--no-refresh` can refresh OAuth and is outside local-only authority.
 
 The private campaign proposal, outside this repository, lists exact candidates and payloads. Installed model IDs are not proof of independent lineage: all current candidates belong to the OpenAI GPT-5 family. Distinct labels, efforts and sessions do not resolve the campaign's independent-role requirement.
 
