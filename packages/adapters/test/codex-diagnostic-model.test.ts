@@ -1,0 +1,10 @@
+import { expect,it } from 'vitest';
+import { readFileSync,mkdtempSync,writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { loadCodexDiagnosticModel,validateCodexDiagnosticModel } from '../src/codex-diagnostic-model.js';
+const bytes=readFileSync(new URL('./fixtures/codex-astra-definition.json',import.meta.url)),definition=()=>JSON.parse(bytes.toString());
+it('loads exact public-field snapshot of installed dynamic catalogue, not static fallback',()=>{const path=new URL('./fixtures/codex-astra-definition.json',import.meta.url).pathname;expect(loadCodexDiagnosticModel({path,sha256:createHash('sha256').update(bytes).digest('hex')})).toEqual(definition());expect(definition().thinkingLevelMap.low).toBe('low');});
+it.each(['id','provider','api','baseUrl','headers','map','compat','cost'])('rejects definition %s mismatch without request effects',change=>{const m=definition();if(change==='id')m.id='invented';if(change==='provider')m.provider='openai';if(change==='api')m.api='openai-responses';if(change==='baseUrl')m.baseUrl+='?token=fixture';if(change==='headers')m.headers={authorization:'fixture'};if(change==='map')m.thinkingLevelMap.low='medium';if(change==='compat')m.compat.unknownSetting=true;if(change==='cost')m.cost.input='arbitrary';expect(()=>validateCodexDiagnosticModel(m)).toThrow();});
+it.each(['hash','oversize','nonjson'])('fails closed on %s source',change=>{const path=join(mkdtempSync(join(tmpdir(),'codex-definition-')),'model.json');const b=change==='oversize'?Buffer.alloc(8193):change==='nonjson'?Buffer.from('not json'):bytes;writeFileSync(path,b);expect(()=>loadCodexDiagnosticModel({path,sha256:change==='hash'?'0'.repeat(64):createHash('sha256').update(b).digest('hex')})).toThrow();});

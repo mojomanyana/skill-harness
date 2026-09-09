@@ -28,6 +28,7 @@ export function loadLaunch(path,mode,approvalPath){
  for(const f of CODEX_RUNTIME_FILES)if(c.runtime.fingerprints[f]!==config.pins['/sdk/'+f])throw Error('SDK charter mismatch');
  if(productPlan&&codexCharterHash(productPlan.input.base)!==codexCharterHash(c))throw Error('product base charter mismatch');
  if(config.profile==='subscription-live')requireResolverFile();
+ if(c.diagnosticModel&&(!single||config.pins[c.diagnosticModel.path]!==c.diagnosticModel.sha256||!config.pins['/harness/packages/adapters/dist/codex-diagnostic-model.js']))throw Error('explicit diagnostic definition source pin required');
  if(single)assertCodexSingleRequestPlan(c);
  const validate=single?validateCodexSingleRequestCharter:validateCodexCharter;
  const approvedCalls=single?1:productPlan?.maxCalls??5;

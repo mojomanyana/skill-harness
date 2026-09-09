@@ -1,3 +1,4 @@
+import { loadCodexDiagnosticModel, type CodexDiagnosticModelPin } from './codex-diagnostic-model.js';
 import { existsSync, realpathSync } from 'node:fs';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { collapseVotePanel } from '@skill-harness/core';
@@ -27,6 +28,7 @@ export interface CodexCharter {
  runtime:{sdkRoot:string;oauthFile:string;fingerprints:Record<string,string>};
  limits:{calls:number;requestBytes:number;responseBytes:number;totalRequestBytes:number;totalResponseBytes:number;callMs:number;wallMs:number};
  invocations:LocalCodexInvocation[];
+ diagnosticModel?:CodexDiagnosticModelPin;
 }
 /** A trusted-host approval input, not a signature or a user-consent detector.
  * Neither a subject frame nor the charter itself can supply this separate input. */
@@ -40,8 +42,9 @@ export interface CodexHttpPort {
 export interface CodexExecutionPorts {bindings:Record<string,CodexSdkBinding>;credentials:CodexCredentialPort;transport:CodexHttpPort}
 const closed=(x:object,keys:string[])=>{if(!x||Object.keys(x).sort().join()!==keys.sort().join())throw Error('invalid execution charter');};
 export const codexCharterHash=(charter:CodexCharter)=>learningHash(charter);
-export function validateCodexCharter(raw:CodexCharter, approval:CodexApproval|undefined) {
- const c=learningCopy(raw);closed(c,['version','provider','destination','rolePolicy','identityEvidence','hostEvidence','accountId','serverOutputTokenCap','runtime','limits','invocations']);
+export function validateCodexCharter(raw:CodexCharter, approval:CodexApproval|undefined) {return validateCharter(raw,approval);}
+function validateCharter(raw:CodexCharter, approval:CodexApproval|undefined,single=false) {
+ const c=learningCopy(raw);closed(c,['version','provider','destination','rolePolicy','identityEvidence','hostEvidence','accountId','serverOutputTokenCap','runtime','limits','invocations',...(single&&c.diagnosticModel?['diagnosticModel']:[])]);
  if(c.version!=='codex-synthetic-charter-v1'||c.provider!=='openai-codex'||c.destination!==SUBSCRIPTION_ENDPOINT||c.serverOutputTokenCap!==null)throw Error('unsupported execution charter route/server guarantee');
  closed(c.runtime,['sdkRoot','oauthFile','fingerprints']);if(!isAbsolute(c.runtime.sdkRoot)||!isAbsolute(c.runtime.oauthFile)||!c.runtime.fingerprints||!Object.values(c.runtime.fingerprints).every(h=>/^[a-f0-9]{64}$/.test(h)))throw Error('unbound host runtime');
  const l=c.limits;closed(l,['calls','requestBytes','responseBytes','totalRequestBytes','totalResponseBytes','callMs','wallMs']);
@@ -90,13 +93,14 @@ export async function executeProducerCodexQualification(path:string,raw:CodexCha
 }
 export interface CodexSingleRequestApproval extends Omit<CodexApproval,'scope'> {scope:'fixture-single-request'|'subscription-single-request';approvedCalls:1}
 export function assertCodexSingleRequestPlan(c:CodexCharter){
- const i=c.invocations[0];if(!i||i.role!=='proposer'||i.model!=='gpt-5.4'||i.effort!=='low'||i.instructions!=='Return only the integer answer.'||i.input!=='Return only the integer: 2 + 2.'||i.expectedSha256!=='4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a'||i.subjectId!==null)throw Error('fixed single request plan required');
+ const model=c.diagnosticModel?loadCodexDiagnosticModel(c.diagnosticModel).id:'gpt-5.4';
+ const i=c.invocations[0];if(!i||i.role!=='proposer'||i.model!==model||i.effort!=='low'||i.instructions!=='Return only the integer answer.'||i.input!=='Return only the integer: 2 + 2.'||i.expectedSha256!=='4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a'||i.subjectId!==null)throw Error('fixed single request plan required');
 }
 function checkedSingleRequest(raw:CodexCharter,a:CodexSingleRequestApproval|undefined){
  if(!a)throw Error('missing single request approval');closed(a,['scope','approvedCalls','charterSha256','approvalId','expiresAt','journalPath']);
  if(!['fixture-single-request','subscription-single-request'].includes(a.scope)||a.approvedCalls!==1)throw Error('single request approval mismatch');
  const {approvedCalls:_,scope,...rest}=learningCopy(a);const approval:CodexApproval={...rest,scope:scope==='fixture-single-request'?'fixture':'subscription-live'};
- const c=validateCodexCharter(raw,approval);assertCodexSingleRequestPlan(c);return {c,approval};
+ const c=validateCharter(raw,approval,true);assertCodexSingleRequestPlan(c);return {c,approval};
 }
 export function validateCodexSingleRequestCharter(raw:CodexCharter,a:CodexSingleRequestApproval|undefined){return checkedSingleRequest(raw,a).c;}
 /** Separate one-call authority; five charged original permits are never five callable roles. */
@@ -105,7 +109,8 @@ export async function executeProducerCodexSingleRequest(path:string,raw:CodexCha
 }
 async function executeQualification(path:string,raw:CodexCharter,rawApproval:CodexApproval|undefined,ports:CodexExecutionPorts,source?:CodexQualificationSource,single=false) {
  const approval=rawApproval?learningCopy(rawApproval):undefined;
- const c=validateCodexCharter(raw,approval),mode=approval!.scope,hash=codexCharterHash(c);
+ const c=validateCharter(raw,approval,single),mode=approval!.scope,hash=codexCharterHash(c);
+ if(c.diagnosticModel){assertCodexSingleRequestPlan(c);if(learningHash(ports.bindings[c.invocations[0].model]?.model)!==learningHash(loadCodexDiagnosticModel(c.diagnosticModel)))throw Error('frozen diagnostic SDK definition mismatch');}
  if(!isAbsolute(path)||resolve(path)!==path||realpathSync(dirname(path))!==dirname(path)||approval!.journalPath!==path)throw Error('execution approval owner-path mismatch');
  if(ports.credentials.kind!==(mode==='fixture'?'fixture-oauth':'oauth-snapshot')||ports.transport.kind!==(mode==='fixture'?'fixture-http':'subscription-http'))throw Error('fixture/production port mismatch');
  for(const i of c.invocations){const b=ports.bindings[i.model];if(!b||typeof b.stream!=='function'||b.model.id!==i.model||b.model.provider!=='openai-codex'||b.model.api!=='openai-codex-responses'||b.model.baseUrl!=='https://chatgpt.com/backend-api'||b.model.headers&&Object.keys(b.model.headers as object).length)throw Error('unresolved SDK binding');}

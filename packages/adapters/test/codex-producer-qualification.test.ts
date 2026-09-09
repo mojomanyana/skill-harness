@@ -1,5 +1,6 @@
 import { it, expect } from 'vitest';
-import { mkdtempSync } from 'node:fs';
+import { loadCodexDiagnosticModel } from '../src/codex-diagnostic-model.js';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
@@ -8,8 +9,8 @@ import { executeProducerCodexQualification, executeProducerCodexSingleRequest, e
 import { learningJournal } from '../src/learning-journal.js';
 const sha=(v:string)=>createHash('sha256').update(v).digest('hex');
 const deferred=()=>{let resolve!:()=>void;return {promise:new Promise<void>(r=>resolve=r),resolve:()=>resolve()};};
-function world(scenario='normal') {
- const path=join(mkdtempSync(join(tmpdir(),'codex-five-')),'owner'),ids=['proposer','subject','first','second','tie'],models=['gpt-5.4','gpt-5.6-sol','gpt-5.5','gpt-5.3-codex-spark','gpt-5.4-mini'];
+function world(scenario='normal',proposer='gpt-5.4') {
+ const path=join(mkdtempSync(join(tmpdir(),'codex-five-')),'owner'),ids=['proposer','subject','first','second','tie'],models=[proposer,'gpt-5.6-sol','gpt-5.5','gpt-5.3-codex-spark','gpt-5.4-mini'];
  const c:any={version:'codex-synthetic-charter-v1',provider:'openai-codex',destination:'https://chatgpt.com/backend-api/codex/responses',rolePolicy:models.map((model,k)=>({model,role:k===0?'proposer':k===1?'subject':'judge',canonical:'fixture-'+k,lineage:'shared-fixture'})),identityEvidence:{kind:'fixture',reference:'inert'},hostEvidence:{kind:'fixture',reference:'inert'},accountId:'fixture-account',serverOutputTokenCap:null,runtime:{sdkRoot:'/fixture-sdk',oauthFile:'/fixture-auth',fingerprints:{}},limits:{calls:5,requestBytes:4096,responseBytes:16384,totalRequestBytes:20480,totalResponseBytes:81920,callMs:10000,wallMs:60000},invocations:models.map((model,k)=>({id:ids[k],model,role:k===0?'proposer':k===1?'subject':'judge',effort:'low',instructions:k<2?'Integer only':'JSON verdict only',input:k<2?'2+2':'Must equal 4',expectedSha256:sha('4'),subjectId:k<2?null:'subject'}))};
  const approval:any={scope:'fixture',charterSha256:codexCharterHash(c),approvalId:'inert-only',expiresAt:Date.now()+60000,journalPath:path};
  const caller=new AbortController(),entered=deferred(),release=deferred();let starts=0,reads=0,http=0,reserves=0,active=0;const launches:string[]=[],cancelled:number[]=[];
@@ -21,10 +22,16 @@ function world(scenario='normal') {
  const source:any={producer,owner,signal:caller.signal,bindings:ids.map((invocationId,k)=>({version:'producer-ipc-v1',budgetDigest:'b'.repeat(64),orderId:'order',experimentId:'experiment',executionId:'execution-'+k,charterSha256:approval.charterSha256,invocationId}))};
  return {path,c,approval,ports,source,caller,entered,release,run:()=>executeProducerCodexQualification(path,c,approval,ports,source),counts:()=>({starts,reads,http,reserves,active,cancelled,launches})};
 }
-function singleWorld(scenario='normal'){
- const w=world(scenario);Object.assign(w.c.invocations[0],{input:'Return only the integer: 2 + 2.',instructions:'Return only the integer answer.'});w.approval.charterSha256=codexCharterHash(w.c);for(const b of w.source.bindings)b.charterSha256=w.approval.charterSha256;
+function singleWorld(scenario='normal',proposer='gpt-5.4'){
+ const w=world(scenario,proposer);Object.assign(w.c.invocations[0],{input:'Return only the integer: 2 + 2.',instructions:'Return only the integer answer.'});w.approval.charterSha256=codexCharterHash(w.c);for(const b of w.source.bindings)b.charterSha256=w.approval.charterSha256;
  const approval:any={...w.approval,scope:'fixture-single-request',approvedCalls:1};return {...w,singleApproval:approval,single:()=>executeProducerCodexSingleRequest(w.path,w.c,approval,w.ports,w.source)};
 }
+function astraWorld(scenario='normal'){
+ const w=singleWorld(scenario,'gpt-6-astra'),path=new URL('./fixtures/codex-astra-definition.json',import.meta.url).pathname;
+ w.c.diagnosticModel={path,sha256:sha(readFileSync(path,'utf8'))};w.ports.bindings['gpt-6-astra'].model=loadCodexDiagnosticModel(w.c.diagnosticModel);w.singleApproval.charterSha256=codexCharterHash(w.c);for(const b of w.source.bindings)b.charterSha256=w.singleApproval.charterSha256;return w;
+}
+it.each(['normal','failed','unknown'])('pinned Astra %s preserves one request and original accounting',async scenario=>{const w=astraWorld(scenario);if(scenario==='normal')expect(await w.single()).toMatchObject({calls:1,httpAttempts:1,panel:null,objective:'PASS'});else await expect(w.single()).rejects.toThrow();expect(w.counts()).toMatchObject({http:1,starts:1,reserves:1,cancelled:[1,2,3,4],active:scenario==='unknown'?1:0});const rows=learningJournal(w.path).read().map(r=>r.value),request=JSON.parse(String(rows.find(r=>r.type==='host-write-completed')!.requestBody));expect(request).toMatchObject({model:'gpt-6-astra',instructions:'Return only the integer answer.',input:[{role:'user',content:[{type:'input_text',text:'Return only the integer: 2 + 2.'}]}],reasoning:{effort:'low'}});expect(rows.filter(r=>r.type==='producer-ipc-settled')).toHaveLength(scenario==='normal'?1:0);expect(rows.some(r=>r.type==='panel')).toBe(false);});
+it.each(['pin','sdk','effort','duplicate','missing-definition','full-flow'])('pinned Astra refuses %s before effects',async change=>{const w=astraWorld();if(change==='pin')w.c.diagnosticModel.sha256='0'.repeat(64);if(change==='sdk')w.ports.bindings['gpt-6-astra'].model.maxTokens++;if(change==='effort')w.c.invocations[0].effort='medium';if(change==='duplicate')w.c.rolePolicy[1].model='gpt-6-astra';if(change==='missing-definition')delete w.c.diagnosticModel;w.singleApproval.charterSha256=codexCharterHash(w.c);for(const b of w.source.bindings)b.charterSha256=w.singleApproval.charterSha256;if(change==='full-flow'){w.approval.charterSha256=codexCharterHash(w.c);await expect(w.run()).rejects.toThrow();}else await expect(w.single()).rejects.toThrow();expect(w.counts()).toMatchObject({http:0,reads:0,starts:0,reserves:0});});
 it.each(['normal','objective','failed','unknown'])('single diagnostic bounds %s to one callable claim and cancels unused four',async scenario=>{
  const w=singleWorld(scenario);if(['failed','unknown'].includes(scenario))await expect(w.single()).rejects.toThrow();else{const r:any=await w.single();expect(r).toMatchObject({diagnostic:'single-request-v1',calls:1,httpAttempts:1,objective:scenario==='objective'?'FAIL':'PASS',liveQualified:false,panel:null});}
  expect(w.counts()).toMatchObject({starts:1,http:1,reserves:1,launches:['proposer'],cancelled:[1,2,3,4]});const rows=learningJournal(w.path).read().map(r=>r.value);expect(rows[0].spec).toMatchObject({maxCalls:1,invocations:[{id:'proposer'}]});expect(rows.filter(r=>r.type==='claim')).toHaveLength(1);expect(rows.some(r=>r.type==='panel')).toBe(false);expect(w.counts().active).toBe(scenario==='unknown'?1:0);expect(rows.filter(r=>r.type==='producer-ipc-settled')).toHaveLength(['normal','objective'].includes(scenario)?1:0);

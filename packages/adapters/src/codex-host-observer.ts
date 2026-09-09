@@ -9,7 +9,7 @@ import { inertCodexSdkStreams, boundCodexSdkStreams, type CodexSdkBinding, type 
  * Stream finish proves a host-side write, NOT provider receipt, backend identity or token limits.
  * Journal integrity assumes a trusted cooperative host/filesystem, not hostile same-UID rollback. */
 export const CODEX_SUBSCRIPTION_DESTINATION = 'https://chatgpt.com/backend-api/codex/responses';
-const MODELS = ['gpt-5.3-codex-spark','gpt-5.4','gpt-5.4-mini','gpt-5.5','gpt-5.6-luna','gpt-5.6-sol','gpt-5.6-terra'];
+const MODELS = ['gpt-5.3-codex-spark','gpt-5.4','gpt-5.4-mini','gpt-5.5','gpt-5.6-luna','gpt-5.6-sol','gpt-5.6-terra','gpt-6-astra'];
 const sha = (b:string|Buffer) => createHash('sha256').update(b).digest('hex');
 type Role = 'proposer'|'subject'|'judge';
 export interface LocalCodexInvocation { id:string; role:Role; model:string; effort:'low'|'medium'|'high'; instructions:string; input:string; expectedSha256:string; subjectId:string|null }

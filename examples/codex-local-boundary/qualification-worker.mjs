@@ -3,6 +3,7 @@ import { writeFileSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { loadLaunch } from './qualification-launch.mjs';
 import { executeProducerCodexQualification, executeProducerCodexSingleRequest, createCodexOAuthFilePort, CODEX_RUNTIME_FILES, codexCharterHash } from '../../packages/adapters/dist/codex-subscription.js';
+import { loadCodexDiagnosticModel } from '../../packages/adapters/dist/codex-diagnostic-model.js';
 import { executeProducerProduct, prepareProducerProduct } from '../../packages/adapters/dist/producer-product.js';
 import { createCodexHttpsPort } from '../../packages/adapters/dist/codex-https.js';
 async function main(){
@@ -13,7 +14,8 @@ async function main(){
  if(frame!==JSON.stringify({id:launchSha256,sequence:1})+'\n')throw Error('unbound supervisor release');controller.signal.throwIfAborted();
  if(mode==='--fixture'){globalThis.fetch=()=>{throw Error('fixture network denied');};globalThis.WebSocket=class{constructor(){throw Error('fixture WebSocket denied');}};}
  const {stream}=await import(pathToFileURL(c.runtime.sdkRoot+'/'+CODEX_RUNTIME_FILES[0]).href),catalogue=JSON.parse(readFileSync(c.runtime.sdkRoot+'/'+CODEX_RUNTIME_FILES[2]))['openai-codex-responses'];
- const bindings=Object.fromEntries(c.rolePolicy.map(i=>[i.model,{model:catalogue[i.model],stream}]));
+ const diagnostic=c.diagnosticModel?loadCodexDiagnosticModel(c.diagnosticModel):null;
+ const bindings=Object.fromEntries(c.rolePolicy.map(i=>[i.model,{model:diagnostic?.id===i.model?diagnostic:catalogue[i.model],stream}]));
  for(const i of c.invocations){const b=bindings[i.model];if(!b?.model||b.model.id!==i.model||b.model.provider!=='openai-codex'||b.model.api!=='openai-codex-responses'||b.model.baseUrl!=='https://chatgpt.com/backend-api'||b.model.headers&&Object.keys(b.model.headers).length)throw Error('unresolved SDK binding before budget creation');}
  let ports,fixture=null;
  if(mode==='--fixture'){const f=await import('./qualification-fixture-ports.mjs');const p=f.fixturePorts(c,bindings,config.product);ports=p.ports;fixture=p.counters;}
