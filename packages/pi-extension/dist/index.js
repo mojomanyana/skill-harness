@@ -8736,8 +8736,8 @@ import { dirname as dirname8, extname as extname2, join as join27, resolve as re
 
 // packages/adapters/dist/producer-product.js
 import { existsSync as existsSync23 } from "node:fs";
-import { isAbsolute as isAbsolute13 } from "node:path";
-import { createHash as createHash26 } from "node:crypto";
+import { isAbsolute as isAbsolute14 } from "node:path";
+import { createHash as createHash27 } from "node:crypto";
 
 // packages/adapters/dist/learning-journal.js
 import { constants as constants6, openSync as openSync6, closeSync as closeSync6, readSync, writeSync as writeSync2, fstatSync as fstatSync6, lstatSync as lstatSync5, fsyncSync as fsyncSync3, mkdirSync as mkdirSync8, unlinkSync as unlinkSync3 } from "node:fs";
@@ -8774,19 +8774,23 @@ var fixtureCredential = "fixture." + Buffer.from(JSON.stringify({ "https://api.o
 // packages/adapters/dist/codex-producer-ipc.js
 import { createHash as createHash22 } from "node:crypto";
 
+// packages/adapters/dist/codex-diagnostic-model.js
+import { createHash as createHash23 } from "node:crypto";
+import { isAbsolute as isAbsolute11 } from "node:path";
+
 // packages/adapters/dist/codex-subscription.js
 import { existsSync as existsSync22, realpathSync as realpathSync7 } from "node:fs";
-import { dirname as dirname10, isAbsolute as isAbsolute11, resolve as resolve15 } from "node:path";
+import { dirname as dirname10, isAbsolute as isAbsolute12, resolve as resolve15 } from "node:path";
 import { Readable } from "node:stream";
 var CODEX_RUNTIME_FILES = Object.freeze(["node_modules/@earendil-works/pi-ai/dist/api/openai-codex-responses.js", "node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js", "node_modules/@earendil-works/pi-ai/dist/providers/data/openai-codex.json", "dist/core/auth-storage.js"]);
 
 // packages/adapters/dist/weekly-investigation.js
-import { createHash as createHash25 } from "node:crypto";
-import { isAbsolute as isAbsolute12 } from "node:path";
+import { createHash as createHash26 } from "node:crypto";
+import { isAbsolute as isAbsolute13 } from "node:path";
 import { constants as constants10, openSync as openSync10, fstatSync as fstatSync10, writeSync as writeSync5, fsyncSync as fsyncSync7, closeSync as closeSync10, realpathSync as realpathSync8 } from "node:fs";
 
 // packages/adapters/dist/archive-read-capability.js
-import { createHash as createHash23 } from "node:crypto";
+import { createHash as createHash24 } from "node:crypto";
 import { performance as performance2 } from "node:perf_hooks";
 
 // packages/adapters/dist/work-case-review.js
@@ -8795,7 +8799,7 @@ import { randomUUID as randomUUID3 } from "node:crypto";
 import { join as join33 } from "node:path";
 
 // packages/adapters/dist/work-candidates.js
-import { createHash as createHash24 } from "node:crypto";
+import { createHash as createHash25 } from "node:crypto";
 
 // packages/adapters/dist/work-signal-observation.js
 var LIMIT3 = 1024 * 1024;
@@ -8877,7 +8881,7 @@ function runPiJson(opts) {
 }
 
 // packages/adapters/dist/trajectory.js
-import { createHash as createHash27 } from "node:crypto";
+import { createHash as createHash28 } from "node:crypto";
 import { readFileSync as readFileSync25, readdirSync as readdirSync16 } from "node:fs";
 import { join as join34 } from "node:path";
 
@@ -12043,7 +12047,7 @@ function validatePrincipalIntegrity(records) {
     }
     const copy = { ...record };
     delete copy.event_digest;
-    const expected = createHash27("sha256").update(canonicalJson(copy)).digest("hex");
+    const expected = createHash28("sha256").update(canonicalJson(copy)).digest("hex");
     if (record.event_digest !== expected)
       throw new Error(`principal assurance integrity failure at line ${line}: event digest mismatch`);
     if (!validTime(typeof record.at === "string" ? record.at : void 0))
@@ -12099,7 +12103,7 @@ function sanitizeAttributes(value) {
     if (sensitiveKey.test(key))
       return "[REDACTED]";
     if (typeof current === "string" && freeTextKey.test(key)) {
-      return `[REDACTED sha256:${createHash27("sha256").update(current).digest("hex")}]`;
+      return `[REDACTED sha256:${createHash28("sha256").update(current).digest("hex")}]`;
     }
     if (Array.isArray(current))
       return current.map((entry) => walk2(entry));
@@ -12169,9 +12173,9 @@ function walkFiles(root, relative7 = "") {
 }
 
 // packages/adapters/dist/prompt-provenance.js
-import { createHash as createHash28, createHmac, timingSafeEqual } from "node:crypto";
+import { createHash as createHash29, createHmac, timingSafeEqual } from "node:crypto";
 function sha2(bytes) {
-  return createHash28("sha256").update(bytes, "utf8").digest("hex");
+  return createHash29("sha256").update(bytes, "utf8").digest("hex");
 }
 function normalizePromptPayload(value, rule) {
   if (rule !== PROMPT_NORMALIZATION_RULE)
@@ -12635,13 +12639,13 @@ ${r.stderr.trim()}
 };
 
 // packages/adapters/dist/archive-checkpoint.js
-import { createHash as createHash29 } from "node:crypto";
+import { createHash as createHash30 } from "node:crypto";
 var LIMIT4 = 8 * 1024 * 1024;
 
 // packages/adapters/dist/archive-policy.js
 import { closeSync as closeSync11, constants as constants12, fstatSync as fstatSync11, lstatSync as lstatSync9, openSync as openSync11, readSync as readSync5 } from "node:fs";
-import { createHash as createHash33 } from "node:crypto";
-import { dirname as dirname12, isAbsolute as isAbsolute15, join as join37, parse as parse3, resolve as resolve17, sep as sep6 } from "node:path";
+import { createHash as createHash34 } from "node:crypto";
+import { dirname as dirname12, isAbsolute as isAbsolute16, join as join37, parse as parse3, resolve as resolve17, sep as sep6 } from "node:path";
 
 // packages/adapters/dist/archive-retention-policy.js
 import { dirname as dirname11, join as join36 } from "node:path";
@@ -12650,7 +12654,7 @@ import { dirname as dirname11, join as join36 } from "node:path";
 import { Compile } from "typebox/compile";
 
 // packages/adapters/dist/generated/retention-v2-json.js
-import { createHash as createHash30 } from "node:crypto";
+import { createHash as createHash31 } from "node:crypto";
 var WORK_EVENT_BYTES = 64 * 1024;
 var WORK_TEXT_BYTES = 16 * 1024 * 1024;
 
@@ -12745,13 +12749,13 @@ function freeze2(value) {
 }
 
 // packages/adapters/dist/execution-retention-archive.js
-import { createHash as createHash32 } from "node:crypto";
+import { createHash as createHash33 } from "node:crypto";
 
 // packages/adapters/dist/generated/retention-v2-native.js
 import { constants as constants11 } from "node:fs";
 import { open, lstat, realpath } from "node:fs/promises";
-import { isAbsolute as isAbsolute14, relative as relative5, sep as sep5 } from "node:path";
-import { createHash as createHash31 } from "node:crypto";
+import { isAbsolute as isAbsolute15, relative as relative5, sep as sep5 } from "node:path";
+import { createHash as createHash32 } from "node:crypto";
 var MAX_NATIVE_SESSION_BYTES = 1024 * 1024;
 
 // packages/adapters/dist/execution-projection-schema.js
@@ -12803,7 +12807,7 @@ var compiled = Compile2(EXECUTION_ARCHIVE_PROJECTION_SCHEMA);
 import { isDate } from "node:util/types";
 
 // packages/adapters/dist/generated/work-v4/json.js
-import { createHash as createHash34 } from "node:crypto";
+import { createHash as createHash35 } from "node:crypto";
 var WORK_EVENT_BYTES2 = 64 * 1024;
 var WORK_TEXT_BYTES2 = 16 * 1024 * 1024;
 
@@ -12814,19 +12818,19 @@ import { randomUUID as randomUUID4 } from "node:crypto";
 import { randomUUID as randomUUID5 } from "node:crypto";
 
 // packages/adapters/dist/principal-payload-port.js
-import { createHash as createHash35 } from "node:crypto";
-import { isAbsolute as isAbsolute16 } from "node:path";
+import { createHash as createHash36 } from "node:crypto";
+import { isAbsolute as isAbsolute17 } from "node:path";
 
 // packages/adapters/dist/reviewed-archive-export.js
 import { constants as constants13, openSync as openSync12, closeSync as closeSync12, writeSync as writeSync6, fsyncSync as fsyncSync8, realpathSync as realpathSync9, lstatSync as lstatSync10 } from "node:fs";
-import { dirname as dirname13, isAbsolute as isAbsolute17, resolve as resolve18 } from "node:path";
-import { createHash as createHash36 } from "node:crypto";
-
-// packages/adapters/dist/archive-facts.js
+import { dirname as dirname13, isAbsolute as isAbsolute18, resolve as resolve18 } from "node:path";
 import { createHash as createHash37 } from "node:crypto";
 
+// packages/adapters/dist/archive-facts.js
+import { createHash as createHash38 } from "node:crypto";
+
 // packages/adapters/dist/trust-lifecycle.js
-import { isAbsolute as isAbsolute18 } from "node:path";
+import { isAbsolute as isAbsolute19 } from "node:path";
 
 // packages/adapters/dist/index.js
 var ADAPTERS = {
@@ -13221,7 +13225,7 @@ async function runViaExtension(opts) {
 // packages/pi-extension/src/capture-cmd.ts
 import { existsSync as existsSync27, mkdirSync as mkdirSync13, writeFileSync as writeFileSync12, readdirSync as readdirSync17, readFileSync as readFileSync28 } from "node:fs";
 import { join as join40 } from "node:path";
-import { createHash as createHash38 } from "node:crypto";
+import { createHash as createHash39 } from "node:crypto";
 var CANCELLED = { status: "cancelled", files: [] };
 var CAPTURES_GITIGNORE = "# Local review evidence for captured cases \u2014 never commit.\n.local/\n";
 async function runCapture(skillDir, ctx) {
@@ -13359,7 +13363,7 @@ async function chooseTarget(skillDir, ctx) {
   return {
     kind: chosen.kind,
     path: chosen.path,
-    content_sha256: createHash38("sha256").update(readFileSync28(chosen.abs, "utf8"), "utf8").digest("hex")
+    content_sha256: createHash39("sha256").update(readFileSync28(chosen.abs, "utf8"), "utf8").digest("hex")
   };
 }
 function suggestScenarioId(specPath, fallback) {
