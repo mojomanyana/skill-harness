@@ -7,8 +7,15 @@ import { existsSync as existsSync26 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
 import { dirname as dirname15, join as join41, resolve as resolve19, relative as relative6 } from "node:path";
 
+// packages/core/dist/trusted-host-supervision.js
+import { readFileSync as readFileSync2 } from "node:fs";
+
+// packages/core/dist/qualification-process.js
+import { readFileSync, readdirSync } from "node:fs";
+import { setTimeout as sleep } from "node:timers/promises";
+
 // packages/core/dist/spec.js
-import { readFileSync } from "node:fs";
+import { readFileSync as readFileSync3 } from "node:fs";
 
 // node_modules/js-yaml/dist/js-yaml.mjs
 function getDefaultExportFromCjs(x) {
@@ -4341,7 +4348,7 @@ function parseSpec(text3, file) {
 function loadSpec(file) {
   let text3;
   try {
-    text3 = readFileSync(file, "utf8");
+    text3 = readFileSync3(file, "utf8");
   } catch (e) {
     throw new SpecError(`cannot read spec file \u2014 ${e.message}`, file);
   }
@@ -4349,16 +4356,16 @@ function loadSpec(file) {
 }
 
 // packages/core/dist/discover.js
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync as readdirSync2, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 // packages/core/dist/run.js
-import { mkdirSync as mkdirSync4, writeFileSync as writeFileSync3, readFileSync as readFileSync9 } from "node:fs";
+import { mkdirSync as mkdirSync4, writeFileSync as writeFileSync3, readFileSync as readFileSync11 } from "node:fs";
 import { dirname, join as join14, resolve as resolve6 } from "node:path";
 
 // packages/core/dist/sources.js
 import { createHash as createHash3 } from "node:crypto";
-import { readFileSync as readFileSync2, readdirSync as readdirSync2 } from "node:fs";
+import { readFileSync as readFileSync4, readdirSync as readdirSync3 } from "node:fs";
 import { isAbsolute, join as join2, resolve as resolve2 } from "node:path";
 
 // packages/core/dist/prompt-normalization.js
@@ -4387,7 +4394,7 @@ var PERSONA_KEY = `${RUBRIC_PREFIX}__persona`;
 var UNREADABLE = "unreadable";
 function fileSha256(path) {
   try {
-    return createHash3("sha256").update(readFileSync2(path)).digest("hex");
+    return createHash3("sha256").update(readFileSync4(path)).digest("hex");
   } catch {
     return null;
   }
@@ -4404,7 +4411,7 @@ function dirSha256(dir) {
     h.update(rel);
     h.update("\0");
     try {
-      h.update(readFileSync2(join2(dir, rel)));
+      h.update(readFileSync4(join2(dir, rel)));
     } catch {
       return null;
     }
@@ -4414,7 +4421,7 @@ function dirSha256(dir) {
 }
 function walk(dir, prefix = "") {
   const out = [];
-  for (const e of readdirSync2(dir, { withFileTypes: true })) {
+  for (const e of readdirSync3(dir, { withFileTypes: true })) {
     const rel = prefix ? `${prefix}/${e.name}` : e.name;
     if (e.isDirectory()) {
       out.push(...walk(join2(dir, e.name), rel));
@@ -4598,7 +4605,7 @@ function promptDocDigest(text3) {
 }
 function promptDocDigestOfFile(path) {
   try {
-    return promptDocDigest(readFileSync2(path, "utf8"));
+    return promptDocDigest(readFileSync4(path, "utf8"));
   } catch {
     return null;
   }
@@ -4636,7 +4643,7 @@ function scenarioSourceKeys(s) {
 }
 
 // packages/core/dist/workspace.js
-import { appendFileSync, cpSync, existsSync as existsSync2, mkdtempSync, readFileSync as readFileSync3, readdirSync as readdirSync3, rmSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync as existsSync2, mkdtempSync, readFileSync as readFileSync5, readdirSync as readdirSync4, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { createHash as createHash4 } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -4646,7 +4653,7 @@ var UNCOMMITTED_DIR = "_uncommitted";
 var STAGED_DIR = "_staged";
 var MARKERS = [STAGED_DIR, UNCOMMITTED_DIR];
 function unknownMarkerDirs(src) {
-  return readdirSync3(src, { withFileTypes: true }).filter((e) => e.isDirectory() && /^_[A-Za-z]/.test(e.name) && !MARKERS.includes(e.name)).map((e) => e.name).sort();
+  return readdirSync4(src, { withFileTypes: true }).filter((e) => e.isDirectory() && /^_[A-Za-z]/.test(e.name) && !MARKERS.includes(e.name)).map((e) => e.name).sort();
 }
 function assertKnownMarkers(src) {
   const suspects = unknownMarkerDirs(src);
@@ -4657,7 +4664,7 @@ function assertKnownMarkers(src) {
 var TOOL_ARTIFACTS = ["node_modules/", "coverage/", ".vitest/", ".pi/skills/"];
 function excludeToolArtifacts(cwd) {
   const excludeFile = join3(cwd, ".git", "info", "exclude");
-  const existing = existsSync2(excludeFile) ? readFileSync3(excludeFile, "utf8") : "";
+  const existing = existsSync2(excludeFile) ? readFileSync5(excludeFile, "utf8") : "";
   const nl = existing.length > 0 && !existing.endsWith("\n") ? "\n" : "";
   appendFileSync(excludeFile, `${nl}# skill-harness: tool output, never the model's work
 ${TOOL_ARTIFACTS.join("\n")}
@@ -4727,7 +4734,7 @@ function snapshotPaths(cwd, kind) {
   const walk2 = (dir, prefix) => {
     let entries;
     try {
-      entries = readdirSync3(dir, { withFileTypes: true });
+      entries = readdirSync4(dir, { withFileTypes: true });
     } catch {
       return;
     }
@@ -4742,7 +4749,7 @@ function snapshotPaths(cwd, kind) {
         walk2(abs, rel);
       } else if (e.isFile()) {
         try {
-          out.set(rel, createHash4("sha256").update(readFileSync3(abs)).digest("hex"));
+          out.set(rel, createHash4("sha256").update(readFileSync5(abs)).digest("hex"));
         } catch {
           out.set(rel, "<unreadable>");
         }
@@ -4766,7 +4773,7 @@ function diffSnapshots(before, after) {
 }
 
 // packages/core/dist/results.js
-import { mkdirSync, readFileSync as readFileSync4, writeFileSync, existsSync as existsSync3, readdirSync as readdirSync4, appendFileSync as appendFileSync2 } from "node:fs";
+import { mkdirSync, readFileSync as readFileSync6, writeFileSync, existsSync as existsSync3, readdirSync as readdirSync5, appendFileSync as appendFileSync2 } from "node:fs";
 import { join as join4, relative, sep } from "node:path";
 
 // packages/core/dist/adapters/types.js
@@ -5041,7 +5048,7 @@ function migrateResults(raw) {
   };
 }
 function readResults(runDir) {
-  const text3 = readFileSync4(resultsPath(runDir), "utf8");
+  const text3 = readFileSync6(resultsPath(runDir), "utf8");
   return migrateResults(yaml.load(text3));
 }
 var CRITERION_RE = /^\s*(\d+)[.)]\s*\**\s*(PASS|FAIL)\b\**\s*(.*)$/gim;
@@ -5251,7 +5258,7 @@ report.html
 function ensureResultsGitignore(resultsRoot) {
   mkdirSync(resultsRoot, { recursive: true });
   const giPath = join4(resultsRoot, ".gitignore");
-  const existing = existsSync3(giPath) ? readFileSync4(giPath, "utf8") : "";
+  const existing = existsSync3(giPath) ? readFileSync6(giPath, "utf8") : "";
   if (existing.startsWith(GITIGNORE_BODY))
     return;
   const preserved = existing.split("\n").filter((l) => l.startsWith("!") && l.trim() !== "!results.yaml");
@@ -5280,7 +5287,7 @@ function findTranscriptFiles(runDir, scenarioId, mode) {
     return [];
   const escapedId = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const matcher = mode !== void 0 ? new RegExp(`^${escapedId}\\.${mode}(\\.rep\\d+)?\\.txt$`) : null;
-  const files = readdirSync4(runDir).filter((f) => matcher ? matcher.test(f) : f.startsWith(`${scenarioId}.`) && f.endsWith(".txt") && !f.endsWith(".judge.txt") && !f.endsWith(".diff.txt"));
+  const files = readdirSync5(runDir).filter((f) => matcher ? matcher.test(f) : f.startsWith(`${scenarioId}.`) && f.endsWith(".txt") && !f.endsWith(".judge.txt") && !f.endsWith(".diff.txt"));
   return sortByRep(files);
 }
 function judgeRawPath(runDir, scenarioId, mode, rep) {
@@ -5292,7 +5299,7 @@ function findJudgeRawFiles(runDir, scenarioId, mode) {
     return [];
   const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.judge\\d*\\.txt$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.judge\\d*\\.txt$`);
-  return sortByRep(readdirSync4(runDir).filter((f) => re.test(f)));
+  return sortByRep(readdirSync5(runDir).filter((f) => re.test(f)));
 }
 function diffPath(runDir, scenarioId, mode, rep) {
   const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
@@ -5354,21 +5361,21 @@ function findTrajectoryFiles(runDir, scenarioId, mode) {
     return [];
   const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.events\\.jsonl$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.events\\.jsonl$`);
-  return sortByRep(readdirSync4(runDir).filter((f) => re.test(f)));
+  return sortByRep(readdirSync5(runDir).filter((f) => re.test(f)));
 }
 function findDiffFiles(runDir, scenarioId, mode) {
   if (!existsSync3(runDir))
     return [];
   const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.diff\\.txt$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.diff\\.txt$`);
-  return sortByRep(readdirSync4(runDir).filter((f) => re.test(f)));
+  return sortByRep(readdirSync5(runDir).filter((f) => re.test(f)));
 }
 function findTraceFiles(runDir, scenarioId, mode) {
   if (!existsSync3(runDir))
     return [];
   const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.trace\\.jsonl$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.trace\\.jsonl$`);
-  return sortByRep(readdirSync4(runDir).filter((f) => re.test(f)));
+  return sortByRep(readdirSync5(runDir).filter((f) => re.test(f)));
 }
 function preserveTranscript(resultsRoot, runDir, scenarioId) {
   const files = [
@@ -5386,7 +5393,7 @@ function preserveTranscript(resultsRoot, runDir, scenarioId) {
     return;
   ensureResultsGitignore(resultsRoot);
   const giPath = join4(resultsRoot, ".gitignore");
-  const existingLines = readFileSync4(giPath, "utf8").split("\n");
+  const existingLines = readFileSync6(giPath, "utf8").split("\n");
   const newLines = [];
   for (const file of files) {
     const rel = relative(resultsRoot, join4(runDir, file)).split(sep).join("/");
@@ -5488,7 +5495,7 @@ async function judgeInWorkspace(adapter, judge, prompt, specDir) {
 }
 
 // packages/core/dist/arms.js
-import { copyFileSync, existsSync as existsSync4, mkdirSync as mkdirSync2, readdirSync as readdirSync5, readFileSync as readFileSync5, realpathSync, statSync as statSync2 } from "node:fs";
+import { copyFileSync, existsSync as existsSync4, mkdirSync as mkdirSync2, readdirSync as readdirSync6, readFileSync as readFileSync7, realpathSync, statSync as statSync2 } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute as isAbsolute3, join as join5, resolve as resolve4, sep as sep2 } from "node:path";
 var NONE_ARM = { name: "none", extensions: [], seedSkills: [], requireDefinitions: 0, env: {} };
@@ -5508,7 +5515,7 @@ function seedArmDefinitions(arm, skillsRoot, workspaceCwd, opts = {}) {
   const ambient = opts.ambientSkillsDir ?? defaultAmbientSkillsDir();
   let ambientEntries = [];
   try {
-    ambientEntries = readdirSync5(ambient);
+    ambientEntries = readdirSync6(ambient);
   } catch (err) {
     if (err.code === "ENOENT") {
       ambientEntries = [];
@@ -5536,7 +5543,7 @@ function seedArmDefinitions(arm, skillsRoot, workspaceCwd, opts = {}) {
     }
     let names;
     try {
-      names = readdirSync5(src);
+      names = readdirSync6(src);
     } catch {
       throw new Error(`arm \`${arm.name}\`: seed_skills names ${src}, which cannot be read \u2014 pi would start with nothing to spawn`);
     }
@@ -5567,7 +5574,7 @@ function seedArmDefinitions(arm, skillsRoot, workspaceCwd, opts = {}) {
 }
 
 // packages/core/dist/journal.js
-import { appendFileSync as appendFileSync3, existsSync as existsSync5, mkdirSync as mkdirSync3, readFileSync as readFileSync6 } from "node:fs";
+import { appendFileSync as appendFileSync3, existsSync as existsSync5, mkdirSync as mkdirSync3, readFileSync as readFileSync8 } from "node:fs";
 import { join as join6 } from "node:path";
 function journalPath(runDir) {
   return join6(runDir, "journal.jsonl");
@@ -5578,7 +5585,7 @@ function appendJournal(runDir, e) {
 }
 
 // packages/core/dist/lift.js
-import { existsSync as existsSync6, readdirSync as readdirSync6, statSync as statSync3 } from "node:fs";
+import { existsSync as existsSync6, readdirSync as readdirSync7, statSync as statSync3 } from "node:fs";
 import { join as join7 } from "node:path";
 function aggregationShape(s) {
   const reps2 = s.reps ?? 1;
@@ -5737,9 +5744,9 @@ function collectLift(skillDir) {
     return [];
   const modeInsensitive = modeInsensitiveIds(skillDir);
   const lifts = [];
-  for (const tag of readdirSync6(resultsRoot).filter((n) => isDir(join7(resultsRoot, n))).sort()) {
+  for (const tag of readdirSync7(resultsRoot).filter((n) => isDir(join7(resultsRoot, n))).sort()) {
     const tagDir = join7(resultsRoot, tag);
-    const runDirs = readdirSync6(tagDir).map((n) => join7(tagDir, n)).filter((p) => isDir(p) && existsSync6(join7(p, "results.yaml"))).sort();
+    const runDirs = readdirSync7(tagDir).map((n) => join7(tagDir, n)).filter((p) => isDir(p) && existsSync6(join7(p, "results.yaml"))).sort();
     let red;
     let skillOn;
     for (const rd of runDirs) {
@@ -6686,7 +6693,7 @@ function aggregateMetrics(outcomes) {
 }
 
 // packages/core/dist/regrade.js
-import { readFileSync as readFileSync7, writeFileSync as writeFileSync2, existsSync as existsSync8 } from "node:fs";
+import { readFileSync as readFileSync9, writeFileSync as writeFileSync2, existsSync as existsSync8 } from "node:fs";
 import { join as join10 } from "node:path";
 
 // packages/core/dist/provider-failure.js
@@ -6794,7 +6801,7 @@ async function regradeScenario(opts) {
   const outcomes = [];
   for (const file of files) {
     const rep = repIndexOf(file) ?? void 0;
-    const transcript = readFileSync7(join10(opts.runDir, file), "utf8");
+    const transcript = readFileSync9(join10(opts.runDir, file), "utf8");
     outcomes.push(await judgeOneRep({
       runDir: opts.runDir,
       spec: opts.spec,
@@ -6950,7 +6957,7 @@ async function regradeRun(opts) {
 }
 
 // packages/core/dist/canary.js
-import { readFileSync as readFileSync8 } from "node:fs";
+import { readFileSync as readFileSync10 } from "node:fs";
 import { join as join11 } from "node:path";
 function skillBody(text3) {
   const m = /^---\r?\n[\s\S]*?\r?\n---\r?\n/.exec(text3);
@@ -6978,7 +6985,7 @@ function assistantReply(transcript) {
   return (parts.length > 1 ? parts[parts.length - 1] : transcript).trim();
 }
 async function runDeliveryCanary(opts) {
-  const skillMd = readFileSync8(join11(opts.skillDir, "SKILL.md"), "utf8");
+  const skillMd = readFileSync10(join11(opts.skillDir, "SKILL.md"), "utf8");
   const anchor = deliveryAnchor(skillMd);
   if (!anchor) {
     return {
@@ -7015,7 +7022,7 @@ function canaryFailure(skillName, result, cliVersion) {
 import { join as join13 } from "node:path";
 
 // packages/core/dist/trends.js
-import { existsSync as existsSync9, readdirSync as readdirSync7, statSync as statSync5 } from "node:fs";
+import { existsSync as existsSync9, readdirSync as readdirSync8, statSync as statSync5 } from "node:fs";
 import { join as join12 } from "node:path";
 function isDir2(p) {
   try {
@@ -7029,10 +7036,10 @@ function collectScoredRuns(skillDir) {
   if (!existsSync9(resultsRoot))
     return [];
   const groups = [];
-  const tags = readdirSync7(resultsRoot).filter((n) => isDir2(join12(resultsRoot, n))).sort();
+  const tags = readdirSync8(resultsRoot).filter((n) => isDir2(join12(resultsRoot, n))).sort();
   for (const tag of tags) {
     const tagDir = join12(resultsRoot, tag);
-    const runDirs = readdirSync7(tagDir).map((n) => join12(tagDir, n)).filter((p) => isDir2(p) && existsSync9(join12(p, "results.yaml"))).sort();
+    const runDirs = readdirSync8(tagDir).map((n) => join12(tagDir, n)).filter((p) => isDir2(p) && existsSync9(join12(p, "results.yaml"))).sort();
     if (runDirs.length === 0)
       continue;
     const byMode = /* @__PURE__ */ new Map();
@@ -7292,7 +7299,7 @@ var LEDGER_FILENAME = "pi-daddy.ledger.jsonl";
 function countLedgerEvents(runDir) {
   let text3;
   try {
-    text3 = readFileSync9(join14(runDir, LEDGER_FILENAME), "utf8");
+    text3 = readFileSync11(join14(runDir, LEDGER_FILENAME), "utf8");
   } catch {
     return 0;
   }
@@ -7745,12 +7752,12 @@ import { existsSync as existsSync10 } from "node:fs";
 import { join as join15 } from "node:path";
 
 // packages/core/dist/report.js
-import { existsSync as existsSync11, readdirSync as readdirSync8, statSync as statSync6 } from "node:fs";
+import { existsSync as existsSync11, readdirSync as readdirSync9, statSync as statSync6 } from "node:fs";
 import { join as join16 } from "node:path";
 function latestRunDir(tagDir) {
   if (!statSync6(tagDir).isDirectory())
     return null;
-  const runs = readdirSync8(tagDir).map((n) => join16(tagDir, n)).filter((p) => statSync6(p).isDirectory() && existsSync11(join16(p, "results.yaml"))).sort();
+  const runs = readdirSync9(tagDir).map((n) => join16(tagDir, n)).filter((p) => statSync6(p).isDirectory() && existsSync11(join16(p, "results.yaml"))).sort();
   return runs.length ? runs[runs.length - 1] : null;
 }
 function collectReport(skillDir) {
@@ -7762,7 +7769,7 @@ function collectReport(skillDir) {
   const boundaryByCell = new Map(boundaryCells(collectStability(skillDir)).map((c) => [`${c.tag}\0${c.mode}\0${c.id}`, c]));
   const columns = [];
   if (existsSync11(resultsRoot)) {
-    const tags = readdirSync8(resultsRoot).map((n) => join16(resultsRoot, n)).filter((p) => statSync6(p).isDirectory()).sort();
+    const tags = readdirSync9(resultsRoot).map((n) => join16(resultsRoot, n)).filter((p) => statSync6(p).isDirectory()).sort();
     for (const tagDir of tags) {
       const runDir = latestRunDir(tagDir);
       if (!runDir)
@@ -7861,11 +7868,11 @@ function renderReport(template, data, gradeScript) {
 }
 
 // packages/core/dist/lint.js
-import { existsSync as existsSync14, statSync as statSync8, readdirSync as readdirSync10, readFileSync as readFileSync11 } from "node:fs";
+import { existsSync as existsSync14, statSync as statSync8, readdirSync as readdirSync11, readFileSync as readFileSync13 } from "node:fs";
 import { basename, dirname as dirname3, isAbsolute as isAbsolute6, join as join18, resolve as resolve8 } from "node:path";
 
 // packages/core/dist/instruction-coverage.js
-import { existsSync as existsSync12, readFileSync as readFileSync10 } from "node:fs";
+import { existsSync as existsSync12, readFileSync as readFileSync12 } from "node:fs";
 import { resolve as resolve7, dirname as dirname2, relative as relative2, isAbsolute as isAbsolute5 } from "node:path";
 var FENCE = /^\s{0,3}(`{3,}|~{3,})/;
 var ATX = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
@@ -7945,7 +7952,7 @@ function computeCoverage(opts) {
     const abs = isAbsolute5(file) ? file : resolve7(opts.specDir, file);
     if (!existsSync12(abs))
       return null;
-    const sections2 = parseSections(readFileSync10(abs, "utf8"));
+    const sections2 = parseSections(readFileSync12(abs, "utf8"));
     fileSections.set(file, sections2);
     return sections2;
   };
@@ -8059,13 +8066,13 @@ function formatCoverage(report, skill) {
 }
 
 // packages/core/dist/downgrade.js
-import { existsSync as existsSync13, readdirSync as readdirSync9, statSync as statSync7 } from "node:fs";
+import { existsSync as existsSync13, readdirSync as readdirSync10, statSync as statSync7 } from "node:fs";
 import { join as join17 } from "node:path";
 
 // packages/core/dist/restamp.js
 import { createHash as createHash7 } from "node:crypto";
 import { execFileSync as execFileSync2 } from "node:child_process";
-import { readFileSync as readFileSync12, renameSync, rmSync as rmSync2, writeFileSync as writeFileSync4 } from "node:fs";
+import { readFileSync as readFileSync14, renameSync, rmSync as rmSync2, writeFileSync as writeFileSync4 } from "node:fs";
 import { dirname as dirname4, join as join19, relative as relative3, resolve as resolve9 } from "node:path";
 
 // packages/core/dist/defaults.js
@@ -8096,7 +8103,7 @@ function assertJudgeAllowed(judge, opts) {
 }
 
 // packages/core/dist/regate.js
-import { existsSync as existsSync15, readFileSync as readFileSync13, renameSync as renameSync2, writeFileSync as writeFileSync5 } from "node:fs";
+import { existsSync as existsSync15, readFileSync as readFileSync15, renameSync as renameSync2, writeFileSync as writeFileSync5 } from "node:fs";
 import { basename as basename2, join as join20 } from "node:path";
 
 // packages/core/dist/work-capture.js
@@ -8160,11 +8167,11 @@ import { createHash as createHash10 } from "node:crypto";
 
 // packages/core/dist/investigation.js
 import { createHash as createHash12 } from "node:crypto";
-import { readFileSync as readFileSync15, realpathSync as realpathSync2 } from "node:fs";
+import { readFileSync as readFileSync17, realpathSync as realpathSync2 } from "node:fs";
 
 // packages/core/dist/spec-write.js
 import { createHash as createHash11 } from "node:crypto";
-import { readFileSync as readFileSync14, renameSync as renameSync3, unlinkSync, writeFileSync as writeFileSync6 } from "node:fs";
+import { readFileSync as readFileSync16, renameSync as renameSync3, unlinkSync, writeFileSync as writeFileSync6 } from "node:fs";
 import { dirname as dirname5, join as join21 } from "node:path";
 var ConcurrentSpecModification = class extends Error {
   constructor(specPath) {
@@ -8187,7 +8194,7 @@ function renderScenarioBlock(scenario) {
 }
 function appendScenario(opts) {
   const { specPath, scenario, baseSha256 } = opts;
-  const current = readFileSync14(specPath, "utf8");
+  const current = readFileSync16(specPath, "utf8");
   if (baseSha256 !== void 0 && specSha256(current) !== baseSha256) {
     throw new ConcurrentSpecModification(specPath);
   }
@@ -8226,7 +8233,7 @@ import { createHash as createHash13, randomBytes } from "node:crypto";
 import { createHash as createHash14 } from "node:crypto";
 
 // packages/core/dist/affected.js
-import { existsSync as existsSync16, readFileSync as readFileSync16 } from "node:fs";
+import { existsSync as existsSync16, readFileSync as readFileSync18 } from "node:fs";
 import { resolve as resolve10, dirname as dirname6, relative as relative4 } from "node:path";
 function parseDiffHunks(diff) {
   const hunks = [];
@@ -8319,7 +8326,7 @@ function selectAffected(opts) {
   const load2 = (abs) => {
     if (sectionsFor.has(abs))
       return sectionsFor.get(abs);
-    const parsed = existsSync16(abs) ? parseSections(readFileSync16(abs, "utf8")) : null;
+    const parsed = existsSync16(abs) ? parseSections(readFileSync18(abs, "utf8")) : null;
     sectionsFor.set(abs, parsed);
     return parsed;
   };
@@ -8411,7 +8418,7 @@ function describe(r) {
 }
 
 // packages/core/dist/adjudication.js
-import { existsSync as existsSync17, readFileSync as readFileSync17, writeFileSync as writeFileSync7 } from "node:fs";
+import { existsSync as existsSync17, readFileSync as readFileSync19, writeFileSync as writeFileSync7 } from "node:fs";
 import { join as join22 } from "node:path";
 function planAdjudication(input) {
   const enabled = new Set(input.enabled ?? ["ambiguous", "contradictory", "non_unanimous", "ship_deciding"]);
@@ -8592,7 +8599,7 @@ async function judgeCell(opts) {
   if (files.length === 0) {
     throw new Error(`adjudication: no ${opts.mode} transcript for \`${opts.scenario.id}\` in ${opts.runDir} \u2014 transcripts are gitignored, so this needs the run dir that produced them`);
   }
-  const transcript = readFileSync17(join22(opts.runDir, files[0]), "utf8");
+  const transcript = readFileSync19(join22(opts.runDir, files[0]), "utf8");
   const prompt = buildJudgePrompt({
     skill: opts.spec.skill,
     persona: opts.spec.judge_persona,
@@ -8640,7 +8647,7 @@ function repVerdictsOf(runDir, s, mode) {
       out.push("ERROR");
       continue;
     }
-    out.push(parseVerdict(readFileSync17(path, "utf8")).verdict);
+    out.push(parseVerdict(readFileSync19(path, "utf8")).verdict);
   }
   return out.length >= 2 ? out : void 0;
 }
@@ -8698,41 +8705,37 @@ import { join as join29 } from "node:path";
 // packages/core/dist/qualification-runner.js
 import { spawn as spawn3 } from "node:child_process";
 import { randomBytes as randomBytes3 } from "node:crypto";
-import { closeSync as closeSync5, constants as constants5, existsSync as existsSync20, fstatSync as fstatSync5, lstatSync as lstatSync4, mkdirSync as mkdirSync7, openSync as openSync5, readFileSync as readFileSync23, readdirSync as readdirSync14, realpathSync as realpathSync6, renameSync as renameSync6, rmSync as rmSync5 } from "node:fs";
+import { closeSync as closeSync5, constants as constants5, existsSync as existsSync20, fstatSync as fstatSync5, lstatSync as lstatSync4, mkdirSync as mkdirSync7, openSync as openSync5, readFileSync as readFileSync24, readdirSync as readdirSync14, realpathSync as realpathSync6, renameSync as renameSync6, rmSync as rmSync5 } from "node:fs";
 import { isAbsolute as isAbsolute9, join as join28 } from "node:path";
 import { setTimeout as sleep2 } from "node:timers/promises";
 
 // packages/core/dist/qualification-capture.js
 import { spawn as spawn2 } from "node:child_process";
-import { closeSync as closeSync2, constants as constants2, fstatSync as fstatSync2, fsyncSync, openSync as openSync2, readFileSync as readFileSync19, writeSync } from "node:fs";
+import { closeSync as closeSync2, constants as constants2, fstatSync as fstatSync2, fsyncSync, openSync as openSync2, readFileSync as readFileSync21, writeSync } from "node:fs";
 import { join as join24 } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 
 // packages/core/dist/qualification-config.js
 import { execFileSync as execFileSync3 } from "node:child_process";
 import { createHash as createHash15 } from "node:crypto";
-import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync as readFileSync18, realpathSync as realpathSync3 } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync as readFileSync20, realpathSync as realpathSync3 } from "node:fs";
 import { isAbsolute as isAbsolute7, join as join23 } from "node:path";
-
-// packages/core/dist/qualification-process.js
-import { readFileSync as readFileSync20, readdirSync as readdirSync11 } from "node:fs";
-import { setTimeout as sleep } from "node:timers/promises";
 
 // packages/core/dist/qualification-lock.js
 import { existsSync as existsSync18, mkdirSync as mkdirSync5, renameSync as renameSync4, rmSync as rmSync3 } from "node:fs";
 import { join as join25 } from "node:path";
 
 // packages/core/dist/qualification-oauth-directory.js
-import { closeSync as closeSync3, constants as constants3, fstatSync as fstatSync3, lstatSync as lstatSync2, openSync as openSync3, readFileSync as readFileSync21, readdirSync as readdirSync12, realpathSync as realpathSync4 } from "node:fs";
+import { closeSync as closeSync3, constants as constants3, fstatSync as fstatSync3, lstatSync as lstatSync2, openSync as openSync3, readFileSync as readFileSync22, readdirSync as readdirSync12, realpathSync as realpathSync4 } from "node:fs";
 import { basename as pathBasename, dirname as dirname7, isAbsolute as isAbsolute8, join as join26, resolve as resolve11 } from "node:path";
 
 // packages/core/dist/qualification-store.js
 import { randomBytes as randomBytes2 } from "node:crypto";
-import { closeSync as closeSync4, constants as constants4, existsSync as existsSync19, fsyncSync as fsyncSync2, fstatSync as fstatSync4, linkSync, lstatSync as lstatSync3, mkdirSync as mkdirSync6, openSync as openSync4, readFileSync as readFileSync22, readdirSync as readdirSync13, realpathSync as realpathSync5, renameSync as renameSync5, rmSync as rmSync4, unlinkSync as unlinkSync2, writeFileSync as writeFileSync8 } from "node:fs";
+import { closeSync as closeSync4, constants as constants4, existsSync as existsSync19, fsyncSync as fsyncSync2, fstatSync as fstatSync4, linkSync, lstatSync as lstatSync3, mkdirSync as mkdirSync6, openSync as openSync4, readFileSync as readFileSync23, readdirSync as readdirSync13, realpathSync as realpathSync5, renameSync as renameSync5, rmSync as rmSync4, unlinkSync as unlinkSync2, writeFileSync as writeFileSync8 } from "node:fs";
 import { dirname as dirname8, extname as extname2, join as join27, resolve as resolve12 } from "node:path";
 
 // packages/adapters/dist/pi.js
-import { existsSync as existsSync22, mkdtempSync as mkdtempSync2, readFileSync as readFileSync25, rmSync as rmSync6, statSync as statSync9, writeFileSync as writeFileSync9 } from "node:fs";
+import { existsSync as existsSync22, mkdtempSync as mkdtempSync2, readFileSync as readFileSync26, rmSync as rmSync6, statSync as statSync9, writeFileSync as writeFileSync9 } from "node:fs";
 import { tmpdir as tmpdir2, homedir as homedir2 } from "node:os";
 import { randomBytes as randomBytes4 } from "node:crypto";
 import { join as join31, resolve as resolve13 } from "node:path";
@@ -8806,7 +8809,7 @@ function runPiJson(opts) {
 
 // packages/adapters/dist/trajectory.js
 import { createHash as createHash16 } from "node:crypto";
-import { readFileSync as readFileSync24, readdirSync as readdirSync16 } from "node:fs";
+import { readFileSync as readFileSync25, readdirSync as readdirSync16 } from "node:fs";
 import { join as join30 } from "node:path";
 
 // packages/adapters/dist/closed-schema.js
@@ -10766,7 +10769,7 @@ function collectTrajectorySources(cwd, sources) {
       }
       seenFiles.add(sourceFile);
       try {
-        const text3 = readFileSync24(join30(cwd, file), "utf8");
+        const text3 = readFileSync25(join30(cwd, file), "utf8");
         const normalized = source.adapter === "principal-assurance-v1" ? normalizePrincipalAssuranceLedger(text3) : source.adapter === "pi-daddy-v1" ? normalizePiDaddyLegacyLedger(text3) : source.adapter === "pi-daddy-ledger-v3" ? normalizePiDaddyLedgerV3(text3) : deserializeTrajectoryEvents(text3);
         if (!normalized)
           throw new Error("normalized-v1 source is empty, malformed, or unsupported");
@@ -12231,10 +12234,10 @@ var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
 var PROMPT_CAPTURE_EXTENSION = fileURLToPath(new URL("./prompt-capture-extension.js", import.meta.url));
 function contractFor(req) {
   if (req.systemPromptFile) {
-    const raw2 = readFileSync25(req.systemPromptFile, "utf8");
+    const raw2 = readFileSync26(req.systemPromptFile, "utf8");
     return { text: raw2, raw: raw2, mechanism: "system-prompt-file" };
   }
-  const raw = readFileSync25(join31(requireSkillDir(req.skillDir, req.mode), "SKILL.md"), "utf8");
+  const raw = readFileSync26(join31(requireSkillDir(req.skillDir, req.mode), "SKILL.md"), "utf8");
   const body = splitPromptDoc(raw).body;
   if (req.mode === "red")
     return { text: body, raw, mechanism: "none" };
@@ -12260,7 +12263,7 @@ function captureSetup(req, env, contract, counter) {
   writeFileSync9(contractPath, JSON.stringify({ text: contract.text, mechanism: contract.mechanism, authentication_key: authenticationKey }), { mode: 384 });
   const finish2 = () => {
     try {
-      const lines = readFileSync25(path, "utf8").split("\n").filter(Boolean);
+      const lines = readFileSync26(path, "utf8").split("\n").filter(Boolean);
       const parsed = lines.map((line) => {
         try {
           return JSON.parse(line);
@@ -12311,7 +12314,7 @@ function skillFlags(mode, skillDir, boundRaw) {
       return ["--skill", requireSkillDir(skillDir, mode)];
     case "force": {
       requireSkillDir(skillDir, mode);
-      const body = boundRaw ?? readFileSync25(join31(resolve13(skillDir), "SKILL.md"), "utf8");
+      const body = boundRaw ?? readFileSync26(join31(resolve13(skillDir), "SKILL.md"), "utf8");
       return ["--no-skills", "--append-system-prompt", body];
     }
   }
@@ -12813,7 +12816,7 @@ function getAdapter(name) {
 
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
-import { readFileSync as readFileSync26, existsSync as existsSync23 } from "node:fs";
+import { readFileSync as readFileSync27, existsSync as existsSync23 } from "node:fs";
 import { join as join38, dirname as dirname13 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 import { spawn as spawn5 } from "node:child_process";
@@ -12847,22 +12850,22 @@ function findTranscript(runDir, id) {
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync26(join38(runDir, files[0]), "utf8");
+    return readFileSync27(join38(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync26(join38(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync27(join38(runDir, f), "utf8")}`).join("\n\n");
 }
 function findJudgeRaw(runDir, id) {
   const files = findJudgeRawFiles(runDir, id);
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync26(join38(runDir, files[0]), "utf8");
+    return readFileSync27(join38(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync26(join38(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync27(join38(runDir, f), "utf8")}`).join("\n\n");
 }
 async function serveReview(opts) {
-  const template = readFileSync26(templatePath(opts.assetsDir), "utf8");
-  const gradeScript = readFileSync26(gradeScriptPath(opts.assetsDir), "utf8");
+  const template = readFileSync27(templatePath(opts.assetsDir), "utf8");
+  const gradeScript = readFileSync27(gradeScriptPath(opts.assetsDir), "utf8");
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://localhost");
@@ -13190,7 +13193,7 @@ async function runViaExtension(opts) {
 }
 
 // packages/pi-extension/src/capture-cmd.ts
-import { existsSync as existsSync25, mkdirSync as mkdirSync13, writeFileSync as writeFileSync12, readdirSync as readdirSync17, readFileSync as readFileSync27 } from "node:fs";
+import { existsSync as existsSync25, mkdirSync as mkdirSync13, writeFileSync as writeFileSync12, readdirSync as readdirSync17, readFileSync as readFileSync28 } from "node:fs";
 import { join as join40 } from "node:path";
 import { createHash as createHash34 } from "node:crypto";
 var CANCELLED = { status: "cancelled", files: [] };
@@ -13207,7 +13210,7 @@ async function runCapture(skillDir, ctx) {
     ui.say(`${specPath} does not exist \u2014 run \`skill-harness init\` before capturing into this skill`);
     return CANCELLED;
   }
-  const baseSha256 = specSha256(readFileSync27(specPath, "utf8"));
+  const baseSha256 = specSha256(readFileSync28(specPath, "utf8"));
   const turns = projectTurns(activeBranch(ctx.sessionEntries()), ctx.homeDir);
   if (turns.length === 0) {
     ui.say("no user turns in this session yet \u2014 nothing to capture");
@@ -13330,7 +13333,7 @@ async function chooseTarget(skillDir, ctx) {
   return {
     kind: chosen.kind,
     path: chosen.path,
-    content_sha256: createHash34("sha256").update(readFileSync27(chosen.abs, "utf8"), "utf8").digest("hex")
+    content_sha256: createHash34("sha256").update(readFileSync28(chosen.abs, "utf8"), "utf8").digest("hex")
   };
 }
 function suggestScenarioId(specPath, fallback) {
@@ -13347,7 +13350,7 @@ function suggestScenarioId(specPath, fallback) {
 function writeCapture(capturesDir, capture, selected2, homeDir) {
   mkdirSync13(join40(capturesDir, ".local"), { recursive: true });
   const gitignore = join40(capturesDir, ".gitignore");
-  const existingIgnore = existsSync25(gitignore) ? readFileSync27(gitignore, "utf8") : "";
+  const existingIgnore = existsSync25(gitignore) ? readFileSync28(gitignore, "utf8") : "";
   if (!existingIgnore.split("\n").some((l) => l.trim() === ".local/" || l.trim() === ".local")) {
     writeFileSync12(gitignore, existingIgnore ? `${existingIgnore.replace(/\n*$/, "\n")}${CAPTURES_GITIGNORE}` : CAPTURES_GITIGNORE, "utf8");
   }

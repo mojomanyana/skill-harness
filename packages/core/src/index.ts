@@ -1,3 +1,4 @@
+export * from "./trusted-host-supervision.js";
 export * from "./spec.js";
 export * from "./discover.js";
 export * from "./run.js";

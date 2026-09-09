@@ -162,6 +162,39 @@ acknowledgement is unknown; visible active0 is not successful ownership. The ori
 failed compressed-wire fixture is retained; it was corrected to decode actual zstd wire
 bytes, without changing SDK/source transport. No real credential or network call occurs.
 
+### Independent trusted-host process supervision
+
+`superviseTrustedHost(child, {wallMs, settlementMs, maxOutputBytes, signal})` in core
+monitors an already admitted, caller-owned detached Linux worker after its spawn event.
+It reuses qualification-runner's PID/boot/start occurrence checks and same-group cleanup
+utilities WITHOUT changing the Pi runner's launch/auth/attestation route. It never spawns,
+authorizes or retries a worker. An independent responsive parent can stop a blocked worker
+JavaScript loop with occurrence-checked TERM/KILL, including when TERM is ignored.
+
+The monitor counts/discards combined stdout/stderr (no raw content or output hashes),
+records exit/timeout/abort/output-limit/unknown evidence, and refuses duplicate monitoring.
+Leader exit triggers same-group cleanup attempts. `completed` means leader exit0, closed
+pipes and completed cleanup calls—not proof that arbitrary escaped descendants, hostile
+code or an uninterruptible kernel task are contained. Unknown settlement retains the
+original child occurrence for the caller; it never releases producer reservations.
+Its observation always says `acceptance: not-assessed`. Supervisor death and parent-event-
+loop blockage are not handled by this in-process observer; it is not crash recovery.
+
+`supervised-producer-proof.mjs` demonstrates the concrete arrangement: an outer fixture
+parent launches the existing ten-scenario actual-producer/installed-SDK proof as one
+trusted Node worker, with an empty environment, and monitors it independently. The worker
+continues to own the original producer graph/budget/journal; monitoring does not transfer
+those capabilities. Both remain in the existing no-home/network-unshared fixture boundary.
+
+Original scope6 requires total bounds, P06 explicitly permits a limited non-shell profile,
+and P11 requires whole-experiment reservations/no duplicate effects. These do not impose
+universal cgroups or numerical server-token limits. Existing client budgets plus original
+ownership and this parent supervision support a narrowly bounded TRUSTED extension-free
+SDK route. They do not satisfy P06's arbitrary-worker denied-write test, P10 archive-only
+confinement, general shadow isolation, hard aggregate CPU/RSS/PID/money, remote termination,
+or extension-bearing P09 qualification. Keep those distinct claims separate rather than
+making every stronger guarantee a gate for useful trusted-host observations.
+
 This proves local IPC/ownership wiring, not live qualification of the five-call manifest,
 canonical/account authenticity, hard aggregate host resources, remote termination or
 native-P01 acceptance. The existing fixed digest operations still require null
