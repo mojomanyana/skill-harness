@@ -33,8 +33,12 @@ export function validateCodexTextSse(bytes:Buffer, model:string):{text:string;re
   else if(e.type==='response.output_text.done'&&phase===2&&!textDone){if(e.item_id!==itemId||e.output_index!==0||e.content_index!==0||e.text!==output)throw Error('text completion mismatch');textDone=true;}
   else if(e.type==='response.content_part.done'&&phase===2&&partOpen&&!partDone&&textDone){if(e.item_id!==itemId||e.output_index!==0||e.content_index!==0||e.part?.type!=='output_text'||e.part.text!==output)throw Error('content part completion mismatch');partDone=true;}
   else if(e.type==='response.output_text.delta'&&phase===2&&!textDone) {if(e.item_id!==itemId||e.output_index!==0||e.content_index!==0||typeof e.delta!=='string')throw Error('delta correlation');output+=e.delta;}
-  else if(e.type==='response.output_item.done'&&phase===2) {if(partOpen&&!partDone||e.output_index!==0||e.item?.id!==itemId||e.item.type!=='message'||e.item.role!=='assistant'||e.item.status!=='completed'||e.item.content?.length!==1||e.item.content[0].type!=='output_text'||e.item.content[0].text!==output)throw Error('completed item mismatch');completedItem=e.item;phase=3;}
-  else if(e.type==='response.completed'&&phase===3) {if(e.response?.id!==responseId||e.response.model!==model||e.response.status!=='completed'||e.response.output?.length!==1||!isDeepStrictEqual(e.response.output[0],completedItem))throw Error('completed response mismatch');phase=4;}
+  else if(e.type==='response.output_item.done'&&phase===2) {if(partOpen&&!partDone||e.output_index!==0||e.item?.id!==itemId||e.item.type!=='message'||e.item.role!=='assistant'||e.item.status!=='completed'||!Array.isArray(e.item.content)||e.item.content.length!==1||e.item.content[0].type!=='output_text'||e.item.content[0].text!==output)throw Error('completed item mismatch');completedItem=e.item;phase=3;}
+  else if(e.type==='response.completed'&&phase===3) {
+   // Compact terminals omit duplicated items, not their preceding completion evidence.
+   const terminal=e.response?.output,compact=Array.isArray(terminal)&&terminal.length===0&&partOpen&&partDone&&textDone;
+   if(e.response?.id!==responseId||e.response.model!==model||e.response.status!=='completed'||!Array.isArray(terminal)||(!compact&&(terminal.length!==1||!isDeepStrictEqual(terminal[0],completedItem))))throw Error('completed response mismatch');phase=4;
+  }
   else throw Error('unsupported or reordered SSE event');
  }
  if(phase!==4)throw Error('truncated SSE response');return {text:output,responseId};
