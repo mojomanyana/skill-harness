@@ -13,10 +13,37 @@ function errorCode(error:unknown):string {
 const REFUSAL_TYPES=new Set(['invalid_request_error','authentication_error','permission_error','rate_limit_error','server_error']);
 const REFUSAL_CODES=new Set(['invalid_json','invalid_request','invalid_parameter','unknown_parameter','unsupported_parameter','unsupported_value','missing_required_parameter','model_not_found','invalid_api_key','insufficient_quota','rate_limit_exceeded']);
 const REFUSAL_PARAMETERS=new Set(['model','input','instructions','reasoning','reasoning.effort','reasoning.summary','text','text.verbosity','tools','tool_choice','parallel_tool_calls','store','stream','max_output_tokens','temperature','top_p','include','service_tier','prompt_cache_key','previous_response_id','background']);
+// Diagnostic prose is untrusted data, never a dispatch/retry instruction. A vocabulary
+// allowlist redacts unfamiliar tokens rather than retaining opaque identities.
+const DIAGNOSTIC_WORDS=new Set(('a an the this that is are was be not no only for with without and or to of in on at as by from must cannot can could does do has have failed failure error request response body json field parameter value model unsupported supported support invalid unknown missing required expected found available unavailable permitted allowed valid format type string object array parse parsing deserialize into target provide provided please input instructions reasoning effort low medium high minimal none verbosity authentication authorization permission denied unauthorized forbidden access expired quota exceeded rate limit too many requests service temporarily internal server detail message redacted').split(' '));
+function explanation(value:unknown):string|null {
+ if(typeof value!=='string'||!value.trim()||value.length>1024||/[^\x20-\x7e]/.test(value))return null;
+ const text=value.replace(/\bBearer\s+[^\s,;]+/gi,'[redacted]')
+  .replace(/\b[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g,'[redacted]')
+  .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,'[redacted]')
+  .replace(/\b[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\b/gi,'[redacted]')
+  .replace(/\b(?:account(?:[_ -]?id)?|user[_ -]?id|email|authorization|api[_ -]?key|token)\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi,'[redacted]')
+  .replace(/\b(?:sk-[A-Za-z0-9_-]+|gpt-[A-Za-z0-9.-]+)\b/g,'[redacted]').trim();
+ if(/[^A-Za-z0-9 _.,:;!?()\[\]'"`\/-]/.test(text))return null;
+ const words=text.match(/[A-Za-z0-9_]+(?:[.-][A-Za-z0-9_]+)*/g)??[];
+ const known=(w:string)=>DIAGNOSTIC_WORDS.has(w.toLowerCase())||REFUSAL_PARAMETERS.has(w)||REFUSAL_TYPES.has(w)||REFUSAL_CODES.has(w);
+ if(!words.some(w=>w.toLowerCase()!=='redacted'&&known(w)))return null;
+ return text.replace(/[A-Za-z0-9_]+(?:[.-][A-Za-z0-9_]+)*/g,w=>known(w)?w:'[redacted]').slice(0,256);
+}
 function refusalMetadata(value:unknown) {
- const error=(value as {error?:{type?:unknown;code?:unknown;param?:unknown}}|null)?.error;
- const allowed=(value:unknown,set:Set<string>)=>typeof value==='string'&&set.has(value)?value:'unknown';
- return {type:allowed(error?.type,REFUSAL_TYPES),code:allowed(error?.code,REFUSAL_CODES),parameter:allowed(error?.param,REFUSAL_PARAMETERS)};
+ const object=(v:unknown):Record<string,unknown>|undefined=>v!==null&&typeof v==='object'&&!Array.isArray(v)?v as Record<string,unknown>:undefined;
+ const root=object(value),envelope=object(root?.error)?'error-object':typeof root?.error==='string'?'error-string':typeof root?.detail==='string'?'detail-string':object(root?.detail)?'detail-object':Array.isArray(root?.detail)?'detail-list':typeof root?.message==='string'?'message-string':'unknown';
+ let node=root;
+ // Only documented error/detail envelopes, a single validation error, and bounded depth.
+ for(let depth=0;node&&depth<3;depth++){
+  const child=node.error??node.detail;
+  if(Array.isArray(child)){node=child.length===1?object(child[0]):undefined;break;}
+  const next=object(child);if(!next)break;node=next;
+ }
+ const allowed=(v:unknown,set:Set<string>)=>typeof v==='string'&&set.has(v)?v:'unknown';
+ let parameter=allowed(node?.param,REFUSAL_PARAMETERS);
+ if(parameter==='unknown'&&Array.isArray(node?.loc)&&node.loc.length>=2&&node.loc.length<=4&&node.loc[0]==='body'&&node.loc.slice(1).every(p=>typeof p==='string'))parameter=allowed(node.loc.slice(1).join('.'),REFUSAL_PARAMETERS);
+ return {type:allowed(node?.type,REFUSAL_TYPES),code:allowed(node?.code,REFUSAL_CODES),parameter,envelope,explanation:explanation(node?.message??node?.msg??node?.detail??node?.error)};
 }
 type CompletionFailure='write-incomplete'|'tls-unverified'|'message-incomplete'|'response-encoding'|'response-byte-limit'|'redirect'|'credential-reflection'|'response-aborted'|'response-closed'|'internal-completion';
 
