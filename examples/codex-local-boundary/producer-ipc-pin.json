@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/mojomanyana/pi-daddy",
+  "head": "b17f36f27bef2e56e096add8cea7cb8a980905c0",
+  "tree": "c13c22a1ad43defd012e3a9277eb685dd075037e",
+  "parent": "979d6525db4b3c492c744dcdd0ff53904611547c",
+  "contract": "packages/pi-daddy/contracts/producer-ipc/v1/README.md",
+  "producerReceiptSha256": "ea2f757f40ebb91a66693dafb089322fee02d73c23c61607bdc02bc04f94616f",
+  "scope": "exact completed local producer source; no publication or live qualification implied"
+}

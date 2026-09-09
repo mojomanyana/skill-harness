@@ -37,6 +37,10 @@ export function inspectCodexRoleSeparation(raw:Array<{role:Role;model:string;can
  const disclosures=[...new Set(rows.flatMap(r=>r.lineage===null?['lineage unresolved; correlation unknown']:rows.filter(x=>x.lineage===r.lineage).length>1?[`shared lineage: ${r.lineage}`]:[]))];
  return {state:'CONSISTENT_DECLARATION_ONLY' as const,reason:'canonical declarations are not authenticated resolution; lineage is disclosed, not proof of training independence',disclosures,liveQualified:false as const};
 }
+function sourceSettled(rows:Record<string,unknown>[],id:unknown) {
+ const bound=rows.find(r=>r.type==='producer-ipc-bound'&&r.id===id);
+ return !bound||rows.some(r=>r.type==='producer-ipc-settled'&&r.id===id&&r.bindingHash===bound.bindingHash);
+}
 function readBounded(stream:Readable, limit:number, signal:AbortSignal):Promise<Buffer> {
  return new Promise((resolve,reject)=>{const chunks:Buffer[]=[];let size=0,ended=false;
   const cleanup=()=>{stream.off('data',data);stream.off('end',end);stream.off('error',error);stream.off('close',close);signal.removeEventListener('abort',abort);};
@@ -68,7 +72,7 @@ export function openLocalCodexHost(path:string) {
  const store=learningJournal(path),first=store.read()[0].value;if(first.type!=='codex-host-local-v1'||typeof first.createdAt!=='number'||typeof first.seed!=='string')throw Error('local host owner required');
  const spec=admit(first.spec as LocalCodexHostSpec);
  const append=(value:Record<string,unknown>)=>{const prior=store.read().at(-1)!.id;return store.append(prior,value);};
- const inspect=()=>{const rows=store.read().map(e=>e.value),claims=rows.filter(r=>r.type==='claim'),results=rows.filter(r=>r.type==='observation');return {calls:claims.length,complete:results.length===spec.invocations.length&&claims.length===results.length&&!rows.some(r=>r.type==='abort'),aborted:rows.some(r=>r.type==='abort')||claims.length!==results.length,liveQualified:false as const};};
+ const inspect=()=>{const rows=store.read().map(e=>e.value),claims=rows.filter(r=>r.type==='claim'),results=rows.filter(r=>r.type==='observation');return {calls:claims.length,complete:results.length===spec.invocations.length&&claims.length===results.length&&results.every(r=>sourceSettled(rows,r.id))&&!rows.some(r=>r.type==='abort'),aborted:rows.some(r=>r.type==='abort')||claims.length!==results.length,liveQualified:false as const};};
  const observeSdk=(value:Record<string,unknown>)=>{const rows=store.read();if(value.type==='sdk-response-validated'&&rows.some(e=>e.value.type==='sdk-response-validated'&&e.value.responseId===value.responseId))throw Error('replayed SDK response');const claim=rows.filter(e=>e.value.type==='claim').at(-1)?.value;if(!claim||value.type==='sdk-wire-observed'&&value.requestSha256!==claim.requestSha256)throw Error('SDK observation without bound claim');append({...value,id:claim.id,sequence:claim.sequence});};
  const host={inspect,
   async exchangeSubscriptionSdk(subjectFrames:Readable,binding:CodexSdkBinding,transport:CodexWireTransport,charterSha256:string,sourceSignal?:AbortSignal):Promise<LocalCodexObservation>{
@@ -103,9 +107,9 @@ export function openLocalCodexHost(path:string) {
     let blindInput:string|undefined;
     if(i.role==='judge'){
      const subject=history.find(e=>e.value.type==='observation'&&e.value.id===i.subjectId)?.value;
-     if(!subject||subject.objective!=='PASS')throw Error('objective gate blocks judge emission');
+     if(!subject||subject.objective!=='PASS'||!sourceSettled(history.map(e=>e.value),i.subjectId))throw Error('objective gate blocks judge emission or source unsettled');
      const siblings=spec.invocations.filter(t=>t.role==='judge'&&t.subjectId===i.subjectId),ordinal=siblings.findIndex(t=>t.id===i.id);
-     const previous=siblings.slice(0,ordinal).map((t,k)=>{const r=history.find(e=>e.value.type==='observation'&&e.value.id===t.id)?.value;if(!r)throw Error('preceding panel observation missing');return parseVote(Buffer.from(String(r.outputBase64),'base64').toString('utf8'),k+1);});
+     const previous=siblings.slice(0,ordinal).map((t,k)=>{const r=history.find(e=>e.value.type==='observation'&&e.value.id===t.id)?.value;if(!r||!sourceSettled(history.map(e=>e.value),t.id))throw Error('preceding panel observation missing or source unsettled');return parseVote(Buffer.from(String(r.outputBase64),'base64').toString('utf8'),k+1);});
      if(ordinal===2&&!collapseVotePanel(previous).split)throw Error('tie-break requires clean split');
      blindInput=JSON.stringify({label:sha(String(first.seed)+String(i.subjectId)).slice(0,24),outputBase64:subject.outputBase64,criterion:i.input});
     }
@@ -131,13 +135,13 @@ export function openLocalCodexHost(path:string) {
    const judges=spec.invocations.filter(i=>i.role==='judge'&&i.subjectId===subjectId);if(judgeIds.some((id,k)=>judges[k]?.id!==id))throw Error('frozen panel order');
    for(const i of [subject,...judges.slice(0,judgeIds.length)])if(!policy.some(p=>p.role===i.role&&p.model===i.model))throw Error('exact panel role binding');
    const rows=store.read().map(e=>e.value);if(rows.some(r=>r.type==='abort'))throw Error('aborted owner blocks panel');
-   const output=rows.find(r=>r.type==='observation'&&r.id===subjectId);if(!output||output.objective!=='PASS')throw Error('objective gate blocks panel');
-   const votes=judgeIds.map((id,k)=>{const r=rows.find(r=>r.type==='observation'&&r.id===id);if(!r)throw Error('panel observation missing');return parseVote(Buffer.from(String(r.outputBase64),'base64').toString('utf8'),k+1);});
+   const output=rows.find(r=>r.type==='observation'&&r.id===subjectId);if(!output||output.objective!=='PASS'||!sourceSettled(rows,subjectId))throw Error('objective gate blocks panel or source unsettled');
+   const votes=judgeIds.map((id,k)=>{const r=rows.find(r=>r.type==='observation'&&r.id===id);if(!r||!sourceSettled(rows,id))throw Error('panel observation missing or source unsettled');return parseVote(Buffer.from(String(r.outputBase64),'base64').toString('utf8'),k+1);});
    if(collapseVotePanel(votes.slice(0,2)).split!==(votes.length===3))throw Error('tie-break required exactly for clean split');
    const binding=learningHash({subjectId,judgeIds,policy}),old=rows.find(r=>r.type==='panel'&&r.subjectId===subjectId);if(old&&old.binding!==binding)throw Error('panel binding changed');
    const result={label:sha(String(first.seed)+subjectId).slice(0,24),collapse:collapseVotePanel(votes),identityStatus:separation.state,disclosures:separation.disclosures,liveQualified:false as const,routingDefault:null};
    if(!old)append({type:'panel',subjectId,binding,result});return result;
   },
-  eligibleOutputs(){return store.read().filter(e=>e.value.type==='observation'&&e.value.objective==='PASS'&&spec.invocations.some(i=>i.id===e.value.id&&i.role==='subject')).map(e=>({label:sha(String(first.seed)+String(e.value.id)).slice(0,24),outputBase64:String(e.value.outputBase64),outputSha256:String(e.value.outputSha256),liveQualified:false as const}));},
+  eligibleOutputs(){const rows=store.read();return rows.filter(e=>sourceSettled(rows.map(r=>r.value),e.value.id)&&e.value.type==='observation'&&e.value.objective==='PASS'&&spec.invocations.some(i=>i.id===e.value.id&&i.role==='subject')).map(e=>({label:sha(String(first.seed)+String(e.value.id)).slice(0,24),outputBase64:String(e.value.outputBase64),outputSha256:String(e.value.outputSha256),liveQualified:false as const}));},
  };return host;
 }

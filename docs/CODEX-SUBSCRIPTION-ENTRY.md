@@ -80,10 +80,15 @@ injection rejection and the frozen qualification runner are unchanged.
 
 ## Guarded-subject ownership boundary
 
-This entrypoint generates frozen invocation frames in the trusted host; it does not
-claim a producer-owned guarded subject supplied them. No producer change is needed for
-this synthetic host entry. A future positive guarded-subject route needs a separately
-inspected **opt-in IPC contract**, not relaxation of the fixed digest profile:
+The standalone qualification CLI still generates frozen frames in the trusted host; it
+has not silently switched to a producer-owned subject. A separate opt-in adapter,
+`startCodexProducerIpc`, now connects an existing host owner to the finished producer
+contract pinned in `examples/codex-local-boundary/producer-ipc-pin.json`. Its caller
+supplies the original producer API/owner/permit/binding, original signal and deadline,
+plus host-only SDK and transport capabilities. This is not a new approval gate or
+credential loader: the trusted launcher must validate approval/charter before creating
+those capabilities. The fixed digest profile is not relaxed:
+
 
 1. Existing producer experiment reservation/execution ID binds a host charter hash and
    one allowed invocation ID; the child gets only the bounded `{id, sequence}` frame
@@ -92,11 +97,36 @@ inspected **opt-in IPC contract**, not relaxation of the fixed digest profile:
    lifetime, readiness and settlement; timeout/failure stays counted, never retried.
 3. Host claim/response references return as evidence only. No judge result changes
    producer dispatch/grants/acceptance. Resource ownership and actual IPC correlation
-   require positive/negative tests in the SAME producer checkout after separate scope.
+   require positive/negative tests in the SAME producer checkout under separate scope.
 
-That small bridge is **not implemented or authorized here**. The fixed producer contract
-continues to require its existing null model/effort/skills fields. Both peer owners stay
-retired until a later explicit task.
+The completed producer b17f36f contract and tests implement this separate fixed emitter.
+The child has already exited before the host exchange; the host receives a one-use
+buffered replay of actual original stdout after EOF, NOT a live bidirectional pipe or a
+reconstructed host-authored ticket. The resource hold spans the child and host serial
+lifetimes. The SDK/model execution is NOT placed inside that child namespace.
+
+The adapter returns actual host journal claim/observation IDs, forwards original source
+cancellation, and preserves original started/readiness/child/result/inspect handles.
+It gates host completeness, eligible output and judge emission until original completion
+acknowledges matching ownership/reference/frame evidence. Its completion rejects a
+claimed completed result with mismatched/unknown settlement; observation timeout is
+never substituted for completion. Failed calls remain counted; rebinding/retry refuses.
+These records live in the existing host journal only. References never change producer
+dispatch, grants or acceptance; `liveQualified` remains false.
+
+`producer-ipc-proof.mjs` connects the pinned real producer child, original resource
+budget, installed SDK and fake HTTP for success, cancellation, HTTP failure and changed
+charter refusal. It runs in the existing network-unshared/no-home fixture mounts, with
+an additional read-only `/producer` exact source snapshot and read-only retained root
+and package dependency mounts. It uses Node26 type stripping on pinned source, not
+historical producer dist or an installed-package claim. Missing mount-point and TypeBox
+mount failures were retained and repaired in the private fixture, without installation
+or source/security changes. No live TLS/provider/credential call is made.
+
+This proves local IPC/ownership wiring, not live qualification of the five-call manifest,
+canonical/account authenticity, hard aggregate host resources, remote termination or
+native-P01 acceptance. The existing fixed digest operations still require null
+model/effort/skills. No peer publication or further model call follows from these tests.
 
 ## Evidence scope
 
