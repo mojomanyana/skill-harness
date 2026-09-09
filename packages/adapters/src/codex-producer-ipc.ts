@@ -12,8 +12,15 @@ export interface CodexProducerApi {
  startProducerIpc(input:{owner:unknown;permit:unknown;binding:CodexProducerBinding;host:unknown;signal:AbortSignal;timeoutMs:number}):Promise<{completion:Promise<any>;result:Promise<any>;inspect():any;[key:string]:unknown}>;
 }
 export async function startCodexProducerIpc(input:{path:string;binding:CodexProducerBinding;sdk:CodexSdkBinding;transport:CodexWireTransport;producer:CodexProducerApi;owner:unknown;permit:unknown;signal:AbortSignal;timeoutMs:number}) {
- const binding=learningCopy(input.binding),keys=['version','budgetDigest','orderId','experimentId','executionId','charterSha256','invocationId'];
+ const binding=validateCodexProducerBinding(input.binding);
+ return startValidatedProducer(input,binding);
+}
+export function validateCodexProducerBinding(raw:CodexProducerBinding) {
+ const binding=learningCopy(raw),keys=['version','budgetDigest','orderId','experimentId','executionId','charterSha256','invocationId'];
  if(!binding||Object.keys(binding).sort().join()!==keys.sort().join()||binding.version!=='producer-ipc-v1'||![binding.budgetDigest,binding.charterSha256].every(h=>/^[a-f0-9]{64}$/.test(h))||![binding.orderId,binding.experimentId,binding.executionId,binding.invocationId].every(v=>typeof v==='string'&&/^[a-zA-Z0-9:_-]{1,128}$/.test(v)))throw Error('closed producer source binding required');
+ return binding;
+}
+async function startValidatedProducer(input:Parameters<typeof startCodexProducerIpc>[0],binding:CodexProducerBinding) {
  const store=learningJournal(input.path),rows=store.read(),first=rows[0].value,host=openLocalCodexHost(input.path);
  const invocation=(first.spec as any).invocations.find((i:any)=>i.id===binding.invocationId),reservation=first.subscription as any,model=input.sdk.model;
  if(!reservation||reservation.charterSha256!==binding.charterSha256||input.transport.kind!==(reservation.mode==='fixture'?'fixture-http':'subscription-http')||!first.rolePolicy||inspectCodexRoleSeparation(first.rolePolicy as any).state==='BLOCKED'||!invocation||model.id!==invocation.model||model.provider!=='openai-codex'||model.api!=='openai-codex-responses'||model.baseUrl!=='https://chatgpt.com/backend-api'||model.headers&&Object.keys(model.headers as object).length||typeof input.sdk.stream!=='function')throw Error('unbound producer/host charter or SDK policy');

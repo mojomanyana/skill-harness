@@ -5,6 +5,16 @@ import { Readable } from 'node:stream';
 import { learningCopy, learningHash, learningJournal, learningFile } from './learning-journal.js';
 import { createLocalCodexHost, openLocalCodexHost, inspectCodexRoleSeparation, type LocalCodexInvocation } from './codex-host-observer.js';
 import type { CodexSdkBinding, CodexWire } from './codex-sdk-transport.js';
+import { startCodexProducerIpc, validateCodexProducerBinding, type CodexProducerApi, type CodexProducerBinding } from './codex-producer-ipc.js';
+
+/** Original capabilities from one pinned producer graph. Queued permits count as active.
+ * The caller supplies the existing owner; this entry never mints a replacement budget. */
+export interface CodexQualificationSource {
+ producer:CodexProducerApi & {producerIpcDemand(binding:CodexProducerBinding):any};
+ owner:{reserveBatch(demands:any[]):Promise<readonly {settle(outcome:'cancelled'):Promise<void>}[]>};
+ bindings:CodexProducerBinding[];
+ signal:AbortSignal;
+}
 
 export const CODEX_RUNTIME_FILES=Object.freeze(['node_modules/@earendil-works/pi-ai/dist/api/openai-codex-responses.js','node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js','node_modules/@earendil-works/pi-ai/dist/providers/data/openai-codex.json','dist/core/auth-storage.js']);
 export const SUBSCRIPTION_ENDPOINT='https://chatgpt.com/backend-api/codex/responses';
@@ -70,33 +80,76 @@ export function createCodexOAuthFilePort(path:string):CodexCredentialPort {
 
 /** Fixed synthetic evaluation only. Model votes select a conditional third judge, never
  * a worker, grant, production action or adoption. Same journal owns all reservations/results. */
-export async function executeCodexQualification(path:string,raw:CodexCharter,rawApproval:CodexApproval|undefined,ports:CodexExecutionPorts) {
+export function executeCodexQualification(path:string,raw:CodexCharter,rawApproval:CodexApproval|undefined,ports:CodexExecutionPorts) {
+ return executeQualification(path,raw,rawApproval,ports);
+}
+/** Explicit opt-in; never silently substitutes producer backing for host frames. */
+export async function executeProducerCodexQualification(path:string,raw:CodexCharter,rawApproval:CodexApproval|undefined,ports:CodexExecutionPorts,source:CodexQualificationSource) {
+ if(!source)throw Error('explicit original producer source required');
+ return executeQualification(path,raw,rawApproval,ports,source);
+}
+async function executeQualification(path:string,raw:CodexCharter,rawApproval:CodexApproval|undefined,ports:CodexExecutionPorts,source?:CodexQualificationSource) {
  const approval=rawApproval?learningCopy(rawApproval):undefined;
  const c=validateCodexCharter(raw,approval),mode=approval!.scope,hash=codexCharterHash(c);
  if(!isAbsolute(path)||resolve(path)!==path||realpathSync(dirname(path))!==dirname(path)||approval!.journalPath!==path)throw Error('execution approval owner-path mismatch');
  if(ports.credentials.kind!==(mode==='fixture'?'fixture-oauth':'oauth-snapshot')||ports.transport.kind!==(mode==='fixture'?'fixture-http':'subscription-http'))throw Error('fixture/production port mismatch');
  for(const i of c.invocations){const b=ports.bindings[i.model];if(!b||typeof b.stream!=='function'||b.model.id!==i.model||b.model.provider!=='openai-codex'||b.model.api!=='openai-codex-responses'||b.model.baseUrl!=='https://chatgpt.com/backend-api'||b.model.headers&&Object.keys(b.model.headers as object).length)throw Error('unresolved SDK binding');}
+ const sourceBindings=source?.bindings.map(validateCodexProducerBinding);
+ if(source){
+  if(!(source.signal instanceof AbortSignal)||typeof source.owner?.reserveBatch!=='function'||typeof source.producer?.producerIpcDemand!=='function'||typeof source.producer?.startProducerIpc!=='function'||typeof source.producer?.createProducerIpcHost!=='function')throw Error('original producer capabilities required');
+  source.signal.throwIfAborted();
+  if(!sourceBindings||sourceBindings.length!==5||new Set(sourceBindings.map(b=>b.executionId)).size!==5||sourceBindings.some((b,k)=>b.charterSha256!==hash||b.invocationId!==c.invocations[k].id||['budgetDigest','orderId','experimentId'].some(key=>b[key as keyof typeof b]!==sourceBindings[0][key as keyof typeof b])))throw Error('producer source charter/batch mismatch');
+ }
+ const sourceDeclaration=source?{kind:'producer-ipc-v1',bindings:sourceBindings}:{kind:'host-frames-v1'};
  ports.transport.preflight?.();
  const reservation={charterSha256:hash,mode,requestBytes:c.limits.requestBytes,responseBytes:c.limits.responseBytes,totalRequestBytes:c.limits.totalRequestBytes,totalResponseBytes:c.limits.totalResponseBytes,callMs:c.limits.callMs};
  const host=existsSync(path)?openLocalCodexHost(path):createLocalCodexHost(path,{version:'codex-host-local-v1',maxCalls:c.limits.calls,wallMs:Math.min(c.limits.wallMs,approval!.expiresAt-Date.now()),invocations:c.invocations},c.rolePolicy,reservation);
  const store=learningJournal(path),rows=store.read();if(learningHash(rows[0].value.subscription)!==learningHash(reservation)||learningHash(rows[0].value.rolePolicy)!==learningHash(c.rolePolicy))throw Error('frozen execution charter changed');
  const append=(v:Record<string,unknown>)=>store.append(store.read().at(-1)!.id,v);
+ const priorCharter=rows.find(e=>e.value.type==='subscription-charter');
+ if(priorCharter&&learningHash(priorCharter.value.source??{kind:'host-frames-v1'})!==learningHash(sourceDeclaration))throw Error('frozen execution source changed');
  const old=rows.find(e=>e.value.type==='subscription-finished');if(old)return old.value;
- if(host.inspect().calls||host.inspect().aborted)throw Error('stranded execution; no retry');
- append({type:'subscription-charter',charter:c,charterSha256:hash,approvalId:approval!.approvalId,executionMode:mode,aggregateReservation:c.limits,liveQualified:false});
+ if(priorCharter||host.inspect().calls||host.inspect().aborted)throw Error('stranded execution; no retry');
+ append({type:'subscription-charter',charter:c,charterSha256:hash,approvalId:approval!.approvalId,executionMode:mode,source:sourceDeclaration,aggregateReservation:c.limits,liveQualified:false});
  let inFlight=false;
  const transport={kind:ports.transport.kind,exchange:async(wire:CodexWire,signal:AbortSignal,record:(v:Record<string,unknown>)=>void)=>{
   if(inFlight||wire.destination!==SUBSCRIPTION_ENDPOINT||wire.method!=='POST'||wire.body.length>c.limits.requestBytes||approval!.expiresAt<=Date.now())throw Error('subscription preflight refused');
   inFlight=true;try {signal.throwIfAborted();const credential=validateCodexOAuth(await ports.credentials.read(signal),c.accountId!,mode);signal.throwIfAborted();if(approval!.expiresAt<=Date.now())throw Error('execution approval expired before transport');const response=await ports.transport.exchange(wire,credential,signal,record,learningCopy(c.limits));if(response.redirected||response.status>=300&&response.status<400)throw Error('redirect refused');return response;}finally{inFlight=false;}
  }};
+ let permits:Awaited<ReturnType<CodexQualificationSource['owner']['reserveBatch']>>=[],result:Record<string,unknown>;
+ const handed=new Set<number>();
  try {
-  const exchange=(i:LocalCodexInvocation)=>host.exchangeSubscriptionSdk(Readable.from([JSON.stringify({id:i.id,sequence:1})+'\n']),ports.bindings[i.model],transport,hash);
-  for(const i of c.invocations.slice(0,2)){const r=await exchange(i);if(r.objective!=='PASS'){const result={type:'subscription-finished',charterSha256:hash,executionMode:mode,outcome:'objective-failed',calls:host.inspect().calls,liveQualified:false,routingDefault:null};append(result);return result;}}
+  if(source){permits=await source.owner.reserveBatch(sourceBindings!.map(b=>source.producer.producerIpcDemand(b)));if(permits.length!==5)throw Error('whole original reservation required');}
+  const exchange=async(i:LocalCodexInvocation)=>{
+   if(!source)return host.exchangeSubscriptionSdk(Readable.from([JSON.stringify({id:i.id,sequence:1})+'\n']),ports.bindings[i.model],transport,hash);
+   source.signal.throwIfAborted();const first=store.read()[0].value,k=c.invocations.indexOf(i),remaining=Math.min(c.limits.callMs,approval!.expiresAt-Date.now(),Number(first.createdAt)+c.limits.wallMs-Date.now());
+   if(remaining<50)throw Error('source deadline expired before launch');
+   handed.add(k); // Conservatively never settle a possibly handed-off permit from this caller.
+   const run=await startCodexProducerIpc({path,binding:sourceBindings![k],sdk:ports.bindings[i.model],transport,producer:source.producer,owner:source.owner,permit:permits[k],signal:source.signal,timeoutMs:remaining});
+   const done=await Promise.race([run.completion,run.result.then(observed=>{
+    // A bounded observer can refuse progress, NEVER grant completion or release the hold.
+    if(!['pending','completed'].includes(observed.outcome))throw Error('original source observation failed');
+    return run.completion;
+   })]);
+   if(done.outcome!=='completed'||done.settlement!=='acknowledged')throw Error('original source not completed');
+   const observed=store.read().find(e=>e.value.type==='observation'&&e.value.id===i.id);if(!observed)throw Error('source observation missing');
+   return observed.value as unknown as Awaited<ReturnType<typeof host.exchangeSubscriptionSdk>>;
+  };
+  const evaluate=async()=>{
+  for(const i of c.invocations.slice(0,2)){const r=await exchange(i);if(r.objective!=='PASS'){return {type:'subscription-finished',charterSha256:hash,executionMode:mode,sourceKind:sourceDeclaration.kind,outcome:'objective-failed',calls:host.inspect().calls,liveQualified:false,routingDefault:null};}}
   await exchange(c.invocations[2]);await exchange(c.invocations[3]);
   // Decide only whether the already-reserved clean-split tie-break is needed.
   const observations=store.read().filter(e=>e.value.type==='observation');const verdicts=observations.slice(-2).map(e=>JSON.parse(Buffer.from(String(e.value.outputBase64),'base64').toString('utf8')));
   const split=collapseVotePanel(verdicts.map((v,k)=>({...v,ordinal:k+1}))).split;const ids=c.invocations.slice(2,4).map(i=>i.id);
   if(split){await exchange(c.invocations[4]);ids.push(c.invocations[4].id);}
-  const panel=host.panel(c.invocations[1].id,ids,c.rolePolicy);const result={type:'subscription-finished',charterSha256:hash,executionMode:mode,outcome:'advisory-panel',calls:host.inspect().calls,panel,liveQualified:false,routingDefault:null};append(result);return result;
+  const panel=host.panel(c.invocations[1].id,ids,c.rolePolicy);return {type:'subscription-finished',charterSha256:hash,executionMode:mode,sourceKind:sourceDeclaration.kind,outcome:'advisory-panel',calls:host.inspect().calls,panel,liveQualified:false,routingDefault:null};
+  };
+  result=await evaluate();
  }catch {append({type:'abort',reason:'subscription execution failed; no retry',charterSha256:hash});throw Error('subscription-execution-failed');}
+ finally {
+  // Only the original unclaimed queued permits are cancelled. Attempts/bytes are not refunded.
+  const outcomes=await Promise.allSettled(permits.filter((_,k)=>!handed.has(k)).map(p=>p.settle('cancelled')));
+  if(outcomes.some(o=>o.status==='rejected')){append({type:'abort',reason:'queued original settlement unknown; no retry'});throw Error('queued original settlement unknown');}
+ }
+ append(result);return result;
 }

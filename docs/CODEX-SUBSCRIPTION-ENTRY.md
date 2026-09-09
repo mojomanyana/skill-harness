@@ -123,6 +123,45 @@ historical producer dist or an installed-package claim. Missing mount-point and 
 mount failures were retained and repaired in the private fixture, without installation
 or source/security changes. No live TLS/provider/credential call is made.
 
+### Explicit producer-backed five-role entry
+
+`executeProducerCodexQualification(path, charter, approval, ports, source)` is the opt-in
+five-role composition. The existing `executeCodexQualification` and standalone CLI remain
+host-framed. Results identify `sourceKind`; a persisted source declaration cannot be
+rebound to another source or silently reused by the other entry.
+
+`source` supplies `{producer, owner, bindings, signal}` from ONE pinned b17 module graph:
+`producer` includes `producerIpcDemand`, `createProducerIpcHost`, `startProducerIpc`;
+`owner` is the original `openResourceBudget` object; `bindings` are five closed original
+bindings in charter order with unique execution IDs and the same budget/order/experiment.
+They include the final charter hash. The caller provides the existing budget owner; the
+entry does not create a budget or credential loader. The trusted launcher must pin source
+before supplying capabilities. Objects and declarations are not authenticated attestation.
+
+All charter/separate approval/path/SDK/port/source checks precede reservation or source
+launch/credential effects. Then one original `reserveBatch` reserves all five demands.
+Queued slots count as active: this requires original capacity for five held reservations,
+NOT five concurrent HTTP calls. Bindings' charged bytes are not SDK request bytes: the
+existing host separately accounts call/request/response reservations. The fifth slot is
+reserved even when no tie-break is used; skipped slots are cancelled through their
+original, unclaimed permits. Attempts and charged bytes are never refunded.
+
+Each role passes actual original child bytes through `startCodexProducerIpc`, always
+sequence1. Only original acknowledged completion permits advancing. A bounded failing
+`result` can stop observation, never settle/release a possibly handed-off permit or
+advance to a judge. Unknown queued cancellation also blocks a finished record. Cached
+finished results cause no reservation/call; any unfinished charter, including reservation
+pending before its first host claim, refuses resume. A failing/stranded run is not retried.
+
+`producer-qualification-proof.mjs` exercises ten scenarios using the exact source, actual
+children, original owner and installed SDK with inert HTTP: four-call success, reserved
+fifth tie, early objective failure, cancellation, HTTP failure, required settlement-sync
+failure, stranded re-entry, changed charter, host aggregate exhaustion and producer
+aggregate exhaustion. Required-sync failure can leave visible settlement bytes while
+acknowledgement is unknown; visible active0 is not successful ownership. The original
+failed compressed-wire fixture is retained; it was corrected to decode actual zstd wire
+bytes, without changing SDK/source transport. No real credential or network call occurs.
+
 This proves local IPC/ownership wiring, not live qualification of the five-call manifest,
 canonical/account authenticity, hard aggregate host resources, remote termination or
 native-P01 acceptance. The existing fixed digest operations still require null
