@@ -4,7 +4,7 @@
 
 The driver is an extension-bearing subject that can replace request and finalized-message fields. A parent parser of that subject's JSONL cannot independently observe the provider request. We therefore put request construction, sequence ownership and transport writes in the trusted host, with only bounded invocation frames from the subject. A TLS-interception proxy would require additional certificate/credential authority and is not used.
 
-This is a narrow **local protocol and SDK transport implementation**. It has no credential loader, live network implementation/switch, provider discovery or installation code. The trusted host supplies an installed SDK binding, never subject/extension code. Arbitrary caller-supplied code is not a security sandbox. No live production caller is wired. `qualification-runner-v1`, existing Pi extension-provenance rejection, and producer fixed digest/experiment guards are unchanged.
+This is a narrow **local protocol and SDK transport implementation**. It has no credential loader, live network implementation/switch, provider discovery or installation code. The trusted host supplies an installed SDK binding, never subject/extension code. Arbitrary caller-supplied code is not a security sandbox. This inert API has no live caller. A separately gated, production-capable entry is described in [CODEX-SUBSCRIPTION-ENTRY.md](CODEX-SUBSCRIPTION-ENTRY.md); it has not been executed or qualified. `qualification-runner-v1`, existing Pi extension-provenance rejection, and producer fixed digest/experiment guards are unchanged.
 
 ```mermaid
 flowchart LR

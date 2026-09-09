@@ -40,7 +40,16 @@ export function validateCodexTextSse(bytes:Buffer, model:string):{text:string;re
  if(phase!==4)throw Error('truncated SSE response');return {text:output,responseId};
 }
 
+export interface CodexWire { destination:string; method:'POST'; body:Buffer; encoding:string|null }
+export interface CodexWireTransport { kind:'fixture-http'|'subscription-http'; exchange(wire:CodexWire,signal:AbortSignal,record:(value:Record<string,unknown>)=>void):Promise<Response> }
 export function inertCodexSdkStreams(binding:CodexSdkBinding, fixture:()=>Promise<Response>, record:(value:Record<string,unknown>)=>void) {
+ return sdkStreams(binding,async()=>fixture(),record,'inert-sdk-fetch');
+}
+export function boundCodexSdkStreams(binding:CodexSdkBinding, transport:CodexWireTransport, record:(value:Record<string,unknown>)=>void, caps:{requestBytes:number;responseBytes:number}) {
+ if(!['fixture-http','subscription-http'].includes(transport.kind)||![caps.requestBytes,caps.responseBytes].every(n=>Number.isSafeInteger(n)&&n>0)||caps.requestBytes>4096||caps.responseBytes>16384)throw Error('unsupported SDK transport binding');
+ return sdkStreams(binding,transport.exchange,record,transport.kind,caps);
+}
+function sdkStreams(binding:CodexSdkBinding, send:CodexWireTransport['exchange'], record:(value:Record<string,unknown>)=>void, mode:string, caps={requestBytes:4096,responseBytes:16384}) {
  const response=new PassThrough(),controller=new AbortController();let started=false;
  const transport=new Writable({autoDestroy:false,write(chunk,_encoding,done){
   void (async()=>{
@@ -54,18 +63,18 @@ export function inertCodexSdkStreams(binding:CodexSdkBinding, fixture:()=>Promis
      if(++fetches!==1)throw Error('SDK retry refused');
      if(url!==destination||init.method!=='POST'||init.redirect&&init.redirect!=='error'||controller.signal.aborted)throw Error('SDK destination/redirect refused');
      const wire=typeof init.body==='string'?Buffer.from(init.body):init.body instanceof Uint8Array?Buffer.from(init.body):null;
-     if(!wire||wire.length>16384)throw Error('SDK wire byte bound');
+     if(!wire||wire.length>(mode==='inert-sdk-fetch'?16384:caps.requestBytes))throw Error('SDK wire byte bound');
      const encoding=new Headers(init.headers).get('content-encoding');
      if(encoding!==null&&encoding!=='zstd')throw Error('unsupported request encoding');
      if(encoding==='zstd'&&typeof zlib.zstdDecompressSync!=='function')throw Error('zstd decoding unavailable');
      const serialized=encoding==='zstd'?Buffer.from(zlib.zstdDecompressSync(wire,{maxOutputLength:4096})):wire;
-     if(serialized.length>4096||!isDeepStrictEqual(JSON.parse(new TextDecoder('utf8',{fatal:true}).decode(serialized)),expected))throw Error('SDK final request tampered');
-     record({type:'sdk-wire-observed',requestSha256:hash(chunk),serializedBase64:serialized.toString('base64'),wireBase64:wire.toString('base64'),wireSha256:hash(wire),encoding,destination,method:'POST',authenticationHeadersRetained:false,transport:'inert-sdk-fetch',networkCalls:0,liveQualified:false});
-     const reply=await fixture();if(controller.signal.aborted)throw Error('SDK response deadline');if(reply.redirected||reply.status>=300&&reply.status<400)throw Error('fixture redirects refused');
+     if(serialized.length>caps.requestBytes||!isDeepStrictEqual(JSON.parse(new TextDecoder('utf8',{fatal:true}).decode(serialized)),expected))throw Error('SDK final request tampered');
+     record({type:'sdk-wire-observed',requestSha256:hash(chunk),serializedBase64:serialized.toString('base64'),wireBase64:wire.toString('base64'),wireSha256:hash(wire),encoding,destination,method:'POST',authenticationHeadersRetained:false,transport:mode,networkCalls:mode==='subscription-http'?null:0,liveQualified:false});
+     const reply=await send({destination,method:'POST',body:wire,encoding},controller.signal,value=>{if(!['http-request-started','http-response-observed','http-request-failed'].includes(String(value.type)))throw Error('unbound transport observation');record({...value,transport:mode,liveQualified:false});});if(controller.signal.aborted)throw Error('SDK response deadline');if(reply.redirected||reply.status>=300&&reply.status<400)throw Error('fixture redirects refused');
      if(!reply.body)throw Error('missing response body');
      const reader=reply.body.getReader(),parts:Buffer[]=[];let size=0,cancellationError:unknown;
      const abort=()=>{void reader.cancel().catch(error=>{cancellationError=error;});};controller.signal.addEventListener('abort',abort,{once:true});
-     try {for(;;){if(controller.signal.aborted)throw Error('SDK response deadline');const next=await reader.read();if(next.done)break;size+=next.value.length;if(size>16384)throw Error('SDK response byte bound');parts.push(Buffer.from(next.value));}}
+     try {for(;;){if(controller.signal.aborted)throw Error('SDK response deadline');const next=await reader.read();if(next.done)break;size+=next.value.length;if(size>caps.responseBytes)throw Error('SDK response byte bound');parts.push(Buffer.from(next.value));}}
      finally {controller.signal.removeEventListener('abort',abort);await reader.cancel();reader.releaseLock();}
      if(cancellationError||controller.signal.aborted)throw Error('SDK response cancellation failed or deadline expired');
      const raw=Buffer.concat(parts);record({type:'sdk-response-observed',status:reply.status,responseBase64:raw.toString('base64'),responseSha256:hash(raw),liveQualified:false});
@@ -73,8 +82,8 @@ export function inertCodexSdkStreams(binding:CodexSdkBinding, fixture:()=>Promis
      if(reply.ok){if(!reply.headers.get('content-type')?.startsWith('text/event-stream'))throw Error('unsupported response content type');const validated=validateCodexTextSse(raw,expected.model);expectedOutput=validated.text;decoderBody=Buffer.from(new TextDecoder('utf8',{fatal:true}).decode(raw).replace(/\r\n/g,'\n'));record({type:'sdk-response-validated',responseId:validated.responseId,decoderInputSha256:hash(decoderBody),decoderNormalization:'SSE CRLF to LF; original response retained',liveQualified:false});}
      return new Response(decoderBody,{status:reply.status,headers:reply.headers});
     }}).result();
-   if(controller.signal.aborted||fetches!==1||result.stopReason!=='stop'||result.model!==expected.model||result.provider!=='openai-codex'||result.api!=='openai-codex-responses'||result.content?.length!==1||result.content[0].type!=='text'||result.content[0].text!==expectedOutput)throw Error('SDK response decoding failed: '+String(result.errorMessage??'decoded output mismatch').slice(0,512));
-   record({type:'sdk-decoded',outputSha256:hash(expectedOutput!),model:result.model,provider:result.provider,api:result.api,providerInternalFacts:null,liveQualified:false});response.end(expectedOutput);done();
+   if(controller.signal.aborted||fetches!==1||result.stopReason!=='stop'||result.model!==expected.model||result.provider!=='openai-codex'||result.api!=='openai-codex-responses'||result.content?.length!==1||result.content[0].type!=='text'||result.content[0].text!==expectedOutput)throw Error(mode==='inert-sdk-fetch'?'SDK response decoding failed: '+String(result.errorMessage??'decoded output mismatch').slice(0,512):'subscription-exchange-failed');
+   record({type:'sdk-decoded',outputSha256:hash(expectedOutput!),model:result.model,provider:result.provider,api:result.api,providerInternalFacts:null,transport:mode,liveQualified:false});response.end(expectedOutput);done();
   })().catch(e=>done(e instanceof Error?e:Error(String(e))));
  },destroy(error,done){controller.abort();response.destroy();done(error);}});
  return {transport,response};
