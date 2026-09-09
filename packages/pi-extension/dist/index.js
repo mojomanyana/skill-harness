@@ -1,11 +1,11 @@
 // packages/pi-extension/src/index.ts
 import { fileURLToPath as fileURLToPath3 } from "node:url";
-import { dirname as dirname16, join as join42 } from "node:path";
+import { dirname as dirname17, join as join42 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
-import { existsSync as existsSync26 } from "node:fs";
+import { existsSync as existsSync28 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
-import { dirname as dirname15, join as join41, resolve as resolve19, relative as relative6 } from "node:path";
+import { dirname as dirname16, join as join41, resolve as resolve20, relative as relative6 } from "node:path";
 
 // packages/core/dist/trusted-host-supervision.js
 import { readFileSync as readFileSync2 } from "node:fs";
@@ -5778,7 +5778,7 @@ import { spawn } from "node:child_process";
 import { existsSync as existsSync7 } from "node:fs";
 import { join as join8, delimiter } from "node:path";
 function exec(cmd, args, opts = {}) {
-  return new Promise((resolve20, reject) => {
+  return new Promise((resolve21, reject) => {
     const child2 = spawn(cmd, args, {
       cwd: opts.cwd,
       env: opts.env ?? process.env,
@@ -5804,7 +5804,7 @@ function exec(cmd, args, opts = {}) {
     child2.on("close", (code) => {
       if (timer)
         clearTimeout(timer);
-      resolve20({ stdout, stderr, code });
+      resolve21({ stdout, stderr, code });
     });
   });
 }
@@ -8734,11 +8734,80 @@ import { randomBytes as randomBytes2 } from "node:crypto";
 import { closeSync as closeSync4, constants as constants4, existsSync as existsSync19, fsyncSync as fsyncSync2, fstatSync as fstatSync4, linkSync, lstatSync as lstatSync3, mkdirSync as mkdirSync6, openSync as openSync4, readFileSync as readFileSync23, readdirSync as readdirSync13, realpathSync as realpathSync5, renameSync as renameSync5, rmSync as rmSync4, unlinkSync as unlinkSync2, writeFileSync as writeFileSync8 } from "node:fs";
 import { dirname as dirname8, extname as extname2, join as join27, resolve as resolve12 } from "node:path";
 
+// packages/adapters/dist/producer-product.js
+import { existsSync as existsSync23 } from "node:fs";
+import { isAbsolute as isAbsolute13 } from "node:path";
+import { createHash as createHash26 } from "node:crypto";
+
+// packages/adapters/dist/learning-journal.js
+import { constants as constants6, openSync as openSync6, closeSync as closeSync6, readSync, writeSync as writeSync2, fstatSync as fstatSync6, lstatSync as lstatSync5, fsyncSync as fsyncSync3, mkdirSync as mkdirSync8, unlinkSync as unlinkSync3 } from "node:fs";
+import { createHash as createHash16, randomUUID } from "node:crypto";
+import { types as types2 } from "node:util";
+import { isAbsolute as isAbsolute10, join as join30, dirname as dirname9, parse, resolve as resolve13 } from "node:path";
+var LIMIT = 4 * 1024 * 1024;
+
+// packages/adapters/dist/intervention-run.js
+import { createHash as createHash19, randomBytes as randomBytes5 } from "node:crypto";
+import { mkdirSync as mkdirSync11 } from "node:fs";
+
+// packages/adapters/dist/evidence-archive.js
+import { closeSync as closeSync7, constants as constants7, fsyncSync as fsyncSync4, fstatSync as fstatSync7, linkSync as linkSync2, lstatSync as lstatSync6, mkdirSync as mkdirSync9, openSync as openSync7, readSync as readSync2, unlinkSync as unlinkSync4, writeFileSync as writeFileSync9 } from "node:fs";
+import { createHash as createHash17, randomUUID as randomUUID2 } from "node:crypto";
+import { join as join31, parse as parse2, resolve as resolve14, sep as sep4 } from "node:path";
+var LIMIT2 = 8 * 1024 * 1024;
+
+// packages/adapters/dist/blind-intervention.js
+import { constants as constants8, closeSync as closeSync8, fstatSync as fstatSync8, fsyncSync as fsyncSync5, lstatSync as lstatSync7, mkdirSync as mkdirSync10, openSync as openSync8, readSync as readSync3, writeSync as writeSync3 } from "node:fs";
+import { createHash as createHash18, randomBytes as randomBytes4 } from "node:crypto";
+import { join as join32 } from "node:path";
+
+// packages/adapters/dist/codex-host-observer.js
+import { createHash as createHash21, randomBytes as randomBytes6 } from "node:crypto";
+
+// packages/adapters/dist/codex-sdk-transport.js
+import { createHash as createHash20 } from "node:crypto";
+import { PassThrough, Writable } from "node:stream";
+import { isDeepStrictEqual } from "node:util";
+import * as zlib from "node:zlib";
+var fixtureCredential = "fixture." + Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: "fixture-no-account" } })).toString("base64url") + ".invalid";
+
+// packages/adapters/dist/codex-producer-ipc.js
+import { createHash as createHash22 } from "node:crypto";
+
+// packages/adapters/dist/codex-subscription.js
+import { existsSync as existsSync22, realpathSync as realpathSync7 } from "node:fs";
+import { dirname as dirname10, isAbsolute as isAbsolute11, resolve as resolve15 } from "node:path";
+import { Readable } from "node:stream";
+var CODEX_RUNTIME_FILES = Object.freeze(["node_modules/@earendil-works/pi-ai/dist/api/openai-codex-responses.js", "node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js", "node_modules/@earendil-works/pi-ai/dist/providers/data/openai-codex.json", "dist/core/auth-storage.js"]);
+
+// packages/adapters/dist/weekly-investigation.js
+import { createHash as createHash25 } from "node:crypto";
+import { isAbsolute as isAbsolute12 } from "node:path";
+import { constants as constants10, openSync as openSync10, fstatSync as fstatSync10, writeSync as writeSync5, fsyncSync as fsyncSync7, closeSync as closeSync10, realpathSync as realpathSync8 } from "node:fs";
+
+// packages/adapters/dist/archive-read-capability.js
+import { createHash as createHash23 } from "node:crypto";
+import { performance as performance2 } from "node:perf_hooks";
+
+// packages/adapters/dist/work-case-review.js
+import { constants as constants9, closeSync as closeSync9, fstatSync as fstatSync9, fsyncSync as fsyncSync6, lstatSync as lstatSync8, mkdirSync as mkdirSync12, openSync as openSync9, readSync as readSync4, unlinkSync as unlinkSync5, writeFileSync as writeFileSync10, writeSync as writeSync4 } from "node:fs";
+import { randomUUID as randomUUID3 } from "node:crypto";
+import { join as join33 } from "node:path";
+
+// packages/adapters/dist/work-candidates.js
+import { createHash as createHash24 } from "node:crypto";
+
+// packages/adapters/dist/work-signal-observation.js
+var LIMIT3 = 1024 * 1024;
+
+// packages/adapters/dist/weekly-investigation.js
+import { ftruncateSync as truncateCandidate } from "node:fs";
+
 // packages/adapters/dist/pi.js
-import { existsSync as existsSync22, mkdtempSync as mkdtempSync2, readFileSync as readFileSync26, rmSync as rmSync6, statSync as statSync9, writeFileSync as writeFileSync9 } from "node:fs";
+import { existsSync as existsSync24, mkdtempSync as mkdtempSync2, readFileSync as readFileSync26, rmSync as rmSync6, statSync as statSync9, writeFileSync as writeFileSync11 } from "node:fs";
 import { tmpdir as tmpdir2, homedir as homedir2 } from "node:os";
-import { randomBytes as randomBytes4 } from "node:crypto";
-import { join as join31, resolve as resolve13 } from "node:path";
+import { randomBytes as randomBytes7 } from "node:crypto";
+import { join as join35, resolve as resolve16 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // packages/adapters/dist/pi-json.js
@@ -8747,7 +8816,7 @@ import { createInterface } from "node:readline";
 var SKIPPED_TYPE_RE = /^\s*\{\s*"type"\s*:\s*"(?:message_update|tool_execution_update)"/;
 var MAX_STDERR_CHARS = 8e3;
 function runPiJson(opts) {
-  return new Promise((resolve20, reject) => {
+  return new Promise((resolve21, reject) => {
     const child2 = spawn4("pi", opts.args, {
       cwd: opts.cwd,
       env: opts.env,
@@ -8802,15 +8871,15 @@ function runPiJson(opts) {
         changedPaths: opts.changedPaths,
         homeDir: opts.homeDir
       });
-      resolve20({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS), providerFailure });
+      resolve21({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS), providerFailure });
     });
   });
 }
 
 // packages/adapters/dist/trajectory.js
-import { createHash as createHash16 } from "node:crypto";
+import { createHash as createHash27 } from "node:crypto";
 import { readFileSync as readFileSync25, readdirSync as readdirSync16 } from "node:fs";
-import { join as join30 } from "node:path";
+import { join as join34 } from "node:path";
 
 // packages/adapters/dist/closed-schema.js
 var ANNOTATION_KEYWORDS = /* @__PURE__ */ new Set(["$schema", "$id", "title", "description", "$defs"]);
@@ -10769,7 +10838,7 @@ function collectTrajectorySources(cwd, sources) {
       }
       seenFiles.add(sourceFile);
       try {
-        const text3 = readFileSync25(join30(cwd, file), "utf8");
+        const text3 = readFileSync25(join34(cwd, file), "utf8");
         const normalized = source.adapter === "principal-assurance-v1" ? normalizePrincipalAssuranceLedger(text3) : source.adapter === "pi-daddy-v1" ? normalizePiDaddyLegacyLedger(text3) : source.adapter === "pi-daddy-ledger-v3" ? normalizePiDaddyLedgerV3(text3) : deserializeTrajectoryEvents(text3);
         if (!normalized)
           throw new Error("normalized-v1 source is empty, malformed, or unsupported");
@@ -11974,7 +12043,7 @@ function validatePrincipalIntegrity(records) {
     }
     const copy = { ...record };
     delete copy.event_digest;
-    const expected = createHash16("sha256").update(canonicalJson(copy)).digest("hex");
+    const expected = createHash27("sha256").update(canonicalJson(copy)).digest("hex");
     if (record.event_digest !== expected)
       throw new Error(`principal assurance integrity failure at line ${line}: event digest mismatch`);
     if (!validTime(typeof record.at === "string" ? record.at : void 0))
@@ -12030,7 +12099,7 @@ function sanitizeAttributes(value) {
     if (sensitiveKey.test(key))
       return "[REDACTED]";
     if (typeof current === "string" && freeTextKey.test(key)) {
-      return `[REDACTED sha256:${createHash16("sha256").update(current).digest("hex")}]`;
+      return `[REDACTED sha256:${createHash27("sha256").update(current).digest("hex")}]`;
     }
     if (Array.isArray(current))
       return current.map((entry) => walk2(entry));
@@ -12085,7 +12154,7 @@ function walkFiles(root, relative7 = "") {
   const out = [];
   let entries;
   try {
-    entries = readdirSync16(join30(root, relative7), { withFileTypes: true });
+    entries = readdirSync16(join34(root, relative7), { withFileTypes: true });
   } catch {
     return out;
   }
@@ -12100,9 +12169,9 @@ function walkFiles(root, relative7 = "") {
 }
 
 // packages/adapters/dist/prompt-provenance.js
-import { createHash as createHash17, createHmac, timingSafeEqual } from "node:crypto";
+import { createHash as createHash28, createHmac, timingSafeEqual } from "node:crypto";
 function sha2(bytes) {
-  return createHash17("sha256").update(bytes, "utf8").digest("hex");
+  return createHash28("sha256").update(bytes, "utf8").digest("hex");
 }
 function normalizePromptPayload(value, rule) {
   if (rule !== PROMPT_NORMALIZATION_RULE)
@@ -12237,7 +12306,7 @@ function contractFor(req) {
     const raw2 = readFileSync26(req.systemPromptFile, "utf8");
     return { text: raw2, raw: raw2, mechanism: "system-prompt-file" };
   }
-  const raw = readFileSync26(join31(requireSkillDir(req.skillDir, req.mode), "SKILL.md"), "utf8");
+  const raw = readFileSync26(join35(requireSkillDir(req.skillDir, req.mode), "SKILL.md"), "utf8");
   const body = splitPromptDoc(raw).body;
   if (req.mode === "red")
     return { text: body, raw, mechanism: "none" };
@@ -12256,11 +12325,11 @@ function captureSetup(req, env, contract, counter) {
       const empty = observeProviderPayload({}, contract.text, contract.mechanism, counter.value++);
       req.onPromptObservation?.({ ...empty, status: "ERROR", error: "prompt delivery provenance is unauthenticated when subject extensions or runtime-injection env share Pi's process" });
     } };
-  const dir = mkdtempSync2(join31(tmpdir2(), "skill-harness-prompt-"));
-  const path = join31(dir, "observations.jsonl"), contractPath = join31(dir, "contract.json");
-  const authenticationKey = randomBytes4(32).toString("hex");
-  writeFileSync9(path, "", { mode: 384 });
-  writeFileSync9(contractPath, JSON.stringify({ text: contract.text, mechanism: contract.mechanism, authentication_key: authenticationKey }), { mode: 384 });
+  const dir = mkdtempSync2(join35(tmpdir2(), "skill-harness-prompt-"));
+  const path = join35(dir, "observations.jsonl"), contractPath = join35(dir, "contract.json");
+  const authenticationKey = randomBytes7(32).toString("hex");
+  writeFileSync11(path, "", { mode: 384 });
+  writeFileSync11(contractPath, JSON.stringify({ text: contract.text, mechanism: contract.mechanism, authentication_key: authenticationKey }), { mode: 384 });
   const finish2 = () => {
     try {
       const lines = readFileSync26(path, "utf8").split("\n").filter(Boolean);
@@ -12298,10 +12367,10 @@ function providerStderr(stderr) {
   return PROVIDER_STDERR_SIGNATURES.some((sig) => hay.includes(sig)) ? stderr.trim() : null;
 }
 function requireSkillDir(skillDir, mode) {
-  const abs = resolve13(skillDir);
-  const md = join31(abs, "SKILL.md");
-  const isDir3 = existsSync22(abs) && statSync9(abs).isDirectory();
-  if (!isDir3 || !existsSync22(md)) {
+  const abs = resolve16(skillDir);
+  const md = join35(abs, "SKILL.md");
+  const isDir3 = existsSync24(abs) && statSync9(abs).isDirectory();
+  if (!isDir3 || !existsSync24(md)) {
     throw new Error(`mode=${mode} needs a skill directory with a SKILL.md, but ${abs} ${isDir3 ? "has none" : "is not a directory"}` + (abs === skillDir ? "" : ` (given \`${skillDir}\`, resolved against ${process.cwd()})`) + ` \u2014 pi accepts \`--skill <nonexistent>\` silently (exit 0, a normal answer, no skill in context), so this run would measure a model with no skill and report it as a result.`);
   }
   return abs;
@@ -12314,7 +12383,7 @@ function skillFlags(mode, skillDir, boundRaw) {
       return ["--skill", requireSkillDir(skillDir, mode)];
     case "force": {
       requireSkillDir(skillDir, mode);
-      const body = boundRaw ?? readFileSync26(join31(resolve13(skillDir), "SKILL.md"), "utf8");
+      const body = boundRaw ?? readFileSync26(join35(resolve16(skillDir), "SKILL.md"), "utf8");
       return ["--no-skills", "--append-system-prompt", body];
     }
   }
@@ -12323,8 +12392,8 @@ function extensionFlags(extensions) {
   if (!extensions || extensions.length === 0)
     return [];
   return extensions.flatMap((p) => {
-    const abs = resolve13(p);
-    if (!existsSync22(abs)) {
+    const abs = resolve16(p);
+    if (!existsSync24(abs)) {
       throw new Error(`env.extensions names ${abs}, which does not exist \u2014 pi would start without it and the scenario would silently test an agent with no subagent tool at all.`);
     }
     return ["--extension", abs];
@@ -12406,7 +12475,7 @@ ${r.stderr.trim()}
       }
       return withProviderFailure(parts.join("\n"), providerFailure);
     }
-    const session = mkdtempSync2(join31(tmpdir2(), "sc-pi-session-"));
+    const session = mkdtempSync2(join35(tmpdir2(), "sc-pi-session-"));
     for (let i = 0; i < total; i++) {
       const turnFlags = i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common2, ...turnFlags, "-p", req.turns[i]];
@@ -12463,7 +12532,7 @@ ${r.stderr.trim()}
     const total = req.turns.length;
     const traces = [];
     const parts = [];
-    const session = total === 1 ? null : mkdtempSync2(join31(tmpdir2(), "sc-pi-session-"));
+    const session = total === 1 ? null : mkdtempSync2(join35(tmpdir2(), "sc-pi-session-"));
     let providerFailure = null;
     const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
     for (let i = 0; i < total; i++) {
@@ -12565,29 +12634,23 @@ ${r.stderr.trim()}
   }
 };
 
-// packages/adapters/dist/evidence-archive.js
-import { closeSync as closeSync6, constants as constants6, fsyncSync as fsyncSync3, fstatSync as fstatSync6, linkSync as linkSync2, lstatSync as lstatSync5, mkdirSync as mkdirSync8, openSync as openSync6, readSync, unlinkSync as unlinkSync3, writeFileSync as writeFileSync10 } from "node:fs";
-import { createHash as createHash18, randomUUID } from "node:crypto";
-import { join as join32, parse, resolve as resolve14, sep as sep4 } from "node:path";
-var LIMIT = 8 * 1024 * 1024;
-
 // packages/adapters/dist/archive-checkpoint.js
-import { createHash as createHash19 } from "node:crypto";
-var LIMIT2 = 8 * 1024 * 1024;
+import { createHash as createHash29 } from "node:crypto";
+var LIMIT4 = 8 * 1024 * 1024;
 
 // packages/adapters/dist/archive-policy.js
-import { closeSync as closeSync7, constants as constants8, fstatSync as fstatSync7, lstatSync as lstatSync6, openSync as openSync7, readSync as readSync2 } from "node:fs";
-import { createHash as createHash23 } from "node:crypto";
-import { dirname as dirname10, isAbsolute as isAbsolute11, join as join34, parse as parse2, resolve as resolve15, sep as sep6 } from "node:path";
+import { closeSync as closeSync11, constants as constants12, fstatSync as fstatSync11, lstatSync as lstatSync9, openSync as openSync11, readSync as readSync5 } from "node:fs";
+import { createHash as createHash33 } from "node:crypto";
+import { dirname as dirname12, isAbsolute as isAbsolute15, join as join37, parse as parse3, resolve as resolve17, sep as sep6 } from "node:path";
 
 // packages/adapters/dist/archive-retention-policy.js
-import { dirname as dirname9, join as join33 } from "node:path";
+import { dirname as dirname11, join as join36 } from "node:path";
 
 // packages/adapters/dist/generated/retention-v2-contract.js
 import { Compile } from "typebox/compile";
 
 // packages/adapters/dist/generated/retention-v2-json.js
-import { createHash as createHash20 } from "node:crypto";
+import { createHash as createHash30 } from "node:crypto";
 var WORK_EVENT_BYTES = 64 * 1024;
 var WORK_TEXT_BYTES = 16 * 1024 * 1024;
 
@@ -12682,13 +12745,13 @@ function freeze2(value) {
 }
 
 // packages/adapters/dist/execution-retention-archive.js
-import { createHash as createHash22 } from "node:crypto";
+import { createHash as createHash32 } from "node:crypto";
 
 // packages/adapters/dist/generated/retention-v2-native.js
-import { constants as constants7 } from "node:fs";
+import { constants as constants11 } from "node:fs";
 import { open, lstat, realpath } from "node:fs/promises";
-import { isAbsolute as isAbsolute10, relative as relative5, sep as sep5 } from "node:path";
-import { createHash as createHash21 } from "node:crypto";
+import { isAbsolute as isAbsolute14, relative as relative5, sep as sep5 } from "node:path";
+import { createHash as createHash31 } from "node:crypto";
 var MAX_NATIVE_SESSION_BYTES = 1024 * 1024;
 
 // packages/adapters/dist/execution-projection-schema.js
@@ -12736,71 +12799,34 @@ var EXECUTION_ARCHIVE_PROJECTION_SCHEMA = freeze3({
 });
 var compiled = Compile2(EXECUTION_ARCHIVE_PROJECTION_SCHEMA);
 
-// packages/adapters/dist/work-candidates.js
-import { createHash as createHash24 } from "node:crypto";
-
-// packages/adapters/dist/work-signal-observation.js
-var LIMIT3 = 1024 * 1024;
-
-// packages/adapters/dist/work-case-review.js
-import { constants as constants9, closeSync as closeSync8, fstatSync as fstatSync8, fsyncSync as fsyncSync4, lstatSync as lstatSync7, mkdirSync as mkdirSync9, openSync as openSync8, readSync as readSync3, unlinkSync as unlinkSync4, writeFileSync as writeFileSync11, writeSync as writeSync2 } from "node:fs";
-import { randomUUID as randomUUID2 } from "node:crypto";
-import { join as join35 } from "node:path";
-
-// packages/adapters/dist/archive-read-capability.js
-import { createHash as createHash26 } from "node:crypto";
-import { performance as performance2 } from "node:perf_hooks";
-
-// packages/adapters/dist/learning-journal.js
-import { constants as constants10, openSync as openSync9, closeSync as closeSync9, readSync as readSync4, writeSync as writeSync3, fstatSync as fstatSync9, lstatSync as lstatSync8, fsyncSync as fsyncSync5, mkdirSync as mkdirSync10, unlinkSync as unlinkSync5 } from "node:fs";
-import { createHash as createHash25, randomUUID as randomUUID3 } from "node:crypto";
-import { types as types2 } from "node:util";
-import { isAbsolute as isAbsolute12, join as join36, dirname as dirname11, parse as parse3, resolve as resolve16 } from "node:path";
-var LIMIT4 = 4 * 1024 * 1024;
-
 // packages/adapters/dist/generated/work-v4/reader.js
 import { isDate } from "node:util/types";
 
 // packages/adapters/dist/generated/work-v4/json.js
-import { createHash as createHash27 } from "node:crypto";
+import { createHash as createHash34 } from "node:crypto";
 var WORK_EVENT_BYTES2 = 64 * 1024;
 var WORK_TEXT_BYTES2 = 16 * 1024 * 1024;
 
 // packages/adapters/dist/generated/work-v4/execution-id.js
 import { randomUUID as randomUUID4 } from "node:crypto";
 
-// packages/adapters/dist/blind-intervention.js
-import { constants as constants11, closeSync as closeSync10, fstatSync as fstatSync10, fsyncSync as fsyncSync6, lstatSync as lstatSync9, mkdirSync as mkdirSync11, openSync as openSync10, readSync as readSync5, writeSync as writeSync4 } from "node:fs";
-import { createHash as createHash28, randomBytes as randomBytes5 } from "node:crypto";
-import { join as join37 } from "node:path";
-
 // packages/adapters/dist/archive-observer.js
 import { randomUUID as randomUUID5 } from "node:crypto";
 
-// packages/adapters/dist/weekly-investigation.js
-import { createHash as createHash29 } from "node:crypto";
-import { isAbsolute as isAbsolute13 } from "node:path";
-import { constants as constants12, openSync as openSync11, fstatSync as fstatSync11, writeSync as writeSync5, fsyncSync as fsyncSync7, closeSync as closeSync11, realpathSync as realpathSync7 } from "node:fs";
-import { ftruncateSync as truncateCandidate } from "node:fs";
-
-// packages/adapters/dist/intervention-run.js
-import { createHash as createHash30, randomBytes as randomBytes6 } from "node:crypto";
-import { mkdirSync as mkdirSync12 } from "node:fs";
-
 // packages/adapters/dist/principal-payload-port.js
-import { createHash as createHash31 } from "node:crypto";
-import { isAbsolute as isAbsolute14 } from "node:path";
+import { createHash as createHash35 } from "node:crypto";
+import { isAbsolute as isAbsolute16 } from "node:path";
 
 // packages/adapters/dist/reviewed-archive-export.js
-import { constants as constants13, openSync as openSync12, closeSync as closeSync12, writeSync as writeSync6, fsyncSync as fsyncSync8, realpathSync as realpathSync8, lstatSync as lstatSync10 } from "node:fs";
-import { dirname as dirname12, isAbsolute as isAbsolute15, resolve as resolve17 } from "node:path";
-import { createHash as createHash32 } from "node:crypto";
+import { constants as constants13, openSync as openSync12, closeSync as closeSync12, writeSync as writeSync6, fsyncSync as fsyncSync8, realpathSync as realpathSync9, lstatSync as lstatSync10 } from "node:fs";
+import { dirname as dirname13, isAbsolute as isAbsolute17, resolve as resolve18 } from "node:path";
+import { createHash as createHash36 } from "node:crypto";
 
 // packages/adapters/dist/archive-facts.js
-import { createHash as createHash33 } from "node:crypto";
+import { createHash as createHash37 } from "node:crypto";
 
 // packages/adapters/dist/trust-lifecycle.js
-import { isAbsolute as isAbsolute16 } from "node:path";
+import { isAbsolute as isAbsolute18 } from "node:path";
 
 // packages/adapters/dist/index.js
 var ADAPTERS = {
@@ -12816,11 +12842,11 @@ function getAdapter(name) {
 
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
-import { readFileSync as readFileSync27, existsSync as existsSync23 } from "node:fs";
-import { join as join38, dirname as dirname13 } from "node:path";
+import { readFileSync as readFileSync27, existsSync as existsSync25 } from "node:fs";
+import { join as join38, dirname as dirname14 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 import { spawn as spawn5 } from "node:child_process";
-var __dirname = dirname13(fileURLToPath2(import.meta.url));
+var __dirname = dirname14(fileURLToPath2(import.meta.url));
 function templatePath(assetsDir) {
   if (assetsDir)
     return join38(assetsDir, "report.template.html");
@@ -12831,18 +12857,18 @@ function templatePath(assetsDir) {
     join38(__dirname, "..", "..", "assets", "report.template.html")
   ];
   for (const c of candidates)
-    if (existsSync23(c))
+    if (existsSync25(c))
       return c;
   throw new Error("cannot find assets/report.template.html");
 }
 function gradeScriptPath(assetsDir) {
-  return join38(dirname13(templatePath(assetsDir)), "report.grade.js");
+  return join38(dirname14(templatePath(assetsDir)), "report.grade.js");
 }
 function readBody(req) {
-  return new Promise((resolve20) => {
+  return new Promise((resolve21) => {
     let b = "";
     req.on("data", (c) => b += c);
-    req.on("end", () => resolve20(b));
+    req.on("end", () => resolve21(b));
   });
 }
 function findTranscript(runDir, id) {
@@ -12947,7 +12973,7 @@ async function serveReview(opts) {
             scenario,
             adapter,
             judge: results.judge,
-            specDir: dirname13(specPath),
+            specDir: dirname14(specPath),
             threshold,
             mode: results.mode,
             expectedReps: prev.reps ?? 1
@@ -13057,7 +13083,7 @@ async function serveReview(opts) {
             // ~2% self-disagreement on identical transcripts, so this is a real
             // second opinion rather than a no-op.
             secondaryJudge: results.judge,
-            specDir: dirname13(specPath),
+            specDir: dirname14(specPath),
             now: () => (/* @__PURE__ */ new Date()).toISOString()
           });
           ensureResultsGitignore(join38(opts.skillDir, "tests", "results"));
@@ -13109,7 +13135,7 @@ async function serveReview(opts) {
       res.end(`server error: ${e instanceof Error ? e.message : e}`);
     }
   });
-  await new Promise((resolve20) => server.listen(opts.port ?? 0, "127.0.0.1", resolve20));
+  await new Promise((resolve21) => server.listen(opts.port ?? 0, "127.0.0.1", resolve21));
   const addr = server.address();
   const port = typeof addr === "object" && addr ? addr.port : opts.port;
   const link = `http://127.0.0.1:${port}/`;
@@ -13135,18 +13161,18 @@ function tryOpen(url, cmd) {
 }
 
 // packages/pi-extension/src/runner.ts
-import { existsSync as existsSync24 } from "node:fs";
-import { dirname as dirname14, join as join39, resolve as resolve18 } from "node:path";
+import { existsSync as existsSync26 } from "node:fs";
+import { dirname as dirname15, join as join39, resolve as resolve19 } from "node:path";
 function resolveSkillDir(cwd, arg) {
   if (arg) {
-    const dir2 = resolve18(cwd, arg);
-    if (existsSync24(join39(dir2, "tests", "specification.yaml"))) return dir2;
+    const dir2 = resolve19(cwd, arg);
+    if (existsSync26(join39(dir2, "tests", "specification.yaml"))) return dir2;
     throw new Error(`no tests/specification.yaml found at ${dir2}`);
   }
   let dir = cwd;
   for (; ; ) {
-    if (existsSync24(join39(dir, "tests", "specification.yaml"))) return dir;
-    const parent = dirname14(dir);
+    if (existsSync26(join39(dir, "tests", "specification.yaml"))) return dir;
+    const parent = dirname15(dir);
     if (parent === dir) break;
     dir = parent;
   }
@@ -13193,9 +13219,9 @@ async function runViaExtension(opts) {
 }
 
 // packages/pi-extension/src/capture-cmd.ts
-import { existsSync as existsSync25, mkdirSync as mkdirSync13, writeFileSync as writeFileSync12, readdirSync as readdirSync17, readFileSync as readFileSync28 } from "node:fs";
+import { existsSync as existsSync27, mkdirSync as mkdirSync13, writeFileSync as writeFileSync12, readdirSync as readdirSync17, readFileSync as readFileSync28 } from "node:fs";
 import { join as join40 } from "node:path";
-import { createHash as createHash34 } from "node:crypto";
+import { createHash as createHash38 } from "node:crypto";
 var CANCELLED = { status: "cancelled", files: [] };
 var CAPTURES_GITIGNORE = "# Local review evidence for captured cases \u2014 never commit.\n.local/\n";
 async function runCapture(skillDir, ctx) {
@@ -13206,7 +13232,7 @@ async function runCapture(skillDir, ctx) {
     return CANCELLED;
   }
   const specPath = join40(skillDir, "tests", "specification.yaml");
-  if (!existsSync25(specPath)) {
+  if (!existsSync27(specPath)) {
     ui.say(`${specPath} does not exist \u2014 run \`skill-harness init\` before capturing into this skill`);
     return CANCELLED;
   }
@@ -13248,7 +13274,7 @@ async function runCapture(skillDir, ctx) {
     return CANCELLED;
   }
   const capturesDir = join40(skillDir, "tests", "captures");
-  const existingIds = existsSync25(capturesDir) ? readdirSync17(capturesDir).filter((f) => f.endsWith(".yaml")).map((f) => f.replace(/\.yaml$/, "")) : [];
+  const existingIds = existsSync27(capturesDir) ? readdirSync17(capturesDir).filter((f) => f.endsWith(".yaml")).map((f) => f.replace(/\.yaml$/, "")) : [];
   const capture = buildCaptureCase({
     turns,
     range: { start, end },
@@ -13316,9 +13342,9 @@ function defaultTitle(capture) {
 async function chooseTarget(skillDir, ctx) {
   const candidates = [];
   const skillMd = join40(skillDir, "SKILL.md");
-  if (existsSync25(skillMd)) candidates.push({ label: "SKILL.md (this skill)", kind: "skill", path: "SKILL.md", abs: skillMd });
+  if (existsSync27(skillMd)) candidates.push({ label: "SKILL.md (this skill)", kind: "skill", path: "SKILL.md", abs: skillMd });
   const agentsDir = join40(ctx.cwd, ".pi", "agents");
-  if (existsSync25(agentsDir)) {
+  if (existsSync27(agentsDir)) {
     for (const f of readdirSync17(agentsDir).filter((x) => x.endsWith(".md"))) {
       candidates.push({ label: `subagent: ${f}`, kind: "subagent", path: join40(".pi", "agents", f), abs: join40(agentsDir, f) });
     }
@@ -13333,7 +13359,7 @@ async function chooseTarget(skillDir, ctx) {
   return {
     kind: chosen.kind,
     path: chosen.path,
-    content_sha256: createHash34("sha256").update(readFileSync28(chosen.abs, "utf8"), "utf8").digest("hex")
+    content_sha256: createHash38("sha256").update(readFileSync28(chosen.abs, "utf8"), "utf8").digest("hex")
   };
 }
 function suggestScenarioId(specPath, fallback) {
@@ -13350,7 +13376,7 @@ function suggestScenarioId(specPath, fallback) {
 function writeCapture(capturesDir, capture, selected2, homeDir) {
   mkdirSync13(join40(capturesDir, ".local"), { recursive: true });
   const gitignore = join40(capturesDir, ".gitignore");
-  const existingIgnore = existsSync25(gitignore) ? readFileSync28(gitignore, "utf8") : "";
+  const existingIgnore = existsSync27(gitignore) ? readFileSync28(gitignore, "utf8") : "";
   if (!existingIgnore.split("\n").some((l) => l.trim() === ".local/" || l.trim() === ".local")) {
     writeFileSync12(gitignore, existingIgnore ? `${existingIgnore.replace(/\n*$/, "\n")}${CAPTURES_GITIGNORE}` : CAPTURES_GITIGNORE, "utf8");
   }
@@ -13430,10 +13456,10 @@ ${card.failedTranscripts.join("\n")}`);
     return;
   }
   if (sub === "judge") {
-    const runDir = resolve19(ctx.cwd, positional[0] ?? ".");
-    const testsDir = dirname15(dirname15(dirname15(runDir)));
+    const runDir = resolve20(ctx.cwd, positional[0] ?? ".");
+    const testsDir = dirname16(dirname16(dirname16(runDir)));
     const spec = loadSpec(join41(testsDir, "specification.yaml"));
-    const prev = existsSync26(join41(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const prev = existsSync28(join41(runDir, "results.yaml")) ? readResults(runDir) : null;
     const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? parseModelRef(defaultJudge());
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge"
@@ -13501,7 +13527,7 @@ ${card.failedTranscripts.join("\n")}`);
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
     const specPath = join41(skillDir, "tests", "specification.yaml");
     const spec = loadSpec(specPath);
-    const specDir = dirname15(specPath);
+    const specDir = dirname16(specPath);
     const report = computeCoverage({
       specDir,
       scenarios: spec.scenarios,
@@ -13515,7 +13541,7 @@ ${card.failedTranscripts.join("\n")}`);
     const specPath = join41(skillDir, "tests", "specification.yaml");
     const spec = loadSpec(specPath);
     const base = flags.base || "HEAD";
-    const rev = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: dirname15(specPath), timeoutMs: 3e4 });
+    const rev = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: dirname16(specPath), timeoutMs: 3e4 });
     if (rev.code !== 0) {
       say(ctx, "affected needs a git repository to diff against", "error");
       return;
@@ -13523,7 +13549,7 @@ ${card.failedTranscripts.join("\n")}`);
     const repoRoot = rev.stdout.trim();
     const result = selectAffected({
       scenarios: spec.scenarios,
-      specDir: dirname15(specPath),
+      specDir: dirname16(specPath),
       diff: await gitDiff(repoRoot, base),
       repoRoot
     });
@@ -13642,7 +13668,7 @@ function registerTool(pi) {
 
 // packages/pi-extension/src/index.ts
 function index_default(pi) {
-  const assetsDir = join42(dirname16(fileURLToPath3(import.meta.url)), "..", "..", "..", "assets");
+  const assetsDir = join42(dirname17(fileURLToPath3(import.meta.url)), "..", "..", "..", "assets");
   registerCommand(pi, assetsDir);
   registerTool(pi);
   pi.on("session_shutdown", async () => {

@@ -7,6 +7,7 @@ import { readArchiveSource } from './evidence-archive.js';
 import { readLearningCase } from './learning-case.js';
 import { learningJournal, learningCopy, learningHash, learningFile, registerLearningStore, verifyLearningStore } from './learning-journal.js';
 export interface WeeklySupervisorInput {archiveRoot:string;week:string;population:string;policyDigest:string;maxCases:number;cases:{version:2|3;batchId:string;manifestId:string;decisionId:string}[];reader:Omit<ArchiveReadCapabilityOptions,'root'>}
+export interface ModelArchiveRequest {kind:'producer-archive-model-v1';manifestIds:string[];maxInputBytes:number;proposalLimits:{subjectCalls:number;judgeCalls:number;wallMs:number}}
 export interface InvestigationScreenRequest {manifestIds:string[];population:string}
 export interface InvestigationFiles {spec:string;rubric:string;judgePolicy:string;heldout:string;configuration:string;skill:string}
 const sha=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
@@ -22,8 +23,9 @@ export function createWeeklyInvestigation(directory:string,input:WeeklySuperviso
  try{learningJournal(directory,initial);}catch(e){if((e as NodeJS.ErrnoException).code!=='EEXIST')throw e;const old=learningJournal(directory).read()[0].value;if(learningHash(old)!==learningHash(initial))throw Error('weekly selection already frozen');}
  return openWeeklyInvestigation(directory);
 }
-/** An actual finite data-only host interpreter. No injected JavaScript, shell, socket, model transport or
- * arbitrary filesystem operation executes. A future live host needs separately qualified confinement. */
+/** Existing run is a finite inert data-only interpreter. The separate prepareModel/runModel
+ * composition forwards only capability-selected frozen bytes to an original producer model seam;
+ * it does not expose shell/filesystem tools or turn proposal evidence into execution authority. */
 export function openWeeklyInvestigation(directory:string){
  const journal=learningJournal(directory),initial=journal.read()[0].value;
  if(initial.kind!=='weekly-investigation-v1'||initial.type!=='initial')throw Error('wrong supervisor journal');
@@ -31,7 +33,8 @@ export function openWeeklyInvestigation(directory:string){
  const inspect=()=>{verifyLearningStore(input.archiveRoot,'weekly',selected.key,directory,learningHash(initial));const events=journal.read();let state='prepared',hypothesis:Hypothesis|null=null,approved=false,preview:InvestigationScenarioPreview|null=null,frozen:ReturnType<typeof freezeInvestigation>|null=null,files:InvestigationFiles|null=null,skillHash:string|null=null;
   for(const {value:v} of events.slice(1)){
    switch(v.type){
-    case 'claim':if(state!=='prepared')throw Error('invalid supervisor claim');state='claimed';break;
+    case 'model-prepared':if(state!=='prepared')throw Error('invalid model preparation');state='model-prepared';break;
+    case 'claim':if(!['prepared','model-prepared'].includes(state))throw Error('invalid supervisor claim');state='claimed';break;
     case 'read':if(state!=='claimed')throw Error('invalid read phase');break;
     case 'proposed':if(state!=='claimed')throw Error('invalid proposal phase');hypothesis=buildHypothesis((v.hypothesis as Hypothesis).proposal);if(hypothesis.id!==(v.hypothesis as Hypothesis).id)throw Error('proposal identity changed');state='proposed';break;
     case 'failed':if(state!=='claimed')throw Error('invalid failure phase');state='failed';break;
@@ -53,6 +56,23 @@ export function openWeeklyInvestigation(directory:string){
  const previewScreen=(request:InvestigationScreenRequest)=>{const evaluated=evaluation(),s=inspect(),input=learningCopy(request);if(Object.keys(input).sort().join()!=='manifestIds,population'||typeof input.population!=='string'||!input.population.length||input.population.length>512||!Array.isArray(input.manifestIds)||!input.manifestIds.length||input.manifestIds.length>16||new Set(input.manifestIds).size!==input.manifestIds.length||input.manifestIds.some(id=>!/^[a-f0-9]{64}$/.test(id)))throw Error('bounded distinct screen sources required');
   const binding={input,freeze:evaluated.frozen.digest,skillSha256:evaluated.skillSha256,scenarioId:String(s.preview!.scenario.id)};return {...binding,digest:learningHash(binding)};};
  return {inspect,evaluation,previewScreen,
+  prepareModel(raw:ModelArchiveRequest){
+   const request=learningCopy(raw),s=inspect();confirmed(input);
+   if(Object.keys(request).sort().join()!=='kind,manifestIds,maxInputBytes,proposalLimits'||request.kind!=='producer-archive-model-v1'||!Number.isSafeInteger(request.maxInputBytes)||request.maxInputBytes<1||request.maxInputBytes>3000||!Array.isArray(request.manifestIds)||!request.manifestIds.length||new Set(request.manifestIds).size!==request.manifestIds.length||request.manifestIds.length>input.reader.maxCalls||request.manifestIds.some(id=>!input.reader.manifestIds.includes(id))||Object.keys(request.proposalLimits).sort().join()!=='judgeCalls,subjectCalls,wallMs'||Object.values(request.proposalLimits).some(n=>!Number.isSafeInteger(n)||n<0)||request.proposalLimits.wallMs<1)throw Error('bounded archive-only model request required');
+   const old=journal.read().find(e=>e.value.type==='model-prepared');if(old){if(learningHash(old.value.request)!==learningHash(request)||s.state!=='model-prepared')throw Error('model preparation changed or already claimed');return learningCopy(old.value.prepared) as {digest:string;input:string};}
+   if(s.state!=='prepared')throw Error('weekly owner already claimed');
+   const reader=createArchiveReadCapability({...input.reader,root:input.archiveRoot});const sources=request.manifestIds.map(id=>{const r=reader.read(id);return {manifestId:r.manifestId,sha256:r.reference.sha256,bytesBase64:r.bytes.toString('base64')};});
+   const text=JSON.stringify({selection:selected,sources,proposalLimits:request.proposalLimits});if(Buffer.byteLength(text)>request.maxInputBytes)throw Error('archive model input overbudget');
+   const prepared={input:text,digest:learningHash({request,input:text,selection:selected})};append(s.tip,{type:'model-prepared',request,prepared,sourceKind:'producer-archive-model-v1'});return prepared;
+  },
+  async runModel(preparedDigest:string,planSha256:string,invoke:(input:string)=>Promise<{hostPath:string;id:string}>){
+   const s=inspect(),prepared=journal.read().find(e=>e.value.type==='model-prepared')?.value;if(s.state!=='model-prepared'||!prepared||(prepared.prepared as any).digest!==preparedDigest||!/^([a-f0-9]{64})$/.test(planSha256))throw Error('frozen model preparation required');confirmed(input);
+   const tip=append(s.tip,{type:'claim',sourceKind:'producer-archive-model-v1',preparedDigest,planSha256}).id;
+   try{const ref=await invoke(String((prepared.prepared as any).input)),rows=learningJournal(ref.hostPath).read(),obs=rows.find(r=>r.value.type==='observation'&&r.value.id===ref.id),bound=rows.find(r=>r.value.type==='producer-ipc-bound'&&r.value.id===ref.id),settled=rows.find(r=>r.value.type==='producer-ipc-settled'&&r.value.id===ref.id);
+    if(!obs||!bound||!settled||bound.value.bindingHash!==settled.value.bindingHash||(bound.value.binding as any).charterSha256!==planSha256)throw Error('original model settlement required');
+    const h=buildHypothesis(JSON.parse(Buffer.from(String(obs.value.outputBase64),'base64').toString('utf8')));if(h.proposal.archiveSnapshot!==selected.archiveSnapshot||h.proposal.population!==selected.population||learningHash([...h.proposal.caseIds].sort())!==learningHash([...selected.selectedCaseIds].sort())||learningHash(h.proposal.limits)!==learningHash((prepared.request as ModelArchiveRequest).proposalLimits))throw Error('model proposal scope/limits mismatch');confirmed(input);append(tip,{type:'proposed',hypothesis:h,sourceKind:'producer-archive-model-v1',source:{...ref,observation:obs.id,settlement:settled.id,planSha256},approved:false});return h;
+   }catch(error){try{append(tip,{type:'failed',reason:'model-retro-failed; no retry'});}catch(persist){throw new AggregateError([error,persist],'retro failure persistence unknown');}throw error;}
+  },
   screen(request:InvestigationScreenRequest,authorizedLinks:readonly string[]){const s=inspect(),preview=previewScreen(request);if(!authorizedLinks.includes(preview.digest))throw Error('independent exact screen linkage authority required');if(inspect().tip!==s.tip)throw Error('stale screen snapshot');const seen=new Set<string>();
    const results=preview.input.manifestIds.map(id=>{const source=readArchiveSource(input.archiveRoot,id);if(source.status!=='available'||source.reference.retention!=='exact'||source.reference.parser.id!=='skill-harness-results'||source.bytes.length>65536)throw Error('retained screen results unavailable');if(seen.has(source.reference.sha256))throw Error('duplicate screen evidence bytes');seen.add(source.reference.sha256);
     const result=validateResults(parseLearningRequest(source.bytes.toString('utf8')));if(source.reference.parser.version!==String(result.schema)||typeof result.skill!=='string'||typeof result.model!=='string'||new Set(result.scenarios.map(r=>r.id)).size!==result.scenarios.length||!result.scenarios.some(r=>r.id===preview.scenarioId))throw Error('screen result scenario/schema binding mismatch');return result;});
