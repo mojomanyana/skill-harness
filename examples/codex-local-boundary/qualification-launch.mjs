@@ -10,6 +10,11 @@ import { prepareProducerProduct } from '../../packages/adapters/dist/producer-pr
 export const worker='/harness/examples/codex-local-boundary/qualification-worker.mjs';
 const closed=(x,keys)=>{if(!x||Object.keys(x).sort().join()!==keys.sort().join())throw Error('closed launch declaration required');};
 export function sourceHash(path){if(realpathSync(path)!==path)throw Error('source alias refused');const fd=openSync(path,constants.O_RDONLY|constants.O_NOFOLLOW);try{const s=fstatSync(fd);if(!s.isFile()||s.size>256*1024*1024)throw Error('source size/type');const hash=createHash('sha256'),b=Buffer.alloc(65536);let n;while((n=readSync(fd,b,0,b.length,null)))hash.update(b.subarray(0,n));return hash.digest('hex');}finally{closeSync(fd);}}
+function requireResolverFile(){
+ // The host's resolved file must be bound directly here, not a dangling host symlink.
+ // Presence is only a prerequisite: this makes no DNS/socket probe or reachability claim.
+ let fd;try{fd=openSync('/etc/resolv.conf',constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);const s=fstatSync(fd);if(!s.isFile()||s.size<1||s.size>65536)throw Error();}catch{throw Error('subscription resolver configuration unavailable');}finally{if(fd!==undefined)closeSync(fd);}
+}
 export function loadLaunch(path,mode,approvalPath){
  if(process.execPath!=='/node'||process.execArgv.length||realpathSync('/out')!=='/out')throw Error('fixed namespace/runtime required');
  const raw=readFileSync(path);if(raw.length>2*1024*1024)throw Error('launch size');const launchSha256=createHash('sha256').update(raw).digest('hex'),config=JSON.parse(raw);
@@ -22,6 +27,7 @@ export function loadLaunch(path,mode,approvalPath){
  for(const [p,h] of Object.entries(config.pins)){if(!/^\/(?:node$|harness\/|producer\/|sdk\/)/.test(p)||p.split('/').some(s=>s==='..'||s==='.pi')||!/^[a-f0-9]{64}$/.test(h)||sourceHash(p)!==h)throw Error('source pin mismatch');}
  for(const f of CODEX_RUNTIME_FILES)if(c.runtime.fingerprints[f]!==config.pins['/sdk/'+f])throw Error('SDK charter mismatch');
  if(productPlan&&codexCharterHash(productPlan.input.base)!==codexCharterHash(c))throw Error('product base charter mismatch');
+ if(config.profile==='subscription-live')requireResolverFile();
  const approvedCalls=productPlan?.maxCalls??5;
  const blockers=[];if(c.rolePolicy.some(r=>typeof r.canonical!=='string'||!r.canonical)||c.identityEvidence.kind!=='host-resolved')blockers.push('canonical-provenance');if(!c.accountId||c.accountId.startsWith('fixture-'))blockers.push('account-provenance');if(c.hostEvidence.kind!=='qualified-host')blockers.push('selected-host-scope-evidence');blockers.push('separate-live-approval');
  let approval;
