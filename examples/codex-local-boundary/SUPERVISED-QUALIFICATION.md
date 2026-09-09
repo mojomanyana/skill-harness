@@ -59,7 +59,7 @@ not hostile-code containment, aggregate hard RAM/CPU/PID, crash recovery or serv
 limits. A process observation never grants native acceptance.
 
 `qualification-launch-proof.mjs <private five-call template> <b17 archive> <retained dependency checkout> <evidence root>`
-executes ten model-free checks against the selected executable: prepare with all blockers,
+executes seventeen model-free checks (including the single-request and separate approval-loader checks) against the selected executable: prepare with all blockers,
 missing/empty resolver refusal, unapproved live, cross-mode, wrong source, fixture-plus-approval rejection, supervision-refusal without release, actual five-call
 producer/SDK success and same-owner re-entry refusal. No broad suite or package installation
 is required to exercise this glue.
@@ -82,6 +82,29 @@ only exact allowlisted `error.param`, `error.type` and `error.code` values are r
 from those refusals are passed to the SDK; it receives a fixed refusal body. A200 still needs the existing separate
 SSE/profile/delivery gates. This improves future evidence, not the classification of an old400
 whose body/socket state was not retained.
+
+## Explicit one-request diagnostic (not five-role qualification)
+
+`supervised-producer-single-request-launch-v1` uses the same caller/worker and original
+five-permit reservation. Its host admits only the proposer (maxCalls1), its transport has
+a one-attempt ceiling, and it returns before any subject/panel execution. The other four
+original queued permits are cancelled without refund; all five remain charged. Failure or
+unknown original acknowledgement prevents finish. This is not five actual model calls.
+
+The only permitted input is `Return only the integer: 2 + 2.`, proposer `gpt-5.4`/low,
+system instruction `Return only the integer answer.`, expected output digest of `4`.
+All existing route/TLS/resolver/SDK/profile/canonical/byte/time checks remain. Results are
+labelled `single-request-v1`, never a full qualification, panel or adoption instruction.
+
+Live requires separate wrapper version `supervised-producer-single-request-approval-v1`,
+exact launchSha256 and approvedLiveCalls1. Its executionApproval has scope
+`subscription-single-request`, approvedCalls1, exact charterSha256/owner path, approval ID
+and expiry. The ordinary five-role API rejects this scope; the single API rejects ordinary
+five-role authority. Fixture scope is separately `fixture-single-request`, and fixture mode
+still refuses external approval. Manifest approvalnull/currentbudget0 is not authority.
+An unused fresh output directory and exact root execution review are required; never reuse
+any spent five-role or diagnostic authority/owner. `httpAttempts` counts bounded transport
+attempts, not authenticated provider receipt or generation.
 
 A changed source or mount arrangement needs a fresh
 private proposal and separate exact execution authorization; never reuse a spent owner,

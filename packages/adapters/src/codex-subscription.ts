@@ -88,7 +88,22 @@ export async function executeProducerCodexQualification(path:string,raw:CodexCha
  if(!source)throw Error('explicit original producer source required');
  return executeQualification(path,raw,rawApproval,ports,source);
 }
-async function executeQualification(path:string,raw:CodexCharter,rawApproval:CodexApproval|undefined,ports:CodexExecutionPorts,source?:CodexQualificationSource) {
+export interface CodexSingleRequestApproval extends Omit<CodexApproval,'scope'> {scope:'fixture-single-request'|'subscription-single-request';approvedCalls:1}
+export function assertCodexSingleRequestPlan(c:CodexCharter){
+ const i=c.invocations[0];if(!i||i.role!=='proposer'||i.model!=='gpt-5.4'||i.effort!=='low'||i.instructions!=='Return only the integer answer.'||i.input!=='Return only the integer: 2 + 2.'||i.expectedSha256!=='4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a'||i.subjectId!==null)throw Error('fixed single request plan required');
+}
+function checkedSingleRequest(raw:CodexCharter,a:CodexSingleRequestApproval|undefined){
+ if(!a)throw Error('missing single request approval');closed(a,['scope','approvedCalls','charterSha256','approvalId','expiresAt','journalPath']);
+ if(!['fixture-single-request','subscription-single-request'].includes(a.scope)||a.approvedCalls!==1)throw Error('single request approval mismatch');
+ const {approvedCalls:_,scope,...rest}=learningCopy(a);const approval:CodexApproval={...rest,scope:scope==='fixture-single-request'?'fixture':'subscription-live'};
+ const c=validateCodexCharter(raw,approval);assertCodexSingleRequestPlan(c);return {c,approval};
+}
+export function validateCodexSingleRequestCharter(raw:CodexCharter,a:CodexSingleRequestApproval|undefined){return checkedSingleRequest(raw,a).c;}
+/** Separate one-call authority; five charged original permits are never five callable roles. */
+export async function executeProducerCodexSingleRequest(path:string,raw:CodexCharter,a:CodexSingleRequestApproval|undefined,ports:CodexExecutionPorts,source:CodexQualificationSource){
+ if(!source)throw Error('explicit original producer source required');const {c,approval}=checkedSingleRequest(raw,a);return executeQualification(path,c,approval,ports,source,true);
+}
+async function executeQualification(path:string,raw:CodexCharter,rawApproval:CodexApproval|undefined,ports:CodexExecutionPorts,source?:CodexQualificationSource,single=false) {
  const approval=rawApproval?learningCopy(rawApproval):undefined;
  const c=validateCodexCharter(raw,approval),mode=approval!.scope,hash=codexCharterHash(c);
  if(!isAbsolute(path)||resolve(path)!==path||realpathSync(dirname(path))!==dirname(path)||approval!.journalPath!==path)throw Error('execution approval owner-path mismatch');
@@ -100,10 +115,10 @@ async function executeQualification(path:string,raw:CodexCharter,rawApproval:Cod
   source.signal.throwIfAborted();
   if(!sourceBindings||sourceBindings.length!==5||new Set(sourceBindings.map(b=>b.executionId)).size!==5||sourceBindings.some((b,k)=>b.charterSha256!==hash||b.invocationId!==c.invocations[k].id||['budgetDigest','orderId','experimentId'].some(key=>b[key as keyof typeof b]!==sourceBindings[0][key as keyof typeof b])))throw Error('producer source charter/batch mismatch');
  }
- const sourceDeclaration=source?{kind:'producer-ipc-v1',bindings:sourceBindings}:{kind:'host-frames-v1'};
+ const sourceDeclaration=source?{kind:'producer-ipc-v1',bindings:sourceBindings,...(single?{diagnostic:'single-request-v1'}:{})}:{kind:'host-frames-v1'};
  ports.transport.preflight?.();
  const reservation={charterSha256:hash,mode,requestBytes:c.limits.requestBytes,responseBytes:c.limits.responseBytes,totalRequestBytes:c.limits.totalRequestBytes,totalResponseBytes:c.limits.totalResponseBytes,callMs:c.limits.callMs};
- const host=existsSync(path)?openLocalCodexHost(path):createLocalCodexHost(path,{version:'codex-host-local-v1',maxCalls:c.limits.calls,wallMs:Math.min(c.limits.wallMs,approval!.expiresAt-Date.now()),invocations:c.invocations},c.rolePolicy,reservation);
+ const host=existsSync(path)?openLocalCodexHost(path):createLocalCodexHost(path,{version:'codex-host-local-v1',maxCalls:single?1:c.limits.calls,wallMs:Math.min(c.limits.wallMs,approval!.expiresAt-Date.now()),invocations:single?c.invocations.slice(0,1):c.invocations},c.rolePolicy,reservation);
  const store=learningJournal(path),rows=store.read();if(learningHash(rows[0].value.subscription)!==learningHash(reservation)||learningHash(rows[0].value.rolePolicy)!==learningHash(c.rolePolicy))throw Error('frozen execution charter changed');
  const append=(v:Record<string,unknown>)=>store.append(store.read().at(-1)!.id,v);
  const priorCharter=rows.find(e=>e.value.type==='subscription-charter');
@@ -111,10 +126,10 @@ async function executeQualification(path:string,raw:CodexCharter,rawApproval:Cod
  const old=rows.find(e=>e.value.type==='subscription-finished');if(old)return old.value;
  if(priorCharter||host.inspect().calls||host.inspect().aborted)throw Error('stranded execution; no retry');
  append({type:'subscription-charter',charter:c,charterSha256:hash,approvalId:approval!.approvalId,executionMode:mode,source:sourceDeclaration,aggregateReservation:c.limits,liveQualified:false});
- let inFlight=false;
+ let inFlight=false,httpAttempts=0;
  const transport={kind:ports.transport.kind,exchange:async(wire:CodexWire,signal:AbortSignal,record:(v:Record<string,unknown>)=>void)=>{
-  if(inFlight||wire.destination!==SUBSCRIPTION_ENDPOINT||wire.method!=='POST'||wire.body.length>c.limits.requestBytes||approval!.expiresAt<=Date.now())throw Error('subscription preflight refused');
-  inFlight=true;try {signal.throwIfAborted();const credential=validateCodexOAuth(await ports.credentials.read(signal),c.accountId!,mode);signal.throwIfAborted();if(approval!.expiresAt<=Date.now())throw Error('execution approval expired before transport');const response=await ports.transport.exchange(wire,credential,signal,record,learningCopy(c.limits));if(response.redirected||response.status>=300&&response.status<400)throw Error('redirect refused');return response;}finally{inFlight=false;}
+  if(inFlight||single&&httpAttempts>=1||wire.destination!==SUBSCRIPTION_ENDPOINT||wire.method!=='POST'||wire.body.length>c.limits.requestBytes||approval!.expiresAt<=Date.now())throw Error('subscription preflight refused');
+  inFlight=true;httpAttempts++;try {signal.throwIfAborted();const credential=validateCodexOAuth(await ports.credentials.read(signal),c.accountId!,mode);signal.throwIfAborted();if(approval!.expiresAt<=Date.now())throw Error('execution approval expired before transport');const response=await ports.transport.exchange(wire,credential,signal,record,learningCopy(c.limits));if(response.redirected||response.status>=300&&response.status<400)throw Error('redirect refused');return response;}finally{inFlight=false;}
  }};
  let permits:Awaited<ReturnType<CodexQualificationSource['owner']['reserveBatch']>>=[],result:Record<string,unknown>;
  const handed=new Set<number>();
@@ -136,6 +151,7 @@ async function executeQualification(path:string,raw:CodexCharter,rawApproval:Cod
    return observed.value as unknown as Awaited<ReturnType<typeof host.exchangeSubscriptionSdk>>;
   };
   const evaluate=async()=>{
+  if(single){const r=await exchange(c.invocations[0]);return {type:'subscription-finished',diagnostic:'single-request-v1',charterSha256:hash,executionMode:mode,sourceKind:sourceDeclaration.kind,outcome:r.objective==='PASS'?'single-request-completed':'objective-failed',objective:r.objective,outputSha256:r.outputSha256,calls:host.inspect().calls,httpAttempts,panel:null,liveQualified:false,routingDefault:null};}
   for(const i of c.invocations.slice(0,2)){const r=await exchange(i);if(r.objective!=='PASS'){return {type:'subscription-finished',charterSha256:hash,executionMode:mode,sourceKind:sourceDeclaration.kind,outcome:'objective-failed',calls:host.inspect().calls,liveQualified:false,routingDefault:null};}}
   await exchange(c.invocations[2]);await exchange(c.invocations[3]);
   // Decide only whether the already-reserved clean-split tie-break is needed.

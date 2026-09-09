@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { superviseTrustedHost } from '../../packages/core/dist/trusted-host-supervision.js';
-import { codexCharterHash, validateCodexCharter, CODEX_RUNTIME_FILES } from '../../packages/adapters/dist/codex-subscription.js';
+import { codexCharterHash, validateCodexCharter, validateCodexSingleRequestCharter, assertCodexSingleRequestPlan, CODEX_RUNTIME_FILES } from '../../packages/adapters/dist/codex-subscription.js';
 import { prepareProducerProduct } from '../../packages/adapters/dist/producer-product.js';
 export const worker='/harness/examples/codex-local-boundary/qualification-worker.mjs';
 const closed=(x,keys)=>{if(!x||Object.keys(x).sort().join()!==keys.sort().join())throw Error('closed launch declaration required');};
@@ -18,8 +18,8 @@ function requireResolverFile(){
 export function loadLaunch(path,mode,approvalPath){
  if(process.execPath!=='/node'||process.execArgv.length||realpathSync('/out')!=='/out')throw Error('fixed namespace/runtime required');
  const raw=readFileSync(path);if(raw.length>2*1024*1024)throw Error('launch size');const launchSha256=createHash('sha256').update(raw).digest('hex'),config=JSON.parse(raw);
- const product=config.version==='supervised-producer-product-launch-v1';
- closed(config,['version','profile','manifest','pins','limits',...(product?['product']:[])]);if(!['supervised-producer-launch-v1','supervised-producer-product-launch-v1'].includes(config.version)||!['fixture','subscription-live'].includes(config.profile))throw Error('launch profile');
+ const product=config.version==='supervised-producer-product-launch-v1',single=config.version==='supervised-producer-single-request-launch-v1';
+ closed(config,['version','profile','manifest','pins','limits',...(product?['product']:[])]);if(!['supervised-producer-launch-v1','supervised-producer-product-launch-v1','supervised-producer-single-request-launch-v1'].includes(config.version)||!['fixture','subscription-live'].includes(config.profile))throw Error('launch profile');
  const productPlan=product?prepareProducerProduct(config.product):null;
  const m=config.manifest,c=m.charter;closed(m,['version','charter','journalPath','executionApproval','currentLiveCallBudget']);if(m.version!=='codex-executable-manifest-v1'||m.executionApproval!==null||m.currentLiveCallBudget!==0||m.journalPath!=='/out/owner'||c.runtime.sdkRoot!=='/sdk'||c.runtime.oauthFile!=='/auth/oauth.json')throw Error('fixed preparation paths/authority');
  closed(config.limits,['wallMs','settlementMs','maxOutputBytes']);if(config.limits.wallMs!==c.limits.wallMs||config.limits.wallMs>150000||config.limits.settlementMs!==2000||config.limits.maxOutputBytes!==65536)throw Error('supervision limits');
@@ -28,12 +28,14 @@ export function loadLaunch(path,mode,approvalPath){
  for(const f of CODEX_RUNTIME_FILES)if(c.runtime.fingerprints[f]!==config.pins['/sdk/'+f])throw Error('SDK charter mismatch');
  if(productPlan&&codexCharterHash(productPlan.input.base)!==codexCharterHash(c))throw Error('product base charter mismatch');
  if(config.profile==='subscription-live')requireResolverFile();
- const approvedCalls=productPlan?.maxCalls??5;
+ if(single)assertCodexSingleRequestPlan(c);
+ const validate=single?validateCodexSingleRequestCharter:validateCodexCharter;
+ const approvedCalls=single?1:productPlan?.maxCalls??5;
  const blockers=[];if(c.rolePolicy.some(r=>typeof r.canonical!=='string'||!r.canonical)||c.identityEvidence.kind!=='host-resolved')blockers.push('canonical-provenance');if(!c.accountId||c.accountId.startsWith('fixture-'))blockers.push('account-provenance');if(c.hostEvidence.kind!=='qualified-host')blockers.push('selected-host-scope-evidence');blockers.push('separate-live-approval');
  let approval;
  if(mode==='--prepare'){if(approvalPath)throw Error('prepare cannot execute');}
- else if(mode==='--fixture'){if(approvalPath||config.profile!=='fixture')throw Error('fixture cannot activate live');approval={scope:'fixture',charterSha256:codexCharterHash(c),approvalId:'local-inert-only',expiresAt:Date.now()+c.limits.wallMs+60000,journalPath:m.journalPath};validateCodexCharter(c,approval);}
- else if(mode==='--live'){if(config.profile!=='subscription-live'||!approvalPath)throw Error('separate live approval required');const a=JSON.parse(readFileSync(approvalPath));closed(a,['version','launchSha256','approvedLiveCalls','executionApproval']);if(a.version!=='supervised-producer-approval-v1'||a.launchSha256!==launchSha256||a.approvedLiveCalls!==approvedCalls||a.executionApproval.scope!=='subscription-live')throw Error('exact launch approval mismatch');approval=a.executionApproval;validateCodexCharter(c,approval);if(approval.journalPath!==m.journalPath)throw Error('approved owner path');}
+ else if(mode==='--fixture'){if(approvalPath||config.profile!=='fixture')throw Error('fixture cannot activate live');approval={scope:single?'fixture-single-request':'fixture',...(single?{approvedCalls:1}:{}),charterSha256:codexCharterHash(c),approvalId:'local-inert-only',expiresAt:Date.now()+c.limits.wallMs+60000,journalPath:m.journalPath};validate(c,approval);}
+ else if(mode==='--live'){if(config.profile!=='subscription-live'||!approvalPath)throw Error('separate live approval required');const a=JSON.parse(readFileSync(approvalPath));closed(a,['version','launchSha256','approvedLiveCalls','executionApproval']);if(a.version!==(single?'supervised-producer-single-request-approval-v1':'supervised-producer-approval-v1')||a.launchSha256!==launchSha256||a.approvedLiveCalls!==approvedCalls||a.executionApproval.scope!==(single?'subscription-single-request':'subscription-live'))throw Error('exact launch approval mismatch');approval=a.executionApproval;validate(c,approval);if(approval.journalPath!==m.journalPath)throw Error('approved owner path');}
  else throw Error('launch mode');
  return {config,launchSha256,approval,blockers};
 }

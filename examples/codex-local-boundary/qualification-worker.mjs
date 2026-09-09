@@ -2,7 +2,7 @@
 import { writeFileSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { loadLaunch } from './qualification-launch.mjs';
-import { executeProducerCodexQualification, createCodexOAuthFilePort, CODEX_RUNTIME_FILES, codexCharterHash } from '../../packages/adapters/dist/codex-subscription.js';
+import { executeProducerCodexQualification, executeProducerCodexSingleRequest, createCodexOAuthFilePort, CODEX_RUNTIME_FILES, codexCharterHash } from '../../packages/adapters/dist/codex-subscription.js';
 import { executeProducerProduct, prepareProducerProduct } from '../../packages/adapters/dist/producer-product.js';
 import { createCodexHttpsPort } from '../../packages/adapters/dist/codex-https.js';
 async function main(){
@@ -26,7 +26,7 @@ async function main(){
  const product=config.product?prepareProducerProduct(config.product):null,invocations=product?.invocations??c.invocations,planHash=product?.planSha256??codexCharterHash(c),calls=product?.maxCalls??5;
  const budget=await createExperimentBudget({directory:'/out/budget',authorityDigest:launchSha256,limits:{maxAttempts:calls,maxConcurrent:calls,maxInputBytes:product?calls*1024:8192}}),owner=openResourceBudget(budget),completions=[];
  const source={owner,signal:controller.signal,producer:{...producer,startProducerIpc:async input=>{const run=await producer.startProducerIpc(input);completions.push(run.completion);return run;}},bindings:invocations.map(i=>({version:'producer-ipc-v1',budgetDigest:resourceBindingDigest(budget),orderId:'qualification-'+launchSha256.slice(0,16),experimentId:'qualification-'+launchSha256.slice(16,32),executionId:newExecutionId(),charterSha256:planHash,invocationId:i.id}))};
- const result=product?await executeProducerProduct(config.manifest.journalPath,config.product,{version:'producer-product-approval-v1',planSha256:planHash,maxCalls:calls,expiresAt:approval.expiresAt,journalPath:config.manifest.journalPath,codex:approval},ports,source):await executeProducerCodexQualification(config.manifest.journalPath,c,approval,ports,source);
+ const result=product?await executeProducerProduct(config.manifest.journalPath,config.product,{version:'producer-product-approval-v1',planSha256:planHash,maxCalls:calls,expiresAt:approval.expiresAt,journalPath:config.manifest.journalPath,codex:approval},ports,source):config.version==='supervised-producer-single-request-launch-v1'?await executeProducerCodexSingleRequest(config.manifest.journalPath,c,approval,ports,source):await executeProducerCodexQualification(config.manifest.journalPath,c,approval,ports,source);
  writeFileSync('/out/result.json',JSON.stringify({launchSha256,result,resources:await owner.controlSnapshot(),completions:await Promise.all(completions),fixture,liveQualified:false,acceptance:'not-assessed'},null,2)+'\n',{flag:'wx',mode:0o600});
 }
 main().catch(error=>{if(process.argv[2]==='--fixture')writeFileSync('/out/fixture-failure.json',JSON.stringify({name:error.name,message:String(error.message).slice(0,512)})+'\n',{mode:0o600});console.error('qualification worker refused or failed; original accounting retained, no retry');process.exitCode=1;});
