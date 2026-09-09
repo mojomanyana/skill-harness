@@ -69,6 +69,20 @@ fixed last-entered `phase` (request/lookup/connect/tls/write/response). Unknown 
 to `unknown`; messages, stacks, headers, URLs, addresses and credentials are never copied.
 Phase is progress, not root-cause attribution. Recording failure rejects the exchange.
 A historical record containing only `transport-failure` cannot be retrospectively assigned
-a DNS/TLS/auth cause from timing. A changed source or mount arrangement needs a fresh
+a DNS/TLS/auth cause from timing.
+
+Response completion retains the original TLS socket captured at headers: Node can detach
+`res.socket` before a user's `end` listener. HTTP completion still requires that original socket
+to be authorized, host write-finish, complete/unaborted HTTP framing, identity content encoding
+and bounded bytes. Redirects and credential/account reflections reject before any body hash,
+including on non200 responses and JSON-escaped reflections. Rejected completion records only
+a fixed reason; recording failure rejects. Valid completed non200 responses remain failures:
+only exact allowlisted `error.param`, `error.type` and `error.code` values are recorded as
+`refusal.parameter/type/code`, unknown otherwise. No arbitrary message/body/header values
+from those refusals are passed to the SDK; it receives a fixed refusal body. A200 still needs the existing separate
+SSE/profile/delivery gates. This improves future evidence, not the classification of an old400
+whose body/socket state was not retained.
+
+A changed source or mount arrangement needs a fresh
 private proposal and separate exact execution authorization; never reuse a spent owner,
 approval or reservation.
