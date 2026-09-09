@@ -42,13 +42,13 @@ function readBounded(stream:Readable, limit:number, signal:AbortSignal):Promise<
   const cleanup=()=>{stream.off('data',data);stream.off('end',end);stream.off('error',error);stream.off('close',close);signal.removeEventListener('abort',abort);};
   const error=(e:Error)=>{cleanup();stream.destroy();reject(e);};
   const data=(b:Buffer|string)=>{if(!Buffer.isBuffer(b)&&typeof b!=='string'){error(Error('host stream requires byte chunks'));return;}size+=typeof b==='string'?Buffer.byteLength(b):b.length;if(size>limit){error(Error('host stream byte bound'));return;}chunks.push(Buffer.from(b));};
-  const end=()=>{ended=true;cleanup();resolve(Buffer.concat(chunks));};const close=()=>{if(!ended)error(Error('incomplete host stream'));};const abort=()=>error(Error('host deadline exceeded'));
+  const end=()=>{ended=true;cleanup();resolve(Buffer.concat(chunks));};const close=()=>{if(!ended)error(Error('incomplete host stream'));};const abort=()=>error(Error(signal.reason==='producer-source-cancelled'?'source cancelled':'host deadline exceeded'));
   stream.on('data',data);stream.once('end',end);stream.once('error',error);stream.once('close',close);signal.addEventListener('abort',abort,{once:true});if(signal.aborted)abort();
  });
 }
 function writeBody(stream:Writable, body:Buffer, signal:AbortSignal):Promise<void> {
  return new Promise((resolve,reject)=>{const cleanup=()=>{stream.off('error',error);stream.off('finish',finish);stream.off('close',close);signal.removeEventListener('abort',abort);};
-  const error=(e:Error)=>{cleanup();stream.destroy();reject(e);};const finish=()=>{cleanup();resolve();};const close=()=>error(Error('host write incomplete'));const abort=()=>error(Error('host deadline exceeded'));
+  const error=(e:Error)=>{cleanup();stream.destroy();reject(e);};const finish=()=>{cleanup();resolve();};const close=()=>error(Error('host write incomplete'));const abort=()=>error(Error(signal.reason==='producer-source-cancelled'?'source cancelled':'host deadline exceeded'));
   stream.once('error',error);stream.once('finish',finish);stream.once('close',close);signal.addEventListener('abort',abort,{once:true});if(signal.aborted){abort();return;}stream.end(body);
  });
 }
@@ -71,11 +71,11 @@ export function openLocalCodexHost(path:string) {
  const inspect=()=>{const rows=store.read().map(e=>e.value),claims=rows.filter(r=>r.type==='claim'),results=rows.filter(r=>r.type==='observation');return {calls:claims.length,complete:results.length===spec.invocations.length&&claims.length===results.length&&!rows.some(r=>r.type==='abort'),aborted:rows.some(r=>r.type==='abort')||claims.length!==results.length,liveQualified:false as const};};
  const observeSdk=(value:Record<string,unknown>)=>{const rows=store.read();if(value.type==='sdk-response-validated'&&rows.some(e=>e.value.type==='sdk-response-validated'&&e.value.responseId===value.responseId))throw Error('replayed SDK response');const claim=rows.filter(e=>e.value.type==='claim').at(-1)?.value;if(!claim||value.type==='sdk-wire-observed'&&value.requestSha256!==claim.requestSha256)throw Error('SDK observation without bound claim');append({...value,id:claim.id,sequence:claim.sequence});};
  const host={inspect,
-  async exchangeSubscriptionSdk(subjectFrames:Readable,binding:CodexSdkBinding,transport:CodexWireTransport,charterSha256:string):Promise<LocalCodexObservation>{
+  async exchangeSubscriptionSdk(subjectFrames:Readable,binding:CodexSdkBinding,transport:CodexWireTransport,charterSha256:string,sourceSignal?:AbortSignal):Promise<LocalCodexObservation>{
    const reservation=first.subscription as SubscriptionReservations|null;
    if(!reservation||reservation.charterSha256!==charterSha256||!first.rolePolicy||(reservation.mode==='fixture'?'fixture-http':'subscription-http')!==transport.kind){subjectFrames.destroy();throw Error('subscription charter/transport binding refused');}
    const separation=inspectCodexRoleSeparation(first.rolePolicy as Parameters<typeof inspectCodexRoleSeparation>[0]);if(separation.state==='BLOCKED'){subjectFrames.destroy();throw Error(separation.reason);}
-   const streams=boundCodexSdkStreams(binding,transport,observeSdk,reservation);try{return await host.exchange(subjectFrames,streams.transport,streams.response,true);}finally{subjectFrames.destroy();streams.transport.destroy();streams.response.destroy();}
+   const streams=boundCodexSdkStreams(binding,transport,observeSdk,reservation);try{return await host.exchange(subjectFrames,streams.transport,streams.response,true,sourceSignal);}finally{subjectFrames.destroy();streams.transport.destroy();streams.response.destroy();}
   },
   async exchangeSdk(subjectFrames:Readable,binding:CodexSdkBinding,fixture:()=>Promise<Response>):Promise<LocalCodexObservation> {
    if(!first.rolePolicy){subjectFrames.destroy();throw Error('frozen canonical policy required before SDK effects');}
@@ -83,7 +83,7 @@ export function openLocalCodexHost(path:string) {
    const streams=inertCodexSdkStreams(binding,fixture,observeSdk);
    return host.exchange(subjectFrames,streams.transport,streams.response);
   },
-  async exchange(subjectFrames:Readable, hostTransport:Writable, hostResponse:Readable,subscriptionMode=false):Promise<LocalCodexObservation> {
+  async exchange(subjectFrames:Readable, hostTransport:Writable, hostResponse:Readable,subscriptionMode=false,sourceSignal?:AbortSignal):Promise<LocalCodexObservation> {
    const reservation=first.subscription as SubscriptionReservations|null;
    if(!!reservation!==subscriptionMode){subjectFrames.destroy();hostTransport.destroy();hostResponse.destroy();throw Error('subscription owner requires bound transport');}
    if(reservation&&store.read().some(e=>e.value.type==='subscription-finished')){subjectFrames.destroy();hostTransport.destroy();hostResponse.destroy();throw Error('subscription execution finished');}
@@ -91,7 +91,8 @@ export function openLocalCodexHost(path:string) {
    const clockHistory=store.read(),now=Date.now(),lastClock=Math.max(Number(first.createdAt),...clockHistory.filter(e=>e.value.type==='clock').map(e=>Number(e.value.at)));
    if(!Number.isFinite(now)||now<lastClock){store.append(clockHistory.at(-1)!.id,{type:'abort',reason:'host clock rollback refused'});throw Error('host clock rollback refused');}
    store.append(clockHistory.at(-1)!.id,{type:'clock',at:now});
-   const controller=new AbortController(),remaining=Math.min(spec.wallMs-(now-Number(first.createdAt)),reservation?.callMs??Infinity);const timer=setTimeout(()=>controller.abort(),Math.max(0,remaining));
+   const controller=new AbortController(),remaining=Math.min(spec.wallMs-(now-Number(first.createdAt)),reservation?.callMs??Infinity);let deadlineExceeded=false;const timer=setTimeout(()=>{deadlineExceeded=true;controller.abort();},Math.max(0,remaining));
+   const cancelSource=()=>controller.abort('producer-source-cancelled');sourceSignal?.addEventListener('abort',cancelSource,{once:true});if(sourceSignal?.aborted)cancelSource();
    try {
     if(remaining<=0)throw Error('host deadline exceeded');
     const frameBytes=await readBounded(subjectFrames,1024,controller.signal),text=new TextDecoder('utf8',{fatal:true}).decode(frameBytes),frame=JSON.parse(text);
@@ -117,10 +118,11 @@ export function openLocalCodexHost(path:string) {
     append({type:'host-write-completed',id:i.id,sequence,requestBody,requestSha256:sha(requestBody)});
     const output=await readBounded(hostResponse,reservation?.responseBytes??16384,controller.signal);
     const result:LocalCodexObservation={id:i.id,sequence,requestBody,requestSha256:sha(requestBody),outputBase64:output.toString('base64'),outputSha256:sha(output),objective:i.role==='judge'?(parseVote(new TextDecoder('utf8',{fatal:true}).decode(output),1),'PASS'):sha(output)===i.expectedSha256?'PASS':'FAIL',providerInternalFacts:null,liveQualified:false};
+    if(sourceSignal?.aborted)throw Error('source cancelled before observation');
     if(reservation&&store.read().some(e=>e.value.type==='abort'))throw Error('concurrent subscription abort');
     append({type:'observation',...result});return result;
-   } catch(error) {append({type:'abort',reason:'local exchange failed; no automatic retry',deadlineExceeded:controller.signal.aborted});throw error;}
-   finally {clearTimeout(timer);subjectFrames.destroy();hostTransport.destroy();hostResponse.destroy();}
+   } catch(error) {append({type:'abort',reason:'local exchange failed; no automatic retry',deadlineExceeded,sourceAborted:sourceSignal?.aborted===true});throw error;}
+   finally {clearTimeout(timer);sourceSignal?.removeEventListener('abort',cancelSource);subjectFrames.destroy();hostTransport.destroy();hostResponse.destroy();}
   },
   panel(subjectId:string,judgeIds:string[],rawPolicy:Parameters<typeof inspectCodexRoleSeparation>[0]) {
    const policy=learningCopy(rawPolicy);if(first.rolePolicy&&learningHash(policy)!==learningHash(first.rolePolicy))throw Error('frozen canonical policy changed');const separation=inspectCodexRoleSeparation(policy);if(separation.state==='BLOCKED')throw Error(separation.reason);
