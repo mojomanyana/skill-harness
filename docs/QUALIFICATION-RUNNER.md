@@ -121,7 +121,12 @@ bytes, then idempotently appends the missing lifecycle terminal event.
 Production execution is Linux-only. Linux process receipts include PID, kernel boot ID,
 and `/proc/<pid>/stat` start ticks. Timeout, abort, and descendant cleanup enumerate
 process-group members and signal only still-matching recorded occurrences; they never
-signal a bare reused numeric process-group ID. Test mode can exercise other platforms
+signal a bare reused numeric process-group ID. Enumeration reads directory names rather
+than asking Node to construct Dirents: Dirent construction can lstat a disappearing
+unrelated PID before the per-process guard runs. Per-process stat/identity checks and
+pre-signal occurrence validation remain; a whole `/proc` listing failure still throws.
+Ordinary filesystem-fault fixtures cover that distinction and reused identities, not a
+claim that an earlier CI startup failure had this cause. Test mode can exercise other platforms
 but makes no production occurrence-safety claim there. stdout and stderr stream to
 durable `.partial` files, are bounded by the arm's output limit, and remain at those
 paths after every terminal status. Truncation is explicit. A terminal timeout/abort
@@ -477,6 +482,28 @@ byte-vendored from pi-daddy Wave 1 commit `4a95243…`; the independent verifier
 and reproduces fixtures through its real production builders. The pin is reachable from pi-daddy's
 merged `main` at `62e9d027514e9fc6d689d505d7ef733a07f1470c`; both commits resolve to tree
 `7c006bff213142634f0f911ba9bd6add363ecaae` and have an empty full diff.
+
+## Offline detached-lifecycle regression
+
+All three CLI subprocess lifecycle tests use an inert worker held behind an explicit
+release file and share the same explicit start acknowledgement budget and exit diagnostics.
+The prepare/status/poll path now observes both running and completed states without an
+80ms worker timer. Even invalid-command tests require a real exit1 with the relevant
+error message, not an arbitrary nonzero/null process outcome. The detached path requires
+successful caller exit, then an observed running supervisor and matching live child
+before release; only afterward may the same invocation complete, with one launch and
+a validated terminal spool. This proves lifetime independence rather than assuming
+that a350ms worker and a1500ms caller timeout measure detachment. The outer test
+watchdog includes source-loader/auth startup; the runner's acknowledgement deadline
+starts later. Process error/signal/stdout/stderr are included in assertion diagnostics.
+The abort regression uses the same unreleased worker and waits for its actual running
+occurrence before requesting cancellation. Terminal `aborted`, a no-longer-live child,
+validated spool and one launch are required while natural completion is still blocked.
+Prepare/start/abort/poll diagnostics name the failing operation separately. Tests declare
+an acknowledgement budget distinct from the outer startup watchdog; expiry is still an
+error, not authority to repeat a possibly consumed invocation.
+No production timeout, authority, accounting or launch policy is relaxed by these tests.
+This is deterministic local-process coverage, not live Pi/model qualification.
 
 ## Explicit non-claims
 

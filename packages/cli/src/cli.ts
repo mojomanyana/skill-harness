@@ -31,16 +31,15 @@ import {
   assertNotDowngraded,
   downgradeWarning,
   isScoredMode,
-  runTrajectoryMutationSelfTest,
   resolveArm,
   isFreeOfflineCommand,
   screenResults, formatScreen,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
-import { runSelfScreeningMutationCases } from "./mutation-catalogue.js";
 import { runCompareCommand } from "./compare.js";
 import { cmdQualification } from "./qualification.js";
+import { cmdArchive } from "./archive.js";
 
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 // The judge default lives in core (`defaultJudge()`), which resolves
@@ -451,18 +450,6 @@ export function cmdJudgeAgreement(args: Args): void {
   }
   console.log(`\njudge agreement: ${report.agree} agree / ${report.disagree} disagree / ${report.error} error; ${report.rate === null ? "n/a" : `${(report.rate * 100).toFixed(1)}%`} across ${report.comparable} comparable scenario(s).`);
   console.log("offline report only; no model or judge calls.");
-}
-
-export async function cmdMutationTest(): Promise<void> {
-  const trajectory = runTrajectoryMutationSelfTest();
-  const report = { baseline: trajectory.baseline, cases: [...trajectory.cases, ...await runSelfScreeningMutationCases()] };
-  console.log(`mutation self-test: baseline ${report.baseline}`);
-  for (const test of report.cases) {
-    console.log(`  ${test.detected ? "✓" : "✗"} ${test.id}: ${test.status} — ${test.detail}`);
-  }
-  const missed = report.cases.filter((test) => !test.detected);
-  console.log(`\n${report.cases.length - missed.length}/${report.cases.length} mutations detected; no model or judge calls.`);
-  if (missed.length) process.exitCode = 1;
 }
 
 async function cmdRescore(args: Args): Promise<void> {
@@ -948,7 +935,9 @@ export function help(): string {
                      [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]
                        ask again about untrustworthy cells (ambiguous / contradictory / non-unanimous /
                        ship-deciding). OFF by default; prints the exact MAX extra call count first.
-  mutation-test                                  prove trajectory + results/delivery/screen gates turn red (${free("mutation-test")})
+  archive ingest|inspect|watch --policy file --source id  explicit external ingestion/metadata (${free("archive")})
+  archive weekly|trust|access --state /private/dir --request file  durable learning/consent lifecycle (${free("archive")})
+                        watch requires --max-polls N; optional --interval-ms N and --previous checkpoint
   judge-agreement <run-dir>                      compare two distinct persisted judge votes per scenario (${free("judge-agreement")})
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (${free("rescore")})
   regate <run-dir>...  [--judge prov:model]     re-evaluate saved gates (no subject call; judges fail→pass reps)
@@ -986,7 +975,7 @@ export async function main(argv: string[]): Promise<void> {
     case "run": return cmdRun(args);
     case "compare": return cmdCompare(args);
     case "grade": return cmdGrade(args);
-    case "mutation-test": return cmdMutationTest();
+    case "archive": return cmdArchive(args);
     case "judge-agreement": return cmdJudgeAgreement(args);
     case "rescore": return cmdRescore(args);
     case "regate": return cmdRegate(args);

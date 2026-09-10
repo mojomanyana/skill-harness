@@ -8,9 +8,9 @@ evidence.
 
 `tests/protocol-fixtures/` contains five good/bad replay pairs for packet supersession, post-Build
 task controls, whole-change review ordering, repair suspension/rebinding, and exact finalization.
-They are exercised by `packages/core/test/principal-protocol-fixtures.test.ts`. The separate generic
-`skill-harness mutation-test` proof uses synthetic normalized events to cover 20 mutations, including
-every assertion rewritten by the 2026-09 event-vocabulary decision.
+They are exercised by `packages/core/test/principal-protocol-fixtures.test.ts`. Those ordinary
+protocol regressions remain. The separate mutation-testing command/catalogue was removed by explicit
+user instruction on 2026-09-07; its old requirement is withdrawn, not passed.
 
 This is **not** principal-pi-skills' live workflow E2E driver. It does not execute or replace the
 eight-cell matrix in that repository. At creation time the seven principal E1 skill scenarios plus

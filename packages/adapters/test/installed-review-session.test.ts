@@ -1,0 +1,20 @@
+import {it,expect,afterEach} from 'vitest';
+import {mkdtempSync,mkdirSync,writeFileSync,rmSync,symlinkSync} from 'node:fs';
+import {join} from 'node:path';
+import {tmpdir} from 'node:os';
+import {createHash} from 'node:crypto';
+import {validateInstalledReviewSession,installedInstructions,assertInstalledContext} from '../src/installed-review-session.js';
+import {prepareProducerReview,REVIEW_LIMITS} from '../src/producer-review.js';
+const roots:string[]=[];afterEach(()=>{for(const p of roots.splice(0))rmSync(p,{recursive:true,force:true});});
+function fixture(){const root=mkdtempSync(join(tmpdir(),'installed-review-'));roots.push(root);const files=['.pi/skills/review/SKILL.md','.pi/agents/principal-review.md','grants.ts','harness.js'].map((r,i)=>{const path=join(root,'installed',r);mkdirSync(join(path,'..'),{recursive:true});const text='resource '+i;writeFileSync(path,text);return {path,sha256:createHash('sha256').update(text).digest('hex'),kind:['skill','prompt','extension','extension'][i]};});return {version:'installed-review-session-v1' as const,root:join(root,'installed'),runRoot:join(root,'run'),resources:files,subjectId:'11111111-1111-4111-8111-111111111111',judgeId:'22222222-2222-4222-8222-222222222222'};}
+it('pins selected installed bytes and deterministic before-agent delivery without truncation',()=>{const p=fixture();validateInstalledReviewSession(p);const s=installedInstructions(p,'subject','task');expect(s).toContain('resource 0');expect(s).toContain('resource 1');expect(installedInstructions(p,'judge','rubric')).not.toContain('resource 0');expect(s).toContain(p.runRoot+'/subject');});
+it.each(['bytes','auth','symlink','role','root'])('refuses changed/forbidden resource or identity: %s',kind=>{const p=fixture();if(kind==='bytes')writeFileSync(p.resources[0].path,'changed');if(kind==='auth'){p.resources[0].path=p.root+'/.pi/auth.json';writeFileSync(p.resources[0].path,'synthetic forbidden file');}if(kind==='symlink'){const file=p.resources[0].path;rmSync(file);symlinkSync(p.resources[1].path,file);}if(kind==='role')p.judgeId=p.subjectId;if(kind==='root')p.root=join(p.root,'.pi');expect(()=>validateInstalledReviewSession(p)).toThrow();});
+it.each(['system','history','tools','content'])('rejects effective context drift before SDK: %s',kind=>{const context:any={systemPrompt:'frozen',messages:[{role:'user',content:[{type:'text',text:'packet'}],timestamp:1}],tools:[]};if(kind==='system')context.systemPrompt+=' changed';if(kind==='history')context.messages.push({role:'assistant',content:'peer'});if(kind==='tools')context.tools.push({name:'read'});if(kind==='content')context.messages[0].content.push({type:'text',text:'extra'});expect(()=>assertInstalledContext(context,'frozen','packet')).toThrow();});
+it('refuses malformed non-wire metadata',()=>{expect(()=>assertInstalledContext({systemPrompt:'frozen',messages:[{role:'user',content:'packet',timestamp:{hidden:'history'}}]},'frozen','packet')).toThrow();});
+it('new profile accounts effective bytes and cannot be smuggled into the legacy schema',()=>{
+ const session=fixture();const raw={version:'producer-review-installed-v1' as const,session,packet:'code',packetSha256:createHash('sha256').update('code').digest('hex'),task:'task',criterion:'criterion',subject:'gpt-5.6-luna',judge:'gpt-5.5',accountId:'fixture-test',limits:REVIEW_LIMITS};
+ expect(JSON.parse(prepareProducerReview(raw).subjectBody).instructions).toContain('resource 0');expect(()=>prepareProducerReview({...raw,version:'producer-review-v1'})).toThrow();
+ for(const r of session.resources.slice(0,2)){const text='"'.repeat(16384);writeFileSync(r.path,text);r.sha256=createHash('sha256').update(text).digest('hex');}
+ expect(()=>prepareProducerReview(raw)).toThrow('review request reservation exceeded');
+});
+it('accepts actual text-block context, excluding only non-wire timestamps from its hash',()=>{expect(assertInstalledContext({systemPrompt:'frozen',messages:[{role:'user',content:[{type:'text',text:'packet'}],timestamp:1}],tools:[]},'frozen','packet')).toMatch(/^[a-f0-9]{64}$/);});

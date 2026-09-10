@@ -1,0 +1,14 @@
+{
+  "commit": "dda608492cc63a2837b0a06225d82be1f75783af",
+  "tree": "40f0f359b831e965959d449419e7716146d47d83",
+  "files": {
+    "scripts/principal-association.mjs": "9ff68f40d427b66a7310d9d289bac616cb1399ff74c96551373226b3a5bb0d4a",
+    "scripts/principal-native-references.mjs": "1fc106352b8c940bd2d627835a88e8e0ac165f5a54da847f5f8983cc177de488",
+    "scripts/assurance-state.mjs": "b9bd7a4bd7cb24d39d4c91181d1f4e7b19b02cac00dbd0fc7d53b71389412160",
+    "contracts/principal-native-references/v1/record.schema.json": "dc9f0facc0814d23bd7a2675b229df7dad5561513ea3684647e8972be6aa2343",
+    "contracts/principal-native-references/v1/README.md": "bcfd62655a12b1c47cd057d1b5c38d30bf47b3842b21be88db39e1dc915977bf",
+    "scripts/principal-host-assembly.mjs": "8b3c9fc22885291949ec89988f90c6dfa7f52bb147ebbc1648d172de005f67a8",
+    "contracts/principal-generic-check-lifecycle/v1/envelope.schema.json": "c4035b54673afb16b90708c1c42469f7de4e0a90d82751b9613b181a746ea994"
+  },
+  "qualification": "source identity only; synthetic invocation, no authenticated authority or native campaign acceptance"
+}

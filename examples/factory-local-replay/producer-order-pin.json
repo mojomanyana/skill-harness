@@ -1,0 +1,24 @@
+{
+  "version": "factory-replay-producer-pin-v1",
+  "repository": "https://github.com/mojomanyana/pi-daddy",
+  "commit": "0656de1af6a82f9fcbe97fbfa3112dd749e99c21",
+  "tree": "49b404856e2d1f23ea86a5597241ccdcd6d06821",
+  "files": {
+    "packages/pi-daddy/contracts/factory-order/v1/README.md": "889240eaa3aaa0675c295b6caa95eaf859fe85b1cece32852054e5db664edbd2",
+    "packages/pi-daddy/contracts/experiment/v1/README.md": "7df0d5dad17699b88dba4eb50d157bba127d6bf5c381852ca57fd2206a3d189c",
+    "packages/pi-daddy/src/factory-order.ts": "1395dbc1abc1629f93032f7cc8fa52003f4b2a89547e38152cf3e837bd9d53e3",
+    "packages/pi-daddy/src/factory-registry.ts": "ebbd897e744df308b6558da080fe8b2ecbf1b818391d4ec6235ae21e7cdffa54",
+    "packages/pi-daddy/src/experiment.ts": "2fe3cf6dcf357f9d7895d0a080c91154296271a12f6136e8251d061b0efaed15",
+    "packages/pi-daddy/src/experiment-state.ts": "ed6591c1a6e9074a12e0bd01387e0d45448ad8d20e574cb3aacb1bcf26da1e22",
+    "packages/pi-daddy/src/effect-profile-runtime.ts": "75da4bf616e86bfd4f6b8018e953bd03e1a7aaa1fd8707e49b7e379d9ccdaa86",
+    "packages/pi-daddy/src/dashboard-host.ts": "1df853ab1bedf3f8bf10ba5fabc8c89cc61beb59e9516fed9c59a129aca3b35c",
+    "packages/pi-daddy/src/dashboard-host-contract.ts": "aa1a94dbaefc856603673eaedf241740e07a0090158e9389bde8b05d8fd2c693",
+    "packages/pi-daddy/src/dashboard-harness.ts": "7b3cb0f0f96df2ee686c121112bc7a7c15bbf92202a9b580dcde0ac05ceb0215",
+    "packages/pi-daddy/src/dashboard-observation.ts": "5738f18289f531ce48ec8a117b2acea53d7ef1b081944cf7ddda3cc5d7590fa7",
+    "packages/pi-daddy/src/ordinary-children.ts": "804f064007520240004626edb1df650d1a6cf8b4384adf4e130e8bdd5a7b6d34",
+    "packages/pi-daddy/src/intent-control.ts": "0ba0dd6c3c720cf87cb23b1c6edfbfdcaee50efabd2c99528d52b787e2e17d3c",
+    "packages/pi-daddy/test/ordinary-host-fixture.ts": "efb271ad64e7ab0dafaddd9c161ffa6ef5e28c351fefc37c5beff94dca0de29c"
+  },
+  "claim": "Exact source for an opt-in local fixed-profile replay; no deployment or live acceptance",
+  "availability": "settled source receipt independently inspected; publication status recorded separately"
+}

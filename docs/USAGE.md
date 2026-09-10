@@ -466,13 +466,7 @@ assert:
 ```
 
 A missing field needed for governance is `ERROR`, never success. Gates run before the judge and are
-replayable with `regate` from `.events.jsonl`. Run the free evaluator proof any time:
-
-```bash
-node bin/skill-harness.js mutation-test
-```
-
-It detects 42 permanent mutations: the original 21 trajectory cases plus schema-v3 rejection, delivery zero/duplicate/unobservable outcomes, objective judge suppression, observer normalization/contract/extension provenance, and screen classification/filtering. The command remains free and offline.
+replayable with `regate` from `.events.jsonl`. Mutation-testing machinery was removed by explicit user instruction on 2026-09-07. Ordinary trajectory, delivery and results validators and regression tests remain; historical mutation results are not current requirements.
 Full schema and adapter details: [`ASSURANCE-WORKFLOWS.md`](ASSURANCE-WORKFLOWS.md).
 
 ## 7d. Paired reference-versus-candidate comparison

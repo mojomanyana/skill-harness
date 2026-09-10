@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   evaluateTrajectoryGates,
   parseTrajectoryAssert,
-  runTrajectoryMutationSelfTest,
   serializeTrajectoryEvents,
   deserializeTrajectoryEvents,
   TRAJECTORY_EVENT_VERSION,
@@ -235,37 +234,5 @@ describe("trajectory assertion parsing and evaluation", () => {
   it("rejects unknown keys and executable escape hatches", () => {
     expect(() => parseTrajectoryAssert({ version: "1.0", eval: "events => true" }, "A1")).toThrow(/unknown/);
     expect(() => parseTrajectoryAssert({ version: "2.0", require: [{ event: "x" }] }, "A1")).toThrow(/version/);
-  });
-});
-
-describe("offline assertion mutation self-test", () => {
-  it("turns every required mutation red without model or judge calls", () => {
-    const report = runTrajectoryMutationSelfTest();
-    expect(report.baseline).toBe("PASS");
-    expect(report.cases).toHaveLength(21);
-    expect(report.cases.every((c) => c.detected)).toBe(true);
-    expect(report.cases.map((c) => c.id)).toEqual([
-      "remove-required-event",
-      "add-forbidden-tool-side-effect-approval",
-      "reorder-transition",
-      "substitute-workspace-id",
-      "concurrent-writer",
-      "approval-expired-or-mismatched",
-      "evidence-before-change",
-      "evidence-before-authority",
-      "evidence-before-build-completion",
-      "head-equal-tree-different",
-      "command-receipt-nonzero",
-      "remove-requirement-coverage",
-      "mutate-superseded-task",
-      "reuse-context-id",
-      "mismatch-finalization-identity",
-      "v3-blocked-critical-code",
-      "v3-stale-gate-must-block",
-      "v3-finalize-gate-must-be-ok",
-      "v3-discard-requires-explicit-request",
-      "v3-side-effect-approval-and-gate",
-      "v3-governed-spawn-started",
-    ]);
   });
 });

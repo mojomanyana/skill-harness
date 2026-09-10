@@ -48,6 +48,9 @@ import { validateQualificationRunnerSpool as validateCompleteQualificationSpool 
 const hex = (value: string, length = 64) => value.repeat(length);
 const sha = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 const CONTINUATION_AUTHORITY = "inert-prebound-continuation-authority";
+// These two functional integration cases are not one-second latency tests. Each
+// invocation has a separately bounded readiness process and execution process.
+const FUNCTIONAL_PHASE_TIMEOUT_MS = 5_000;
 const TEST_ROOTS = new Set<string>();
 afterAll(() => {
   for (const root of TEST_ROOTS) rmSync(root, { recursive: true, force: true });
@@ -58,6 +61,7 @@ const fs = require('node:fs');
 const cp = require('node:child_process');
 const args = process.argv.slice(2);
 if (args[0] === 'auth' && args[1] === 'check') {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Number(process.env.FAKE_AUTH_DELAY_MS || 0));
   const provider = args[args.indexOf('--provider') + 1];
   const status = process.env.FAKE_AUTH_STATUS || 'ready';
   if (process.env.FAKE_AUTH_CREATE_STORE === '1') {
@@ -71,6 +75,7 @@ if (args[0] === 'auth' && args[1] === 'check') {
     : { status: 'not_ready', provider, reason: 'credentials_not_configured' }));
   process.exit(0);
 }
+Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Number(process.env.FAKE_RUN_DELAY_MS || 0));
 const get = (name) => args[args.indexOf(name) + 1];
 const provider = get('--provider');
 const model = get('--model');
@@ -124,7 +129,7 @@ const finish = (actualProvider = provider, actualModel = model, extra = {}) => {
 })().catch((error) => { console.error(error.message); process.exit(8); });
 `;
 
-function setup(command = "complete", overrides: { timeout?: number; output?: number; conflict?: "refuse" | "remove-and-record"; oauthV2?: boolean; receiptV3?: boolean; panel?: boolean } = {}) {
+function setup(command = "complete", overrides: { timeout?: number; output?: number; conflict?: "refuse" | "remove-and-record"; oauthV2?: boolean; receiptV3?: boolean; panel?: boolean; authDelayMs?: number; runDelayMs?: number } = {}) {
   const root = mkdtempSync(join(tmpdir(), "qualification-runner-"));
   TEST_ROOTS.add(root);
   const executable = join(root, "fake-pi.cjs");
@@ -142,7 +147,7 @@ function setup(command = "complete", overrides: { timeout?: number; output?: num
     writeFileSync(authPath, JSON.stringify({ "openai-codex": { type: "oauth", access: "inert-test-only" } }), { mode: 0o600 });
     chmodSync(authPath, 0o600);
   }
-  const envNames = ["HOME", "PATH", "PI_CODING_AGENT_DIR", "FAKE_AUTH_STATUS", "FAKE_AUTH_TYPE", "FAKE_AUTH_MODEL", "FAKE_AUTH_CREATE_STORE", "FAKE_COUNT_FILE"];
+  const envNames = ["HOME", "PATH", "PI_CODING_AGENT_DIR", "FAKE_AUTH_STATUS", "FAKE_AUTH_TYPE", "FAKE_AUTH_MODEL", "FAKE_AUTH_CREATE_STORE", "FAKE_COUNT_FILE", "FAKE_AUTH_DELAY_MS", "FAKE_RUN_DELAY_MS"];
   const config = {
     schema_version: "qualification-config-v1",
     ...(overrides.oauthV2 || overrides.receiptV3 ? { oauth_directory_policy: QUALIFICATION_OAUTH_DIRECTORY_POLICY_V2 } : {}),
@@ -177,6 +182,8 @@ function setup(command = "complete", overrides: { timeout?: number; output?: num
     PATH: process.env.PATH,
     ...(overrides.oauthV2 || overrides.receiptV3 ? { PI_CODING_AGENT_DIR: oauthAgent } : {}),
     FAKE_AUTH_STATUS: "ready",
+    FAKE_AUTH_DELAY_MS: String(overrides.authDelayMs ?? 0),
+    FAKE_RUN_DELAY_MS: String(overrides.runDelayMs ?? 0),
     FAKE_COUNT_FILE: count,
     OPENAI_API_KEY: "NEVER-PERSIST-THIS",
   };
@@ -604,8 +611,18 @@ describe("qualification durable execution", () => {
     expect(validateQualificationPanelOutputs(files.spool)).toEqual({ panels: 1, cells: 1 });
   });
 
+  it("refuses delayed fixture readiness at its declared deadline before accounting", async () => {
+    const files = setup("complete", { timeout: 100, authDelayMs: 400 });
+    await expect(checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "invocation-0001", parent_env: files.parent_env })).rejects.toThrow(/OAuth readiness check timed out/);
+    expect(readQualificationAccounting(files.spool).events).toHaveLength(0);
+    expect(qualificationInvocationStatus(files.spool, "invocation-0001").attempt).toBe(0);
+    expect(calls(files.count)).toBe(0);
+  });
+
   it("refuses a tie-break before accounting unless the first two clean votes split", async () => {
-    const files = setup("complete", { receiptV3: true, panel: true });
+    // Three readiness + three execution phases at 900ms exceed Vitest's old
+    // default 5000ms even though every phase fits the old 1000ms fixture policy.
+    const files = setup("complete", { receiptV3: true, panel: true, timeout: FUNCTIONAL_PHASE_TIMEOUT_MS, authDelayMs: 900, runDelayMs: 900 });
     await run(files);
     const subjectReceipt = readValidatedQualificationTerminalReceipt(files.spool, "invocation-0001");
     for (const ordinal of [1, 2] as const) {
@@ -616,9 +633,11 @@ describe("qualification durable execution", () => {
     await expect(checkQualificationAuthentication({ spool_dir: files.spool, invocation_id: "judge-3", parent_env: files.parent_env })).rejects.toThrow(/tie-break is unauthorized/i);
     expect(readQualificationAccounting(files.spool).events.filter((event) => event.call_class === "judge")).toHaveLength(2);
     expect(qualificationInvocationStatus(files.spool, "judge-3").attempt).toBe(0);
-  });
+  }, 3 * 2 * FUNCTIONAL_PHASE_TIMEOUT_MS + 5_000);
   it("binds the same exact v3 input at claim, attempt, and child occurrence", async () => {
-    const files = setup("complete", { receiptV3: true });
+    // Delayed but valid readiness must reach the binding assertions; exceeding
+    // an explicitly short readiness budget is tested separately above.
+    const files = setup("complete", { receiptV3: true, timeout: FUNCTIONAL_PHASE_TIMEOUT_MS, authDelayMs: 1200 });
     const status = await run(files);
     expect(status.terminal_status).toBe("completed");
     expect(calls(files.count)).toBe(1);
@@ -645,7 +664,7 @@ describe("qualification durable execution", () => {
     });
     expect(receiptIdentity).toEqual({ schema_version: "qualification-terminal-receipt-byte-identity-v1", invocation_id: invocation.invocation_id, bytes: receiptBytes.length, sha256: sha(receiptBytes) });
     expect(validateQualificationRunnerSpool(files.spool).terminal).toBe(1);
-  });
+  }, 2 * FUNCTIONAL_PHASE_TIMEOUT_MS + 5_000);
 
   it.each(["launch-attempt.json", "child-occurrence.json"])("rejects %s accounting-digest substitution even when receipt evidence digests are updated", async (name) => {
     const files = setup("complete", { receiptV3: true });

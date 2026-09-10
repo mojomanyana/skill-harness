@@ -12,8 +12,8 @@ function inlineCommands(text: string): string[] {
 describe("free/offline command vocabulary", () => {
   it("has one canonical set and excludes every command that can spend", () => {
     expect([...FREE_OFFLINE_COMMANDS].sort()).toEqual([
-      "affected", "coverage", "init", "judge-agreement", "lint",
-      "list", "mutation-test", "rescore", "restamp", "screen", "stability",
+      "affected", "archive", "coverage", "init", "judge-agreement", "lint",
+      "list", "rescore", "restamp", "screen", "stability",
     ]);
     expect(FREE_OFFLINE_COMMANDS).not.toContain("regate");
     expect(FREE_OFFLINE_COMMANDS).not.toContain("grade");

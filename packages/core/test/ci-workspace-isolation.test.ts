@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { load } from "js-yaml";
 
-type Step = { name?: string; uses?: string; with?: Record<string, string | number> };
+type Step = { name?: string; uses?: string; with?: Record<string, string | number>; run?: string; "working-directory"?: string };
 type Workflow = {
   jobs: Record<string, {
     defaults?: { run?: { "working-directory"?: string } };
@@ -28,5 +28,21 @@ describe("CI auxiliary checkout isolation", () => {
     expect(job.env?.PRINCIPAL_PI_SKILLS_CHECKOUT).toBe("${{ github.workspace }}/principal-pi-skills");
     expect(job.env?.PI_DADDY_CHECKOUT).toBe("${{ github.workspace }}/pi-daddy-provenance");
     expect(new Set([harness?.with?.path, principal?.with?.path, piDaddy?.with?.path])).toHaveProperty("size", 3);
+  });
+
+  it("automatically checks both immutable archive producer trees against their recorded pin", () => {
+    const workflow = load(readFileSync(join(__dirname, "../../../.github/workflows/ci.yml"), "utf8")) as Workflow;
+    const job = workflow.jobs["pi-daddy-archive-contracts"];
+    const producer = job?.steps.find((step) => step.name === "Check out immutable archive contract producer");
+    const commands = job?.steps.flatMap((step) => step.run ? [step.run] : []) ?? [];
+
+    expect(producer?.with).toMatchObject({
+      repository: "mojomanyana/pi-daddy",
+      ref: "7c78769c47177b1972b09e1f5c5474ad44cd2cac",
+      path: "pi-daddy-archive",
+    });
+    expect(commands).toContain("node scripts/vendor-work-v4-reader.mjs ../pi-daddy-archive 7c78769c47177b1972b09e1f5c5474ad44cd2cac --check");
+    expect(commands).toContain("node scripts/vendor-execution-retention.mjs ../pi-daddy-archive 7c78769c47177b1972b09e1f5c5474ad44cd2cac --check");
+    expect(job.defaults?.run?.["working-directory"]).toBe("skill-harness");
   });
 });

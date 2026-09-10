@@ -549,50 +549,6 @@ function parseCount(raw: unknown, ctx: string): CountConstraint {
 }
 
 // ---------------------------------------------------------------------------
-// Offline mutation proof
-// ---------------------------------------------------------------------------
-
-export interface MutationSelfTestCase { id: string; detected: boolean; status: TrajectoryAssertionStatus; detail: string }
-export interface MutationSelfTestReport { baseline: "PASS"; cases: MutationSelfTestCase[] }
-
-/** Fast, deterministic proof that every trajectory assertion class can turn red. */
-export function runTrajectoryMutationSelfTest(): MutationSelfTestReport {
-  const e = (seq: number, type: string, extra: Partial<TrajectoryEventV1> = {}): TrajectoryEventV1 => ({ event_version: TRAJECTORY_EVENT_VERSION, seq, type, source: "mutation-self-test", at: `2026-01-01T00:00:${String(seq).padStart(2, "0")}Z`, ...extra });
-  const h = "a".repeat(40), t = "b".repeat(40), p = "1".repeat(64);
-  const cases: Array<{ id: string; assertion: TrajectoryAssert; good: TrajectoryEventV1[]; mutate: (events: TrajectoryEventV1[]) => TrajectoryEventV1[] }> = [
-    { id: "remove-required-event", assertion: { version: "1.0", require: [{ event: "risk_classified" }] }, good: [e(1, "risk_classified")], mutate: () => [e(1, "unrelated")] },
-    { id: "add-forbidden-tool-side-effect-approval", assertion: { version: "1.0", forbid: [{ event: "tool_called", where: { tool: { equals: "rm" } } }, { event: "side_effect_approved" }] }, good: [e(1, "tool_called", { tool: "read" })], mutate: (events) => [...events, e(2, "side_effect_approved", { attributes: { action: "migration" } })] },
-    { id: "reorder-transition", assertion: { version: "1.0", ordered: [[{ event: "phase_started" }, { event: "phase_completed" }]] }, good: [e(1, "phase_started"), e(2, "phase_completed")], mutate: () => [e(2, "phase_started"), e(1, "phase_completed")] },
-    { id: "substitute-workspace-id", assertion: { version: "1.0", correlate: [{ left: { event: "code_changed" }, right: { event: "evidence_recorded" }, same: ["workspace_id"] }] }, good: [e(1, "code_changed", { workspace_id: "ws-1" }), e(2, "evidence_recorded", { workspace_id: "ws-1" })], mutate: (events) => events.map((x) => x.type === "evidence_recorded" ? { ...x, workspace_id: "ws-2" } : x) },
-    { id: "concurrent-writer", assertion: { version: "1.0", forbid: [{ event: "writer_lease_conflict" }] }, good: [e(1, "writer_lease_acquired", { workspace_id: "ws-1" })], mutate: (events) => [...events, e(2, "writer_lease_conflict", { workspace_id: "ws-1" })] },
-    { id: "approval-expired-or-mismatched", assertion: { version: "1.0", approvals: [{ grant: { event: "approval_granted" }, use: { event: "approval_used" }, same: ["approval.id", "approval.capability"], unexpired: true }] }, good: [e(1, "approval_granted", { approval: { id: "a1", capability: "push", expires_at: "2026-01-01T01:00:00Z" } }), e(2, "approval_used", { approval: { id: "a1", capability: "push", used_at: "2026-01-01T00:01:00Z" } })], mutate: (events) => events.map((x) => x.type === "approval_used" ? { ...x, approval: { ...x.approval, used_at: "2026-01-01T02:00:00Z" } } : x) },
-    { id: "evidence-before-change", assertion: { version: "1.0", freshness: [{ subject: { event: "evidence_recorded" }, after: [{ event: "code_changed" }] }] }, good: [e(1, "code_changed"), e(2, "evidence_recorded")], mutate: () => [e(2, "code_changed"), e(1, "evidence_recorded")] },
-    { id: "evidence-before-authority", assertion: { version: "1.0", freshness: [{ subject: { event: "evidence_recorded" }, after: [{ event: "plan_recorded" }] }] }, good: [e(1, "plan_recorded", { digests: { plan: p } }), e(2, "evidence_recorded")], mutate: () => [e(2, "plan_recorded", { digests: { plan: p } }), e(1, "evidence_recorded")] },
-    { id: "evidence-before-build-completion", assertion: { version: "1.0", freshness: [{ subject: { event: "evidence_recorded" }, after: [{ event: "phase_completed", where: { phase: { equals: "build" } } }] }] }, good: [e(1, "phase_completed", { phase: "build" }), e(2, "evidence_recorded")], mutate: () => [e(2, "phase_completed", { phase: "build" }), e(1, "evidence_recorded")] },
-    { id: "head-equal-tree-different", assertion: { version: "1.0", correlate: [{ left: { event: "code_changed" }, right: { event: "evidence_recorded" }, same: ["digests.head", "digests.tree"] }] }, good: [e(1, "code_changed", { digests: { head: h, tree: t } }), e(2, "evidence_recorded", { digests: { head: h, tree: t } })], mutate: (events) => events.map((x) => x.type === "evidence_recorded" ? { ...x, digests: { head: h, tree: "c".repeat(40) } } : x) },
-    { id: "command-receipt-nonzero", assertion: { version: "1.0", require: [{ event: "evidence_recorded", where: { exit_code: { equals: 0 } } }] }, good: [e(1, "evidence_recorded", { exit_code: 0 })], mutate: (events) => events.map((x) => ({ ...x, exit_code: 1 })) },
-    { id: "remove-requirement-coverage", assertion: { version: "1.0", coverage: [{ requirements: ["AUTH-7"], events: { event: "evidence_recorded" } }] }, good: [e(1, "evidence_recorded", { requirements: ["AUTH-7"] })], mutate: (events) => events.map((x) => ({ ...x, requirements: [] })) },
-    { id: "mutate-superseded-task", assertion: { version: "1.0", forbid_after: [{ anchor: { event: "task_packet_superseded" }, forbidden: [{ event: "code_changed" }, { event: "repair_started" }], same: ["task_id"] }] }, good: [e(1, "task_packet_superseded", { task_id: "old" }), e(2, "code_changed", { task_id: "new" })], mutate: (events) => events.map((x) => x.type === "code_changed" ? { ...x, task_id: "old" } : x) },
-    { id: "reuse-context-id", assertion: { version: "1.0", unique: [{ events: { event: "review_recorded" }, fields: ["context_id"] }] }, good: [e(1, "review_recorded", { context_id: "c1" }), e(2, "review_recorded", { context_id: "c2" })], mutate: (events) => events.map((x) => x.seq === 2 ? { ...x, context_id: "c1" } : x) },
-    { id: "mismatch-finalization-identity", assertion: { version: "1.0", correlate: [{ left: { event: "gate_evaluated", where: { "attributes.gate": { equals: "finalize" } } }, right: { event: "finalization_completed" }, same: ["digests.head", "digests.tree"], order: "before" }] }, good: [e(1, "gate_evaluated", { digests: { head: h, tree: t }, attributes: { gate: "finalize", code: "OK" } }), e(2, "finalization_completed", { digests: { head: h, tree: t } })], mutate: (events) => events.map((x) => x.type === "finalization_completed" ? { ...x, digests: { head: h, tree: "d".repeat(40) } } : x) },
-    { id: "v3-blocked-critical-code", assertion: { version: "1.0", require: [{ event: "gate_evaluated", where: { "attributes.code": { equals: "BLOCKED_CRITICAL_ASSURANCE" } } }] }, good: [e(1, "gate_evaluated", { attributes: { gate: "finalize", code: "BLOCKED_CRITICAL_ASSURANCE", missing_count: 2 } })], mutate: (events) => events.map((x) => ({ ...x, attributes: { ...x.attributes, code: "OK" } })) },
-    { id: "v3-stale-gate-must-block", assertion: { version: "1.0", require: [{ event: "gate_evaluated", where: { "attributes.code": { matches: "^BLOCKED_" } } }] }, good: [e(1, "gate_evaluated", { attributes: { gate: "finalize", code: "BLOCKED_ASSURANCE" } })], mutate: (events) => events.map((x) => ({ ...x, attributes: { ...x.attributes, code: "OK" } })) },
-    { id: "v3-finalize-gate-must-be-ok", assertion: { version: "1.0", require: [{ event: "gate_evaluated", where: { "attributes.gate": { equals: "finalize" }, "attributes.code": { equals: "OK" } } }] }, good: [e(1, "gate_evaluated", { attributes: { gate: "finalize", code: "OK" } })], mutate: (events) => events.map((x) => ({ ...x, attributes: { ...x.attributes, code: "BLOCKED_ASSURANCE" } })) },
-    { id: "v3-discard-requires-explicit-request", assertion: { version: "1.0", forbid: [{ event: "finish_selected", where: { "attributes.choice": { equals: "discard" }, "attributes.explicit_request": { equals: false } } }] }, good: [e(1, "finish_selected", { attributes: { choice: "discard", explicit_request: true } })], mutate: (events) => events.map((x) => ({ ...x, attributes: { ...x.attributes, explicit_request: false } })) },
-    { id: "v3-side-effect-approval-and-gate", assertion: { version: "1.0", ordered: [[{ event: "side_effect_approved", where: { "attributes.action": { equals: "migration" } } }, { event: "gate_evaluated", where: { "attributes.gate": { equals: "side-effect" }, "attributes.code": { equals: "OK" } } }]] }, good: [e(1, "side_effect_approved", { attributes: { action: "migration" } }), e(2, "gate_evaluated", { attributes: { gate: "side-effect", code: "OK" } })], mutate: (events) => events.map((x) => x.type === "gate_evaluated" ? { ...x, attributes: { ...x.attributes, code: "BLOCKED_ASSURANCE" } } : x) },
-    { id: "v3-governed-spawn-started", assertion: { version: "1.0", require: [{ event: "child_started", where: { source: { equals: "pi-daddy-v3" }, "attributes.state": { equals: "starting" } } }] }, good: [e(1, "child_started", { source: "pi-daddy-v3", attributes: { state: "starting" } })], mutate: (events) => events.map((x) => ({ ...x, attributes: { ...x.attributes, state: "failed" } })) },
-  ];
-
-  const results = cases.map((testCase): MutationSelfTestCase => {
-    const baseline = evaluateTrajectoryGates(testCase.assertion, testCase.good);
-    if (baseline.status !== "PASS") throw new Error(`mutation self-test baseline ${testCase.id} is ${baseline.status}`);
-    const mutated = evaluateTrajectoryGates(testCase.assertion, testCase.mutate(structuredClone(testCase.good)));
-    return { id: testCase.id, detected: mutated.status !== "PASS", status: mutated.status, detail: mutated.assertions.find((result) => result.status !== "PASS")?.detail ?? "mutation was not detected" };
-  });
-  return { baseline: "PASS", cases: results };
-}
-
-// ---------------------------------------------------------------------------
 // Internals
 // ---------------------------------------------------------------------------
 

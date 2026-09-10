@@ -6,12 +6,12 @@
  */
 export const FREE_OFFLINE_COMMANDS = [
   "affected",
+  "archive",
   "coverage",
   "init",
   "judge-agreement",
   "lint",
   "list",
-  "mutation-test",
   "rescore",
   "restamp",
   "screen",
