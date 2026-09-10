@@ -20,7 +20,8 @@ green release PR. Only that exact merged release source may be packed or smoked.
    namespace, with subscription subject `openai-codex:gpt-5.6-luna` and judge
    `openai-codex:gpt-5.6-sol`. Its ceiling is two subject invocations with at most one
    blank-response retry each plus up to three judge invocations: at most seven Pi process
-   invocations, **not** an exact HTTP/provider-call cap.
+   invocations, **not** an exact HTTP/provider-call cap. Retain its isolated checkout,
+   stdout/stderr, process status, and both result trees; it is path verification, not efficacy.
 5. Publish only the four manifest-digested archives in dependency order; verify them from a
    fresh temporary install.
 6. Create immutable `v0.13.0` at the exact verified release commit, create the GitHub Release,
@@ -839,6 +840,10 @@ test "$RELEASE_SHA" = "$(node -p "require('./release-artifacts/release-manifest.
 test -z "$(git ls-remote origin refs/tags/v0.13.0)"
 EXPECTED_LATEST=506039c9cec194dd2d3b1fbbe52a8d7cfc38227e
 test "$(git ls-remote origin refs/tags/latest | cut -f1)" = "$EXPECTED_LATEST"
+
+RELEASE_NOTES=$(mktemp)
+awk '/^## 0.13.0 / { emit=1; next } /^## / { if (emit) exit } emit' CHANGELOG.md > "$RELEASE_NOTES"
+test -s "$RELEASE_NOTES"
 
 git tag v0.13.0 "$RELEASE_SHA"
 git push origin refs/tags/v0.13.0
