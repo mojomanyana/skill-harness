@@ -82,14 +82,17 @@ function sdkStreams(binding:CodexSdkBinding, send:CodexWireTransport['exchange']
      finally {controller.signal.removeEventListener('abort',abort);await reader.cancel();reader.releaseLock();}
      if(cancellationError||controller.signal.aborted)throw Error('SDK response cancellation failed or deadline expired');
      const raw=Buffer.concat(parts);record({type:'sdk-response-observed',status:reply.status,responseBase64:raw.toString('base64'),responseSha256:hash(raw),liveQualified:false});
-     let decoderBody=raw;
+     let decoderBody=raw;const decoderHeaders=new Headers(reply.headers);
      if(reply.ok){
       const contentType=reply.headers.get('content-type'),mediaType=contentType===null||contentType===''?'missing':contentType.startsWith('text/event-stream')?'event-stream':'other';
       let category:'media-type-invalid'|'SSE-validation-failed'|'validation-record-failed'='media-type-invalid';
       try {
-       if(!contentType?.startsWith('text/event-stream'))throw Error('unsupported response content type');
+       if(mediaType==='other'||mediaType==='missing'&&reply.status!==200)throw Error('unsupported response content type');
        category='SSE-validation-failed';const validated=validateCodexTextSse(raw,expected.model);expectedOutput=validated.text;decoderBody=Buffer.from(new TextDecoder('utf8',{fatal:true}).decode(raw).replace(/\r\n/g,'\n'));
-       category='validation-record-failed';record({type:'sdk-response-validated',responseId:validated.responseId,decoderInputSha256:hash(decoderBody),decoderNormalization:'SSE CRLF to LF; original response retained',liveQualified:false});
+       // Only HTTP200 + validated, correlated model-bound text may supply a missing
+       // decoder media type. Preserve reply.headers; this is not an upstream header claim.
+       if(mediaType==='missing')decoderHeaders.set('content-type','text/event-stream');
+       category='validation-record-failed';record({type:'sdk-response-validated',responseId:validated.responseId,decoderInputSha256:hash(decoderBody),decoderNormalization:'SSE CRLF to LF; original response retained',originalMediaType:mediaType,decoderMediaType:'event-stream',mediaTypeDerived:mediaType==='missing',liveQualified:false});
       }catch(error){
        // Diagnostic persistence is best effort only; it must never replace the initiating
        // exception or turn a refused response into success. No raw header/body/error text.
@@ -97,7 +100,7 @@ function sdkStreams(binding:CodexSdkBinding, send:CodexWireTransport['exchange']
        throw error;
       }
      }
-     return new Response(decoderBody,{status:reply.status,headers:reply.headers});
+     return new Response(decoderBody,{status:reply.status,headers:decoderHeaders});
     }}).result();
    if(controller.signal.aborted||fetches!==1||result.stopReason!=='stop'||result.model!==expected.model||result.provider!=='openai-codex'||result.api!=='openai-codex-responses'||result.content?.length!==1||result.content[0].type!=='text'||result.content[0].text!==expectedOutput)throw Error(mode==='inert-sdk-fetch'?'SDK response decoding failed: '+String(result.errorMessage??'decoded output mismatch').slice(0,512):'subscription-exchange-failed');
    record({type:'sdk-decoded',outputSha256:hash(expectedOutput!),model:result.model,provider:result.provider,api:result.api,providerInternalFacts:null,transport:mode,liveQualified:false});response.end(expectedOutput);done();
