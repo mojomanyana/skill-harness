@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
 import { loadReviewLaunch } from './producer-review-launch.mjs';
 import { executeProducerReview } from '../../packages/adapters/dist/producer-review.js';
+import { createInstalledReviewSessions } from '../../packages/adapters/dist/installed-review-session.js';
 import { createCodexOAuthFilePort, CODEX_RUNTIME_FILES } from '../../packages/adapters/dist/codex-subscription.js';
 import { createCodexReviewHttpsPort } from '../../packages/adapters/dist/codex-https.js';
 import { learningJournal } from '../../packages/adapters/dist/learning-journal.js';
@@ -39,7 +40,8 @@ async function main(){
  const {newExecutionId}=await import(pathToFileURL(join(c.runtime.producerRoot,'packages/pi-daddy/src/execution-id.ts')).href);
  const budget=await createExperimentBudget({directory:join(c.outputRoot,'budget'),authorityDigest:launchSha256,limits:{maxAttempts:2,maxConcurrent:2,maxInputBytes:2048}}),owner=openResourceBudget(budget),completions=[];
  const source={owner,signal:controller.signal,producer:{...producer,startProducerIpc:async input=>{const r=await producer.startProducerIpc(input);completions.push(r.completion);return r;}},bindings:['subject','judge'].map(invocationId=>({version:'producer-ipc-v1',budgetDigest:resourceBindingDigest(budget),orderId:'review-'+launchSha256.slice(0,16),experimentId:'review-'+launchSha256.slice(16,32),executionId:newExecutionId(),charterSha256:plan.planSha256,invocationId}))};
- const result=await executeProducerReview(join(c.outputRoot,'owner'),c.plan,approval,ports,source);
+ const sessions=c.plan.version==='producer-review-installed-v1'?createInstalledReviewSessions(c.plan.session,await import(pathToFileURL(join(c.runtime.sdkRoot,'dist/index.js')).href)):undefined;
+ const result=await executeProducerReview(join(c.outputRoot,'owner'),c.plan,approval,ports,source,sessions);
  writeFileSync(join(c.outputRoot,'result.json'),JSON.stringify({launchSha256,result,resources:await owner.controlSnapshot(),completions:await Promise.all(completions),fixture,acceptance:'not-assessed'},null,2)+'\n',{flag:'wx',mode:0o600});
 }
 main().catch(error=>{if(process.argv[2]==='--fixture')console.error('inert review failure:',error.message);else console.error('review failed; no retry, accounting retained');process.exitCode=1;});

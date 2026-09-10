@@ -1,5 +1,9 @@
 # Two-call, tool-free producer review
 
+For the additive, actual `AgentSession.prompt` path with pinned installed resources,
+see [Installed-session review v1](INSTALLED-SESSION-REVIEW.md). The extension-free
+profile documented below retains its historical semantics and approvals.
+
 `producer-review-v1` is an opt-in path for one frozen code review and one separately isolated,
 advisory judge. It does not replace exact-output qualification, intervention experiments or
 native acceptance. `prepareProducerReview` and `executeProducerReview` are adapter APIs;
