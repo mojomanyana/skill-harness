@@ -1,9 +1,47 @@
-# Publishing skill-harness 0.12.0
+# Publishing skill-harness 0.13.0
 
-This is the npm-publish runbook. The registry contains 0.11.0; this release branch is
-bumped to 0.12.0 for the closed ledger contract and the schema-v3 measurement/reporting
-boundary. `release:pack` must produce only manifest-bound `*-0.12.0.tgz` archives from
-the final clean release commit. The owner authorized this release on 2026-09-04.
+This is the npm-publish runbook. The registry contains 0.12.0. Version 0.13.0 packages
+the merged archive, work-decision, Codex boundary, and installed-session review work.
+`release:pack` must produce only manifest-bound `*-0.13.0.tgz` archives from the exact
+clean release commit. The owner authorized the coordinated release on 2026-09-11.
+
+## Authoritative 0.13.0 release order
+
+The feature merges land first. Then the version change lands on `main` through a reviewed,
+green release PR. Only that exact merged release source may be packed or smoked. The order is:
+
+1. Merge the three reviewed feature PRs (complete before this version branch).
+2. Land the synchronized 0.13.0 version, lockfile, changelog, and active-runbook change on
+   `main` through a green release PR.
+3. In a fresh quiescent checkout of that exact merge, use Node 20.20.2/npm 10.8.2 to run
+   `npm run release:pack`, then `npm run smoke:packed`. Do not rebuild after recording the
+   canonical archive manifest.
+4. Run `scripts/smoke-real-pi.sh` once as a fresh release check in its isolated supervised
+   namespace, with subscription subject `openai-codex:gpt-5.6-luna` and judge
+   `openai-codex:gpt-5.6-sol`. Its ceiling is two subject invocations with at most one
+   blank-response retry each plus up to three judge invocations: at most seven Pi process
+   invocations, **not** an exact HTTP/provider-call cap.
+5. Publish only the four manifest-digested archives in dependency order; verify them from a
+   fresh temporary install.
+6. Create immutable `v0.13.0` at the exact verified release commit, create the GitHub Release,
+   then move mutable `latest` with an exact old-ref lease. Never rewrite an immutable version
+   tag or force a branch.
+
+Historical release sections below retain the order and facts used by their own releases; they
+do not override this 0.13.0 sequence.
+
+## 0.13.0 — retained work and bounded execution connections
+
+This release adds explicit external archive ingestion/checkpoints/access, retained work and
+execution projections, signal-to-case and blind intervention/adoption primitives, and bounded
+Codex subscription/installed-session review connections. Generated work-v4 and
+execution-retention-v2 readers remain pinned to producer commit
+`7c78769c47177b1972b09e1f5c5474ad44cd2cac`; the new `pi-daddy-archive-contracts` CI job
+runs both deterministic vendor commands with `--check`. Existing ledger-v2/v3 pins do not move.
+
+Results stay on schema 3. No historical result rewrite is required. Local replay, transport
+completion, retained evidence, or an advisory review is not containment, deployment efficacy,
+adoption, campaign acceptance, or native acceptance. Release notes: `CHANGELOG.md`.
 
 ## 0.12.0 — self-screenable results
 
@@ -767,87 +805,59 @@ only `report.*`, so the README demo assets do not enter the package.
 Do **not** publish `@skill-harness/pi-extension` — it is `private: true` and ships
 to pi users via `pi install git:...`, not the npm registry.
 
-## Verify after publishing
+## Verify the published archives from a fresh temporary install
+
+Do not use a global install as the release proof, and do not trust an immediately cached
+`npm view` alone. Install the exact version into an empty prefix after all four publishes:
 
 ```bash
-npm view skill-harness version            # expect the VERSION published above
-npm i -g skill-harness && skill-harness --help
-npx @skill-harness/cli lint --help
+VERSION=0.13.0
+VERIFY=$(mktemp -d)
+npm install --prefix "$VERIFY" --no-package-lock --ignore-scripts \
+  "@skill-harness/core@$VERSION" "@skill-harness/adapters@$VERSION" \
+  "@skill-harness/cli@$VERSION" "skill-harness@$VERSION"
+"$VERIFY/node_modules/.bin/skill-harness" --version
+"$VERIFY/node_modules/.bin/skill-harness" --help
+"$VERIFY/node_modules/.bin/skill-harness" lint --help
+npm view skill-harness versions --json --prefer-online --cache "$VERIFY/npm-cache"
 ```
 
-## After publishing — land the release on `main`, then tag it
+The installed CLI must report 0.13.0. Retain the installed package identities and archive
+checksums; registry `version`/dist-tag reads can lag and are secondary evidence.
 
-**Every step below is mandatory.** Skipping one leaves the repo disagreeing with
-what it ships. This was missed on two releases in a row (`v0.2.0` and `v0.2.1`
-were both tagged on an unmerged `release-*` branch), which is why it is part of
-the runbook rather than folklore.
+## After verification — immutable tag, GitHub Release, then leased `latest`
 
-### 1. Merge the release branch to `main`
-
-The version bump lives on `release-<version>`. Until that branch reaches `main`,
-a fresh clone of `main` reports a different version than the registry serves:
+The version change is already on `main` before packing. Let `RELEASE_SHA` be the exact merged
+source identity recorded by `release-manifest.json`; verify `origin/main` still equals it.
+Version tags are immutable and must be absent before creation. At preparation time the documented
+mutable `latest` tag is `506039c9cec194dd2d3b1fbbe52a8d7cfc38227e`; re-read it and require that
+exact old value before moving it:
 
 ```bash
-gh pr create --base main --head release/0.12.0 \
-  --title "chore(release): 0.12.0" --body "Version bump, two-probe smoke, and runbook."
-gh pr merge --merge   # or fast-forward main if there is nothing to reconcile
+RELEASE_SHA=$(git rev-parse origin/main)
+test "$RELEASE_SHA" = "$(node -p "require('./release-artifacts/release-manifest.json').source.commit")"
+test -z "$(git ls-remote origin refs/tags/v0.13.0)"
+EXPECTED_LATEST=506039c9cec194dd2d3b1fbbe52a8d7cfc38227e
+test "$(git ls-remote origin refs/tags/latest | cut -f1)" = "$EXPECTED_LATEST"
+
+git tag v0.13.0 "$RELEASE_SHA"
+git push origin refs/tags/v0.13.0
+gh release create v0.13.0 --verify-tag --title "skill-harness 0.13.0" --notes-file "$RELEASE_NOTES"
+
+git tag -f latest "$RELEASE_SHA"
+git push --force-with-lease="refs/tags/latest:$EXPECTED_LATEST" origin refs/tags/latest
 ```
 
-### 1b. Bump consumer pins when the results format grows
+The lease is deliberately tag-scoped. Never force a branch, never rewrite an immutable version
+tag, and never use a broader force push. Read back `v0.13.0`, the GitHub Release target, `latest`,
+and `origin/main` after the move.
 
-0.12.0 introduces **results schema 3** for authenticated delivery observations,
-per-repetition criterion votes, and recomputable panel outcomes. Older readers do
-not understand that evidence or its `NOT-MEASURED` semantics, so every consumer
-that reads schema-3 results must upgrade to skill-harness ≥ 0.12.0.
-
-The rule remains: **a `results.yaml` written by version X needs version ≥ X to
-lint or rewrite it.** Bump every exact consumer pin to `v0.12.0`; consumers using
-`@latest` receive the compatible reader when the release tag moves.
-
-A repo tracking `@latest` gets that automatically **once the release is tagged** —
-which is the one ordering trap left: results produced by a local checkout of
-`main` that is ahead of the newest tag can out-run CI. Either tag the release
-before committing results generated from it, or generate them from the released
-tag.
-
-A repo on an exact pin needs that pin bumped as part of the release.
-
-Schema-1 and schema-2 evidence remains readable with its historical meaning; do
-not migrate or rewrite it merely to adopt schema 3.
-
-### 2. Tag the release, and move `latest`
-
-```bash
-git checkout main && git pull
-git tag v0.12.0 && git push origin v0.12.0     # the immutable release tag
-git tag -f latest && git push -f origin latest   # the ref the docs point at
-```
-
-Moving `latest` is what keeps `AGENTS.md`, both READMEs and `docs/USAGE.md` free
-of version numbers — they say `@latest`, so a release needs no doc edits at all.
-Only this file names concrete versions.
-
-**There is deliberately no `v1`.** It existed until 0.3.0 and was removed. The
-usual case for a moving *major* tag (`actions/checkout@v4`) assumes behaviour
-inside the major is compatible. `lint` is a **gate**: every release that adds a
-check makes a repo that passed yesterday fail today — 0.3.0 added three. A tag
-promising "stable major, moves forward" advertises a stability a linter cannot
-honour. `latest` moves just as much but promises only "the newest release", which
-is true, and the docs tell consumers to pin a release tag when they want to
-choose *when* new checks land.
-
-Consumers that pin need their pin bumped as part of the release
-(`.github/workflows/ci.yml`, the `ref:` on the skill-harness checkout). Consumers
-tracking `latest`, including the current `principal-pi-skills` workflow as corrected
-in the 0.11.0 notes above, receive the compatible reader when `latest` moves.
-
-For a repo that genuinely tracks `@latest`, the release reaches CI the moment the tag
-moves, so **push the tag when you are ready for that gate to change**, not mid-flight
-on unrelated work.
-
-Either way, re-run the skills whose results the new version invalidates: a
-release that changes what a gate measures leaves the committed scorecard
-describing the old measurement.
+Moving `latest` keeps `AGENTS.md`, both READMEs and `docs/USAGE.md` free of version numbers.
+There is deliberately no moving `v1`: a linter release can add a check and turn a previously
+green consumer red, so a moving stable-major promise would be false. Consumers tracking
+`@latest` receive 0.13.0 when this final coordinate moves; exact-pin consumers choose when to
+adopt `v0.13.0`. Results remain schema 3, so 0.13.0 itself requires no result migration or
+paid re-run.
 
 ## Verification performed before the 0.2.1 update to this runbook (2026-08-04)
 

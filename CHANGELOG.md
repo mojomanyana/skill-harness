@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.13.0 — 2026-09-11
+
+### Added
+
+- Explicit external evidence lifecycle APIs and the model-free `archive ingest|inspect|watch` CLI, with retained-byte checkpoints, access policy, review/export boundaries, and pinned pi-daddy execution-retention-v2 validation.
+- Durable work capture, signals, case review, blind intervention comparison, investigation, learning, adoption, and rollback primitives. These record bounded decisions; they do not authorize deployment or claim outcomes.
+- A read-only archived-work adapter generated from pi-daddy's work-v4 parser/projector and a two-domain local replay that composes retained evidence without changing either producer.
+- Bounded Codex subscription transport, original-producer accounting, and an installed-resource `AgentSession.prompt` review path with exact resource/session/wire bindings, seal-before-judge ordering, no tools, and no retries.
+
+### Changed
+
+- Qualification and trusted-host supervision retain stricter caller/child lifetime, source-cancellation, response-terminal, model-role, and settlement evidence.
+- CI now checks both new generated archive reader trees byte-for-byte against immutable producer commit `7c78769c47177b1972b09e1f5c5474ad44cd2cac` before ordinary tests can run.
+- The withdrawn mutation-testing command and catalogue are removed. Historical mutation evidence remains historical; ordinary regression and contract checks remain.
+
+### Compatibility and limits
+
+- Results remain schema 3; schema-1/2 compatibility and schema-3 delivery semantics are unchanged. No scorecard migration is required merely to install 0.13.0.
+- Historical pi-daddy ledger-v2 and ledger-v3 selectors stay pinned. The new work-v4 and execution-retention-v2 readers are separate immutable selectors and are not moved to a producer's latest release.
+- Four npm packages remain public: core, adapters, CLI, and the unscoped meta-package. The monorepo root and `@skill-harness/pi-extension` remain private and are never published.
+- Local replay, successful transport, advisory review, and retained evidence are not OS containment, remote attestation, deployed efficacy, adoption, campaign acceptance, or native acceptance.
+
 ## 0.12.0 — 2026-09-04
 
 ### Added
