@@ -68,16 +68,20 @@ export async function executeProducerProduct(path:string,raw:ProducerProduct,raw
   permits=await source.owner.reserveBatch(bindings.map(b=>source.producer.producerIpcDemand(b)));if(permits.length!==p.maxCalls)throw Error('original whole reservation missing');
   const makeHost=(h:typeof p.hosts[number])=>{const hostPath=path+'/'+h.id;const host=createLocalCodexHost(hostPath,{version:'codex-host-local-v1',maxCalls:h.invocations.length,wallMs:Math.max(1,remainingBudget()),invocations:h.invocations},c.rolePolicy,{charterSha256:p.planSha256,mode,requestBytes:c.limits.requestBytes,responseBytes:c.limits.responseBytes,totalRequestBytes:h.invocations.length*c.limits.requestBytes,totalResponseBytes:h.invocations.length*c.limits.responseBytes,callMs:c.limits.callMs});return {host,hostPath};};
   const exchange=async(hostPath:string,i:LocalCodexInvocation)=>{source.signal.throwIfAborted();const k=p.invocations.findIndex(v=>v.id===i.id),remaining=Math.min(c.limits.callMs,remainingBudget());if(remaining<50||handed.has(k))throw Error('finite source deadline/replay');handed.add(k);
+   const subjectStart=i.role==='subject'?performance.now():null;
    const r=await startCodexProducerIpc({path:hostPath,binding:bindings[k],sdk:ports.bindings[i.model],transport,producer:source.producer,owner:source.owner,permit:permits[k],signal:source.signal,timeoutMs:remaining});
    const done=await Promise.race([r.completion,r.result.then(o=>{if(!['pending','completed'].includes(o.outcome))throw Error('original bounded observation failed');return r.completion;})]);if(done.outcome!=='completed'||done.settlement!=='acknowledged')throw Error('source settlement unknown');
-   const observation=learningJournal(hostPath).read().find(e=>e.value.type==='observation'&&e.value.id===i.id);if(!observation)throw Error('source observation missing');return observation.value;
+   const elapsed=subjectStart===null?null:performance.now()-subjectStart,wallMs=elapsed!==null&&Number.isFinite(elapsed)&&elapsed>=0?elapsed:null;
+   const observation=learningJournal(hostPath).read().find(e=>e.value.type==='observation'&&e.value.id===i.id);if(!observation)throw Error('source observation missing');
+   if(subjectStart!==null)append({type:'subject-exchange-cost',invocationId:i.id,metric:'wall_ms',wallMs,scope:'client-subject-exchange-through-acknowledged-completion',excludes:'judges'});
+   return {observation:observation.value,wallMs};
   };
   const summaries=[];
   for(const [n,cell] of p.cells.entries()){
-   const h=p.hosts[n],{host,hostPath}=makeHost(h),observation=await exchange(hostPath,h.invocations[0]);run.recordProducer(cell.arm,cell.index,hostPath,h.invocations[0].id);run.retain(cell.arm,cell.index,{configurationDigest:run.configurations().find(v=>v.armId===cell.arm)!.digest,delivery:'PASS',outputBase64:String(observation.outputBase64),cost:null});
+   const h=p.hosts[n],{host,hostPath}=makeHost(h),{observation,wallMs}=await exchange(hostPath,h.invocations[0]);run.recordProducer(cell.arm,cell.index,hostPath,h.invocations[0].id);run.retain(cell.arm,cell.index,{configurationDigest:run.configurations().find(v=>v.armId===cell.arm)!.digest,delivery:'PASS',outputBase64:String(observation.outputBase64),cost:p.manifest.resourceMetric==='wall_ms'?wallMs:null});
    let panel:any=null;
-   if(observation.objective==='PASS'){const votes=[];for(const i of h.invocations.slice(1,3)){const o=await exchange(hostPath,i);votes.push(JSON.parse(Buffer.from(String(o.outputBase64),'base64').toString('utf8')));}
-    if(collapseVotePanel(votes.map((v,k)=>({...v,ordinal:k+1}))).split){const o=await exchange(hostPath,h.invocations[3]);votes.push(JSON.parse(Buffer.from(String(o.outputBase64),'base64').toString('utf8')));}
+   if(observation.objective==='PASS'){const votes=[];for(const i of h.invocations.slice(1,3)){const {observation:o}=await exchange(hostPath,i);votes.push(JSON.parse(Buffer.from(String(o.outputBase64),'base64').toString('utf8')));}
+    if(collapseVotePanel(votes.map((v,k)=>({...v,ordinal:k+1}))).split){const {observation:o}=await exchange(hostPath,h.invocations[3]);votes.push(JSON.parse(Buffer.from(String(o.outputBase64),'base64').toString('utf8')));}
     panel=host.panel(h.invocations[0].id,h.invocations.slice(1,1+votes.length).map(i=>i.id),c.rolePolicy);run.panel(cell.arm,cell.index,[votes]);}
    summaries.push({arm:cell.arm,index:cell.index,caseId:cell.caseId,repetition:cell.repetition,partition:cell.partition,boundary:cell.boundary,objective:observation.objective,panel,reference:p.input.reference.labels[cell.caseId]});
   }

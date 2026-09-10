@@ -34,8 +34,18 @@ SDK-serialized request bytes. Retention must match that observed output hash. Wh
 settlement is required before finishing; failed/unknown plans cannot become complete.
 
 Observed configuration means **outbound SDK request observation**, not provider-internal
-truth. Backend identity, backend effort and actual instruction use remain null. Costs
-remain null where unmeasured. Source acknowledgement gates subject eligibility and judge
+truth. Backend identity, backend effort and actual instruction use remain null.
+For a frozen `wall_ms` resource metric, each subject cost is observed monotonic
+`performance.now()` elapsed time from original subject IPC exchange start through
+acknowledged completion. This is client exchange time (including source settlement),
+NOT server-generation time, tokens or subscription dollars. Judges/retro and subsequent
+retention work are excluded. The same metric applies to every arm; existing assessment
+sums retained cell costs per arm. A separate `subject-exchange-cost` journal record
+preserves measurement scope without changing the original source observation.
+Other resource metrics and invalid/unmeasured durations retain null cost. Unknown
+acknowledgements produce no eligible cost retention; objective failures may retain
+observed elapsed time but cannot become cheapest eligible. Partial/failed plans do not
+finish. Cheapest eligible remains conditional, not adoption or a routing default. Source acknowledgement gates subject eligibility and judge
 progress. Objective-failed cells remain visible and skip judges. Blind labels come from
 the existing host/panel machinery; content can still disclose clues. Only a pre-reserved
 clean-split third judge is conditional. No model judgment selects an arm, adds a cell,
