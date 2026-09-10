@@ -74,8 +74,7 @@ added, and the original P11 aggregate-reservation rule is not replaced by an inv
 universal cgroup layout. Server generation may continue after client cancellation.
 
 The supported response profile remains one text output (including normal text parts,
-progress and completion framing). Reasoning/tool/multiple-output streams remain
-unsupported, not empty qualified successes. Ordinary Pi extension-bearing/runtime
+progress and completion framing), optionally preceded by the narrowly measured one-reasoning-item profile documented in CODEX-LOCAL-BOUNDARY.md. Zero/one completed summary part is privately correlated with SDK thinking metadata; encrypted content stays opaque and only final text is scored. Other reasoning/tool/multiple-answer/interleaved streams remain unsupported, not empty qualified successes. Ordinary Pi extension-bearing/runtime
 injection rejection and the frozen qualification runner are unchanged.
 
 ## Guarded-subject ownership boundary

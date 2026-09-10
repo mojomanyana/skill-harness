@@ -14,34 +14,61 @@ const destination='https://chatgpt.com/backend-api/codex/responses';
 const hash=(b:Buffer|string)=>createHash('sha256').update(b).digest('hex');
 const fixtureCredential='fixture.'+Buffer.from(JSON.stringify({'https://api.openai.com/auth':{chatgpt_account_id:'fixture-no-account'}})).toString('base64url')+'.invalid';
 
-/** Narrow text-only SSE support. Unsupported reasoning/tools/event shapes fail closed.
- * The SDK decoder alone tolerates gaps/reordering; this validates correlation first. */
+/** Public result is final text only; reasoning metadata never leaves the private validator. */
 export function validateCodexTextSse(bytes:Buffer, model:string):{text:string;responseId:string} {
+ const v=validateResponseProfile(bytes,model);return {text:v.text,responseId:v.responseId};
+}
+function profileKeys(v:any,required:string[],optional:string[]=[]){if(!v||typeof v!=='object'||Array.isArray(v)||required.some(k=>!Object.hasOwn(v,k))||Object.keys(v).some(k=>![...required,...optional].includes(k)))throw Error('unsupported reasoning profile fields');}
+function reasoningShape(item:any){profileKeys(item,['id','type','summary','content','encrypted_content']);if(item.type!=='reasoning'||typeof item.id!=='string'||!item.id||item.id.length>128||!isDeepStrictEqual(item.content,[])||typeof item.encrypted_content!=='string'||!item.encrypted_content||Buffer.byteLength(item.encrypted_content)>8192)throw Error('unsupported reasoning item');}
+function textPart(part:any){profileKeys(part,['type','text'],['annotations','logprobs']);if(part.type!=='output_text'||typeof part.text!=='string'||['annotations','logprobs'].some(k=>Object.hasOwn(part,k)&&!isDeepStrictEqual(part[k],[])))throw Error('unsupported final text part');}
+function validateResponseProfile(bytes:Buffer, model:string) {
  const text=new TextDecoder('utf8',{fatal:true}).decode(bytes).replace(/\r\n/g,'\n');
  if(!text.endsWith('\n\n'))throw Error('truncated SSE framing');
  let sequence=0,phase=0,responseId='',itemId='',output='',completedItem:unknown;
  let partOpen=false,partDone=false,textDone=false,progress=false;
+ let reasoningId='',summary='',summaryPhase=0,reasoningItem:any,answerIndex=0;
  for(const block of text.slice(0,-2).split('\n\n')) {
   const lines=block.split('\n').filter(l=>l&&!l.startsWith(':'));if(!lines.length)continue;
   const types=lines.filter(l=>l.startsWith('event:')).map(l=>l.slice(6).trim()),data=lines.filter(l=>l.startsWith('data:')).map(l=>l.slice(5).replace(/^ /,''));
   if(types.length>1||!data.length||types.length+data.length!==lines.length)throw Error('unsupported SSE framing');
   const e=JSON.parse(data.join('\n'));if(types.length&&e.type!==types[0]||e.sequence_number!==sequence++)throw Error('SSE sequence or event mismatch');
+  if(reasoningItem&&e.type!=='response.completed'){
+   const fields:Record<string,string[]>={'response.output_item.added':['output_index','item'],'response.output_item.done':['output_index','item'],'response.content_part.added':['output_index','content_index','item_id','part'],'response.content_part.done':['output_index','content_index','item_id','part'],'response.output_text.delta':['output_index','content_index','item_id','delta'],'response.output_text.done':['output_index','content_index','item_id','text']};
+   if(!fields[e.type])throw Error('unsupported reasoning/final event');profileKeys(e,['type','sequence_number',...fields[e.type]],e.type==='response.output_text.delta'?['obfuscation','logprobs']:e.type==='response.output_text.done'?['logprobs']:[]);
+   if(Object.hasOwn(e,'logprobs')&&!isDeepStrictEqual(e.logprobs,[])||Object.hasOwn(e,'obfuscation')&&(typeof e.obfuscation!=='string'||Buffer.byteLength(e.obfuscation)>4096))throw Error('unsupported final metadata');
+   if(e.item){profileKeys(e.item,['id','type','role','status','phase','content']);if(e.item.phase!=='final_answer')throw Error('unsupported final phase');if(e.type==='response.output_item.done'){if(!Array.isArray(e.item.content)||e.item.content.length!==1)throw Error('final text cardinality');textPart(e.item.content[0]);}}
+   if(e.part)textPart(e.part);
+  }
   if(e.type==='response.created'&&phase===0) {responseId=e.response?.id;if(typeof responseId!=='string'||!responseId||responseId.length>128||e.response.status!=='in_progress')throw Error('response identity missing');phase=1;}
-  else if(e.type==='response.in_progress'&&phase===1&&!progress){if(e.response?.id!==responseId||e.response.status!=='in_progress')throw Error('progress correlation');progress=true;}
-  else if(e.type==='response.output_item.added'&&phase===1) {itemId=e.item?.id;if(typeof itemId!=='string'||!itemId||itemId.length>128||e.output_index!==0||e.item.type!=='message'||e.item.role!=='assistant'||e.item.status!=='in_progress'||!isDeepStrictEqual(e.item.content,[]))throw Error('unsupported output item');phase=2;}
-  else if(e.type==='response.content_part.added'&&phase===2&&!partOpen&&!textDone){if(e.item_id!==itemId||e.output_index!==0||e.content_index!==0||e.part?.type!=='output_text'||e.part.text!=='')throw Error('content part correlation');partOpen=true;}
-  else if(e.type==='response.output_text.done'&&phase===2&&!textDone){if(e.item_id!==itemId||e.output_index!==0||e.content_index!==0||e.text!==output)throw Error('text completion mismatch');textDone=true;}
-  else if(e.type==='response.content_part.done'&&phase===2&&partOpen&&!partDone&&textDone){if(e.item_id!==itemId||e.output_index!==0||e.content_index!==0||e.part?.type!=='output_text'||e.part.text!==output)throw Error('content part completion mismatch');partDone=true;}
-  else if(e.type==='response.output_text.delta'&&phase===2&&!textDone) {if(e.item_id!==itemId||e.output_index!==0||e.content_index!==0||typeof e.delta!=='string')throw Error('delta correlation');output+=e.delta;}
-  else if(e.type==='response.output_item.done'&&phase===2) {if(partOpen&&!partDone||e.output_index!==0||e.item?.id!==itemId||e.item.type!=='message'||e.item.role!=='assistant'||e.item.status!=='completed'||!Array.isArray(e.item.content)||e.item.content.length!==1||e.item.content[0].type!=='output_text'||e.item.content[0].text!==output)throw Error('completed item mismatch');completedItem=e.item;phase=3;}
+  else if(e.type==='response.in_progress'&&phase===1&&!progress&&!reasoningId){if(e.response?.id!==responseId||e.response.status!=='in_progress')throw Error('progress correlation');progress=true;}
+  else if(e.type==='response.output_item.added'&&phase===1&&e.item?.type==='reasoning'&&!reasoningId){profileKeys(e,['type','sequence_number','output_index','item']);reasoningShape(e.item);if(e.output_index!==0||!isDeepStrictEqual(e.item.summary,[]))throw Error('reasoning start mismatch');reasoningId=e.item.id;phase=5;}
+  else if(phase===5){
+   if(e.type==='response.output_item.done'){profileKeys(e,['type','sequence_number','output_index','item']);reasoningShape(e.item);if(e.output_index!==0||e.item.id!==reasoningId||![0,3].includes(summaryPhase)||!isDeepStrictEqual(e.item.summary,summaryPhase===0?[]:[{type:'summary_text',text:summary}]))throw Error('reasoning completion mismatch');reasoningItem=e.item;answerIndex=1;phase=1;}
+   else {
+    const kind=e.type,field=kind==='response.reasoning_summary_text.delta'?'delta':kind==='response.reasoning_summary_text.done'?'text':'part';profileKeys(e,['type','sequence_number','output_index','item_id','summary_index',field],field==='delta'?['obfuscation']:[]);
+    if(e.output_index!==0||e.item_id!==reasoningId||e.summary_index!==0||Object.hasOwn(e,'obfuscation')&&(typeof e.obfuscation!=='string'||Buffer.byteLength(e.obfuscation)>4096))throw Error('reasoning summary correlation');
+    if(field==='part'){profileKeys(e.part,['type','text']);if(e.part.type!=='summary_text'||typeof e.part.text!=='string')throw Error('reasoning summary part');}
+    if(kind==='response.reasoning_summary_part.added'&&summaryPhase===0&&e.part.text==='')summaryPhase=1;
+    else if(kind==='response.reasoning_summary_text.delta'&&summaryPhase===1&&typeof e.delta==='string'){summary+=e.delta;if(Buffer.byteLength(summary)>4096)throw Error('reasoning summary byte bound');}
+    else if(kind==='response.reasoning_summary_text.done'&&summaryPhase===1&&e.text===summary)summaryPhase=2;
+    else if(kind==='response.reasoning_summary_part.done'&&summaryPhase===2&&e.part.text===summary)summaryPhase=3;
+    else throw Error('unsupported or reordered reasoning event');
+   }
+  }
+  else if(e.type==='response.output_item.added'&&phase===1) {itemId=e.item?.id;if(typeof itemId!=='string'||!itemId||itemId===reasoningId||itemId.length>128||e.output_index!==answerIndex||e.item.type!=='message'||e.item.role!=='assistant'||e.item.status!=='in_progress'||!isDeepStrictEqual(e.item.content,[]))throw Error('unsupported output item');phase=2;}
+  else if(e.type==='response.content_part.added'&&phase===2&&!partOpen&&!textDone){if(e.item_id!==itemId||e.output_index!==answerIndex||e.content_index!==0||e.part?.type!=='output_text'||e.part.text!=='')throw Error('content part correlation');partOpen=true;}
+  else if(e.type==='response.output_text.done'&&phase===2&&!textDone){if(e.item_id!==itemId||e.output_index!==answerIndex||e.content_index!==0||e.text!==output)throw Error('text completion mismatch');textDone=true;}
+  else if(e.type==='response.content_part.done'&&phase===2&&partOpen&&!partDone&&textDone){if(e.item_id!==itemId||e.output_index!==answerIndex||e.content_index!==0||e.part?.type!=='output_text'||e.part.text!==output)throw Error('content part completion mismatch');partDone=true;}
+  else if(e.type==='response.output_text.delta'&&phase===2&&!textDone) {if(e.item_id!==itemId||e.output_index!==answerIndex||e.content_index!==0||typeof e.delta!=='string')throw Error('delta correlation');output+=e.delta;}
+  else if(e.type==='response.output_item.done'&&phase===2) {if(reasoningItem&&!(partOpen&&partDone&&textDone)||partOpen&&!partDone||e.output_index!==answerIndex||e.item?.id!==itemId||e.item.type!=='message'||e.item.role!=='assistant'||e.item.status!=='completed'||!Array.isArray(e.item.content)||e.item.content.length!==1||e.item.content[0].type!=='output_text'||e.item.content[0].text!==output)throw Error('completed item mismatch');completedItem=e.item;phase=3;}
   else if(e.type==='response.completed'&&phase===3) {
    // Compact terminals omit duplicated items, not their preceding completion evidence.
    const terminal=e.response?.output,compact=Array.isArray(terminal)&&terminal.length===0&&partOpen&&partDone&&textDone;
-   if(e.response?.id!==responseId||e.response.model!==model||e.response.status!=='completed'||!Array.isArray(terminal)||(!compact&&(terminal.length!==1||!isDeepStrictEqual(terminal[0],completedItem))))throw Error('completed response mismatch');phase=4;
+   if(e.response?.id!==responseId||e.response.model!==model||e.response.status!=='completed'||!Array.isArray(terminal)||(!compact&&!isDeepStrictEqual(terminal,reasoningItem?[reasoningItem,completedItem]:[completedItem])))throw Error('completed response mismatch');phase=4;
   }
   else throw Error('unsupported or reordered SSE event');
  }
- if(phase!==4)throw Error('truncated SSE response');return {text:output,responseId};
+ if(phase!==4)throw Error('truncated SSE response');return {text:output,responseId,reasoning:reasoningItem?{item:reasoningItem,sdkText:summary||(summaryPhase===3?'\n\n':'')}:undefined};
 }
 
 export interface CodexWire { destination:string; method:'POST'; body:Buffer; encoding:string|null }
@@ -60,7 +87,7 @@ function sdkStreams(binding:CodexSdkBinding, send:CodexWireTransport['exchange']
    if(started)throw Error('SDK transport single use; no retry');started=true;
    const expected=JSON.parse(Buffer.from(chunk).toString('utf8')),model=binding.model;
    if(model.id!==expected.model||model.provider!=='openai-codex'||model.api!=='openai-codex-responses'||model.baseUrl!=='https://chatgpt.com/backend-api')throw Error('SDK model binding mismatch');
-   let fetches=0,expectedOutput:string|undefined;
+   let fetches=0,expectedOutput:string|undefined,profile:ReturnType<typeof validateResponseProfile>|undefined;
    const result=await binding.stream(model,{systemPrompt:expected.instructions,messages:[{role:'user',content:expected.input[0].content[0].text,timestamp:0}]},{apiKey:fixtureCredential,transport:'sse',maxRetries:0,cacheRetention:'none',reasoningEffort:expected.reasoning.effort,reasoningSummary:'auto',textVerbosity:'low',toolChoice:'none',timeoutMs:30000,signal:controller.signal,
     onPayload:(payload:unknown)=>{const normalized={...(payload as object),parallel_tool_calls:false};if(!isDeepStrictEqual(JSON.parse(JSON.stringify(normalized)),expected))throw Error('SDK request settings tampered');return normalized;},
     fetch:async(url:string,init:RequestInit)=>{
@@ -88,11 +115,11 @@ function sdkStreams(binding:CodexSdkBinding, send:CodexWireTransport['exchange']
       let category:'media-type-invalid'|'SSE-validation-failed'|'validation-record-failed'='media-type-invalid';
       try {
        if(mediaType==='other'||mediaType==='missing'&&reply.status!==200)throw Error('unsupported response content type');
-       category='SSE-validation-failed';const validated=validateCodexTextSse(raw,expected.model);expectedOutput=validated.text;decoderBody=Buffer.from(new TextDecoder('utf8',{fatal:true}).decode(raw).replace(/\r\n/g,'\n'));
+       category='SSE-validation-failed';const validated=validateResponseProfile(raw,expected.model);profile=validated;expectedOutput=validated.text;decoderBody=Buffer.from(new TextDecoder('utf8',{fatal:true}).decode(raw).replace(/\r\n/g,'\n'));
        // Only HTTP200 + validated, correlated model-bound text may supply a missing
        // decoder media type. Preserve reply.headers; this is not an upstream header claim.
        if(mediaType==='missing')decoderHeaders.set('content-type','text/event-stream');
-       category='validation-record-failed';record({type:'sdk-response-validated',responseId:validated.responseId,decoderInputSha256:hash(decoderBody),decoderNormalization:'SSE CRLF to LF; original response retained',originalMediaType:mediaType,decoderMediaType:'event-stream',mediaTypeDerived:mediaType==='missing',liveQualified:false});
+       category='validation-record-failed';record({type:'sdk-response-validated',responseId:validated.responseId,decoderInputSha256:hash(decoderBody),decoderNormalization:'SSE CRLF to LF; original response retained',originalMediaType:mediaType,decoderMediaType:'event-stream',mediaTypeDerived:mediaType==='missing',profile:validated.reasoning?'reasoning-plus-text':'text-only',liveQualified:false});
       }catch(error){
        // Diagnostic persistence is best effort only; it must never replace the initiating
        // exception or turn a refused response into success. No raw header/body/error text.
@@ -102,8 +129,13 @@ function sdkStreams(binding:CodexSdkBinding, send:CodexWireTransport['exchange']
      }
      return new Response(decoderBody,{status:reply.status,headers:decoderHeaders});
     }}).result();
-   if(controller.signal.aborted||fetches!==1||result.stopReason!=='stop'||result.model!==expected.model||result.provider!=='openai-codex'||result.api!=='openai-codex-responses'||result.content?.length!==1||result.content[0].type!=='text'||result.content[0].text!==expectedOutput)throw Error(mode==='inert-sdk-fetch'?'SDK response decoding failed: '+String(result.errorMessage??'decoded output mismatch').slice(0,512):'subscription-exchange-failed');
-   record({type:'sdk-decoded',outputSha256:hash(expectedOutput!),model:result.model,provider:result.provider,api:result.api,providerInternalFacts:null,transport:mode,liveQualified:false});response.end(expectedOutput);done();
+   let contentMatches=false;
+   if(profile?.reasoning){
+    const blocks=result.content,thinking=blocks?.[0];
+    if(blocks?.length===2&&thinking.type==='thinking'&&thinking.thinking===profile.reasoning.sdkText&&typeof thinking.thinkingSignature==='string'&&Buffer.byteLength(thinking.thinkingSignature)<=16384&&blocks[1].type==='text'&&blocks[1].text===expectedOutput&&result.responseId===profile.responseId){try{contentMatches=isDeepStrictEqual(JSON.parse(thinking.thinkingSignature),profile.reasoning.item);}catch{/* Malformed private SDK signature is a mismatch, never logged or decoded as ciphertext. */}}
+   }else contentMatches=result.content?.length===1&&result.content[0].type==='text'&&result.content[0].text===expectedOutput;
+   if(controller.signal.aborted||fetches!==1||result.stopReason!=='stop'||result.model!==expected.model||result.provider!=='openai-codex'||result.api!=='openai-codex-responses'||!contentMatches)throw Error(mode==='inert-sdk-fetch'?'SDK response decoding failed: '+String(result.errorMessage??'decoded output mismatch').slice(0,512):'subscription-exchange-failed');
+   record({type:'sdk-decoded',outputSha256:hash(expectedOutput!),model:result.model,provider:result.provider,api:result.api,scoredContent:'final-text-only',thinkingMetadataVerified:!!profile?.reasoning,providerInternalFacts:null,transport:mode,liveQualified:false});response.end(expectedOutput);done();
   })().catch(e=>done(e instanceof Error?e:Error(String(e))));
  },destroy(error,done){controller.abort();response.destroy();done(error);}});
  return {transport,response};
