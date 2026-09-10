@@ -39,6 +39,33 @@ jobs:
         run: npm run verify:pi-daddy-contract -- ../pi-daddy
         working-directory: skill-harness
 
+  pi-daddy-archive-contracts:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: skill-harness
+    steps:
+      - name: Check out skill-harness
+        uses: actions/checkout@v5
+        with:
+          path: skill-harness
+      - name: Check out immutable archive contract producer
+        uses: actions/checkout@v5
+        with:
+          repository: mojomanyana/pi-daddy
+          ref: 7c78769c47177b1972b09e1f5c5474ad44cd2cac
+          path: pi-daddy-archive
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: skill-harness/package-lock.json
+      - run: npm ci
+      - name: Check deterministic work-v4 reader vendoring
+        run: node scripts/vendor-work-v4-reader.mjs ../pi-daddy-archive 7c78769c47177b1972b09e1f5c5474ad44cd2cac --check
+      - name: Check deterministic execution-retention-v2 vendoring
+        run: node scripts/vendor-execution-retention.mjs ../pi-daddy-archive 7c78769c47177b1972b09e1f5c5474ad44cd2cac --check
+
   pi-daddy-ledger-v3-contract:
     runs-on: ubuntu-latest
     steps:
@@ -76,7 +103,7 @@ jobs:
         working-directory: skill-harness
 
   build-test:
-    needs: [pi-daddy-contract, pi-daddy-ledger-v3-contract]
+    needs: [pi-daddy-contract, pi-daddy-archive-contracts, pi-daddy-ledger-v3-contract]
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -116,7 +143,7 @@ jobs:
       - name: Reproduce, install, and smoke-test canonical release archives
         run: npm run smoke:packed
   dogfood-lint:
-    needs: [pi-daddy-contract, pi-daddy-ledger-v3-contract]
+    needs: [pi-daddy-contract, pi-daddy-archive-contracts, pi-daddy-ledger-v3-contract]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
