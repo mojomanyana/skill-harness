@@ -50,11 +50,14 @@ type CompletionFailure='write-incomplete'|'tls-unverified'|'message-incomplete'|
 /** Low-level trusted-host capability. No auth discovery, redirects, fetch/global agents,
  * proxy support, retries or WebSocket path. The frozen entrypoint owns approval/reservations.
  * Constructing this port does not connect; only a separately approved entry may call exchange. */
-export function createCodexHttpsPort():CodexHttpPort {
+export function createCodexHttpsPort():CodexHttpPort { return httpsPort(4096,16384); }
+/** Explicit larger-request profile for producer-review-v1, not a legacy cap override. */
+export function createCodexReviewHttpsPort():CodexHttpPort { return httpsPort(65536,262144); }
+function httpsPort(requestLimit:number,responseLimit:number):CodexHttpPort {
  let inFlight=false;
  const preflight=()=>{if(['HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','http_proxy','https_proxy','all_proxy','NODE_EXTRA_CA_CERTS'].some(k=>!!process.env[k])||process.env.NODE_TLS_REJECT_UNAUTHORIZED==='0')throw Error('unsupported production transport environment');};
  return {kind:'subscription-http',preflight,async exchange(wire,rawCredential,signal,record,limits){
-  preflight();if(![limits.requestBytes,limits.responseBytes,limits.callMs].every(n=>Number.isSafeInteger(n)&&n>0)||!Buffer.isBuffer(wire.body)||inFlight||wire.destination!==SUBSCRIPTION_ENDPOINT||wire.method!=='POST'||!['zstd',null].includes(wire.encoding)||wire.body.length>limits.requestBytes||limits.requestBytes>4096||limits.responseBytes>16384||limits.callMs>30000)throw Error('subscription-http-refused');
+  preflight();if(![limits.requestBytes,limits.responseBytes,limits.callMs].every(n=>Number.isSafeInteger(n)&&n>0)||!Buffer.isBuffer(wire.body)||inFlight||wire.destination!==SUBSCRIPTION_ENDPOINT||wire.method!=='POST'||!['zstd',null].includes(wire.encoding)||wire.body.length>limits.requestBytes||limits.requestBytes>requestLimit||limits.responseBytes>responseLimit||limits.callMs>30000)throw Error('subscription-http-refused');
   const credential=validateCodexOAuth(rawCredential,rawCredential.accountId,'subscription-live');signal.throwIfAborted();
   const body=Buffer.from(wire.body);inFlight=true;
   const agent=new Agent({keepAlive:false,maxSockets:1,maxCachedSessions:0});

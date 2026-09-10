@@ -3,7 +3,7 @@ import { fileURLToPath as fileURLToPath3 } from "node:url";
 import { dirname as dirname17, join as join42 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
-import { existsSync as existsSync28 } from "node:fs";
+import { existsSync as existsSync29 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
 import { dirname as dirname16, join as join41, resolve as resolve20, relative as relative6 } from "node:path";
 
@@ -12832,6 +12832,12 @@ import { createHash as createHash38 } from "node:crypto";
 // packages/adapters/dist/trust-lifecycle.js
 import { isAbsolute as isAbsolute19 } from "node:path";
 
+// packages/adapters/dist/producer-review.js
+import { existsSync as existsSync25 } from "node:fs";
+import { isAbsolute as isAbsolute20 } from "node:path";
+import { createHash as createHash39 } from "node:crypto";
+var REVIEW_LIMITS = Object.freeze({ calls: 2, requestBytes: 65536, responseBytes: 262144, totalRequestBytes: 131072, totalResponseBytes: 524288, callMs: 3e4, wallMs: 9e4 });
+
 // packages/adapters/dist/index.js
 var ADAPTERS = {
   pi: piAdapter
@@ -12846,7 +12852,7 @@ function getAdapter(name) {
 
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
-import { readFileSync as readFileSync27, existsSync as existsSync25 } from "node:fs";
+import { readFileSync as readFileSync27, existsSync as existsSync26 } from "node:fs";
 import { join as join38, dirname as dirname14 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 import { spawn as spawn5 } from "node:child_process";
@@ -12861,7 +12867,7 @@ function templatePath(assetsDir) {
     join38(__dirname, "..", "..", "assets", "report.template.html")
   ];
   for (const c of candidates)
-    if (existsSync25(c))
+    if (existsSync26(c))
       return c;
   throw new Error("cannot find assets/report.template.html");
 }
@@ -13165,17 +13171,17 @@ function tryOpen(url, cmd) {
 }
 
 // packages/pi-extension/src/runner.ts
-import { existsSync as existsSync26 } from "node:fs";
+import { existsSync as existsSync27 } from "node:fs";
 import { dirname as dirname15, join as join39, resolve as resolve19 } from "node:path";
 function resolveSkillDir(cwd, arg) {
   if (arg) {
     const dir2 = resolve19(cwd, arg);
-    if (existsSync26(join39(dir2, "tests", "specification.yaml"))) return dir2;
+    if (existsSync27(join39(dir2, "tests", "specification.yaml"))) return dir2;
     throw new Error(`no tests/specification.yaml found at ${dir2}`);
   }
   let dir = cwd;
   for (; ; ) {
-    if (existsSync26(join39(dir, "tests", "specification.yaml"))) return dir;
+    if (existsSync27(join39(dir, "tests", "specification.yaml"))) return dir;
     const parent = dirname15(dir);
     if (parent === dir) break;
     dir = parent;
@@ -13223,9 +13229,9 @@ async function runViaExtension(opts) {
 }
 
 // packages/pi-extension/src/capture-cmd.ts
-import { existsSync as existsSync27, mkdirSync as mkdirSync13, writeFileSync as writeFileSync12, readdirSync as readdirSync17, readFileSync as readFileSync28 } from "node:fs";
+import { existsSync as existsSync28, mkdirSync as mkdirSync13, writeFileSync as writeFileSync12, readdirSync as readdirSync17, readFileSync as readFileSync28 } from "node:fs";
 import { join as join40 } from "node:path";
-import { createHash as createHash39 } from "node:crypto";
+import { createHash as createHash40 } from "node:crypto";
 var CANCELLED = { status: "cancelled", files: [] };
 var CAPTURES_GITIGNORE = "# Local review evidence for captured cases \u2014 never commit.\n.local/\n";
 async function runCapture(skillDir, ctx) {
@@ -13236,7 +13242,7 @@ async function runCapture(skillDir, ctx) {
     return CANCELLED;
   }
   const specPath = join40(skillDir, "tests", "specification.yaml");
-  if (!existsSync27(specPath)) {
+  if (!existsSync28(specPath)) {
     ui.say(`${specPath} does not exist \u2014 run \`skill-harness init\` before capturing into this skill`);
     return CANCELLED;
   }
@@ -13278,7 +13284,7 @@ async function runCapture(skillDir, ctx) {
     return CANCELLED;
   }
   const capturesDir = join40(skillDir, "tests", "captures");
-  const existingIds = existsSync27(capturesDir) ? readdirSync17(capturesDir).filter((f) => f.endsWith(".yaml")).map((f) => f.replace(/\.yaml$/, "")) : [];
+  const existingIds = existsSync28(capturesDir) ? readdirSync17(capturesDir).filter((f) => f.endsWith(".yaml")).map((f) => f.replace(/\.yaml$/, "")) : [];
   const capture = buildCaptureCase({
     turns,
     range: { start, end },
@@ -13346,9 +13352,9 @@ function defaultTitle(capture) {
 async function chooseTarget(skillDir, ctx) {
   const candidates = [];
   const skillMd = join40(skillDir, "SKILL.md");
-  if (existsSync27(skillMd)) candidates.push({ label: "SKILL.md (this skill)", kind: "skill", path: "SKILL.md", abs: skillMd });
+  if (existsSync28(skillMd)) candidates.push({ label: "SKILL.md (this skill)", kind: "skill", path: "SKILL.md", abs: skillMd });
   const agentsDir = join40(ctx.cwd, ".pi", "agents");
-  if (existsSync27(agentsDir)) {
+  if (existsSync28(agentsDir)) {
     for (const f of readdirSync17(agentsDir).filter((x) => x.endsWith(".md"))) {
       candidates.push({ label: `subagent: ${f}`, kind: "subagent", path: join40(".pi", "agents", f), abs: join40(agentsDir, f) });
     }
@@ -13363,7 +13369,7 @@ async function chooseTarget(skillDir, ctx) {
   return {
     kind: chosen.kind,
     path: chosen.path,
-    content_sha256: createHash39("sha256").update(readFileSync28(chosen.abs, "utf8"), "utf8").digest("hex")
+    content_sha256: createHash40("sha256").update(readFileSync28(chosen.abs, "utf8"), "utf8").digest("hex")
   };
 }
 function suggestScenarioId(specPath, fallback) {
@@ -13380,7 +13386,7 @@ function suggestScenarioId(specPath, fallback) {
 function writeCapture(capturesDir, capture, selected2, homeDir) {
   mkdirSync13(join40(capturesDir, ".local"), { recursive: true });
   const gitignore = join40(capturesDir, ".gitignore");
-  const existingIgnore = existsSync27(gitignore) ? readFileSync28(gitignore, "utf8") : "";
+  const existingIgnore = existsSync28(gitignore) ? readFileSync28(gitignore, "utf8") : "";
   if (!existingIgnore.split("\n").some((l) => l.trim() === ".local/" || l.trim() === ".local")) {
     writeFileSync12(gitignore, existingIgnore ? `${existingIgnore.replace(/\n*$/, "\n")}${CAPTURES_GITIGNORE}` : CAPTURES_GITIGNORE, "utf8");
   }
@@ -13463,7 +13469,7 @@ ${card.failedTranscripts.join("\n")}`);
     const runDir = resolve20(ctx.cwd, positional[0] ?? ".");
     const testsDir = dirname16(dirname16(dirname16(runDir)));
     const spec = loadSpec(join41(testsDir, "specification.yaml"));
-    const prev = existsSync28(join41(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const prev = existsSync29(join41(runDir, "results.yaml")) ? readResults(runDir) : null;
     const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? parseModelRef(defaultJudge());
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge"

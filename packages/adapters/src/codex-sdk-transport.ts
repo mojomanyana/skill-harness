@@ -26,7 +26,8 @@ function validateResponseProfile(bytes:Buffer, model:string) {
  if(!text.endsWith('\n\n'))throw Error('truncated SSE framing');
  let sequence=0,phase=0,responseId='',itemId='',output='',completedItem:unknown;
  let partOpen=false,partDone=false,textDone=false,progress=false;
- let reasoningId='',summary='',summaryPhase=0,reasoningItem:any,answerIndex=0;
+ let reasoningId='',summary='',summaryPhase=0,summaryBytes=0,reasoningItem:any,answerIndex=0;
+ const summaries:{type:'summary_text';text:string}[]=[]; // At most16 sequential parts;4096 aggregate text bytes.
  for(const block of text.slice(0,-2).split('\n\n')) {
   const lines=block.split('\n').filter(l=>l&&!l.startsWith(':'));if(!lines.length)continue;
   const types=lines.filter(l=>l.startsWith('event:')).map(l=>l.slice(6).trim()),data=lines.filter(l=>l.startsWith('data:')).map(l=>l.slice(5).replace(/^ /,''));
@@ -43,15 +44,15 @@ function validateResponseProfile(bytes:Buffer, model:string) {
   else if(e.type==='response.in_progress'&&phase===1&&!progress&&!reasoningId){if(e.response?.id!==responseId||e.response.status!=='in_progress')throw Error('progress correlation');progress=true;}
   else if(e.type==='response.output_item.added'&&phase===1&&e.item?.type==='reasoning'&&!reasoningId){profileKeys(e,['type','sequence_number','output_index','item']);reasoningShape(e.item);if(e.output_index!==0||!isDeepStrictEqual(e.item.summary,[]))throw Error('reasoning start mismatch');reasoningId=e.item.id;phase=5;}
   else if(phase===5){
-   if(e.type==='response.output_item.done'){profileKeys(e,['type','sequence_number','output_index','item']);reasoningShape(e.item);if(e.output_index!==0||e.item.id!==reasoningId||![0,3].includes(summaryPhase)||!isDeepStrictEqual(e.item.summary,summaryPhase===0?[]:[{type:'summary_text',text:summary}]))throw Error('reasoning completion mismatch');reasoningItem=e.item;answerIndex=1;phase=1;}
+   if(e.type==='response.output_item.done'){profileKeys(e,['type','sequence_number','output_index','item']);reasoningShape(e.item);if(e.output_index!==0||e.item.id!==reasoningId||summaryPhase!==0||!isDeepStrictEqual(e.item.summary,summaries))throw Error('reasoning completion mismatch');reasoningItem=e.item;answerIndex=1;phase=1;}
    else {
     const kind=e.type,field=kind==='response.reasoning_summary_text.delta'?'delta':kind==='response.reasoning_summary_text.done'?'text':'part';profileKeys(e,['type','sequence_number','output_index','item_id','summary_index',field],field==='delta'?['obfuscation']:[]);
-    if(e.output_index!==0||e.item_id!==reasoningId||e.summary_index!==0||Object.hasOwn(e,'obfuscation')&&(typeof e.obfuscation!=='string'||Buffer.byteLength(e.obfuscation)>4096))throw Error('reasoning summary correlation');
+    if(e.output_index!==0||e.item_id!==reasoningId||e.summary_index!==summaries.length||Object.hasOwn(e,'obfuscation')&&(typeof e.obfuscation!=='string'||Buffer.byteLength(e.obfuscation)>4096))throw Error('reasoning summary correlation');
     if(field==='part'){profileKeys(e.part,['type','text']);if(e.part.type!=='summary_text'||typeof e.part.text!=='string')throw Error('reasoning summary part');}
-    if(kind==='response.reasoning_summary_part.added'&&summaryPhase===0&&e.part.text==='')summaryPhase=1;
-    else if(kind==='response.reasoning_summary_text.delta'&&summaryPhase===1&&typeof e.delta==='string'){summary+=e.delta;if(Buffer.byteLength(summary)>4096)throw Error('reasoning summary byte bound');}
+    if(kind==='response.reasoning_summary_part.added'&&summaryPhase===0&&e.part.text===''&&summaries.length<16)summaryPhase=1;
+    else if(kind==='response.reasoning_summary_text.delta'&&summaryPhase===1&&typeof e.delta==='string'){summary+=e.delta;if(summaryBytes+Buffer.byteLength(summary)>4096)throw Error('reasoning summary byte bound');}
     else if(kind==='response.reasoning_summary_text.done'&&summaryPhase===1&&e.text===summary)summaryPhase=2;
-    else if(kind==='response.reasoning_summary_part.done'&&summaryPhase===2&&e.part.text===summary)summaryPhase=3;
+    else if(kind==='response.reasoning_summary_part.done'&&summaryPhase===2&&e.part.text===summary){summaries.push({type:'summary_text',text:summary});summaryBytes+=Buffer.byteLength(summary);summary='';summaryPhase=0;}
     else throw Error('unsupported or reordered reasoning event');
    }
   }
@@ -68,7 +69,7 @@ function validateResponseProfile(bytes:Buffer, model:string) {
   }
   else throw Error('unsupported or reordered SSE event');
  }
- if(phase!==4)throw Error('truncated SSE response');return {text:output,responseId,reasoning:reasoningItem?{item:reasoningItem,sdkText:summary||(summaryPhase===3?'\n\n':'')}:undefined};
+ if(phase!==4)throw Error('truncated SSE response');return {text:output,responseId,reasoning:reasoningItem?{item:reasoningItem,sdkText:summaries.map(p=>p.text).join('\n\n')||'\n\n'.repeat(summaries.length)}:undefined};
 }
 
 export interface CodexWire { destination:string; method:'POST'; body:Buffer; encoding:string|null }
@@ -78,6 +79,11 @@ export function inertCodexSdkStreams(binding:CodexSdkBinding, fixture:()=>Promis
 }
 export function boundCodexSdkStreams(binding:CodexSdkBinding, transport:CodexWireTransport, record:(value:Record<string,unknown>)=>void, caps:{requestBytes:number;responseBytes:number}) {
  if(!['fixture-http','subscription-http'].includes(transport.kind)||![caps.requestBytes,caps.responseBytes].every(n=>Number.isSafeInteger(n)&&n>0)||caps.requestBytes>4096||caps.responseBytes>16384)throw Error('unsupported SDK transport binding');
+ return sdkStreams(binding,transport.exchange,record,transport.kind,caps);
+}
+/** Separate review request profile; historical exact-output transport retains its 4096-byte cap. */
+export function boundCodexReviewSdkStreams(binding:CodexSdkBinding, transport:CodexWireTransport, record:(value:Record<string,unknown>)=>void, caps:{requestBytes:number;responseBytes:number}) {
+ if(!['fixture-http','subscription-http'].includes(transport.kind)||![caps.requestBytes,caps.responseBytes].every(n=>Number.isSafeInteger(n)&&n>0)||caps.requestBytes>65536||caps.responseBytes>262144)throw Error('unsupported review SDK transport binding');
  return sdkStreams(binding,transport.exchange,record,transport.kind,caps);
 }
 function sdkStreams(binding:CodexSdkBinding, send:CodexWireTransport['exchange'], record:(value:Record<string,unknown>)=>void, mode:string, caps={requestBytes:4096,responseBytes:16384}) {
@@ -98,7 +104,7 @@ function sdkStreams(binding:CodexSdkBinding, send:CodexWireTransport['exchange']
      const encoding=new Headers(init.headers).get('content-encoding');
      if(encoding!==null&&encoding!=='zstd')throw Error('unsupported request encoding');
      if(encoding==='zstd'&&typeof zlib.zstdDecompressSync!=='function')throw Error('zstd decoding unavailable');
-     const serialized=encoding==='zstd'?Buffer.from(zlib.zstdDecompressSync(wire,{maxOutputLength:4096})):wire;
+     const serialized=encoding==='zstd'?Buffer.from(zlib.zstdDecompressSync(wire,{maxOutputLength:caps.requestBytes})):wire;
      if(serialized.length>caps.requestBytes||!isDeepStrictEqual(JSON.parse(new TextDecoder('utf8',{fatal:true}).decode(serialized)),expected))throw Error('SDK final request tampered');
      record({type:'sdk-wire-observed',requestSha256:hash(chunk),serializedBase64:serialized.toString('base64'),wireBase64:wire.toString('base64'),wireSha256:hash(wire),encoding,destination,method:'POST',authenticationHeadersRetained:false,transport:mode,networkCalls:mode==='subscription-http'?null:0,liveQualified:false});
      const reply=await send({destination,method:'POST',body:wire,encoding},controller.signal,value=>{if(!['http-request-started','http-response-observed','http-request-failed'].includes(String(value.type)))throw Error('unbound transport observation');record({...value,transport:mode,liveQualified:false});});if(controller.signal.aborted)throw Error('SDK response deadline');if(reply.redirected||reply.status>=300&&reply.status<400)throw Error('fixture redirects refused');

@@ -2,7 +2,7 @@ import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 const fixture=vi.hoisted(()=>({request:vi.fn(),options:null as any,status:200,body:'fixture output',authorized:true,throwRequest:false,requests:0}));
 vi.mock('node:https',()=>({Agent:class {destroy(){}},request:(options:any,callback:any)=>fixture.request(options,callback)}));
-import { createCodexHttpsPort } from '../src/codex-https.js';
+import { createCodexHttpsPort, createCodexReviewHttpsPort } from '../src/codex-https.js';
 const wire=()=>({destination:'https://chatgpt.com/backend-api/codex/responses',method:'POST' as const,body:Buffer.from('{}'),encoding:null});
 const limits={calls:5,requestBytes:4096,responseBytes:16384,totalRequestBytes:20480,totalResponseBytes:81920,callMs:1000,wallMs:5000};
 const credential=()=>({type:'oauth' as const,provider:'openai-codex' as const,accountId:'unit-account',expires:Date.now()+60000,access:Buffer.from('{"alg":"RS256"}').toString('base64url')+'.'+Buffer.from(JSON.stringify({'https://api.openai.com/auth':{chatgpt_account_id:'unit-account'}})).toString('base64url')+'.'+Buffer.from('invalid-unit-signature').toString('base64url')});
@@ -24,6 +24,24 @@ it('does not invoke an error code getter; recording failure still rejects',async
  const port=createCodexHttpsPort();await expect(port.exchange(wire(),credential(),new AbortController().signal,()=>{throw Error('SECRET_RECORDER');},limits)).rejects.toThrow(/^subscription-http-failed$/);expect(getter).not.toHaveBeenCalled();
  fixture.request.mockImplementation(()=>{throw Object.assign(new Error('SECRET'),{code:'ECONNRESET'});});const records:any[]=[];
  await expect(port.exchange(wire(),credential(),new AbortController().signal,v=>records.push(v),limits)).rejects.toThrow(/^subscription-http-failed$/);expect(records[0].errorCode).toBe('ECONNRESET');
+});
+it('admits larger review requests only through the explicit review port, with bounded bytes and no retries',async()=>{
+ const request={...wire(),body:Buffer.alloc(21489,120)},caps={...limits,requestBytes:65536};
+ await expect(createCodexHttpsPort().exchange(request,credential(),new AbortController().signal,()=>{},caps)).rejects.toThrow();expect(fixture.requests).toBe(0);
+ expect((await createCodexReviewHttpsPort().exchange(request,credential(),new AbortController().signal,()=>{},caps)).status).toBe(200);expect(fixture.requests).toBe(1);
+ await expect(createCodexReviewHttpsPort().exchange({...request,body:Buffer.alloc(65537)},credential(),new AbortController().signal,()=>{},caps)).rejects.toThrow();expect(fixture.requests).toBe(1);
+ fixture.throwRequest=true;await expect(createCodexReviewHttpsPort().exchange(request,credential(),new AbortController().signal,()=>{},caps)).rejects.toThrow();expect(fixture.requests).toBe(2);
+});
+it('keeps the legacy response bound while bounding larger review SSE framing',async()=>{
+ const caps={...limits,requestBytes:65536,responseBytes:262144};fixture.body='x'.repeat(20000);
+ await expect(createCodexHttpsPort().exchange(wire(),credential(),new AbortController().signal,()=>{},caps)).rejects.toThrow();expect(fixture.requests).toBe(0);
+ expect((await createCodexReviewHttpsPort().exchange(wire(),credential(),new AbortController().signal,()=>{},caps)).status).toBe(200);expect(fixture.requests).toBe(1);
+ fixture.body='x'.repeat(262145);await expect(createCodexReviewHttpsPort().exchange(wire(),credential(),new AbortController().signal,()=>{},caps)).rejects.toThrow();expect(fixture.requests).toBe(2);
+});
+it('review HTTP refuses API keys, expiry, destination and proxy changes before requests',async()=>{
+ const caps={...limits,requestBytes:65536};const p=createCodexReviewHttpsPort();
+ for(const c of [{...credential(),type:'api_key'},{...credential(),expires:0}])await expect(p.exchange(wire(),c as any,new AbortController().signal,()=>{},caps)).rejects.toThrow();
+ await expect(p.exchange({...wire(),destination:'https://example.invalid'},credential(),new AbortController().signal,()=>{},caps)).rejects.toThrow();vi.stubEnv('HTTPS_PROXY','http://fixture.invalid');await expect(p.exchange(wire(),credential(),new AbortController().signal,()=>{},caps)).rejects.toThrow();expect(fixture.requests).toBe(0);
 });
 it('pins native HTTPS method/host/path/TLS and does not use an SDK/global fetch destination',async()=>{const result=await createCodexHttpsPort().exchange(wire(),credential(),new AbortController().signal,()=>{},limits);expect(await result.text()).toBe('fixture output');expect(fixture.requests).toBe(1);expect(fixture.options).toMatchObject({protocol:'https:',hostname:'chatgpt.com',port:443,path:'/backend-api/codex/responses',method:'POST',servername:'chatgpt.com',rejectUnauthorized:true,minVersion:'TLSv1.2'});expect(typeof fixture.options.checkServerIdentity).toBe('function');expect(fixture.options.ca.length).toBeGreaterThan(0);});
 it('refuses destination/proxy/API-key substitutions without requesting',async()=>{const port=createCodexHttpsPort();await expect(port.exchange({...wire(),destination:'https://example.invalid/'},credential(),new AbortController().signal,()=>{},limits)).rejects.toThrow();await expect(port.exchange(wire(),{...credential(),type:'api_key'} as any,new AbortController().signal,()=>{},limits)).rejects.toThrow();vi.stubEnv('HTTPS_PROXY','http://fixture.invalid');await expect(port.exchange(wire(),credential(),new AbortController().signal,()=>{},limits)).rejects.toThrow();expect(fixture.requests).toBe(0);});

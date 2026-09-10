@@ -42,3 +42,4 @@ export * from "./reviewed-archive-export.js";
 export * from "./archive-access.js";
 export * from "./archive-facts.js";
 export * from "./trust-lifecycle.js";
+export * from "./producer-review.js";
