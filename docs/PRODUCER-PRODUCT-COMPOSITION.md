@@ -48,7 +48,13 @@ observed elapsed time but cannot become cheapest eligible. Partial/failed plans 
 finish. Cheapest eligible remains conditional, not adoption or a routing default. Source acknowledgement gates subject eligibility and judge
 progress. Objective-failed cells remain visible and skip judges. Blind labels come from
 the existing host/panel machinery; content can still disclose clues. Only a pre-reserved
-clean-split third judge is conditional. No model judgment selects an arm, adds a cell,
+clean-split third judge is conditional. Every compiled judge instruction explicitly
+requests ONLY JSON, uppercase PASS/FAIL, Boolean suspect and exactly those two keys,
+with no explanation. This states the existing closed vote schema; it does not guarantee
+model compliance. Lowercase verdicts, extra keys and non-Boolean suspect still reject;
+no normalization/coercion is permitted. An instruction change is a new proposed
+experiment/source pin, never a retrospective repair of failed votes.
+No model judgment selects an arm, adds a cell,
 adopts a candidate or changes routing defaults.
 
 Reference kind/digest/labels are explicit frozen inputs. Synthetic reference agreement is
