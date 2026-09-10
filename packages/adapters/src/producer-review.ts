@@ -86,7 +86,7 @@ export async function executeProducerReview(path:string,raw:ProducerReview,rawAp
      const credential=validateCodexOAuth(await ports.credentials.read(signal),s.accountId,a.scope);signal.throwIfAborted();const callMs=remaining();httpAttempts++;
      append({type:'transport-attempt-claimed',id:b.invocationId,ordinal:httpAttempts});return ports.transport.exchange(wire,credential,signal,record,{...s.limits,callMs});
     }};
-    const record=(v:Record<string,unknown>)=>{if(v.type==='session-sdk-invoked'){if(!sessions||sdkCalls!==k||v.role!==b.invocationId)throw Error('actual installed SDK accounting mismatch');sdkCalls++;}append({...v,id:b.invocationId});};
+    const record=(v:Record<string,unknown>)=>{if(v.type==='session-sdk-invoked'){if(!sessions||sdkCalls!==k||v.role!==b.invocationId||v.sessionSha256!==learningHash(s.session)||v.sessionId!==(k===0?s.session!.subjectId:s.session!.judgeId))throw Error('actual installed SDK accounting mismatch');sdkCalls++;}append({...v,id:b.invocationId});};
     const binding=sessions?sessions.bind(k===0?'subject':'judge',k===0?s.task:judgeInstructions,sdks[k],record):sdks[k];
     const streams=boundCodexReviewSdkStreams(binding,transport,record,s.limits);
     const abort=()=>{streams.transport.destroy(Error('review cancelled'));streams.response.destroy(Error('review cancelled'));};context.signal.addEventListener('abort',abort,{once:true});

@@ -2,7 +2,7 @@ import {readFileSync,realpathSync,lstatSync,mkdirSync,existsSync} from 'node:fs'
 import {isAbsolute,resolve,join,dirname} from 'node:path';
 import {createHash} from 'node:crypto';
 import {isDeepStrictEqual} from 'node:util';
-import {learningHash} from './learning-journal.js';
+import {learningHash,learningCopy} from './learning-journal.js';
 import type {CodexSdkBinding} from './codex-sdk-transport.js';
 
 export interface InstalledReviewSession {
@@ -46,8 +46,8 @@ export interface InstalledReviewSessions {
 }
 /** SDK is the pinned, installed public SDK module. No SDK/auth import occurs during preparation.
  * This is a per-role adapter for the existing producer exchange, not another budget or retry engine. */
-export function createInstalledReviewSessions(p:InstalledReviewSession,sdk:any):InstalledReviewSessions {
- validateInstalledReviewSession(p);const used=new Set<string>();
+export function createInstalledReviewSessions(raw:InstalledReviewSession,sdk:any):InstalledReviewSessions {
+ const p=learningCopy(raw);validateInstalledReviewSession(p);p.resources.forEach(Object.freeze);Object.freeze(p.resources);Object.freeze(p);const used=new Set<string>();
  return {sessionSha256:learningHash(p),bind(role,base,raw,record){
   if(used.has(role))throw Error('installed role reused');used.add(role);
   return {model:raw.model,stream:(_model,seed,options)=>({result:async()=>{
@@ -82,7 +82,7 @@ export function createInstalledReviewSessions(p:InstalledReviewSession,sdk:any):
      ({session}=await sdk.createAgentSession({cwd,agentDir,model:raw.model,modelRuntime:runtime,settingsManager:settings,resourceLoader:loader,sessionManager:sdk.SessionManager.inMemory(cwd,{id:p[role==='subject'?'subjectId':'judgeId']}),noTools:'all',thinkingLevel:'low'}));if(closedSession||options.signal.aborted)session.dispose();ensure();
      session.extensionRunner.onError((e:any)=>{violation??=Error('installed extension error: '+e.event);});
      session.agent.streamFunction=async(model:any,actual:any,opts:any)=>{
-      ensure();if(++invocations!==1||before!==1||contexts!==1||model.id!==raw.model.id||model.provider!==raw.model.provider||model.api!==raw.model.api||model.baseUrl!==raw.model.baseUrl||session.getActiveToolNames().length)refuse('installed SDK invocation/model/tools bound');
+      ensure();if(++invocations!==1||before!==1||contexts!==1||session.sessionId!==p[role==='subject'?'subjectId':'judgeId']||session.sessionFile!==undefined||model.id!==raw.model.id||model.provider!==raw.model.provider||model.api!==raw.model.api||model.baseUrl!==raw.model.baseUrl||session.getActiveToolNames().length)refuse('installed SDK invocation/model/tools bound');
       validateInstalledReviewSession(p);const contextSha256=assertInstalledContext(actual,instructions,input);
       record({type:'session-sdk-invoked',role,sessionId:session.sessionId,contextSha256,sessionSha256:learningHash(p),tools:[]});
       const result=raw.stream(model,actual,{...opts,...options,onPayload:async(payload:unknown)=>{ensure();validateInstalledReviewSession(p);const processed=await opts.onPayload(payload,model);ensure();if(payloads!==1)refuse('installed provider hook missing');return options.onPayload(processed);},onResponse:opts.onResponse});
@@ -93,7 +93,7 @@ export function createInstalledReviewSessions(p:InstalledReviewSession,sdk:any):
      if(session.sessionId!==p[role==='subject'?'subjectId':'judgeId']||session.messages.length||session.getActiveToolNames().length)refuse('installed session identity/history/tools');
      record({type:'session-bound',role,sessionId:session.sessionId,extensions:p.resources.slice(2),commands:session.extensionRunner.getRegisteredCommands().map((c:any)=>c.name),history:0,tools:[]});
      await session.prompt(input,{expandPromptTemplates:false});ensure();
-     if(invocations!==1||before!==1||contexts!==1||payloads!==1||!sdkResult||session.messages.length!==2||session.getActiveToolNames().length)refuse('installed awaited prompt/continuation mismatch');
+     if(invocations!==1||before!==1||contexts!==1||payloads!==1||session.sessionId!==p[role==='subject'?'subjectId':'judgeId']||session.sessionFile!==undefined||!sdkResult||session.messages.length!==2||session.getActiveToolNames().length)refuse('installed awaited prompt/continuation mismatch');
      const result=await sdkResult;ensure();if(!isDeepStrictEqual(session.messages[1],result))refuse('installed session final differs from SDK result');
      record({type:'session-prompt-completed',role,sessionId:session.sessionId,actualSdkCalls:invocations,beforeAgentHooks:before,contextHooks:contexts,providerHooks:payloads});return result;
     })()]);

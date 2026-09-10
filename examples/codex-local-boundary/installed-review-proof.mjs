@@ -20,7 +20,9 @@ const producer=await import(pathToFileURL(join(c.runtime.producerRoot,'packages/
 const budgets=await import(pathToFileURL(join(c.runtime.producerRoot,'packages/pi-daddy/src/resource-budget.ts')));
 const {newExecutionId}=await import(pathToFileURL(join(c.runtime.producerRoot,'packages/pi-daddy/src/execution-id.ts')));
 const results=[];
-for(const fault of ['none','resource','before-agent','context','tools','extra-invocation','final-wire','unknown-settlement','timeout']){
+const cases=['none','resource','before-agent','context','identity','tools','extra-invocation','final-wire','unknown-settlement','timeout'];
+if(process.argv[3])assert(cases.includes(process.argv[3]));
+for(const fault of cases.filter(c=>!process.argv[3]||c===process.argv[3])){
  const path=join(dirname(c.outputRoot),'proof-'+fault);mkdirSync(path,{mode:0o700});const spec=structuredClone(c.plan);spec.session.runRoot=path;spec.session.subjectId=randomUUID();spec.session.judgeId=randomUUID();
  const prepared=prepareProducerReview(spec),controller=new AbortController(),completions=[];
  const budget=await budgets.createExperimentBudget({directory:join(path,'budget'),authorityDigest:prepared.planSha256,limits:{maxAttempts:2,maxConcurrent:2,maxInputBytes:2048}}),owner=budgets.openResourceBudget(budget);
@@ -31,6 +33,7 @@ for(const fault of ['none','resource','before-agent','context','tools','extra-in
   const ext=options.resourceLoader.getExtensions().extensions.find(e=>e.path.includes('installed-review-v1'));
   if(fault==='context')ext.handlers.get('context').push(e=>({messages:[{...e.messages[0],content:[{type:'text',text:'changed packet'}]}]}));
   if(fault==='before-agent')ext.handlers.get('before_agent_start').push(e=>({systemPrompt:e.systemPrompt+' changed'}));
+  if(fault==='identity')ext.handlers.get('before_agent_start').push(()=>{session.sessionManager.newSession({id:randomUUID()});});
   if(['tools','extra-invocation'].includes(fault)){
    let implementation=session.agent.streamFunction;Object.defineProperty(session.agent,'streamFunction',{get:()=>implementation,set:fn=>{implementation=async(...args)=>{if(fault==='tools')args[1].tools=[{name:'read'}];const r=await fn(...args);if(fault==='extra-invocation'){try{await fn(...args);}catch{/* Deliberately swallowed by faulty host: bridge must remain poisoned. */}}return r;};}});
   }
@@ -53,7 +56,7 @@ for(const fault of ['none','resource','before-agent','context','tools','extra-in
  let result,error;const start=performance.now();try{result=await executeProducerReview(join(path,'owner'),spec,{version:'producer-review-approval-v1',scope:'fixture',planSha256:prepared.planSha256,journalPath:join(path,'owner'),approvalId:'inert-'+fault,expiresAt:Date.now()+90000,maxCalls:2},ports,source,sessions);}catch(e){error=e.message;}
  const completed=await Promise.allSettled(completions),snapshot=await owner.controlSnapshot();assert.equal(snapshot.active,0);assert(sdkCalls<=2&&http<=2);
  if(fault==='none'){assert(!error,error);assert.equal(result.sdkCalls,2);assert.equal(sdkCalls,2);assert.equal(http,2);assert(packet&&sealed);assert.equal(snapshot.attempts,2);assert(completed.every(r=>r.status==='fulfilled'&&r.value.settlement==='acknowledged'));const events=learningJournal(join(path,'owner')).read().map(e=>e.value);assert.equal(events.filter(v=>v.type==='session-prompt-completed').length,2);for(const v of events.filter(v=>v.type==='sdk-wire-observed'))assert.equal(v.serializedSha256,sha(Buffer.from(v.serializedBase64,'base64')));}
- else {assert(error,'fault unexpectedly passed: '+fault);assert(!sealed);assert.equal(snapshot.attempts,fault==='resource'?0:2);if(['resource','before-agent','context','tools'].includes(fault))assert.equal(sdkCalls,0);if(fault==='final-wire')assert.equal(http,0);if(fault==='timeout')assert(performance.now()-start>=29000);}
+ else {assert(error,'fault unexpectedly passed: '+fault);assert(!sealed);assert.equal(snapshot.attempts,fault==='resource'?0:2);if(['resource','before-agent','context','identity','tools'].includes(fault))assert.equal(sdkCalls,0);if(fault==='final-wire')assert.equal(http,0);if(fault==='timeout')assert(performance.now()-start>=29000);}
  const receipt={fault,passed:true,sdkCalls,httpAttempts:http,original:snapshot,completions:completed,packetSeen:packet,sealedBeforeJudge:sealed,error:error??null,elapsedMs:performance.now()-start,acceptance:'not-assessed'};writeFileSync(join(path,'proof.json'),JSON.stringify(receipt,null,2)+'\n',{flag:'wx',mode:0o600});results.push(receipt);console.log('PASS',fault,'SDK',sdkCalls,'HTTP',http,'active',snapshot.active);
 }
 writeFileSync(join(dirname(c.outputRoot),'installed-proof.json'),JSON.stringify({cases:results.length,passed:results.length,networkCalls:0,results},null,2)+'\n',{flag:'wx',mode:0o600});
