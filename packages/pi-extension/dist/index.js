@@ -17300,6 +17300,8 @@ function validate5(root, input, depth = 0) {
   if (input.predecessorManifestId) {
     const prior = read2(root, input.predecessorManifestId, depth + 1);
     if (prior.links.case !== input.caseManifestId || prior.links.hypothesis !== input.hypothesisManifestId || prior.links.comparison !== input.comparisonManifestId) throw Error("learning lifecycle identity changed");
+    for (const key3 of ["choice", "adoption", "rollback"]) if (prior.links[key3] !== null && prior.links[key3] !== { choice: input.choiceManifestId, adoption: input.adoptionManifestId, rollback: input.rollbackManifestId }[key3]) throw Error("learning lifecycle cannot regress or replace decisions");
+    if (prior.links.outcomes.some((id3, index) => input.outcomeManifestIds[index] !== id3)) throw Error("learning lifecycle cannot regress or replace outcomes");
   }
   const state = input.outcomeManifestIds.length ? "outcome-observed" : input.rollbackManifestId ? "rolled-back" : input.adoptionManifestId ? "adopted-awaiting-outcome" : input.choiceManifestId ? "decision-recorded" : "awaiting-human-choice";
   return { version: "retained-learning-lifecycle-v1", state, predecessorManifestId: input.predecessorManifestId, links: { case: input.caseManifestId, hypothesis: input.hypothesisManifestId, comparison: input.comparisonManifestId, choice: input.choiceManifestId, adoption: input.adoptionManifestId, rollback: input.rollbackManifestId, outcomes: [...input.outcomeManifestIds] } };
@@ -17328,7 +17330,7 @@ function readLearningLifecycle(root, manifestId) {
 }
 
 // packages/pi-extension/src/dashboard-bridge.ts
-var DASHBOARD_HARNESS_SOURCE = "28b55d40a64ce7af8ed23410a137f2e3a075e522";
+var DASHBOARD_HARNESS_SOURCE = "d123257e53d48a2cad6919708976b5371dc7590e";
 var DASHBOARD_HARNESS_BRIDGE = /* @__PURE__ */ Symbol.for("skill-harness.dashboard-host.v1");
 var functions = {
   learningJournal: learningJournal2,
