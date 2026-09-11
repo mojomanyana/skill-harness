@@ -24,8 +24,8 @@ describe("real-pi release smoke contract", () => {
   it("separates the hostile-extension probe from authenticated delivery and adjudication", () => {
     expect(script).toContain('EXTENSION_SKILL="trace-smoke"');
     expect(script).toContain('DELIVERY_SKILL="delivery-smoke"');
-    expect(script).toContain('openai-codex:gpt-5.6-luna');
-    expect(script).toContain('openai-codex:gpt-5.6-sol');
+    expect(script).toContain('MODEL="${SMOKE_MODEL:-openai-codex:gpt-5.6-sol}"');
+    expect(script).toContain('JUDGE="${SMOKE_JUDGE:-openai-codex:gpt-5.6-terra}"');
     expect(script).toContain('--judge "$JUDGE"');
     expect(script).toContain('expected unauthenticated extension delivery ERROR');
     expect(script).toContain('authenticated delivery: PASS');

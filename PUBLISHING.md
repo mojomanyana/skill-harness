@@ -1,35 +1,18 @@
-# Publishing skill-harness 0.13.0
+# Publishing skill-harness 0.14.0
 
-This is the npm-publish runbook. The registry contains 0.12.0. Version 0.13.0 packages
-the merged archive, work-decision, Codex boundary, and installed-session review work.
-`release:pack` must produce only manifest-bound `*-0.13.0.tgz` archives from the exact
-clean release commit. The owner authorized the coordinated release on 2026-09-11.
+This is the active npm-publish runbook. The registry contains 0.13.0. Version 0.14.0 adds the public meta-package Pi extension resource, loaded exact-source dashboard bridge, retained empty-fact coverage projection, and connected-factory documentation. `release:pack` must produce only manifest-bound `*-0.14.0.tgz` archives from the exact clean release commit. The owner authorized the coordinated release on 2026-09-11.
 
-## Authoritative 0.13.0 release order
+## Authoritative 0.14.0 release order
 
-The feature merges land first. Then the version change lands on `main` through a reviewed,
-green release PR. Only that exact merged release source may be packed or smoked. The order is:
+1. Merge reviewed feature PR76 (complete before this version branch).
+2. Land the synchronized 0.14.0 package versions, exact internal dependencies, lockfile, changelog, smoke selector and active runbook through a reviewed green release PR.
+3. In a fresh quiescent checkout of that exact merge, use Node 20.20.2/npm 10.8.2 to run `npm run release:pack`, then `npm run smoke:packed`. Do not rebuild after recording the canonical archive manifest.
+4. Run `scripts/smoke-real-pi.sh` once as a fresh supervised occurrence, with subscription subject `openai-codex:gpt-5.6-sol` and judge `openai-codex:gpt-5.6-terra`. Its ceiling is two subject invocations with at most one blank-response retry each plus up to three judge invocations: at most seven Pi process invocations, **not** an exact HTTP/provider-call cap. Record a unique occurrence identity and finite process/attempt ceiling before launch; retain checkout, stdout/stderr, process status and both result trees. This is path verification, not efficacy.
+5. Separately install the canonical public meta-package tarball in an empty prefix and start Pi with only that installed extension plus the exact merged pi-daddy 0.24.0 extension. Verify `[Extensions] dist` and zero-model `/grants host` startup. This does not substitute for step 4.
+6. Publish only the four manifest-digested public archives in dependency order and verify cache-busted registry bytes plus a fresh exact-version install. Never publish the private monorepo root or private `@skill-harness/pi-extension`; its built resource ships inside public `skill-harness`.
+7. Create immutable `v0.14.0` at the exact verified release commit, create the GitHub Release, then move mutable `latest` with an exact old-ref lease. Never rewrite an immutable version tag or force a branch.
 
-1. Merge the three reviewed feature PRs (complete before this version branch).
-2. Land the synchronized 0.13.0 version, lockfile, changelog, and active-runbook change on
-   `main` through a green release PR.
-3. In a fresh quiescent checkout of that exact merge, use Node 20.20.2/npm 10.8.2 to run
-   `npm run release:pack`, then `npm run smoke:packed`. Do not rebuild after recording the
-   canonical archive manifest.
-4. Run `scripts/smoke-real-pi.sh` once as a fresh release check in its isolated supervised
-   namespace, with subscription subject `openai-codex:gpt-5.6-luna` and judge
-   `openai-codex:gpt-5.6-sol`. Its ceiling is two subject invocations with at most one
-   blank-response retry each plus up to three judge invocations: at most seven Pi process
-   invocations, **not** an exact HTTP/provider-call cap. Retain its isolated checkout,
-   stdout/stderr, process status, and both result trees; it is path verification, not efficacy.
-5. Publish only the four manifest-digested archives in dependency order; verify them from a
-   fresh temporary install.
-6. Create immutable `v0.13.0` at the exact verified release commit, create the GitHub Release,
-   then move mutable `latest` with an exact old-ref lease. Never rewrite an immutable version
-   tag or force a branch.
-
-Historical release sections below retain the order and facts used by their own releases; they
-do not override this 0.13.0 sequence.
+Historical release sections below retain their dated evidence and do not override this sequence.
 
 ## 0.13.0 — retained work and bounded execution connections
 
@@ -745,11 +728,13 @@ behaviour, and a provider outage reddens the first of them. So read the failing
 assertion rather than assuming either cause. A `NOT READY` scorecard from `run` is
 separate and expected: reported, not fatal.
 
-The release pins are `openai-codex:gpt-5.6-luna` for the subject and
-`openai-codex:gpt-5.6-sol` for the judge, explicitly authorized for this smoke.
-They are distinct models but remain same-family, so this run is path verification—not
-independent efficacy evidence. Pi has no entitlement preflight: either model can still
-be unavailable at invocation time. `SMOKE_MODEL` and `SMOKE_JUDGE` override them.
+The historical 0.13.0 release pinned `openai-codex:gpt-5.6-luna` for the subject and
+`openai-codex:gpt-5.6-sol` for the judge. That dated evidence is unchanged. The active
+0.14.0 authoritative section and smoke script instead pin Sol as subject and Terra as
+judge under the current authorization. Both pairings use distinct same-family models,
+so the run is path verification—not independent efficacy evidence. Pi has no entitlement
+preflight: either selected model can still be unavailable at invocation time.
+`SMOKE_MODEL` and `SMOKE_JUDGE` override the active defaults.
 The first preflight after any spec edit may report `stale` findings from earlier
 local runs. The release smoke treats every nonzero lint exit as fatal before spend;
 clear that gitignored litter by deleting `scripts/smoke/skills/*/tests/results/`
@@ -803,8 +788,7 @@ license, and CLI receives `assets/report.template.html` plus
 or non-regular file cannot turn staging into an external write. CLI continues copying
 only `report.*`, so the README demo assets do not enter the package.
 
-Do **not** publish `@skill-harness/pi-extension` — it is `private: true` and ships
-to pi users via `pi install git:...`, not the npm registry.
+Do **not** publish `@skill-harness/pi-extension` — it remains `private: true`. `build:ext` copies its canonical bundle and required sibling assets into the public `skill-harness` meta-package, whose `pi.extensions` manifest exposes that installed resource; source installs may still load the private workspace directly.
 
 ## Verify the published archives from a fresh temporary install
 
@@ -812,7 +796,7 @@ Do not use a global install as the release proof, and do not trust an immediatel
 `npm view` alone. Install the exact version into an empty prefix after all four publishes:
 
 ```bash
-VERSION=0.13.0
+VERSION=0.14.0
 VERIFY=$(mktemp -d)
 npm install --prefix "$VERIFY" --no-package-lock --ignore-scripts \
   "@skill-harness/core@$VERSION" "@skill-harness/adapters@$VERSION" \
@@ -823,7 +807,7 @@ npm install --prefix "$VERIFY" --no-package-lock --ignore-scripts \
 npm view skill-harness versions --json --prefer-online --cache "$VERIFY/npm-cache"
 ```
 
-The installed CLI must report 0.13.0. Retain the installed package identities and archive
+The installed CLI must report 0.14.0. Retain the installed package identities and archive
 checksums; registry `version`/dist-tag reads can lag and are secondary evidence.
 
 ## After verification — immutable tag, GitHub Release, then leased `latest`
@@ -837,31 +821,31 @@ exact old value before moving it:
 ```bash
 RELEASE_SHA=$(git rev-parse origin/main)
 test "$RELEASE_SHA" = "$(node -p "require('./release-artifacts/release-manifest.json').source.commit")"
-test -z "$(git ls-remote origin refs/tags/v0.13.0)"
-EXPECTED_LATEST=506039c9cec194dd2d3b1fbbe52a8d7cfc38227e
+test -z "$(git ls-remote origin refs/tags/v0.14.0)"
+EXPECTED_LATEST=056217d14cf23ed7f9fc58f75e2d380722f25b1e
 test "$(git ls-remote origin refs/tags/latest | cut -f1)" = "$EXPECTED_LATEST"
 
 RELEASE_NOTES=$(mktemp)
-awk '/^## 0.13.0 / { emit=1; next } /^## / { if (emit) exit } emit' CHANGELOG.md > "$RELEASE_NOTES"
+awk '/^## 0.14.0 / { emit=1; next } /^## / { if (emit) exit } emit' CHANGELOG.md > "$RELEASE_NOTES"
 test -s "$RELEASE_NOTES"
 
-git tag v0.13.0 "$RELEASE_SHA"
-git push origin refs/tags/v0.13.0
-gh release create v0.13.0 --verify-tag --title "skill-harness 0.13.0" --notes-file "$RELEASE_NOTES"
+git tag v0.14.0 "$RELEASE_SHA"
+git push origin refs/tags/v0.14.0
+gh release create v0.14.0 --verify-tag --title "skill-harness 0.14.0" --notes-file "$RELEASE_NOTES"
 
 git tag -f latest "$RELEASE_SHA"
 git push --force-with-lease="refs/tags/latest:$EXPECTED_LATEST" origin refs/tags/latest
 ```
 
 The lease is deliberately tag-scoped. Never force a branch, never rewrite an immutable version
-tag, and never use a broader force push. Read back `v0.13.0`, the GitHub Release target, `latest`,
+tag, and never use a broader force push. Read back `v0.14.0`, the GitHub Release target, `latest`,
 and `origin/main` after the move.
 
 Moving `latest` keeps `AGENTS.md`, both READMEs and `docs/USAGE.md` free of version numbers.
 There is deliberately no moving `v1`: a linter release can add a check and turn a previously
 green consumer red, so a moving stable-major promise would be false. Consumers tracking
-`@latest` receive 0.13.0 when this final coordinate moves; exact-pin consumers choose when to
-adopt `v0.13.0`. Results remain schema 3, so 0.13.0 itself requires no result migration or
+`@latest` receive 0.14.0 when this final coordinate moves; exact-pin consumers choose when to
+adopt `v0.14.0`. Results remain schema 3, so 0.14.0 itself requires no result migration or
 paid re-run.
 
 ## Verification performed before the 0.2.1 update to this runbook (2026-08-04)

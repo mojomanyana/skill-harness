@@ -1,8 +1,8 @@
 # Next session — start here
 
-## 2026-09-11 post-merge continuation (unreleased)
+## 2026-09-11 0.14.0 release candidate
 
-The npm `skill-harness@0.13.0` meta-package is CLI-only and therefore cannot provide the Pi extension despite being configured in `settings.json`. Branch `factory-01a071db/post-merge-c04` repairs packaging: the ordinary meta-package declares and carries the canonical extension bundle, observer sibling and review assets, plus the bundle's direct `typebox` runtime dependency, with byte-freshness and release-inventory checks. A supported local-package Pi launch loaded the resource as `dist`; that is source-package proof only. Fresh packed/installed Pi validation remains required after review; do not call 0.13.0 installed-extension validated.
+PR76 merged as `1fde8fc` after exact-head CI and final independent review. The 0.14.0 candidate makes the public `skill-harness` meta-package declare and carry the canonical Pi extension bundle, observer sibling and review assets, plus direct `typebox` runtime resolution and the frozen dashboard source bridge. Released 0.13.0 remains CLI-only historical fact. Candidate pack/install loading and bridge host startup are already observed; canonical post-merge pack, required Sol-subject/Terra-judge real-Pi smoke, released-install verification, publication and tags remain the active release steps. C06 human choice and C08 genuine-domain evidence remain external, not release gates or release claims.
 
 *Reconciled 2026-09-03 against `main` `51f0f82`. Read this before
 `docs/ROADMAP.md`: the roadmap says where the project is going, this says what remains
