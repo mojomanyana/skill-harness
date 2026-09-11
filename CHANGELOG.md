@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.14.0 — 2026-09-11
+
+### Added
+
+- The public `skill-harness` meta-package now declares and ships the Pi extension bundle, observer sibling and review assets. A fresh npm installation can load the extension directly; the private `@skill-harness/pi-extension` workspace remains unpublished.
+- The loaded extension publishes a frozen same-process dashboard API bridge for exact archived-work source `127b349…`, allowing pi-daddy 0.24.0 to start its production connected daily host without fixture helpers or copied source jobs.
+- Archived work can derive only exact scope, obligation and coverage from retained Work-v4 state when no declared facts exist. It creates no deadlines, waits, violations, prior acceptance, reopen history or unavailable artifact evidence.
+
+### Changed
+
+- Release packing and installed-package tests bind the new extension resource, direct runtime `typebox` dependency, bundle freshness and public inventory. The bundle imports only bridge-required host dependencies.
+- The required real-Pi release smoke now uses subscription `gpt-5.6-sol` as subject and distinct `gpt-5.6-terra` as judge. Its finite limit remains Pi process invocations, not complete provider-call accounting.
+- Connected-factory documentation distinguishes source, candidate-installed, released-installed and loaded-session identity and preserves the existing producer transport decision.
+
+### Compatibility and limits
+
+- Results remain schema 3 and the four-package public publication set is unchanged. No scorecard migration or remeasurement is required merely to install 0.14.0.
+- Candidate/released extension loading and host startup are path evidence, not model efficacy, human acceptance, adoption, native authentication or OS containment.
+- C06 human choice/reveal/adoption/later outcomes and C08 genuine-domain evidence remain external and are not release claims.
+
 ## 0.13.0 — 2026-09-11
 
 ### Added
