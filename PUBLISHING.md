@@ -728,11 +728,13 @@ behaviour, and a provider outage reddens the first of them. So read the failing
 assertion rather than assuming either cause. A `NOT READY` scorecard from `run` is
 separate and expected: reported, not fatal.
 
-The active 0.14.0 release pins are `openai-codex:gpt-5.6-sol` for the subject and
-`openai-codex:gpt-5.6-terra` for the judge, explicitly authorized for this smoke.
-They are distinct models but remain same-family, so this run is path verification—not
-independent efficacy evidence. Pi has no entitlement preflight: either model can still
-be unavailable at invocation time. `SMOKE_MODEL` and `SMOKE_JUDGE` override them.
+The historical 0.13.0 release pinned `openai-codex:gpt-5.6-luna` for the subject and
+`openai-codex:gpt-5.6-sol` for the judge. That dated evidence is unchanged. The active
+0.14.0 authoritative section and smoke script instead pin Sol as subject and Terra as
+judge under the current authorization. Both pairings use distinct same-family models,
+so the run is path verification—not independent efficacy evidence. Pi has no entitlement
+preflight: either selected model can still be unavailable at invocation time.
+`SMOKE_MODEL` and `SMOKE_JUDGE` override the active defaults.
 The first preflight after any spec edit may report `stale` findings from earlier
 local runs. The release smoke treats every nonzero lint exit as fatal before spend;
 clear that gitignored litter by deleting `scripts/smoke/skills/*/tests/results/`
