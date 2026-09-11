@@ -6,7 +6,7 @@ Updated 2026-09-11. This is the current entry point; dated build reports and ADR
 
 | Component | released source / package | release CI | full-completion candidate |
 |---|---|---|---|
-| skill-harness | `7845d7a31ca47ffba913517464b189c574443581` / 0.14.0 | [34599595397](https://github.com/mojomanyana/skill-harness/actions/runs/34599595397) PASS | `28b55d40a64ce7af8ed23410a137f2e3a075e522` adds bounded retained learning-lifecycle navigation atop projection-only runtime facts; bridge pin `81df7de` follows on the review branch |
+| skill-harness | `7845d7a31ca47ffba913517464b189c574443581` / 0.14.0 | [34599595397](https://github.com/mojomanyana/skill-harness/actions/runs/34599595397) PASS | `d123257e53d48a2cad6919708976b5371dc7590e` adds monotonic bounded retained learning-lifecycle navigation atop projection-only runtime facts; bridge pin `81df7de` follows on the review branch |
 | pi-daddy | `a203cec4f666be119f556d01278993b907525686` / 0.24.0 | [34598683624](https://github.com/mojomanyana/pi-daddy/actions/runs/34598683624) PASS | separate review branch consumes the new bridge and adds practical dashboard controls |
 | principal-pi-skills | `e25374c154b5b50b1ce7873d55defacd85207db9` / 3.2.0 | [34598048020](https://github.com/mojomanyana/principal-pi-skills/actions/runs/34598048020) PASS | no new candidate change yet |
 
