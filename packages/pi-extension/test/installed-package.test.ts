@@ -6,6 +6,7 @@ const manifest = JSON.parse(readFileSync("packages/skill-harness/package.json", 
 describe("published meta-package Pi extension", () => {
   it("declares the bundled extension and all runtime siblings", () => {
     expect(manifest.pi).toEqual({ extensions: ["./dist/index.js"] });
+    expect(manifest.dependencies.typebox).toBe("^1.1.38");
     expect(manifest.files).toEqual(expect.arrayContaining([
       "dist/index.js",
       "dist/prompt-capture-extension.js",

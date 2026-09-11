@@ -30,7 +30,8 @@
     "README.md"
   ],
   "dependencies": {
-    "@skill-harness/cli": "0.13.0"
+    "@skill-harness/cli": "0.13.0",
+    "typebox": "^1.1.38"
   },
   "repository": {
     "type": "git",
