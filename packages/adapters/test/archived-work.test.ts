@@ -22,6 +22,9 @@ describe('actual archived P01 projection',()=>{
   const observed=readWorkSignalObservation(f.root,result.observationId);
   expect(observed.input.snapshot.obligations[0]).toMatchObject({id:binding.obligation.id,digest:binding.obligation.digest,intentDigest:binding.intent.digest,policyDigest:binding.policy.digest,artifactDigest:binding.artifact?.digest??null});
   expect(result).toMatchObject({workManifestId:f.stored.manifestId,workSha256:f.stored.reference.sha256,acceptance:'not-assessed'});
+  const retainedRuntime=readArchiveSource(f.root,result.runtimeFactsManifestId);if(retainedRuntime.status!=='available')throw Error('runtime facts missing');
+  const runtimeFacts=JSON.parse(retainedRuntime.bytes.toString('utf8'));expect(runtimeFacts).not.toHaveProperty('hostFactsProfile');
+  expect(runtimeFacts.unavailable).toEqual(['checkpoint-evidence','expected-wait-evidence','prior-acceptance-history']);
   const page=createWorkSignalReviewer(f.root,result.caseBatchId,'operator').list();
   expect(page.items).toHaveLength(actual.projection.obligations.length);
   expect(page.items.every(i=>i.candidate.classification==='coverage_issue')).toBe(true);

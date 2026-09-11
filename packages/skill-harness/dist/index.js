@@ -17074,8 +17074,7 @@ function captureArchivedWorkSignals(root, manifestId, context, suppliedFacts) {
       };
     }).sort((a, b) => a.executionId < b.executionId ? -1 : a.executionId > b.executionId ? 1 : 0),
     obligations: snapshot2.obligations.map((obligation) => ({ obligationDigest: obligation.digest, acceptance: obligation.acceptance, coverage: obligation.coverage })).sort((a, b) => a.obligationDigest < b.obligationDigest ? -1 : a.obligationDigest > b.obligationDigest ? 1 : 0),
-    hostFactsProfile: suppliedFacts?.version ?? null,
-    unavailable: suppliedFacts === null ? ["checkpoint-evidence", "expected-wait-evidence", "prior-acceptance-history"] : []
+    unavailable: ["checkpoint-evidence", "expected-wait-evidence", "prior-acceptance-history"]
   };
   const retainedRuntimeFacts = retainArchiveSource2(root, { sourceId: `observed-runtime-${read2.sourceSha256}`, parser: { id: "observed-work-runtime-facts", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(runtimeFacts)) });
   const observation = retainWorkSignalObservation2(root, snapshot2, facts);
