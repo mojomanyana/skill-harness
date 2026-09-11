@@ -34,8 +34,8 @@ Released, follow-up source, installed package and loaded-session identity are se
 | C06 | pending | harness; requires a real case and authentic human blind choice |
 | C07 | pending | pi-daddy; choose one bounded useful workload, no broad transport rewrite |
 | C08 | pending | domain owner; genuine non-development data/workflow required |
-| C09 | pending | integration owner; targeted transport/ownership/runner decision, not rewrite by default |
-| C10 | in progress | coordinator; one status source, preserve current coworking pane and existing external heartbeat |
+| C09 | decision recorded | [TRANSPORT-DECISION.md](TRANSPORT-DECISION.md): retain current producer path until same guarantees pass; responsibility map and current CI portability recorded; no broad rewrite |
+| C10 | in progress | coordinator; this status source + [DAILY-USE.md](DAILY-USE.md); completed validation agents cleaned, current coworking/dashboard preserved; final reconciliation awaits remaining scope |
 
 ## Evidence index and open claims
 
