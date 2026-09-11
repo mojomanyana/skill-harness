@@ -25,7 +25,7 @@ Released, follow-up source, installed package and loaded-session identity are se
 
 | ID | State | Owner / next evidence |
 |---|---|---|
-| C00 | in progress | harness integration; PR76 plus this register; fresh packed/installed extension validation pending |
+| C00 | ready to try; release validation pending | harness PR76 plus this register and portable review inputs; fresh candidate pack/install/load passed, but no released installed package contains it |
 | C01 | ready to try; live observed on source | pi-daddy PR37; exact retry/change invalidation tests and one visible occurrence |
 | C02 | pending | harness archive + producer join; derive real retained facts without prompts |
 | C03 | building | pi-daddy PR38; production connected host and busy-child action receipt pending |
@@ -39,8 +39,10 @@ Released, follow-up source, installed package and loaded-session identity are se
 
 ## Evidence index and open claims
 
-Public review inputs were the original scope in this directory, the post-merge plan (SHA-256 `e04dc99b…`), independent review (`f81e97ff…`) and final release register (`6d7967af…`). The latter three are owner-controlled external inputs and are not copied into this repository.
+Public review inputs are the original scope in this directory plus a whitespace-normalized portable copy of [`review-inputs/post-merge-plan-2026-09-11.md`](review-inputs/post-merge-plan-2026-09-11.md) (coordinator source SHA-256 `e04dc99b…`, recorded inside the copy) and an exact copy of [`review-inputs/independent-review-2026-09-11.txt`](review-inputs/independent-review-2026-09-11.txt) (`f81e97ff…`). Release identities from the final external register (`6d7967af…`) are reproduced in the identity table and linked CI/release records; that mutable coordination register is not copied.
 
 PR37's first CI found a Node24 append/read race. Follow-up `a56b238` permits growth only for the append-only journal, requiring same inode, no shrink and a byte-identical prefix reread; strict artifacts retain size/mtime rejection. PR37/38/39 exact follow-up checks passed on Node22 and Node24. No merge or publication is authorized by this register.
+
+The single overall milestone review requested changes for concurrent/crash declaration recovery, attempt finalization, dashboard action remapping, stale session environment, and the extension's undeclared `typebox` runtime. Producer follow-up heads repair the first four with red-first tests. PR76 now declares `typebox`; a clean canonical candidate was packed, installed into an empty prefix, and loaded by Pi as `[Extensions] dist`. This is candidate installed proof, not evidence about released npm 0.13.0.
 
 Local live receipts/screenshots contain session-specific paths and are **not available on GitHub**. Publicly reviewable evidence is the red-first tests, source ADRs/session log, PR diffs and CI. Claims requiring human acceptance, blind choice, private archive access or later outcomes remain explicitly unverified rather than reconstructed.
