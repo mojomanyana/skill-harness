@@ -1,20 +1,27 @@
-import * as adapters from "@skill-harness/adapters";
 import { learningJournal } from "../../adapters/src/learning-journal.js";
+import { createTrustLifecycle, openTrustLifecycle, trustPolicyDigest } from "../../adapters/src/trust-lifecycle.js";
+import { archivePolicyBinding, ingestPolicySource } from "../../adapters/src/archive-policy.js";
+import { readArchiveCheckpoint } from "../../adapters/src/archive-checkpoint.js";
+import { readArchiveSource, retainArchiveSource } from "../../adapters/src/evidence-archive.js";
+import { captureArchivedWorkSignals } from "../../adapters/src/archived-work.js";
+import { readRetainedExecution, projectRetainedExecutions } from "../../adapters/src/execution-retention-archive.js";
+import { createWorkCaseReviewer, createWorkSignalReviewer } from "../../adapters/src/work-case-review.js";
+import { retainBlindIntervention, openBlindIntervention } from "../../adapters/src/blind-intervention.js";
 
 export const DASHBOARD_HARNESS_SOURCE = "127b349310dd8f28e5d6b12148a063fce66a77dd";
 export const DASHBOARD_HARNESS_BRIDGE = Symbol.for("skill-harness.dashboard-host.v1");
 
-const names = [
-  "learningJournal", "createTrustLifecycle", "openTrustLifecycle", "trustPolicyDigest",
-  "archivePolicyBinding", "ingestPolicySource", "readArchiveCheckpoint", "readArchiveSource",
-  "retainArchiveSource", "captureArchivedWorkSignals", "readRetainedExecution", "projectRetainedExecutions",
-  "createWorkCaseReviewer", "createWorkSignalReviewer", "retainBlindIntervention", "openBlindIntervention",
-] as const;
+const functions = {
+  learningJournal, createTrustLifecycle, openTrustLifecycle, trustPolicyDigest,
+  archivePolicyBinding, ingestPolicySource, readArchiveCheckpoint, readArchiveSource,
+  retainArchiveSource, captureArchivedWorkSignals, readRetainedExecution, projectRetainedExecutions,
+  createWorkCaseReviewer, createWorkSignalReviewer, retainBlindIntervention, openBlindIntervention,
+} as const;
 
 export interface DashboardHarnessBridge {
   version: "skill-harness-dashboard-bridge-v1";
   sourceCommit: typeof DASHBOARD_HARNESS_SOURCE;
-  api: Readonly<Record<(typeof names)[number], (...args: any[]) => any>>;
+  api: Readonly<typeof functions>;
 }
 
 /** Same-process handoff for the loaded extension. This identifies bundled source; it is not human authentication. */
@@ -25,11 +32,7 @@ export function publishDashboardHarnessBridge(target: Record<PropertyKey, unknow
         (old as DashboardHarnessBridge).sourceCommit === DASHBOARD_HARNESS_SOURCE) return old as DashboardHarnessBridge;
     throw new Error("dashboard harness bridge already published by another provider");
   }
-  const api = Object.freeze(Object.fromEntries(names.map(name => {
-    const value = name === "learningJournal" ? learningJournal : adapters[name];
-    if (typeof value !== "function") throw new Error(`dashboard harness export ${name} is unavailable`);
-    return [name, value];
-  }))) as DashboardHarnessBridge["api"];
+  const api = Object.freeze({ ...functions });
   const bridge = Object.freeze({ version: "skill-harness-dashboard-bridge-v1" as const, sourceCommit: DASHBOARD_HARNESS_SOURCE, api });
   Object.defineProperty(target, DASHBOARD_HARNESS_BRIDGE, { value: bridge, enumerable: false, configurable: false, writable: false });
   return bridge;
