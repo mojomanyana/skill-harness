@@ -16,9 +16,9 @@ Released, follow-up source, installed package and loaded-session identity are se
 
 1. **Declare and track work — ready to try; source-live validated.** PR37 provides `pi-daddy work add` and ordinary attempt joins. One Sol child produced a visible attached attempt. Acceptance and archive coverage remained unresolved.
 2. **Watch and steer in Herdr — candidate validated.** PR38 adds `/grants host <fresh-id>|stop`, exact labelled pause/resume/refresh actions and the private dashboard socket. Live evidence paused new dispatch while an owned child continued, refused a later child, resumed, refreshed attempts in place and reconnected two dashboard clients.
-3. **Parallel model/effort variants — candidate validated.** PR39 retains explicit requested thinking and adds opt-in primary return while preserving wait-for-all. A three-variant live run returned the primary 13.763s before its late shadow terminal event, then `/grants variants` and Work-v4 showed complete accounting. Provider-internal reasoning is not claimed.
-4. **Learn, compare and decide — building.** Archive, signal, retro, blind comparison and adoption primitives exist. Retained work can now derive a silent coverage case without a separate facts file; richer signals still require evidence. No authentic human blind choice or later outcome has been recorded.
-5. **Useful bounded factory delivery — building.** Digest and supervised review routes exist; the first useful multi-step order remains open.
+3. **Parallel model/effort variants — candidate validated.** PR39 retains explicit requested thinking and adds opt-in primary return while preserving wait-for-all. A three-variant live run returned the primary 13.763s before its late shadow terminal event, then `/grants variants` and Work-v4 showed complete execution-lifetime accounting. Child provider usage counts are not retained, so the planned response ceiling is not claimed as measured/enforced accounting; provider-internal reasoning is also not claimed.
+4. **Learn, compare and decide — ready for a human quality choice.** One observed stale-attempt case now traverses the existing confirmed-case, weekly-retro, intervention-run and blind-card paths with a frozen zero-call hypothesis and two actual objective-qualified outputs. Quality choice, reveal, adoption and later outcome remain null.
+5. **Useful bounded factory delivery — validated for read-only review.** A two-step governed chain inspected real source, handed its finding to a dependent decision step, found a mechanically reproduced defect and returned an advisory decision. Writable effect profiles remain unsupported.
 6. **Second domain and outcomes — building.** The layout fixture is synthetic. A genuine non-development workflow and elapsed outcomes remain open.
 
 ## C00–C10 register
@@ -27,15 +27,15 @@ Released, follow-up source, installed package and loaded-session identity are se
 |---|---|---|
 | C00 | candidate-installed validated; release validation pending | PR76 packages the extension and exact-source dashboard bridge; fresh canonical pack/install loaded `[Extensions] dist` and started a real source-host bridge, but released npm 0.13.0 does not contain it |
 | C01 | ready to try; live observed on source | pi-daddy PR37; exact retry/change invalidation tests and one visible occurrence |
-| C02 | ready to try | harness commit `127b349` derives only exact retained-work coverage signals; producer PR39 pins it and a connected-host test creates a silent case with zero attention/no note |
+| C02 | ready to try | harness commit `127b349` derives only exact retained-work coverage signals; current attempt events contain no deadlines/checkpoints, covered artifacts, prior acceptance or reopen evidence, so richer facts remain absent |
 | C03 | candidate validated | pi-daddy PR38; production host, busy-child pause/new-dispatch refusal/resume, same-host refresh and socket reconnect observed |
 | C04 | candidate validated | pi-daddy PR39; three arms, primary-return independence and final original-owner accounting observed; requested effort is not internal-reasoning proof |
 | C05 | ready to try | Principal PR41 makes current applicability the ordinary human view and preserves `human-legacy` |
-| C06 | concrete choice prepared; response pending | two evidence-backed anonymous daily-refresh interactions are ready for a human A/B/neither choice; no response/adoption invented |
-| C07 | partial | bounded Sol→Terra read-only chain found a real retry defect; repaired on stacked producer PRs; factory-order effect profile remains open |
+| C06 | real comparison ready; response pending | confirmed retained case + frozen hypothesis + two objective-qualified blind outputs; authentic quality choice/reveal/adoption remain absent |
+| C07 | validated, narrow profile | bounded Sol→Terra read-only chain found a real retry defect and returned a reserved decision; writable effect/recovery profiles remain unsupported |
 | C08 | pending | domain owner; genuine non-development data/workflow required |
 | C09 | decision recorded | [TRANSPORT-DECISION.md](TRANSPORT-DECISION.md): retain current producer path until same guarantees pass; responsibility map and current CI portability recorded; no broad rewrite |
-| C10 | in progress | coordinator; this status source + [DAILY-USE.md](DAILY-USE.md); completed validation agents cleaned, current coworking/dashboard preserved; final reconciliation awaits remaining scope |
+| C10 | reconciled; external queue retained | this status source + [DAILY-USE.md](DAILY-USE.md); validation agents cleaned, coworking/dashboard preserved; released install, human choice, second domain and later outcomes remain explicit |
 
 ## Evidence index and open claims
 
