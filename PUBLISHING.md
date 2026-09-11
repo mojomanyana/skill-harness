@@ -1,16 +1,15 @@
-# Publishing skill-harness 0.14.0
+# Publishing skill-harness 0.15.0
 
-This is the active npm-publish runbook. The registry contains 0.13.0. Version 0.14.0 adds the public meta-package Pi extension resource, loaded exact-source dashboard bridge, retained empty-fact coverage projection, and connected-factory documentation. `release:pack` must produce only manifest-bound `*-0.14.0.tgz` archives from the exact clean release commit. The owner authorized the coordinated release on 2026-09-11.
+This is the active npm-publish runbook. The live registry contains 0.14.0. Version 0.15.0 adds projection-only runtime facts, monotonic learning-lifecycle navigation and the exact loaded dashboard bridge consumed by pi-daddy 0.25.0. Release preparation also raises the runtime `js-yaml` floor to 4.3.2 because the live production audit now flags 4.3.1 under GHSA-2883-xcg3-v3hh. `release:pack` must produce only manifest-bound `*-0.15.0.tgz` archives from the exact clean release commit. The owner authorized merge, release and publication on 2026-09-12.
 
-## Authoritative 0.14.0 release order
+## Authoritative 0.15.0 release order
 
-1. Merge reviewed feature PR76 (complete before this version branch).
-2. Land the synchronized 0.14.0 package versions, exact internal dependencies, lockfile, changelog, smoke selector and active runbook through a reviewed green release PR.
-3. In a fresh quiescent checkout of that exact merge, use Node 20.20.2/npm 10.8.2 to run `npm run release:pack`, then `npm run smoke:packed`. Do not rebuild after recording the canonical archive manifest.
-4. Run `scripts/smoke-real-pi.sh` once as a fresh supervised occurrence, with subscription subject `openai-codex:gpt-5.6-sol` and judge `openai-codex:gpt-5.6-terra`. Its ceiling is two subject invocations with at most one blank-response retry each plus up to three judge invocations: at most seven Pi process invocations, **not** an exact HTTP/provider-call cap. Record a unique occurrence identity and finite process/attempt ceiling before launch; retain checkout, stdout/stderr, process status and both result trees. This is path verification, not efficacy.
-5. Separately install the canonical public meta-package tarball in an empty prefix and start Pi with only that installed extension plus the exact merged pi-daddy 0.24.0 extension. Verify `[Extensions] dist` and zero-model `/grants host` startup. This does not substitute for step 4.
-6. Publish only the four manifest-digested public archives in dependency order and verify cache-busted registry bytes plus a fresh exact-version install. Never publish the private monorepo root or private `@skill-harness/pi-extension`; its built resource ships inside public `skill-harness`.
-7. Create immutable `v0.14.0` at the exact verified release commit, create the GitHub Release, then move mutable `latest` with an exact old-ref lease. Never rewrite an immutable version tag or force a branch.
+1. Preserve merged feature PR #78 ancestry (`e00941b` contains exact reviewed head `6b34439`) and land synchronized 0.15.0 package versions, exact internal dependencies, lockfile, changelog and this active runbook through a green release PR.
+2. In a fresh quiescent checkout of that exact release merge, use Node 20.20.2/npm 10.8.2 to run `npm run release:pack`, then `npm run smoke:packed`. Do not rebuild after recording the canonical archive manifest.
+3. Run `scripts/smoke-real-pi.sh` once as a fresh factory-only supervised occurrence with subscription subject `openai-codex:gpt-5.6-sol` and judge `openai-codex:gpt-5.6-terra`. The frozen ceiling is two subject invocations with at most one blank-response retry each plus up to three judge invocations: at most seven Pi process invocations, not an exact HTTP/provider-call cap. Retain the unique occurrence identity, checkout, stdout/stderr, process status and both result trees. This is path verification, not efficacy.
+4. Separately install the canonical public meta-package tarball in an empty prefix and start Pi with only that installed extension plus the exact merged pi-daddy 0.25.0 extension. Verify the loaded bridge, package entrypoints and zero provider requests. This does not substitute for step 3.
+5. Recheck the registry immediately before each mutation. Publish only the four manifest-digested public archives exactly once in dependency order: core, adapters, CLI, meta-package. On an ambiguous response inspect registry version and bytes before any retry. Never publish the private monorepo root or private `@skill-harness/pi-extension`.
+6. Verify cache-busted registry bytes and a fresh exact-version install. Create immutable `v0.15.0` at the exact verified release commit, create the GitHub Release, then move mutable `latest` only with an exact old-ref lease. Never rewrite an immutable version tag or force a branch.
 
 Historical release sections below retain their dated evidence and do not override this sequence.
 

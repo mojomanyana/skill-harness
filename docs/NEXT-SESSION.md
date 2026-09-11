@@ -1,8 +1,8 @@
 # Next session — start here
 
-## 2026-09-11 full-completion runtime-facts candidate
+## 2026-09-12 0.15.0 release preparation
 
-Released baseline is 0.14.0 at `7845d7a31ca47ffba913517464b189c574443581`. Candidate source `d123257e53d48a2cad6919708976b5371dc7590e` retains projection-only runtime facts and adds monotonic bounded content-addressed learning-lifecycle navigation across case, hypothesis, comparison, optional choice/adoption/rollback and later outcomes. Missing stages remain explicit; supplied host facts stay separately linked. A follow-up bridge commit pins that source. This is behaviorally tested candidate source, not merged/released/live acceptance. Continue from `docs/factory/CURRENT.md`; preserve C06 human choice, C08 domain and later outcomes as external boundaries.
+Feature PR #78 merged as `e00941b0565e75c9380270a1f3a536b163ecc159` with exact reviewed head `6b34439d9a3dd51e3509cb580af3bc388dd0a909` preserved as its second parent. Version 0.15.0 packages projection-only runtime facts and monotonic bounded content-addressed learning-lifecycle navigation across case, hypothesis, comparison, optional choice/adoption/rollback and later outcomes. Missing stages remain explicit; supplied host facts stay separately linked. The live npm baseline is 0.14.0. Canonical pack, path smoke, publication and immutable tag remain release steps; human choice, trust calibration, adoption and later outcomes are not release claims.
 
 ## 2026-09-11 0.14.0 release candidate
 
