@@ -4,13 +4,13 @@ Updated 2026-09-11. This is the current entry point; dated build reports and ADR
 
 ## Identities
 
-| Component | released source / package | merged-main CI | follow-up |
+| Component | released source / package | release CI | full-completion candidate |
 |---|---|---|---|
-| skill-harness | merged `1fde8fc2376395fcec67d18bf4ec0926e16ed480` / 0.14.0 candidate | [34590964083](https://github.com/mojomanyana/skill-harness/actions/runs/34590964083) PASS | PR76 merged; release verification in progress |
-| pi-daddy | merged `7b06a83851866f47bcf670b16bf7db6c648a72b6` / 0.24.0 candidate | [34589845100](https://github.com/mojomanyana/pi-daddy/actions/runs/34589845100) PASS | PR37→38→39 merged in order |
-| principal-pi-skills | merged `b64580809000be56c605d994e1c0799a1af9e503` / 3.2.0 candidate | [34582213603](https://github.com/mojomanyana/principal-pi-skills/actions/runs/34582213603) PASS | PR41 merged; release verification in progress |
+| skill-harness | `7845d7a31ca47ffba913517464b189c574443581` / 0.14.0 | [34599595397](https://github.com/mojomanyana/skill-harness/actions/runs/34599595397) PASS | `73ab11883bb1c8924dc5ebbe8a61c96e913ee437` retains exact runtime facts; bridge pin commit follows on the review branch |
+| pi-daddy | `a203cec4f666be119f556d01278993b907525686` / 0.24.0 | [34598683624](https://github.com/mojomanyana/pi-daddy/actions/runs/34598683624) PASS | separate review branch consumes the new bridge and adds practical dashboard controls |
+| principal-pi-skills | `e25374c154b5b50b1ce7873d55defacd85207db9` / 3.2.0 | [34598048020](https://github.com/mojomanyana/principal-pi-skills/actions/runs/34598048020) PASS | no new candidate change yet |
 
-Released, merged source, candidate package, installed package and loaded-session identity are separate facts. Published baselines remain skill-harness 0.13.0, pi-daddy 0.23.0 and Principal 3.1.0 until registry verification completes. The merged candidates above are not yet released identities.
+Released, merged source, candidate source, installed package and loaded-session identity remain separate facts. The three released versions were registry/tag/GitHub-release verified on 2026-09-11. Full-completion candidates are behaviorally tested source until their new PRs are reviewed; they are not merged, published, globally installed or live accepted.
 
 ## Six user capabilities
 
@@ -27,7 +27,7 @@ Released, merged source, candidate package, installed package and loaded-session
 |---|---|---|
 | C00 | candidate-installed validated; released-install validation pending | merged PR76 packages the extension and exact-source dashboard bridge; earlier candidate pack/install loaded `[Extensions] dist` and started a real source-host bridge, while canonical 0.14.0 release verification is in progress |
 | C01 | ready to try; live observed on source | pi-daddy PR37; exact retry/change invalidation tests and one visible occurrence |
-| C02 | ready to try | harness commit `127b349` derives only exact retained-work coverage signals; current attempt events contain no deadlines/checkpoints, covered artifacts, prior acceptance or reopen evidence, so richer facts remain absent |
+| C02 | candidate implemented, behavioral evidence | harness source `73ab118` adds a content-addressed runtime-facts manifest with exact attempt completion evidence and obligation acceptance/coverage; absent checkpoints, expected waits and prior-acceptance history remain explicitly unavailable |
 | C03 | candidate validated | pi-daddy PR38; production host, busy-child pause/new-dispatch refusal/resume, same-host refresh and socket reconnect observed |
 | C04 | candidate validated | pi-daddy PR39; three arms, primary-return independence and final original-owner accounting observed; requested effort is not internal-reasoning proof |
 | C05 | ready to try | Principal PR41 makes current applicability the ordinary human view and preserves `human-legacy` |
@@ -35,7 +35,7 @@ Released, merged source, candidate package, installed package and loaded-session
 | C07 | validated, narrow profile | bounded Sol→Terra read-only chain found a real retry defect and returned a reserved decision; writable effect/recovery profiles remain unsupported |
 | C08 | pending | domain owner; genuine non-development data/workflow required |
 | C09 | decision recorded | [TRANSPORT-DECISION.md](TRANSPORT-DECISION.md): retain current producer path until same guarantees pass; responsibility map and current CI portability recorded; no broad rewrite |
-| C10 | reconciled; release execution active | this status source + [DAILY-USE.md](DAILY-USE.md); five feature PRs merged after final approval; released install, human choice, second domain and later outcomes remain distinct |
+| C10 | released baseline reconciled; completion campaign active | this status source + [DAILY-USE.md](DAILY-USE.md); prior release is complete, while new PR review, human choice, second domain and later outcomes remain distinct |
 
 ## Evidence index and open claims
 
