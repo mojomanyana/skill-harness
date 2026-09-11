@@ -1,5 +1,7 @@
 # Factory build report
 
+> **Historical campaign snapshot.** It is retained verbatim for provenance and is not the current tracker. Start at [CURRENT.md](CURRENT.md).
+
 Campaign: `factory-01a071db`. Integration owner: pi session `01a071db-e946-7a6d-ba4b-f9da2aa0d3bd`; sole writer, standard inline fallback (no delegation tool exposed).
 Workspace: `/home/neman/Code/factory-01a071db/skill-harness`.
 Report: `/home/neman/Code/factory-01a071db/skill-harness/docs/factory/BUILD-REPORT.md`.
