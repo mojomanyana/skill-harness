@@ -1,4 +1,5 @@
 import { build } from "esbuild";
+import { copyFileSync, mkdirSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 
@@ -33,4 +34,12 @@ if (isMain) {
   // Pi loads this as a separate --extension module beside the main bundle.
   // Bundle its provenance logic so a git installation needs no workspace package.
   await build(observerBuildOptions);
+  mkdirSync("packages/skill-harness/assets", { recursive: true });
+  mkdirSync("packages/skill-harness/dist", { recursive: true });
+  for (const [source, destination] of [
+    ["packages/pi-extension/dist/index.js", "packages/skill-harness/dist/index.js"],
+    ["packages/pi-extension/dist/prompt-capture-extension.js", "packages/skill-harness/dist/prompt-capture-extension.js"],
+    ["assets/report.template.html", "packages/skill-harness/assets/report.template.html"],
+    ["assets/report.grade.js", "packages/skill-harness/assets/report.grade.js"],
+  ]) copyFileSync(source, destination);
 }

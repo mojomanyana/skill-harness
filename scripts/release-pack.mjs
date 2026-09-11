@@ -84,7 +84,7 @@ const packages = [
     workspace: "skill-harness",
     directory: "packages/skill-harness",
     archivePrefix: "skill-harness",
-    staticFiles: ["package.json", "README.md", "LICENSE", "bin.js"],
+    staticFiles: ["package.json", "README.md", "LICENSE", "bin.js", "dist/index.js", "dist/prompt-capture-extension.js", "assets/report.template.html", "assets/report.grade.js"],
     internalDependencies: ["@skill-harness/cli"],
     inventoryRoots: [],
     modes: { "bin.js": 0o755 },

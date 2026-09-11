@@ -70,7 +70,7 @@ give you:
 into pi so you can drive the whole loop conversationally:
 
 ```bash
-pi install https://github.com/mojomanyana/skill-harness   # or: pi install ./skill-harness
+pi install npm:skill-harness   # released package; use the Git URL only when intentionally testing source
 ```
 
 Then just ask pi:

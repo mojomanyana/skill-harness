@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { registerCommand, closeReview, type ExtensionAPI } from "./commands.js";
 import { registerTool } from "./tool.js";
 
@@ -16,7 +16,10 @@ import { registerTool } from "./tool.js";
  * the repo-root `assets/`.
  */
 export default function (pi: ExtensionAPI): void {
-  const assetsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "assets");
+  const moduleDir = dirname(fileURLToPath(import.meta.url));
+  const assetsDir = basename(dirname(moduleDir)) === "skill-harness"
+    ? join(moduleDir, "..", "assets")
+    : join(moduleDir, "..", "..", "..", "assets");
   registerCommand(pi, assetsDir);
   registerTool(pi);
   pi.on("session_shutdown", async () => {
