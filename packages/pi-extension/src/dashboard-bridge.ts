@@ -8,7 +8,7 @@ import { readRetainedExecution, projectRetainedExecutions } from "../../adapters
 import { createWorkCaseReviewer, createWorkSignalReviewer } from "../../adapters/src/work-case-review.js";
 import { retainBlindIntervention, openBlindIntervention } from "../../adapters/src/blind-intervention.js";
 
-export const DASHBOARD_HARNESS_SOURCE = "127b349310dd8f28e5d6b12148a063fce66a77dd";
+export const DASHBOARD_HARNESS_SOURCE = "73ab11883bb1c8924dc5ebbe8a61c96e913ee437";
 export const DASHBOARD_HARNESS_BRIDGE = Symbol.for("skill-harness.dashboard-host.v1");
 
 const functions = {
