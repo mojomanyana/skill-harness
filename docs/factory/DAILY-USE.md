@@ -1,6 +1,6 @@
-# Factory daily use — 0.14.0/0.24.0 candidates
+# Factory daily use — 0.15.0/0.25.0 release line
 
-These commands describe the merged release candidates. Verify npm/GitHub release coordinates before treating them as installed-release behavior.
+These commands describe the merged 0.15.0/0.25.0 source line. Verify npm/GitHub release coordinates before treating them as installed-release behavior.
 
 1. Declare one current obligation without editing JSON:
    `pi-daddy work add --id <fresh-id> --outcome "<outcome>"`.

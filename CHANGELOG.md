@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.15.0 — 2026-09-12
+
+### Added
+
+- Retain content-addressed projection-only runtime facts with exact attempt terminal evidence and obligation acceptance/coverage while unavailable checkpoint, wait and prior-acceptance facts remain explicit.
+- Retain monotonic bounded learning-lifecycle navigation across case, hypothesis, comparison, optional human choice, adoption, rollback and later outcomes. Missing stages stay null and immutable evidence identity cannot regress.
+- Publish the exact loaded dashboard bridge for pi-daddy's daily closing review and learning navigation without turning navigation into authority.
+- Raise the runtime `js-yaml` floor to 4.3.2 after the release-bound production audit reproduced GHSA-2883-xcg3-v3hh against 4.3.1; the production audit is clean at the new lock.
+
+### Compatibility and limits
+
+- Results remain schema 3 and the four-package public publication set is unchanged. No scorecard migration or remeasurement is required merely to install 0.15.0.
+- Runtime completion, retained evidence and a successful package smoke do not establish human quality choice, trust calibration, configured adoption, publication outcome or OS containment.
+- The release smoke is path verification only. Existing historical comparison runs are not replayed or relabelled as packaged-route evidence.
+
 ## 0.14.0 — 2026-09-11
 
 ### Added
