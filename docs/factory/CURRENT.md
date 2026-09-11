@@ -27,12 +27,12 @@ Released, follow-up source, installed package and loaded-session identity are se
 |---|---|---|
 | C00 | ready to try; release validation pending | harness PR76 plus this register and portable review inputs; fresh candidate pack/install/load passed, but no released installed package contains it |
 | C01 | ready to try; live observed on source | pi-daddy PR37; exact retry/change invalidation tests and one visible occurrence |
-| C02 | building; harness adapter ready to try | null facts now derive only exact retained-work coverage signals (no invented waits/deadlines/violations/prior acceptance); producer source-job join pending |
+| C02 | ready to try | harness commit `127b349` derives only exact retained-work coverage signals; producer PR39 pins it and a connected-host test creates a silent case with zero attention/no note |
 | C03 | building | pi-daddy PR38; production connected host and busy-child action receipt pending |
-| C04 | building | pi-daddy PR39; thinking, three-arm and primary/shadow evidence pending |
-| C05 | pending | Principal owner; current-vs-history ordinary renderer decision |
+| C04 | building | pi-daddy PR39; fresh Sol-low/Terra-high request/overlap/recording validated; three-arm and primary/shadow evidence pending |
+| C05 | ready to try | Principal PR41 makes current applicability the ordinary human view and preserves `human-legacy` |
 | C06 | pending | harness; requires a real case and authentic human blind choice |
-| C07 | pending | pi-daddy; choose one bounded useful workload, no broad transport rewrite |
+| C07 | partial | bounded Sol→Terra read-only chain found a real retry defect; repaired on stacked producer PRs; factory-order effect profile remains open |
 | C08 | pending | domain owner; genuine non-development data/workflow required |
 | C09 | decision recorded | [TRANSPORT-DECISION.md](TRANSPORT-DECISION.md): retain current producer path until same guarantees pass; responsibility map and current CI portability recorded; no broad rewrite |
 | C10 | in progress | coordinator; this status source + [DAILY-USE.md](DAILY-USE.md); completed validation agents cleaned, current coworking/dashboard preserved; final reconciliation awaits remaining scope |
