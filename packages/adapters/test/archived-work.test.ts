@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { retainArchiveSource } from '../src/evidence-archive.js';
+import { readArchiveSource, retainArchiveSource } from '../src/evidence-archive.js';
 import * as pureWork from '../src/generated/work-v4/reader.js';
 import { readArchivedWork, captureArchivedWorkCandidates, captureArchivedWorkSignals } from '../src/archived-work.js';
 import { readWorkSignalObservation } from '../src/work-signal-observation.js';
@@ -34,6 +34,13 @@ describe('actual archived P01 projection',()=>{
   expect(observed.input.facts).toMatchObject({version:'observed-work-v1',population:'retained-work',expectedWaits:[],checkpoints:[],violations:[],priorAccepted:[]});
   const page=createWorkSignalReviewer(f.root,result.caseBatchId,'operator').list();
   expect(page.items.length).toBeGreaterThan(0);expect(page.items.every(i=>i.candidate.classification==='coverage_issue')).toBe(true);
+  const runtime=readArchiveSource(f.root,result.runtimeFactsManifestId);expect(runtime.status).toBe('available');if(runtime.status!=='available')throw Error('runtime facts missing');
+  expect(runtime.reference.parser).toEqual({id:'observed-work-runtime-facts',version:'1'});
+  const facts=JSON.parse(runtime.bytes.toString('utf8'));
+  expect(facts).toMatchObject({version:'observed-work-runtime-v1',snapshotDigest:f.context.selectedSnapshot.snapshot.digest,
+    unavailable:['checkpoint-evidence','expected-wait-evidence','prior-acceptance-history']});
+  expect(facts.attempts).toHaveLength(2);expect(facts.attempts.every((a:any)=>a.completionEvidence.state==='available'&&a.completionEvidence.eventDigests.length>0)).toBe(true);
+  expect(facts.obligations.every((o:any)=>o.acceptance==='unresolved')).toBe(true);
  });
  it('uses the real producer projection for silent candidate capture and refuses incomplete input',()=>{const f=fixture();const result=captureArchivedWorkCandidates(f.root,f.stored.manifestId,f.context,{version:'fixture',population:'layout',scopeDigest:f.context.selectedSnapshot.snapshot.digest,minEquivalentAttempts:2,expectedWaits:[],expectedFailures:[]});expect(result.workManifestId).toBe(f.stored.manifestId);const bad=retainArchiveSource(f.root,{sourceId:'bad',parser:{id:'pi-daddy-work-ledger',version:'4'},retention:'exact',bytes:Buffer.from(f.text+'{"partial":')});expect(()=>captureArchivedWorkCandidates(f.root,bad.manifestId,f.context,{version:'fixture',population:'layout',scopeDigest:f.context.selectedSnapshot.snapshot.digest,minEquivalentAttempts:2,expectedWaits:[],expectedFailures:[]})).toThrow(/incomplete/);});
 });

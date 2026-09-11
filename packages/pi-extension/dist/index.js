@@ -17037,7 +17037,7 @@ function readArchivedWork(root, manifestId, context = { selectedSnapshot: null, 
 function captureArchivedWorkSignals(root, manifestId, context, suppliedFacts) {
   const read2 = readArchivedWork(root, manifestId, context);
   if (read2.state !== "available" || read2.projection.errors.length || read2.projection.scopeState !== "valid" || !read2.projection.selectedSnapshot || !read2.projection.runtime) throw new Error("work source/selection incomplete; cannot capture signals");
-  const work = read2.projection, snapshotDigest = read2.projection.selectedSnapshot.digest;
+  const work = read2.projection, runtime = read2.projection.runtime, snapshotDigest = read2.projection.selectedSnapshot.digest;
   const snapshot2 = {
     snapshotDigest,
     scopeValid: true,
@@ -17060,6 +17060,24 @@ function captureArchivedWorkSignals(root, manifestId, context, suppliedFacts) {
     violations: [],
     priorAccepted: []
   };
+  const runtimeFacts = {
+    version: "observed-work-runtime-v1",
+    snapshotDigest,
+    sourceManifestId: manifestId,
+    attempts: runtime.attempts.map((attempt) => {
+      const eventDigests = runtime.occurrences.filter((occurrence2) => occurrence2.payload.executionId === attempt.executionId && occurrence2.payload.provenance === "observed" && ["completed", "failed", "cancelled"].includes(occurrence2.payload.state)).map((occurrence2) => occurrence2.event.digest).sort();
+      return {
+        executionId: attempt.executionId,
+        state: attempt.state,
+        resolution: attempt.resolution,
+        completionEvidence: { state: eventDigests.length ? "available" : "unavailable", eventDigests }
+      };
+    }).sort((a, b) => a.executionId < b.executionId ? -1 : a.executionId > b.executionId ? 1 : 0),
+    obligations: snapshot2.obligations.map((obligation) => ({ obligationDigest: obligation.digest, acceptance: obligation.acceptance, coverage: obligation.coverage })).sort((a, b) => a.obligationDigest < b.obligationDigest ? -1 : a.obligationDigest > b.obligationDigest ? 1 : 0),
+    hostFactsProfile: suppliedFacts?.version ?? null,
+    unavailable: suppliedFacts === null ? ["checkpoint-evidence", "expected-wait-evidence", "prior-acceptance-history"] : []
+  };
+  const retainedRuntimeFacts = retainArchiveSource2(root, { sourceId: `observed-runtime-${read2.sourceSha256}`, parser: { id: "observed-work-runtime-facts", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(runtimeFacts)) });
   const observation = retainWorkSignalObservation2(root, snapshot2, facts);
   const projection = retainArchiveSource2(root, { sourceId: `work-signal-projection-${read2.sourceSha256}`, parser: { id: "pi-daddy-work-projection", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(work)) });
   const cases = captureWorkSignalCases2(root, observation.manifestId);
@@ -17070,6 +17088,7 @@ function captureArchivedWorkSignals(root, manifestId, context, suppliedFacts) {
     workSha256: read2.sourceSha256,
     producerCommit: read2.producerCommit,
     projectionManifestId: projection.manifestId,
+    runtimeFactsManifestId: retainedRuntimeFacts.manifestId,
     observationId: observation.manifestId,
     caseBatchId: cases.batchId,
     candidateIds: cases.candidateIds,
