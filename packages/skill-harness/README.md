@@ -8,8 +8,11 @@ bar, and open an interactive review UI so you can measure a `SKILL.md` edit.
 ## Install
 
 ```bash
-npm i -g skill-harness
+npm i -g skill-harness          # CLI
+pi install npm:skill-harness     # CLI plus /skill-harness extension in Pi
 ```
+
+The Pi package declares its bundled extension directly. After install/update, `/reload` makes it available in an existing supported Pi session; verify the loaded resource rather than treating the package version as proof.
 
 ## The loop
 

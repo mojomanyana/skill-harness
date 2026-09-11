@@ -17,13 +17,21 @@
   "bin": {
     "skill-harness": "bin.js"
   },
+  "pi": {
+    "extensions": ["./dist/index.js"]
+  },
   "files": [
     "bin.js",
+    "dist/index.js",
+    "dist/prompt-capture-extension.js",
+    "assets/report.template.html",
+    "assets/report.grade.js",
     "LICENSE",
     "README.md"
   ],
   "dependencies": {
-    "@skill-harness/cli": "0.13.0"
+    "@skill-harness/cli": "0.13.0",
+    "typebox": "^1.1.38"
   },
   "repository": {
     "type": "git",

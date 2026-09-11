@@ -1,5 +1,9 @@
 # Next session — start here
 
+## 2026-09-11 post-merge continuation (unreleased)
+
+The npm `skill-harness@0.13.0` meta-package is CLI-only and therefore cannot provide the Pi extension despite being configured in `settings.json`. Branch `factory-01a071db/post-merge-c04` repairs packaging: the ordinary meta-package declares and carries the canonical extension bundle, observer sibling and review assets, plus the bundle's direct `typebox` runtime dependency, with byte-freshness and release-inventory checks. A supported local-package Pi launch loaded the resource as `dist`; that is source-package proof only. Fresh packed/installed Pi validation remains required after review; do not call 0.13.0 installed-extension validated.
+
 *Reconciled 2026-09-03 against `main` `51f0f82`. Read this before
 `docs/ROADMAP.md`: the roadmap says where the project is going, this says what remains
 open and what will bite you. Release notes live in `PUBLISHING.md`.*

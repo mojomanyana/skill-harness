@@ -1,0 +1,135 @@
+Independent review: software-factory campaign
+
+Revisions reviewed (all fetched from GitHub, PR branches, full history):
+skill-harness PR #74 head c51d57d8badfa3503fc9e5bc52e0ab234e583f93 (64 commits over base 506039c9…); pi-daddy PR #35 head 7a43219f8f5aa7597034c27b17b68d09222de28c (20 commits over f12eac37…); principal-pi-skills PR #39 head dda608492cc63a2837b0a06225d82be1f75783af (5 commits over d42f4318…). Baseline 37532a44… read for the three scope docs. All three repos were accessible; all three PRs are Draft. GitHub's API was rate-limited from my sandbox, so I used tarballs, PR pages and Actions pages instead.
+
+Spec vs. brainstorming: The scope, build guide and handoff are byte-identical between baseline and PR heads. "Steps 1–3" are not in any repository; the build guide's only link to them points at a sandbox:/workspace/scratch/… path. Everything below is verified against the written specification (docs 04–06) plus your stated amendments, not against the original conversation. I have not inferred any agreement that isn't written down.
+
+1. Verdict
+
+Partially — and the gap is at the seams, not in the parts. Each repository contains real, tested primitives for nearly every packet, and the scope's negative rules (passive observation, deterministic control, roles separated, quality before cost, missing evidence stays missing) are honored throughout. But the "Done when" criteria of the one-page scope are not met: no real daily session has produced a learning case without manual recording, no real hypothesis has completed archive → experiment → decision → observed outcome, the only executable "factory order" is a fixed SHA-256 digest worker, and the second domain is a synthetic fixture, not a skill set. The delivered product is a set of correct, honestly-labelled building blocks with a scripted replay that wires them together — not yet a factory you can run your day through.
+
+2. What you can actually use today
+Retention of governed children (pi-daddy). With PI_GRANTS_EXECUTION_ARCHIVE (and optionally PI_GRANTS_NATIVE_SESSION_ROOT) set, every delegate/delegate_all child records exact tool-call identity, parentage, raw output, check receipts and session location, without touching worker turns. This is wired into the real executor (extensions/execute-child.ts lines ~145–232). Real and usable.
+External archive of those files (harness). skill-harness archive ingest|inspect|watch --policy <file> --source <id> ingests with content addressing, checkpoints, restart and explicit coverage gaps. Metadata-only, offline, no model. Usable, but you must hand-write a policy file per source; there is no discovery.
+Read-only daily/archive dashboard view via the existing herdr plugin's dashboard-cli (--archive-projection, --work-ledger). Works — but only shows intent if you have a work-v4 ledger, and nothing in production writes one (see F1).
+A one-shot Codex-subscription review runner (producer-review-launch.mjs): one frozen review + one isolated advisory judge, bounded to 2 calls. Real; has run live twice (one FAIL, one PASS). Useful as a tool, not as the daily observer.
+Principal report --format current-v1: correct red→green / stale / superseded semantics. Opt-in only; default report unchanged.
+The examples/factory-local-replay script: demonstrates the whole harness path end-to-end on synthetic worlds. Good for understanding, not for use.
+
+Not usable today: detectors on real sessions, pause-time debriefs from real pauses, steering from a UI (steering is typed as raw JSON lines on the dashboard's stdin), weekly retro on your actual archive, any factory order doing real work, casting tables from real comparisons.
+
+3. Requirement table
+Original promise (source)	Implementation / evidence	Status
+P00 baseline (guide §4)	BUILD-REPORT.md + P00-EVIDENCE.json, RPC join, contract fixtures	met (verified from source; live probes reported only)
+P01 versioned intent tree, revision-bound acceptance	src/work-ledger*.ts, contracts/ledger/v4, non-Principal fixture; SPEC: "no first-party production authority caller, v4 CLI/dashboard activation"	partial — schema/builders/projector real and tested; no production writer of occurrences/acceptance
+P02 retain governed executions, no monitoring prompt	execution-retention.ts wired at execute-child.ts; ephemeral children "unknown"	met for supported routes (verified from source + tests I ran)
+P03 external archive, coverage, retention/redaction	evidence-archive.ts, checkpoints, archive watch; doc heading says "P03, partial"; redaction not performed, only labelled	partial
+P04 read-only status: intent/runtime/acceptance/coverage separate	daily-view*.ts, dashboard-cli --archive-projection; herdr-plugin.toml unchanged (launches same CLI)	partial — works from files; live freshness "BLOCKED without deployed P03 input"
+P05 steer from intent tree at safe boundaries	intent-control.ts, dispatch-control.ts, ordinary-children.ts; input is JSON lines on stdin (dashboard-cli.ts ~237–244)	partial — pause/resume, scope-successor, cancellation exist; general live steering "unqualified"; UX is not a dashboard action
+P06 enforceable effect boundary + aggregate limits	effect-profile.ts: one profile linux-bwrap-digest-v1 (hash ≤16 KiB, stdout only); CPU/mem/PID/money caps unsupported (contract README ll.1–7)	partial — honest, but cannot run any real workload
+P07 detectors: drift, stalls, loops, exemplars; silent start	work-candidates.ts (repeat/exemplar/coverage), work-signals.ts (overdue/reopened/conflict); inputs are declared host facts over the P01 ledger	partial — deterministic and tested; no detector reads observed sessions; nothing feeds them daily
+P08 ≤5 pause cards, blind before cost	debrief.ts (5-slot cap incl. blind), blind-intervention.ts:122 reveal requires durable choice	partial — manual/fixture presenter only; no real pause detection ("not inferred from agent_end")
+P09 delivery measurement + proposer/subject/judge independence	codex-role-policy, installed-review-session (real AgentSession.prompt, hook attestation), alias rejection	partial — one attributable route (installed review) live-observed once; full-stack extension-bearing route still BLOCKED, as guide allowed
+P10 archive-only weekly retro → hypothesis → scenario → freeze	investigation.ts, weekly-investigation.ts (inert data-only interpreter, no model)	partial — lifecycle real; "frontier-model retro" never runs a model
+P11 N variants / N=2 shadow, bounded	experiment.ts, resource journal, waves	partial — real controller, but only digest workers (no model/effort/skill variants)
+P12 fixed-model preserved + intervention family, blind, casting	intervention*.ts, intervention-run.ts, casting.json; existing comparison.ts untouched	partial — one live synthetic 2-arm run (8/8 objective pass); no human blind choice, no real casting evidence
+P13 calibration 8/10 vs 3 unresolved; silent/ask/retire; adoption/rollback	factory-calibration.ts, adoption.ts, trust-lifecycle.ts	met as primitives (tests pass), unverified on real data
+P14 Principal → generic mapping; fix verdict aggregation	assurance-state.mjs:1825 projection; --format current-v1; association v1–v3; no contracts/*.md.tmpl edits	partial — default report still legacy; opt-in only
+P15 deterministic bounded dispatch, reserved decisions	factory-order.ts: reserved decision, independent continuation, pinned adoption	partial — real controller; only digest workloads
+P16 complete loop, two domains, live	examples/factory-local-replay — explicitly "synthetic fixtures", liveQualified:false	missing (live), replay only
+P17D / P17H / P17P	P17D retained/inconclusive; P17H one 83-byte removal (P17H-MAINTENANCE-PILOT.md); P17P rejected	met as honest pilots (trivial)
+Scope "Done when": real session → learning case, no /note	Not demonstrated	missing
+Independent experiment supports/refutes hypothesis	Synthetic 2-arm, both pass, "no quality improvement shown"	missing
+Bounded order progresses, returns reserved decision	Yes, with digest workers	partial
+Non-development skill set, same contracts	"layout" fixture world, not a skill set	partial
+Reuse, no fourth product / competing store	No new repo; but parallel modules beside untouched existing seams (F5)	partial
+Mutation testing	Removed in both repos (harness mutation-catalogue.ts, pi-daddy mutation-audit.mjs)	explicitly withdrawn
+Repeated per-packet review loops	Removed; whole-change review recorded as CHANGES-REQUESTED, "pending 226"	explicitly withdrawn (loops); overall review not closed
+Live model via Codex subscription	Used, via bespoke transport (F4)	met, with complexity concern
+4. Prioritized findings
+
+F1 — Nothing in daily use produces the intent tree. (Blocks P01→P04→P07→P08 as a product.)
+appendWorkLedgerEventOnce has exactly one production caller, src/intent-application.ts:87 (dashboard steering), which writes revisions/snapshots. No work_occurrence or work_acceptance is ever emitted by delegation, check-runner or any command. pi-daddy docs/SPEC.md states there is "no first-party production authority caller, v4 CLI/dashboard activation or migration." Consequence: the daily view, detectors and debrief all read a ledger you must author by hand or by fixture; a normal governed session yields retention bytes but no obligations to attach them to. https://github.com/mojomanyana/pi-daddy/blob/7a43219f8f5aa7597034c27b17b68d09222de28c/packages/pi-daddy/src/intent-application.ts#L87
+
+F2 — The only executable effect profile hashes bytes.
+contracts/effect-profile/v1/README.md lines 1–7: "not a sandbox for pi, bash, arbitrary JavaScript, model invocations, or writable workspaces… hash at most 16 KiB." P11 experiments and P15 orders therefore only dispatch digest workers. The guide permitted BLOCKED or a restricted profile, so this is not a rule violation — but "bounded autonomous delivery" of any real work is not delivered. https://github.com/mojomanyana/pi-daddy/blob/7a43219f8f5aa7597034c27b17b68d09222de28c/packages/pi-daddy/contracts/effect-profile/v1/README.md
+
+F3 — Detection and debrief never see real work.
+Detectors (packages/adapters/src/work-candidates.ts, packages/core/src/work-signals.ts, 63 lines) consume declared facts (checkpoints, violations, priorAccepted, expectedWaits) supplied by the caller; no adapter derives them from retained sessions or tool-call streams. Debrief opens in manual mode only; closing-pause detection is explicitly "not inferred from agent_end or idle flags." Consequence: the "detect, then ask" loop is a data structure, not an observer.
+
+F4 — A bespoke Codex HTTPS/SSE/OAuth stack was built instead of the existing provider route.
+~24 of 64 harness commits (codex-https.ts, codex-sdk-transport.ts, codex-subscription.ts, codex-producer-ipc.ts, trusted-host-supervision.ts, plus pi-daddy producer-ipc.ts/ADR-0059) implement TLS pinning, SSE framing, reasoning-summary parsing, diagnostic-word allowlists and an IPC bridge whose child emits {id,sequence:1}. Your amendment said use the Codex subscription; it did not ask for a second HTTP client. The stated motivation (P09 wire attestation) is legitimate, but this is the largest single block of new code and the part most likely to break on a provider change. https://github.com/mojomanyana/skill-harness/blob/c51d57d8badfa3503fc9e5bc52e0ab234e583f93/packages/adapters/src/codex-https.ts
+
+F5 — Parallel infrastructure beside untouched existing seams.
+The guide named capture.ts, comparison.ts, pi-json.ts, execution-trace.ts, run.ts, screen.ts, adjudication.ts, vote-panel.ts as seams to extend. None is modified. The harness adds ~3,700 source lines in new modules; pi-daddy adds ~4,800 (plus ~6,300 test lines). Preserving frozen contracts was correct, but the result is two comparison families, two archive concepts (execution-trace vs evidence-archive) and two case models rather than one extended system.
+
+F6 — Published campaign tracker is stale.
+docs/factory/BUILD-REPORT.md at PR head is byte-identical to the P00-era baseline: P00 DONE, P01/P09 BLOCKED, everything else TODO. The real tracker, evidence and receipts are in an unpublished working copy. Reviewers reading the PR cannot reconcile packet state.
+
+F7 — Steering UX is raw JSON on stdin.
+dashboard-cli.ts ~237–244: "Explicit exact approved JSON requests only." No card, button or command; a stale/duplicate request is rejected correctly, but a person has to hand-craft CAS envelopes. Not the agreed "let you revise, reprioritise or pause work" experience.
+
+F8 — P14 fix is opt-in; the misleading default remains.
+assurance-state.mjs:2088–2093 adds --format current-v1; docs/ASSURANCE.md confirms default/in-toto/human remain "legacy, including all-history nonzero aggregation and empty-evidence FAILED." No template regeneration.
+
+F9 — CI pinned to a public-preview runner.
+pi-daddy .github/workflows/ci.yml line 34 runs-on: ubuntu-26.04 with apt-get install bubblewrap (lines 58–63). Green today; brittle, and namespace tests fail without bwrap (I reproduced: 93/117 pass, 24 namespace/experiment/order tests fail in a bwrap-less sandbox — an environment prerequisite, consistent with the PR's own statements, not a proven defect).
+
+F10 — Documentation load. 39 new docs/posts/*.md essays plus 16 ADRs and 14 per-feature docs written during the campaign. Several docs say "LOCAL ONLY" for code that is now in the PR.
+
+Evidence classes: Verified from source: F1–F10. Verified by tests/execution I ran: harness build, 80 factory tests across 14 files, replay.mjs default mode (exit 0, liveQualified:false); pi-daddy 93 non-namespace tests. Reported only: both live Codex runs, 8/8 synthetic product run, all CI counts (Actions pages for 34536261885 and 34489229458 show Success for the exact heads; Principal head CI not confirmed). Contradicted: PR bodies' "Local only" vs. presence in branch; BUILD-REPORT tracker vs. actual state.
+
+5. Three lists
+
+Missing implementation
+
+Production emitter of work_occurrence/work_acceptance (or a /pi-daddy intent command) so real sessions populate the tree.
+Adapter from retained sessions/receipts to detector facts (repeat/stall/checkpoint) — the actual daily observer.
+Closing-pause detection that opens the debrief automatically under an exposure policy.
+An effect profile able to run a pi worker (or a documented BLOCKED with the missing primitive named — cgroup delegation, per pi-daddy's own matrix).
+Weekly retro that invokes a model over the read-only archive surface.
+Dashboard action routing (plugin pane actions → intent-control) instead of stdin JSON.
+Principal default report switched (or aliased) to current-v1 with template regeneration.
+A real second-domain skill set (stations + acceptance) rather than a fixture world.
+
+Missing validation
+
+Any real daily session producing a case without a note (scope Done #1).
+Any real hypothesis through frozen comparison to decision and later outcome (Done #2–3).
+Human blind choice recorded before reveal on a real comparison.
+Calibration on independent labels (current reference is synthetic-confirmation).
+Full-stack P09 route (extension-bearing subjects) — still BLOCKED.
+Live P04 freshness / P05 busy-child steering on a real herdr pane.
+Published tracker/evidence for packets P01–P17; Principal head CI.
+
+Decisions only you can make
+
+Accept the digest-only P06 profile as the qualified boundary for now, or hold P11/P15 until a real profile exists.
+Keep the bespoke Codex transport (F4) or replace it with pi's provider route plus a simpler attestation.
+Whether the fixture "layout" domain satisfies "non-development skill set" or a real skill set is required.
+Whether P14's opt-in format is enough or the default must change.
+Whether ubuntu-26.04 preview CI is acceptable for merge.
+Whether to merge primitives now (behind opt-ins) or wait for the seams.
+6. Shortest practical closure plan
+
+Assumptions: one implementer at a time, Codex subscription available, bwrap works on your host, no new packets.
+
+Publish the truth (0.5–1 day). Update BUILD-REPORT.md tracker and qualification register from the working copy; strip "LOCAL ONLY" from docs describing pushed code; confirm Principal head CI.
+Close the daily seam (3–5 days). Emit work_occurrence from execute-child.ts retention finish (execution ↔ declared obligation, default obligation = task digest) and a minimal pi-daddy intent add/accept CLI. Build one adapter from retained receipts → WorkSignalFacts. This alone makes P04/P07 live on real sessions.
+Auto-open the debrief (2–3 days). Use agent_settled + retention finish as the pause signal under an explicit exposure policy; five cards from real cases.
+One real loop (2–4 days elapsed, mostly waiting). Run the weekly investigation on your actual archive, one hypothesis, one frozen 2-arm comparison via the installed-session route, your blind choice, decision, record outcome as pending. Accept a losing hypothesis as success of the mechanism.
+P14 default (0.5–1 day). Make current-v1 the default human/in-toto projection, keep -legacy flags, regenerate templates.
+Decide F2/F4 (your call, 0 days to decide; 1–2 weeks each if you choose to replace).
+
+Roughly two to three weeks to a usable daily mode; autonomous mode remains gated on F2.
+
+7. PR readiness
+
+principal-pi-skills #39 — ready for your merge review. Small, additive, legacy renderers byte-preserved, tests present. Caveat: default report still misleading (F8); no template edits; head CI unverified by me.
+
+pi-daddy #35 — reviewable, merge with conditions. All new behavior is opt-in via env/exports and default LEDGER_VERSION=3 is untouched, so risk to existing users is low. Before merging: decide on the preview runner (F9), accept that 20 commits of ADRs describe "local only" code now published, and note the open OAR-SPEC-001..007 and "seq 226" acceptance the PR itself flags. After merge, the agreed workflow is still unusable because of F1/F3 (no intent producer, no observer).
+
+skill-harness #74 — not yet ready. 64 commits, stale tracker (F6), the largest and least-justified block of new code (F4), one live pilot with an advisory FAIL, and the P16 slice is a replay. I'd ask for: tracker/docs reconciliation, a decision on F4, and either a squash of the Codex transport commits or a separate PR so the archive/case/calibration/adoption primitives (which are sound and I ran green) can be judged on their own. After merging as-is, nothing here would connect to a real session without step 2 above.
+
+Bottom line: the campaign built correct, cautious, well-tested parts and refused to overclaim — every document says so. What it did not build is the two seams that turn them into the product you agreed to: something that writes intent from real work, and something that reads real work into the detectors. Those are the closure work; everything else is polish or a decision.
