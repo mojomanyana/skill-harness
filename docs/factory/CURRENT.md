@@ -6,7 +6,7 @@ Updated 2026-09-11. This is the current entry point; dated build reports and ADR
 
 | Component | released source / package | release CI | full-completion candidate |
 |---|---|---|---|
-| skill-harness | `7845d7a31ca47ffba913517464b189c574443581` / 0.14.0 | [34599595397](https://github.com/mojomanyana/skill-harness/actions/runs/34599595397) PASS | `73ab11883bb1c8924dc5ebbe8a61c96e913ee437` retains exact runtime facts; bridge pin commit follows on the review branch |
+| skill-harness | `7845d7a31ca47ffba913517464b189c574443581` / 0.14.0 | [34599595397](https://github.com/mojomanyana/skill-harness/actions/runs/34599595397) PASS | `2a36632f8780289a2cb82fa42efff440e8530f9a` retains projection-only runtime facts; bridge pin `b3de3a2` follows on the review branch |
 | pi-daddy | `a203cec4f666be119f556d01278993b907525686` / 0.24.0 | [34598683624](https://github.com/mojomanyana/pi-daddy/actions/runs/34598683624) PASS | separate review branch consumes the new bridge and adds practical dashboard controls |
 | principal-pi-skills | `e25374c154b5b50b1ce7873d55defacd85207db9` / 3.2.0 | [34598048020](https://github.com/mojomanyana/principal-pi-skills/actions/runs/34598048020) PASS | no new candidate change yet |
 
@@ -27,7 +27,7 @@ Released, merged source, candidate source, installed package and loaded-session 
 |---|---|---|
 | C00 | candidate-installed validated; released-install validation pending | merged PR76 packages the extension and exact-source dashboard bridge; earlier candidate pack/install loaded `[Extensions] dist` and started a real source-host bridge, while canonical 0.14.0 release verification is in progress |
 | C01 | ready to try; live observed on source | pi-daddy PR37; exact retry/change invalidation tests and one visible occurrence |
-| C02 | candidate implemented, behavioral evidence | harness source `73ab118` adds a content-addressed runtime-facts manifest with exact attempt completion evidence and obligation acceptance/coverage; absent checkpoints, expected waits and prior-acceptance history remain explicitly unavailable |
+| C02 | candidate implemented, behavioral evidence | harness source `2a36632` adds a content-addressed runtime-facts manifest with exact attempt completion evidence and obligation acceptance/coverage; checkpoint, expected-wait and prior-acceptance evidence stay explicitly unavailable in this projection-only artifact |
 | C03 | candidate validated | pi-daddy PR38; production host, busy-child pause/new-dispatch refusal/resume, same-host refresh and socket reconnect observed |
 | C04 | candidate validated | pi-daddy PR39; three arms, primary-return independence and final original-owner accounting observed; requested effort is not internal-reasoning proof |
 | C05 | ready to try | Principal PR41 makes current applicability the ordinary human view and preserves `human-legacy` |
