@@ -6,7 +6,7 @@ Updated 2026-09-11. This is the current entry point; dated build reports and ADR
 
 | Component | released source / package | release CI | full-completion candidate |
 |---|---|---|---|
-| skill-harness | `7845d7a31ca47ffba913517464b189c574443581` / 0.14.0 | [34599595397](https://github.com/mojomanyana/skill-harness/actions/runs/34599595397) PASS | `2a36632f8780289a2cb82fa42efff440e8530f9a` retains projection-only runtime facts; bridge pin `b3de3a2` follows on the review branch |
+| skill-harness | `7845d7a31ca47ffba913517464b189c574443581` / 0.14.0 | [34599595397](https://github.com/mojomanyana/skill-harness/actions/runs/34599595397) PASS | `28b55d40a64ce7af8ed23410a137f2e3a075e522` adds bounded retained learning-lifecycle navigation atop projection-only runtime facts; bridge pin `81df7de` follows on the review branch |
 | pi-daddy | `a203cec4f666be119f556d01278993b907525686` / 0.24.0 | [34598683624](https://github.com/mojomanyana/pi-daddy/actions/runs/34598683624) PASS | separate review branch consumes the new bridge and adds practical dashboard controls |
 | principal-pi-skills | `e25374c154b5b50b1ce7873d55defacd85207db9` / 3.2.0 | [34598048020](https://github.com/mojomanyana/principal-pi-skills/actions/runs/34598048020) PASS | no new candidate change yet |
 
@@ -31,7 +31,7 @@ Released, merged source, candidate source, installed package and loaded-session 
 | C03 | candidate validated | pi-daddy PR38; production host, busy-child pause/new-dispatch refusal/resume, same-host refresh and socket reconnect observed |
 | C04 | candidate validated | pi-daddy PR39; three arms, primary-return independence and final original-owner accounting observed; requested effort is not internal-reasoning proof |
 | C05 | ready to try | Principal PR41 makes current applicability the ordinary human view and preserves `human-legacy` |
-| C06 | real comparison ready; response pending | confirmed retained case + frozen hypothesis + two objective-qualified blind outputs; authentic quality choice/reveal/adoption remain absent |
+| C06 | substantive comparison ready; response pending | bounded retained lifecycle manifests now navigate case → hypothesis → comparison → optional choice/adoption/rollback/outcomes without inventing absent stages. A public-information quality comparison is prepared externally; authentic choice/reveal/adoption/later outcome remain absent |
 | C07 | validated, narrow profile | bounded Sol→Terra read-only chain found a real retry defect and returned a reserved decision; writable effect/recovery profiles remain unsupported |
 | C08 | pending | domain owner; genuine non-development data/workflow required |
 | C09 | decision recorded | [TRANSPORT-DECISION.md](TRANSPORT-DECISION.md): retain current producer path until same guarantees pass; responsibility map and current CI portability recorded; no broad rewrite |

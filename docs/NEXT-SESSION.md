@@ -2,7 +2,7 @@
 
 ## 2026-09-11 full-completion runtime-facts candidate
 
-Released baseline is 0.14.0 at `7845d7a31ca47ffba913517464b189c574443581`. New source commit `2a36632f8780289a2cb82fa42efff440e8530f9a` makes archived work retain a content-addressed projection-only `observed-work-runtime-v1` fact artifact: exact attempt state/resolution and terminal occurrence evidence, obligation acceptance/coverage, and explicit unavailable checkpoint/wait/prior-acceptance classes. Supplied host facts stay separately linked and cannot alter this artifact. Bridge commit `b3de3a290a304269bd6332c496bc1f961bb974aa` pins that source. This is behaviorally tested candidate source, not merged/released/live acceptance. Continue from `docs/factory/CURRENT.md`; preserve C06 human choice, C08 domain and later outcomes as external boundaries.
+Released baseline is 0.14.0 at `7845d7a31ca47ffba913517464b189c574443581`. Candidate source `28b55d40a64ce7af8ed23410a137f2e3a075e522` retains projection-only runtime facts and adds bounded content-addressed learning-lifecycle navigation across case, hypothesis, comparison, optional choice/adoption/rollback and later outcomes. Missing stages remain explicit; supplied host facts stay separately linked. Bridge commit `81df7de0f9e37c0049be90e2277ddfcf0b2ad8d9` pins that source. This is behaviorally tested candidate source, not merged/released/live acceptance. Continue from `docs/factory/CURRENT.md`; preserve C06 human choice, C08 domain and later outcomes as external boundaries.
 
 ## 2026-09-11 0.14.0 release candidate
 
