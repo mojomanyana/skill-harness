@@ -7,8 +7,9 @@ import { captureArchivedWorkSignals } from "../../adapters/src/archived-work.js"
 import { readRetainedExecution, projectRetainedExecutions } from "../../adapters/src/execution-retention-archive.js";
 import { createWorkCaseReviewer, createWorkSignalReviewer } from "../../adapters/src/work-case-review.js";
 import { retainBlindIntervention, openBlindIntervention } from "../../adapters/src/blind-intervention.js";
+import { retainLearningLifecycle, readLearningLifecycle } from "../../adapters/src/learning-lifecycle.js";
 
-export const DASHBOARD_HARNESS_SOURCE = "127b349310dd8f28e5d6b12148a063fce66a77dd";
+export const DASHBOARD_HARNESS_SOURCE = "d123257e53d48a2cad6919708976b5371dc7590e";
 export const DASHBOARD_HARNESS_BRIDGE = Symbol.for("skill-harness.dashboard-host.v1");
 
 const functions = {
@@ -16,6 +17,7 @@ const functions = {
   archivePolicyBinding, ingestPolicySource, readArchiveCheckpoint, readArchiveSource,
   retainArchiveSource, captureArchivedWorkSignals, readRetainedExecution, projectRetainedExecutions,
   createWorkCaseReviewer, createWorkSignalReviewer, retainBlindIntervention, openBlindIntervention,
+  retainLearningLifecycle, readLearningLifecycle,
 } as const;
 
 export interface DashboardHarnessBridge {

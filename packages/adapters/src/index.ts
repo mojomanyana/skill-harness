@@ -34,6 +34,7 @@ export * from "./work-case-review.js";
 export * from "./archive-read-capability.js";
 export * from "./archived-work.js";
 export * from "./blind-intervention.js";
+export * from "./learning-lifecycle.js";
 export * from "./archive-observer.js";
 export * from "./weekly-investigation.js";
 export * from "./intervention-run.js";

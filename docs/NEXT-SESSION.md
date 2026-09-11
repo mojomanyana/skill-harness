@@ -1,5 +1,9 @@
 # Next session — start here
 
+## 2026-09-11 full-completion runtime-facts candidate
+
+Released baseline is 0.14.0 at `7845d7a31ca47ffba913517464b189c574443581`. Candidate source `d123257e53d48a2cad6919708976b5371dc7590e` retains projection-only runtime facts and adds monotonic bounded content-addressed learning-lifecycle navigation across case, hypothesis, comparison, optional choice/adoption/rollback and later outcomes. Missing stages remain explicit; supplied host facts stay separately linked. A follow-up bridge commit pins that source. This is behaviorally tested candidate source, not merged/released/live acceptance. Continue from `docs/factory/CURRENT.md`; preserve C06 human choice, C08 domain and later outcomes as external boundaries.
+
 ## 2026-09-11 0.14.0 release candidate
 
 PR76 merged as `1fde8fc` after exact-head CI and final independent review. The 0.14.0 candidate makes the public `skill-harness` meta-package declare and carry the canonical Pi extension bundle, observer sibling and review assets, plus direct `typebox` runtime resolution and the frozen dashboard source bridge. Released 0.13.0 remains CLI-only historical fact. Candidate pack/install loading and bridge host startup are already observed; canonical post-merge pack, required Sol-subject/Terra-judge real-Pi smoke, released-install verification, publication and tags remain the active release steps. C06 human choice and C08 genuine-domain evidence remain external, not release gates or release claims.

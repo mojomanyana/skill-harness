@@ -6076,11 +6076,11 @@ function vitestTally(out) {
   const line = /^\s*Tests\s+(.+)$/m.exec(out);
   if (!line)
     return null;
-  const read2 = (word) => {
+  const read3 = (word) => {
     const m = new RegExp(`(\\d+)\\s+${word}`).exec(line[1]);
     return m ? Number(m[1]) : 0;
   };
-  return { passed: read2("passed"), failed: read2("failed"), skipped: read2("skipped"), todo: read2("todo") };
+  return { passed: read3("passed"), failed: read3("failed"), skipped: read3("skipped"), todo: read3("todo") };
 }
 
 // packages/core/dist/execution-trace.js
@@ -12289,14 +12289,14 @@ function optionalV2EnumMap(value, field, allowed, event, line) {
   }
   return Object.fromEntries(entries);
 }
-function optionalV2StringMap(value, field, event, line, validate5 = () => true) {
+function optionalV2StringMap(value, field, event, line, validate6 = () => true) {
   if (value === void 0)
     return void 0;
   const parsed = object2(value);
   if (!parsed)
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be an object`);
   const entries = Object.entries(parsed);
-  if (entries.some(([key3, entry]) => !key3 || typeof entry !== "string" || !validate5(entry))) {
+  if (entries.some(([key3, entry]) => !key3 || typeof entry !== "string" || !validate6(entry))) {
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must map capabilities to valid strings`);
   }
   return Object.fromEntries(entries);
@@ -14259,7 +14259,7 @@ function learningJournal2(path, initial) {
     const s = lstatSync12(path);
     if (s.dev !== identity2.dev || s.ino !== identity2.ino) throw Error("learning directory identity changed");
   };
-  const read2 = () => {
+  const read3 = () => {
     check();
     const stat = lstatSync12(file);
     if (stat.mode & 63 || process.getuid && stat.uid !== process.getuid()) throw Error("private learning journal required");
@@ -14275,8 +14275,8 @@ function learningJournal2(path, initial) {
       return r;
     });
   };
-  read2();
-  return { read: read2, append(prior, value) {
+  read3();
+  return { read: read3, append(prior, value) {
     check();
     const lock = join43(path, "writer.lock"), token = randomUUID6();
     const fd = openSync13(lock, constants14.O_RDWR | constants14.O_CREAT | constants14.O_EXCL | constants14.O_NOFOLLOW, 384), owned = fstatSync12(fd);
@@ -14284,7 +14284,7 @@ function learningJournal2(path, initial) {
     try {
       writeAll(fd, Buffer.from(token));
       fsyncSync9(fd);
-      const history = read2();
+      const history = read3();
       if (history.at(-1).id !== prior) throw Error("stale learning CAS");
       if (history.length >= 4096) throw Error("learning history bound");
       const body = { prior, value: learningCopy2(value) }, event = { ...body, id: learningHash2(body) }, line = Buffer.from(learningJson(event) + "\n");
@@ -15764,9 +15764,9 @@ function metadata(context, checkpointId, projection) {
   };
 }
 function inspectNativePolicy2(context, checkpointId) {
-  const read2 = readRetainedExecution2(context.policy.archiveRoot, checkpointId);
-  if (read2.sourceId !== context.archiveSourceId || Object.values(read2.manifest.content).some((ref) => ref.bytes !== null && ref.bytes > context.policy.maxBytes)) throw new Error("native snapshot outside policy");
-  return metadata(context, checkpointId, read2.projection);
+  const read3 = readRetainedExecution2(context.policy.archiveRoot, checkpointId);
+  if (read3.sourceId !== context.archiveSourceId || Object.values(read3.manifest.content).some((ref) => ref.bytes !== null && ref.bytes > context.policy.maxBytes)) throw new Error("native snapshot outside policy");
+  return metadata(context, checkpointId, read3.projection);
 }
 function ingestNativePolicy2(context, previous, readBytes) {
   if (previous) inspectNativePolicy2(context, previous);
@@ -16170,8 +16170,8 @@ function integer3(value) {
 function member(value, values) {
   require3(typeof value === "string" && values.includes(value));
 }
-function nullable5(value, validate5) {
-  if (value !== null) validate5(value);
+function nullable5(value, validate6) {
+  if (value !== null) validate6(value);
 }
 function reference(value, allowed = kinds) {
   const ref = closed11(value, ["kind", "id", "revision", "digest"]);
@@ -16200,9 +16200,9 @@ function timestamp2(value) {
   require3(typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value));
   require3(!value.startsWith("0000") && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value);
 }
-function set2(value, validate5, building, key3 = canonicalWorkJson2) {
+function set2(value, validate6, building, key3 = canonicalWorkJson2) {
   require3(Array.isArray(value));
-  value.forEach(validate5);
+  value.forEach(validate6);
   const keyed = value.map((item) => ({ item, key: key3(item) }));
   const sorted2 = [...keyed].sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
   for (let i = 1; i < sorted2.length; i++) require3(sorted2[i - 1].key !== sorted2[i].key);
@@ -16491,7 +16491,7 @@ function projectWorkAcceptance2(index, structure, authority, runtime) {
   const receiptIndex = indexWorkReceipts2(authority), { receipts } = receiptIndex;
   conflicts.push(...receiptIndex.conflicts);
   const decisions = [...receipts.values()].filter((g) => g.size === 1).flatMap((g) => [...g.values()]);
-  function available(kind, id3, digest4) {
+  function available2(kind, id3, digest4) {
     const values = sortWorkResults2((authority?.availability ?? []).filter((row) => row.kind === kind && row.id === id3 && row.digest === digest4).map((row) => row.available));
     const state = values.length > 1 ? "conflicted" : values.length === 0 ? "unknown" : values[0] ? "available" : "unavailable";
     return { kind, identity: { id: id3, digest: digest4 }, state };
@@ -16533,9 +16533,9 @@ function projectWorkAcceptance2(index, structure, authority, runtime) {
       conflicts.push({ kind: "receipt", id: id3, digests: sortWorkResults2(group.keys()), affectedObligations: affected });
       blockers.push(problem("RECEIPT_CONFLICT", { type: "authority", ref: authority.snapshot }));
     }
-    const artifactItems = row.artifact ? [available("artifact", row.artifact.id, row.artifact.contentDigest)] : [];
+    const artifactItems = row.artifact ? [available2("artifact", row.artifact.id, row.artifact.contentDigest)] : [];
     const artifactCoverage = binding.artifact === null ? { state: "unselected", items: [] } : coverage(artifactItems);
-    const evidenceCoverage = coverage(sortWorkResults2(current.flatMap((e) => e.payload.binding.evidence.map((ref) => available("evidence", ref.id, ref.digest)))));
+    const evidenceCoverage = coverage(sortWorkResults2(current.flatMap((e) => e.payload.binding.evidence.map((ref) => available2("evidence", ref.id, ref.digest)))));
     const rowClaims = [];
     const trustedDecisions = /* @__PURE__ */ new Set();
     for (const claim of selectedClaims) {
@@ -16560,7 +16560,7 @@ function projectWorkAcceptance2(index, structure, authority, runtime) {
       if (!authority) local.push(problem("AUTHORITY_MISSING", null));
       else if (!matching2.length) local.push(problem(decisions.some((d) => d.claim.eventId === claim.eventId) ? "RECEIPT_MISMATCH" : "RECEIPT_MISSING", eventReference(claim)));
       const support = b.evidence.flatMap((ref) => ref.event ? sourceProblems(ref.event, affected) : []);
-      const availabilityProblems = coverageProblems2([...artifactItems, ...b.evidence.map((ref) => available("evidence", ref.id, ref.digest))]);
+      const availabilityProblems = coverageProblems2([...artifactItems, ...b.evidence.map((ref) => available2("evidence", ref.id, ref.digest))]);
       local.push(...support, ...availabilityProblems);
       if (matching2.length) blockers.push(...support.filter(isConflict), ...availabilityProblems.filter(isConflict));
       const rejection = matching2.some((d) => d.decision === "reject");
@@ -17035,9 +17035,9 @@ function readArchivedWork(root, manifestId, context = { selectedSnapshot: null, 
   }
 }
 function captureArchivedWorkSignals(root, manifestId, context, suppliedFacts) {
-  const read2 = readArchivedWork(root, manifestId, context);
-  if (read2.state !== "available" || read2.projection.errors.length || read2.projection.scopeState !== "valid" || !read2.projection.selectedSnapshot || !read2.projection.runtime) throw new Error("work source/selection incomplete; cannot capture signals");
-  const work = read2.projection, snapshotDigest = read2.projection.selectedSnapshot.digest;
+  const read3 = readArchivedWork(root, manifestId, context);
+  if (read3.state !== "available" || read3.projection.errors.length || read3.projection.scopeState !== "valid" || !read3.projection.selectedSnapshot || !read3.projection.runtime) throw new Error("work source/selection incomplete; cannot capture signals");
+  const work = read3.projection, runtime = read3.projection.runtime, snapshotDigest = read3.projection.selectedSnapshot.digest;
   const snapshot2 = {
     snapshotDigest,
     scopeValid: true,
@@ -17060,23 +17060,41 @@ function captureArchivedWorkSignals(root, manifestId, context, suppliedFacts) {
     violations: [],
     priorAccepted: []
   };
+  const runtimeFacts = {
+    version: "observed-work-runtime-v1",
+    snapshotDigest,
+    sourceManifestId: manifestId,
+    attempts: runtime.attempts.map((attempt) => {
+      const eventDigests = runtime.occurrences.filter((occurrence2) => occurrence2.payload.executionId === attempt.executionId && occurrence2.payload.provenance === "observed" && ["completed", "failed", "cancelled"].includes(occurrence2.payload.state)).map((occurrence2) => occurrence2.event.digest).sort();
+      return {
+        executionId: attempt.executionId,
+        state: attempt.state,
+        resolution: attempt.resolution,
+        completionEvidence: { state: eventDigests.length ? "available" : "unavailable", eventDigests }
+      };
+    }).sort((a, b) => a.executionId < b.executionId ? -1 : a.executionId > b.executionId ? 1 : 0),
+    obligations: snapshot2.obligations.map((obligation) => ({ obligationDigest: obligation.digest, acceptance: obligation.acceptance, coverage: obligation.coverage })).sort((a, b) => a.obligationDigest < b.obligationDigest ? -1 : a.obligationDigest > b.obligationDigest ? 1 : 0),
+    unavailable: ["checkpoint-evidence", "expected-wait-evidence", "prior-acceptance-history"]
+  };
+  const retainedRuntimeFacts = retainArchiveSource2(root, { sourceId: `observed-runtime-${read3.sourceSha256}`, parser: { id: "observed-work-runtime-facts", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(runtimeFacts)) });
   const observation = retainWorkSignalObservation2(root, snapshot2, facts);
-  const projection = retainArchiveSource2(root, { sourceId: `work-signal-projection-${read2.sourceSha256}`, parser: { id: "pi-daddy-work-projection", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(work)) });
+  const projection = retainArchiveSource2(root, { sourceId: `work-signal-projection-${read3.sourceSha256}`, parser: { id: "pi-daddy-work-projection", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(work)) });
   const cases = captureWorkSignalCases2(root, observation.manifestId);
   const linkage = {
     version: "archived-work-signals-v1",
     bindingProfile: "work-v4-revision-digests-v1",
     workManifestId: manifestId,
-    workSha256: read2.sourceSha256,
-    producerCommit: read2.producerCommit,
+    workSha256: read3.sourceSha256,
+    producerCommit: read3.producerCommit,
     projectionManifestId: projection.manifestId,
+    runtimeFactsManifestId: retainedRuntimeFacts.manifestId,
     observationId: observation.manifestId,
     caseBatchId: cases.batchId,
     candidateIds: cases.candidateIds,
     authorityBasis: "independently-supplied-host-context",
     acceptance: "not-assessed"
   };
-  const stored = retainArchiveSource2(root, { sourceId: `work-signal-link-${read2.sourceSha256}`, parser: { id: "archived-work-signals", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(linkage)) });
+  const stored = retainArchiveSource2(root, { sourceId: `work-signal-link-${read3.sourceSha256}`, parser: { id: "archived-work-signals", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(linkage)) });
   return { ...linkage, linkageManifestId: stored.manifestId };
 }
 
@@ -17262,8 +17280,57 @@ function openBlindIntervention2(root, id3, author) {
   });
 }
 
+// packages/adapters/src/learning-lifecycle.ts
+var SHA7 = /^[a-f0-9]{64}$/;
+var closed12 = (value, names) => !!value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).sort().join() === names.sort().join();
+function available(root, id3, parser) {
+  if (!SHA7.test(id3)) throw Error("invalid retained learning link");
+  const source = readArchiveSource2(root, id3);
+  if (source.status !== "available" || source.reference.retention !== "exact" || parser && source.reference.parser.id !== parser) throw Error("retained learning link unavailable");
+  return source;
+}
+function validate5(root, input, depth = 0) {
+  if (depth > 64) throw Error("learning lifecycle predecessor bound exceeded");
+  if (!closed12(input, ["caseManifestId", "hypothesisManifestId", "comparisonManifestId", "choiceManifestId", "adoptionManifestId", "rollbackManifestId", "outcomeManifestIds", "predecessorManifestId"]) || !Array.isArray(input.outcomeManifestIds) || input.outcomeManifestIds.length > 64 || new Set(input.outcomeManifestIds).size !== input.outcomeManifestIds.length) throw Error("invalid bounded learning lifecycle");
+  for (const id3 of [input.caseManifestId, input.hypothesisManifestId, input.comparisonManifestId]) available(root, id3);
+  for (const id3 of [input.choiceManifestId, input.adoptionManifestId, input.rollbackManifestId, ...input.outcomeManifestIds]) if (id3 !== null) available(root, id3);
+  if (input.adoptionManifestId && !input.choiceManifestId) throw Error("quality choice required before adoption");
+  if (input.rollbackManifestId && !input.adoptionManifestId) throw Error("adoption required before rollback");
+  if (input.outcomeManifestIds.length && !input.adoptionManifestId) throw Error("adoption required before outcomes");
+  if (input.predecessorManifestId) {
+    const prior = read2(root, input.predecessorManifestId, depth + 1);
+    if (prior.links.case !== input.caseManifestId || prior.links.hypothesis !== input.hypothesisManifestId || prior.links.comparison !== input.comparisonManifestId) throw Error("learning lifecycle identity changed");
+    for (const key3 of ["choice", "adoption", "rollback"]) if (prior.links[key3] !== null && prior.links[key3] !== { choice: input.choiceManifestId, adoption: input.adoptionManifestId, rollback: input.rollbackManifestId }[key3]) throw Error("learning lifecycle cannot regress or replace decisions");
+    if (prior.links.outcomes.some((id3, index) => input.outcomeManifestIds[index] !== id3)) throw Error("learning lifecycle cannot regress or replace outcomes");
+  }
+  const state = input.outcomeManifestIds.length ? "outcome-observed" : input.rollbackManifestId ? "rolled-back" : input.adoptionManifestId ? "adopted-awaiting-outcome" : input.choiceManifestId ? "decision-recorded" : "awaiting-human-choice";
+  return { version: "retained-learning-lifecycle-v1", state, predecessorManifestId: input.predecessorManifestId, links: { case: input.caseManifestId, hypothesis: input.hypothesisManifestId, comparison: input.comparisonManifestId, choice: input.choiceManifestId, adoption: input.adoptionManifestId, rollback: input.rollbackManifestId, outcomes: [...input.outcomeManifestIds] } };
+}
+function retainLearningLifecycle(root, input) {
+  const view = validate5(root, input);
+  return retainArchiveSource2(root, { sourceId: `learning-${view.links.comparison.slice(0, 24)}`, parser: { id: "learning-lifecycle", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(view)) }).manifestId;
+}
+function read2(root, manifestId, depth) {
+  if (depth > 64) throw Error("learning lifecycle predecessor bound exceeded");
+  const source = available(root, manifestId, "learning-lifecycle");
+  let value;
+  try {
+    value = JSON.parse(source.bytes.toString("utf8"));
+  } catch {
+    throw Error("invalid retained learning lifecycle");
+  }
+  if (!closed12(value, ["version", "state", "predecessorManifestId", "links"]) || value.version !== "retained-learning-lifecycle-v1" || !closed12(value.links, ["case", "hypothesis", "comparison", "choice", "adoption", "rollback", "outcomes"])) throw Error("invalid retained learning lifecycle");
+  const links = value.links;
+  const rebuilt = validate5(root, { caseManifestId: links.case, hypothesisManifestId: links.hypothesis, comparisonManifestId: links.comparison, choiceManifestId: links.choice, adoptionManifestId: links.adoption, rollbackManifestId: links.rollback, outcomeManifestIds: links.outcomes, predecessorManifestId: value.predecessorManifestId }, depth);
+  if (rebuilt.state !== value.state || JSON.stringify(rebuilt) !== source.bytes.toString("utf8")) throw Error("retained learning lifecycle changed");
+  return Object.freeze({ ...rebuilt, links: Object.freeze({ ...rebuilt.links, outcomes: Object.freeze(rebuilt.links.outcomes) }) });
+}
+function readLearningLifecycle(root, manifestId) {
+  return read2(root, manifestId, 0);
+}
+
 // packages/pi-extension/src/dashboard-bridge.ts
-var DASHBOARD_HARNESS_SOURCE = "127b349310dd8f28e5d6b12148a063fce66a77dd";
+var DASHBOARD_HARNESS_SOURCE = "d123257e53d48a2cad6919708976b5371dc7590e";
 var DASHBOARD_HARNESS_BRIDGE = /* @__PURE__ */ Symbol.for("skill-harness.dashboard-host.v1");
 var functions = {
   learningJournal: learningJournal2,
@@ -17281,7 +17348,9 @@ var functions = {
   createWorkCaseReviewer: createWorkCaseReviewer2,
   createWorkSignalReviewer: createWorkSignalReviewer2,
   retainBlindIntervention: retainBlindIntervention2,
-  openBlindIntervention: openBlindIntervention2
+  openBlindIntervention: openBlindIntervention2,
+  retainLearningLifecycle,
+  readLearningLifecycle
 };
 function publishDashboardHarnessBridge(target = globalThis) {
   const old = target[DASHBOARD_HARNESS_BRIDGE];
