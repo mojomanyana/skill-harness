@@ -8,15 +8,15 @@ Updated 2026-09-11. This is the current entry point; dated build reports and ADR
 |---|---|---|---|
 | skill-harness | `056217d14cf23ed7f9fc58f75e2d380722f25b1e` / 0.13.0 | [34544825922](https://github.com/mojomanyana/skill-harness/actions/runs/34544825922) PASS | [PR76](https://github.com/mojomanyana/skill-harness/pull/76): npm Pi-extension packaging |
 | pi-daddy | `1eb89f2ad3db10ed3cb5433e3fa59c1cc1eb0208` / 0.23.0 | [34544821814](https://github.com/mojomanyana/pi-daddy/actions/runs/34544821814) PASS | [PR37](https://github.com/mojomanyana/pi-daddy/pull/37) declared work; [PR38](https://github.com/mojomanyana/pi-daddy/pull/38) human action keys; [PR39](https://github.com/mojomanyana/pi-daddy/pull/39) variants/thinking |
-| principal-pi-skills | `3e7bc2b563b33044845d49204cc31f78f0957e1f` / 3.1.0 | [34544476255](https://github.com/mojomanyana/principal-pi-skills/actions/runs/34544476255) PASS | C05 not started |
+| principal-pi-skills | `3e7bc2b563b33044845d49204cc31f78f0957e1f` / 3.1.0 | [34544476255](https://github.com/mojomanyana/principal-pi-skills/actions/runs/34544476255) PASS | [PR41](https://github.com/mojomanyana/principal-pi-skills/pull/41): current human assurance view |
 
 Released, follow-up source, installed package and loaded-session identity are separate facts. In the observed continuation session, Principal 3.1.0 skills and pi-daddy 0.23.0 `grants.ts` were loaded. `skill-harness@0.13.0` was configured but has no published Pi extension resource; PR76 is ready to try from a local package, not installed-release validation.
 
 ## Six user capabilities
 
 1. **Declare and track work — ready to try; source-live validated.** PR37 provides `pi-daddy work add` and ordinary attempt joins. One Sol child produced a visible attached attempt. Acceptance and archive coverage remained unresolved.
-2. **Watch and steer in Herdr — building.** Read-only one/two-attempt views were live. PR38 replaces ordinary raw JSON with host-published labelled action keys. No production connected-host launcher or busy-child live steering proof yet.
-3. **Parallel model/effort variants — building.** One bounded Sol/Terra `delegate_all` occurrence overlapped two isolated children and retained two results/attempts. PR39 exposes bounded thinking levels, ready to try but not live-validated. Three arms and primary/shadow independence remain open.
+2. **Watch and steer in Herdr — candidate validated.** PR38 adds `/grants host <fresh-id>|stop`, exact labelled pause/resume/refresh actions and the private dashboard socket. Live evidence paused new dispatch while an owned child continued, refused a later child, resumed, refreshed attempts in place and reconnected two dashboard clients.
+3. **Parallel model/effort variants — candidate validated.** PR39 retains explicit requested thinking and adds opt-in primary return while preserving wait-for-all. A three-variant live run returned the primary 13.763s before its late shadow terminal event, then `/grants variants` and Work-v4 showed complete accounting. Provider-internal reasoning is not claimed.
 4. **Learn, compare and decide — building.** Archive, signal, retro, blind comparison and adoption primitives exist. Retained work can now derive a silent coverage case without a separate facts file; richer signals still require evidence. No authentic human blind choice or later outcome has been recorded.
 5. **Useful bounded factory delivery — building.** Digest and supervised review routes exist; the first useful multi-step order remains open.
 6. **Second domain and outcomes — building.** The layout fixture is synthetic. A genuine non-development workflow and elapsed outcomes remain open.
@@ -25,13 +25,13 @@ Released, follow-up source, installed package and loaded-session identity are se
 
 | ID | State | Owner / next evidence |
 |---|---|---|
-| C00 | ready to try; release validation pending | harness PR76 plus this register and portable review inputs; fresh candidate pack/install/load passed, but no released installed package contains it |
+| C00 | candidate-installed validated; release validation pending | PR76 packages the extension and exact-source dashboard bridge; fresh canonical pack/install loaded `[Extensions] dist` and started a real source-host bridge, but released npm 0.13.0 does not contain it |
 | C01 | ready to try; live observed on source | pi-daddy PR37; exact retry/change invalidation tests and one visible occurrence |
 | C02 | ready to try | harness commit `127b349` derives only exact retained-work coverage signals; producer PR39 pins it and a connected-host test creates a silent case with zero attention/no note |
-| C03 | building | pi-daddy PR38; production connected host and busy-child action receipt pending |
-| C04 | building | pi-daddy PR39; fresh Sol-low/Terra-high request/overlap/recording validated; three-arm and primary/shadow evidence pending |
+| C03 | candidate validated | pi-daddy PR38; production host, busy-child pause/new-dispatch refusal/resume, same-host refresh and socket reconnect observed |
+| C04 | candidate validated | pi-daddy PR39; three arms, primary-return independence and final original-owner accounting observed; requested effort is not internal-reasoning proof |
 | C05 | ready to try | Principal PR41 makes current applicability the ordinary human view and preserves `human-legacy` |
-| C06 | pending | harness; requires a real case and authentic human blind choice |
+| C06 | concrete choice prepared; response pending | two evidence-backed anonymous daily-refresh interactions are ready for a human A/B/neither choice; no response/adoption invented |
 | C07 | partial | bounded Sol→Terra read-only chain found a real retry defect; repaired on stacked producer PRs; factory-order effect profile remains open |
 | C08 | pending | domain owner; genuine non-development data/workflow required |
 | C09 | decision recorded | [TRANSPORT-DECISION.md](TRANSPORT-DECISION.md): retain current producer path until same guarantees pass; responsibility map and current CI portability recorded; no broad rewrite |
