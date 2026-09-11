@@ -19,6 +19,7 @@ describe('retained learning lifecycle navigation',()=>{
   expect(readLearningLifecycle(f.root,prepared)).toMatchObject({state:'awaiting-human-choice',links:{case:f.caseId,hypothesis:f.hypothesisId,comparison:f.comparisonId,choice:null,adoption:null,rollback:null,outcomes:[]}});
   const observed=retainLearningLifecycle(f.root,{caseManifestId:f.caseId,hypothesisManifestId:f.hypothesisId,comparisonManifestId:f.comparisonId,choiceManifestId:f.choiceId,adoptionManifestId:f.adoptionId,rollbackManifestId:f.rollbackId,outcomeManifestIds:[f.outcomeId],predecessorManifestId:prepared});
   expect(readLearningLifecycle(f.root,observed)).toMatchObject({state:'outcome-observed',predecessorManifestId:prepared,links:{rollback:f.rollbackId,outcomes:[f.outcomeId]}});
+  expect(()=>retainLearningLifecycle(f.root,{caseManifestId:f.caseId,hypothesisManifestId:f.hypothesisId,comparisonManifestId:f.comparisonId,choiceManifestId:null,adoptionManifestId:null,rollbackManifestId:null,outcomeManifestIds:[],predecessorManifestId:observed})).toThrow(/cannot regress/);
  });
  it('fails closed on skipped dependencies and non-existent retained links',()=>{
   const f=fixture(),base={caseManifestId:f.caseId,hypothesisManifestId:f.hypothesisId,comparisonManifestId:f.comparisonId,choiceManifestId:null,adoptionManifestId:null,rollbackManifestId:null,outcomeManifestIds:[],predecessorManifestId:null};
