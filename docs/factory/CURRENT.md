@@ -17,7 +17,7 @@ Released, follow-up source, installed package and loaded-session identity are se
 1. **Declare and track work — ready to try; source-live validated.** PR37 provides `pi-daddy work add` and ordinary attempt joins. One Sol child produced a visible attached attempt. Acceptance and archive coverage remained unresolved.
 2. **Watch and steer in Herdr — building.** Read-only one/two-attempt views were live. PR38 replaces ordinary raw JSON with host-published labelled action keys. No production connected-host launcher or busy-child live steering proof yet.
 3. **Parallel model/effort variants — building.** One bounded Sol/Terra `delegate_all` occurrence overlapped two isolated children and retained two results/attempts. PR39 exposes bounded thinking levels, ready to try but not live-validated. Three arms and primary/shadow independence remain open.
-4. **Learn, compare and decide — building.** Archive, signal, retro, blind comparison and adoption primitives exist. No authentic human blind choice or later outcome has been recorded.
+4. **Learn, compare and decide — building.** Archive, signal, retro, blind comparison and adoption primitives exist. Retained work can now derive a silent coverage case without a separate facts file; richer signals still require evidence. No authentic human blind choice or later outcome has been recorded.
 5. **Useful bounded factory delivery — building.** Digest and supervised review routes exist; the first useful multi-step order remains open.
 6. **Second domain and outcomes — building.** The layout fixture is synthetic. A genuine non-development workflow and elapsed outcomes remain open.
 
@@ -27,7 +27,7 @@ Released, follow-up source, installed package and loaded-session identity are se
 |---|---|---|
 | C00 | ready to try; release validation pending | harness PR76 plus this register and portable review inputs; fresh candidate pack/install/load passed, but no released installed package contains it |
 | C01 | ready to try; live observed on source | pi-daddy PR37; exact retry/change invalidation tests and one visible occurrence |
-| C02 | pending | harness archive + producer join; derive real retained facts without prompts |
+| C02 | building; harness adapter ready to try | null facts now derive only exact retained-work coverage signals (no invented waits/deadlines/violations/prior acceptance); producer source-job join pending |
 | C03 | building | pi-daddy PR38; production connected host and busy-child action receipt pending |
 | C04 | building | pi-daddy PR39; thinking, three-arm and primary/shadow evidence pending |
 | C05 | pending | Principal owner; current-vs-history ordinary renderer decision |
