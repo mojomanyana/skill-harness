@@ -17281,7 +17281,7 @@ function openBlindIntervention2(root, id3, author) {
 }
 
 // packages/pi-extension/src/dashboard-bridge.ts
-var DASHBOARD_HARNESS_SOURCE = "73ab11883bb1c8924dc5ebbe8a61c96e913ee437";
+var DASHBOARD_HARNESS_SOURCE = "2a36632f8780289a2cb82fa42efff440e8530f9a";
 var DASHBOARD_HARNESS_BRIDGE = /* @__PURE__ */ Symbol.for("skill-harness.dashboard-host.v1");
 var functions = {
   learningJournal: learningJournal2,
