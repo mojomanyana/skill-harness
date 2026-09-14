@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.16.0 — Unreleased
+
+### Added
+
+- Guided retained learning through `skill-harness learning`, `/skill-harness learning`, and the existing producer bridge: named cases, actual retained evidence, complete-artifact comparison review, hypotheses and separate adopt/reject/defer decisions.
+- Scope-bound trust setup with frozen cohorts and independently attributed labels, plus explicit later-outcome linkage. Readiness stays silent when evidence is missing; opening it does not reserve attention or start work.
+- Public learning API and offline product guide/requirement register, paired with pi-daddy 0.27.0's ordinary-work model/effort policy profile and producer-owned registry controls.
+
+### Fixed
+
+- Activation linkage requires the original applied registry view, exact request and active/last-change adoption identity, and the complete prepared receipt. Incomplete or mismatched proof fails closed; intent and preference do not activate policy.
+- Adoption help points to the implemented `/grants learning` in interactive Pi. Packaging coverage uses the unmodified packer; implementation-rewriting canaries are removed while normal input/archive-integrity checks remain.
+
+### Compatibility and release status
+
+- Feature PR #80 merged at `c6cd55d4db9ccf9a1ec790459c3cc5e6b1eac69f` with green CI and Sol approval. Source/built cross-package registry/learning integration passed with synthetic fixtures; that is not a final released install.
+- Results remain schema 3. The four public packages and private root/Pi-extension boundaries are unchanged. This metadata preparation changes no runtime code or third-party dependency; no scorecard migration or model rerun is required merely for the version bump.
+- Canonical release archives, fresh installed two-extension verification and publication remain pending. Fixture labels are not human approval, calibration, production adoption, acceptance or efficacy. Existing active sessions require a fresh Pi session to load a newer immutable bridge.
+- Draft post: [A preference is not an activation](docs/posts/2026-09-14-a-preference-is-not-an-activation.md).
+
 ## 0.15.0 — 2026-09-12
 
 ### Added
