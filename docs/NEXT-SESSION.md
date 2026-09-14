@@ -1,5 +1,17 @@
 # Next session — start here
 
+## 2026-09-14 retained learning usability candidate
+
+Canonical baseline is now released 0.15.0 (`a725579`). The additive learning workspace
+composes retained cases, hypotheses, qualified comparisons, complete-artifact quality,
+separate adoption decisions, independent trust labels and original registry/outcome links.
+CLI `learning` and Pi `/skill-harness learning` share the guided flow and the existing
+producer bridge. See `docs/factory/PRODUCT-GUIDE.md` and `docs/factory/STATUS.md` rather
+than the dated factory CURRENT snapshot. End independent review, broader tests and
+installed producer integration remain explicit gates; no model experiment, release,
+calibrated improvement or full-artifact human acceptance is claimed by this implementation.
+
+
 ## 2026-09-12 0.15.0 release preparation
 
 Feature PR #78 merged as `e00941b0565e75c9380270a1f3a536b163ecc159` with exact reviewed head `6b34439d9a3dd51e3509cb580af3bc388dd0a909` preserved as its second parent. Version 0.15.0 packages projection-only runtime facts and monotonic bounded content-addressed learning-lifecycle navigation across case, hypothesis, comparison, optional choice/adoption/rollback and later outcomes. Missing stages remain explicit; supplied host facts stay separately linked. The live npm baseline is 0.14.0. Canonical pack, path smoke, publication and immutable tag remain release steps; human choice, trust calibration, adoption and later outcomes are not release claims.

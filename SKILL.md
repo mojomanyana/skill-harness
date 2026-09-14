@@ -82,7 +82,7 @@ the judge's verdict; only an explicit author override beats it.
 ## Free, offline, and worth running first
 None of these spend a model or judge token. Reach for them before anything paid:
 `init`, `lint`, `list`, `rescore`, `restamp`, `screen`, `stability`, `coverage`, `affected`, `archive`,
-and `judge-agreement`. In particular —
+`learning`, and `judge-agreement`. In particular —
 - `coverage <skill|all> --skills <root>` — which SKILL.md sections have a declared
   test. `covers` records that somebody LINKED a test to a section; it is not proof
   the behaviour is tested, and it is worth saying so when you report a percentage.
@@ -95,6 +95,17 @@ and `judge-agreement`. In particular —
 `rubric:` → `grade` (judge only), `policy:` → `rescore` (free), `gates:` → `regate`
 (no subject call; one judge call for each fail→pass rep). Never reach for `run` when lint
 asked for one of the other three. Confirm that possible judge spend before running `regate`.
+
+## Retained factory learning
+
+Use `/skill-harness learning` or `skill-harness learning` for guided retained cases,
+complete-artifact comparisons, trust setup/independent labels and explicit adoption decisions.
+Use the matching producer's `/grants learning` for exact host scope binding and its authorized
+next-order registry activation/rollback. Do not author manifests for the user, infer quality
+from exit zero, reset attention, or convert excerpt feedback to full-artifact acceptance.
+Reading starts no models/delegation or automatic exposure. Human quality, technical eligibility,
+adoption authority and later observation remain separate. Guide: `docs/factory/PRODUCT-GUIDE.md`;
+current register: `docs/factory/STATUS.md`.
 
 ## Capturing a real failure
 `/skill-harness capture` (pi extension only — NOT a CLI command, and it refuses to

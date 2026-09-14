@@ -12,6 +12,8 @@ packages/skill-harness/dist/*
 .DS_Store
 *.tsbuildinfo
 packages/cli/assets/
+packages/cli/docs/
+packages/skill-harness/docs/
 packages/core/schemas/
 packages/core/LICENSE
 packages/adapters/LICENSE

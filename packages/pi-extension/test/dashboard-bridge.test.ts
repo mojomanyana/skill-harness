@@ -8,7 +8,7 @@ describe("dashboard harness bridge", () => {
     expect(first).toMatchObject({ version: "skill-harness-dashboard-bridge-v1", sourceCommit: DASHBOARD_HARNESS_SOURCE });
     expect(Object.isFrozen(first)).toBe(true);
     expect(Object.isFrozen(first.api)).toBe(true);
-    for (const name of ["learningJournal", "createTrustLifecycle", "captureArchivedWorkSignals", "createWorkSignalReviewer"]) {
+    for (const name of ["learningJournal", "createTrustLifecycle", "captureArchivedWorkSignals", "createWorkSignalReviewer", "createLearningWorkspace", "openLearningWorkspace", "catalogLearningArchive", "previewLearningTrust", "configureLearningTrust", "previewLearningCaseLabel", "runLearningWizard", "reviewLearningComparison", "runLearningCommand"]) {
       expect(typeof (first.api as Record<string, unknown>)[name]).toBe("function");
     }
     expect(publishDashboardHarnessBridge(target)).toBe(first);

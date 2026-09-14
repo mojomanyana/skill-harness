@@ -14,6 +14,18 @@ pi install npm:skill-harness     # CLI plus /skill-harness extension in Pi
 
 The Pi package declares its bundled extension directly. After install/update, `/reload` makes it available in an existing supported Pi session; verify the loaded resource rather than treating the package version as proof.
 
+## Retained learning
+
+`skill-harness learning` or `/skill-harness learning` opens guided retained case/comparison
+review, scoped trust setup and independent labels, and separate adopt/reject/defer decisions.
+Use `/grants learning` with the matching producer host for exact scope binding and supported
+next-order activation/rollback. `learning help` lists noninteractive commands; `--confirm`
+authorizes only the displayed local write. No learning command calls a model.
+
+[Portable product guide](https://github.com/mojomanyana/skill-harness/blob/main/docs/factory/PRODUCT-GUIDE.md)
+· [Current evidence and limitations](https://github.com/mojomanyana/skill-harness/blob/main/docs/factory/STATUS.md).
+Quality choice is not acceptance, calibration or activation. Excerpt-only feedback stays excerpt-only.
+
 ## The loop
 
 1. **list** — discover which skills have a spec.
