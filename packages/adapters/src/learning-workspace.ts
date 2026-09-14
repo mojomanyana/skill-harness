@@ -212,6 +212,11 @@ export function openLearningWorkspace(directory: string) {
     text(r.requestId,128);
     const view = jsonSource<Record<string,unknown>>(input.archiveRoot,r.registryManifestId);
     if (view.version!=='factory-registry-view-v1' || view.scopeDigest!==r.scopeDigest || view.candidateDigest!==r.candidateDigest || view.revision!==r.revision) throw Error('original registry observation mismatch');
+    if (operation==='activate') {
+      const active=view.activation as {requestId?:unknown;receipt?:{id?:unknown}}|null|undefined;
+      const change=view.lastChange as {operation?:unknown;requestId?:unknown;adoptionId?:unknown}|null|undefined;
+      if (view.application!=='applied' || view.requestId!==r.requestId || change?.operation!=='activate' || change.requestId!==r.requestId || change.adoptionId!==r.adoptionId || active?.requestId!==r.requestId || active.receipt?.id!==r.adoptionId || learningHash(active.receipt)!==learningHash(a)) throw Error('activation not applied by original registry for the exact request and adoption');
+    }
     if (operation==='rollback' && (view.application!=='applied' || view.requestId!==r.requestId || r.requestId!==(last('rollback-request',name)?.request as RollbackRequest|undefined)?.id)) throw Error('rollback not applied by original registry');
     return r;
   };

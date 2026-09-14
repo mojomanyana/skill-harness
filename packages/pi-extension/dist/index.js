@@ -14957,6 +14957,12 @@ function openLearningWorkspace(directory7) {
     const view = jsonSource(input.archiveRoot, r.registryManifestId);
     if (view.version !== "factory-registry-view-v1" || view.scopeDigest !== r.scopeDigest || view.candidateDigest !== r.candidateDigest || view.revision !== r.revision)
       throw Error("original registry observation mismatch");
+    if (operation === "activate") {
+      const active = view.activation;
+      const change = view.lastChange;
+      if (view.application !== "applied" || view.requestId !== r.requestId || change?.operation !== "activate" || change.requestId !== r.requestId || change.adoptionId !== r.adoptionId || active?.requestId !== r.requestId || active.receipt?.id !== r.adoptionId || learningHash(active.receipt) !== learningHash(a))
+        throw Error("activation not applied by original registry for the exact request and adoption");
+    }
     if (operation === "rollback" && (view.application !== "applied" || view.requestId !== r.requestId || r.requestId !== last("rollback-request", name)?.request?.id))
       throw Error("rollback not applied by original registry");
     return r;
@@ -16059,7 +16065,7 @@ var LEARNING_HELP = `Learning \u2014 retained evidence, no model calls
 All commands accept --state DIR (default .skill-harness/learning), --json for structured output.
 --confirm authorizes only the displayed local write, never models, acceptance or registry activation.
 No raw manifest authoring. Import selects actual retained inputs. Exit zero is command completion, not quality.
-Registry activation/rollback use the connected pi-daddy learning controls and their independent authority.`;
+Registry activation/rollback use /grants learning in interactive Pi, with independent authority.`;
 function learningDisplay(text14) {
   return text14.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
 }
@@ -16397,7 +16403,7 @@ ${learningDisplay(text14)}`);
       activation: v.activation,
       rollback: v.rollback,
       reason: !v.adoptionConfigured ? "independent scoped candidate/eligibility/authority not configured" : v.activation === "recorded" ? "activation receipt linked; existing sessions unchanged" : "prepared/intent is not activation; use original producer registry controls",
-      next: "Use /grants learning or pi-daddy learning for authorized next-order activation/rollback."
+      next: "Use /grants learning in interactive Pi for authorized next-order activation/rollback."
     });
   }
   if (command === "outcome") {
@@ -20557,6 +20563,11 @@ function openLearningWorkspace2(directory7) {
     text13(r.requestId, 128);
     const view = jsonSource2(input.archiveRoot, r.registryManifestId);
     if (view.version !== "factory-registry-view-v1" || view.scopeDigest !== r.scopeDigest || view.candidateDigest !== r.candidateDigest || view.revision !== r.revision) throw Error("original registry observation mismatch");
+    if (operation === "activate") {
+      const active = view.activation;
+      const change = view.lastChange;
+      if (view.application !== "applied" || view.requestId !== r.requestId || change?.operation !== "activate" || change.requestId !== r.requestId || change.adoptionId !== r.adoptionId || active?.requestId !== r.requestId || active.receipt?.id !== r.adoptionId || learningHash2(active.receipt) !== learningHash2(a)) throw Error("activation not applied by original registry for the exact request and adoption");
+    }
     if (operation === "rollback" && (view.application !== "applied" || view.requestId !== r.requestId || r.requestId !== last("rollback-request", name)?.request?.id)) throw Error("rollback not applied by original registry");
     return r;
   };

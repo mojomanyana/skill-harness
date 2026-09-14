@@ -42,8 +42,41 @@ it('accepts the additive ordinary-work registry view without relaxing receipt au
     revision: operation === 'activate' ? 1 : 2, registryManifestId: retain('producer-registry', view), ...extra,
   });
   const before = readFileSync(join(f.directory, 'events.jsonl'));
-  const activation = wrap('activate', request.requestId, activated);
+  // Recovery after an order pin retains the same applied activation identities.
+  const readback = { ...activated, orders: [{ orderId: 'fixture-order', candidateDigest: receipt.candidateDigest, adoptionId: receipt.id, revision: 1 }] };
+  const activation = wrap('activate', request.requestId, readback);
   expect(() => f.workspace.linkActivation('reports', activation, [])).toThrow(/authority/);
+  const rejectActivation = (label: string, view: unknown) => {
+    const invalid = wrap('activate', request.requestId, view);
+    expect(() => f.workspace.linkActivation('reports', invalid, [invalid]), label).toThrow(/activation not applied/);
+  };
+  rejectActivation('bare state is not activation', { version: activated.version, scopeDigest: activated.scopeDigest, candidateDigest: activated.candidateDigest, revision: 1 });
+  for (const field of ['application', 'requestId', 'activation', 'lastChange']) {
+    const incomplete: Record<string, unknown> = { ...activated }; delete incomplete[field];
+    rejectActivation(`missing ${field}`, incomplete);
+  }
+  for (const field of ['operation', 'requestId', 'adoptionId']) {
+    const incomplete: Record<string, unknown> = { ...activated.lastChange }; delete incomplete[field];
+    rejectActivation(`missing lastChange.${field}`, { ...activated, lastChange: incomplete });
+  }
+  for (const field of ['requestId', 'receipt']) {
+    const incomplete: Record<string, unknown> = { ...request }; delete incomplete[field];
+    rejectActivation(`missing activation.${field}`, { ...activated, activation: incomplete });
+  }
+  for (const [label, changed] of [
+    ['unapplied', { application: 'not-performed' }],
+    ['wrong view request', { requestId: 'another-request' }],
+    ['no active adoption', { activation: null }],
+    ['missing receipt identity', { activation: { ...request, receipt: {} } }],
+    ['wrong active request', { activation: { ...request, requestId: 'another-request' } }],
+    ['wrong active adoption', { activation: { ...request, receipt: { ...receipt, id: sha('another-adoption') } } }],
+    ['altered receipt with same ID', { activation: { ...request, receipt: { ...receipt, scopeDigest: sha('foreign') } } }],
+    ['wrong last operation', { lastChange: { ...activated.lastChange, operation: 'rollback' } }],
+    ['wrong last request', { lastChange: { ...activated.lastChange, requestId: 'another-request' } }],
+    ['wrong last adoption', { lastChange: { ...activated.lastChange, adoptionId: sha('another-adoption') } }],
+  ] as const) rejectActivation(label, { ...activated, ...changed });
+  expect(f.workspace.adoptionStatus('reports').activationManifestId).toBeNull();
+  expect(() => f.workspace.previewRollback('reports', 'operator-request', [f.caseManifestId])).toThrow(/observed activation/);
   for (const changed of [{ scopeDigest: sha('foreign') }, { candidateDigest: sha('wrong-policy') }, { revision: 3 }]) {
     const invalid = wrap('activate', request.requestId, { ...activated, ...changed });
     expect(() => f.workspace.linkActivation('reports', invalid, [invalid])).toThrow(/original registry observation mismatch/);

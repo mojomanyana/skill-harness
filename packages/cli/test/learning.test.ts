@@ -14,6 +14,13 @@ it('normal CLI commands list existing sources and require deliberate confirmed q
   await invoke(['reveal','reports']);expect(JSON.parse(output.at(-1)!)).toHaveProperty('arms');
   await expect(invoke(['status','--unexpected','yes'])).rejects.toThrow(/unsupported/);
 });
+it('points the adoption handoff only to implemented /grants learning in interactive Pi',async()=>{
+  const f=fixture(),output:string[]=[],before=readFileSync(join(f.directory,'events.jsonl'));
+  await runLearningCommand(['adoption','reports','--state',f.directory,'--json'],{write:t=>output.push(t)});
+  expect(JSON.parse(output[0]).next).toBe('Use /grants learning in interactive Pi for authorized next-order activation/rollback.');
+  expect(output[0]).not.toContain('pi-daddy learning');
+  expect(readFileSync(join(f.directory,'events.jsonl'))).toEqual(before);
+});
 it('does not treat a guided excerpt or cancelled view as full artifact acknowledgement',async()=>{
   const f=fixture(),choices:string[][]=[];let step=0;
   const ui:LearningUI={notify:()=>{},input:async()=>undefined,editor:async()=>undefined,confirm:async()=>true,

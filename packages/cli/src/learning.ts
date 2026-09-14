@@ -47,7 +47,7 @@ export const LEARNING_HELP = `Learning — retained evidence, no model calls
 All commands accept --state DIR (default .skill-harness/learning), --json for structured output.
 --confirm authorizes only the displayed local write, never models, acceptance or registry activation.
 No raw manifest authoring. Import selects actual retained inputs. Exit zero is command completion, not quality.
-Registry activation/rollback use the connected pi-daddy learning controls and their independent authority.`;
+Registry activation/rollback use /grants learning in interactive Pi, with independent authority.`;
 
 /** Escape terminal control/format characters in untrusted retained display text. Exact archive
  * bytes never change; output honestly identifies this as a display representation. */
@@ -221,7 +221,7 @@ export async function runLearningCommand(argv:string[],options:LearningCommandOp
   if(command==='adoption') {
     const v=workspace.comparison(word(name,'comparison name'));
     return emit({scope:v.scopeStatement,quality:v.qualityScope,decision:v.decision,configured:v.adoptionConfigured,activation:v.activation,rollback:v.rollback,
-      reason:!v.adoptionConfigured?'independent scoped candidate/eligibility/authority not configured':v.activation==='recorded'?'activation receipt linked; existing sessions unchanged':'prepared/intent is not activation; use original producer registry controls',next:'Use /grants learning or pi-daddy learning for authorized next-order activation/rollback.'});
+      reason:!v.adoptionConfigured?'independent scoped candidate/eligibility/authority not configured':v.activation==='recorded'?'activation receipt linked; existing sessions unchanged':'prepared/intent is not activation; use original producer registry controls',next:'Use /grants learning in interactive Pi for authorized next-order activation/rollback.'});
   }
   if(command==='outcome') {
     word(name,'comparison name');

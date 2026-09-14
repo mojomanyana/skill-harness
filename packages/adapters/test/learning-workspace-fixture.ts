@@ -33,7 +33,9 @@ export function learningWorkspaceFixture(digests: { candidateDigest?: string; ro
   const authority={id:'fixture-authority',adoptions:[adoptionBinding.id],rollbacks:[] as string[]};
   const prepare=()=>{quality();workspace.decide('reports',{disposition:'adopt',note:'Fixture intent, not activation',priorDecisionId:null});return workspace.prepareAdoption('reports',authority,facts,Date.now());};
   const registry=(receipt:Omit<LearningRegistryReceipt,'registryManifestId'|'version'>)=>{
-    const view={version:'factory-registry-view-v1',scopeDigest:receipt.scopeDigest,candidateDigest:receipt.candidateDigest,revision:receipt.revision,...(receipt.operation==='rollback'?{application:'applied',requestId:receipt.requestId}:{})};
+    const view={version:'factory-registry-view-v1',scopeDigest:receipt.scopeDigest,candidateDigest:receipt.candidateDigest,revision:receipt.revision,
+      application:'applied',requestId:receipt.requestId,lastChange:{operation:receipt.operation,requestId:receipt.requestId,adoptionId:receipt.adoptionId},
+      ...(receipt.operation==='activate'?{activation:{requestId:receipt.requestId,receipt:workspace.preparedAdoption('reports')}}:{})};
     const registryManifestId=retainArchiveSource(archiveRoot,{sourceId:'fixture-original-registry-view',parser:{id:'fixture-registry-view',version:'1'},retention:'exact',bytes:Buffer.from(JSON.stringify(view))}).manifestId;
     return retainArchiveSource(archiveRoot,{sourceId:'fixture-registry-receipt',parser:{id:'learning-registry-receipt',version:'1'},retention:'exact',bytes:Buffer.from(JSON.stringify({version:'learning-registry-receipt-v1',...receipt,registryManifestId}))}).manifestId;
   };

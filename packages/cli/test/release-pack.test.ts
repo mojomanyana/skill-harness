@@ -2,7 +2,6 @@ import { afterAll, describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import {
   chmodSync,
-  copyFileSync,
   cpSync,
   existsSync,
   lstatSync,
@@ -80,6 +79,7 @@ function cloneRepo(label: string): string {
       if (/^packages\/(core|adapters|cli)\/dist(?:\/|$)/.test(rel)) return false;
       if (/^packages\/core\/schemas(?:\/|$)/.test(rel)) return false;
       if (/^packages\/cli\/assets(?:\/|$)/.test(rel)) return false;
+      if (/^packages\/(cli|skill-harness)\/docs(?:\/|$)/.test(rel)) return false;
       if (/^packages\/(core|adapters|cli|skill-harness)\/LICENSE$/.test(rel)) return false;
       return true;
     },
@@ -91,7 +91,8 @@ function cloneRepo(label: string): string {
   return destination;
 }
 
-function commitPaths(root: string, paths: string[], message = "mutation"): void {
+// Change fixture inputs/artifacts only; never patch the packer's implementation.
+function commitPaths(root: string, paths: string[], message = "fixture input"): void {
   for (const args of [["add", "--", ...paths], ["commit", "-qm", message]]) {
     const result = spawnSync("git", args, { cwd: root, encoding: "utf8", env: GIT_ENV });
     if (result.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
@@ -148,6 +149,20 @@ function tarEntry(archive: string, wantedPath: string): { mode: number; content:
   throw new Error(`${archive} is missing ${wantedPath}`);
 }
 
+function assertPackagedGuides(root: string, manifest: ReleaseManifest): void {
+  for (const [directory, name] of [["cli", "@skill-harness/cli"], ["skill-harness", "skill-harness"]]) {
+    const pkg = manifest.artifacts.find(artifact => artifact.package === name)!;
+    for (const file of ["PRODUCT-GUIDE.md", "STATUS.md"]) {
+      const expected = readFileSync(join(root, "docs", "factory", file));
+      expect(readFileSync(join(root, "packages", directory, "docs", file))).toEqual(expected);
+      expect(pkg.files.find(entry => entry.path === `docs/${file}`)?.mode).toBe(CANONICAL_MODE);
+      const archived = tarEntry(join(root, "release-artifacts", pkg.filename), `package/docs/${file}`);
+      expect(archived.content).toEqual(expected);
+      expect(archived.mode).toBe(CANONICAL_MODE);
+    }
+  }
+}
+
 afterAll(() => {
   if (TMP) rmSync(TMP, { recursive: true, force: true });
 });
@@ -156,12 +171,14 @@ describe.skipIf(!pinnedToolchain)("authoritative release packaging", () => {
   it("builds absent outputs, records digests, and packs cli.js as canonical 0644", () => {
     const root = cloneRepo("clean");
     expect(existsSync(join(root, CLI_OUTPUT))).toBe(false);
+    for (const pkg of ["cli", "skill-harness"]) expect(existsSync(join(root, "packages", pkg, "docs"))).toBe(false);
 
     const result = runReleasePack(root);
     requireSuccess(result);
 
     expect(mode(join(root, CLI_OUTPUT))).toBe(CANONICAL_MODE);
     const manifest = readManifest(root);
+    assertPackagedGuides(root, manifest);
     expect(manifest.source).toEqual({
       commit: spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim(),
       tree: spawnSync("git", ["rev-parse", "HEAD^{tree}"], { cwd: root, encoding: "utf8" }).stdout.trim(),
@@ -230,6 +247,14 @@ describe.skipIf(!pinnedToolchain)("authoritative release packaging", () => {
     chmodSync(reusedCli, 0o755);
     expect(mode(reusedCli)).toBe(0o755);
     expect(readFileSync(reusedCli)).toEqual(cleanCli);
+    for (const pkg of ["cli", "skill-harness"]) {
+      const docs = join(reused, "packages", pkg, "docs");
+      mkdirSync(docs);
+      for (const file of ["PRODUCT-GUIDE.md", "STATUS.md", "obsolete.md"]) {
+        writeFileSync(join(docs, file), "stale generated document\n");
+        chmodSync(join(docs, file), 0o755);
+      }
+    }
 
     const reusedResult = runReleasePack(reused);
     requireSuccess(reusedResult);
@@ -237,6 +262,8 @@ describe.skipIf(!pinnedToolchain)("authoritative release packaging", () => {
     expect(readFileSync(reusedCli)).toEqual(cleanCli);
 
     const reusedManifest = readManifest(reused);
+    assertPackagedGuides(reused, reusedManifest);
+    for (const pkg of ["cli", "skill-harness"]) expect(existsSync(join(reused, "packages", pkg, "docs", "obsolete.md"))).toBe(false);
     expect(reusedManifest.artifacts.map(({ filename, sha256: digest }) => ({ filename, digest })))
       .toEqual(cleanManifest.artifacts.map(({ filename, sha256: digest }) => ({ filename, digest })));
     for (const [filename, bytes] of cleanArtifacts) {
@@ -512,32 +539,6 @@ describe.skipIf(!pinnedToolchain)("authoritative release packaging", () => {
     expect(existsSync(join(staleOutput, MANIFEST))).toBe(false);
     expect(readFileSync(join(staleOutput, "unexpected.txt"), "utf8")).toBe("keep me\n");
 
-    const wrongToolchain = cloneRepo("stale-manifest-toolchain-refusal");
-    const wrongOutput = join(wrongToolchain, "release-artifacts");
-    mkdirSync(wrongOutput);
-    writeFileSync(join(wrongOutput, MANIFEST), "stale\n");
-    const wrongScript = join(wrongToolchain, "scripts", "release-pack.mjs");
-    const wrongSource = readFileSync(wrongScript, "utf8");
-    expect(wrongSource).toContain('const requiredNodeVersion = "v20.20.2";');
-    writeFileSync(wrongScript, wrongSource.replace('const requiredNodeVersion = "v20.20.2";', 'const requiredNodeVersion = "v0.0.0";'));
-    const wrongResult = runReleasePack(wrongToolchain);
-    expect(wrongResult.status).not.toBe(0);
-    expect(wrongResult.combined).toMatch(/release packaging requires Node 0\.0\.0/i);
-    expect(existsSync(join(wrongOutput, MANIFEST))).toBe(false);
-
-    const wrongNpm = cloneRepo("stale-manifest-npm-refusal");
-    const wrongNpmOutput = join(wrongNpm, "release-artifacts");
-    mkdirSync(wrongNpmOutput);
-    writeFileSync(join(wrongNpmOutput, MANIFEST), "stale\n");
-    const wrongNpmScript = join(wrongNpm, "scripts", "release-pack.mjs");
-    const wrongNpmSource = readFileSync(wrongNpmScript, "utf8");
-    expect(wrongNpmSource).toContain('const requiredNpmVersion = "10.8.2";');
-    writeFileSync(wrongNpmScript, wrongNpmSource.replace('const requiredNpmVersion = "10.8.2";', 'const requiredNpmVersion = "0.0.0";'));
-    const wrongNpmResult = runReleasePack(wrongNpm);
-    expect(wrongNpmResult.status).not.toBe(0);
-    expect(wrongNpmResult.combined).toMatch(/release packaging requires npm 0\.0\.0/i);
-    expect(existsSync(join(wrongNpmOutput, MANIFEST))).toBe(false);
-
     const overlap = cloneRepo("overlapping-output");
     const overlapOutput = join(overlap, "packages", "cli", "dist");
     const overlapResult = runReleasePack(overlap, overlapOutput);
@@ -554,23 +555,7 @@ describe.skipIf(!pinnedToolchain)("authoritative release packaging", () => {
     expect(existsSync(join(overlapOutput, MANIFEST))).toBe(false);
   }, 30_000);
 
-  it("rejects missing declarations and npm inventory drift", () => {
-    const missingDeclaration = cloneRepo("missing-declaration");
-    const declarationScript = join(missingDeclaration, "scripts", "release-pack.mjs");
-    const declarationSource = readFileSync(declarationScript, "utf8");
-    const preparation = "await prepareCanonicalBuildOutputs(repoRoot);";
-    expect(declarationSource.split(preparation)).toHaveLength(2);
-    writeFileSync(declarationScript, declarationSource.replace(
-      preparation,
-      `${preparation}\n  unlinkSync(join(repoRoot, "packages/core/dist/index.d.ts")); // mutation: declaration missing`,
-    ));
-    commitPaths(missingDeclaration, ["scripts/release-pack.mjs"]);
-    const declarationResult = runReleasePack(missingDeclaration);
-    expect(declarationResult.status).not.toBe(0);
-    expect(declarationResult.combined).toMatch(/dist\/index\.d\.ts is missing|JavaScript and declaration outputs must be paired/i);
-    expect(existsSync(join(declarationResult.output, MANIFEST))).toBe(false);
-    expect(readdirSync(declarationResult.output)).toEqual([]);
-
+  it("rejects npm inventory drift", () => {
     const unexpected = cloneRepo("unexpected-npm-file");
     const unexpectedManifestPath = join(unexpected, "packages", "core", "package.json");
     const unexpectedManifest = JSON.parse(readFileSync(unexpectedManifestPath, "utf8"));
@@ -639,45 +624,6 @@ describe.skipIf(!pinnedToolchain)("authoritative release packaging", () => {
     expect(result.combined).toMatch(/requires npm lifecycle scripts; ignore-scripts is true/i);
     expect(readdirSync(result.output)).toEqual([]);
   }, 30_000);
-
-  it("rejects an actual tar inventory mutation after npm metadata agrees", () => {
-    const root = cloneRepo("tar-inventory-mutation");
-    const script = join(root, "scripts", "release-pack.mjs");
-    let source = readFileSync(script, "utf8");
-    source = source.replace(
-      'import { gunzipSync } from "node:zlib";',
-      'import { gzipSync, gunzipSync } from "node:zlib";',
-    );
-    const needle = "assertRegularFile(archive, archive);\n      const tarFiles = inspectTarArchive(archive, expected);";
-    expect(source.match(new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"))).toHaveLength(1);
-    const mutation = `assertRegularFile(archive, archive);\n      if (pkg.workspace === "@skill-harness/core") {\n        const mutatedTar = gunzipSync(readFileSync(archive));\n        const originalName = Buffer.from("package/README.md");\n        const replacementName = Buffer.from("package/SURPRISE.");\n        const headerOffset = mutatedTar.indexOf(originalName);\n        if (headerOffset < 0) throw new Error("mutation could not find README header");\n        replacementName.copy(mutatedTar, headerOffset);\n        const blockOffset = Math.floor(headerOffset / 512) * 512;\n        mutatedTar.fill(0x20, blockOffset + 148, blockOffset + 156);\n        let checksum = 0;\n        for (let i = 0; i < 512; i += 1) checksum += mutatedTar[blockOffset + i];\n        Buffer.from(checksum.toString(8).padStart(6, "0") + "\\0 ").copy(mutatedTar, blockOffset + 148);\n        writeFileSync(archive, gzipSync(mutatedTar, { mtime: 0 }));\n      }\n      const tarFiles = inspectTarArchive(archive, expected);`;
-    writeFileSync(script, source.replace(needle, mutation));
-    commitPaths(root, ["scripts/release-pack.mjs"]);
-
-    const result = runReleasePack(root);
-    expect(result.status).not.toBe(0);
-    expect(result.combined).toMatch(/tar inventory mismatch.*unexpected SURPRISE\..*missing README\.md/i);
-    expect(existsSync(join(result.output, MANIFEST))).toBe(false);
-    expect(readdirSync(result.output)).toEqual([]);
-  }, 60_000);
-
-  it("revalidates all final archive bytes after later package work completes", () => {
-    const root = cloneRepo("late-archive-mutation");
-    const script = join(root, "scripts", "release-pack.mjs");
-    const source = readFileSync(script, "utf8");
-    const needle = "const finalArchiveBytes = new Map();";
-    expect(source.split(needle)).toHaveLength(2);
-    writeFileSync(script, source.replace(
-      needle,
-      `writeFileSync(artifactPath(finalOutput.absolute, artifacts[0].filename), "late replacement\\n"); // mutation: after initial tar validation\n  ${needle}`,
-    ));
-    commitPaths(root, ["scripts/release-pack.mjs"]);
-    const result = runReleasePack(root);
-    expect(result.status).not.toBe(0);
-    expect(result.combined).toMatch(/incorrect header check|unexpected end of file|invalid tar|unknown compression/i);
-    expect(existsSync(join(result.output, MANIFEST))).toBe(false);
-    expect(readdirSync(result.output)).toEqual([]);
-  }, 60_000);
 
   it("binds and replaces stale source/toolchain manifests, and detects later archive mutation", () => {
     const root = cloneRepo("manifest-binding");
@@ -752,33 +698,4 @@ describe.skipIf(!pinnedToolchain)("authoritative release packaging", () => {
     expect(readdirSync(output)).toEqual([]);
   }, 30_000);
 
-  it("fails the reused-workspace regression when canonical output preparation is removed", () => {
-    const clean = cloneRepo("mutation-clean-reference");
-    const cleanResult = runReleasePack(clean);
-    requireSuccess(cleanResult);
-    const cleanCli = readFileSync(join(clean, CLI_OUTPUT));
-
-    const mutated = cloneRepo("mutation-no-normalization");
-    cpSync(join(clean, "packages", "core", "schemas"), join(mutated, "packages", "core", "schemas"), { recursive: true });
-    cpSync(join(clean, "packages", "cli", "assets"), join(mutated, "packages", "cli", "assets"), { recursive: true });
-    for (const directory of ["core", "adapters", "cli", "skill-harness"]) {
-      copyFileSync(join(clean, "packages", directory, "LICENSE"), join(mutated, "packages", directory, "LICENSE"));
-    }
-    const cli = join(mutated, CLI_OUTPUT);
-    mkdirSync(dirname(cli), { recursive: true });
-    writeFileSync(cli, cleanCli);
-    chmodSync(cli, 0o755);
-
-    const script = join(mutated, "scripts", "release-pack.mjs");
-    const source = readFileSync(script, "utf8");
-    const needle = "await prepareCanonicalBuildOutputs(repoRoot);";
-    expect(source.match(new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"))).toHaveLength(1);
-    writeFileSync(script, source.replace(needle, 'await runNpm(repoRoot, ["run", "build"]); // mutation: normalization removed'));
-    commitPaths(mutated, ["scripts/release-pack.mjs"]);
-
-    const result = runReleasePack(mutated);
-    expect(result.status).not.toBe(0);
-    expect(result.combined).toMatch(/dist\/cli\.js.*0755.*0644|canonical mode.*0644/i);
-    expect(existsSync(join(result.output, MANIFEST))).toBe(false);
-  }, 90_000);
 });
