@@ -131,20 +131,27 @@ export function retainArchiveSource(root: string, input: ArchiveSourceInput): { 
   return { manifestId, reference };
 }
 
+export type ArchiveReferenceRead = { status: 'available'; reference: ArchiveSourceReference } | Exclude<ArchiveRead, {status:'available'}>;
+/** Metadata only for explicit archive inventory. Does not claim content availability. */
+export function readArchiveSourceReference(root: string, manifestId: string): ArchiveReferenceRead {
+  if (!HASH.test(manifestId)) return { status: 'error', reason: 'invalid manifest identity' };
+  try {
+    directory(root, false); directory(join(root, 'manifests'), false);
+    const text = readVerified(join(root, 'manifests', manifestId), manifestId, 8192).toString('utf8');
+    const reference: unknown = JSON.parse(text);
+    if (!validReference(reference) || JSON.stringify(reference) !== text) fail('invalid manifest');
+    return {status:'available',reference};
+  } catch(error) {
+    return absent(error) ? {status:'missing',reason:'manifest'} : {status:'error',reason:'invalid or inaccessible retained evidence'};
+  }
+}
+
 export function readArchiveSource(root: string, manifestId: string, maxBytes = LIMIT): ArchiveRead {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > LIMIT) return { status: "error", reason: "invalid read bound" };
-  if (!HASH.test(manifestId)) return { status: "error", reason: "invalid manifest identity" };
   try {
-    let manifest: Buffer;
-    try {
-      directory(root, false); directory(join(root, "manifests"), false);
-      manifest = readVerified(join(root, "manifests", manifestId), manifestId, 8192);
-    } catch (error) {
-      if (absent(error)) return { status: "missing", reason: "manifest" };
-      throw error;
-    }
-    const text = manifest.toString("utf8"); const reference: unknown = JSON.parse(text);
-    if (!validReference(reference) || JSON.stringify(reference) !== text) fail("invalid manifest");
+    const manifest = readArchiveSourceReference(root, manifestId);
+    if (manifest.status !== 'available') return manifest;
+    const { reference } = manifest;
     if (reference.retention === "reference-only") return { status: "missing", reason: "not-retained" };
     if (reference.bytes > maxBytes) return { status: "error", reason: "read bound exceeded" };
     let bytes: Buffer;

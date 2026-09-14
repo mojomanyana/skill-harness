@@ -1,3 +1,6 @@
+> Historical release-line guide. The current portable entrypoint is [PRODUCT-GUIDE.md](PRODUCT-GUIDE.md);
+> current evidence/limitations are in [STATUS.md](STATUS.md).
+
 # Factory daily use — 0.15.0/0.25.0 release line
 
 These commands describe the merged 0.15.0/0.25.0 source line. Verify npm/GitHub release coordinates before treating them as installed-release behavior.

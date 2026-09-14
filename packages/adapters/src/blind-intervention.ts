@@ -69,7 +69,13 @@ function load(root: string, id: string, author: string) {
     if (artifact.status !== "available" || artifact.reference.retention !== "exact" || artifact.reference.parser.id !== "blind-artifact" || artifact.reference.parser.version !== "1" || artifact.reference.sha256 !== ref.hash || (total += artifact.bytes.length) > 64 * 1024 * 1024) throw new Error("blind artifact unavailable");
     artifacts.set(ref.hash, artifact.bytes);
   }
-  return createBlindComparison(bundle.manifest, assessIntervention(bundle.manifest, bundle.evidence, { ...bundle.qualification, artifacts }), bundle.seed);
+  const assessment = assessIntervention(bundle.manifest, bundle.evidence, { ...bundle.qualification, artifacts });
+  return { blind: createBlindComparison(bundle.manifest, assessment, bundle.seed), manifest: bundle.manifest };
+}
+/** Opaque linkage metadata only; never exposes roles, arm identities or cost before choice. */
+export function readBlindInterventionBinding(root: string, id: string, author: string) {
+  const { manifest } = load(root, id, author);
+  return Object.freeze({ experimentDigest: manifest.id, investigationDigest: manifest.investigationSha256 });
 }
 function directory(path: string): void {
   const s = lstatSync(path);
@@ -98,10 +104,11 @@ function readChoice(root: string, id: string): BlindQualityChoice | null {
 /** One immutable quality choice per comparison. Reopening cannot reset the reveal gate. */
 export function openBlindIntervention(root: string, id: string, author: string) {
   if (!SHA.test(id)) throw new Error("invalid blind comparison identity");
-  const current = () => load(root, id, author);
+  const current = () => load(root, id, author).blind;
   return Object.freeze({
     view: () => current().view(),
     quality() { const blind = current(), choice = readChoice(root, id); return choice ? blind.choose(choice) : null; },
+    previewChoice(input: BlindQualityChoice) { return current().choose(input); },
     readArtifact: (label: string, hash: string) => current().readArtifact(label, hash),
     choose(input: BlindQualityChoice) {
       const blind = current(), choice = blind.choose(input);

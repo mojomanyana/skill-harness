@@ -8,7 +8,12 @@ import { readRetainedExecution, projectRetainedExecutions } from "../../adapters
 import { createWorkCaseReviewer, createWorkSignalReviewer } from "../../adapters/src/work-case-review.js";
 import { retainBlindIntervention, openBlindIntervention } from "../../adapters/src/blind-intervention.js";
 import { retainLearningLifecycle, readLearningLifecycle } from "../../adapters/src/learning-lifecycle.js";
+import { createLearningWorkspace, openLearningWorkspace, catalogLearningArchive } from "../../adapters/src/learning-workspace.js";
+import { previewLearningTrust, configureLearningTrust, previewLearningCaseLabel } from "../../adapters/src/learning-trust-setup.js";
+import { runLearningWizard, reviewLearningComparison, runLearningCommand } from "@skill-harness/cli/learning";
 
+// Frozen producer compatibility anchor, not the exact current bundle's Git identity.
+// New capabilities are additive on api; consumers must feature-detect them.
 export const DASHBOARD_HARNESS_SOURCE = "d123257e53d48a2cad6919708976b5371dc7590e";
 export const DASHBOARD_HARNESS_BRIDGE = Symbol.for("skill-harness.dashboard-host.v1");
 
@@ -18,6 +23,9 @@ const functions = {
   retainArchiveSource, captureArchivedWorkSignals, readRetainedExecution, projectRetainedExecutions,
   createWorkCaseReviewer, createWorkSignalReviewer, retainBlindIntervention, openBlindIntervention,
   retainLearningLifecycle, readLearningLifecycle,
+  createLearningWorkspace, openLearningWorkspace, catalogLearningArchive,
+  previewLearningTrust, configureLearningTrust, previewLearningCaseLabel,
+  runLearningWizard, reviewLearningComparison, runLearningCommand,
 } as const;
 
 export interface DashboardHarnessBridge {
@@ -26,7 +34,8 @@ export interface DashboardHarnessBridge {
   api: Readonly<typeof functions>;
 }
 
-/** Same-process handoff for the loaded extension. This identifies bundled source; it is not human authentication. */
+/** Same-process compatibility handoff, not source attestation or human authentication.
+ * An older immutable global survives /reload; use a fresh Pi process to gain new APIs. */
 export function publishDashboardHarnessBridge(target: Record<PropertyKey, unknown> = globalThis): DashboardHarnessBridge {
   const old = target[DASHBOARD_HARNESS_BRIDGE];
   if (old) {

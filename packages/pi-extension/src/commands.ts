@@ -7,6 +7,7 @@ import { getAdapter } from "@skill-harness/adapters";
 import { serveReview, type ServeHandle } from "@skill-harness/cli/serve";
 import { resolveSkillDir, runViaExtension } from "./runner.js";
 import { runCapture } from "./capture-cmd.js";
+import { handleLearningCommand } from "./learning-cmd.js";
 
 /**
  * Minimal structural stand-in for `@earendil-works/pi-coding-agent`'s
@@ -45,7 +46,7 @@ export interface CmdCtx {
   isStreaming?(): boolean;
 }
 
-const USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m] | review [skill] | capture [skill] | coverage [skill] | affected [skill] [--base ref]";
+const USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m] | review [skill] | capture [skill] | coverage [skill] | affected [skill] [--base ref] | learning [status|import|review|trust|decide|adoption|outcome|guide]";
 
 /** Minimal arg tokenizer: subcommand + positional args + `--key value` flags. A flag with no following value (or one followed by another `--flag`) is left unset, so callers' `?? default` fallbacks apply. */
 function parse(argstr: string): { sub: string; positional: string[]; flags: Record<string, string> } {
@@ -85,6 +86,10 @@ export async function handleSkillCheck(
   ctx: CmdCtx,
   opts?: { adapter?: HarnessAdapter; assetsDir?: string }
 ): Promise<ServeHandle | void> {
+  if (/^learning(?:\s|$)/.test(argstr.trim())) {
+    await handleLearningCommand(argstr.trim().slice("learning".length).trim(), ctx);
+    return;
+  }
   const { sub, positional, flags } = parse(argstr);
   const adapter = opts?.adapter;
   const nowIso = () => new Date().toISOString();
@@ -293,7 +298,7 @@ export function closeReview(): void {
 
 export function registerCommand(pi: ExtensionAPI, assetsDir?: string): void {
   pi.registerCommand("skill-harness", {
-    description: "Run, judge, or review a skill's scenarios",
+    description: "Run, judge, review scenarios, or open retained learning (learning)",
     handler: async (args, ctx) => {
       const h = await handleSkillCheck(args, ctx, { assetsDir });
       if (h) { reviewHandle?.close(); reviewHandle = h; } // keep the latest review server for shutdown cleanup

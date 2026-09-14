@@ -10,6 +10,7 @@ export const FREE_OFFLINE_COMMANDS = [
   "coverage",
   "init",
   "judge-agreement",
+  "learning",
   "lint",
   "list",
   "rescore",

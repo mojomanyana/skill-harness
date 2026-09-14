@@ -9,6 +9,7 @@ const alias = {
   "@skill-harness/core": fileURLToPath(new URL("./packages/core/src/index.ts", import.meta.url)),
   "@skill-harness/adapters": fileURLToPath(new URL("./packages/adapters/src/index.ts", import.meta.url)),
   "@skill-harness/cli/serve": fileURLToPath(new URL("./packages/cli/src/serve.ts", import.meta.url)),
+  "@skill-harness/cli/learning": fileURLToPath(new URL("./packages/cli/src/learning.ts", import.meta.url)),
   "@skill-harness/cli": fileURLToPath(new URL("./packages/cli/src/cli.ts", import.meta.url)),
 };
 

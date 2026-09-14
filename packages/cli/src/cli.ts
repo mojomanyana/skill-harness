@@ -40,6 +40,7 @@ import { serveReview } from "./serve.js";
 import { runCompareCommand } from "./compare.js";
 import { cmdQualification } from "./qualification.js";
 import { cmdArchive } from "./archive.js";
+import { runLearningCommand } from "./learning.js";
 
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 // The judge default lives in core (`defaultJudge()`), which resolves
@@ -936,6 +937,8 @@ export function help(): string {
                        ask again about untrustworthy cells (ambiguous / contradictory / non-unanimous /
                        ship-deciding). OFF by default; prints the exact MAX extra call count first.
   archive ingest|inspect|watch --policy file --source id  explicit external ingestion/metadata (${free("archive")})
+  learning [status|import|review|trust|decide|adoption|outcome|guide]  guided retained learning (${free("learning")}; no models)
+                        use learning help; quality, trust, adoption and later outcomes stay separate
   archive weekly|trust|access --state /private/dir --request file  durable learning/consent lifecycle (${free("archive")})
                         watch requires --max-polls N; optional --interval-ms N and --previous checkpoint
   judge-agreement <run-dir>                      compare two distinct persisted judge votes per scenario (${free("judge-agreement")})
@@ -970,6 +973,7 @@ defaults: model=${DEFAULT_MODEL}  judge=${defaultJudge()}  mode=green  harness=p
 
 export async function main(argv: string[]): Promise<void> {
   const cmd = argv[0];
+  if (cmd === "learning") { await runLearningCommand(argv.slice(1)); return; }
   const args = parseArgs(argv.slice(1));
   switch (cmd) {
     case "run": return cmdRun(args);

@@ -1,3 +1,6 @@
+> Historical 2026-09-12 snapshot retained unchanged below. For current requirements and
+> supported user actions, see [STATUS.md](STATUS.md) and [PRODUCT-GUIDE.md](PRODUCT-GUIDE.md).
+
 # Software factory — current delivery state
 
 Updated 2026-09-12. Dated build reports and ADRs remain historical evidence.
