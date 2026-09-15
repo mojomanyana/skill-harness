@@ -17,7 +17,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 // packages/core/dist/spec.js
 import { readFileSync as readFileSync3 } from "node:fs";
 
-// ../../product-delivery-20260914/harness/node_modules/js-yaml/dist/js-yaml.mjs
+// node_modules/js-yaml/dist/js-yaml.mjs
 function getDefaultExportFromCjs(x) {
   return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
 }
