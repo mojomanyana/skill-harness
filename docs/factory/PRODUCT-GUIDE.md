@@ -1,15 +1,14 @@
 # Factory: work, review, learn
 
-**Product guide for the 0.16.0 release candidate**, paired with pi-daddy **0.27.0**;
-Principal **3.2.0** is unchanged. The prior audited baseline was harness 0.15.0 /
-producer 0.26.1. Harness PR80 is merged and independently approved with green CI;
-source/built cross-package checks passed with synthetic fixtures, not human evidence.
-Canonical release packaging, publication and final installed-flow verification remain
-separate pending gates. After installation, expect `skill-harness --version` **0.16.0**
-and producer package **0.27.0**; check `skill-harness learning help` and loaded Pi resources.
-Do not assume an existing session reloaded because a package was updated. Use a **fresh
-Pi session** when upgrading an already-published immutable dashboard bridge: `/reload`
-cannot replace the old global API. No other running session needs to be stopped.
+**Release candidate: skill-harness 0.17.0**, paired with **pi-daddy 0.27.3**.
+Principal 3.2.0 is unchanged. The session retrospective feature is merged in PR82
+with independent Sol review and green CI. This release adds explicit local session
+import, timeline/usage coverage and evidence-linked notes. The producer adds a
+visible count and toggle for completed ledger history.
+
+Canonical packaging, installed verification and publication are recorded separately
+in the release PR. Use a fresh Pi session after updating the harness: an existing
+immutable dashboard bridge survives reload. Other running sessions need not stop.
 
 ## Who does what?
 
@@ -132,7 +131,7 @@ Local author attribution and content hashes are not authentication or hostile-ow
 
 Current requirements and remaining evidence: [STATUS.md](STATUS.md).
 
-## Whole-session retrospective (2026-09-15 candidate)
+## Whole-session retrospective (0.17.0)
 
 Use this after a real task to inspect the conversation, model/thinking settings,
 tool use, individual delegation attempts and provider-reported usage. The importer

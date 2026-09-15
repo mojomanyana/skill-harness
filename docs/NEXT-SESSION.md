@@ -1,6 +1,17 @@
 # Next session — start here
 
-## 2026-09-15 whole-session learning candidate — current
+## 0.17.0 release preparation — current
+
+Feature PR82 merged at 5145f9e19c243eae9d9b42a87ea4007a645146ca after independent Sol
+review and all CI checks passed. The bundle correction changed dependency-path
+comments only. Release metadata synchronizes six package versions/internal pins,
+lockfile, skill frontmatter and current guide to 0.17.0; producer pairing is 0.27.3.
+Follow PUBLISHING.md: clean exact release merge, canonical Node20 pack, retained
+archives, isolated installed real-Pi session checks with no providers, then publish
+those same bytes. No live-agent comparison is needed merely to release metadata.
+
+
+## 2026-09-15 whole-session learning candidate — historical
 
 The additive learning session commands retain explicitly selected parent/child
 Pi transcripts, ledger, feedback and artifacts, then expose timeline excerpts and

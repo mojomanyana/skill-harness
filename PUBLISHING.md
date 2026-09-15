@@ -1,3 +1,93 @@
+# Publishing skill-harness 0.17.0
+
+This is the **active 0.17.0 release order**, paired with **pi-daddy 0.27.3**.
+Feature PR #82 merged at `5145f9e19c243eae9d9b42a87ea4007a645146ca` with green CI
+and Sol approval. The new session import/readback checks passed
+with synthetic fixtures and a separately retained private retrospective. Those checks are not canonical release archives, a released
+installation, human approval, calibration, acceptance or deployed efficacy.
+
+The user authorized this merge/release sequence on 2026-09-15.
+
+This preparation is metadata-only: no runtime changes or third-party dependency upgrades.
+Versions, internal pins, lockfile, SKILL frontmatter and current documentation move together.
+**Publication and the installed proof below remain pending.** Commands here describe later
+coordinator-controlled release work; preparing this file does not execute or authorize it.
+
+## Authoritative 0.17.0 release order
+
+1. Review/merge the synchronized release metadata with green release CI, preserving PR82
+   ancestry. Record the **exact release merge commit/tree**, not merely the feature merge.
+2. In a fresh quiescent checkout of that exact release merge, verify a clean tree and
+   all six package versions/internal pins at 0.17.0. Use **Node v20.20.2 / npm 10.8.2**
+   for the sole canonical pack. Choose a new retained evidence directory outside managed
+   source/output roots; never a disposable smoke directory:
+
+   ```sh
+   : "${RELEASE_EVIDENCE:?Set a new retained absolute evidence directory}"
+   node --version                    # v20.20.2
+   npm --version                     # 10.8.2
+   npm run release:pack -- --output "$RELEASE_EVIDENCE/artifacts"
+   ```
+
+   The command itself establishes the lockfile-backed dependencies and build. Retain
+   `release-manifest.json`, logs and **all four** manifest-bound archives:
+   `skill-harness-core-0.17.0.tgz`, `skill-harness-adapters-0.17.0.tgz`,
+   `skill-harness-cli-0.17.0.tgz`, and `skill-harness-0.17.0.tgz`.
+   Verify commit/tree, versions, digests, inventories/modes, and guide/register bytes.
+   Do not rebuild, repack or alter these bytes after recording the canonical manifest.
+3. Install those same four archives into a **fresh empty prefix** with scripts disabled,
+   together with the separately verified matching producer 0.27.3 archive. Use an already
+   available Node/Pi runtime satisfying both packages' engine requirements (the producer
+   requires Node >=22.19.0); retain that install/runtime identity separately from the
+   Node 20 canonical packing identity. No global install or checkout-package substitution:
+
+   ```sh
+   : "${PRODUCER_0273_TARBALL:?Set the verified producer 0.27.3 archive}"
+   test ! -e "$RELEASE_EVIDENCE/install"  # must be a fresh prefix
+   npm install --prefix "$RELEASE_EVIDENCE/install" --no-package-lock --ignore-scripts \
+     "$RELEASE_EVIDENCE/artifacts/skill-harness-core-0.17.0.tgz" \
+     "$RELEASE_EVIDENCE/artifacts/skill-harness-adapters-0.17.0.tgz" \
+     "$RELEASE_EVIDENCE/artifacts/skill-harness-cli-0.17.0.tgz" \
+     "$RELEASE_EVIDENCE/artifacts/skill-harness-0.17.0.tgz" \
+     "$PRODUCER_0273_TARBALL"
+   ```
+
+   Verify installed metadata/internal pins and CLI `--version` = **0.17.0**, producer
+   package version = **0.27.3**, public exports, observer/assets and `learning help`,
+   `learning guide`, `learning current`. Recheck retained archive digests after use.
+   **Do not substitute `npm run smoke:packed` here:** that existing script repacks into
+   a temporary directory and deletes its artifacts. It does not verify the retained
+   canonical archives. Perform the installed checks directly against the prefix above.
+4. Start **actual Pi** with an empty isolated HOME/config/agent directory, only the
+   installed public harness extension and matching installed producer extension, and
+   no provider requests. Verify real command registration/routing, the original frozen
+   bridge, fresh empty/readiness flow, and actual ordinary-work registry/learning linkage:
+   original applied activation accepted, incomplete/mismatched proof refused, and
+   original rollback receipt accepted. Use clearly labelled synthetic data/authority
+   solely for this compatibility check; retain original journals, receipts, loaded
+   resource paths, package/bundle identities and logs. No copied private product adapter,
+   live subject work, human-approval claim or source-bridge attestation. Existing user
+   sessions must not be reused or disturbed; `/reload` cannot replace an immutable bridge.
+5. Only after the retained-archive install proof and explicit release authorization,
+   recheck registry state before each publication. Publish the four manifest-digested
+   public archives once in dependency order: core, adapters, CLI, meta-package. Never
+   publish the private monorepo root or private `@skill-harness/pi-extension`. If a
+   response is ambiguous, inspect exact registry version/bytes before any retry.
+6. Verify cache-busted published bytes and a fresh exact-version installation. Then create
+   immutable **`v0.17.0`** at the verified release commit and its GitHub Release; move
+   mutable `latest` only with an exact old-ref lease. Never force a branch or rewrite
+   an immutable version tag. Record installed, published and loaded-session identities
+   separately; none establishes product acceptance or calibrated improvement.
+
+**No live route replay merely for metadata.** Previously completed live route smokes
+remain dated historical evidence. Do not run `scripts/smoke-real-pi.sh` or add model calls
+solely for this version bump; any new paid smoke requires separate authorization.
+
+
+---
+
+## Preserved earlier release orders
+
 # Publishing skill-harness 0.16.0
 
 This is the **active 0.16.0 release order**, paired with **pi-daddy 0.27.0**.
