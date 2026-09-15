@@ -1,3 +1,4 @@
+import { runSessionLearning, reviewSessionLearning } from './session-learning.js';
 import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
@@ -20,6 +21,7 @@ export const LEARNING_HELP = `Learning — retained evidence, no model calls
   learning                         open guided review (interactive terminal)
   learning init --archive DIR --author NAME [--scope-item N] --confirm
       [--scope TEXT --population TEXT only for a comparison-only archive without retained cases]
+  learning session help             whole-session retrospective import, timeline and annotations
   learning status [--json]          readiness; never automatic exposure
   learning import                  list retained batches/comparisons
   learning import --item N --name NAME --title TEXT --scope-note TEXT --confirm
@@ -92,7 +94,8 @@ export function formatLearningStatus(view: ReturnType<ReturnType<typeof openLear
   const lines=[`Learning — ${view.configuration.population}`, 'Deliberate review; no model calls, automatic questions, or activation from reading.'];
   for(const c of view.cases)lines.push(`Cases: ${c.title} (${c.name}) — ${c.state==='ready'?`${c.total} retained nomination(s)`:c.reason}`);
   for(const c of view.comparisons)lines.push(`Comparison: ${c.title} (${c.name}) — ${c.reason}${'decision' in c && c.decision?`; decision: ${c.decision.disposition}`:''}`);
-  if(!view.cases.length&&!view.comparisons.length)lines.push('No inputs connected. Choose Connect retained input; missing evidence is not a failure or acceptance.');
+  for(const s of view.sessions)lines.push('Session: '+s.title+' ('+s.name+') — '+s.reason);
+  if(!view.cases.length&&!view.comparisons.length&&!view.sessions.length)lines.push('No inputs connected. Choose Connect retained input; missing evidence is not a failure or acceptance.');
   lines.push(formatLearningTrust(view.trust));
   return learningDisplay(lines.join('\n'));
 }
@@ -110,7 +113,7 @@ export interface LearningCommandOptions {cwd?:string;write?:(text:string)=>void;
 export async function runLearningCommand(argv:string[],options:LearningCommandOptions={}) {
   const {args,flags}=parse(argv),cwd=options.cwd??process.cwd(),directory=resolve(cwd,typeof flags.state==='string'?flags.state:'.skill-harness/learning');
   const out=options.write??console.log;
-  const emit=(value:unknown) => {out(flags.json?JSON.stringify(value,null,2):typeof value==='string'?value:learningDisplay(JSON.stringify(value,null,2)));return value;};
+  const emit=(value:unknown) => {out(flags.json?JSON.stringify(value,null,2):typeof value==='string'?learningDisplay(value):learningDisplay(JSON.stringify(value,null,2)));return value;};
   const confirm=(preview:unknown,write:()=>unknown) => {
     if(flags.confirm!==true) return emit({state:'confirmation-required',preview,next:'Repeat with --confirm to authorize this exact local action.'});
     return emit(write());
@@ -119,6 +122,7 @@ export async function runLearningCommand(argv:string[],options:LearningCommandOp
   const allowed:Record<string,string[]>={
     init:['archive','scope','population','author','scope-item'],status:[],import:['item','name','title','scope-note'],cases:['offset'],evidence:['item','evidence'],case:['item','disposition','note'],comparisons:[],review:[],artifact:['variant','artifact'],choose:['kind','variants','full-review','note'],reveal:[],decide:['disposition','note'],hypothesis:['name','intervention','prediction','disproof','downside','rollback','alternative'],link:['cases','item','hypothesis'],trust:['cases','item','detector','split','max-unflagged','attention','minimum-resolved','minimum-lower-bound','expires','name','title','reference-author','miss','evidence','note'],adoption:[],outcome:['result','artifact','original-requirement','current-requirement','evidence','reference-author','note','accepted-artifact','acceptance-evidence'],guide:[],help:[]};
   const command=args[0];
+  if(command==='session')return runSessionLearning(args.slice(1),flags,{cwd,directory,emit});
   if(command==='guide'||command==='current') {
     const file=command==='guide'?'PRODUCT-GUIDE.md':'STATUS.md',base=dirname(fileURLToPath(import.meta.url));
     const selected=[resolve(base,'../docs',file),resolve(base,'../../../docs/factory',file)].find(p=>existsSync(p));
@@ -306,10 +310,25 @@ export async function runLearningWizard(options:{cwd:string;directory:string;ui:
   const workspace=openLearningWorkspace(directory);
   for(;;) {
     const status=workspace.inspect(Date.now());
-    const selected=await ui.select('Learning — retained evidence, no model calls',['Readiness','Connect retained input','Review cases','Review comparisons','Record adopt / reject / defer','Propose hypothesis','Link original hypothesis','Trust / independent labels','Adoption / outcomes','Done']);
+    const selected=await ui.select('Learning — retained evidence, no model calls',['Readiness','Connect retained input','Import session','Review sessions','Review cases','Review comparisons','Record adopt / reject / defer','Propose hypothesis','Link original hypothesis','Trust / independent labels','Adoption / outcomes','Done']);
     if(!selected||selected==='Done')return;
     try {
       if(selected==='Readiness')ui.notify(formatLearningStatus(status));
+      if(selected==='Review sessions')await reviewSessionLearning(directory,ui,learningDisplay);
+      if(selected==='Import session') {
+        const session=await ui.input('Explicit Pi session JSONL path (no directory scanning)'),name=await ui.input('Short session name'),title=await ui.input('Session title');
+        if(!session||!name||!title)continue;
+        const ledger=await ui.input('Optional explicit pi-daddy grants.jsonl path'),feedback=await ui.input('Optional feedback file path');
+        const args=['session','preview','--session',session,'--state',directory,'--json'];
+        if(ledger)args.push('--ledger',ledger);if(feedback)args.push('--feedback',feedback);
+        let raw='';await runLearningCommand(args,{cwd,write:t=>{raw=t;}});
+        const preview=JSON.parse(raw);
+        await ui.editor('Session import preview — read only',learningDisplay(raw));
+        if(await ui.confirm('Retain these exact selected files privately?', 'May include sensitive session text. Inspect your selected files first. No automatic redaction, model calls or acceptance.')) {
+          args[1]='import';args.push('--name',name,'--title',title,'--expected',preview.digest,'--confirm');
+          await runLearningCommand(args,{cwd,write:t=>ui.notify(learningDisplay(t))});
+        }
+      }
       if(selected==='Connect retained input') {
         const catalog=catalogLearningArchive(status.configuration.archiveRoot,status.configuration.author),labels=catalog.map((c,i)=>`${i+1}. ${c.kind}: ${c.description}`);
         if(!labels.length){ui.notify('No compatible retained case batch or qualified comparison for this author. Run ordinary work first; no evidence will be fabricated.','warning');continue;}

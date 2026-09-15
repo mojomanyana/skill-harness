@@ -1,10 +1,21 @@
-# Factory requirement register — 0.16.0 release preparation
+# Factory requirement register
 
 Current entry point: [PRODUCT-GUIDE.md](PRODUCT-GUIDE.md). The dated
 [CURRENT.md](CURRENT.md), build reports and transport decisions are retained history,
 not current instructions to supply manifests or judge engineering repairs.
 
-## Baseline and candidate
+## 2026-09-15 session-learning candidate
+
+Adds explicit Pi-session import, exact private retention, chronological evidence,
+per-execution delegation history, parent/child usage coverage, and line-bound
+operator annotations through the existing CLI/Pi learning workspace. No model
+calls, automatic acceptance, calibrated improvement or expanded adoption authority.
+See the whole-session section of PRODUCT-GUIDE.md. Independent review and focused
+offline checks are recorded in this change; publication and installed user testing
+are separate. Entire-session optimization and measured skill/tool variants remain
+follow-up work.
+
+## Historical 0.16.0 release preparation
 
 Release pair: **skill-harness 0.16.0 / pi-daddy 0.27.0**; Principal 3.2.0 is unchanged.
 The prior audited baseline was harness 0.15.0 (`a725579`) / producer 0.26.1 (`93a9b01`).

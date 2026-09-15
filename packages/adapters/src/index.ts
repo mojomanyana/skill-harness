@@ -48,3 +48,6 @@ export * from "./archive-access.js";
 export * from "./archive-facts.js";
 export * from "./trust-lifecycle.js";
 export * from "./producer-review.js";
+
+export * from './session-observation.js';
+export * from './session-retention.js';

@@ -1,11 +1,11 @@
 // packages/pi-extension/src/index.ts
 import { fileURLToPath as fileURLToPath4 } from "node:url";
-import { basename as basename3, dirname as dirname24, join as join52 } from "node:path";
+import { basename as basename3, dirname as dirname24, join as join53 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
-import { existsSync as existsSync31 } from "node:fs";
+import { existsSync as existsSync32 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
-import { dirname as dirname19, join as join44, resolve as resolve23, relative as relative6 } from "node:path";
+import { dirname as dirname19, join as join44, resolve as resolve25, relative as relative7 } from "node:path";
 
 // packages/core/dist/trusted-host-supervision.js
 import { readFileSync as readFileSync2 } from "node:fs";
@@ -17,7 +17,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 // packages/core/dist/spec.js
 import { readFileSync as readFileSync3 } from "node:fs";
 
-// node_modules/js-yaml/dist/js-yaml.mjs
+// ../../product-delivery-20260914/harness/node_modules/js-yaml/dist/js-yaml.mjs
 function getDefaultExportFromCjs(x) {
   return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
 }
@@ -49,10 +49,10 @@ function requireCommon() {
     }
     return target;
   }
-  function repeat(string4, count) {
+  function repeat(string5, count) {
     let result = "";
     for (let cycle = 0; cycle < count; cycle += 1) {
-      result += string4;
+      result += string5;
     }
     return result;
   }
@@ -129,8 +129,8 @@ function requireSnippet() {
       // relative position
     };
   }
-  function padStart(string4, max) {
-    return common2.repeat(" ", max - string4.length) + string4;
+  function padStart(string5, max) {
+    return common2.repeat(" ", max - string5.length) + string5;
   }
   function makeSnippet(mark, options) {
     options = Object.create(options || null);
@@ -409,8 +409,8 @@ function require_null() {
   function constructYamlNull() {
     return null;
   }
-  function isNull(object3) {
-    return object3 === null;
+  function isNull(object5) {
+    return object5 === null;
   }
   _null = new Type22("tag:yaml.org,2002:null", {
     kind: "scalar",
@@ -452,8 +452,8 @@ function requireBool() {
   function constructYamlBoolean(data) {
     return data === "true" || data === "True" || data === "TRUE";
   }
-  function isBoolean(object3) {
-    return Object.prototype.toString.call(object3) === "[object Boolean]";
+  function isBoolean(object5) {
+    return Object.prototype.toString.call(object5) === "[object Boolean]";
   }
   bool = new Type22("tag:yaml.org,2002:bool", {
     kind: "scalar",
@@ -461,14 +461,14 @@ function requireBool() {
     construct: constructYamlBoolean,
     predicate: isBoolean,
     represent: {
-      lowercase: function(object3) {
-        return object3 ? "true" : "false";
+      lowercase: function(object5) {
+        return object5 ? "true" : "false";
       },
-      uppercase: function(object3) {
-        return object3 ? "TRUE" : "FALSE";
+      uppercase: function(object5) {
+        return object5 ? "TRUE" : "FALSE";
       },
-      camelcase: function(object3) {
-        return object3 ? "True" : "False";
+      camelcase: function(object5) {
+        return object5 ? "True" : "False";
       }
     },
     defaultStyle: "lowercase"
@@ -540,27 +540,27 @@ function requireInt() {
     return isFinite(parseYamlInteger(data));
   }
   function parseYamlInteger(data) {
-    let value = data;
+    let value3 = data;
     let sign = 1;
-    let ch = value[0];
+    let ch = value3[0];
     if (ch === "-" || ch === "+") {
       if (ch === "-") sign = -1;
-      value = value.slice(1);
-      ch = value[0];
+      value3 = value3.slice(1);
+      ch = value3[0];
     }
-    if (value === "0") return 0;
+    if (value3 === "0") return 0;
     if (ch === "0") {
-      if (value[1] === "b") return sign * parseInt(value.slice(2), 2);
-      if (value[1] === "x") return sign * parseInt(value.slice(2), 16);
-      if (value[1] === "o") return sign * parseInt(value.slice(2), 8);
+      if (value3[1] === "b") return sign * parseInt(value3.slice(2), 2);
+      if (value3[1] === "x") return sign * parseInt(value3.slice(2), 16);
+      if (value3[1] === "o") return sign * parseInt(value3.slice(2), 8);
     }
-    return sign * parseInt(value, 10);
+    return sign * parseInt(value3, 10);
   }
   function constructYamlInteger(data) {
     return parseYamlInteger(data);
   }
-  function isInteger(object3) {
-    return Object.prototype.toString.call(object3) === "[object Number]" && (object3 % 1 === 0 && !common2.isNegativeZero(object3));
+  function isInteger(object5) {
+    return Object.prototype.toString.call(object5) === "[object Number]" && (object5 % 1 === 0 && !common2.isNegativeZero(object5));
   }
   int = new Type22("tag:yaml.org,2002:int", {
     kind: "scalar",
@@ -616,21 +616,21 @@ function requireFloat() {
     return YAML_FLOAT_SPECIAL_PATTERN.test(data);
   }
   function constructYamlFloat(data) {
-    let value = data.toLowerCase();
-    const sign = value[0] === "-" ? -1 : 1;
-    if ("+-".indexOf(value[0]) >= 0) {
-      value = value.slice(1);
+    let value3 = data.toLowerCase();
+    const sign = value3[0] === "-" ? -1 : 1;
+    if ("+-".indexOf(value3[0]) >= 0) {
+      value3 = value3.slice(1);
     }
-    if (value === ".inf") {
+    if (value3 === ".inf") {
       return sign === 1 ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
-    } else if (value === ".nan") {
+    } else if (value3 === ".nan") {
       return NaN;
     }
-    return sign * parseFloat(value, 10);
+    return sign * parseFloat(value3, 10);
   }
   const SCIENTIFIC_WITHOUT_DOT = /^[-+]?[0-9]+e/;
-  function representYamlFloat(object3, style) {
-    if (isNaN(object3)) {
+  function representYamlFloat(object5, style) {
+    if (isNaN(object5)) {
       switch (style) {
         case "lowercase":
           return ".nan";
@@ -639,7 +639,7 @@ function requireFloat() {
         case "camelcase":
           return ".NaN";
       }
-    } else if (Number.POSITIVE_INFINITY === object3) {
+    } else if (Number.POSITIVE_INFINITY === object5) {
       switch (style) {
         case "lowercase":
           return ".inf";
@@ -648,7 +648,7 @@ function requireFloat() {
         case "camelcase":
           return ".Inf";
       }
-    } else if (Number.NEGATIVE_INFINITY === object3) {
+    } else if (Number.NEGATIVE_INFINITY === object5) {
       switch (style) {
         case "lowercase":
           return "-.inf";
@@ -657,14 +657,14 @@ function requireFloat() {
         case "camelcase":
           return "-.Inf";
       }
-    } else if (common2.isNegativeZero(object3)) {
+    } else if (common2.isNegativeZero(object5)) {
       return "-0.0";
     }
-    const res = object3.toString(10);
+    const res = object5.toString(10);
     return SCIENTIFIC_WITHOUT_DOT.test(res) ? res.replace("e", ".e") : res;
   }
-  function isFloat(object3) {
-    return Object.prototype.toString.call(object3) === "[object Number]" && (object3 % 1 !== 0 || common2.isNegativeZero(object3));
+  function isFloat(object5) {
+    return Object.prototype.toString.call(object5) === "[object Number]" && (object5 % 1 !== 0 || common2.isNegativeZero(object5));
   }
   float = new Type22("tag:yaml.org,2002:float", {
     kind: "scalar",
@@ -749,8 +749,8 @@ function requireTimestamp() {
     if (delta) date.setTime(date.getTime() - delta);
     return date;
   }
-  function representYamlTimestamp(object3) {
-    return object3.toISOString();
+  function representYamlTimestamp(object5) {
+    return object5.toISOString();
   }
   timestamp = new Type22("tag:yaml.org,2002:timestamp", {
     kind: "scalar",
@@ -823,10 +823,10 @@ function requireBinary() {
     }
     return new Uint8Array(result);
   }
-  function representYamlBinary(object3) {
+  function representYamlBinary(object5) {
     let result = "";
     let bits = 0;
-    const max = object3.length;
+    const max = object5.length;
     const map2 = BASE64_MAP;
     for (let idx = 0; idx < max; idx++) {
       if (idx % 3 === 0 && idx) {
@@ -835,7 +835,7 @@ function requireBinary() {
         result += map2[bits >> 6 & 63];
         result += map2[bits & 63];
       }
-      bits = (bits << 8) + object3[idx];
+      bits = (bits << 8) + object5[idx];
     }
     const tail = max % 3;
     if (tail === 0) {
@@ -879,9 +879,9 @@ function requireOmap() {
   function resolveYamlOmap(data) {
     if (data === null) return true;
     const objectKeys = {};
-    const object3 = data;
-    for (let index = 0, length = object3.length; index < length; index += 1) {
-      const pair = object3[index];
+    const object5 = data;
+    for (let index = 0, length = object5.length; index < length; index += 1) {
+      const pair = object5[index];
       let pairHasKey = false;
       if (_toString.call(pair) !== "[object Object]") return false;
       let pairKey;
@@ -916,10 +916,10 @@ function requirePairs() {
   const _toString = Object.prototype.toString;
   function resolveYamlPairs(data) {
     if (data === null) return true;
-    const object3 = data;
-    const result = new Array(object3.length);
-    for (let index = 0, length = object3.length; index < length; index += 1) {
-      const pair = object3[index];
+    const object5 = data;
+    const result = new Array(object5.length);
+    for (let index = 0, length = object5.length; index < length; index += 1) {
+      const pair = object5[index];
       if (_toString.call(pair) !== "[object Object]") return false;
       const keys7 = Object.keys(pair);
       if (keys7.length !== 1) return false;
@@ -929,10 +929,10 @@ function requirePairs() {
   }
   function constructYamlPairs(data) {
     if (data === null) return [];
-    const object3 = data;
-    const result = new Array(object3.length);
-    for (let index = 0, length = object3.length; index < length; index += 1) {
-      const pair = object3[index];
+    const object5 = data;
+    const result = new Array(object5.length);
+    for (let index = 0, length = object5.length; index < length; index += 1) {
+      const pair = object5[index];
       const keys7 = Object.keys(pair);
       result[index] = [keys7[0], pair[keys7[0]]];
     }
@@ -954,10 +954,10 @@ function requireSet() {
   const _hasOwnProperty = Object.prototype.hasOwnProperty;
   function resolveYamlSet(data) {
     if (data === null) return true;
-    const object3 = data;
-    for (const key3 in object3) {
-      if (_hasOwnProperty.call(object3, key3)) {
-        if (object3[key3] !== null) return false;
+    const object5 = data;
+    for (const key3 in object5) {
+      if (_hasOwnProperty.call(object5, key3)) {
+        if (object5[key3] !== null) return false;
       }
     }
     return true;
@@ -1106,16 +1106,16 @@ function requireLoader() {
       (c - 65536 & 1023) + 56320
     );
   }
-  function setProperty(object3, key3, value) {
+  function setProperty(object5, key3, value3) {
     if (key3 === "__proto__") {
-      Object.defineProperty(object3, key3, {
+      Object.defineProperty(object5, key3, {
         configurable: true,
         enumerable: true,
         writable: true,
-        value
+        value: value3
       });
     } else {
-      object3[key3] = value;
+      object5[key3] = value3;
     }
   }
   const simpleEscapeCheck = new Array(256);
@@ -1167,7 +1167,7 @@ function requireLoader() {
       state.onWarning.call(null, generateError(state, message3));
     }
   }
-  function storeAnchor(state, name, value) {
+  function storeAnchor(state, name, value3) {
     const transactions = state.anchorMapTransactions;
     if (transactions.length !== 0) {
       const transaction = transactions[transactions.length - 1];
@@ -1178,7 +1178,7 @@ function requireLoader() {
         };
       }
     }
-    state.anchorMap[name] = value;
+    state.anchorMap[name] = value3;
   }
   function beginAnchorTransaction(state) {
     state.anchorMapTransactions.push(/* @__PURE__ */ Object.create(null));
@@ -2215,10 +2215,10 @@ function requireLoader() {
         type2 = state.typeMap[state.kind || "fallback"][state.tag];
       } else {
         type2 = null;
-        const typeList2 = state.typeMap.multi[state.kind || "fallback"];
-        for (let typeIndex = 0, typeQuantity = typeList2.length; typeIndex < typeQuantity; typeIndex += 1) {
-          if (state.tag.slice(0, typeList2[typeIndex].tag.length) === typeList2[typeIndex].tag) {
-            type2 = typeList2[typeIndex];
+        const typeList3 = state.typeMap.multi[state.kind || "fallback"];
+        for (let typeIndex = 0, typeQuantity = typeList3.length; typeIndex < typeQuantity; typeIndex += 1) {
+          if (state.tag.slice(0, typeList3[typeIndex].tag.length) === typeList3[typeIndex].tag) {
+            type2 = typeList3[typeIndex];
             break;
           }
         }
@@ -2461,7 +2461,7 @@ function requireDumper() {
   function encodeHex(character) {
     let handle;
     let length;
-    const string4 = character.toString(16).toUpperCase();
+    const string5 = character.toString(16).toUpperCase();
     if (character <= 255) {
       handle = "x";
       length = 2;
@@ -2474,7 +2474,7 @@ function requireDumper() {
     } else {
       throw new YAMLException2("code point within a string may not be greater than 0xFFFFFFFF");
     }
-    return "\\" + handle + common2.repeat("0", length - string4.length) + string4;
+    return "\\" + handle + common2.repeat("0", length - string5.length) + string5;
   }
   const QUOTING_TYPE_SINGLE = 1;
   const QUOTING_TYPE_DOUBLE = 2;
@@ -2500,19 +2500,19 @@ function requireDumper() {
     this.duplicates = [];
     this.usedDuplicates = null;
   }
-  function indentString(string4, spaces) {
+  function indentString(string5, spaces) {
     const ind = common2.repeat(" ", spaces);
     let position = 0;
     let result = "";
-    const length = string4.length;
+    const length = string5.length;
     while (position < length) {
       let line;
-      const next = string4.indexOf("\n", position);
+      const next = string5.indexOf("\n", position);
       if (next === -1) {
-        line = string4.slice(position);
+        line = string5.slice(position);
         position = length;
       } else {
-        line = string4.slice(position, next + 1);
+        line = string5.slice(position, next + 1);
         position = next + 1;
       }
       if (line.length && line !== "\n") result += ind;
@@ -2566,27 +2566,27 @@ function requireDumper() {
   function isPlainSafeLast(c) {
     return !isWhitespace(c) && c !== CHAR_COLON;
   }
-  function codePointAt(string4, pos) {
-    const first = string4.charCodeAt(pos);
+  function codePointAt(string5, pos) {
+    const first = string5.charCodeAt(pos);
     let second;
-    if (first >= 55296 && first <= 56319 && pos + 1 < string4.length) {
-      second = string4.charCodeAt(pos + 1);
+    if (first >= 55296 && first <= 56319 && pos + 1 < string5.length) {
+      second = string5.charCodeAt(pos + 1);
       if (second >= 56320 && second <= 57343) {
         return (first - 55296) * 1024 + second - 56320 + 65536;
       }
     }
     return first;
   }
-  function needIndentIndicator(string4) {
+  function needIndentIndicator(string5) {
     const leadingSpaceRe = /^\n* /;
-    return leadingSpaceRe.test(string4);
+    return leadingSpaceRe.test(string5);
   }
   const STYLE_PLAIN = 1;
   const STYLE_SINGLE = 2;
   const STYLE_LITERAL = 3;
   const STYLE_FOLDED = 4;
   const STYLE_DOUBLE = 5;
-  function chooseScalarStyle(string4, singleLineOnly, indentPerLevel, lineWidth, testAmbiguousType, quotingType, forceQuotes, inblock) {
+  function chooseScalarStyle(string5, singleLineOnly, indentPerLevel, lineWidth, testAmbiguousType, quotingType, forceQuotes, inblock) {
     let i;
     let char = 0;
     let prevChar = null;
@@ -2594,10 +2594,10 @@ function requireDumper() {
     let hasFoldableLine = false;
     const shouldTrackWidth = lineWidth !== -1;
     let previousLineBreak = -1;
-    let plain = isPlainSafeFirst(codePointAt(string4, 0)) && isPlainSafeLast(codePointAt(string4, string4.length - 1));
+    let plain = isPlainSafeFirst(codePointAt(string5, 0)) && isPlainSafeLast(codePointAt(string5, string5.length - 1));
     if (singleLineOnly || forceQuotes) {
-      for (i = 0; i < string4.length; char >= 65536 ? i += 2 : i++) {
-        char = codePointAt(string4, i);
+      for (i = 0; i < string5.length; char >= 65536 ? i += 2 : i++) {
+        char = codePointAt(string5, i);
         if (!isPrintable(char)) {
           return STYLE_DOUBLE;
         }
@@ -2605,13 +2605,13 @@ function requireDumper() {
         prevChar = char;
       }
     } else {
-      for (i = 0; i < string4.length; char >= 65536 ? i += 2 : i++) {
-        char = codePointAt(string4, i);
+      for (i = 0; i < string5.length; char >= 65536 ? i += 2 : i++) {
+        char = codePointAt(string5, i);
         if (char === CHAR_LINE_FEED) {
           hasLineBreak = true;
           if (shouldTrackWidth) {
             hasFoldableLine = hasFoldableLine || // Foldable line = too long, and not more-indented.
-            i - previousLineBreak - 1 > lineWidth && string4[previousLineBreak + 1] !== " ";
+            i - previousLineBreak - 1 > lineWidth && string5[previousLineBreak + 1] !== " ";
             previousLineBreak = i;
           }
         } else if (!isPrintable(char)) {
@@ -2620,15 +2620,15 @@ function requireDumper() {
         plain = plain && isPlainSafe(char, prevChar, inblock);
         prevChar = char;
       }
-      hasFoldableLine = hasFoldableLine || shouldTrackWidth && (i - previousLineBreak - 1 > lineWidth && string4[previousLineBreak + 1] !== " ");
+      hasFoldableLine = hasFoldableLine || shouldTrackWidth && (i - previousLineBreak - 1 > lineWidth && string5[previousLineBreak + 1] !== " ");
     }
     if (!hasLineBreak && !hasFoldableLine) {
-      if (plain && !forceQuotes && !testAmbiguousType(string4)) {
+      if (plain && !forceQuotes && !testAmbiguousType(string5)) {
         return STYLE_PLAIN;
       }
       return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
     }
-    if (indentPerLevel > 9 && needIndentIndicator(string4)) {
+    if (indentPerLevel > 9 && needIndentIndicator(string5)) {
       return STYLE_DOUBLE;
     }
     if (!forceQuotes) {
@@ -2636,14 +2636,14 @@ function requireDumper() {
     }
     return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
   }
-  function writeScalar(state, string4, level, iskey, inblock) {
+  function writeScalar(state, string5, level, iskey, inblock) {
     state.dump = (function() {
-      if (string4.length === 0) {
+      if (string5.length === 0) {
         return state.quotingType === QUOTING_TYPE_DOUBLE ? '""' : "''";
       }
       if (!state.noCompatMode) {
-        if (DEPRECATED_BOOLEANS_SYNTAX.indexOf(string4) !== -1 || DEPRECATED_BASE60_SYNTAX.test(string4)) {
-          return state.quotingType === QUOTING_TYPE_DOUBLE ? '"' + string4 + '"' : "'" + string4 + "'";
+        if (DEPRECATED_BOOLEANS_SYNTAX.indexOf(string5) !== -1 || DEPRECATED_BASE60_SYNTAX.test(string5)) {
+          return state.quotingType === QUOTING_TYPE_DOUBLE ? '"' + string5 + '"' : "'" + string5 + "'";
         }
       }
       const indent2 = state.indent * Math.max(1, level);
@@ -2654,7 +2654,7 @@ function requireDumper() {
         return testImplicitResolving(state, string22);
       }
       switch (chooseScalarStyle(
-        string4,
+        string5,
         singleLineOnly,
         state.indent,
         lineWidth,
@@ -2664,42 +2664,42 @@ function requireDumper() {
         inblock
       )) {
         case STYLE_PLAIN:
-          return string4;
+          return string5;
         case STYLE_SINGLE:
-          return "'" + string4.replace(/'/g, "''") + "'";
+          return "'" + string5.replace(/'/g, "''") + "'";
         case STYLE_LITERAL:
-          return "|" + blockHeader(string4, state.indent) + dropEndingNewline(indentString(string4, indent2));
+          return "|" + blockHeader(string5, state.indent) + dropEndingNewline(indentString(string5, indent2));
         case STYLE_FOLDED:
-          return ">" + blockHeader(string4, state.indent) + dropEndingNewline(indentString(foldString(string4, lineWidth), indent2));
+          return ">" + blockHeader(string5, state.indent) + dropEndingNewline(indentString(foldString(string5, lineWidth), indent2));
         case STYLE_DOUBLE:
-          return '"' + escapeString(string4) + '"';
+          return '"' + escapeString(string5) + '"';
         default:
           throw new YAMLException2("impossible error: invalid scalar style");
       }
     })();
   }
-  function blockHeader(string4, indentPerLevel) {
-    const indentIndicator = needIndentIndicator(string4) ? String(indentPerLevel) : "";
-    const clip = string4[string4.length - 1] === "\n";
-    const keep = clip && (string4[string4.length - 2] === "\n" || string4 === "\n");
+  function blockHeader(string5, indentPerLevel) {
+    const indentIndicator = needIndentIndicator(string5) ? String(indentPerLevel) : "";
+    const clip = string5[string5.length - 1] === "\n";
+    const keep = clip && (string5[string5.length - 2] === "\n" || string5 === "\n");
     const chomp = keep ? "+" : clip ? "" : "-";
     return indentIndicator + chomp + "\n";
   }
-  function dropEndingNewline(string4) {
-    return string4[string4.length - 1] === "\n" ? string4.slice(0, -1) : string4;
+  function dropEndingNewline(string5) {
+    return string5[string5.length - 1] === "\n" ? string5.slice(0, -1) : string5;
   }
-  function foldString(string4, width) {
+  function foldString(string5, width) {
     const lineRe = /(\n+)([^\n]*)/g;
     let result = (function() {
-      let nextLF = string4.indexOf("\n");
-      nextLF = nextLF !== -1 ? nextLF : string4.length;
+      let nextLF = string5.indexOf("\n");
+      nextLF = nextLF !== -1 ? nextLF : string5.length;
       lineRe.lastIndex = nextLF;
-      return foldLine(string4.slice(0, nextLF), width);
+      return foldLine(string5.slice(0, nextLF), width);
     })();
-    let prevMoreIndented = string4[0] === "\n" || string4[0] === " ";
+    let prevMoreIndented = string5[0] === "\n" || string5[0] === " ";
     let moreIndented;
     let match;
-    while (match = lineRe.exec(string4)) {
+    while (match = lineRe.exec(string5)) {
       const prefix = match[1];
       const line = match[2];
       moreIndented = line[0] === " ";
@@ -2734,30 +2734,30 @@ function requireDumper() {
     }
     return result.slice(1);
   }
-  function escapeString(string4) {
+  function escapeString(string5) {
     let result = "";
     let char = 0;
-    for (let i = 0; i < string4.length; char >= 65536 ? i += 2 : i++) {
-      char = codePointAt(string4, i);
+    for (let i = 0; i < string5.length; char >= 65536 ? i += 2 : i++) {
+      char = codePointAt(string5, i);
       const escapeSeq = ESCAPE_SEQUENCES[char];
       if (!escapeSeq && isPrintable(char)) {
-        result += string4[i];
-        if (char >= 65536) result += string4[i + 1];
+        result += string5[i];
+        if (char >= 65536) result += string5[i + 1];
       } else {
         result += escapeSeq || encodeHex(char);
       }
     }
     return result;
   }
-  function writeFlowSequence(state, level, object3) {
+  function writeFlowSequence(state, level, object5) {
     let _result = "";
     const _tag = state.tag;
-    for (let index = 0, length = object3.length; index < length; index += 1) {
-      let value = object3[index];
+    for (let index = 0, length = object5.length; index < length; index += 1) {
+      let value3 = object5[index];
       if (state.replacer) {
-        value = state.replacer.call(object3, String(index), value);
+        value3 = state.replacer.call(object5, String(index), value3);
       }
-      if (writeNode(state, level, value, false, false) || typeof value === "undefined" && writeNode(state, level, null, false, false)) {
+      if (writeNode(state, level, value3, false, false) || typeof value3 === "undefined" && writeNode(state, level, null, false, false)) {
         if (_result !== "") _result += "," + (!state.condenseFlow ? " " : "");
         _result += state.dump;
       }
@@ -2765,15 +2765,15 @@ function requireDumper() {
     state.tag = _tag;
     state.dump = "[" + _result + "]";
   }
-  function writeBlockSequence(state, level, object3, compact) {
+  function writeBlockSequence(state, level, object5, compact) {
     let _result = "";
     const _tag = state.tag;
-    for (let index = 0, length = object3.length; index < length; index += 1) {
-      let value = object3[index];
+    for (let index = 0, length = object5.length; index < length; index += 1) {
+      let value3 = object5[index];
       if (state.replacer) {
-        value = state.replacer.call(object3, String(index), value);
+        value3 = state.replacer.call(object5, String(index), value3);
       }
-      if (writeNode(state, level + 1, value, true, true, false, true) || typeof value === "undefined" && writeNode(state, level + 1, null, true, true, false, true)) {
+      if (writeNode(state, level + 1, value3, true, true, false, true) || typeof value3 === "undefined" && writeNode(state, level + 1, null, true, true, false, true)) {
         if (!compact || _result !== "") {
           _result += generateNextLine(state, level);
         }
@@ -2788,18 +2788,18 @@ function requireDumper() {
     state.tag = _tag;
     state.dump = _result || "[]";
   }
-  function writeFlowMapping(state, level, object3) {
+  function writeFlowMapping(state, level, object5) {
     let _result = "";
     const _tag = state.tag;
-    const objectKeyList = Object.keys(object3);
+    const objectKeyList = Object.keys(object5);
     for (let index = 0, length = objectKeyList.length; index < length; index += 1) {
       let pairBuffer = "";
       if (_result !== "") pairBuffer += ", ";
       if (state.condenseFlow) pairBuffer += '"';
       const objectKey = objectKeyList[index];
-      let objectValue = object3[objectKey];
+      let objectValue = object5[objectKey];
       if (state.replacer) {
-        objectValue = state.replacer.call(object3, objectKey, objectValue);
+        objectValue = state.replacer.call(object5, objectKey, objectValue);
       }
       if (!writeNode(state, level, objectKey, false, false)) {
         continue;
@@ -2815,10 +2815,10 @@ function requireDumper() {
     state.tag = _tag;
     state.dump = "{" + _result + "}";
   }
-  function writeBlockMapping(state, level, object3, compact) {
+  function writeBlockMapping(state, level, object5, compact) {
     let _result = "";
     const _tag = state.tag;
-    const objectKeyList = Object.keys(object3);
+    const objectKeyList = Object.keys(object5);
     if (state.sortKeys === true) {
       objectKeyList.sort();
     } else if (typeof state.sortKeys === "function") {
@@ -2832,9 +2832,9 @@ function requireDumper() {
         pairBuffer += generateNextLine(state, level);
       }
       const objectKey = objectKeyList[index];
-      let objectValue = object3[objectKey];
+      let objectValue = object5[objectKey];
       if (state.replacer) {
-        objectValue = state.replacer.call(object3, objectKey, objectValue);
+        objectValue = state.replacer.call(object5, objectKey, objectValue);
       }
       if (!writeNode(state, level + 1, objectKey, true, true, true)) {
         continue;
@@ -2865,14 +2865,14 @@ function requireDumper() {
     state.tag = _tag;
     state.dump = _result || "{}";
   }
-  function detectType(state, object3, explicit) {
-    const typeList2 = explicit ? state.explicitTypes : state.implicitTypes;
-    for (let index = 0, length = typeList2.length; index < length; index += 1) {
-      const type2 = typeList2[index];
-      if ((type2.instanceOf || type2.predicate) && (!type2.instanceOf || typeof object3 === "object" && object3 instanceof type2.instanceOf) && (!type2.predicate || type2.predicate(object3))) {
+  function detectType(state, object5, explicit) {
+    const typeList3 = explicit ? state.explicitTypes : state.implicitTypes;
+    for (let index = 0, length = typeList3.length; index < length; index += 1) {
+      const type2 = typeList3[index];
+      if ((type2.instanceOf || type2.predicate) && (!type2.instanceOf || typeof object5 === "object" && object5 instanceof type2.instanceOf) && (!type2.predicate || type2.predicate(object5))) {
         if (explicit) {
           if (type2.multi && type2.representName) {
-            state.tag = type2.representName(object3);
+            state.tag = type2.representName(object5);
           } else {
             state.tag = type2.tag;
           }
@@ -2883,9 +2883,9 @@ function requireDumper() {
           const style = state.styleMap[type2.tag] || type2.defaultStyle;
           let _result;
           if (_toString.call(type2.represent) === "[object Function]") {
-            _result = type2.represent(object3, style);
+            _result = type2.represent(object5, style);
           } else if (_hasOwnProperty.call(type2.represent, style)) {
-            _result = type2.represent[style](object3, style);
+            _result = type2.represent[style](object5, style);
           } else {
             throw new YAMLException2("!<" + type2.tag + '> tag resolver accepts not "' + style + '" style');
           }
@@ -2896,11 +2896,11 @@ function requireDumper() {
     }
     return false;
   }
-  function writeNode(state, level, object3, block, compact, iskey, isblockseq) {
+  function writeNode(state, level, object5, block, compact, iskey, isblockseq) {
     state.tag = null;
-    state.dump = object3;
-    if (!detectType(state, object3, false)) {
-      detectType(state, object3, true);
+    state.dump = object5;
+    if (!detectType(state, object5, false)) {
+      detectType(state, object5, true);
     }
     const type2 = _toString.call(state.dump);
     const inblock = block;
@@ -2911,7 +2911,7 @@ function requireDumper() {
     let duplicateIndex;
     let duplicate;
     if (objectOrArray) {
-      duplicateIndex = state.duplicates.indexOf(object3);
+      duplicateIndex = state.duplicates.indexOf(object5);
       duplicate = duplicateIndex !== -1;
     }
     if (state.tag !== null && state.tag !== "?" || duplicate || state.indent !== 2 && level > 0) {
@@ -2977,33 +2977,33 @@ function requireDumper() {
     }
     return true;
   }
-  function getDuplicateReferences(object3, state) {
+  function getDuplicateReferences(object5, state) {
     const objects = [];
     const duplicatesIndexes = [];
-    inspectNode(object3, objects, duplicatesIndexes);
+    inspectNode(object5, objects, duplicatesIndexes);
     const length = duplicatesIndexes.length;
     for (let index = 0; index < length; index += 1) {
       state.duplicates.push(objects[duplicatesIndexes[index]]);
     }
     state.usedDuplicates = new Array(length);
   }
-  function inspectNode(object3, objects, duplicatesIndexes) {
-    if (object3 !== null && typeof object3 === "object") {
-      const index = objects.indexOf(object3);
+  function inspectNode(object5, objects, duplicatesIndexes) {
+    if (object5 !== null && typeof object5 === "object") {
+      const index = objects.indexOf(object5);
       if (index !== -1) {
         if (duplicatesIndexes.indexOf(index) === -1) {
           duplicatesIndexes.push(index);
         }
       } else {
-        objects.push(object3);
-        if (Array.isArray(object3)) {
-          for (let i = 0, length = object3.length; i < length; i += 1) {
-            inspectNode(object3[i], objects, duplicatesIndexes);
+        objects.push(object5);
+        if (Array.isArray(object5)) {
+          for (let i = 0, length = object5.length; i < length; i += 1) {
+            inspectNode(object5[i], objects, duplicatesIndexes);
           }
         } else {
-          const objectKeyList = Object.keys(object3);
+          const objectKeyList = Object.keys(object5);
           for (let i = 0, length = objectKeyList.length; i < length; i += 1) {
-            inspectNode(object3[objectKeyList[i]], objects, duplicatesIndexes);
+            inspectNode(object5[objectKeyList[i]], objects, duplicatesIndexes);
           }
         }
       }
@@ -3013,11 +3013,11 @@ function requireDumper() {
     options = options || {};
     const state = new State(options);
     if (!state.noRefs) getDuplicateReferences(input, state);
-    let value = input;
+    let value3 = input;
     if (state.replacer) {
-      value = state.replacer.call({ "": value }, "", value);
+      value3 = state.replacer.call({ "": value3 }, "", value3);
     }
-    if (writeNode(state, 0, value, true, true)) return state.dump + "\n";
+    if (writeNode(state, 0, value3, true, true)) return state.dump + "\n";
     return "";
   }
   dumper.dump = dump2;
@@ -3230,14 +3230,14 @@ function argsMatch(call, args) {
     return true;
   return Object.entries(args).every(([key3, predicate]) => testPredicate(call.args[key3], predicate));
 }
-function valueWasLost(value) {
-  if (typeof value === "string") {
-    return value === "[redacted]" || value === "[nested]" || value.includes("\u2026 [truncated ");
+function valueWasLost(value3) {
+  if (typeof value3 === "string") {
+    return value3 === "[redacted]" || value3 === "[nested]" || value3.includes("\u2026 [truncated ");
   }
-  if (Array.isArray(value))
-    return value.some(valueWasLost);
-  if (value && typeof value === "object")
-    return Object.values(value).some(valueWasLost);
+  if (Array.isArray(value3))
+    return value3.some(valueWasLost);
+  if (value3 && typeof value3 === "object")
+    return Object.values(value3).some(valueWasLost);
   return false;
 }
 function lostArgs(call, args) {
@@ -3245,20 +3245,20 @@ function lostArgs(call, args) {
     return [];
   return Object.keys(args).filter((key3) => valueWasLost(call.args[key3]));
 }
-function testPredicate(value, p) {
+function testPredicate(value3, p) {
   if (p.exists !== void 0) {
-    if (p.exists !== (value !== void 0 && value !== null))
+    if (p.exists !== (value3 !== void 0 && value3 !== null))
       return false;
     if (p.exists === false)
       return true;
   }
-  if (p.equals !== void 0 && !deepEqual(value, p.equals))
+  if (p.equals !== void 0 && !deepEqual(value3, p.equals))
     return false;
-  if (p.contains !== void 0 && !asString(value).includes(p.contains))
+  if (p.contains !== void 0 && !asString(value3).includes(p.contains))
     return false;
-  if (p.starts_with !== void 0 && !asString(value).startsWith(p.starts_with))
+  if (p.starts_with !== void 0 && !asString(value3).startsWith(p.starts_with))
     return false;
-  if (p.ends_with !== void 0 && !asString(value).endsWith(p.ends_with))
+  if (p.ends_with !== void 0 && !asString(value3).endsWith(p.ends_with))
     return false;
   if (p.matches !== void 0) {
     let re;
@@ -3267,13 +3267,13 @@ function testPredicate(value, p) {
     } catch {
       return false;
     }
-    if (!re.test(asString(value)))
+    if (!re.test(asString(value3)))
       return false;
   }
   if (p.any !== void 0) {
-    if (!Array.isArray(value))
+    if (!Array.isArray(value3))
       return false;
-    if (!value.some((v) => testPredicate(v, p.any)))
+    if (!value3.some((v) => testPredicate(v, p.any)))
       return false;
   }
   return true;
@@ -3437,8 +3437,8 @@ function parseCount(raw, ctx) {
 function parseArgs(raw, ctx) {
   const obj2 = asObject(raw, ctx);
   const out = {};
-  for (const [key3, value] of Object.entries(obj2)) {
-    out[key3] = parsePredicate(value, `${ctx}.${key3}`);
+  for (const [key3, value3] of Object.entries(obj2)) {
+    out[key3] = parsePredicate(value3, `${ctx}.${key3}`);
   }
   return out;
 }
@@ -3448,38 +3448,38 @@ function parsePredicate(raw, ctx) {
   }
   const obj2 = asObject(raw, ctx);
   const out = {};
-  for (const [key3, value] of Object.entries(obj2)) {
+  for (const [key3, value3] of Object.entries(obj2)) {
     if (!PREDICATE_KEYS.includes(key3)) {
       throw new Error(`${ctx}: unknown operator \`${key3}\` (allowed: ${PREDICATE_KEYS.join(", ")})`);
     }
     if (key3 === "matches") {
-      if (typeof value !== "string")
+      if (typeof value3 !== "string")
         throw new Error(`${ctx}: \`matches\` must be a string pattern`);
       try {
-        new RegExp(value);
+        new RegExp(value3);
       } catch (e) {
         throw new Error(`${ctx}: \`matches\` is not a valid regular expression: ${e instanceof Error ? e.message : e}`);
       }
-      out.matches = value;
+      out.matches = value3;
       continue;
     }
     if (key3 === "exists") {
-      if (typeof value !== "boolean")
+      if (typeof value3 !== "boolean")
         throw new Error(`${ctx}: \`exists\` must be true or false`);
-      out.exists = value;
+      out.exists = value3;
       continue;
     }
     if (key3 === "any") {
-      out.any = parsePredicate(value, `${ctx}.any`);
+      out.any = parsePredicate(value3, `${ctx}.any`);
       continue;
     }
     if (key3 === "equals") {
-      out.equals = value;
+      out.equals = value3;
       continue;
     }
-    if (typeof value !== "string")
+    if (typeof value3 !== "string")
       throw new Error(`${ctx}: \`${key3}\` must be a string`);
-    out[key3] = value;
+    out[key3] = value3;
   }
   if (Object.keys(out).length === 0)
     throw new Error(`${ctx}: predicate declares no operator`);
@@ -3497,10 +3497,10 @@ function trajectoryEventsSha256(events) {
 function serializeTrajectoryEvents(events) {
   return events.map((event) => JSON.stringify(event)).join("\n") + (events.length ? "\n" : "");
 }
-function deserializeTrajectoryEvents(text14) {
+function deserializeTrajectoryEvents(text15) {
   const out = [];
   try {
-    for (const line of text14.split("\n").filter((entry) => entry.trim())) {
+    for (const line of text15.split("\n").filter((entry) => entry.trim())) {
       const event = JSON.parse(line);
       if (validateEvent(event) !== null)
         return null;
@@ -3621,11 +3621,11 @@ function evaluateTrajectoryGates(assert, input) {
     const hits = matching(events, uniqueness.events);
     for (const field of uniqueness.fields) {
       const values = hits.map((event) => fieldValue(event, field));
-      const missing5 = values.findIndex((value) => value === void 0 || value === null || value === "");
+      const missing5 = values.findIndex((value3) => value3 === void 0 || value3 === null || value3 === "");
       if (missing5 >= 0) {
         assertions.push({ kind: "unique", status: "ERROR", detail: `uniqueness field \`${field}\` is missing on \`${uniqueness.events.event}\` at sequence ${hits[missing5].seq}` });
       } else {
-        const duplicates = values.filter((value, index) => values.findIndex((other) => deepEqual2(value, other)) !== index);
+        const duplicates = values.filter((value3, index) => values.findIndex((other) => deepEqual2(value3, other)) !== index);
         assertions.push({
           kind: "unique",
           status: duplicates.length ? "FAIL" : "PASS",
@@ -3754,134 +3754,134 @@ function evaluateTrajectoryGates(assert, input) {
   };
 }
 function parseTrajectoryAssert(raw, ctx) {
-  const object3 = asObject2(raw, `${ctx}: \`assert.trajectory\``);
+  const object5 = asObject2(raw, `${ctx}: \`assert.trajectory\``);
   const allowed = /* @__PURE__ */ new Set(["version", "require", "forbid", "ordered", "correlate", "freshness", "unique", "forbid_after", "approvals", "coverage"]);
-  rejectUnknown(object3, allowed, `${ctx}: \`assert.trajectory\``);
-  if (object3.version !== TRAJECTORY_ASSERT_VERSION)
+  rejectUnknown(object5, allowed, `${ctx}: \`assert.trajectory\``);
+  if (object5.version !== TRAJECTORY_ASSERT_VERSION)
     throw new Error(`${ctx}: \`assert.trajectory.version\` must be ${TRAJECTORY_ASSERT_VERSION}`);
   const out = { version: TRAJECTORY_ASSERT_VERSION };
-  if (object3.require !== void 0)
-    out.require = nonEmptyArray(object3.require, `${ctx}: require`).map((value, index) => parseRequired(value, `${ctx}: require[${index}]`));
-  if (object3.forbid !== void 0)
-    out.forbid = nonEmptyArray(object3.forbid, `${ctx}: forbid`).map((value, index) => parseSelector(value, `${ctx}: forbid[${index}]`));
-  if (object3.ordered !== void 0)
-    out.ordered = nonEmptyArray(object3.ordered, `${ctx}: ordered`).map((chain, index) => nonEmptyArray(chain, `${ctx}: ordered[${index}]`).map((value, step) => parseSelector(value, `${ctx}: ordered[${index}][${step}]`)));
-  if (object3.correlate !== void 0)
-    out.correlate = nonEmptyArray(object3.correlate, `${ctx}: correlate`).map((value, index) => parseCorrelation(value, `${ctx}: correlate[${index}]`));
-  if (object3.freshness !== void 0)
-    out.freshness = nonEmptyArray(object3.freshness, `${ctx}: freshness`).map((value, index) => parseFreshness(value, `${ctx}: freshness[${index}]`));
-  if (object3.unique !== void 0)
-    out.unique = nonEmptyArray(object3.unique, `${ctx}: unique`).map((value, index) => parseUnique(value, `${ctx}: unique[${index}]`));
-  if (object3.forbid_after !== void 0)
-    out.forbid_after = nonEmptyArray(object3.forbid_after, `${ctx}: forbid_after`).map((value, index) => parseForbidAfter(value, `${ctx}: forbid_after[${index}]`));
-  if (object3.approvals !== void 0)
-    out.approvals = nonEmptyArray(object3.approvals, `${ctx}: approvals`).map((value, index) => parseApproval(value, `${ctx}: approvals[${index}]`));
-  if (object3.coverage !== void 0)
-    out.coverage = nonEmptyArray(object3.coverage, `${ctx}: coverage`).map((value, index) => parseCoverage(value, `${ctx}: coverage[${index}]`));
+  if (object5.require !== void 0)
+    out.require = nonEmptyArray(object5.require, `${ctx}: require`).map((value3, index) => parseRequired(value3, `${ctx}: require[${index}]`));
+  if (object5.forbid !== void 0)
+    out.forbid = nonEmptyArray(object5.forbid, `${ctx}: forbid`).map((value3, index) => parseSelector(value3, `${ctx}: forbid[${index}]`));
+  if (object5.ordered !== void 0)
+    out.ordered = nonEmptyArray(object5.ordered, `${ctx}: ordered`).map((chain, index) => nonEmptyArray(chain, `${ctx}: ordered[${index}]`).map((value3, step) => parseSelector(value3, `${ctx}: ordered[${index}][${step}]`)));
+  if (object5.correlate !== void 0)
+    out.correlate = nonEmptyArray(object5.correlate, `${ctx}: correlate`).map((value3, index) => parseCorrelation(value3, `${ctx}: correlate[${index}]`));
+  if (object5.freshness !== void 0)
+    out.freshness = nonEmptyArray(object5.freshness, `${ctx}: freshness`).map((value3, index) => parseFreshness(value3, `${ctx}: freshness[${index}]`));
+  if (object5.unique !== void 0)
+    out.unique = nonEmptyArray(object5.unique, `${ctx}: unique`).map((value3, index) => parseUnique(value3, `${ctx}: unique[${index}]`));
+  if (object5.forbid_after !== void 0)
+    out.forbid_after = nonEmptyArray(object5.forbid_after, `${ctx}: forbid_after`).map((value3, index) => parseForbidAfter(value3, `${ctx}: forbid_after[${index}]`));
+  if (object5.approvals !== void 0)
+    out.approvals = nonEmptyArray(object5.approvals, `${ctx}: approvals`).map((value3, index) => parseApproval(value3, `${ctx}: approvals[${index}]`));
+  if (object5.coverage !== void 0)
+    out.coverage = nonEmptyArray(object5.coverage, `${ctx}: coverage`).map((value3, index) => parseCoverage(value3, `${ctx}: coverage[${index}]`));
   if (Object.keys(out).length === 1)
     throw new Error(`${ctx}: \`assert.trajectory\` declares no assertions`);
   return out;
 }
 function parseRequired(raw, ctx) {
-  const object3 = asObject2(raw, ctx);
-  rejectUnknown(object3, /* @__PURE__ */ new Set(["event", "where", "select", "count"]), ctx);
-  const out = parseSelector({ event: object3.event, ...object3.where === void 0 ? {} : { where: object3.where }, ...object3.select === void 0 ? {} : { select: object3.select } }, ctx);
-  if (object3.count !== void 0)
-    out.count = parseCount2(object3.count, `${ctx}.count`);
+  const object5 = asObject2(raw, ctx);
+  rejectUnknown(object5, /* @__PURE__ */ new Set(["event", "where", "select", "count"]), ctx);
+  const out = parseSelector({ event: object5.event, ...object5.where === void 0 ? {} : { where: object5.where }, ...object5.select === void 0 ? {} : { select: object5.select } }, ctx);
+  if (object5.count !== void 0)
+    out.count = parseCount2(object5.count, `${ctx}.count`);
   return out;
 }
 function parseSelector(raw, ctx) {
-  const object3 = asObject2(raw, ctx);
-  rejectUnknown(object3, /* @__PURE__ */ new Set(["event", "where", "select"]), ctx);
-  if (typeof object3.event !== "string" || !object3.event.trim())
+  const object5 = asObject2(raw, ctx);
+  rejectUnknown(object5, /* @__PURE__ */ new Set(["event", "where", "select"]), ctx);
+  if (typeof object5.event !== "string" || !object5.event.trim())
     throw new Error(`${ctx}.event must be a non-empty string`);
-  const out = { event: object3.event };
-  if (object3.where !== void 0) {
-    const where = asObject2(object3.where, `${ctx}.where`);
-    out.where = Object.fromEntries(Object.entries(where).map(([field, value]) => [field, parsePredicate(value, `${ctx}.where.${field}`)]));
+  const out = { event: object5.event };
+  if (object5.where !== void 0) {
+    const where = asObject2(object5.where, `${ctx}.where`);
+    out.where = Object.fromEntries(Object.entries(where).map(([field, value3]) => [field, parsePredicate(value3, `${ctx}.where.${field}`)]));
   }
-  if (object3.select !== void 0) {
-    if (!["first", "last", "all"].includes(object3.select))
+  if (object5.select !== void 0) {
+    if (!["first", "last", "all"].includes(object5.select))
       throw new Error(`${ctx}.select must be first, last, or all`);
-    out.select = object3.select;
+    out.select = object5.select;
   }
   return out;
 }
 function parseCorrelation(raw, ctx) {
-  const object3 = asObject2(raw, ctx);
-  rejectUnknown(object3, /* @__PURE__ */ new Set(["left", "right", "same", "different", "order"]), ctx);
-  const out = { left: parseSelector(object3.left, `${ctx}.left`), right: parseSelector(object3.right, `${ctx}.right`) };
-  if (object3.same !== void 0)
-    out.same = stringList(object3.same, `${ctx}.same`);
-  if (object3.different !== void 0)
-    out.different = stringList(object3.different, `${ctx}.different`);
-  if (object3.order !== void 0) {
-    if (object3.order !== "before" && object3.order !== "after")
+  const object5 = asObject2(raw, ctx);
+  rejectUnknown(object5, /* @__PURE__ */ new Set(["left", "right", "same", "different", "order"]), ctx);
+  const out = { left: parseSelector(object5.left, `${ctx}.left`), right: parseSelector(object5.right, `${ctx}.right`) };
+  if (object5.same !== void 0)
+    out.same = stringList(object5.same, `${ctx}.same`);
+  if (object5.different !== void 0)
+    out.different = stringList(object5.different, `${ctx}.different`);
+  if (object5.order !== void 0) {
+    if (object5.order !== "before" && object5.order !== "after")
       throw new Error(`${ctx}.order must be before or after`);
-    out.order = object3.order;
+    out.order = object5.order;
   }
   if (!out.same?.length && !out.different?.length && !out.order)
     throw new Error(`${ctx} declares no relation`);
   return out;
 }
 function parseFreshness(raw, ctx) {
-  const object3 = asObject2(raw, ctx);
-  rejectUnknown(object3, /* @__PURE__ */ new Set(["subject", "after", "same"]), ctx);
+  const object5 = asObject2(raw, ctx);
+  rejectUnknown(object5, /* @__PURE__ */ new Set(["subject", "after", "same"]), ctx);
   return {
-    subject: parseSelector(object3.subject, `${ctx}.subject`),
-    after: nonEmptyArray(object3.after, `${ctx}.after`).map((value, index) => parseSelector(value, `${ctx}.after[${index}]`)),
-    ...object3.same === void 0 ? {} : { same: stringList(object3.same, `${ctx}.same`) }
+    subject: parseSelector(object5.subject, `${ctx}.subject`),
+    after: nonEmptyArray(object5.after, `${ctx}.after`).map((value3, index) => parseSelector(value3, `${ctx}.after[${index}]`)),
+    ...object5.same === void 0 ? {} : { same: stringList(object5.same, `${ctx}.same`) }
   };
 }
 function parseUnique(raw, ctx) {
-  const object3 = asObject2(raw, ctx);
-  rejectUnknown(object3, /* @__PURE__ */ new Set(["events", "fields"]), ctx);
-  return { events: parseSelector(object3.events, `${ctx}.events`), fields: stringList(object3.fields, `${ctx}.fields`) };
+  const object5 = asObject2(raw, ctx);
+  rejectUnknown(object5, /* @__PURE__ */ new Set(["events", "fields"]), ctx);
+  return { events: parseSelector(object5.events, `${ctx}.events`), fields: stringList(object5.fields, `${ctx}.fields`) };
 }
 function parseForbidAfter(raw, ctx) {
-  const object3 = asObject2(raw, ctx);
-  rejectUnknown(object3, /* @__PURE__ */ new Set(["anchor", "forbidden", "same", "anchor_optional"]), ctx);
-  if (object3.anchor_optional !== void 0 && typeof object3.anchor_optional !== "boolean")
+  const object5 = asObject2(raw, ctx);
+  rejectUnknown(object5, /* @__PURE__ */ new Set(["anchor", "forbidden", "same", "anchor_optional"]), ctx);
+  if (object5.anchor_optional !== void 0 && typeof object5.anchor_optional !== "boolean")
     throw new Error(`${ctx}.anchor_optional must be boolean`);
   return {
-    anchor: parseSelector(object3.anchor, `${ctx}.anchor`),
-    forbidden: nonEmptyArray(object3.forbidden, `${ctx}.forbidden`).map((value, index) => parseSelector(value, `${ctx}.forbidden[${index}]`)),
-    ...object3.same === void 0 ? {} : { same: stringList(object3.same, `${ctx}.same`) },
-    ...object3.anchor_optional === void 0 ? {} : { anchor_optional: object3.anchor_optional }
+    anchor: parseSelector(object5.anchor, `${ctx}.anchor`),
+    forbidden: nonEmptyArray(object5.forbidden, `${ctx}.forbidden`).map((value3, index) => parseSelector(value3, `${ctx}.forbidden[${index}]`)),
+    ...object5.same === void 0 ? {} : { same: stringList(object5.same, `${ctx}.same`) },
+    ...object5.anchor_optional === void 0 ? {} : { anchor_optional: object5.anchor_optional }
   };
 }
 function parseApproval(raw, ctx) {
-  const object3 = asObject2(raw, ctx);
-  rejectUnknown(object3, /* @__PURE__ */ new Set(["grant", "use", "same", "scopes", "sources", "unexpired", "max_uses"]), ctx);
-  if (object3.unexpired !== void 0 && typeof object3.unexpired !== "boolean")
+  const object5 = asObject2(raw, ctx);
+  rejectUnknown(object5, /* @__PURE__ */ new Set(["grant", "use", "same", "scopes", "sources", "unexpired", "max_uses"]), ctx);
+  if (object5.unexpired !== void 0 && typeof object5.unexpired !== "boolean")
     throw new Error(`${ctx}.unexpired must be boolean`);
-  if (object3.max_uses !== void 0 && (!Number.isInteger(object3.max_uses) || Number(object3.max_uses) < 1))
+  if (object5.max_uses !== void 0 && (!Number.isInteger(object5.max_uses) || Number(object5.max_uses) < 1))
     throw new Error(`${ctx}.max_uses must be a positive integer`);
   return {
-    grant: parseSelector(object3.grant, `${ctx}.grant`),
-    use: parseSelector(object3.use, `${ctx}.use`),
-    ...object3.same === void 0 ? {} : { same: stringList(object3.same, `${ctx}.same`) },
-    ...object3.scopes === void 0 ? {} : { scopes: stringList(object3.scopes, `${ctx}.scopes`) },
-    ...object3.sources === void 0 ? {} : { sources: stringList(object3.sources, `${ctx}.sources`) },
-    ...object3.unexpired === void 0 ? {} : { unexpired: object3.unexpired },
-    ...object3.max_uses === void 0 ? {} : { max_uses: Number(object3.max_uses) }
+    grant: parseSelector(object5.grant, `${ctx}.grant`),
+    use: parseSelector(object5.use, `${ctx}.use`),
+    ...object5.same === void 0 ? {} : { same: stringList(object5.same, `${ctx}.same`) },
+    ...object5.scopes === void 0 ? {} : { scopes: stringList(object5.scopes, `${ctx}.scopes`) },
+    ...object5.sources === void 0 ? {} : { sources: stringList(object5.sources, `${ctx}.sources`) },
+    ...object5.unexpired === void 0 ? {} : { unexpired: object5.unexpired },
+    ...object5.max_uses === void 0 ? {} : { max_uses: Number(object5.max_uses) }
   };
 }
 function parseCoverage(raw, ctx) {
-  const object3 = asObject2(raw, ctx);
-  rejectUnknown(object3, /* @__PURE__ */ new Set(["requirements", "events"]), ctx);
-  return { requirements: stringList(object3.requirements, `${ctx}.requirements`), ...object3.events === void 0 ? {} : { events: parseSelector(object3.events, `${ctx}.events`) } };
+  const object5 = asObject2(raw, ctx);
+  rejectUnknown(object5, /* @__PURE__ */ new Set(["requirements", "events"]), ctx);
+  return { requirements: stringList(object5.requirements, `${ctx}.requirements`), ...object5.events === void 0 ? {} : { events: parseSelector(object5.events, `${ctx}.events`) } };
 }
 function parseCount2(raw, ctx) {
-  const object3 = asObject2(raw, ctx);
-  rejectUnknown(object3, /* @__PURE__ */ new Set(["min", "max"]), ctx);
+  const object5 = asObject2(raw, ctx);
+  rejectUnknown(object5, /* @__PURE__ */ new Set(["min", "max"]), ctx);
   const out = {};
   for (const key3 of ["min", "max"]) {
-    if (object3[key3] === void 0)
+    if (object5[key3] === void 0)
       continue;
-    if (!Number.isInteger(object3[key3]) || Number(object3[key3]) < 0)
+    if (!Number.isInteger(object5[key3]) || Number(object5[key3]) < 0)
       throw new Error(`${ctx}.${key3} must be a non-negative integer`);
-    out[key3] = Number(object3[key3]);
+    out[key3] = Number(object5[key3]);
   }
   if (out.min !== void 0 && out.max !== void 0 && out.min > out.max)
     throw new Error(`${ctx}.min exceeds max`);
@@ -3922,15 +3922,15 @@ var REFUSAL_RE = /^[A-Z][A-Z0-9_]*$/;
 function validateEvent(event) {
   if (!event || typeof event !== "object" || Array.isArray(event))
     return "event must be an object";
-  const object3 = event;
-  const unknown = Object.keys(object3).find((key3) => !EVENT_KEYS.has(key3));
+  const object5 = event;
+  const unknown = Object.keys(object5).find((key3) => !EVENT_KEYS.has(key3));
   if (unknown)
     return `unknown field ${unknown}`;
   if (event.event_version !== LEGACY_TRAJECTORY_EVENT_VERSION && event.event_version !== TRAJECTORY_EVENT_VERSION) {
     return `unsupported event_version ${String(event.event_version)}`;
   }
   if (event.event_version === LEGACY_TRAJECTORY_EVENT_VERSION) {
-    const versionedField = Object.keys(object3).find((key3) => V11_EVENT_KEYS.has(key3));
+    const versionedField = Object.keys(object5).find((key3) => V11_EVENT_KEYS.has(key3));
     if (versionedField)
       return `${versionedField} requires event_version ${TRAJECTORY_EVENT_VERSION}`;
   }
@@ -3956,7 +3956,7 @@ function validateEvent(event) {
   }
   for (const field of ["requested_capabilities", "effective_capabilities", "requirements"]) {
     const values = event[field];
-    if (values !== void 0 && (!Array.isArray(values) || values.some((value) => typeof value !== "string" || !value) || new Set(values).size !== values.length)) {
+    if (values !== void 0 && (!Array.isArray(values) || values.some((value3) => typeof value3 !== "string" || !value3) || new Set(values).size !== values.length)) {
       return `${field} must be an array of unique non-empty strings`;
     }
   }
@@ -3967,12 +3967,12 @@ function validateEvent(event) {
   if (event.digests !== void 0) {
     if (!event.digests || typeof event.digests !== "object" || Array.isArray(event.digests))
       return "digests must be an object";
-    for (const [key3, value] of Object.entries(event.digests)) {
-      if (typeof value !== "string")
+    for (const [key3, value3] of Object.entries(event.digests)) {
+      if (typeof value3 !== "string")
         return `digests.${key3} must be a string`;
-      if (["plan", "task", "definition"].includes(key3) && !SHA256_RE.test(value))
+      if (["plan", "task", "definition"].includes(key3) && !SHA256_RE.test(value3))
         return `digests.${key3} must be sha256`;
-      if (["head", "tree"].includes(key3) && !GIT_SHA_RE.test(value))
+      if (["head", "tree"].includes(key3) && !GIT_SHA_RE.test(value3))
         return `digests.${key3} must be a git object id`;
     }
   }
@@ -3982,12 +3982,12 @@ function validateEvent(event) {
     const unknownApproval = Object.keys(event.approval).find((key3) => !APPROVAL_KEYS.has(key3));
     if (unknownApproval)
       return `approval.${unknownApproval} is unknown`;
-    for (const [key3, value] of Object.entries(event.approval)) {
-      if (typeof value !== "string" || !value)
+    for (const [key3, value3] of Object.entries(event.approval)) {
+      if (typeof value3 !== "string" || !value3)
         return `approval.${key3} must be a non-empty string`;
-      if (key3 === "id" && !ID_RE.test(value))
+      if (key3 === "id" && !ID_RE.test(value3))
         return "approval.id is invalid";
-      if (["approved_at", "expires_at", "used_at"].includes(key3) && !validDate(value))
+      if (["approved_at", "expires_at", "used_at"].includes(key3) && !validDate(value3))
         return `approval.${key3} must be an RFC 3339 date-time`;
     }
   }
@@ -4024,11 +4024,11 @@ function compareFields(left, right, same, different) {
 function deepEqual2(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
-function validDate(value) {
-  if (typeof value !== "string")
+function validDate(value3) {
+  if (typeof value3 !== "string")
     return false;
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.exec(value);
-  if (!match || !Number.isFinite(Date.parse(value)))
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.exec(value3);
+  if (!match || !Number.isFinite(Date.parse(value3)))
     return false;
   const [, year, month, day, hour, minute, second] = match.map(Number);
   if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59)
@@ -4038,35 +4038,35 @@ function validDate(value) {
 function bounds(min, max) {
   return max === void 0 ? `at least ${min}` : min === 0 ? `at most ${max}` : `${min}..${max}`;
 }
-function asObject2(value, ctx) {
-  if (!value || typeof value !== "object" || Array.isArray(value))
+function asObject2(value3, ctx) {
+  if (!value3 || typeof value3 !== "object" || Array.isArray(value3))
     throw new Error(`${ctx} must be a mapping`);
-  return value;
+  return value3;
 }
-function nonEmptyArray(value, ctx) {
-  if (!Array.isArray(value) || value.length === 0)
+function nonEmptyArray(value3, ctx) {
+  if (!Array.isArray(value3) || value3.length === 0)
     throw new Error(`${ctx} must be a non-empty list`);
-  return value;
+  return value3;
 }
-function stringList(value, ctx) {
-  const values = nonEmptyArray(value, ctx);
+function stringList(value3, ctx) {
+  const values = nonEmptyArray(value3, ctx);
   if (values.some((item) => typeof item !== "string" || !item.trim()))
     throw new Error(`${ctx} must contain non-empty strings`);
   if (new Set(values).size !== values.length)
     throw new Error(`${ctx} must not contain duplicates`);
   return values;
 }
-function rejectUnknown(object3, allowed, ctx) {
-  const unknown = Object.keys(object3).find((key3) => !allowed.has(key3));
+function rejectUnknown(object5, allowed, ctx) {
+  const unknown = Object.keys(object5).find((key3) => !allowed.has(key3));
   if (unknown)
     throw new Error(`${ctx}: unknown key \`${unknown}\``);
 }
-function stableStringify(value) {
-  if (value === null || typeof value !== "object")
-    return JSON.stringify(value) ?? "null";
-  if (Array.isArray(value))
-    return `[${value.map(stableStringify).join(",")}]`;
-  return `{${Object.entries(value).filter(([, entry]) => entry !== void 0).sort(([a], [b]) => a.localeCompare(b)).map(([key3, entry]) => `${JSON.stringify(key3)}:${stableStringify(entry)}`).join(",")}}`;
+function stableStringify(value3) {
+  if (value3 === null || typeof value3 !== "object")
+    return JSON.stringify(value3) ?? "null";
+  if (Array.isArray(value3))
+    return `[${value3.map(stableStringify).join(",")}]`;
+  return `{${Object.entries(value3).filter(([, entry]) => entry !== void 0).sort(([a], [b]) => a.localeCompare(b)).map(([key3, entry]) => `${JSON.stringify(key3)}:${stableStringify(entry)}`).join(",")}}`;
 }
 
 // packages/core/dist/spec.js
@@ -4186,10 +4186,10 @@ function resolveRemote(env, workspace, id3, file) {
   }
   return raw;
 }
-function parseSpec(text14, file) {
+function parseSpec(text15, file) {
   let doc;
   try {
-    doc = yaml.load(text14);
+    doc = yaml.load(text15);
   } catch (e) {
     throw new SpecError(`not valid YAML \u2014 ${e.message}`, file);
   }
@@ -4354,13 +4354,13 @@ function parseSpec(text14, file) {
   return { schema: 1, skill: o.skill, judge_persona: o.judge_persona, ship_bar, critical: effectiveCritical, scenarios };
 }
 function loadSpec(file) {
-  let text14;
+  let text15;
   try {
-    text14 = readFileSync3(file, "utf8");
+    text15 = readFileSync3(file, "utf8");
   } catch (e) {
     throw new SpecError(`cannot read spec file \u2014 ${e.message}`, file);
   }
-  return parseSpec(text14, file);
+  return parseSpec(text15, file);
 }
 
 // packages/core/dist/discover.js
@@ -4577,9 +4577,9 @@ var SKILL_PROMPT_KEY = "skill:prompt";
 var PROMPT_PREFIX = "prompt:";
 var CAPABILITY_KEYS = /* @__PURE__ */ new Set(["allowed-tools", "tools"]);
 var FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
-function splitPromptDoc(text14) {
-  const m = FRONTMATTER_RE.exec(text14);
-  return m ? { frontmatter: m[1], body: text14.slice(m[0].length) } : { frontmatter: null, body: text14 };
+function splitPromptDoc(text15) {
+  const m = FRONTMATTER_RE.exec(text15);
+  return m ? { frontmatter: m[1], body: text15.slice(m[0].length) } : { frontmatter: null, body: text15 };
 }
 function canonicalValue(v) {
   if (typeof v === "string")
@@ -4607,8 +4607,8 @@ function modelVisibleFrontmatter(fm) {
     Object.entries(parsed).filter(([k]) => !CAPABILITY_KEYS.has(k)).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([k, v]) => [k, canonicalValue(v)])
   ];
 }
-function promptDocDigest(text14) {
-  const { frontmatter, body } = splitPromptDoc(text14);
+function promptDocDigest(text15) {
+  const { frontmatter, body } = splitPromptDoc(text15);
   return sha(JSON.stringify(["prompt-doc/1", modelVisibleFrontmatter(frontmatter), body]));
 }
 function promptDocDigestOfFile(path3) {
@@ -5056,8 +5056,8 @@ function migrateResults(raw) {
   };
 }
 function readResults(runDir) {
-  const text14 = readFileSync6(resultsPath(runDir), "utf8");
-  return migrateResults(yaml.load(text14));
+  const text15 = readFileSync6(resultsPath(runDir), "utf8");
+  return migrateResults(yaml.load(text15));
 }
 var CRITERION_RE = /^\s*(\d+)[.)]\s*\**\s*(PASS|FAIL)\b\**\s*(.*)$/gim;
 function parseCriterionVotes(raw) {
@@ -5786,8 +5786,8 @@ import { spawn } from "node:child_process";
 import { existsSync as existsSync7 } from "node:fs";
 import { join as join8, delimiter } from "node:path";
 function exec(cmd, args, opts = {}) {
-  return new Promise((resolve28, reject2) => {
-    const child2 = spawn(cmd, args, {
+  return new Promise((resolve31, reject2) => {
+    const child3 = spawn(cmd, args, {
       cwd: opts.cwd,
       env: opts.env ?? process.env,
       stdio: ["ignore", "pipe", "pipe"]
@@ -5797,22 +5797,22 @@ function exec(cmd, args, opts = {}) {
     let timer;
     if (opts.timeoutMs) {
       timer = setTimeout(() => {
-        child2.kill("SIGKILL");
+        child3.kill("SIGKILL");
         stderr += `
 [skill-harness] killed after ${opts.timeoutMs}ms timeout`;
       }, opts.timeoutMs);
     }
-    child2.stdout.on("data", (d) => stdout += d.toString());
-    child2.stderr.on("data", (d) => stderr += d.toString());
-    child2.on("error", (e) => {
+    child3.stdout.on("data", (d) => stdout += d.toString());
+    child3.stderr.on("data", (d) => stderr += d.toString());
+    child3.on("error", (e) => {
       if (timer)
         clearTimeout(timer);
       reject2(e);
     });
-    child2.on("close", (code) => {
+    child3.on("close", (code) => {
       if (timer)
         clearTimeout(timer);
-      resolve28({ stdout, stderr, code });
+      resolve31({ stdout, stderr, code });
     });
   });
 }
@@ -6165,10 +6165,10 @@ function projectTurns(entries, homeDir) {
     if (id3)
       current.entryIds.push(id3);
     if (msg.role === "assistant") {
-      const text14 = visibleText(msg.content);
-      if (text14)
+      const text15 = visibleText(msg.content);
+      if (text15)
         current.assistantText = current.assistantText ? `${current.assistantText}
-${text14}` : text14;
+${text15}` : text15;
       for (const b of msg.content ?? []) {
         if (b.type !== "toolCall")
           continue;
@@ -6232,30 +6232,30 @@ function redactArgs(args, homeDir, depth = 0) {
   if (args === null || typeof args !== "object" || Array.isArray(args))
     return {};
   const out = {};
-  for (const [key3, value] of Object.entries(args)) {
+  for (const [key3, value3] of Object.entries(args)) {
     if (SECRET_KEY.test(key3)) {
       out[key3] = REDACTED;
       continue;
     }
-    out[key3] = redactValue(value, homeDir, depth);
+    out[key3] = redactValue(value3, homeDir, depth);
   }
   return out;
 }
-function redactValue(value, homeDir, depth) {
-  if (typeof value === "string")
-    return truncate(redactText(value, homeDir));
-  if (typeof value === "number" || typeof value === "boolean" || value === null)
-    return value;
+function redactValue(value3, homeDir, depth) {
+  if (typeof value3 === "string")
+    return truncate(redactText(value3, homeDir));
+  if (typeof value3 === "number" || typeof value3 === "boolean" || value3 === null)
+    return value3;
   if (depth >= 3)
     return "[nested]";
-  if (Array.isArray(value))
-    return value.slice(0, 20).map((v) => redactValue(v, homeDir, depth + 1));
-  if (typeof value === "object")
-    return redactArgs(value, homeDir, depth + 1);
-  return String(value);
+  if (Array.isArray(value3))
+    return value3.slice(0, 20).map((v) => redactValue(v, homeDir, depth + 1));
+  if (typeof value3 === "object")
+    return redactArgs(value3, homeDir, depth + 1);
+  return String(value3);
 }
-function sha256(text14) {
-  return createHash5("sha256").update(text14, "utf8").digest("hex");
+function sha256(text15) {
+  return createHash5("sha256").update(text15, "utf8").digest("hex");
 }
 function captureId(seed, existing = []) {
   const taken = new Set(existing);
@@ -6410,11 +6410,11 @@ function parseTrace(lines2, meta) {
       }
       if (msg?.role !== "assistant")
         continue;
-      const text14 = assistantText(msg);
-      if (text14) {
-        lastAssistantText = text14;
+      const text15 = assistantText(msg);
+      if (text15) {
+        lastAssistantText = text15;
         if (msg.stopReason === "stop")
-          finalText = text14;
+          finalText = text15;
       }
       if (msg.usage && (typeof msg.usage.input === "number" || typeof msg.usage.output === "number" || typeof msg.usage.cacheRead === "number" || typeof msg.usage.cacheWrite === "number" || typeof msg.usage.cost?.total === "number"))
         sawUsage = true;
@@ -6497,25 +6497,25 @@ function resultMeta(result, homeDir) {
 function str2(v) {
   return typeof v === "string" && v.length > 0 ? v : void 0;
 }
-function isoTime(value) {
-  if (typeof value !== "number" && typeof value !== "string")
+function isoTime(value3) {
+  if (typeof value3 !== "number" && typeof value3 !== "string")
     return void 0;
-  const date = new Date(value);
+  const date = new Date(value3);
   return Number.isNaN(date.getTime()) ? void 0 : date.toISOString();
 }
-function sha2562(text14) {
-  return createHash6("sha256").update(text14, "utf8").digest("hex");
+function sha2562(text15) {
+  return createHash6("sha256").update(text15, "utf8").digest("hex");
 }
 function traceSha256(trace) {
   const { trace_sha256: _omit, ...rest } = trace;
   return sha2562(stableStringify2(rest));
 }
-function stableStringify2(value) {
-  if (value === null || typeof value !== "object")
-    return JSON.stringify(value) ?? "null";
-  if (Array.isArray(value))
-    return `[${value.map(stableStringify2).join(",")}]`;
-  const entries = Object.entries(value).filter(([, v]) => v !== void 0).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+function stableStringify2(value3) {
+  if (value3 === null || typeof value3 !== "object")
+    return JSON.stringify(value3) ?? "null";
+  if (Array.isArray(value3))
+    return `[${value3.map(stableStringify2).join(",")}]`;
+  const entries = Object.entries(value3).filter(([, v]) => v !== void 0).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
   return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify2(v)}`).join(",")}}`;
 }
 function serializeTrace(trace) {
@@ -6967,9 +6967,9 @@ async function regradeRun(opts) {
 // packages/core/dist/canary.js
 import { readFileSync as readFileSync10 } from "node:fs";
 import { join as join11 } from "node:path";
-function skillBody(text14) {
-  const m = /^---\r?\n[\s\S]*?\r?\n---\r?\n/.exec(text14);
-  return m ? text14.slice(m[0].length) : text14;
+function skillBody(text15) {
+  const m = /^---\r?\n[\s\S]*?\r?\n---\r?\n/.exec(text15);
+  return m ? text15.slice(m[0].length) : text15;
 }
 function deliveryAnchor(skillMd) {
   const headings = [...skillBody(skillMd).matchAll(/^##[ \t]+(.+?)[ \t]*$/gm)].map((m) => m[1].trim());
@@ -7275,18 +7275,18 @@ var REJECTION = {
 
 // packages/core/dist/comparison.js
 function aggregateMetrics2(scenarios) {
-  const metrics = scenarios.map((scenario) => scenario.metrics).filter((value) => value !== void 0);
+  const metrics = scenarios.map((scenario) => scenario.metrics).filter((value3) => value3 !== void 0);
   const sumOptional = (field) => {
-    const values = metrics.map((value) => value[field]).filter((value) => typeof value === "number");
-    return values.length ? values.reduce((sum, value) => sum + value, 0) : null;
+    const values = metrics.map((value3) => value3[field]).filter((value3) => typeof value3 === "number");
+    return values.length ? values.reduce((sum, value3) => sum + value3, 0) : null;
   };
-  const maxValues = metrics.map((value) => value.max_concurrency).filter((value) => typeof value === "number");
+  const maxValues = metrics.map((value3) => value3.max_concurrency).filter((value3) => typeof value3 === "number");
   return {
-    wall_time_ms: metrics.reduce((sum, value) => sum + value.wall_time_ms, 0),
-    judge_calls: metrics.reduce((sum, value) => sum + value.judge_calls, 0),
-    judge_rejudge_calls: metrics.reduce((sum, value) => sum + value.judge_rejudge_calls, 0),
-    subject_metrics_reps: metrics.reduce((sum, value) => sum + value.subject_metrics_reps, 0),
-    total_reps: metrics.reduce((sum, value) => sum + value.total_reps, 0),
+    wall_time_ms: metrics.reduce((sum, value3) => sum + value3.wall_time_ms, 0),
+    judge_calls: metrics.reduce((sum, value3) => sum + value3.judge_calls, 0),
+    judge_rejudge_calls: metrics.reduce((sum, value3) => sum + value3.judge_rejudge_calls, 0),
+    subject_metrics_reps: metrics.reduce((sum, value3) => sum + value3.subject_metrics_reps, 0),
+    total_reps: metrics.reduce((sum, value3) => sum + value3.total_reps, 0),
     input_tokens: sumOptional("input_tokens"),
     output_tokens: sumOptional("output_tokens"),
     cache_read_tokens: sumOptional("cache_read_tokens"),
@@ -7305,13 +7305,13 @@ function aggregateMetrics2(scenarios) {
 // packages/core/dist/run.js
 var LEDGER_FILENAME = "pi-daddy.ledger.jsonl";
 function countLedgerEvents(runDir) {
-  let text14;
+  let text15;
   try {
-    text14 = readFileSync11(join14(runDir, LEDGER_FILENAME), "utf8");
+    text15 = readFileSync11(join14(runDir, LEDGER_FILENAME), "utf8");
   } catch {
     return 0;
   }
-  return text14.split("\n").filter((line) => line.trim().length > 0).length;
+  return text15.split("\n").filter((line) => line.trim().length > 0).length;
 }
 async function runSkillModel(opts) {
   const { spec, skillDir, adapter, model, judge, mode, timestamp: timestamp3 } = opts;
@@ -8116,12 +8116,12 @@ import { basename as basename2, join as join20 } from "node:path";
 
 // packages/core/dist/work-capture.js
 import { createHash as createHash8 } from "node:crypto";
-var canonical = (value) => Array.isArray(value) ? `[${value.map(canonical).join(",")}]` : value !== null && typeof value === "object" ? `{${Object.keys(value).sort().map((key3) => `${JSON.stringify(key3)}:${canonical(value[key3])}`).join(",")}}` : JSON.stringify(value);
-var sha2 = (value) => createHash8("sha256").update(canonical(value)).digest("hex");
-function closed(value, names) {
-  if (!value || typeof value !== "object" || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value)))
+var canonical = (value3) => Array.isArray(value3) ? `[${value3.map(canonical).join(",")}]` : value3 !== null && typeof value3 === "object" ? `{${Object.keys(value3).sort().map((key3) => `${JSON.stringify(key3)}:${canonical(value3[key3])}`).join(",")}}` : JSON.stringify(value3);
+var sha2 = (value3) => createHash8("sha256").update(canonical(value3)).digest("hex");
+function closed(value3, names) {
+  if (!value3 || typeof value3 !== "object" || Array.isArray(value3) || ![Object.prototype, null].includes(Object.getPrototypeOf(value3)))
     return false;
-  const fields = Object.getOwnPropertyDescriptors(value);
+  const fields = Object.getOwnPropertyDescriptors(value3);
   return Reflect.ownKeys(fields).length === names.length && Reflect.ownKeys(fields).every((key3) => typeof key3 === "string" && names.includes(key3) && fields[key3].enumerable && Object.hasOwn(fields[key3], "value"));
 }
 var hash = /^[a-f0-9]{64}$/;
@@ -8150,8 +8150,8 @@ function buildWorkCapture(input) {
     causalAttribution: "not-established"
   };
 }
-function validDecision(value) {
-  return closed(value, ["caseId", "priorDecisionId", "disposition", "author", "evidence", "note"]) && typeof value.caseId === "string" && hash.test(value.caseId) && (value.priorDecisionId === null || typeof value.priorDecisionId === "string" && hash.test(value.priorDecisionId)) && text(value.author) && typeof value.note === "string" && value.note.length <= 4e3 && Array.isArray(value.evidence) && value.evidence.length <= 256 && Array.from({ length: value.evidence.length }, (_, i) => i).every((i) => Object.hasOwn(value.evidence, i) && typeof value.evidence[i] === "string" && hash.test(value.evidence[i])) && ["confirmed_defect", "expected_behavior", "exemplar", "uncertain", "skip"].includes(value.disposition);
+function validDecision(value3) {
+  return closed(value3, ["caseId", "priorDecisionId", "disposition", "author", "evidence", "note"]) && typeof value3.caseId === "string" && hash.test(value3.caseId) && (value3.priorDecisionId === null || typeof value3.priorDecisionId === "string" && hash.test(value3.priorDecisionId)) && text(value3.author) && typeof value3.note === "string" && value3.note.length <= 4e3 && Array.isArray(value3.evidence) && value3.evidence.length <= 256 && Array.from({ length: value3.evidence.length }, (_, i) => i).every((i) => Object.hasOwn(value3.evidence, i) && typeof value3.evidence[i] === "string" && hash.test(value3.evidence[i])) && ["confirmed_defect", "expected_behavior", "exemplar", "uncertain", "skip"].includes(value3.disposition);
 }
 function appendWorkCaseDecision(history, input) {
   if (!validDecision(input))
@@ -8261,12 +8261,12 @@ var hash3 = { type: "string", pattern: "^[a-f0-9]{64}$" };
 var closed2 = (properties, required = Object.keys(properties)) => ({ type: "object", properties, required, additionalProperties: false });
 var evidence = { type: "array", items: hash3, minItems: 1, maxItems: 256, uniqueItems: true };
 var metric = { type: "number", minimum: 0 };
-function freeze(value) {
-  if (value && typeof value === "object") {
-    Object.values(value).forEach(freeze);
-    Object.freeze(value);
+function freeze(value3) {
+  if (value3 && typeof value3 === "object") {
+    Object.values(value3).forEach(freeze);
+    Object.freeze(value3);
   }
-  return value;
+  return value3;
 }
 var WORK_CAPTURE_SCHEMA = freeze({
   $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -8424,13 +8424,13 @@ function recommendExposure(report, policy, now) {
 import { createHash as createHash10 } from "node:crypto";
 var SHA = /^[a-f0-9]{64}$/;
 var text5 = (x) => typeof x === "string" && x.length > 0 && x.length <= 512 && !/[\u0000-\u001f\u007f]/.test(x);
-var closed4 = (value, names) => {
-  if (!value || ![Object.prototype, null].includes(Object.getPrototypeOf(value)))
+var closed4 = (value3, names) => {
+  if (!value3 || ![Object.prototype, null].includes(Object.getPrototypeOf(value3)))
     return false;
-  const fields = Object.getOwnPropertyDescriptors(value);
+  const fields = Object.getOwnPropertyDescriptors(value3);
   return Reflect.ownKeys(fields).length === names.length && Reflect.ownKeys(fields).every((key3) => typeof key3 === "string" && names.includes(key3) && fields[key3].enumerable && Object.hasOwn(fields[key3], "value"));
 };
-var hash4 = (value) => createHash10("sha256").update(JSON.stringify(Object.keys(value).sort().map((k) => [k, value[k]]))).digest("hex");
+var hash4 = (value3) => createHash10("sha256").update(JSON.stringify(Object.keys(value3).sort().map((k) => [k, value3[k]]))).digest("hex");
 function buildAdoptionBinding(input) {
   if (!input || !closed4(input, ["hypothesisDigest", "experimentDigest", "candidateDigest", "scopeDigest", "assessmentPolicyDigest", "rollbackCandidateDigest", "activationBoundary", "expiresAt"]) || ![input.hypothesisDigest, input.experimentDigest, input.candidateDigest, input.scopeDigest, input.assessmentPolicyDigest, input.rollbackCandidateDigest].every((s) => typeof s === "string" && SHA.test(s)) || input.activationBoundary !== "next-orders" || !Number.isSafeInteger(input.expiresAt) || input.expiresAt < 0)
     throw new Error("invalid scoped adoption binding");
@@ -8528,8 +8528,8 @@ var DuplicateScenarioId = class extends Error {
     this.name = "DuplicateScenarioId";
   }
 };
-function specSha256(text14) {
-  return createHash11("sha256").update(text14, "utf8").digest("hex");
+function specSha256(text15) {
+  return createHash11("sha256").update(text15, "utf8").digest("hex");
 }
 function renderScenarioBlock(scenario) {
   const dumped = yaml.dump({ scenarios: [scenario] }, { lineWidth: -1, noRefs: true });
@@ -8555,10 +8555,10 @@ function appendScenario(opts) {
   atomicWrite(specPath, merged);
   return { id: id3, sha256: specSha256(merged), block };
 }
-function atomicWrite(path3, text14) {
+function atomicWrite(path3, text15) {
   const tmp = join21(dirname5(path3), `.${Date.now()}-${process.pid}.specwrite.tmp`);
   try {
-    writeFileSync6(tmp, text14, "utf8");
+    writeFileSync6(tmp, text15, "utf8");
     renameSync3(tmp, path3);
   } catch (err) {
     try {
@@ -8608,12 +8608,12 @@ function json2(input) {
   return result;
 }
 var digest = (x) => createHash12("sha256").update(JSON.stringify(json2(x))).digest("hex");
-function freeze2(value) {
-  if (value && typeof value === "object") {
-    Object.values(value).forEach(freeze2);
-    Object.freeze(value);
+function freeze2(value3) {
+  if (value3 && typeof value3 === "object") {
+    Object.values(value3).forEach(freeze2);
+    Object.freeze(value3);
   }
-  return value;
+  return value3;
 }
 function buildHypothesis(input) {
   const p = json2(input);
@@ -8650,21 +8650,21 @@ function canonical2(x, depth = 0) {
     return `${JSON.stringify(k)}:${canonical2(d[k].value, depth + 1)}`;
   }).join(",")}}`;
 }
-function interventionCanonicalJson(value) {
-  const bytes3 = canonical2(value);
+function interventionCanonicalJson(value3) {
+  const bytes3 = canonical2(value3);
   if (Buffer.byteLength(bytes3) > 2 * 1024 * 1024)
     throw new Error("intervention data exceeds byte bound");
   return bytes3;
 }
-var digest2 = (value) => createHash13("sha256").update(interventionCanonicalJson(value)).digest("hex");
-function frozen(value) {
-  if (value && typeof value === "object") {
-    Object.values(value).forEach(frozen);
-    Object.freeze(value);
+var digest2 = (value3) => createHash13("sha256").update(interventionCanonicalJson(value3)).digest("hex");
+function frozen(value3) {
+  if (value3 && typeof value3 === "object") {
+    Object.values(value3).forEach(frozen);
+    Object.freeze(value3);
   }
-  return value;
+  return value3;
 }
-var clone = (value) => JSON.parse(canonical2(value));
+var clone = (value3) => JSON.parse(canonical2(value3));
 var axes = ["model", "effort", "skill", "prompt", "configuration"];
 function freezeIntervention(input) {
   const d = clone(input);
@@ -8684,7 +8684,7 @@ function freezeIntervention(input) {
   const body = { ...d, version: "intervention-comparison-v1", inputDigest: digest2({ common: d.common, cases: d.cases }), changedAxes, deterministicSampling: false };
   return frozen({ ...body, id: digest2(body) });
 }
-var interventionEvidenceDigest = (value) => digest2(value);
+var interventionEvidenceDigest = (value3) => digest2(value3);
 var assessments = /* @__PURE__ */ new WeakSet();
 var assessmentArtifacts = /* @__PURE__ */ new WeakMap();
 function manifestValid(m) {
@@ -8808,13 +8808,13 @@ function createBlindComparison(manifest, assessment, fixtureOrPersistedSeed) {
       return Buffer.from(bytes3);
     },
     choose(input) {
-      const value = clone(input);
-      if (!closed5(value, ["kind", "labels"]) || !["one", "tie", "none", "insufficient"].includes(value.kind) || !Array.isArray(value.labels) || new Set(value.labels).size !== value.labels.length || value.labels.some((l) => !mapping.has(l)) || (value.kind === "one" ? value.labels.length !== 1 : value.kind === "tie" ? value.labels.length < 2 : value.labels.length !== 0))
+      const value3 = clone(input);
+      if (!closed5(value3, ["kind", "labels"]) || !["one", "tie", "none", "insufficient"].includes(value3.kind) || !Array.isArray(value3.labels) || new Set(value3.labels).size !== value3.labels.length || value3.labels.some((l) => !mapping.has(l)) || (value3.kind === "one" ? value3.labels.length !== 1 : value3.kind === "tie" ? value3.labels.length < 2 : value3.labels.length !== 0))
         throw new Error("invalid blind quality choice");
-      value.labels.sort();
-      if (revealed && canonical2(choice) !== canonical2(value))
+      value3.labels.sort();
+      if (revealed && canonical2(choice) !== canonical2(value3))
         throw new Error("quality choice locked after reveal");
-      choice = frozen(value);
+      choice = frozen(value3);
       return choice;
     },
     reveal() {
@@ -9347,7 +9347,7 @@ import { constants as constants6, openSync as openSync6, closeSync as closeSync6
 import { createHash as createHash16, randomUUID } from "node:crypto";
 import { types as types2 } from "node:util";
 import { isAbsolute as isAbsolute10, join as join30, dirname as dirname9, parse, resolve as resolve13 } from "node:path";
-function learningJson(value) {
+function learningJson(value3) {
   const limit3 = 2 * 1024 * 1024, cache = /* @__PURE__ */ new WeakMap(), visiting = /* @__PURE__ */ new WeakSet();
   const size = (v, depth) => {
     if (depth > 16)
@@ -9388,9 +9388,9 @@ function learningJson(value) {
       const d = descriptors[key3];
       if (!d || !("value" in d) || !d.enumerable)
         throw Error("plain learning property required");
-      const child2 = size(d.value, depth + 1);
-      bytes3 += child2.bytes + (i ? 1 : 0) + (array3 ? 0 : Buffer.byteLength(JSON.stringify(key3)) + 1);
-      height = Math.max(height, child2.height + 1);
+      const child3 = size(d.value, depth + 1);
+      bytes3 += child3.bytes + (i ? 1 : 0) + (array3 ? 0 : Buffer.byteLength(JSON.stringify(key3)) + 1);
+      height = Math.max(height, child3.height + 1);
       if (bytes3 > limit3)
         throw Error("learning JSON byte bound");
     }
@@ -9399,11 +9399,11 @@ function learningJson(value) {
     cache.set(v, result);
     return result;
   };
-  size(value, 0);
-  return interventionCanonicalJson(value);
+  size(value3, 0);
+  return interventionCanonicalJson(value3);
 }
-var learningHash = (value) => createHash16("sha256").update(learningJson(value)).digest("hex");
-var learningCopy = (value) => JSON.parse(learningJson(value));
+var learningHash = (value3) => createHash16("sha256").update(learningJson(value3)).digest("hex");
+var learningCopy = (value3) => JSON.parse(learningJson(value3));
 var LIMIT = 4 * 1024 * 1024;
 function directory(path3) {
   if (!isAbsolute10(path3))
@@ -9466,7 +9466,7 @@ function learningJournal(path3, initial) {
     directory(dirname9(path3));
     mkdirSync8(path3, { mode: 448 });
     directory(path3);
-    const value = learningCopy(initial), body = { prior: null, value }, record = { ...body, id: learningHash(body) };
+    const value3 = learningCopy(initial), body = { prior: null, value: value3 }, record = { ...body, id: learningHash(body) };
     const fd = openSync6(join30(path3, "events.jsonl"), constants6.O_WRONLY | constants6.O_CREAT | constants6.O_EXCL | constants6.O_NOFOLLOW, 384);
     try {
       writeAll(fd, Buffer.from(learningJson(record) + "\n"));
@@ -9490,10 +9490,10 @@ function learningJournal(path3, initial) {
     const stat = lstatSync5(file);
     if (stat.mode & 63 || process.getuid && stat.uid !== process.getuid())
       throw Error("private learning journal required");
-    const text14 = learningFile(file, LIMIT).toString("utf8");
-    if (!text14.endsWith("\n"))
+    const text15 = learningFile(file, LIMIT).toString("utf8");
+    if (!text15.endsWith("\n"))
       throw Error("learning history incomplete");
-    const lines2 = text14.slice(0, -1).split("\n");
+    const lines2 = text15.slice(0, -1).split("\n");
     if (!lines2.length || lines2.length > 4096)
       throw Error("learning history bound");
     let prior = null;
@@ -9506,7 +9506,7 @@ function learningJournal(path3, initial) {
     });
   };
   read5();
-  return { read: read5, append(prior, value) {
+  return { read: read5, append(prior, value3) {
     check();
     const lock = join30(path3, "writer.lock"), token = randomUUID();
     const fd = openSync6(lock, constants6.O_RDWR | constants6.O_CREAT | constants6.O_EXCL | constants6.O_NOFOLLOW, 384), owned = fstatSync6(fd);
@@ -9519,7 +9519,7 @@ function learningJournal(path3, initial) {
         throw Error("stale learning CAS");
       if (history.length >= 4096)
         throw Error("learning history bound");
-      const body = { prior, value: learningCopy(value) }, event = { ...body, id: learningHash(body) }, line = Buffer.from(learningJson(event) + "\n");
+      const body = { prior, value: learningCopy(value3) }, event = { ...body, id: learningHash(body) }, line = Buffer.from(learningJson(event) + "\n");
       const out = openSync6(file, constants6.O_WRONLY | constants6.O_APPEND | constants6.O_NOFOLLOW | constants6.O_NONBLOCK);
       try {
         const s = fstatSync6(out);
@@ -9614,13 +9614,13 @@ var absent = (error) => error?.code === "ENOENT";
 function fail(message3) {
   throw new Error(`archive: ${message3}`);
 }
-function keys2(value, expected) {
-  return !!value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === expected.length && Object.keys(value).every((key3) => expected.includes(key3));
+function keys2(value3, expected) {
+  return !!value3 && typeof value3 === "object" && !Array.isArray(value3) && Object.keys(value3).length === expected.length && Object.keys(value3).every((key3) => expected.includes(key3));
 }
-function validReference(value) {
-  if (!keys2(value, ["schema", "sourceId", "parser", "sha256", "bytes", "retention"]))
+function validReference(value3) {
+  if (!keys2(value3, ["schema", "sourceId", "parser", "sha256", "bytes", "retention"]))
     return false;
-  return value.schema === "archive-source-v1" && typeof value.sourceId === "string" && ID.test(value.sourceId) && keys2(value.parser, ["id", "version"]) && typeof value.parser.id === "string" && ID.test(value.parser.id) && typeof value.parser.version === "string" && ID.test(value.parser.version) && typeof value.sha256 === "string" && HASH.test(value.sha256) && Number.isSafeInteger(value.bytes) && Number(value.bytes) >= 0 && Number(value.bytes) <= LIMIT2 && typeof value.retention === "string" && ["exact", "redacted", "reference-only"].includes(value.retention);
+  return value3.schema === "archive-source-v1" && typeof value3.sourceId === "string" && ID.test(value3.sourceId) && keys2(value3.parser, ["id", "version"]) && typeof value3.parser.id === "string" && ID.test(value3.parser.id) && typeof value3.parser.version === "string" && ID.test(value3.parser.version) && typeof value3.sha256 === "string" && HASH.test(value3.sha256) && Number.isSafeInteger(value3.bytes) && Number(value3.bytes) >= 0 && Number(value3.bytes) <= LIMIT2 && typeof value3.retention === "string" && ["exact", "redacted", "reference-only"].includes(value3.retention);
 }
 function directory2(path3, create) {
   if (!constants7.O_NOFOLLOW || !constants7.O_DIRECTORY || !constants7.O_NONBLOCK)
@@ -9747,9 +9747,9 @@ function readArchiveSourceReference(root, manifestId) {
   try {
     directory2(root, false);
     directory2(join31(root, "manifests"), false);
-    const text14 = readVerified(join31(root, "manifests", manifestId), manifestId, 8192).toString("utf8");
-    const reference3 = JSON.parse(text14);
-    if (!validReference(reference3) || JSON.stringify(reference3) !== text14)
+    const text15 = readVerified(join31(root, "manifests", manifestId), manifestId, 8192).toString("utf8");
+    const reference3 = JSON.parse(text15);
+    if (!validReference(reference3) || JSON.stringify(reference3) !== text15)
       fail("invalid manifest");
     return { status: "available", reference: reference3 };
   } catch (error) {
@@ -9792,8 +9792,8 @@ import { join as join32 } from "node:path";
 var SHA4 = /^[a-f0-9]{64}$/;
 var missing = (e) => e?.code === "ENOENT";
 var encode = interventionCanonicalJson;
-function keys3(value, names) {
-  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).sort().join() !== names.sort().join())
+function keys3(value3, names) {
+  if (!value3 || typeof value3 !== "object" || Array.isArray(value3) || Object.keys(value3).sort().join() !== names.sort().join())
     throw new Error("invalid blind record fields");
 }
 function authorValid(author) {
@@ -9816,9 +9816,9 @@ function load2(root, id3, author) {
     throw new Error("blind input unavailable");
   let bundle;
   try {
-    const text14 = new TextDecoder("utf-8", { fatal: true }).decode(source3.bytes);
-    bundle = JSON.parse(text14);
-    if (encode(bundle) !== text14)
+    const text15 = new TextDecoder("utf-8", { fatal: true }).decode(source3.bytes);
+    bundle = JSON.parse(text15);
+    if (encode(bundle) !== text15)
       throw new Error();
   } catch {
     throw new Error("invalid blind input JSON");
@@ -9893,11 +9893,11 @@ function readChoice(root, id3) {
     if (used > 16384)
       throw new Error("invalid blind choice bound");
     try {
-      const text14 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3.subarray(0, used));
-      const value = JSON.parse(text14);
-      if (encode(value) !== text14)
+      const text15 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3.subarray(0, used));
+      const value3 = JSON.parse(text15);
+      if (encode(value3) !== text15)
         throw new Error();
-      return value;
+      return value3;
     } catch {
       throw new Error("invalid blind choice JSON; explicit recovery required");
     }
@@ -10007,18 +10007,18 @@ import { join as join33 } from "node:path";
 import { createHash as createHash25 } from "node:crypto";
 
 // packages/adapters/dist/work-case-archive.js
-function validate(value) {
-  if (!value || value.capture_schema !== 2 || value.status !== "unresolved" || value.visibility !== "silent" || value.causalAttribution !== "not-established")
+function validate(value3) {
+  if (!value3 || value3.capture_schema !== 2 || value3.status !== "unresolved" || value3.visibility !== "silent" || value3.causalAttribution !== "not-established")
     throw new Error("invalid work case state");
   const built = buildWorkCapture({
-    detector: value.detector,
-    target: value.target,
-    classification: value.classification,
-    reason: value.reason,
-    evidence: value.evidence,
-    metrics: value.metrics
+    detector: value3.detector,
+    target: value3.target,
+    classification: value3.classification,
+    reason: value3.reason,
+    evidence: value3.evidence,
+    metrics: value3.metrics
   });
-  if (built.id !== value.id || Object.keys(value).sort().join() !== Object.keys(built).sort().join())
+  if (built.id !== value3.id || Object.keys(value3).sort().join() !== Object.keys(built).sort().join())
     throw new Error("invalid work case identity");
   return built;
 }
@@ -10026,44 +10026,44 @@ function readWorkCandidate(root, manifestId) {
   const source3 = readArchiveSource(root, manifestId);
   if (source3.status !== "available" || source3.reference.retention !== "exact" || source3.reference.parser.id !== "work-capture" || source3.reference.parser.version !== "2")
     throw new Error("work case missing or invalid");
-  const value = validate(JSON.parse(source3.bytes.toString("utf8")));
-  if (source3.reference.sourceId !== `work-case-${value.id}`)
+  const value3 = validate(JSON.parse(source3.bytes.toString("utf8")));
+  if (source3.reference.sourceId !== `work-case-${value3.id}`)
     throw new Error("work case source mismatch");
-  return value;
+  return value3;
 }
 
 // packages/adapters/dist/work-signal-observation.js
 var LIMIT3 = 1024 * 1024;
-function closed6(value, keys7) {
-  if (!value || typeof value !== "object" || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value)))
+function closed6(value3, keys7) {
+  if (!value3 || typeof value3 !== "object" || Array.isArray(value3) || ![Object.prototype, null].includes(Object.getPrototypeOf(value3)))
     throw new Error("closed work signal object required");
-  const descriptors = Object.getOwnPropertyDescriptors(value), names = Reflect.ownKeys(value);
+  const descriptors = Object.getOwnPropertyDescriptors(value3), names = Reflect.ownKeys(value3);
   if (names.length !== keys7.length || names.some((k) => typeof k !== "string" || !keys7.includes(k) || !descriptors[k].enumerable || !Object.hasOwn(descriptors[k], "value")))
     throw new Error("closed work signal fields required");
 }
-function array(value) {
-  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype || value.length > 256 || Reflect.ownKeys(value).length !== value.length + 1)
+function array(value3) {
+  if (!Array.isArray(value3) || Object.getPrototypeOf(value3) !== Array.prototype || value3.length > 256 || Reflect.ownKeys(value3).length !== value3.length + 1)
     throw new Error("bounded dense work signal array required");
-  for (let i = 0; i < value.length; i++) {
-    const d = Object.getOwnPropertyDescriptor(value, String(i));
+  for (let i = 0; i < value3.length; i++) {
+    const d = Object.getOwnPropertyDescriptor(value3, String(i));
     if (!d || !d.enumerable || !Object.hasOwn(d, "value"))
       throw new Error("dense work signal data array required");
   }
 }
-function canonical3(value) {
-  if (Array.isArray(value))
-    return `[${value.map(canonical3).join(",")}]`;
-  if (value !== null && typeof value === "object")
-    return `{${Object.keys(value).sort().map((k) => `${JSON.stringify(k)}:${canonical3(value[k])}`).join(",")}}`;
-  return JSON.stringify(value);
+function canonical3(value3) {
+  if (Array.isArray(value3))
+    return `[${value3.map(canonical3).join(",")}]`;
+  if (value3 !== null && typeof value3 === "object")
+    return `{${Object.keys(value3).sort().map((k) => `${JSON.stringify(k)}:${canonical3(value3[k])}`).join(",")}}`;
+  return JSON.stringify(value3);
 }
-function validate2(value) {
-  closed6(value, ["observation_schema", "snapshot", "facts"]);
-  if (value.observation_schema !== "work-signal-observation-v1")
+function validate2(value3) {
+  closed6(value3, ["observation_schema", "snapshot", "facts"]);
+  if (value3.observation_schema !== "work-signal-observation-v1")
     throw new Error("unsupported work signal observation");
-  closed6(value.snapshot, ["snapshotDigest", "scopeValid", "obligations"]);
-  closed6(value.facts, ["scopeDigest", "version", "population", "expectedWaits", "checkpoints", "violations", "priorAccepted"]);
-  const s = value.snapshot, f = value.facts;
+  closed6(value3.snapshot, ["snapshotDigest", "scopeValid", "obligations"]);
+  closed6(value3.facts, ["scopeDigest", "version", "population", "expectedWaits", "checkpoints", "violations", "priorAccepted"]);
+  const s = value3.snapshot, f = value3.facts;
   if (typeof s.scopeValid !== "boolean")
     throw new Error("invalid work signal scope state");
   array(s.obligations);
@@ -10084,7 +10084,7 @@ function validate2(value) {
     closed6(v, ["obligationDigest", "status", "evidence"]);
   for (const p of f.priorAccepted)
     closed6(p, ["obligationDigest", "intentDigest", "policyDigest", "artifactDigest", "acceptanceEvidence"]);
-  const input = value;
+  const input = value3;
   detectAdditionalWorkCases(input.snapshot, input.facts);
   return input;
 }
@@ -10092,15 +10092,15 @@ function readWorkSignalObservation(root, manifestId) {
   const stored = readArchiveSource(root, manifestId);
   if (stored.status !== "available" || stored.reference.retention !== "exact" || stored.reference.parser.id !== "work-signal-observation" || stored.reference.parser.version !== "1" || stored.bytes.length > LIMIT3)
     throw new Error("work signal observation unavailable or unsupported");
-  let text14, decoded;
+  let text15, decoded;
   try {
-    text14 = new TextDecoder("utf-8", { fatal: true }).decode(stored.bytes);
-    decoded = JSON.parse(text14);
+    text15 = new TextDecoder("utf-8", { fatal: true }).decode(stored.bytes);
+    decoded = JSON.parse(text15);
   } catch {
     throw new Error("invalid work signal observation JSON");
   }
   const input = validate2(decoded);
-  if (canonical3(input) !== text14 || stored.reference.sourceId !== `work-signals-${input.snapshot.snapshotDigest}`)
+  if (canonical3(input) !== text15 || stored.reference.sourceId !== `work-signals-${input.snapshot.snapshotDigest}`)
     throw new Error("work signal observation binding mismatch");
   return { manifestId, inputSha256: stored.reference.sha256, input, detection: detectAdditionalWorkCases(input.snapshot, input.facts) };
 }
@@ -10112,36 +10112,36 @@ function read(root, id3, parser) {
   const source3 = readArchiveSource(root, id3);
   if (source3.status !== "available" || source3.reference.retention !== "exact" || source3.reference.parser.id !== parser || source3.reference.parser.version !== "1" || source3.bytes.length > 128 * 1024)
     throw new Error("work signal case evidence unavailable or unsupported");
-  let value;
+  let value3;
   try {
-    value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(source3.bytes));
+    value3 = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(source3.bytes));
   } catch {
     throw new Error("invalid work signal case JSON");
   }
-  return { value, sourceId: source3.reference.sourceId };
+  return { value: value3, sourceId: source3.reference.sourceId };
 }
 function closed7(v, keys7) {
   if (!v || typeof v !== "object" || Array.isArray(v) || Object.keys(v).sort().join() !== [...keys7].sort().join())
     throw new Error("invalid closed work signal case record");
 }
 function readWorkSignalCase(root, manifestId) {
-  const { value, sourceId } = read(root, manifestId, "work-signal-case");
-  closed7(value, ["version", "observationId", "caseId"]);
-  if (value.version !== "work-signal-case-v1" || !hash5(value.observationId) || !hash5(value.caseId) || sourceId !== `work-signal-case-${value.caseId}`)
+  const { value: value3, sourceId } = read(root, manifestId, "work-signal-case");
+  closed7(value3, ["version", "observationId", "caseId"]);
+  if (value3.version !== "work-signal-case-v1" || !hash5(value3.observationId) || !hash5(value3.caseId) || sourceId !== `work-signal-case-${value3.caseId}`)
     throw new Error("work signal case binding mismatch");
-  const observation = readWorkSignalObservation(root, value.observationId);
-  const candidate = observation.detection.cases.find((c) => c.id === value.caseId);
+  const observation = readWorkSignalObservation(root, value3.observationId);
+  const candidate = observation.detection.cases.find((c) => c.id === value3.caseId);
   if (!candidate)
     throw new Error("case is not nominated by frozen work signal inputs");
-  return { observationId: value.observationId, candidate };
+  return { observationId: value3.observationId, candidate };
 }
 function readWorkSignalBatch(root, manifestId) {
-  const { value, sourceId } = read(root, manifestId, "work-signal-batch");
-  closed7(value, ["version", "observationId", "candidateIds", "visibility", "promotion"]);
-  if (value.version !== "work-signal-batch-v1" || !hash5(value.observationId) || sourceId !== `work-signal-batch-${value.observationId}` || value.visibility !== "silent" || value.promotion !== "not-authorized" || !Array.isArray(value.candidateIds) || value.candidateIds.length > 1024 || !value.candidateIds.every(hash5) || new Set(value.candidateIds).size !== value.candidateIds.length)
+  const { value: value3, sourceId } = read(root, manifestId, "work-signal-batch");
+  closed7(value3, ["version", "observationId", "candidateIds", "visibility", "promotion"]);
+  if (value3.version !== "work-signal-batch-v1" || !hash5(value3.observationId) || sourceId !== `work-signal-batch-${value3.observationId}` || value3.visibility !== "silent" || value3.promotion !== "not-authorized" || !Array.isArray(value3.candidateIds) || value3.candidateIds.length > 1024 || !value3.candidateIds.every(hash5) || new Set(value3.candidateIds).size !== value3.candidateIds.length)
     throw new Error("invalid work signal batch binding");
-  const observation = readWorkSignalObservation(root, value.observationId);
-  return { observationId: value.observationId, candidateIds: value.candidateIds, issues: observation.detection.issues };
+  const observation = readWorkSignalObservation(root, value3.observationId);
+  return { observationId: value3.observationId, candidateIds: value3.candidateIds, issues: observation.detection.issues };
 }
 
 // packages/adapters/dist/work-case-review.js
@@ -10377,8 +10377,8 @@ import { createInterface } from "node:readline";
 var SKIPPED_TYPE_RE = /^\s*\{\s*"type"\s*:\s*"(?:message_update|tool_execution_update)"/;
 var MAX_STDERR_CHARS = 8e3;
 function runPiJson(opts) {
-  return new Promise((resolve28, reject2) => {
-    const child2 = spawn4("pi", opts.args, {
+  return new Promise((resolve31, reject2) => {
+    const child3 = spawn4("pi", opts.args, {
       cwd: opts.cwd,
       env: opts.env,
       // stdin from /dev/null: pi hangs waiting on it otherwise, and a hang in a
@@ -10393,10 +10393,10 @@ function runPiJson(opts) {
       if (settled)
         return;
       settled = true;
-      child2.kill("SIGKILL");
+      child3.kill("SIGKILL");
       reject2(new Error(`pi --mode json timed out after ${opts.timeoutMs}ms`));
     }, opts.timeoutMs);
-    const rl = createInterface({ input: child2.stdout, crlfDelay: Infinity });
+    const rl = createInterface({ input: child3.stdout, crlfDelay: Infinity });
     rl.on("line", (line) => {
       if (!line.trim())
         return;
@@ -10406,18 +10406,18 @@ function runPiJson(opts) {
       if (providerFailure === null)
         providerFailure = providerFailureFromJsonLine(line);
     });
-    child2.stderr.on("data", (chunk) => {
+    child3.stderr.on("data", (chunk) => {
       if (stderr.length < MAX_STDERR_CHARS)
         stderr += chunk.toString("utf8");
     });
-    child2.on("error", (err) => {
+    child3.on("error", (err) => {
       if (settled)
         return;
       settled = true;
       clearTimeout(timer);
       reject2(err);
     });
-    child2.on("close", (code) => {
+    child3.on("close", (code) => {
       if (settled)
         return;
       settled = true;
@@ -10432,7 +10432,7 @@ function runPiJson(opts) {
         changedPaths: opts.changedPaths,
         homeDir: opts.homeDir
       });
-      resolve28({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS), providerFailure });
+      resolve31({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS), providerFailure });
     });
   });
 }
@@ -10474,26 +10474,26 @@ var V3_SUPPORTED_KEYWORDS = /* @__PURE__ */ new Set([
   "maxItems"
 ]);
 var KEYWORD_SHAPES = {
-  $ref: { check: (value) => typeof value === "string", expected: "a string" },
-  oneOf: { check: (value) => Array.isArray(value) && value.length > 0, expected: "a non-empty array" },
-  allOf: { check: (value) => Array.isArray(value) && value.length > 0, expected: "a non-empty array" },
-  anyOf: { check: (value) => Array.isArray(value) && value.length > 0, expected: "a non-empty array" },
-  if: { check: (value) => isSchemaObject(value), expected: "a schema object" },
-  then: { check: (value) => isSchemaObject(value), expected: "a schema object" },
-  propertyNames: { check: (value) => isSchemaObject(value), expected: "a schema object" },
-  type: { check: (value) => typeof value === "string" || Array.isArray(value) && value.length > 0 && value.every((entry) => typeof entry === "string"), expected: "a string or array of strings" },
-  properties: { check: (value) => isSchemaObject(value), expected: "an object" },
-  required: { check: (value) => Array.isArray(value) && value.every((entry) => typeof entry === "string"), expected: "an array of strings" },
-  additionalProperties: { check: (value) => typeof value === "boolean" || isSchemaObject(value), expected: "a boolean or a schema object" },
-  items: { check: (value) => isSchemaObject(value), expected: "a schema object" },
-  enum: { check: (value) => Array.isArray(value) && value.length > 0, expected: "a non-empty array" },
-  minLength: { check: (value) => typeof value === "number", expected: "a number" },
-  maxLength: { check: (value) => typeof value === "number", expected: "a number" },
-  minimum: { check: (value) => typeof value === "number", expected: "a number" },
-  minItems: { check: (value) => Number.isInteger(value) && Number(value) >= 0, expected: "a non-negative integer" },
-  maxItems: { check: (value) => Number.isInteger(value) && Number(value) >= 0, expected: "a non-negative integer" },
-  pattern: { check: (value) => typeof value === "string", expected: "a string" },
-  format: { check: (value) => typeof value === "string", expected: "a string" }
+  $ref: { check: (value3) => typeof value3 === "string", expected: "a string" },
+  oneOf: { check: (value3) => Array.isArray(value3) && value3.length > 0, expected: "a non-empty array" },
+  allOf: { check: (value3) => Array.isArray(value3) && value3.length > 0, expected: "a non-empty array" },
+  anyOf: { check: (value3) => Array.isArray(value3) && value3.length > 0, expected: "a non-empty array" },
+  if: { check: (value3) => isSchemaObject(value3), expected: "a schema object" },
+  then: { check: (value3) => isSchemaObject(value3), expected: "a schema object" },
+  propertyNames: { check: (value3) => isSchemaObject(value3), expected: "a schema object" },
+  type: { check: (value3) => typeof value3 === "string" || Array.isArray(value3) && value3.length > 0 && value3.every((entry) => typeof entry === "string"), expected: "a string or array of strings" },
+  properties: { check: (value3) => isSchemaObject(value3), expected: "an object" },
+  required: { check: (value3) => Array.isArray(value3) && value3.every((entry) => typeof entry === "string"), expected: "an array of strings" },
+  additionalProperties: { check: (value3) => typeof value3 === "boolean" || isSchemaObject(value3), expected: "a boolean or a schema object" },
+  items: { check: (value3) => isSchemaObject(value3), expected: "a schema object" },
+  enum: { check: (value3) => Array.isArray(value3) && value3.length > 0, expected: "a non-empty array" },
+  minLength: { check: (value3) => typeof value3 === "number", expected: "a number" },
+  maxLength: { check: (value3) => typeof value3 === "number", expected: "a number" },
+  minimum: { check: (value3) => typeof value3 === "number", expected: "a number" },
+  minItems: { check: (value3) => Number.isInteger(value3) && Number(value3) >= 0, expected: "a non-negative integer" },
+  maxItems: { check: (value3) => Number.isInteger(value3) && Number(value3) >= 0, expected: "a non-negative integer" },
+  pattern: { check: (value3) => typeof value3 === "string", expected: "a string" },
+  format: { check: (value3) => typeof value3 === "string", expected: "a string" }
   // `const` may legitimately be any JSON value, including null.
 };
 var SUPPORTED_FORMATS = /* @__PURE__ */ new Set(["date-time"]);
@@ -10552,11 +10552,11 @@ function assertSchemaSupported(schema2, label, path3, v3) {
     assertSchemaSupported(node.additionalProperties, label, `${path3}/additionalProperties`, v3);
   }
 }
-function validateClosedSchema(schema2, value, options = {}) {
-  return validate3(schema2, schema2, value, "", options.knownFieldNames ?? /* @__PURE__ */ new Set());
+function validateClosedSchema(schema2, value3, options = {}) {
+  return validate3(schema2, schema2, value3, "", options.knownFieldNames ?? /* @__PURE__ */ new Set());
 }
-function validateClosedSchemaV3(schema2, value, options = {}) {
-  return validate3(schema2, schema2, value, "", options.knownFieldNames ?? /* @__PURE__ */ new Set());
+function validateClosedSchemaV3(schema2, value3, options = {}) {
+  return validate3(schema2, schema2, value3, "", options.knownFieldNames ?? /* @__PURE__ */ new Set());
 }
 function declaredPropertyNames(schema2) {
   const names = /* @__PURE__ */ new Set();
@@ -10583,58 +10583,58 @@ function declaredPropertyNames(schema2) {
   walk2(schema2);
   return names;
 }
-function validate3(root, schema2, value, path3, known) {
+function validate3(root, schema2, value3, path3, known) {
   if (schema2.$ref !== void 0) {
     const resolved = resolveRef(root, String(schema2.$ref));
-    return validate3(root, resolved, value, path3, known);
+    return validate3(root, resolved, value3, path3, known);
   }
   const violations = [];
   if (Array.isArray(schema2.allOf)) {
     for (const branch of schema2.allOf)
-      violations.push(...validate3(root, branch, value, path3, known));
+      violations.push(...validate3(root, branch, value3, path3, known));
   }
   if (Array.isArray(schema2.anyOf)) {
-    const branches = schema2.anyOf.map((branch) => validate3(root, branch, value, path3, known));
+    const branches = schema2.anyOf.map((branch) => validate3(root, branch, value3, path3, known));
     if (!branches.some((branch) => branch.length === 0))
-      violations.push(...bestBranch(root, schema2.anyOf, branches, value, path3));
+      violations.push(...bestBranch(root, schema2.anyOf, branches, value3, path3));
   }
-  if (schema2.if !== void 0 && validate3(root, schema2.if, value, path3, known).length === 0 && schema2.then !== void 0) {
-    violations.push(...validate3(root, schema2.then, value, path3, known));
+  if (schema2.if !== void 0 && validate3(root, schema2.if, value3, path3, known).length === 0 && schema2.then !== void 0) {
+    violations.push(...validate3(root, schema2.then, value3, path3, known));
   }
   const types4 = typeList(schema2);
-  if (types4.length && !types4.some((type2) => matchesType(type2, value))) {
+  if (types4.length && !types4.some((type2) => matchesType(type2, value3))) {
     return [{ path: path3, message: `must be ${describeTypes(types4)}` }];
   }
-  if (schema2.const !== void 0 && !sameJson(schema2.const, value)) {
+  if (schema2.const !== void 0 && !sameJson(schema2.const, value3)) {
     return [{ path: path3, message: `must be ${JSON.stringify(schema2.const)}` }];
   }
-  if (Array.isArray(schema2.enum) && !schema2.enum.some((allowed) => sameJson(allowed, value))) {
+  if (Array.isArray(schema2.enum) && !schema2.enum.some((allowed) => sameJson(allowed, value3))) {
     return [{ path: path3, message: `must be one of ${schema2.enum.map((allowed) => stringifyAllowed(allowed)).join(", ")}` }];
   }
   if (Array.isArray(schema2.oneOf)) {
-    const branches = schema2.oneOf.map((branch) => validate3(root, branch, value, path3, known));
+    const branches = schema2.oneOf.map((branch) => validate3(root, branch, value3, path3, known));
     const matched = branches.filter((branch) => branch.length === 0).length;
     if (matched === 0)
-      return bestBranch(root, schema2.oneOf, branches, value, path3);
+      return bestBranch(root, schema2.oneOf, branches, value3, path3);
     if (matched > 1)
       return [{ path: path3, message: `matches ${matched} of the ${branches.length} allowed shapes and is therefore ambiguous` }];
   }
-  if (typeof value === "string")
-    violations.push(...validateString(schema2, value, path3));
-  if (typeof value === "number")
-    violations.push(...validateNumber(schema2, value, path3));
-  if (Array.isArray(value)) {
-    if (typeof schema2.minItems === "number" && value.length < schema2.minItems) {
+  if (typeof value3 === "string")
+    violations.push(...validateString(schema2, value3, path3));
+  if (typeof value3 === "number")
+    violations.push(...validateNumber(schema2, value3, path3));
+  if (Array.isArray(value3)) {
+    if (typeof schema2.minItems === "number" && value3.length < schema2.minItems) {
       violations.push({ path: path3, message: `must contain at least ${schema2.minItems} item(s)` });
     }
-    if (typeof schema2.maxItems === "number" && value.length > schema2.maxItems) {
+    if (typeof schema2.maxItems === "number" && value3.length > schema2.maxItems) {
       violations.push({ path: path3, message: `must contain at most ${schema2.maxItems} item(s)` });
     }
     if (schema2.items !== void 0) {
-      value.forEach((entry, index) => violations.push(...validate3(root, schema2.items, entry, `${path3}[${index}]`, known)));
+      value3.forEach((entry, index) => violations.push(...validate3(root, schema2.items, entry, `${path3}[${index}]`, known)));
     }
   }
-  const record = object(value);
+  const record = object(value3);
   if (record)
     violations.push(...validateObject(root, schema2, record, path3, known));
   return violations;
@@ -10671,30 +10671,30 @@ function validateObject(root, schema2, record, path3, known) {
   }
   return violations;
 }
-function validateString(schema2, value, path3) {
+function validateString(schema2, value3, path3) {
   const violations = [];
-  if (typeof schema2.minLength === "number" && value.length < schema2.minLength) {
+  if (typeof schema2.minLength === "number" && value3.length < schema2.minLength) {
     violations.push({ path: path3, message: schema2.minLength === 1 ? "must not be empty" : `must be at least ${schema2.minLength} characters` });
   }
-  if (typeof schema2.maxLength === "number" && value.length > schema2.maxLength) {
+  if (typeof schema2.maxLength === "number" && value3.length > schema2.maxLength) {
     violations.push({ path: path3, message: `must be at most ${schema2.maxLength} characters` });
   }
-  if (typeof schema2.pattern === "string" && !new RegExp(schema2.pattern).test(value)) {
+  if (typeof schema2.pattern === "string" && !new RegExp(schema2.pattern).test(value3)) {
     violations.push({ path: path3, message: `must match ${schema2.pattern}` });
   }
-  if (schema2.format === "date-time" && !isRfc3339(value)) {
+  if (schema2.format === "date-time" && !isRfc3339(value3)) {
     violations.push({ path: path3, message: "must be an RFC 3339 date-time" });
   }
   return violations;
 }
-function validateNumber(schema2, value, path3) {
-  if (typeof schema2.minimum === "number" && value < schema2.minimum) {
+function validateNumber(schema2, value3, path3) {
+  if (typeof schema2.minimum === "number" && value3 < schema2.minimum) {
     return [{ path: path3, message: `must be >= ${schema2.minimum}` }];
   }
   return [];
 }
-function bestBranch(root, schemas, branches, value, path3) {
-  const discriminated = schemas.map((schema2, index) => ({ schema: schema2, violations: branches[index] })).filter(({ schema: schema2 }) => matchesDiscriminator(root, schema2, value));
+function bestBranch(root, schemas, branches, value3, path3) {
+  const discriminated = schemas.map((schema2, index) => ({ schema: schema2, violations: branches[index] })).filter(({ schema: schema2 }) => matchesDiscriminator(root, schema2, value3));
   const candidates = discriminated.length === 1 ? [discriminated[0].violations] : branches;
   let best = candidates[0] ?? [];
   for (const branch of candidates)
@@ -10702,9 +10702,9 @@ function bestBranch(root, schemas, branches, value, path3) {
       best = branch;
   return best.length ? best : [{ path: path3, message: "does not match any allowed shape" }];
 }
-function matchesDiscriminator(root, schema2, value) {
+function matchesDiscriminator(root, schema2, value3) {
   const resolved = schema2.$ref !== void 0 ? resolveRef(root, String(schema2.$ref)) : schema2;
-  const record = object(value);
+  const record = object(value3);
   const properties = object(resolved.properties);
   if (!record || !properties)
     return false;
@@ -10726,22 +10726,22 @@ function typeList(schema2) {
     return schema2.type.map(String);
   return [];
 }
-function matchesType(type2, value) {
+function matchesType(type2, value3) {
   switch (type2) {
     case "object":
-      return object(value) !== void 0;
+      return object(value3) !== void 0;
     case "array":
-      return Array.isArray(value);
+      return Array.isArray(value3);
     case "string":
-      return typeof value === "string";
+      return typeof value3 === "string";
     case "boolean":
-      return typeof value === "boolean";
+      return typeof value3 === "boolean";
     case "null":
-      return value === null;
+      return value3 === null;
     case "integer":
-      return typeof value === "number" && Number.isInteger(value);
+      return typeof value3 === "number" && Number.isInteger(value3);
     case "number":
-      return typeof value === "number" && Number.isFinite(value);
+      return typeof value3 === "number" && Number.isFinite(value3);
     default:
       return false;
   }
@@ -10752,8 +10752,8 @@ function describeTypes(types4) {
     return types4[0] === "null" ? "null" : article(types4[0]);
   return types4.map((type2) => type2 === "null" ? "null" : article(type2)).join(" or ");
 }
-function stringifyAllowed(value) {
-  return typeof value === "string" ? value : JSON.stringify(value);
+function stringifyAllowed(value3) {
+  return typeof value3 === "string" ? value3 : JSON.stringify(value3);
 }
 function child(path3, name) {
   const safe = /^[A-Za-z0-9_.:-]{1,64}$/.test(name) && redactText(name) === name ? name : "[REDACTED key]";
@@ -10766,8 +10766,8 @@ function child(path3, name) {
 function sameJson(left, right) {
   return left === right || JSON.stringify(left) === JSON.stringify(right);
 }
-function isRfc3339(value) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|([+-])(\d{2}):(\d{2}))$/.exec(value);
+function isRfc3339(value3) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|([+-])(\d{2}):(\d{2}))$/.exec(value3);
   if (!match)
     return false;
   const [year, month, day, hour, minute, second] = match.slice(1, 7).map(Number);
@@ -10777,11 +10777,11 @@ function isRfc3339(value) {
     return false;
   return day >= 1 && day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
-function object(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
+function object(value3) {
+  return value3 && typeof value3 === "object" && !Array.isArray(value3) ? value3 : void 0;
 }
-function isSchemaObject(value) {
-  return object(value) !== void 0;
+function isSchemaObject(value3) {
+  return object(value3) !== void 0;
 }
 
 // packages/adapters/dist/pi-daddy-ledger-v2.js
@@ -12399,8 +12399,8 @@ function collectTrajectorySources(cwd, sources) {
       }
       seenFiles.add(sourceFile);
       try {
-        const text14 = readFileSync25(join34(cwd, file), "utf8");
-        const normalized = source3.adapter === "principal-assurance-v1" ? normalizePrincipalAssuranceLedger(text14) : source3.adapter === "pi-daddy-v1" ? normalizePiDaddyLegacyLedger(text14) : source3.adapter === "pi-daddy-ledger-v3" ? normalizePiDaddyLedgerV3(text14) : deserializeTrajectoryEvents(text14);
+        const text15 = readFileSync25(join34(cwd, file), "utf8");
+        const normalized = source3.adapter === "principal-assurance-v1" ? normalizePrincipalAssuranceLedger(text15) : source3.adapter === "pi-daddy-v1" ? normalizePiDaddyLegacyLedger(text15) : source3.adapter === "pi-daddy-ledger-v3" ? normalizePiDaddyLedgerV3(text15) : deserializeTrajectoryEvents(text15);
         if (!normalized)
           throw new Error("normalized-v1 source is empty, malformed, or unsupported");
         const times = normalized.map((event) => validTime(event.at) ? Date.parse(event.at) : null);
@@ -12440,7 +12440,7 @@ function collectTrajectorySources(cwd, sources) {
     }
     const principalRuns = /* @__PURE__ */ new Map();
     for (const stream of streams.filter((entry) => entry.adapter === "principal-assurance-v1")) {
-      for (const runId of new Set(stream.events.map((event) => event.run_id).filter((value) => Boolean(value)))) {
+      for (const runId of new Set(stream.events.map((event) => event.run_id).filter((value3) => Boolean(value3)))) {
         const prior = principalRuns.get(runId);
         if (prior && prior !== stream.file)
           errors.push(`principal assurance run ${runId} appears in multiple ledger files (${prior}, ${stream.file})`);
@@ -12525,8 +12525,8 @@ function validatePrincipalAssurance(record, line) {
     throw new Error(`invalid principal assurance v1 event at line ${line}: assurance.scope is not a closed structured scope`);
   }
 }
-function normalizePrincipalAssuranceLedger(text14) {
-  const records2 = parseJsonl(text14, "principal assurance");
+function normalizePrincipalAssuranceLedger(text15) {
+  const records2 = parseJsonl(text15, "principal assurance");
   validatePrincipalIntegrity(records2);
   return records2.map((record, index) => {
     if (record.schema_version !== "1.0") {
@@ -12580,22 +12580,22 @@ function normalizePrincipalAssuranceLedger(text14) {
     });
   });
 }
-function normalizePiDaddyLegacyLedger(text14) {
-  const records2 = parseJsonl(text14, "pi-daddy");
+function normalizePiDaddyLegacyLedger(text15) {
+  const records2 = parseJsonl(text15, "pi-daddy");
   const explicitV3 = records2.findIndex((record) => record.ledgerVersion === 3);
   if (explicitV3 >= 0)
     throw new Error(`pi-daddy-v1 selector does not admit ledgerVersion 3 at line ${explicitV3 + 1}; use pi-daddy-ledger-v3`);
-  return normalizePiDaddyLedger(text14);
+  return normalizePiDaddyLedger(text15);
 }
-function normalizePiDaddyLedgerV3(text14) {
-  const records2 = parseJsonl(text14, "pi-daddy");
+function normalizePiDaddyLedgerV3(text15) {
+  const records2 = parseJsonl(text15, "pi-daddy");
   const wrong = records2.findIndex((record) => record.ledgerVersion !== 3);
   if (wrong >= 0)
     throw new Error(`pi-daddy-ledger-v3 requires explicit ledgerVersion 3 at line ${wrong + 1}`);
-  return normalizePiDaddyLedger(text14);
+  return normalizePiDaddyLedger(text15);
 }
-function normalizePiDaddyLedger(text14) {
-  const records2 = parseJsonl(text14, "pi-daddy");
+function normalizePiDaddyLedger(text15) {
+  const records2 = parseJsonl(text15, "pi-daddy");
   validatePiDaddyTimestampOrder(records2);
   const out = [];
   let seq2 = 1;
@@ -12778,12 +12778,12 @@ function validatePiDaddyTimestampOrder(records2) {
     if (!validTime(at))
       throw new Error(`invalid pi-daddy ledger timestamp at line ${index + 1}: ts must be a date-time`);
     const time = Date.parse(at);
-    const child2 = piDaddyStreamKey(record, index);
-    const highWater = highWaterByChild.get(child2);
+    const child3 = piDaddyStreamKey(record, index);
+    const highWater = highWaterByChild.get(child3);
     if (highWater !== void 0 && time < highWater && !isRawPiDaddyReceiptInversion(records2, index, time)) {
       throw new Error(`pi-daddy ledger timestamp moves backwards at line ${index + 1}`);
     }
-    highWaterByChild.set(child2, Math.max(highWater ?? time, time));
+    highWaterByChild.set(child3, Math.max(highWater ?? time, time));
   });
 }
 function isRawPiDaddyReceiptInversion(records2, index, receiptTime) {
@@ -13278,12 +13278,12 @@ function normalizePiDaddyV3(record, index) {
   })];
 }
 function requireV3String(record, field, event, line) {
-  const value = string(record[field]);
-  if (!value)
+  const value3 = string(record[field]);
+  if (!value3)
     throw new Error(`invalid pi-daddy v3 ${event} at line ${line}: ${field} is required`);
-  if (redactText(value) !== value)
+  if (redactText(value3) !== value3)
     throw new Error(`invalid pi-daddy v3 ${event} at line ${line}: ${field} contains a sensitive value`);
-  return value;
+  return value3;
 }
 function requireV2Correlation(record, event, line) {
   const correlation = object2(record.correlation);
@@ -13298,44 +13298,44 @@ function requireV2Correlation(record, event, line) {
   if (undeclared.length > 0) {
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation carries fields outside the pinned schema 1.0 contract [REDACTED field names]`);
   }
-  for (const [key3, value] of Object.entries(correlation)) {
-    if (value === void 0 || value === null)
+  for (const [key3, value3] of Object.entries(correlation)) {
+    if (value3 === void 0 || value3 === null)
       continue;
     if (key3 === "assurance_scope") {
-      const size = Buffer.byteLength(JSON.stringify(value));
+      const size = Buffer.byteLength(JSON.stringify(value3));
       if (size > V2_CORRELATION_MAX_SCOPE_BYTES) {
         throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation assurance_scope exceeds ${V2_CORRELATION_MAX_SCOPE_BYTES} bytes`);
       }
       continue;
     }
     if (V2_CORRELATION_NUMERIC_FIELDS.has(key3)) {
-      if (typeof value !== "number" || !Number.isFinite(value)) {
+      if (typeof value3 !== "number" || !Number.isFinite(value3)) {
         throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation ${key3} must be a finite number`);
       }
       continue;
     }
-    if (typeof value !== "string") {
+    if (typeof value3 !== "string") {
       throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation ${key3} must be a string`);
     }
-    if (value.length > V2_CORRELATION_MAX_FIELD_CHARS) {
+    if (value3.length > V2_CORRELATION_MAX_FIELD_CHARS) {
       throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation ${key3} exceeds ${V2_CORRELATION_MAX_FIELD_CHARS} characters`);
     }
-    if (redactText(value) !== value) {
+    if (redactText(value3) !== value3) {
       throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation ${key3} contains a sensitive value`);
     }
   }
   if (!string(correlation.run_id) || !string(correlation.task_id)) {
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation.run_id and correlation.task_id are required for workflow joins`);
   }
-  return Object.fromEntries(Object.entries(correlation).filter(([, value]) => value !== void 0 && value !== null));
+  return Object.fromEntries(Object.entries(correlation).filter(([, value3]) => value3 !== void 0 && value3 !== null));
 }
 function requireV2String(record, field, event, line) {
-  const value = string(record[field]);
-  if (!value)
+  const value3 = string(record[field]);
+  if (!value3)
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} is required`);
-  if (redactText(value) !== value)
+  if (redactText(value3) !== value3)
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} contains a sensitive value`);
-  return value;
+  return value3;
 }
 function requireV2Executor(record, event, line) {
   const executor = requireV2String(record, "executor", event, line);
@@ -13345,42 +13345,42 @@ function requireV2Executor(record, event, line) {
   return executor;
 }
 function requireV2StringArray(record, field, event, line) {
-  const value = stringArray(record[field]);
-  if (!value)
+  const value3 = stringArray(record[field]);
+  if (!value3)
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be an array of strings`);
-  if (value.some((entry) => redactText(entry) !== entry)) {
+  if (value3.some((entry) => redactText(entry) !== entry)) {
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} contains a sensitive value`);
   }
-  return value;
+  return value3;
 }
 function optionalV2StringArray(record, field, event, line) {
   if (record[field] === void 0)
     return void 0;
   return requireV2StringArray(record, field, event, line);
 }
-function optionalV2SafeString(value, field, event, line) {
-  if (value === void 0)
+function optionalV2SafeString(value3, field, event, line) {
+  if (value3 === void 0)
     return void 0;
-  const parsed = string(value);
+  const parsed = string(value3);
   if (!parsed)
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be a non-empty string`);
   if (redactText(parsed) !== parsed)
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} contains a sensitive value`);
   return parsed;
 }
-function optionalV2Enum(value, field, allowed, event, line) {
-  if (value === void 0)
+function optionalV2Enum(value3, field, allowed, event, line) {
+  if (value3 === void 0)
     return void 0;
-  const parsed = string(value);
+  const parsed = string(value3);
   if (!parsed || !allowed.has(parsed)) {
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be one of ${[...allowed].join(", ")}`);
   }
   return parsed;
 }
-function optionalV2EnumMap(value, field, allowed, event, line) {
-  if (value === void 0)
+function optionalV2EnumMap(value3, field, allowed, event, line) {
+  if (value3 === void 0)
     return void 0;
-  const parsed = object2(value);
+  const parsed = object2(value3);
   if (!parsed)
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be an object`);
   const entries = Object.entries(parsed);
@@ -13389,22 +13389,22 @@ function optionalV2EnumMap(value, field, allowed, event, line) {
   }
   return Object.fromEntries(entries);
 }
-function optionalV2StringMap(value, field, event, line, validate10 = () => true) {
-  if (value === void 0)
+function optionalV2StringMap(value3, field, event, line, validate11 = () => true) {
+  if (value3 === void 0)
     return void 0;
-  const parsed = object2(value);
+  const parsed = object2(value3);
   if (!parsed)
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be an object`);
   const entries = Object.entries(parsed);
-  if (entries.some(([key3, entry]) => !key3 || typeof entry !== "string" || !validate10(entry))) {
+  if (entries.some(([key3, entry]) => !key3 || typeof entry !== "string" || !validate11(entry))) {
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must map capabilities to valid strings`);
   }
   return Object.fromEntries(entries);
 }
-function optionalV2ApprovalUses(value, event, line) {
-  if (value === void 0)
+function optionalV2ApprovalUses(value3, event, line) {
+  if (value3 === void 0)
     return void 0;
-  const parsed = object2(value);
+  const parsed = object2(value3);
   if (!parsed)
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: approvalUses must be an object`);
   const output = {};
@@ -13449,21 +13449,21 @@ function validateApprovalEvidence(approved, scalarSource, sources, scopes, expir
   }
 }
 function optionalV2Boolean(record, field, event, line) {
-  const value = record[field];
-  if (value === void 0)
+  const value3 = record[field];
+  if (value3 === void 0)
     return void 0;
-  if (typeof value !== "boolean")
+  if (typeof value3 !== "boolean")
     throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be boolean`);
-  return value;
+  return value3;
 }
-function approvalSubject(value) {
-  const agentType = string(value);
+function approvalSubject(value3) {
+  const agentType = string(value3);
   return agentType === void 0 || agentType === "delegate" ? "<delegate>" : agentType;
 }
-function structuredRefusal(value, event, line, version = 2) {
-  if (value === void 0)
+function structuredRefusal(value3, event, line, version = 2) {
+  if (value3 === void 0)
     return void 0;
-  const parsed = object2(value);
+  const parsed = object2(value3);
   const code = string(parsed?.code);
   if (!parsed || !code || !string(parsed.message)) {
     throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal requires code and message`);
@@ -13481,12 +13481,12 @@ function structuredRefusal(value, event, line, version = 2) {
   }
   return parsed;
 }
-function finiteNumber(value) {
-  return typeof value === "number" && Number.isFinite(value) ? value : void 0;
+function finiteNumber(value3) {
+  return typeof value3 === "number" && Number.isFinite(value3) ? value3 : void 0;
 }
 function normalizeLegacyGrant(record, index) {
   const requiredArrays = ["requested", "parentGrant", "effective", "denied", "clipped", "gatedBlocked"];
-  if (typeof record.ts !== "string" || typeof record.parentId !== "string" || typeof record.childId !== "string" || !Number.isInteger(record.depth) || typeof record.blocked !== "boolean" || typeof record.executor !== "string" || requiredArrays.some((field) => !Array.isArray(record[field]) || !record[field].every((value) => typeof value === "string"))) {
+  if (typeof record.ts !== "string" || typeof record.parentId !== "string" || typeof record.childId !== "string" || !Number.isInteger(record.depth) || typeof record.blocked !== "boolean" || typeof record.executor !== "string" || requiredArrays.some((field) => !Array.isArray(record[field]) || !record[field].every((value3) => typeof value3 === "string"))) {
     throw new Error(`invalid unversioned pi-daddy grant record at line ${index + 1}; expected the 0.17 GrantRecord shape`);
   }
   const requested = record.requested;
@@ -13616,44 +13616,44 @@ function validatePrincipalIntegrity(records2) {
     previous = record.event_digest;
   });
 }
-function canonicalJson(value) {
-  if (value === null || typeof value === "string" || typeof value === "boolean")
-    return JSON.stringify(value);
-  if (typeof value === "number") {
-    if (!Number.isFinite(value))
+function canonicalJson(value3) {
+  if (value3 === null || typeof value3 === "string" || typeof value3 === "boolean")
+    return JSON.stringify(value3);
+  if (typeof value3 === "number") {
+    if (!Number.isFinite(value3))
       throw new Error("principal assurance event contains a non-finite number");
-    return JSON.stringify(value);
+    return JSON.stringify(value3);
   }
-  if (Array.isArray(value))
-    return `[${value.map(canonicalJson).join(",")}]`;
-  if (!value || typeof value !== "object")
+  if (Array.isArray(value3))
+    return `[${value3.map(canonicalJson).join(",")}]`;
+  if (!value3 || typeof value3 !== "object")
     throw new Error("principal assurance event contains a non-JSON value");
-  return `{${Object.entries(value).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0).map(([key3, entry]) => `${JSON.stringify(key3)}:${canonicalJson(entry)}`).join(",")}}`;
+  return `{${Object.entries(value3).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0).map(([key3, entry]) => `${JSON.stringify(key3)}:${canonicalJson(entry)}`).join(",")}}`;
 }
-function validTime(value) {
-  if (typeof value !== "string")
+function validTime(value3) {
+  if (typeof value3 !== "string")
     return false;
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.exec(value);
-  if (!match || !Number.isFinite(Date.parse(value)))
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.exec(value3);
+  if (!match || !Number.isFinite(Date.parse(value3)))
     return false;
   const [, year, month, day, hour, minute, second] = match.map(Number);
   if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59)
     return false;
   return day >= 1 && day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
-function safeDiagnosticValue(value) {
-  if (typeof value === "number" && Number.isFinite(value))
-    return String(value);
-  if (typeof value === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(value) && redactText(value) === value)
-    return JSON.stringify(value);
+function safeDiagnosticValue(value3) {
+  if (typeof value3 === "number" && Number.isFinite(value3))
+    return String(value3);
+  if (typeof value3 === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(value3) && redactText(value3) === value3)
+    return JSON.stringify(value3);
   return "[REDACTED invalid value]";
 }
 function sanitizePersistedError(error) {
   const raw = error instanceof Error ? error.message : String(error);
   return redactText(raw).replace(/("?(?:password|passwd|secret|token|api[-_]?key|authorization|credential)"?\s*[:=]\s*"?)[^\s,}"']+/gi, "$1[REDACTED]").slice(0, 1e3);
 }
-function sanitizeAttributes(value) {
-  const redacted = redactArgs(value);
+function sanitizeAttributes(value3) {
+  const redacted = redactArgs(value3);
   const sensitiveKey = /(secret|token|password|passphrase|api[_-]?key|authorization|cookie|credential)/i;
   const freeTextKey = /^(request|command|stdout|stderr|output|prompt|content|reason|message|release_reason|diagnostic)$/i;
   const walk2 = (current, key3 = "") => {
@@ -13670,57 +13670,57 @@ function sanitizeAttributes(value) {
   };
   return walk2(redacted);
 }
-function parseJsonl(text14, label) {
-  const lines2 = text14.split("\n").filter((line) => line.trim());
+function parseJsonl(text15, label) {
+  const lines2 = text15.split("\n").filter((line) => line.trim());
   if (!lines2.length)
     throw new Error(`${label} ledger is empty`);
   return lines2.map((line, index) => {
     try {
-      const value = JSON.parse(line);
-      if (!value || typeof value !== "object" || Array.isArray(value))
+      const value3 = JSON.parse(line);
+      if (!value3 || typeof value3 !== "object" || Array.isArray(value3))
         throw new Error("record is not an object");
-      return value;
+      return value3;
     } catch (error) {
       throw new Error(`${label} ledger line ${index + 1} is invalid JSON [REDACTED parser detail]`);
     }
   });
 }
-function object2(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
+function object2(value3) {
+  return value3 && typeof value3 === "object" && !Array.isArray(value3) ? value3 : void 0;
 }
-function string(value) {
-  return typeof value === "string" && value.length ? value : void 0;
+function string(value3) {
+  return typeof value3 === "string" && value3.length ? value3 : void 0;
 }
-function stringArray(value) {
-  return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : void 0;
+function stringArray(value3) {
+  return Array.isArray(value3) && value3.every((item) => typeof item === "string") ? value3 : void 0;
 }
-function anyDefined(value) {
-  const defined = cleanObject(value);
+function anyDefined(value3) {
+  const defined = cleanObject(value3);
   return Object.keys(defined).length > 0 ? defined : void 0;
 }
-function cleanObject(value) {
-  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== void 0));
+function cleanObject(value3) {
+  return Object.fromEntries(Object.entries(value3).filter(([, entry]) => entry !== void 0));
 }
-function safeAttributes(value) {
-  return sanitizeAttributes(cleanObject(value));
+function safeAttributes(value3) {
+  return sanitizeAttributes(cleanObject(value3));
 }
 function cleanEvent(event) {
   return cleanObject(event);
 }
 function without(record, keys7) {
   const omitted = new Set(keys7);
-  return Object.fromEntries(Object.entries(record).filter(([key3, value]) => !omitted.has(key3) && value !== void 0));
+  return Object.fromEntries(Object.entries(record).filter(([key3, value3]) => !omitted.has(key3) && value3 !== void 0));
 }
-function walkFiles(root, relative8 = "") {
+function walkFiles(root, relative9 = "") {
   const out = [];
   let entries;
   try {
-    entries = readdirSync16(join34(root, relative8), { withFileTypes: true });
+    entries = readdirSync16(join34(root, relative9), { withFileTypes: true });
   } catch {
     return out;
   }
   for (const entry of entries) {
-    const path3 = relative8 ? `${relative8}/${entry.name}` : entry.name;
+    const path3 = relative9 ? `${relative9}/${entry.name}` : entry.name;
     if (entry.isDirectory())
       out.push(...walkFiles(root, path3));
     else if (entry.isFile())
@@ -13734,32 +13734,32 @@ import { createHash as createHash29, createHmac, timingSafeEqual } from "node:cr
 function sha3(bytes3) {
   return createHash29("sha256").update(bytes3, "utf8").digest("hex");
 }
-function normalizePromptPayload(value, rule) {
+function normalizePromptPayload(value3, rule) {
   if (rule !== PROMPT_NORMALIZATION_RULE)
     throw new Error(`unknown prompt normalization rule ${String(rule)}`);
-  if (typeof value === "string")
-    return value.replace(new RegExp(PROMPT_NORMALIZATION_PATTERN, PROMPT_NORMALIZATION_FLAGS), PROMPT_NORMALIZATION_REPLACEMENT);
-  if (Array.isArray(value))
-    return value.map((entry) => normalizePromptPayload(entry, rule));
-  if (value && typeof value === "object")
-    return Object.fromEntries(Object.entries(value).map(([key3, entry]) => [key3, normalizePromptPayload(entry, rule)]));
-  return value;
+  if (typeof value3 === "string")
+    return value3.replace(new RegExp(PROMPT_NORMALIZATION_PATTERN, PROMPT_NORMALIZATION_FLAGS), PROMPT_NORMALIZATION_REPLACEMENT);
+  if (Array.isArray(value3))
+    return value3.map((entry) => normalizePromptPayload(entry, rule));
+  if (value3 && typeof value3 === "object")
+    return Object.fromEntries(Object.entries(value3).map(([key3, entry]) => [key3, normalizePromptPayload(entry, rule)]));
+  return value3;
 }
-function countInStrings(value, needle) {
-  if (typeof value === "string") {
+function countInStrings(value3, needle) {
+  if (typeof value3 === "string") {
     if (!needle)
       return 0;
     let count = 0, at = 0;
-    while ((at = value.indexOf(needle, at)) !== -1) {
+    while ((at = value3.indexOf(needle, at)) !== -1) {
       count++;
       at += needle.length;
     }
     return count;
   }
-  if (Array.isArray(value))
-    return value.reduce((sum, entry) => sum + countInStrings(entry, needle), 0);
-  if (value && typeof value === "object") {
-    const record = value;
+  if (Array.isArray(value3))
+    return value3.reduce((sum, entry) => sum + countInStrings(entry, needle), 0);
+  if (value3 && typeof value3 === "object") {
+    const record = value3;
     if (record.role === "user") {
       const content = Array.isArray(record.content) ? record.content : Array.isArray(record.parts) ? record.parts : [];
       return content.filter((block) => block && typeof block === "object" && (["tool_result", "tool_response", "function_response"].includes(String(block.type ?? "")) || "functionResponse" in block || "function_response" in block)).reduce((sum, block) => sum + countInStrings(block, needle), 0);
@@ -13791,10 +13791,10 @@ function validMac(supplied, expected) {
   const suppliedBytes = Buffer.from(supplied, "hex"), expectedBytes = Buffer.from(expected, "hex");
   return suppliedBytes.length === expectedBytes.length && timingSafeEqual(suppliedBytes, expectedBytes);
 }
-function verifyPromptSummary(value, expectedCount, authenticationKey) {
-  if (!value || typeof value !== "object")
+function verifyPromptSummary(value3, expectedCount, authenticationKey) {
+  if (!value3 || typeof value3 !== "object")
     return false;
-  const envelope = value;
+  const envelope = value3;
   if (!envelope.summary || envelope.summary.count !== expectedCount)
     return false;
   const expected = createHmac("sha256", authenticationKey).update(JSON.stringify(envelope.summary)).digest("hex");
@@ -13826,11 +13826,11 @@ function observeProviderPayload(payload, contract, mechanism, requestIndex) {
     ...observable ? {} : { error: "provider payload has no supported model-visible prompt field" }
   };
 }
-function bindPromptObservation(value, contract, mechanism, requestIndex, authenticationKey, observerRequestIndex = requestIndex) {
+function bindPromptObservation(value3, contract, mechanism, requestIndex, authenticationKey, observerRequestIndex = requestIndex) {
   const fallback = { ...observeProviderPayload({}, contract, mechanism, requestIndex), status: "ERROR" };
-  if (!value || typeof value !== "object")
+  if (!value3 || typeof value3 !== "object")
     return { ...fallback, error: "prompt observer emitted a non-object record" };
-  const envelope = value;
+  const envelope = value3;
   if (!envelope.observation)
     return { ...fallback, error: "prompt observation authentication missing" };
   const expectedMac = observationMac(envelope.observation, authenticationKey);
@@ -13960,10 +13960,10 @@ function extensionFlags(extensions) {
     return ["--extension", abs];
   });
 }
-function header(turnNo, total, text14) {
+function header(turnNo, total, text15) {
   const label = total === 1 ? "USER" : `USER (turn ${turnNo}/${total})`;
   return `>>> ${label}:
-${text14}
+${text15}
 `;
 }
 var piAdapter = {
@@ -14218,7 +14218,7 @@ var WORK_TEXT_BYTES = 16 * 1024 * 1024;
 // packages/adapters/dist/generated/retention-v2-contract.js
 var string2 = (maxLength = 512) => ({ type: "string", minLength: 1, maxLength, pattern: "^[^\\u0000-\\u001f\\u007f]+$" });
 var nullable = (schema2) => ({ anyOf: [schema2, { type: "null" }] });
-var literal = (value) => ({ const: value });
+var literal = (value3) => ({ const: value3 });
 var closed8 = (properties) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
 var hash6 = { type: "string", pattern: "^[a-f0-9]{64}$" };
 var integer = { type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER };
@@ -14296,13 +14296,13 @@ var RETENTION_SCHEMA = freeze3({
   ]
 });
 var validator = Compile(RETENTION_SCHEMA);
-function freeze3(value) {
-  if (value && typeof value === "object") {
-    for (const child2 of Object.values(value))
-      freeze3(child2);
-    Object.freeze(value);
+function freeze3(value3) {
+  if (value3 && typeof value3 === "object") {
+    for (const child3 of Object.values(value3))
+      freeze3(child3);
+    Object.freeze(value3);
   }
-  return value;
+  return value3;
 }
 
 // packages/adapters/dist/execution-retention-archive.js
@@ -14322,12 +14322,12 @@ var hash7 = { type: "string", pattern: "^[a-f0-9]{64}$" };
 var nullable2 = (schema2) => ({ anyOf: [schema2, { type: "null" }] });
 var list = (items) => ({ type: "array", items, maxItems: 4096, uniqueItems: true });
 var closed9 = (properties) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
-function freeze4(value) {
-  if (value && typeof value === "object") {
-    Object.values(value).forEach(freeze4);
-    Object.freeze(value);
+function freeze4(value3) {
+  if (value3 && typeof value3 === "object") {
+    Object.values(value3).forEach(freeze4);
+    Object.freeze(value3);
   }
-  return value;
+  return value3;
 }
 var EXECUTION_ARCHIVE_PROJECTION_SCHEMA = freeze4({
   $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -14373,7 +14373,7 @@ import { randomUUID as randomUUID4 } from "node:crypto";
 
 // packages/adapters/dist/learning-lifecycle.js
 var SHA7 = /^[a-f0-9]{64}$/;
-var closed10 = (value, names) => !!value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).sort().join() === names.sort().join();
+var closed10 = (value3, names) => !!value3 && typeof value3 === "object" && !Array.isArray(value3) && Object.keys(value3).sort().join() === names.sort().join();
 function available(root, id3, parser) {
   if (!SHA7.test(id3))
     throw Error("invalid retained learning link");
@@ -14419,24 +14419,324 @@ function read2(root, manifestId, depth) {
   if (depth > 64)
     throw Error("learning lifecycle predecessor bound exceeded");
   const source3 = available(root, manifestId, "learning-lifecycle");
-  let value;
+  let value3;
   try {
-    value = JSON.parse(source3.bytes.toString("utf8"));
+    value3 = JSON.parse(source3.bytes.toString("utf8"));
   } catch {
     throw Error("invalid retained learning lifecycle");
   }
-  if (!closed10(value, ["version", "state", "predecessorManifestId", "links"]) || value.version !== "retained-learning-lifecycle-v1" || !closed10(value.links, ["case", "hypothesis", "comparison", "choice", "adoption", "rollback", "outcomes"]))
+  if (!closed10(value3, ["version", "state", "predecessorManifestId", "links"]) || value3.version !== "retained-learning-lifecycle-v1" || !closed10(value3.links, ["case", "hypothesis", "comparison", "choice", "adoption", "rollback", "outcomes"]))
     throw Error("invalid retained learning lifecycle");
-  const links = value.links;
-  const rebuilt = validate4(root, { caseManifestId: links.case, hypothesisManifestId: links.hypothesis, comparisonManifestId: links.comparison, choiceManifestId: links.choice, adoptionManifestId: links.adoption, rollbackManifestId: links.rollback, outcomeManifestIds: links.outcomes, predecessorManifestId: value.predecessorManifestId }, depth);
-  if (rebuilt.state !== value.state || JSON.stringify(rebuilt) !== source3.bytes.toString("utf8"))
+  const links = value3.links;
+  const rebuilt = validate4(root, { caseManifestId: links.case, hypothesisManifestId: links.hypothesis, comparisonManifestId: links.comparison, choiceManifestId: links.choice, adoptionManifestId: links.adoption, rollbackManifestId: links.rollback, outcomeManifestIds: links.outcomes, predecessorManifestId: value3.predecessorManifestId }, depth);
+  if (rebuilt.state !== value3.state || JSON.stringify(rebuilt) !== source3.bytes.toString("utf8"))
     throw Error("retained learning lifecycle changed");
   return Object.freeze({ ...rebuilt, links: Object.freeze({ ...rebuilt.links, outcomes: Object.freeze(rebuilt.links.outcomes) }) });
 }
 
+// packages/adapters/dist/session-retention.js
+import { createHash as createHash36 } from "node:crypto";
+import { resolve as resolve18 } from "node:path";
+
+// packages/adapters/dist/session-observation.js
+function sessionText(bytes3) {
+  if (bytes3.byteLength > 8 * 1024 * 1024)
+    throw Error("session source exceeds 8 MiB");
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
+}
+function sessionRows(bytes3) {
+  const text15 = sessionText(bytes3);
+  if (!text15.endsWith("\n"))
+    throw Error("incomplete session/ledger line; retry after the writer settles");
+  const lines2 = text15.slice(0, -1).split("\n");
+  if (lines2.length > 4096)
+    throw Error("session source exceeds 4096 records");
+  return lines2.map((line, i) => {
+    let row;
+    try {
+      row = JSON.parse(line);
+    } catch {
+      throw Error("invalid JSON record at line " + (i + 1));
+    }
+    if (!row || typeof row !== "object" || Array.isArray(row))
+      throw Error("object record required at line " + (i + 1));
+    return row;
+  });
+}
+function value(v, max = 512) {
+  if (typeof v !== "string" || !v.trim() || v.length > max)
+    throw Error("bounded session identifier required");
+  return v;
+}
+var stamp = (v) => typeof v === "string" && Number.isFinite(Date.parse(v)) ? v : null;
+var excerpt = (v) => v.length > 512 ? v.slice(0, 512) + " \u2026 [excerpt; inspect retained source for complete text]" : v;
+function observePiSession(bytes3) {
+  const rows = sessionRows(bytes3), header2 = rows[0];
+  if (header2?.type !== "session" || header2.version !== 3)
+    throw Error("Pi session format version 3 required");
+  const sessionId = value(header2.id), cwd = value(header2.cwd, 4096), ids = /* @__PURE__ */ new Set();
+  const timeline = [], tools = /* @__PURE__ */ new Map(), models = /* @__PURE__ */ new Map();
+  const fields = {};
+  let userMessages = 0, assistantMessages = 0, lastAssistantStop = null, lastActivity = null, opaque = 0;
+  const add = (i, row, kind, text15) => timeline.push({ line: i + 1, timestamp: stamp(row.timestamp), kind, excerpt: excerpt(text15) });
+  rows.forEach((row, i) => {
+    if (i && row.type === "session")
+      throw Error("multiple session headers");
+    if (row.id !== void 0) {
+      const id3 = value(row.id);
+      if (ids.has(id3))
+        throw Error("duplicate session record id");
+      ids.add(id3);
+    }
+    lastActivity = stamp(row.timestamp) ?? lastActivity;
+    if (row.type === "model_change") {
+      add(i, row, "model-setting", [row.provider, row.modelId].filter((x) => typeof x === "string").join("/"));
+      return;
+    }
+    if (row.type === "thinking_level_change") {
+      add(i, row, "thinking-setting", String(row.thinkingLevel ?? "unknown"));
+      return;
+    }
+    if (row.type !== "message")
+      return;
+    const m = row.message;
+    if (!m || typeof m !== "object" || Array.isArray(m))
+      throw Error("invalid session message");
+    const content = typeof m.content === "string" ? [{ type: "text", text: m.content }] : m.content;
+    if (!Array.isArray(content))
+      throw Error("invalid session message content");
+    const text15 = content.filter((c) => c?.type === "text" && typeof c.text === "string").map((c) => c.text).join("\n");
+    if (m.role === "user") {
+      userMessages++;
+      add(i, row, "user-message", text15);
+    } else if (m.role === "assistant") {
+      assistantMessages++;
+      lastAssistantStop = typeof m.stopReason === "string" ? m.stopReason : null;
+      const provider = typeof m.provider === "string" ? m.provider : "unknown", model = typeof m.model === "string" ? m.model : "unknown";
+      const key3 = JSON.stringify([provider, model]), record = models.get(key3) ?? { provider, model, messages: 0 };
+      record.messages++;
+      models.set(key3, record);
+      if (text15)
+        add(i, row, "assistant-message", text15);
+      for (const field of ["input", "output", "cacheRead", "cacheWrite", "totalTokens"]) {
+        const n = m.usage?.[field];
+        if (n === void 0)
+          continue;
+        if (!Number.isSafeInteger(n) || n < 0)
+          throw Error("invalid provider-reported usage");
+        const f = fields[field] ?? { sum: 0, reportedMessages: 0 };
+        f.sum += n;
+        f.reportedMessages++;
+        if (!Number.isSafeInteger(f.sum))
+          throw Error("usage sum overflow");
+        fields[field] = f;
+      }
+      for (const c of content)
+        if (c?.type === "toolCall") {
+          const name = value(c.name, 128);
+          tools.set(name, (tools.get(name) ?? 0) + 1);
+          add(i, row, "tool-call", name);
+        }
+    } else if (m.role === "toolResult")
+      add(i, row, "tool-result", String(m.toolName ?? "unknown") + (m.isError === true ? " \u2014 tool reported error" : " \u2014 result recorded; success not inferred"));
+    else
+      opaque++;
+  });
+  const gaps = [
+    "Retrospective chronological transcript; branch selection and live continuity are not established.",
+    "Messages and tool results are evidence to inspect, not independently verified decisions, tests or acceptance.",
+    "Only explicit inputs are captured. Source revision, initial workspace and external user feedback may be missing.",
+    "Usage is provider-reported repeated-request usage, not unique context, billing or complete parent/child accounting."
+  ];
+  if (opaque)
+    gaps.push(opaque + " message(s) with other roles omitted from the timeline; retained source is complete.");
+  if (!assistantMessages || Object.values(fields).some((f) => f.reportedMessages < assistantMessages) || Object.keys(fields).length < 5)
+    gaps.push("Usage fields are missing; sums cover only reported messages.");
+  if (lastAssistantStop !== "stop")
+    gaps.push("No final assistant stop observed; this snapshot may represent unfinished work.");
+  return { version: "pi-session-observation-v1", sessionId, cwd, timeline, toolCalls: Object.fromEntries(tools), userMessages, assistantMessages, modelRecords: [...models.values()], usage: { fields, assistantMessages, scope: "this-transcript-only" }, lastActivity, lastAssistantStop, gaps };
+}
+function observeSessionLedger(bytes3) {
+  const rows = sessionRows(bytes3);
+  normalizePiDaddyLedgerV3(sessionText(bytes3));
+  const attempts = /* @__PURE__ */ new Map(), decisions = /* @__PURE__ */ new Set(), lifecycles = /* @__PURE__ */ new Set(), deadlines = /* @__PURE__ */ new Map(), displayed = /* @__PURE__ */ new Set();
+  for (const row of rows) {
+    if (!["capability_decision", "child_lifecycle", "workspace_lease"].includes(row.event) || String(row.childId).startsWith("check:"))
+      continue;
+    const id3 = value(row.executionId), old = attempts.get(id3);
+    if (old && (old.parentExecutionId !== row.parentExecutionId || old.logicalChildId !== row.childId))
+      throw Error("execution identity changed");
+    const a = old ?? { executionId: id3, parentExecutionId: row.parentExecutionId, logicalChildId: row.childId, agent: null, state: "unknown", pane: null, startedAt: null, endedAt: null, runningSeconds: null };
+    if (row.event === "workspace_lease") {
+      attempts.set(id3, a);
+      continue;
+    }
+    displayed.add(id3);
+    if (row.event === "capability_decision") {
+      if (decisions.has(id3))
+        throw Error("duplicate capability decision for one execution");
+      decisions.add(id3);
+      a.agent = row.agentType;
+      a.state = row.blocked ? "refused" : a.state === "unknown" ? "authorised" : a.state;
+    } else {
+      if (a.endedAt)
+        throw Error("lifecycle after terminal execution");
+      if (lifecycles.has(id3) && row.state === "starting")
+        throw Error("duplicate starting lifecycle event");
+      if (deadlines.has(id3) && stamp(row.deadlineAt) && deadlines.get(id3) !== row.deadlineAt)
+        throw Error("lifecycle deadline changed");
+      if (stamp(row.deadlineAt))
+        deadlines.set(id3, row.deadlineAt);
+      lifecycles.add(id3);
+      a.state = row.state;
+      a.pane = row.herdrPaneId ?? a.pane;
+      if (row.state === "running")
+        a.startedAt = a.startedAt ?? row.ts;
+      if (["completed", "failed"].includes(row.state))
+        a.endedAt = row.ts;
+    }
+    if (a.startedAt && a.endedAt) {
+      a.runningSeconds = (Date.parse(a.endedAt) - Date.parse(a.startedAt)) / 1e3;
+      if (a.runningSeconds < 0)
+        throw Error("negative execution duration");
+    }
+    attempts.set(id3, a);
+  }
+  for (const a of attempts.values()) {
+    const seen = /* @__PURE__ */ new Set();
+    let cursor = a;
+    while (cursor) {
+      if (seen.has(cursor.executionId))
+        throw Error("execution parent cycle");
+      seen.add(cursor.executionId);
+      cursor = cursor.parentExecutionId ? attempts.get(cursor.parentExecutionId) : void 0;
+    }
+  }
+  return [...attempts.values()].filter((a) => displayed.has(a.executionId));
+}
+function sessionScope(observation, sourceSha256) {
+  return learningHash({ kind: "retrospective-pi-session", sessionId: observation.sessionId, sourceSha256 });
+}
+
+// packages/adapters/dist/session-retention.js
+var captured = /* @__PURE__ */ new WeakMap();
+var sha4 = (bytes3) => createHash36("sha256").update(bytes3).digest("hex");
+function checkedSelections(input) {
+  if (!Array.isArray(input) || input.length < 1 || input.length > 16)
+    throw Error("select 1\u201316 explicit session sources");
+  const seen = /* @__PURE__ */ new Set(), executions = /* @__PURE__ */ new Set();
+  let parents = 0, ledgers = 0;
+  for (const s of input) {
+    if (!s || typeof s !== "object" || Object.keys(s).some((k) => !["kind", "path", "executionId"].includes(k)))
+      throw Error("closed source selection required");
+    if (!["parent", "child", "ledger", "feedback", "artifact"].includes(s.kind) || typeof s.path !== "string" || resolve18(s.path) !== s.path)
+      throw Error("explicit absolute source path required");
+    if (seen.has(s.path))
+      throw Error("duplicate session source");
+    seen.add(s.path);
+    if (s.kind === "parent")
+      parents++;
+    if (s.kind === "ledger")
+      ledgers++;
+    if (s.executionId !== void 0) {
+      if (s.kind !== "child" || !/^exec:[0-9a-f-]{36}$/i.test(s.executionId) || executions.has(s.executionId))
+        throw Error("unique child execution id required");
+      executions.add(s.executionId);
+    }
+  }
+  if (parents !== 1 || ledgers > 1)
+    throw Error("exactly one parent and at most one ledger required");
+}
+function projectSession(selections, buffers) {
+  const parent = observePiSession(buffers[selections.findIndex((s) => s.kind === "parent")]);
+  const children = selections.flatMap((s, i) => s.kind === "child" ? [{ source: i, executionId: s.executionId ?? null, session: observePiSession(buffers[i]) }] : []);
+  if ((/* @__PURE__ */ new Set([parent.sessionId, ...children.map((c) => c.session.sessionId)])).size !== children.length + 1)
+    throw Error("duplicate parent/child session id");
+  const ledger = selections.findIndex((s) => s.kind === "ledger"), attempts = ledger < 0 ? [] : observeSessionLedger(buffers[ledger]);
+  for (const child3 of children)
+    if (child3.executionId && !attempts.some((a) => a.executionId === child3.executionId))
+      throw Error("selected child execution absent from ledger");
+  const gaps = [...parent.gaps, "No quality, acceptance, calibrated learning or adoption is inferred from this import."];
+  for (const child3 of children)
+    gaps.push(...child3.session.gaps.map((g) => "Child source " + (child3.source + 1) + " (" + child3.session.sessionId + "): " + g));
+  if (ledger < 0)
+    gaps.push("No delegation ledger selected.");
+  else
+    gaps.push("Ledger/session association is operator-selected, not authenticated; ledger may include other sessions.");
+  if (attempts.length > children.filter((c) => c.executionId).length)
+    gaps.push("Child transcript coverage incomplete; no combined token total is claimed.");
+  if (children.length)
+    gaps.push("Child execution mappings are explicit operator declarations, not proof of parentage. Each transcript has separate usage.");
+  if (!selections.some((s) => s.kind === "feedback"))
+    gaps.push("External feedback not supplied; user messages remain available for review.");
+  if (!selections.some((s) => s.kind === "artifact"))
+    gaps.push("No final artifact or source snapshot supplied.");
+  return { parent, children, attempts, gaps };
+}
+function prepareSessionImport(selections) {
+  checkedSelections(selections);
+  const buffers = selections.map((s) => learningFile(s.path, 8 * 1024 * 1024));
+  if (buffers.reduce((n, b) => n + b.length, 0) > 32 * 1024 * 1024)
+    throw Error("session selection exceeds 32 MiB");
+  const sources = selections.map((s, i) => ({ ...s, executionId: s.executionId ?? null, sha256: sha4(buffers[i]), bytes: buffers[i].length }));
+  const { parent, children, attempts, gaps } = projectSession(selections, buffers);
+  const digest6 = learningHash({ version: "session-selection-v1", sources });
+  const preview = { version: "session-import-preview-v1", digest: digest6, sources, parent, children, attempts, gaps, acceptance: "not-assessed" };
+  captured.set(preview, { preview: learningCopy(preview), buffers });
+  return preview;
+}
+function retainSessionImport(root, preview, expectedDigest) {
+  const c = captured.get(preview);
+  if (!c || learningHash(c.preview) !== learningHash(preview) || expectedDigest !== c.preview.digest)
+    throw Error("exact preview digest required; changed or forged session import");
+  for (const s of c.preview.sources)
+    if (sha4(learningFile(s.path, 8 * 1024 * 1024)) !== s.sha256)
+      throw Error("session source changed since preview; prepare again");
+  const sources = c.preview.sources.map((s, i) => {
+    const parser = s.kind === "parent" || s.kind === "child" ? "pi-session-jsonl" : s.kind === "ledger" ? "pi-daddy-session-ledger" : "session-evidence";
+    const r = retainArchiveSource(root, { sourceId: "session-" + s.sha256, parser: { id: parser, version: "1" }, retention: "exact", bytes: c.buffers[i] });
+    return { ...s, manifestId: r.manifestId };
+  });
+  const record = { version: "retrospective-session-v1", selectionDigest: preview.digest, sources };
+  return retainArchiveSource(root, { sourceId: "retrospective-" + preview.digest, parser: { id: "retrospective-session", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(record)) }).manifestId;
+}
+function readRetainedSession(root, manifestId) {
+  const selected2 = readArchiveSource(root, manifestId);
+  if (selected2.status !== "available" || selected2.reference.retention !== "exact" || selected2.reference.parser.id !== "retrospective-session" || selected2.reference.parser.version !== "1")
+    throw Error("retained session unavailable or unsupported");
+  const record = JSON.parse(sessionText(selected2.bytes));
+  if (!record || record.version !== "retrospective-session-v1" || Object.keys(record).sort().join() !== "selectionDigest,sources,version" || !Array.isArray(record.sources))
+    throw Error("invalid retained session");
+  checkedSelections(record.sources.map((s) => ({ kind: s.kind, path: s.path, ...s.executionId === null ? {} : { executionId: s.executionId } })));
+  const sources = record.sources.map((s) => {
+    if (Object.keys(s).sort().join() !== "bytes,executionId,kind,manifestId,path,sha256")
+      throw Error("invalid retained session source");
+    const r = readArchiveSource(root, s.manifestId);
+    if (r.status !== "available" || r.reference.retention !== "exact" || r.reference.sha256 !== s.sha256 || r.bytes.length !== s.bytes)
+      throw Error("retained session source missing or changed");
+    return { selection: s, bytes: r.bytes };
+  });
+  if (sources.reduce((n, s) => n + s.bytes.length, 0) > 32 * 1024 * 1024)
+    throw Error("session selection exceeds 32 MiB");
+  const plain = record.sources.map(({ manifestId: manifestId2, ...s }) => s);
+  if (learningHash({ version: "session-selection-v1", sources: plain }) !== record.selectionDigest)
+    throw Error("retained session selection mismatch");
+  const projection = projectSession(record.sources.map((s) => ({ kind: s.kind, path: s.path, ...s.executionId === null ? {} : { executionId: s.executionId } })), sources.map((s) => s.bytes));
+  return { version: record.version, manifestId, selectionDigest: record.selectionDigest, sources: record.sources, ...projection, acceptance: "not-assessed" };
+}
+function readRetainedSessionSource(root, manifestId, index) {
+  const session = readRetainedSession(root, manifestId), source3 = session.sources[index];
+  if (!Number.isSafeInteger(index) || !source3)
+    throw Error("select a listed session source");
+  const result = readArchiveSource(root, source3.manifestId);
+  if (result.status !== "available")
+    throw Error("session source unavailable");
+  return result.bytes;
+}
+
 // packages/adapters/dist/learning-workspace.js
 import { mkdirSync as mkdirSync13, readdirSync as readdirSync17, lstatSync as lstatSync10 } from "node:fs";
-import { dirname as dirname13, isAbsolute as isAbsolute18, join as join38, resolve as resolve18 } from "node:path";
+import { dirname as dirname13, isAbsolute as isAbsolute18, join as join38, resolve as resolve19 } from "node:path";
 
 // packages/adapters/dist/trust-lifecycle.js
 import { isAbsolute as isAbsolute17 } from "node:path";
@@ -14620,10 +14920,10 @@ function openTrustLifecycle(directory7) {
         throw Error("stale or invalid prediction correction");
       journal.append(s.tip, { type: "correction", prior, prediction: safe, reason });
     },
-    outcome(value, authorizedReferenceDigests, referenceAuthor) {
+    outcome(value3, authorizedReferenceDigests, referenceAuthor) {
       if (referenceAuthor !== void 0 && !text9(referenceAuthor))
         throw Error("explicit reference author required");
-      const r = learningCopy(value);
+      const r = learningCopy(value3);
       if (Object.keys(r).sort().join() !== "evidenceManifestId,kind,referenceId,targetId,value" || !["prediction", "unflagged"].includes(r.kind) || !text9(r.targetId) || !text9(r.referenceId) || typeof r.value !== "boolean")
         throw Error("invalid reference outcome");
       const digest6 = trustOutcomeDigest(r);
@@ -14664,26 +14964,26 @@ function openTrustLifecycle(directory7) {
 // packages/adapters/dist/learning-workspace.js
 var SHA8 = /^[a-f0-9]{64}$/;
 var NAME = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
-function closed11(value, keys7) {
-  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).sort().join() !== [...keys7].sort().join())
+function closed11(value3, keys7) {
+  if (!value3 || typeof value3 !== "object" || Array.isArray(value3) || Object.keys(value3).sort().join() !== [...keys7].sort().join())
     throw Error("closed learning workspace input required");
 }
-function text10(value, max = 4e3) {
-  if (typeof value !== "string" || !value.trim() || value.length > max || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value))
+function text10(value3, max = 4e3) {
+  if (typeof value3 !== "string" || !value3.trim() || value3.length > max || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value3))
     throw Error("bounded learning text required");
 }
-function hash8(value) {
-  if (typeof value !== "string" || !SHA8.test(value))
+function hash8(value3) {
+  if (typeof value3 !== "string" || !SHA8.test(value3))
     throw Error("retained digest required");
 }
-function path(value) {
-  if (!isAbsolute18(value) || resolve18(value) !== value)
+function path(value3) {
+  if (!isAbsolute18(value3) || resolve19(value3) !== value3)
     throw Error("canonical absolute learning path required");
 }
-function named(value) {
-  if (!NAME.test(value.name))
+function named(value3) {
+  if (!NAME.test(value3.name))
     throw Error("learning name must be a short slug");
-  text10(value.title, 512);
+  text10(value3.title, 512);
 }
 function clock(now) {
   if (!Number.isSafeInteger(now) || now < 0)
@@ -14700,8 +15000,8 @@ function source(root, id3, parser) {
 function jsonSource(root, id3, parser) {
   return learningCopy(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(source(root, id3, parser).bytes)));
 }
-function retain(root, parser, value) {
-  return retainArchiveSource(root, { sourceId: `${parser}-${learningHash(value).slice(0, 32)}`, parser: { id: parser, version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(value)) }).manifestId;
+function retain(root, parser, value3) {
+  return retainArchiveSource(root, { sourceId: `${parser}-${learningHash(value3).slice(0, 32)}`, parser: { id: parser, version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(value3)) }).manifestId;
 }
 function prepareLearningDirectory(directory7) {
   path(directory7);
@@ -14775,7 +15075,7 @@ function openLearningWorkspace(directory7) {
   const history = () => {
     verifyLearningStore(input.archiveRoot, "workspace", workspaceKey(input), directory7, learningHash(initial));
     const rows = journal.read(), names = /* @__PURE__ */ new Set(), decisions = /* @__PURE__ */ new Map();
-    const known = /* @__PURE__ */ new Set(["case-binding", "comparison-binding", "comparison-context", "hypothesis-binding", "unflagged-binding", "trust-binding", "quality-pending", "quality", "decision", "adoption", "activation", "rollback-request", "rollback", "outcome", "lifecycle"]);
+    const known = /* @__PURE__ */ new Set(["session-note", "session-binding", "case-binding", "comparison-binding", "comparison-context", "hypothesis-binding", "unflagged-binding", "trust-binding", "quality-pending", "quality", "decision", "adoption", "activation", "rollback-request", "rollback", "outcome", "lifecycle"]);
     for (const row of rows.slice(1)) {
       const v = row.value;
       if (!known.has(String(v.type)))
@@ -14796,7 +15096,7 @@ function openLearningWorkspace(directory7) {
     return rows;
   };
   const events = () => history().map((e) => e.value);
-  const append = (value, prior = history().at(-1).id) => journal.append(prior, value);
+  const append = (value3, prior = history().at(-1).id) => journal.append(prior, value3);
   const bindings = (type2) => events().filter((e) => e.type === type2).map((e) => e.binding);
   const selected2 = (type2, name) => {
     const b = bindings(type2).find((b2) => b2.name === name);
@@ -14970,6 +15270,49 @@ function openLearningWorkspace(directory7) {
   history();
   return {
     configuration: () => learningCopy(input),
+    bindSession(raw) {
+      const b = learningCopy(raw);
+      closed11(b, ["name", "title", "manifestId"]);
+      named(b);
+      hash8(b.manifestId);
+      readRetainedSession(input.archiveRoot, b.manifestId);
+      bound("session-binding", b);
+      return b;
+    },
+    noteSession(name, raw) {
+      const a = learningCopy(raw);
+      closed11(a, ["kind", "note", "item", "line"]);
+      text10(a.note);
+      if (!["finding", "proposal", "acceptance", "context"].includes(a.kind) || !Number.isSafeInteger(a.item) || a.item < 1 || !Number.isSafeInteger(a.line) || a.line < 1)
+        throw Error("valid annotation and evidence reference required");
+      const b = selected2("session-binding", name);
+      const bytes3 = readRetainedSessionSource(input.archiveRoot, b.manifestId, a.item - 1);
+      const content = new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
+      const count = content.length === 0 ? 0 : content.split("\n").length - (content.endsWith("\n") ? 1 : 0);
+      if (a.line > count)
+        throw Error("annotation evidence line outside retained source");
+      const annotation = { ...a, author: input.author };
+      append({ type: "session-note", name, annotation });
+      return annotation;
+    },
+    sessions() {
+      return bindings("session-binding").map((b) => {
+        try {
+          const view = readRetainedSession(input.archiveRoot, b.manifestId);
+          return { ...b, state: "ready", sessionId: view.parent.sessionId, reason: "retrospective evidence; assessment pending" };
+        } catch (e) {
+          return { ...b, state: "deferred", sessionId: null, reason: message(e) };
+        }
+      });
+    },
+    session(name) {
+      const b = selected2("session-binding", name);
+      return {
+        ...b,
+        ...readRetainedSession(input.archiveRoot, b.manifestId),
+        annotations: events().filter((e) => e.type === "session-note" && e.name === name).map((e) => e.annotation)
+      };
+    },
     dashboardBinding() {
       const trust = currentTrust(), binding = events().filter((e) => e.type === "trust-binding").at(-1);
       return { trustDirectory: trust && binding ? String(binding.directory) : null, trustPolicyId: trust ? trust.inspect(0).policyId : null };
@@ -15272,10 +15615,10 @@ function openLearningWorkspace(directory7) {
       }
       if (referenceAuthor !== void 0)
         text10(referenceAuthor, 512);
-      const value = { type: "outcome", name, ...preview, ...referenceAuthor === void 0 ? {} : { referenceAuthor } };
-      const manifestId = retain(input.archiveRoot, "learning-outcome", value);
-      append({ ...value, manifestId }, before);
-      return { ...value, manifestId };
+      const value3 = { type: "outcome", name, ...preview, ...referenceAuthor === void 0 ? {} : { referenceAuthor } };
+      const manifestId = retain(input.archiveRoot, "learning-outcome", value3);
+      append({ ...value3, manifestId }, before);
+      return { ...value3, manifestId };
     },
     lifecycle(name) {
       const before = history().at(-1).id, q = quality(name), b = q.b;
@@ -15323,7 +15666,7 @@ function openLearningWorkspace(directory7) {
       } catch (e) {
         trust = { state: "deferred", reason: message(e), automaticExposure: { mode: "silent", reason: "invalid-trust-evidence" } };
       }
-      return { version: "learning-workspace-view-v1", configuration: learningCopy(input), mode: "deliberate-review", cases, comparisons, trust, automaticExposureReserved: false, delegationStarted: false, acceptance: "not-assessed" };
+      return { version: "learning-workspace-view-v1", configuration: learningCopy(input), mode: "deliberate-review", sessions: this.sessions(), cases, comparisons, trust, automaticExposureReserved: false, delegationStarted: false, acceptance: "not-assessed" };
     }
   };
 }
@@ -15433,26 +15776,26 @@ function previewLearningCaseLabel(directory7, reference3) {
 import { randomUUID as randomUUID5 } from "node:crypto";
 
 // packages/adapters/dist/principal-payload-port.js
-import { createHash as createHash36 } from "node:crypto";
+import { createHash as createHash37 } from "node:crypto";
 import { isAbsolute as isAbsolute19 } from "node:path";
 
 // packages/adapters/dist/reviewed-archive-export.js
 import { constants as constants13, openSync as openSync12, closeSync as closeSync12, writeSync as writeSync6, fsyncSync as fsyncSync8, realpathSync as realpathSync9, lstatSync as lstatSync11 } from "node:fs";
-import { dirname as dirname14, isAbsolute as isAbsolute20, resolve as resolve19 } from "node:path";
-import { createHash as createHash37 } from "node:crypto";
+import { dirname as dirname14, isAbsolute as isAbsolute20, resolve as resolve20 } from "node:path";
+import { createHash as createHash38 } from "node:crypto";
 
 // packages/adapters/dist/archive-facts.js
-import { createHash as createHash38 } from "node:crypto";
+import { createHash as createHash39 } from "node:crypto";
 
 // packages/adapters/dist/producer-review.js
 import { existsSync as existsSync26 } from "node:fs";
 import { isAbsolute as isAbsolute22 } from "node:path";
-import { createHash as createHash40 } from "node:crypto";
+import { createHash as createHash41 } from "node:crypto";
 
 // packages/adapters/dist/installed-review-session.js
 import { readFileSync as readFileSync27, realpathSync as realpathSync10, lstatSync as lstatSync12, mkdirSync as mkdirSync14, existsSync as existsSync25 } from "node:fs";
-import { isAbsolute as isAbsolute21, resolve as resolve20, join as join39, dirname as dirname15 } from "node:path";
-import { createHash as createHash39 } from "node:crypto";
+import { isAbsolute as isAbsolute21, resolve as resolve21, join as join39, dirname as dirname15 } from "node:path";
+import { createHash as createHash40 } from "node:crypto";
 import { isDeepStrictEqual as isDeepStrictEqual2 } from "node:util";
 
 // packages/adapters/dist/producer-review.js
@@ -15495,10 +15838,10 @@ function gradeScriptPath(assetsDir) {
   return join40(dirname16(templatePath(assetsDir)), "report.grade.js");
 }
 function readBody(req) {
-  return new Promise((resolve28) => {
+  return new Promise((resolve31) => {
     let b = "";
     req.on("data", (c) => b += c);
-    req.on("end", () => resolve28(b));
+    req.on("end", () => resolve31(b));
   });
 }
 function findTranscript(runDir, id3) {
@@ -15536,9 +15879,9 @@ async function serveReview(opts) {
         const id3 = url.searchParams.get("id") ?? "";
         const data = collectReport(opts.skillDir);
         const column = data.columns.find((c) => c.index === col);
-        const text14 = column ? findTranscript(column.runDir, id3) : null;
-        res.writeHead(text14 ? 200 : 404, { "content-type": "text/plain; charset=utf-8" });
-        res.end(text14 ?? "transcript not found");
+        const text15 = column ? findTranscript(column.runDir, id3) : null;
+        res.writeHead(text15 ? 200 : 404, { "content-type": "text/plain; charset=utf-8" });
+        res.end(text15 ?? "transcript not found");
         return;
       }
       if (req.method === "GET" && url.pathname === "/judge") {
@@ -15546,9 +15889,9 @@ async function serveReview(opts) {
         const id3 = url.searchParams.get("id") ?? "";
         const data = collectReport(opts.skillDir);
         const column = data.columns.find((c) => c.index === col);
-        const text14 = column ? findJudgeRaw(column.runDir, id3) : null;
-        res.writeHead(text14 ? 200 : 404, { "content-type": "text/plain; charset=utf-8" });
-        res.end(text14 ?? "judge output not captured");
+        const text15 = column ? findJudgeRaw(column.runDir, id3) : null;
+        res.writeHead(text15 ? 200 : 404, { "content-type": "text/plain; charset=utf-8" });
+        res.end(text15 ?? "judge output not captured");
         return;
       }
       if (req.method === "GET" && url.pathname === "/trends") {
@@ -15765,7 +16108,7 @@ async function serveReview(opts) {
       res.end(`server error: ${e instanceof Error ? e.message : e}`);
     }
   });
-  await new Promise((resolve28) => server.listen(opts.port ?? 0, "127.0.0.1", resolve28));
+  await new Promise((resolve31) => server.listen(opts.port ?? 0, "127.0.0.1", resolve31));
   const addr = server.address();
   const port = typeof addr === "object" && addr ? addr.port : opts.port;
   const link = `http://127.0.0.1:${port}/`;
@@ -15782,20 +16125,20 @@ async function serveReview(opts) {
 function tryOpen(url, cmd) {
   const opener = cmd ?? (process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open");
   try {
-    const child2 = spawn5(opener, [url], { stdio: "ignore", detached: true });
-    child2.on("error", () => {
+    const child3 = spawn5(opener, [url], { stdio: "ignore", detached: true });
+    child3.on("error", () => {
     });
-    child2.unref();
+    child3.unref();
   } catch {
   }
 }
 
 // packages/pi-extension/src/runner.ts
 import { existsSync as existsSync28 } from "node:fs";
-import { dirname as dirname17, join as join41, resolve as resolve21 } from "node:path";
+import { dirname as dirname17, join as join41, resolve as resolve22 } from "node:path";
 function resolveSkillDir(cwd, arg) {
   if (arg) {
-    const dir2 = resolve21(cwd, arg);
+    const dir2 = resolve22(cwd, arg);
     if (existsSync28(join41(dir2, "tests", "specification.yaml"))) return dir2;
     throw new Error(`no tests/specification.yaml found at ${dir2}`);
   }
@@ -15851,7 +16194,7 @@ async function runViaExtension(opts) {
 // packages/pi-extension/src/capture-cmd.ts
 import { existsSync as existsSync29, mkdirSync as mkdirSync15, writeFileSync as writeFileSync12, readdirSync as readdirSync18, readFileSync as readFileSync29 } from "node:fs";
 import { join as join42 } from "node:path";
-import { createHash as createHash41 } from "node:crypto";
+import { createHash as createHash42 } from "node:crypto";
 var CANCELLED = { status: "cancelled", files: [] };
 var CAPTURES_GITIGNORE = "# Local review evidence for captured cases \u2014 never commit.\n.local/\n";
 async function runCapture(skillDir, ctx) {
@@ -15989,7 +16332,7 @@ async function chooseTarget(skillDir, ctx) {
   return {
     kind: chosen.kind,
     path: chosen.path,
-    content_sha256: createHash41("sha256").update(readFileSync29(chosen.abs, "utf8"), "utf8").digest("hex")
+    content_sha256: createHash42("sha256").update(readFileSync29(chosen.abs, "utf8"), "utf8").digest("hex")
   };
 }
 function suggestScenarioId(specPath, fallback) {
@@ -16029,15 +16372,188 @@ function writeCapture(capturesDir, capture, selected2, homeDir) {
   return [casePath, evidencePath, gitignore];
 }
 
-// packages/cli/dist/learning.js
-import { resolve as resolve22, join as join43, dirname as dirname18 } from "node:path";
-import { fileURLToPath as fileURLToPath3 } from "node:url";
+// packages/cli/dist/session-learning.js
+import { resolve as resolve23, relative as relative6, isAbsolute as isAbsolute23, sep as sep7 } from "node:path";
 import { existsSync as existsSync30 } from "node:fs";
+var text11 = (v, label) => {
+  if (typeof v !== "string" || !v.trim())
+    throw Error(label + " is required");
+  return v;
+};
+var SESSION_HELP = [
+  "Session learning \u2014 retrospective, no model calls",
+  "  learning session preview --session FILE [--ledger FILE --feedback FILE --artifact FILE]",
+  "      [--sources FILE]                    additional explicit {kind,path,executionId?} selections",
+  "  learning session import --session FILE ... --name NAME --title TEXT",
+  "      --expected DIGEST --confirm [--archive DIR --author NAME for a new workspace]",
+  "  learning session list",
+  "  learning session show NAME              timeline excerpts, model/tool/usage evidence and gaps",
+  "  learning session source NAME --item N   complete selected retained source, display only",
+  "  learning session note NAME --kind finding|proposal|acceptance|context --note TEXT",
+  "      --item N --line N --confirm         operator annotation, not calibrated quality or adoption",
+  "Use --state DIR to select a learning workspace; --json returns structured readback.",
+  "Preview writes nothing. Import retains exact selected bytes privately, including potentially sensitive",
+  "session content. Inspect selected files before confirming. No automatic discovery, redaction or export.",
+  "A changed preview needs a new digest. No running worker is contacted."
+].join("\n");
+function formatSession(view) {
+  const p = view.parent;
+  const lines2 = [
+    "Session \u2014 " + view.title,
+    "Session ID: " + p.sessionId,
+    "Snapshot: " + view.selectionDigest,
+    "Retrospective evidence; quality and acceptance are not inferred.",
+    p.userMessages + " user messages \xB7 " + p.assistantMessages + " assistant messages \xB7 " + view.attempts.length + " ledger executions \xB7 " + view.children.length + " child transcripts",
+    "Last assistant stop: " + (p.lastAssistantStop ?? "unknown") + " (not a completion or acceptance receipt)",
+    "",
+    "Models observed:",
+    ...p.modelRecords.map((m) => "  " + m.provider + "/" + m.model + ": " + m.messages + " assistant records"),
+    "",
+    "Parent usage \u2014 reported sums only; not billing or combined child usage:",
+    ...Object.entries(p.usage.fields).map(([k, v]) => "  " + k + ": " + v.sum + " (" + v.reportedMessages + "/" + p.assistantMessages + " messages reported)"),
+    "",
+    "Delegations \u2014 operator-selected ledger, association not authenticated:",
+    ...view.attempts.map((a) => "  " + a.executionId + " \xB7 " + (a.agent ?? "unknown") + " \xB7 " + a.state + " \xB7 " + (a.runningSeconds ?? "?") + " s \xB7 " + (a.pane ?? "no pane")),
+    "",
+    "Child transcripts \u2014 separately reported, no combined token total:",
+    ...view.children.flatMap((c) => [
+      "  Source " + (c.source + 1) + " \xB7 " + c.session.sessionId + " \xB7 " + (c.executionId ?? "unmapped execution"),
+      "  Last assistant stop: " + (c.session.lastAssistantStop ?? "unknown") + " (not acceptance)",
+      ...c.session.modelRecords.map((m) => "    " + m.provider + "/" + m.model + ": " + m.messages + " assistant records"),
+      ...Object.entries(c.session.usage.fields).map(([k, v]) => "    " + k + ": " + v.sum + " (" + v.reportedMessages + "/" + c.session.assistantMessages + " messages reported)"),
+      ...c.session.timeline.map((e) => "    line " + e.line + " \xB7 " + e.kind + ": " + e.excerpt)
+    ]),
+    "",
+    "Sources \u2014 use session source NAME --item N for complete retained bytes:",
+    ...view.sources.map((s, i) => "  " + (i + 1) + ". " + s.kind + ": " + s.path + " (" + s.bytes + " bytes; " + s.sha256 + ")"),
+    "",
+    "Chronological visible timeline \u2014 excerpts, not a complete artifact review:",
+    ...p.timeline.map((e) => "  " + (e.timestamp ?? "unknown time") + " \xB7 line " + e.line + " \xB7 " + e.kind + ": " + e.excerpt),
+    "",
+    "Operator annotations \u2014 not automatically verified labels:",
+    ...view.annotations.map((a) => "  " + a.kind + " \xB7 source " + a.item + ", line " + a.line + " \xB7 " + a.author + ": " + a.note),
+    "",
+    "Evidence gaps:",
+    ...view.gaps.map((g) => "  - " + g)
+  ];
+  return lines2.join("\n");
+}
+async function runSessionLearning(args, flags, options) {
+  const { cwd, directory: directory7, emit: emit2 } = options, [verb, name] = args;
+  const allowed = { preview: ["session", "ledger", "feedback", "artifact", "sources"], import: ["session", "ledger", "feedback", "artifact", "sources", "name", "title", "expected", "archive", "author"], list: [], show: [], source: ["item"], note: ["kind", "note", "item", "line"] };
+  if (!verb || verb === "help")
+    return emit2(SESSION_HELP);
+  if (!Object.hasOwn(allowed, verb) || args.length > (["show", "source", "note"].includes(verb) ? 2 : 1))
+    throw Error("unknown session command; use learning session help");
+  for (const key3 of Object.keys(flags))
+    if (!["state", "json", "confirm", "help", ...allowed[verb]].includes(key3))
+      throw Error("unsupported session option: --" + key3);
+  if (verb === "preview" || verb === "import") {
+    const selections = [];
+    if (flags.session)
+      selections.push({ kind: "parent", path: resolve23(cwd, text11(flags.session, "--session")) });
+    for (const kind2 of ["ledger", "feedback", "artifact"])
+      if (flags[kind2])
+        selections.push({ kind: kind2, path: resolve23(cwd, text11(flags[kind2], "--" + kind2)) });
+    if (flags.sources) {
+      const raw = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(learningFile(resolve23(cwd, text11(flags.sources, "--sources")), 65536)));
+      if (!Array.isArray(raw))
+        throw Error("source selection file must be an array");
+      for (const s of raw) {
+        if (!s || typeof s !== "object" || typeof s.path !== "string")
+          throw Error("invalid source selection");
+        selections.push({ ...s, path: resolve23(cwd, s.path) });
+      }
+    }
+    const preview = prepareSessionImport(selections);
+    const summary = {
+      state: "preview",
+      digest: preview.digest,
+      sources: preview.sources,
+      sessionId: preview.parent.sessionId,
+      userMessages: preview.parent.userMessages,
+      assistantMessages: preview.parent.assistantMessages,
+      executions: preview.attempts.length,
+      childTranscripts: preview.children.length,
+      gaps: preview.gaps,
+      privacy: "Exact source bytes, potentially sensitive, will be retained privately. Inspect sources first; no automatic redaction or publication.",
+      next: "Repeat import with --expected " + preview.digest + " --confirm after reviewing the selected inputs."
+    };
+    if (verb === "preview" || flags.confirm !== true)
+      return emit2(summary);
+    if (flags.expected !== preview.digest)
+      throw Error("exact preview digest required; re-preview changed inputs");
+    const label = text11(flags.name, "--name"), title = text11(flags.title, "--title");
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(label) || title.length > 512)
+      throw Error("bounded session name/title required");
+    let workspace2;
+    if (existsSync30(directory7)) {
+      if (flags.archive || flags.author)
+        throw Error("existing workspace already binds archive and author");
+      workspace2 = openLearningWorkspace(directory7);
+    } else {
+      const archiveRoot = resolve23(cwd, text11(flags.archive, "--archive for new workspace")), author = text11(flags.author, "--author for new workspace");
+      const archiveRelative = relative6(directory7, archiveRoot);
+      if (!archiveRelative || !isAbsolute23(archiveRelative) && archiveRelative !== ".." && !archiveRelative.startsWith(".." + sep7))
+        throw Error("archive must be outside the workspace journal directory");
+      workspace2 = createLearningWorkspace(directory7, { archiveRoot, author, population: "pi-session:" + preview.parent.sessionId, scopeDigest: sessionScope(preview.parent, preview.sources.find((s) => s.kind === "parent").sha256) });
+    }
+    const previous = workspace2.sessions().find((s) => s.name === label);
+    if (previous) {
+      const old = workspace2.session(label);
+      if (old.selectionDigest !== preview.digest || old.title !== title)
+        throw Error("session name already bound; use a new name for changed evidence");
+      return emit2({ state: "already-retained", name: label, manifestId: old.manifestId });
+    }
+    const manifestId = retainSessionImport(workspace2.configuration().archiveRoot, preview, preview.digest);
+    workspace2.bindSession({ name: label, title, manifestId });
+    return emit2({ state: "retained", name: label, manifestId, sources: preview.sources.length, acceptance: "not-assessed", next: "learning session show " + label });
+  }
+  const workspace = openLearningWorkspace(directory7);
+  if (verb === "list")
+    return emit2(workspace.sessions());
+  const view = workspace.session(text11(name, "session name"));
+  if (verb === "show")
+    return emit2(flags.json ? view : formatSession(view));
+  const item = Number(flags.item);
+  if (!Number.isSafeInteger(item) || item < 1 || item > view.sources.length)
+    throw Error("select a listed source with --item N");
+  if (verb === "source")
+    return emit2(new TextDecoder("utf-8", { fatal: true }).decode(readRetainedSessionSource(workspace.configuration().archiveRoot, view.manifestId, item - 1)));
+  const kind = text11(flags.kind, "--kind"), note = text11(flags.note, "--note"), line = Number(flags.line);
+  if (!["finding", "proposal", "acceptance", "context"].includes(kind) || note.length > 4e3 || !Number.isSafeInteger(line) || line < 1)
+    throw Error("bounded annotation and evidence line required");
+  if (flags.confirm !== true)
+    return emit2({ state: "confirmation-required", name, item, line, kind, note, meaning: "operator annotation only; no trust/adoption authority" });
+  return emit2(workspace.noteSession(name, { kind, note, item, line }));
+}
+async function reviewSessionLearning(directory7, ui, display) {
+  const w = openLearningWorkspace(directory7), name = await ui.select("Retained sessions", w.sessions().map((s) => s.name));
+  if (!name)
+    return;
+  const view = w.session(name);
+  await ui.editor("Session assessment \u2014 display only", display(formatSession(view)));
+  for (; ; ) {
+    const choices = view.sources.map((s, i) => i + 1 + ". " + s.kind + ": " + s.path), selected2 = await ui.select("Complete retained evidence (may contain sensitive text)", [...choices, "Done"]);
+    if (!selected2 || selected2 === "Done")
+      return;
+    const index = choices.indexOf(selected2);
+    if (index < 0)
+      throw Error("select a listed retained source");
+    await ui.editor("Exact source \u2014 changes discarded", display(new TextDecoder("utf-8", { fatal: true }).decode(readRetainedSessionSource(w.configuration().archiveRoot, view.manifestId, index))));
+  }
+}
+
+// packages/cli/dist/learning.js
+import { resolve as resolve24, join as join43, dirname as dirname18 } from "node:path";
+import { fileURLToPath as fileURLToPath3 } from "node:url";
+import { existsSync as existsSync31 } from "node:fs";
 import { createInterface as createInterface2 } from "node:readline/promises";
 var LEARNING_HELP = `Learning \u2014 retained evidence, no model calls
   learning                         open guided review (interactive terminal)
   learning init --archive DIR --author NAME [--scope-item N] --confirm
       [--scope TEXT --population TEXT only for a comparison-only archive without retained cases]
+  learning session help             whole-session retrospective import, timeline and annotations
   learning status [--json]          readiness; never automatic exposure
   learning import                  list retained batches/comparisons
   learning import --item N --name NAME --title TEXT --scope-note TEXT --confirm
@@ -16066,8 +16582,8 @@ All commands accept --state DIR (default .skill-harness/learning), --json for st
 --confirm authorizes only the displayed local write, never models, acceptance or registry activation.
 No raw manifest authoring. Import selects actual retained inputs. Exit zero is command completion, not quality.
 Registry activation/rollback use /grants learning in interactive Pi, with independent authority.`;
-function learningDisplay(text14) {
-  return text14.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+function learningDisplay(text15) {
+  return text15.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
 }
 function parse4(argv) {
   const args = [], flags = {};
@@ -16148,7 +16664,9 @@ function formatLearningStatus(view) {
     lines2.push(`Cases: ${c.title} (${c.name}) \u2014 ${c.state === "ready" ? `${c.total} retained nomination(s)` : c.reason}`);
   for (const c of view.comparisons)
     lines2.push(`Comparison: ${c.title} (${c.name}) \u2014 ${c.reason}${"decision" in c && c.decision ? `; decision: ${c.decision.disposition}` : ""}`);
-  if (!view.cases.length && !view.comparisons.length)
+  for (const s of view.sessions)
+    lines2.push("Session: " + s.title + " (" + s.name + ") \u2014 " + s.reason);
+  if (!view.cases.length && !view.comparisons.length && !view.sessions.length)
     lines2.push("No inputs connected. Choose Connect retained input; missing evidence is not a failure or acceptance.");
   lines2.push(formatLearningTrust(view.trust));
   return learningDisplay(lines2.join("\n"));
@@ -16167,11 +16685,11 @@ function formatLearningTrust(trust) {
   return learningDisplay(lines2.join("\n"));
 }
 async function runLearningCommand(argv, options = {}) {
-  const { args, flags } = parse4(argv), cwd = options.cwd ?? process.cwd(), directory7 = resolve22(cwd, typeof flags.state === "string" ? flags.state : ".skill-harness/learning");
+  const { args, flags } = parse4(argv), cwd = options.cwd ?? process.cwd(), directory7 = resolve24(cwd, typeof flags.state === "string" ? flags.state : ".skill-harness/learning");
   const out = options.write ?? console.log;
-  const emit2 = (value) => {
-    out(flags.json ? JSON.stringify(value, null, 2) : typeof value === "string" ? value : learningDisplay(JSON.stringify(value, null, 2)));
-    return value;
+  const emit2 = (value3) => {
+    out(flags.json ? JSON.stringify(value3, null, 2) : typeof value3 === "string" ? learningDisplay(value3) : learningDisplay(JSON.stringify(value3, null, 2)));
+    return value3;
   };
   const confirm = (preview, write) => {
     if (flags.confirm !== true)
@@ -16201,9 +16719,11 @@ async function runLearningCommand(argv, options = {}) {
     help: []
   };
   const command = args[0];
+  if (command === "session")
+    return runSessionLearning(args.slice(1), flags, { cwd, directory: directory7, emit: emit2 });
   if (command === "guide" || command === "current") {
     const file = command === "guide" ? "PRODUCT-GUIDE.md" : "STATUS.md", base = dirname18(fileURLToPath3(import.meta.url));
-    const selected2 = [resolve22(base, "../docs", file), resolve22(base, "../../../docs/factory", file)].find((p) => existsSync30(p));
+    const selected2 = [resolve24(base, "../docs", file), resolve24(base, "../../../docs/factory", file)].find((p) => existsSync31(p));
     if (!selected2)
       throw Error("packaged learning guide missing; reinstall a complete compatible package");
     return emit2(learningFile(selected2, 65536).toString("utf8"));
@@ -16224,7 +16744,7 @@ async function runLearningCommand(argv, options = {}) {
   if (unexpected.length)
     throw Error(`unsupported learning option: --${unexpected[0]}`);
   if (command === "init") {
-    const archiveRoot = resolve22(cwd, word(flags.archive, "--archive")), author = word(flags.author, "--author"), scopes = learningArchiveScopes(archiveRoot, author);
+    const archiveRoot = resolve24(cwd, word(flags.archive, "--archive")), author = word(flags.author, "--author"), scopes = learningArchiveScopes(archiveRoot, author);
     if (scopes.length > 1 && flags["scope-item"] === void 0)
       return emit2({ state: "scope-selection-required", scopes: scopes.map((s, i) => ({ item: i + 1, description: s.description, population: s.population })), next: "Repeat init with --scope-item N; scope identity is derived from retained facts, not typed hashes." });
     const selected2 = scopes[integer2(flags["scope-item"], 1) - 1];
@@ -16235,7 +16755,7 @@ async function runLearningCommand(argv, options = {}) {
     const input = { archiveRoot, scopeDigest: selected2?.scopeDigest ?? learningHash({ declaredScope: word(flags.scope, "--scope for a comparison-only archive") }), population: selected2?.population ?? word(flags.population, "--population for a comparison-only archive"), author };
     return confirm({ directory: directory7, ...input, scopeMeaning: selected2 ? "exact retained case snapshot" : "operator-declared comparison-only scope; cannot bind mismatching case snapshots" }, () => createLearningWorkspace(directory7, input).inspect(Date.now()));
   }
-  if (!existsSync30(directory7))
+  if (!existsSync31(directory7))
     throw Error("learning workspace not connected; use learning init or /grants learning with the current host");
   const workspace = openLearningWorkspace(directory7), config = workspace.configuration(), name = args[1];
   if (command === "status") {
@@ -16295,10 +16815,10 @@ ${artifactText(result.bytes)}`);
     if (!digest6)
       throw Error("select a listed artifact number");
     const bytes3 = workspace.artifact(name, card.label, digest6);
-    const text14 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
-    return emit2(flags.json ? { variant: card.displayLabel, digest: digest6, bytes: bytes3.length, scope: "complete-artifact-display", controlCharacters: "escaped (retained bytes unchanged)", text: learningDisplay(text14) } : `Variant ${card.displayLabel} \u2014 complete artifact (${bytes3.length} bytes; controls escaped, retained bytes unchanged)
+    const text15 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
+    return emit2(flags.json ? { variant: card.displayLabel, digest: digest6, bytes: bytes3.length, scope: "complete-artifact-display", controlCharacters: "escaped (retained bytes unchanged)", text: learningDisplay(text15) } : `Variant ${card.displayLabel} \u2014 complete artifact (${bytes3.length} bytes; controls escaped, retained bytes unchanged)
 
-${learningDisplay(text14)}`);
+${learningDisplay(text15)}`);
   }
   if (command === "choose") {
     const v = workspace.comparison(word(name, "comparison name")), kind = word(flags.kind, "--kind");
@@ -16351,7 +16871,7 @@ ${learningDisplay(text14)}`);
   }
   if (command === "trust") {
     if (name === "sample") {
-      const bytes3 = learningFile(resolve22(cwd, word(args[2], "sample evidence file")), 65536), sampleName = word(flags.name, "--name");
+      const bytes3 = learningFile(resolve24(cwd, word(args[2], "sample evidence file")), 65536), sampleName = word(flags.name, "--name");
       return confirm({ source: args[2], bytes: bytes3.length, title: flags.title, meaning: "operator-selected unflagged incident; NOT a correctness label" }, () => {
         const manifestId = retainArchiveSource(config.archiveRoot, { sourceId: `unflagged-${learningHash(bytes3.toString("base64")).slice(0, 24)}`, parser: { id: "operator-unflagged-evidence", version: "1" }, retention: "exact", bytes: bytes3 }).manifestId;
         return workspace.addUnflagged({ name: sampleName, title: word(flags.title, "--title"), manifestId, split: String(flags.split ?? "calibration") });
@@ -16383,7 +16903,7 @@ ${learningDisplay(text14)}`);
       const author = word(flags["reference-author"], "--reference-author"), note = word(flags.note, "--note");
       if (!["yes", "no"].includes(String(flags.miss)))
         throw Error("--miss yes|no required");
-      const bytes3 = learningFile(resolve22(cwd, word(flags.evidence, "--evidence")), 65536);
+      const bytes3 = learningFile(resolve24(cwd, word(flags.evidence, "--evidence")), 65536);
       return confirm({ author, note, incident: id3, miss: flags.miss, evidenceBytes: bytes3.length }, () => {
         const evidence5 = retainArchiveSource(config.archiveRoot, { sourceId: `independent-label-${learningHash({ author, note, bytes: bytes3.toString("base64") }).slice(0, 24)}`, parser: { id: "operator-reference-evidence", version: "1" }, retention: "exact", bytes: bytes3 }).manifestId;
         const outcome = { kind: "unflagged", targetId: id3, value: flags.miss === "yes", evidenceManifestId: evidence5, referenceId: learningHash({ author, note, id: id3, evidence: evidence5 }) };
@@ -16419,7 +16939,7 @@ ${learningDisplay(text14)}`);
     if (flags["accepted-artifact"] === void 0 !== (flags["acceptance-evidence"] === void 0))
       throw Error("accepted artifact and independent acceptance evidence must be supplied together; excerpts never imply acceptance");
     const keys7 = ["artifact", "original-requirement", "current-requirement", "evidence", ...flags["accepted-artifact"] === void 0 ? [] : ["accepted-artifact", "acceptance-evidence"]];
-    const files = keys7.map((key3) => ({ key: key3, bytes: learningFile(resolve22(cwd, word(flags[key3], `--${key3}`)), 1024 * 1024) }));
+    const files = keys7.map((key3) => ({ key: key3, bytes: learningFile(resolve24(cwd, word(flags[key3], `--${key3}`)), 1024 * 1024) }));
     return confirm({ name, result, author, note, files: files.map((f) => ({ kind: f.key, bytes: f.bytes.length })), meaning: "independently supplied observation, not detector calibration or model exit status" }, () => {
       const retained = new Map(files.map((f) => [f.key, retainArchiveSource(config.archiveRoot, { sourceId: `outcome-${f.key}-${learningHash(f.bytes.toString("base64")).slice(0, 24)}`, parser: { id: "operator-outcome-evidence", version: "1" }, retention: "exact", bytes: f.bytes })]));
       const audit = retainArchiveSource(config.archiveRoot, { sourceId: `outcome-reference-${learningHash({ author, note, result }).slice(0, 24)}`, parser: { id: "operator-outcome-reference", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify({ author, note, result, scopeDigest: config.scopeDigest, source: "explicit-operator-review-not-exit-status" })) });
@@ -16442,7 +16962,7 @@ ${learningDisplay(text14)}`);
   }
 }
 function learningArchiveScopes(root, author) {
-  if (!existsSync30(join43(root, "manifests")))
+  if (!existsSync31(join43(root, "manifests")))
     return [];
   const selected2 = catalogLearningArchive(root, author).filter((c) => !!c.scopeDigest && !!c.population);
   return selected2.filter((c, i) => selected2.findIndex((s) => s.scopeDigest === c.scopeDigest && s.population === c.population) === i);
@@ -16453,7 +16973,7 @@ function terminalLearningUI() {
   const rl = createInterface2({ input: process.stdin, output: process.stdout });
   return {
     close: () => rl.close(),
-    notify: (text14) => console.log(learningDisplay(text14)),
+    notify: (text15) => console.log(learningDisplay(text15)),
     input: async (title, initial) => {
       const answer = await rl.question(`${title}${initial ? ` [${initial}]` : ""}: `);
       return answer || initial;
@@ -16466,11 +16986,11 @@ function terminalLearningUI() {
     },
     confirm: async (title, detail) => (console.log(learningDisplay(`${title}
 ${detail}`)), (await rl.question("Confirm [y/N]: ")).toLowerCase() === "y"),
-    editor: async (title, text14) => {
+    editor: async (title, text15) => {
       console.log(learningDisplay(`${title}
-${text14}`));
+${text15}`));
       await rl.question("Enter to return (this is the complete display): ");
-      return text14;
+      return text15;
     }
   };
 }
@@ -16498,9 +17018,9 @@ ${view.limitations.join("\n")}`);
       const card = view.cards[index];
       for (const digest6 of card.artifactDigests) {
         const bytes3 = workspace.artifact(name, card.label, digest6);
-        let text14;
+        let text15;
         try {
-          text14 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
+          text15 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
         } catch {
           ui.notify("This artifact is not UTF-8 text; use a suitable full-artifact viewer. No review acknowledgement recorded.", "warning");
           continue;
@@ -16509,7 +17029,7 @@ ${view.limitations.join("\n")}`);
           ui.notify("Artifact exceeds interactive viewer bound. Use learning artifact in a terminal; no partial view counts as full review.", "warning");
           continue;
         }
-        const display = learningDisplay(text14), returned = await ui.editor(`Variant ${card.displayLabel} \u2014 complete artifact (${bytes3.length} bytes; controls escaped)`, display);
+        const display = learningDisplay(text15), returned = await ui.editor(`Variant ${card.displayLabel} \u2014 complete artifact (${bytes3.length} bytes; controls escaped)`, display);
         if (returned === display && await ui.confirm("Acknowledge complete artifact review?", "Only confirm if you reviewed the complete artifact, not an excerpt. This does not accept or adopt it."))
           reviewed.add(digest6);
       }
@@ -16546,12 +17066,12 @@ No active session or next order changes here.`)) {
 }
 async function runLearningWizard(options) {
   const { directory: directory7, ui, cwd } = options;
-  if (!existsSync30(directory7)) {
+  if (!existsSync31(directory7)) {
     ui.notify("Connect an explicitly selected retained archive. This reads no live/private Pi session and calls no model.");
     const archive = await ui.input("Retained archive directory"), author = await ui.input("Review author");
     if (!archive || !author)
       return;
-    const archiveRoot = resolve22(cwd, archive), scopes = learningArchiveScopes(archiveRoot, author), labels = scopes.map((s, i) => `${i + 1}. ${s.description} (${s.population})`);
+    const archiveRoot = resolve24(cwd, archive), scopes = learningArchiveScopes(archiveRoot, author), labels = scopes.map((s, i) => `${i + 1}. ${s.description} (${s.population})`);
     const choice = scopes.length ? await ui.select("Exact retained work scope", labels) : void 0;
     if (scopes.length && !choice)
       return;
@@ -16570,12 +17090,36 @@ For an existing producer host use /grants learning so the exact snapshot is boun
   const workspace = openLearningWorkspace(directory7);
   for (; ; ) {
     const status = workspace.inspect(Date.now());
-    const selected2 = await ui.select("Learning \u2014 retained evidence, no model calls", ["Readiness", "Connect retained input", "Review cases", "Review comparisons", "Record adopt / reject / defer", "Propose hypothesis", "Link original hypothesis", "Trust / independent labels", "Adoption / outcomes", "Done"]);
+    const selected2 = await ui.select("Learning \u2014 retained evidence, no model calls", ["Readiness", "Connect retained input", "Import session", "Review sessions", "Review cases", "Review comparisons", "Record adopt / reject / defer", "Propose hypothesis", "Link original hypothesis", "Trust / independent labels", "Adoption / outcomes", "Done"]);
     if (!selected2 || selected2 === "Done")
       return;
     try {
       if (selected2 === "Readiness")
         ui.notify(formatLearningStatus(status));
+      if (selected2 === "Review sessions")
+        await reviewSessionLearning(directory7, ui, learningDisplay);
+      if (selected2 === "Import session") {
+        const session = await ui.input("Explicit Pi session JSONL path (no directory scanning)"), name = await ui.input("Short session name"), title = await ui.input("Session title");
+        if (!session || !name || !title)
+          continue;
+        const ledger = await ui.input("Optional explicit pi-daddy grants.jsonl path"), feedback = await ui.input("Optional feedback file path");
+        const args = ["session", "preview", "--session", session, "--state", directory7, "--json"];
+        if (ledger)
+          args.push("--ledger", ledger);
+        if (feedback)
+          args.push("--feedback", feedback);
+        let raw = "";
+        await runLearningCommand(args, { cwd, write: (t) => {
+          raw = t;
+        } });
+        const preview = JSON.parse(raw);
+        await ui.editor("Session import preview \u2014 read only", learningDisplay(raw));
+        if (await ui.confirm("Retain these exact selected files privately?", "May include sensitive session text. Inspect your selected files first. No automatic redaction, model calls or acceptance.")) {
+          args[1] = "import";
+          args.push("--name", name, "--title", title, "--expected", preview.digest, "--confirm");
+          await runLearningCommand(args, { cwd, write: (t) => ui.notify(learningDisplay(t)) });
+        }
+      }
       if (selected2 === "Connect retained input") {
         const catalog = catalogLearningArchive(status.configuration.archiveRoot, status.configuration.author), labels = catalog.map((c2, i) => `${i + 1}. ${c2.kind}: ${c2.description}`);
         if (!labels.length) {
@@ -16672,10 +17216,10 @@ This is not a writing preference, adoption or test promotion.`)) {
           continue;
         const flags = [];
         for (const [key3, title] of [["name", "Hypothesis short name"], ["intervention", "Proposed change"], ["prediction", "Falsifiable expected result"], ["disproof", "What would disprove it?"], ["downside", "Downside/risk"], ["rollback", "Rollback plan"], ["alternative", "Alternative explanation"]]) {
-          const value = await ui.input(title);
-          if (!value)
+          const value3 = await ui.input(title);
+          if (!value3)
             break;
-          flags.push(`--${key3}`, value);
+          flags.push(`--${key3}`, value3);
         }
         if (flags.length !== 14)
           continue;
@@ -16706,10 +17250,10 @@ This is not a writing preference, adoption or test promotion.`)) {
             continue;
           const flags = ["--result", result];
           for (const [key3, title] of [["artifact", "Complete later artifact file"], ["original-requirement", "Original requirement file"], ["current-requirement", "Current requirement file"], ["evidence", "Independent outcome evidence file"], ["reference-author", "Independent reference author"], ["note", "Evidence/reason"]]) {
-            const value = await ui.input(title);
-            if (!value)
+            const value3 = await ui.input(title);
+            if (!value3)
               break;
-            flags.push(`--${key3}`, value);
+            flags.push(`--${key3}`, value3);
           }
           if (flags.length !== 14)
             continue;
@@ -16786,14 +17330,14 @@ async function trustLearningWizard(directory7, cwd, ui) {
 }
 
 // packages/pi-extension/src/learning-cmd.ts
-function tokenizeLearningArgs(text14) {
+function tokenizeLearningArgs(text15) {
   const tokens = [];
   let current = "", quote = "", started = false;
-  for (let i = 0; i < text14.length; i++) {
-    const c = text14[i];
+  for (let i = 0; i < text15.length; i++) {
+    const c = text15[i];
     if (c === "\\" && quote !== "'") {
-      if (i + 1 === text14.length) throw Error("unfinished learning argument escape");
-      current += text14[++i];
+      if (i + 1 === text15.length) throw Error("unfinished learning argument escape");
+      current += text15[++i];
       started = true;
     } else if (quote) {
       if (c === quote) quote = "";
@@ -16815,8 +17359,8 @@ function tokenizeLearningArgs(text14) {
   if (started) tokens.push(current);
   return tokens;
 }
-async function handleLearningCommand(text14, ctx) {
-  const say2 = (text15, level = "info") => ctx.hasUI ? ctx.ui.notify(learningDisplay(text15), level) : console.log(learningDisplay(text15));
+async function handleLearningCommand(text15, ctx) {
+  const say2 = (text16, level = "info") => ctx.hasUI ? ctx.ui.notify(learningDisplay(text16), level) : console.log(learningDisplay(text16));
   let ui;
   if (ctx.hasUI && ctx.ui.select && ctx.ui.input && ctx.ui.editor && ctx.ui.confirm) {
     const actual = ctx.ui;
@@ -16827,11 +17371,11 @@ async function handleLearningCommand(text14, ctx) {
         return typeof answer === "number" ? choices[answer] : typeof answer === "string" ? answer : void 0;
       },
       input: async (title, initial) => await actual.input(title, initial) ?? void 0,
-      editor: async (title, text15) => await actual.editor(title, text15) ?? void 0,
+      editor: async (title, text16) => await actual.editor(title, text16) ?? void 0,
       confirm: (title, detail) => actual.confirm(title, detail)
     };
   }
-  const args = tokenizeLearningArgs(text14);
+  const args = tokenizeLearningArgs(text15);
   if (!ui && (!args.length || args[0] === "review")) throw Error("guided learning requires interactive Pi; use explicit learning subcommands for offline reads/writes");
   await runLearningCommand(args, { cwd: ctx.cwd, write: (t) => say2(t), ui });
 }
@@ -16897,10 +17441,10 @@ ${card.failedTranscripts.join("\n")}`);
     return;
   }
   if (sub === "judge") {
-    const runDir = resolve23(ctx.cwd, positional[0] ?? ".");
+    const runDir = resolve25(ctx.cwd, positional[0] ?? ".");
     const testsDir = dirname19(dirname19(dirname19(runDir)));
     const spec = loadSpec(join44(testsDir, "specification.yaml"));
-    const prev = existsSync31(join44(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const prev = existsSync32(join44(runDir, "results.yaml")) ? readResults(runDir) : null;
     const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? parseModelRef(defaultJudge());
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge"
@@ -16972,7 +17516,7 @@ ${card.failedTranscripts.join("\n")}`);
     const report = computeCoverage({
       specDir,
       scenarios: spec.scenarios,
-      baseFiles: [relative6(specDir, join44(skillDir, "SKILL.md")).split("\\").join("/")]
+      baseFiles: [relative7(specDir, join44(skillDir, "SKILL.md")).split("\\").join("/")]
     });
     say(ctx, formatCoverage(report, spec.skill), report.broken.length ? "warning" : "info");
     return;
@@ -17109,10 +17653,10 @@ function registerTool(pi) {
 
 // packages/adapters/src/learning-journal.ts
 import { constants as constants14, openSync as openSync13, closeSync as closeSync13, readSync as readSync6, writeSync as writeSync7, fstatSync as fstatSync12, lstatSync as lstatSync13, fsyncSync as fsyncSync9, mkdirSync as mkdirSync16, unlinkSync as unlinkSync6 } from "node:fs";
-import { createHash as createHash42, randomUUID as randomUUID6 } from "node:crypto";
+import { createHash as createHash43, randomUUID as randomUUID6 } from "node:crypto";
 import { types as types3 } from "node:util";
-import { isAbsolute as isAbsolute23, join as join45, dirname as dirname20, parse as parse6, resolve as resolve24 } from "node:path";
-function learningJson2(value) {
+import { isAbsolute as isAbsolute24, join as join45, dirname as dirname20, parse as parse6, resolve as resolve26 } from "node:path";
+function learningJson2(value3) {
   const limit3 = 2 * 1024 * 1024, cache = /* @__PURE__ */ new WeakMap(), visiting = /* @__PURE__ */ new WeakSet();
   const size = (v, depth) => {
     if (depth > 16) throw Error("learning JSON depth bound");
@@ -17142,9 +17686,9 @@ function learningJson2(value) {
       if (typeof key3 !== "string") throw Error("plain learning property required");
       const d = descriptors[key3];
       if (!d || !("value" in d) || !d.enumerable) throw Error("plain learning property required");
-      const child2 = size(d.value, depth + 1);
-      bytes3 += child2.bytes + (i ? 1 : 0) + (array3 ? 0 : Buffer.byteLength(JSON.stringify(key3)) + 1);
-      height = Math.max(height, child2.height + 1);
+      const child3 = size(d.value, depth + 1);
+      bytes3 += child3.bytes + (i ? 1 : 0) + (array3 ? 0 : Buffer.byteLength(JSON.stringify(key3)) + 1);
+      height = Math.max(height, child3.height + 1);
       if (bytes3 > limit3) throw Error("learning JSON byte bound");
     }
     visiting.delete(v);
@@ -17152,14 +17696,14 @@ function learningJson2(value) {
     cache.set(v, result);
     return result;
   };
-  size(value, 0);
-  return interventionCanonicalJson(value);
+  size(value3, 0);
+  return interventionCanonicalJson(value3);
 }
-var learningHash2 = (value) => createHash42("sha256").update(learningJson2(value)).digest("hex");
-var learningCopy2 = (value) => JSON.parse(learningJson2(value));
+var learningHash2 = (value3) => createHash43("sha256").update(learningJson2(value3)).digest("hex");
+var learningCopy2 = (value3) => JSON.parse(learningJson2(value3));
 var LIMIT5 = 4 * 1024 * 1024;
 function directory4(path3) {
-  if (!isAbsolute23(path3)) throw Error("absolute learning directory required");
+  if (!isAbsolute24(path3)) throw Error("absolute learning directory required");
   for (let p = path3; ; p = dirname20(p)) {
     const s2 = lstatSync13(p);
     if (!s2.isDirectory() || s2.isSymbolicLink()) throw Error("learning directory substitution");
@@ -17178,7 +17722,7 @@ function sync2(path3) {
 }
 function learningFile2(path3, limit3 = 1024 * 1024) {
   if (!constants14.O_NOFOLLOW || !constants14.O_NONBLOCK) throw Error("required safe file flags unavailable");
-  if (!isAbsolute23(path3)) throw Error("absolute learning file required");
+  if (!isAbsolute24(path3)) throw Error("absolute learning file required");
   for (let p = dirname20(path3); ; p = dirname20(p)) {
     const s = lstatSync13(p);
     if (!s.isDirectory() || s.isSymbolicLink()) throw Error("learning file ancestor substitution");
@@ -17207,7 +17751,7 @@ function learningJournal2(path3, initial) {
     directory4(dirname20(path3));
     mkdirSync16(path3, { mode: 448 });
     directory4(path3);
-    const value = learningCopy2(initial), body = { prior: null, value }, record = { ...body, id: learningHash2(body) };
+    const value3 = learningCopy2(initial), body = { prior: null, value: value3 }, record = { ...body, id: learningHash2(body) };
     const fd = openSync13(join45(path3, "events.jsonl"), constants14.O_WRONLY | constants14.O_CREAT | constants14.O_EXCL | constants14.O_NOFOLLOW, 384);
     try {
       writeAll2(fd, Buffer.from(learningJson2(record) + "\n"));
@@ -17229,9 +17773,9 @@ function learningJournal2(path3, initial) {
     check();
     const stat = lstatSync13(file);
     if (stat.mode & 63 || process.getuid && stat.uid !== process.getuid()) throw Error("private learning journal required");
-    const text14 = learningFile2(file, LIMIT5).toString("utf8");
-    if (!text14.endsWith("\n")) throw Error("learning history incomplete");
-    const lines2 = text14.slice(0, -1).split("\n");
+    const text15 = learningFile2(file, LIMIT5).toString("utf8");
+    if (!text15.endsWith("\n")) throw Error("learning history incomplete");
+    const lines2 = text15.slice(0, -1).split("\n");
     if (!lines2.length || lines2.length > 4096) throw Error("learning history bound");
     let prior = null;
     return lines2.map((line) => {
@@ -17242,7 +17786,7 @@ function learningJournal2(path3, initial) {
     });
   };
   read5();
-  return { read: read5, append(prior, value) {
+  return { read: read5, append(prior, value3) {
     check();
     const lock = join45(path3, "writer.lock"), token = randomUUID6();
     const fd = openSync13(lock, constants14.O_RDWR | constants14.O_CREAT | constants14.O_EXCL | constants14.O_NOFOLLOW, 384), owned = fstatSync12(fd);
@@ -17253,7 +17797,7 @@ function learningJournal2(path3, initial) {
       const history = read5();
       if (history.at(-1).id !== prior) throw Error("stale learning CAS");
       if (history.length >= 4096) throw Error("learning history bound");
-      const body = { prior, value: learningCopy2(value) }, event = { ...body, id: learningHash2(body) }, line = Buffer.from(learningJson2(event) + "\n");
+      const body = { prior, value: learningCopy2(value3) }, event = { ...body, id: learningHash2(body) }, line = Buffer.from(learningJson2(event) + "\n");
       const out = openSync13(file, constants14.O_WRONLY | constants14.O_APPEND | constants14.O_NOFOLLOW | constants14.O_NONBLOCK);
       try {
         const s = fstatSync12(out);
@@ -17288,7 +17832,7 @@ function learningJournal2(path3, initial) {
   } };
 }
 function registerLearningStore2(root, kind, key3, target, binding) {
-  if (!/^[a-f0-9]{64}$/.test(key3) || !isAbsolute23(target) || !["weekly", "trust", "intervention", "access", "workspace"].includes(kind)) throw Error("invalid learning registration");
+  if (!/^[a-f0-9]{64}$/.test(key3) || !isAbsolute24(target) || !["weekly", "trust", "intervention", "access", "workspace"].includes(kind)) throw Error("invalid learning registration");
   directory4(root);
   directory4(dirname20(target));
   const parent = join45(root, "learning-stores");
@@ -17299,7 +17843,7 @@ function registerLearningStore2(root, kind, key3, target, binding) {
     if (e.code !== "EEXIST") throw e;
   }
   directory4(parent);
-  const path3 = join45(parent, `${kind}-${key3}`), initial = { type: "learning-registration-v1", target: resolve24(target), binding };
+  const path3 = join45(parent, `${kind}-${key3}`), initial = { type: "learning-registration-v1", target: resolve26(target), binding };
   try {
     learningJournal2(path3, initial);
   } catch (e) {
@@ -17309,9 +17853,9 @@ function registerLearningStore2(root, kind, key3, target, binding) {
   }
 }
 function verifyLearningStore2(root, kind, key3, target, binding) {
-  if (!/^[a-f0-9]{64}$/.test(key3) || !isAbsolute23(target)) throw Error("invalid learning registration");
+  if (!/^[a-f0-9]{64}$/.test(key3) || !isAbsolute24(target)) throw Error("invalid learning registration");
   const records2 = learningJournal2(join45(root, "learning-stores", `${kind}-${key3}`)).read();
-  if (records2.length !== 1 || learningHash2(records2[0].value) !== learningHash2({ type: "learning-registration-v1", target: resolve24(target), binding })) throw Error("learning store registration mismatch");
+  if (records2.length !== 1 || learningHash2(records2[0].value) !== learningHash2({ type: "learning-registration-v1", target: resolve26(target), binding })) throw Error("learning store registration mismatch");
 }
 function writeAll2(fd, bytes3) {
   let n = 0;
@@ -17323,7 +17867,7 @@ function writeAll2(fd, bytes3) {
 }
 
 // packages/adapters/src/trust-lifecycle.ts
-import { isAbsolute as isAbsolute24 } from "node:path";
+import { isAbsolute as isAbsolute25 } from "node:path";
 
 // packages/adapters/src/evidence-archive.ts
 import {
@@ -17339,28 +17883,28 @@ import {
   unlinkSync as unlinkSync7,
   writeFileSync as writeFileSync13
 } from "node:fs";
-import { createHash as createHash43, randomUUID as randomUUID7 } from "node:crypto";
-import { join as join46, parse as parse7, resolve as resolve25, sep as sep7 } from "node:path";
+import { createHash as createHash44, randomUUID as randomUUID7 } from "node:crypto";
+import { join as join46, parse as parse7, resolve as resolve27, sep as sep8 } from "node:path";
 var LIMIT6 = 8 * 1024 * 1024;
 var HASH2 = /^[a-f0-9]{64}$/;
 var ID2 = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-var digest4 = (bytes3) => createHash43("sha256").update(bytes3).digest("hex");
+var digest4 = (bytes3) => createHash44("sha256").update(bytes3).digest("hex");
 var absent2 = (error) => error?.code === "ENOENT";
 function fail2(message3) {
   throw new Error(`archive: ${message3}`);
 }
-function keys4(value, expected) {
-  return !!value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === expected.length && Object.keys(value).every((key3) => expected.includes(key3));
+function keys4(value3, expected) {
+  return !!value3 && typeof value3 === "object" && !Array.isArray(value3) && Object.keys(value3).length === expected.length && Object.keys(value3).every((key3) => expected.includes(key3));
 }
-function validReference2(value) {
-  if (!keys4(value, ["schema", "sourceId", "parser", "sha256", "bytes", "retention"])) return false;
-  return value.schema === "archive-source-v1" && typeof value.sourceId === "string" && ID2.test(value.sourceId) && keys4(value.parser, ["id", "version"]) && typeof value.parser.id === "string" && ID2.test(value.parser.id) && typeof value.parser.version === "string" && ID2.test(value.parser.version) && typeof value.sha256 === "string" && HASH2.test(value.sha256) && Number.isSafeInteger(value.bytes) && Number(value.bytes) >= 0 && Number(value.bytes) <= LIMIT6 && typeof value.retention === "string" && ["exact", "redacted", "reference-only"].includes(value.retention);
+function validReference2(value3) {
+  if (!keys4(value3, ["schema", "sourceId", "parser", "sha256", "bytes", "retention"])) return false;
+  return value3.schema === "archive-source-v1" && typeof value3.sourceId === "string" && ID2.test(value3.sourceId) && keys4(value3.parser, ["id", "version"]) && typeof value3.parser.id === "string" && ID2.test(value3.parser.id) && typeof value3.parser.version === "string" && ID2.test(value3.parser.version) && typeof value3.sha256 === "string" && HASH2.test(value3.sha256) && Number.isSafeInteger(value3.bytes) && Number(value3.bytes) >= 0 && Number(value3.bytes) <= LIMIT6 && typeof value3.retention === "string" && ["exact", "redacted", "reference-only"].includes(value3.retention);
 }
 function directory5(path3, create) {
   if (!constants15.O_NOFOLLOW || !constants15.O_DIRECTORY || !constants15.O_NONBLOCK) fail2("required filesystem flags unavailable");
-  const absolute = resolve25(path3);
+  const absolute = resolve27(path3);
   let current = parse7(absolute).root;
-  for (const part of absolute.slice(current.length).split(sep7).filter(Boolean)) {
+  for (const part of absolute.slice(current.length).split(sep8).filter(Boolean)) {
     current = join46(current, part);
     let stat2;
     try {
@@ -17455,7 +17999,7 @@ function retainArchiveSource2(root, input) {
   directory5(root, true);
   if (reference3.retention !== "reference-only") put2(root, "objects", bytes3);
   const manifestId = put2(root, "manifests", Buffer.from(JSON.stringify(reference3)));
-  syncDirectory4(resolve25(root));
+  syncDirectory4(resolve27(root));
   return { manifestId, reference: reference3 };
 }
 function readArchiveSourceReference2(root, manifestId) {
@@ -17463,9 +18007,9 @@ function readArchiveSourceReference2(root, manifestId) {
   try {
     directory5(root, false);
     directory5(join46(root, "manifests"), false);
-    const text14 = readVerified2(join46(root, "manifests", manifestId), manifestId, 8192).toString("utf8");
-    const reference3 = JSON.parse(text14);
-    if (!validReference2(reference3) || JSON.stringify(reference3) !== text14) fail2("invalid manifest");
+    const text15 = readVerified2(join46(root, "manifests", manifestId), manifestId, 8192).toString("utf8");
+    const reference3 = JSON.parse(text15);
+    if (!validReference2(reference3) || JSON.stringify(reference3) !== text15) fail2("invalid manifest");
     return { status: "available", reference: reference3 };
   } catch (error) {
     return absent2(error) ? { status: "missing", reason: "manifest" } : { status: "error", reason: "invalid or inaccessible retained evidence" };
@@ -17504,8 +18048,8 @@ function parseArchivedJsonl2(bytes3) {
     const newline = buffer.indexOf(10, start);
     if (newline < 0) break;
     try {
-      const text14 = new TextDecoder("utf-8", { fatal: true }).decode(buffer.subarray(start, newline));
-      records2.push({ line, start, end: newline + 1, value: JSON.parse(text14) });
+      const text15 = new TextDecoder("utf-8", { fatal: true }).decode(buffer.subarray(start, newline));
+      records2.push({ line, start, end: newline + 1, value: JSON.parse(text15) });
     } catch {
       errors.push({ line, start, reason: "invalid-json" });
     }
@@ -17521,55 +18065,55 @@ import { randomUUID as randomUUID8 } from "node:crypto";
 import { join as join47 } from "node:path";
 
 // packages/adapters/src/work-candidates.ts
-import { createHash as createHash44 } from "node:crypto";
+import { createHash as createHash45 } from "node:crypto";
 
 // packages/adapters/src/work-case-archive.ts
-function validate6(value) {
-  if (!value || value.capture_schema !== 2 || value.status !== "unresolved" || value.visibility !== "silent" || value.causalAttribution !== "not-established") throw new Error("invalid work case state");
+function validate6(value3) {
+  if (!value3 || value3.capture_schema !== 2 || value3.status !== "unresolved" || value3.visibility !== "silent" || value3.causalAttribution !== "not-established") throw new Error("invalid work case state");
   const built = buildWorkCapture({
-    detector: value.detector,
-    target: value.target,
-    classification: value.classification,
-    reason: value.reason,
-    evidence: value.evidence,
-    metrics: value.metrics
+    detector: value3.detector,
+    target: value3.target,
+    classification: value3.classification,
+    reason: value3.reason,
+    evidence: value3.evidence,
+    metrics: value3.metrics
   });
-  if (built.id !== value.id || Object.keys(value).sort().join() !== Object.keys(built).sort().join()) throw new Error("invalid work case identity");
+  if (built.id !== value3.id || Object.keys(value3).sort().join() !== Object.keys(built).sort().join()) throw new Error("invalid work case identity");
   return built;
 }
 function readWorkCandidate2(root, manifestId) {
   const source3 = readArchiveSource2(root, manifestId);
   if (source3.status !== "available" || source3.reference.retention !== "exact" || source3.reference.parser.id !== "work-capture" || source3.reference.parser.version !== "2") throw new Error("work case missing or invalid");
-  const value = validate6(JSON.parse(source3.bytes.toString("utf8")));
-  if (source3.reference.sourceId !== `work-case-${value.id}`) throw new Error("work case source mismatch");
-  return value;
+  const value3 = validate6(JSON.parse(source3.bytes.toString("utf8")));
+  if (source3.reference.sourceId !== `work-case-${value3.id}`) throw new Error("work case source mismatch");
+  return value3;
 }
 
 // packages/adapters/src/work-signal-observation.ts
 var LIMIT7 = 1024 * 1024;
-function closed12(value, keys7) {
-  if (!value || typeof value !== "object" || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) throw new Error("closed work signal object required");
-  const descriptors = Object.getOwnPropertyDescriptors(value), names = Reflect.ownKeys(value);
+function closed12(value3, keys7) {
+  if (!value3 || typeof value3 !== "object" || Array.isArray(value3) || ![Object.prototype, null].includes(Object.getPrototypeOf(value3))) throw new Error("closed work signal object required");
+  const descriptors = Object.getOwnPropertyDescriptors(value3), names = Reflect.ownKeys(value3);
   if (names.length !== keys7.length || names.some((k) => typeof k !== "string" || !keys7.includes(k) || !descriptors[k].enumerable || !Object.hasOwn(descriptors[k], "value"))) throw new Error("closed work signal fields required");
 }
-function array2(value) {
-  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype || value.length > 256 || Reflect.ownKeys(value).length !== value.length + 1) throw new Error("bounded dense work signal array required");
-  for (let i = 0; i < value.length; i++) {
-    const d = Object.getOwnPropertyDescriptor(value, String(i));
+function array2(value3) {
+  if (!Array.isArray(value3) || Object.getPrototypeOf(value3) !== Array.prototype || value3.length > 256 || Reflect.ownKeys(value3).length !== value3.length + 1) throw new Error("bounded dense work signal array required");
+  for (let i = 0; i < value3.length; i++) {
+    const d = Object.getOwnPropertyDescriptor(value3, String(i));
     if (!d || !d.enumerable || !Object.hasOwn(d, "value")) throw new Error("dense work signal data array required");
   }
 }
-function canonical4(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical4).join(",")}]`;
-  if (value !== null && typeof value === "object") return `{${Object.keys(value).sort().map((k) => `${JSON.stringify(k)}:${canonical4(value[k])}`).join(",")}}`;
-  return JSON.stringify(value);
+function canonical4(value3) {
+  if (Array.isArray(value3)) return `[${value3.map(canonical4).join(",")}]`;
+  if (value3 !== null && typeof value3 === "object") return `{${Object.keys(value3).sort().map((k) => `${JSON.stringify(k)}:${canonical4(value3[k])}`).join(",")}}`;
+  return JSON.stringify(value3);
 }
-function validate7(value) {
-  closed12(value, ["observation_schema", "snapshot", "facts"]);
-  if (value.observation_schema !== "work-signal-observation-v1") throw new Error("unsupported work signal observation");
-  closed12(value.snapshot, ["snapshotDigest", "scopeValid", "obligations"]);
-  closed12(value.facts, ["scopeDigest", "version", "population", "expectedWaits", "checkpoints", "violations", "priorAccepted"]);
-  const s = value.snapshot, f = value.facts;
+function validate7(value3) {
+  closed12(value3, ["observation_schema", "snapshot", "facts"]);
+  if (value3.observation_schema !== "work-signal-observation-v1") throw new Error("unsupported work signal observation");
+  closed12(value3.snapshot, ["snapshotDigest", "scopeValid", "obligations"]);
+  closed12(value3.facts, ["scopeDigest", "version", "population", "expectedWaits", "checkpoints", "violations", "priorAccepted"]);
+  const s = value3.snapshot, f = value3.facts;
   if (typeof s.scopeValid !== "boolean") throw new Error("invalid work signal scope state");
   array2(s.obligations);
   array2(f.expectedWaits);
@@ -17585,7 +18129,7 @@ function validate7(value) {
   for (const c of f.checkpoints) closed12(c, ["obligationDigest", "deadlineMs", "observedAt", "status", "evidence"]);
   for (const v of f.violations) closed12(v, ["obligationDigest", "status", "evidence"]);
   for (const p of f.priorAccepted) closed12(p, ["obligationDigest", "intentDigest", "policyDigest", "artifactDigest", "acceptanceEvidence"]);
-  const input = value;
+  const input = value3;
   detectAdditionalWorkCases(input.snapshot, input.facts);
   return input;
 }
@@ -17599,15 +18143,15 @@ function retainWorkSignalObservation2(root, snapshot2, facts) {
 function readWorkSignalObservation2(root, manifestId) {
   const stored = readArchiveSource2(root, manifestId);
   if (stored.status !== "available" || stored.reference.retention !== "exact" || stored.reference.parser.id !== "work-signal-observation" || stored.reference.parser.version !== "1" || stored.bytes.length > LIMIT7) throw new Error("work signal observation unavailable or unsupported");
-  let text14, decoded;
+  let text15, decoded;
   try {
-    text14 = new TextDecoder("utf-8", { fatal: true }).decode(stored.bytes);
-    decoded = JSON.parse(text14);
+    text15 = new TextDecoder("utf-8", { fatal: true }).decode(stored.bytes);
+    decoded = JSON.parse(text15);
   } catch {
     throw new Error("invalid work signal observation JSON");
   }
   const input = validate7(decoded);
-  if (canonical4(input) !== text14 || stored.reference.sourceId !== `work-signals-${input.snapshot.snapshotDigest}`) throw new Error("work signal observation binding mismatch");
+  if (canonical4(input) !== text15 || stored.reference.sourceId !== `work-signals-${input.snapshot.snapshotDigest}`) throw new Error("work signal observation binding mismatch");
   return { manifestId, inputSha256: stored.reference.sha256, input, detection: detectAdditionalWorkCases(input.snapshot, input.facts) };
 }
 
@@ -17617,19 +18161,19 @@ var hash9 = (v) => typeof v === "string" && SHA9.test(v);
 function read3(root, id3, parser) {
   const source3 = readArchiveSource2(root, id3);
   if (source3.status !== "available" || source3.reference.retention !== "exact" || source3.reference.parser.id !== parser || source3.reference.parser.version !== "1" || source3.bytes.length > 128 * 1024) throw new Error("work signal case evidence unavailable or unsupported");
-  let value;
+  let value3;
   try {
-    value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(source3.bytes));
+    value3 = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(source3.bytes));
   } catch {
     throw new Error("invalid work signal case JSON");
   }
-  return { value, sourceId: source3.reference.sourceId };
+  return { value: value3, sourceId: source3.reference.sourceId };
 }
 function closed13(v, keys7) {
   if (!v || typeof v !== "object" || Array.isArray(v) || Object.keys(v).sort().join() !== [...keys7].sort().join()) throw new Error("invalid closed work signal case record");
 }
-function retain2(root, sourceId, parser, value) {
-  return retainArchiveSource2(root, { sourceId, parser: { id: parser, version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(value)) }).manifestId;
+function retain2(root, sourceId, parser, value3) {
+  return retainArchiveSource2(root, { sourceId, parser: { id: parser, version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(value3)) }).manifestId;
 }
 function captureWorkSignalCases2(root, observationId) {
   const observation = readWorkSignalObservation2(root, observationId);
@@ -17648,20 +18192,20 @@ function captureWorkSignalCases2(root, observationId) {
   return { batchId, observationId, candidateIds };
 }
 function readWorkSignalCase2(root, manifestId) {
-  const { value, sourceId } = read3(root, manifestId, "work-signal-case");
-  closed13(value, ["version", "observationId", "caseId"]);
-  if (value.version !== "work-signal-case-v1" || !hash9(value.observationId) || !hash9(value.caseId) || sourceId !== `work-signal-case-${value.caseId}`) throw new Error("work signal case binding mismatch");
-  const observation = readWorkSignalObservation2(root, value.observationId);
-  const candidate = observation.detection.cases.find((c) => c.id === value.caseId);
+  const { value: value3, sourceId } = read3(root, manifestId, "work-signal-case");
+  closed13(value3, ["version", "observationId", "caseId"]);
+  if (value3.version !== "work-signal-case-v1" || !hash9(value3.observationId) || !hash9(value3.caseId) || sourceId !== `work-signal-case-${value3.caseId}`) throw new Error("work signal case binding mismatch");
+  const observation = readWorkSignalObservation2(root, value3.observationId);
+  const candidate = observation.detection.cases.find((c) => c.id === value3.caseId);
   if (!candidate) throw new Error("case is not nominated by frozen work signal inputs");
-  return { observationId: value.observationId, candidate };
+  return { observationId: value3.observationId, candidate };
 }
 function readWorkSignalBatch2(root, manifestId) {
-  const { value, sourceId } = read3(root, manifestId, "work-signal-batch");
-  closed13(value, ["version", "observationId", "candidateIds", "visibility", "promotion"]);
-  if (value.version !== "work-signal-batch-v1" || !hash9(value.observationId) || sourceId !== `work-signal-batch-${value.observationId}` || value.visibility !== "silent" || value.promotion !== "not-authorized" || !Array.isArray(value.candidateIds) || value.candidateIds.length > 1024 || !value.candidateIds.every(hash9) || new Set(value.candidateIds).size !== value.candidateIds.length) throw new Error("invalid work signal batch binding");
-  const observation = readWorkSignalObservation2(root, value.observationId);
-  return { observationId: value.observationId, candidateIds: value.candidateIds, issues: observation.detection.issues };
+  const { value: value3, sourceId } = read3(root, manifestId, "work-signal-batch");
+  closed13(value3, ["version", "observationId", "candidateIds", "visibility", "promotion"]);
+  if (value3.version !== "work-signal-batch-v1" || !hash9(value3.observationId) || sourceId !== `work-signal-batch-${value3.observationId}` || value3.visibility !== "silent" || value3.promotion !== "not-authorized" || !Array.isArray(value3.candidateIds) || value3.candidateIds.length > 1024 || !value3.candidateIds.every(hash9) || new Set(value3.candidateIds).size !== value3.candidateIds.length) throw new Error("invalid work signal batch binding");
+  const observation = readWorkSignalObservation2(root, value3.observationId);
+  return { observationId: value3.observationId, candidateIds: value3.candidateIds, issues: observation.detection.issues };
 }
 
 // packages/adapters/src/work-case-review.ts
@@ -17864,11 +18408,11 @@ function evidence3(root, id3) {
   if (result.status !== "available" || !["exact", "redacted"].includes(result.reference.retention)) throw Error("independent retained evidence unavailable");
   return result;
 }
-var text11 = (v) => typeof v === "string" && v.length > 0 && v.length <= 512 && !/[\u0000-\u001f\u007f]/.test(v);
+var text12 = (v) => typeof v === "string" && v.length > 0 && v.length <= 512 && !/[\u0000-\u001f\u007f]/.test(v);
 function validate8(input) {
-  if (!isAbsolute24(input.archiveRoot) || Object.keys(input).sort().join() !== "archiveRoot,cohort,component,exposure,maxUnflagged,seed" || !/^([a-f0-9]{64})$/.test(input.seed) || !Number.isSafeInteger(input.maxUnflagged) || input.maxUnflagged < 0 || input.maxUnflagged > 32 || !Array.isArray(input.cohort) || !input.cohort.length || input.cohort.length > 1024 || new Set(input.cohort.map((c) => c.incidentId)).size !== input.cohort.length) throw Error("invalid frozen trust cohort");
+  if (!isAbsolute25(input.archiveRoot) || Object.keys(input).sort().join() !== "archiveRoot,cohort,component,exposure,maxUnflagged,seed" || !/^([a-f0-9]{64})$/.test(input.seed) || !Number.isSafeInteger(input.maxUnflagged) || input.maxUnflagged < 0 || input.maxUnflagged > 32 || !Array.isArray(input.cohort) || !input.cohort.length || input.cohort.length > 1024 || new Set(input.cohort.map((c) => c.incidentId)).size !== input.cohort.length) throw Error("invalid frozen trust cohort");
   for (const c of input.cohort) {
-    if (Object.keys(c).sort().join() !== "flagged,incidentId,manifestId,split" || !text11(c.incidentId) || typeof c.flagged !== "boolean" || !["calibration", "heldout", "tuning"].includes(c.split)) throw Error("invalid cohort row");
+    if (Object.keys(c).sort().join() !== "flagged,incidentId,manifestId,split" || !text12(c.incidentId) || typeof c.flagged !== "boolean" || !["calibration", "heldout", "tuning"].includes(c.split)) throw Error("invalid cohort row");
     evidence3(input.archiveRoot, c.manifestId);
   }
   const dummy = { id: "validation", incidentId: "validation", component: input.component, kind: input.component.kind === "detector" ? "positive" : "approval", split: "calibration" };
@@ -17983,7 +18527,7 @@ function openTrustLifecycle2(directory7) {
     history: () => journal.read(),
     previewCaseOutcome,
     linkCaseOutcome(predictionId, reference3, authorizedDigests, referenceAuthor) {
-      if (referenceAuthor !== void 0 && !text11(referenceAuthor)) throw Error("explicit reference author required");
+      if (referenceAuthor !== void 0 && !text12(referenceAuthor)) throw Error("explicit reference author required");
       const preview = previewCaseOutcome(predictionId, reference3);
       if (!authorizedDigests.includes(preview.digest)) throw Error("independent exact reference authority required");
       const s = replay();
@@ -18005,13 +18549,13 @@ function openTrustLifecycle2(directory7) {
     },
     correct(prior, p, reason) {
       const safe = prediction(p), s = replay(), old = s.predictions.get(prior);
-      if (!old || old.incidentId !== safe.incidentId || s.allIds.has(safe.id) || !text11(reason)) throw Error("stale or invalid prediction correction");
+      if (!old || old.incidentId !== safe.incidentId || s.allIds.has(safe.id) || !text12(reason)) throw Error("stale or invalid prediction correction");
       journal.append(s.tip, { type: "correction", prior, prediction: safe, reason });
     },
-    outcome(value, authorizedReferenceDigests, referenceAuthor) {
-      if (referenceAuthor !== void 0 && !text11(referenceAuthor)) throw Error("explicit reference author required");
-      const r = learningCopy2(value);
-      if (Object.keys(r).sort().join() !== "evidenceManifestId,kind,referenceId,targetId,value" || !["prediction", "unflagged"].includes(r.kind) || !text11(r.targetId) || !text11(r.referenceId) || typeof r.value !== "boolean") throw Error("invalid reference outcome");
+    outcome(value3, authorizedReferenceDigests, referenceAuthor) {
+      if (referenceAuthor !== void 0 && !text12(referenceAuthor)) throw Error("explicit reference author required");
+      const r = learningCopy2(value3);
+      if (Object.keys(r).sort().join() !== "evidenceManifestId,kind,referenceId,targetId,value" || !["prediction", "unflagged"].includes(r.kind) || !text12(r.targetId) || !text12(r.referenceId) || typeof r.value !== "boolean") throw Error("invalid reference outcome");
       const digest6 = trustOutcomeDigest2(r);
       if (!authorizedReferenceDigests.includes(digest6)) throw Error("independent exact reference authority required");
       evidence3(input.archiveRoot, r.evidenceManifestId);
@@ -18025,7 +18569,7 @@ function openTrustLifecycle2(directory7) {
       journal.append(s.tip, { type: "outcome", outcome: r, authorityDigest: digest6, ...referenceAuthor === void 0 ? {} : { referenceAuthor } });
     },
     expose(id3, now) {
-      if (!text11(id3)) throw Error("exposure identity required");
+      if (!text12(id3)) throw Error("exposure identity required");
       const s = replay(), existing = s.exposures.get(id3);
       if (existing) return { ...learningCopy2(existing), replayed: true };
       if (now < s.lastExposureAt) throw Error("policy clock moved backwards");
@@ -18042,12 +18586,12 @@ function openTrustLifecycle2(directory7) {
 
 // packages/adapters/src/archive-policy.ts
 import { closeSync as closeSync16, constants as constants18, fstatSync as fstatSync15, lstatSync as lstatSync16, openSync as openSync16, readSync as readSync9 } from "node:fs";
-import { createHash as createHash49 } from "node:crypto";
-import { dirname as dirname22, isAbsolute as isAbsolute26, join as join49, parse as parse8, resolve as resolve26, sep as sep9 } from "node:path";
+import { createHash as createHash50 } from "node:crypto";
+import { dirname as dirname22, isAbsolute as isAbsolute27, join as join49, parse as parse8, resolve as resolve28, sep as sep10 } from "node:path";
 
 // packages/adapters/src/archive-checkpoint.ts
-import { createHash as createHash45 } from "node:crypto";
-var hash10 = (value) => createHash45("sha256").update(value).digest("hex");
+import { createHash as createHash46 } from "node:crypto";
+var hash10 = (value3) => createHash46("sha256").update(value3).digest("hex");
 var SHA11 = /^[a-f0-9]{64}$/;
 var LIMIT8 = 8 * 1024 * 1024;
 var parserEqual = (a, b) => a.id === b.id && a.version === b.version;
@@ -18055,9 +18599,9 @@ function reject() {
   throw new Error("invalid archive checkpoint");
 }
 function parseCheckpoint(bytes3) {
-  const text14 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
-  const v = JSON.parse(text14);
-  if (JSON.stringify(v) !== text14) reject();
+  const text15 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
+  const v = JSON.parse(text15);
+  if (JSON.stringify(v) !== text15) reject();
   const names = ["version", "sourceId", "sourceManifestId", "sourceSha256", "sourceBytes", "previousCheckpointId", "lineage", "declaredParser", "reader", "retention", "change", "syntax", "completeBytes", "pendingBytes", "invalidLines", "issues", "activeBranch", "acceptance"];
   if (!v || Object.keys(v).length !== names.length || Object.keys(v).some((k) => !names.includes(k)) || v.version !== "archive-checkpoint-v1" || v.reader !== "jsonl-syntax-v1" || typeof v.sourceId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(v.sourceId) || ![v.sourceManifestId, v.sourceSha256, v.lineage].every((h) => typeof h === "string" && SHA11.test(h)) || !(v.previousCheckpointId === null || typeof v.previousCheckpointId === "string" && SHA11.test(v.previousCheckpointId)) || ![v.sourceBytes, v.completeBytes, v.pendingBytes, v.invalidLines].every((n) => Number.isSafeInteger(n) && n >= 0 && n <= LIMIT8) || v.completeBytes + v.pendingBytes !== v.sourceBytes || !v.declaredParser || Object.keys(v.declaredParser).sort().join() !== "id,version" || ![v.declaredParser.id, v.declaredParser.version].every((s) => typeof s === "string" && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(s)) || !["exact", "redacted", "reference-only"].includes(v.retention) || !["initial", "append", "replaced", "unknown"].includes(v.change) || !["complete", "partial", "error", "unavailable"].includes(v.syntax) || v.retention === "reference-only" && (v.syntax !== "unavailable" || v.completeBytes !== 0 || v.invalidLines !== 0) || !Array.isArray(v.issues) || v.issues.length > 16 || v.issues.some((i) => typeof i !== "string" || i.length > 128) || v.activeBranch !== null || v.acceptance !== "not-assessed") reject();
   return v;
@@ -18086,20 +18630,20 @@ function readArchiveCheckpoint2(root, checkpointId) {
 function ingestArchiveSnapshot2(root, input) {
   const previous = input.previousCheckpointId ? readArchiveCheckpoint2(root, input.previousCheckpointId) : void 0;
   if (previous && previous.checkpoint.sourceId !== input.sourceId) throw new Error("checkpoint source mismatch");
-  const captured = retainArchiveSource2(root, input);
-  const source3 = readArchiveSource2(root, captured.manifestId);
+  const captured2 = retainArchiveSource2(root, input);
+  const source3 = readArchiveSource2(root, captured2.manifestId);
   const issues = [];
   let change = previous ? "unknown" : "initial";
-  let lineage = captured.manifestId;
+  let lineage = captured2.manifestId;
   if (previous) {
-    if (!parserEqual(previous.checkpoint.declaredParser, captured.reference.parser) || previous.checkpoint.retention !== input.retention) {
+    if (!parserEqual(previous.checkpoint.declaredParser, captured2.reference.parser) || previous.checkpoint.retention !== input.retention) {
       issues.push("parser-or-representation-changed");
     } else if (previous.source.status !== "available") {
       issues.push("previous-content-unavailable");
     } else if (input.retention !== "exact") {
       issues.push("non-exact-continuity-unknown");
     } else if (source3.status === "available") {
-      if (captured.manifestId === previous.checkpoint.sourceManifestId) {
+      if (captured2.manifestId === previous.checkpoint.sourceManifestId) {
         return { ...previous, checkpointId: input.previousCheckpointId, change: "repeat", newRecords: [] };
       }
       if (source3.bytes.length >= previous.source.bytes.length && source3.bytes.subarray(0, previous.source.bytes.length).equals(previous.source.bytes)) {
@@ -18117,18 +18661,18 @@ function ingestArchiveSnapshot2(root, input) {
   const checkpoint = {
     version: "archive-checkpoint-v1",
     sourceId: input.sourceId,
-    sourceManifestId: captured.manifestId,
-    sourceSha256: captured.reference.sha256,
-    sourceBytes: captured.reference.bytes,
+    sourceManifestId: captured2.manifestId,
+    sourceSha256: captured2.reference.sha256,
+    sourceBytes: captured2.reference.bytes,
     previousCheckpointId: input.previousCheckpointId ?? null,
     lineage,
-    declaredParser: captured.reference.parser,
+    declaredParser: captured2.reference.parser,
     reader: "jsonl-syntax-v1",
     retention: input.retention,
     change,
     syntax: syntax?.status ?? "unavailable",
     completeBytes: syntax?.completeBytes ?? 0,
-    pendingBytes: syntax?.pendingBytes ?? captured.reference.bytes,
+    pendingBytes: syntax?.pendingBytes ?? captured2.reference.bytes,
     invalidLines: syntax?.errors.length ?? 0,
     issues,
     activeBranch: null,
@@ -18158,7 +18702,7 @@ import { dirname as dirname21, join as join48 } from "node:path";
 import { Compile as Compile3 } from "typebox/compile";
 
 // packages/adapters/src/generated/retention-v2-json.ts
-import { createHash as createHash46 } from "node:crypto";
+import { createHash as createHash47 } from "node:crypto";
 
 // packages/adapters/src/generated/retention-v2-work-types.ts
 var WorkInputError3 = class extends TypeError {
@@ -18181,15 +18725,15 @@ var invalid = () => {
 var limit = () => {
   throw new WorkInputError3("WORK_LIMIT_EXCEEDED");
 };
-function unicode(value) {
-  for (let i = 0; i < value.length; i++) {
-    const code = value.charCodeAt(i);
+function unicode(value3) {
+  for (let i = 0; i < value3.length; i++) {
+    const code = value3.charCodeAt(i);
     if (code >= 55296 && code <= 56319) {
-      const next = value.charCodeAt(++i);
+      const next = value3.charCodeAt(++i);
       if (!(next >= 56320 && next <= 57343)) invalid();
     } else if (code >= 56320 && code <= 57343) invalid();
   }
-  return value;
+  return value3;
 }
 function integerToken(token) {
   const match = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(token);
@@ -18207,10 +18751,10 @@ function integerToken(token) {
 function checkMembers(node) {
   if (node.type === "object") {
     const names = /* @__PURE__ */ new Set();
-    for (const [key3, child2] of node.entries) {
+    for (const [key3, child3] of node.entries) {
       if (names.has(key3)) throw new WorkInputError3("WORK_DUPLICATE_MEMBER");
       names.add(key3);
-      checkMembers(child2);
+      checkMembers(child3);
     }
   } else if (node.type === "array") node.items.forEach(checkMembers);
 }
@@ -18218,81 +18762,81 @@ function materialize(node) {
   if (node.type === "number") return integerToken(node.token);
   if (node.type === "literal") return typeof node.value === "string" ? unicode(node.value) : node.value;
   if (node.type === "array") return node.items.map(materialize);
-  return Object.fromEntries(node.entries.map(([key3, child2]) => [unicode(key3), materialize(child2)]));
+  return Object.fromEntries(node.entries.map(([key3, child3]) => [unicode(key3), materialize(child3)]));
 }
-function parseWorkJson3(text14) {
-  if (typeof text14 !== "string") invalid();
-  if (Buffer.byteLength(text14, "utf8") > WORK_EVENT_BYTES3) limit();
+function parseWorkJson3(text15) {
+  if (typeof text15 !== "string") invalid();
+  if (Buffer.byteLength(text15, "utf8") > WORK_EVENT_BYTES3) limit();
   let at = 0;
   const syntax = () => {
     throw new WorkInputError3("WORK_JSON_INVALID");
   };
   const whitespace = () => {
-    while (at < text14.length && /[ \t\r\n]/.test(text14[at])) at++;
+    while (at < text15.length && /[ \t\r\n]/.test(text15[at])) at++;
   };
-  function string4() {
+  function string5() {
     const start = at++;
-    while (at < text14.length) {
-      const char = text14[at++];
+    while (at < text15.length) {
+      const char = text15[at++];
       if (char === '"') {
-        return JSON.parse(text14.slice(start, at));
+        return JSON.parse(text15.slice(start, at));
       }
       if (char.charCodeAt(0) < 32) syntax();
       if (char === "\\") {
-        const escape = text14[at++];
+        const escape = text15[at++];
         if (escape === "u") {
-          if (!/^[0-9a-fA-F]{4}$/.test(text14.slice(at, at + 4))) syntax();
+          if (!/^[0-9a-fA-F]{4}$/.test(text15.slice(at, at + 4))) syntax();
           at += 4;
         } else if (!escape || !'"\\/bfnrt'.includes(escape)) syntax();
       }
     }
     return syntax();
   }
-  function value(depth) {
+  function value3(depth) {
     whitespace();
-    const char = text14[at];
-    if (char === '"') return { type: "literal", value: string4() };
+    const char = text15[at];
+    if (char === '"') return { type: "literal", value: string5() };
     if (char === "{" || char === "[") {
       if (depth > MAX_DEPTH) limit();
       at++;
       whitespace();
-      const object3 = char === "{";
-      const end = object3 ? "}" : "]";
+      const object5 = char === "{";
+      const end = object5 ? "}" : "]";
       const entries = [];
       const items = [];
-      if (text14[at] !== end) for (; ; ) {
+      if (text15[at] !== end) for (; ; ) {
         whitespace();
         let key3 = "";
-        if (object3) {
-          if (text14[at] !== '"') syntax();
-          key3 = string4();
+        if (object5) {
+          if (text15[at] !== '"') syntax();
+          key3 = string5();
           whitespace();
-          if (text14[at++] !== ":") syntax();
+          if (text15[at++] !== ":") syntax();
         } else if (items.length >= MAX_ARRAY) limit();
-        const child2 = value(depth + 1);
-        if (object3) entries.push([key3, child2]);
-        else items.push(child2);
+        const child3 = value3(depth + 1);
+        if (object5) entries.push([key3, child3]);
+        else items.push(child3);
         whitespace();
-        if (text14[at] === end) break;
-        if (text14[at++] !== ",") syntax();
+        if (text15[at] === end) break;
+        if (text15[at++] !== ",") syntax();
       }
       at++;
-      return object3 ? { type: "object", entries } : { type: "array", items };
+      return object5 ? { type: "object", entries } : { type: "array", items };
     }
     for (const [token2, literal3] of [["null", null], ["true", true], ["false", false]]) {
-      if (text14.startsWith(token2, at)) {
+      if (text15.startsWith(token2, at)) {
         at += token2.length;
         return { type: "literal", value: literal3 };
       }
     }
-    const token = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(text14.slice(at));
+    const token = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(text15.slice(at));
     if (!token) return syntax();
     at += token[0].length;
     return { type: "number", token: token[0] };
   }
-  const result = value(1);
+  const result = value3(1);
   whitespace();
-  if (at !== text14.length) syntax();
+  if (at !== text15.length) syntax();
   checkMembers(result);
   return materialize(result);
 }
@@ -18300,7 +18844,7 @@ function parseWorkJson3(text14) {
 // packages/adapters/src/generated/retention-v2-contract.ts
 var string3 = (maxLength = 512) => ({ type: "string", minLength: 1, maxLength, pattern: "^[^\\u0000-\\u001f\\u007f]+$" });
 var nullable3 = (schema2) => ({ anyOf: [schema2, { type: "null" }] });
-var literal2 = (value) => ({ const: value });
+var literal2 = (value3) => ({ const: value3 });
 var closed14 = (properties) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
 var hash11 = { type: "string", pattern: "^[a-f0-9]{64}$" };
 var integer3 = { type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER };
@@ -18378,14 +18922,14 @@ var RETENTION_SCHEMA2 = freeze5({
   ]
 });
 var validator2 = Compile3(RETENTION_SCHEMA2);
-function freeze5(value) {
-  if (value && typeof value === "object") {
-    for (const child2 of Object.values(value)) freeze5(child2);
-    Object.freeze(value);
+function freeze5(value3) {
+  if (value3 && typeof value3 === "object") {
+    for (const child3 of Object.values(value3)) freeze5(child3);
+    Object.freeze(value3);
   }
-  return value;
+  return value3;
 }
-function buildExecutionRetentionManifest(value) {
+function buildExecutionRetentionManifest(value3) {
   let nodes = 0;
   const inspect = (x, depth) => {
     if (++nodes > 4096 || depth > 16) throw new TypeError("retention manifest exceeds bounds");
@@ -18399,9 +18943,9 @@ function buildExecutionRetentionManifest(value) {
       inspect(d.value, depth + 1);
     }
   };
-  inspect(value, 0);
-  if (!validator2.Check(value)) throw new TypeError("invalid execution-retention 2.0 manifest");
-  const m = JSON.parse(JSON.stringify(value));
+  inspect(value3, 0);
+  if (!validator2.Check(value3)) throw new TypeError("invalid execution-retention 2.0 manifest");
+  const m = JSON.parse(JSON.stringify(value3));
   if (m.native.sessionId !== m.nativeSession.sessionId || m.native.sessionPath !== m.nativeSession.sessionPath || m.native.branchLeafId !== m.nativeSession.branchLeafId) {
     throw new TypeError("native session projection mismatch");
   }
@@ -18413,32 +18957,32 @@ function buildExecutionRetentionManifest(value) {
   if (m.nativeSession.status === "verified" && (!m.nativeSession.sessionId || !m.nativeSession.sha256 || m.content.session.sha256 !== m.nativeSession.sha256)) throw new TypeError("verified native session requires retained bytes");
   return freeze5(m);
 }
-function parseExecutionRetentionManifest2(text14) {
-  if (Buffer.byteLength(text14) > 64 * 1024) throw new TypeError("retention manifest exceeds bounds");
-  let value;
+function parseExecutionRetentionManifest2(text15) {
+  if (Buffer.byteLength(text15) > 64 * 1024) throw new TypeError("retention manifest exceeds bounds");
+  let value3;
   try {
-    value = parseWorkJson3(text14);
+    value3 = parseWorkJson3(text15);
   } catch {
     throw new TypeError("invalid retention JSON");
   }
-  return buildExecutionRetentionManifest(value);
+  return buildExecutionRetentionManifest(value3);
 }
 
 // packages/adapters/src/execution-retention-archive.ts
-import { createHash as createHash48 } from "node:crypto";
+import { createHash as createHash49 } from "node:crypto";
 
 // packages/adapters/src/generated/retention-v2-native.ts
 import { constants as constants17 } from "node:fs";
 import { open as open2, lstat as lstat2, realpath as realpath2 } from "node:fs/promises";
-import { isAbsolute as isAbsolute25, relative as relative7, sep as sep8 } from "node:path";
-import { createHash as createHash47 } from "node:crypto";
+import { isAbsolute as isAbsolute26, relative as relative8, sep as sep9 } from "node:path";
+import { createHash as createHash48 } from "node:crypto";
 
 // packages/adapters/src/generated/retention-v2-native-json.ts
-function parseRetentionJson2(text14, maxBytes = 64 * 1024) {
-  if (Buffer.byteLength(text14) > maxBytes) throw new TypeError("retention JSON exceeds bounds");
-  const value = JSON.parse(text14);
+function parseRetentionJson2(text15, maxBytes = 64 * 1024) {
+  if (Buffer.byteLength(text15) > maxBytes) throw new TypeError("retention JSON exceeds bounds");
+  const value3 = JSON.parse(text15);
   const stack = [];
-  for (const match of text14.matchAll(/"(?:[^"\\]|\\[\s\S])*"|[{}\[\],:]|[^\s{}\[\],:]+/g)) {
+  for (const match of text15.matchAll(/"(?:[^"\\]|\\[\s\S])*"|[{}\[\],:]|[^\s{}\[\],:]+/g)) {
     const token = match[0], top = stack.at(-1);
     if (token === "{" || token === "[") {
       if (stack.length >= 64) throw new TypeError("retention JSON exceeds depth");
@@ -18453,7 +18997,7 @@ function parseRetentionJson2(text14, maxBytes = 64 * 1024) {
       top.key = false;
     } else if (/^-?\d/.test(token) && !Number.isFinite(Number(token))) throw new TypeError("non-finite retention JSON number");
   }
-  return value;
+  return value3;
 }
 
 // packages/adapters/src/generated/retention-v2-native.ts
@@ -18473,7 +19017,7 @@ var missingNativeSession = () => ({
 var id = (x) => typeof x === "string" && /^[a-zA-Z0-9_-]{1,128}$/.test(x);
 var uuid3 = (x) => typeof x === "string" && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(x);
 var obj = (x) => x !== null && typeof x === "object" && !Array.isArray(x);
-var filePath = (x) => typeof x === "string" && x.length <= 4096 && isAbsolute25(x) && !x.includes("\0");
+var filePath = (x) => typeof x === "string" && x.length <= 4096 && isAbsolute26(x) && !x.includes("\0");
 function parseNativeSessionBytes2(bytes3, input) {
   const observation = { ...missingNativeSession(), source: input.source, sessionPath: input.path };
   const result = { observation };
@@ -18497,15 +19041,15 @@ function parseNativeSessionBytes2(bytes3, input) {
   result.bytes = Buffer.from(bytes3);
   observation.sessionId = header2.id;
   observation.parentSessionPath = header2.parentSession ?? null;
-  observation.sha256 = createHash47("sha256").update(bytes3).digest("hex");
+  observation.sha256 = createHash48("sha256").update(bytes3).digest("hex");
   if (input.truncated || raw.at(-1) !== 10) return fail5("truncated", "native-session-incomplete-bytes");
-  let text14;
+  let text15;
   try {
-    text14 = new TextDecoder("utf-8", { fatal: true }).decode(raw);
+    text15 = new TextDecoder("utf-8", { fatal: true }).decode(raw);
   } catch {
     return fail5("invalid", "native-session-utf8-invalid");
   }
-  const lines2 = text14.split("\n");
+  const lines2 = text15.split("\n");
   const ids = /* @__PURE__ */ new Set();
   if (lines2.length > 10002) return fail5("invalid", "native-session-entry-limit");
   for (const line of lines2.slice(1, -1)) {
@@ -18536,17 +19080,17 @@ var RETENTION_V2_COMMIT2 = "7c78769c47177b1972b09e1f5c5474ad44cd2cac";
 
 // packages/adapters/src/execution-projection-schema.ts
 import { Compile as Compile4 } from "typebox/compile";
-var text12 = { type: "string", minLength: 1, maxLength: 512 };
+var text13 = { type: "string", minLength: 1, maxLength: 512 };
 var hash12 = { type: "string", pattern: "^[a-f0-9]{64}$" };
 var nullable4 = (schema2) => ({ anyOf: [schema2, { type: "null" }] });
 var list2 = (items) => ({ type: "array", items, maxItems: 4096, uniqueItems: true });
 var closed15 = (properties) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
-function freeze6(value) {
-  if (value && typeof value === "object") {
-    Object.values(value).forEach(freeze6);
-    Object.freeze(value);
+function freeze6(value3) {
+  if (value3 && typeof value3 === "object") {
+    Object.values(value3).forEach(freeze6);
+    Object.freeze(value3);
   }
-  return value;
+  return value3;
 }
 var EXECUTION_ARCHIVE_PROJECTION_SCHEMA2 = freeze6({
   $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -18554,23 +19098,23 @@ var EXECUTION_ARCHIVE_PROJECTION_SCHEMA2 = freeze6({
   ...closed15({
     version: { const: "execution-archive-projection-v1" },
     executions: { type: "array", maxItems: 4096, items: closed15({
-      executionId: text12,
-      parentExecutionIds: list2(nullable4(text12)),
-      retainedSessionIds: list2(text12),
+      executionId: text13,
+      parentExecutionIds: list2(nullable4(text13)),
+      retainedSessionIds: list2(text13),
       activeBranch: { const: null },
-      toolCallIds: list2(nullable4(text12)),
-      archiveIds: list2(text12),
+      toolCallIds: list2(nullable4(text13)),
+      archiveIds: list2(text13),
       runtime: { enum: ["running", "terminal", "conflict"] },
       outcome: nullable4(closed15({
         code: nullable4({ type: "integer", minimum: -2147483648, maximum: 2147483647 }),
-        signal: nullable4(text12),
+        signal: nullable4(text13),
         timedOut: { type: "boolean" },
         aborted: { type: "boolean" },
         truncated: { type: "boolean" },
         failed: { type: "boolean" }
       })),
       sourceReferences: list2(hash12),
-      issues: list2(text12),
+      issues: list2(text13),
       coverage: { const: "partial" },
       acceptance: { const: "not-assessed" }
     }) },
@@ -18578,12 +19122,12 @@ var EXECUTION_ARCHIVE_PROJECTION_SCHEMA2 = freeze6({
   })
 });
 var compiled2 = Compile4(EXECUTION_ARCHIVE_PROJECTION_SCHEMA2);
-function assertExecutionProjection2(value) {
-  if (!compiled2.Check(value) || Buffer.byteLength(JSON.stringify(value)) > 8 * 1024 * 1024) throw new Error("invalid or oversized execution archive projection");
+function assertExecutionProjection2(value3) {
+  if (!compiled2.Check(value3) || Buffer.byteLength(JSON.stringify(value3)) > 8 * 1024 * 1024) throw new Error("invalid or oversized execution archive projection");
 }
 
 // packages/adapters/src/execution-retention-archive.ts
-var hash13 = (bytes3) => createHash48("sha256").update(bytes3).digest("hex");
+var hash13 = (bytes3) => createHash49("sha256").update(bytes3).digest("hex");
 var SHA12 = /^[a-f0-9]{64}$/;
 var parseManifest = (bytes3) => parseExecutionRetentionManifest2(new TextDecoder("utf-8", { fatal: true }).decode(bytes3));
 function project(manifest, manifestBytes, supplied) {
@@ -18653,8 +19197,8 @@ function ingestRetainedExecution2(root, input) {
 function readRetainedExecution2(root, snapshotId) {
   const stored = readArchiveSource2(root, snapshotId);
   if (stored.status !== "available" || stored.reference.retention !== "exact") throw new Error("retention snapshot missing or invalid");
-  const text14 = stored.bytes.toString("utf8"), snapshot2 = JSON.parse(text14);
-  if (JSON.stringify(snapshot2) !== text14 || !snapshot2 || Object.keys(snapshot2).sort().join() !== "blobs,manifestId,producerCommit,version" || snapshot2.version !== "retention-archive-snapshot-v1" || snapshot2.producerCommit !== RETENTION_V2_COMMIT2 || !SHA12.test(snapshot2.manifestId) || !snapshot2.blobs || Object.keys(snapshot2.blobs).sort().join() !== [...RETENTION_CONTENT_KINDS2].sort().join() || Object.values(snapshot2.blobs).some((id3) => id3 !== null && (typeof id3 !== "string" || !SHA12.test(id3)))) throw new Error("invalid retention snapshot");
+  const text15 = stored.bytes.toString("utf8"), snapshot2 = JSON.parse(text15);
+  if (JSON.stringify(snapshot2) !== text15 || !snapshot2 || Object.keys(snapshot2).sort().join() !== "blobs,manifestId,producerCommit,version" || snapshot2.version !== "retention-archive-snapshot-v1" || snapshot2.producerCommit !== RETENTION_V2_COMMIT2 || !SHA12.test(snapshot2.manifestId) || !snapshot2.blobs || Object.keys(snapshot2.blobs).sort().join() !== [...RETENTION_CONTENT_KINDS2].sort().join() || Object.values(snapshot2.blobs).some((id3) => id3 !== null && (typeof id3 !== "string" || !SHA12.test(id3)))) throw new Error("invalid retention snapshot");
   const source3 = readArchiveSource2(root, snapshot2.manifestId);
   if (source3.status !== "available" || source3.reference.retention !== "exact") throw new Error("retained producer manifest missing or invalid");
   const manifest = parseManifest(source3.bytes);
@@ -18670,7 +19214,7 @@ function readRetainedExecution2(root, snapshotId) {
 function projectRetainedExecutions(snapshots) {
   if (snapshots.length > 4096) throw new Error("retention projection exceeds snapshot bound");
   const unique2 = [...new Map(snapshots.map((p) => [JSON.stringify(p), p])).values()];
-  const objectKey = (value) => JSON.stringify(Object.keys(value).sort().map((key3) => [key3, value[key3]]));
+  const objectKey = (value3) => JSON.stringify(Object.keys(value3).sort().map((key3) => [key3, value3[key3]]));
   const groups = /* @__PURE__ */ new Map();
   for (const snapshot2 of unique2) {
     const id3 = snapshot2.identity.executionId;
@@ -18786,10 +19330,10 @@ var keys5 = (v, names) => !!v && typeof v === "object" && !Array.isArray(v) && O
 var identifier = (v) => typeof v === "string" && ID3.test(v);
 function regularBytes(path3, limit3) {
   if (!constants18.O_NOFOLLOW || !constants18.O_NONBLOCK) fail3();
-  const absolute = resolve26(path3);
-  if (absolute.split(sep9).some((part) => forbidden.has(part))) fail3();
+  const absolute = resolve28(path3);
+  if (absolute.split(sep10).some((part) => forbidden.has(part))) fail3();
   let current = parse8(absolute).root;
-  for (const part of dirname22(absolute).slice(current.length).split(sep9).filter(Boolean)) {
+  for (const part of dirname22(absolute).slice(current.length).split(sep10).filter(Boolean)) {
     current = join49(current, part);
     const stat = lstatSync16(current);
     if (!stat.isDirectory() || stat.isSymbolicLink()) fail3();
@@ -18813,12 +19357,12 @@ function regularBytes(path3, limit3) {
 }
 function selectedPolicy(path3, sourceId) {
   const bytes3 = regularBytes(path3, 65536);
-  const text14 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
-  const p = JSON.parse(text14);
-  if (JSON.stringify(p) !== text14 || !keys5(p, ["version", "id", "revision", "sourceRoot", "archiveRoot", "maxBytes", "retention", "expiresAt", "sources"]) || !["archive-policy-v1", "archive-policy-v2"].includes(p.version) || !identifier(p.id) || !identifier(p.revision) || typeof p.sourceRoot !== "string" || !isAbsolute26(p.sourceRoot) || typeof p.archiveRoot !== "string" || !isAbsolute26(p.archiveRoot) || resolve26(p.sourceRoot) === resolve26(p.archiveRoot) || [p.sourceRoot, p.archiveRoot].some((root2) => root2.split(/[\\/]/).some((part) => forbidden.has(part))) || !Number.isSafeInteger(p.maxBytes) || p.maxBytes < 1 || p.maxBytes > 8 * 1024 * 1024 || !["exact", "redacted", "reference-only"].includes(p.retention) || typeof p.expiresAt !== "string" || !Number.isFinite(Date.parse(p.expiresAt)) || new Date(p.expiresAt).toISOString() !== p.expiresAt || Date.parse(p.expiresAt) <= Date.now() || !Array.isArray(p.sources) || p.sources.length < 1 || p.sources.length > 128) fail3();
+  const text15 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
+  const p = JSON.parse(text15);
+  if (JSON.stringify(p) !== text15 || !keys5(p, ["version", "id", "revision", "sourceRoot", "archiveRoot", "maxBytes", "retention", "expiresAt", "sources"]) || !["archive-policy-v1", "archive-policy-v2"].includes(p.version) || !identifier(p.id) || !identifier(p.revision) || typeof p.sourceRoot !== "string" || !isAbsolute27(p.sourceRoot) || typeof p.archiveRoot !== "string" || !isAbsolute27(p.archiveRoot) || resolve28(p.sourceRoot) === resolve28(p.archiveRoot) || [p.sourceRoot, p.archiveRoot].some((root2) => root2.split(/[\\/]/).some((part) => forbidden.has(part))) || !Number.isSafeInteger(p.maxBytes) || p.maxBytes < 1 || p.maxBytes > 8 * 1024 * 1024 || !["exact", "redacted", "reference-only"].includes(p.retention) || typeof p.expiresAt !== "string" || !Number.isFinite(Date.parse(p.expiresAt)) || new Date(p.expiresAt).toISOString() !== p.expiresAt || Date.parse(p.expiresAt) <= Date.now() || !Array.isArray(p.sources) || p.sources.length < 1 || p.sources.length > 128) fail3();
   const ids = /* @__PURE__ */ new Set();
   for (const item of p.sources) {
-    if (!keys5(item, p.version === "archive-policy-v2" ? ["id", "path", "parser", "contentPolicy"] : ["id", "path", "parser"]) || !identifier(item.id) || ids.has(item.id) || typeof item.path !== "string" || !item.path || isAbsolute26(item.path) || item.path.includes("\\") || item.path.split("/").some((part) => !part || part === "." || part === ".." || forbidden.has(part)) || !keys5(item.parser, ["id", "version"]) || !identifier(item.parser.id) || !identifier(item.parser.version)) fail3();
+    if (!keys5(item, p.version === "archive-policy-v2" ? ["id", "path", "parser", "contentPolicy"] : ["id", "path", "parser"]) || !identifier(item.id) || ids.has(item.id) || typeof item.path !== "string" || !item.path || isAbsolute27(item.path) || item.path.includes("\\") || item.path.split("/").some((part) => !part || part === "." || part === ".." || forbidden.has(part)) || !keys5(item.parser, ["id", "version"]) || !identifier(item.parser.id) || !identifier(item.parser.version)) fail3();
     if (p.version === "archive-policy-v2" && !["manifest-only", "referenced-blobs"].includes(item.contentPolicy)) fail3();
     if (item.contentPolicy === "referenced-blobs" && (p.retention !== "exact" || item.parser.id !== "pi-daddy-execution-retention" || item.parser.version !== "2.0")) fail3();
     ids.add(item.id);
@@ -18827,8 +19371,8 @@ function selectedPolicy(path3, sourceId) {
   if (!source3) fail3();
   const root = lstatSync16(p.sourceRoot);
   if (!root.isDirectory() || root.isSymbolicLink() || (root.mode & 63) !== 0 || process.getuid && root.uid !== process.getuid()) fail3();
-  const archiveSourceId = `policy-source-${createHash49("sha256").update(JSON.stringify([p.id, source3.id, resolve26(p.sourceRoot), source3.path])).digest("hex")}`;
-  return { policy: p, source: source3, archiveSourceId, policySha256: createHash49("sha256").update(bytes3).digest("hex") };
+  const archiveSourceId = `policy-source-${createHash50("sha256").update(JSON.stringify([p.id, source3.id, resolve28(p.sourceRoot), source3.path])).digest("hex")}`;
+  return { policy: p, source: source3, archiveSourceId, policySha256: createHash50("sha256").update(bytes3).digest("hex") };
 }
 function metadata2(result, checkpointId, policySha256) {
   return {
@@ -18880,7 +19424,7 @@ function ingestPolicySource2(policyPath, sourceId, previousCheckpointId, expecte
 import { isDate as isDate2 } from "node:util/types";
 
 // packages/adapters/src/generated/work-v4/json.ts
-import { createHash as createHash50 } from "node:crypto";
+import { createHash as createHash51 } from "node:crypto";
 
 // packages/adapters/src/generated/work-v4/types.ts
 var WorkInputError4 = class extends TypeError {
@@ -18904,21 +19448,21 @@ var invalid2 = () => {
 var limit2 = () => {
   throw new WorkInputError4("WORK_LIMIT_EXCEEDED");
 };
-function unicode2(value) {
-  for (let i = 0; i < value.length; i++) {
-    const code = value.charCodeAt(i);
+function unicode2(value3) {
+  for (let i = 0; i < value3.length; i++) {
+    const code = value3.charCodeAt(i);
     if (code >= 55296 && code <= 56319) {
-      const next = value.charCodeAt(++i);
+      const next = value3.charCodeAt(++i);
       if (!(next >= 56320 && next <= 57343)) invalid2();
     } else if (code >= 56320 && code <= 57343) invalid2();
   }
-  return value;
+  return value3;
 }
-function ownWorkFields2(value) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) invalid2();
-  const prototype = Object.getPrototypeOf(value);
+function ownWorkFields2(value3) {
+  if (value3 === null || typeof value3 !== "object" || Array.isArray(value3)) invalid2();
+  const prototype = Object.getPrototypeOf(value3);
   if (prototype !== Object.prototype && prototype !== null) invalid2();
-  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const descriptors = Object.getOwnPropertyDescriptors(value3);
   for (const key3 of Reflect.ownKeys(descriptors)) {
     if (typeof key3 !== "string") return invalid2();
     const descriptor = descriptors[key3];
@@ -18927,7 +19471,7 @@ function ownWorkFields2(value) {
   }
   return descriptors;
 }
-function copyWorkJson2(value) {
+function copyWorkJson2(value3) {
   const ancestors = /* @__PURE__ */ new Set();
   function copy2(v, depth) {
     if (v === null || typeof v === "boolean") return v;
@@ -18959,7 +19503,7 @@ function copyWorkJson2(value) {
     ancestors.delete(v);
     return result;
   }
-  return copy2(value, 1);
+  return copy2(value3, 1);
 }
 function integerToken2(token) {
   const match = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(token);
@@ -18977,10 +19521,10 @@ function integerToken2(token) {
 function checkMembers2(node) {
   if (node.type === "object") {
     const names = /* @__PURE__ */ new Set();
-    for (const [key3, child2] of node.entries) {
+    for (const [key3, child3] of node.entries) {
       if (names.has(key3)) throw new WorkInputError4("WORK_DUPLICATE_MEMBER");
       names.add(key3);
-      checkMembers2(child2);
+      checkMembers2(child3);
     }
   } else if (node.type === "array") node.items.forEach(checkMembers2);
 }
@@ -18988,101 +19532,101 @@ function materialize2(node) {
   if (node.type === "number") return integerToken2(node.token);
   if (node.type === "literal") return typeof node.value === "string" ? unicode2(node.value) : node.value;
   if (node.type === "array") return node.items.map(materialize2);
-  return Object.fromEntries(node.entries.map(([key3, child2]) => [unicode2(key3), materialize2(child2)]));
+  return Object.fromEntries(node.entries.map(([key3, child3]) => [unicode2(key3), materialize2(child3)]));
 }
-function parseWorkJson4(text14) {
-  if (typeof text14 !== "string") invalid2();
-  if (Buffer.byteLength(text14, "utf8") > WORK_EVENT_BYTES4) limit2();
+function parseWorkJson4(text15) {
+  if (typeof text15 !== "string") invalid2();
+  if (Buffer.byteLength(text15, "utf8") > WORK_EVENT_BYTES4) limit2();
   let at = 0;
   const syntax = () => {
     throw new WorkInputError4("WORK_JSON_INVALID");
   };
   const whitespace = () => {
-    while (at < text14.length && /[ \t\r\n]/.test(text14[at])) at++;
+    while (at < text15.length && /[ \t\r\n]/.test(text15[at])) at++;
   };
-  function string4() {
+  function string5() {
     const start = at++;
-    while (at < text14.length) {
-      const char = text14[at++];
+    while (at < text15.length) {
+      const char = text15[at++];
       if (char === '"') {
-        return JSON.parse(text14.slice(start, at));
+        return JSON.parse(text15.slice(start, at));
       }
       if (char.charCodeAt(0) < 32) syntax();
       if (char === "\\") {
-        const escape = text14[at++];
+        const escape = text15[at++];
         if (escape === "u") {
-          if (!/^[0-9a-fA-F]{4}$/.test(text14.slice(at, at + 4))) syntax();
+          if (!/^[0-9a-fA-F]{4}$/.test(text15.slice(at, at + 4))) syntax();
           at += 4;
         } else if (!escape || !'"\\/bfnrt'.includes(escape)) syntax();
       }
     }
     return syntax();
   }
-  function value(depth) {
+  function value3(depth) {
     whitespace();
-    const char = text14[at];
-    if (char === '"') return { type: "literal", value: string4() };
+    const char = text15[at];
+    if (char === '"') return { type: "literal", value: string5() };
     if (char === "{" || char === "[") {
       if (depth > MAX_DEPTH2) limit2();
       at++;
       whitespace();
-      const object3 = char === "{";
-      const end = object3 ? "}" : "]";
+      const object5 = char === "{";
+      const end = object5 ? "}" : "]";
       const entries = [];
       const items = [];
-      if (text14[at] !== end) for (; ; ) {
+      if (text15[at] !== end) for (; ; ) {
         whitespace();
         let key3 = "";
-        if (object3) {
-          if (text14[at] !== '"') syntax();
-          key3 = string4();
+        if (object5) {
+          if (text15[at] !== '"') syntax();
+          key3 = string5();
           whitespace();
-          if (text14[at++] !== ":") syntax();
+          if (text15[at++] !== ":") syntax();
         } else if (items.length >= MAX_ARRAY2) limit2();
-        const child2 = value(depth + 1);
-        if (object3) entries.push([key3, child2]);
-        else items.push(child2);
+        const child3 = value3(depth + 1);
+        if (object5) entries.push([key3, child3]);
+        else items.push(child3);
         whitespace();
-        if (text14[at] === end) break;
-        if (text14[at++] !== ",") syntax();
+        if (text15[at] === end) break;
+        if (text15[at++] !== ",") syntax();
       }
       at++;
-      return object3 ? { type: "object", entries } : { type: "array", items };
+      return object5 ? { type: "object", entries } : { type: "array", items };
     }
     for (const [token2, literal3] of [["null", null], ["true", true], ["false", false]]) {
-      if (text14.startsWith(token2, at)) {
+      if (text15.startsWith(token2, at)) {
         at += token2.length;
         return { type: "literal", value: literal3 };
       }
     }
-    const token = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(text14.slice(at));
+    const token = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(text15.slice(at));
     if (!token) return syntax();
     at += token[0].length;
     return { type: "number", token: token[0] };
   }
-  const result = value(1);
+  const result = value3(1);
   whitespace();
-  if (at !== text14.length) syntax();
+  if (at !== text15.length) syntax();
   checkMembers2(result);
   return materialize2(result);
 }
-function emit(value) {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(emit).join(",")}]`;
-  return `{${Object.keys(value).sort().map((key3) => `${JSON.stringify(key3)}:${emit(value[key3])}`).join(",")}}`;
+function emit(value3) {
+  if (value3 === null || typeof value3 !== "object") return JSON.stringify(value3);
+  if (Array.isArray(value3)) return `[${value3.map(emit).join(",")}]`;
+  return `{${Object.keys(value3).sort().map((key3) => `${JSON.stringify(key3)}:${emit(value3[key3])}`).join(",")}}`;
 }
-function canonicalWorkJson2(value) {
-  return emit(copyWorkJson2(value));
+function canonicalWorkJson2(value3) {
+  return emit(copyWorkJson2(value3));
 }
-function workDigest2(value) {
-  return createHash50("sha256").update(canonicalWorkJson2(value), "utf8").digest("hex");
+function workDigest2(value3) {
+  return createHash51("sha256").update(canonicalWorkJson2(value3), "utf8").digest("hex");
 }
-function workResultKey2(value) {
-  return emit(value);
+function workResultKey2(value3) {
+  return emit(value3);
 }
 function sortWorkResults2(values) {
-  const rows = new Map([...values].map((value) => [workResultKey2(value), value]));
-  return [...rows].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([, value]) => value);
+  const rows = new Map([...values].map((value3) => [workResultKey2(value3), value3]));
+  return [...rows].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([, value3]) => value3);
 }
 function mergeWorkProblems2(values) {
   const rows = /* @__PURE__ */ new Map();
@@ -19104,19 +19648,19 @@ function mergeWorkConflicts2(values) {
   }
   return sortWorkResults2(rows.values());
 }
-function freezeWork2(value) {
-  if (value !== null && typeof value === "object") {
-    for (const child2 of Object.values(value)) freezeWork2(child2);
-    Object.freeze(value);
+function freezeWork2(value3) {
+  if (value3 !== null && typeof value3 === "object") {
+    for (const child3 of Object.values(value3)) freezeWork2(child3);
+    Object.freeze(value3);
   }
-  return value;
+  return value3;
 }
 
 // packages/adapters/src/generated/work-v4/execution-id.ts
 import { randomUUID as randomUUID9 } from "node:crypto";
 var EXECUTION_ID_RE = /^exec:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-function isExecutionId2(value) {
-  return typeof value === "string" && EXECUTION_ID_RE.test(value);
+function isExecutionId2(value3) {
+  return typeof value3 === "string" && EXECUTION_ID_RE.test(value3);
 }
 
 // packages/adapters/src/generated/work-v4/validation.ts
@@ -19124,74 +19668,74 @@ var kinds = ["scope", "goal", "node", "obligation", "artifact", "policy"];
 var fail4 = () => {
   throw new WorkInputError4("WORK_SCHEMA_INVALID");
 };
-function require3(value) {
-  if (!value) fail4();
+function require3(value3) {
+  if (!value3) fail4();
 }
-function workObject(value) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return fail4();
-  return value;
+function workObject(value3) {
+  if (value3 === null || typeof value3 !== "object" || Array.isArray(value3)) return fail4();
+  return value3;
 }
-function closed16(value, keys7) {
-  const object3 = workObject(value);
-  require3(Object.keys(object3).length === keys7.length && keys7.every((key3) => Object.hasOwn(object3, key3)));
-  return object3;
+function closed16(value3, keys7) {
+  const object5 = workObject(value3);
+  require3(Object.keys(object5).length === keys7.length && keys7.every((key3) => Object.hasOwn(object5, key3)));
+  return object5;
 }
-function id2(value) {
-  require3(typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._:/@+\-]{0,127}$/.test(value));
+function id2(value3) {
+  require3(typeof value3 === "string" && /^[A-Za-z0-9][A-Za-z0-9._:/@+\-]{0,127}$/.test(value3));
 }
-function digest5(value) {
-  require3(typeof value === "string" && /^[0-9a-f]{64}$/.test(value));
+function digest5(value3) {
+  require3(typeof value3 === "string" && /^[0-9a-f]{64}$/.test(value3));
 }
-function integer4(value) {
-  require3(typeof value === "number" && Number.isSafeInteger(value) && value >= 1);
+function integer4(value3) {
+  require3(typeof value3 === "number" && Number.isSafeInteger(value3) && value3 >= 1);
 }
-function member(value, values) {
-  require3(typeof value === "string" && values.includes(value));
+function member(value3, values) {
+  require3(typeof value3 === "string" && values.includes(value3));
 }
-function nullable5(value, validate10) {
-  if (value !== null) validate10(value);
+function nullable5(value3, validate11) {
+  if (value3 !== null) validate11(value3);
 }
-function reference(value, allowed = kinds) {
-  const ref = closed16(value, ["kind", "id", "revision", "digest"]);
+function reference(value3, allowed = kinds) {
+  const ref = closed16(value3, ["kind", "id", "revision", "digest"]);
   member(ref.kind, allowed);
   id2(ref.id);
   integer4(ref.revision);
   digest5(ref.digest);
 }
-function identity(value) {
-  const ref = closed16(value, ["id", "digest"]);
+function identity(value3) {
+  const ref = closed16(value3, ["id", "digest"]);
   id2(ref.id);
   digest5(ref.digest);
 }
-function eventRef(value) {
-  const ref = closed16(value, ["eventId", "digest"]);
+function eventRef(value3) {
+  const ref = closed16(value3, ["eventId", "digest"]);
   id2(ref.eventId);
   digest5(ref.digest);
 }
-function validateWorkSelection2(value) {
-  if (value === null) return;
-  const selected2 = closed16(value, ["snapshot", "event"]);
+function validateWorkSelection2(value3) {
+  if (value3 === null) return;
+  const selected2 = closed16(value3, ["snapshot", "event"]);
   identity(selected2.snapshot);
   eventRef(selected2.event);
 }
-function timestamp2(value) {
-  require3(typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value));
-  require3(!value.startsWith("0000") && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value);
+function timestamp2(value3) {
+  require3(typeof value3 === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value3));
+  require3(!value3.startsWith("0000") && Number.isFinite(Date.parse(value3)) && new Date(value3).toISOString() === value3);
 }
-function set2(value, validate10, building, key3 = canonicalWorkJson2) {
-  require3(Array.isArray(value));
-  value.forEach(validate10);
-  const keyed = value.map((item) => ({ item, key: key3(item) }));
+function set2(value3, validate11, building, key3 = canonicalWorkJson2) {
+  require3(Array.isArray(value3));
+  value3.forEach(validate11);
+  const keyed = value3.map((item) => ({ item, key: key3(item) }));
   const sorted2 = [...keyed].sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
   for (let i = 1; i < sorted2.length; i++) require3(sorted2[i - 1].key !== sorted2[i].key);
-  if (building) value.splice(0, value.length, ...sorted2.map((entry) => entry.item));
+  if (building) value3.splice(0, value3.length, ...sorted2.map((entry) => entry.item));
   else require3(keyed.every((entry, i) => entry.key === sorted2[i].key));
 }
 function ownKeys(keys7, building) {
   return building ? keys7 : [...keys7, "digest"];
 }
-function revision(value, building) {
-  const r = closed16(value, ownKeys([
+function revision(value3, building) {
+  const r = closed16(value3, ownKeys([
     "kind",
     "id",
     "revision",
@@ -19233,23 +19777,23 @@ function revision(value, building) {
   }
   if (!building) digest5(r.digest);
 }
-function obligationBinding(value) {
-  const b = closed16(value, ["intent", "obligation", "artifact", "policy"]);
+function obligationBinding(value3) {
+  const b = closed16(value3, ["intent", "obligation", "artifact", "policy"]);
   reference(b.intent, ["goal", "node"]);
   reference(b.obligation, ["obligation"]);
   nullable5(b.artifact, (v) => reference(v, ["artifact"]));
   reference(b.policy, ["policy"]);
 }
-function snapshot(value, building) {
-  const s = closed16(value, ownKeys(["snapshotId", "scope", "revisions", "bindings"], building));
+function snapshot(value3, building) {
+  const s = closed16(value3, ownKeys(["snapshotId", "scope", "revisions", "bindings"], building));
   id2(s.snapshotId);
   reference(s.scope, ["scope"]);
   set2(s.revisions, (v) => reference(v, kinds.filter((k) => k !== "scope")), building);
   set2(s.bindings, obligationBinding, building, (v) => canonicalWorkJson2(workObject(v).obligation));
   if (!building) digest5(s.digest);
 }
-function occurrence(value) {
-  const p = closed16(value, [
+function occurrence(value3) {
+  const p = closed16(value3, [
     "scope",
     "obligation",
     "executionId",
@@ -19282,21 +19826,21 @@ function occurrence(value) {
     "modelId",
     "effortId"
   ]);
-  for (const [key3, value2] of Object.entries(labels)) nullable5(value2, key3.endsWith("Digest") ? digest5 : id2);
+  for (const [key3, value4] of Object.entries(labels)) nullable5(value4, key3.endsWith("Digest") ? digest5 : id2);
 }
-function evidence4(value) {
-  const e = closed16(value, ["id", "digest", "event"]);
+function evidence4(value3) {
+  const e = closed16(value3, ["id", "digest", "event"]);
   id2(e.id);
   digest5(e.digest);
   nullable5(e.event, eventRef);
 }
-function acceptance(value, building) {
-  const p = closed16(value, ["authorityId", "binding"]);
+function acceptance(value3, building) {
+  const p = closed16(value3, ["authorityId", "binding"]);
   id2(p.authorityId);
   acceptanceBinding(p.binding, building);
 }
-function acceptanceBinding(value, building) {
-  const b = closed16(value, ["snapshot", "scope", "intent", "obligation", "artifact", "artifactDigest", "policy", "evidence"]);
+function acceptanceBinding(value3, building) {
+  const b = closed16(value3, ["snapshot", "scope", "intent", "obligation", "artifact", "artifactDigest", "policy", "evidence"]);
   identity(b.snapshot);
   reference(b.scope, ["scope"]);
   reference(b.intent, ["goal", "node"]);
@@ -19307,38 +19851,38 @@ function acceptanceBinding(value, building) {
   set2(b.evidence, evidence4, building);
   require3(b.evidence.length > 0);
 }
-function validateWorkContext2(value) {
-  const c = closed16(value, ["selectedSnapshot", "authority"]);
+function validateWorkContext2(value3) {
+  const c = closed16(value3, ["selectedSnapshot", "authority"]);
   validateWorkSelection2(c.selectedSnapshot);
   if (c.authority === null) return;
   const a = closed16(c.authority, ["snapshot", "decisions", "availability"]);
   identity(a.snapshot);
   require3(Array.isArray(a.decisions));
   require3(Array.isArray(a.availability));
-  for (const value2 of a.decisions) {
-    const d = closed16(value2, ["receiptId", "authorityId", "claim", "binding", "decision"]);
+  for (const value4 of a.decisions) {
+    const d = closed16(value4, ["receiptId", "authorityId", "claim", "binding", "decision"]);
     id2(d.receiptId);
     id2(d.authorityId);
     eventRef(d.claim);
     acceptanceBinding(d.binding, false);
     member(d.decision, ["accept", "reject"]);
   }
-  for (const value2 of a.availability) {
-    const row = closed16(value2, ["kind", "id", "digest", "available"]);
+  for (const value4 of a.availability) {
+    const row = closed16(value4, ["kind", "id", "digest", "available"]);
     member(row.kind, ["artifact", "evidence"]);
     id2(row.id);
     digest5(row.digest);
     require3(typeof row.available === "boolean");
   }
 }
-function ownDigest(object3, building) {
-  const { digest: supplied, ...body } = object3;
+function ownDigest(object5, building) {
+  const { digest: supplied, ...body } = object5;
   const computed = workDigest2(body);
-  if (building) object3.digest = computed;
+  if (building) object5.digest = computed;
   else if (supplied !== computed) throw new WorkInputError4("WORK_DIGEST_MISMATCH");
 }
-function validateWorkEvent2(value, building = false) {
-  const e = workObject(value);
+function validateWorkEvent2(value3, building = false) {
+  const e = workObject(value3);
   if (e.ledgerVersion !== 4) throw new WorkInputError4("WORK_VERSION_UNSUPPORTED");
   closed16(e, ownKeys(["ledgerVersion", "event", "eventId", "ts", "payload"], building));
   member(e.event, ["work_revision", "work_snapshot", "work_occurrence", "work_acceptance"]);
@@ -19387,10 +19931,10 @@ function workRevisionConflictSources2(index, ref) {
   return sortWorkResults2((index.conflictSources.bodies[revisionIdentity(ref)] ?? []).flatMap((id3) => index.conflictSources.events[workResultKey2(id3)]));
 }
 function sorted(values) {
-  return [...values].map((value) => ({ value, key: canonicalWorkJson2(value) })).sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0).map((entry) => entry.value);
+  return [...values].map((value3) => ({ value: value3, key: canonicalWorkJson2(value3) })).sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0).map((entry) => entry.value);
 }
-function indexWorkLedgerText2(text14) {
-  const ingestion = parseWorkLedgerText2(text14);
+function indexWorkLedgerText2(text15) {
+  const ingestion = parseWorkLedgerText2(text15);
   const groups = /* @__PURE__ */ new Map();
   for (const event of ingestion.events) {
     let group = groups.get(event.eventId);
@@ -19581,18 +20125,18 @@ var key2 = canonicalWorkJson2;
 var entity = (ref) => `${ref.kind}:${ref.id}`;
 var reference2 = (ref) => ({ type: "revision", ref });
 function unique(values) {
-  const rows = new Map(values.map((value) => [key2(value), value]));
-  return [...rows].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([, value]) => value);
+  const rows = new Map(values.map((value3) => [key2(value3), value3]));
+  return [...rows].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([, value3]) => value3);
 }
 function diagnosticKey(row) {
   const affected = key2(row.affectedObligations);
   return "code" in row ? `{"affectedObligations":${affected},"code":${JSON.stringify(row.code)},"reference":${key2(row.reference)}}` : `{"affectedObligations":${affected},"digests":${JSON.stringify(row.digests)},"id":${JSON.stringify(row.id)},"kind":${JSON.stringify(row.kind)}}`;
 }
 function sortedDiagnostics(rows) {
-  return rows.map((value) => ({ value, key: diagnosticKey(value) })).sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0).map((row) => row.value);
+  return rows.map((value3) => ({ value: value3, key: diagnosticKey(value3) })).sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0).map((row) => row.value);
 }
-function resolveWorkSnapshotText2(text14, requested = null) {
-  const index = indexWorkLedgerText2(text14);
+function resolveWorkSnapshotText2(text15, requested = null) {
+  const index = indexWorkLedgerText2(text15);
   const errors = [...index.ingestion.errors];
   let selection = null;
   try {
@@ -19754,7 +20298,7 @@ function resolveWorkSnapshotText2(text14, requested = null) {
   walk2(snapshot2.scope, allAffected);
   for (const ref of snapshot2.revisions) {
     const affected2 = ref.kind === "obligation" ? [ref] : snapshot2.bindings.filter(
-      (binding) => [binding.intent, binding.policy, binding.artifact].some((value) => value && key2(value) === key2(ref))
+      (binding) => [binding.intent, binding.policy, binding.artifact].some((value3) => value3 && key2(value3) === key2(ref))
     ).map((binding) => binding.obligation).filter(isSelected);
     walk2(ref, affected2, ref.kind === "artifact");
   }
@@ -19928,24 +20472,24 @@ function foldWorkOccurrences2(index, snapshot2) {
 }
 
 // packages/adapters/src/generated/work-v4/reader.ts
-function* lines(text14) {
+function* lines(text15) {
   let start = 0, line = 1;
-  while (start < text14.length) {
-    const end = text14.indexOf("\n", start);
-    yield { text: text14.slice(start, end === -1 ? text14.length : end), line: line++ };
+  while (start < text15.length) {
+    const end = text15.indexOf("\n", start);
+    yield { text: text15.slice(start, end === -1 ? text15.length : end), line: line++ };
     if (end === -1) return;
     start = end + 1;
   }
 }
-var blank = (text14) => /^[ \t\r]*$/.test(text14);
-function parseWorkLedgerText2(text14) {
+var blank = (text15) => /^[ \t\r]*$/.test(text15);
+function parseWorkLedgerText2(text15) {
   const wholeError = (code) => freezeWork2({ events: [], errors: [{ line: null, code }], complete: false });
-  if (typeof text14 !== "string") return wholeError("WORK_SCHEMA_INVALID");
-  if (Buffer.byteLength(text14, "utf8") > WORK_TEXT_BYTES4) return wholeError("WORK_LIMIT_EXCEEDED");
+  if (typeof text15 !== "string") return wholeError("WORK_SCHEMA_INVALID");
+  if (Buffer.byteLength(text15, "utf8") > WORK_TEXT_BYTES4) return wholeError("WORK_LIMIT_EXCEEDED");
   let records2 = 0;
-  for (const row of lines(text14)) if (!blank(row.text) && ++records2 > WORK_RECORDS2) return wholeError("WORK_LIMIT_EXCEEDED");
+  for (const row of lines(text15)) if (!blank(row.text) && ++records2 > WORK_RECORDS2) return wholeError("WORK_LIMIT_EXCEEDED");
   const events = [], errors = [];
-  for (const row of lines(text14)) {
+  for (const row of lines(text15)) {
     if (blank(row.text)) continue;
     try {
       events.push(validateWorkEvent2(parseWorkJson4(row.text)));
@@ -19956,14 +20500,14 @@ function parseWorkLedgerText2(text14) {
   }
   return freezeWork2({ events, errors, complete: errors.length === 0 });
 }
-function projectWorkLedger2(text14, context = { selectedSnapshot: null, authority: null }) {
-  const index = indexWorkLedgerText2(text14);
+function projectWorkLedger2(text15, context = { selectedSnapshot: null, authority: null }) {
+  const index = indexWorkLedgerText2(text15);
   const errors = [...index.ingestion.errors];
   let copied = null;
   try {
-    const value = copyWorkJson2(context);
-    validateWorkContext2(value);
-    copied = JSON.parse(canonicalWorkJson2(value));
+    const value3 = copyWorkJson2(context);
+    validateWorkContext2(value3);
+    copied = JSON.parse(canonicalWorkJson2(value3));
   } catch (error) {
     if (!(error instanceof WorkInputError4)) throw error;
     errors.push({ line: null, code: "WORK_CONTEXT_INVALID" });
@@ -19989,7 +20533,7 @@ function projectWorkLedger2(text14, context = { selectedSnapshot: null, authorit
     });
   }
   if (errors.length) return empty("unresolved", [{ code: "INPUT_INCOMPLETE", reference: null, affectedObligations: [] }]);
-  const structure = resolveWorkSnapshotText2(text14, copied.selectedSnapshot);
+  const structure = resolveWorkSnapshotText2(text15, copied.selectedSnapshot);
   if (structure.scopeState !== "valid") return empty(structure.scopeState, structure.problems, structure.conflicts);
   const runtime = foldWorkOccurrences2(index, structure.snapshot);
   const acceptance2 = projectWorkAcceptance2(index, structure, copied.authority, runtime);
@@ -20005,8 +20549,8 @@ function readArchivedWork(root, manifestId, context = { selectedSnapshot: null, 
   if (source3.status !== "available") return { state: source3.status === "missing" ? "missing" : "error", manifestId, reason: "work-source-unavailable" };
   if (source3.reference.retention !== "exact" || source3.reference.parser.id !== "pi-daddy-work-ledger" || source3.reference.parser.version !== "4") return { state: "error", manifestId, reason: "exact-work-v4-source-required" };
   try {
-    const text14 = new TextDecoder("utf-8", { fatal: true }).decode(source3.bytes);
-    const projection = projectWorkLedger2(text14, context);
+    const text15 = new TextDecoder("utf-8", { fatal: true }).decode(source3.bytes);
+    const projection = projectWorkLedger2(text15, context);
     return { state: "available", manifestId, sourceSha256: source3.reference.sha256, producerCommit: WORK_V4_READER_COMMIT2, projection };
   } catch {
     return { state: "error", manifestId, reason: "invalid-work-source-or-context" };
@@ -20078,14 +20622,14 @@ function captureArchivedWorkSignals(root, manifestId, context, suppliedFacts) {
 
 // packages/adapters/src/blind-intervention.ts
 import { constants as constants19, closeSync as closeSync17, fstatSync as fstatSync16, fsyncSync as fsyncSync12, lstatSync as lstatSync17, mkdirSync as mkdirSync19, openSync as openSync17, readSync as readSync10, writeSync as writeSync9 } from "node:fs";
-import { createHash as createHash51, randomBytes as randomBytes8 } from "node:crypto";
+import { createHash as createHash52, randomBytes as randomBytes8 } from "node:crypto";
 import { join as join50 } from "node:path";
 var SHA13 = /^[a-f0-9]{64}$/;
 var missing4 = (e) => e?.code === "ENOENT";
 var encode2 = interventionCanonicalJson;
-var copy = (value) => JSON.parse(encode2(value));
-function keys6(value, names) {
-  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).sort().join() !== names.sort().join()) throw new Error("invalid blind record fields");
+var copy = (value3) => JSON.parse(encode2(value3));
+function keys6(value3, names) {
+  if (!value3 || typeof value3 !== "object" || Array.isArray(value3) || Object.keys(value3).sort().join() !== names.sort().join()) throw new Error("invalid blind record fields");
 }
 function authorValid2(author) {
   if (typeof author !== "string" || !author.length || author.length > 512 || /[\u0000-\u001f\u007f]/.test(author)) throw new Error("explicit blind author required");
@@ -20112,7 +20656,7 @@ function retainBlindIntervention2(root, manifest, evidence5, qualification, auth
   for (const [hash15, bytes3] of Map.prototype.entries.call(artifactDescriptor.value)) {
     if (typeof hash15 !== "string" || !SHA13.test(hash15) || !(bytes3 instanceof Uint8Array) || bytes3.byteLength > 8 * 1024 * 1024 || artifacts.size >= 4096 || (total += bytes3.byteLength) > 64 * 1024 * 1024) throw new Error("bounded blind artifacts required");
     const stable = Buffer.from(bytes3);
-    if (createHash51("sha256").update(stable).digest("hex") !== hash15) throw new Error("blind artifact digest mismatch");
+    if (createHash52("sha256").update(stable).digest("hex") !== hash15) throw new Error("blind artifact digest mismatch");
     artifacts.set(hash15, stable);
   }
   const assessment = assessIntervention(stableManifest, stableEvidence, { ...claims, artifacts });
@@ -20133,9 +20677,9 @@ function load3(root, id3, author) {
   if (source3.status !== "available" || source3.reference.retention !== "exact" || source3.reference.parser.id !== "blind-intervention" || source3.reference.parser.version !== "1") throw new Error("blind input unavailable");
   let bundle;
   try {
-    const text14 = new TextDecoder("utf-8", { fatal: true }).decode(source3.bytes);
-    bundle = JSON.parse(text14);
-    if (encode2(bundle) !== text14) throw new Error();
+    const text15 = new TextDecoder("utf-8", { fatal: true }).decode(source3.bytes);
+    bundle = JSON.parse(text15);
+    if (encode2(bundle) !== text15) throw new Error();
   } catch {
     throw new Error("invalid blind input JSON");
   }
@@ -20199,10 +20743,10 @@ function readChoice2(root, id3) {
     }
     if (used > 16384) throw new Error("invalid blind choice bound");
     try {
-      const text14 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3.subarray(0, used));
-      const value = JSON.parse(text14);
-      if (encode2(value) !== text14) throw new Error();
-      return value;
+      const text15 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3.subarray(0, used));
+      const value3 = JSON.parse(text15);
+      if (encode2(value3) !== text15) throw new Error();
+      return value3;
     } catch {
       throw new Error("invalid blind choice JSON; explicit recovery required");
     }
@@ -20268,7 +20812,7 @@ function openBlindIntervention2(root, id3, author) {
 
 // packages/adapters/src/learning-lifecycle.ts
 var SHA14 = /^[a-f0-9]{64}$/;
-var closed17 = (value, names) => !!value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).sort().join() === names.sort().join();
+var closed17 = (value3, names) => !!value3 && typeof value3 === "object" && !Array.isArray(value3) && Object.keys(value3).sort().join() === names.sort().join();
 function available2(root, id3, parser) {
   if (!SHA14.test(id3)) throw Error("invalid retained learning link");
   const source3 = readArchiveSource2(root, id3);
@@ -20299,42 +20843,3150 @@ function retainLearningLifecycle2(root, input) {
 function read4(root, manifestId, depth) {
   if (depth > 64) throw Error("learning lifecycle predecessor bound exceeded");
   const source3 = available2(root, manifestId, "learning-lifecycle");
-  let value;
+  let value3;
   try {
-    value = JSON.parse(source3.bytes.toString("utf8"));
+    value3 = JSON.parse(source3.bytes.toString("utf8"));
   } catch {
     throw Error("invalid retained learning lifecycle");
   }
-  if (!closed17(value, ["version", "state", "predecessorManifestId", "links"]) || value.version !== "retained-learning-lifecycle-v1" || !closed17(value.links, ["case", "hypothesis", "comparison", "choice", "adoption", "rollback", "outcomes"])) throw Error("invalid retained learning lifecycle");
-  const links = value.links;
-  const rebuilt = validate9(root, { caseManifestId: links.case, hypothesisManifestId: links.hypothesis, comparisonManifestId: links.comparison, choiceManifestId: links.choice, adoptionManifestId: links.adoption, rollbackManifestId: links.rollback, outcomeManifestIds: links.outcomes, predecessorManifestId: value.predecessorManifestId }, depth);
-  if (rebuilt.state !== value.state || JSON.stringify(rebuilt) !== source3.bytes.toString("utf8")) throw Error("retained learning lifecycle changed");
+  if (!closed17(value3, ["version", "state", "predecessorManifestId", "links"]) || value3.version !== "retained-learning-lifecycle-v1" || !closed17(value3.links, ["case", "hypothesis", "comparison", "choice", "adoption", "rollback", "outcomes"])) throw Error("invalid retained learning lifecycle");
+  const links = value3.links;
+  const rebuilt = validate9(root, { caseManifestId: links.case, hypothesisManifestId: links.hypothesis, comparisonManifestId: links.comparison, choiceManifestId: links.choice, adoptionManifestId: links.adoption, rollbackManifestId: links.rollback, outcomeManifestIds: links.outcomes, predecessorManifestId: value3.predecessorManifestId }, depth);
+  if (rebuilt.state !== value3.state || JSON.stringify(rebuilt) !== source3.bytes.toString("utf8")) throw Error("retained learning lifecycle changed");
   return Object.freeze({ ...rebuilt, links: Object.freeze({ ...rebuilt.links, outcomes: Object.freeze(rebuilt.links.outcomes) }) });
 }
 function readLearningLifecycle(root, manifestId) {
   return read4(root, manifestId, 0);
 }
 
+// packages/adapters/src/session-retention.ts
+import { createHash as createHash54 } from "node:crypto";
+import { resolve as resolve29 } from "node:path";
+
+// packages/adapters/src/trajectory.ts
+import { createHash as createHash53 } from "node:crypto";
+import { readFileSync as readFileSync30, readdirSync as readdirSync19 } from "node:fs";
+import { join as join51 } from "node:path";
+
+// packages/adapters/src/closed-schema.ts
+var ANNOTATION_KEYWORDS2 = /* @__PURE__ */ new Set(["$schema", "$id", "title", "description", "$defs"]);
+var SUPPORTED_KEYWORDS2 = /* @__PURE__ */ new Set([
+  ...ANNOTATION_KEYWORDS2,
+  // structure
+  "$ref",
+  "oneOf",
+  "type",
+  "properties",
+  "required",
+  "additionalProperties",
+  "items",
+  // value constraints
+  "enum",
+  "const",
+  "minLength",
+  "maxLength",
+  "minimum",
+  "pattern",
+  "format"
+]);
+var V3_SUPPORTED_KEYWORDS2 = /* @__PURE__ */ new Set([
+  ...SUPPORTED_KEYWORDS2,
+  "allOf",
+  "anyOf",
+  "if",
+  "then",
+  "propertyNames",
+  "minItems",
+  "maxItems"
+]);
+var KEYWORD_SHAPES2 = {
+  $ref: { check: (value3) => typeof value3 === "string", expected: "a string" },
+  oneOf: { check: (value3) => Array.isArray(value3) && value3.length > 0, expected: "a non-empty array" },
+  allOf: { check: (value3) => Array.isArray(value3) && value3.length > 0, expected: "a non-empty array" },
+  anyOf: { check: (value3) => Array.isArray(value3) && value3.length > 0, expected: "a non-empty array" },
+  if: { check: (value3) => isSchemaObject2(value3), expected: "a schema object" },
+  then: { check: (value3) => isSchemaObject2(value3), expected: "a schema object" },
+  propertyNames: { check: (value3) => isSchemaObject2(value3), expected: "a schema object" },
+  type: { check: (value3) => typeof value3 === "string" || Array.isArray(value3) && value3.length > 0 && value3.every((entry) => typeof entry === "string"), expected: "a string or array of strings" },
+  properties: { check: (value3) => isSchemaObject2(value3), expected: "an object" },
+  required: { check: (value3) => Array.isArray(value3) && value3.every((entry) => typeof entry === "string"), expected: "an array of strings" },
+  additionalProperties: { check: (value3) => typeof value3 === "boolean" || isSchemaObject2(value3), expected: "a boolean or a schema object" },
+  items: { check: (value3) => isSchemaObject2(value3), expected: "a schema object" },
+  enum: { check: (value3) => Array.isArray(value3) && value3.length > 0, expected: "a non-empty array" },
+  minLength: { check: (value3) => typeof value3 === "number", expected: "a number" },
+  maxLength: { check: (value3) => typeof value3 === "number", expected: "a number" },
+  minimum: { check: (value3) => typeof value3 === "number", expected: "a number" },
+  minItems: { check: (value3) => Number.isInteger(value3) && Number(value3) >= 0, expected: "a non-negative integer" },
+  maxItems: { check: (value3) => Number.isInteger(value3) && Number(value3) >= 0, expected: "a non-negative integer" },
+  pattern: { check: (value3) => typeof value3 === "string", expected: "a string" },
+  format: { check: (value3) => typeof value3 === "string", expected: "a string" }
+  // `const` may legitimately be any JSON value, including null.
+};
+var SUPPORTED_FORMATS2 = /* @__PURE__ */ new Set(["date-time"]);
+var SUPPORTED_TYPES2 = /* @__PURE__ */ new Set(["object", "array", "string", "number", "integer", "boolean", "null"]);
+function assertSupportedSchema2(schema2, label, path3 = "#") {
+  assertSchemaSupported2(schema2, label, path3, false);
+}
+function assertSupportedSchemaV32(schema2, label, path3 = "#") {
+  assertSchemaSupported2(schema2, label, path3, true);
+}
+function assertSchemaSupported2(schema2, label, path3, v3) {
+  if (typeof schema2 !== "object" || schema2 === null || Array.isArray(schema2)) {
+    throw new Error(`${label} is not a JSON Schema object at ${path3}`);
+  }
+  const node = schema2;
+  const supported = v3 ? V3_SUPPORTED_KEYWORDS2 : SUPPORTED_KEYWORDS2;
+  for (const keyword of Object.keys(node)) {
+    if (!supported.has(keyword)) {
+      throw new Error(`${label} uses unsupported JSON Schema keyword \`${keyword}\` at ${path3}; the closed-contract evaluator refuses to validate less than the schema declares`);
+    }
+    const shape = KEYWORD_SHAPES2[keyword];
+    if (shape && !shape.check(node[keyword])) {
+      throw new Error(`${label} declares \`${keyword}\` at ${path3} as something other than ${shape.expected}; the closed-contract evaluator refuses to skip a keyword it cannot read`);
+    }
+  }
+  if (node.format !== void 0 && !SUPPORTED_FORMATS2.has(String(node.format))) {
+    throw new Error(`${label} uses unsupported format \`${String(node.format)}\` at ${path3}`);
+  }
+  for (const type2 of typeList2(node)) {
+    if (!SUPPORTED_TYPES2.has(type2)) throw new Error(`${label} uses unsupported type \`${type2}\` at ${path3}`);
+  }
+  if (node.$ref !== void 0) {
+    if (!/^#\/\$defs\/[A-Za-z0-9_]+$/.test(String(node.$ref))) {
+      throw new Error(`${label} uses unsupported $ref \`${String(node.$ref)}\` at ${path3}; only #/$defs/<name> is resolvable`);
+    }
+    const siblings = Object.keys(node).filter((keyword) => keyword !== "$ref" && !ANNOTATION_KEYWORDS2.has(keyword));
+    if (siblings.length > 0) {
+      throw new Error(`${label} combines $ref with ${siblings.map((keyword) => `\`${keyword}\``).join(", ")} at ${path3}; the closed-contract evaluator would drop the sibling constraint, so it refuses the schema instead`);
+    }
+  }
+  for (const [name, entry] of Object.entries(object3(node.$defs) ?? {})) assertSchemaSupported2(entry, label, `${path3}/$defs/${name}`, v3);
+  for (const keyword of ["oneOf", "allOf", "anyOf"]) {
+    for (const [index, entry] of (Array.isArray(node[keyword]) ? node[keyword] : []).entries()) {
+      assertSchemaSupported2(entry, label, `${path3}/${keyword}/${index}`, v3);
+    }
+  }
+  for (const [name, entry] of Object.entries(object3(node.properties) ?? {})) assertSchemaSupported2(entry, label, `${path3}/properties/${name}`, v3);
+  for (const keyword of ["items", "propertyNames", "if", "then"]) {
+    if (node[keyword] !== void 0) assertSchemaSupported2(node[keyword], label, `${path3}/${keyword}`, v3);
+  }
+  if (node.additionalProperties !== void 0 && node.additionalProperties !== false && node.additionalProperties !== true) {
+    assertSchemaSupported2(node.additionalProperties, label, `${path3}/additionalProperties`, v3);
+  }
+}
+function validateClosedSchema2(schema2, value3, options = {}) {
+  return validate10(schema2, schema2, value3, "", options.knownFieldNames ?? /* @__PURE__ */ new Set());
+}
+function validateClosedSchemaV32(schema2, value3, options = {}) {
+  return validate10(schema2, schema2, value3, "", options.knownFieldNames ?? /* @__PURE__ */ new Set());
+}
+function declaredPropertyNames2(schema2) {
+  const names = /* @__PURE__ */ new Set();
+  const walk2 = (node) => {
+    const current = object3(node);
+    if (!current) return;
+    for (const [name, entry] of Object.entries(object3(current.properties) ?? {})) {
+      names.add(name);
+      walk2(entry);
+    }
+    for (const entry of Object.values(object3(current.$defs) ?? {})) walk2(entry);
+    for (const keyword of ["oneOf", "allOf", "anyOf"]) {
+      for (const entry of Array.isArray(current[keyword]) ? current[keyword] : []) walk2(entry);
+    }
+    for (const keyword of ["items", "propertyNames", "if", "then"]) if (current[keyword] !== void 0) walk2(current[keyword]);
+    if (current.additionalProperties && typeof current.additionalProperties === "object") walk2(current.additionalProperties);
+  };
+  walk2(schema2);
+  return names;
+}
+function validate10(root, schema2, value3, path3, known) {
+  if (schema2.$ref !== void 0) {
+    const resolved = resolveRef2(root, String(schema2.$ref));
+    return validate10(root, resolved, value3, path3, known);
+  }
+  const violations = [];
+  if (Array.isArray(schema2.allOf)) {
+    for (const branch of schema2.allOf) violations.push(...validate10(root, branch, value3, path3, known));
+  }
+  if (Array.isArray(schema2.anyOf)) {
+    const branches = schema2.anyOf.map((branch) => validate10(root, branch, value3, path3, known));
+    if (!branches.some((branch) => branch.length === 0)) violations.push(...bestBranch2(root, schema2.anyOf, branches, value3, path3));
+  }
+  if (schema2.if !== void 0 && validate10(root, schema2.if, value3, path3, known).length === 0 && schema2.then !== void 0) {
+    violations.push(...validate10(root, schema2.then, value3, path3, known));
+  }
+  const types4 = typeList2(schema2);
+  if (types4.length && !types4.some((type2) => matchesType2(type2, value3))) {
+    return [{ path: path3, message: `must be ${describeTypes2(types4)}` }];
+  }
+  if (schema2.const !== void 0 && !sameJson2(schema2.const, value3)) {
+    return [{ path: path3, message: `must be ${JSON.stringify(schema2.const)}` }];
+  }
+  if (Array.isArray(schema2.enum) && !schema2.enum.some((allowed) => sameJson2(allowed, value3))) {
+    return [{ path: path3, message: `must be one of ${schema2.enum.map((allowed) => stringifyAllowed2(allowed)).join(", ")}` }];
+  }
+  if (Array.isArray(schema2.oneOf)) {
+    const branches = schema2.oneOf.map((branch) => validate10(root, branch, value3, path3, known));
+    const matched = branches.filter((branch) => branch.length === 0).length;
+    if (matched === 0) return bestBranch2(root, schema2.oneOf, branches, value3, path3);
+    if (matched > 1) return [{ path: path3, message: `matches ${matched} of the ${branches.length} allowed shapes and is therefore ambiguous` }];
+  }
+  if (typeof value3 === "string") violations.push(...validateString2(schema2, value3, path3));
+  if (typeof value3 === "number") violations.push(...validateNumber2(schema2, value3, path3));
+  if (Array.isArray(value3)) {
+    if (typeof schema2.minItems === "number" && value3.length < schema2.minItems) {
+      violations.push({ path: path3, message: `must contain at least ${schema2.minItems} item(s)` });
+    }
+    if (typeof schema2.maxItems === "number" && value3.length > schema2.maxItems) {
+      violations.push({ path: path3, message: `must contain at most ${schema2.maxItems} item(s)` });
+    }
+    if (schema2.items !== void 0) {
+      value3.forEach((entry, index) => violations.push(...validate10(root, schema2.items, entry, `${path3}[${index}]`, known)));
+    }
+  }
+  const record = object3(value3);
+  if (record) violations.push(...validateObject2(root, schema2, record, path3, known));
+  return violations;
+}
+function validateObject2(root, schema2, record, path3, known) {
+  const violations = [];
+  const properties = object3(schema2.properties) ?? {};
+  if (schema2.propertyNames !== void 0) {
+    for (const name of Object.keys(record)) violations.push(...validate10(root, schema2.propertyNames, name, path3, known));
+  }
+  for (const name of Array.isArray(schema2.required) ? schema2.required : []) {
+    if (!Object.hasOwn(record, name)) violations.push({ path: child2(path3, name), message: "is required" });
+  }
+  for (const [name, entry] of Object.entries(record)) {
+    if (entry === void 0) continue;
+    const propertySchema = Object.hasOwn(properties, name) ? object3(properties[name]) : void 0;
+    if (propertySchema) {
+      violations.push(...validate10(root, propertySchema, entry, child2(path3, name), known));
+      continue;
+    }
+    if (schema2.additionalProperties === false) {
+      violations.push({
+        path: path3 || "(top level)",
+        message: `carries undeclared field ${known.has(name) ? name : "[REDACTED field name]"}, which the closed contract does not allow`
+      });
+      continue;
+    }
+    const extra = typeof schema2.additionalProperties === "object" && schema2.additionalProperties !== null ? schema2.additionalProperties : void 0;
+    if (extra) violations.push(...validate10(root, extra, entry, child2(path3, name), known));
+  }
+  return violations;
+}
+function validateString2(schema2, value3, path3) {
+  const violations = [];
+  if (typeof schema2.minLength === "number" && value3.length < schema2.minLength) {
+    violations.push({ path: path3, message: schema2.minLength === 1 ? "must not be empty" : `must be at least ${schema2.minLength} characters` });
+  }
+  if (typeof schema2.maxLength === "number" && value3.length > schema2.maxLength) {
+    violations.push({ path: path3, message: `must be at most ${schema2.maxLength} characters` });
+  }
+  if (typeof schema2.pattern === "string" && !new RegExp(schema2.pattern).test(value3)) {
+    violations.push({ path: path3, message: `must match ${schema2.pattern}` });
+  }
+  if (schema2.format === "date-time" && !isRfc33392(value3)) {
+    violations.push({ path: path3, message: "must be an RFC 3339 date-time" });
+  }
+  return violations;
+}
+function validateNumber2(schema2, value3, path3) {
+  if (typeof schema2.minimum === "number" && value3 < schema2.minimum) {
+    return [{ path: path3, message: `must be >= ${schema2.minimum}` }];
+  }
+  return [];
+}
+function bestBranch2(root, schemas, branches, value3, path3) {
+  const discriminated = schemas.map((schema2, index) => ({ schema: schema2, violations: branches[index] })).filter(({ schema: schema2 }) => matchesDiscriminator2(root, schema2, value3));
+  const candidates = discriminated.length === 1 ? [discriminated[0].violations] : branches;
+  let best = candidates[0] ?? [];
+  for (const branch of candidates) if (branch.length < best.length) best = branch;
+  return best.length ? best : [{ path: path3, message: "does not match any allowed shape" }];
+}
+function matchesDiscriminator2(root, schema2, value3) {
+  const resolved = schema2.$ref !== void 0 ? resolveRef2(root, String(schema2.$ref)) : schema2;
+  const record = object3(value3);
+  const properties = object3(resolved.properties);
+  if (!record || !properties) return false;
+  const required = new Set(Array.isArray(resolved.required) ? resolved.required : []);
+  const consts = Object.entries(properties).filter(([name]) => required.has(name)).map(([name, entry]) => [name, object3(entry)?.const]).filter(([, constant]) => constant !== void 0);
+  return consts.length > 0 && consts.every(([name, constant]) => sameJson2(constant, record[name]));
+}
+function resolveRef2(root, ref) {
+  const name = ref.replace("#/$defs/", "");
+  const resolved = object3((object3(root.$defs) ?? {})[name]);
+  if (!resolved) throw new Error(`unresolvable $ref ${ref} in pinned schema`);
+  return resolved;
+}
+function typeList2(schema2) {
+  if (typeof schema2.type === "string") return [schema2.type];
+  if (Array.isArray(schema2.type)) return schema2.type.map(String);
+  return [];
+}
+function matchesType2(type2, value3) {
+  switch (type2) {
+    case "object":
+      return object3(value3) !== void 0;
+    case "array":
+      return Array.isArray(value3);
+    case "string":
+      return typeof value3 === "string";
+    case "boolean":
+      return typeof value3 === "boolean";
+    case "null":
+      return value3 === null;
+    case "integer":
+      return typeof value3 === "number" && Number.isInteger(value3);
+    case "number":
+      return typeof value3 === "number" && Number.isFinite(value3);
+    default:
+      return false;
+  }
+}
+function describeTypes2(types4) {
+  const article = (type2) => ["object", "array", "integer"].includes(type2) ? `an ${type2}` : `a ${type2}`;
+  if (types4.length === 1) return types4[0] === "null" ? "null" : article(types4[0]);
+  return types4.map((type2) => type2 === "null" ? "null" : article(type2)).join(" or ");
+}
+function stringifyAllowed2(value3) {
+  return typeof value3 === "string" ? value3 : JSON.stringify(value3);
+}
+function child2(path3, name) {
+  const safe = /^[A-Za-z0-9_.:-]{1,64}$/.test(name) && redactText(name) === name ? name : "[REDACTED key]";
+  if (safe === "[REDACTED key]") return path3 ? `${path3}[REDACTED key]` : "[REDACTED key]";
+  if (!path3) return /^[A-Za-z_][A-Za-z0-9_]*$/.test(safe) ? safe : `[${JSON.stringify(safe)}]`;
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(safe) ? `${path3}.${safe}` : `${path3}[${JSON.stringify(safe)}]`;
+}
+function sameJson2(left, right) {
+  return left === right || JSON.stringify(left) === JSON.stringify(right);
+}
+function isRfc33392(value3) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|([+-])(\d{2}):(\d{2}))$/.exec(value3);
+  if (!match) return false;
+  const [year, month, day, hour, minute, second] = match.slice(1, 7).map(Number);
+  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 60) return false;
+  if (match[8] !== void 0 && (Number(match[8]) > 23 || Number(match[9]) > 59)) return false;
+  return day >= 1 && day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+function object3(value3) {
+  return value3 && typeof value3 === "object" && !Array.isArray(value3) ? value3 : void 0;
+}
+function isSchemaObject2(value3) {
+  return object3(value3) !== void 0;
+}
+
+// packages/adapters/src/pi-daddy-ledger-v2.ts
+var PI_DADDY_CONTRACT_COMMIT2 = "c364a6717e3d5e369ecd3298b9cbb595eb94d9b2";
+var PI_DADDY_LEDGER_V2_SCHEMA2 = {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mojomanyana/pi-daddy/contracts/ledger/v2/ledger-event.schema.json",
+  "title": "pi-daddy ledgerVersion 2 event",
+  "description": "One JSON object per JSONL line. This schema covers only explicit ledgerVersion 2 events; legacy GrantRecord lines have no version/event discriminator and are intentionally outside this schema.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/capabilityDecision"
+    },
+    {
+      "$ref": "#/$defs/workspaceLease"
+    },
+    {
+      "$ref": "#/$defs/childLifecycle"
+    },
+    {
+      "$ref": "#/$defs/checkReceipt"
+    }
+  ],
+  "$defs": {
+    "correlation": {
+      "type": "object",
+      "description": "Opaque, non-authoritative controller metadata. String and aggregate byte limits are additionally enforced by the runtime and cannot be represented exactly in JSON Schema.",
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "run_id": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "task_id": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "workspace_id": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "context_id": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "phase": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "assurance": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "assurance_effective": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "policy_label": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "assurance_source": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "assurance_scope": {},
+        "activated_at": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "plan_digest": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "definition_digest": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "task_digest": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "base_sha": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "head_sha": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "tree_sha": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "event_seq": {
+          "type": "number"
+        },
+        "last_change_seq": {
+          "type": "number"
+        },
+        "last_authority_seq": {
+          "type": "number"
+        },
+        "check_receipt_id": {
+          "type": "string",
+          "maxLength": 512
+        }
+      },
+      "additionalProperties": false
+    },
+    "refusalCode": {
+      "type": "string",
+      "enum": [
+        "CAPABILITY_ESCALATION",
+        "GRANT_ID_MALFORMED",
+        "DEFINITION_NOT_AUTHORIZED",
+        "UNDECLARED_TOOLS",
+        "UNKNOWN_TOOL",
+        "GATED_UNAPPROVED",
+        "APPROVAL_EXPIRED",
+        "APPROVAL_SCOPE_MISMATCH",
+        "APPROVAL_FLOW_FAILED",
+        "DEPTH_EXCEEDED",
+        "FANOUT_EXCEEDED",
+        "EXECUTOR_UNAVAILABLE",
+        "CHILD_TIMED_OUT",
+        "CHILD_CANCELLED",
+        "CHILD_EXIT_NONZERO",
+        "TASK_MISSING",
+        "UNKNOWN_DEFINITION",
+        "CEILING_PATTERNS_UNRESOLVED",
+        "NARROWING_VIOLATED",
+        "DEFINITION_UNREADABLE",
+        "CORRELATION_TOO_LARGE",
+        "CORRELATION_INVALID",
+        "LEDGER_WRITE_FAILED",
+        "FANOUT_FAILED",
+        "WORKSPACE_NOT_REGISTERED",
+        "WORKSPACE_NOT_AUTHORIZED",
+        "WORKSPACE_WRITE_CONFLICT",
+        "WORKSPACE_LEASE_STALE",
+        "CHECK_NOT_CONFIGURED",
+        "CHECK_CONFIGURATION_INVALID",
+        "CHECK_IDENTITY_UNAVAILABLE",
+        "CHECK_IDENTITY_MISMATCH"
+      ]
+    },
+    "refusal": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/refusalCode"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "approvalSource": {
+      "type": "string",
+      "enum": [
+        "prompt",
+        "session",
+        "persisted",
+        "inherited"
+      ]
+    },
+    "approvalScope": {
+      "type": "string",
+      "enum": [
+        "once",
+        "session",
+        "always"
+      ]
+    },
+    "approvalUse": {
+      "type": "object",
+      "properties": {
+        "max": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "remaining": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "max",
+        "remaining"
+      ],
+      "additionalProperties": false
+    },
+    "definitionDigest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        }
+      },
+      "required": [
+        "name",
+        "source",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "capabilityDecision": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 2
+        },
+        "event": {
+          "const": "capability_decision"
+        },
+        "ts": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "parentId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "childId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "agentType": {
+          "type": "string"
+        },
+        "requested": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "parentGrant": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "effective": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "denied": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "clipped": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "gatedBlocked": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blocked": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "approved": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "approvalSource": {
+          "$ref": "#/$defs/approvalSource"
+        },
+        "approvalSources": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/approvalSource"
+          }
+        },
+        "approvalScopes": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/approvalScope"
+          }
+        },
+        "approvalExpiresAt": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "approvalUses": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/approvalUse"
+          }
+        },
+        "approvalScope": {
+          "$ref": "#/$defs/approvalScope"
+        },
+        "humanDenied": {
+          "const": true
+        },
+        "gateOutcome": {
+          "type": "string",
+          "enum": [
+            "declined",
+            "dismissed",
+            "no-ui",
+            "error"
+          ]
+        },
+        "definitionDigest": {
+          "$ref": "#/$defs/definitionDigest"
+        },
+        "executor": {
+          "type": "string",
+          "enum": [
+            "process",
+            "herdr"
+          ]
+        },
+        "taskFrom": {
+          "type": "string"
+        },
+        "taskDigest": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "correlation": {
+          "$ref": "#/$defs/correlation"
+        },
+        "refusal": {
+          "$ref": "#/$defs/refusal"
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "parentId",
+        "childId",
+        "depth",
+        "requested",
+        "parentGrant",
+        "effective",
+        "denied",
+        "clipped",
+        "gatedBlocked",
+        "blocked",
+        "executor",
+        "taskDigest"
+      ],
+      "additionalProperties": false
+    },
+    "workspaceLease": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 2
+        },
+        "event": {
+          "const": "workspace_lease"
+        },
+        "ts": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "childId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workspaceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "access": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write"
+          ]
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "acquired",
+            "uncontended",
+            "refused",
+            "released",
+            "released-unrecorded",
+            "lost",
+            "retained",
+            "timeout",
+            "recovered"
+          ]
+        },
+        "recovered": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "unknown"
+            }
+          ]
+        },
+        "releaseReason": {
+          "type": "string"
+        },
+        "refusal": {
+          "$ref": "#/$defs/refusal"
+        },
+        "correlation": {
+          "$ref": "#/$defs/correlation"
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "childId",
+        "workspaceId",
+        "root",
+        "access",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "childLifecycle": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 2
+        },
+        "event": {
+          "const": "child_lifecycle"
+        },
+        "ts": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "childId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "starting",
+            "completed",
+            "failed"
+          ]
+        },
+        "executor": {
+          "type": "string",
+          "enum": [
+            "process",
+            "herdr"
+          ]
+        },
+        "exitCode": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "signal": {
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "SIGABRT",
+                "SIGALRM",
+                "SIGBUS",
+                "SIGCHLD",
+                "SIGCONT",
+                "SIGFPE",
+                "SIGHUP",
+                "SIGILL",
+                "SIGINT",
+                "SIGIO",
+                "SIGIOT",
+                "SIGKILL",
+                "SIGPIPE",
+                "SIGPOLL",
+                "SIGPROF",
+                "SIGPWR",
+                "SIGQUIT",
+                "SIGSEGV",
+                "SIGSTKFLT",
+                "SIGSTOP",
+                "SIGSYS",
+                "SIGTERM",
+                "SIGTRAP",
+                "SIGTSTP",
+                "SIGTTIN",
+                "SIGTTOU",
+                "SIGUNUSED",
+                "SIGURG",
+                "SIGUSR1",
+                "SIGUSR2",
+                "SIGVTALRM",
+                "SIGWINCH",
+                "SIGXCPU",
+                "SIGXFSZ",
+                "SIGBREAK",
+                "SIGLOST",
+                "SIGINFO"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timedOut": {
+          "const": true
+        },
+        "aborted": {
+          "const": true
+        },
+        "truncated": {
+          "const": true
+        },
+        "reason": {
+          "type": "string"
+        },
+        "correlation": {
+          "$ref": "#/$defs/correlation"
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "childId",
+        "state",
+        "executor"
+      ],
+      "additionalProperties": false
+    },
+    "checkReceipt": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 2
+        },
+        "event": {
+          "const": "check_receipt"
+        },
+        "ts": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "childId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "receiptId": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "workspaceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "checkId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "treeSha": {
+          "type": "string",
+          "minLength": 1
+        },
+        "correlation": {
+          "$ref": "#/$defs/correlation"
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "childId",
+        "receiptId",
+        "workspaceId",
+        "checkId",
+        "treeSha"
+      ],
+      "additionalProperties": false
+    }
+  }
+};
+
+// packages/adapters/src/pi-daddy-ledger-v3.ts
+var PI_DADDY_LEDGER_V3_CONTRACT_COMMIT2 = "4a9524394ca995fd74ed9bbb836dc4e73cda3b8c";
+var PI_DADDY_LEDGER_V3_SCHEMA2 = {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mojomanyana/pi-daddy/contracts/ledger/v3/ledger-event.schema.json",
+  "title": "pi-daddy ledgerVersion 3 event",
+  "description": "One JSON object per JSONL line. Version 3 adds unique execution identity and explicit parent execution identity; legacy and v2 lines are intentionally outside this schema.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/capabilityDecision"
+    },
+    {
+      "$ref": "#/$defs/workspaceLease"
+    },
+    {
+      "$ref": "#/$defs/childLifecycle"
+    },
+    {
+      "$ref": "#/$defs/checkReceipt"
+    },
+    {
+      "$ref": "#/$defs/workflowFact"
+    }
+  ],
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": ":[0-5][0-9](?:\\.[0-9]+)?(?:[Zz]|[+-][0-9]{2}:[0-9]{2})$"
+    },
+    "correlation": {
+      "type": "object",
+      "description": "Non-authoritative controller metadata under the pinned 1.0 contract. String and aggregate byte limits are additionally enforced by the runtime and cannot be represented exactly in JSON Schema.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "run_id": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "task_id": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "workspace_id": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "context_id": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "phase": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "assurance": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "assurance_effective": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "policy_label": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "assurance_source": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "assurance_scope": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "const": "entire-run"
+                },
+                "selectors": {
+                  "type": "array",
+                  "maxItems": 0
+                }
+              },
+              "required": [
+                "type",
+                "selectors"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "const": "selectors"
+                },
+                "selectors": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "required": [
+                "type",
+                "selectors"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "activated_at": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "plan_digest": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "definition_digest": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "task_digest": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "base_sha": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "head_sha": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "tree_sha": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "event_seq": {
+          "type": "number"
+        },
+        "last_change_seq": {
+          "type": "number"
+        },
+        "last_authority_seq": {
+          "type": "number"
+        },
+        "check_receipt_id": {
+          "type": "string",
+          "maxLength": 512
+        }
+      },
+      "additionalProperties": false
+    },
+    "ledgerDisplayIdentifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9@*][A-Za-z0-9@*._:/-]{0,511}$"
+    },
+    "ledgerCorrelationIdentifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9@*][A-Za-z0-9@*._:/-]{0,127}$"
+    },
+    "ledgerCapabilityIdentifier": {
+      "type": "string",
+      "pattern": "^(tool|skill|agent|workspace|ext):[A-Za-z0-9@*][A-Za-z0-9@*._/-]{0,255}$"
+    },
+    "refusalCode": {
+      "type": "string",
+      "enum": [
+        "CAPABILITY_ESCALATION",
+        "GRANT_ID_MALFORMED",
+        "DEFINITION_NOT_AUTHORIZED",
+        "UNDECLARED_TOOLS",
+        "UNKNOWN_TOOL",
+        "GATED_UNAPPROVED",
+        "APPROVAL_EXPIRED",
+        "APPROVAL_SCOPE_MISMATCH",
+        "APPROVAL_FLOW_FAILED",
+        "DEPTH_EXCEEDED",
+        "FANOUT_EXCEEDED",
+        "EXECUTOR_UNAVAILABLE",
+        "MODEL_UNRESOLVED",
+        "GRANT_STORE_INVALID",
+        "CHILD_TIMED_OUT",
+        "CHILD_CANCELLED",
+        "CHILD_EXIT_NONZERO",
+        "TASK_MISSING",
+        "UNKNOWN_DEFINITION",
+        "CEILING_PATTERNS_UNRESOLVED",
+        "NARROWING_VIOLATED",
+        "DEFINITION_UNREADABLE",
+        "CORRELATION_TOO_LARGE",
+        "CORRELATION_INVALID",
+        "LEDGER_WRITE_FAILED",
+        "FANOUT_FAILED",
+        "WORKSPACE_NOT_REGISTERED",
+        "WORKSPACE_NOT_AUTHORIZED",
+        "WORKSPACE_WRITE_CONFLICT",
+        "WORKSPACE_LEASE_STALE",
+        "CHECK_NOT_CONFIGURED",
+        "CHECK_CONFIGURATION_INVALID",
+        "CHECK_IDENTITY_UNAVAILABLE",
+        "CHECK_IDENTITY_MISMATCH"
+      ]
+    },
+    "refusal": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/refusalCode"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "approvalSource": {
+      "type": "string",
+      "enum": [
+        "prompt",
+        "session",
+        "persisted",
+        "inherited"
+      ]
+    },
+    "approvalScope": {
+      "type": "string",
+      "enum": [
+        "once",
+        "session",
+        "always"
+      ]
+    },
+    "approvalUse": {
+      "type": "object",
+      "properties": {
+        "max": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "remaining": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "max",
+        "remaining"
+      ],
+      "additionalProperties": false
+    },
+    "definitionDigest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        }
+      },
+      "required": [
+        "name",
+        "source",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "capabilityDecision": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 3
+        },
+        "event": {
+          "const": "capability_decision"
+        },
+        "ts": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "parentId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "childId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "agentType": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "requested": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "parentGrant": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "effective": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "denied": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "clipped": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "gatedBlocked": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "blocked": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "approved": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "approvalSource": {
+          "$ref": "#/$defs/approvalSource"
+        },
+        "approvalSources": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/approvalSource"
+          }
+        },
+        "approvalScopes": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/approvalScope"
+          }
+        },
+        "approvalExpiresAt": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/timestamp"
+          }
+        },
+        "approvalUses": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/approvalUse"
+          }
+        },
+        "approvalScope": {
+          "$ref": "#/$defs/approvalScope"
+        },
+        "humanDenied": {
+          "const": true
+        },
+        "gateOutcome": {
+          "type": "string",
+          "enum": [
+            "declined",
+            "dismissed",
+            "no-ui",
+            "error"
+          ]
+        },
+        "definitionDigest": {
+          "$ref": "#/$defs/definitionDigest"
+        },
+        "executor": {
+          "type": "string",
+          "enum": [
+            "process",
+            "herdr"
+          ]
+        },
+        "taskFrom": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "taskDigest": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "correlation": {
+          "$ref": "#/$defs/correlation"
+        },
+        "refusal": {
+          "$ref": "#/$defs/refusal"
+        },
+        "executionId": {
+          "$ref": "#/$defs/executionId"
+        },
+        "parentExecutionId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/executionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "taskFromExecutionId": {
+          "$ref": "#/$defs/executionId"
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "executionId",
+        "parentExecutionId",
+        "parentId",
+        "childId",
+        "depth",
+        "requested",
+        "parentGrant",
+        "effective",
+        "denied",
+        "clipped",
+        "gatedBlocked",
+        "blocked",
+        "executor",
+        "taskDigest"
+      ],
+      "additionalProperties": false
+    },
+    "workspaceLease": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 3
+        },
+        "event": {
+          "const": "workspace_lease"
+        },
+        "ts": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "childId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "access": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write"
+          ]
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "acquired",
+            "uncontended",
+            "refused",
+            "released",
+            "released-unrecorded",
+            "lost",
+            "retained",
+            "timeout",
+            "recovered"
+          ]
+        },
+        "recovered": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "unknown"
+            }
+          ]
+        },
+        "releaseReason": {
+          "type": "string"
+        },
+        "refusal": {
+          "$ref": "#/$defs/refusal"
+        },
+        "correlation": {
+          "$ref": "#/$defs/correlation"
+        },
+        "executionId": {
+          "$ref": "#/$defs/executionId"
+        },
+        "parentExecutionId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/executionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "executionId",
+        "parentExecutionId",
+        "childId",
+        "workspaceId",
+        "root",
+        "access",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "childLifecycle": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 3
+        },
+        "event": {
+          "const": "child_lifecycle"
+        },
+        "ts": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "childId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "starting",
+            "running",
+            "completed",
+            "failed"
+          ]
+        },
+        "executor": {
+          "type": "string",
+          "enum": [
+            "process",
+            "herdr"
+          ]
+        },
+        "exitCode": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "signal": {
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "SIGABRT",
+                "SIGALRM",
+                "SIGBUS",
+                "SIGCHLD",
+                "SIGCONT",
+                "SIGFPE",
+                "SIGHUP",
+                "SIGILL",
+                "SIGINT",
+                "SIGIO",
+                "SIGIOT",
+                "SIGKILL",
+                "SIGPIPE",
+                "SIGPOLL",
+                "SIGPROF",
+                "SIGPWR",
+                "SIGQUIT",
+                "SIGSEGV",
+                "SIGSTKFLT",
+                "SIGSTOP",
+                "SIGSYS",
+                "SIGTERM",
+                "SIGTRAP",
+                "SIGTSTP",
+                "SIGTTIN",
+                "SIGTTOU",
+                "SIGUNUSED",
+                "SIGURG",
+                "SIGUSR1",
+                "SIGUSR2",
+                "SIGVTALRM",
+                "SIGWINCH",
+                "SIGXCPU",
+                "SIGXFSZ",
+                "SIGBREAK",
+                "SIGLOST",
+                "SIGINFO"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timedOut": {
+          "const": true
+        },
+        "aborted": {
+          "const": true
+        },
+        "truncated": {
+          "const": true
+        },
+        "reason": {
+          "type": "string"
+        },
+        "correlation": {
+          "$ref": "#/$defs/correlation"
+        },
+        "executionId": {
+          "$ref": "#/$defs/executionId"
+        },
+        "parentExecutionId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/executionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deadlineAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "herdrPaneId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "herdrAgentName": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "executionId",
+        "parentExecutionId",
+        "childId",
+        "state",
+        "executor"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "starting",
+                  "running"
+                ]
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "required": [
+              "deadlineAt"
+            ]
+          }
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "required": [
+                  "herdrPaneId"
+                ]
+              },
+              {
+                "required": [
+                  "herdrAgentName"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "required": [
+              "herdrPaneId",
+              "herdrAgentName"
+            ],
+            "properties": {
+              "executor": {
+                "const": "herdr"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "checkReceipt": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 3
+        },
+        "event": {
+          "const": "check_receipt"
+        },
+        "ts": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "childId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "receiptId": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "checkId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "treeSha": {
+          "type": "string",
+          "minLength": 1
+        },
+        "correlation": {
+          "$ref": "#/$defs/correlation"
+        },
+        "executionId": {
+          "$ref": "#/$defs/executionId"
+        },
+        "parentExecutionId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/executionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "executionId",
+        "parentExecutionId",
+        "childId",
+        "receiptId",
+        "workspaceId",
+        "checkId",
+        "treeSha"
+      ],
+      "additionalProperties": false
+    },
+    "executionId": {
+      "type": "string",
+      "pattern": "^exec:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "workflowFact": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 3
+        },
+        "event": {
+          "const": "workflow_fact"
+        },
+        "ts": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "factId": {
+          "type": "string",
+          "pattern": "^fact:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        },
+        "source": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
+        },
+        "provenance": {
+          "enum": [
+            "planned",
+            "observed",
+            "controller_validated"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "workflow_phase",
+            "inline_skill",
+            "transition"
+          ]
+        },
+        "subject": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "observed",
+            "started",
+            "completed",
+            "blocked"
+          ]
+        },
+        "correlation": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/correlation"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "run_id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "run_id"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "factId",
+        "source",
+        "provenance",
+        "kind",
+        "subject",
+        "state",
+        "correlation"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "provenance": {
+                "const": "planned"
+              }
+            },
+            "required": [
+              "provenance"
+            ]
+          },
+          "then": {
+            "properties": {
+              "state": {
+                "const": "pending"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provenance": {
+                "const": "observed"
+              }
+            },
+            "required": [
+              "provenance"
+            ]
+          },
+          "then": {
+            "properties": {
+              "state": {
+                "const": "observed"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provenance": {
+                "const": "controller_validated"
+              }
+            },
+            "required": [
+              "provenance"
+            ]
+          },
+          "then": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "started",
+                  "completed",
+                  "blocked"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+};
+
+// packages/adapters/src/trajectory.ts
+function normalizePiDaddyLedgerV32(text15) {
+  const records2 = parseJsonl2(text15, "pi-daddy");
+  const wrong = records2.findIndex((record) => record.ledgerVersion !== 3);
+  if (wrong >= 0) throw new Error(`pi-daddy-ledger-v3 requires explicit ledgerVersion 3 at line ${wrong + 1}`);
+  return normalizePiDaddyLedger2(text15);
+}
+function normalizePiDaddyLedger2(text15) {
+  const records2 = parseJsonl2(text15, "pi-daddy");
+  validatePiDaddyTimestampOrder2(records2);
+  const out = [];
+  let seq2 = 1;
+  records2.forEach((record, index) => {
+    if (record.ledgerVersion !== void 0) {
+      if (record.ledgerVersion === 2) {
+        requireV2Discriminator2(record, index + 1);
+        assertPinnedV2Contract2(record, index + 1);
+        for (const event of normalizePiDaddyV22(record, index)) out.push({ ...event, seq: seq2++ });
+        return;
+      }
+      if (record.ledgerVersion === 3) {
+        requireV3Discriminator2(record, index + 1);
+        assertPinnedV3Contract2(record, index + 1);
+        for (const event of normalizePiDaddyV32(record, index)) out.push({ ...event, seq: seq2++ });
+        return;
+      }
+      throw new Error(`unsupported pi-daddy ledgerVersion ${safeDiagnosticValue2(record.ledgerVersion)} at line ${index + 1}; expected 2, 3, or an unversioned 0.17 GrantRecord`);
+    }
+    if (record.schema_version !== void 0) {
+      throw new Error(`pi-daddy schema_version/record_type at line ${index + 1} is not a public pi-daddy ledger format; expected ledgerVersion 2, ledgerVersion 3, or an unversioned 0.17 GrantRecord`);
+    }
+    if (record.event !== void 0) {
+      throw new Error(`pi-daddy event [REDACTED invalid value] at line ${index + 1} is missing explicit ledgerVersion 2 or 3`);
+    }
+    for (const event of normalizeLegacyGrant2(record, index)) out.push({ ...event, seq: seq2++ });
+  });
+  return out;
+}
+var V2_EVENTS2 = /* @__PURE__ */ new Set(["capability_decision", "workspace_lease", "child_lifecycle", "check_receipt"]);
+function requireV2Discriminator2(record, line) {
+  const nativeEvent = string4(record.event);
+  if (!nativeEvent || !V2_EVENTS2.has(nativeEvent)) {
+    throw new Error(`invalid pi-daddy v2 event at line ${line}: event must be capability_decision, workspace_lease, child_lifecycle, or check_receipt`);
+  }
+  return nativeEvent;
+}
+var pinnedContractChecked2 = false;
+var pinnedContractFieldNames2;
+function assertPinnedV2Contract2(record, line) {
+  if (!pinnedContractChecked2) {
+    assertSupportedSchema2(PI_DADDY_LEDGER_V2_SCHEMA2, "pinned pi-daddy ledger v2 schema");
+    pinnedContractFieldNames2 = declaredPropertyNames2(PI_DADDY_LEDGER_V2_SCHEMA2);
+    pinnedContractChecked2 = true;
+  }
+  const violations = validateClosedSchema2(PI_DADDY_LEDGER_V2_SCHEMA2, record, { knownFieldNames: pinnedContractFieldNames2 });
+  if (violations.length === 0) return;
+  const nativeEvent = string4(record.event);
+  const label = nativeEvent && V2_EVENTS2.has(nativeEvent) ? nativeEvent : "record";
+  const [first] = violations;
+  const extra = violations.length > 1 ? ` (+${violations.length - 1} more contract violation${violations.length > 2 ? "s" : ""})` : "";
+  throw new Error(
+    `invalid pi-daddy v2 ${label} at line ${line}: closed contract violation \u2014 ${first.path ? `${first.path} ` : ""}${first.message}${extra} [pi-daddy ${PI_DADDY_CONTRACT_COMMIT2.slice(0, 12)}]`
+  );
+}
+var V3_EVENTS2 = /* @__PURE__ */ new Set(["capability_decision", "workspace_lease", "child_lifecycle", "check_receipt", "workflow_fact"]);
+function requireV3Discriminator2(record, line) {
+  const nativeEvent = string4(record.event);
+  if (!nativeEvent || !V3_EVENTS2.has(nativeEvent)) {
+    throw new Error(`invalid pi-daddy v3 event at line ${line}: event discriminator is required and must be capability_decision, workspace_lease, child_lifecycle, check_receipt, or workflow_fact`);
+  }
+  return nativeEvent;
+}
+var pinnedV3ContractChecked2 = false;
+var pinnedV3ContractFieldNames2;
+function assertPinnedV3Contract2(record, line) {
+  if (!pinnedV3ContractChecked2) {
+    assertSupportedSchemaV32(PI_DADDY_LEDGER_V3_SCHEMA2, "pinned pi-daddy ledger v3 schema");
+    pinnedV3ContractFieldNames2 = declaredPropertyNames2(PI_DADDY_LEDGER_V3_SCHEMA2);
+    pinnedV3ContractChecked2 = true;
+  }
+  const violations = validateClosedSchemaV32(PI_DADDY_LEDGER_V3_SCHEMA2, record, { knownFieldNames: pinnedV3ContractFieldNames2 });
+  if (violations.length === 0) return;
+  const nativeEvent = string4(record.event);
+  const label = nativeEvent && V3_EVENTS2.has(nativeEvent) ? nativeEvent : "record";
+  const [first] = violations;
+  const extra = violations.length > 1 ? ` (+${violations.length - 1} more contract violation${violations.length > 2 ? "s" : ""})` : "";
+  throw new Error(
+    `invalid pi-daddy v3 ${label} at line ${line}: closed contract violation \u2014 ${first.path ? `${first.path} ` : ""}${first.message}${extra} [pi-daddy ${PI_DADDY_LEDGER_V3_CONTRACT_COMMIT2.slice(0, 12)}]`
+  );
+}
+var V2_LEASE_OUTCOMES2 = /* @__PURE__ */ new Set([
+  "acquired",
+  "uncontended",
+  "refused",
+  "released",
+  "released-unrecorded",
+  "lost",
+  "retained",
+  "timeout",
+  "recovered"
+]);
+var V2_LEASE_ACCESS2 = /* @__PURE__ */ new Set(["read", "write"]);
+var V2_RECEIPT_PRIOR_LEASE_OUTCOMES2 = /* @__PURE__ */ new Set(["acquired", "recovered"]);
+var V2_REFUSAL_FIELDS2 = /* @__PURE__ */ new Set(["code", "message", "details"]);
+var V2_REFUSAL_DETAIL_TYPES2 = /* @__PURE__ */ new Set(["string", "number", "boolean", "null"]);
+var V2_LIFECYCLE_STATES2 = /* @__PURE__ */ new Set(["starting", "completed", "failed"]);
+var V2_EXECUTORS2 = /* @__PURE__ */ new Set(["process", "herdr"]);
+var V2_RECEIPT_RELEASE_OUTCOMES2 = /* @__PURE__ */ new Set(["released", "released-unrecorded", "lost", "timeout"]);
+var V2_CORRELATION_FIELDS2 = /* @__PURE__ */ new Set([
+  "schema_version",
+  "run_id",
+  "task_id",
+  "workspace_id",
+  "context_id",
+  "phase",
+  "assurance",
+  "assurance_effective",
+  "policy_label",
+  "assurance_source",
+  "assurance_scope",
+  "activated_at",
+  "plan_digest",
+  "definition_digest",
+  "task_digest",
+  "base_sha",
+  "head_sha",
+  "tree_sha",
+  "event_seq",
+  "last_change_seq",
+  "last_authority_seq",
+  "check_receipt_id"
+]);
+var V2_CORRELATION_NUMERIC_FIELDS2 = /* @__PURE__ */ new Set(["event_seq", "last_change_seq", "last_authority_seq"]);
+var V2_APPROVAL_SOURCES2 = /* @__PURE__ */ new Set(["prompt", "session", "persisted", "inherited"]);
+var V2_APPROVAL_SCOPES2 = /* @__PURE__ */ new Set(["once", "session", "always"]);
+var V2_REFUSAL_CODES2 = new Set(PI_DADDY_LEDGER_V2_SCHEMA2.$defs.refusalCode.enum);
+var V3_REFUSAL_CODES2 = new Set(PI_DADDY_LEDGER_V3_SCHEMA2.$defs.refusalCode.enum);
+var V2_CORRELATION_MAX_BYTES2 = 32 * 1024;
+var V2_CORRELATION_MAX_FIELD_CHARS2 = 512;
+var V2_CORRELATION_MAX_SCOPE_BYTES2 = 4 * 1024;
+function piDaddyStreamKey2(record, index) {
+  if (record.ledgerVersion === void 0) return JSON.stringify(["legacy", string4(record.childId) ?? `missing-child:${index}`]);
+  if (record.ledgerVersion === 3) {
+    return record.event === "workflow_fact" ? JSON.stringify(["v3-fact", string4(record.factId) ?? `missing-fact:${index}`]) : JSON.stringify(["v3-execution", string4(record.executionId) ?? `missing-execution:${index}`]);
+  }
+  const correlation = object4(record.correlation);
+  return JSON.stringify([
+    string4(correlation?.run_id) ?? `missing-run:${index}`,
+    string4(correlation?.task_id) ?? `missing-task:${index}`,
+    string4(record.workspaceId) ?? string4(correlation?.workspace_id) ?? "",
+    string4(record.childId) ?? `missing-child:${index}`
+  ]);
+}
+function sameRawCorrelationIdentity2(left, right) {
+  const leftCorrelation = object4(left.correlation);
+  const rightCorrelation = object4(right.correlation);
+  return string4(leftCorrelation?.run_id) === string4(rightCorrelation?.run_id) && string4(leftCorrelation?.task_id) === string4(rightCorrelation?.task_id);
+}
+function validatePiDaddyTimestampOrder2(records2) {
+  const highWaterByChild = /* @__PURE__ */ new Map();
+  records2.forEach((record, index) => {
+    const supportedVersion = record.ledgerVersion === 2 || record.ledgerVersion === 3;
+    const legacy = record.ledgerVersion === void 0 && record.schema_version === void 0 && record.event === void 0;
+    if (!supportedVersion && !legacy) return;
+    const at = string4(record.ts);
+    if (!validTime2(at)) throw new Error(`invalid pi-daddy ledger timestamp at line ${index + 1}: ts must be a date-time`);
+    const time = Date.parse(at);
+    const child3 = piDaddyStreamKey2(record, index);
+    const highWater = highWaterByChild.get(child3);
+    if (highWater !== void 0 && time < highWater && !isRawPiDaddyReceiptInversion2(records2, index, time)) {
+      throw new Error(`pi-daddy ledger timestamp moves backwards at line ${index + 1}`);
+    }
+    highWaterByChild.set(child3, Math.max(highWater ?? time, time));
+  });
+}
+function isRawPiDaddyReceiptInversion2(records2, index, receiptTime) {
+  const receipt = records2[index];
+  const release = records2[index - 1];
+  if (receipt?.ledgerVersion !== 2 && receipt?.ledgerVersion !== 3 || receipt.event !== "check_receipt" || release?.ledgerVersion !== receipt.ledgerVersion || release.event !== "workspace_lease") return false;
+  if (receipt.childId !== release.childId || receipt.workspaceId !== release.workspaceId || !sameRawCorrelationIdentity2(receipt, release) || !V2_RECEIPT_RELEASE_OUTCOMES2.has(string4(release.outcome) ?? "")) return false;
+  const previousLease = records2.slice(0, index - 1).reverse().find(
+    (record) => record.ledgerVersion === receipt.ledgerVersion && record.event === "workspace_lease" && record.childId === receipt.childId && record.workspaceId === receipt.workspaceId && sameRawCorrelationIdentity2(receipt, record)
+  );
+  return Boolean(
+    previousLease && V2_RECEIPT_PRIOR_LEASE_OUTCOMES2.has(string4(previousLease.outcome) ?? "") && validTime2(string4(previousLease.ts)) && Date.parse(string4(previousLease.ts)) <= receiptTime
+  );
+}
+function normalizePiDaddyV22(record, index) {
+  const line = index + 1;
+  const nativeEvent = requireV2Discriminator2(record, line);
+  const at = requireV2String2(record, "ts", nativeEvent, line);
+  const childId = requireV2String2(record, "childId", nativeEvent, line);
+  const correlation = requireV2Correlation2(record, nativeEvent, line);
+  const carriesTopWorkspace = nativeEvent === "workspace_lease" || nativeEvent === "check_receipt";
+  if (!carriesTopWorkspace && record.workspaceId !== void 0) {
+    throw new Error(`invalid pi-daddy v2 ${nativeEvent} at line ${line}: workspaceId is not part of the public variant`);
+  }
+  const topWorkspace = carriesTopWorkspace ? string4(record.workspaceId) : void 0;
+  const correlationWorkspace = string4(correlation.workspace_id);
+  if (topWorkspace && correlationWorkspace && topWorkspace !== correlationWorkspace) {
+    throw new Error(`invalid pi-daddy v2 ${nativeEvent} at line ${line}: workspaceId disagrees with correlation.workspace_id`);
+  }
+  if (nativeEvent !== "capability_decision" && (record.taskDigest !== void 0 || record.definitionDigest !== void 0)) {
+    throw new Error(`invalid pi-daddy v2 ${nativeEvent} at line ${line}: taskDigest and definitionDigest belong only to capability_decision`);
+  }
+  const definition = nativeEvent === "capability_decision" ? object4(record.definitionDigest) : void 0;
+  const trustedTask = nativeEvent === "capability_decision" ? string4(record.taskDigest) : void 0;
+  const trustedDefinition = nativeEvent === "capability_decision" ? string4(definition?.sha256) : void 0;
+  const common2 = {
+    event_version: TRAJECTORY_EVENT_VERSION,
+    source: "pi-daddy-v2",
+    at,
+    run_id: string4(correlation.run_id),
+    task_id: string4(correlation.task_id),
+    // correlation.workspace_id is a controller-supplied join label, not proof that
+    // pi-daddy resolved or leased that workspace. Only a top-level runtime identity
+    // is promoted into the adapter-neutral authoritative-looking field.
+    workspace_id: topWorkspace,
+    context_id: string4(correlation.context_id),
+    child_id: childId,
+    phase: string4(correlation.phase),
+    digests: anyDefined2({
+      task: trustedTask,
+      definition: trustedDefinition,
+      correlation_plan: string4(correlation.plan_digest),
+      correlation_task: string4(correlation.task_digest),
+      correlation_definition: string4(correlation.definition_digest),
+      correlation_base: string4(correlation.base_sha),
+      correlation_head: string4(correlation.head_sha),
+      correlation_tree: string4(correlation.tree_sha)
+    })
+  };
+  const commonAttributes = safeAttributes2({
+    ledger_version: 2,
+    native_event: nativeEvent,
+    correlation: sanitizeAttributes2(correlation),
+    event_seq: finiteNumber2(correlation.event_seq),
+    last_change_seq: finiteNumber2(correlation.last_change_seq),
+    last_authority_seq: finiteNumber2(correlation.last_authority_seq),
+    check_receipt_id: string4(correlation.check_receipt_id),
+    assurance: string4(correlation.assurance),
+    assurance_effective: string4(correlation.assurance_effective),
+    policy_label: string4(correlation.policy_label),
+    assurance_source: string4(correlation.assurance_source),
+    assurance_scope: correlation.assurance_scope,
+    activated_at: string4(correlation.activated_at)
+  });
+  if (nativeEvent === "capability_decision") {
+    if (record.definitionDigest !== void 0 && (!definition || !string4(definition.name) || !string4(definition.source) || !trustedDefinition || !/^[a-fA-F0-9]{64}$/.test(trustedDefinition))) {
+      throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: definitionDigest requires non-empty name, source, and sha256`);
+    }
+    const parentId = requireV2String2(record, "parentId", nativeEvent, line);
+    const executor = requireV2Executor2(record, nativeEvent, line);
+    const taskDigest = requireV2String2(record, "taskDigest", nativeEvent, line);
+    if (!/^[a-fA-F0-9]{64}$/.test(taskDigest)) throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: taskDigest must be sha256`);
+    if (!Number.isInteger(record.depth) || typeof record.blocked !== "boolean") {
+      throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: depth and blocked are required`);
+    }
+    const requested = requireV2StringArray2(record, "requested", nativeEvent, line);
+    const parentGrant = requireV2StringArray2(record, "parentGrant", nativeEvent, line);
+    const effective = requireV2StringArray2(record, "effective", nativeEvent, line);
+    const denied = requireV2StringArray2(record, "denied", nativeEvent, line);
+    const clipped = requireV2StringArray2(record, "clipped", nativeEvent, line);
+    const gated = requireV2StringArray2(record, "gatedBlocked", nativeEvent, line);
+    const approved = optionalV2StringArray2(record, "approved", nativeEvent, line);
+    const agentType = optionalV2SafeString2(record.agentType, "agentType", nativeEvent, line);
+    const humanDenied = optionalV2Boolean2(record, "humanDenied", nativeEvent, line);
+    const refusal = structuredRefusal2(record.refusal, nativeEvent, line);
+    if (!record.blocked && refusal) throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: an allowed decision cannot carry a refusal`);
+    validateCapabilityPartition2(requested, effective, denied, clipped, gated, approved, Boolean(record.blocked), line);
+    const approvalSource = optionalV2Enum2(record.approvalSource, "approvalSource", V2_APPROVAL_SOURCES2, nativeEvent, line);
+    const approvalSources = optionalV2EnumMap2(record.approvalSources, "approvalSources", V2_APPROVAL_SOURCES2, nativeEvent, line);
+    const approvalScope = optionalV2Enum2(record.approvalScope, "approvalScope", V2_APPROVAL_SCOPES2, nativeEvent, line);
+    const approvalScopes = optionalV2EnumMap2(record.approvalScopes, "approvalScopes", V2_APPROVAL_SCOPES2, nativeEvent, line);
+    const approvalExpiresAt = optionalV2StringMap2(record.approvalExpiresAt, "approvalExpiresAt", nativeEvent, line, validTime2);
+    const approvalUses = optionalV2ApprovalUses2(record.approvalUses, nativeEvent, line);
+    validateApprovalEvidence2(approved ?? [], approvalSource, approvalSources, approvalScopes, approvalExpiresAt, approvalUses, line);
+    const normalizedRequested = [...new Set(requested)];
+    const attributes = safeAttributes2({
+      ...commonAttributes,
+      depth: record.depth,
+      agent_type: agentType,
+      native_requested: normalizedRequested.length === requested.length ? void 0 : requested,
+      executor,
+      task_from: string4(record.taskFrom),
+      parent_grant: parentGrant,
+      denied,
+      clipped,
+      gated_blocked: gated,
+      blocked: record.blocked,
+      reason: string4(record.reason),
+      approved,
+      approval_source: approvalSource,
+      approval_sources: approvalSources,
+      approval_scope: approvalScope,
+      approval_scopes: approvalScopes,
+      approval_expires_at: approvalExpiresAt,
+      approval_uses: approvalUses,
+      human_denied: humanDenied,
+      gate_outcome: string4(record.gateOutcome),
+      definition_name: string4(definition?.name),
+      definition_source: string4(definition?.source),
+      structured_refusal: refusal
+    });
+    const base = { ...common2, parent_id: parentId, requested_capabilities: normalizedRequested, effective_capabilities: effective, attributes };
+    const refusalCode = string4(refusal?.code);
+    const events = [
+      ...normalizedRequested.map((capability) => ({ ...base, type: "capability_requested", capability }))
+    ];
+    const sources = approvalSources;
+    const scopes = approvalScopes;
+    const expiries = approvalExpiresAt;
+    const uses = approvalUses;
+    for (const capability of approved ?? []) {
+      events.push(cleanEvent2({
+        ...base,
+        type: "approval_used",
+        capability,
+        approval: cleanObject2({
+          capability,
+          subject: approvalSubject2(agentType),
+          source: string4(sources?.[capability]) ?? string4(record.approvalSource),
+          scope: string4(scopes?.[capability]) ?? string4(record.approvalScope),
+          expires_at: string4(expiries?.[capability]),
+          used_at: at
+        }),
+        attributes: safeAttributes2({ ...attributes, approval_uses: object4(uses?.[capability]) })
+      }));
+    }
+    const approvedSet = new Set(approved ?? []);
+    events.push(
+      ...record.blocked ? [] : effective.map((capability) => ({ ...base, type: "capability_granted", capability })),
+      ...[.../* @__PURE__ */ new Set([...denied, ...gated.filter((capability) => !approvedSet.has(capability))])].map((capability) => ({
+        ...base,
+        type: "capability_refused",
+        capability,
+        refusal_code: denied.includes(capability) ? "CAPABILITY_ESCALATION" : refusalCode
+      }))
+    );
+    events.push(cleanEvent2({
+      ...base,
+      type: record.blocked ? "child_spawn_refused" : "capability_decision",
+      refusal_code: refusalCode
+    }));
+    return events;
+  }
+  if (nativeEvent === "workspace_lease") {
+    const workspaceId2 = requireV2String2(record, "workspaceId", nativeEvent, line);
+    requireV2String2(record, "root", nativeEvent, line);
+    const access = requireV2String2(record, "access", nativeEvent, line);
+    const outcome = requireV2String2(record, "outcome", nativeEvent, line);
+    if (!V2_LEASE_ACCESS2.has(access) || !V2_LEASE_OUTCOMES2.has(outcome)) {
+      throw new Error(`invalid pi-daddy v2 workspace_lease at line ${line}: access or outcome is unsupported`);
+    }
+    if (record.recovered !== void 0 && typeof record.recovered !== "boolean" && record.recovered !== "unknown") {
+      throw new Error(`invalid pi-daddy v2 workspace_lease at line ${line}: recovered must be boolean or "unknown"`);
+    }
+    const refusal = structuredRefusal2(record.refusal, nativeEvent, line);
+    const type2 = access === "read" ? `workspace_read_${outcome.replaceAll("-", "_")}` : outcome === "refused" && refusal?.code === "WORKSPACE_WRITE_CONFLICT" ? "writer_lease_conflict" : `writer_lease_${outcome.replaceAll("-", "_")}`;
+    return [cleanEvent2({
+      ...common2,
+      workspace_id: workspaceId2,
+      type: type2,
+      refusal_code: string4(refusal?.code),
+      attributes: safeAttributes2({
+        ...commonAttributes,
+        root: string4(record.root),
+        access,
+        outcome,
+        recovered: record.recovered,
+        release_reason: string4(record.releaseReason),
+        structured_refusal: refusal
+      })
+    })];
+  }
+  if (nativeEvent === "child_lifecycle") {
+    const state = requireV2String2(record, "state", nativeEvent, line);
+    const executor = requireV2Executor2(record, nativeEvent, line);
+    if (!V2_LIFECYCLE_STATES2.has(state)) {
+      throw new Error(`invalid pi-daddy v2 child_lifecycle at line ${line}: state is unsupported`);
+    }
+    if (record.exitCode !== void 0 && record.exitCode !== null && !Number.isInteger(record.exitCode)) {
+      throw new Error(`invalid pi-daddy v2 child_lifecycle at line ${line}: exitCode must be an integer or null`);
+    }
+    const timedOut = optionalV2Boolean2(record, "timedOut", nativeEvent, line);
+    const aborted = optionalV2Boolean2(record, "aborted", nativeEvent, line);
+    const truncated = optionalV2Boolean2(record, "truncated", nativeEvent, line);
+    const type2 = state === "starting" ? "child_started" : state === "completed" ? "child_completed" : "child_failed";
+    return [cleanEvent2({
+      ...common2,
+      type: type2,
+      exit_code: Number.isInteger(record.exitCode) ? Number(record.exitCode) : void 0,
+      attributes: safeAttributes2({
+        ...commonAttributes,
+        state,
+        executor,
+        exit_code: record.exitCode,
+        signal: record.signal,
+        timed_out: timedOut,
+        aborted,
+        truncated,
+        reason: string4(record.reason)
+      })
+    })];
+  }
+  const workspaceId = requireV2String2(record, "workspaceId", nativeEvent, line);
+  const receiptId = requireV2String2(record, "receiptId", nativeEvent, line);
+  if (!/^[a-fA-F0-9]{64}$/.test(receiptId)) {
+    throw new Error(`invalid pi-daddy v2 check_receipt at line ${line}: receiptId must be sha256`);
+  }
+  const checkId = requireV2String2(record, "checkId", nativeEvent, line);
+  const treeSha = requireV2String2(record, "treeSha", nativeEvent, line);
+  if (!/^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/.test(treeSha)) {
+    throw new Error(`invalid pi-daddy v2 check_receipt at line ${line}: treeSha must be a git object id`);
+  }
+  return [cleanEvent2({
+    ...common2,
+    workspace_id: workspaceId,
+    type: "check_receipt_recorded",
+    digests: { ...common2.digests ?? {}, tree: treeSha },
+    attributes: safeAttributes2({
+      ...commonAttributes,
+      receipt_id: receiptId,
+      check_id: checkId,
+      check_receipt_id: string4(correlation.check_receipt_id)
+    })
+  })];
+}
+function normalizePiDaddyV32(record, index) {
+  const line = index + 1;
+  const nativeEvent = requireV3Discriminator2(record, line);
+  const at = requireV3String2(record, "ts", nativeEvent, line);
+  const correlation = object4(record.correlation) ?? {};
+  const correlationDigests = anyDefined2({
+    correlation_plan: string4(correlation.plan_digest),
+    correlation_task: string4(correlation.task_digest),
+    correlation_definition: string4(correlation.definition_digest),
+    correlation_base: string4(correlation.base_sha),
+    correlation_head: string4(correlation.head_sha),
+    correlation_tree: string4(correlation.tree_sha)
+  });
+  const correlationAttributes = safeAttributes2({
+    ledger_version: 3,
+    native_event: nativeEvent,
+    correlation: Object.keys(correlation).length ? sanitizeAttributes2(correlation) : void 0,
+    event_seq: finiteNumber2(correlation.event_seq),
+    last_change_seq: finiteNumber2(correlation.last_change_seq),
+    last_authority_seq: finiteNumber2(correlation.last_authority_seq),
+    check_receipt_id: string4(correlation.check_receipt_id),
+    assurance: string4(correlation.assurance),
+    assurance_effective: string4(correlation.assurance_effective),
+    policy_label: string4(correlation.policy_label),
+    assurance_source: string4(correlation.assurance_source),
+    assurance_scope: correlation.assurance_scope,
+    activated_at: string4(correlation.activated_at)
+  });
+  if (nativeEvent === "workflow_fact") {
+    return [cleanEvent2({
+      event_version: TRAJECTORY_EVENT_VERSION,
+      type: "workflow_fact",
+      source: "pi-daddy-v3",
+      at,
+      run_id: string4(correlation.run_id),
+      task_id: string4(correlation.task_id),
+      workspace_id: string4(correlation.workspace_id),
+      context_id: string4(correlation.context_id),
+      phase: string4(correlation.phase),
+      workflow_fact_id: requireV3String2(record, "factId", nativeEvent, line),
+      digests: correlationDigests,
+      attributes: safeAttributes2({
+        ...correlationAttributes,
+        source: string4(record.source),
+        provenance: string4(record.provenance),
+        fact_kind: string4(record.kind),
+        fact_subject: string4(record.subject),
+        fact_state: string4(record.state)
+      })
+    })];
+  }
+  const executionId = requireV3String2(record, "executionId", nativeEvent, line);
+  const parentExecutionId = record.parentExecutionId === null ? null : requireV3String2(record, "parentExecutionId", nativeEvent, line);
+  if (parentExecutionId === executionId) throw new Error(`invalid pi-daddy v3 ${nativeEvent} at line ${line}: an execution cannot be its own parent`);
+  const childId = requireV3String2(record, "childId", nativeEvent, line);
+  const carriesTopWorkspace = nativeEvent === "workspace_lease" || nativeEvent === "check_receipt";
+  const topWorkspace = carriesTopWorkspace ? string4(record.workspaceId) : void 0;
+  const correlationWorkspace = string4(correlation.workspace_id);
+  if (topWorkspace && correlationWorkspace && topWorkspace !== correlationWorkspace) {
+    throw new Error(`invalid pi-daddy v3 ${nativeEvent} at line ${line}: workspaceId disagrees with correlation.workspace_id`);
+  }
+  const common2 = {
+    event_version: TRAJECTORY_EVENT_VERSION,
+    source: "pi-daddy-v3",
+    at,
+    run_id: string4(correlation.run_id),
+    task_id: string4(correlation.task_id),
+    workspace_id: topWorkspace,
+    context_id: string4(correlation.context_id),
+    child_id: childId,
+    execution_id: executionId,
+    parent_execution_id: parentExecutionId,
+    phase: string4(correlation.phase),
+    digests: correlationDigests
+  };
+  if (nativeEvent === "capability_decision") {
+    const requested = record.requested;
+    const parentGrant = record.parentGrant;
+    const effective = record.effective;
+    const denied = record.denied;
+    const clipped = record.clipped;
+    const gated = record.gatedBlocked;
+    const approved = record.approved;
+    validateCapabilityPartition2(requested, effective, denied, clipped, gated, approved, Boolean(record.blocked), line, 3);
+    const approvalSources = object4(record.approvalSources);
+    const approvalScopes = object4(record.approvalScopes);
+    const approvalExpiresAt = object4(record.approvalExpiresAt);
+    const approvalUses = object4(record.approvalUses);
+    if (approvalUses && Object.values(approvalUses).some(
+      (use) => !object4(use) || !Number.isInteger(use.max) || !Number.isInteger(use.remaining) || use.max < 0 || use.remaining < 0 || use.remaining > use.max
+    )) throw new Error(`invalid pi-daddy v3 capability_decision at line ${line}: approvalUses requires remaining <= max integer bounds`);
+    validateApprovalEvidence2(approved ?? [], string4(record.approvalSource), approvalSources, approvalScopes, approvalExpiresAt, approvalUses, line, 3);
+    const refusal = structuredRefusal2(record.refusal, nativeEvent, line, 3);
+    if (!record.blocked && refusal) throw new Error(`invalid pi-daddy v3 capability_decision at line ${line}: an allowed decision cannot carry a refusal`);
+    const definition = object4(record.definitionDigest);
+    const taskDigest = requireV3String2(record, "taskDigest", nativeEvent, line);
+    const trustedDefinition = string4(definition?.sha256);
+    const normalizedRequested = [...new Set(requested)];
+    const attributes = safeAttributes2({
+      ...correlationAttributes,
+      depth: record.depth,
+      agent_type: string4(record.agentType),
+      executor: string4(record.executor),
+      task_from: string4(record.taskFrom),
+      parent_grant: parentGrant,
+      denied,
+      clipped,
+      gated_blocked: gated,
+      blocked: record.blocked,
+      reason: string4(record.reason),
+      approved,
+      approval_source: string4(record.approvalSource),
+      approval_sources: approvalSources,
+      approval_scope: string4(record.approvalScope),
+      approval_scopes: approvalScopes,
+      approval_expires_at: approvalExpiresAt,
+      approval_uses: approvalUses,
+      human_denied: record.humanDenied,
+      gate_outcome: string4(record.gateOutcome),
+      definition_name: string4(definition?.name),
+      definition_source: string4(definition?.source),
+      structured_refusal: refusal
+    });
+    const base = {
+      ...common2,
+      parent_id: requireV3String2(record, "parentId", nativeEvent, line),
+      task_from_execution_id: string4(record.taskFromExecutionId),
+      requested_capabilities: normalizedRequested,
+      effective_capabilities: effective,
+      digests: anyDefined2({ ...correlationDigests, task: taskDigest, definition: trustedDefinition }),
+      attributes
+    };
+    const refusalCode = string4(refusal?.code);
+    const events = normalizedRequested.map((capability) => ({ ...base, type: "capability_requested", capability }));
+    for (const capability of approved ?? []) {
+      events.push(cleanEvent2({
+        ...base,
+        type: "approval_used",
+        capability,
+        approval: cleanObject2({
+          capability,
+          subject: approvalSubject2(record.agentType),
+          source: string4(approvalSources?.[capability]) ?? string4(record.approvalSource),
+          scope: string4(approvalScopes?.[capability]) ?? string4(record.approvalScope),
+          expires_at: string4(approvalExpiresAt?.[capability]),
+          used_at: at
+        }),
+        attributes: safeAttributes2({ ...attributes, approval_uses: object4(approvalUses?.[capability]) })
+      }));
+    }
+    const approvedSet = new Set(approved ?? []);
+    if (!record.blocked) events.push(...effective.map((capability) => ({ ...base, type: "capability_granted", capability })));
+    events.push(...[.../* @__PURE__ */ new Set([...denied, ...gated.filter((capability) => !approvedSet.has(capability))])].map((capability) => ({
+      ...base,
+      type: "capability_refused",
+      capability,
+      refusal_code: denied.includes(capability) ? "CAPABILITY_ESCALATION" : refusalCode
+    })));
+    events.push(cleanEvent2({ ...base, type: record.blocked ? "child_spawn_refused" : "capability_decision", refusal_code: refusalCode }));
+    return events;
+  }
+  if (nativeEvent === "workspace_lease") {
+    const workspaceId2 = requireV3String2(record, "workspaceId", nativeEvent, line);
+    const access = requireV3String2(record, "access", nativeEvent, line);
+    const outcome = requireV3String2(record, "outcome", nativeEvent, line);
+    const refusal = structuredRefusal2(record.refusal, nativeEvent, line, 3);
+    const type2 = access === "read" ? `workspace_read_${outcome.replaceAll("-", "_")}` : outcome === "refused" && refusal?.code === "WORKSPACE_WRITE_CONFLICT" ? "writer_lease_conflict" : `writer_lease_${outcome.replaceAll("-", "_")}`;
+    return [cleanEvent2({
+      ...common2,
+      workspace_id: workspaceId2,
+      type: type2,
+      refusal_code: string4(refusal?.code),
+      attributes: safeAttributes2({
+        ...correlationAttributes,
+        root: string4(record.root),
+        access,
+        outcome,
+        recovered: record.recovered,
+        release_reason: string4(record.releaseReason),
+        structured_refusal: refusal
+      })
+    })];
+  }
+  if (nativeEvent === "child_lifecycle") {
+    const state = requireV3String2(record, "state", nativeEvent, line);
+    const type2 = state === "starting" ? "child_started" : state === "running" ? "child_running" : state === "completed" ? "child_completed" : "child_failed";
+    return [cleanEvent2({
+      ...common2,
+      type: type2,
+      deadline_at: string4(record.deadlineAt),
+      exit_code: Number.isInteger(record.exitCode) ? Number(record.exitCode) : void 0,
+      attributes: safeAttributes2({
+        ...correlationAttributes,
+        state,
+        executor: string4(record.executor),
+        exit_code: record.exitCode,
+        signal: record.signal,
+        timed_out: record.timedOut,
+        aborted: record.aborted,
+        truncated: record.truncated,
+        reason: string4(record.reason),
+        deadline_at: string4(record.deadlineAt),
+        herdr_pane_id: string4(record.herdrPaneId),
+        herdr_agent_name: string4(record.herdrAgentName)
+      })
+    })];
+  }
+  const workspaceId = requireV3String2(record, "workspaceId", nativeEvent, line);
+  const receiptId = requireV3String2(record, "receiptId", nativeEvent, line);
+  const treeSha = requireV3String2(record, "treeSha", nativeEvent, line);
+  if (!/^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/.test(treeSha)) {
+    throw new Error(`invalid pi-daddy v3 check_receipt at line ${line}: treeSha must be a git object id for normalized tree evidence`);
+  }
+  return [cleanEvent2({
+    ...common2,
+    workspace_id: workspaceId,
+    type: "check_receipt_recorded",
+    digests: anyDefined2({ ...correlationDigests, tree: treeSha }),
+    attributes: safeAttributes2({
+      ...correlationAttributes,
+      receipt_id: receiptId,
+      check_id: string4(record.checkId),
+      check_receipt_id: string4(correlation.check_receipt_id)
+    })
+  })];
+}
+function requireV3String2(record, field, event, line) {
+  const value3 = string4(record[field]);
+  if (!value3) throw new Error(`invalid pi-daddy v3 ${event} at line ${line}: ${field} is required`);
+  if (redactText(value3) !== value3) throw new Error(`invalid pi-daddy v3 ${event} at line ${line}: ${field} contains a sensitive value`);
+  return value3;
+}
+function requireV2Correlation2(record, event, line) {
+  const correlation = object4(record.correlation);
+  if (!correlation) {
+    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation.run_id and correlation.task_id are required for workflow joins`);
+  }
+  const encoded = JSON.stringify(correlation);
+  if (Buffer.byteLength(encoded) > V2_CORRELATION_MAX_BYTES2) {
+    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation exceeds ${V2_CORRELATION_MAX_BYTES2} bytes`);
+  }
+  const undeclared = Object.keys(correlation).filter((key3) => !V2_CORRELATION_FIELDS2.has(key3));
+  if (undeclared.length > 0) {
+    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation carries fields outside the pinned schema 1.0 contract [REDACTED field names]`);
+  }
+  for (const [key3, value3] of Object.entries(correlation)) {
+    if (value3 === void 0 || value3 === null) continue;
+    if (key3 === "assurance_scope") {
+      const size = Buffer.byteLength(JSON.stringify(value3));
+      if (size > V2_CORRELATION_MAX_SCOPE_BYTES2) {
+        throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation assurance_scope exceeds ${V2_CORRELATION_MAX_SCOPE_BYTES2} bytes`);
+      }
+      continue;
+    }
+    if (V2_CORRELATION_NUMERIC_FIELDS2.has(key3)) {
+      if (typeof value3 !== "number" || !Number.isFinite(value3)) {
+        throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation ${key3} must be a finite number`);
+      }
+      continue;
+    }
+    if (typeof value3 !== "string") {
+      throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation ${key3} must be a string`);
+    }
+    if (value3.length > V2_CORRELATION_MAX_FIELD_CHARS2) {
+      throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation ${key3} exceeds ${V2_CORRELATION_MAX_FIELD_CHARS2} characters`);
+    }
+    if (redactText(value3) !== value3) {
+      throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation ${key3} contains a sensitive value`);
+    }
+  }
+  if (!string4(correlation.run_id) || !string4(correlation.task_id)) {
+    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation.run_id and correlation.task_id are required for workflow joins`);
+  }
+  return Object.fromEntries(Object.entries(correlation).filter(([, value3]) => value3 !== void 0 && value3 !== null));
+}
+function requireV2String2(record, field, event, line) {
+  const value3 = string4(record[field]);
+  if (!value3) throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} is required`);
+  if (redactText(value3) !== value3) throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} contains a sensitive value`);
+  return value3;
+}
+function requireV2Executor2(record, event, line) {
+  const executor = requireV2String2(record, "executor", event, line);
+  if (!V2_EXECUTORS2.has(executor)) {
+    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: executor must be process or herdr`);
+  }
+  return executor;
+}
+function requireV2StringArray2(record, field, event, line) {
+  const value3 = stringArray2(record[field]);
+  if (!value3) throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be an array of strings`);
+  if (value3.some((entry) => redactText(entry) !== entry)) {
+    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} contains a sensitive value`);
+  }
+  return value3;
+}
+function optionalV2StringArray2(record, field, event, line) {
+  if (record[field] === void 0) return void 0;
+  return requireV2StringArray2(record, field, event, line);
+}
+function optionalV2SafeString2(value3, field, event, line) {
+  if (value3 === void 0) return void 0;
+  const parsed = string4(value3);
+  if (!parsed) throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be a non-empty string`);
+  if (redactText(parsed) !== parsed) throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} contains a sensitive value`);
+  return parsed;
+}
+function optionalV2Enum2(value3, field, allowed, event, line) {
+  if (value3 === void 0) return void 0;
+  const parsed = string4(value3);
+  if (!parsed || !allowed.has(parsed)) {
+    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be one of ${[...allowed].join(", ")}`);
+  }
+  return parsed;
+}
+function optionalV2EnumMap2(value3, field, allowed, event, line) {
+  if (value3 === void 0) return void 0;
+  const parsed = object4(value3);
+  if (!parsed) throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be an object`);
+  const entries = Object.entries(parsed);
+  if (entries.some(([key3, entry]) => !key3 || typeof entry !== "string" || !allowed.has(entry))) {
+    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} values must be one of ${[...allowed].join(", ")}`);
+  }
+  return Object.fromEntries(entries);
+}
+function optionalV2StringMap2(value3, field, event, line, validate11 = () => true) {
+  if (value3 === void 0) return void 0;
+  const parsed = object4(value3);
+  if (!parsed) throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be an object`);
+  const entries = Object.entries(parsed);
+  if (entries.some(([key3, entry]) => !key3 || typeof entry !== "string" || !validate11(entry))) {
+    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must map capabilities to valid strings`);
+  }
+  return Object.fromEntries(entries);
+}
+function optionalV2ApprovalUses2(value3, event, line) {
+  if (value3 === void 0) return void 0;
+  const parsed = object4(value3);
+  if (!parsed) throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: approvalUses must be an object`);
+  const output = {};
+  for (const [capability, boundsValue] of Object.entries(parsed)) {
+    const bounds2 = object4(boundsValue);
+    if (!capability || !bounds2 || !Number.isInteger(bounds2.max) || !Number.isInteger(bounds2.remaining) || Number(bounds2.max) < 0 || Number(bounds2.remaining) < 0 || Number(bounds2.remaining) > Number(bounds2.max)) {
+      throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: approvalUses requires integer max/remaining bounds`);
+    }
+    output[capability] = { max: Number(bounds2.max), remaining: Number(bounds2.remaining) };
+  }
+  return output;
+}
+function validateCapabilityPartition2(requested, effective, denied, clipped, gated, approved, blocked, line, version = 2) {
+  const groups = [effective, denied, clipped, gated];
+  if (groups.some((values) => new Set(values).size !== values.length)) {
+    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: result capability arrays must not contain duplicates`);
+  }
+  const requestedSet = new Set(requested);
+  if (groups.some((values) => values.some((capability) => !requestedSet.has(capability)))) {
+    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: effective, denied, clipped, and gatedBlocked must partition requested`);
+  }
+  const flattened = groups.flat();
+  if (new Set(flattened).size !== flattened.length) {
+    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: effective, denied, clipped, and gatedBlocked must be disjoint subsets of requested`);
+  }
+  if ((approved ?? []).some(
+    (capability) => !requestedSet.has(capability) || (blocked ? !effective.includes(capability) && !gated.includes(capability) : !effective.includes(capability))
+  )) {
+    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: approved capabilities must be requested and reflected in the resolved decision`);
+  }
+}
+function validateApprovalEvidence2(approved, scalarSource, sources, scopes, expiries, uses, line, version = 2) {
+  const approvedSet = new Set(approved);
+  for (const [field, map2] of [["approvalSources", sources], ["approvalScopes", scopes], ["approvalExpiresAt", expiries], ["approvalUses", uses]]) {
+    if (map2 && Object.keys(map2).some((capability) => !approvedSet.has(capability))) {
+      throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: ${field} keys must be approved capabilities`);
+    }
+  }
+  if (approved.some((capability) => !sources?.[capability] && !scalarSource)) {
+    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: each approved capability requires an approval source`);
+  }
+  if (approved.length === 0 && (scalarSource || sources || scopes || expiries || uses)) {
+    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: approval evidence requires approved capabilities`);
+  }
+}
+function optionalV2Boolean2(record, field, event, line) {
+  const value3 = record[field];
+  if (value3 === void 0) return void 0;
+  if (typeof value3 !== "boolean") throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be boolean`);
+  return value3;
+}
+function approvalSubject2(value3) {
+  const agentType = string4(value3);
+  return agentType === void 0 || agentType === "delegate" ? "<delegate>" : agentType;
+}
+function structuredRefusal2(value3, event, line, version = 2) {
+  if (value3 === void 0) return void 0;
+  const parsed = object4(value3);
+  const code = string4(parsed?.code);
+  if (!parsed || !code || !string4(parsed.message)) {
+    throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal requires code and message`);
+  }
+  const refusalCodes = version === 3 ? V3_REFUSAL_CODES2 : V2_REFUSAL_CODES2;
+  if (!refusalCodes.has(code)) {
+    throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal has unsupported code ${safeDiagnosticValue2(code)}`);
+  }
+  const unknown = Object.keys(parsed).filter((key3) => !V2_REFUSAL_FIELDS2.has(key3));
+  if (unknown.length > 0) throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal carries unsupported fields`);
+  const details = parsed.details === void 0 ? void 0 : object4(parsed.details);
+  if (parsed.details !== void 0 && (!details || Object.values(details).some((entry) => !V2_REFUSAL_DETAIL_TYPES2.has(entry === null ? "null" : typeof entry)))) {
+    throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal.details must contain scalar values`);
+  }
+  return parsed;
+}
+function finiteNumber2(value3) {
+  return typeof value3 === "number" && Number.isFinite(value3) ? value3 : void 0;
+}
+function normalizeLegacyGrant2(record, index) {
+  const requiredArrays = ["requested", "parentGrant", "effective", "denied", "clipped", "gatedBlocked"];
+  if (typeof record.ts !== "string" || typeof record.parentId !== "string" || typeof record.childId !== "string" || !Number.isInteger(record.depth) || typeof record.blocked !== "boolean" || typeof record.executor !== "string" || requiredArrays.some((field) => !Array.isArray(record[field]) || !record[field].every((value3) => typeof value3 === "string"))) {
+    throw new Error(`invalid unversioned pi-daddy grant record at line ${index + 1}; expected the 0.17 GrantRecord shape`);
+  }
+  const requested = record.requested;
+  const effective = record.effective;
+  const denied = record.denied;
+  const gated = record.gatedBlocked;
+  const digest6 = object4(record.definitionDigest);
+  const common2 = {
+    event_version: TRAJECTORY_EVENT_VERSION,
+    source: "pi-daddy-0.17",
+    at: record.ts,
+    parent_id: record.parentId,
+    child_id: record.childId
+  };
+  const attributes = sanitizeAttributes2({
+    native_record: index + 1,
+    depth: record.depth,
+    agent_type: record.agentType,
+    executor: record.executor,
+    parent_grant: record.parentGrant,
+    clipped: record.clipped,
+    gated_blocked: gated,
+    gate_outcome: record.gateOutcome,
+    human_denied: record.humanDenied === true,
+    reason: record.reason,
+    definition_name: digest6?.name,
+    legacy_schema: "pi-daddy-grant-ledger/0.17"
+  });
+  const refusal = record.blocked ? legacyRefusalCode2(record) : void 0;
+  const spawn6 = cleanEvent2({
+    ...common2,
+    type: record.blocked ? "child_spawn_refused" : "child_started",
+    requested_capabilities: requested,
+    effective_capabilities: effective,
+    refusal_code: refusal,
+    digests: anyDefined2({ definition: string4(digest6?.sha256) }),
+    attributes
+  });
+  const events = [
+    ...requested.map((capability) => ({ ...common2, type: "capability_requested", capability, requested_capabilities: requested, effective_capabilities: effective, attributes })),
+    ...effective.map((capability) => ({ ...common2, type: "capability_granted", capability, requested_capabilities: requested, effective_capabilities: effective, attributes })),
+    ...[.../* @__PURE__ */ new Set([...denied, ...gated])].map((capability) => ({ ...common2, type: "capability_refused", capability, requested_capabilities: requested, effective_capabilities: effective, refusal_code: denied.includes(capability) ? "CAPABILITY_ESCALATION" : refusal, attributes }))
+  ];
+  const sources = object4(record.approvalSources);
+  const scopes = object4(record.approvalScopes);
+  for (const capability of stringArray2(record.approved) ?? []) {
+    events.push(cleanEvent2({
+      ...common2,
+      type: "approval_used",
+      capability,
+      approval: {
+        capability,
+        source: string4(sources?.[capability]) ?? string4(record.approvalSource),
+        scope: string4(scopes?.[capability]) ?? string4(record.approvalScope),
+        used_at: record.ts
+      },
+      attributes
+    }));
+  }
+  events.push(spawn6);
+  return events;
+}
+function legacyRefusalCode2(record) {
+  const denied = stringArray2(record.denied) ?? [];
+  const gated = stringArray2(record.gatedBlocked) ?? [];
+  const reason = string4(record.reason) ?? "";
+  if (denied.length) return "CAPABILITY_ESCALATION";
+  if (/declares no `allowed-tools`/i.test(reason)) return "UNDECLARED_CAPABILITIES";
+  if (/unknown capabilit/i.test(reason)) return "UNKNOWN_CAPABILITY";
+  if (/depth limit/i.test(reason)) return "DEPTH_LIMIT";
+  if (/needs a task/i.test(reason)) return "MISSING_TASK";
+  if (/universal capability|cannot narrow/i.test(reason)) return "NON_NARROWING_GRANT";
+  if (gated.length) {
+    if (record.humanDenied === true || record.gateOutcome === "declined") return "APPROVAL_DECLINED";
+    if (record.gateOutcome === "no-ui") return "APPROVAL_NO_UI";
+    if (record.gateOutcome === "dismissed") return "APPROVAL_DISMISSED";
+    if (record.gateOutcome === "error") return "APPROVAL_ERROR";
+    return "APPROVAL_REQUIRED";
+  }
+  return "LEGACY_UNCLASSIFIED";
+}
+function validTime2(value3) {
+  if (typeof value3 !== "string") return false;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.exec(value3);
+  if (!match || !Number.isFinite(Date.parse(value3))) return false;
+  const [, year, month, day, hour, minute, second] = match.map(Number);
+  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return false;
+  return day >= 1 && day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+function safeDiagnosticValue2(value3) {
+  if (typeof value3 === "number" && Number.isFinite(value3)) return String(value3);
+  if (typeof value3 === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(value3) && redactText(value3) === value3) return JSON.stringify(value3);
+  return "[REDACTED invalid value]";
+}
+function sanitizeAttributes2(value3) {
+  const redacted = redactArgs(value3);
+  const sensitiveKey = /(secret|token|password|passphrase|api[_-]?key|authorization|cookie|credential)/i;
+  const freeTextKey = /^(request|command|stdout|stderr|output|prompt|content|reason|message|release_reason|diagnostic)$/i;
+  const walk2 = (current, key3 = "") => {
+    if (sensitiveKey.test(key3)) return "[REDACTED]";
+    if (typeof current === "string" && freeTextKey.test(key3)) {
+      return `[REDACTED sha256:${createHash53("sha256").update(current).digest("hex")}]`;
+    }
+    if (Array.isArray(current)) return current.map((entry) => walk2(entry));
+    if (current && typeof current === "object") return Object.fromEntries(Object.entries(current).map(([childKey, entry]) => [childKey, walk2(entry, childKey)]));
+    return current;
+  };
+  return walk2(redacted);
+}
+function parseJsonl2(text15, label) {
+  const lines2 = text15.split("\n").filter((line) => line.trim());
+  if (!lines2.length) throw new Error(`${label} ledger is empty`);
+  return lines2.map((line, index) => {
+    try {
+      const value3 = JSON.parse(line);
+      if (!value3 || typeof value3 !== "object" || Array.isArray(value3)) throw new Error("record is not an object");
+      return value3;
+    } catch (error) {
+      throw new Error(`${label} ledger line ${index + 1} is invalid JSON [REDACTED parser detail]`);
+    }
+  });
+}
+function object4(value3) {
+  return value3 && typeof value3 === "object" && !Array.isArray(value3) ? value3 : void 0;
+}
+function string4(value3) {
+  return typeof value3 === "string" && value3.length ? value3 : void 0;
+}
+function stringArray2(value3) {
+  return Array.isArray(value3) && value3.every((item) => typeof item === "string") ? value3 : void 0;
+}
+function anyDefined2(value3) {
+  const defined = cleanObject2(value3);
+  return Object.keys(defined).length > 0 ? defined : void 0;
+}
+function cleanObject2(value3) {
+  return Object.fromEntries(Object.entries(value3).filter(([, entry]) => entry !== void 0));
+}
+function safeAttributes2(value3) {
+  return sanitizeAttributes2(cleanObject2(value3));
+}
+function cleanEvent2(event) {
+  return cleanObject2(event);
+}
+
+// packages/adapters/src/session-observation.ts
+function sessionText2(bytes3) {
+  if (bytes3.byteLength > 8 * 1024 * 1024) throw Error("session source exceeds 8 MiB");
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
+}
+function sessionRows2(bytes3) {
+  const text15 = sessionText2(bytes3);
+  if (!text15.endsWith("\n")) throw Error("incomplete session/ledger line; retry after the writer settles");
+  const lines2 = text15.slice(0, -1).split("\n");
+  if (lines2.length > 4096) throw Error("session source exceeds 4096 records");
+  return lines2.map((line, i) => {
+    let row;
+    try {
+      row = JSON.parse(line);
+    } catch {
+      throw Error("invalid JSON record at line " + (i + 1));
+    }
+    if (!row || typeof row !== "object" || Array.isArray(row)) throw Error("object record required at line " + (i + 1));
+    return row;
+  });
+}
+function value2(v, max = 512) {
+  if (typeof v !== "string" || !v.trim() || v.length > max) throw Error("bounded session identifier required");
+  return v;
+}
+var stamp2 = (v) => typeof v === "string" && Number.isFinite(Date.parse(v)) ? v : null;
+var excerpt2 = (v) => v.length > 512 ? v.slice(0, 512) + " \u2026 [excerpt; inspect retained source for complete text]" : v;
+function observePiSession2(bytes3) {
+  const rows = sessionRows2(bytes3), header2 = rows[0];
+  if (header2?.type !== "session" || header2.version !== 3) throw Error("Pi session format version 3 required");
+  const sessionId = value2(header2.id), cwd = value2(header2.cwd, 4096), ids = /* @__PURE__ */ new Set();
+  const timeline = [], tools = /* @__PURE__ */ new Map(), models = /* @__PURE__ */ new Map();
+  const fields = {};
+  let userMessages = 0, assistantMessages = 0, lastAssistantStop = null, lastActivity = null, opaque = 0;
+  const add = (i, row, kind, text15) => timeline.push({ line: i + 1, timestamp: stamp2(row.timestamp), kind, excerpt: excerpt2(text15) });
+  rows.forEach((row, i) => {
+    if (i && row.type === "session") throw Error("multiple session headers");
+    if (row.id !== void 0) {
+      const id3 = value2(row.id);
+      if (ids.has(id3)) throw Error("duplicate session record id");
+      ids.add(id3);
+    }
+    lastActivity = stamp2(row.timestamp) ?? lastActivity;
+    if (row.type === "model_change") {
+      add(i, row, "model-setting", [row.provider, row.modelId].filter((x) => typeof x === "string").join("/"));
+      return;
+    }
+    if (row.type === "thinking_level_change") {
+      add(i, row, "thinking-setting", String(row.thinkingLevel ?? "unknown"));
+      return;
+    }
+    if (row.type !== "message") return;
+    const m = row.message;
+    if (!m || typeof m !== "object" || Array.isArray(m)) throw Error("invalid session message");
+    const content = typeof m.content === "string" ? [{ type: "text", text: m.content }] : m.content;
+    if (!Array.isArray(content)) throw Error("invalid session message content");
+    const text15 = content.filter((c) => c?.type === "text" && typeof c.text === "string").map((c) => c.text).join("\n");
+    if (m.role === "user") {
+      userMessages++;
+      add(i, row, "user-message", text15);
+    } else if (m.role === "assistant") {
+      assistantMessages++;
+      lastAssistantStop = typeof m.stopReason === "string" ? m.stopReason : null;
+      const provider = typeof m.provider === "string" ? m.provider : "unknown", model = typeof m.model === "string" ? m.model : "unknown";
+      const key3 = JSON.stringify([provider, model]), record = models.get(key3) ?? { provider, model, messages: 0 };
+      record.messages++;
+      models.set(key3, record);
+      if (text15) add(i, row, "assistant-message", text15);
+      for (const field of ["input", "output", "cacheRead", "cacheWrite", "totalTokens"]) {
+        const n = m.usage?.[field];
+        if (n === void 0) continue;
+        if (!Number.isSafeInteger(n) || n < 0) throw Error("invalid provider-reported usage");
+        const f = fields[field] ?? { sum: 0, reportedMessages: 0 };
+        f.sum += n;
+        f.reportedMessages++;
+        if (!Number.isSafeInteger(f.sum)) throw Error("usage sum overflow");
+        fields[field] = f;
+      }
+      for (const c of content) if (c?.type === "toolCall") {
+        const name = value2(c.name, 128);
+        tools.set(name, (tools.get(name) ?? 0) + 1);
+        add(i, row, "tool-call", name);
+      }
+    } else if (m.role === "toolResult") add(i, row, "tool-result", String(m.toolName ?? "unknown") + (m.isError === true ? " \u2014 tool reported error" : " \u2014 result recorded; success not inferred"));
+    else opaque++;
+  });
+  const gaps = [
+    "Retrospective chronological transcript; branch selection and live continuity are not established.",
+    "Messages and tool results are evidence to inspect, not independently verified decisions, tests or acceptance.",
+    "Only explicit inputs are captured. Source revision, initial workspace and external user feedback may be missing.",
+    "Usage is provider-reported repeated-request usage, not unique context, billing or complete parent/child accounting."
+  ];
+  if (opaque) gaps.push(opaque + " message(s) with other roles omitted from the timeline; retained source is complete.");
+  if (!assistantMessages || Object.values(fields).some((f) => f.reportedMessages < assistantMessages) || Object.keys(fields).length < 5) gaps.push("Usage fields are missing; sums cover only reported messages.");
+  if (lastAssistantStop !== "stop") gaps.push("No final assistant stop observed; this snapshot may represent unfinished work.");
+  return { version: "pi-session-observation-v1", sessionId, cwd, timeline, toolCalls: Object.fromEntries(tools), userMessages, assistantMessages, modelRecords: [...models.values()], usage: { fields, assistantMessages, scope: "this-transcript-only" }, lastActivity, lastAssistantStop, gaps };
+}
+function observeSessionLedger2(bytes3) {
+  const rows = sessionRows2(bytes3);
+  normalizePiDaddyLedgerV32(sessionText2(bytes3));
+  const attempts = /* @__PURE__ */ new Map(), decisions = /* @__PURE__ */ new Set(), lifecycles = /* @__PURE__ */ new Set(), deadlines = /* @__PURE__ */ new Map(), displayed = /* @__PURE__ */ new Set();
+  for (const row of rows) {
+    if (!["capability_decision", "child_lifecycle", "workspace_lease"].includes(row.event) || String(row.childId).startsWith("check:")) continue;
+    const id3 = value2(row.executionId), old = attempts.get(id3);
+    if (old && (old.parentExecutionId !== row.parentExecutionId || old.logicalChildId !== row.childId)) throw Error("execution identity changed");
+    const a = old ?? { executionId: id3, parentExecutionId: row.parentExecutionId, logicalChildId: row.childId, agent: null, state: "unknown", pane: null, startedAt: null, endedAt: null, runningSeconds: null };
+    if (row.event === "workspace_lease") {
+      attempts.set(id3, a);
+      continue;
+    }
+    displayed.add(id3);
+    if (row.event === "capability_decision") {
+      if (decisions.has(id3)) throw Error("duplicate capability decision for one execution");
+      decisions.add(id3);
+      a.agent = row.agentType;
+      a.state = row.blocked ? "refused" : a.state === "unknown" ? "authorised" : a.state;
+    } else {
+      if (a.endedAt) throw Error("lifecycle after terminal execution");
+      if (lifecycles.has(id3) && row.state === "starting") throw Error("duplicate starting lifecycle event");
+      if (deadlines.has(id3) && stamp2(row.deadlineAt) && deadlines.get(id3) !== row.deadlineAt) throw Error("lifecycle deadline changed");
+      if (stamp2(row.deadlineAt)) deadlines.set(id3, row.deadlineAt);
+      lifecycles.add(id3);
+      a.state = row.state;
+      a.pane = row.herdrPaneId ?? a.pane;
+      if (row.state === "running") a.startedAt = a.startedAt ?? row.ts;
+      if (["completed", "failed"].includes(row.state)) a.endedAt = row.ts;
+    }
+    if (a.startedAt && a.endedAt) {
+      a.runningSeconds = (Date.parse(a.endedAt) - Date.parse(a.startedAt)) / 1e3;
+      if (a.runningSeconds < 0) throw Error("negative execution duration");
+    }
+    attempts.set(id3, a);
+  }
+  for (const a of attempts.values()) {
+    const seen = /* @__PURE__ */ new Set();
+    let cursor = a;
+    while (cursor) {
+      if (seen.has(cursor.executionId)) throw Error("execution parent cycle");
+      seen.add(cursor.executionId);
+      cursor = cursor.parentExecutionId ? attempts.get(cursor.parentExecutionId) : void 0;
+    }
+  }
+  return [...attempts.values()].filter((a) => displayed.has(a.executionId));
+}
+
+// packages/adapters/src/session-retention.ts
+function checkedSelections2(input) {
+  if (!Array.isArray(input) || input.length < 1 || input.length > 16) throw Error("select 1\u201316 explicit session sources");
+  const seen = /* @__PURE__ */ new Set(), executions = /* @__PURE__ */ new Set();
+  let parents = 0, ledgers = 0;
+  for (const s of input) {
+    if (!s || typeof s !== "object" || Object.keys(s).some((k) => !["kind", "path", "executionId"].includes(k))) throw Error("closed source selection required");
+    if (!["parent", "child", "ledger", "feedback", "artifact"].includes(s.kind) || typeof s.path !== "string" || resolve29(s.path) !== s.path) throw Error("explicit absolute source path required");
+    if (seen.has(s.path)) throw Error("duplicate session source");
+    seen.add(s.path);
+    if (s.kind === "parent") parents++;
+    if (s.kind === "ledger") ledgers++;
+    if (s.executionId !== void 0) {
+      if (s.kind !== "child" || !/^exec:[0-9a-f-]{36}$/i.test(s.executionId) || executions.has(s.executionId)) throw Error("unique child execution id required");
+      executions.add(s.executionId);
+    }
+  }
+  if (parents !== 1 || ledgers > 1) throw Error("exactly one parent and at most one ledger required");
+}
+function projectSession2(selections, buffers) {
+  const parent = observePiSession2(buffers[selections.findIndex((s) => s.kind === "parent")]);
+  const children = selections.flatMap((s, i) => s.kind === "child" ? [{ source: i, executionId: s.executionId ?? null, session: observePiSession2(buffers[i]) }] : []);
+  if ((/* @__PURE__ */ new Set([parent.sessionId, ...children.map((c) => c.session.sessionId)])).size !== children.length + 1) throw Error("duplicate parent/child session id");
+  const ledger = selections.findIndex((s) => s.kind === "ledger"), attempts = ledger < 0 ? [] : observeSessionLedger2(buffers[ledger]);
+  for (const child3 of children) if (child3.executionId && !attempts.some((a) => a.executionId === child3.executionId)) throw Error("selected child execution absent from ledger");
+  const gaps = [...parent.gaps, "No quality, acceptance, calibrated learning or adoption is inferred from this import."];
+  for (const child3 of children) gaps.push(...child3.session.gaps.map((g) => "Child source " + (child3.source + 1) + " (" + child3.session.sessionId + "): " + g));
+  if (ledger < 0) gaps.push("No delegation ledger selected.");
+  else gaps.push("Ledger/session association is operator-selected, not authenticated; ledger may include other sessions.");
+  if (attempts.length > children.filter((c) => c.executionId).length) gaps.push("Child transcript coverage incomplete; no combined token total is claimed.");
+  if (children.length) gaps.push("Child execution mappings are explicit operator declarations, not proof of parentage. Each transcript has separate usage.");
+  if (!selections.some((s) => s.kind === "feedback")) gaps.push("External feedback not supplied; user messages remain available for review.");
+  if (!selections.some((s) => s.kind === "artifact")) gaps.push("No final artifact or source snapshot supplied.");
+  return { parent, children, attempts, gaps };
+}
+function readRetainedSession2(root, manifestId) {
+  const selected2 = readArchiveSource2(root, manifestId);
+  if (selected2.status !== "available" || selected2.reference.retention !== "exact" || selected2.reference.parser.id !== "retrospective-session" || selected2.reference.parser.version !== "1") throw Error("retained session unavailable or unsupported");
+  const record = JSON.parse(sessionText2(selected2.bytes));
+  if (!record || record.version !== "retrospective-session-v1" || Object.keys(record).sort().join() !== "selectionDigest,sources,version" || !Array.isArray(record.sources)) throw Error("invalid retained session");
+  checkedSelections2(record.sources.map((s) => ({ kind: s.kind, path: s.path, ...s.executionId === null ? {} : { executionId: s.executionId } })));
+  const sources = record.sources.map((s) => {
+    if (Object.keys(s).sort().join() !== "bytes,executionId,kind,manifestId,path,sha256") throw Error("invalid retained session source");
+    const r = readArchiveSource2(root, s.manifestId);
+    if (r.status !== "available" || r.reference.retention !== "exact" || r.reference.sha256 !== s.sha256 || r.bytes.length !== s.bytes) throw Error("retained session source missing or changed");
+    return { selection: s, bytes: r.bytes };
+  });
+  if (sources.reduce((n, s) => n + s.bytes.length, 0) > 32 * 1024 * 1024) throw Error("session selection exceeds 32 MiB");
+  const plain = record.sources.map(({ manifestId: manifestId2, ...s }) => s);
+  if (learningHash2({ version: "session-selection-v1", sources: plain }) !== record.selectionDigest) throw Error("retained session selection mismatch");
+  const projection = projectSession2(record.sources.map((s) => ({ kind: s.kind, path: s.path, ...s.executionId === null ? {} : { executionId: s.executionId } })), sources.map((s) => s.bytes));
+  return { version: record.version, manifestId, selectionDigest: record.selectionDigest, sources: record.sources, ...projection, acceptance: "not-assessed" };
+}
+function readRetainedSessionSource2(root, manifestId, index) {
+  const session = readRetainedSession2(root, manifestId), source3 = session.sources[index];
+  if (!Number.isSafeInteger(index) || !source3) throw Error("select a listed session source");
+  const result = readArchiveSource2(root, source3.manifestId);
+  if (result.status !== "available") throw Error("session source unavailable");
+  return result.bytes;
+}
+
 // packages/adapters/src/learning-workspace.ts
-import { mkdirSync as mkdirSync20, readdirSync as readdirSync19, lstatSync as lstatSync18 } from "node:fs";
-import { dirname as dirname23, isAbsolute as isAbsolute27, join as join51, resolve as resolve27 } from "node:path";
+import { mkdirSync as mkdirSync20, readdirSync as readdirSync20, lstatSync as lstatSync18 } from "node:fs";
+import { dirname as dirname23, isAbsolute as isAbsolute28, join as join52, resolve as resolve30 } from "node:path";
 var SHA15 = /^[a-f0-9]{64}$/;
 var NAME2 = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
-function closed18(value, keys7) {
-  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).sort().join() !== [...keys7].sort().join()) throw Error("closed learning workspace input required");
+function closed18(value3, keys7) {
+  if (!value3 || typeof value3 !== "object" || Array.isArray(value3) || Object.keys(value3).sort().join() !== [...keys7].sort().join()) throw Error("closed learning workspace input required");
 }
-function text13(value, max = 4e3) {
-  if (typeof value !== "string" || !value.trim() || value.length > max || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value)) throw Error("bounded learning text required");
+function text14(value3, max = 4e3) {
+  if (typeof value3 !== "string" || !value3.trim() || value3.length > max || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value3)) throw Error("bounded learning text required");
 }
-function hash14(value) {
-  if (typeof value !== "string" || !SHA15.test(value)) throw Error("retained digest required");
+function hash14(value3) {
+  if (typeof value3 !== "string" || !SHA15.test(value3)) throw Error("retained digest required");
 }
-function path2(value) {
-  if (!isAbsolute27(value) || resolve27(value) !== value) throw Error("canonical absolute learning path required");
+function path2(value3) {
+  if (!isAbsolute28(value3) || resolve30(value3) !== value3) throw Error("canonical absolute learning path required");
 }
-function named2(value) {
-  if (!NAME2.test(value.name)) throw Error("learning name must be a short slug");
-  text13(value.title, 512);
+function named2(value3) {
+  if (!NAME2.test(value3.name)) throw Error("learning name must be a short slug");
+  text14(value3.title, 512);
 }
 function clock2(now) {
   if (!Number.isSafeInteger(now) || now < 0) throw Error("valid learning clock required");
@@ -20349,8 +24001,8 @@ function source2(root, id3, parser) {
 function jsonSource2(root, id3, parser) {
   return learningCopy2(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(source2(root, id3, parser).bytes)));
 }
-function retain3(root, parser, value) {
-  return retainArchiveSource2(root, { sourceId: `${parser}-${learningHash2(value).slice(0, 32)}`, parser: { id: parser, version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(value)) }).manifestId;
+function retain3(root, parser, value3) {
+  return retainArchiveSource2(root, { sourceId: `${parser}-${learningHash2(value3).slice(0, 32)}`, parser: { id: parser, version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(value3)) }).manifestId;
 }
 function prepareLearningDirectory2(directory7) {
   path2(directory7);
@@ -20372,8 +24024,8 @@ function validInput2(input) {
   closed18(input, ["archiveRoot", "scopeDigest", "population", "author"]);
   path2(input.archiveRoot);
   hash14(input.scopeDigest);
-  text13(input.population, 512);
-  text13(input.author, 512);
+  text14(input.population, 512);
+  text14(input.author, 512);
   if (/[\u0000-\u001f\u007f]/.test(input.population + input.author)) throw Error("single-line population and explicit author required");
 }
 var workspaceKey2 = (input) => learningHash2({ scopeDigest: input.scopeDigest, population: input.population, author: input.author });
@@ -20414,7 +24066,7 @@ function openLearningWorkspace2(directory7) {
   const history = () => {
     verifyLearningStore2(input.archiveRoot, "workspace", workspaceKey2(input), directory7, learningHash2(initial));
     const rows = journal.read(), names = /* @__PURE__ */ new Set(), decisions = /* @__PURE__ */ new Map();
-    const known = /* @__PURE__ */ new Set(["case-binding", "comparison-binding", "comparison-context", "hypothesis-binding", "unflagged-binding", "trust-binding", "quality-pending", "quality", "decision", "adoption", "activation", "rollback-request", "rollback", "outcome", "lifecycle"]);
+    const known = /* @__PURE__ */ new Set(["session-note", "session-binding", "case-binding", "comparison-binding", "comparison-context", "hypothesis-binding", "unflagged-binding", "trust-binding", "quality-pending", "quality", "decision", "adoption", "activation", "rollback-request", "rollback", "outcome", "lifecycle"]);
     for (const row of rows.slice(1)) {
       const v = row.value;
       if (!known.has(String(v.type))) throw Error("unknown learning workspace event");
@@ -20432,7 +24084,7 @@ function openLearningWorkspace2(directory7) {
     return rows;
   };
   const events = () => history().map((e) => e.value);
-  const append = (value, prior = history().at(-1).id) => journal.append(prior, value);
+  const append = (value3, prior = history().at(-1).id) => journal.append(prior, value3);
   const bindings = (type2) => events().filter((e) => e.type === type2).map((e) => e.binding);
   const selected2 = (type2, name) => {
     const b = bindings(type2).find((b2) => b2.name === name);
@@ -20487,7 +24139,7 @@ function openLearningWorkspace2(directory7) {
   const validateComparison = (b) => {
     closed18(b, ["name", "title", "scopeStatement", "comparisonManifestId", "caseReference", "hypothesisManifestId", "priorFeedbackManifestIds", "adoptionBinding"]);
     named2(b);
-    text13(b.scopeStatement);
+    text14(b.scopeStatement);
     const metadata3 = readBlindInterventionBinding2(input.archiveRoot, b.comparisonManifestId, input.author);
     if (!Array.isArray(b.priorFeedbackManifestIds) || b.priorFeedbackManifestIds.length > 32 || new Set(b.priorFeedbackManifestIds).size !== b.priorFeedbackManifestIds.length) throw Error("bounded prior feedback required");
     b.priorFeedbackManifestIds.forEach((id3) => source2(input.archiveRoot, id3));
@@ -20560,7 +24212,7 @@ function openLearningWorkspace2(directory7) {
     closed18(r, ["version", "operation", "requestId", "adoptionId", "scopeDigest", "candidateDigest", "revision", "registryManifestId"]);
     const a = adoption(name);
     if (r.version !== "learning-registry-receipt-v1" || r.operation !== operation || r.adoptionId !== a.id || r.scopeDigest !== input.scopeDigest || !Number.isSafeInteger(r.revision) || r.revision < 1 || r.candidateDigest !== (operation === "activate" ? a.candidateDigest : a.rollbackCandidateDigest)) throw Error("registry receipt outside adopted scope");
-    text13(r.requestId, 128);
+    text14(r.requestId, 128);
     const view = jsonSource2(input.archiveRoot, r.registryManifestId);
     if (view.version !== "factory-registry-view-v1" || view.scopeDigest !== r.scopeDigest || view.candidateDigest !== r.candidateDigest || view.revision !== r.revision) throw Error("original registry observation mismatch");
     if (operation === "activate") {
@@ -20574,6 +24226,47 @@ function openLearningWorkspace2(directory7) {
   history();
   return {
     configuration: () => learningCopy2(input),
+    bindSession(raw) {
+      const b = learningCopy2(raw);
+      closed18(b, ["name", "title", "manifestId"]);
+      named2(b);
+      hash14(b.manifestId);
+      readRetainedSession2(input.archiveRoot, b.manifestId);
+      bound("session-binding", b);
+      return b;
+    },
+    noteSession(name, raw) {
+      const a = learningCopy2(raw);
+      closed18(a, ["kind", "note", "item", "line"]);
+      text14(a.note);
+      if (!["finding", "proposal", "acceptance", "context"].includes(a.kind) || !Number.isSafeInteger(a.item) || a.item < 1 || !Number.isSafeInteger(a.line) || a.line < 1) throw Error("valid annotation and evidence reference required");
+      const b = selected2("session-binding", name);
+      const bytes3 = readRetainedSessionSource2(input.archiveRoot, b.manifestId, a.item - 1);
+      const content = new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
+      const count = content.length === 0 ? 0 : content.split("\n").length - (content.endsWith("\n") ? 1 : 0);
+      if (a.line > count) throw Error("annotation evidence line outside retained source");
+      const annotation = { ...a, author: input.author };
+      append({ type: "session-note", name, annotation });
+      return annotation;
+    },
+    sessions() {
+      return bindings("session-binding").map((b) => {
+        try {
+          const view = readRetainedSession2(input.archiveRoot, b.manifestId);
+          return { ...b, state: "ready", sessionId: view.parent.sessionId, reason: "retrospective evidence; assessment pending" };
+        } catch (e) {
+          return { ...b, state: "deferred", sessionId: null, reason: message2(e) };
+        }
+      });
+    },
+    session(name) {
+      const b = selected2("session-binding", name);
+      return {
+        ...b,
+        ...readRetainedSession2(input.archiveRoot, b.manifestId),
+        annotations: events().filter((e) => e.type === "session-note" && e.name === name).map((e) => e.annotation)
+      };
+    },
     dashboardBinding() {
       const trust = currentTrust(), binding = events().filter((e) => e.type === "trust-binding").at(-1);
       return { trustDirectory: trust && binding ? String(binding.directory) : null, trustPolicyId: trust ? trust.inspect(0).policyId : null };
@@ -20630,8 +24323,8 @@ function openLearningWorkspace2(directory7) {
       validateTrustScope(config);
       const existing = currentTrust();
       if (existing && existing.inspect(0).policyId !== trustPolicyDigest2(config)) throw Error("trust already frozen; no attention refill");
-      const trust = createTrustLifecycle2(join51(directory7, "trust"), config, authorizedPolicyDigests);
-      this.bindTrust(join51(directory7, "trust"));
+      const trust = createTrustLifecycle2(join52(directory7, "trust"), config, authorizedPolicyDigests);
+      this.bindTrust(join52(directory7, "trust"));
       return trust.inspect(0);
     },
     trust() {
@@ -20725,7 +24418,7 @@ function openLearningWorkspace2(directory7) {
       const before = history().at(-1).id, review = learningCopy2(rawReview), q = quality(name), choice = q.blind.previewChoice(learningCopy2(raw));
       if (q.choice && learningHash2(q.choice) !== learningHash2(choice)) throw Error("blind quality choice locked");
       closed18(review, ["scope", "note", "reviewedArtifactDigests"]);
-      text13(review.note);
+      text14(review.note);
       const required = [...new Set(q.blind.view().cards.flatMap((c) => c.artifactDigests))].sort();
       if (review.scope !== "full-artifacts" || !required.length && choice.kind !== "insufficient" || !Array.isArray(review.reviewedArtifactDigests) || new Set(review.reviewedArtifactDigests).size !== review.reviewedArtifactDigests.length || review.reviewedArtifactDigests.some((h) => !required.includes(h)) || choice.kind !== "insufficient" && learningHash2([...review.reviewedArtifactDigests].sort()) !== learningHash2(required)) throw Error("explicit complete artifact review required; excerpts do not qualify");
       review.reviewedArtifactDigests.sort();
@@ -20752,7 +24445,7 @@ function openLearningWorkspace2(directory7) {
     decide(name, raw) {
       const before = history().at(-1).id, request = learningCopy2(raw);
       closed18(request, ["disposition", "note", "priorDecisionId"]);
-      text13(request.note);
+      text14(request.note);
       if (!["adopt", "reject", "defer"].includes(request.disposition)) throw Error("choose adopt, reject or defer");
       if (request.priorDecisionId !== null) hash14(request.priorDecisionId);
       comparisonBinding(name);
@@ -20834,11 +24527,11 @@ function openLearningWorkspace2(directory7) {
         if (learningHash2(old.observation) !== learningHash2(preview.observation)) throw Error("outcome identity conflict");
         return learningCopy2(old);
       }
-      if (referenceAuthor !== void 0) text13(referenceAuthor, 512);
-      const value = { type: "outcome", name, ...preview, ...referenceAuthor === void 0 ? {} : { referenceAuthor } };
-      const manifestId = retain3(input.archiveRoot, "learning-outcome", value);
-      append({ ...value, manifestId }, before);
-      return { ...value, manifestId };
+      if (referenceAuthor !== void 0) text14(referenceAuthor, 512);
+      const value3 = { type: "outcome", name, ...preview, ...referenceAuthor === void 0 ? {} : { referenceAuthor } };
+      const manifestId = retain3(input.archiveRoot, "learning-outcome", value3);
+      append({ ...value3, manifestId }, before);
+      return { ...value3, manifestId };
     },
     lifecycle(name) {
       const before = history().at(-1).id, q = quality(name), b = q.b;
@@ -20884,20 +24577,20 @@ function openLearningWorkspace2(directory7) {
       } catch (e) {
         trust = { state: "deferred", reason: message2(e), automaticExposure: { mode: "silent", reason: "invalid-trust-evidence" } };
       }
-      return { version: "learning-workspace-view-v1", configuration: learningCopy2(input), mode: "deliberate-review", cases, comparisons, trust, automaticExposureReserved: false, delegationStarted: false, acceptance: "not-assessed" };
+      return { version: "learning-workspace-view-v1", configuration: learningCopy2(input), mode: "deliberate-review", sessions: this.sessions(), cases, comparisons, trust, automaticExposureReserved: false, delegationStarted: false, acceptance: "not-assessed" };
     }
   };
 }
 function catalogLearningArchive2(root, author) {
   path2(root);
-  text13(author, 512);
-  const dir = join51(root, "manifests");
+  text14(author, 512);
+  const dir = join52(root, "manifests");
   for (let p = dir; ; p = dirname23(p)) {
     const s = lstatSync18(p);
     if (!s.isDirectory() || s.isSymbolicLink()) throw Error("archive manifest directory substituted");
     if (p === dirname23(p)) break;
   }
-  const files = readdirSync19(dir);
+  const files = readdirSync20(dir);
   if (files.length > 8192) throw Error("archive catalog bound exceeded");
   return files.filter((id3) => SHA15.test(id3)).sort().flatMap((manifestId) => {
     const r = readArchiveSourceReference2(root, manifestId);
@@ -21024,7 +24717,7 @@ function publishDashboardHarnessBridge(target = globalThis) {
 // packages/pi-extension/src/index.ts
 function index_default(pi) {
   const moduleDir = dirname24(fileURLToPath4(import.meta.url));
-  const assetsDir = basename3(dirname24(moduleDir)) === "skill-harness" ? join52(moduleDir, "..", "assets") : join52(moduleDir, "..", "..", "..", "assets");
+  const assetsDir = basename3(dirname24(moduleDir)) === "skill-harness" ? join53(moduleDir, "..", "assets") : join53(moduleDir, "..", "..", "..", "assets");
   publishDashboardHarnessBridge();
   registerCommand(pi, assetsDir);
   registerTool(pi);
