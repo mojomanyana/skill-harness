@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.17.0 — whole-session retrospectives (2026-09-15)
+
+- Import explicitly selected Pi parent/child transcripts, delegation ledgers, feedback and artifacts.
+- Preview exact source hashes before private retention; show chronological excerpts, full sources,
+  per-transcript usage coverage and missing evidence through the existing CLI/Pi learning flow.
+- Attach operator findings and proposals to exact retained source lines.
+- Acceptance, calibrated improvement and policy adoption are not inferred from session prose or notes.
+- No new model calls, automatic skill edits or expansion of the existing adoption policy scope.
+
 ## 0.16.0 — Unreleased
 
 ### Added

@@ -4,15 +4,15 @@ Current entry point: [PRODUCT-GUIDE.md](PRODUCT-GUIDE.md). The dated
 [CURRENT.md](CURRENT.md), build reports and transport decisions are retained history,
 not current instructions to supply manifests or judge engineering repairs.
 
-## 2026-09-15 session-learning candidate
+## 0.17.0 release candidate — session learning
 
 Adds explicit Pi-session import, exact private retention, chronological evidence,
 per-execution delegation history, parent/child usage coverage, and line-bound
 operator annotations through the existing CLI/Pi learning workspace. No model
 calls, automatic acceptance, calibrated improvement or expanded adoption authority.
-See the whole-session section of PRODUCT-GUIDE.md. Independent review and focused
-offline checks are recorded in this change; publication and installed user testing
-are separate. Entire-session optimization and measured skill/tool variants remain
+See the whole-session section of PRODUCT-GUIDE.md. Feature PR82 is merged with independent review and green CI. Release metadata
+pairs harness 0.17.0 with producer 0.27.3; canonical publication and installed user
+testing remain separate. Entire-session optimization and measured skill/tool variants remain
 follow-up work.
 
 ## Historical 0.16.0 release preparation
