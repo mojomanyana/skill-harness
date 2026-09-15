@@ -131,3 +131,61 @@ All learning commands are offline/no-model. Command completion is never a qualit
 Local author attribution and content hashes are not authentication or hostile-owner attestation.
 
 Current requirements and remaining evidence: [STATUS.md](STATUS.md).
+
+## Whole-session retrospective (2026-09-15 candidate)
+
+Use this after a real task to inspect the conversation, model/thinking settings,
+tool use, individual delegation attempts and provider-reported usage. The importer
+reads only explicitly selected files and never contacts or interrupts an agent.
+
+Start with the terminal CLI (or prefix these arguments with
+"/skill-harness learning" in Pi instead of "skill-harness learning"):
+
+    skill-harness learning session preview --session /absolute/parent.jsonl --ledger /absolute/grants.jsonl
+    skill-harness learning session import --session /absolute/parent.jsonl --ledger /absolute/grants.jsonl --name task --title "Task retrospective" --expected DIGEST_FROM_PREVIEW --confirm --state /private/learning/workspace --archive /private/learning/archive --author operator
+    skill-harness learning session show task --state /private/learning/workspace
+    skill-harness learning session source task --item 1 --state /private/learning/workspace
+
+The first import can create a workspace. For an existing workspace omit --archive
+and --author. Optional --feedback FILE and --artifact FILE retain selected external
+feedback and artifact/source evidence. Use --sources FILE for a JSON array of
+additional selections, for example:
+
+    [{"kind":"child","path":"/absolute/child.jsonl","executionId":"exec:10000000-0000-4000-8000-000000000001"}]
+
+Every source must be a regular, unlinked file: at most 16 files, 8 MiB each,
+32 MiB total; Pi/ledger JSONL is bounded to 4096 records with complete final lines.
+Pi session format v3 and the existing frozen pi-daddy v3 ledger contract are
+supported. Re-preview if any selected bytes change. The ledger association and
+child execution mapping are operator declarations, not authenticated parentage.
+
+**Privacy:** import retains exact original bytes locally, potentially including
+credentials, reasoning, tool arguments or private text present in the source.
+Preview prints paths, hashes and coverage, not a redacted copy. Inspect selected
+inputs before confirming; no scanning, automatic redaction or publication occurs.
+Full-source readback deliberately displays the selected source; terminal control
+characters are escaped for display without altering archived bytes.
+
+Open the existing learning wizard with the same --state path to choose **Import
+session** or **Review sessions**. Editors display evidence; edits are discarded.
+The ordinary producer "/grants learning" bridge also reaches those menu items
+when its current host workspace is already connected. Reading does not reserve
+attention, run a model or change a next-order policy.
+
+Record a finding, proposal, acceptance observation or context note against a
+specific retained source line:
+
+    skill-harness learning session note task --kind proposal --note "Ask for the capability map before implementation; compare this on a later task." --item 1 --line 2 --confirm --state /private/learning/workspace
+
+Notes identify the configured local author. An acceptance note is an operator
+annotation, not an authenticated user approval or qualified comparison.
+The timeline is chronological and may include abandoned branches; excerpts are
+labelled. It does not reconstruct the active branch or verify a test claimed in prose.
+Child usage and missing evidence are reported separately; totals are provider
+observations, not billing or a complete parent-plus-child cost.
+
+This slice makes sessions reviewable. It does **not** automatically generate or
+measure skill/tool/instruction improvements. A later experiment still needs a
+frozen task and candidate, appropriate independent assessment and actual retained
+measurements before claiming faster or equally good output. Existing adoption
+supports its documented model/effort policy scope only; annotations do not expand it.

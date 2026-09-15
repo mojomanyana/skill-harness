@@ -1,3 +1,4 @@
+import { readRetainedSession, readRetainedSessionSource } from './session-retention.js';
 import { mkdirSync, readdirSync, lstatSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import {
@@ -92,7 +93,7 @@ export function openLearningWorkspace(directory: string) {
   const history = () => {
     verifyLearningStore(input.archiveRoot, 'workspace', workspaceKey(input), directory, learningHash(initial));
     const rows=journal.read(),names=new Set<string>(),decisions=new Map<string,string>();
-    const known=new Set(['case-binding','comparison-binding','comparison-context','hypothesis-binding','unflagged-binding','trust-binding','quality-pending','quality','decision','adoption','activation','rollback-request','rollback','outcome','lifecycle']);
+    const known=new Set(['session-note','session-binding','case-binding','comparison-binding','comparison-context','hypothesis-binding','unflagged-binding','trust-binding','quality-pending','quality','decision','adoption','activation','rollback-request','rollback','outcome','lifecycle']);
     for(const row of rows.slice(1)) {
       const v=row.value;if(!known.has(String(v.type)))throw Error('unknown learning workspace event');
       if(String(v.type).endsWith('-binding') && v.type!=='trust-binding') {
@@ -223,6 +224,32 @@ export function openLearningWorkspace(directory: string) {
   history();
   return {
     configuration: () => learningCopy(input),
+    bindSession(raw:{name:string;title:string;manifestId:string}) {
+      const b=learningCopy(raw);closed(b,['name','title','manifestId']);named(b);hash(b.manifestId);
+      readRetainedSession(input.archiveRoot,b.manifestId);bound('session-binding',b);return b;
+    },
+    noteSession(name:string,raw:{kind:'finding'|'proposal'|'acceptance'|'context';note:string;item:number;line:number}) {
+      const a=learningCopy(raw);closed(a,['kind','note','item','line']);text(a.note);
+      if(!['finding','proposal','acceptance','context'].includes(a.kind)||!Number.isSafeInteger(a.item)||a.item<1||!Number.isSafeInteger(a.line)||a.line<1)throw Error('valid annotation and evidence reference required');
+      const b=selected<{name:string;manifestId:string}>('session-binding',name);
+      const bytes=readRetainedSessionSource(input.archiveRoot,b.manifestId,a.item-1);
+      const content=new TextDecoder('utf-8',{fatal:true}).decode(bytes);
+      const count=content.length===0?0:content.split('\n').length-(content.endsWith('\n')?1:0);
+      if(a.line>count)throw Error('annotation evidence line outside retained source');
+      const annotation={...a,author:input.author};append({type:'session-note',name,annotation});return annotation;
+    },
+    sessions() {
+      return bindings<{name:string;title:string;manifestId:string}>('session-binding').map(b=>{
+        try{const view=readRetainedSession(input.archiveRoot,b.manifestId);return {...b,state:'ready',sessionId:view.parent.sessionId,reason:'retrospective evidence; assessment pending'};}
+        catch(e){return {...b,state:'deferred',sessionId:null,reason:message(e)};}
+      });
+    },
+    session(name:string) {
+      const b=selected<{name:string;title:string;manifestId:string}>('session-binding',name);
+      return {...b,...readRetainedSession(input.archiveRoot,b.manifestId),
+        annotations:events().filter(e=>e.type==='session-note'&&e.name===name).map(e=>e.annotation as {kind:string;note:string;item:number;line:number;author:string})};
+    },
+
     dashboardBinding() {
       const trust=currentTrust(),binding=events().filter(e=>e.type==='trust-binding').at(-1);
       return {trustDirectory:trust&&binding?String(binding.directory):null,trustPolicyId:trust?trust.inspect(0).policyId:null};
@@ -406,7 +433,7 @@ export function openLearningWorkspace(directory: string) {
       const cases=bindings<LearningCaseBinding>('case-binding').map(b=>{try {const p=validateCases(b).list(); return {name:b.name,title:b.title,state:'ready',total:p.total,reason:'deliberate review; nomination is not confirmation'};} catch(e) {return {name:b.name,title:b.title,state:'deferred',total:null,reason:message(e)};}});
       const comparisons=bindings<LearningComparisonBinding>('comparison-binding').map(b=>{try {const v=this.comparison(b.name); return {state:'ready',reason:v.revealReady?'quality recorded; adoption remains separate':'quality choice pending; identity and cost hidden',...v};} catch(e) {return {name:b.name,title:b.title,state:'deferred',reason:message(e),decision:decision(b.name)};}});
       let trust: Record<string,unknown>; try { const t=currentTrust(); trust=t?{state:'configured',...t.inspect(now),automaticExposure:t.previewExposure(now)}:{state:'deferred',reason:'trust not configured',automaticExposure:{mode:'silent',reason:'policy-unavailable'}}; } catch(e) { trust={state:'deferred',reason:message(e),automaticExposure:{mode:'silent',reason:'invalid-trust-evidence'}}; }
-      return {version:'learning-workspace-view-v1' as const,configuration:learningCopy(input),mode:'deliberate-review' as const,cases,comparisons,trust,automaticExposureReserved:false,delegationStarted:false,acceptance:'not-assessed' as const};
+      return {version:'learning-workspace-view-v1' as const,configuration:learningCopy(input),mode:'deliberate-review' as const,sessions:this.sessions(),cases,comparisons,trust,automaticExposureReserved:false,delegationStarted:false,acceptance:'not-assessed' as const};
     },
   };
 }

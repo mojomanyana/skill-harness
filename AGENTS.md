@@ -27,7 +27,7 @@ list  <--skills root>                     which skills have a spec (● testable
 lint  <skill|all> --skills root           validate specs/fixtures + results-consistency — CI gate, no models, no keys; exits non-zero on findings
 run   <skill|all> --skills root [--model prov:model ...] [--mode red|green|force] [--judge prov:model] [--reps N] [--pass-threshold T] [--label name] [--parallel N] [--canary]
 compare <skill|all> --reference ref|root --candidate root --model p:m --reps N  paired candidate regression (spends subject + judge)
-learning [status|import|review|trust|decide|adoption|outcome|guide]  guided retained learning — free, offline; explicit local writes, no model calls
+learning [status|import|review|session|trust|decide|adoption|outcome|guide]  guided retained learning — free, offline; explicit local writes, no model calls
 archive ingest|inspect|watch --policy file --source id  explicit external byte ingestion/checkpoint metadata — free, offline, no worker interaction
 judge-agreement <run-dir>                 compare two persisted full-cell judge grades — free, offline
 grade <run-dir> [--judge prov:model]      re-judge saved transcripts with a (different) judge — no model re-run

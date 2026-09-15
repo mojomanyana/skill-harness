@@ -1,6 +1,21 @@
 # Next session — start here
 
-## 0.16.0 release preparation — current
+## 2026-09-15 whole-session learning candidate — current
+
+The additive learning session commands retain explicitly selected parent/child
+Pi transcripts, ledger, feedback and artifacts, then expose timeline excerpts and
+full-source readback plus line-bound operator notes. Preview is read-only; exact
+digest confirmation precedes private retention. Child gaps remain explicit after
+readback. No raw user transcript or consumer fixture belongs in this repository.
+
+Source implementation, bundled Pi entrypoint and focused offline checks are complete.
+Independent review fixes terminal control escaping, real evidence-line bounds,
+retained/child coverage and portable archive containment. See PRODUCT-GUIDE.md for
+commands and limitations. Whole-session optimization is not yet a measured result:
+free-form notes do not authorize policy activation. Release/PR evidence is recorded
+in the delivery handoff rather than inferred from this candidate section.
+
+## 0.16.0 release preparation — historical
 
 Feature PR #80 merged at `c6cd55d4db9ccf9a1ec790459c3cc5e6b1eac69f` with green CI
 and Sol approval. Actual source/built cross-package registry/learning integration passed
