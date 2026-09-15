@@ -1,5 +1,21 @@
 # Next session — start here
 
+## 0.16.0 release preparation — current
+
+Feature PR #80 merged at `c6cd55d4db9ccf9a1ec790459c3cc5e6b1eac69f` with green CI
+and Sol approval. Actual source/built cross-package registry/learning integration passed
+with explicitly synthetic fixtures. Prepare **skill-harness 0.16.0**, paired with
+**pi-daddy 0.27.0**; Principal 3.2.0 is unchanged.
+
+The release metadata changes no runtime code or third-party dependencies. Follow the
+active 0.16.0 order in `PUBLISHING.md`: exact release-merge canonical pack on Node
+20.20.2/npm 10.8.2, retain all four archives and manifest, then a fresh empty-prefix
+install and actual Pi two-extension/original-registry learning checks without providers.
+`smoke:packed` repacks into disposable storage; it is not the retained-archive proof.
+Publication, installed-release proof, acceptance and calibration remain pending where
+not independently evidenced. Prior live route smokes remain historical; do not replay
+model calls solely for metadata. Earlier dated entries below are preserved history.
+
 ## 2026-09-14 retained learning usability candidate
 
 Canonical baseline is now released 0.15.0 (`a725579`). The additive learning workspace

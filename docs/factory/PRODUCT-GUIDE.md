@@ -1,10 +1,12 @@
 # Factory: work, review, learn
 
-**Product guide for the current implementation candidate.** The last audited releases
-are skill-harness **0.15.0**, pi-daddy **0.26.1**, and Principal **3.2.0**.
-New learning entrypoints below require the matching candidate/release packages;
-publication and installed-flow verification are separate gates. Check
-`skill-harness --version`, `skill-harness learning help`, and the loaded Pi resources.
+**Product guide for the 0.16.0 release candidate**, paired with pi-daddy **0.27.0**;
+Principal **3.2.0** is unchanged. The prior audited baseline was harness 0.15.0 /
+producer 0.26.1. Harness PR80 is merged and independently approved with green CI;
+source/built cross-package checks passed with synthetic fixtures, not human evidence.
+Canonical release packaging, publication and final installed-flow verification remain
+separate pending gates. After installation, expect `skill-harness --version` **0.16.0**
+and producer package **0.27.0**; check `skill-harness learning help` and loaded Pi resources.
 Do not assume an existing session reloaded because a package was updated. Use a **fresh
 Pi session** when upgrading an already-published immutable dashboard bridge: `/reload`
 cannot replace the old global API. No other running session needs to be stopped.
@@ -83,13 +85,15 @@ The original producer closing path still requires presence, quiescence and its e
 
 ## Scoped adoption and later work
 
-Use the connected **producer learning controls** for activation/rollback. The producer candidate
+Use **`/grants learning` in interactive Pi** for activation/rollback. The matching producer
 implements two separate profiles: unchanged **`fixed-policy-v1`**, and
 **`ordinary-work-policy-v1`** for model/effort-only changes to the same selected task IDs and
 agent definitions. The latter does not change instructions, skills, grants, capabilities,
 topology or assessment policy; do not disguise those changes as model/effort or fixed policy.
 The producer prepares policy bytes and owns independent authority and the original registry.
-This is source-level support, not an installed integration or release claim.
+Source/built integration has been checked with synthetic fixtures; final installed-release
+verification remains pending. Bare legacy fixed-policy views lacking applied activation
+proof defer; they must not be treated as activation receipts.
 
 Activation needs the exact selected candidate, original confirmed case/hypothesis/comparison,
 current independently verified eligible facts, explicit adoption authority, and registry
