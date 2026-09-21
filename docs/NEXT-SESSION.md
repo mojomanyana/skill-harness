@@ -1,5 +1,20 @@
 # Next session — start here
 
+## Deferred plan after Principal 4.0 and pi-daddy 0.30.0 — pending (2026-09-21)
+
+Do not start this until both land. Principal 4.0 (`release/4.0.0`) deletes every
+`specification.yaml`, `tests/results/`, `tests/arms.yaml`, `tests/e2e`, `docs/validation` and
+its skill-harness CI step; the v3.2.0 tag keeps them. pi-daddy ADR-0076 ships 0.30.0 with one
+ledger, `PI_DADDY_*` env only, collapsed exports and skill-harness as a version-negotiated
+optional peer, which breaks the ledger-v3 pin, the dashboard bridge `sourceCommit` check and
+export paths. Then write ONE plan covering: the one-time pi-daddy re-pin; repointing README,
+USAGE, ASSURANCE-WORKFLOWS and `examples/principal-v3-pack` to historical; a new separate
+Principal measurement repo as the live consumer (not a v3.2.0 pin); and the approved Jev
+advisors design in `docs/superpowers/specs/2026-09-21-jev-advisors-design.md` (shared client
+package from pi-daddy, separate opt-in advisor budget, advice flags or steers spend but never
+relaxes, record-and-report stage first). The user has further requirements to add.
+
+
 ## 0.17.0 release preparation — current
 
 Feature PR82 merged at 5145f9e19c243eae9d9b42a87ea4007a645146ca after independent Sol
