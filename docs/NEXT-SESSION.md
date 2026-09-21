@@ -12,7 +12,15 @@ USAGE, ASSURANCE-WORKFLOWS and `examples/principal-v3-pack` to historical; a new
 Principal measurement repo as the live consumer (not a v3.2.0 pin); and the approved Jev
 advisors design in `docs/superpowers/specs/2026-09-21-jev-advisors-design.md` (shared client
 package from pi-daddy, separate opt-in advisor budget, advice flags or steers spend but never
-relaxes, record-and-report stage first). The user has further requirements to add.
+relaxes, record-and-report stage first); and the approved skill research loop in
+`docs/superpowers/specs/2026-09-21-skill-research-loop-design.md` (pi-daddy work plan
+`skill-research-v1`, red-first scenario filtering, propose-only `improve`, blind choice, the
+learning lifecycle trimmed into an experiment record and KEPT in the harness). Roast follow-ups
+for the same plan: move the qualification runner out; drop ledger v2 and codex producer IPC
+after the re-pin; one current release document; plain 40-line example spec; glossary; un-minify
+long-line files; trigger suite; ablation arms; discriminating-check report; `agreement` with
+Cohen's kappa against author overrides; `--max-cost-usd` for subject spend; agentskills.io
+`evals.json` interop. The user has further requirements to add.
 
 
 ## 0.17.0 release preparation — current
