@@ -13,7 +13,6 @@ export const FREE_OFFLINE_COMMANDS = [
   "list",
   "rescore",
   "restamp",
-  "screen",
   "stability",
 ] as const;
 

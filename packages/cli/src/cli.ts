@@ -27,7 +27,6 @@ import {
   isScoredMode,
   resolveArm,
   isFreeOfflineCommand,
-  screenResults, formatScreen,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
@@ -427,13 +426,6 @@ async function cmdRestamp(args: Args): Promise<void> {
   );
 }
 
-export async function cmdScreen(args: Args): Promise<void> {
-  if (args._.length === 0) throw new Error("usage: skill-harness screen <run-dir> [<run-dir> ...]");
-  const results = args._.map(runDir => readResults(resolve(runDir)));
-  console.log(formatScreen(screenResults(results)));
-  console.log(`\n${results.length} retained result(s) screened; 0 subject calls, 0 judge calls.`);
-}
-
 async function cmdStability(args: Args): Promise<void> {
   const root = flagStr(args, "skills", process.cwd())!;
   const target = args._[0] ?? "all";
@@ -747,7 +739,6 @@ export function help(): string {
   regate <run-dir>...  [--judge prov:model]     re-evaluate saved gates (no subject call; judges fail→pass reps)
   restamp <skill|all> --skills <root> [--from <git-ref>]   record the model-visible skill digest on runs that still match (${free("restamp")}; one-time migration)
   stability <skill|all> --skills <root> [--window N] [--all]  run-over-run verdict flips per scenario (${free("stability")})
-  screen <run-dir>...                           retained control/treatment + criterion rates (${free("screen")})
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]
   init   <skill>     --skills <root> [--force]     scaffold a commented template spec (${free("init")})
@@ -778,7 +769,6 @@ export async function main(argv: string[]): Promise<void> {
     case "regate": return cmdRegate(args);
     case "restamp": return cmdRestamp(args);
     case "stability": return cmdStability(args);
-    case "screen": return cmdScreen(args);
     case "review": return cmdReview(args);
     case "add-test": return cmdAddTest(args);
     case "init": return cmdInit(args);

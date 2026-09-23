@@ -296,16 +296,6 @@ It also shows up without being asked for: a `⇄` line under a fresh run's score
 only gate-failing findings. A boundary cell is not a broken spec — the remedy is `--reps`
 on that scenario, or an override with a note once you have decided which side is right.
 
-## 4g. Screen retained evidence before buying another run
-
-```bash
-node bin/skill-harness.js screen <run-dir> [<run-dir> ...]
-```
-
-`screen` is free, offline, and read-only: it never resolves an adapter and makes zero subject or judge calls. From schema-v3 fields alone it groups by skill × model × scenario, reports delivery-proven control and treatment pass rates, and reports each retained criterion's fail rate. Control ≥80% is `CEILING`, ≤10% is `FLOOR`, 20–70% is `INFORMATIVE`; incomplete, legacy, or inconclusive evidence is `UNKNOWN`. An informative baseline means headroom exists, not that the skill helps.
-
-Schema 1/2 records remain valid and byte-identical, but cannot acquire prompt/vote evidence that was never retained. Reading never upgrades them. Re-running writes schema 3; `grade`, `rescore`, `regate`, and review carry the observations without re-attributing delivery.
-
 ## 5. Review — flip verdicts, read transcripts
 
 ```bash

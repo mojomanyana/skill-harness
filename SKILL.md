@@ -67,13 +67,11 @@ the judge's verdict; only an explicit author override beats it.
 
 ## Free, offline, and worth running first
 None of these spend a model or judge token. Reach for them before anything paid:
-`init`, `lint`, `list`, `rescore`, `restamp`, `screen`, `stability`, `coverage`, `archive`,
+`init`, `lint`, `list`, `rescore`, `restamp`, `stability`, `coverage`, `archive`,
 and `learning`. In particular —
 - `coverage <skill|all> --skills <root>` — which SKILL.md sections have a declared
   test. `covers` records that somebody LINKED a test to a section; it is not proof
   the behaviour is tested, and it is worth saying so when you report a percentage.
-- `screen <run-dir>...` — recompute control/treatment rates and criterion failures
-  from schema-v3 retained prompt observations and judge votes; older evidence stays UNKNOWN.
 
 **Match the remedy to the drift; `lint` names it.** `stimulus:` → `run` (spends),
 `rubric:` → `grade` (judge only), `policy:` → `rescore` (free), `gates:` → `regate`

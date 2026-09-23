@@ -213,7 +213,6 @@ skill-harness run    <skill|all> --skills <root> [--model prov:model ...] [--mod
                                [--only A1,A2]   # scenario subset; a partial run never reports SHIP
 skill-harness archive ingest|inspect|watch --policy file --source id  # explicit local archive policy; metadata output, no worker/model calls
 skill-harness stability <skill|all> --skills <root> [--window N] [--all]  # run-over-run verdict flips (free, offline)
-skill-harness screen <run-dir>...                         # retained delivery-aware scenario/criterion rates (free, offline)
 skill-harness restamp <skill|all> --skills <root> [--from <git-ref>]  # one-time hash upgrade; see "what stales a run" (free, offline)
 skill-harness coverage <skill|all> --skills <root> [--strict]  # which instruction sections have a declared test (free, offline)
 skill-harness grade  <run-dir>   [--judge prov:model]
@@ -583,7 +582,6 @@ New runs write `results.yaml` **schema 3**. Schema-1 and schema-2 files remain r
 - `subject_invocations[]` records each provider request's adapter-computed delivery status, mechanism, contract SHA-256/bytes/occurrences, and prompt provenance. `raw_sha256` commits to the model-visible prompt fields projected from the captured final provider payload JSON (`instructions`/`system` plus message/input content). `normalized_sha256` applies the named registry rule `cwd-line-v1`, which replaces exactly lines beginning `Current working directory:` and no other bytes. The payload itself is not retained.
 - every scenario has `rep_judgments[]`; each panel member retains every numbered criterion verdict/reason. Readers recompute each recorded panel verdict from those votes and reject divergence.
 - `skill_delivered` is an objective assertion. Force/system-prompt requests require exactly one contract occurrence per provider request; red/control requests require zero. Green progressive disclosure may begin with zero, but must eventually deliver exactly one and may never duplicate it. Known zero/duplicate delivery becomes `NOT-MEASURED`: it is not judged, is excluded from efficacy denominators, and blocks SHIP without blaming the product. Missing, malformed, or unauthenticated instrumentation is `ERROR`. The extension-free observer HMAC-authenticates its complete log and shutdown count; the parent rejects mutation, replay, or truncation and rebinds contract identity. Because arbitrary scenario/arm extensions or arm runtime environment share Pi's process, their payload provenance cannot be authenticated in-process; those runs fail this observation closed until an out-of-process recorder exists.
-- `screen <run-dir>...` reads only these retained fields. It reports skill/model/scenario control and treatment pass rates, a separate not-measured bucket, and criterion failure rates. Control pass rate ≥80% is CEILING, ≤10% FLOOR, 20–70% INFORMATIVE; absent/inconclusive evidence is UNKNOWN. It makes no model or judge call.
 
 Fields retained from schema 2:
 
