@@ -179,7 +179,7 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
   //    silently downgraded a gated scenario to "no assertions declared".
   // `adjudication` is deliberately NOT carried: it describes the judgments this
   // re-grade just replaced, and a stale panel beside a fresh verdict is worse
-  // than none. `grade --auto-rejudge` recomputes it.
+  // than none.
   // The whole prior result per id — `rebuildScenarioResult` decides, field by
   // field, what survives. Passing a hand-picked subset here is how fields got
   // dropped before.

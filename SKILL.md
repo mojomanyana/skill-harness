@@ -49,12 +49,6 @@ the judge's verdict; only an explicit author override beats it.
 3. **Run + grade.** `skill-harness run <skill> --skills <root> --model <m> [--model <m2>]
    [--judge <prov:model>]`. This runs every scenario, grades each transcript, writes
    `results.yaml`, and prints a scorecard per model. Heed any judge≈subject warning.
-3b. **Ask for a second opinion where it decides the ship.** Add `--auto-rejudge` to
-   `run` or `grade` to re-judge cells that are ambiguous, self-contradictory,
-   non-unanimous across reps, or ship-deciding. It discloses an exact ceiling on
-   ADDITIONAL judge calls before spending one, and names any cell it cannot settle
-   without `--tie-break-judge`. An unresolved disagreement blocks SHIP; it never
-   resolves itself.
 4. **Check what one run is worth.** `skill-harness stability <skill> --skills <root>`
    (free, offline) lists scenarios whose verdict flipped between runs of the same skill ×
    model × mode. `flakiness 0.00` cannot see this — it compares reps inside ONE run — so

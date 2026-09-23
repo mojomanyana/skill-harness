@@ -1,10 +1,10 @@
 // packages/pi-extension/src/index.ts
 import { fileURLToPath as fileURLToPath4 } from "node:url";
-import { basename as basename3, dirname as dirname23, join as join52 } from "node:path";
+import { basename as basename3, dirname as dirname23, join as join51 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
-import { existsSync as existsSync30 } from "node:fs";
-import { dirname as dirname18, join as join43, resolve as resolve24, relative as relative6 } from "node:path";
+import { existsSync as existsSync29 } from "node:fs";
+import { dirname as dirname18, join as join42, resolve as resolve24, relative as relative6 } from "node:path";
 
 // packages/core/dist/trusted-host-supervision.js
 import { readFileSync as readFileSync2 } from "node:fs";
@@ -6929,14 +6929,6 @@ function collectReport(skillDir) {
               detail: s.objective.assertions.length ? s.objective.assertions.map((a) => `${a.status} ${a.detail}`).join(" \xB7 ") : "no assertion evidence recorded"
             }
           } : {},
-          ...s.adjudication ? {
-            adjudication: {
-              state: s.adjudication.state,
-              trigger: s.adjudication.trigger,
-              count: s.adjudication.judgments.length,
-              detail: s.adjudication.judgments.map((j) => `#${j.ordinal} ${j.judge.provider}:${j.judge.model} ${j.verdict}${j.suspect ? " (misfired, not counted)" : ""}`).join(" \xB7 ")
-            }
-          } : {},
           judge_verdict: s.judge_verdict,
           judge_reason: s.judge_reason,
           suspect: s.suspect ?? false,
@@ -7933,325 +7925,44 @@ var EVENT_KEYS = /* @__PURE__ */ new Set([
   "attributes"
 ]);
 
-// packages/core/dist/adjudication.js
-import { existsSync as existsSync16, readFileSync as readFileSync18, writeFileSync as writeFileSync7 } from "node:fs";
-import { join as join22 } from "node:path";
-function planAdjudication(input) {
-  const enabled = new Set(input.enabled ?? ["ambiguous", "contradictory", "non_unanimous", "ship_deciding"]);
-  const decisions = [];
-  for (const cell of input.cells) {
-    if (cell.deliveryStatus && cell.deliveryStatus !== "PASS")
-      continue;
-    const triggers = [];
-    if (enabled.has("ambiguous") && (cell.verdict === "JUDGE-AMBIGUOUS" || cell.verdict === "ERROR")) {
-      triggers.push("ambiguous");
-    }
-    if (enabled.has("contradictory") && cell.suspect && cell.verdict !== "JUDGE-AMBIGUOUS" && cell.verdict !== "ERROR") {
-      triggers.push("contradictory");
-    }
-    if (enabled.has("non_unanimous") && isNonUnanimous(cell))
-      triggers.push("non_unanimous");
-    if (enabled.has("ship_deciding") && flipsShipDecision(cell, input))
-      triggers.push("ship_deciding");
-    decisions.push({ id: cell.id, triggers });
-  }
-  const suspectById = new Map(input.cells.map((c) => [c.id, c.suspect]));
-  const fired = decisions.filter((d) => d.triggers.length > 0);
-  const needsTieBreak = input.tieBreakAvailable ? [] : fired.filter((d) => suspectById.get(d.id)).map((d) => d.id);
-  const triggered = fired.map((d) => d.id);
-  const perCell = input.tieBreakAvailable ? 2 : 1;
-  return { decisions, triggered, needsTieBreak, maxAdditionalCalls: triggered.length * perCell };
-}
-function isNonUnanimous(cell) {
-  const reps2 = cell.repVerdicts ?? [];
-  if (reps2.length < 2)
-    return false;
-  const passes = reps2.filter((v) => v === "PASS").length;
-  return passes > 0 && passes < reps2.length;
-}
-function flipsShipDecision(cell, input) {
-  const verdictsWith = (targetVerdict) => input.cells.map((c) => c.id === cell.id ? { id: c.id, verdict: targetVerdict, suspect: false } : { id: c.id, verdict: c.verdict, suspect: c.suspect });
-  const opts = { shipBar: input.shipBar, critical: input.critical };
-  const flipped = cell.verdict === "PASS" ? "FAIL" : "PASS";
-  return score(verdictsWith(cell.verdict), opts).ship !== score(verdictsWith(flipped), opts).ship;
-}
-function collapseJudgments(judgments, trigger) {
-  const collapsed = collapseVotePanel(judgments);
-  return {
-    trigger,
-    judgments,
-    state: collapsed.state,
-    ...collapsed.verdict ? { verdict: collapsed.verdict } : {}
-  };
-}
-function boundAdjudicationToRepetitions(result, scenario, adj) {
-  const criticalAggregate = (result.reps ?? 1) > 1 && effectiveThreshold(result, scenario) === 1;
-  return criticalAggregate && result.judge_verdict !== "PASS" && adj.verdict === "PASS" ? { ...adj, state: "unresolved", verdict: void 0 } : adj;
-}
-function projectAdjudication(result, adj) {
-  if (adj.state === "unresolved") {
-    return {
-      ...result,
-      // Verdict is left as recorded rather than forced to FAIL: `suspect` is what
-      // blocks the ship, and overwriting the verdict would destroy the
-      // first-wave answer an author needs in order to adjudicate.
-      judge_reason: `${adj.judgments.length} judgments disagree (${adj.trigger}) \u2014 resolve or re-judge`,
-      suspect: true,
-      adjudication: adj
-    };
-  }
-  return {
-    ...result,
-    judge_verdict: adj.verdict ?? result.judge_verdict,
-    judge_reason: reasonFor(adj),
-    // A confirmed or tie-broken cell is no longer untrustworthy — that is the
-    // entire point of having asked again.
-    suspect: false,
-    adjudication: adj
-  };
-}
-function projectAdjudicationForScenario(result, scenario, adj) {
-  const bounded = boundAdjudicationToRepetitions(result, scenario, adj);
-  const projected = projectAdjudication(result, bounded);
-  if (bounded !== adj) {
-    projected.judge_reason = `${adj.judgments.length} judgments on one transcript cannot replace a critical all-repetitions aggregate`;
-  }
-  return projected;
-}
-function reasonFor(adj) {
-  const n = adj.judgments.length;
-  const verb = adj.state === "confirmed" ? "confirmed by" : "resolved by majority of";
-  return `${adj.verdict} ${verb} ${n} judgments (${adj.trigger})`;
-}
-async function runAdjudication(opts) {
-  const byId = /* @__PURE__ */ new Map();
-  const log = opts.log ?? (() => {
-  });
-  let callsMade = 0;
-  for (const decision of opts.plan.decisions) {
-    if (decision.triggers.length === 0)
-      continue;
-    const cell = opts.cells.find((c) => c.id === decision.id);
-    if (!cell)
-      continue;
-    const trigger = decision.triggers[0];
-    const judgments = [
-      cell.primaryJudgment ? { ...cell.primaryJudgment, ordinal: 1 } : { ordinal: 1, judge: { ...opts.primaryJudge }, verdict: cell.verdict, reason: cell.reason, suspect: cell.suspect, criteria: cell.criteria ?? [] }
-    ];
-    const second = await opts.rejudge(decision.id, opts.secondaryJudge);
-    callsMade++;
-    judgments.push({ ordinal: 2, judge: { ...opts.secondaryJudge }, ...second });
-    let collapsed = collapseJudgments(judgments, trigger);
-    if (collapsed.state === "unresolved" && opts.tieBreakJudge) {
-      const third = await opts.rejudge(decision.id, opts.tieBreakJudge);
-      callsMade++;
-      judgments.push({ ordinal: 3, judge: { ...opts.tieBreakJudge }, ...third });
-      collapsed = collapseJudgments(judgments, trigger);
-    }
-    log(`  ${decision.id}: ${collapsed.state}${collapsed.verdict ? ` \u2192 ${collapsed.verdict}` : ""} (${judgments.length} judgments)`);
-    byId.set(decision.id, collapsed);
-  }
-  return { byId, callsMade };
-}
-async function adjudicateRun(opts) {
-  const log = opts.log ?? (() => {
-  });
-  const mode = opts.results.mode;
-  const cells = cellsFromResults(opts.runDir, opts.results);
-  const plan = planAdjudication({
-    cells,
-    scenarios: opts.spec.scenarios,
-    shipBar: opts.spec.ship_bar,
-    critical: opts.spec.critical,
-    tieBreakAvailable: opts.tieBreakJudge !== void 0
-  });
-  log(formatAdjudicationPlan(plan, { secondary: opts.secondaryJudge, tieBreak: opts.tieBreakJudge }));
-  if (plan.triggered.length === 0)
-    return opts.results;
-  const byIdScenario = new Map(opts.spec.scenarios.map((s) => [s.id, s]));
-  const { byId, callsMade } = await runAdjudication({
-    plan,
-    cells,
-    primaryJudge: opts.primaryJudge,
-    secondaryJudge: opts.secondaryJudge,
-    tieBreakJudge: opts.tieBreakJudge,
-    log,
-    rejudge: async (id3, judge) => {
-      const scenario = byIdScenario.get(id3);
-      if (!scenario)
-        throw new Error(`adjudication: scenario \`${id3}\` is not in the spec`);
-      return judgeCell({ ...opts, scenario, judge, mode });
-    }
-  });
-  const scenarios = opts.results.scenarios.map((s) => {
-    const adj = byId.get(s.id);
-    if (!adj)
-      return s;
-    const scenario = byIdScenario.get(s.id);
-    const withRepetition = { ...adj, repetition: s.rep_judgments?.[0]?.repetition ?? 0 };
-    const projected = scenario ? projectAdjudicationForScenario(s, scenario, withRepetition) : projectAdjudication(s, withRepetition);
-    const extraCalls = adj.judgments.filter((judgment) => judgment.ordinal > 1).length;
-    projected.metrics = mergeScenarioMetrics(s.metrics, {
-      wall_time_ms: 0,
-      judge_calls: extraCalls,
-      judge_rejudge_calls: extraCalls,
-      subject_metrics_reps: 0,
-      total_reps: s.metrics?.total_reps ?? s.reps ?? 1
-    });
-    return rebuildScenarioResult(projected, s, { objective: "carry", adjudication: "fresh" });
-  });
-  appendJournal(opts.runDir, {
-    event: "adjudication",
-    ts: opts.now(),
-    triggered: plan.triggered,
-    judge_calls: callsMade,
-    unresolved: [...byId.entries()].filter(([, a]) => a.state === "unresolved").map(([id3]) => id3)
-  });
-  const ctx = scoreContextFor(opts.results, opts.spec);
-  return writeResults(opts.runDir, { ...opts.results, scenarios }, ctx);
-}
-async function judgeCell(opts) {
-  const files = findTranscriptFiles(opts.runDir, opts.scenario.id, opts.mode);
-  if (files.length === 0) {
-    throw new Error(`adjudication: no ${opts.mode} transcript for \`${opts.scenario.id}\` in ${opts.runDir} \u2014 transcripts are gitignored, so this needs the run dir that produced them`);
-  }
-  const transcript = readFileSync18(join22(opts.runDir, files[0]), "utf8");
-  const prompt = buildJudgePrompt({
-    skill: opts.spec.skill,
-    persona: opts.spec.judge_persona,
-    scenario: opts.scenario,
-    transcript
-  });
-  const g = await judgeInWorkspace(opts.adapter, opts.judge, prompt, opts.specDir);
-  const rep = repIndexOf(files[0]) ?? void 0;
-  const base = judgeRawPath(opts.runDir, opts.scenario.id, opts.mode, rep);
-  const nth = existsSync16(base.replace(/\.judge\.txt$/, ".judge2.txt")) ? 3 : 2;
-  writeFileSync7(base.replace(/\.judge\.txt$/, `.judge${nth}.txt`), g.raw, "utf8");
-  appendJournal(opts.runDir, {
-    event: "judge-verdict",
-    ts: opts.now(),
-    id: opts.scenario.id,
-    verdict: g.verdict,
-    reason: g.reason,
-    suspect: g.suspect
-  });
-  return { verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, opts.scenario.checklist.length) };
-}
-function cellsFromResults(runDir, results) {
-  return results.scenarios.map((s) => {
-    const primaryJudgment = s.rep_judgments?.find((panel) => panel.repetition === 0)?.judgments[0];
-    const deliveryStatus = s.objective?.assertions.find((assertion) => assertion.kind === "skill_delivered")?.status;
-    return {
-      id: s.id,
-      verdict: s.judge_verdict,
-      reason: s.judge_reason,
-      suspect: s.suspect,
-      repVerdicts: repVerdictsOf(runDir, s, results.mode),
-      criteria: primaryJudgment?.criteria,
-      ...deliveryStatus === "PASS" || deliveryStatus === "NOT-MEASURED" || deliveryStatus === "ERROR" ? { deliveryStatus } : {},
-      ...primaryJudgment ? { primaryJudgment } : {}
-    };
-  });
-}
-function repVerdictsOf(runDir, s, mode) {
-  if (!s.reps || s.reps < 2)
-    return void 0;
-  const out = [];
-  for (let rep = 0; rep < s.reps; rep++) {
-    const path3 = judgeRawPath(runDir, s.id, mode, rep);
-    if (!existsSync16(path3)) {
-      out.push("ERROR");
-      continue;
-    }
-    out.push(parseVerdict(readFileSync18(path3, "utf8")).verdict);
-  }
-  return out.length >= 2 ? out : void 0;
-}
-function resolveAdjudicationJudges(opts) {
-  if (!opts.enabled)
-    return null;
-  let subject = null;
-  try {
-    subject = opts.parseRef(opts.subjectToken);
-  } catch {
-    opts.warn(`  \u26A0 cannot read the run's model (\`${opts.subjectToken}\`) \u2014 skipping the judge\u2260subject check`);
-  }
-  const secondary = opts.secondaryToken ? opts.parseRef(opts.secondaryToken) : opts.primary;
-  const tieBreak = opts.tieBreakToken ? opts.parseRef(opts.tieBreakToken) : void 0;
-  opts.assertAllowed(secondary, "--secondary-judge");
-  if (tieBreak)
-    opts.assertAllowed(tieBreak, "--tie-break-judge");
-  if (subject) {
-    for (const [label, judge] of [["secondary", secondary], ["tie-break", tieBreak]]) {
-      if (judge && opts.resemblesSubject(judge, subject)) {
-        opts.warn(`  \u26A0 ${label} judge (${judge.provider}:${judge.model}) resembles the model under test (${subject.provider}:${subject.model}) \u2014 same-family grading inflates scores.`);
-      }
-    }
-  }
-  return tieBreak ? { secondary, tieBreak } : { secondary };
-}
-function formatAdjudicationPlan(plan, judges) {
-  const stuck = plan.needsTieBreak.length ? [
-    `  ${plan.needsTieBreak.length} of those cannot be SETTLED by this plan: ${plan.needsTieBreak.join(", ")}`,
-    "    (their first judgment misfired, so one more judge cannot reach two clean votes \u2014 the call",
-    "     buys a second opinion to resolve by hand; add a tie-break judge to settle them outright)"
-  ] : [];
-  if (plan.triggered.length === 0) {
-    return ["adjudication: no cell triggered \u2014 no additional judge calls", ...stuck].join("\n");
-  }
-  const lines2 = [
-    `adjudication: ${plan.triggered.length} cell(s) triggered \u2014 up to ${plan.maxAdditionalCalls} additional judge call(s)`,
-    `  secondary judge: ${judges.secondary.provider}:${judges.secondary.model}`
-  ];
-  if (judges.tieBreak)
-    lines2.push(`  tie-break judge: ${judges.tieBreak.provider}:${judges.tieBreak.model}`);
-  else
-    lines2.push("  no tie-break judge \u2014 a disagreement stays unresolved and blocks SHIP");
-  for (const d of plan.decisions) {
-    if (d.triggers.length)
-      lines2.push(`  ${d.id}: ${d.triggers.join(", ")}`);
-  }
-  return [...lines2, ...stuck].join("\n");
-}
-
 // packages/core/dist/qualification-panel-store.js
-import { existsSync as existsSync20, readdirSync as readdirSync15 } from "node:fs";
-import { join as join29 } from "node:path";
+import { existsSync as existsSync19, readdirSync as readdirSync15 } from "node:fs";
+import { join as join28 } from "node:path";
 
 // packages/core/dist/qualification-runner.js
 import { spawn as spawn3 } from "node:child_process";
 import { randomBytes as randomBytes3 } from "node:crypto";
-import { closeSync as closeSync5, constants as constants5, existsSync as existsSync19, fstatSync as fstatSync5, lstatSync as lstatSync4, mkdirSync as mkdirSync7, openSync as openSync5, readFileSync as readFileSync23, readdirSync as readdirSync14, realpathSync as realpathSync6, renameSync as renameSync6, rmSync as rmSync5 } from "node:fs";
-import { isAbsolute as isAbsolute9, join as join28 } from "node:path";
+import { closeSync as closeSync5, constants as constants5, existsSync as existsSync18, fstatSync as fstatSync5, lstatSync as lstatSync4, mkdirSync as mkdirSync7, openSync as openSync5, readFileSync as readFileSync22, readdirSync as readdirSync14, realpathSync as realpathSync6, renameSync as renameSync6, rmSync as rmSync5 } from "node:fs";
+import { isAbsolute as isAbsolute9, join as join27 } from "node:path";
 import { setTimeout as sleep2 } from "node:timers/promises";
 
 // packages/core/dist/qualification-capture.js
 import { spawn as spawn2 } from "node:child_process";
-import { closeSync as closeSync2, constants as constants2, fstatSync as fstatSync2, fsyncSync, openSync as openSync2, readFileSync as readFileSync20, writeSync } from "node:fs";
-import { join as join24 } from "node:path";
+import { closeSync as closeSync2, constants as constants2, fstatSync as fstatSync2, fsyncSync, openSync as openSync2, readFileSync as readFileSync19, writeSync } from "node:fs";
+import { join as join23 } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 
 // packages/core/dist/qualification-config.js
 import { execFileSync as execFileSync3 } from "node:child_process";
 import { createHash as createHash13 } from "node:crypto";
-import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync as readFileSync19, realpathSync as realpathSync3 } from "node:fs";
-import { isAbsolute as isAbsolute7, join as join23 } from "node:path";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync as readFileSync18, realpathSync as realpathSync3 } from "node:fs";
+import { isAbsolute as isAbsolute7, join as join22 } from "node:path";
 
 // packages/core/dist/qualification-lock.js
-import { existsSync as existsSync17, mkdirSync as mkdirSync5, renameSync as renameSync4, rmSync as rmSync3 } from "node:fs";
-import { join as join25 } from "node:path";
+import { existsSync as existsSync16, mkdirSync as mkdirSync5, renameSync as renameSync4, rmSync as rmSync3 } from "node:fs";
+import { join as join24 } from "node:path";
 
 // packages/core/dist/qualification-oauth-directory.js
-import { closeSync as closeSync3, constants as constants3, fstatSync as fstatSync3, lstatSync as lstatSync2, openSync as openSync3, readFileSync as readFileSync21, readdirSync as readdirSync12, realpathSync as realpathSync4 } from "node:fs";
-import { basename as pathBasename, dirname as dirname6, isAbsolute as isAbsolute8, join as join26, resolve as resolve10 } from "node:path";
+import { closeSync as closeSync3, constants as constants3, fstatSync as fstatSync3, lstatSync as lstatSync2, openSync as openSync3, readFileSync as readFileSync20, readdirSync as readdirSync12, realpathSync as realpathSync4 } from "node:fs";
+import { basename as pathBasename, dirname as dirname6, isAbsolute as isAbsolute8, join as join25, resolve as resolve10 } from "node:path";
 
 // packages/core/dist/qualification-store.js
 import { randomBytes as randomBytes2 } from "node:crypto";
-import { closeSync as closeSync4, constants as constants4, existsSync as existsSync18, fsyncSync as fsyncSync2, fstatSync as fstatSync4, linkSync, lstatSync as lstatSync3, mkdirSync as mkdirSync6, openSync as openSync4, readFileSync as readFileSync22, readdirSync as readdirSync13, realpathSync as realpathSync5, renameSync as renameSync5, rmSync as rmSync4, unlinkSync as unlinkSync2, writeFileSync as writeFileSync8 } from "node:fs";
-import { dirname as dirname7, extname as extname2, join as join27, resolve as resolve11 } from "node:path";
+import { closeSync as closeSync4, constants as constants4, existsSync as existsSync17, fsyncSync as fsyncSync2, fstatSync as fstatSync4, linkSync, lstatSync as lstatSync3, mkdirSync as mkdirSync6, openSync as openSync4, readFileSync as readFileSync21, readdirSync as readdirSync13, realpathSync as realpathSync5, renameSync as renameSync5, rmSync as rmSync4, unlinkSync as unlinkSync2, writeFileSync as writeFileSync7 } from "node:fs";
+import { dirname as dirname7, extname as extname2, join as join26, resolve as resolve11 } from "node:path";
 
 // packages/adapters/dist/producer-product.js
-import { existsSync as existsSync22 } from "node:fs";
+import { existsSync as existsSync21 } from "node:fs";
 import { isAbsolute as isAbsolute14 } from "node:path";
 import { createHash as createHash25 } from "node:crypto";
 
@@ -8259,7 +7970,7 @@ import { createHash as createHash25 } from "node:crypto";
 import { constants as constants6, openSync as openSync6, closeSync as closeSync6, readSync, writeSync as writeSync2, fstatSync as fstatSync6, lstatSync as lstatSync5, fsyncSync as fsyncSync3, mkdirSync as mkdirSync8, unlinkSync as unlinkSync3 } from "node:fs";
 import { createHash as createHash14, randomUUID } from "node:crypto";
 import { types as types2 } from "node:util";
-import { isAbsolute as isAbsolute10, join as join30, dirname as dirname8, parse, resolve as resolve12 } from "node:path";
+import { isAbsolute as isAbsolute10, join as join29, dirname as dirname8, parse, resolve as resolve12 } from "node:path";
 function learningJson(value3) {
   const limit3 = 2 * 1024 * 1024, cache = /* @__PURE__ */ new WeakMap(), visiting = /* @__PURE__ */ new WeakSet();
   const size = (v, depth) => {
@@ -8380,7 +8091,7 @@ function learningJournal(path3, initial) {
     mkdirSync8(path3, { mode: 448 });
     directory(path3);
     const value3 = learningCopy(initial), body = { prior: null, value: value3 }, record = { ...body, id: learningHash(body) };
-    const fd = openSync6(join30(path3, "events.jsonl"), constants6.O_WRONLY | constants6.O_CREAT | constants6.O_EXCL | constants6.O_NOFOLLOW, 384);
+    const fd = openSync6(join29(path3, "events.jsonl"), constants6.O_WRONLY | constants6.O_CREAT | constants6.O_EXCL | constants6.O_NOFOLLOW, 384);
     try {
       writeAll(fd, Buffer.from(learningJson(record) + "\n"));
       fsyncSync3(fd);
@@ -8391,7 +8102,7 @@ function learningJournal(path3, initial) {
     sync(dirname8(path3));
   }
   directory(path3);
-  const identity2 = lstatSync5(path3), file = join30(path3, "events.jsonl");
+  const identity2 = lstatSync5(path3), file = join29(path3, "events.jsonl");
   const check = () => {
     directory(path3);
     const s = lstatSync5(path3);
@@ -8421,7 +8132,7 @@ function learningJournal(path3, initial) {
   read5();
   return { read: read5, append(prior, value3) {
     check();
-    const lock = join30(path3, "writer.lock"), token = randomUUID();
+    const lock = join29(path3, "writer.lock"), token = randomUUID();
     const fd = openSync6(lock, constants6.O_RDWR | constants6.O_CREAT | constants6.O_EXCL | constants6.O_NOFOLLOW, 384), owned = fstatSync6(fd);
     let error, result;
     try {
@@ -8474,7 +8185,7 @@ function registerLearningStore(root, kind, key3, target, binding) {
     throw Error("invalid learning registration");
   directory(root);
   directory(dirname8(target));
-  const parent = join30(root, "learning-stores");
+  const parent = join29(root, "learning-stores");
   try {
     mkdirSync8(parent, { mode: 448 });
     sync(root);
@@ -8483,7 +8194,7 @@ function registerLearningStore(root, kind, key3, target, binding) {
       throw e;
   }
   directory(parent);
-  const path3 = join30(parent, `${kind}-${key3}`), initial = { type: "learning-registration-v1", target: resolve12(target), binding };
+  const path3 = join29(parent, `${kind}-${key3}`), initial = { type: "learning-registration-v1", target: resolve12(target), binding };
   try {
     learningJournal(path3, initial);
   } catch (e) {
@@ -8497,7 +8208,7 @@ function registerLearningStore(root, kind, key3, target, binding) {
 function verifyLearningStore(root, kind, key3, target, binding) {
   if (!/^[a-f0-9]{64}$/.test(key3) || !isAbsolute10(target))
     throw Error("invalid learning registration");
-  const records2 = learningJournal(join30(root, "learning-stores", `${kind}-${key3}`)).read();
+  const records2 = learningJournal(join29(root, "learning-stores", `${kind}-${key3}`)).read();
   if (records2.length !== 1 || learningHash(records2[0].value) !== learningHash({ type: "learning-registration-v1", target: resolve12(target), binding }))
     throw Error("learning store registration mismatch");
 }
@@ -8516,9 +8227,9 @@ import { createHash as createHash17, randomBytes as randomBytes5 } from "node:cr
 import { mkdirSync as mkdirSync11 } from "node:fs";
 
 // packages/adapters/dist/evidence-archive.js
-import { closeSync as closeSync7, constants as constants7, fsyncSync as fsyncSync4, fstatSync as fstatSync7, linkSync as linkSync2, lstatSync as lstatSync6, mkdirSync as mkdirSync9, openSync as openSync7, readSync as readSync2, unlinkSync as unlinkSync4, writeFileSync as writeFileSync9 } from "node:fs";
+import { closeSync as closeSync7, constants as constants7, fsyncSync as fsyncSync4, fstatSync as fstatSync7, linkSync as linkSync2, lstatSync as lstatSync6, mkdirSync as mkdirSync9, openSync as openSync7, readSync as readSync2, unlinkSync as unlinkSync4, writeFileSync as writeFileSync8 } from "node:fs";
 import { createHash as createHash15, randomUUID as randomUUID2 } from "node:crypto";
-import { join as join31, parse as parse2, resolve as resolve13, sep as sep3 } from "node:path";
+import { join as join30, parse as parse2, resolve as resolve13, sep as sep3 } from "node:path";
 var LIMIT2 = 8 * 1024 * 1024;
 var HASH = /^[a-f0-9]{64}$/;
 var ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
@@ -8541,7 +8252,7 @@ function directory2(path3, create) {
   const absolute = resolve13(path3);
   let current = parse2(absolute).root;
   for (const part of absolute.slice(current.length).split(sep3).filter(Boolean)) {
-    current = join31(current, part);
+    current = join30(current, part);
     let stat2;
     try {
       stat2 = lstatSync6(current);
@@ -8596,9 +8307,9 @@ function readVerified(path3, hash15, limit3 = LIMIT2) {
 }
 function put(root, category, bytes3) {
   const hash15 = digest3(bytes3);
-  const dir = join31(root, category);
+  const dir = join30(root, category);
   directory2(dir, true);
-  const target = join31(dir, hash15);
+  const target = join30(dir, hash15);
   try {
     readVerified(target, hash15);
     return hash15;
@@ -8606,13 +8317,13 @@ function put(root, category, bytes3) {
     if (!absent(error))
       throw error;
   }
-  const temporary = join31(dir, `.pending-${randomUUID2()}`);
+  const temporary = join30(dir, `.pending-${randomUUID2()}`);
   let owned = false;
   try {
     const fd = openSync7(temporary, constants7.O_WRONLY | constants7.O_CREAT | constants7.O_EXCL | constants7.O_NOFOLLOW, 384);
     owned = true;
     try {
-      writeFileSync9(fd, bytes3);
+      writeFileSync8(fd, bytes3);
       fsyncSync4(fd);
     } finally {
       closeSync7(fd);
@@ -8659,8 +8370,8 @@ function readArchiveSourceReference(root, manifestId) {
     return { status: "error", reason: "invalid manifest identity" };
   try {
     directory2(root, false);
-    directory2(join31(root, "manifests"), false);
-    const text15 = readVerified(join31(root, "manifests", manifestId), manifestId, 8192).toString("utf8");
+    directory2(join30(root, "manifests"), false);
+    const text15 = readVerified(join30(root, "manifests", manifestId), manifestId, 8192).toString("utf8");
     const reference3 = JSON.parse(text15);
     if (!validReference(reference3) || JSON.stringify(reference3) !== text15)
       fail("invalid manifest");
@@ -8683,8 +8394,8 @@ function readArchiveSource(root, manifestId, maxBytes = LIMIT2) {
       return { status: "error", reason: "read bound exceeded" };
     let bytes3;
     try {
-      directory2(join31(root, "objects"), false);
-      bytes3 = readVerified(join31(root, "objects", reference3.sha256), reference3.sha256, maxBytes);
+      directory2(join30(root, "objects"), false);
+      bytes3 = readVerified(join30(root, "objects", reference3.sha256), reference3.sha256, maxBytes);
     } catch (error) {
       if (absent(error))
         return { status: "missing", reason: "content" };
@@ -8701,7 +8412,7 @@ function readArchiveSource(root, manifestId, maxBytes = LIMIT2) {
 // packages/adapters/dist/blind-intervention.js
 import { constants as constants8, closeSync as closeSync8, fstatSync as fstatSync8, fsyncSync as fsyncSync5, lstatSync as lstatSync7, mkdirSync as mkdirSync10, openSync as openSync8, readSync as readSync3, writeSync as writeSync3 } from "node:fs";
 import { createHash as createHash16, randomBytes as randomBytes4 } from "node:crypto";
-import { join as join32 } from "node:path";
+import { join as join31 } from "node:path";
 var SHA4 = /^[a-f0-9]{64}$/;
 var missing = (e) => e?.code === "ENOENT";
 var encode = interventionCanonicalJson;
@@ -8774,7 +8485,7 @@ function syncDirectory2(path3) {
   }
 }
 function readChoice(root, id3) {
-  const parent = join32(root, "blind-decisions"), dir = join32(parent, id3);
+  const parent = join31(root, "blind-decisions"), dir = join31(parent, id3);
   try {
     directory3(parent);
     directory3(dir);
@@ -8785,7 +8496,7 @@ function readChoice(root, id3) {
   }
   let fd;
   try {
-    fd = openSync8(join32(dir, "choice.json"), constants8.O_RDONLY | constants8.O_NOFOLLOW | constants8.O_NONBLOCK);
+    fd = openSync8(join31(dir, "choice.json"), constants8.O_RDONLY | constants8.O_NOFOLLOW | constants8.O_NONBLOCK);
   } catch (e) {
     if (missing(e))
       throw new Error("blind choice incomplete; explicit recovery required");
@@ -8841,7 +8552,7 @@ function openBlindIntervention(root, id3, author) {
           throw new Error("blind quality choice locked");
         return before;
       }
-      const parent = join32(root, "blind-decisions"), dir = join32(parent, id3);
+      const parent = join31(root, "blind-decisions"), dir = join31(parent, id3);
       try {
         mkdirSync10(parent, { mode: 448 });
       } catch (e) {
@@ -8850,7 +8561,7 @@ function openBlindIntervention(root, id3, author) {
       }
       directory3(parent);
       mkdirSync10(dir, { mode: 448 });
-      const fd = openSync8(join32(dir, "choice.json"), constants8.O_WRONLY | constants8.O_CREAT | constants8.O_EXCL | constants8.O_NOFOLLOW, 384);
+      const fd = openSync8(join31(dir, "choice.json"), constants8.O_WRONLY | constants8.O_CREAT | constants8.O_EXCL | constants8.O_NOFOLLOW, 384);
       try {
         const data = Buffer.from(encode(choice));
         let offset = 0;
@@ -8897,7 +8608,7 @@ import { createHash as createHash21 } from "node:crypto";
 import { isAbsolute as isAbsolute11 } from "node:path";
 
 // packages/adapters/dist/codex-subscription.js
-import { existsSync as existsSync21, realpathSync as realpathSync7 } from "node:fs";
+import { existsSync as existsSync20, realpathSync as realpathSync7 } from "node:fs";
 import { dirname as dirname9, isAbsolute as isAbsolute12, resolve as resolve14 } from "node:path";
 import { Readable } from "node:stream";
 var CODEX_RUNTIME_FILES = Object.freeze(["node_modules/@earendil-works/pi-ai/dist/api/openai-codex-responses.js", "node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js", "node_modules/@earendil-works/pi-ai/dist/providers/data/openai-codex.json", "dist/core/auth-storage.js"]);
@@ -8912,9 +8623,9 @@ import { createHash as createHash22 } from "node:crypto";
 import { performance as performance2 } from "node:perf_hooks";
 
 // packages/adapters/dist/work-case-review.js
-import { constants as constants9, closeSync as closeSync9, fstatSync as fstatSync9, fsyncSync as fsyncSync6, lstatSync as lstatSync8, mkdirSync as mkdirSync12, openSync as openSync9, readSync as readSync4, unlinkSync as unlinkSync5, writeFileSync as writeFileSync10, writeSync as writeSync4 } from "node:fs";
+import { constants as constants9, closeSync as closeSync9, fstatSync as fstatSync9, fsyncSync as fsyncSync6, lstatSync as lstatSync8, mkdirSync as mkdirSync12, openSync as openSync9, readSync as readSync4, unlinkSync as unlinkSync5, writeFileSync as writeFileSync9, writeSync as writeSync4 } from "node:fs";
 import { randomUUID as randomUUID3 } from "node:crypto";
-import { join as join33 } from "node:path";
+import { join as join32 } from "node:path";
 
 // packages/adapters/dist/work-candidates.js
 import { createHash as createHash23 } from "node:crypto";
@@ -9109,7 +8820,7 @@ function bytes(path3, limit3) {
 function historyAt(directory7, caseId, brandNew = false) {
   let raw;
   try {
-    raw = bytes(join33(directory7, "history.jsonl"), 1024 * 1024);
+    raw = bytes(join32(directory7, "history.jsonl"), 1024 * 1024);
   } catch (error) {
     if (missing2(error) && brandNew)
       return [];
@@ -9167,9 +8878,9 @@ function createSelectedCaseReviewer(root, author, ids, readCandidate) {
     return readCandidate(id3);
   };
   const getHistory = (caseManifestId) => {
-    const candidate = selected(caseManifestId), directory7 = join33(root, "case-decisions", candidate.id);
+    const candidate = selected(caseManifestId), directory7 = join32(root, "case-decisions", candidate.id);
     try {
-      assertDirectory(join33(root, "case-decisions"));
+      assertDirectory(join32(root, "case-decisions"));
       assertDirectory(directory7);
     } catch (error) {
       if (missing2(error))
@@ -9193,16 +8904,16 @@ function createSelectedCaseReviewer(root, author, ids, readCandidate) {
       if (!request || Object.keys(request).sort().join() !== "caseManifestId,disposition,note,priorDecisionId" || !["confirmed_defect", "expected_behavior", "exemplar", "uncertain", "skip"].includes(request.disposition) || typeof request.note !== "string" || request.note.length > 4e3 || !(request.priorDecisionId === null || typeof request.priorDecisionId === "string" && SHA6.test(request.priorDecisionId)))
         throw new Error("invalid case review request");
       const candidate = selected(request.caseManifestId);
-      const parent = join33(root, "case-decisions");
+      const parent = join32(root, "case-decisions");
       privateDirectory(parent);
-      const directory7 = join33(parent, candidate.id);
-      const lockPath = join33(parent, candidate.id + ".lock"), token = randomUUID3();
+      const directory7 = join32(parent, candidate.id);
+      const lockPath = join32(parent, candidate.id + ".lock"), token = randomUUID3();
       const lock = openSync9(lockPath, constants9.O_RDWR | constants9.O_CREAT | constants9.O_EXCL | constants9.O_NOFOLLOW, 384);
       const identity2 = fstatSync9(lock);
       let primary;
       let result;
       try {
-        writeFileSync10(lock, token);
+        writeFileSync9(lock, token);
         fsyncSync6(lock);
         const brandNew = privateDirectory(directory7);
         const before = historyAt(directory7, candidate.id, brandNew);
@@ -9215,7 +8926,7 @@ function createSelectedCaseReviewer(root, author, ids, readCandidate) {
           note: request.note
         });
         if (after.length > before.length) {
-          const path3 = join33(directory7, "history.jsonl");
+          const path3 = join32(directory7, "history.jsonl");
           const fd = openSync9(path3, constants9.O_WRONLY | constants9.O_APPEND | constants9.O_CREAT | constants9.O_NOFOLLOW | constants9.O_NONBLOCK, 384);
           try {
             const stat = fstatSync9(fd);
@@ -9278,10 +8989,10 @@ function readLearningCase(root, input) {
 import { ftruncateSync as truncateCandidate } from "node:fs";
 
 // packages/adapters/dist/pi.js
-import { existsSync as existsSync23, mkdtempSync as mkdtempSync2, readFileSync as readFileSync24, rmSync as rmSync6, statSync as statSync9, writeFileSync as writeFileSync11 } from "node:fs";
+import { existsSync as existsSync22, mkdtempSync as mkdtempSync2, readFileSync as readFileSync23, rmSync as rmSync6, statSync as statSync9, writeFileSync as writeFileSync10 } from "node:fs";
 import { tmpdir as tmpdir2, homedir as homedir2 } from "node:os";
 import { randomBytes as randomBytes7 } from "node:crypto";
-import { join as join34, resolve as resolve15 } from "node:path";
+import { join as join33, resolve as resolve15 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // packages/adapters/dist/pi-json.js
@@ -9485,10 +9196,10 @@ var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
 var PROMPT_CAPTURE_EXTENSION = fileURLToPath(new URL("./prompt-capture-extension.js", import.meta.url));
 function contractFor(req) {
   if (req.systemPromptFile) {
-    const raw2 = readFileSync24(req.systemPromptFile, "utf8");
+    const raw2 = readFileSync23(req.systemPromptFile, "utf8");
     return { text: raw2, raw: raw2, mechanism: "system-prompt-file" };
   }
-  const raw = readFileSync24(join34(requireSkillDir(req.skillDir, req.mode), "SKILL.md"), "utf8");
+  const raw = readFileSync23(join33(requireSkillDir(req.skillDir, req.mode), "SKILL.md"), "utf8");
   const body = splitPromptDoc(raw).body;
   if (req.mode === "red")
     return { text: body, raw, mechanism: "none" };
@@ -9507,14 +9218,14 @@ function captureSetup(req, env, contract, counter) {
       const empty = observeProviderPayload({}, contract.text, contract.mechanism, counter.value++);
       req.onPromptObservation?.({ ...empty, status: "ERROR", error: "prompt delivery provenance is unauthenticated when subject extensions or runtime-injection env share Pi's process" });
     } };
-  const dir = mkdtempSync2(join34(tmpdir2(), "skill-harness-prompt-"));
-  const path3 = join34(dir, "observations.jsonl"), contractPath = join34(dir, "contract.json");
+  const dir = mkdtempSync2(join33(tmpdir2(), "skill-harness-prompt-"));
+  const path3 = join33(dir, "observations.jsonl"), contractPath = join33(dir, "contract.json");
   const authenticationKey = randomBytes7(32).toString("hex");
-  writeFileSync11(path3, "", { mode: 384 });
-  writeFileSync11(contractPath, JSON.stringify({ text: contract.text, mechanism: contract.mechanism, authentication_key: authenticationKey }), { mode: 384 });
+  writeFileSync10(path3, "", { mode: 384 });
+  writeFileSync10(contractPath, JSON.stringify({ text: contract.text, mechanism: contract.mechanism, authentication_key: authenticationKey }), { mode: 384 });
   const finish2 = () => {
     try {
-      const lines2 = readFileSync24(path3, "utf8").split("\n").filter(Boolean);
+      const lines2 = readFileSync23(path3, "utf8").split("\n").filter(Boolean);
       const parsed = lines2.map((line) => {
         try {
           return JSON.parse(line);
@@ -9550,9 +9261,9 @@ function providerStderr(stderr) {
 }
 function requireSkillDir(skillDir, mode) {
   const abs = resolve15(skillDir);
-  const md = join34(abs, "SKILL.md");
-  const isDir3 = existsSync23(abs) && statSync9(abs).isDirectory();
-  if (!isDir3 || !existsSync23(md)) {
+  const md = join33(abs, "SKILL.md");
+  const isDir3 = existsSync22(abs) && statSync9(abs).isDirectory();
+  if (!isDir3 || !existsSync22(md)) {
     throw new Error(`mode=${mode} needs a skill directory with a SKILL.md, but ${abs} ${isDir3 ? "has none" : "is not a directory"}` + (abs === skillDir ? "" : ` (given \`${skillDir}\`, resolved against ${process.cwd()})`) + ` \u2014 pi accepts \`--skill <nonexistent>\` silently (exit 0, a normal answer, no skill in context), so this run would measure a model with no skill and report it as a result.`);
   }
   return abs;
@@ -9565,7 +9276,7 @@ function skillFlags(mode, skillDir, boundRaw) {
       return ["--skill", requireSkillDir(skillDir, mode)];
     case "force": {
       requireSkillDir(skillDir, mode);
-      const body = boundRaw ?? readFileSync24(join34(resolve15(skillDir), "SKILL.md"), "utf8");
+      const body = boundRaw ?? readFileSync23(join33(resolve15(skillDir), "SKILL.md"), "utf8");
       return ["--no-skills", "--append-system-prompt", body];
     }
   }
@@ -9575,7 +9286,7 @@ function extensionFlags(extensions) {
     return [];
   return extensions.flatMap((p) => {
     const abs = resolve15(p);
-    if (!existsSync23(abs)) {
+    if (!existsSync22(abs)) {
       throw new Error(`env.extensions names ${abs}, which does not exist \u2014 pi would start without it and the scenario would silently test an agent with no subagent tool at all.`);
     }
     return ["--extension", abs];
@@ -9657,7 +9368,7 @@ ${r.stderr.trim()}
       }
       return withProviderFailure(parts.join("\n"), providerFailure);
     }
-    const session = mkdtempSync2(join34(tmpdir2(), "sc-pi-session-"));
+    const session = mkdtempSync2(join33(tmpdir2(), "sc-pi-session-"));
     for (let i = 0; i < total; i++) {
       const turnFlags = i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common2, ...turnFlags, "-p", req.turns[i]];
@@ -9714,7 +9425,7 @@ ${r.stderr.trim()}
     const total = req.turns.length;
     const traces = [];
     const parts = [];
-    const session = total === 1 ? null : mkdtempSync2(join34(tmpdir2(), "sc-pi-session-"));
+    const session = total === 1 ? null : mkdtempSync2(join33(tmpdir2(), "sc-pi-session-"));
     let providerFailure = null;
     const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
     for (let i = 0; i < total; i++) {
@@ -9801,8 +9512,8 @@ ${r.stderr.trim()}
 
 // packages/adapters/dist/trajectory.js
 import { createHash as createHash27 } from "node:crypto";
-import { readFileSync as readFileSync25, readdirSync as readdirSync16 } from "node:fs";
-import { join as join35 } from "node:path";
+import { readFileSync as readFileSync24, readdirSync as readdirSync16 } from "node:fs";
+import { join as join34 } from "node:path";
 
 // packages/adapters/dist/closed-schema.js
 var ANNOTATION_KEYWORDS = /* @__PURE__ */ new Set(["$schema", "$id", "title", "description", "$defs"]);
@@ -12780,10 +12491,10 @@ var LIMIT4 = 8 * 1024 * 1024;
 // packages/adapters/dist/archive-policy.js
 import { closeSync as closeSync11, constants as constants12, fstatSync as fstatSync11, lstatSync as lstatSync9, openSync as openSync11, readSync as readSync5 } from "node:fs";
 import { createHash as createHash32 } from "node:crypto";
-import { dirname as dirname11, isAbsolute as isAbsolute16, join as join37, parse as parse3, resolve as resolve16, sep as sep5 } from "node:path";
+import { dirname as dirname11, isAbsolute as isAbsolute16, join as join36, parse as parse3, resolve as resolve16, sep as sep5 } from "node:path";
 
 // packages/adapters/dist/archive-retention-policy.js
-import { dirname as dirname10, join as join36 } from "node:path";
+import { dirname as dirname10, join as join35 } from "node:path";
 
 // packages/adapters/dist/generated/retention-v2-contract.js
 import { Compile } from "typebox/compile";
@@ -13314,7 +13025,7 @@ function readRetainedSessionSource(root, manifestId, index) {
 
 // packages/adapters/dist/learning-workspace.js
 import { mkdirSync as mkdirSync13, readdirSync as readdirSync17, lstatSync as lstatSync10 } from "node:fs";
-import { dirname as dirname12, isAbsolute as isAbsolute18, join as join38, resolve as resolve18 } from "node:path";
+import { dirname as dirname12, isAbsolute as isAbsolute18, join as join37, resolve as resolve18 } from "node:path";
 
 // packages/adapters/dist/trust-lifecycle.js
 import { isAbsolute as isAbsolute17 } from "node:path";
@@ -13954,8 +13665,8 @@ function openLearningWorkspace(directory7) {
       const existing = currentTrust();
       if (existing && existing.inspect(0).policyId !== trustPolicyDigest(config))
         throw Error("trust already frozen; no attention refill");
-      const trust = createTrustLifecycle(join38(directory7, "trust"), config, authorizedPolicyDigests);
-      this.bindTrust(join38(directory7, "trust"));
+      const trust = createTrustLifecycle(join37(directory7, "trust"), config, authorizedPolicyDigests);
+      this.bindTrust(join37(directory7, "trust"));
       return trust.inspect(0);
     },
     trust() {
@@ -14251,7 +13962,7 @@ function openLearningWorkspace(directory7) {
 function catalogLearningArchive(root, author) {
   path(root);
   text10(author, 512);
-  const dir = join38(root, "manifests");
+  const dir = join37(root, "manifests");
   for (let p = dir; ; p = dirname12(p)) {
     const s = lstatSync10(p);
     if (!s.isDirectory() || s.isSymbolicLink())
@@ -14366,13 +14077,13 @@ import { createHash as createHash36 } from "node:crypto";
 import { createHash as createHash37 } from "node:crypto";
 
 // packages/adapters/dist/producer-review.js
-import { existsSync as existsSync25 } from "node:fs";
+import { existsSync as existsSync24 } from "node:fs";
 import { isAbsolute as isAbsolute22 } from "node:path";
 import { createHash as createHash39 } from "node:crypto";
 
 // packages/adapters/dist/installed-review-session.js
-import { readFileSync as readFileSync26, realpathSync as realpathSync10, lstatSync as lstatSync12, mkdirSync as mkdirSync14, existsSync as existsSync24 } from "node:fs";
-import { isAbsolute as isAbsolute21, resolve as resolve20, join as join39, dirname as dirname14 } from "node:path";
+import { readFileSync as readFileSync25, realpathSync as realpathSync10, lstatSync as lstatSync12, mkdirSync as mkdirSync14, existsSync as existsSync23 } from "node:fs";
+import { isAbsolute as isAbsolute21, resolve as resolve20, join as join38, dirname as dirname14 } from "node:path";
 import { createHash as createHash38 } from "node:crypto";
 import { isDeepStrictEqual as isDeepStrictEqual2 } from "node:util";
 
@@ -14393,27 +14104,27 @@ function getAdapter(name) {
 
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
-import { readFileSync as readFileSync27, existsSync as existsSync26 } from "node:fs";
-import { join as join40, dirname as dirname15 } from "node:path";
+import { readFileSync as readFileSync26, existsSync as existsSync25 } from "node:fs";
+import { join as join39, dirname as dirname15 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 import { spawn as spawn5 } from "node:child_process";
 var __dirname = dirname15(fileURLToPath2(import.meta.url));
 function templatePath(assetsDir) {
   if (assetsDir)
-    return join40(assetsDir, "report.template.html");
+    return join39(assetsDir, "report.template.html");
   const candidates = [
-    join40(__dirname, "..", "..", "..", "assets", "report.template.html"),
+    join39(__dirname, "..", "..", "..", "assets", "report.template.html"),
     // packages/cli/{dist,src} -> ../../../assets
-    join40(__dirname, "..", "assets", "report.template.html"),
-    join40(__dirname, "..", "..", "assets", "report.template.html")
+    join39(__dirname, "..", "assets", "report.template.html"),
+    join39(__dirname, "..", "..", "assets", "report.template.html")
   ];
   for (const c of candidates)
-    if (existsSync26(c))
+    if (existsSync25(c))
       return c;
   throw new Error("cannot find assets/report.template.html");
 }
 function gradeScriptPath(assetsDir) {
-  return join40(dirname15(templatePath(assetsDir)), "report.grade.js");
+  return join39(dirname15(templatePath(assetsDir)), "report.grade.js");
 }
 function readBody(req) {
   return new Promise((resolve30) => {
@@ -14427,22 +14138,22 @@ function findTranscript(runDir, id3) {
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync27(join40(runDir, files[0]), "utf8");
+    return readFileSync26(join39(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync27(join40(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync26(join39(runDir, f), "utf8")}`).join("\n\n");
 }
 function findJudgeRaw(runDir, id3) {
   const files = findJudgeRawFiles(runDir, id3);
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync27(join40(runDir, files[0]), "utf8");
+    return readFileSync26(join39(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync27(join40(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync26(join39(runDir, f), "utf8")}`).join("\n\n");
 }
 async function serveReview(opts) {
-  const template = readFileSync27(templatePath(opts.assetsDir), "utf8");
-  const gradeScript = readFileSync27(gradeScriptPath(opts.assetsDir), "utf8");
+  const template = readFileSync26(templatePath(opts.assetsDir), "utf8");
+  const gradeScript = readFileSync26(gradeScriptPath(opts.assetsDir), "utf8");
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://localhost");
@@ -14492,7 +14203,7 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be re-judged here \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
           return;
         }
-        const specPath = join40(opts.skillDir, "tests", "specification.yaml");
+        const specPath = join39(opts.skillDir, "tests", "specification.yaml");
         const spec = loadSpec(specPath);
         const scenario = spec.scenarios.find((s) => s.id === body.scenarioId);
         if (!scenario) {
@@ -14562,77 +14273,11 @@ async function serveReview(opts) {
             // the same doctrine `grade` follows (see refreshRubricHashes).
             source_hashes: refreshRubricHashes(results.source_hashes, spec, [body.scenarioId])
           }, scoreContextFor(results, spec));
-          ensureResultsGitignore(join40(opts.skillDir, "tests", "results"));
+          ensureResultsGitignore(join39(opts.skillDir, "tests", "results"));
           const g = written.effective_grade;
           appendJournal(column.runDir, { event: "score", ts: (/* @__PURE__ */ new Date()).toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
           res.writeHead(200, { "content-type": "application/json" });
           res.end(JSON.stringify({ ok: true, grade: g }));
-        } catch (e) {
-          res.writeHead(400, { "content-type": "application/json" });
-          res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
-        }
-        return;
-      }
-      if (req.method === "POST" && url.pathname === "/adjudicate") {
-        const body = JSON.parse(await readBody(req) || "{}");
-        const data = collectReport(opts.skillDir);
-        const column = data.columns.find((c) => c.index === body.col);
-        if (!column) {
-          res.writeHead(404).end("unknown column");
-          return;
-        }
-        const results = readResults(column.runDir);
-        if (!isScoredMode(results.mode)) {
-          res.writeHead(400, { "content-type": "application/json" });
-          res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be adjudicated \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
-          return;
-        }
-        const specPath = join40(opts.skillDir, "tests", "specification.yaml");
-        const spec = loadSpec(specPath);
-        const adapter = opts.adapter ?? getAdapter(results.harness);
-        const cells = cellsFromResults(column.runDir, results);
-        const plan = planAdjudication({
-          cells,
-          scenarios: spec.scenarios,
-          shipBar: spec.ship_bar,
-          critical: spec.critical,
-          tieBreakAvailable: false
-        });
-        if (body.step !== "run") {
-          res.writeHead(200, { "content-type": "application/json" });
-          res.end(JSON.stringify({
-            ok: true,
-            step: "plan",
-            triggered: plan.triggered,
-            maxAdditionalCalls: plan.maxAdditionalCalls,
-            judge: `${results.judge.provider}:${results.judge.model}`,
-            detail: plan.decisions.filter((d) => d.triggers.length).map((d) => `${d.id}: ${d.triggers.join(", ")}`)
-          }));
-          return;
-        }
-        if (!await adapter.available()) {
-          res.writeHead(400, { "content-type": "application/json" });
-          res.end(JSON.stringify({ ok: false, error: `harness \`${results.harness}\` is not on PATH` }));
-          return;
-        }
-        try {
-          assertJudgeAllowed(results.judge, { source: "the run's recorded judge", allowMetered: envFlag("SKILL_HARNESS_ALLOW_METERED_JUDGE") });
-          const written = await adjudicateRun({
-            runDir: column.runDir,
-            spec,
-            adapter,
-            results,
-            primaryJudge: results.judge,
-            // Asked again as an independent draw. The judge-variance study measured
-            // ~2% self-disagreement on identical transcripts, so this is a real
-            // second opinion rather than a no-op.
-            secondaryJudge: results.judge,
-            specDir: dirname15(specPath),
-            now: () => (/* @__PURE__ */ new Date()).toISOString()
-          });
-          ensureResultsGitignore(join40(opts.skillDir, "tests", "results"));
-          res.writeHead(200, { "content-type": "application/json" });
-          res.end(JSON.stringify({ ok: true, step: "run", grade: written.effective_grade }));
         } catch (e) {
           res.writeHead(400, { "content-type": "application/json" });
           res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
@@ -14656,11 +14301,11 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
           return;
         }
-        const spec = loadSpec(join40(opts.skillDir, "tests", "specification.yaml"));
+        const spec = loadSpec(join39(opts.skillDir, "tests", "specification.yaml"));
         writeResults(column.runDir, patched, scoreContextFor(patched, spec));
-        ensureResultsGitignore(join40(opts.skillDir, "tests", "results"));
+        ensureResultsGitignore(join39(opts.skillDir, "tests", "results"));
         if (body.override != null) {
-          preserveTranscript(join40(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
+          preserveTranscript(join39(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
         }
         appendJournal(column.runDir, {
           event: "override",
@@ -14705,17 +14350,17 @@ function tryOpen(url, cmd) {
 }
 
 // packages/pi-extension/src/runner.ts
-import { existsSync as existsSync27 } from "node:fs";
-import { dirname as dirname16, join as join41, resolve as resolve21 } from "node:path";
+import { existsSync as existsSync26 } from "node:fs";
+import { dirname as dirname16, join as join40, resolve as resolve21 } from "node:path";
 function resolveSkillDir(cwd, arg) {
   if (arg) {
     const dir2 = resolve21(cwd, arg);
-    if (existsSync27(join41(dir2, "tests", "specification.yaml"))) return dir2;
+    if (existsSync26(join40(dir2, "tests", "specification.yaml"))) return dir2;
     throw new Error(`no tests/specification.yaml found at ${dir2}`);
   }
   let dir = cwd;
   for (; ; ) {
-    if (existsSync27(join41(dir, "tests", "specification.yaml"))) return dir;
+    if (existsSync26(join40(dir, "tests", "specification.yaml"))) return dir;
     const parent = dirname16(dir);
     if (parent === dir) break;
     dir = parent;
@@ -14724,7 +14369,7 @@ function resolveSkillDir(cwd, arg) {
 }
 var DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 async function runViaExtension(opts) {
-  const specPath = join41(opts.skillDir, "tests", "specification.yaml");
+  const specPath = join40(opts.skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const modelToken = opts.model ?? DEFAULT_MODEL;
   const model = parseModelRef(modelToken);
@@ -14752,7 +14397,7 @@ async function runViaExtension(opts) {
   });
   const g = summary.results.effective_grade;
   const verdicts = effectiveVerdicts(summary.results.scenarios);
-  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join41(summary.runDir, f)));
+  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join40(summary.runDir, f)));
   return {
     skill: summary.results.skill,
     model: summary.results.model,
@@ -14764,7 +14409,7 @@ async function runViaExtension(opts) {
 
 // packages/cli/dist/session-learning.js
 import { resolve as resolve22, relative as relative5, isAbsolute as isAbsolute23, sep as sep6 } from "node:path";
-import { existsSync as existsSync28 } from "node:fs";
+import { existsSync as existsSync27 } from "node:fs";
 var text11 = (v, label) => {
   if (typeof v !== "string" || !v.trim())
     throw Error(label + " is required");
@@ -14877,7 +14522,7 @@ async function runSessionLearning(args, flags, options) {
     if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(label) || title.length > 512)
       throw Error("bounded session name/title required");
     let workspace2;
-    if (existsSync28(directory7)) {
+    if (existsSync27(directory7)) {
       if (flags.archive || flags.author)
         throw Error("existing workspace already binds archive and author");
       workspace2 = openLearningWorkspace(directory7);
@@ -14935,9 +14580,9 @@ async function reviewSessionLearning(directory7, ui, display) {
 }
 
 // packages/cli/dist/learning.js
-import { resolve as resolve23, join as join42, dirname as dirname17 } from "node:path";
+import { resolve as resolve23, join as join41, dirname as dirname17 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
-import { existsSync as existsSync29 } from "node:fs";
+import { existsSync as existsSync28 } from "node:fs";
 import { createInterface as createInterface2 } from "node:readline/promises";
 var LEARNING_HELP = `Learning \u2014 retained evidence, no model calls
   learning                         open guided review (interactive terminal)
@@ -15113,7 +14758,7 @@ async function runLearningCommand(argv, options = {}) {
     return runSessionLearning(args.slice(1), flags, { cwd, directory: directory7, emit: emit2 });
   if (command === "guide" || command === "current") {
     const file = command === "guide" ? "PRODUCT-GUIDE.md" : "STATUS.md", base = dirname17(fileURLToPath3(import.meta.url));
-    const selected = [resolve23(base, "../docs", file), resolve23(base, "../../../docs/factory", file)].find((p) => existsSync29(p));
+    const selected = [resolve23(base, "../docs", file), resolve23(base, "../../../docs/factory", file)].find((p) => existsSync28(p));
     if (!selected)
       throw Error("packaged learning guide missing; reinstall a complete compatible package");
     return emit2(learningFile(selected, 65536).toString("utf8"));
@@ -15145,7 +14790,7 @@ async function runLearningCommand(argv, options = {}) {
     const input = { archiveRoot, scopeDigest: selected?.scopeDigest ?? learningHash({ declaredScope: word(flags.scope, "--scope for a comparison-only archive") }), population: selected?.population ?? word(flags.population, "--population for a comparison-only archive"), author };
     return confirm({ directory: directory7, ...input, scopeMeaning: selected ? "exact retained case snapshot" : "operator-declared comparison-only scope; cannot bind mismatching case snapshots" }, () => createLearningWorkspace(directory7, input).inspect(Date.now()));
   }
-  if (!existsSync29(directory7))
+  if (!existsSync28(directory7))
     throw Error("learning workspace not connected; use learning init or /grants learning with the current host");
   const workspace = openLearningWorkspace(directory7), config = workspace.configuration(), name = args[1];
   if (command === "status") {
@@ -15352,7 +14997,7 @@ ${learningDisplay(text15)}`);
   }
 }
 function learningArchiveScopes(root, author) {
-  if (!existsSync29(join42(root, "manifests")))
+  if (!existsSync28(join41(root, "manifests")))
     return [];
   const selected = catalogLearningArchive(root, author).filter((c) => !!c.scopeDigest && !!c.population);
   return selected.filter((c, i) => selected.findIndex((s) => s.scopeDigest === c.scopeDigest && s.population === c.population) === i);
@@ -15456,7 +15101,7 @@ No active session or next order changes here.`)) {
 }
 async function runLearningWizard(options) {
   const { directory: directory7, ui, cwd } = options;
-  if (!existsSync29(directory7)) {
+  if (!existsSync28(directory7)) {
     ui.notify("Connect an explicitly selected retained archive. This reads no live/private Pi session and calls no model.");
     const archive = await ui.input("Retained archive directory"), author = await ui.input("Review author");
     if (!archive || !author)
@@ -15771,7 +15416,7 @@ async function handleLearningCommand(text15, ctx) {
 }
 
 // packages/pi-extension/src/commands.ts
-var USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m] | review [skill] | coverage [skill] | learning [status|import|review|trust|decide|adoption|outcome|guide]";
+var USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] | review [skill] | coverage [skill] | learning [status|import|review|trust|decide|adoption|outcome|guide]";
 function parse5(argstr) {
   const tokens = argstr.trim().length ? argstr.trim().split(/\s+/) : [];
   const [sub = "", ...rest] = tokens;
@@ -15833,8 +15478,8 @@ ${card.failedTranscripts.join("\n")}`);
   if (sub === "judge") {
     const runDir = resolve24(ctx.cwd, positional[0] ?? ".");
     const testsDir = dirname18(dirname18(dirname18(runDir)));
-    const spec = loadSpec(join43(testsDir, "specification.yaml"));
-    const prev = existsSync30(join43(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const spec = loadSpec(join42(testsDir, "specification.yaml"));
+    const prev = existsSync29(join42(runDir, "results.yaml")) ? readResults(runDir) : null;
     const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? parseModelRef(defaultJudge());
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge"
@@ -15849,71 +15494,24 @@ ${card.failedTranscripts.join("\n")}`);
       now: nowIso
     });
     say(ctx, `re-judged ${runDir}: ${results.effective_grade.letter} (${results.effective_grade.pct}%)`);
-    const judges = resolveAdjudicationJudges({
-      enabled: flags["auto-rejudge"] !== void 0 && flags["auto-rejudge"] !== "false",
-      primary: judge,
-      secondaryToken: flags["secondary-judge"] || void 0,
-      tieBreakToken: flags["tie-break-judge"] || void 0,
-      subjectToken: results.model,
-      parseRef: parseModelRef,
-      assertAllowed: (j, source3) => assertJudgeAllowed(j, { source: source3 }),
-      resemblesSubject: judgeResemblesSubject,
-      warn: (m) => say(ctx, m, "warning")
-    });
-    if (!judges) return;
-    const plan = planAdjudication({
-      // Same construction as the executor, so the dialog's ceiling is the real one.
-      cells: cellsFromResults(runDir, results),
-      scenarios: spec.scenarios,
-      shipBar: spec.ship_bar,
-      critical: spec.critical,
-      tieBreakAvailable: judges.tieBreak !== void 0
-    });
-    say(ctx, formatAdjudicationPlan(plan, judges));
-    if (plan.triggered.length === 0) return;
-    if (ctx.ui.confirm) {
-      const ok = await ctx.ui.confirm(
-        `adjudicate ${plan.triggered.length} cell(s)? up to ${plan.maxAdditionalCalls} additional judge call(s)`
-      );
-      if (!ok) {
-        say(ctx, "cancelled \u2014 nothing spent");
-        return;
-      }
-    } else {
-      say(ctx, "  (no confirm dialog here \u2014 `--auto-rejudge` is the authorization)");
-    }
-    const adjudicated = await adjudicateRun({
-      runDir,
-      spec,
-      adapter: resolvedAdapter,
-      results,
-      primaryJudge: judge,
-      secondaryJudge: judges.secondary,
-      tieBreakJudge: judges.tieBreak,
-      specDir: testsDir,
-      now: nowIso,
-      log: (m) => say(ctx, m)
-    });
-    const ag = adjudicated.effective_grade;
-    say(ctx, `adjudicated \u2192 ${ag.letter} (${ag.pct}%) ${ag.ship ? "SHIP" : "NOT READY"}`, ag.ship ? "info" : "warning");
     return;
   }
   if (sub === "coverage") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const specPath = join43(skillDir, "tests", "specification.yaml");
+    const specPath = join42(skillDir, "tests", "specification.yaml");
     const spec = loadSpec(specPath);
     const specDir = dirname18(specPath);
     const report = computeCoverage({
       specDir,
       scenarios: spec.scenarios,
-      baseFiles: [relative6(specDir, join43(skillDir, "SKILL.md")).split("\\").join("/")]
+      baseFiles: [relative6(specDir, join42(skillDir, "SKILL.md")).split("\\").join("/")]
     });
     say(ctx, formatCoverage(report, spec.skill), report.broken.length ? "warning" : "info");
     return;
   }
   if (sub === "review") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const spec = loadSpec(join43(skillDir, "tests", "specification.yaml"));
+    const spec = loadSpec(join42(skillDir, "tests", "specification.yaml"));
     const handle = await serveReview({
       skillDir,
       skillName: spec.skill,
@@ -15987,7 +15585,7 @@ function registerTool(pi) {
 import { constants as constants14, openSync as openSync13, closeSync as closeSync13, readSync as readSync6, writeSync as writeSync7, fstatSync as fstatSync12, lstatSync as lstatSync13, fsyncSync as fsyncSync9, mkdirSync as mkdirSync15, unlinkSync as unlinkSync6 } from "node:fs";
 import { createHash as createHash40, randomUUID as randomUUID6 } from "node:crypto";
 import { types as types3 } from "node:util";
-import { isAbsolute as isAbsolute24, join as join44, dirname as dirname19, parse as parse6, resolve as resolve25 } from "node:path";
+import { isAbsolute as isAbsolute24, join as join43, dirname as dirname19, parse as parse6, resolve as resolve25 } from "node:path";
 function learningJson2(value3) {
   const limit3 = 2 * 1024 * 1024, cache = /* @__PURE__ */ new WeakMap(), visiting = /* @__PURE__ */ new WeakSet();
   const size = (v, depth) => {
@@ -16084,7 +15682,7 @@ function learningJournal2(path3, initial) {
     mkdirSync15(path3, { mode: 448 });
     directory4(path3);
     const value3 = learningCopy2(initial), body = { prior: null, value: value3 }, record = { ...body, id: learningHash2(body) };
-    const fd = openSync13(join44(path3, "events.jsonl"), constants14.O_WRONLY | constants14.O_CREAT | constants14.O_EXCL | constants14.O_NOFOLLOW, 384);
+    const fd = openSync13(join43(path3, "events.jsonl"), constants14.O_WRONLY | constants14.O_CREAT | constants14.O_EXCL | constants14.O_NOFOLLOW, 384);
     try {
       writeAll2(fd, Buffer.from(learningJson2(record) + "\n"));
       fsyncSync9(fd);
@@ -16095,7 +15693,7 @@ function learningJournal2(path3, initial) {
     sync2(dirname19(path3));
   }
   directory4(path3);
-  const identity2 = lstatSync13(path3), file = join44(path3, "events.jsonl");
+  const identity2 = lstatSync13(path3), file = join43(path3, "events.jsonl");
   const check = () => {
     directory4(path3);
     const s = lstatSync13(path3);
@@ -16120,7 +15718,7 @@ function learningJournal2(path3, initial) {
   read5();
   return { read: read5, append(prior, value3) {
     check();
-    const lock = join44(path3, "writer.lock"), token = randomUUID6();
+    const lock = join43(path3, "writer.lock"), token = randomUUID6();
     const fd = openSync13(lock, constants14.O_RDWR | constants14.O_CREAT | constants14.O_EXCL | constants14.O_NOFOLLOW, 384), owned = fstatSync12(fd);
     let error, result;
     try {
@@ -16167,7 +15765,7 @@ function registerLearningStore2(root, kind, key3, target, binding) {
   if (!/^[a-f0-9]{64}$/.test(key3) || !isAbsolute24(target) || !["weekly", "trust", "intervention", "access", "workspace"].includes(kind)) throw Error("invalid learning registration");
   directory4(root);
   directory4(dirname19(target));
-  const parent = join44(root, "learning-stores");
+  const parent = join43(root, "learning-stores");
   try {
     mkdirSync15(parent, { mode: 448 });
     sync2(root);
@@ -16175,7 +15773,7 @@ function registerLearningStore2(root, kind, key3, target, binding) {
     if (e.code !== "EEXIST") throw e;
   }
   directory4(parent);
-  const path3 = join44(parent, `${kind}-${key3}`), initial = { type: "learning-registration-v1", target: resolve25(target), binding };
+  const path3 = join43(parent, `${kind}-${key3}`), initial = { type: "learning-registration-v1", target: resolve25(target), binding };
   try {
     learningJournal2(path3, initial);
   } catch (e) {
@@ -16186,7 +15784,7 @@ function registerLearningStore2(root, kind, key3, target, binding) {
 }
 function verifyLearningStore2(root, kind, key3, target, binding) {
   if (!/^[a-f0-9]{64}$/.test(key3) || !isAbsolute24(target)) throw Error("invalid learning registration");
-  const records2 = learningJournal2(join44(root, "learning-stores", `${kind}-${key3}`)).read();
+  const records2 = learningJournal2(join43(root, "learning-stores", `${kind}-${key3}`)).read();
   if (records2.length !== 1 || learningHash2(records2[0].value) !== learningHash2({ type: "learning-registration-v1", target: resolve25(target), binding })) throw Error("learning store registration mismatch");
 }
 function writeAll2(fd, bytes3) {
@@ -16213,10 +15811,10 @@ import {
   openSync as openSync14,
   readSync as readSync7,
   unlinkSync as unlinkSync7,
-  writeFileSync as writeFileSync12
+  writeFileSync as writeFileSync11
 } from "node:fs";
 import { createHash as createHash41, randomUUID as randomUUID7 } from "node:crypto";
-import { join as join45, parse as parse7, resolve as resolve26, sep as sep7 } from "node:path";
+import { join as join44, parse as parse7, resolve as resolve26, sep as sep7 } from "node:path";
 var LIMIT6 = 8 * 1024 * 1024;
 var HASH2 = /^[a-f0-9]{64}$/;
 var ID2 = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
@@ -16237,7 +15835,7 @@ function directory5(path3, create) {
   const absolute = resolve26(path3);
   let current = parse7(absolute).root;
   for (const part of absolute.slice(current.length).split(sep7).filter(Boolean)) {
-    current = join45(current, part);
+    current = join44(current, part);
     let stat2;
     try {
       stat2 = lstatSync14(current);
@@ -16283,22 +15881,22 @@ function readVerified2(path3, hash15, limit3 = LIMIT6) {
 }
 function put2(root, category, bytes3) {
   const hash15 = digest4(bytes3);
-  const dir = join45(root, category);
+  const dir = join44(root, category);
   directory5(dir, true);
-  const target = join45(dir, hash15);
+  const target = join44(dir, hash15);
   try {
     readVerified2(target, hash15);
     return hash15;
   } catch (error) {
     if (!absent2(error)) throw error;
   }
-  const temporary = join45(dir, `.pending-${randomUUID7()}`);
+  const temporary = join44(dir, `.pending-${randomUUID7()}`);
   let owned = false;
   try {
     const fd = openSync14(temporary, constants15.O_WRONLY | constants15.O_CREAT | constants15.O_EXCL | constants15.O_NOFOLLOW, 384);
     owned = true;
     try {
-      writeFileSync12(fd, bytes3);
+      writeFileSync11(fd, bytes3);
       fsyncSync10(fd);
     } finally {
       closeSync14(fd);
@@ -16338,8 +15936,8 @@ function readArchiveSourceReference2(root, manifestId) {
   if (!HASH2.test(manifestId)) return { status: "error", reason: "invalid manifest identity" };
   try {
     directory5(root, false);
-    directory5(join45(root, "manifests"), false);
-    const text15 = readVerified2(join45(root, "manifests", manifestId), manifestId, 8192).toString("utf8");
+    directory5(join44(root, "manifests"), false);
+    const text15 = readVerified2(join44(root, "manifests", manifestId), manifestId, 8192).toString("utf8");
     const reference3 = JSON.parse(text15);
     if (!validReference2(reference3) || JSON.stringify(reference3) !== text15) fail2("invalid manifest");
     return { status: "available", reference: reference3 };
@@ -16357,8 +15955,8 @@ function readArchiveSource2(root, manifestId, maxBytes = LIMIT6) {
     if (reference3.bytes > maxBytes) return { status: "error", reason: "read bound exceeded" };
     let bytes3;
     try {
-      directory5(join45(root, "objects"), false);
-      bytes3 = readVerified2(join45(root, "objects", reference3.sha256), reference3.sha256, maxBytes);
+      directory5(join44(root, "objects"), false);
+      bytes3 = readVerified2(join44(root, "objects", reference3.sha256), reference3.sha256, maxBytes);
     } catch (error) {
       if (absent2(error)) return { status: "missing", reason: "content" };
       throw error;
@@ -16392,9 +15990,9 @@ function parseArchivedJsonl2(bytes3) {
 }
 
 // packages/adapters/src/work-case-review.ts
-import { constants as constants16, closeSync as closeSync15, fstatSync as fstatSync14, fsyncSync as fsyncSync11, lstatSync as lstatSync15, mkdirSync as mkdirSync17, openSync as openSync15, readSync as readSync8, unlinkSync as unlinkSync8, writeFileSync as writeFileSync13, writeSync as writeSync8 } from "node:fs";
+import { constants as constants16, closeSync as closeSync15, fstatSync as fstatSync14, fsyncSync as fsyncSync11, lstatSync as lstatSync15, mkdirSync as mkdirSync17, openSync as openSync15, readSync as readSync8, unlinkSync as unlinkSync8, writeFileSync as writeFileSync12, writeSync as writeSync8 } from "node:fs";
 import { randomUUID as randomUUID8 } from "node:crypto";
-import { join as join46 } from "node:path";
+import { join as join45 } from "node:path";
 
 // packages/adapters/src/work-candidates.ts
 import { createHash as createHash42 } from "node:crypto";
@@ -16587,7 +16185,7 @@ function bytes2(path3, limit3) {
 function historyAt2(directory7, caseId, brandNew = false) {
   let raw;
   try {
-    raw = bytes2(join46(directory7, "history.jsonl"), 1024 * 1024);
+    raw = bytes2(join45(directory7, "history.jsonl"), 1024 * 1024);
   } catch (error) {
     if (missing3(error) && brandNew) return [];
     if (missing3(error)) throw new Error("case history missing; explicit recovery required");
@@ -16635,9 +16233,9 @@ function createSelectedCaseReviewer2(root, author, ids, readCandidate) {
     return readCandidate(id3);
   };
   const getHistory = (caseManifestId) => {
-    const candidate = selected(caseManifestId), directory7 = join46(root, "case-decisions", candidate.id);
+    const candidate = selected(caseManifestId), directory7 = join45(root, "case-decisions", candidate.id);
     try {
-      assertDirectory2(join46(root, "case-decisions"));
+      assertDirectory2(join45(root, "case-decisions"));
       assertDirectory2(directory7);
     } catch (error) {
       if (missing3(error)) return [];
@@ -16658,16 +16256,16 @@ function createSelectedCaseReviewer2(root, author, ids, readCandidate) {
     decide(request) {
       if (!request || Object.keys(request).sort().join() !== "caseManifestId,disposition,note,priorDecisionId" || !["confirmed_defect", "expected_behavior", "exemplar", "uncertain", "skip"].includes(request.disposition) || typeof request.note !== "string" || request.note.length > 4e3 || !(request.priorDecisionId === null || typeof request.priorDecisionId === "string" && SHA10.test(request.priorDecisionId))) throw new Error("invalid case review request");
       const candidate = selected(request.caseManifestId);
-      const parent = join46(root, "case-decisions");
+      const parent = join45(root, "case-decisions");
       privateDirectory2(parent);
-      const directory7 = join46(parent, candidate.id);
-      const lockPath = join46(parent, candidate.id + ".lock"), token = randomUUID8();
+      const directory7 = join45(parent, candidate.id);
+      const lockPath = join45(parent, candidate.id + ".lock"), token = randomUUID8();
       const lock = openSync15(lockPath, constants16.O_RDWR | constants16.O_CREAT | constants16.O_EXCL | constants16.O_NOFOLLOW, 384);
       const identity2 = fstatSync14(lock);
       let primary;
       let result;
       try {
-        writeFileSync13(lock, token);
+        writeFileSync12(lock, token);
         fsyncSync11(lock);
         const brandNew = privateDirectory2(directory7);
         const before = historyAt2(directory7, candidate.id, brandNew);
@@ -16680,7 +16278,7 @@ function createSelectedCaseReviewer2(root, author, ids, readCandidate) {
           note: request.note
         });
         if (after.length > before.length) {
-          const path3 = join46(directory7, "history.jsonl");
+          const path3 = join45(directory7, "history.jsonl");
           const fd = openSync15(path3, constants16.O_WRONLY | constants16.O_APPEND | constants16.O_CREAT | constants16.O_NOFOLLOW | constants16.O_NONBLOCK, 384);
           try {
             const stat = fstatSync14(fd);
@@ -16919,7 +16517,7 @@ function openTrustLifecycle2(directory7) {
 // packages/adapters/src/archive-policy.ts
 import { closeSync as closeSync16, constants as constants18, fstatSync as fstatSync15, lstatSync as lstatSync16, openSync as openSync16, readSync as readSync9 } from "node:fs";
 import { createHash as createHash47 } from "node:crypto";
-import { dirname as dirname21, isAbsolute as isAbsolute27, join as join48, parse as parse8, resolve as resolve27, sep as sep9 } from "node:path";
+import { dirname as dirname21, isAbsolute as isAbsolute27, join as join47, parse as parse8, resolve as resolve27, sep as sep9 } from "node:path";
 
 // packages/adapters/src/archive-checkpoint.ts
 import { createHash as createHash43 } from "node:crypto";
@@ -17028,7 +16626,7 @@ function ingestArchiveSnapshot2(root, input) {
 }
 
 // packages/adapters/src/archive-retention-policy.ts
-import { dirname as dirname20, join as join47 } from "node:path";
+import { dirname as dirname20, join as join46 } from "node:path";
 
 // packages/adapters/src/generated/retention-v2-contract.ts
 import { Compile as Compile3 } from "typebox/compile";
@@ -17624,7 +17222,7 @@ function inspectNativePolicy2(context, checkpointId) {
 }
 function ingestNativePolicy2(context, previous, readBytes) {
   if (previous) inspectNativePolicy2(context, previous);
-  const path3 = join47(context.policy.sourceRoot, context.source.path);
+  const path3 = join46(context.policy.sourceRoot, context.source.path);
   const manifestBytes = readBytes(path3, Math.min(context.policy.maxBytes, 65536));
   const manifest = parseExecutionRetentionManifest2(new TextDecoder("utf-8", { fatal: true }).decode(manifestBytes));
   const blobs = /* @__PURE__ */ new Map();
@@ -17632,7 +17230,7 @@ function ingestNativePolicy2(context, previous, readBytes) {
     if (!ref.path) continue;
     if (ref.bytes > context.policy.maxBytes) throw new Error("native content exceeds policy bound");
     try {
-      blobs.set(ref.path, readBytes(join47(dirname20(path3), ref.path), Math.min(context.policy.maxBytes, 1024 * 1024)));
+      blobs.set(ref.path, readBytes(join46(dirname20(path3), ref.path), Math.min(context.policy.maxBytes, 1024 * 1024)));
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
     }
@@ -17666,7 +17264,7 @@ function regularBytes(path3, limit3) {
   if (absolute.split(sep9).some((part) => forbidden.has(part))) fail3();
   let current = parse8(absolute).root;
   for (const part of dirname21(absolute).slice(current.length).split(sep9).filter(Boolean)) {
-    current = join48(current, part);
+    current = join47(current, part);
     const stat = lstatSync16(current);
     if (!stat.isDirectory() || stat.isSymbolicLink()) fail3();
   }
@@ -17738,7 +17336,7 @@ function ingestPolicySource2(policyPath, sourceId, previousCheckpointId, expecte
     const { policy, source: source3, archiveSourceId, policySha256 } = selectedPolicy(policyPath, sourceId);
     if (expectedPolicySha256 !== void 0 && expectedPolicySha256 !== policySha256) throw new Error("archive policy changed");
     if (source3.contentPolicy === "referenced-blobs") return ingestNativePolicy2({ policy, source: source3, archiveSourceId, policySha256 }, previousCheckpointId, regularBytes);
-    const bytes3 = regularBytes(join48(policy.sourceRoot, source3.path), policy.maxBytes);
+    const bytes3 = regularBytes(join47(policy.sourceRoot, source3.path), policy.maxBytes);
     const result = ingestArchiveSnapshot2(policy.archiveRoot, { sourceId: archiveSourceId, parser: source3.parser, retention: policy.retention, bytes: bytes3, previousCheckpointId });
     const receipt = retainArchiveSource2(policy.archiveRoot, {
       sourceId: `policy-${policySha256}`,
@@ -18955,7 +18553,7 @@ function captureArchivedWorkSignals(root, manifestId, context, suppliedFacts) {
 // packages/adapters/src/blind-intervention.ts
 import { constants as constants19, closeSync as closeSync17, fstatSync as fstatSync16, fsyncSync as fsyncSync12, lstatSync as lstatSync17, mkdirSync as mkdirSync18, openSync as openSync17, readSync as readSync10, writeSync as writeSync9 } from "node:fs";
 import { createHash as createHash49, randomBytes as randomBytes8 } from "node:crypto";
-import { join as join49 } from "node:path";
+import { join as join48 } from "node:path";
 var SHA13 = /^[a-f0-9]{64}$/;
 var missing4 = (e) => e?.code === "ENOENT";
 var encode2 = interventionCanonicalJson;
@@ -19048,7 +18646,7 @@ function syncDirectory6(path3) {
   }
 }
 function readChoice2(root, id3) {
-  const parent = join49(root, "blind-decisions"), dir = join49(parent, id3);
+  const parent = join48(root, "blind-decisions"), dir = join48(parent, id3);
   try {
     directory6(parent);
     directory6(dir);
@@ -19058,7 +18656,7 @@ function readChoice2(root, id3) {
   }
   let fd;
   try {
-    fd = openSync17(join49(dir, "choice.json"), constants19.O_RDONLY | constants19.O_NOFOLLOW | constants19.O_NONBLOCK);
+    fd = openSync17(join48(dir, "choice.json"), constants19.O_RDONLY | constants19.O_NOFOLLOW | constants19.O_NONBLOCK);
   } catch (e) {
     if (missing4(e)) throw new Error("blind choice incomplete; explicit recovery required");
     throw e;
@@ -19107,7 +18705,7 @@ function openBlindIntervention2(root, id3, author) {
         if (encode2(before) !== encode2(choice)) throw new Error("blind quality choice locked");
         return before;
       }
-      const parent = join49(root, "blind-decisions"), dir = join49(parent, id3);
+      const parent = join48(root, "blind-decisions"), dir = join48(parent, id3);
       try {
         mkdirSync18(parent, { mode: 448 });
       } catch (e) {
@@ -19115,7 +18713,7 @@ function openBlindIntervention2(root, id3, author) {
       }
       directory6(parent);
       mkdirSync18(dir, { mode: 448 });
-      const fd = openSync17(join49(dir, "choice.json"), constants19.O_WRONLY | constants19.O_CREAT | constants19.O_EXCL | constants19.O_NOFOLLOW, 384);
+      const fd = openSync17(join48(dir, "choice.json"), constants19.O_WRONLY | constants19.O_CREAT | constants19.O_EXCL | constants19.O_NOFOLLOW, 384);
       try {
         const data = Buffer.from(encode2(choice));
         let offset = 0;
@@ -19197,8 +18795,8 @@ import { resolve as resolve28 } from "node:path";
 
 // packages/adapters/src/trajectory.ts
 import { createHash as createHash50 } from "node:crypto";
-import { readFileSync as readFileSync28, readdirSync as readdirSync18 } from "node:fs";
-import { join as join50 } from "node:path";
+import { readFileSync as readFileSync27, readdirSync as readdirSync18 } from "node:fs";
+import { join as join49 } from "node:path";
 
 // packages/adapters/src/closed-schema.ts
 var ANNOTATION_KEYWORDS2 = /* @__PURE__ */ new Set(["$schema", "$id", "title", "description", "$defs"]);
@@ -22301,7 +21899,7 @@ function readRetainedSessionSource2(root, manifestId, index) {
 
 // packages/adapters/src/learning-workspace.ts
 import { mkdirSync as mkdirSync19, readdirSync as readdirSync19, lstatSync as lstatSync18 } from "node:fs";
-import { dirname as dirname22, isAbsolute as isAbsolute28, join as join51, resolve as resolve29 } from "node:path";
+import { dirname as dirname22, isAbsolute as isAbsolute28, join as join50, resolve as resolve29 } from "node:path";
 var SHA15 = /^[a-f0-9]{64}$/;
 var NAME2 = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
 function closed18(value3, keys7) {
@@ -22655,8 +22253,8 @@ function openLearningWorkspace2(directory7) {
       validateTrustScope(config);
       const existing = currentTrust();
       if (existing && existing.inspect(0).policyId !== trustPolicyDigest2(config)) throw Error("trust already frozen; no attention refill");
-      const trust = createTrustLifecycle2(join51(directory7, "trust"), config, authorizedPolicyDigests);
-      this.bindTrust(join51(directory7, "trust"));
+      const trust = createTrustLifecycle2(join50(directory7, "trust"), config, authorizedPolicyDigests);
+      this.bindTrust(join50(directory7, "trust"));
       return trust.inspect(0);
     },
     trust() {
@@ -22916,7 +22514,7 @@ function openLearningWorkspace2(directory7) {
 function catalogLearningArchive2(root, author) {
   path2(root);
   text14(author, 512);
-  const dir = join51(root, "manifests");
+  const dir = join50(root, "manifests");
   for (let p = dir; ; p = dirname22(p)) {
     const s = lstatSync18(p);
     if (!s.isDirectory() || s.isSymbolicLink()) throw Error("archive manifest directory substituted");
@@ -23049,7 +22647,7 @@ function publishDashboardHarnessBridge(target = globalThis) {
 // packages/pi-extension/src/index.ts
 function index_default(pi) {
   const moduleDir = dirname23(fileURLToPath4(import.meta.url));
-  const assetsDir = basename3(dirname23(moduleDir)) === "skill-harness" ? join52(moduleDir, "..", "assets") : join52(moduleDir, "..", "..", "..", "assets");
+  const assetsDir = basename3(dirname23(moduleDir)) === "skill-harness" ? join51(moduleDir, "..", "assets") : join51(moduleDir, "..", "..", "..", "assets");
   publishDashboardHarnessBridge();
   registerCommand(pi, assetsDir);
   registerTool(pi);

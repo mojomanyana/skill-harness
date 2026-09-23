@@ -211,13 +211,12 @@ unguessable, not tamper-proof.
 skill-harness run    <skill|all> --skills <root> [--model prov:model ...] [--models file]
                                [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T] [--canary]
                                [--only A1,A2]   # scenario subset; a partial run never reports SHIP
-                               [--auto-rejudge] [--secondary-judge prov:model] [--tie-break-judge prov:model]
 skill-harness archive ingest|inspect|watch --policy file --source id  # explicit local archive policy; metadata output, no worker/model calls
 skill-harness stability <skill|all> --skills <root> [--window N] [--all]  # run-over-run verdict flips (free, offline)
 skill-harness screen <run-dir>...                         # retained delivery-aware scenario/criterion rates (free, offline)
 skill-harness restamp <skill|all> --skills <root> [--from <git-ref>]  # one-time hash upgrade; see "what stales a run" (free, offline)
 skill-harness coverage <skill|all> --skills <root> [--strict]  # which instruction sections have a declared test (free, offline)
-skill-harness grade  <run-dir>   [--judge prov:model] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]
+skill-harness grade  <run-dir>   [--judge prov:model]
                                                           # re-grade saved transcripts (neutral judge)
 skill-harness regate <run-dir>...                          # re-evaluate saved gates; may judge each fail→pass rep
 skill-harness rescore <run-dir>...                         # re-apply the current pass threshold to saved reps (free, offline)
@@ -247,15 +246,6 @@ read-only board. New configurations explicitly select
 empty `models.json`, and metadata-only Pi runtime state `models-store.json` while
 leaving omitted-policy historical evidence unchanged. It contains no Principal board,
 holdout, or measurement identity. Its inert example invokes no model.
-
-**Adjudication (`--auto-rejudge`) is off by default and discloses before it spends.**
-It asks a second judge about cells that are ambiguous, self-contradictory,
-non-unanimous across reps, or ship-deciding, and prints the exact maximum number of
-ADDITIONAL judge calls first — a count, never a dollar estimate, because the default
-judge reports no per-call usage and a dollar figure there would be invented. It also
-names any cell that no single second opinion can settle, which needs
-`--tie-break-judge`. An unresolved disagreement blocks SHIP rather than resolving
-itself.
 
 Structured runs record `metrics.cost_source`. Subscription providers
 (`openai-codex`, `claude-code`) are labeled `subscription`; a non-subscription provider

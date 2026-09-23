@@ -18,7 +18,6 @@ import {
   collectLift,
   collectStability, boundaryCells, stabilityNote, PATH_LEGEND,
   restampSkill,
-  resolveAdjudicationJudges, adjudicateRun, judgeResemblesSubject,
   computeCoverage, formatCoverage,
   HARNESS_VERSION,
   defaultJudge,
@@ -302,33 +301,7 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
   for (const s of results.scenarios) {
     console.log(`  ${s.id} → ${s.judge_verdict}: ${s.judge_reason}`);
   }
-  let final = results;
-
-  // Adjudication is opt-in. Without --auto-rejudge nothing below runs and not one
-  // extra call is made — a spec may declare triggers, but spec configuration alone
-  // never authorizes spending.
-  const judges = resolveAdjudicationJudges({
-    enabled: flagBool(args, "auto-rejudge"),
-    primary: judge,
-    secondaryToken: flagStr(args, "secondary-judge"),
-    tieBreakToken: flagStr(args, "tie-break-judge"),
-    subjectToken: results.model,
-    parseRef: parseModelRef,
-    assertAllowed: (j, source) => assertJudgeAllowed(j, { source, allowMetered: flagBool(args, "allow-metered-judge") }),
-    resemblesSubject: judgeResemblesSubject,
-    warn: (m) => console.error(m),
-  });
-
-  if (judges) {
-    final = await adjudicateRun({
-      runDir, spec, adapter, results, primaryJudge: judge,
-      secondaryJudge: judges.secondary, tieBreakJudge: judges.tieBreak,
-      specDir: testsDir, now: nowIso,
-      log: (m) => console.log(m),
-    });
-  }
-
-  const g = final.effective_grade;
+  const g = results.effective_grade;
   console.log(`\n  re-graded with ${judge.provider}:${judge.model} → ${g.letter} (${g.pct}%) ${g.ship ? "SHIP" : "NOT READY"}`);
 }
 
@@ -766,9 +739,6 @@ export function help(): string {
                      [--arm <name>]  measure under a named arm from <skills-root>/tests/arms.yaml
                                      (loads its extensions, seeds pi-daddy definitions, tags the run dir)
   grade  <run-dir>   [--judge prov:model] [--suspect-only]   re-grade saved transcripts (neutral judge)
-                     [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]
-                       ask again about untrustworthy cells (ambiguous / contradictory / non-unanimous /
-                       ship-deciding). OFF by default; prints the exact MAX extra call count first.
   archive ingest|inspect|watch --policy file --source id  explicit external ingestion/metadata (${free("archive")})
   learning [status|import|review|trust|decide|adoption|outcome|guide]  guided retained learning (${free("learning")}; no models)
                         use learning help; quality, trust, adoption and later outcomes stay separate

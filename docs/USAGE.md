@@ -304,7 +304,7 @@ node bin/skill-harness.js screen <run-dir> [<run-dir> ...]
 
 `screen` is free, offline, and read-only: it never resolves an adapter and makes zero subject or judge calls. From schema-v3 fields alone it groups by skill × model × scenario, reports delivery-proven control and treatment pass rates, and reports each retained criterion's fail rate. Control ≥80% is `CEILING`, ≤10% is `FLOOR`, 20–70% is `INFORMATIVE`; incomplete, legacy, or inconclusive evidence is `UNKNOWN`. An informative baseline means headroom exists, not that the skill helps.
 
-Schema 1/2 records remain valid and byte-identical, but cannot acquire prompt/vote evidence that was never retained. Reading never upgrades them. Re-running writes schema 3; `grade`, `rescore`, `regate`, adjudication, and review carry the observations without re-attributing delivery.
+Schema 1/2 records remain valid and byte-identical, but cannot acquire prompt/vote evidence that was never retained. Reading never upgrades them. Re-running writes schema 3; `grade`, `rescore`, `regate`, and review carry the observations without re-attributing delivery.
 
 ## 5. Review — flip verdicts, read transcripts
 
@@ -420,64 +420,6 @@ that's a wrong statement in the spec rather than a gap; renaming a heading is th
 usual cause, so the finding suggests near-miss slugs.
 
 **`covers` costs nothing to change** — it's in no staleness facet.
-
-## 7f. Confidence-aware rejudging — when one judge isn't enough
-
-Re-judging saved transcripts holds the model constant, so movement is the judge. Ours
-disagreed with itself in **1 of 57 judgments (~2%)** — and the one that mattered was a
-published FAIL that turned out to be a 1-in-7 minority draw, the difference between a
-skill reading 93% and 100%.
-
-```bash
-node bin/skill-harness.js grade <run-dir> --auto-rejudge \
-  --secondary-judge claude-code:claude-opus-4-8 \
-  --tie-break-judge claude-code:claude-opus-4-8
-```
-
-Four triggers, computed from the **complete** first wave:
-
-| Trigger | Fires when |
-|---|---|
-| `ambiguous` | the judge's verdict blocks disagree, or nothing parseable came back |
-| `contradictory` | the overall verdict disagrees with its own per-item grades (the misfire) |
-| `non_unanimous` | the reps split — 2 PASS + 1 FAIL is not a settled result |
-| `ship_deciding` | flipping this one cell would change SHIP ⇄ NOT READY |
-
-`ship_deciding` is a counterfactual against the **real scorer**, so min-pass, critical
-and B-series all move it.
-
-**Off by default. Spec configuration alone never authorizes a judge call** — the only
-switch is `--auto-rejudge`. The preflight prints the ceiling before the first extra call:
-
-```
-adjudication: 1 cell(s) triggered — up to 1 additional judge call(s)
-  secondary judge: claude-code:claude-opus-4-8
-  no tie-break judge — a disagreement stays unresolved and blocks SHIP
-  A4: contradictory
-```
-
-**That is a call count, not a dollar figure, on purpose.** The default judge is your
-Claude subscription and reports no per-call usage back to the harness, so a dollar
-estimate would be invented. (Metered reference, measured on the real corpus: ~760 input
-/ ~130 output tokens per call ≈ $0.008 at Opus rates.)
-
-Every configured judge passes the same gates as the primary — metered refusal and
-judge≠subject.
-
-**Three outcomes:**
-
-- **confirmed** — two clean votes agree; suspect cleared.
-- **tie_broken** — a clean two-of-three majority; suspect cleared.
-- **unresolved** — anything else: `suspect: true`, which **blocks SHIP** through the
-  existing gate rather than a second one.
-
-**A malformed answer is not a vote.** Ambiguous and misfired judgments are recorded in
-full and never counted — so when the *first* wave misfired, a cell needs **two** fresh
-judgments to agree. A misfire cannot confirm itself.
-
-Caps at 3 judgments per cell. Adjudicates one documented rep, never the rep that would
-move the headline. **Human overrides survive untouched** — a judge panel does not
-outvote the author.
 
 ## 8. The optimize loop
 

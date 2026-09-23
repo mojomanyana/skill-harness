@@ -8,11 +8,11 @@
 #
 #   1. extension probe: structured JSONL + declared extension, expected delivery
 #      ERROR and zero judge calls;
-#   2. delivery probe: extension-free authenticated observation + live initial,
-#      re-grade, and adjudication judge calls.
+#   2. delivery probe: extension-free authenticated observation + live initial
+#      and re-grade judge calls.
 #
 # Cost ceiling: two Pi subject invocations, each with one blank-response retry
-# available, plus up to three ChatGPT-subscription judge calls on the delivery
+# available, plus up to two ChatGPT-subscription judge calls on the delivery
 # probe. A Pi invocation may contain several provider calls in its agentic loop.
 set -euo pipefail
 
@@ -135,20 +135,18 @@ if ((c.metrics?.judge_calls || 0) < 1) die("initial judge call was not recorded"
 console.log(`  authenticated delivery: PASS · ${prompts.length} provider request(s)`);
 NODE
 
-say "3 · grade --auto-rejudge (SPENDS judge tokens)"
-$CLI grade "$DELIVERY_RUN" --judge "$JUDGE" --auto-rejudge || fail "grade failed"
+say "3 · grade saved transcript (SPENDS judge tokens)"
+$CLI grade "$DELIVERY_RUN" --judge "$JUDGE" || fail "grade failed"
 
-say "4 · assert live adjudication and evidence carry"
-node - "$DELIVERY_RUN" <<'NODE' || fail "adjudication assertions failed"
+say "4 · assert evidence carry"
+node - "$DELIVERY_RUN" <<'NODE' || fail "regrade evidence assertions failed"
 const fs = require("fs"), path = require("path"), yaml = require("js-yaml");
 const r = yaml.load(fs.readFileSync(path.join(process.argv[2], "results.yaml"), "utf8"));
-const c = r.scenarios?.[0], a = c?.adjudication;
+const c = r.scenarios?.[0];
 const die = m => { console.error("FAIL: " + m); process.exit(1); };
-if (!a || !Array.isArray(a.judgments) || a.judgments.length < 2) die("no live second-opinion adjudication recorded");
-const delivered = c.objective?.assertions?.find(x => x.kind === "skill_delivered");
+const delivered = c?.objective?.assertions?.find(x => x.kind === "skill_delivered");
 if (delivered?.status !== "PASS") die("grade dropped or changed authenticated delivery evidence");
-if (!a.judgments.every(j => Array.isArray(j.criteria) && j.criteria.length === c.criterion_count)) die("adjudication criterion evidence incomplete");
-console.log(`  ${a.state} · ${a.trigger} · ${a.judgments.length} judgments · delivery carried PASS`);
+console.log("  delivery carried PASS through regrade");
 NODE
 
 say "DONE — real structured, extension, authenticated-delivery, and judge paths exercised"

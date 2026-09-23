@@ -7,7 +7,6 @@ import { stimulusDigest, gatesDigest } from "../src/sources.js";
 import { repIndexOf, writeResults, readResults, effectiveVerdicts, rebuildScenarioResult } from "../src/results.js";
 import type { ScenarioResult } from "../src/results.js";
 import { score } from "../src/score.js";
-import { adjudicateRun, planAdjudication, runAdjudication, formatAdjudicationPlan, cellsFromResults } from "../src/adjudication.js";
 import { redactText } from "../src/redaction.js";
 import { mergeTraces, parseTrace } from "../src/execution-trace.js";
 import { snapshotPaths, diffSnapshots } from "../src/workspace.js";
@@ -82,132 +81,6 @@ describe("repIndexOf covers every rep-suffixed artifact", () => {
     "returns null for the unsuffixed %s",
     (file) => expect(repIndexOf(file)).toBeNull(),
   );
-});
-
-describe("rep artifacts are 0-based end to end", () => {
-  const SPEC = `skill: demo
-judge_persona: p
-ship_bar: { total: 1, min_pass: 1, no_critical_fail: true }
-critical: []
-scenarios:
-  - id: A1
-    title: one
-    turns: ["x"]
-    checklist: ["does the thing"]
-`;
-  let skillDir: string;
-  let runDir: string;
-
-  beforeEach(() => {
-    skillDir = mkdtempSync(join(tmpdir(), "sh-rev-"));
-    runDir = join(skillDir, "tests", "results", "tag", "2026-08-08T00-00-00");
-    mkdirSync(runDir, { recursive: true });
-    writeFileSync(join(skillDir, "tests", "specification.yaml"), SPEC, "utf8");
-    writeFileSync(join(runDir, "A1.green.txt"), ">>> USER:\nx\n\n<<< ASSISTANT:\ndone\n", "utf8");
-    // A split rep set: rep0 FAIL, rep1 PASS, rep2 PASS. Written 0-based, exactly
-    // as `run.ts` writes them.
-    writeFileSync(join(runDir, "A1.green.rep0.judge.txt"), "1. FAIL\nVERDICT: FAIL\nREASON: no", "utf8");
-    writeFileSync(join(runDir, "A1.green.rep1.judge.txt"), "1. PASS\nVERDICT: PASS\nREASON: ok", "utf8");
-    writeFileSync(join(runDir, "A1.green.rep2.judge.txt"), "1. PASS\nVERDICT: PASS\nREASON: ok", "utf8");
-    writeResults(runDir, {
-      skill: "demo", harness: "pi", model: "fireworks:x",
-      judge: { provider: "claude-code", model: "j1" },
-      timestamp: "2026-08-08T00-00-00", label: null, mode: "green",
-      scenarios: [{
-        id: "A1", judge_verdict: "PASS", judge_reason: "majority", suspect: false,
-        override: null, note: "", reps: 3, passes: 2, clean: 3, flakiness: 0.67, pass_threshold: 0.5,
-      }],
-    }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: [] });
-  });
-
-  it("sees a split rep set and fires the non_unanimous trigger", async () => {
-    // The regression: `repVerdictsOf` looped 1..reps, so it read rep1+rep2 (both
-    // PASS) and missed rep0's FAIL — a split cell read as unanimous and was never
-    // re-judged. At reps:2 it found one file and returned undefined, so the
-    // trigger could never fire at all.
-    let calls = 0;
-    const adapter: HarnessAdapter = {
-      name: "fake", available: async () => true, run: async () => "",
-      judge: async () => { calls++; return "1. PASS\nVERDICT: PASS\nREASON: fine"; },
-    };
-    const out = await adjudicateRun({
-      runDir, spec: loadSpec(join(skillDir, "tests", "specification.yaml")), adapter,
-      results: readResults(runDir),
-      primaryJudge: { provider: "claude-code", model: "j1" },
-      secondaryJudge: { provider: "claude-code", model: "j2" },
-      specDir: join(skillDir, "tests"), now: () => "2026-08-08T00:00:00.000Z",
-    });
-    const cell = out.scenarios[0];
-    expect(cell.adjudication).toBeDefined();
-    expect(cell.adjudication!.trigger).toBe("non_unanimous");
-    expect(calls).toBe(1);
-  });
-});
-
-describe("a plan discloses which cells it cannot settle", () => {
-  const plan = (tieBreakAvailable: boolean) =>
-    planAdjudication({
-      cells: [
-        { id: "A1", verdict: "PASS", reason: "r", suspect: true },
-        { id: "A2", verdict: "FAIL", reason: "r", suspect: false, repVerdicts: ["PASS", "FAIL"] },
-      ],
-      scenarios: [scenario({ id: "A1" }), scenario({ id: "A2" })],
-      shipBar: { total: 2, min_pass: 2, no_critical_fail: true },
-      critical: [],
-      tieBreakAvailable,
-    });
-
-  it("names the misfired cell whose verdict one more judge cannot settle", () => {
-    // A suspect judgment is not a clean vote, so a second judge reaches at most
-    // one clean vote and `collapseJudgments` needs two: A1 comes back
-    // `unresolved` → still `suspect` → still blocking SHIP, whatever it says.
-    // The call is still made — that second opinion is what an author reads to
-    // resolve the misfire by hand, and it is the ONLY way these cells resolve.
-    // What was missing is this disclosure: the preflight offered A1 and A2 as if
-    // a call would do the same job for both.
-    const p = plan(false);
-    expect(p.decisions.find((d) => d.id === "A1")!.triggers).toContain("contradictory");
-    expect(p.needsTieBreak).toEqual(["A1"]);
-    expect(p.triggered).toEqual(["A1", "A2"]);
-    expect(p.maxAdditionalCalls).toBe(2);
-  });
-
-  it("has nothing to disclose once a tie-break judge can settle them", () => {
-    expect(plan(true).needsTieBreak).toEqual([]);
-  });
-
-  it("says which cells those are, in the preflight, before anything is spent", () => {
-    const text = formatAdjudicationPlan(plan(false), { secondary: { provider: "claude-code", model: "j2" } });
-    expect(text).toMatch(/cannot be SETTLED[^\n]*A1/);
-    expect(text).not.toMatch(/cannot be SETTLED[^\n]*A2/);
-    expect(formatAdjudicationPlan(plan(true), {
-      secondary: { provider: "claude-code", model: "j2" },
-      tieBreak: { provider: "claude-code", model: "j3" },
-    })).not.toContain("cannot be SETTLED");
-  });
-
-  it("still spends within the disclosed ceiling", async () => {
-    const p = plan(false);
-    const asked: string[] = [];
-    const out = await runAdjudication({
-      plan: p,
-      cells: [
-        { id: "A1", verdict: "PASS", reason: "r", suspect: true },
-        { id: "A2", verdict: "FAIL", reason: "r", suspect: false, repVerdicts: ["PASS", "FAIL"] },
-      ],
-      primaryJudge: { provider: "claude-code", model: "j1" },
-      secondaryJudge: { provider: "claude-code", model: "j2" },
-      rejudge: async (id) => {
-        asked.push(id);
-        return { verdict: "PASS", reason: "ok", suspect: false };
-      },
-    });
-    expect(asked).toEqual(["A1", "A2"]);
-    expect(out.callsMade).toBeLessThanOrEqual(p.maxAdditionalCalls);
-    // A1 keeps blocking, and keeps the second opinion attached for the author.
-    expect(out.byId.get("A1")!.state).toBe("unresolved");
-    expect(out.byId.get("A1")!.judgments).toHaveLength(2);
-  });
 });
 
 describe("merging turns keeps issue order and completion order distinct", () => {
@@ -294,28 +167,6 @@ describe("an objective gate outranks the judge", () => {
     const c = cell({ override: "PASS", note: "the gate is wrong, filed #12" });
     expect(effectiveVerdicts([c])[0].verdict).toBe("PASS");
     expect(shipOf(c).ship).toBe(true);
-  });
-});
-
-describe("rescore goes through the choke point", () => {
-  it("does not revert a settled adjudication from stale rep counters", () => {
-    // rescore was the FIFTH rewriter and the only one still using `{ ...s }`, so
-    // adding `objective`/`adjudication` to the type did not fail the build there.
-    // A cell adjudication settled FAIL reverted to PASS when a threshold change
-    // recomputed it from rep counters adjudication never updated.
-    const prior: ScenarioResult = {
-      id: "A1", judge_verdict: "FAIL", judge_reason: "tie-broken FAIL", suspect: false,
-      override: null, note: "", reps: 3, passes: 2, clean: 3, flakiness: 0.67, pass_threshold: 0.5,
-      adjudication: { state: "tie_broken", trigger: "ship_deciding", judgments: [], verdict: "FAIL" },
-    };
-    // 2/3 = 0.667 >= 0.6, so the threshold rule alone would say PASS.
-    const rebuilt = rebuildScenarioResult(
-      { ...prior, judge_verdict: "PASS", pass_threshold: 0.6 },
-      prior,
-      { objective: "carry", adjudication: "carry" },
-    );
-    expect(rebuilt.judge_verdict).toBe("FAIL");
-    expect(rebuilt.adjudication!.verdict).toBe("FAIL");
   });
 });
 
@@ -455,42 +306,5 @@ describe("a negative assertion never passes on evidence redaction destroyed", ()
       call({ authorization: "Basic abc" }),
     );
     expect(g.assertions[0].status).toBe("PASS");
-  });
-});
-
-describe("adjudication looks at the reps that failed hardest", () => {
-  it("counts a rep with no judge artifact as an absent vote, not as no rep", () => {
-    // `run.ts` skips the judge for a rep blocked by a gate or ending in ERROR, so
-    // the missing artifacts belong to exactly those reps. Dropping them made
-    // [FAIL, PASS, PASS] read as [PASS, PASS] — unanimous — and the preflight
-    // told the buyer "no cell triggered" for a cell that split on a forbidden
-    // tool call.
-    const runDir = mkdtempSync(join(tmpdir(), "sh-adj-"));
-    writeFileSync(join(runDir, "A1.green.rep1.judge.txt"), "1. PASS\nVERDICT: PASS\nREASON: ok", "utf8");
-    writeFileSync(join(runDir, "A1.green.rep2.judge.txt"), "1. PASS\nVERDICT: PASS\nREASON: ok", "utf8");
-    // rep0 was gate-blocked: no judge artifact exists for it.
-    const cells = cellsFromResults(runDir, {
-      mode: "green",
-      scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "", suspect: false, override: null, note: "", reps: 3 }],
-    } as never);
-    expect(cells[0].repVerdicts).toEqual(["ERROR", "PASS", "PASS"]);
-
-    const plan = planAdjudication({
-      cells, scenarios: [scenario({ id: "A1" })],
-      shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: [], tieBreakAvailable: false,
-    });
-    expect(plan.decisions[0].triggers).toContain("non_unanimous");
-  });
-
-  it("re-judges a cell whose first judgment could not be parsed at all", () => {
-    // `parseVerdict` emits ERROR when nothing parses, and ERROR matched no
-    // trigger — so the least readable judgments in a run were the ones never
-    // asked again.
-    const plan = planAdjudication({
-      cells: [{ id: "A1", verdict: "ERROR", reason: "unparseable", suspect: false }],
-      scenarios: [scenario({ id: "A1" })],
-      shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: [], tieBreakAvailable: false,
-    });
-    expect(plan.decisions[0].triggers).toContain("ambiguous");
   });
 });

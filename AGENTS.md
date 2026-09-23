@@ -29,7 +29,6 @@ run   <skill|all> --skills root [--model prov:model ...] [--mode red|green|force
 learning [status|import|review|session|trust|decide|adoption|outcome|guide]  guided retained learning — free, offline; explicit local writes, no model calls
 archive ingest|inspect|watch --policy file --source id  explicit external byte ingestion/checkpoint metadata — free, offline, no worker interaction
 grade <run-dir> [--judge prov:model]      re-judge saved transcripts with a (different) judge — no model re-run
-      [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]  ask untrustworthy cells again (OFF by default; prints the exact MAX extra call count first; unresolved disagreement blocks SHIP)
 rescore <run-dir>...                      re-score saved reps against current spec thresholds — free, offline
 regate <run-dir>...                       re-evaluate gates against SAVED artifacts — no subject call; may make one judge call per fail→pass rep
 stability <skill|all> --skills root [--window N] [--all]  run-over-run verdict flips per scenario — free, offline, exits 0 always
@@ -37,7 +36,7 @@ screen <run-dir>...                       retained delivery-aware scenario/crite
 restamp <skill|all> --skills root [--from <git-ref>]     one-time: record the model-visible skill digest on runs that still match — free, offline
 review <skill> --skills root [--port N]   interactive matrix UI; flip verdicts + notes persist to results.yaml
 add-test <skill> --skills root --id ID --title T --turn "…" [--turn …] --check "…" [--check …] [--critical] [--mode seeded --fixture path]
-/skill-harness judge [run-dir] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]   full CLI parity; interactive pi shows a confirm dialog, and under -p the flag itself is the authorization
+/skill-harness judge [run-dir]             re-judge saved transcripts from interactive pi
 coverage <skill|all> --skills root [--strict]   which instruction sections have a DECLARED test — free, offline; --strict gates CI
 init  <skill> --skills root [--force]                    scaffold a commented template spec (free, offline)
 suggest <skill> --skills root [--model prov:model] [--force]  LLM-draft a spec from the skill's SKILL.md (spends tokens)

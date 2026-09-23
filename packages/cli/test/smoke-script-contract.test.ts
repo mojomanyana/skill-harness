@@ -21,7 +21,7 @@ function executable(dir: string, name: string, body: string): void {
 
 
 describe("real-pi release smoke contract", () => {
-  it("separates the hostile-extension probe from authenticated delivery and adjudication", () => {
+  it("separates the hostile-extension probe from authenticated delivery", () => {
     expect(script).toContain('EXTENSION_SKILL="trace-smoke"');
     expect(script).toContain('DELIVERY_SKILL="delivery-smoke"');
     expect(script).toContain('MODEL="${SMOKE_MODEL:-openai-codex:gpt-5.6-sol}"');
