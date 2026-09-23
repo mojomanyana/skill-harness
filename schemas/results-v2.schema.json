@@ -363,6 +363,20 @@
                   }
                 }
               }
+            },
+            "trajectory_version": {
+              "type": "string"
+            },
+            "events_sha256": {
+              "type": "string",
+              "pattern": "^[a-fA-F0-9]{64}$"
+            },
+            "rep_events_sha256": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-fA-F0-9]{64}$"
+              }
             }
           }
         },

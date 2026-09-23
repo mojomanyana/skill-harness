@@ -3634,6 +3634,9 @@ function parseSpec(text15, file) {
       remote: false
     };
     const rawAssert = s.assert;
+    if (rawAssert?.trajectory !== void 0) {
+      throw new SpecError(`scenario \`${id3}\` uses removed \`assert.trajectory\`; delete it or replace it with an active objective gate`, file);
+    }
     if (rawAssert?.trace !== void 0) {
       scenario.traceAssert = parseTraceAssert(rawAssert.trace, `${file}: scenario \`${id3}\``);
     }
@@ -3677,6 +3680,9 @@ function parseSpec(text15, file) {
         }
         scenario.assert = assertObj;
       }
+    }
+    if (s.env && typeof s.env === "object" && Object.hasOwn(s.env, "event_sources")) {
+      throw new SpecError(`scenario \`${id3}\` uses removed \`env.event_sources\`; it is no longer collected`, file);
     }
     scenario.workspace = resolveWorkspace(s.env, mode, scenario.fixture, id3, file);
     scenario.remote = resolveRemote(s.env, scenario.workspace, id3, file);
@@ -15413,6 +15419,9 @@ async function handleSkillCheck(argstr, ctx, opts) {
     return;
   }
   const { sub, positional, flags } = parse5(argstr);
+  const retired = sub === "run" ? ["affected"] : sub === "judge" ? ["auto-rejudge", "secondary-judge", "tie-break-judge"] : [];
+  const retiredFlag = retired.find((flag) => Object.hasOwn(flags, flag));
+  if (retiredFlag) throw new Error(`--${retiredFlag} was removed; this command refuses to silently run with different behavior`);
   const adapter = opts?.adapter;
   const nowIso = () => (/* @__PURE__ */ new Date()).toISOString();
   if (sub === "run") {

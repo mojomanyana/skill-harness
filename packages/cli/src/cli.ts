@@ -75,6 +75,16 @@ function parseArgs(argv: string[]): Args {
   return { _, flags, multi };
 }
 
+function assertNoRetiredFlags(command: string | undefined, args: Args): void {
+  const retired = command === "run"
+    ? ["affected"]
+    : command === "grade"
+      ? ["auto-rejudge", "secondary-judge", "tie-break-judge"]
+      : [];
+  const found = retired.find((flag) => Object.hasOwn(args.flags, flag));
+  if (found) throw new Error(`--${found} was removed; this command refuses to silently run with different behavior`);
+}
+
 export function flagStr(args: Args, key: string, fallback?: string): string | undefined {
   const v = args.flags[key];
   if (typeof v === "string") return v;
@@ -733,7 +743,6 @@ export function help(): string {
   learning [status|import|review|trust|decide|adoption|outcome|guide]  guided retained learning (${free("learning")}; no models)
                         use learning help; quality, trust, adoption and later outcomes stay separate
   archive weekly|trust|access --state /private/dir --request file  durable learning/consent lifecycle (${free("archive")})
-                        watch requires --max-polls N; optional --interval-ms N and --previous checkpoint
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (${free("rescore")})
   regate <run-dir>...  [--judge prov:model]     re-evaluate saved gates (no subject call; judges fail→pass reps)
   restamp <skill|all> --skills <root> [--from <git-ref>]   record the model-visible skill digest on runs that still match (${free("restamp")}; one-time migration)
@@ -760,6 +769,7 @@ export async function main(argv: string[]): Promise<void> {
   const cmd = argv[0];
   if (cmd === "learning") { await runLearningCommand(argv.slice(1)); return; }
   const args = parseArgs(argv.slice(1));
+  assertNoRetiredFlags(cmd, args);
   switch (cmd) {
     case "run": return cmdRun(args);
     case "grade": return cmdGrade(args);

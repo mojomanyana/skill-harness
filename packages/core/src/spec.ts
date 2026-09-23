@@ -290,6 +290,9 @@ export function parseSpec(text: string, file: string): Spec {
     // `assert.trace` is legal for inline AND seeded scenarios — it reads the
     // execution trace, which every run produces, not a staged diff.
     const rawAssert = s.assert as Record<string, unknown> | undefined;
+    if (rawAssert?.trajectory !== undefined) {
+      throw new SpecError(`scenario \`${id}\` uses removed \`assert.trajectory\`; delete it or replace it with an active objective gate`, file);
+    }
     if (rawAssert?.trace !== undefined) {
       scenario.traceAssert = parseTraceAssert(rawAssert.trace, `${file}: scenario \`${id}\``);
     }
@@ -353,6 +356,9 @@ export function parseSpec(text: string, file: string): Spec {
       }
     }
 
+    if (s.env && typeof s.env === "object" && Object.hasOwn(s.env as object, "event_sources")) {
+      throw new SpecError(`scenario \`${id}\` uses removed \`env.event_sources\`; it is no longer collected`, file);
+    }
     scenario.workspace = resolveWorkspace(s.env, mode, scenario.fixture, id, file);
     scenario.remote = resolveRemote(s.env, scenario.workspace, id, file);
     if (s.system_prompt_file !== undefined) {

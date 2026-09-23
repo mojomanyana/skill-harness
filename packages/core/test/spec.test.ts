@@ -369,6 +369,28 @@ scenarios:
   });
 });
 
+describe("removed workflow keys fail closed", () => {
+  const parse = (extra: string) => parseSpec(`
+skill: demo
+judge_persona: a judge.
+ship_bar: { total: 1, min_pass: 1 }
+scenarios:
+  - id: A1
+    title: retired config
+    turns: ["run it"]
+    checklist: ["done"]
+${extra}
+`, "retired.yaml");
+
+  test("rejects assert.trajectory instead of silently judging the scenario", () => {
+    expect(() => parse(`    assert:\n      trajectory:\n        version: "1.0"`)).toThrow(/removed `assert\.trajectory`/);
+  });
+
+  test("rejects env.event_sources instead of silently dropping evidence collection", () => {
+    expect(() => parse(`    env:\n      event_sources:\n        - adapter: normalized-v1\n          path: events.jsonl`)).toThrow(/removed `env\.event_sources`/);
+  });
+});
+
 describe("assert.diff_excludes / assert.post_test (additive seeded gates)", () => {
   const seeded = (assertBlock: string) => `
 skill: t

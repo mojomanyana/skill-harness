@@ -6,7 +6,6 @@ WORK=$(mktemp -d "${TMPDIR:-/tmp}/skill-harness-packed-smoke-XXXXXX")
 trap 'rm -rf "$WORK"' EXIT
 ARTIFACTS="$WORK/artifacts"
 PREFIX="$WORK/install"
-EXAMPLE="$WORK/qualification"
 VERSION=$(node -p "require('$ROOT/package.json').version")
 
 cd "$ROOT"
@@ -19,5 +18,5 @@ npm install --prefix "$PREFIX" --no-package-lock --ignore-scripts \
 
 CLI="$PREFIX/node_modules/.bin/skill-harness"
 "$CLI" --version
-"$CLI" lint principal-v3-pack --skills "$ROOT/examples"
+"$CLI" lint delivery-smoke --skills "$ROOT/scripts/smoke/skills"
 echo "packed-artifact smoke passed (four installed tarballs; no model or judge calls)"

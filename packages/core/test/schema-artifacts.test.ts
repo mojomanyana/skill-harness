@@ -21,10 +21,13 @@ describe("versioned public schemas", () => {
     const v2Schema = JSON.parse(readFileSync(join(root, "results-v2.schema.json"), "utf8"));
     const v3Schema = JSON.parse(readFileSync(join(root, "results-v3.schema.json"), "utf8"));
     const v2 = { schema: 2, skill: "x", harness: "pi", model: "p:m", judge: { provider: "p", model: "j" }, timestamp: "t", label: null, mode: "red", effective_grade: { passed: 0, total: 0, pct: 0, letter: "-", ship: false, note: "" }, scenarios: [] };
-    expect(ajv.compile(v2Schema)(v2)).toBe(true);
+    const validateV2 = ajv.compile(v2Schema);
+    expect(validateV2(v2)).toBe(true);
+    const h = "a".repeat(64);
+    const historicalTrajectory = { ...v2, scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "ok", suspect: false, override: null, note: "", objective: { status: "PASS", trajectory_version: "1.0", events_sha256: h, rep_events_sha256: [h], assertions: [] } }] };
+    expect(validateV2(historicalTrajectory), JSON.stringify(validateV2.errors)).toBe(true);
     const validateV3 = ajv.compile(v3Schema);
     expect(validateV3({ ...v2, schema: 3 })).toBe(false);
-    const h = "a".repeat(64);
     const v3 = { ...v2, schema: 3, subject_invocations: [{ scenario_id: "A1", repetition: 0, prompt: { capture_version: "prompt-provenance-v1", request_index: 0, raw_sha256: h, normalized_sha256: h, normalization_rule: "cwd-line-v1", bytes: 1, contract_sha256: h, contract_bytes: 1, contract_occurrences: 0, mechanism: "none", status: "PASS" } }], scenarios: [{ id: "A1", criterion_count: 1, judge_verdict: "PASS", judge_reason: "ok", suspect: false, override: null, note: "", objective: { status: "PASS", assertions: [{ kind: "skill_delivered", status: "PASS", detail: "observed" }] }, rep_judgments: [{ repetition: 0, recorded_verdict: "PASS", objective: { status: "PASS", assertions: [{ kind: "skill_delivered", status: "PASS", detail: "observed" }] }, judgments: [{ ordinal: 1, judge: { provider: "p", model: "j" }, verdict: "PASS", reason: "ok", suspect: false, criteria: [{ index: 1, verdict: "PASS", reason: "ok" }] }] }] }] };
     expect(validateV3(v3), JSON.stringify(validateV3.errors)).toBe(true);
     const noInvocations = structuredClone(v3); delete (noInvocations as any).subject_invocations;

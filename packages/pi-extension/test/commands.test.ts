@@ -162,4 +162,11 @@ describe("handleSkillCheck", () => {
     const results = readResults(runDir);
     expect(results.scenarios[0]).toMatchObject({ id: "A1", judge_verdict: "PASS" });
   });
+
+  it.each(["run demo --affected", "judge . --auto-rejudge", "judge . --secondary-judge claude-code:x", "judge . --tie-break-judge claude-code:x"])(
+    "refuses a removed flag before invoking an adapter: %s",
+    async (args) => {
+      await expect(handleSkillCheck(args, fakeCtx(process.cwd()), { adapter: fakeAdapter })).rejects.toThrow(/was removed/);
+    },
+  );
 });

@@ -82,6 +82,13 @@ export async function handleSkillCheck(
     return;
   }
   const { sub, positional, flags } = parse(argstr);
+  const retired = sub === "run"
+    ? ["affected"]
+    : sub === "judge"
+      ? ["auto-rejudge", "secondary-judge", "tie-break-judge"]
+      : [];
+  const retiredFlag = retired.find((flag) => Object.hasOwn(flags, flag));
+  if (retiredFlag) throw new Error(`--${retiredFlag} was removed; this command refuses to silently run with different behavior`);
   const adapter = opts?.adapter;
   const nowIso = () => new Date().toISOString();
 
