@@ -255,8 +255,6 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
     expect(a1.judge_verdict).toBe("PASS");
     expect(a1.override).toBeNull(); // no override going in — still null coming out
     expect(a1.adjudication).toBeUndefined();
-    expect(a1.judge_history).toHaveLength(3);
-    expect(a1.judge_history?.map((v) => v.reason)).toEqual(["first", "second", "fine"]);
     expect(after.effective_grade.ship).toBe(true); // no longer blocked by the suspect
   });
 

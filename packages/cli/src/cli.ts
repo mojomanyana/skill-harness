@@ -27,7 +27,6 @@ import {
   HARNESS_VERSION,
   defaultJudge,
   assertJudgeAllowed,
-  judgeAgreement,
   assertNotDowngraded,
   downgradeWarning,
   isScoredMode,
@@ -440,19 +439,6 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
  * Reps are the measurement; thresholds are policy. When policy changes, recompute rather
  * than reconcile two numbers in prose.
  */
-export function cmdJudgeAgreement(args: Args): void {
-  const raw = args._[0];
-  if (!raw) throw new Error("usage: skill-harness judge-agreement <run-dir>");
-  const runDir = resolve(raw);
-  if (!existsSync(runDir)) throw new Error(`run dir not found: ${runDir}`);
-  const report = judgeAgreement(readResults(runDir));
-  for (const cell of report.cells) {
-    console.log(`  ${cell.status === "agree" ? "=" : cell.status === "disagree" ? "≠" : "?"} ${cell.scenario}: ${cell.status} — ${cell.detail}${cell.judges.length ? ` (${cell.judges.join(" vs ")})` : ""}`);
-  }
-  console.log(`\njudge agreement: ${report.agree} agree / ${report.disagree} disagree / ${report.error} error; ${report.rate === null ? "n/a" : `${(report.rate * 100).toFixed(1)}%`} across ${report.comparable} comparable scenario(s).`);
-  console.log("offline report only; no model or judge calls.");
-}
-
 async function cmdRescore(args: Args): Promise<void> {
   const runDirs = args._;
   if (runDirs.length === 0) throw new Error("usage: skill-harness rescore <run-dir> [<run-dir> ...]");
@@ -941,7 +927,6 @@ export function help(): string {
                         use learning help; quality, trust, adoption and later outcomes stay separate
   archive weekly|trust|access --state /private/dir --request file  durable learning/consent lifecycle (${free("archive")})
                         watch requires --max-polls N; optional --interval-ms N and --previous checkpoint
-  judge-agreement <run-dir>                      compare two distinct persisted judge votes per scenario (${free("judge-agreement")})
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (${free("rescore")})
   regate <run-dir>...  [--judge prov:model]     re-evaluate saved gates (no subject call; judges fail→pass reps)
   restamp <skill|all> --skills <root> [--from <git-ref>]   record the model-visible skill digest on runs that still match (${free("restamp")}; one-time migration)
@@ -980,7 +965,6 @@ export async function main(argv: string[]): Promise<void> {
     case "compare": return cmdCompare(args);
     case "grade": return cmdGrade(args);
     case "archive": return cmdArchive(args);
-    case "judge-agreement": return cmdJudgeAgreement(args);
     case "rescore": return cmdRescore(args);
     case "regate": return cmdRegate(args);
     case "restamp": return cmdRestamp(args);

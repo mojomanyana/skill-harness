@@ -26,7 +26,6 @@ export * from "./version.js";
 export * from "./defaults.js";
 export * from "./command-cost.js";
 export * from "./judge-policy.js";
-export * from "./judge-agreement.js";
 export * from "./regate.js";
 export * from "./screen.js";
 export * from "./prompt-normalization.js";

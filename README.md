@@ -249,7 +249,6 @@ skill-harness run    <skill|all> --skills <root> [--model prov:model ...] [--mod
 skill-harness compare <skill|all> --reference <git-ref-or-root> --candidate <skills-root> --model prov:model --reps N
                                                           # paired reference/candidate run; spends subject + judge calls
 skill-harness archive ingest|inspect|watch --policy file --source id  # explicit local archive policy; metadata output, no worker/model calls
-skill-harness judge-agreement <run-dir>                   # compare persisted votes after grading with two distinct judges (free, offline)
 skill-harness stability <skill|all> --skills <root> [--window N] [--all]  # run-over-run verdict flips (free, offline)
 skill-harness screen <run-dir>...                         # retained delivery-aware scenario/criterion rates (free, offline)
 skill-harness restamp <skill|all> --skills <root> [--from <git-ref>]  # one-time hash upgrade; see "what stales a run" (free, offline)
@@ -299,13 +298,6 @@ judge reports no per-call usage and a dollar figure there would be invented. It 
 names any cell that no single second opinion can settle, which needs
 `--tie-break-judge`. An unresolved disagreement blocks SHIP rather than resolving
 itself.
-
-**Judge agreement is measured offline after two grades.** Grade the same saved run with
-two distinct judges, then run `judge-agreement <run-dir>`; the report makes no judge
-calls and reports agree/disagree/error per scenario plus an aggregate. Start with
-`openai-codex:gpt-5.6-sol` against `claude-code:claude-opus-4-8`: both are
-subscription-backed and have zero marginal per-token cost. Treat open-weight judges as
-secondary candidates until their agreement has been measured.
 
 Structured runs record `metrics.cost_source`. Subscription providers
 (`openai-codex`, `claude-code`) are labeled `subscription`; a non-subscription provider

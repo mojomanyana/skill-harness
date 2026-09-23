@@ -5202,7 +5202,7 @@ function validateResults(raw) {
     const aggregateObjectiveStatus = objectiveStatuses.includes("ERROR") ? "ERROR" : objectiveStatuses.includes("NOT-MEASURED") ? "NOT-MEASURED" : objectiveStatuses.includes("FAIL") ? "FAIL" : "PASS";
     if (!scenario.objective || scenario.objective.status !== aggregateObjectiveStatus)
       throw new Error(`scenario objective diverges from per-repetition objectives for ${scenario.id}`);
-    for (const judgment of [...scenario.judge_history ?? [], ...scenario.adjudication?.judgments ?? []])
+    for (const judgment of scenario.adjudication?.judgments ?? [])
       assertCriteria(judgment);
     let adjudicatedVerdict;
     if (scenario.adjudication) {
@@ -5314,7 +5314,7 @@ function diffPath(runDir, scenarioId, mode, rep) {
   return join4(runDir, `${base}.diff.txt`);
 }
 function rebuildScenarioResult(fresh, prior, policy) {
-  const { id: id3, criterion_count: freshCriterionCount, judge_verdict, judge_reason, suspect, override: _freshOverride, note: _freshNote, reps: reps2, passes, clean, flakiness, pass_threshold, metrics: freshMetrics, objective: freshObjective, adjudication: freshAdjudication, judge_history: freshJudgeHistory, rep_judgments: freshRepJudgments, ...rest } = fresh;
+  const { id: id3, criterion_count: freshCriterionCount, judge_verdict, judge_reason, suspect, override: _freshOverride, note: _freshNote, reps: reps2, passes, clean, flakiness, pass_threshold, metrics: freshMetrics, objective: freshObjective, adjudication: freshAdjudication, rep_judgments: freshRepJudgments, ...rest } = fresh;
   const _exhaustive = rest;
   void _exhaustive;
   void _freshOverride;
@@ -5352,7 +5352,6 @@ function rebuildScenarioResult(fresh, prior, policy) {
     // existed.
     ...objective ? { objective } : {},
     ...adjudication ? { adjudication } : {},
-    ...freshJudgeHistory ?? prior?.judge_history ? { judge_history: freshJudgeHistory ?? prior.judge_history } : {},
     ...freshRepJudgments ?? prior?.rep_judgments ? { rep_judgments: freshRepJudgments ?? prior.rep_judgments } : {}
   };
 }
@@ -6826,21 +6825,6 @@ async function regradeScenario(opts) {
   }
   return outcomesToResult(opts.scenario.id, outcomes, repCount, opts.threshold);
 }
-function appendJudgeHistory(prior, priorJudge, fresh) {
-  const history = prior?.judge_history ?? prior?.adjudication?.judgments ?? (prior && priorJudge ? [{
-    ordinal: 1,
-    judge: priorJudge,
-    verdict: prior.judge_verdict ?? "JUDGE-AMBIGUOUS",
-    reason: prior.judge_reason ?? "prior grade",
-    suspect: prior.suspect ?? true,
-    criteria: prior.rep_judgments?.find((panel) => panel.repetition === 0)?.judgments[0]?.criteria ?? []
-  }] : []);
-  const next = [
-    ...history,
-    { ...fresh, criteria: fresh.criteria ?? [], ordinal: history.length + 1 }
-  ].slice(-3).map((judgment, index) => ({ ...judgment, ordinal: index + 1 }));
-  return next.length >= 2 ? next : void 0;
-}
 async function regradeRun(opts) {
   const { runDir, spec, adapter, judge, specDir } = opts;
   const now = opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
@@ -6905,13 +6889,6 @@ async function regradeRun(opts) {
       rr.criterion_count = scenario.checklist.length;
     rr.metrics = mergeScenarioMetrics(carry?.metrics, rr.metrics);
     rr.rep_judgments = carryRepObjectives(rr.rep_judgments, carry?.rep_judgments);
-    rr.judge_history = appendJudgeHistory(carry, prev?.judge, {
-      judge,
-      verdict: rr.judge_verdict,
-      reason: rr.judge_reason,
-      suspect: rr.suspect,
-      criteria: rr.rep_judgments?.find((panel) => panel.repetition === 0)?.judgments[0]?.criteria
-    });
     scenarioResults.push(rebuildScenarioResult(rr, carry, { objective: "carry", adjudication: "drop" }));
   }
   const ctx = scoreContextFor({ mode, partial: prev?.partial }, spec);
@@ -15954,14 +15931,7 @@ async function serveReview(opts) {
           const merged = results.scenarios.map((s) => {
             if (s.id !== body.scenarioId)
               return s;
-            const judge_history = appendJudgeHistory(s, results.judge, {
-              judge: results.judge,
-              verdict: rr.judge_verdict,
-              reason: rr.judge_reason,
-              suspect: rr.suspect,
-              criteria: rr.rep_judgments?.find((panel) => panel.repetition === 0)?.judgments[0]?.criteria
-            });
-            return rebuildScenarioResult({ ...rr, metrics: mergeScenarioMetrics(s.metrics, rr.metrics), rep_judgments: carryRepObjectives(rr.rep_judgments, s.rep_judgments), judge_history }, s, { objective: "carry", adjudication: "drop" });
+            return rebuildScenarioResult({ ...rr, metrics: mergeScenarioMetrics(s.metrics, rr.metrics), rep_judgments: carryRepObjectives(rr.rep_judgments, s.rep_judgments) }, s, { objective: "carry", adjudication: "drop" });
           });
           const written = writeResults(column.runDir, {
             schema: results.schema,

@@ -10,7 +10,7 @@ import {
   appendJournal,
   type Verdict, type ResultsFile,
   loadSpec,
-  regradeScenario, appendJudgeHistory, refreshRubricHashes, findJudgeRawFiles,
+  regradeScenario, refreshRubricHashes, findJudgeRawFiles,
   effectiveThreshold, scoreContextFor, isScoredMode, rebuildScenarioResult, mergeScenarioMetrics, carryRepObjectives,
   envFlag,
   planAdjudication, adjudicateRun, assertJudgeAllowed, cellsFromResults,
@@ -163,16 +163,9 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
           });
           const merged = results.scenarios.map((s) => {
             if (s.id !== body.scenarioId) return s;
-            const judge_history = appendJudgeHistory(s, results.judge, {
-              judge: results.judge,
-              verdict: rr.judge_verdict,
-              reason: rr.judge_reason,
-              suspect: rr.suspect,
-              criteria: rr.rep_judgments?.find(panel => panel.repetition === 0)?.judgments[0]?.criteria,
-            });
             // Same contract as `grade`, through the same choke point.
             return rebuildScenarioResult(
-              { ...rr, metrics: mergeScenarioMetrics(s.metrics, rr.metrics), rep_judgments: carryRepObjectives(rr.rep_judgments, s.rep_judgments), judge_history },
+              { ...rr, metrics: mergeScenarioMetrics(s.metrics, rr.metrics), rep_judgments: carryRepObjectives(rr.rep_judgments, s.rep_judgments) },
               s,
               { objective: "carry", adjudication: "drop" },
             );
