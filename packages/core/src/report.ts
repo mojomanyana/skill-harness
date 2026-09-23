@@ -4,7 +4,7 @@ import { loadSpec, type ShipBar } from "./spec.js";
 import { readResults, type ResultsFile } from "./results.js";
 import { collectLift, liftHeadline, type Lift } from "./lift.js";
 import { boundaryCells, collectStability, stabilityNote } from "./stability.js";
-import { aggregateMetrics, type AggregateMetrics } from "./comparison.js";
+import { aggregateMetrics, type AggregateMetrics } from "./metrics.js";
 
 export interface RunColumn {
   index: number;

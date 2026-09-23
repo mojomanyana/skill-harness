@@ -7250,7 +7250,7 @@ var REJECTION = {
   unverified: "step(s) whose recorded hashes cannot be compared"
 };
 
-// packages/core/dist/comparison.js
+// packages/core/dist/metrics.js
 function aggregateMetrics2(scenarios) {
   const metrics = scenarios.map((scenario) => scenario.metrics).filter((value3) => value3 !== void 0);
   const sumOptional = (field) => {

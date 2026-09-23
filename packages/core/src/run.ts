@@ -38,7 +38,7 @@ import { outcomesToResult, type RepOutcome } from "./reps.js";
 import { judgeOneRep } from "./regrade.js";
 import { runDeliveryCanary, canaryFailure, type CanaryResult } from "./canary.js";
 import { boundaryCells, stabilityNote, type ScenarioStability } from "./stability.js";
-import { aggregateMetrics } from "./comparison.js";
+import { aggregateMetrics } from "./metrics.js";
 import { providerFailureFromTranscript } from "./provider-failure.js";
 
 export interface RunOptions {

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { validateResults } from "./results.js";
-import { aggregateMetrics } from "./comparison.js";
+import { aggregateMetrics } from "./metrics.js";
 import type { InterventionManifest, InterventionEvidence, InterventionCell } from "./intervention.js";
 /** Normalize existing validated schema3 records, retaining the complete source votes alongside the summary. */
 export function interventionEvidenceFromResults(manifest: InterventionManifest, armId: string, raw: unknown, outputBytes: ReadonlyMap<string, Uint8Array>) {

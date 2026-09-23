@@ -69,11 +69,7 @@ the judge's verdict; only an explicit author override beats it.
 6. **Add a test.** `skill-harness add-test <skill> --skills <root> --id <ID> --title <T>
    --turn "<turn>" [--turn ...] --check "<item>" [--check ...] [--critical]
    [--mode seeded --fixture <path>]`. Gather the fields conversationally first.
-7. **Compare a reference and candidate when isolation matters.** `skill-harness compare`
-   uses the same spec/fixture/model/mode/judge/repetition plan on both snapshots. Confirm
-   the spend first. It is paired setup, not seeded LLM sampling; partial/affected is
-   branch feedback and never SHIP.
-8. **Optimize.** The user edits `<skill>/SKILL.md` → re-run → compare the new
+7. **Optimize.** The user edits `<skill>/SKILL.md` → re-run → compare the new
    scorecard to the old `results.yaml`. Report the per-scenario delta, not just the
    letter grade. Before spending a full wave on an edit, `skill-harness affected
    <skill> --skills <root> --base <ref>` names the scenarios that edit could touch

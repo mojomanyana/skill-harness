@@ -451,24 +451,6 @@ A missing field needed for governance is `ERROR`, never success. Gates run befor
 replayable with `regate` from `.events.jsonl`. Mutation-testing machinery was removed by explicit user instruction on 2026-09-07. Ordinary trajectory, delivery and results validators and regression tests remain; historical mutation results are not current requirements.
 Full schema and adapter details: [`ASSURANCE-WORKFLOWS.md`](ASSURANCE-WORKFLOWS.md).
 
-## 7d. Paired reference-versus-candidate comparison
-
-```bash
-node bin/skill-harness.js compare build \
-  --reference main --candidate ../principal-pi-skills \
-  --model fireworks:accounts/fireworks/models/deepseek-v4-pro \
-  --reps 3 --mode force
-```
-
-This **spends subject and judge calls**; confirm the skill, model(s), and judge first. Both sides use
-the same scenario/spec/fixture/model/mode/judge/repetition plan and remain independently inspectable
-under `.skill-harness/comparisons/`. Reports include exact digests, per-scenario lift/regression and
-flakiness, token/tool/judge/wall metrics where available, and explicit cost thresholds separate from
-behavior. This is paired setup, not provider-seeded deterministic sampling.
-
-Exit 2 means a critical regression; exit 1 an ordinary ship-bar/behavioral regression or unresolved
-infrastructure error. `--only` and `--affected` are branch feedback and can never report SHIP.
-
 ## 7e. Coverage + affected — which instructions have no test (free, offline)
 
 Opt a scenario in with `covers`:

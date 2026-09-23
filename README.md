@@ -246,8 +246,6 @@ skill-harness run    <skill|all> --skills <root> [--model prov:model ...] [--mod
                                [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T] [--canary]
                                [--only A1,A2 | --affected --base <ref>]   # scenario subset; a partial run never reports SHIP
                                [--auto-rejudge] [--secondary-judge prov:model] [--tie-break-judge prov:model]
-skill-harness compare <skill|all> --reference <git-ref-or-root> --candidate <skills-root> --model prov:model --reps N
-                                                          # paired reference/candidate run; spends subject + judge calls
 skill-harness archive ingest|inspect|watch --policy file --source id  # explicit local archive policy; metadata output, no worker/model calls
 skill-harness stability <skill|all> --skills <root> [--window N] [--all]  # run-over-run verdict flips (free, offline)
 skill-harness screen <run-dir>...                         # retained delivery-aware scenario/criterion rates (free, offline)
