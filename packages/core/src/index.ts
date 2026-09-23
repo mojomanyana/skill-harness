@@ -48,7 +48,6 @@ export * from "./execution-trace.js";
 export * from "./trace-gates.js";
 export * from "./trajectory-gates.js";
 export * from "./instruction-coverage.js";
-export * from "./affected.js";
 export * from "./adjudication.js";
 export * from "./vote-panel.js";
 export * from "./qualification-panels.js";

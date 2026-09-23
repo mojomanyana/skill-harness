@@ -13,7 +13,6 @@ import { mergeTraces, parseTrace } from "../src/execution-trace.js";
 import { snapshotPaths, diffSnapshots } from "../src/workspace.js";
 import { evaluateTraceGates } from "../src/trace-gates.js";
 import { execFileSync } from "node:child_process";
-import { selectAffected } from "../src/affected.js";
 import type { ExecutionTraceV1 } from "../src/capture-trace-types.js";
 import { loadSpec } from "../src/spec.js";
 import type { Scenario } from "../src/spec.js";
@@ -237,37 +236,6 @@ describe("merging turns keeps issue order and completion order distinct", () => 
   it("keeps a call that never completed marked as never completed", () => {
     const merged = mergeTraces([t(1, [["a", 0, -1], ["b", 1, 0]]), t(2, [["c", 0, 0]])])!;
     expect(merged.tool_calls.map((c) => c.completionIndex)).toEqual([-1, 0, 1]);
-  });
-});
-
-describe("an uncovered instruction file cannot be ruled out", () => {
-  const skillDir = "/repo/skills/plan";
-  const specDir = `${skillDir}/tests`;
-  const scenarios = [
-    scenario({ id: "A1", covers: ["../SKILL.md#planning"] }),
-    scenario({ id: "A2", covers: ["../SKILL.md#planning"] }),
-  ];
-  const diffFor = (file: string) =>
-    `diff --git a/${file} b/${file}\n--- a/${file}\n+++ b/${file}\n@@ -1,0 +2,3 @@\n+new prose\n`;
-
-  it("selects everything when changed skill prose is covered by nothing", () => {
-    // `continue` here was silent under-inclusion: the file mapped to no section,
-    // so no scenario was selected AND it never reached `unmappedFiles` — the
-    // output claimed a clean partial selection for an edit it had not considered.
-    const out = selectAffected({
-      scenarios, specDir, repoRoot: "/repo",
-      diff: diffFor("skills/plan/REFERENCE.md"),
-    });
-    expect(out.conservative).toBe(true);
-    expect(out.conservativeReason).toContain("REFERENCE.md");
-    expect(out.selected.map((s) => s.id).sort()).toEqual(["A1", "A2"]);
-  });
-
-  it("still ignores changed source files and other skills' prose", () => {
-    for (const file of ["src/run.ts", "skills/build/SKILL.md", "skills/plan/tests/specification.yaml"]) {
-      const out = selectAffected({ scenarios, specDir, repoRoot: "/repo", diff: diffFor(file) });
-      expect(out.conservative, file).toBe(false);
-    }
   });
 });
 

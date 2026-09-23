@@ -71,19 +71,15 @@ the judge's verdict; only an explicit author override beats it.
    [--mode seeded --fixture <path>]`. Gather the fields conversationally first.
 7. **Optimize.** The user edits `<skill>/SKILL.md` → re-run → compare the new
    scorecard to the old `results.yaml`. Report the per-scenario delta, not just the
-   letter grade. Before spending a full wave on an edit, `skill-harness affected
-   <skill> --skills <root> --base <ref>` names the scenarios that edit could touch
-   (free, offline). An affected run is partial and never reports SHIP.
+   letter grade.
 
 ## Free, offline, and worth running first
 None of these spend a model or judge token. Reach for them before anything paid:
-`init`, `lint`, `list`, `rescore`, `restamp`, `screen`, `stability`, `coverage`, `affected`, `archive`,
+`init`, `lint`, `list`, `rescore`, `restamp`, `screen`, `stability`, `coverage`, `archive`,
 and `learning`. In particular —
 - `coverage <skill|all> --skills <root>` — which SKILL.md sections have a declared
   test. `covers` records that somebody LINKED a test to a section; it is not proof
   the behaviour is tested, and it is worth saying so when you report a percentage.
-- `affected <skill> --skills <root> --base <ref>` — which scenarios a diff could
-  touch. Resolves every ambiguity toward selecting more.
 - `screen <run-dir>...` — recompute control/treatment rates and criterion failures
   from schema-v3 retained prompt observations and judge votes; older evidence stays UNKNOWN.
 

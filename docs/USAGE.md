@@ -451,7 +451,7 @@ A missing field needed for governance is `ERROR`, never success. Gates run befor
 replayable with `regate` from `.events.jsonl`. Mutation-testing machinery was removed by explicit user instruction on 2026-09-07. Ordinary trajectory, delivery and results validators and regression tests remain; historical mutation results are not current requirements.
 Full schema and adapter details: [`ASSURANCE-WORKFLOWS.md`](ASSURANCE-WORKFLOWS.md).
 
-## 7e. Coverage + affected — which instructions have no test (free, offline)
+## 7e. Coverage — which instructions have no test (free, offline)
 
 Opt a scenario in with `covers`:
 
@@ -464,8 +464,6 @@ scenarios:
 
 ```bash
 node bin/skill-harness.js coverage <skill|all> --skills <root> [--strict]
-node bin/skill-harness.js affected <skill> --skills <root> [--base <git-ref>]
-node bin/skill-harness.js run <skill> --skills <root> --affected --base <git-ref>
 ```
 
 ```
@@ -484,31 +482,7 @@ exactly that reason. A **broken** reference fails regardless of `--strict`, sinc
 that's a wrong statement in the spec rather than a gap; renaming a heading is the
 usual cause, so the finding suggests near-miss slugs.
 
-`affected` reads `git diff --unified=0 <base>`, maps changed lines to heading
-sections, reverses the `covers` map, and prints a **reason per scenario**:
-
-```
-selected 2/3 scenario(s):
-  A2  covers skills/demo/SKILL.md#edge-cases
-  B1  B-series (always run)
-
-an affected run is partial and never reports SHIP — a full run still gates a release
-```
-
-**Selection always errs toward more**, because under-inclusive means shipping a
-regression while over-inclusive only costs tokens:
-
-- every **critical** and **B-series** scenario runs, whatever the diff said;
-- a scenario with **no `covers`** is always selected — there's nothing to consult;
-- a changed **fixture / post-test / agent file / extension** selects its scenario;
-- a referenced file that was **renamed or deleted**, or a **wholesale rewrite**,
-  selects *everything*.
-
-`run --affected` reuses `--only`, so it's partial and can never report SHIP. Use it
-to iterate; a full run still gates a release.
-
-**`covers` costs nothing to change** — it's in no staleness facet. Editing it
-changes what `--affected` selects next time, not what any past run measured.
+**`covers` costs nothing to change** — it's in no staleness facet.
 
 ## 7f. Confidence-aware rejudging — when one judge isn't enough
 

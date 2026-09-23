@@ -21,9 +21,6 @@ import {
   restampSkill,
   resolveAdjudicationJudges, adjudicateRun, judgeResemblesSubject,
   computeCoverage, formatCoverage,
-  selectAffected, formatAffected, gitDiff,
-  exec,
-  type Scenario,
   HARNESS_VERSION,
   defaultJudge,
   assertJudgeAllowed,
@@ -184,11 +181,7 @@ export async function cmdRun(args: Args): Promise<void> {
   // that was never the problem. Free, offline validation first — it is also why
   // CI, which has no `pi`, could not test this refusal at all.
   const onlyRaw = flagStr(args, "only");
-  let only = onlyRaw ? onlyRaw.split(",").map((x) => x.trim()).filter(Boolean) : undefined;
-  const affected = flagBool(args, "affected");
-  if (affected && only) {
-    throw new Error("--affected and --only both choose the scenario set — pass one, not both");
-  }
+  const only = onlyRaw ? onlyRaw.split(",").map((x) => x.trim()).filter(Boolean) : undefined;
 
   const harnessName = flagStr(args, "harness", "pi")!;
   const adapter = getAdapter(harnessName);
@@ -222,17 +215,6 @@ export async function cmdRun(args: Args): Promise<void> {
     // that look comparable and are not. Checked per skill, before its first token.
     assertNotDowngraded(skill.dir, "run");
     const spec = loadSpec(skill.specPath);
-    if (affected) {
-      // Reuses the exact `--only` machinery, so an affected run is partial and
-      // cannot report SHIP — the same guarantee, through the same code path.
-      const result = await computeAffected(args, spec.scenarios, skill.specPath);
-      console.log(formatAffected(result, spec.scenarios.length));
-      only = result.selected.map((sel) => sel.id);
-      if (only.length === 0) {
-        console.log(`skip ${skill.name}: no scenario is affected by this change`);
-        continue;
-      }
-    }
     for (const token of modelTokens) {
       const model = parseModelRef(token);
       // The version is on the banner because a stale global install is otherwise
@@ -276,7 +258,7 @@ export async function cmdRun(args: Args): Promise<void> {
   console.log(`\nReview interactively:  skill-harness review ${skills[0]?.name ?? "<skill>"} --skills ${root}`);
   // A full delivered run is a release gate. NOT READY — including one critical
   // failure hidden by a high aggregate — must be machine-visible to CI. Red
-  // baselines and partial/affected branch feedback are deliberately excluded.
+  // baselines and partial branch feedback are deliberately excluded.
   if (releaseExitCode(summaries) !== 0) process.exitCode = 1;
 }
 
@@ -642,32 +624,6 @@ function readPendingCaptures(specDir: string): { id: string; covers: string[] }[
   return out;
 }
 
-/** `affected` — which scenarios a change could plausibly touch. Free and offline. */
-async function cmdAffected(args: Args): Promise<void> {
-  const root = flagStr(args, "skills", process.cwd())!;
-  const target = args._[0];
-  if (!target) throw new Error("usage: skill-harness affected <skill> --skills <root> [--base <git-ref>]");
-  const skill = resolveSkill(root, target);
-  if (!skill.hasSpec) throw new Error(`${target} has no spec`);
-  const spec = loadSpec(skill.specPath);
-  const result = await computeAffected(args, spec.scenarios, skill.specPath);
-  console.log(formatAffected(result, spec.scenarios.length));
-}
-
-/** Shared by `affected` and `run --affected`, so the two can never disagree. */
-async function computeAffected(args: Args, scenarios: Scenario[], specPath: string) {
-  const base = flagStr(args, "base", "HEAD")!;
-  const repoRoot = await gitRepoRoot(dirname(specPath));
-  const diff = await gitDiff(repoRoot, base);
-  return selectAffected({ scenarios, specDir: dirname(specPath), diff, repoRoot });
-}
-
-async function gitRepoRoot(from: string): Promise<string> {
-  const r = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: from, timeoutMs: 30_000 });
-  if (r.code !== 0) throw new Error(`not a git repository (from ${from}) — --affected needs one to diff against`);
-  return r.stdout.trim();
-}
-
 /** Write a spec to disk, creating its tests/ dir. The single choke point for spec
  *  writes (init/suggest) so a future atomic-write/backup/audit change lands in one place. */
 function writeSpecFile(specPath: string, text: string): void {
@@ -825,7 +781,6 @@ export function help(): string {
   return `skill-harness ${HARNESS_VERSION} — test/optimize loop for agent skills (pi harness)
 
   run    <skill|all> --skills <root> [--model prov:model ...] [--models file] [--only A1,D2]
-                     [--affected --base <git-ref>]  run only the scenarios a change could touch (partial; never SHIPs)
                      [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
                      [--canary]  green only: spend ONE probe proving the skill reached the model, and abort the run if it did not
                      [--structured]  record subject tokens, cost and wall time (needs pi --mode json)
@@ -852,7 +807,6 @@ export function help(): string {
   list   --skills <root>                        discovered skills + spec status (${free("list")})
   lint   <skill|all> --skills <root>           validate specs/fixtures + results-consistency (${free("lint")}; CI gate; exits non-zero on findings)
   coverage <skill|all> --skills <root> [--strict]   which instruction sections have a declared test (${free("coverage")})
-  affected <skill>   --skills <root> [--base ref]   which scenarios a change could touch (${free("affected")})
   qualification <prepare|start|status|poll|validate|panel|cell|abort>  durable qualification-runner-v1 lifecycle + offline panel collapse
                      prepare --spool DIR --config FILE --request FILE [--expected-config-sha256 HEX] (required in production)
                      start|status|poll|abort --spool DIR --id ID  (abort also requires --reason ID)
@@ -889,7 +843,6 @@ export async function main(argv: string[]): Promise<void> {
     case "list": return cmdList(args);
     case "lint": return cmdLint(args);
     case "coverage": return cmdCoverage(args);
-    case "affected": return cmdAffected(args);
     case "qualification": return cmdQualification(args);
     case "version":
     case "--version":

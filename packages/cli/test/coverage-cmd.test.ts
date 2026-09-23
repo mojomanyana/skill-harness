@@ -6,10 +6,9 @@ import { execFileSync } from "node:child_process";
 import { main } from "../src/cli.js";
 
 /**
- * End-to-end for `coverage` and `affected`, driven through `main()` against a real
- * git repo.
+ * End-to-end for `coverage`, driven through `main()` against a real git repo.
  *
- * Worth the setup cost: both commands read Markdown line ranges and real `git
+ * Worth the setup cost: the command reads Markdown line ranges and real `git
  * diff` output, and the bug that mattered most here — YAML frontmatter parsed as
  * a Setext heading, giving every skill a phantom section — was invisible to the
  * unit tests and obvious the first time the command ran on a real SKILL.md.
@@ -132,53 +131,5 @@ describe("coverage command", () => {
     await main(["coverage", "demo", "--skills", root]);
     expect(process.exitCode).toBe(1);
     expect(text()).toMatch(/did you mean #core-principle/);
-  });
-});
-
-describe("affected command", () => {
-  it("selects only the scenarios covering the edited section, plus the ship gates", async () => {
-    editSection("Handle empty input.", "Handle empty input by asking a clarifying question.");
-    await main(["affected", "demo", "--skills", root, "--base", "HEAD"]);
-    expect(text()).toContain("A2");   // covers #edge-cases
-    expect(text()).toContain("B1");   // B-series, always
-    expect(text()).not.toMatch(/^\s+A1\s/m); // covers an untouched section
-  });
-
-  it("switches selection when the other section is edited", async () => {
-    editSection("Always be polite.", "Always be polite and concise.");
-    await main(["affected", "demo", "--skills", root, "--base", "HEAD"]);
-    expect(text()).toContain("A1");
-    expect(text()).toContain("B1");
-    expect(text()).not.toMatch(/^\s+A2\s/m);
-  });
-
-  it("always states that the run is partial and cannot ship", async () => {
-    editSection("Handle empty input.", "Handle empty input differently.");
-    await main(["affected", "demo", "--skills", root, "--base", "HEAD"]);
-    expect(text()).toContain("never reports SHIP");
-  });
-
-  it("gives a reason for every selected scenario", async () => {
-    editSection("Handle empty input.", "Handle empty input differently.");
-    await main(["affected", "demo", "--skills", root, "--base", "HEAD"]);
-    for (const line of out.join("\n").split("\n").filter((l) => /^ {2}[AB]\d/.test(l))) {
-      expect(line).toMatch(/covers|always run|stimulus changed|conservative|no `covers`/);
-    }
-  });
-
-  it("selects only the ship gates when nothing relevant changed", async () => {
-    writeFileSync(join(repo, "unrelated.txt"), "x", "utf8");
-    await main(["affected", "demo", "--skills", root, "--base", "HEAD"]);
-    expect(text()).toContain("B1");
-    expect(text()).not.toMatch(/^\s+A1\s/m);
-    expect(text()).not.toMatch(/^\s+A2\s/m);
-  });
-});
-
-describe("run --affected", () => {
-  it("refuses to combine with --only", async () => {
-    await expect(main(["run", "demo", "--skills", root, "--affected", "--only", "A1"])).rejects.toThrow(
-      /pass one, not both/,
-    );
   });
 });

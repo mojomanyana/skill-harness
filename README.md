@@ -244,14 +244,13 @@ unguessable, not tamper-proof.
 ```
 skill-harness run    <skill|all> --skills <root> [--model prov:model ...] [--models file]
                                [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T] [--canary]
-                               [--only A1,A2 | --affected --base <ref>]   # scenario subset; a partial run never reports SHIP
+                               [--only A1,A2]   # scenario subset; a partial run never reports SHIP
                                [--auto-rejudge] [--secondary-judge prov:model] [--tie-break-judge prov:model]
 skill-harness archive ingest|inspect|watch --policy file --source id  # explicit local archive policy; metadata output, no worker/model calls
 skill-harness stability <skill|all> --skills <root> [--window N] [--all]  # run-over-run verdict flips (free, offline)
 skill-harness screen <run-dir>...                         # retained delivery-aware scenario/criterion rates (free, offline)
 skill-harness restamp <skill|all> --skills <root> [--from <git-ref>]  # one-time hash upgrade; see "what stales a run" (free, offline)
 skill-harness coverage <skill|all> --skills <root> [--strict]  # which instruction sections have a declared test (free, offline)
-skill-harness affected <skill>   --skills <root> [--base ref]  # which scenarios a change could touch (free, offline)
 skill-harness grade  <run-dir>   [--judge prov:model] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]
                                                           # re-grade saved transcripts (neutral judge)
 skill-harness regate <run-dir>...                          # re-evaluate saved gates; may judge each fail→pass rep

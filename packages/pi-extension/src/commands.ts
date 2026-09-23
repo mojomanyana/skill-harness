@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve, relative } from "node:path";
-import { loadSpec, regradeRun, readResults, parseModelRef, defaultJudge, assertJudgeAllowed, type HarnessAdapter, type SessionEntry, computeCoverage, formatCoverage, selectAffected, formatAffected, gitDiff, exec,
+import { loadSpec, regradeRun, readResults, parseModelRef, defaultJudge, assertJudgeAllowed, type HarnessAdapter, type SessionEntry, computeCoverage, formatCoverage,
   resolveAdjudicationJudges, planAdjudication, formatAdjudicationPlan, adjudicateRun, judgeResemblesSubject, cellsFromResults } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview, type ServeHandle } from "@skill-harness/cli/serve";
@@ -46,7 +46,7 @@ export interface CmdCtx {
   isStreaming?(): boolean;
 }
 
-const USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m] | review [skill] | capture [skill] | coverage [skill] | affected [skill] [--base ref] | learning [status|import|review|trust|decide|adoption|outcome|guide]";
+const USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m] | review [skill] | capture [skill] | coverage [skill] | learning [status|import|review|trust|decide|adoption|outcome|guide]";
 
 /** Minimal arg tokenizer: subcommand + positional args + `--key value` flags. A flag with no following value (or one followed by another `--flag`) is left unset, so callers' `?? default` fallbacks apply. */
 function parse(argstr: string): { sub: string; positional: string[]; flags: Record<string, string> } {
@@ -206,29 +206,6 @@ export async function handleSkillCheck(
       baseFiles: [relative(specDir, join(skillDir, "SKILL.md")).split("\\").join("/")],
     });
     say(ctx, formatCoverage(report, spec.skill), report.broken.length ? "warning" : "info");
-    return;
-  }
-
-  if (sub === "affected") {
-    const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const specPath = join(skillDir, "tests", "specification.yaml");
-    const spec = loadSpec(specPath);
-    const base = flags.base || "HEAD";
-    const rev = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: dirname(specPath), timeoutMs: 30_000 });
-    if (rev.code !== 0) {
-      say(ctx, "affected needs a git repository to diff against", "error");
-      return;
-    }
-    const repoRoot = rev.stdout.trim();
-    const result = selectAffected({
-      scenarios: spec.scenarios,
-      specDir: dirname(specPath),
-      diff: await gitDiff(repoRoot, base),
-      repoRoot,
-    });
-    say(ctx, formatAffected(result, spec.scenarios.length));
-    // Deliberately reports and stops. Spending is a separate, explicit act:
-    // `skill-harness run <skill> --only <ids>` (the CLI — the extension's `run` has no `--only`) with the list above.
     return;
   }
 
