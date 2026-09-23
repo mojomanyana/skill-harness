@@ -388,36 +388,6 @@ arguments. It says nothing about what that tool then did to the machine — a `b
 command string is not a filesystem audit. For a real path policy, forbid `bash` or
 assert on `unchanged_paths`.
 
-## 7c. Workflow trajectories — state, authority, and fresh evidence
-
-`assert.trajectory` is the multi-phase counterpart to `assert.trace`. The pi adapter normalizes pi
-tool events, principal assurance v1 events, and current pi-daddy grant/governance ledgers into one
-versioned event model. Assertions can require/forbid events, order transitions, correlate
-run/task/workspace/context IDs and distinct head/tree identities, enforce freshness after the last
-change/authority/Build completion, prove lease and approval lifecycle, reject superseded-task
-mutation, and verify finalization.
-
-```yaml
-env:
-  workspace: empty-git
-  event_sources:
-    - adapter: principal-assurance-v1
-      path: .git/principal-pi-skills/assurance-v1/runs/*/events.jsonl
-assert:
-  trajectory:
-    version: "1.0"
-    ordered:
-      - [{ event: phase_started, where: { phase: build } }, { event: code_changed }, { event: phase_completed, where: { phase: build } }, { event: evidence_recorded }]
-    correlate:
-      - left: { event: code_changed, select: last }
-        right: { event: evidence_recorded, select: last }
-        same: [run_id, task_id, workspace_id, digests.head, digests.tree]
-```
-
-A missing field needed for governance is `ERROR`, never success. Gates run before the judge and are
-replayable with `regate` from `.events.jsonl`. Mutation-testing machinery was removed by explicit user instruction on 2026-09-07. Ordinary trajectory, delivery and results validators and regression tests remain; historical mutation results are not current requirements.
-Full schema and adapter details: [`ASSURANCE-WORKFLOWS.md`](ASSURANCE-WORKFLOWS.md).
-
 ## 7e. Coverage — which instructions have no test (free, offline)
 
 Opt a scenario in with `covers`:

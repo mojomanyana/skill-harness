@@ -145,10 +145,7 @@ export interface ObjectiveResult {
   status: "PASS" | "FAIL" | "ERROR" | "NOT-MEASURED";
   trace_version?: number;
   trace_sha256?: string;
-  trajectory_version?: string;
-  events_sha256?: string;
   /** Per-repetition hashes retained when an aggregate has more than one rep. */
-  rep_events_sha256?: string[];
   rep_trace_sha256?: string[];
   assertions: { kind: string; status: "PASS" | "FAIL" | "ERROR" | "NOT-MEASURED"; detail: string }[];
 }
@@ -939,22 +936,6 @@ export function tracePath(runDir: string, scenarioId: string, mode: string, rep?
   return join(runDir, `${base}.trace.jsonl`);
 }
 
-/** Saved adapter-neutral workflow events for one scenario rep. */
-export function trajectoryPath(runDir: string, scenarioId: string, mode: string, rep?: number): string {
-  const base = rep === undefined ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
-  return join(runDir, `${base}.events.jsonl`);
-}
-
-/** A scenario's normalized-event files, sorted (plain first, then numeric rep). */
-export function findTrajectoryFiles(runDir: string, scenarioId: string, mode?: string): string[] {
-  if (!existsSync(runDir)) return [];
-  const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = mode === undefined
-    ? new RegExp(`^${esc}\\..*\\.events\\.jsonl$`)
-    : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.events\\.jsonl$`);
-  return sortByRep(readdirSync(runDir).filter((f) => re.test(f)));
-}
-
 /** A scenario's staged-diff files, sorted (plain first, then numeric rep). Mode-scoped when given. */
 export function findDiffFiles(runDir: string, scenarioId: string, mode?: string): string[] {
   if (!existsSync(runDir)) return [];
@@ -1004,7 +985,6 @@ export function preserveTranscript(resultsRoot: string, runDir: string, scenario
     // override whose justification was gitignored, and left `regate` with nothing
     // to re-evaluate on the one cell a human had disputed.
     ...findTraceFiles(runDir, scenarioId),
-    ...findTrajectoryFiles(runDir, scenarioId),
   ];
   if (files.length === 0) return;
   ensureResultsGitignore(resultsRoot);

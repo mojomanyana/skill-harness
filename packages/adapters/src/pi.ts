@@ -5,7 +5,6 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { HarnessAdapter, RunReq, JudgeReq, RunMode, StructuredRun, ExecutionTraceV1, PromptMechanism } from "@skill-harness/core";
 import { runPiJson } from "./pi-json.js";
-import { collectTrajectorySources, normalizePiTraces, resequence } from "./trajectory.js";
 import { bindPromptObservation, observeProviderPayload, promptCaptureIsTrusted, verifyPromptSummary } from "./prompt-provenance.js";
 import { exec, onPath, envNum, traceSha256, withProviderFailure, splitPromptDoc } from "@skill-harness/core";
 
@@ -355,28 +354,9 @@ export const piAdapter: HarnessAdapter = {
       if (r.code !== 0) parts.push(`[pi exited ${r.code} on turn ${i + 1}]\n${r.stderr.trim()}\n`);
     }
 
-    const native = req.eventSources?.length
-      ? collectTrajectorySources(req.cwd, req.eventSources)
-      : { events: [], errors: [] };
-    const piEvents = normalizePiTraces(traces);
-    const combined = [...piEvents, ...native.events];
-    const chronologyErrors: string[] = [];
-    if (piEvents.length && native.events.length) {
-      if (combined.some((event) => !event.at || !Number.isFinite(Date.parse(event.at)))) {
-        chronologyErrors.push("pi/native events cannot be globally ordered because at least one event has no valid `at` timestamp");
-      } else {
-        const piTimes = new Set(piEvents.map((event) => Date.parse(event.at!)));
-        if (native.events.some((event) => piTimes.has(Date.parse(event.at!)))) {
-          chronologyErrors.push("pi/native events contain equal timestamps, so strict cross-source order is ambiguous");
-        }
-      }
-    }
-    const eventErrors = [...native.errors, ...chronologyErrors];
     return {
       transcript: withProviderFailure(parts.join("\n"), providerFailure),
       traces,
-      events: resequence(combined),
-      ...(eventErrors.length ? { eventErrors } : {}),
       ...(providerFailure ? { providerFailure } : {}),
     };
   },

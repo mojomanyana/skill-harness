@@ -24,10 +24,8 @@ lie on weak/stochastic models; re-run before trusting a delta.
 **Schema-3 efficacy requires established delivery.** A known-undelivered repetition is `NOT-MEASURED`, excluded from efficacy denominators and never sent to the judge; an instrumentation failure is ERROR. Both block SHIP without turning a broken experiment into product failure. Schema-1/2 meanings stay historical.
 
 **Where an objective gate exists, prefer it to the judge.** `assert.trace` states
-what the model DID — which tool it called, which path it touched. `assert.trajectory`
-states whether a multi-phase workflow obeyed state, capability, workspace, authority,
-freshness, and finalization contracts. Both read structured evidence, run BEFORE the
-judge, and cost zero judge tokens when they fail. An objective FAIL or ERROR outranks
+what the model DID — which tool it called, which path it touched. It reads structured
+evidence, runs BEFORE the judge, and costs zero judge tokens when it fails. An objective FAIL or ERROR outranks
 the judge's verdict; only an explicit author override beats it.
 
 ## The loop

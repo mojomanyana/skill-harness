@@ -10,7 +10,6 @@ import {
   transcriptPath,
   diffPath,
   tracePath,
-  trajectoryPath,
   type ObjectiveResult,
   writeResults,
   ensureResultsGitignore,
@@ -27,10 +26,6 @@ import { liftHeadline, type Lift } from "./lift.js";
 import { runSeeded } from "./seeded.js";
 import { serializeTrace, mergeTraces, traceSha256 } from "./execution-trace.js";
 import { evaluateTraceGates } from "./trace-gates.js";
-import {
-  evaluateTrajectoryGates, serializeTrajectoryEvents,
-  type TrajectoryEventV1,
-} from "./trajectory-gates.js";
 import type { ExecutionTraceV1 } from "./capture-trace-types.js";
 import { snapshotPaths, diffSnapshots, createWorkspace, type Workspace, type PathSnapshot } from "./workspace.js";
 import { runPool } from "./scheduler.js";
@@ -353,8 +348,6 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
     }
     let noResponse = false;
     let traces: ExecutionTraceV1[] = [];
-    let events: TrajectoryEventV1[] = [];
-    let eventErrors: string[] = [];
     let unobservablePaths = false;
     // The pre-run state, captured AFTER `createWorkspace` has applied the
     // fixture's `_staged/` and `_uncommitted/` trees. Those land after the
@@ -385,11 +378,11 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
       // used to pass `trace: {...}` unconditionally and let `runSeeded` throw
       // ``scenario `X` declares `assert.trace`…`` at a scenario that declares no
       // such thing.
-      const needsStructuredEvidence = Boolean(scenario.traceAssert || scenario.trajectoryAssert);
+      const needsStructuredEvidence = Boolean(scenario.traceAssert);
       if (needsStructuredEvidence && !ctx.adapter.runStructured) {
         throw new Error(
           `scenario \`${scenario.id}\` declares structured objective assertions, but the \`${ctx.adapter.name}\` adapter` +
-            ` cannot produce execution traces/events — the gate would have no evidence to read.`,
+            ` cannot produce execution traces — the gate would have no evidence to read.`,
         );
       }
       const useStructured = (Boolean(ctx.structured) || needsStructuredEvidence) && Boolean(ctx.adapter.runStructured);
@@ -446,8 +439,6 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
             infrastructureFailure = r.gateError;
             stagedDiff = r.diff; // a retry replaces the aborted attempt's diff, as it should
             traces = r.traces;
-            events = r.events;
-            eventErrors = r.eventErrors;
           } else {
             const req = {
               skillDir: ctx.skillDir, model: ctx.model, mode, turns: scenario.turns, cwd: ws.cwd,
@@ -462,7 +453,6 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
                 ...(scenario.extensions?.map((e) => resolve(dirname(ctx.specPath), e)) ?? []),
                 ...arm.extensions,
               ],
-              eventSources: scenario.eventSources,
               ...(armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {}),
               ...(ctx.adapter.observesPrompts ? { onPromptObservation: observe } : {}),
             };
@@ -470,8 +460,6 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
               const structured = await ctx.adapter.runStructured!({ ...req, scenarioId: scenario.id, rep });
               transcript = structured.transcript;
               traces = structured.traces;
-              events = structured.events ?? [];
-              eventErrors = structured.eventErrors ?? [];
               if (structured.providerFailure) infrastructureFailure = `provider failure — ${structured.providerFailure}`;
             } else {
               transcript = await ctx.adapter.run(req);
@@ -497,8 +485,6 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
           gatePrefix = null;
           stagedDiff = null;
           traces = [];
-          events = [];
-          eventErrors = [];
         }
 
         // A provider outage is infrastructure, never a model verdict. Checked on
@@ -574,11 +560,10 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
     // timeout that caused it, and it is that text, not the real reason, that would
     // reach the results record. The verdict is ERROR either way.
     let objective: ObjectiveResult | undefined = deliveryObjective;
-    if ((scenario.traceAssert || scenario.trajectoryAssert) && !adapterFailure) {
+    if (scenario.traceAssert && !adapterFailure) {
       const assertionResults: ObjectiveResult["assertions"] = [];
       let status: ObjectiveResult["status"] = "PASS";
       let traceMeta: Pick<ObjectiveResult, "trace_version" | "trace_sha256"> = {};
-      let trajectoryMeta: Pick<ObjectiveResult, "trajectory_version" | "events_sha256"> = {};
 
       if (scenario.traceAssert) {
         if (traces.length > 0) {
@@ -603,33 +588,11 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
         }
       }
 
-      if (scenario.trajectoryAssert) {
-        if (events.length > 0) {
-          writeFileSync(
-            trajectoryPath(runDir, scenario.id, mode, repSuffix),
-            serializeTrajectoryEvents(events),
-            "utf8",
-          );
-        }
-        if (eventErrors.length > 0) {
-          status = "ERROR";
-          assertionResults.push(...eventErrors.map((detail) => ({ kind: "trajectory_evidence", status: "ERROR" as const, detail })));
-        } else if (events.length === 0) {
-          status = "ERROR";
-          assertionResults.push({ kind: "trajectory_evidence", status: "ERROR", detail: "no normalized workflow events were produced" });
-        } else {
-          const gate = evaluateTrajectoryGates(scenario.trajectoryAssert, events);
-          if (gate.status === "ERROR" || (gate.status === "FAIL" && status === "PASS")) status = gate.status;
-          assertionResults.push(...gate.assertions);
-          trajectoryMeta = { trajectory_version: gate.event_version, events_sha256: gate.events_sha256 };
-        }
-      }
-
       if (deliveryObjective) {
         if (deliveryObjective.status === "ERROR" || (deliveryObjective.status === "NOT-MEASURED" && status !== "ERROR") || (deliveryObjective.status === "FAIL" && status === "PASS")) status = deliveryObjective.status;
         assertionResults.unshift(...deliveryObjective.assertions);
       }
-      objective = { status, ...traceMeta, ...trajectoryMeta, assertions: assertionResults };
+      objective = { status, ...traceMeta, assertions: assertionResults };
       if (status !== "PASS") {
         const details = assertionResults.filter((result) => result.status === status).map((result) => result.detail);
         gatePrefix = `objective: ${details.join("; ") || "structured evidence could not be evaluated"}`;

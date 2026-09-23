@@ -22,7 +22,6 @@ import {
   V2_RESTATED_VOCABULARIES,
   V2_VOCABULARY_SUBSETS,
 } from "../src/trajectory.js";
-import { evaluateTrajectoryGates } from "@skill-harness/core";
 import { PI_DADDY_CONTRACT_COMMIT, PI_DADDY_LEDGER_V2_SCHEMA, PI_DADDY_LEDGER_V2_SCHEMA_SHA256 } from "../src/pi-daddy-ledger-v2.js";
 import { assertSupportedSchema, declaredPropertyNames, validateClosedSchema } from "../src/closed-schema.js";
 
@@ -389,17 +388,6 @@ describe("pinned pi-daddy ledger v2 contract", () => {
       message: expect.stringMatching(/^\[REDACTED sha256:[a-f0-9]{64}\]$/),
       details: { workspace_id: "workspace-contract", retryable: true, holder_depth: 1 },
     });
-
-    // Prove it all the way through the gate layer, not just the normalizer: a code the
-    // adapter accepts but a spec cannot assert on would still be unusable evidence.
-    expect(evaluateTrajectoryGates(
-      { version: "1.0", require: [{ event: "child_spawn_refused", where: { refusal_code: { equals: "GRANT_ID_MALFORMED" } } }] },
-      events,
-    ).status).toBe("PASS");
-    expect(evaluateTrajectoryGates(
-      { version: "1.0", require: [{ event: "child_spawn_refused", where: { refusal_code: { equals: "CAPABILITY_ESCALATION" } } }] },
-      events,
-    ).status).toBe("FAIL");
   });
 
   it("fails closed on an undeclared top-level field in every variant", () => {

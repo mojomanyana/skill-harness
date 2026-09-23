@@ -10,7 +10,6 @@ const root = join(__dirname, "../../../schemas");
 describe("versioned public schemas", () => {
   it.each([
     ["specification-v1.schema.json", "https://skill-harness.dev/schemas/specification-v1.schema.json"],
-    ["trajectory-event-v1.schema.json", "https://skill-harness.dev/schemas/trajectory-event-v1.schema.json"],
     ["results-v2.schema.json", "https://skill-harness.dev/schemas/results-v2.schema.json"],
     ["results-v3.schema.json", "https://skill-harness.dev/schemas/results-v3.schema.json"],
     ["qualification-config-v1.schema.json", "https://skill-harness.dev/schemas/qualification-config-v1.schema.json"],
@@ -42,16 +41,6 @@ describe("versioned public schemas", () => {
     expect(validateV3(noRepObjective)).toBe(false);
     const noScenarioObjective = structuredClone(v3); delete (noScenarioObjective as any).scenarios[0].objective;
     expect(validateV3(noScenarioObjective)).toBe(false);
-  });
-
-  it("accepts legacy 1.0 events, emits 1.1 fields only under 1.1, and stays closed", () => {
-    const ajv = new Ajv2020({ allErrors: true, strict: true, formats: { "date-time": true } });
-    const schema = JSON.parse(readFileSync(join(root, "trajectory-event-v1.schema.json"), "utf8"));
-    const validate = ajv.compile(schema);
-    expect(validate({ event_version: "1.0", seq: 1, type: "legacy", source: "test" })).toBe(true);
-    expect(validate({ event_version: "1.0", seq: 1, type: "legacy", source: "test", execution_id: "exec:one" })).toBe(false);
-    expect(validate({ event_version: "1.1", seq: 1, type: "current", source: "test", execution_id: "exec:one", parent_execution_id: null })).toBe(true);
-    expect(validate({ event_version: "1.1", seq: 1, type: "current", source: "test", invented: true })).toBe(false);
   });
 
   it("keeps qualification schema fixtures aligned with runtime parsing and documents semantic-only joins", () => {

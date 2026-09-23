@@ -3,8 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync, readdi
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { regateRun } from "../src/regate.js";
-import { writeResults, readResults, diffPath, transcriptPath, trajectoryPath, type ResultsDraft } from "../src/results.js";
-import { serializeTrajectoryEvents, trajectoryEventsSha256, type TrajectoryEventV1 } from "../src/trajectory-gates.js";
+import { writeResults, readResults, diffPath, transcriptPath, type ResultsDraft } from "../src/results.js";
 import { parseSpec, type Spec } from "../src/spec.js";
 import { sourceHashes, GATES_PREFIX } from "../src/sources.js";
 import type { HarnessAdapter } from "../src/adapters/types.js";
@@ -217,42 +216,6 @@ describe("regate re-evaluates needle gates from the saved diffs", () => {
     await expect(
       regateRun({ runDir, spec, specDir, adapter: countingJudge().adapter, judge: { provider: "claude-code", model: "opus" } }),
     ).rejects.toThrow(/vitest|post_test/i);
-  });
-
-  test("rejects normalized events that no longer match the run-recorded hash", async () => {
-    const { runDir, specDir } = runWithFailedGate({ diff: DIFF });
-    const spec = specFor("localhost:8080");
-    spec.scenarios[0].trajectoryAssert = { version: "1.0", require: [{ event: "risk_classified" }] };
-    const original: TrajectoryEventV1 = { event_version: "1.0", seq: 1, type: "risk_classified", source: "test" };
-    const tampered = { ...original, attributes: { fabricated: true } };
-    writeFileSync(trajectoryPath(runDir, "A1", "green"), serializeTrajectoryEvents([tampered]));
-    const prior = readResults(runDir);
-    prior.scenarios[0].objective = { status: "PASS", events_sha256: trajectoryEventsSha256([original]), assertions: [] };
-    writeResults(runDir, prior, { shipBar: spec.ship_bar, critical: spec.critical });
-    const judge = countingJudge();
-    const { results } = await regateRun({ runDir, spec, specDir, adapter: judge.adapter, judge: { provider: "claude-code", model: "opus" } });
-    expect(judge.calls()).toBe(0);
-    expect(results.scenarios[0].judge_verdict).toBe("ERROR");
-    expect(results.scenarios[0].judge_reason).toMatch(/no longer match/);
-  });
-
-  test("saved source-normalization errors survive trajectory replay and prevent a judge call", async () => {
-    const { runDir, specDir } = runWithFailedGate({ diff: DIFF });
-    const spec = specFor("localhost:8080");
-    spec.scenarios[0].trajectoryAssert = { version: "1.0", require: [{ event: "risk_classified" }] };
-    const event: TrajectoryEventV1 = { event_version: "1.0", seq: 1, type: "risk_classified", source: "test" };
-    writeFileSync(trajectoryPath(runDir, "A1", "green"), serializeTrajectoryEvents([event]));
-    const prior = readResults(runDir);
-    prior.scenarios[0].objective = {
-      status: "ERROR",
-      assertions: [{ kind: "trajectory_evidence", status: "ERROR", detail: "required event source principal:events.jsonl is malformed" }],
-    };
-    writeResults(runDir, prior, { shipBar: spec.ship_bar, critical: spec.critical });
-    const judge = countingJudge();
-    const { results } = await regateRun({ runDir, spec, specDir, adapter: judge.adapter, judge: { provider: "claude-code", model: "opus" } });
-    expect(judge.calls()).toBe(0);
-    expect(results.scenarios[0].judge_verdict).toBe("ERROR");
-    expect(results.scenarios[0].judge_reason).toMatch(/source.*malformed/);
   });
 
   test("a run whose diff artifacts were never kept says so", async () => {

@@ -46,7 +46,7 @@ export * from "./spec-write.js";
 export * from "./redaction.js";
 export * from "./execution-trace.js";
 export * from "./trace-gates.js";
-export * from "./trajectory-gates.js";
+export * from "./trajectory-events.js";
 export * from "./instruction-coverage.js";
 export * from "./adjudication.js";
 export * from "./vote-panel.js";

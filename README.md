@@ -177,40 +177,6 @@ costs zero judge tokens. And **an objective FAIL or ERROR outranks the judge's
 verdict** — only an explicit author override beats it. A gate whose evidence is
 missing reports ERROR, never a pass.
 
-### `assert.trajectory` — gates over multi-phase workflow state
-
-`assert.trajectory` evaluates a saved, versioned, adapter-neutral event stream. It covers ordered
-phase transitions, required/forbidden tool and capability use, run/task/workspace/context correlation,
-head-versus-candidate-tree identity, writer leases, approval scope/expiry/use, stale evidence,
-packet supersession, repair rebinding, and finalization. Native `principal-assurance-v1` and current
-pi-daddy ledgers are normalized by the pi adapter; missing governance fields are `ERROR`, never a
-pass.
-
-```yaml
-env:
-  workspace: empty-git
-  event_sources:
-    - adapter: principal-assurance-v1
-      path: .git/principal-pi-skills/assurance-v1/runs/*/events.jsonl
-assert:
-  trajectory:
-    version: "1.0"
-    ordered:
-      - [{ event: code_changed }, { event: phase_completed, where: { phase: build } }, { event: evidence_recorded }]
-    correlate:
-      - left: { event: code_changed, select: last }
-        right: { event: evidence_recorded, select: last }
-        same: [run_id, task_id, workspace_id, digests.head, digests.tree]
-    freshness:
-      - subject: { event: evidence_recorded, where: { exit_code: 0 }, select: last }
-        after: [{ event: code_changed, select: last }, { event: phase_completed, where: { phase: build }, select: last }]
-        same: [run_id, task_id, workspace_id]
-```
-
-Like trace gates, trajectory gates run before the judge and a decisive objective failure cannot be
-outvoted by repetitions or judge prose. See [Risk-adaptive workflow measurement](docs/ASSURANCE-WORKFLOWS.md)
-for the complete DSL, pi-daddy mapping, evidence boundary, and sandbox limitation.
-
 Both needle gates deliberately match only added/removed lines, never context
 lines or `+++`/`---` file headers. A unified diff carries context around every
 hunk, so an untouched symbol near the edit site appears in the diff verbatim.

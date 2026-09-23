@@ -1,6 +1,4 @@
 import type { ExecutionTraceV1 } from "../capture-trace-types.js";
-import type { TrajectoryEventSource } from "../spec.js";
-import type { TrajectoryEventV1 } from "../trajectory-gates.js";
 
 export type RunMode = "red" | "green" | "force";
 
@@ -76,8 +74,6 @@ export interface RunReq {
    * extension the developer happens to have installed cannot join the test.
    */
   extensions?: string[];
-  /** Workspace-local native ledgers to normalize after the subject finishes. */
-  eventSources?: TrajectoryEventSource[];
   /**
    * Extra env for the subject process, from the arm. Merged over `process.env` by
    * the adapter — an arm must be able to add `PI_GRANTS_*` without the harness
@@ -100,10 +96,6 @@ export interface StructuredRun {
   transcript: string;
   /** One trace per turn — each `pi` invocation emits an independent event stream. */
   traces: ExecutionTraceV1[];
-  /** Adapter-neutral workflow/tool events. Additive; absent on older adapters. */
-  events?: TrajectoryEventV1[];
-  /** Native sources that were required but missing/malformed. Never treated as an empty success. */
-  eventErrors?: string[];
   /**
    * Set when pi failed provider-side (auth, transport) rather than the model
    * answering badly. `run.ts` turns this into ERROR — never a model verdict.

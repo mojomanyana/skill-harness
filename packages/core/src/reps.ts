@@ -34,11 +34,9 @@ export function aggregateObjective(outcomes: RepOutcome[]): ObjectiveResult | un
   if (present.length === 0) return undefined;
   const picked = present.find((o) => o.status === "ERROR") ?? present.find((o) => o.status === "NOT-MEASURED") ?? present.find((o) => o.status === "FAIL") ?? present[0];
   if (present.length === 1) return picked;
-  const eventHashes = present.map((objective) => objective.events_sha256);
   const traceHashes = present.map((objective) => objective.trace_sha256);
   return {
     ...picked,
-    ...(eventHashes.every((hash): hash is string => typeof hash === "string") ? { rep_events_sha256: eventHashes } : {}),
     ...(traceHashes.every((hash): hash is string => typeof hash === "string") ? { rep_trace_sha256: traceHashes } : {}),
   };
 }
