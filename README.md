@@ -282,11 +282,6 @@ empty `models.json`, and metadata-only Pi runtime state `models-store.json` whil
 leaving omitted-policy historical evidence unchanged. It contains no Principal board,
 holdout, or measurement identity. Its inert example invokes no model.
 
-`capture` is deliberately absent from this list: it exists only as
-`/skill-harness capture` inside the pi extension, and it refuses to run headless
-because the preview step before the write is what keeps secrets out of a committed
-file.
-
 **Adjudication (`--auto-rejudge`) is off by default and discloses before it spends.**
 It asks a second judge about cells that are ambiguous, self-contradictory,
 non-unanimous across reps, or ship-deciding, and prints the exact maximum number of

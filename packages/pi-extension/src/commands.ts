@@ -1,12 +1,10 @@
 import { existsSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join, resolve, relative } from "node:path";
-import { loadSpec, regradeRun, readResults, parseModelRef, defaultJudge, assertJudgeAllowed, type HarnessAdapter, type SessionEntry, computeCoverage, formatCoverage,
+import { loadSpec, regradeRun, readResults, parseModelRef, defaultJudge, assertJudgeAllowed, type HarnessAdapter, computeCoverage, formatCoverage,
   resolveAdjudicationJudges, planAdjudication, formatAdjudicationPlan, adjudicateRun, judgeResemblesSubject, cellsFromResults } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview, type ServeHandle } from "@skill-harness/cli/serve";
 import { resolveSkillDir, runViaExtension } from "./runner.js";
-import { runCapture } from "./capture-cmd.js";
 import { handleLearningCommand } from "./learning-cmd.js";
 
 /**
@@ -32,21 +30,15 @@ export interface CmdCtx {
   ui: {
     notify(msg: string, level?: "info" | "warning" | "error"): void;
     setStatus?(key: string, msg: string): void;
-    /** Interactive primitives, present only in the TUI — `capture` requires them. */
+    /** Interactive primitives, present only in the TUI. */
     select?(prompt: string, choices: string[]): Promise<number | null>;
     input?(prompt: string, initial?: string): Promise<string | null>;
     editor?(prompt: string, initial: string): Promise<string | null>;
     confirm?(prompt: string): Promise<boolean>;
   };
-  /** Present in a real pi session; absent under `-p`/json, where capture is refused. */
-  sessionManager?: {
-    getBranch(): unknown[];
-    getSessionPath?(): string;
-  };
-  isStreaming?(): boolean;
 }
 
-const USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m] | review [skill] | capture [skill] | coverage [skill] | learning [status|import|review|trust|decide|adoption|outcome|guide]";
+const USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m] | review [skill] | coverage [skill] | learning [status|import|review|trust|decide|adoption|outcome|guide]";
 
 /** Minimal arg tokenizer: subcommand + positional args + `--key value` flags. A flag with no following value (or one followed by another `--flag`) is left unset, so callers' `?? default` fallbacks apply. */
 function parse(argstr: string): { sub: string; positional: string[]; flags: Record<string, string> } {
@@ -206,48 +198,6 @@ export async function handleSkillCheck(
       baseFiles: [relative(specDir, join(skillDir, "SKILL.md")).split("\\").join("/")],
     });
     say(ctx, formatCoverage(report, spec.skill), report.broken.length ? "warning" : "info");
-    return;
-  }
-
-  if (sub === "capture") {
-    const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const ui = ctx.ui;
-    // Capture is a conversation with the author: without the interactive
-    // primitives there is no preview step, and preview-before-write is the
-    // control that keeps a secret out of a committed file.
-    if (!ctx.sessionManager || !ui.select || !ui.input || !ui.editor || !ui.confirm) {
-      say(ctx, "capture needs an interactive pi session (it is unavailable under -p / --mode json)", "error");
-      return;
-    }
-    const sm = ctx.sessionManager;
-    const result = await runCapture(skillDir, {
-      cwd: ctx.cwd,
-      ui: {
-        select: ui.select.bind(ui),
-        input: ui.input.bind(ui),
-        editor: ui.editor.bind(ui),
-        confirm: ui.confirm.bind(ui),
-        say: (m) => say(ctx, m),
-      },
-      sessionEntries: () => sm.getBranch() as SessionEntry[],
-      sessionPath: () => sm.getSessionPath?.() ?? "",
-      isStreaming: () => ctx.isStreaming?.() ?? false,
-      homeDir: homedir(),
-      now: nowIso,
-      runOnly: async (dir, scenarioId) => {
-        const card = await runViaExtension({
-          skillDir: dir,
-          only: [scenarioId],
-          adapter,
-          timestamp: nowIso(),
-          log: (m) => { if (ctx.hasUI) ctx.ui.setStatus?.("skill-harness", m); },
-        });
-        // Deliberately no grade line: a --only run is partial and cannot ship-grade,
-        // so printing a letter here would invite reading it as one.
-        return card.scenarios.map((s) => `  ${s.id}: ${s.suspect ? "?" : s.verdict}`).join("\n");
-      },
-    });
-    if (result.status !== "cancelled") say(ctx, `capture ${result.status}: ${result.capture?.id}`);
     return;
   }
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, existsSync, mkdirSync, writeFileSync, mkdtempSync, rmSync, readdirSync } from "node:fs";
-import { load as yamlLoad } from "js-yaml";
+import { readFileSync, existsSync, mkdirSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { basename, dirname, join, resolve, relative } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -585,7 +584,6 @@ async function cmdCoverage(args: Args): Promise<void> {
       // always points at, so report on it even when nothing references it —
       // otherwise a skill with zero `covers` reports 0 sections and looks fine.
       baseFiles: [relative(specDir, join(skill.dir, "SKILL.md")).split("\\").join("/")],
-      pendingCaptures: readPendingCaptures(specDir),
     });
     console.log(formatCoverage(report, spec.skill));
     if (report.uncovered.length) anyUncovered = true;
@@ -603,25 +601,6 @@ async function cmdCoverage(args: Args): Promise<void> {
     console.error("\n--strict: some sections have no declared test");
     process.exitCode = 1;
   }
-}
-
-/** Pending captures and the sections they are parked against. Free, offline, tolerant. */
-function readPendingCaptures(specDir: string): { id: string; covers: string[] }[] {
-  const dir = join(specDir, "captures");
-  if (!existsSync(dir)) return [];
-  const out: { id: string; covers: string[] }[] = [];
-  for (const file of readdirSync(dir).filter((f) => f.endsWith(".yaml"))) {
-    try {
-      const raw = yamlLoad(readFileSync(join(dir, file), "utf8")) as Record<string, unknown> | null;
-      if (!raw || raw.status === "promoted") continue;
-      const covers = Array.isArray(raw.covers) ? raw.covers.filter((c): c is string => typeof c === "string") : [];
-      if (covers.length) out.push({ id: String(raw.id ?? file.replace(/\.yaml$/, "")), covers });
-    } catch {
-      // A malformed capture is the capture command's problem to report; coverage
-      // must not fail because a draft file is mid-edit.
-    }
-  }
-  return out;
 }
 
 /** Write a spec to disk, creating its tests/ dir. The single choke point for spec

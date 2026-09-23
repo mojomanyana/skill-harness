@@ -156,8 +156,6 @@ export interface SectionCoverage {
   section: Section;
   /** Scenario ids that declare a reference to this section. */
   scenarios: string[];
-  /** Capture ids parked against this section but not yet promoted. */
-  pendingCaptures: string[];
 }
 
 export interface BrokenRef {
@@ -185,8 +183,6 @@ export interface CoverageOptions {
   scenarios: Scenario[];
   /** Instruction files to report on even if nothing references them. */
   baseFiles?: string[];
-  /** capture id → covers refs, for parking a pending case against a section. */
-  pendingCaptures?: { id: string; covers: string[] }[];
 }
 
 /**
@@ -214,7 +210,7 @@ export function computeCoverage(opts: CoverageOptions): CoverageReport {
     const k = key(file, section.slug);
     let entry = bySection.get(k);
     if (!entry) {
-      entry = { file, section, scenarios: [], pendingCaptures: [] };
+      entry = { file, section, scenarios: [] };
       bySection.set(k, entry);
     }
     return entry;
@@ -227,7 +223,7 @@ export function computeCoverage(opts: CoverageOptions): CoverageReport {
   const broken: BrokenRef[] = [];
   const unmapped: string[] = [];
 
-  const attach = (id: string, refs: string[], into: "scenarios" | "pendingCaptures") => {
+  const attach = (id: string, refs: string[]) => {
     for (const raw of refs) {
       const ref = parseCoversRef(raw);
       const sections = readSections(ref.file);
@@ -238,7 +234,7 @@ export function computeCoverage(opts: CoverageOptions): CoverageReport {
       for (const s of sections) ensure(ref.file, s);
       if (ref.slug === undefined) {
         // A whole-file reference covers every section in it.
-        for (const s of sections) ensure(ref.file, s)[into].push(id);
+        for (const s of sections) ensure(ref.file, s).scenarios.push(id);
         continue;
       }
       const match = sections.find((s) => s.slug === ref.slug);
@@ -251,7 +247,7 @@ export function computeCoverage(opts: CoverageOptions): CoverageReport {
         });
         continue;
       }
-      ensure(ref.file, match)[into].push(id);
+      ensure(ref.file, match).scenarios.push(id);
     }
   };
 
@@ -260,9 +256,8 @@ export function computeCoverage(opts: CoverageOptions): CoverageReport {
       unmapped.push(s.id);
       continue;
     }
-    attach(s.id, s.covers, "scenarios");
+    attach(s.id, s.covers);
   }
-  for (const c of opts.pendingCaptures ?? []) attach(c.id, c.covers, "pendingCaptures");
 
   const sections = [...bySection.values()].sort(
     (a, b) => a.file.localeCompare(b.file) || a.section.startLine - b.section.startLine,

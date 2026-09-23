@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { closeSync, constants, fstatSync, fsyncSync, openSync, readFileSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
-import { redactText } from "./capture.js";
+import { redactText } from "./redaction.js";
 import { qualificationSha256 } from "./qualification-config.js";
 
 export interface QualificationOutputReceipt {

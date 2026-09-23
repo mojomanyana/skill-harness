@@ -8,7 +8,7 @@ import { repIndexOf, writeResults, readResults, effectiveVerdicts, rebuildScenar
 import type { ScenarioResult } from "../src/results.js";
 import { score } from "../src/score.js";
 import { adjudicateRun, planAdjudication, runAdjudication, formatAdjudicationPlan, cellsFromResults } from "../src/adjudication.js";
-import { redactText } from "../src/capture.js";
+import { redactText } from "../src/redaction.js";
 import { mergeTraces, parseTrace } from "../src/execution-trace.js";
 import { snapshotPaths, diffSnapshots } from "../src/workspace.js";
 import { evaluateTraceGates } from "../src/trace-gates.js";

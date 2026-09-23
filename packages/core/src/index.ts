@@ -43,7 +43,7 @@ export * from "./investigation.js";
 export * from "./intervention.js";
 export * from "./intervention-results.js";
 export * from "./spec-write.js";
-export * from "./capture.js";
+export * from "./redaction.js";
 export * from "./execution-trace.js";
 export * from "./trace-gates.js";
 export * from "./trajectory-gates.js";

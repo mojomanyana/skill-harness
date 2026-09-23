@@ -177,20 +177,6 @@ describe("computeCoverage", () => {
     expect(r.unmapped).toEqual(["A1"]);
   });
 
-  it("parks a pending capture against a section without counting it as covered", () => {
-    const r = computeCoverage({
-      specDir: dir,
-      baseFiles: ["SKILL.md"],
-      scenarios: [],
-      pendingCaptures: [{ id: "CAP-001", covers: ["SKILL.md#untested-bit"] }],
-    });
-    const section = r.sections.find((s) => s.section.slug === "untested-bit")!;
-    expect(section.pendingCaptures).toEqual(["CAP-001"]);
-    // A pending capture is not a test yet, so it must not count as coverage.
-    expect(section.scenarios).toEqual([]);
-    expect(r.covered).toEqual([]);
-  });
-
   it("covers a section in a second file", () => {
     mkdirSync(join(dir, "agents"), { recursive: true });
     writeFileSync(join(dir, "agents", "plan.md"), "## Scope Control\nx\n", "utf8");

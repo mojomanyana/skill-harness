@@ -99,12 +99,6 @@ Reading starts no models/delegation or automatic exposure. Human quality, techni
 adoption authority and later observation remain separate. Guide: `docs/factory/PRODUCT-GUIDE.md`;
 current register: `docs/factory/STATUS.md`.
 
-## Capturing a real failure
-`/skill-harness capture` (pi extension only — NOT a CLI command, and it refuses to
-run headless) promotes turns from a live pi conversation into a regression case.
-There is a preview step before anything is written; that preview is what keeps
-secrets out of a committed file, which is why the command has no unattended mode.
-
 ## Tenets
 1. **Judge ≠ subject.** Never let the judge model sit in the model set being tested.
 2. **Critical + B-series gate the ship.** A critical-id fail or any under-pressure
