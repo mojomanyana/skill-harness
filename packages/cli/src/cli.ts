@@ -31,7 +31,6 @@ import {
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
-import { cmdQualification } from "./qualification.js";
 import { cmdArchive } from "./archive.js";
 import { runLearningCommand } from "./learning.js";
 
@@ -756,11 +755,6 @@ export function help(): string {
   list   --skills <root>                        discovered skills + spec status (${free("list")})
   lint   <skill|all> --skills <root>           validate specs/fixtures + results-consistency (${free("lint")}; CI gate; exits non-zero on findings)
   coverage <skill|all> --skills <root> [--strict]   which instruction sections have a declared test (${free("coverage")})
-  qualification <prepare|start|status|poll|validate|panel|cell|abort>  durable qualification-runner-v1 lifecycle + offline panel collapse
-                     prepare --spool DIR --config FILE --request FILE [--expected-config-sha256 HEX] (required in production)
-                     start|status|poll|abort --spool DIR --id ID  (abort also requires --reason ID)
-                     start may resume only with --continuation-authority-file <private-0600-prebound-one-use-capability>
-                     validate --spool DIR  (all calls use external, schema-validated arms; no automatic retry)
 
   version  print ${HARNESS_VERSION} and exit (also --version / -v)
 
@@ -792,7 +786,6 @@ export async function main(argv: string[]): Promise<void> {
     case "list": return cmdList(args);
     case "lint": return cmdLint(args);
     case "coverage": return cmdCoverage(args);
-    case "qualification": return cmdQualification(args);
     case "version":
     case "--version":
     case "-v":

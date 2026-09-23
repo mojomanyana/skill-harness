@@ -1,10 +1,10 @@
 // packages/pi-extension/src/index.ts
 import { fileURLToPath as fileURLToPath4 } from "node:url";
-import { basename as basename3, dirname as dirname23, join as join51 } from "node:path";
+import { basename as basename3, dirname as dirname21, join as join44 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
-import { existsSync as existsSync29 } from "node:fs";
-import { dirname as dirname18, join as join42, resolve as resolve24, relative as relative6 } from "node:path";
+import { existsSync as existsSync25 } from "node:fs";
+import { dirname as dirname16, join as join35, resolve as resolve22, relative as relative6 } from "node:path";
 
 // packages/core/dist/trusted-host-supervision.js
 import { readFileSync as readFileSync2 } from "node:fs";
@@ -5134,7 +5134,7 @@ import { spawn } from "node:child_process";
 import { existsSync as existsSync7 } from "node:fs";
 import { join as join8, delimiter } from "node:path";
 function exec(cmd, args, opts = {}) {
-  return new Promise((resolve30, reject2) => {
+  return new Promise((resolve28, reject2) => {
     const child3 = spawn(cmd, args, {
       cwd: opts.cwd,
       env: opts.env ?? process.env,
@@ -5160,7 +5160,7 @@ function exec(cmd, args, opts = {}) {
     child3.on("close", (code) => {
       if (timer)
         clearTimeout(timer);
-      resolve30({ stdout, stderr, code });
+      resolve28({ stdout, stderr, code });
     });
   });
 }
@@ -7925,52 +7925,16 @@ var EVENT_KEYS = /* @__PURE__ */ new Set([
   "attributes"
 ]);
 
-// packages/core/dist/qualification-panel-store.js
-import { existsSync as existsSync19, readdirSync as readdirSync15 } from "node:fs";
-import { join as join28 } from "node:path";
-
-// packages/core/dist/qualification-runner.js
-import { spawn as spawn3 } from "node:child_process";
-import { randomBytes as randomBytes3 } from "node:crypto";
-import { closeSync as closeSync5, constants as constants5, existsSync as existsSync18, fstatSync as fstatSync5, lstatSync as lstatSync4, mkdirSync as mkdirSync7, openSync as openSync5, readFileSync as readFileSync22, readdirSync as readdirSync14, realpathSync as realpathSync6, renameSync as renameSync6, rmSync as rmSync5 } from "node:fs";
-import { isAbsolute as isAbsolute9, join as join27 } from "node:path";
-import { setTimeout as sleep2 } from "node:timers/promises";
-
-// packages/core/dist/qualification-capture.js
-import { spawn as spawn2 } from "node:child_process";
-import { closeSync as closeSync2, constants as constants2, fstatSync as fstatSync2, fsyncSync, openSync as openSync2, readFileSync as readFileSync19, writeSync } from "node:fs";
-import { join as join23 } from "node:path";
-import { StringDecoder } from "node:string_decoder";
-
-// packages/core/dist/qualification-config.js
-import { execFileSync as execFileSync3 } from "node:child_process";
-import { createHash as createHash13 } from "node:crypto";
-import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync as readFileSync18, realpathSync as realpathSync3 } from "node:fs";
-import { isAbsolute as isAbsolute7, join as join22 } from "node:path";
-
-// packages/core/dist/qualification-lock.js
-import { existsSync as existsSync16, mkdirSync as mkdirSync5, renameSync as renameSync4, rmSync as rmSync3 } from "node:fs";
-import { join as join24 } from "node:path";
-
-// packages/core/dist/qualification-oauth-directory.js
-import { closeSync as closeSync3, constants as constants3, fstatSync as fstatSync3, lstatSync as lstatSync2, openSync as openSync3, readFileSync as readFileSync20, readdirSync as readdirSync12, realpathSync as realpathSync4 } from "node:fs";
-import { basename as pathBasename, dirname as dirname6, isAbsolute as isAbsolute8, join as join25, resolve as resolve10 } from "node:path";
-
-// packages/core/dist/qualification-store.js
-import { randomBytes as randomBytes2 } from "node:crypto";
-import { closeSync as closeSync4, constants as constants4, existsSync as existsSync17, fsyncSync as fsyncSync2, fstatSync as fstatSync4, linkSync, lstatSync as lstatSync3, mkdirSync as mkdirSync6, openSync as openSync4, readFileSync as readFileSync21, readdirSync as readdirSync13, realpathSync as realpathSync5, renameSync as renameSync5, rmSync as rmSync4, unlinkSync as unlinkSync2, writeFileSync as writeFileSync7 } from "node:fs";
-import { dirname as dirname7, extname as extname2, join as join26, resolve as resolve11 } from "node:path";
-
 // packages/adapters/dist/producer-product.js
-import { existsSync as existsSync21 } from "node:fs";
-import { isAbsolute as isAbsolute14 } from "node:path";
-import { createHash as createHash25 } from "node:crypto";
+import { existsSync as existsSync17 } from "node:fs";
+import { isAbsolute as isAbsolute11 } from "node:path";
+import { createHash as createHash24 } from "node:crypto";
 
 // packages/adapters/dist/learning-journal.js
-import { constants as constants6, openSync as openSync6, closeSync as closeSync6, readSync, writeSync as writeSync2, fstatSync as fstatSync6, lstatSync as lstatSync5, fsyncSync as fsyncSync3, mkdirSync as mkdirSync8, unlinkSync as unlinkSync3 } from "node:fs";
-import { createHash as createHash14, randomUUID } from "node:crypto";
+import { constants, openSync, closeSync, readSync, writeSync, fstatSync, lstatSync, fsyncSync, mkdirSync as mkdirSync5, unlinkSync as unlinkSync2 } from "node:fs";
+import { createHash as createHash13, randomUUID } from "node:crypto";
 import { types as types2 } from "node:util";
-import { isAbsolute as isAbsolute10, join as join29, dirname as dirname8, parse, resolve as resolve12 } from "node:path";
+import { isAbsolute as isAbsolute7, join as join22, dirname as dirname6, parse, resolve as resolve10 } from "node:path";
 function learningJson(value3) {
   const limit3 = 2 * 1024 * 1024, cache = /* @__PURE__ */ new WeakMap(), visiting = /* @__PURE__ */ new WeakSet();
   const size = (v, depth) => {
@@ -8026,46 +7990,46 @@ function learningJson(value3) {
   size(value3, 0);
   return interventionCanonicalJson(value3);
 }
-var learningHash = (value3) => createHash14("sha256").update(learningJson(value3)).digest("hex");
+var learningHash = (value3) => createHash13("sha256").update(learningJson(value3)).digest("hex");
 var learningCopy = (value3) => JSON.parse(learningJson(value3));
 var LIMIT = 4 * 1024 * 1024;
 function directory(path3) {
-  if (!isAbsolute10(path3))
+  if (!isAbsolute7(path3))
     throw Error("absolute learning directory required");
-  for (let p = path3; ; p = dirname8(p)) {
-    const s2 = lstatSync5(p);
+  for (let p = path3; ; p = dirname6(p)) {
+    const s2 = lstatSync(p);
     if (!s2.isDirectory() || s2.isSymbolicLink())
       throw Error("learning directory substitution");
     if (p === parse(p).root)
       break;
   }
-  const s = lstatSync5(path3);
+  const s = lstatSync(path3);
   if (s.mode & 63 || process.getuid && s.uid !== process.getuid())
     throw Error("private owned learning directory required");
 }
 function sync(path3) {
-  const fd = openSync6(path3, constants6.O_RDONLY | constants6.O_DIRECTORY | constants6.O_NOFOLLOW);
+  const fd = openSync(path3, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
   try {
-    fsyncSync3(fd);
+    fsyncSync(fd);
   } finally {
-    closeSync6(fd);
+    closeSync(fd);
   }
 }
 function learningFile(path3, limit3 = 1024 * 1024) {
-  if (!constants6.O_NOFOLLOW || !constants6.O_NONBLOCK)
+  if (!constants.O_NOFOLLOW || !constants.O_NONBLOCK)
     throw Error("required safe file flags unavailable");
-  if (!isAbsolute10(path3))
+  if (!isAbsolute7(path3))
     throw Error("absolute learning file required");
-  for (let p = dirname8(path3); ; p = dirname8(p)) {
-    const s = lstatSync5(p);
+  for (let p = dirname6(path3); ; p = dirname6(p)) {
+    const s = lstatSync(p);
     if (!s.isDirectory() || s.isSymbolicLink())
       throw Error("learning file ancestor substitution");
     if (p === parse(p).root)
       break;
   }
-  const fd = openSync6(path3, constants6.O_RDONLY | constants6.O_NOFOLLOW | constants6.O_NONBLOCK);
+  const fd = openSync(path3, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
-    const s = fstatSync6(fd);
+    const s = fstatSync(fd);
     if (!s.isFile() || s.nlink !== 1 || s.size > limit3)
       throw Error("bounded regular learning file required");
     const out = Buffer.alloc(limit3 + 1);
@@ -8080,38 +8044,38 @@ function learningFile(path3, limit3 = 1024 * 1024) {
       throw Error("learning file bound exceeded");
     return out.subarray(0, n);
   } finally {
-    closeSync6(fd);
+    closeSync(fd);
   }
 }
 function learningJournal(path3, initial) {
-  if (!constants6.O_NOFOLLOW || !constants6.O_NONBLOCK || !constants6.O_DIRECTORY)
+  if (!constants.O_NOFOLLOW || !constants.O_NONBLOCK || !constants.O_DIRECTORY)
     throw Error("required safe journal flags unavailable");
   if (initial !== void 0) {
-    directory(dirname8(path3));
-    mkdirSync8(path3, { mode: 448 });
+    directory(dirname6(path3));
+    mkdirSync5(path3, { mode: 448 });
     directory(path3);
     const value3 = learningCopy(initial), body = { prior: null, value: value3 }, record = { ...body, id: learningHash(body) };
-    const fd = openSync6(join29(path3, "events.jsonl"), constants6.O_WRONLY | constants6.O_CREAT | constants6.O_EXCL | constants6.O_NOFOLLOW, 384);
+    const fd = openSync(join22(path3, "events.jsonl"), constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 384);
     try {
       writeAll(fd, Buffer.from(learningJson(record) + "\n"));
-      fsyncSync3(fd);
+      fsyncSync(fd);
     } finally {
-      closeSync6(fd);
+      closeSync(fd);
     }
     sync(path3);
-    sync(dirname8(path3));
+    sync(dirname6(path3));
   }
   directory(path3);
-  const identity2 = lstatSync5(path3), file = join29(path3, "events.jsonl");
+  const identity2 = lstatSync(path3), file = join22(path3, "events.jsonl");
   const check = () => {
     directory(path3);
-    const s = lstatSync5(path3);
+    const s = lstatSync(path3);
     if (s.dev !== identity2.dev || s.ino !== identity2.ino)
       throw Error("learning directory identity changed");
   };
   const read5 = () => {
     check();
-    const stat = lstatSync5(file);
+    const stat = lstatSync(file);
     if (stat.mode & 63 || process.getuid && stat.uid !== process.getuid())
       throw Error("private learning journal required");
     const text15 = learningFile(file, LIMIT).toString("utf8");
@@ -8132,27 +8096,27 @@ function learningJournal(path3, initial) {
   read5();
   return { read: read5, append(prior, value3) {
     check();
-    const lock = join29(path3, "writer.lock"), token = randomUUID();
-    const fd = openSync6(lock, constants6.O_RDWR | constants6.O_CREAT | constants6.O_EXCL | constants6.O_NOFOLLOW, 384), owned = fstatSync6(fd);
+    const lock = join22(path3, "writer.lock"), token = randomUUID();
+    const fd = openSync(lock, constants.O_RDWR | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 384), owned = fstatSync(fd);
     let error, result;
     try {
       writeAll(fd, Buffer.from(token));
-      fsyncSync3(fd);
+      fsyncSync(fd);
       const history = read5();
       if (history.at(-1).id !== prior)
         throw Error("stale learning CAS");
       if (history.length >= 4096)
         throw Error("learning history bound");
       const body = { prior, value: learningCopy(value3) }, event = { ...body, id: learningHash(body) }, line = Buffer.from(learningJson(event) + "\n");
-      const out = openSync6(file, constants6.O_WRONLY | constants6.O_APPEND | constants6.O_NOFOLLOW | constants6.O_NONBLOCK);
+      const out = openSync(file, constants.O_WRONLY | constants.O_APPEND | constants.O_NOFOLLOW | constants.O_NONBLOCK);
       try {
-        const s = fstatSync6(out);
+        const s = fstatSync(out);
         if (!s.isFile() || s.nlink !== 1 || s.mode & 63 || s.size + line.length > LIMIT)
           throw Error("learning append refused");
         writeAll(out, line);
-        fsyncSync3(out);
+        fsyncSync(out);
       } finally {
-        closeSync6(out);
+        closeSync(out);
       }
       sync(path3);
       result = event;
@@ -8160,16 +8124,16 @@ function learningJournal(path3, initial) {
       error = e;
     } finally {
       try {
-        const s = lstatSync5(lock);
+        const s = lstatSync(lock);
         if (s.dev !== owned.dev || s.ino !== owned.ino || learningFile(lock, 128).toString() !== token)
           throw Error("learning lock ownership lost");
-        unlinkSync3(lock);
+        unlinkSync2(lock);
         sync(path3);
       } catch (e) {
         error ??= e;
       } finally {
         try {
-          closeSync6(fd);
+          closeSync(fd);
         } catch (e) {
           error ??= e;
         }
@@ -8181,20 +8145,20 @@ function learningJournal(path3, initial) {
   } };
 }
 function registerLearningStore(root, kind, key3, target, binding) {
-  if (!/^[a-f0-9]{64}$/.test(key3) || !isAbsolute10(target) || !["weekly", "trust", "intervention", "access", "workspace"].includes(kind))
+  if (!/^[a-f0-9]{64}$/.test(key3) || !isAbsolute7(target) || !["weekly", "trust", "intervention", "access", "workspace"].includes(kind))
     throw Error("invalid learning registration");
   directory(root);
-  directory(dirname8(target));
-  const parent = join29(root, "learning-stores");
+  directory(dirname6(target));
+  const parent = join22(root, "learning-stores");
   try {
-    mkdirSync8(parent, { mode: 448 });
+    mkdirSync5(parent, { mode: 448 });
     sync(root);
   } catch (e) {
     if (e.code !== "EEXIST")
       throw e;
   }
   directory(parent);
-  const path3 = join29(parent, `${kind}-${key3}`), initial = { type: "learning-registration-v1", target: resolve12(target), binding };
+  const path3 = join22(parent, `${kind}-${key3}`), initial = { type: "learning-registration-v1", target: resolve10(target), binding };
   try {
     learningJournal(path3, initial);
   } catch (e) {
@@ -8206,16 +8170,16 @@ function registerLearningStore(root, kind, key3, target, binding) {
   }
 }
 function verifyLearningStore(root, kind, key3, target, binding) {
-  if (!/^[a-f0-9]{64}$/.test(key3) || !isAbsolute10(target))
+  if (!/^[a-f0-9]{64}$/.test(key3) || !isAbsolute7(target))
     throw Error("invalid learning registration");
-  const records2 = learningJournal(join29(root, "learning-stores", `${kind}-${key3}`)).read();
-  if (records2.length !== 1 || learningHash(records2[0].value) !== learningHash({ type: "learning-registration-v1", target: resolve12(target), binding }))
+  const records2 = learningJournal(join22(root, "learning-stores", `${kind}-${key3}`)).read();
+  if (records2.length !== 1 || learningHash(records2[0].value) !== learningHash({ type: "learning-registration-v1", target: resolve10(target), binding }))
     throw Error("learning store registration mismatch");
 }
 function writeAll(fd, bytes3) {
   let n = 0;
   while (n < bytes3.length) {
-    const k = writeSync2(fd, bytes3, n, bytes3.length - n);
+    const k = writeSync(fd, bytes3, n, bytes3.length - n);
     if (!k)
       throw Error("learning write stalled");
     n += k;
@@ -8223,17 +8187,17 @@ function writeAll(fd, bytes3) {
 }
 
 // packages/adapters/dist/intervention-run.js
-import { createHash as createHash17, randomBytes as randomBytes5 } from "node:crypto";
-import { mkdirSync as mkdirSync11 } from "node:fs";
+import { createHash as createHash16, randomBytes as randomBytes3 } from "node:crypto";
+import { mkdirSync as mkdirSync8 } from "node:fs";
 
 // packages/adapters/dist/evidence-archive.js
-import { closeSync as closeSync7, constants as constants7, fsyncSync as fsyncSync4, fstatSync as fstatSync7, linkSync as linkSync2, lstatSync as lstatSync6, mkdirSync as mkdirSync9, openSync as openSync7, readSync as readSync2, unlinkSync as unlinkSync4, writeFileSync as writeFileSync8 } from "node:fs";
-import { createHash as createHash15, randomUUID as randomUUID2 } from "node:crypto";
-import { join as join30, parse as parse2, resolve as resolve13, sep as sep3 } from "node:path";
+import { closeSync as closeSync2, constants as constants2, fsyncSync as fsyncSync2, fstatSync as fstatSync2, linkSync, lstatSync as lstatSync2, mkdirSync as mkdirSync6, openSync as openSync2, readSync as readSync2, unlinkSync as unlinkSync3, writeFileSync as writeFileSync7 } from "node:fs";
+import { createHash as createHash14, randomUUID as randomUUID2 } from "node:crypto";
+import { join as join23, parse as parse2, resolve as resolve11, sep as sep3 } from "node:path";
 var LIMIT2 = 8 * 1024 * 1024;
 var HASH = /^[a-f0-9]{64}$/;
 var ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-var digest3 = (bytes3) => createHash15("sha256").update(bytes3).digest("hex");
+var digest3 = (bytes3) => createHash14("sha256").update(bytes3).digest("hex");
 var absent = (error) => error?.code === "ENOENT";
 function fail(message3) {
   throw new Error(`archive: ${message3}`);
@@ -8247,44 +8211,44 @@ function validReference(value3) {
   return value3.schema === "archive-source-v1" && typeof value3.sourceId === "string" && ID.test(value3.sourceId) && keys2(value3.parser, ["id", "version"]) && typeof value3.parser.id === "string" && ID.test(value3.parser.id) && typeof value3.parser.version === "string" && ID.test(value3.parser.version) && typeof value3.sha256 === "string" && HASH.test(value3.sha256) && Number.isSafeInteger(value3.bytes) && Number(value3.bytes) >= 0 && Number(value3.bytes) <= LIMIT2 && typeof value3.retention === "string" && ["exact", "redacted", "reference-only"].includes(value3.retention);
 }
 function directory2(path3, create) {
-  if (!constants7.O_NOFOLLOW || !constants7.O_DIRECTORY || !constants7.O_NONBLOCK)
+  if (!constants2.O_NOFOLLOW || !constants2.O_DIRECTORY || !constants2.O_NONBLOCK)
     fail("required filesystem flags unavailable");
-  const absolute = resolve13(path3);
+  const absolute = resolve11(path3);
   let current = parse2(absolute).root;
   for (const part of absolute.slice(current.length).split(sep3).filter(Boolean)) {
-    current = join30(current, part);
+    current = join23(current, part);
     let stat2;
     try {
-      stat2 = lstatSync6(current);
+      stat2 = lstatSync2(current);
     } catch (error) {
       if (!absent(error) || !create)
         throw error;
-      mkdirSync9(current, { mode: 448 });
-      stat2 = lstatSync6(current);
+      mkdirSync6(current, { mode: 448 });
+      stat2 = lstatSync2(current);
     }
     if (stat2.isSymbolicLink())
       fail("symlink directory refused");
     if (!stat2.isDirectory())
       fail("non-directory path refused");
   }
-  const stat = lstatSync6(absolute);
+  const stat = lstatSync2(absolute);
   if ((stat.mode & 63) !== 0)
     fail("archive directory must be private");
   if (process.getuid && stat.uid !== process.getuid())
     fail("archive directory owner mismatch");
 }
 function syncDirectory(path3) {
-  const fd = openSync7(path3, constants7.O_RDONLY | constants7.O_DIRECTORY | constants7.O_NOFOLLOW);
+  const fd = openSync2(path3, constants2.O_RDONLY | constants2.O_DIRECTORY | constants2.O_NOFOLLOW);
   try {
-    fsyncSync4(fd);
+    fsyncSync2(fd);
   } finally {
-    closeSync7(fd);
+    closeSync2(fd);
   }
 }
 function readVerified(path3, hash15, limit3 = LIMIT2) {
-  const fd = openSync7(path3, constants7.O_RDONLY | constants7.O_NOFOLLOW | constants7.O_NONBLOCK);
+  const fd = openSync2(path3, constants2.O_RDONLY | constants2.O_NOFOLLOW | constants2.O_NONBLOCK);
   try {
-    const stat = fstatSync7(fd);
+    const stat = fstatSync2(fd);
     if (!stat.isFile() || stat.size > limit3 || (stat.mode & 63) !== 0)
       fail("invalid retained file");
     const buffer = Buffer.alloc(limit3 + 1);
@@ -8302,14 +8266,14 @@ function readVerified(path3, hash15, limit3 = LIMIT2) {
       fail("content identity mismatch");
     return bytes3;
   } finally {
-    closeSync7(fd);
+    closeSync2(fd);
   }
 }
 function put(root, category, bytes3) {
   const hash15 = digest3(bytes3);
-  const dir = join30(root, category);
+  const dir = join23(root, category);
   directory2(dir, true);
-  const target = join30(dir, hash15);
+  const target = join23(dir, hash15);
   try {
     readVerified(target, hash15);
     return hash15;
@@ -8317,19 +8281,19 @@ function put(root, category, bytes3) {
     if (!absent(error))
       throw error;
   }
-  const temporary = join30(dir, `.pending-${randomUUID2()}`);
+  const temporary = join23(dir, `.pending-${randomUUID2()}`);
   let owned = false;
   try {
-    const fd = openSync7(temporary, constants7.O_WRONLY | constants7.O_CREAT | constants7.O_EXCL | constants7.O_NOFOLLOW, 384);
+    const fd = openSync2(temporary, constants2.O_WRONLY | constants2.O_CREAT | constants2.O_EXCL | constants2.O_NOFOLLOW, 384);
     owned = true;
     try {
-      writeFileSync8(fd, bytes3);
-      fsyncSync4(fd);
+      writeFileSync7(fd, bytes3);
+      fsyncSync2(fd);
     } finally {
-      closeSync7(fd);
+      closeSync2(fd);
     }
     try {
-      linkSync2(temporary, target);
+      linkSync(temporary, target);
     } catch (error) {
       if (error.code !== "EEXIST")
         throw error;
@@ -8337,7 +8301,7 @@ function put(root, category, bytes3) {
     }
   } finally {
     if (owned)
-      unlinkSync4(temporary);
+      unlinkSync3(temporary);
   }
   syncDirectory(dir);
   return hash15;
@@ -8362,7 +8326,7 @@ function retainArchiveSource(root, input) {
   if (reference3.retention !== "reference-only")
     put(root, "objects", bytes3);
   const manifestId = put(root, "manifests", Buffer.from(JSON.stringify(reference3)));
-  syncDirectory(resolve13(root));
+  syncDirectory(resolve11(root));
   return { manifestId, reference: reference3 };
 }
 function readArchiveSourceReference(root, manifestId) {
@@ -8370,8 +8334,8 @@ function readArchiveSourceReference(root, manifestId) {
     return { status: "error", reason: "invalid manifest identity" };
   try {
     directory2(root, false);
-    directory2(join30(root, "manifests"), false);
-    const text15 = readVerified(join30(root, "manifests", manifestId), manifestId, 8192).toString("utf8");
+    directory2(join23(root, "manifests"), false);
+    const text15 = readVerified(join23(root, "manifests", manifestId), manifestId, 8192).toString("utf8");
     const reference3 = JSON.parse(text15);
     if (!validReference(reference3) || JSON.stringify(reference3) !== text15)
       fail("invalid manifest");
@@ -8394,8 +8358,8 @@ function readArchiveSource(root, manifestId, maxBytes = LIMIT2) {
       return { status: "error", reason: "read bound exceeded" };
     let bytes3;
     try {
-      directory2(join30(root, "objects"), false);
-      bytes3 = readVerified(join30(root, "objects", reference3.sha256), reference3.sha256, maxBytes);
+      directory2(join23(root, "objects"), false);
+      bytes3 = readVerified(join23(root, "objects", reference3.sha256), reference3.sha256, maxBytes);
     } catch (error) {
       if (absent(error))
         return { status: "missing", reason: "content" };
@@ -8410,9 +8374,9 @@ function readArchiveSource(root, manifestId, maxBytes = LIMIT2) {
 }
 
 // packages/adapters/dist/blind-intervention.js
-import { constants as constants8, closeSync as closeSync8, fstatSync as fstatSync8, fsyncSync as fsyncSync5, lstatSync as lstatSync7, mkdirSync as mkdirSync10, openSync as openSync8, readSync as readSync3, writeSync as writeSync3 } from "node:fs";
-import { createHash as createHash16, randomBytes as randomBytes4 } from "node:crypto";
-import { join as join31 } from "node:path";
+import { constants as constants3, closeSync as closeSync3, fstatSync as fstatSync3, fsyncSync as fsyncSync3, lstatSync as lstatSync3, mkdirSync as mkdirSync7, openSync as openSync3, readSync as readSync3, writeSync as writeSync2 } from "node:fs";
+import { createHash as createHash15, randomBytes as randomBytes2 } from "node:crypto";
+import { join as join24 } from "node:path";
 var SHA4 = /^[a-f0-9]{64}$/;
 var missing = (e) => e?.code === "ENOENT";
 var encode = interventionCanonicalJson;
@@ -8472,20 +8436,20 @@ function readBlindInterventionBinding(root, id3, author) {
   return Object.freeze({ experimentDigest: manifest.id, investigationDigest: manifest.investigationSha256 });
 }
 function directory3(path3) {
-  const s = lstatSync7(path3);
+  const s = lstatSync3(path3);
   if (!s.isDirectory() || s.isSymbolicLink() || s.mode & 63 || process.getuid && s.uid !== process.getuid())
     throw new Error("private blind directory required");
 }
 function syncDirectory2(path3) {
-  const fd = openSync8(path3, constants8.O_RDONLY | constants8.O_DIRECTORY | constants8.O_NOFOLLOW);
+  const fd = openSync3(path3, constants3.O_RDONLY | constants3.O_DIRECTORY | constants3.O_NOFOLLOW);
   try {
-    fsyncSync5(fd);
+    fsyncSync3(fd);
   } finally {
-    closeSync8(fd);
+    closeSync3(fd);
   }
 }
 function readChoice(root, id3) {
-  const parent = join31(root, "blind-decisions"), dir = join31(parent, id3);
+  const parent = join24(root, "blind-decisions"), dir = join24(parent, id3);
   try {
     directory3(parent);
     directory3(dir);
@@ -8496,14 +8460,14 @@ function readChoice(root, id3) {
   }
   let fd;
   try {
-    fd = openSync8(join31(dir, "choice.json"), constants8.O_RDONLY | constants8.O_NOFOLLOW | constants8.O_NONBLOCK);
+    fd = openSync3(join24(dir, "choice.json"), constants3.O_RDONLY | constants3.O_NOFOLLOW | constants3.O_NONBLOCK);
   } catch (e) {
     if (missing(e))
       throw new Error("blind choice incomplete; explicit recovery required");
     throw e;
   }
   try {
-    const s = fstatSync8(fd);
+    const s = fstatSync3(fd);
     if (!s.isFile() || s.nlink !== 1 || s.mode & 63 || process.getuid && s.uid !== process.getuid() || s.size > 16384)
       throw new Error("invalid blind choice file");
     const bytes3 = Buffer.alloc(16385);
@@ -8526,7 +8490,7 @@ function readChoice(root, id3) {
       throw new Error("invalid blind choice JSON; explicit recovery required");
     }
   } finally {
-    closeSync8(fd);
+    closeSync3(fd);
   }
 }
 function openBlindIntervention(root, id3, author) {
@@ -8552,28 +8516,28 @@ function openBlindIntervention(root, id3, author) {
           throw new Error("blind quality choice locked");
         return before;
       }
-      const parent = join31(root, "blind-decisions"), dir = join31(parent, id3);
+      const parent = join24(root, "blind-decisions"), dir = join24(parent, id3);
       try {
-        mkdirSync10(parent, { mode: 448 });
+        mkdirSync7(parent, { mode: 448 });
       } catch (e) {
         if (e.code !== "EEXIST")
           throw e;
       }
       directory3(parent);
-      mkdirSync10(dir, { mode: 448 });
-      const fd = openSync8(join31(dir, "choice.json"), constants8.O_WRONLY | constants8.O_CREAT | constants8.O_EXCL | constants8.O_NOFOLLOW, 384);
+      mkdirSync7(dir, { mode: 448 });
+      const fd = openSync3(join24(dir, "choice.json"), constants3.O_WRONLY | constants3.O_CREAT | constants3.O_EXCL | constants3.O_NOFOLLOW, 384);
       try {
         const data = Buffer.from(encode(choice));
         let offset = 0;
         while (offset < data.length) {
-          const n = writeSync3(fd, data, offset, data.length - offset);
+          const n = writeSync2(fd, data, offset, data.length - offset);
           if (!n)
             throw new Error("blind choice write stalled");
           offset += n;
         }
-        fsyncSync5(fd);
+        fsyncSync3(fd);
       } finally {
-        closeSync8(fd);
+        closeSync3(fd);
       }
       syncDirectory2(dir);
       syncDirectory2(parent);
@@ -8591,44 +8555,44 @@ function openBlindIntervention(root, id3, author) {
 }
 
 // packages/adapters/dist/codex-host-observer.js
-import { createHash as createHash19, randomBytes as randomBytes6 } from "node:crypto";
+import { createHash as createHash18, randomBytes as randomBytes4 } from "node:crypto";
 
 // packages/adapters/dist/codex-sdk-transport.js
-import { createHash as createHash18 } from "node:crypto";
+import { createHash as createHash17 } from "node:crypto";
 import { PassThrough, Writable } from "node:stream";
 import { isDeepStrictEqual } from "node:util";
 import * as zlib from "node:zlib";
 var fixtureCredential = "fixture." + Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: "fixture-no-account" } })).toString("base64url") + ".invalid";
 
 // packages/adapters/dist/codex-producer-ipc.js
-import { createHash as createHash20 } from "node:crypto";
+import { createHash as createHash19 } from "node:crypto";
 
 // packages/adapters/dist/codex-diagnostic-model.js
-import { createHash as createHash21 } from "node:crypto";
-import { isAbsolute as isAbsolute11 } from "node:path";
+import { createHash as createHash20 } from "node:crypto";
+import { isAbsolute as isAbsolute8 } from "node:path";
 
 // packages/adapters/dist/codex-subscription.js
-import { existsSync as existsSync20, realpathSync as realpathSync7 } from "node:fs";
-import { dirname as dirname9, isAbsolute as isAbsolute12, resolve as resolve14 } from "node:path";
+import { existsSync as existsSync16, realpathSync as realpathSync3 } from "node:fs";
+import { dirname as dirname7, isAbsolute as isAbsolute9, resolve as resolve12 } from "node:path";
 import { Readable } from "node:stream";
 var CODEX_RUNTIME_FILES = Object.freeze(["node_modules/@earendil-works/pi-ai/dist/api/openai-codex-responses.js", "node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js", "node_modules/@earendil-works/pi-ai/dist/providers/data/openai-codex.json", "dist/core/auth-storage.js"]);
 
 // packages/adapters/dist/weekly-investigation.js
-import { createHash as createHash24 } from "node:crypto";
-import { isAbsolute as isAbsolute13 } from "node:path";
-import { constants as constants10, openSync as openSync10, fstatSync as fstatSync10, writeSync as writeSync5, fsyncSync as fsyncSync7, closeSync as closeSync10, realpathSync as realpathSync8 } from "node:fs";
+import { createHash as createHash23 } from "node:crypto";
+import { isAbsolute as isAbsolute10 } from "node:path";
+import { constants as constants5, openSync as openSync5, fstatSync as fstatSync5, writeSync as writeSync4, fsyncSync as fsyncSync5, closeSync as closeSync5, realpathSync as realpathSync4 } from "node:fs";
 
 // packages/adapters/dist/archive-read-capability.js
-import { createHash as createHash22 } from "node:crypto";
+import { createHash as createHash21 } from "node:crypto";
 import { performance as performance2 } from "node:perf_hooks";
 
 // packages/adapters/dist/work-case-review.js
-import { constants as constants9, closeSync as closeSync9, fstatSync as fstatSync9, fsyncSync as fsyncSync6, lstatSync as lstatSync8, mkdirSync as mkdirSync12, openSync as openSync9, readSync as readSync4, unlinkSync as unlinkSync5, writeFileSync as writeFileSync9, writeSync as writeSync4 } from "node:fs";
+import { constants as constants4, closeSync as closeSync4, fstatSync as fstatSync4, fsyncSync as fsyncSync4, lstatSync as lstatSync4, mkdirSync as mkdirSync9, openSync as openSync4, readSync as readSync4, unlinkSync as unlinkSync4, writeFileSync as writeFileSync8, writeSync as writeSync3 } from "node:fs";
 import { randomUUID as randomUUID3 } from "node:crypto";
-import { join as join32 } from "node:path";
+import { join as join25 } from "node:path";
 
 // packages/adapters/dist/work-candidates.js
-import { createHash as createHash23 } from "node:crypto";
+import { createHash as createHash22 } from "node:crypto";
 
 // packages/adapters/dist/work-case-archive.js
 function validate(value3) {
@@ -8772,22 +8736,22 @@ function readWorkSignalBatch(root, manifestId) {
 var SHA6 = /^[a-f0-9]{64}$/;
 var missing2 = (error) => error?.code === "ENOENT";
 function assertDirectory(path3) {
-  const stat = lstatSync8(path3);
+  const stat = lstatSync4(path3);
   if (!stat.isDirectory() || stat.isSymbolicLink() || stat.mode & 63 || process.getuid && stat.uid !== process.getuid())
     throw new Error("private case directory required");
 }
 function syncDirectory3(path3) {
-  const fd = openSync9(path3, constants9.O_RDONLY | constants9.O_DIRECTORY | constants9.O_NOFOLLOW);
+  const fd = openSync4(path3, constants4.O_RDONLY | constants4.O_DIRECTORY | constants4.O_NOFOLLOW);
   try {
-    fsyncSync6(fd);
+    fsyncSync4(fd);
   } finally {
-    closeSync9(fd);
+    closeSync4(fd);
   }
 }
 function privateDirectory(path3) {
   let created = false;
   try {
-    mkdirSync12(path3, { mode: 448 });
+    mkdirSync9(path3, { mode: 448 });
     created = true;
   } catch (error) {
     if (error.code !== "EEXIST")
@@ -8797,9 +8761,9 @@ function privateDirectory(path3) {
   return created;
 }
 function bytes(path3, limit3) {
-  const fd = openSync9(path3, constants9.O_RDONLY | constants9.O_NOFOLLOW | constants9.O_NONBLOCK);
+  const fd = openSync4(path3, constants4.O_RDONLY | constants4.O_NOFOLLOW | constants4.O_NONBLOCK);
   try {
-    const stat = fstatSync9(fd);
+    const stat = fstatSync4(fd);
     if (!stat.isFile() || stat.nlink !== 1 || stat.size > limit3 || stat.mode & 63)
       throw new Error("invalid case history file");
     const out = Buffer.alloc(limit3 + 1);
@@ -8814,13 +8778,13 @@ function bytes(path3, limit3) {
       throw new Error("case history bound exceeded");
     return out.subarray(0, used);
   } finally {
-    closeSync9(fd);
+    closeSync4(fd);
   }
 }
 function historyAt(directory7, caseId, brandNew = false) {
   let raw;
   try {
-    raw = bytes(join32(directory7, "history.jsonl"), 1024 * 1024);
+    raw = bytes(join25(directory7, "history.jsonl"), 1024 * 1024);
   } catch (error) {
     if (missing2(error) && brandNew)
       return [];
@@ -8878,9 +8842,9 @@ function createSelectedCaseReviewer(root, author, ids, readCandidate) {
     return readCandidate(id3);
   };
   const getHistory = (caseManifestId) => {
-    const candidate = selected(caseManifestId), directory7 = join32(root, "case-decisions", candidate.id);
+    const candidate = selected(caseManifestId), directory7 = join25(root, "case-decisions", candidate.id);
     try {
-      assertDirectory(join32(root, "case-decisions"));
+      assertDirectory(join25(root, "case-decisions"));
       assertDirectory(directory7);
     } catch (error) {
       if (missing2(error))
@@ -8904,17 +8868,17 @@ function createSelectedCaseReviewer(root, author, ids, readCandidate) {
       if (!request || Object.keys(request).sort().join() !== "caseManifestId,disposition,note,priorDecisionId" || !["confirmed_defect", "expected_behavior", "exemplar", "uncertain", "skip"].includes(request.disposition) || typeof request.note !== "string" || request.note.length > 4e3 || !(request.priorDecisionId === null || typeof request.priorDecisionId === "string" && SHA6.test(request.priorDecisionId)))
         throw new Error("invalid case review request");
       const candidate = selected(request.caseManifestId);
-      const parent = join32(root, "case-decisions");
+      const parent = join25(root, "case-decisions");
       privateDirectory(parent);
-      const directory7 = join32(parent, candidate.id);
-      const lockPath = join32(parent, candidate.id + ".lock"), token = randomUUID3();
-      const lock = openSync9(lockPath, constants9.O_RDWR | constants9.O_CREAT | constants9.O_EXCL | constants9.O_NOFOLLOW, 384);
-      const identity2 = fstatSync9(lock);
+      const directory7 = join25(parent, candidate.id);
+      const lockPath = join25(parent, candidate.id + ".lock"), token = randomUUID3();
+      const lock = openSync4(lockPath, constants4.O_RDWR | constants4.O_CREAT | constants4.O_EXCL | constants4.O_NOFOLLOW, 384);
+      const identity2 = fstatSync4(lock);
       let primary;
       let result;
       try {
-        writeFileSync9(lock, token);
-        fsyncSync6(lock);
+        writeFileSync8(lock, token);
+        fsyncSync4(lock);
         const brandNew = privateDirectory(directory7);
         const before = historyAt(directory7, candidate.id, brandNew);
         const after = appendWorkCaseDecision(before, {
@@ -8926,10 +8890,10 @@ function createSelectedCaseReviewer(root, author, ids, readCandidate) {
           note: request.note
         });
         if (after.length > before.length) {
-          const path3 = join32(directory7, "history.jsonl");
-          const fd = openSync9(path3, constants9.O_WRONLY | constants9.O_APPEND | constants9.O_CREAT | constants9.O_NOFOLLOW | constants9.O_NONBLOCK, 384);
+          const path3 = join25(directory7, "history.jsonl");
+          const fd = openSync4(path3, constants4.O_WRONLY | constants4.O_APPEND | constants4.O_CREAT | constants4.O_NOFOLLOW | constants4.O_NONBLOCK, 384);
           try {
-            const stat = fstatSync9(fd);
+            const stat = fstatSync4(fd);
             if (!stat.isFile() || stat.nlink !== 1 || stat.mode & 63)
               throw new Error("invalid case history destination");
             const line = Buffer.from(JSON.stringify(after.at(-1)) + "\n");
@@ -8937,14 +8901,14 @@ function createSelectedCaseReviewer(root, author, ids, readCandidate) {
               throw new Error("case history bound exceeded");
             let offset = 0;
             while (offset < line.length) {
-              const n = writeSync4(fd, line, offset, line.length - offset);
+              const n = writeSync3(fd, line, offset, line.length - offset);
               if (!n)
                 throw new Error("case history write stalled");
               offset += n;
             }
-            fsyncSync6(fd);
+            fsyncSync4(fd);
           } finally {
-            closeSync9(fd);
+            closeSync4(fd);
           }
         }
         syncDirectory3(directory7);
@@ -8955,16 +8919,16 @@ function createSelectedCaseReviewer(root, author, ids, readCandidate) {
         primary = error;
       } finally {
         try {
-          const present = lstatSync8(lockPath);
+          const present = lstatSync4(lockPath);
           if (present.dev !== identity2.dev || present.ino !== identity2.ino || bytes(lockPath, 128).toString() !== token)
             throw new Error("case writer lock ownership lost");
-          unlinkSync5(lockPath);
+          unlinkSync4(lockPath);
           syncDirectory3(parent);
         } catch (error) {
           if (!primary)
             primary = error;
         } finally {
-          closeSync9(lock);
+          closeSync4(lock);
         }
       }
       if (primary)
@@ -8989,20 +8953,20 @@ function readLearningCase(root, input) {
 import { ftruncateSync as truncateCandidate } from "node:fs";
 
 // packages/adapters/dist/pi.js
-import { existsSync as existsSync22, mkdtempSync as mkdtempSync2, readFileSync as readFileSync23, rmSync as rmSync6, statSync as statSync9, writeFileSync as writeFileSync10 } from "node:fs";
+import { existsSync as existsSync18, mkdtempSync as mkdtempSync2, readFileSync as readFileSync18, rmSync as rmSync3, statSync as statSync9, writeFileSync as writeFileSync9 } from "node:fs";
 import { tmpdir as tmpdir2, homedir as homedir2 } from "node:os";
-import { randomBytes as randomBytes7 } from "node:crypto";
-import { join as join33, resolve as resolve15 } from "node:path";
+import { randomBytes as randomBytes5 } from "node:crypto";
+import { join as join26, resolve as resolve13 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // packages/adapters/dist/pi-json.js
-import { spawn as spawn4 } from "node:child_process";
+import { spawn as spawn2 } from "node:child_process";
 import { createInterface } from "node:readline";
 var SKIPPED_TYPE_RE = /^\s*\{\s*"type"\s*:\s*"(?:message_update|tool_execution_update)"/;
 var MAX_STDERR_CHARS = 8e3;
 function runPiJson(opts) {
-  return new Promise((resolve30, reject2) => {
-    const child3 = spawn4("pi", opts.args, {
+  return new Promise((resolve28, reject2) => {
+    const child3 = spawn2("pi", opts.args, {
       cwd: opts.cwd,
       env: opts.env,
       // stdin from /dev/null: pi hangs waiting on it otherwise, and a hang in a
@@ -9056,15 +9020,15 @@ function runPiJson(opts) {
         changedPaths: opts.changedPaths,
         homeDir: opts.homeDir
       });
-      resolve30({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS), providerFailure });
+      resolve28({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS), providerFailure });
     });
   });
 }
 
 // packages/adapters/dist/prompt-provenance.js
-import { createHash as createHash26, createHmac, timingSafeEqual } from "node:crypto";
+import { createHash as createHash25, createHmac, timingSafeEqual } from "node:crypto";
 function sha3(bytes3) {
-  return createHash26("sha256").update(bytes3, "utf8").digest("hex");
+  return createHash25("sha256").update(bytes3, "utf8").digest("hex");
 }
 function normalizePromptPayload(value3, rule) {
   if (rule !== PROMPT_NORMALIZATION_RULE)
@@ -9196,10 +9160,10 @@ var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
 var PROMPT_CAPTURE_EXTENSION = fileURLToPath(new URL("./prompt-capture-extension.js", import.meta.url));
 function contractFor(req) {
   if (req.systemPromptFile) {
-    const raw2 = readFileSync23(req.systemPromptFile, "utf8");
+    const raw2 = readFileSync18(req.systemPromptFile, "utf8");
     return { text: raw2, raw: raw2, mechanism: "system-prompt-file" };
   }
-  const raw = readFileSync23(join33(requireSkillDir(req.skillDir, req.mode), "SKILL.md"), "utf8");
+  const raw = readFileSync18(join26(requireSkillDir(req.skillDir, req.mode), "SKILL.md"), "utf8");
   const body = splitPromptDoc(raw).body;
   if (req.mode === "red")
     return { text: body, raw, mechanism: "none" };
@@ -9218,14 +9182,14 @@ function captureSetup(req, env, contract, counter) {
       const empty = observeProviderPayload({}, contract.text, contract.mechanism, counter.value++);
       req.onPromptObservation?.({ ...empty, status: "ERROR", error: "prompt delivery provenance is unauthenticated when subject extensions or runtime-injection env share Pi's process" });
     } };
-  const dir = mkdtempSync2(join33(tmpdir2(), "skill-harness-prompt-"));
-  const path3 = join33(dir, "observations.jsonl"), contractPath = join33(dir, "contract.json");
-  const authenticationKey = randomBytes7(32).toString("hex");
-  writeFileSync10(path3, "", { mode: 384 });
-  writeFileSync10(contractPath, JSON.stringify({ text: contract.text, mechanism: contract.mechanism, authentication_key: authenticationKey }), { mode: 384 });
+  const dir = mkdtempSync2(join26(tmpdir2(), "skill-harness-prompt-"));
+  const path3 = join26(dir, "observations.jsonl"), contractPath = join26(dir, "contract.json");
+  const authenticationKey = randomBytes5(32).toString("hex");
+  writeFileSync9(path3, "", { mode: 384 });
+  writeFileSync9(contractPath, JSON.stringify({ text: contract.text, mechanism: contract.mechanism, authentication_key: authenticationKey }), { mode: 384 });
   const finish2 = () => {
     try {
-      const lines2 = readFileSync23(path3, "utf8").split("\n").filter(Boolean);
+      const lines2 = readFileSync18(path3, "utf8").split("\n").filter(Boolean);
       const parsed = lines2.map((line) => {
         try {
           return JSON.parse(line);
@@ -9242,7 +9206,7 @@ function captureSetup(req, env, contract, counter) {
           req.onPromptObservation?.(bindPromptObservation(record, contract.text, contract.mechanism, counter.value++, authenticationKey, observerRequestIndex));
         });
     } finally {
-      rmSync6(dir, { recursive: true, force: true });
+      rmSync3(dir, { recursive: true, force: true });
     }
   };
   return { env: { ...env ?? process.env, SKILL_HARNESS_PROMPT_CAPTURE_FILE: path3, SKILL_HARNESS_PROMPT_CONTRACT_FILE: contractPath }, finish: finish2 };
@@ -9260,10 +9224,10 @@ function providerStderr(stderr) {
   return PROVIDER_STDERR_SIGNATURES.some((sig) => hay.includes(sig)) ? stderr.trim() : null;
 }
 function requireSkillDir(skillDir, mode) {
-  const abs = resolve15(skillDir);
-  const md = join33(abs, "SKILL.md");
-  const isDir3 = existsSync22(abs) && statSync9(abs).isDirectory();
-  if (!isDir3 || !existsSync22(md)) {
+  const abs = resolve13(skillDir);
+  const md = join26(abs, "SKILL.md");
+  const isDir3 = existsSync18(abs) && statSync9(abs).isDirectory();
+  if (!isDir3 || !existsSync18(md)) {
     throw new Error(`mode=${mode} needs a skill directory with a SKILL.md, but ${abs} ${isDir3 ? "has none" : "is not a directory"}` + (abs === skillDir ? "" : ` (given \`${skillDir}\`, resolved against ${process.cwd()})`) + ` \u2014 pi accepts \`--skill <nonexistent>\` silently (exit 0, a normal answer, no skill in context), so this run would measure a model with no skill and report it as a result.`);
   }
   return abs;
@@ -9276,7 +9240,7 @@ function skillFlags(mode, skillDir, boundRaw) {
       return ["--skill", requireSkillDir(skillDir, mode)];
     case "force": {
       requireSkillDir(skillDir, mode);
-      const body = boundRaw ?? readFileSync23(join33(resolve15(skillDir), "SKILL.md"), "utf8");
+      const body = boundRaw ?? readFileSync18(join26(resolve13(skillDir), "SKILL.md"), "utf8");
       return ["--no-skills", "--append-system-prompt", body];
     }
   }
@@ -9285,8 +9249,8 @@ function extensionFlags(extensions) {
   if (!extensions || extensions.length === 0)
     return [];
   return extensions.flatMap((p) => {
-    const abs = resolve15(p);
-    if (!existsSync22(abs)) {
+    const abs = resolve13(p);
+    if (!existsSync18(abs)) {
       throw new Error(`env.extensions names ${abs}, which does not exist \u2014 pi would start without it and the scenario would silently test an agent with no subagent tool at all.`);
     }
     return ["--extension", abs];
@@ -9368,7 +9332,7 @@ ${r.stderr.trim()}
       }
       return withProviderFailure(parts.join("\n"), providerFailure);
     }
-    const session = mkdtempSync2(join33(tmpdir2(), "sc-pi-session-"));
+    const session = mkdtempSync2(join26(tmpdir2(), "sc-pi-session-"));
     for (let i = 0; i < total; i++) {
       const turnFlags = i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common2, ...turnFlags, "-p", req.turns[i]];
@@ -9425,7 +9389,7 @@ ${r.stderr.trim()}
     const total = req.turns.length;
     const traces = [];
     const parts = [];
-    const session = total === 1 ? null : mkdtempSync2(join33(tmpdir2(), "sc-pi-session-"));
+    const session = total === 1 ? null : mkdtempSync2(join26(tmpdir2(), "sc-pi-session-"));
     let providerFailure = null;
     const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
     for (let i = 0; i < total; i++) {
@@ -9511,9 +9475,9 @@ ${r.stderr.trim()}
 };
 
 // packages/adapters/dist/trajectory.js
-import { createHash as createHash27 } from "node:crypto";
-import { readFileSync as readFileSync24, readdirSync as readdirSync16 } from "node:fs";
-import { join as join34 } from "node:path";
+import { createHash as createHash26 } from "node:crypto";
+import { readFileSync as readFileSync19, readdirSync as readdirSync12 } from "node:fs";
+import { join as join27 } from "node:path";
 
 // packages/adapters/dist/closed-schema.js
 var ANNOTATION_KEYWORDS = /* @__PURE__ */ new Set(["$schema", "$id", "title", "description", "$defs"]);
@@ -12348,7 +12312,7 @@ function normalizeLegacyGrant(record, index) {
     legacy_schema: "pi-daddy-grant-ledger/0.17"
   });
   const refusal = record.blocked ? legacyRefusalCode(record) : void 0;
-  const spawn6 = cleanEvent({
+  const spawn4 = cleanEvent({
     ...common2,
     type: record.blocked ? "child_spawn_refused" : "child_started",
     requested_capabilities: requested,
@@ -12378,7 +12342,7 @@ function normalizeLegacyGrant(record, index) {
       attributes
     }));
   }
-  events.push(spawn6);
+  events.push(spawn4);
   return events;
 }
 function legacyRefusalCode(record) {
@@ -12436,7 +12400,7 @@ function sanitizeAttributes(value3) {
     if (sensitiveKey.test(key3))
       return "[REDACTED]";
     if (typeof current === "string" && freeTextKey.test(key3)) {
-      return `[REDACTED sha256:${createHash27("sha256").update(current).digest("hex")}]`;
+      return `[REDACTED sha256:${createHash26("sha256").update(current).digest("hex")}]`;
     }
     if (Array.isArray(current))
       return current.map((entry) => walk2(entry));
@@ -12485,22 +12449,22 @@ function cleanEvent(event) {
 }
 
 // packages/adapters/dist/archive-checkpoint.js
-import { createHash as createHash28 } from "node:crypto";
+import { createHash as createHash27 } from "node:crypto";
 var LIMIT4 = 8 * 1024 * 1024;
 
 // packages/adapters/dist/archive-policy.js
-import { closeSync as closeSync11, constants as constants12, fstatSync as fstatSync11, lstatSync as lstatSync9, openSync as openSync11, readSync as readSync5 } from "node:fs";
-import { createHash as createHash32 } from "node:crypto";
-import { dirname as dirname11, isAbsolute as isAbsolute16, join as join36, parse as parse3, resolve as resolve16, sep as sep5 } from "node:path";
+import { closeSync as closeSync6, constants as constants7, fstatSync as fstatSync6, lstatSync as lstatSync5, openSync as openSync6, readSync as readSync5 } from "node:fs";
+import { createHash as createHash31 } from "node:crypto";
+import { dirname as dirname9, isAbsolute as isAbsolute13, join as join29, parse as parse3, resolve as resolve14, sep as sep5 } from "node:path";
 
 // packages/adapters/dist/archive-retention-policy.js
-import { dirname as dirname10, join as join35 } from "node:path";
+import { dirname as dirname8, join as join28 } from "node:path";
 
 // packages/adapters/dist/generated/retention-v2-contract.js
 import { Compile } from "typebox/compile";
 
 // packages/adapters/dist/generated/retention-v2-json.js
-import { createHash as createHash29 } from "node:crypto";
+import { createHash as createHash28 } from "node:crypto";
 var WORK_EVENT_BYTES = 64 * 1024;
 var WORK_TEXT_BYTES = 16 * 1024 * 1024;
 
@@ -12595,13 +12559,13 @@ function freeze3(value3) {
 }
 
 // packages/adapters/dist/execution-retention-archive.js
-import { createHash as createHash31 } from "node:crypto";
+import { createHash as createHash30 } from "node:crypto";
 
 // packages/adapters/dist/generated/retention-v2-native.js
-import { constants as constants11 } from "node:fs";
+import { constants as constants6 } from "node:fs";
 import { open, lstat, realpath } from "node:fs/promises";
-import { isAbsolute as isAbsolute15, relative as relative4, sep as sep4 } from "node:path";
-import { createHash as createHash30 } from "node:crypto";
+import { isAbsolute as isAbsolute12, relative as relative4, sep as sep4 } from "node:path";
+import { createHash as createHash29 } from "node:crypto";
 var MAX_NATIVE_SESSION_BYTES = 1024 * 1024;
 
 // packages/adapters/dist/execution-projection-schema.js
@@ -12653,7 +12617,7 @@ var compiled = Compile2(EXECUTION_ARCHIVE_PROJECTION_SCHEMA);
 import { isDate } from "node:util/types";
 
 // packages/adapters/dist/generated/work-v4/json.js
-import { createHash as createHash33 } from "node:crypto";
+import { createHash as createHash32 } from "node:crypto";
 var WORK_EVENT_BYTES2 = 64 * 1024;
 var WORK_TEXT_BYTES2 = 16 * 1024 * 1024;
 
@@ -12724,8 +12688,8 @@ function read2(root, manifestId, depth) {
 }
 
 // packages/adapters/dist/session-retention.js
-import { createHash as createHash34 } from "node:crypto";
-import { resolve as resolve17 } from "node:path";
+import { createHash as createHash33 } from "node:crypto";
+import { resolve as resolve15 } from "node:path";
 
 // packages/adapters/dist/session-observation.js
 function sessionText(bytes3) {
@@ -12909,7 +12873,7 @@ function sessionScope(observation, sourceSha256) {
 
 // packages/adapters/dist/session-retention.js
 var captured = /* @__PURE__ */ new WeakMap();
-var sha4 = (bytes3) => createHash34("sha256").update(bytes3).digest("hex");
+var sha4 = (bytes3) => createHash33("sha256").update(bytes3).digest("hex");
 function checkedSelections(input) {
   if (!Array.isArray(input) || input.length < 1 || input.length > 16)
     throw Error("select 1\u201316 explicit session sources");
@@ -12918,7 +12882,7 @@ function checkedSelections(input) {
   for (const s of input) {
     if (!s || typeof s !== "object" || Object.keys(s).some((k) => !["kind", "path", "executionId"].includes(k)))
       throw Error("closed source selection required");
-    if (!["parent", "child", "ledger", "feedback", "artifact"].includes(s.kind) || typeof s.path !== "string" || resolve17(s.path) !== s.path)
+    if (!["parent", "child", "ledger", "feedback", "artifact"].includes(s.kind) || typeof s.path !== "string" || resolve15(s.path) !== s.path)
       throw Error("explicit absolute source path required");
     if (seen.has(s.path))
       throw Error("duplicate session source");
@@ -13024,11 +12988,11 @@ function readRetainedSessionSource(root, manifestId, index) {
 }
 
 // packages/adapters/dist/learning-workspace.js
-import { mkdirSync as mkdirSync13, readdirSync as readdirSync17, lstatSync as lstatSync10 } from "node:fs";
-import { dirname as dirname12, isAbsolute as isAbsolute18, join as join37, resolve as resolve18 } from "node:path";
+import { mkdirSync as mkdirSync10, readdirSync as readdirSync13, lstatSync as lstatSync6 } from "node:fs";
+import { dirname as dirname10, isAbsolute as isAbsolute15, join as join30, resolve as resolve16 } from "node:path";
 
 // packages/adapters/dist/trust-lifecycle.js
-import { isAbsolute as isAbsolute17 } from "node:path";
+import { isAbsolute as isAbsolute14 } from "node:path";
 var trustPolicyDigest = (input) => learningHash({ version: "trust-lifecycle-v1", input });
 var trustOutcomeDigest = (outcome) => learningHash({ version: "trust-reference-v1", outcome });
 function evidence2(root, id3) {
@@ -13039,7 +13003,7 @@ function evidence2(root, id3) {
 }
 var text9 = (v) => typeof v === "string" && v.length > 0 && v.length <= 512 && !/[\u0000-\u001f\u007f]/.test(v);
 function validate5(input) {
-  if (!isAbsolute17(input.archiveRoot) || Object.keys(input).sort().join() !== "archiveRoot,cohort,component,exposure,maxUnflagged,seed" || !/^([a-f0-9]{64})$/.test(input.seed) || !Number.isSafeInteger(input.maxUnflagged) || input.maxUnflagged < 0 || input.maxUnflagged > 32 || !Array.isArray(input.cohort) || !input.cohort.length || input.cohort.length > 1024 || new Set(input.cohort.map((c) => c.incidentId)).size !== input.cohort.length)
+  if (!isAbsolute14(input.archiveRoot) || Object.keys(input).sort().join() !== "archiveRoot,cohort,component,exposure,maxUnflagged,seed" || !/^([a-f0-9]{64})$/.test(input.seed) || !Number.isSafeInteger(input.maxUnflagged) || input.maxUnflagged < 0 || input.maxUnflagged > 32 || !Array.isArray(input.cohort) || !input.cohort.length || input.cohort.length > 1024 || new Set(input.cohort.map((c) => c.incidentId)).size !== input.cohort.length)
     throw Error("invalid frozen trust cohort");
   for (const c of input.cohort) {
     if (Object.keys(c).sort().join() !== "flagged,incidentId,manifestId,split" || !text9(c.incidentId) || typeof c.flagged !== "boolean" || !["calibration", "heldout", "tuning"].includes(c.split))
@@ -13266,7 +13230,7 @@ function hash8(value3) {
     throw Error("retained digest required");
 }
 function path(value3) {
-  if (!isAbsolute18(value3) || resolve18(value3) !== value3)
+  if (!isAbsolute15(value3) || resolve16(value3) !== value3)
     throw Error("canonical absolute learning path required");
 }
 function named(value3) {
@@ -13295,20 +13259,20 @@ function retain(root, parser, value3) {
 function prepareLearningDirectory(directory7) {
   path(directory7);
   try {
-    const s = lstatSync10(directory7);
+    const s = lstatSync6(directory7);
     if (!s.isDirectory() || s.isSymbolicLink())
       throw Error("learning directory substitution");
   } catch (e) {
     if (e.code !== "ENOENT")
       throw e;
-    prepareLearningDirectory(dirname12(directory7));
-    mkdirSync13(directory7, { mode: 448 });
+    prepareLearningDirectory(dirname10(directory7));
+    mkdirSync10(directory7, { mode: 448 });
   }
-  for (let p = directory7; ; p = dirname12(p)) {
-    const s = lstatSync10(p);
+  for (let p = directory7; ; p = dirname10(p)) {
+    const s = lstatSync6(p);
     if (!s.isDirectory() || s.isSymbolicLink())
       throw Error("learning directory ancestor substitution");
-    if (p === dirname12(p))
+    if (p === dirname10(p))
       break;
   }
 }
@@ -13326,12 +13290,12 @@ function createLearningWorkspace(directory7, input) {
   const safe = learningCopy(input);
   validInput(safe);
   path(directory7);
-  prepareLearningDirectory(dirname12(directory7));
+  prepareLearningDirectory(dirname10(directory7));
   prepareLearningDirectory(safe.archiveRoot);
   const initial = { type: "learning-workspace-v1", input: safe };
   let exists = true;
   try {
-    lstatSync10(directory7);
+    lstatSync6(directory7);
   } catch (e) {
     if (e.code !== "ENOENT")
       throw e;
@@ -13665,8 +13629,8 @@ function openLearningWorkspace(directory7) {
       const existing = currentTrust();
       if (existing && existing.inspect(0).policyId !== trustPolicyDigest(config))
         throw Error("trust already frozen; no attention refill");
-      const trust = createTrustLifecycle(join37(directory7, "trust"), config, authorizedPolicyDigests);
-      this.bindTrust(join37(directory7, "trust"));
+      const trust = createTrustLifecycle(join30(directory7, "trust"), config, authorizedPolicyDigests);
+      this.bindTrust(join30(directory7, "trust"));
       return trust.inspect(0);
     },
     trust() {
@@ -13962,15 +13926,15 @@ function openLearningWorkspace(directory7) {
 function catalogLearningArchive(root, author) {
   path(root);
   text10(author, 512);
-  const dir = join37(root, "manifests");
-  for (let p = dir; ; p = dirname12(p)) {
-    const s = lstatSync10(p);
+  const dir = join30(root, "manifests");
+  for (let p = dir; ; p = dirname10(p)) {
+    const s = lstatSync6(p);
     if (!s.isDirectory() || s.isSymbolicLink())
       throw Error("archive manifest directory substituted");
-    if (p === dirname12(p))
+    if (p === dirname10(p))
       break;
   }
-  const files = readdirSync17(dir);
+  const files = readdirSync13(dir);
   if (files.length > 8192)
     throw Error("archive catalog bound exceeded");
   return files.filter((id3) => SHA8.test(id3)).sort().flatMap((manifestId) => {
@@ -14065,26 +14029,26 @@ function previewLearningCaseLabel(directory7, reference3) {
 import { randomUUID as randomUUID5 } from "node:crypto";
 
 // packages/adapters/dist/principal-payload-port.js
-import { createHash as createHash35 } from "node:crypto";
-import { isAbsolute as isAbsolute19 } from "node:path";
+import { createHash as createHash34 } from "node:crypto";
+import { isAbsolute as isAbsolute16 } from "node:path";
 
 // packages/adapters/dist/reviewed-archive-export.js
-import { constants as constants13, openSync as openSync12, closeSync as closeSync12, writeSync as writeSync6, fsyncSync as fsyncSync8, realpathSync as realpathSync9, lstatSync as lstatSync11 } from "node:fs";
-import { dirname as dirname13, isAbsolute as isAbsolute20, resolve as resolve19 } from "node:path";
-import { createHash as createHash36 } from "node:crypto";
+import { constants as constants8, openSync as openSync7, closeSync as closeSync7, writeSync as writeSync5, fsyncSync as fsyncSync6, realpathSync as realpathSync5, lstatSync as lstatSync7 } from "node:fs";
+import { dirname as dirname11, isAbsolute as isAbsolute17, resolve as resolve17 } from "node:path";
+import { createHash as createHash35 } from "node:crypto";
 
 // packages/adapters/dist/archive-facts.js
-import { createHash as createHash37 } from "node:crypto";
+import { createHash as createHash36 } from "node:crypto";
 
 // packages/adapters/dist/producer-review.js
-import { existsSync as existsSync24 } from "node:fs";
-import { isAbsolute as isAbsolute22 } from "node:path";
-import { createHash as createHash39 } from "node:crypto";
+import { existsSync as existsSync20 } from "node:fs";
+import { isAbsolute as isAbsolute19 } from "node:path";
+import { createHash as createHash38 } from "node:crypto";
 
 // packages/adapters/dist/installed-review-session.js
-import { readFileSync as readFileSync25, realpathSync as realpathSync10, lstatSync as lstatSync12, mkdirSync as mkdirSync14, existsSync as existsSync23 } from "node:fs";
-import { isAbsolute as isAbsolute21, resolve as resolve20, join as join38, dirname as dirname14 } from "node:path";
-import { createHash as createHash38 } from "node:crypto";
+import { readFileSync as readFileSync20, realpathSync as realpathSync6, lstatSync as lstatSync8, mkdirSync as mkdirSync11, existsSync as existsSync19 } from "node:fs";
+import { isAbsolute as isAbsolute18, resolve as resolve18, join as join31, dirname as dirname12 } from "node:path";
+import { createHash as createHash37 } from "node:crypto";
 import { isDeepStrictEqual as isDeepStrictEqual2 } from "node:util";
 
 // packages/adapters/dist/producer-review.js
@@ -14104,33 +14068,33 @@ function getAdapter(name) {
 
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
-import { readFileSync as readFileSync26, existsSync as existsSync25 } from "node:fs";
-import { join as join39, dirname as dirname15 } from "node:path";
+import { readFileSync as readFileSync21, existsSync as existsSync21 } from "node:fs";
+import { join as join32, dirname as dirname13 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { spawn as spawn5 } from "node:child_process";
-var __dirname = dirname15(fileURLToPath2(import.meta.url));
+import { spawn as spawn3 } from "node:child_process";
+var __dirname = dirname13(fileURLToPath2(import.meta.url));
 function templatePath(assetsDir) {
   if (assetsDir)
-    return join39(assetsDir, "report.template.html");
+    return join32(assetsDir, "report.template.html");
   const candidates = [
-    join39(__dirname, "..", "..", "..", "assets", "report.template.html"),
+    join32(__dirname, "..", "..", "..", "assets", "report.template.html"),
     // packages/cli/{dist,src} -> ../../../assets
-    join39(__dirname, "..", "assets", "report.template.html"),
-    join39(__dirname, "..", "..", "assets", "report.template.html")
+    join32(__dirname, "..", "assets", "report.template.html"),
+    join32(__dirname, "..", "..", "assets", "report.template.html")
   ];
   for (const c of candidates)
-    if (existsSync25(c))
+    if (existsSync21(c))
       return c;
   throw new Error("cannot find assets/report.template.html");
 }
 function gradeScriptPath(assetsDir) {
-  return join39(dirname15(templatePath(assetsDir)), "report.grade.js");
+  return join32(dirname13(templatePath(assetsDir)), "report.grade.js");
 }
 function readBody(req) {
-  return new Promise((resolve30) => {
+  return new Promise((resolve28) => {
     let b = "";
     req.on("data", (c) => b += c);
-    req.on("end", () => resolve30(b));
+    req.on("end", () => resolve28(b));
   });
 }
 function findTranscript(runDir, id3) {
@@ -14138,22 +14102,22 @@ function findTranscript(runDir, id3) {
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync26(join39(runDir, files[0]), "utf8");
+    return readFileSync21(join32(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync26(join39(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync21(join32(runDir, f), "utf8")}`).join("\n\n");
 }
 function findJudgeRaw(runDir, id3) {
   const files = findJudgeRawFiles(runDir, id3);
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync26(join39(runDir, files[0]), "utf8");
+    return readFileSync21(join32(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync26(join39(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync21(join32(runDir, f), "utf8")}`).join("\n\n");
 }
 async function serveReview(opts) {
-  const template = readFileSync26(templatePath(opts.assetsDir), "utf8");
-  const gradeScript = readFileSync26(gradeScriptPath(opts.assetsDir), "utf8");
+  const template = readFileSync21(templatePath(opts.assetsDir), "utf8");
+  const gradeScript = readFileSync21(gradeScriptPath(opts.assetsDir), "utf8");
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://localhost");
@@ -14203,7 +14167,7 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be re-judged here \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
           return;
         }
-        const specPath = join39(opts.skillDir, "tests", "specification.yaml");
+        const specPath = join32(opts.skillDir, "tests", "specification.yaml");
         const spec = loadSpec(specPath);
         const scenario = spec.scenarios.find((s) => s.id === body.scenarioId);
         if (!scenario) {
@@ -14235,7 +14199,7 @@ async function serveReview(opts) {
             scenario,
             adapter,
             judge: results.judge,
-            specDir: dirname15(specPath),
+            specDir: dirname13(specPath),
             threshold,
             mode: results.mode,
             expectedReps: prev.reps ?? 1
@@ -14273,7 +14237,7 @@ async function serveReview(opts) {
             // the same doctrine `grade` follows (see refreshRubricHashes).
             source_hashes: refreshRubricHashes(results.source_hashes, spec, [body.scenarioId])
           }, scoreContextFor(results, spec));
-          ensureResultsGitignore(join39(opts.skillDir, "tests", "results"));
+          ensureResultsGitignore(join32(opts.skillDir, "tests", "results"));
           const g = written.effective_grade;
           appendJournal(column.runDir, { event: "score", ts: (/* @__PURE__ */ new Date()).toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
           res.writeHead(200, { "content-type": "application/json" });
@@ -14301,11 +14265,11 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
           return;
         }
-        const spec = loadSpec(join39(opts.skillDir, "tests", "specification.yaml"));
+        const spec = loadSpec(join32(opts.skillDir, "tests", "specification.yaml"));
         writeResults(column.runDir, patched, scoreContextFor(patched, spec));
-        ensureResultsGitignore(join39(opts.skillDir, "tests", "results"));
+        ensureResultsGitignore(join32(opts.skillDir, "tests", "results"));
         if (body.override != null) {
-          preserveTranscript(join39(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
+          preserveTranscript(join32(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
         }
         appendJournal(column.runDir, {
           event: "override",
@@ -14324,7 +14288,7 @@ async function serveReview(opts) {
       res.end(`server error: ${e instanceof Error ? e.message : e}`);
     }
   });
-  await new Promise((resolve30) => server.listen(opts.port ?? 0, "127.0.0.1", resolve30));
+  await new Promise((resolve28) => server.listen(opts.port ?? 0, "127.0.0.1", resolve28));
   const addr = server.address();
   const port = typeof addr === "object" && addr ? addr.port : opts.port;
   const link = `http://127.0.0.1:${port}/`;
@@ -14341,7 +14305,7 @@ async function serveReview(opts) {
 function tryOpen(url, cmd) {
   const opener = cmd ?? (process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open");
   try {
-    const child3 = spawn5(opener, [url], { stdio: "ignore", detached: true });
+    const child3 = spawn3(opener, [url], { stdio: "ignore", detached: true });
     child3.on("error", () => {
     });
     child3.unref();
@@ -14350,18 +14314,18 @@ function tryOpen(url, cmd) {
 }
 
 // packages/pi-extension/src/runner.ts
-import { existsSync as existsSync26 } from "node:fs";
-import { dirname as dirname16, join as join40, resolve as resolve21 } from "node:path";
+import { existsSync as existsSync22 } from "node:fs";
+import { dirname as dirname14, join as join33, resolve as resolve19 } from "node:path";
 function resolveSkillDir(cwd, arg) {
   if (arg) {
-    const dir2 = resolve21(cwd, arg);
-    if (existsSync26(join40(dir2, "tests", "specification.yaml"))) return dir2;
+    const dir2 = resolve19(cwd, arg);
+    if (existsSync22(join33(dir2, "tests", "specification.yaml"))) return dir2;
     throw new Error(`no tests/specification.yaml found at ${dir2}`);
   }
   let dir = cwd;
   for (; ; ) {
-    if (existsSync26(join40(dir, "tests", "specification.yaml"))) return dir;
-    const parent = dirname16(dir);
+    if (existsSync22(join33(dir, "tests", "specification.yaml"))) return dir;
+    const parent = dirname14(dir);
     if (parent === dir) break;
     dir = parent;
   }
@@ -14369,7 +14333,7 @@ function resolveSkillDir(cwd, arg) {
 }
 var DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 async function runViaExtension(opts) {
-  const specPath = join40(opts.skillDir, "tests", "specification.yaml");
+  const specPath = join33(opts.skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const modelToken = opts.model ?? DEFAULT_MODEL;
   const model = parseModelRef(modelToken);
@@ -14397,7 +14361,7 @@ async function runViaExtension(opts) {
   });
   const g = summary.results.effective_grade;
   const verdicts = effectiveVerdicts(summary.results.scenarios);
-  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join40(summary.runDir, f)));
+  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join33(summary.runDir, f)));
   return {
     skill: summary.results.skill,
     model: summary.results.model,
@@ -14408,8 +14372,8 @@ async function runViaExtension(opts) {
 }
 
 // packages/cli/dist/session-learning.js
-import { resolve as resolve22, relative as relative5, isAbsolute as isAbsolute23, sep as sep6 } from "node:path";
-import { existsSync as existsSync27 } from "node:fs";
+import { resolve as resolve20, relative as relative5, isAbsolute as isAbsolute20, sep as sep6 } from "node:path";
+import { existsSync as existsSync23 } from "node:fs";
 var text11 = (v, label) => {
   if (typeof v !== "string" || !v.trim())
     throw Error(label + " is required");
@@ -14486,18 +14450,18 @@ async function runSessionLearning(args, flags, options) {
   if (verb === "preview" || verb === "import") {
     const selections = [];
     if (flags.session)
-      selections.push({ kind: "parent", path: resolve22(cwd, text11(flags.session, "--session")) });
+      selections.push({ kind: "parent", path: resolve20(cwd, text11(flags.session, "--session")) });
     for (const kind2 of ["ledger", "feedback", "artifact"])
       if (flags[kind2])
-        selections.push({ kind: kind2, path: resolve22(cwd, text11(flags[kind2], "--" + kind2)) });
+        selections.push({ kind: kind2, path: resolve20(cwd, text11(flags[kind2], "--" + kind2)) });
     if (flags.sources) {
-      const raw = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(learningFile(resolve22(cwd, text11(flags.sources, "--sources")), 65536)));
+      const raw = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(learningFile(resolve20(cwd, text11(flags.sources, "--sources")), 65536)));
       if (!Array.isArray(raw))
         throw Error("source selection file must be an array");
       for (const s of raw) {
         if (!s || typeof s !== "object" || typeof s.path !== "string")
           throw Error("invalid source selection");
-        selections.push({ ...s, path: resolve22(cwd, s.path) });
+        selections.push({ ...s, path: resolve20(cwd, s.path) });
       }
     }
     const preview = prepareSessionImport(selections);
@@ -14522,14 +14486,14 @@ async function runSessionLearning(args, flags, options) {
     if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(label) || title.length > 512)
       throw Error("bounded session name/title required");
     let workspace2;
-    if (existsSync27(directory7)) {
+    if (existsSync23(directory7)) {
       if (flags.archive || flags.author)
         throw Error("existing workspace already binds archive and author");
       workspace2 = openLearningWorkspace(directory7);
     } else {
-      const archiveRoot = resolve22(cwd, text11(flags.archive, "--archive for new workspace")), author = text11(flags.author, "--author for new workspace");
+      const archiveRoot = resolve20(cwd, text11(flags.archive, "--archive for new workspace")), author = text11(flags.author, "--author for new workspace");
       const archiveRelative = relative5(directory7, archiveRoot);
-      if (!archiveRelative || !isAbsolute23(archiveRelative) && archiveRelative !== ".." && !archiveRelative.startsWith(".." + sep6))
+      if (!archiveRelative || !isAbsolute20(archiveRelative) && archiveRelative !== ".." && !archiveRelative.startsWith(".." + sep6))
         throw Error("archive must be outside the workspace journal directory");
       workspace2 = createLearningWorkspace(directory7, { archiveRoot, author, population: "pi-session:" + preview.parent.sessionId, scopeDigest: sessionScope(preview.parent, preview.sources.find((s) => s.kind === "parent").sha256) });
     }
@@ -14580,9 +14544,9 @@ async function reviewSessionLearning(directory7, ui, display) {
 }
 
 // packages/cli/dist/learning.js
-import { resolve as resolve23, join as join41, dirname as dirname17 } from "node:path";
+import { resolve as resolve21, join as join34, dirname as dirname15 } from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
-import { existsSync as existsSync28 } from "node:fs";
+import { existsSync as existsSync24 } from "node:fs";
 import { createInterface as createInterface2 } from "node:readline/promises";
 var LEARNING_HELP = `Learning \u2014 retained evidence, no model calls
   learning                         open guided review (interactive terminal)
@@ -14720,7 +14684,7 @@ function formatLearningTrust(trust) {
   return learningDisplay(lines2.join("\n"));
 }
 async function runLearningCommand(argv, options = {}) {
-  const { args, flags } = parse4(argv), cwd = options.cwd ?? process.cwd(), directory7 = resolve23(cwd, typeof flags.state === "string" ? flags.state : ".skill-harness/learning");
+  const { args, flags } = parse4(argv), cwd = options.cwd ?? process.cwd(), directory7 = resolve21(cwd, typeof flags.state === "string" ? flags.state : ".skill-harness/learning");
   const out = options.write ?? console.log;
   const emit2 = (value3) => {
     out(flags.json ? JSON.stringify(value3, null, 2) : typeof value3 === "string" ? learningDisplay(value3) : learningDisplay(JSON.stringify(value3, null, 2)));
@@ -14757,8 +14721,8 @@ async function runLearningCommand(argv, options = {}) {
   if (command === "session")
     return runSessionLearning(args.slice(1), flags, { cwd, directory: directory7, emit: emit2 });
   if (command === "guide" || command === "current") {
-    const file = command === "guide" ? "PRODUCT-GUIDE.md" : "STATUS.md", base = dirname17(fileURLToPath3(import.meta.url));
-    const selected = [resolve23(base, "../docs", file), resolve23(base, "../../../docs/factory", file)].find((p) => existsSync28(p));
+    const file = command === "guide" ? "PRODUCT-GUIDE.md" : "STATUS.md", base = dirname15(fileURLToPath3(import.meta.url));
+    const selected = [resolve21(base, "../docs", file), resolve21(base, "../../../docs/factory", file)].find((p) => existsSync24(p));
     if (!selected)
       throw Error("packaged learning guide missing; reinstall a complete compatible package");
     return emit2(learningFile(selected, 65536).toString("utf8"));
@@ -14779,7 +14743,7 @@ async function runLearningCommand(argv, options = {}) {
   if (unexpected.length)
     throw Error(`unsupported learning option: --${unexpected[0]}`);
   if (command === "init") {
-    const archiveRoot = resolve23(cwd, word(flags.archive, "--archive")), author = word(flags.author, "--author"), scopes = learningArchiveScopes(archiveRoot, author);
+    const archiveRoot = resolve21(cwd, word(flags.archive, "--archive")), author = word(flags.author, "--author"), scopes = learningArchiveScopes(archiveRoot, author);
     if (scopes.length > 1 && flags["scope-item"] === void 0)
       return emit2({ state: "scope-selection-required", scopes: scopes.map((s, i) => ({ item: i + 1, description: s.description, population: s.population })), next: "Repeat init with --scope-item N; scope identity is derived from retained facts, not typed hashes." });
     const selected = scopes[integer2(flags["scope-item"], 1) - 1];
@@ -14790,7 +14754,7 @@ async function runLearningCommand(argv, options = {}) {
     const input = { archiveRoot, scopeDigest: selected?.scopeDigest ?? learningHash({ declaredScope: word(flags.scope, "--scope for a comparison-only archive") }), population: selected?.population ?? word(flags.population, "--population for a comparison-only archive"), author };
     return confirm({ directory: directory7, ...input, scopeMeaning: selected ? "exact retained case snapshot" : "operator-declared comparison-only scope; cannot bind mismatching case snapshots" }, () => createLearningWorkspace(directory7, input).inspect(Date.now()));
   }
-  if (!existsSync28(directory7))
+  if (!existsSync24(directory7))
     throw Error("learning workspace not connected; use learning init or /grants learning with the current host");
   const workspace = openLearningWorkspace(directory7), config = workspace.configuration(), name = args[1];
   if (command === "status") {
@@ -14906,7 +14870,7 @@ ${learningDisplay(text15)}`);
   }
   if (command === "trust") {
     if (name === "sample") {
-      const bytes3 = learningFile(resolve23(cwd, word(args[2], "sample evidence file")), 65536), sampleName = word(flags.name, "--name");
+      const bytes3 = learningFile(resolve21(cwd, word(args[2], "sample evidence file")), 65536), sampleName = word(flags.name, "--name");
       return confirm({ source: args[2], bytes: bytes3.length, title: flags.title, meaning: "operator-selected unflagged incident; NOT a correctness label" }, () => {
         const manifestId = retainArchiveSource(config.archiveRoot, { sourceId: `unflagged-${learningHash(bytes3.toString("base64")).slice(0, 24)}`, parser: { id: "operator-unflagged-evidence", version: "1" }, retention: "exact", bytes: bytes3 }).manifestId;
         return workspace.addUnflagged({ name: sampleName, title: word(flags.title, "--title"), manifestId, split: String(flags.split ?? "calibration") });
@@ -14938,7 +14902,7 @@ ${learningDisplay(text15)}`);
       const author = word(flags["reference-author"], "--reference-author"), note = word(flags.note, "--note");
       if (!["yes", "no"].includes(String(flags.miss)))
         throw Error("--miss yes|no required");
-      const bytes3 = learningFile(resolve23(cwd, word(flags.evidence, "--evidence")), 65536);
+      const bytes3 = learningFile(resolve21(cwd, word(flags.evidence, "--evidence")), 65536);
       return confirm({ author, note, incident: id3, miss: flags.miss, evidenceBytes: bytes3.length }, () => {
         const evidence5 = retainArchiveSource(config.archiveRoot, { sourceId: `independent-label-${learningHash({ author, note, bytes: bytes3.toString("base64") }).slice(0, 24)}`, parser: { id: "operator-reference-evidence", version: "1" }, retention: "exact", bytes: bytes3 }).manifestId;
         const outcome = { kind: "unflagged", targetId: id3, value: flags.miss === "yes", evidenceManifestId: evidence5, referenceId: learningHash({ author, note, id: id3, evidence: evidence5 }) };
@@ -14974,7 +14938,7 @@ ${learningDisplay(text15)}`);
     if (flags["accepted-artifact"] === void 0 !== (flags["acceptance-evidence"] === void 0))
       throw Error("accepted artifact and independent acceptance evidence must be supplied together; excerpts never imply acceptance");
     const keys7 = ["artifact", "original-requirement", "current-requirement", "evidence", ...flags["accepted-artifact"] === void 0 ? [] : ["accepted-artifact", "acceptance-evidence"]];
-    const files = keys7.map((key3) => ({ key: key3, bytes: learningFile(resolve23(cwd, word(flags[key3], `--${key3}`)), 1024 * 1024) }));
+    const files = keys7.map((key3) => ({ key: key3, bytes: learningFile(resolve21(cwd, word(flags[key3], `--${key3}`)), 1024 * 1024) }));
     return confirm({ name, result, author, note, files: files.map((f) => ({ kind: f.key, bytes: f.bytes.length })), meaning: "independently supplied observation, not detector calibration or model exit status" }, () => {
       const retained = new Map(files.map((f) => [f.key, retainArchiveSource(config.archiveRoot, { sourceId: `outcome-${f.key}-${learningHash(f.bytes.toString("base64")).slice(0, 24)}`, parser: { id: "operator-outcome-evidence", version: "1" }, retention: "exact", bytes: f.bytes })]));
       const audit = retainArchiveSource(config.archiveRoot, { sourceId: `outcome-reference-${learningHash({ author, note, result }).slice(0, 24)}`, parser: { id: "operator-outcome-reference", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify({ author, note, result, scopeDigest: config.scopeDigest, source: "explicit-operator-review-not-exit-status" })) });
@@ -14997,7 +14961,7 @@ ${learningDisplay(text15)}`);
   }
 }
 function learningArchiveScopes(root, author) {
-  if (!existsSync28(join41(root, "manifests")))
+  if (!existsSync24(join34(root, "manifests")))
     return [];
   const selected = catalogLearningArchive(root, author).filter((c) => !!c.scopeDigest && !!c.population);
   return selected.filter((c, i) => selected.findIndex((s) => s.scopeDigest === c.scopeDigest && s.population === c.population) === i);
@@ -15101,12 +15065,12 @@ No active session or next order changes here.`)) {
 }
 async function runLearningWizard(options) {
   const { directory: directory7, ui, cwd } = options;
-  if (!existsSync28(directory7)) {
+  if (!existsSync24(directory7)) {
     ui.notify("Connect an explicitly selected retained archive. This reads no live/private Pi session and calls no model.");
     const archive = await ui.input("Retained archive directory"), author = await ui.input("Review author");
     if (!archive || !author)
       return;
-    const archiveRoot = resolve23(cwd, archive), scopes = learningArchiveScopes(archiveRoot, author), labels = scopes.map((s, i) => `${i + 1}. ${s.description} (${s.population})`);
+    const archiveRoot = resolve21(cwd, archive), scopes = learningArchiveScopes(archiveRoot, author), labels = scopes.map((s, i) => `${i + 1}. ${s.description} (${s.population})`);
     const choice = scopes.length ? await ui.select("Exact retained work scope", labels) : void 0;
     if (scopes.length && !choice)
       return;
@@ -15476,10 +15440,10 @@ ${card.failedTranscripts.join("\n")}`);
     return;
   }
   if (sub === "judge") {
-    const runDir = resolve24(ctx.cwd, positional[0] ?? ".");
-    const testsDir = dirname18(dirname18(dirname18(runDir)));
-    const spec = loadSpec(join42(testsDir, "specification.yaml"));
-    const prev = existsSync29(join42(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const runDir = resolve22(ctx.cwd, positional[0] ?? ".");
+    const testsDir = dirname16(dirname16(dirname16(runDir)));
+    const spec = loadSpec(join35(testsDir, "specification.yaml"));
+    const prev = existsSync25(join35(runDir, "results.yaml")) ? readResults(runDir) : null;
     const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? parseModelRef(defaultJudge());
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge"
@@ -15498,20 +15462,20 @@ ${card.failedTranscripts.join("\n")}`);
   }
   if (sub === "coverage") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const specPath = join42(skillDir, "tests", "specification.yaml");
+    const specPath = join35(skillDir, "tests", "specification.yaml");
     const spec = loadSpec(specPath);
-    const specDir = dirname18(specPath);
+    const specDir = dirname16(specPath);
     const report = computeCoverage({
       specDir,
       scenarios: spec.scenarios,
-      baseFiles: [relative6(specDir, join42(skillDir, "SKILL.md")).split("\\").join("/")]
+      baseFiles: [relative6(specDir, join35(skillDir, "SKILL.md")).split("\\").join("/")]
     });
     say(ctx, formatCoverage(report, spec.skill), report.broken.length ? "warning" : "info");
     return;
   }
   if (sub === "review") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const spec = loadSpec(join42(skillDir, "tests", "specification.yaml"));
+    const spec = loadSpec(join35(skillDir, "tests", "specification.yaml"));
     const handle = await serveReview({
       skillDir,
       skillName: spec.skill,
@@ -15582,10 +15546,10 @@ function registerTool(pi) {
 }
 
 // packages/adapters/src/learning-journal.ts
-import { constants as constants14, openSync as openSync13, closeSync as closeSync13, readSync as readSync6, writeSync as writeSync7, fstatSync as fstatSync12, lstatSync as lstatSync13, fsyncSync as fsyncSync9, mkdirSync as mkdirSync15, unlinkSync as unlinkSync6 } from "node:fs";
-import { createHash as createHash40, randomUUID as randomUUID6 } from "node:crypto";
+import { constants as constants9, openSync as openSync8, closeSync as closeSync8, readSync as readSync6, writeSync as writeSync6, fstatSync as fstatSync7, lstatSync as lstatSync9, fsyncSync as fsyncSync7, mkdirSync as mkdirSync12, unlinkSync as unlinkSync5 } from "node:fs";
+import { createHash as createHash39, randomUUID as randomUUID6 } from "node:crypto";
 import { types as types3 } from "node:util";
-import { isAbsolute as isAbsolute24, join as join43, dirname as dirname19, parse as parse6, resolve as resolve25 } from "node:path";
+import { isAbsolute as isAbsolute21, join as join36, dirname as dirname17, parse as parse6, resolve as resolve23 } from "node:path";
 function learningJson2(value3) {
   const limit3 = 2 * 1024 * 1024, cache = /* @__PURE__ */ new WeakMap(), visiting = /* @__PURE__ */ new WeakSet();
   const size = (v, depth) => {
@@ -15629,38 +15593,38 @@ function learningJson2(value3) {
   size(value3, 0);
   return interventionCanonicalJson(value3);
 }
-var learningHash2 = (value3) => createHash40("sha256").update(learningJson2(value3)).digest("hex");
+var learningHash2 = (value3) => createHash39("sha256").update(learningJson2(value3)).digest("hex");
 var learningCopy2 = (value3) => JSON.parse(learningJson2(value3));
 var LIMIT5 = 4 * 1024 * 1024;
 function directory4(path3) {
-  if (!isAbsolute24(path3)) throw Error("absolute learning directory required");
-  for (let p = path3; ; p = dirname19(p)) {
-    const s2 = lstatSync13(p);
+  if (!isAbsolute21(path3)) throw Error("absolute learning directory required");
+  for (let p = path3; ; p = dirname17(p)) {
+    const s2 = lstatSync9(p);
     if (!s2.isDirectory() || s2.isSymbolicLink()) throw Error("learning directory substitution");
     if (p === parse6(p).root) break;
   }
-  const s = lstatSync13(path3);
+  const s = lstatSync9(path3);
   if (s.mode & 63 || process.getuid && s.uid !== process.getuid()) throw Error("private owned learning directory required");
 }
 function sync2(path3) {
-  const fd = openSync13(path3, constants14.O_RDONLY | constants14.O_DIRECTORY | constants14.O_NOFOLLOW);
+  const fd = openSync8(path3, constants9.O_RDONLY | constants9.O_DIRECTORY | constants9.O_NOFOLLOW);
   try {
-    fsyncSync9(fd);
+    fsyncSync7(fd);
   } finally {
-    closeSync13(fd);
+    closeSync8(fd);
   }
 }
 function learningFile2(path3, limit3 = 1024 * 1024) {
-  if (!constants14.O_NOFOLLOW || !constants14.O_NONBLOCK) throw Error("required safe file flags unavailable");
-  if (!isAbsolute24(path3)) throw Error("absolute learning file required");
-  for (let p = dirname19(path3); ; p = dirname19(p)) {
-    const s = lstatSync13(p);
+  if (!constants9.O_NOFOLLOW || !constants9.O_NONBLOCK) throw Error("required safe file flags unavailable");
+  if (!isAbsolute21(path3)) throw Error("absolute learning file required");
+  for (let p = dirname17(path3); ; p = dirname17(p)) {
+    const s = lstatSync9(p);
     if (!s.isDirectory() || s.isSymbolicLink()) throw Error("learning file ancestor substitution");
     if (p === parse6(p).root) break;
   }
-  const fd = openSync13(path3, constants14.O_RDONLY | constants14.O_NOFOLLOW | constants14.O_NONBLOCK);
+  const fd = openSync8(path3, constants9.O_RDONLY | constants9.O_NOFOLLOW | constants9.O_NONBLOCK);
   try {
-    const s = fstatSync12(fd);
+    const s = fstatSync7(fd);
     if (!s.isFile() || s.nlink !== 1 || s.size > limit3) throw Error("bounded regular learning file required");
     const out = Buffer.alloc(limit3 + 1);
     let n = 0;
@@ -15672,36 +15636,36 @@ function learningFile2(path3, limit3 = 1024 * 1024) {
     if (n > limit3) throw Error("learning file bound exceeded");
     return out.subarray(0, n);
   } finally {
-    closeSync13(fd);
+    closeSync8(fd);
   }
 }
 function learningJournal2(path3, initial) {
-  if (!constants14.O_NOFOLLOW || !constants14.O_NONBLOCK || !constants14.O_DIRECTORY) throw Error("required safe journal flags unavailable");
+  if (!constants9.O_NOFOLLOW || !constants9.O_NONBLOCK || !constants9.O_DIRECTORY) throw Error("required safe journal flags unavailable");
   if (initial !== void 0) {
-    directory4(dirname19(path3));
-    mkdirSync15(path3, { mode: 448 });
+    directory4(dirname17(path3));
+    mkdirSync12(path3, { mode: 448 });
     directory4(path3);
     const value3 = learningCopy2(initial), body = { prior: null, value: value3 }, record = { ...body, id: learningHash2(body) };
-    const fd = openSync13(join43(path3, "events.jsonl"), constants14.O_WRONLY | constants14.O_CREAT | constants14.O_EXCL | constants14.O_NOFOLLOW, 384);
+    const fd = openSync8(join36(path3, "events.jsonl"), constants9.O_WRONLY | constants9.O_CREAT | constants9.O_EXCL | constants9.O_NOFOLLOW, 384);
     try {
       writeAll2(fd, Buffer.from(learningJson2(record) + "\n"));
-      fsyncSync9(fd);
+      fsyncSync7(fd);
     } finally {
-      closeSync13(fd);
+      closeSync8(fd);
     }
     sync2(path3);
-    sync2(dirname19(path3));
+    sync2(dirname17(path3));
   }
   directory4(path3);
-  const identity2 = lstatSync13(path3), file = join43(path3, "events.jsonl");
+  const identity2 = lstatSync9(path3), file = join36(path3, "events.jsonl");
   const check = () => {
     directory4(path3);
-    const s = lstatSync13(path3);
+    const s = lstatSync9(path3);
     if (s.dev !== identity2.dev || s.ino !== identity2.ino) throw Error("learning directory identity changed");
   };
   const read5 = () => {
     check();
-    const stat = lstatSync13(file);
+    const stat = lstatSync9(file);
     if (stat.mode & 63 || process.getuid && stat.uid !== process.getuid()) throw Error("private learning journal required");
     const text15 = learningFile2(file, LIMIT5).toString("utf8");
     if (!text15.endsWith("\n")) throw Error("learning history incomplete");
@@ -15718,24 +15682,24 @@ function learningJournal2(path3, initial) {
   read5();
   return { read: read5, append(prior, value3) {
     check();
-    const lock = join43(path3, "writer.lock"), token = randomUUID6();
-    const fd = openSync13(lock, constants14.O_RDWR | constants14.O_CREAT | constants14.O_EXCL | constants14.O_NOFOLLOW, 384), owned = fstatSync12(fd);
+    const lock = join36(path3, "writer.lock"), token = randomUUID6();
+    const fd = openSync8(lock, constants9.O_RDWR | constants9.O_CREAT | constants9.O_EXCL | constants9.O_NOFOLLOW, 384), owned = fstatSync7(fd);
     let error, result;
     try {
       writeAll2(fd, Buffer.from(token));
-      fsyncSync9(fd);
+      fsyncSync7(fd);
       const history = read5();
       if (history.at(-1).id !== prior) throw Error("stale learning CAS");
       if (history.length >= 4096) throw Error("learning history bound");
       const body = { prior, value: learningCopy2(value3) }, event = { ...body, id: learningHash2(body) }, line = Buffer.from(learningJson2(event) + "\n");
-      const out = openSync13(file, constants14.O_WRONLY | constants14.O_APPEND | constants14.O_NOFOLLOW | constants14.O_NONBLOCK);
+      const out = openSync8(file, constants9.O_WRONLY | constants9.O_APPEND | constants9.O_NOFOLLOW | constants9.O_NONBLOCK);
       try {
-        const s = fstatSync12(out);
+        const s = fstatSync7(out);
         if (!s.isFile() || s.nlink !== 1 || s.mode & 63 || s.size + line.length > LIMIT5) throw Error("learning append refused");
         writeAll2(out, line);
-        fsyncSync9(out);
+        fsyncSync7(out);
       } finally {
-        closeSync13(out);
+        closeSync8(out);
       }
       sync2(path3);
       result = event;
@@ -15743,15 +15707,15 @@ function learningJournal2(path3, initial) {
       error = e;
     } finally {
       try {
-        const s = lstatSync13(lock);
+        const s = lstatSync9(lock);
         if (s.dev !== owned.dev || s.ino !== owned.ino || learningFile2(lock, 128).toString() !== token) throw Error("learning lock ownership lost");
-        unlinkSync6(lock);
+        unlinkSync5(lock);
         sync2(path3);
       } catch (e) {
         error ??= e;
       } finally {
         try {
-          closeSync13(fd);
+          closeSync8(fd);
         } catch (e) {
           error ??= e;
         }
@@ -15762,18 +15726,18 @@ function learningJournal2(path3, initial) {
   } };
 }
 function registerLearningStore2(root, kind, key3, target, binding) {
-  if (!/^[a-f0-9]{64}$/.test(key3) || !isAbsolute24(target) || !["weekly", "trust", "intervention", "access", "workspace"].includes(kind)) throw Error("invalid learning registration");
+  if (!/^[a-f0-9]{64}$/.test(key3) || !isAbsolute21(target) || !["weekly", "trust", "intervention", "access", "workspace"].includes(kind)) throw Error("invalid learning registration");
   directory4(root);
-  directory4(dirname19(target));
-  const parent = join43(root, "learning-stores");
+  directory4(dirname17(target));
+  const parent = join36(root, "learning-stores");
   try {
-    mkdirSync15(parent, { mode: 448 });
+    mkdirSync12(parent, { mode: 448 });
     sync2(root);
   } catch (e) {
     if (e.code !== "EEXIST") throw e;
   }
   directory4(parent);
-  const path3 = join43(parent, `${kind}-${key3}`), initial = { type: "learning-registration-v1", target: resolve25(target), binding };
+  const path3 = join36(parent, `${kind}-${key3}`), initial = { type: "learning-registration-v1", target: resolve23(target), binding };
   try {
     learningJournal2(path3, initial);
   } catch (e) {
@@ -15783,42 +15747,42 @@ function registerLearningStore2(root, kind, key3, target, binding) {
   }
 }
 function verifyLearningStore2(root, kind, key3, target, binding) {
-  if (!/^[a-f0-9]{64}$/.test(key3) || !isAbsolute24(target)) throw Error("invalid learning registration");
-  const records2 = learningJournal2(join43(root, "learning-stores", `${kind}-${key3}`)).read();
-  if (records2.length !== 1 || learningHash2(records2[0].value) !== learningHash2({ type: "learning-registration-v1", target: resolve25(target), binding })) throw Error("learning store registration mismatch");
+  if (!/^[a-f0-9]{64}$/.test(key3) || !isAbsolute21(target)) throw Error("invalid learning registration");
+  const records2 = learningJournal2(join36(root, "learning-stores", `${kind}-${key3}`)).read();
+  if (records2.length !== 1 || learningHash2(records2[0].value) !== learningHash2({ type: "learning-registration-v1", target: resolve23(target), binding })) throw Error("learning store registration mismatch");
 }
 function writeAll2(fd, bytes3) {
   let n = 0;
   while (n < bytes3.length) {
-    const k = writeSync7(fd, bytes3, n, bytes3.length - n);
+    const k = writeSync6(fd, bytes3, n, bytes3.length - n);
     if (!k) throw Error("learning write stalled");
     n += k;
   }
 }
 
 // packages/adapters/src/trust-lifecycle.ts
-import { isAbsolute as isAbsolute25 } from "node:path";
+import { isAbsolute as isAbsolute22 } from "node:path";
 
 // packages/adapters/src/evidence-archive.ts
 import {
-  closeSync as closeSync14,
-  constants as constants15,
-  fsyncSync as fsyncSync10,
-  fstatSync as fstatSync13,
-  linkSync as linkSync3,
-  lstatSync as lstatSync14,
-  mkdirSync as mkdirSync16,
-  openSync as openSync14,
+  closeSync as closeSync9,
+  constants as constants10,
+  fsyncSync as fsyncSync8,
+  fstatSync as fstatSync8,
+  linkSync as linkSync2,
+  lstatSync as lstatSync10,
+  mkdirSync as mkdirSync13,
+  openSync as openSync9,
   readSync as readSync7,
-  unlinkSync as unlinkSync7,
-  writeFileSync as writeFileSync11
+  unlinkSync as unlinkSync6,
+  writeFileSync as writeFileSync10
 } from "node:fs";
-import { createHash as createHash41, randomUUID as randomUUID7 } from "node:crypto";
-import { join as join44, parse as parse7, resolve as resolve26, sep as sep7 } from "node:path";
+import { createHash as createHash40, randomUUID as randomUUID7 } from "node:crypto";
+import { join as join37, parse as parse7, resolve as resolve24, sep as sep7 } from "node:path";
 var LIMIT6 = 8 * 1024 * 1024;
 var HASH2 = /^[a-f0-9]{64}$/;
 var ID2 = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-var digest4 = (bytes3) => createHash41("sha256").update(bytes3).digest("hex");
+var digest4 = (bytes3) => createHash40("sha256").update(bytes3).digest("hex");
 var absent2 = (error) => error?.code === "ENOENT";
 function fail2(message3) {
   throw new Error(`archive: ${message3}`);
@@ -15831,38 +15795,38 @@ function validReference2(value3) {
   return value3.schema === "archive-source-v1" && typeof value3.sourceId === "string" && ID2.test(value3.sourceId) && keys4(value3.parser, ["id", "version"]) && typeof value3.parser.id === "string" && ID2.test(value3.parser.id) && typeof value3.parser.version === "string" && ID2.test(value3.parser.version) && typeof value3.sha256 === "string" && HASH2.test(value3.sha256) && Number.isSafeInteger(value3.bytes) && Number(value3.bytes) >= 0 && Number(value3.bytes) <= LIMIT6 && typeof value3.retention === "string" && ["exact", "redacted", "reference-only"].includes(value3.retention);
 }
 function directory5(path3, create) {
-  if (!constants15.O_NOFOLLOW || !constants15.O_DIRECTORY || !constants15.O_NONBLOCK) fail2("required filesystem flags unavailable");
-  const absolute = resolve26(path3);
+  if (!constants10.O_NOFOLLOW || !constants10.O_DIRECTORY || !constants10.O_NONBLOCK) fail2("required filesystem flags unavailable");
+  const absolute = resolve24(path3);
   let current = parse7(absolute).root;
   for (const part of absolute.slice(current.length).split(sep7).filter(Boolean)) {
-    current = join44(current, part);
+    current = join37(current, part);
     let stat2;
     try {
-      stat2 = lstatSync14(current);
+      stat2 = lstatSync10(current);
     } catch (error) {
       if (!absent2(error) || !create) throw error;
-      mkdirSync16(current, { mode: 448 });
-      stat2 = lstatSync14(current);
+      mkdirSync13(current, { mode: 448 });
+      stat2 = lstatSync10(current);
     }
     if (stat2.isSymbolicLink()) fail2("symlink directory refused");
     if (!stat2.isDirectory()) fail2("non-directory path refused");
   }
-  const stat = lstatSync14(absolute);
+  const stat = lstatSync10(absolute);
   if ((stat.mode & 63) !== 0) fail2("archive directory must be private");
   if (process.getuid && stat.uid !== process.getuid()) fail2("archive directory owner mismatch");
 }
 function syncDirectory4(path3) {
-  const fd = openSync14(path3, constants15.O_RDONLY | constants15.O_DIRECTORY | constants15.O_NOFOLLOW);
+  const fd = openSync9(path3, constants10.O_RDONLY | constants10.O_DIRECTORY | constants10.O_NOFOLLOW);
   try {
-    fsyncSync10(fd);
+    fsyncSync8(fd);
   } finally {
-    closeSync14(fd);
+    closeSync9(fd);
   }
 }
 function readVerified2(path3, hash15, limit3 = LIMIT6) {
-  const fd = openSync14(path3, constants15.O_RDONLY | constants15.O_NOFOLLOW | constants15.O_NONBLOCK);
+  const fd = openSync9(path3, constants10.O_RDONLY | constants10.O_NOFOLLOW | constants10.O_NONBLOCK);
   try {
-    const stat = fstatSync13(fd);
+    const stat = fstatSync8(fd);
     if (!stat.isFile() || stat.size > limit3 || (stat.mode & 63) !== 0) fail2("invalid retained file");
     const buffer = Buffer.alloc(limit3 + 1);
     let size = 0;
@@ -15876,39 +15840,39 @@ function readVerified2(path3, hash15, limit3 = LIMIT6) {
     if (digest4(bytes3) !== hash15) fail2("content identity mismatch");
     return bytes3;
   } finally {
-    closeSync14(fd);
+    closeSync9(fd);
   }
 }
 function put2(root, category, bytes3) {
   const hash15 = digest4(bytes3);
-  const dir = join44(root, category);
+  const dir = join37(root, category);
   directory5(dir, true);
-  const target = join44(dir, hash15);
+  const target = join37(dir, hash15);
   try {
     readVerified2(target, hash15);
     return hash15;
   } catch (error) {
     if (!absent2(error)) throw error;
   }
-  const temporary = join44(dir, `.pending-${randomUUID7()}`);
+  const temporary = join37(dir, `.pending-${randomUUID7()}`);
   let owned = false;
   try {
-    const fd = openSync14(temporary, constants15.O_WRONLY | constants15.O_CREAT | constants15.O_EXCL | constants15.O_NOFOLLOW, 384);
+    const fd = openSync9(temporary, constants10.O_WRONLY | constants10.O_CREAT | constants10.O_EXCL | constants10.O_NOFOLLOW, 384);
     owned = true;
     try {
-      writeFileSync11(fd, bytes3);
-      fsyncSync10(fd);
+      writeFileSync10(fd, bytes3);
+      fsyncSync8(fd);
     } finally {
-      closeSync14(fd);
+      closeSync9(fd);
     }
     try {
-      linkSync3(temporary, target);
+      linkSync2(temporary, target);
     } catch (error) {
       if (error.code !== "EEXIST") throw error;
       readVerified2(target, hash15);
     }
   } finally {
-    if (owned) unlinkSync7(temporary);
+    if (owned) unlinkSync6(temporary);
   }
   syncDirectory4(dir);
   return hash15;
@@ -15929,15 +15893,15 @@ function retainArchiveSource2(root, input) {
   directory5(root, true);
   if (reference3.retention !== "reference-only") put2(root, "objects", bytes3);
   const manifestId = put2(root, "manifests", Buffer.from(JSON.stringify(reference3)));
-  syncDirectory4(resolve26(root));
+  syncDirectory4(resolve24(root));
   return { manifestId, reference: reference3 };
 }
 function readArchiveSourceReference2(root, manifestId) {
   if (!HASH2.test(manifestId)) return { status: "error", reason: "invalid manifest identity" };
   try {
     directory5(root, false);
-    directory5(join44(root, "manifests"), false);
-    const text15 = readVerified2(join44(root, "manifests", manifestId), manifestId, 8192).toString("utf8");
+    directory5(join37(root, "manifests"), false);
+    const text15 = readVerified2(join37(root, "manifests", manifestId), manifestId, 8192).toString("utf8");
     const reference3 = JSON.parse(text15);
     if (!validReference2(reference3) || JSON.stringify(reference3) !== text15) fail2("invalid manifest");
     return { status: "available", reference: reference3 };
@@ -15955,8 +15919,8 @@ function readArchiveSource2(root, manifestId, maxBytes = LIMIT6) {
     if (reference3.bytes > maxBytes) return { status: "error", reason: "read bound exceeded" };
     let bytes3;
     try {
-      directory5(join44(root, "objects"), false);
-      bytes3 = readVerified2(join44(root, "objects", reference3.sha256), reference3.sha256, maxBytes);
+      directory5(join37(root, "objects"), false);
+      bytes3 = readVerified2(join37(root, "objects", reference3.sha256), reference3.sha256, maxBytes);
     } catch (error) {
       if (absent2(error)) return { status: "missing", reason: "content" };
       throw error;
@@ -15990,12 +15954,12 @@ function parseArchivedJsonl2(bytes3) {
 }
 
 // packages/adapters/src/work-case-review.ts
-import { constants as constants16, closeSync as closeSync15, fstatSync as fstatSync14, fsyncSync as fsyncSync11, lstatSync as lstatSync15, mkdirSync as mkdirSync17, openSync as openSync15, readSync as readSync8, unlinkSync as unlinkSync8, writeFileSync as writeFileSync12, writeSync as writeSync8 } from "node:fs";
+import { constants as constants11, closeSync as closeSync10, fstatSync as fstatSync9, fsyncSync as fsyncSync9, lstatSync as lstatSync11, mkdirSync as mkdirSync14, openSync as openSync10, readSync as readSync8, unlinkSync as unlinkSync7, writeFileSync as writeFileSync11, writeSync as writeSync7 } from "node:fs";
 import { randomUUID as randomUUID8 } from "node:crypto";
-import { join as join45 } from "node:path";
+import { join as join38 } from "node:path";
 
 // packages/adapters/src/work-candidates.ts
-import { createHash as createHash42 } from "node:crypto";
+import { createHash as createHash41 } from "node:crypto";
 
 // packages/adapters/src/work-case-archive.ts
 function validate6(value3) {
@@ -16142,21 +16106,21 @@ function readWorkSignalBatch2(root, manifestId) {
 var SHA10 = /^[a-f0-9]{64}$/;
 var missing3 = (error) => error?.code === "ENOENT";
 function assertDirectory2(path3) {
-  const stat = lstatSync15(path3);
+  const stat = lstatSync11(path3);
   if (!stat.isDirectory() || stat.isSymbolicLink() || stat.mode & 63 || process.getuid && stat.uid !== process.getuid()) throw new Error("private case directory required");
 }
 function syncDirectory5(path3) {
-  const fd = openSync15(path3, constants16.O_RDONLY | constants16.O_DIRECTORY | constants16.O_NOFOLLOW);
+  const fd = openSync10(path3, constants11.O_RDONLY | constants11.O_DIRECTORY | constants11.O_NOFOLLOW);
   try {
-    fsyncSync11(fd);
+    fsyncSync9(fd);
   } finally {
-    closeSync15(fd);
+    closeSync10(fd);
   }
 }
 function privateDirectory2(path3) {
   let created = false;
   try {
-    mkdirSync17(path3, { mode: 448 });
+    mkdirSync14(path3, { mode: 448 });
     created = true;
   } catch (error) {
     if (error.code !== "EEXIST") throw error;
@@ -16165,9 +16129,9 @@ function privateDirectory2(path3) {
   return created;
 }
 function bytes2(path3, limit3) {
-  const fd = openSync15(path3, constants16.O_RDONLY | constants16.O_NOFOLLOW | constants16.O_NONBLOCK);
+  const fd = openSync10(path3, constants11.O_RDONLY | constants11.O_NOFOLLOW | constants11.O_NONBLOCK);
   try {
-    const stat = fstatSync14(fd);
+    const stat = fstatSync9(fd);
     if (!stat.isFile() || stat.nlink !== 1 || stat.size > limit3 || stat.mode & 63) throw new Error("invalid case history file");
     const out = Buffer.alloc(limit3 + 1);
     let used = 0;
@@ -16179,13 +16143,13 @@ function bytes2(path3, limit3) {
     if (used > limit3) throw new Error("case history bound exceeded");
     return out.subarray(0, used);
   } finally {
-    closeSync15(fd);
+    closeSync10(fd);
   }
 }
 function historyAt2(directory7, caseId, brandNew = false) {
   let raw;
   try {
-    raw = bytes2(join45(directory7, "history.jsonl"), 1024 * 1024);
+    raw = bytes2(join38(directory7, "history.jsonl"), 1024 * 1024);
   } catch (error) {
     if (missing3(error) && brandNew) return [];
     if (missing3(error)) throw new Error("case history missing; explicit recovery required");
@@ -16233,9 +16197,9 @@ function createSelectedCaseReviewer2(root, author, ids, readCandidate) {
     return readCandidate(id3);
   };
   const getHistory = (caseManifestId) => {
-    const candidate = selected(caseManifestId), directory7 = join45(root, "case-decisions", candidate.id);
+    const candidate = selected(caseManifestId), directory7 = join38(root, "case-decisions", candidate.id);
     try {
-      assertDirectory2(join45(root, "case-decisions"));
+      assertDirectory2(join38(root, "case-decisions"));
       assertDirectory2(directory7);
     } catch (error) {
       if (missing3(error)) return [];
@@ -16256,17 +16220,17 @@ function createSelectedCaseReviewer2(root, author, ids, readCandidate) {
     decide(request) {
       if (!request || Object.keys(request).sort().join() !== "caseManifestId,disposition,note,priorDecisionId" || !["confirmed_defect", "expected_behavior", "exemplar", "uncertain", "skip"].includes(request.disposition) || typeof request.note !== "string" || request.note.length > 4e3 || !(request.priorDecisionId === null || typeof request.priorDecisionId === "string" && SHA10.test(request.priorDecisionId))) throw new Error("invalid case review request");
       const candidate = selected(request.caseManifestId);
-      const parent = join45(root, "case-decisions");
+      const parent = join38(root, "case-decisions");
       privateDirectory2(parent);
-      const directory7 = join45(parent, candidate.id);
-      const lockPath = join45(parent, candidate.id + ".lock"), token = randomUUID8();
-      const lock = openSync15(lockPath, constants16.O_RDWR | constants16.O_CREAT | constants16.O_EXCL | constants16.O_NOFOLLOW, 384);
-      const identity2 = fstatSync14(lock);
+      const directory7 = join38(parent, candidate.id);
+      const lockPath = join38(parent, candidate.id + ".lock"), token = randomUUID8();
+      const lock = openSync10(lockPath, constants11.O_RDWR | constants11.O_CREAT | constants11.O_EXCL | constants11.O_NOFOLLOW, 384);
+      const identity2 = fstatSync9(lock);
       let primary;
       let result;
       try {
-        writeFileSync12(lock, token);
-        fsyncSync11(lock);
+        writeFileSync11(lock, token);
+        fsyncSync9(lock);
         const brandNew = privateDirectory2(directory7);
         const before = historyAt2(directory7, candidate.id, brandNew);
         const after = appendWorkCaseDecision(before, {
@@ -16278,22 +16242,22 @@ function createSelectedCaseReviewer2(root, author, ids, readCandidate) {
           note: request.note
         });
         if (after.length > before.length) {
-          const path3 = join45(directory7, "history.jsonl");
-          const fd = openSync15(path3, constants16.O_WRONLY | constants16.O_APPEND | constants16.O_CREAT | constants16.O_NOFOLLOW | constants16.O_NONBLOCK, 384);
+          const path3 = join38(directory7, "history.jsonl");
+          const fd = openSync10(path3, constants11.O_WRONLY | constants11.O_APPEND | constants11.O_CREAT | constants11.O_NOFOLLOW | constants11.O_NONBLOCK, 384);
           try {
-            const stat = fstatSync14(fd);
+            const stat = fstatSync9(fd);
             if (!stat.isFile() || stat.nlink !== 1 || stat.mode & 63) throw new Error("invalid case history destination");
             const line = Buffer.from(JSON.stringify(after.at(-1)) + "\n");
             if (stat.size + line.length > 1024 * 1024) throw new Error("case history bound exceeded");
             let offset = 0;
             while (offset < line.length) {
-              const n = writeSync8(fd, line, offset, line.length - offset);
+              const n = writeSync7(fd, line, offset, line.length - offset);
               if (!n) throw new Error("case history write stalled");
               offset += n;
             }
-            fsyncSync11(fd);
+            fsyncSync9(fd);
           } finally {
-            closeSync15(fd);
+            closeSync10(fd);
           }
         }
         syncDirectory5(directory7);
@@ -16304,14 +16268,14 @@ function createSelectedCaseReviewer2(root, author, ids, readCandidate) {
         primary = error;
       } finally {
         try {
-          const present = lstatSync15(lockPath);
+          const present = lstatSync11(lockPath);
           if (present.dev !== identity2.dev || present.ino !== identity2.ino || bytes2(lockPath, 128).toString() !== token) throw new Error("case writer lock ownership lost");
-          unlinkSync8(lockPath);
+          unlinkSync7(lockPath);
           syncDirectory5(parent);
         } catch (error) {
           if (!primary) primary = error;
         } finally {
-          closeSync15(lock);
+          closeSync10(lock);
         }
       }
       if (primary) throw primary;
@@ -16340,7 +16304,7 @@ function evidence3(root, id3) {
 }
 var text12 = (v) => typeof v === "string" && v.length > 0 && v.length <= 512 && !/[\u0000-\u001f\u007f]/.test(v);
 function validate8(input) {
-  if (!isAbsolute25(input.archiveRoot) || Object.keys(input).sort().join() !== "archiveRoot,cohort,component,exposure,maxUnflagged,seed" || !/^([a-f0-9]{64})$/.test(input.seed) || !Number.isSafeInteger(input.maxUnflagged) || input.maxUnflagged < 0 || input.maxUnflagged > 32 || !Array.isArray(input.cohort) || !input.cohort.length || input.cohort.length > 1024 || new Set(input.cohort.map((c) => c.incidentId)).size !== input.cohort.length) throw Error("invalid frozen trust cohort");
+  if (!isAbsolute22(input.archiveRoot) || Object.keys(input).sort().join() !== "archiveRoot,cohort,component,exposure,maxUnflagged,seed" || !/^([a-f0-9]{64})$/.test(input.seed) || !Number.isSafeInteger(input.maxUnflagged) || input.maxUnflagged < 0 || input.maxUnflagged > 32 || !Array.isArray(input.cohort) || !input.cohort.length || input.cohort.length > 1024 || new Set(input.cohort.map((c) => c.incidentId)).size !== input.cohort.length) throw Error("invalid frozen trust cohort");
   for (const c of input.cohort) {
     if (Object.keys(c).sort().join() !== "flagged,incidentId,manifestId,split" || !text12(c.incidentId) || typeof c.flagged !== "boolean" || !["calibration", "heldout", "tuning"].includes(c.split)) throw Error("invalid cohort row");
     evidence3(input.archiveRoot, c.manifestId);
@@ -16515,13 +16479,13 @@ function openTrustLifecycle2(directory7) {
 }
 
 // packages/adapters/src/archive-policy.ts
-import { closeSync as closeSync16, constants as constants18, fstatSync as fstatSync15, lstatSync as lstatSync16, openSync as openSync16, readSync as readSync9 } from "node:fs";
-import { createHash as createHash47 } from "node:crypto";
-import { dirname as dirname21, isAbsolute as isAbsolute27, join as join47, parse as parse8, resolve as resolve27, sep as sep9 } from "node:path";
+import { closeSync as closeSync11, constants as constants13, fstatSync as fstatSync10, lstatSync as lstatSync12, openSync as openSync11, readSync as readSync9 } from "node:fs";
+import { createHash as createHash46 } from "node:crypto";
+import { dirname as dirname19, isAbsolute as isAbsolute24, join as join40, parse as parse8, resolve as resolve25, sep as sep9 } from "node:path";
 
 // packages/adapters/src/archive-checkpoint.ts
-import { createHash as createHash43 } from "node:crypto";
-var hash10 = (value3) => createHash43("sha256").update(value3).digest("hex");
+import { createHash as createHash42 } from "node:crypto";
+var hash10 = (value3) => createHash42("sha256").update(value3).digest("hex");
 var SHA11 = /^[a-f0-9]{64}$/;
 var LIMIT8 = 8 * 1024 * 1024;
 var parserEqual = (a, b) => a.id === b.id && a.version === b.version;
@@ -16626,13 +16590,13 @@ function ingestArchiveSnapshot2(root, input) {
 }
 
 // packages/adapters/src/archive-retention-policy.ts
-import { dirname as dirname20, join as join46 } from "node:path";
+import { dirname as dirname18, join as join39 } from "node:path";
 
 // packages/adapters/src/generated/retention-v2-contract.ts
 import { Compile as Compile3 } from "typebox/compile";
 
 // packages/adapters/src/generated/retention-v2-json.ts
-import { createHash as createHash44 } from "node:crypto";
+import { createHash as createHash43 } from "node:crypto";
 
 // packages/adapters/src/generated/retention-v2-work-types.ts
 var WorkInputError3 = class extends TypeError {
@@ -16899,13 +16863,13 @@ function parseExecutionRetentionManifest2(text15) {
 }
 
 // packages/adapters/src/execution-retention-archive.ts
-import { createHash as createHash46 } from "node:crypto";
+import { createHash as createHash45 } from "node:crypto";
 
 // packages/adapters/src/generated/retention-v2-native.ts
-import { constants as constants17 } from "node:fs";
+import { constants as constants12 } from "node:fs";
 import { open as open2, lstat as lstat2, realpath as realpath2 } from "node:fs/promises";
-import { isAbsolute as isAbsolute26, relative as relative7, sep as sep8 } from "node:path";
-import { createHash as createHash45 } from "node:crypto";
+import { isAbsolute as isAbsolute23, relative as relative7, sep as sep8 } from "node:path";
+import { createHash as createHash44 } from "node:crypto";
 
 // packages/adapters/src/generated/retention-v2-native-json.ts
 function parseRetentionJson2(text15, maxBytes = 64 * 1024) {
@@ -16947,7 +16911,7 @@ var missingNativeSession = () => ({
 var id = (x) => typeof x === "string" && /^[a-zA-Z0-9_-]{1,128}$/.test(x);
 var uuid3 = (x) => typeof x === "string" && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(x);
 var obj = (x) => x !== null && typeof x === "object" && !Array.isArray(x);
-var filePath = (x) => typeof x === "string" && x.length <= 4096 && isAbsolute26(x) && !x.includes("\0");
+var filePath = (x) => typeof x === "string" && x.length <= 4096 && isAbsolute23(x) && !x.includes("\0");
 function parseNativeSessionBytes2(bytes3, input) {
   const observation = { ...missingNativeSession(), source: input.source, sessionPath: input.path };
   const result = { observation };
@@ -16971,7 +16935,7 @@ function parseNativeSessionBytes2(bytes3, input) {
   result.bytes = Buffer.from(bytes3);
   observation.sessionId = header2.id;
   observation.parentSessionPath = header2.parentSession ?? null;
-  observation.sha256 = createHash45("sha256").update(bytes3).digest("hex");
+  observation.sha256 = createHash44("sha256").update(bytes3).digest("hex");
   if (input.truncated || raw.at(-1) !== 10) return fail5("truncated", "native-session-incomplete-bytes");
   let text15;
   try {
@@ -17057,7 +17021,7 @@ function assertExecutionProjection2(value3) {
 }
 
 // packages/adapters/src/execution-retention-archive.ts
-var hash13 = (bytes3) => createHash46("sha256").update(bytes3).digest("hex");
+var hash13 = (bytes3) => createHash45("sha256").update(bytes3).digest("hex");
 var SHA12 = /^[a-f0-9]{64}$/;
 var parseManifest = (bytes3) => parseExecutionRetentionManifest2(new TextDecoder("utf-8", { fatal: true }).decode(bytes3));
 function project(manifest, manifestBytes, supplied) {
@@ -17222,7 +17186,7 @@ function inspectNativePolicy2(context, checkpointId) {
 }
 function ingestNativePolicy2(context, previous, readBytes) {
   if (previous) inspectNativePolicy2(context, previous);
-  const path3 = join46(context.policy.sourceRoot, context.source.path);
+  const path3 = join39(context.policy.sourceRoot, context.source.path);
   const manifestBytes = readBytes(path3, Math.min(context.policy.maxBytes, 65536));
   const manifest = parseExecutionRetentionManifest2(new TextDecoder("utf-8", { fatal: true }).decode(manifestBytes));
   const blobs = /* @__PURE__ */ new Map();
@@ -17230,7 +17194,7 @@ function ingestNativePolicy2(context, previous, readBytes) {
     if (!ref.path) continue;
     if (ref.bytes > context.policy.maxBytes) throw new Error("native content exceeds policy bound");
     try {
-      blobs.set(ref.path, readBytes(join46(dirname20(path3), ref.path), Math.min(context.policy.maxBytes, 1024 * 1024)));
+      blobs.set(ref.path, readBytes(join39(dirname18(path3), ref.path), Math.min(context.policy.maxBytes, 1024 * 1024)));
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
     }
@@ -17259,18 +17223,18 @@ function fail3() {
 var keys5 = (v, names) => !!v && typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === names.length && Object.keys(v).every((k) => names.includes(k));
 var identifier = (v) => typeof v === "string" && ID3.test(v);
 function regularBytes(path3, limit3) {
-  if (!constants18.O_NOFOLLOW || !constants18.O_NONBLOCK) fail3();
-  const absolute = resolve27(path3);
+  if (!constants13.O_NOFOLLOW || !constants13.O_NONBLOCK) fail3();
+  const absolute = resolve25(path3);
   if (absolute.split(sep9).some((part) => forbidden.has(part))) fail3();
   let current = parse8(absolute).root;
-  for (const part of dirname21(absolute).slice(current.length).split(sep9).filter(Boolean)) {
-    current = join47(current, part);
-    const stat = lstatSync16(current);
+  for (const part of dirname19(absolute).slice(current.length).split(sep9).filter(Boolean)) {
+    current = join40(current, part);
+    const stat = lstatSync12(current);
     if (!stat.isDirectory() || stat.isSymbolicLink()) fail3();
   }
-  const fd = openSync16(absolute, constants18.O_RDONLY | constants18.O_NOFOLLOW | constants18.O_NONBLOCK);
+  const fd = openSync11(absolute, constants13.O_RDONLY | constants13.O_NOFOLLOW | constants13.O_NONBLOCK);
   try {
-    const stat = fstatSync15(fd);
+    const stat = fstatSync10(fd);
     if (!stat.isFile() || stat.size > limit3 || (stat.mode & 63) !== 0 || process.getuid && stat.uid !== process.getuid()) fail3();
     const bytes3 = Buffer.alloc(limit3 + 1);
     let size = 0;
@@ -17282,27 +17246,27 @@ function regularBytes(path3, limit3) {
     if (size > limit3) fail3();
     return bytes3.subarray(0, size);
   } finally {
-    closeSync16(fd);
+    closeSync11(fd);
   }
 }
 function selectedPolicy(path3, sourceId) {
   const bytes3 = regularBytes(path3, 65536);
   const text15 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
   const p = JSON.parse(text15);
-  if (JSON.stringify(p) !== text15 || !keys5(p, ["version", "id", "revision", "sourceRoot", "archiveRoot", "maxBytes", "retention", "expiresAt", "sources"]) || !["archive-policy-v1", "archive-policy-v2"].includes(p.version) || !identifier(p.id) || !identifier(p.revision) || typeof p.sourceRoot !== "string" || !isAbsolute27(p.sourceRoot) || typeof p.archiveRoot !== "string" || !isAbsolute27(p.archiveRoot) || resolve27(p.sourceRoot) === resolve27(p.archiveRoot) || [p.sourceRoot, p.archiveRoot].some((root2) => root2.split(/[\\/]/).some((part) => forbidden.has(part))) || !Number.isSafeInteger(p.maxBytes) || p.maxBytes < 1 || p.maxBytes > 8 * 1024 * 1024 || !["exact", "redacted", "reference-only"].includes(p.retention) || typeof p.expiresAt !== "string" || !Number.isFinite(Date.parse(p.expiresAt)) || new Date(p.expiresAt).toISOString() !== p.expiresAt || Date.parse(p.expiresAt) <= Date.now() || !Array.isArray(p.sources) || p.sources.length < 1 || p.sources.length > 128) fail3();
+  if (JSON.stringify(p) !== text15 || !keys5(p, ["version", "id", "revision", "sourceRoot", "archiveRoot", "maxBytes", "retention", "expiresAt", "sources"]) || !["archive-policy-v1", "archive-policy-v2"].includes(p.version) || !identifier(p.id) || !identifier(p.revision) || typeof p.sourceRoot !== "string" || !isAbsolute24(p.sourceRoot) || typeof p.archiveRoot !== "string" || !isAbsolute24(p.archiveRoot) || resolve25(p.sourceRoot) === resolve25(p.archiveRoot) || [p.sourceRoot, p.archiveRoot].some((root2) => root2.split(/[\\/]/).some((part) => forbidden.has(part))) || !Number.isSafeInteger(p.maxBytes) || p.maxBytes < 1 || p.maxBytes > 8 * 1024 * 1024 || !["exact", "redacted", "reference-only"].includes(p.retention) || typeof p.expiresAt !== "string" || !Number.isFinite(Date.parse(p.expiresAt)) || new Date(p.expiresAt).toISOString() !== p.expiresAt || Date.parse(p.expiresAt) <= Date.now() || !Array.isArray(p.sources) || p.sources.length < 1 || p.sources.length > 128) fail3();
   const ids = /* @__PURE__ */ new Set();
   for (const item of p.sources) {
-    if (!keys5(item, p.version === "archive-policy-v2" ? ["id", "path", "parser", "contentPolicy"] : ["id", "path", "parser"]) || !identifier(item.id) || ids.has(item.id) || typeof item.path !== "string" || !item.path || isAbsolute27(item.path) || item.path.includes("\\") || item.path.split("/").some((part) => !part || part === "." || part === ".." || forbidden.has(part)) || !keys5(item.parser, ["id", "version"]) || !identifier(item.parser.id) || !identifier(item.parser.version)) fail3();
+    if (!keys5(item, p.version === "archive-policy-v2" ? ["id", "path", "parser", "contentPolicy"] : ["id", "path", "parser"]) || !identifier(item.id) || ids.has(item.id) || typeof item.path !== "string" || !item.path || isAbsolute24(item.path) || item.path.includes("\\") || item.path.split("/").some((part) => !part || part === "." || part === ".." || forbidden.has(part)) || !keys5(item.parser, ["id", "version"]) || !identifier(item.parser.id) || !identifier(item.parser.version)) fail3();
     if (p.version === "archive-policy-v2" && !["manifest-only", "referenced-blobs"].includes(item.contentPolicy)) fail3();
     if (item.contentPolicy === "referenced-blobs" && (p.retention !== "exact" || item.parser.id !== "pi-daddy-execution-retention" || item.parser.version !== "2.0")) fail3();
     ids.add(item.id);
   }
   const source3 = p.sources.find((s) => s.id === sourceId);
   if (!source3) fail3();
-  const root = lstatSync16(p.sourceRoot);
+  const root = lstatSync12(p.sourceRoot);
   if (!root.isDirectory() || root.isSymbolicLink() || (root.mode & 63) !== 0 || process.getuid && root.uid !== process.getuid()) fail3();
-  const archiveSourceId = `policy-source-${createHash47("sha256").update(JSON.stringify([p.id, source3.id, resolve27(p.sourceRoot), source3.path])).digest("hex")}`;
-  return { policy: p, source: source3, archiveSourceId, policySha256: createHash47("sha256").update(bytes3).digest("hex") };
+  const archiveSourceId = `policy-source-${createHash46("sha256").update(JSON.stringify([p.id, source3.id, resolve25(p.sourceRoot), source3.path])).digest("hex")}`;
+  return { policy: p, source: source3, archiveSourceId, policySha256: createHash46("sha256").update(bytes3).digest("hex") };
 }
 function metadata2(result, checkpointId, policySha256) {
   return {
@@ -17336,7 +17300,7 @@ function ingestPolicySource2(policyPath, sourceId, previousCheckpointId, expecte
     const { policy, source: source3, archiveSourceId, policySha256 } = selectedPolicy(policyPath, sourceId);
     if (expectedPolicySha256 !== void 0 && expectedPolicySha256 !== policySha256) throw new Error("archive policy changed");
     if (source3.contentPolicy === "referenced-blobs") return ingestNativePolicy2({ policy, source: source3, archiveSourceId, policySha256 }, previousCheckpointId, regularBytes);
-    const bytes3 = regularBytes(join47(policy.sourceRoot, source3.path), policy.maxBytes);
+    const bytes3 = regularBytes(join40(policy.sourceRoot, source3.path), policy.maxBytes);
     const result = ingestArchiveSnapshot2(policy.archiveRoot, { sourceId: archiveSourceId, parser: source3.parser, retention: policy.retention, bytes: bytes3, previousCheckpointId });
     const receipt = retainArchiveSource2(policy.archiveRoot, {
       sourceId: `policy-${policySha256}`,
@@ -17354,7 +17318,7 @@ function ingestPolicySource2(policyPath, sourceId, previousCheckpointId, expecte
 import { isDate as isDate2 } from "node:util/types";
 
 // packages/adapters/src/generated/work-v4/json.ts
-import { createHash as createHash48 } from "node:crypto";
+import { createHash as createHash47 } from "node:crypto";
 
 // packages/adapters/src/generated/work-v4/types.ts
 var WorkInputError4 = class extends TypeError {
@@ -17549,7 +17513,7 @@ function canonicalWorkJson2(value3) {
   return emit(copyWorkJson2(value3));
 }
 function workDigest2(value3) {
-  return createHash48("sha256").update(canonicalWorkJson2(value3), "utf8").digest("hex");
+  return createHash47("sha256").update(canonicalWorkJson2(value3), "utf8").digest("hex");
 }
 function workResultKey2(value3) {
   return emit(value3);
@@ -18551,9 +18515,9 @@ function captureArchivedWorkSignals(root, manifestId, context, suppliedFacts) {
 }
 
 // packages/adapters/src/blind-intervention.ts
-import { constants as constants19, closeSync as closeSync17, fstatSync as fstatSync16, fsyncSync as fsyncSync12, lstatSync as lstatSync17, mkdirSync as mkdirSync18, openSync as openSync17, readSync as readSync10, writeSync as writeSync9 } from "node:fs";
-import { createHash as createHash49, randomBytes as randomBytes8 } from "node:crypto";
-import { join as join48 } from "node:path";
+import { constants as constants14, closeSync as closeSync12, fstatSync as fstatSync11, fsyncSync as fsyncSync10, lstatSync as lstatSync13, mkdirSync as mkdirSync15, openSync as openSync12, readSync as readSync10, writeSync as writeSync8 } from "node:fs";
+import { createHash as createHash48, randomBytes as randomBytes6 } from "node:crypto";
+import { join as join41 } from "node:path";
 var SHA13 = /^[a-f0-9]{64}$/;
 var missing4 = (e) => e?.code === "ENOENT";
 var encode2 = interventionCanonicalJson;
@@ -18586,11 +18550,11 @@ function retainBlindIntervention2(root, manifest, evidence5, qualification, auth
   for (const [hash15, bytes3] of Map.prototype.entries.call(artifactDescriptor.value)) {
     if (typeof hash15 !== "string" || !SHA13.test(hash15) || !(bytes3 instanceof Uint8Array) || bytes3.byteLength > 8 * 1024 * 1024 || artifacts.size >= 4096 || (total += bytes3.byteLength) > 64 * 1024 * 1024) throw new Error("bounded blind artifacts required");
     const stable = Buffer.from(bytes3);
-    if (createHash49("sha256").update(stable).digest("hex") !== hash15) throw new Error("blind artifact digest mismatch");
+    if (createHash48("sha256").update(stable).digest("hex") !== hash15) throw new Error("blind artifact digest mismatch");
     artifacts.set(hash15, stable);
   }
   const assessment = assessIntervention(stableManifest, stableEvidence, { ...claims, artifacts });
-  const seed = randomBytes8(32).toString("hex");
+  const seed = randomBytes6(32).toString("hex");
   createBlindComparison(stableManifest, assessment, seed);
   const referenced = new Set(stableEvidence.flatMap((e) => e.artifactDigests));
   if ([...artifacts.keys()].some((h) => !referenced.has(h))) throw new Error("unreferenced blind artifact");
@@ -18634,19 +18598,19 @@ function readBlindInterventionBinding2(root, id3, author) {
   return Object.freeze({ experimentDigest: manifest.id, investigationDigest: manifest.investigationSha256 });
 }
 function directory6(path3) {
-  const s = lstatSync17(path3);
+  const s = lstatSync13(path3);
   if (!s.isDirectory() || s.isSymbolicLink() || s.mode & 63 || process.getuid && s.uid !== process.getuid()) throw new Error("private blind directory required");
 }
 function syncDirectory6(path3) {
-  const fd = openSync17(path3, constants19.O_RDONLY | constants19.O_DIRECTORY | constants19.O_NOFOLLOW);
+  const fd = openSync12(path3, constants14.O_RDONLY | constants14.O_DIRECTORY | constants14.O_NOFOLLOW);
   try {
-    fsyncSync12(fd);
+    fsyncSync10(fd);
   } finally {
-    closeSync17(fd);
+    closeSync12(fd);
   }
 }
 function readChoice2(root, id3) {
-  const parent = join48(root, "blind-decisions"), dir = join48(parent, id3);
+  const parent = join41(root, "blind-decisions"), dir = join41(parent, id3);
   try {
     directory6(parent);
     directory6(dir);
@@ -18656,13 +18620,13 @@ function readChoice2(root, id3) {
   }
   let fd;
   try {
-    fd = openSync17(join48(dir, "choice.json"), constants19.O_RDONLY | constants19.O_NOFOLLOW | constants19.O_NONBLOCK);
+    fd = openSync12(join41(dir, "choice.json"), constants14.O_RDONLY | constants14.O_NOFOLLOW | constants14.O_NONBLOCK);
   } catch (e) {
     if (missing4(e)) throw new Error("blind choice incomplete; explicit recovery required");
     throw e;
   }
   try {
-    const s = fstatSync16(fd);
+    const s = fstatSync11(fd);
     if (!s.isFile() || s.nlink !== 1 || s.mode & 63 || process.getuid && s.uid !== process.getuid() || s.size > 16384) throw new Error("invalid blind choice file");
     const bytes3 = Buffer.alloc(16385);
     let used = 0;
@@ -18681,7 +18645,7 @@ function readChoice2(root, id3) {
       throw new Error("invalid blind choice JSON; explicit recovery required");
     }
   } finally {
-    closeSync17(fd);
+    closeSync12(fd);
   }
 }
 function openBlindIntervention2(root, id3, author) {
@@ -18705,26 +18669,26 @@ function openBlindIntervention2(root, id3, author) {
         if (encode2(before) !== encode2(choice)) throw new Error("blind quality choice locked");
         return before;
       }
-      const parent = join48(root, "blind-decisions"), dir = join48(parent, id3);
+      const parent = join41(root, "blind-decisions"), dir = join41(parent, id3);
       try {
-        mkdirSync18(parent, { mode: 448 });
+        mkdirSync15(parent, { mode: 448 });
       } catch (e) {
         if (e.code !== "EEXIST") throw e;
       }
       directory6(parent);
-      mkdirSync18(dir, { mode: 448 });
-      const fd = openSync17(join48(dir, "choice.json"), constants19.O_WRONLY | constants19.O_CREAT | constants19.O_EXCL | constants19.O_NOFOLLOW, 384);
+      mkdirSync15(dir, { mode: 448 });
+      const fd = openSync12(join41(dir, "choice.json"), constants14.O_WRONLY | constants14.O_CREAT | constants14.O_EXCL | constants14.O_NOFOLLOW, 384);
       try {
         const data = Buffer.from(encode2(choice));
         let offset = 0;
         while (offset < data.length) {
-          const n = writeSync9(fd, data, offset, data.length - offset);
+          const n = writeSync8(fd, data, offset, data.length - offset);
           if (!n) throw new Error("blind choice write stalled");
           offset += n;
         }
-        fsyncSync12(fd);
+        fsyncSync10(fd);
       } finally {
-        closeSync17(fd);
+        closeSync12(fd);
       }
       syncDirectory6(dir);
       syncDirectory6(parent);
@@ -18790,13 +18754,13 @@ function readLearningLifecycle(root, manifestId) {
 }
 
 // packages/adapters/src/session-retention.ts
-import { createHash as createHash51 } from "node:crypto";
-import { resolve as resolve28 } from "node:path";
+import { createHash as createHash50 } from "node:crypto";
+import { resolve as resolve26 } from "node:path";
 
 // packages/adapters/src/trajectory.ts
-import { createHash as createHash50 } from "node:crypto";
-import { readFileSync as readFileSync27, readdirSync as readdirSync18 } from "node:fs";
-import { join as join49 } from "node:path";
+import { createHash as createHash49 } from "node:crypto";
+import { readFileSync as readFileSync22, readdirSync as readdirSync14 } from "node:fs";
+import { join as join42 } from "node:path";
 
 // packages/adapters/src/closed-schema.ts
 var ANNOTATION_KEYWORDS2 = /* @__PURE__ */ new Set(["$schema", "$id", "title", "description", "$defs"]);
@@ -21575,7 +21539,7 @@ function normalizeLegacyGrant2(record, index) {
     legacy_schema: "pi-daddy-grant-ledger/0.17"
   });
   const refusal = record.blocked ? legacyRefusalCode2(record) : void 0;
-  const spawn6 = cleanEvent2({
+  const spawn4 = cleanEvent2({
     ...common2,
     type: record.blocked ? "child_spawn_refused" : "child_started",
     requested_capabilities: requested,
@@ -21605,7 +21569,7 @@ function normalizeLegacyGrant2(record, index) {
       attributes
     }));
   }
-  events.push(spawn6);
+  events.push(spawn4);
   return events;
 }
 function legacyRefusalCode2(record) {
@@ -21647,7 +21611,7 @@ function sanitizeAttributes2(value3) {
   const walk2 = (current, key3 = "") => {
     if (sensitiveKey.test(key3)) return "[REDACTED]";
     if (typeof current === "string" && freeTextKey.test(key3)) {
-      return `[REDACTED sha256:${createHash50("sha256").update(current).digest("hex")}]`;
+      return `[REDACTED sha256:${createHash49("sha256").update(current).digest("hex")}]`;
     }
     if (Array.isArray(current)) return current.map((entry) => walk2(entry));
     if (current && typeof current === "object") return Object.fromEntries(Object.entries(current).map(([childKey, entry]) => [childKey, walk2(entry, childKey)]));
@@ -21843,7 +21807,7 @@ function checkedSelections2(input) {
   let parents = 0, ledgers = 0;
   for (const s of input) {
     if (!s || typeof s !== "object" || Object.keys(s).some((k) => !["kind", "path", "executionId"].includes(k))) throw Error("closed source selection required");
-    if (!["parent", "child", "ledger", "feedback", "artifact"].includes(s.kind) || typeof s.path !== "string" || resolve28(s.path) !== s.path) throw Error("explicit absolute source path required");
+    if (!["parent", "child", "ledger", "feedback", "artifact"].includes(s.kind) || typeof s.path !== "string" || resolve26(s.path) !== s.path) throw Error("explicit absolute source path required");
     if (seen.has(s.path)) throw Error("duplicate session source");
     seen.add(s.path);
     if (s.kind === "parent") parents++;
@@ -21898,8 +21862,8 @@ function readRetainedSessionSource2(root, manifestId, index) {
 }
 
 // packages/adapters/src/learning-workspace.ts
-import { mkdirSync as mkdirSync19, readdirSync as readdirSync19, lstatSync as lstatSync18 } from "node:fs";
-import { dirname as dirname22, isAbsolute as isAbsolute28, join as join50, resolve as resolve29 } from "node:path";
+import { mkdirSync as mkdirSync16, readdirSync as readdirSync15, lstatSync as lstatSync14 } from "node:fs";
+import { dirname as dirname20, isAbsolute as isAbsolute25, join as join43, resolve as resolve27 } from "node:path";
 var SHA15 = /^[a-f0-9]{64}$/;
 var NAME2 = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
 function closed18(value3, keys7) {
@@ -21912,7 +21876,7 @@ function hash14(value3) {
   if (typeof value3 !== "string" || !SHA15.test(value3)) throw Error("retained digest required");
 }
 function path2(value3) {
-  if (!isAbsolute28(value3) || resolve29(value3) !== value3) throw Error("canonical absolute learning path required");
+  if (!isAbsolute25(value3) || resolve27(value3) !== value3) throw Error("canonical absolute learning path required");
 }
 function named2(value3) {
   if (!NAME2.test(value3.name)) throw Error("learning name must be a short slug");
@@ -21937,17 +21901,17 @@ function retain3(root, parser, value3) {
 function prepareLearningDirectory2(directory7) {
   path2(directory7);
   try {
-    const s = lstatSync18(directory7);
+    const s = lstatSync14(directory7);
     if (!s.isDirectory() || s.isSymbolicLink()) throw Error("learning directory substitution");
   } catch (e) {
     if (e.code !== "ENOENT") throw e;
-    prepareLearningDirectory2(dirname22(directory7));
-    mkdirSync19(directory7, { mode: 448 });
+    prepareLearningDirectory2(dirname20(directory7));
+    mkdirSync16(directory7, { mode: 448 });
   }
-  for (let p = directory7; ; p = dirname22(p)) {
-    const s = lstatSync18(p);
+  for (let p = directory7; ; p = dirname20(p)) {
+    const s = lstatSync14(p);
     if (!s.isDirectory() || s.isSymbolicLink()) throw Error("learning directory ancestor substitution");
-    if (p === dirname22(p)) break;
+    if (p === dirname20(p)) break;
   }
 }
 function validInput2(input) {
@@ -21963,12 +21927,12 @@ function createLearningWorkspace2(directory7, input) {
   const safe = learningCopy2(input);
   validInput2(safe);
   path2(directory7);
-  prepareLearningDirectory2(dirname22(directory7));
+  prepareLearningDirectory2(dirname20(directory7));
   prepareLearningDirectory2(safe.archiveRoot);
   const initial = { type: "learning-workspace-v1", input: safe };
   let exists = true;
   try {
-    lstatSync18(directory7);
+    lstatSync14(directory7);
   } catch (e) {
     if (e.code !== "ENOENT") throw e;
     exists = false;
@@ -22253,8 +22217,8 @@ function openLearningWorkspace2(directory7) {
       validateTrustScope(config);
       const existing = currentTrust();
       if (existing && existing.inspect(0).policyId !== trustPolicyDigest2(config)) throw Error("trust already frozen; no attention refill");
-      const trust = createTrustLifecycle2(join50(directory7, "trust"), config, authorizedPolicyDigests);
-      this.bindTrust(join50(directory7, "trust"));
+      const trust = createTrustLifecycle2(join43(directory7, "trust"), config, authorizedPolicyDigests);
+      this.bindTrust(join43(directory7, "trust"));
       return trust.inspect(0);
     },
     trust() {
@@ -22514,13 +22478,13 @@ function openLearningWorkspace2(directory7) {
 function catalogLearningArchive2(root, author) {
   path2(root);
   text14(author, 512);
-  const dir = join50(root, "manifests");
-  for (let p = dir; ; p = dirname22(p)) {
-    const s = lstatSync18(p);
+  const dir = join43(root, "manifests");
+  for (let p = dir; ; p = dirname20(p)) {
+    const s = lstatSync14(p);
     if (!s.isDirectory() || s.isSymbolicLink()) throw Error("archive manifest directory substituted");
-    if (p === dirname22(p)) break;
+    if (p === dirname20(p)) break;
   }
-  const files = readdirSync19(dir);
+  const files = readdirSync15(dir);
   if (files.length > 8192) throw Error("archive catalog bound exceeded");
   return files.filter((id3) => SHA15.test(id3)).sort().flatMap((manifestId) => {
     const r = readArchiveSourceReference2(root, manifestId);
@@ -22646,8 +22610,8 @@ function publishDashboardHarnessBridge(target = globalThis) {
 
 // packages/pi-extension/src/index.ts
 function index_default(pi) {
-  const moduleDir = dirname23(fileURLToPath4(import.meta.url));
-  const assetsDir = basename3(dirname23(moduleDir)) === "skill-harness" ? join51(moduleDir, "..", "assets") : join51(moduleDir, "..", "..", "..", "assets");
+  const moduleDir = dirname21(fileURLToPath4(import.meta.url));
+  const assetsDir = basename3(dirname21(moduleDir)) === "skill-harness" ? join44(moduleDir, "..", "assets") : join44(moduleDir, "..", "..", "..", "assets");
   publishDashboardHarnessBridge();
   registerCommand(pi, assetsDir);
   registerTool(pi);

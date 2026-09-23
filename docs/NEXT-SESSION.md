@@ -66,21 +66,7 @@ PR76 merged as `1fde8fc` after exact-head CI and final independent review. The 0
 `docs/ROADMAP.md`: the roadmap says where the project is going, this says what remains
 open and what will bite you. Release notes live in `PUBLISHING.md`.*
 
-## Current state after qualification-runner-v1
-
-PR [#65](https://github.com/mojomanyana/skill-harness/pull/65) is **merged**
-(`d768360`); it is not an open feature branch. The package version remains 0.11.0 but
-HEAD contains unreleased post-0.11.0 work. This is qualification infrastructure, not a
-measurement: no board, Wave A manifest, holdout, final measurement identity, subject,
-judge, calibration, or canary belongs in the repository or in its validation.
-
-The runner is separately versioned and documented in `docs/QUALIFICATION-RUNNER.md`.
-It uses external closed configuration; an allowlisted OAuth-only child environment;
-Pi's credential-free `auth check --json` metadata; canonical filesystem state; atomic
-launch accounting; detached process supervision; no automatic retry; process-group
-timeout/abort; and exact provider/model attestation from the completed Pi JSONL.
-`prepare` is zero calls. The launch claim is one consumed call even when the child
-fails, times out, refuses, truncates, or produces an invalid artifact.
+## Pi-daddy ledger-v3 contract
 
 The separate `pi-daddy-ledger-v3` selector pins pi-daddy Wave 1 commit
 `4a9524394ca995fd74ed9bbb836dc4e73cda3b8c` / tree
@@ -90,12 +76,6 @@ The separate `pi-daddy-ledger-v3` selector pins pi-daddy Wave 1 commit
 Its five positive fixtures
 are byte-vendored producer artifacts generated through real production builders.
 The historical `pi-daddy-v1` selector remains 0.17/v2 only.
-
-Do not describe this as signer authenticity, remote attestation, protection from a
-malicious local owner, general OS containment, proof of OAuth usability, model
-efficacy, or completed qualification. Implementation commit is `91479b0fd4d6a2428d34d897f305b77fc74c5c79`.
-The final exact-head review and merge identities replace this branch-state paragraph
-when the work lands.
 
 ## Pi-daddy 0.19.0 ledger-v2 contract re-pin — historical handoff
 
