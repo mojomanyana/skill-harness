@@ -211,7 +211,6 @@ unguessable, not tamper-proof.
 skill-harness run    <skill|all> --skills <root> [--model prov:model ...] [--models file]
                                [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T] [--canary]
                                [--only A1,A2]   # scenario subset; a partial run never reports SHIP
-skill-harness archive ingest|inspect|watch --policy file --source id  # explicit local archive policy; metadata output, no worker/model calls
 skill-harness stability <skill|all> --skills <root> [--window N] [--all]  # run-over-run verdict flips (free, offline)
 skill-harness restamp <skill|all> --skills <root> [--from <git-ref>]  # one-time hash upgrade; see "what stales a run" (free, offline)
 skill-harness coverage <skill|all> --skills <root> [--strict]  # which instruction sections have a declared test (free, offline)

@@ -27,7 +27,6 @@ list  <--skills root>                     which skills have a spec (● testable
 lint  <skill|all> --skills root           validate specs/fixtures + results-consistency — CI gate, no models, no keys; exits non-zero on findings
 run   <skill|all> --skills root [--model prov:model ...] [--mode red|green|force] [--judge prov:model] [--reps N] [--pass-threshold T] [--label name] [--parallel N] [--canary]
 learning [status|import|review|session|trust|decide|adoption|outcome|guide]  guided retained learning — free, offline; explicit local writes, no model calls
-archive ingest|inspect|watch --policy file --source id  explicit external byte ingestion/checkpoint metadata — free, offline, no worker interaction
 grade <run-dir> [--judge prov:model]      re-judge saved transcripts with a (different) judge — no model re-run
 rescore <run-dir>...                      re-score saved reps against current spec thresholds — free, offline
 regate <run-dir>...                       re-evaluate gates against SAVED artifacts — no subject call; may make one judge call per fail→pass rep

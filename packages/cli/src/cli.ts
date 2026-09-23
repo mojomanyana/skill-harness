@@ -730,7 +730,6 @@ export function help(): string {
                      [--arm <name>]  measure under a named arm from <skills-root>/tests/arms.yaml
                                      (loads its extensions, seeds pi-daddy definitions, tags the run dir)
   grade  <run-dir>   [--judge prov:model] [--suspect-only]   re-grade saved transcripts (neutral judge)
-  archive ingest|inspect|watch --policy file --source id  explicit external ingestion/metadata (${free("archive")})
   learning [status|import|review|trust|decide|adoption|outcome|guide]  guided retained learning (${free("learning")}; no models)
                         use learning help; quality, trust, adoption and later outcomes stay separate
   archive weekly|trust|access --state /private/dir --request file  durable learning/consent lifecycle (${free("archive")})
