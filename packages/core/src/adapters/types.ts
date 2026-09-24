@@ -80,8 +80,6 @@ export interface RunReq {
    * inheriting a caller's copy of them.
    */
   armEnv?: Record<string, string>;
-  /** Adapter-produced observation callback. Callers receive evidence; they never supply delivery status. */
-  onPromptObservation?: (observation: PromptProvenance) => void;
 }
 
 /** A judge request: single prompt, no skills, no session. */
@@ -105,8 +103,6 @@ export interface StructuredRun {
 
 export interface HarnessAdapter {
   name: string;
-  /** True only when the adapter computes final provider-payload observations. */
-  observesPrompts?: boolean;
   available(): Promise<boolean>; // is the CLI on PATH?
   run(req: RunReq): Promise<string>; // returns the full transcript text
   /**

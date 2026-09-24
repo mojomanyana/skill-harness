@@ -566,13 +566,9 @@ the model's description of it. Cap the judge's copy with
 `SKILL_HARNESS_DIFF_MAX_BYTES` (default 64000); the artifact on disk is never
 truncated.
 
-New runs write `results.yaml` **schema 3**. Schema-1 and schema-2 files remain readable at their own version and are never migrated or rewritten merely by reading them. Schema 3 is also an intentional meaning boundary: behavioral efficacy is counted only after delivery is established. Earlier schemas made no such guarantee. It adds the observations needed to recompute rather than trust a score:
+New runs write `results.yaml` **schema 2**. Historical schema-1, schema-2 and schema-3 files remain readable at their own version and are never migrated merely by reading them. Legacy schema-3 `subject_invocations`, `skill_delivered`, criterion panels and `NOT-MEASURED` verdicts are validated and carried by artifact-only rewrites; new runs do not produce delivery observations or `NOT-MEASURED`. A retained `NOT-MEASURED` verdict continues to block SHIP.
 
-- `subject_invocations[]` records each provider request's adapter-computed delivery status, mechanism, contract SHA-256/bytes/occurrences, and prompt provenance. `raw_sha256` commits to the model-visible prompt fields projected from the captured final provider payload JSON (`instructions`/`system` plus message/input content). `normalized_sha256` applies the named registry rule `cwd-line-v1`, which replaces exactly lines beginning `Current working directory:` and no other bytes. The payload itself is not retained.
-- every scenario has `rep_judgments[]`; each panel member retains every numbered criterion verdict/reason. Readers recompute each recorded panel verdict from those votes and reject divergence.
-- `skill_delivered` is an objective assertion. Force/system-prompt requests require exactly one contract occurrence per provider request; red/control requests require zero. Green progressive disclosure may begin with zero, but must eventually deliver exactly one and may never duplicate it. Known zero/duplicate delivery becomes `NOT-MEASURED`: it is not judged, is excluded from efficacy denominators, and blocks SHIP without blaming the product. Missing, malformed, or unauthenticated instrumentation is `ERROR`. The extension-free observer HMAC-authenticates its complete log and shutdown count; the parent rejects mutation, replay, or truncation and rebinds contract identity. Because arbitrary scenario/arm extensions or arm runtime environment share Pi's process, their payload provenance cannot be authenticated in-process; those runs fail this observation closed until an out-of-process recorder exists.
-
-Fields retained from schema 2:
+Result fields include:
 
 - `effective_grade` is always override-aware — it's recomputed from the current
   verdicts (judge, or your override where present) on every write, so a saved
@@ -612,7 +608,7 @@ Fields retained from schema 2:
   | `gates:<id>` | `diff_contains` / `diff_excludes` needles | `regate` (no subject call; one judge call per fail→pass rep) |
   | `fixture:<path>` | every file under one fixture dir, including `_staged/`/`_uncommitted/` | `run` (subject + judge) |
   | `<relative path>` | a `system_prompt_file`, or an `assert.post_test` file's contents | `run` (subject + judge) |
-  | `observation:prompt-normalization` | normalization registry identity (`cwd-line-v1`) | `run` — original payload bytes are not retained |
+  | `observation:prompt-normalization` | legacy schema-3 normalization identity (`cwd-line-v1`) | historical only — original payload bytes are not retained |
 
   Lint names the remedy in the finding itself — only stimulus drift costs model spend.
   Runs recorded by 0.3.x carry a single combined `scenario:<id>` key instead of the

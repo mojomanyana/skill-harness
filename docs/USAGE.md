@@ -204,7 +204,7 @@ and two full waves ran before anyone noticed: the affected skill scored ≈ its 
 no-skill baseline while looking entirely plausible. The only tell was a contradictory
 failure mix — over-ceremony and capitulation at once — that no single skill edit produces.
 
-**What the harness does about it now.** New runs use results schema 3. The Pi adapter loads a read-only observation extension last and computes delivery from final provider-payload prompt fields; callers never supply the status. Each provider request records contract SHA-256/bytes/occurrences, mechanism, and raw plus normalized prompt digests. `cwd-line-v1` is the first named normalization registry rule: it replaces exactly the `Current working directory:` line. The payload text itself is not retained.
+**What the harness does about it now.** The adapter refuses an invalid skill path, every run records the harness CLI version, green can use a one-call canary, and force places the skill body directly in the system prompt. New runs use results schema 2 and do not produce authenticated delivery observations. Historical schema-3 delivery fields remain readable, and a retained `NOT-MEASURED` verdict still blocks SHIP.
 
 - the pi adapter **refuses** a skill dir with no `SKILL.md` rather than letting pi swallow
   the flag, and resolves the path first (a relative `--skills .` used to hand a child

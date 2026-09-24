@@ -25,7 +25,6 @@
   "files": [
     "bin.js",
     "dist/index.js",
-    "dist/prompt-capture-extension.js",
     "assets/report.template.html",
     "assets/report.grade.js",
     "LICENSE",

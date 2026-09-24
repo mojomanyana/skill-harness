@@ -1,12 +1,12 @@
-# Results schema 3: retained observations
+# Results schema 3: legacy retained observations
 
-Schema 3 makes a completed run screenable without replaying either model.
+Schema 3 is a historical readable format. New runs write schema 2 and do not produce delivery observations. This document defines the legacy fields that readers and artifact-only rewrites continue to accept without migrating retained files.
 
 ## Compatibility
 
 `results.yaml` with schema 1 or 2 remains readable with its historical meaning. Reading never rewrites it. Rewriters preserve a schema-3 record's observations; they cannot manufacture observations for older files. Unknown historical evidence therefore remains UNKNOWN.
 
-Schema 3 is an intentional semantic boundary: a result means behavioral efficacy was evaluated only when contract delivery was established. Schema 1/2 did not make that guarantee.
+For a retained schema-3 result, the historical meaning remains unchanged: behavioral efficacy was evaluated only when contract delivery was established. Schema 1/2 did not make that guarantee.
 
 ## Subject delivery
 
@@ -18,9 +18,7 @@ Each `subject_invocations[]` entry identifies a scenario, repetition and retry a
 - `normalized_sha256` and `normalization_rule`;
 - per-request `status`: PASS when that request has the expected occurrence count; NOT-MEASURED for known zero/duplicate delivery; ERROR when no supported or authenticated payload can be observed. The aggregate gate uses only the terminal retry attempt: force/system-prompt requires one on every request, red requires zero throughout, and green progressive disclosure permits leading zeroes but requires an eventual exactly-once delivery and forbids duplicates.
 
-For an extension-free subject, the internal Pi extension runs last, observes `before_provider_request`, and never changes the payload. The observer HMAC-authenticates each complete observation plus a shutdown count; the parent rejects truncation, replay, mutation, or a missing summary, rebinds contract digest/length/mechanism, and recomputes status instead of trusting child JSON. User-role bytes are excluded from occurrence counting so a stimulus quoting the contract cannot prove delivery. Plaintext payloads are not retained.
-
-Scenario/arm extensions and arm-supplied runtime environment are arbitrary code in Pi's own process. A positive in-process attestation cannot be hidden from hostile code in that same process. Such runs therefore receive parent-authored `ERROR` provenance, expose neither capture path to the child, and never load the observer. Ambient Node/native preload variables likewise fail observation closed. This fail-closed boundary prevents forged PASS evidence; it deliberately leaves extension-bearing runs unscreenable until an out-of-process recorder exists.
+Historical writers used an internal Pi extension and authenticated shutdown summary to produce these observations. That production path has been removed; readers still recompute and validate the retained values rather than trusting stored aggregates.
 
 ## Normalization registry
 
@@ -28,7 +26,7 @@ Scenario/arm extensions and arm-supplied runtime environment are arbitrary code 
 |---|---|
 | `cwd-line-v1` | Replace the complete value of every line beginning exactly `Current working directory:` with `Current working directory:<normalized>`. Preserve every other byte. |
 
-Changing this registry changes `source_hashes[observation:prompt-normalization]`; lint's honest remedy is a new run because payload plaintext is intentionally not retained.
+Retained `source_hashes[observation:prompt-normalization]` values remain readable. Payload plaintext was not retained, so the historical observation cannot be recomputed.
 
 ## Objective gate
 

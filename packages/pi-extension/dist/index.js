@@ -1,5 +1,5 @@
 // packages/pi-extension/src/index.ts
-import { fileURLToPath as fileURLToPath3 } from "node:url";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
 import { basename as basename3, dirname as dirname9, join as join27 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
@@ -5285,8 +5285,7 @@ async function runSeeded(scenario, opts) {
       ...scenario.extensions?.map((e) => resolve5(opts.specDir, e)) ?? [],
       ...opts.armExtensions ?? []
     ],
-    ...opts.armEnv ? { armEnv: opts.armEnv } : {},
-    ...opts.onPromptObservation ? { onPromptObservation: opts.onPromptObservation } : {}
+    ...opts.armEnv ? { armEnv: opts.armEnv } : {}
   };
   let traces = [];
   let harnessOut;
@@ -6549,18 +6548,11 @@ async function runSkillModel(opts) {
     }
   });
   const flat = await runPool(tasks, opts.concurrency ?? 1);
-  const subjectInvocations = flat.flatMap((outcome) => outcome.subject_invocations ?? []);
   const grouped = scenarios.map(() => []);
   flat.forEach((outcome, i) => grouped[owners[i]].push(outcome));
   const scenarioResults = scenarios.map((scenario, si) => {
     const threshold = scenario.critical ? effectiveThreshold(void 0, scenario) : scenario.passThreshold ?? opts.passThreshold ?? 0.5;
-    const result = outcomesToResult(scenario.id, grouped[si], repCounts[si], threshold);
-    if (adapter.observesPrompts)
-      result.criterion_count = scenario.checklist.length;
-    if (adapter.observesPrompts && !result.rep_judgments) {
-      result.rep_judgments = grouped[si].map((outcome, repetition) => ({ repetition, judgments: [], recorded_verdict: outcome.verdict, ...outcome.objective ? { objective: outcome.objective } : {} }));
-    }
-    return result;
+    return outcomesToResult(scenario.id, grouped[si], repCounts[si], threshold);
   });
   const ctx = scoreContextFor({ mode, partial }, spec);
   const results = writeResults(runDir, {
@@ -6576,12 +6568,8 @@ async function runSkillModel(opts) {
     ...partial ? { partial: true } : {},
     // Only the scenarios this run actually measured: a --only run must not claim
     // coverage of scenarios it skipped.
-    source_hashes: {
-      ...sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios, judgePersona: spec.judge_persona }),
-      ...adapter.observesPrompts ? { [PROMPT_NORMALIZATION_SOURCE_KEY]: PROMPT_NORMALIZATION_SOURCE_DIGEST } : {}
-    },
+    source_hashes: sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios, judgePersona: spec.judge_persona }),
     scenarios: scenarioResults,
-    ...adapter.observesPrompts ? { schema: 3, subject_invocations: subjectInvocations } : {},
     ...arm.name === NONE_ARM.name ? {} : {
       arm: {
         name: arm.name,
@@ -6630,7 +6618,6 @@ async function runRep(scenario, rep, repCount, ctx) {
   let gatePrefix = null;
   let infrastructureFailure = null;
   let stagedDiff = null;
-  const subjectInvocations = [];
   try {
     try {
       ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath), remote: scenario.remote });
@@ -6654,7 +6641,6 @@ async function runRep(scenario, rep, repCount, ctx) {
       }
       const useStructured = (Boolean(ctx.structured) || needsStructuredEvidence) && Boolean(ctx.adapter.runStructured);
       for (let attempt = 0; attempt < 2; attempt++) {
-        const observe = (prompt) => subjectInvocations.push({ scenario_id: scenario.id, repetition: rep, attempt, prompt });
         if (attempt > 0) {
           const why = adapterFailure ? `adapter failed (${adapterFailure})` : "empty response";
           appendJournal(runDir, { event: "empty-response-retry", ts: now(), id: scenario.id, attempt, reason: why, ...repField });
@@ -6688,8 +6674,7 @@ async function runRep(scenario, rep, repCount, ctx) {
               // builds the RunReq — the arm's extensions and env (with `<run-dir>`
               // already substituted) both must reach pi.
               armExtensions: arm.extensions,
-              ...armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {},
-              ...ctx.adapter.observesPrompts ? { onPromptObservation: observe } : {}
+              ...armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {}
             });
             transcript = r.transcript;
             gatePrefix = r.gateFailure;
@@ -6712,8 +6697,7 @@ async function runRep(scenario, rep, repCount, ctx) {
                 ...scenario.extensions?.map((e) => resolve6(dirname(ctx.specPath), e)) ?? [],
                 ...arm.extensions
               ],
-              ...armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {},
-              ...ctx.adapter.observesPrompts ? { onPromptObservation: observe } : {}
+              ...armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {}
             };
             if (useStructured) {
               const structured = await ctx.adapter.runStructured({ ...req, scenarioId: scenario.id, rep });
@@ -6764,15 +6748,7 @@ async function runRep(scenario, rep, repCount, ctx) {
         });
       }
     }
-    let deliveryObjective;
-    if (ctx.adapter.observesPrompts) {
-      const statuses = subjectInvocations.map((observation) => observation.prompt.status);
-      const status = deliveryStatusForObservations(subjectInvocations);
-      deliveryObjective = { status, assertions: [{ kind: "skill_delivered", status, detail: statuses.length === 0 ? "no model-visible prompt observation was retained" : `${statuses.length} provider request(s): ${statuses.join(", ")}` }] };
-      if (status !== "PASS")
-        gatePrefix = `objective: skill_delivered ${status.toLowerCase()} \u2014 ${deliveryObjective.assertions[0].detail}`;
-    }
-    let objective = deliveryObjective;
+    let objective;
     if (scenario.traceAssert && !adapterFailure) {
       const assertionResults = [];
       let status = "PASS";
@@ -6794,11 +6770,6 @@ async function runRep(scenario, rep, repCount, ctx) {
           assertionResults.push(...gate.assertions);
           traceMeta = { trace_version: merged.trace_version, trace_sha256: merged.trace_sha256 };
         }
-      }
-      if (deliveryObjective) {
-        if (deliveryObjective.status === "ERROR" || deliveryObjective.status === "NOT-MEASURED" && status !== "ERROR" || deliveryObjective.status === "FAIL" && status === "PASS")
-          status = deliveryObjective.status;
-        assertionResults.unshift(...deliveryObjective.assertions);
       }
       objective = { status, ...traceMeta, assertions: assertionResults };
       if (status !== "PASS") {
@@ -6866,7 +6837,6 @@ async function runRep(scenario, rep, repCount, ctx) {
       suspect,
       objective,
       judgment,
-      subject_invocations: subjectInvocations,
       metrics: {
         wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
         judge_calls: judgeCalls,
@@ -7260,11 +7230,9 @@ var EVENT_KEYS = /* @__PURE__ */ new Set([
 ]);
 
 // packages/adapters/dist/pi.js
-import { existsSync as existsSync16, mkdtempSync as mkdtempSync2, readFileSync as readFileSync15, rmSync as rmSync3, statSync as statSync9, writeFileSync as writeFileSync7 } from "node:fs";
+import { existsSync as existsSync16, mkdtempSync as mkdtempSync2, readFileSync as readFileSync15, statSync as statSync9 } from "node:fs";
 import { tmpdir as tmpdir2, homedir as homedir2 } from "node:os";
-import { randomBytes } from "node:crypto";
 import { join as join22, resolve as resolve10 } from "node:path";
-import { fileURLToPath } from "node:url";
 
 // packages/adapters/dist/pi-json.js
 import { spawn as spawn2 } from "node:child_process";
@@ -7332,195 +7300,8 @@ function runPiJson(opts) {
   });
 }
 
-// packages/adapters/dist/prompt-provenance.js
-import { createHash as createHash7, createHmac, timingSafeEqual } from "node:crypto";
-function sha2(bytes) {
-  return createHash7("sha256").update(bytes, "utf8").digest("hex");
-}
-function normalizePromptPayload(value, rule) {
-  if (rule !== PROMPT_NORMALIZATION_RULE)
-    throw new Error(`unknown prompt normalization rule ${String(rule)}`);
-  if (typeof value === "string")
-    return value.replace(new RegExp(PROMPT_NORMALIZATION_PATTERN, PROMPT_NORMALIZATION_FLAGS), PROMPT_NORMALIZATION_REPLACEMENT);
-  if (Array.isArray(value))
-    return value.map((entry) => normalizePromptPayload(entry, rule));
-  if (value && typeof value === "object")
-    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, normalizePromptPayload(entry, rule)]));
-  return value;
-}
-function countInStrings(value, needle) {
-  if (typeof value === "string") {
-    if (!needle)
-      return 0;
-    let count = 0, at = 0;
-    while ((at = value.indexOf(needle, at)) !== -1) {
-      count++;
-      at += needle.length;
-    }
-    return count;
-  }
-  if (Array.isArray(value))
-    return value.reduce((sum, entry) => sum + countInStrings(entry, needle), 0);
-  if (value && typeof value === "object") {
-    const record = value;
-    if (record.role === "user") {
-      const content = Array.isArray(record.content) ? record.content : Array.isArray(record.parts) ? record.parts : [];
-      return content.filter((block) => block && typeof block === "object" && (["tool_result", "tool_response", "function_response"].includes(String(block.type ?? "")) || "functionResponse" in block || "function_response" in block)).reduce((sum, block) => sum + countInStrings(block, needle), 0);
-    }
-    return Object.values(record).reduce((sum, entry) => sum + countInStrings(entry, needle), 0);
-  }
-  return 0;
-}
-var PROMPT_FIELDS = /* @__PURE__ */ new Set(["instructions", "input", "system", "messages", "prompt", "contents"]);
-function promptProjection(payload) {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload))
-    return null;
-  const record = payload;
-  const projected = Object.fromEntries(Object.entries(record).filter(([key]) => PROMPT_FIELDS.has(key)));
-  const config = record.config && typeof record.config === "object" ? record.config : null;
-  if (config?.systemInstruction !== void 0)
-    projected.systemInstruction = config.systemInstruction;
-  return Object.keys(projected).length ? projected : null;
-}
-function promptCaptureIsTrusted(extensionCount, hasRuntimeInjection2 = false) {
-  return extensionCount === 0 && !hasRuntimeInjection2;
-}
-function observationMac(observation, authenticationKey) {
-  return createHmac("sha256", authenticationKey).update(JSON.stringify(observation)).digest("hex");
-}
-function validMac(supplied, expected) {
-  if (typeof supplied !== "string" || !/^[a-f0-9]{64}$/i.test(supplied))
-    return false;
-  const suppliedBytes = Buffer.from(supplied, "hex"), expectedBytes = Buffer.from(expected, "hex");
-  return suppliedBytes.length === expectedBytes.length && timingSafeEqual(suppliedBytes, expectedBytes);
-}
-function verifyPromptSummary(value, expectedCount, authenticationKey) {
-  if (!value || typeof value !== "object")
-    return false;
-  const envelope = value;
-  if (!envelope.summary || envelope.summary.count !== expectedCount)
-    return false;
-  const expected = createHmac("sha256", authenticationKey).update(JSON.stringify(envelope.summary)).digest("hex");
-  return validMac(envelope.mac, expected);
-}
-function statusFor(occurrences, mechanism, observable) {
-  if (!observable)
-    return "ERROR";
-  return occurrences === (mechanism === "none" ? 0 : 1) ? "PASS" : "NOT-MEASURED";
-}
-function observeProviderPayload(payload, contract, mechanism, requestIndex) {
-  const projection = promptProjection(payload);
-  const raw = JSON.stringify(projection ?? {});
-  const normalized = JSON.stringify(normalizePromptPayload(projection ?? {}, PROMPT_NORMALIZATION_RULE));
-  const occurrences = countInStrings(projection ?? {}, contract);
-  const observable = projection !== null;
-  return {
-    capture_version: "prompt-provenance-v1",
-    request_index: requestIndex,
-    raw_sha256: sha2(raw),
-    normalized_sha256: sha2(normalized),
-    normalization_rule: PROMPT_NORMALIZATION_RULE,
-    bytes: Buffer.byteLength(raw),
-    contract_sha256: sha2(contract),
-    contract_bytes: Buffer.byteLength(contract),
-    contract_occurrences: occurrences,
-    mechanism,
-    status: statusFor(occurrences, mechanism, observable),
-    ...observable ? {} : { error: "provider payload has no supported model-visible prompt field" }
-  };
-}
-function bindPromptObservation(value, contract, mechanism, requestIndex, authenticationKey, observerRequestIndex = requestIndex) {
-  const fallback = { ...observeProviderPayload({}, contract, mechanism, requestIndex), status: "ERROR" };
-  if (!value || typeof value !== "object")
-    return { ...fallback, error: "prompt observer emitted a non-object record" };
-  const envelope = value;
-  if (!envelope.observation)
-    return { ...fallback, error: "prompt observation authentication missing" };
-  const expectedMac = observationMac(envelope.observation, authenticationKey);
-  if (!validMac(envelope.mac, expectedMac))
-    return { ...fallback, error: "prompt observation authentication failed" };
-  const record = envelope.observation;
-  if (record.request_index !== observerRequestIndex)
-    return { ...fallback, error: "prompt observation replay or ordering mismatch" };
-  const expectedDigest = sha2(contract), expectedBytes = Buffer.byteLength(contract);
-  const valid = record.capture_version === "prompt-provenance-v1" && record.normalization_rule === PROMPT_NORMALIZATION_RULE && record.mechanism === mechanism && record.contract_sha256 === expectedDigest && record.contract_bytes === expectedBytes && typeof record.raw_sha256 === "string" && /^[a-f0-9]{64}$/i.test(record.raw_sha256) && typeof record.normalized_sha256 === "string" && /^[a-f0-9]{64}$/i.test(record.normalized_sha256) && Number.isInteger(record.bytes) && record.bytes >= 0 && Number.isInteger(record.contract_occurrences) && record.contract_occurrences >= 0;
-  if (!valid)
-    return { ...fallback, error: "prompt observation failed parent contract/provenance binding" };
-  const occurrences = record.contract_occurrences;
-  return {
-    capture_version: "prompt-provenance-v1",
-    request_index: requestIndex,
-    raw_sha256: record.raw_sha256,
-    normalized_sha256: record.normalized_sha256,
-    normalization_rule: PROMPT_NORMALIZATION_RULE,
-    bytes: record.bytes,
-    contract_sha256: expectedDigest,
-    contract_bytes: expectedBytes,
-    contract_occurrences: occurrences,
-    mechanism,
-    status: statusFor(occurrences, mechanism, true)
-  };
-}
-
 // packages/adapters/dist/pi.js
 var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
-var PROMPT_CAPTURE_EXTENSION = fileURLToPath(new URL("./prompt-capture-extension.js", import.meta.url));
-function contractFor(req) {
-  if (req.systemPromptFile) {
-    const raw2 = readFileSync15(req.systemPromptFile, "utf8");
-    return { text: raw2, raw: raw2, mechanism: "system-prompt-file" };
-  }
-  const raw = readFileSync15(join22(requireSkillDir(req.skillDir, req.mode), "SKILL.md"), "utf8");
-  const body = splitPromptDoc(raw).body;
-  if (req.mode === "red")
-    return { text: body, raw, mechanism: "none" };
-  return { text: body, raw, mechanism: req.mode === "green" ? "pi-skill" : "append-system-prompt" };
-}
-var RUNTIME_INJECTION_ENV = ["NODE_OPTIONS", "NODE_PATH", "LD_PRELOAD", "DYLD_INSERT_LIBRARIES"];
-function hasRuntimeInjection(req) {
-  return Boolean(req.armEnv && Object.keys(req.armEnv).length) || RUNTIME_INJECTION_ENV.some((key) => Boolean(process.env[key]));
-}
-function captureSetup(req, env, contract, counter) {
-  if (!req.onPromptObservation)
-    return { env, finish: () => {
-    } };
-  if (!promptCaptureIsTrusted(req.extensions?.length ?? 0, hasRuntimeInjection(req)))
-    return { env, finish: () => {
-      const empty = observeProviderPayload({}, contract.text, contract.mechanism, counter.value++);
-      req.onPromptObservation?.({ ...empty, status: "ERROR", error: "prompt delivery provenance is unauthenticated when subject extensions or runtime-injection env share Pi's process" });
-    } };
-  const dir = mkdtempSync2(join22(tmpdir2(), "skill-harness-prompt-"));
-  const path = join22(dir, "observations.jsonl"), contractPath = join22(dir, "contract.json");
-  const authenticationKey = randomBytes(32).toString("hex");
-  writeFileSync7(path, "", { mode: 384 });
-  writeFileSync7(contractPath, JSON.stringify({ text: contract.text, mechanism: contract.mechanism, authentication_key: authenticationKey }), { mode: 384 });
-  const finish2 = () => {
-    try {
-      const lines = readFileSync15(path, "utf8").split("\n").filter(Boolean);
-      const parsed = lines.map((line) => {
-        try {
-          return JSON.parse(line);
-        } catch {
-          return null;
-        }
-      });
-      const records = parsed.slice(0, -1), summary = parsed.at(-1);
-      if (!verifyPromptSummary(summary, records.length, authenticationKey)) {
-        const empty = observeProviderPayload({}, contract.text, contract.mechanism, counter.value++);
-        req.onPromptObservation?.({ ...empty, status: "ERROR", error: "Pi prompt observation log is missing, truncated, replayed, or unauthenticated" });
-      } else
-        records.forEach((record, observerRequestIndex) => {
-          req.onPromptObservation?.(bindPromptObservation(record, contract.text, contract.mechanism, counter.value++, authenticationKey, observerRequestIndex));
-        });
-    } finally {
-      rmSync3(dir, { recursive: true, force: true });
-    }
-  };
-  return { env: { ...env ?? process.env, SKILL_HARNESS_PROMPT_CAPTURE_FILE: path, SKILL_HARNESS_PROMPT_CONTRACT_FILE: contractPath }, finish: finish2 };
-}
-function observerFlags(req) {
-  return req.onPromptObservation && promptCaptureIsTrusted(req.extensions?.length ?? 0, hasRuntimeInjection(req)) ? ["--extension", PROMPT_CAPTURE_EXTENSION] : [];
-}
 var PROVIDER_STDERR_SIGNATURES = [
   "invalidated oauth token",
   "invalid_api_key",
@@ -7571,7 +7352,6 @@ ${text}
 }
 var piAdapter = {
   name: "pi",
-  observesPrompts: true,
   available() {
     return Promise.resolve(onPath("pi"));
   },
@@ -7604,28 +7384,19 @@ var piAdapter = {
       "--no-context-files",
       "--no-extensions",
       ...extensionFlags(req.extensions),
-      ...observerFlags(req),
       "--provider",
       req.model.provider,
       "--model",
       req.model.model
     ];
-    const contract = contractFor(req);
-    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", contract.raw] : skillFlags(req.mode, req.skillDir, contract.raw);
-    const requestCounter = { value: 0 };
+    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync15(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
     const total = req.turns.length;
     const parts = [];
     const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
     let providerFailure = null;
     if (total === 1) {
       const args = [...flags, ...common2, "--no-session", "-p", req.turns[0]];
-      const capture = captureSetup(req, env, contract, requestCounter);
-      let r;
-      try {
-        r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env: capture.env });
-      } finally {
-        capture.finish();
-      }
+      const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env });
       parts.push(header(1, 1, req.turns[0]));
       parts.push(`<<< ASSISTANT:
 ${r.stdout.trim()}
@@ -7643,13 +7414,7 @@ ${r.stderr.trim()}
     for (let i = 0; i < total; i++) {
       const turnFlags = i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common2, ...turnFlags, "-p", req.turns[i]];
-      const capture = captureSetup(req, env, contract, requestCounter);
-      let r;
-      try {
-        r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env: capture.env });
-      } finally {
-        capture.finish();
-      }
+      const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env });
       parts.push(header(i + 1, total, req.turns[i]));
       parts.push(`<<< ASSISTANT:
 ${r.stdout.trim()}
@@ -7683,15 +7448,12 @@ ${r.stderr.trim()}
       "--no-context-files",
       "--no-extensions",
       ...extensionFlags(req.extensions),
-      ...observerFlags(req),
       "--provider",
       req.model.provider,
       "--model",
       req.model.model
     ];
-    const contract = contractFor(req);
-    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", contract.raw] : skillFlags(req.mode, req.skillDir, contract.raw);
-    const requestCounter = { value: 0 };
+    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync15(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
     const piVersion = await this.version();
     const total = req.turns.length;
     const traces = [];
@@ -7702,25 +7464,19 @@ ${r.stderr.trim()}
     for (let i = 0; i < total; i++) {
       const turnFlags = session === null ? ["--no-session"] : i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common2, "--mode", "json", ...turnFlags, "-p", req.turns[i]];
-      const capture = captureSetup(req, env, contract, requestCounter);
-      let r;
-      try {
-        r = await runPiJson({
-          args,
-          cwd: req.cwd,
-          timeoutMs: PI_TIMEOUT_MS,
-          piVersion,
-          subject: req.model,
-          scenarioId: req.scenarioId ?? "(unknown)",
-          mode: req.mode,
-          rep: req.rep ?? 0,
-          turn: i,
-          homeDir: homedir2(),
-          env: capture.env
-        });
-      } finally {
-        capture.finish();
-      }
+      const r = await runPiJson({
+        args,
+        cwd: req.cwd,
+        timeoutMs: PI_TIMEOUT_MS,
+        piVersion,
+        subject: req.model,
+        scenarioId: req.scenarioId ?? "(unknown)",
+        mode: req.mode,
+        rep: req.rep ?? 0,
+        turn: i,
+        homeDir: homedir2(),
+        env
+      });
       if (!r.isComplete) {
         throw new Error(`pi --mode json produced no terminal events for turn ${i + 1}/${total} (exit ${r.code}${r.malformedLines ? `, ${r.malformedLines} malformed line(s)` : ""})` + (r.stderr.trim() ? `: ${r.stderr.trim()}` : ""));
       }
@@ -7782,7 +7538,7 @@ ${r.stderr.trim()}
 };
 
 // packages/adapters/dist/trajectory.js
-import { createHash as createHash8 } from "node:crypto";
+import { createHash as createHash7 } from "node:crypto";
 import { readFileSync as readFileSync16, readdirSync as readdirSync11 } from "node:fs";
 import { join as join23 } from "node:path";
 
@@ -9432,9 +9188,9 @@ function getAdapter(name) {
 import { createServer } from "node:http";
 import { readFileSync as readFileSync17, existsSync as existsSync17 } from "node:fs";
 import { join as join24, dirname as dirname6 } from "node:path";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
+import { fileURLToPath } from "node:url";
 import { spawn as spawn3 } from "node:child_process";
-var __dirname = dirname6(fileURLToPath2(import.meta.url));
+var __dirname = dirname6(fileURLToPath(import.meta.url));
 function templatePath(assetsDir) {
   if (assetsDir)
     return join24(assetsDir, "report.template.html");
@@ -9900,7 +9656,7 @@ function registerTool(pi) {
 
 // packages/pi-extension/src/index.ts
 function index_default(pi) {
-  const moduleDir = dirname9(fileURLToPath3(import.meta.url));
+  const moduleDir = dirname9(fileURLToPath2(import.meta.url));
   const assetsDir = basename3(dirname9(moduleDir)) === "skill-harness" ? join27(moduleDir, "..", "assets") : join27(moduleDir, "..", "..", "..", "assets");
   registerCommand(pi, assetsDir);
   registerTool(pi);

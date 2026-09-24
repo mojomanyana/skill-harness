@@ -18,6 +18,5 @@ export function getAdapter(name: string): HarnessAdapter {
 }
 
 export { piAdapter };
-export * from "./prompt-provenance.js";
 export * from "./trajectory.js";
 export * from "./pi-daddy-ledger-v3.js";

@@ -1,5 +1,5 @@
 import type { Verdict } from "./score.js";
-import type { ScenarioResult, ObjectiveResult, ScenarioMetrics, Judgment, SubjectInvocationObservation } from "./results.js";
+import type { ScenarioResult, ObjectiveResult, ScenarioMetrics, Judgment } from "./results.js";
 import type { TraceMetrics } from "./capture-trace-types.js";
 
 /** One rep's outcome (subject run + judge). */
@@ -10,7 +10,6 @@ export interface RepOutcome {
   /** Present only when the scenario declared structured objective assertions. */
   objective?: ObjectiveResult;
   judgment?: Judgment;
-  subject_invocations?: SubjectInvocationObservation[];
   metrics?: {
     wall_time_ms: number;
     judge_calls: number;
