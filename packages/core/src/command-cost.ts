@@ -5,10 +5,8 @@
  * do not belong here even when their common path only replays saved artifacts.
  */
 export const FREE_OFFLINE_COMMANDS = [
-  "archive",
   "coverage",
   "init",
-  "learning",
   "lint",
   "list",
   "rescore",

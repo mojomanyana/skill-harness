@@ -30,8 +30,6 @@ import {
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
-import { cmdArchive } from "./archive.js";
-import { runLearningCommand } from "./learning.js";
 
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 // The judge default lives in core (`defaultJudge()`), which resolves
@@ -740,9 +738,6 @@ export function help(): string {
                      [--arm <name>]  measure under a named arm from <skills-root>/tests/arms.yaml
                                      (loads its extensions, seeds pi-daddy definitions, tags the run dir)
   grade  <run-dir>   [--judge prov:model] [--suspect-only]   re-grade saved transcripts (neutral judge)
-  learning [status|import|review|trust|decide|adoption|outcome|guide]  guided retained learning (${free("learning")}; no models)
-                        use learning help; quality, trust, adoption and later outcomes stay separate
-  archive weekly|trust|access --state /private/dir --request file  durable learning/consent lifecycle (${free("archive")})
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (${free("rescore")})
   regate <run-dir>...  [--judge prov:model]     re-evaluate saved gates (no subject call; judges fail→pass reps)
   restamp <skill|all> --skills <root> [--from <git-ref>]   record the model-visible skill digest on runs that still match (${free("restamp")}; one-time migration)
@@ -767,13 +762,11 @@ defaults: model=${DEFAULT_MODEL}  judge=${defaultJudge()}  mode=green  harness=p
 
 export async function main(argv: string[]): Promise<void> {
   const cmd = argv[0];
-  if (cmd === "learning") { await runLearningCommand(argv.slice(1)); return; }
   const args = parseArgs(argv.slice(1));
   assertNoRetiredFlags(cmd, args);
   switch (cmd) {
     case "run": return cmdRun(args);
     case "grade": return cmdGrade(args);
-    case "archive": return cmdArchive(args);
     case "rescore": return cmdRescore(args);
     case "regate": return cmdRegate(args);
     case "restamp": return cmdRestamp(args);

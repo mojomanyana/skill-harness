@@ -2,9 +2,8 @@
 
 This is the **active 0.17.0 release order**, paired with **pi-daddy 0.27.3**.
 Feature PR #82 merged at `5145f9e19c243eae9d9b42a87ea4007a645146ca` with green CI
-and Sol approval. The new session import/readback checks passed
-with synthetic fixtures and a separately retained private retrospective. Those checks are not canonical release archives, a released
-installation, human approval, calibration, acceptance or deployed efficacy.
+and Sol approval. This release order is retained as historical evidence; the later removal
+branch no longer ships the learning/session-import surface described by that release.
 
 The user authorized this merge/release sequence on 2026-09-15.
 
@@ -33,41 +32,31 @@ coordinator-controlled release work; preparing this file does not execute or aut
    `release-manifest.json`, logs and **all four** manifest-bound archives:
    `skill-harness-core-0.17.0.tgz`, `skill-harness-adapters-0.17.0.tgz`,
    `skill-harness-cli-0.17.0.tgz`, and `skill-harness-0.17.0.tgz`.
-   Verify commit/tree, versions, digests, inventories/modes, and guide/register bytes.
+   Verify commit/tree, versions, digests, and inventories/modes.
    Do not rebuild, repack or alter these bytes after recording the canonical manifest.
-3. Install those same four archives into a **fresh empty prefix** with scripts disabled,
-   together with the separately verified matching producer 0.27.3 archive. Use an already
-   available Node/Pi runtime satisfying both packages' engine requirements (the producer
-   requires Node >=22.19.0); retain that install/runtime identity separately from the
-   Node 20 canonical packing identity. No global install or checkout-package substitution:
+3. Install those same four archives into a **fresh empty prefix** with scripts disabled.
+   Use an available Node/Pi runtime satisfying the package engine requirement; retain that
+   install/runtime identity separately from the Node 20 canonical packing identity. No global
+   install or checkout-package substitution:
 
    ```sh
-   : "${PRODUCER_0273_TARBALL:?Set the verified producer 0.27.3 archive}"
    test ! -e "$RELEASE_EVIDENCE/install"  # must be a fresh prefix
    npm install --prefix "$RELEASE_EVIDENCE/install" --no-package-lock --ignore-scripts \
      "$RELEASE_EVIDENCE/artifacts/skill-harness-core-0.17.0.tgz" \
      "$RELEASE_EVIDENCE/artifacts/skill-harness-adapters-0.17.0.tgz" \
      "$RELEASE_EVIDENCE/artifacts/skill-harness-cli-0.17.0.tgz" \
-     "$RELEASE_EVIDENCE/artifacts/skill-harness-0.17.0.tgz" \
-     "$PRODUCER_0273_TARBALL"
+     "$RELEASE_EVIDENCE/artifacts/skill-harness-0.17.0.tgz"
    ```
 
-   Verify installed metadata/internal pins and CLI `--version` = **0.17.0**, producer
-   package version = **0.27.3**, public exports, observer/assets and `learning help`,
-   `learning guide`, `learning current`. Recheck retained archive digests after use.
+   Verify installed metadata/internal pins, CLI `--version` = **0.17.0**, and public
+   exports/assets. Recheck retained archive digests after use.
    **Do not substitute `npm run smoke:packed` here:** that existing script repacks into
    a temporary directory and deletes its artifacts. It does not verify the retained
    canonical archives. Perform the installed checks directly against the prefix above.
-4. Start **actual Pi** with an empty isolated HOME/config/agent directory, only the
-   installed public harness extension and matching installed producer extension, and
-   no provider requests. Verify real command registration/routing, the original frozen
-   bridge, fresh empty/readiness flow, and actual ordinary-work registry/learning linkage:
-   original applied activation accepted, incomplete/mismatched proof refused, and
-   original rollback receipt accepted. Use clearly labelled synthetic data/authority
-   solely for this compatibility check; retain original journals, receipts, loaded
-   resource paths, package/bundle identities and logs. No copied private product adapter,
-   live subject work, human-approval claim or source-bridge attestation. Existing user
-   sessions must not be reused or disturbed; `/reload` cannot replace an immutable bridge.
+4. Start **actual Pi** with an empty isolated HOME/config/agent directory and only the
+   installed public harness extension. Verify real command registration/routing without
+   provider requests; retain loaded resource paths, package/bundle identities and logs.
+   Existing user sessions must not be reused or disturbed.
 5. Only after the retained-archive install proof and explicit release authorization,
    recheck registry state before each publication. Publish the four manifest-digested
    public archives once in dependency order: core, adapters, CLI, meta-package. Never

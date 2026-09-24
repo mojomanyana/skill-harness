@@ -36,10 +36,6 @@ if (isMain) {
   await build(observerBuildOptions);
   mkdirSync("packages/skill-harness/assets", { recursive: true });
   mkdirSync("packages/skill-harness/dist", { recursive: true });
-  for (const pkg of ["cli", "skill-harness"]) {
-    mkdirSync(`packages/${pkg}/docs`, { recursive: true });
-    for (const file of ["PRODUCT-GUIDE.md", "STATUS.md"]) copyFileSync(`docs/factory/${file}`, `packages/${pkg}/docs/${file}`);
-  }
   for (const [source, destination] of [
     ["packages/pi-extension/dist/index.js", "packages/skill-harness/dist/index.js"],
     ["packages/pi-extension/dist/prompt-capture-extension.js", "packages/skill-harness/dist/prompt-capture-extension.js"],

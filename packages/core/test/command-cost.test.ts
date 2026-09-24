@@ -12,7 +12,7 @@ function inlineCommands(text: string): string[] {
 describe("free/offline command vocabulary", () => {
   it("has one canonical set and excludes every command that can spend", () => {
     expect([...FREE_OFFLINE_COMMANDS].sort()).toEqual([
-      "archive", "coverage", "init", "learning", "lint",
+      "coverage", "init", "lint",
       "list", "rescore", "restamp", "stability",
     ]);
     expect(FREE_OFFLINE_COMMANDS).not.toContain("regate");

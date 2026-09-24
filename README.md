@@ -24,16 +24,6 @@ No spec yet and don't want to spend tokens? `skill-harness init my-skill` writes
 commented template instead — free and offline. Already have runs? `lint` and
 `list` need no models and no API keys at all.
 
-## Retained factory learning
-
-`skill-harness learning` and `/skill-harness learning` open the same guided retained-case,
-comparison and trust workflow (offline, no model calls). Quality choice, adopt/reject/defer,
-independent authority, registry activation and later outcomes remain distinct.
-Use `/grants learning` with the matching producer host for exact scope binding and its
-supported registry controls. [Product guide](docs/factory/PRODUCT-GUIDE.md) ·
-[current requirement register](docs/factory/STATUS.md). Candidate capability is not publication
-or calibrated improvement; prior excerpt feedback never becomes full-artifact acceptance.
-
 ## What it does
 
 Point it at a repo of skills, and for any skill with a spec it will:
