@@ -86,6 +86,7 @@ const packages = [
     archivePrefix: "skill-harness",
     staticFiles: ["package.json", "README.md", "LICENSE", "bin.js", "dist/index.js", "assets/report.template.html", "assets/report.grade.js"],
     internalDependencies: ["@skill-harness/cli"],
+    inventoryRoots: [],
     modes: { "bin.js": 0o755 },
   },
 ];
