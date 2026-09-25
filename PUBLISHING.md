@@ -1,6 +1,49 @@
+# Publishing skill-harness 0.18.0
+
+This is the active 0.18.0 release order. PR #85 merged at
+`3d9a4d5b7e4711b52f6c320b3c8d50502a27d3cc`; its main-branch CI completed successfully.
+The release removes never-exercised and inert capabilities while preserving the focused
+measurement core and tolerant reading of historical result schemas.
+
+The user authorized publishing 0.18.0 from current `main` on 2026-09-25. PR #84 remains
+open and is deliberately outside this release.
+
+## Authoritative 0.18.0 release order
+
+1. Merge the synchronized release metadata with green CI and record the exact release merge
+   commit and tree.
+2. In a fresh checkout of that exact commit, use Node v20.20.2 / npm 10.8.2 to run the full
+   build, typecheck, extension build and test suite. Run the real-Pi smoke only after separately
+   confirming its subject model and judge, because it spends subscription tokens.
+3. Produce one canonical pack into a new retained evidence directory outside the repository:
+
+   ```sh
+   : "${RELEASE_EVIDENCE:?Set a new retained absolute evidence directory}"
+   node --version                    # v20.20.2
+   npm --version                     # 10.8.2
+   npm run release:pack -- --output "$RELEASE_EVIDENCE/artifacts"
+   ```
+
+   Retain `release-manifest.json`, logs and all four manifest-bound 0.18.0 archives. Do not
+   rebuild or repack after recording the canonical manifest.
+4. Install those exact archives into a fresh empty prefix with scripts disabled. Verify package
+   metadata/internal pins, CLI `--version` = 0.18.0, public exports/assets, offline `lint`, and
+   actual Pi command registration in an isolated HOME without provider requests. Recheck archive
+   digests after use.
+5. Recheck registry state immediately before publication, then publish the four canonical
+   archives once in dependency order: core, adapters, CLI, meta-package. Never publish the
+   private monorepo root or private Pi-extension workspace.
+6. Verify the published bytes through a cache-busted fresh exact-version installation. Create
+   immutable annotated tag `v0.18.0` and its GitHub Release at the verified release commit, then
+   move mutable `latest` with an exact old-ref lease. Never rewrite an immutable release tag.
+
+---
+
+## Preserved earlier release orders
+
 # Publishing skill-harness 0.17.0
 
-This is the **active 0.17.0 release order**, paired with **pi-daddy 0.27.3**.
+This was the 0.17.0 release order, paired with **pi-daddy 0.27.3**.
 Feature PR #82 merged at `5145f9e19c243eae9d9b42a87ea4007a645146ca` with green CI
 and Sol approval. This release order is retained as historical evidence; the later removal
 branch no longer ships the learning/session-import surface described by that release.
@@ -9,10 +52,9 @@ The user authorized this merge/release sequence on 2026-09-15.
 
 This preparation is metadata-only: no runtime changes or third-party dependency upgrades.
 Versions, internal pins, lockfile, SKILL frontmatter and current documentation move together.
-**Publication and the installed proof below remain pending.** Commands here describe later
-coordinator-controlled release work; preparing this file does not execute or authorize it.
+This preserved section records the plan as it stood before 0.18.0; it is non-operative.
 
-## Authoritative 0.17.0 release order
+## Historical 0.17.0 release order
 
 1. Review/merge the synchronized release metadata with green release CI, preserving PR82
    ancestry. Record the **exact release merge commit/tree**, not merely the feature merge.
@@ -79,7 +121,7 @@ solely for this version bump; any new paid smoke requires separate authorization
 
 # Publishing skill-harness 0.16.0
 
-This is the **active 0.16.0 release order**, paired with **pi-daddy 0.27.0**.
+This was the 0.16.0 release order, paired with **pi-daddy 0.27.0**.
 Feature PR #80 merged at `c6cd55d4db9ccf9a1ec790459c3cc5e6b1eac69f` with green CI
 and Sol approval. Actual source/built cross-package registry/learning checks passed
 with synthetic fixtures. Those checks are not canonical release archives, a released
@@ -87,10 +129,9 @@ installation, human approval, calibration, acceptance or deployed efficacy.
 
 This preparation is metadata-only: no runtime changes or third-party dependency upgrades.
 Versions, internal pins, lockfile, SKILL frontmatter and current documentation move together.
-**Publication and the installed proof below remain pending.** Commands here describe later
-coordinator-controlled release work; preparing this file does not execute or authorize it.
+This preserved section records the plan as it stood before later releases; it is non-operative.
 
-## Authoritative 0.16.0 release order
+## Historical 0.16.0 release order
 
 1. Review/merge the synchronized release metadata with green release CI, preserving PR80
    ancestry. Record the **exact release merge commit/tree**, not merely the feature merge.
@@ -170,11 +211,11 @@ supersedes them.
 
 # Publishing skill-harness 0.15.0
 
-This is the active npm-publish runbook. The live registry contains 0.14.0. Version 0.15.0 adds projection-only runtime facts, monotonic learning-lifecycle navigation and the exact loaded dashboard bridge consumed by pi-daddy 0.25.0. Release preparation also raises the runtime `js-yaml` floor to 4.3.2 because the live production audit now flags 4.3.1 under GHSA-2883-xcg3-v3hh. `release:pack` must produce only manifest-bound `*-0.15.0.tgz` archives from the exact clean release commit. The owner authorized merge, release and publication on 2026-09-12.
+This was the 0.15.0 npm-publish runbook. The live registry then contained 0.14.0. Version 0.15.0 added projection-only runtime facts, monotonic learning-lifecycle navigation and the exact loaded dashboard bridge consumed by pi-daddy 0.25.0. Release preparation also raises the runtime `js-yaml` floor to 4.3.2 because the live production audit now flags 4.3.1 under GHSA-2883-xcg3-v3hh. `release:pack` must produce only manifest-bound `*-0.15.0.tgz` archives from the exact clean release commit. The owner authorized merge, release and publication on 2026-09-12.
 
-## Authoritative 0.15.0 release order
+## Historical 0.15.0 release order
 
-1. Preserve merged feature PR #78 ancestry (`e00941b` contains exact reviewed head `6b34439`) and land synchronized 0.15.0 package versions, exact internal dependencies, lockfile, changelog and this active runbook through a green release PR.
+1. Preserve merged feature PR #78 ancestry (`e00941b` contains exact reviewed head `6b34439`) and land synchronized 0.15.0 package versions, exact internal dependencies, lockfile, changelog and that historical runbook through a green release PR.
 2. In a fresh quiescent checkout of that exact release merge, use Node 20.20.2/npm 10.8.2 to run `npm run release:pack`, then `npm run smoke:packed`. Do not rebuild after recording the canonical archive manifest.
 3. Run `scripts/smoke-real-pi.sh` once as a fresh factory-only supervised occurrence with subscription subject `openai-codex:gpt-5.6-sol` and judge `openai-codex:gpt-5.6-terra`. The frozen ceiling is two subject invocations with at most one blank-response retry each plus up to three judge invocations: at most seven Pi process invocations, not an exact HTTP/provider-call cap. Retain the unique occurrence identity, checkout, stdout/stderr, process status and both result trees. This is path verification, not efficacy.
 4. Separately install the canonical public meta-package tarball in an empty prefix and start Pi with only that installed extension plus the exact merged pi-daddy 0.25.0 extension. Verify the loaded bridge, package entrypoints and zero provider requests. This does not substitute for step 3.
@@ -898,12 +939,12 @@ assertion rather than assuming either cause. A `NOT READY` scorecard from `run` 
 separate and expected: reported, not fatal.
 
 The historical 0.13.0 release pinned `openai-codex:gpt-5.6-luna` for the subject and
-`openai-codex:gpt-5.6-sol` for the judge. That dated evidence is unchanged. The active
-0.14.0 authoritative section and smoke script instead pin Sol as subject and Terra as
-judge under the current authorization. Both pairings use distinct same-family models,
+`openai-codex:gpt-5.6-sol` for the judge. That dated evidence is unchanged. The historical
+0.14.0 section and smoke script instead pinned Sol as subject and Terra as
+judge under that release authorization. Both pairings use distinct same-family models,
 so the run is path verification—not independent efficacy evidence. Pi has no entitlement
 preflight: either selected model can still be unavailable at invocation time.
-`SMOKE_MODEL` and `SMOKE_JUDGE` override the active defaults.
+`SMOKE_MODEL` and `SMOKE_JUDGE` overrode those historical defaults.
 The first preflight after any spec edit may report `stale` findings from earlier
 local runs. The release smoke treats every nonzero lint exit as fatal before spend;
 clear that gitignored litter by deleting `scripts/smoke/skills/*/tests/results/`
