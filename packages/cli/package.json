@@ -10,8 +10,7 @@
     },
     "exports": {
         ".": "./dist/cli.js",
-        "./serve": "./dist/serve.js",
-        "./learning": "./dist/learning.js"
+        "./serve": "./dist/serve.js"
     },
     "keywords": [
         "agent-skills",
@@ -28,7 +27,6 @@
         "dist/**/*.js",
         "dist/**/*.d.ts",
         "assets",
-        "docs/*.md",
         "LICENSE",
         "README.md"
     ],

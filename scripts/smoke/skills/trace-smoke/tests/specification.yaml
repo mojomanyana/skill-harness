@@ -1,6 +1,4 @@
-# Smoke-test spec. Deliberately ONE scenario: with min_pass == total, the single
-# cell is always `ship_deciding`, so `grade --auto-rejudge` is guaranteed to
-# trigger and the live adjudication path is certain to be exercised.
+# Smoke-test spec. Deliberately one scenario to keep the paid path bounded.
 #
 # Costs real tokens. Run only via scripts/smoke-real-pi.sh — nothing discovers
 # this skills root automatically.

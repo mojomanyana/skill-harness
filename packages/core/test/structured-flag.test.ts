@@ -13,7 +13,7 @@ import type { ExecutionTraceV1 } from "../src/capture-trace-types.js";
  * thing the flag exists to capture: subject token/cost metrics that are
  * otherwise never populated (see `RunOptions.structured` in run.ts). Before this
  * wave, `run()`'s SEEDED branch keyed `runSeeded`'s `trace` opt only off
- * `traceAssert`/`trajectoryAssert` — a bare `--structured` request on a
+ * `traceAssert` — a bare `--structured` request on a
  * `mode: seeded` scenario silently took the plain `adapter.run()` path and
  * recorded zero subject tokens/cost (I3). The non-seeded branch already
  * honoured the flag on its own; T2 covers that path having no deliverable test
@@ -91,7 +91,7 @@ describe("--structured on an ungated plain scenario (T2)", () => {
   });
 
   // Mutation: reverting the non-seeded branch's `wantStructured` computation in
-  // run.ts back to `Boolean(scenario.traceAssert) || Boolean(scenario.trajectoryAssert)`
+  // run.ts back to `Boolean(scenario.traceAssert)`
   // (dropping `Boolean(ctx.structured) ||`) makes this test's `structuredCalls`
   // assertion fail — it would come back 0, `plainCalls` would be 1, and
   // `metrics.input_tokens` would be undefined.
@@ -113,7 +113,7 @@ describe("--structured on an ungated plain scenario (T2)", () => {
     expect(structuredCalls()).toBe(1);
     expect(plainCalls()).toBe(0);
     expect(summary.results.scenarios[0].metrics?.input_tokens).toBe(321);
-    // No trace/trajectory assertion was declared — `--structured` alone must not
+    // No trace assertion was declared — `--structured` alone must not
     // manufacture an objective gate that was never asked for.
     expect(summary.results.scenarios[0].objective).toBeUndefined();
   });
@@ -137,7 +137,7 @@ describe("--structured on an ungated plain scenario (T2)", () => {
   });
 });
 
-describe("--structured on a mode: seeded scenario with no trace/trajectory assert (I3)", () => {
+describe("--structured on a mode: seeded scenario with no trace assert (I3)", () => {
   function seededCorpusNoGate(): { dir: string; specPath: string } {
     const root = mkdtempSync(join(tmpdir(), "sh-seeded-structured-"));
     const dir = join(root, "golden");
@@ -165,7 +165,7 @@ describe("--structured on a mode: seeded scenario with no trace/trajectory asser
   }
 
   // Mutation: reverting run.ts's seeded-branch `trace:` option back to
-  // `scenario.traceAssert || scenario.trajectoryAssert ? {...} : undefined`
+  // `scenario.traceAssert ? {...} : undefined`
   // (dropping `ctx.structured ||`) makes this test's `structuredCalls`
   // assertion fail — `runSeeded` would call the adapter's plain `run()`
   // instead, `plainCalls` would be 1, and no subject metrics would be recorded.

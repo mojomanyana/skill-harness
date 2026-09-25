@@ -129,6 +129,17 @@ describe("--version", () => {
   });
 });
 
+describe("removed flags fail before work", () => {
+  test.each([
+    [["run", "demo", "--affected"], "--affected"],
+    [["grade", "/missing", "--auto-rejudge"], "--auto-rejudge"],
+    [["grade", "/missing", "--secondary-judge", "claude-code:x"], "--secondary-judge"],
+    [["grade", "/missing", "--tie-break-judge", "claude-code:x"], "--tie-break-judge"],
+  ] as const)("refuses %s instead of silently changing behavior", async (argv, flag) => {
+    await expect(main([...argv])).rejects.toThrow(new RegExp(flag));
+  });
+});
+
 describe("help", () => {
   test("names the running version, so a screenshot of it is dateable", () => {
     expect(help()).toContain(HARNESS_VERSION);

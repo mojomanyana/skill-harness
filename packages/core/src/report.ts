@@ -4,7 +4,7 @@ import { loadSpec, type ShipBar } from "./spec.js";
 import { readResults, type ResultsFile } from "./results.js";
 import { collectLift, liftHeadline, type Lift } from "./lift.js";
 import { boundaryCells, collectStability, stabilityNote } from "./stability.js";
-import { aggregateMetrics, type AggregateMetrics } from "./comparison.js";
+import { aggregateMetrics, type AggregateMetrics } from "./metrics.js";
 
 export interface RunColumn {
   index: number;
@@ -21,8 +21,6 @@ export interface RunColumn {
     judge_verdict: string; judge_reason: string; suspect: boolean;
     /** Objective trace-gate outcome, when the scenario declared `assert.trace`. */
     objective?: { status: string; detail: string };
-    /** Adjudication outcome, when the cell was re-judged. */
-    adjudication?: { state: string; trigger: string; count: number; detail: string };
     reps?: number; passes?: number; clean?: number; flakiness?: number;
     metrics?: import("./results.js").ScenarioMetrics;
     override: string | null; note: string;
@@ -115,18 +113,6 @@ export function collectReport(skillDir: string): ReportData {
                   detail: s.objective.assertions.length
                     ? s.objective.assertions.map((a) => `${a.status} ${a.detail}`).join(" · ")
                     : "no assertion evidence recorded",
-                },
-              }
-            : {}),
-          ...(s.adjudication
-            ? {
-                adjudication: {
-                  state: s.adjudication.state,
-                  trigger: s.adjudication.trigger,
-                  count: s.adjudication.judgments.length,
-                  detail: s.adjudication.judgments
-                    .map((j) => `#${j.ordinal} ${j.judge.provider}:${j.judge.model} ${j.verdict}${j.suspect ? " (misfired, not counted)" : ""}`)
-                    .join(" · "),
                 },
               }
             : {}),

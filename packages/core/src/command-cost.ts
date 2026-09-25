@@ -5,17 +5,12 @@
  * do not belong here even when their common path only replays saved artifacts.
  */
 export const FREE_OFFLINE_COMMANDS = [
-  "affected",
-  "archive",
   "coverage",
   "init",
-  "judge-agreement",
-  "learning",
   "lint",
   "list",
   "rescore",
   "restamp",
-  "screen",
   "stability",
 ] as const;
 

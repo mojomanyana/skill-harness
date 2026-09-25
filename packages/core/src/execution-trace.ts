@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { ExecutionTraceV1, TraceToolCall, TraceResultMeta, TraceMetrics } from "./capture-trace-types.js";
 import { normalizeSubagentCall } from "./trace-gates.js";
 import { EXECUTION_TRACE_VERSION } from "./capture-trace-types.js";
-import { redactArgs, redactText } from "./capture.js";
+import { redactArgs, redactText } from "./redaction.js";
 import type { ModelRef, RunMode } from "./adapters/types.js";
 
 /**

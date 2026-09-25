@@ -9,7 +9,7 @@ ship_bar:
 critical: []
 scenarios:
   - id: R1
-    title: receives the authenticated release prompt
+    title: returns the release sentinel
     turns:
       - "Reply with the release sentinel requested by your instructions."
     checklist:

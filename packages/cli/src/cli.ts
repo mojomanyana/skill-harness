@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, existsSync, mkdirSync, writeFileSync, mkdtempSync, rmSync, readdirSync } from "node:fs";
-import { load as yamlLoad } from "js-yaml";
+import { readFileSync, existsSync, mkdirSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { basename, dirname, join, resolve, relative } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -19,28 +18,18 @@ import {
   collectLift,
   collectStability, boundaryCells, stabilityNote, PATH_LEGEND,
   restampSkill,
-  resolveAdjudicationJudges, adjudicateRun, judgeResemblesSubject,
   computeCoverage, formatCoverage,
-  selectAffected, formatAffected, gitDiff,
-  exec,
-  type Scenario,
   HARNESS_VERSION,
   defaultJudge,
   assertJudgeAllowed,
-  judgeAgreement,
   assertNotDowngraded,
   downgradeWarning,
   isScoredMode,
   resolveArm,
   isFreeOfflineCommand,
-  screenResults, formatScreen,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
-import { runCompareCommand } from "./compare.js";
-import { cmdQualification } from "./qualification.js";
-import { cmdArchive } from "./archive.js";
-import { runLearningCommand } from "./learning.js";
 
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 // The judge default lives in core (`defaultJudge()`), which resolves
@@ -82,6 +71,16 @@ function parseArgs(argv: string[]): Args {
     }
   }
   return { _, flags, multi };
+}
+
+function assertNoRetiredFlags(command: string | undefined, args: Args): void {
+  const retired = command === "run"
+    ? ["affected"]
+    : command === "grade"
+      ? ["auto-rejudge", "secondary-judge", "tie-break-judge"]
+      : [];
+  const found = retired.find((flag) => Object.hasOwn(args.flags, flag));
+  if (found) throw new Error(`--${found} was removed; this command refuses to silently run with different behavior`);
 }
 
 export function flagStr(args: Args, key: string, fallback?: string): string | undefined {
@@ -186,11 +185,7 @@ export async function cmdRun(args: Args): Promise<void> {
   // that was never the problem. Free, offline validation first — it is also why
   // CI, which has no `pi`, could not test this refusal at all.
   const onlyRaw = flagStr(args, "only");
-  let only = onlyRaw ? onlyRaw.split(",").map((x) => x.trim()).filter(Boolean) : undefined;
-  const affected = flagBool(args, "affected");
-  if (affected && only) {
-    throw new Error("--affected and --only both choose the scenario set — pass one, not both");
-  }
+  const only = onlyRaw ? onlyRaw.split(",").map((x) => x.trim()).filter(Boolean) : undefined;
 
   const harnessName = flagStr(args, "harness", "pi")!;
   const adapter = getAdapter(harnessName);
@@ -224,17 +219,6 @@ export async function cmdRun(args: Args): Promise<void> {
     // that look comparable and are not. Checked per skill, before its first token.
     assertNotDowngraded(skill.dir, "run");
     const spec = loadSpec(skill.specPath);
-    if (affected) {
-      // Reuses the exact `--only` machinery, so an affected run is partial and
-      // cannot report SHIP — the same guarantee, through the same code path.
-      const result = await computeAffected(args, spec.scenarios, skill.specPath);
-      console.log(formatAffected(result, spec.scenarios.length));
-      only = result.selected.map((sel) => sel.id);
-      if (only.length === 0) {
-        console.log(`skip ${skill.name}: no scenario is affected by this change`);
-        continue;
-      }
-    }
     for (const token of modelTokens) {
       const model = parseModelRef(token);
       // The version is on the banner because a stale global install is otherwise
@@ -278,90 +262,8 @@ export async function cmdRun(args: Args): Promise<void> {
   console.log(`\nReview interactively:  skill-harness review ${skills[0]?.name ?? "<skill>"} --skills ${root}`);
   // A full delivered run is a release gate. NOT READY — including one critical
   // failure hidden by a high aggregate — must be machine-visible to CI. Red
-  // baselines and partial/affected branch feedback are deliberately excluded.
+  // baselines and partial branch feedback are deliberately excluded.
   if (releaseExitCode(summaries) !== 0) process.exitCode = 1;
-}
-
-export async function cmdCompare(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
-  const target = args._[0];
-  const reference = flagStr(args, "reference");
-  const candidateRoot = flagStr(args, "candidate");
-  if (!target || !reference || !candidateRoot) {
-    throw new Error("usage: skill-harness compare <skill|all> --reference <git-ref-or-skills-root> --candidate <skills-root> --model <provider:model> --reps N");
-  }
-  const judgeFlag = flagStr(args, "judge");
-  const judgeToken = judgeFlag ?? defaultJudge();
-  const judge = parseModelRef(judgeToken);
-  assertJudgeAllowed(judge, {
-    source: judgeFlag ? "--judge" : "the default judge (SKILL_HARNESS_JUDGE or the baked value)",
-    allowMetered: flagBool(args, "allow-metered-judge"),
-  });
-  const harnessName = flagStr(args, "harness", "pi")!;
-  const adapter = adapterOverride ?? getAdapter(harnessName);
-  if (!(await adapter.available())) throw new Error(`harness \`${harnessName}\` is not on PATH`);
-  const mode = (flagStr(args, "mode", "force") || "force") as "red" | "green" | "force";
-  if (mode === "red") throw new Error("compare measures a skill candidate, so --mode must be green or force (red is a no-skill baseline)");
-  const tuning = parseRunTuning(args);
-  const onlyRaw = flagStr(args, "only");
-  let only = onlyRaw ? onlyRaw.split(",").map((id) => id.trim()).filter(Boolean) : undefined;
-  const affected = flagBool(args, "affected");
-  if (affected && only) throw new Error("--affected and --only both choose the comparison scenario set — pass one, not both");
-  if (affected) {
-    if (target === "all") throw new Error("compare --affected currently requires one skill so each selected ID has an unambiguous spec");
-    const skill = resolveSkill(candidateRoot, target);
-    const spec = loadSpec(skill.specPath);
-    const selectionArgs: Args = {
-      ...args,
-      flags: {
-        ...args.flags,
-        // A git-ref reference is the natural diff base. A reference directory
-        // has no common history, so the caller must supply --base explicitly.
-        ...(!flagStr(args, "base") && !existsSync(reference) ? { base: reference } : {}),
-      },
-    };
-    if (existsSync(reference) && !flagStr(args, "base")) {
-      throw new Error("compare --affected with a reference directory needs --base <git-ref> for candidate change selection");
-    }
-    const selected = await computeAffected(selectionArgs, spec.scenarios, skill.specPath);
-    console.log(formatAffected(selected, spec.scenarios.length));
-    only = selected.selected.map((entry) => entry.id);
-    if (only.length === 0) {
-      console.log("compare: no affected scenarios — 0 subject calls, 0 judge calls; no release claim produced");
-      return;
-    }
-  }
-  const threshold = (name: string): number | undefined => {
-    const raw = flagStr(args, name);
-    if (raw === undefined) return undefined;
-    const value = Number(raw);
-    if (!Number.isFinite(value) || value < 0) throw new Error(`--${name} must be a non-negative ratio (got \`${raw}\`)`);
-    return value;
-  };
-  const thresholds = {
-    max_subject_token_increase: threshold("max-subject-token-increase"),
-    max_wall_time_increase: threshold("max-wall-time-increase"),
-    max_tool_call_increase: threshold("max-tool-call-increase"),
-  };
-  const hasThreshold = Object.values(thresholds).some((value) => value !== undefined);
-  const result = await runCompareCommand({
-    target,
-    reference,
-    candidateRoot,
-    models: resolveModels(args),
-    judgeToken,
-    mode,
-    reps: tuning.reps,
-    passThreshold: tuning.passThreshold,
-    parallel: Math.max(1, Number(flagStr(args, "parallel", "1")) || 1),
-    only,
-    canary: flagBool(args, "canary"),
-    output: flagStr(args, "output") || undefined,
-    thresholds: hasThreshold ? thresholds : undefined,
-    adapter,
-    now: nowIso,
-  });
-  console.log(`\ncomparison artifacts: ${result.outputDir}`);
-  if (result.exitCode !== 0) process.exitCode = result.exitCode;
 }
 
 export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
@@ -405,33 +307,7 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
   for (const s of results.scenarios) {
     console.log(`  ${s.id} → ${s.judge_verdict}: ${s.judge_reason}`);
   }
-  let final = results;
-
-  // Adjudication is opt-in. Without --auto-rejudge nothing below runs and not one
-  // extra call is made — a spec may declare triggers, but spec configuration alone
-  // never authorizes spending.
-  const judges = resolveAdjudicationJudges({
-    enabled: flagBool(args, "auto-rejudge"),
-    primary: judge,
-    secondaryToken: flagStr(args, "secondary-judge"),
-    tieBreakToken: flagStr(args, "tie-break-judge"),
-    subjectToken: results.model,
-    parseRef: parseModelRef,
-    assertAllowed: (j, source) => assertJudgeAllowed(j, { source, allowMetered: flagBool(args, "allow-metered-judge") }),
-    resemblesSubject: judgeResemblesSubject,
-    warn: (m) => console.error(m),
-  });
-
-  if (judges) {
-    final = await adjudicateRun({
-      runDir, spec, adapter, results, primaryJudge: judge,
-      secondaryJudge: judges.secondary, tieBreakJudge: judges.tieBreak,
-      specDir: testsDir, now: nowIso,
-      log: (m) => console.log(m),
-    });
-  }
-
-  const g = final.effective_grade;
+  const g = results.effective_grade;
   console.log(`\n  re-graded with ${judge.provider}:${judge.model} → ${g.letter} (${g.pct}%) ${g.ship ? "SHIP" : "NOT READY"}`);
 }
 
@@ -440,19 +316,6 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
  * Reps are the measurement; thresholds are policy. When policy changes, recompute rather
  * than reconcile two numbers in prose.
  */
-export function cmdJudgeAgreement(args: Args): void {
-  const raw = args._[0];
-  if (!raw) throw new Error("usage: skill-harness judge-agreement <run-dir>");
-  const runDir = resolve(raw);
-  if (!existsSync(runDir)) throw new Error(`run dir not found: ${runDir}`);
-  const report = judgeAgreement(readResults(runDir));
-  for (const cell of report.cells) {
-    console.log(`  ${cell.status === "agree" ? "=" : cell.status === "disagree" ? "≠" : "?"} ${cell.scenario}: ${cell.status} — ${cell.detail}${cell.judges.length ? ` (${cell.judges.join(" vs ")})` : ""}`);
-  }
-  console.log(`\njudge agreement: ${report.agree} agree / ${report.disagree} disagree / ${report.error} error; ${report.rate === null ? "n/a" : `${(report.rate * 100).toFixed(1)}%`} across ${report.comparable} comparable scenario(s).`);
-  console.log("offline report only; no model or judge calls.");
-}
-
 async function cmdRescore(args: Args): Promise<void> {
   const runDirs = args._;
   if (runDirs.length === 0) throw new Error("usage: skill-harness rescore <run-dir> [<run-dir> ...]");
@@ -569,13 +432,6 @@ async function cmdRestamp(args: Args): Promise<void> {
     `\n${runs} run(s) examined: ${upgraded} upgraded, ${unprovable} left alone, ${unchanged} already current.` +
       `${partial > 0 ? ` (${partial} upgraded only in part.)` : ""} No models were called.`,
   );
-}
-
-export async function cmdScreen(args: Args): Promise<void> {
-  if (args._.length === 0) throw new Error("usage: skill-harness screen <run-dir> [<run-dir> ...]");
-  const results = args._.map(runDir => readResults(resolve(runDir)));
-  console.log(formatScreen(screenResults(results)));
-  console.log(`\n${results.length} retained result(s) screened; 0 subject calls, 0 judge calls.`);
 }
 
 async function cmdStability(args: Args): Promise<void> {
@@ -700,7 +556,6 @@ async function cmdCoverage(args: Args): Promise<void> {
       // always points at, so report on it even when nothing references it —
       // otherwise a skill with zero `covers` reports 0 sections and looks fine.
       baseFiles: [relative(specDir, join(skill.dir, "SKILL.md")).split("\\").join("/")],
-      pendingCaptures: readPendingCaptures(specDir),
     });
     console.log(formatCoverage(report, spec.skill));
     if (report.uncovered.length) anyUncovered = true;
@@ -718,51 +573,6 @@ async function cmdCoverage(args: Args): Promise<void> {
     console.error("\n--strict: some sections have no declared test");
     process.exitCode = 1;
   }
-}
-
-/** Pending captures and the sections they are parked against. Free, offline, tolerant. */
-function readPendingCaptures(specDir: string): { id: string; covers: string[] }[] {
-  const dir = join(specDir, "captures");
-  if (!existsSync(dir)) return [];
-  const out: { id: string; covers: string[] }[] = [];
-  for (const file of readdirSync(dir).filter((f) => f.endsWith(".yaml"))) {
-    try {
-      const raw = yamlLoad(readFileSync(join(dir, file), "utf8")) as Record<string, unknown> | null;
-      if (!raw || raw.status === "promoted") continue;
-      const covers = Array.isArray(raw.covers) ? raw.covers.filter((c): c is string => typeof c === "string") : [];
-      if (covers.length) out.push({ id: String(raw.id ?? file.replace(/\.yaml$/, "")), covers });
-    } catch {
-      // A malformed capture is the capture command's problem to report; coverage
-      // must not fail because a draft file is mid-edit.
-    }
-  }
-  return out;
-}
-
-/** `affected` — which scenarios a change could plausibly touch. Free and offline. */
-async function cmdAffected(args: Args): Promise<void> {
-  const root = flagStr(args, "skills", process.cwd())!;
-  const target = args._[0];
-  if (!target) throw new Error("usage: skill-harness affected <skill> --skills <root> [--base <git-ref>]");
-  const skill = resolveSkill(root, target);
-  if (!skill.hasSpec) throw new Error(`${target} has no spec`);
-  const spec = loadSpec(skill.specPath);
-  const result = await computeAffected(args, spec.scenarios, skill.specPath);
-  console.log(formatAffected(result, spec.scenarios.length));
-}
-
-/** Shared by `affected` and `run --affected`, so the two can never disagree. */
-async function computeAffected(args: Args, scenarios: Scenario[], specPath: string) {
-  const base = flagStr(args, "base", "HEAD")!;
-  const repoRoot = await gitRepoRoot(dirname(specPath));
-  const diff = await gitDiff(repoRoot, base);
-  return selectAffected({ scenarios, specDir: dirname(specPath), diff, repoRoot });
-}
-
-async function gitRepoRoot(from: string): Promise<string> {
-  const r = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: from, timeoutMs: 30_000 });
-  if (r.code !== 0) throw new Error(`not a git repository (from ${from}) — --affected needs one to diff against`);
-  return r.stdout.trim();
 }
 
 /** Write a spec to disk, creating its tests/ dir. The single choke point for spec
@@ -922,31 +732,16 @@ export function help(): string {
   return `skill-harness ${HARNESS_VERSION} — test/optimize loop for agent skills (pi harness)
 
   run    <skill|all> --skills <root> [--model prov:model ...] [--models file] [--only A1,D2]
-                     [--affected --base <git-ref>]  run only the scenarios a change could touch (partial; never SHIPs)
                      [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
                      [--canary]  green only: spend ONE probe proving the skill reached the model, and abort the run if it did not
                      [--structured]  record subject tokens, cost and wall time (needs pi --mode json)
                      [--arm <name>]  measure under a named arm from <skills-root>/tests/arms.yaml
                                      (loads its extensions, seeds pi-daddy definitions, tags the run dir)
-  compare <skill|all> --reference <git-ref-or-skills-root> --candidate <skills-root>
-                     [--model prov:model ...] [--mode green|force] [--judge prov:model] [--reps N] [--only IDs | --affected --base ref]
-                     [--output dir] [--max-subject-token-increase R] [--max-wall-time-increase R] [--max-tool-call-increase R]
-                       paired setup (not seeded sampling); critical regression exit 2, ordinary regression exit 1
   grade  <run-dir>   [--judge prov:model] [--suspect-only]   re-grade saved transcripts (neutral judge)
-                     [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]
-                       ask again about untrustworthy cells (ambiguous / contradictory / non-unanimous /
-                       ship-deciding). OFF by default; prints the exact MAX extra call count first.
-  archive ingest|inspect|watch --policy file --source id  explicit external ingestion/metadata (${free("archive")})
-  learning [status|import|review|trust|decide|adoption|outcome|guide]  guided retained learning (${free("learning")}; no models)
-                        use learning help; quality, trust, adoption and later outcomes stay separate
-  archive weekly|trust|access --state /private/dir --request file  durable learning/consent lifecycle (${free("archive")})
-                        watch requires --max-polls N; optional --interval-ms N and --previous checkpoint
-  judge-agreement <run-dir>                      compare two distinct persisted judge votes per scenario (${free("judge-agreement")})
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (${free("rescore")})
   regate <run-dir>...  [--judge prov:model]     re-evaluate saved gates (no subject call; judges fail→pass reps)
   restamp <skill|all> --skills <root> [--from <git-ref>]   record the model-visible skill digest on runs that still match (${free("restamp")}; one-time migration)
   stability <skill|all> --skills <root> [--window N] [--all]  run-over-run verdict flips per scenario (${free("stability")})
-  screen <run-dir>...                           retained control/treatment + criterion rates (${free("screen")})
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]
   init   <skill>     --skills <root> [--force]     scaffold a commented template spec (${free("init")})
@@ -954,12 +749,6 @@ export function help(): string {
   list   --skills <root>                        discovered skills + spec status (${free("list")})
   lint   <skill|all> --skills <root>           validate specs/fixtures + results-consistency (${free("lint")}; CI gate; exits non-zero on findings)
   coverage <skill|all> --skills <root> [--strict]   which instruction sections have a declared test (${free("coverage")})
-  affected <skill>   --skills <root> [--base ref]   which scenarios a change could touch (${free("affected")})
-  qualification <prepare|start|status|poll|validate|panel|cell|abort>  durable qualification-runner-v1 lifecycle + offline panel collapse
-                     prepare --spool DIR --config FILE --request FILE [--expected-config-sha256 HEX] (required in production)
-                     start|status|poll|abort --spool DIR --id ID  (abort also requires --reason ID)
-                     start may resume only with --continuation-authority-file <private-0600-prebound-one-use-capability>
-                     validate --spool DIR  (all calls use external, schema-validated arms; no automatic retry)
 
   version  print ${HARNESS_VERSION} and exit (also --version / -v)
 
@@ -973,19 +762,15 @@ defaults: model=${DEFAULT_MODEL}  judge=${defaultJudge()}  mode=green  harness=p
 
 export async function main(argv: string[]): Promise<void> {
   const cmd = argv[0];
-  if (cmd === "learning") { await runLearningCommand(argv.slice(1)); return; }
   const args = parseArgs(argv.slice(1));
+  assertNoRetiredFlags(cmd, args);
   switch (cmd) {
     case "run": return cmdRun(args);
-    case "compare": return cmdCompare(args);
     case "grade": return cmdGrade(args);
-    case "archive": return cmdArchive(args);
-    case "judge-agreement": return cmdJudgeAgreement(args);
     case "rescore": return cmdRescore(args);
     case "regate": return cmdRegate(args);
     case "restamp": return cmdRestamp(args);
     case "stability": return cmdStability(args);
-    case "screen": return cmdScreen(args);
     case "review": return cmdReview(args);
     case "add-test": return cmdAddTest(args);
     case "init": return cmdInit(args);
@@ -993,8 +778,6 @@ export async function main(argv: string[]): Promise<void> {
     case "list": return cmdList(args);
     case "lint": return cmdLint(args);
     case "coverage": return cmdCoverage(args);
-    case "affected": return cmdAffected(args);
-    case "qualification": return cmdQualification(args);
     case "version":
     case "--version":
     case "-v":

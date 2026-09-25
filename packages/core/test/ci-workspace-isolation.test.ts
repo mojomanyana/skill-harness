@@ -30,19 +30,4 @@ describe("CI auxiliary checkout isolation", () => {
     expect(new Set([harness?.with?.path, principal?.with?.path, piDaddy?.with?.path])).toHaveProperty("size", 3);
   });
 
-  it("automatically checks both immutable archive producer trees against their recorded pin", () => {
-    const workflow = load(readFileSync(join(__dirname, "../../../.github/workflows/ci.yml"), "utf8")) as Workflow;
-    const job = workflow.jobs["pi-daddy-archive-contracts"];
-    const producer = job?.steps.find((step) => step.name === "Check out immutable archive contract producer");
-    const commands = job?.steps.flatMap((step) => step.run ? [step.run] : []) ?? [];
-
-    expect(producer?.with).toMatchObject({
-      repository: "mojomanyana/pi-daddy",
-      ref: "7c78769c47177b1972b09e1f5c5474ad44cd2cac",
-      path: "pi-daddy-archive",
-    });
-    expect(commands).toContain("node scripts/vendor-work-v4-reader.mjs ../pi-daddy-archive 7c78769c47177b1972b09e1f5c5474ad44cd2cac --check");
-    expect(commands).toContain("node scripts/vendor-execution-retention.mjs ../pi-daddy-archive 7c78769c47177b1972b09e1f5c5474ad44cd2cac --check");
-    expect(job.defaults?.run?.["working-directory"]).toBe("skill-harness");
-  });
 });

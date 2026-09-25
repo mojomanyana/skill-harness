@@ -1,62 +1,10 @@
 # Next session — start here
 
-## 0.17.0 release preparation — current
+## Removal branch — current
 
-Feature PR82 merged at 5145f9e19c243eae9d9b42a87ea4007a645146ca after independent Sol
-review and all CI checks passed. The bundle correction changed dependency-path
-comments only. Release metadata synchronizes six package versions/internal pins,
-lockfile, skill frontmatter and current guide to 0.17.0; producer pairing is 0.27.3.
-Follow PUBLISHING.md: clean exact release merge, canonical Node20 pack, retained
-archives, isolated installed real-Pi session checks with no providers, then publish
-those same bytes. No live-agent comparison is needed merely to release metadata.
-
-
-## 2026-09-15 whole-session learning candidate — historical
-
-The additive learning session commands retain explicitly selected parent/child
-Pi transcripts, ledger, feedback and artifacts, then expose timeline excerpts and
-full-source readback plus line-bound operator notes. Preview is read-only; exact
-digest confirmation precedes private retention. Child gaps remain explicit after
-readback. No raw user transcript or consumer fixture belongs in this repository.
-
-Source implementation, bundled Pi entrypoint and focused offline checks are complete.
-Independent review fixes terminal control escaping, real evidence-line bounds,
-retained/child coverage and portable archive containment. See PRODUCT-GUIDE.md for
-commands and limitations. Whole-session optimization is not yet a measured result:
-free-form notes do not authorize policy activation. Release/PR evidence is recorded
-in the delivery handoff rather than inferred from this candidate section.
-
-## 0.16.0 release preparation — historical
-
-Feature PR #80 merged at `c6cd55d4db9ccf9a1ec790459c3cc5e6b1eac69f` with green CI
-and Sol approval. Actual source/built cross-package registry/learning integration passed
-with explicitly synthetic fixtures. Prepare **skill-harness 0.16.0**, paired with
-**pi-daddy 0.27.0**; Principal 3.2.0 is unchanged.
-
-The release metadata changes no runtime code or third-party dependencies. Follow the
-active 0.16.0 order in `PUBLISHING.md`: exact release-merge canonical pack on Node
-20.20.2/npm 10.8.2, retain all four archives and manifest, then a fresh empty-prefix
-install and actual Pi two-extension/original-registry learning checks without providers.
-`smoke:packed` repacks into disposable storage; it is not the retained-archive proof.
-Publication, installed-release proof, acceptance and calibration remain pending where
-not independently evidenced. Prior live route smokes remain historical; do not replay
-model calls solely for metadata. Earlier dated entries below are preserved history.
-
-## 2026-09-14 retained learning usability candidate
-
-Canonical baseline is now released 0.15.0 (`a725579`). The additive learning workspace
-composes retained cases, hypotheses, qualified comparisons, complete-artifact quality,
-separate adoption decisions, independent trust labels and original registry/outcome links.
-CLI `learning` and Pi `/skill-harness learning` share the guided flow and the existing
-producer bridge. See `docs/factory/PRODUCT-GUIDE.md` and `docs/factory/STATUS.md` rather
-than the dated factory CURRENT snapshot. End independent review, broader tests and
-installed producer integration remain explicit gates; no model experiment, release,
-calibrated improvement or full-artifact human acceptance is claimed by this implementation.
-
-
-## 2026-09-12 0.15.0 release preparation
-
-Feature PR #78 merged as `e00941b0565e75c9380270a1f3a536b163ecc159` with exact reviewed head `6b34439d9a3dd51e3509cb580af3bc388dd0a909` preserved as its second parent. Version 0.15.0 packages projection-only runtime facts and monotonic bounded content-addressed learning-lifecycle navigation across case, hypothesis, comparison, optional choice/adoption/rollback and later outcomes. Missing stages remain explicit; supplied host facts stay separately linked. The live npm baseline is 0.14.0. Canonical pack, path smoke, publication and immutable tag remain release steps; human choice, trust calibration, adoption and later outcomes are not release claims.
+The inert retained-learning lifecycle and its factory/archive support are being removed on
+`remove/never-exercised-capabilities`. Historical release notes below remain records of what
+older versions shipped; they are not current workflow guidance.
 
 ## 2026-09-11 0.14.0 release candidate
 
@@ -66,21 +14,7 @@ PR76 merged as `1fde8fc` after exact-head CI and final independent review. The 0
 `docs/ROADMAP.md`: the roadmap says where the project is going, this says what remains
 open and what will bite you. Release notes live in `PUBLISHING.md`.*
 
-## Current state after qualification-runner-v1
-
-PR [#65](https://github.com/mojomanyana/skill-harness/pull/65) is **merged**
-(`d768360`); it is not an open feature branch. The package version remains 0.11.0 but
-HEAD contains unreleased post-0.11.0 work. This is qualification infrastructure, not a
-measurement: no board, Wave A manifest, holdout, final measurement identity, subject,
-judge, calibration, or canary belongs in the repository or in its validation.
-
-The runner is separately versioned and documented in `docs/QUALIFICATION-RUNNER.md`.
-It uses external closed configuration; an allowlisted OAuth-only child environment;
-Pi's credential-free `auth check --json` metadata; canonical filesystem state; atomic
-launch accounting; detached process supervision; no automatic retry; process-group
-timeout/abort; and exact provider/model attestation from the completed Pi JSONL.
-`prepare` is zero calls. The launch claim is one consumed call even when the child
-fails, times out, refuses, truncates, or produces an invalid artifact.
+## Pi-daddy ledger-v3 contract
 
 The separate `pi-daddy-ledger-v3` selector pins pi-daddy Wave 1 commit
 `4a9524394ca995fd74ed9bbb836dc4e73cda3b8c` / tree
@@ -90,12 +24,6 @@ The separate `pi-daddy-ledger-v3` selector pins pi-daddy Wave 1 commit
 Its five positive fixtures
 are byte-vendored producer artifacts generated through real production builders.
 The historical `pi-daddy-v1` selector remains 0.17/v2 only.
-
-Do not describe this as signer authenticity, remote attestation, protection from a
-malicious local owner, general OS containment, proof of OAuth usability, model
-efficacy, or completed qualification. Implementation commit is `91479b0fd4d6a2428d34d897f305b77fc74c5c79`.
-The final exact-head review and merge identities replace this branch-state paragraph
-when the work lands.
 
 ## Pi-daddy 0.19.0 ledger-v2 contract re-pin — historical handoff
 

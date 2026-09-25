@@ -93,15 +93,6 @@ describe("aggregateReps", () => {
 });
 
 describe("outcomesToResult", () => {
-  test("retains per-repetition objective hashes for later tamper detection", () => {
-    const outcomes = ["a", "b"].map((char) => ({
-      ...pass(),
-      objective: { status: "PASS" as const, events_sha256: char.repeat(64), assertions: [] },
-    }));
-    const result = outcomesToResult("A1", outcomes, 2, 1);
-    expect(result.objective?.rep_events_sha256).toEqual(["a".repeat(64), "b".repeat(64)]);
-  });
-
   test("single rep → no reps fields (byte-identical to a plain run)", () => {
     const r = outcomesToResult("A1", [pass()], 1, 0.5);
     expect(r).toEqual({ id: "A1", judge_verdict: "PASS", judge_reason: "ok", suspect: false, override: null, note: "" });

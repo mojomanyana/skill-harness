@@ -21,13 +21,11 @@ repo with `npm run dev --` (dev) or the `skill-harness` bin (built).
 under test.** Subject ≠ judge — same-family grading inflates scores. Single runs
 lie on weak/stochastic models; re-run before trusting a delta.
 
-**Schema-3 efficacy requires established delivery.** A known-undelivered repetition is `NOT-MEASURED`, excluded from efficacy denominators and never sent to the judge; an instrumentation failure is ERROR. Both block SHIP without turning a broken experiment into product failure. Schema-1/2 meanings stay historical.
+**Legacy schema-3 delivery evidence remains readable.** A retained `NOT-MEASURED` verdict still blocks SHIP. New runs use schema 2 and do not produce delivery observations.
 
 **Where an objective gate exists, prefer it to the judge.** `assert.trace` states
-what the model DID — which tool it called, which path it touched. `assert.trajectory`
-states whether a multi-phase workflow obeyed state, capability, workspace, authority,
-freshness, and finalization contracts. Both read structured evidence, run BEFORE the
-judge, and cost zero judge tokens when they fail. An objective FAIL or ERROR outranks
+what the model DID — which tool it called, which path it touched. It reads structured
+evidence, runs BEFORE the judge, and costs zero judge tokens when it fails. An objective FAIL or ERROR outranks
 the judge's verdict; only an explicit author override beats it.
 
 ## The loop
@@ -51,12 +49,6 @@ the judge's verdict; only an explicit author override beats it.
 3. **Run + grade.** `skill-harness run <skill> --skills <root> --model <m> [--model <m2>]
    [--judge <prov:model>]`. This runs every scenario, grades each transcript, writes
    `results.yaml`, and prints a scorecard per model. Heed any judge≈subject warning.
-3b. **Ask for a second opinion where it decides the ship.** Add `--auto-rejudge` to
-   `run` or `grade` to re-judge cells that are ambiguous, self-contradictory,
-   non-unanimous across reps, or ship-deciding. It discloses an exact ceiling on
-   ADDITIONAL judge calls before spending one, and names any cell it cannot settle
-   without `--tie-break-judge`. An unresolved disagreement blocks SHIP; it never
-   resolves itself.
 4. **Check what one run is worth.** `skill-harness stability <skill> --skills <root>`
    (free, offline) lists scenarios whose verdict flipped between runs of the same skill ×
    model × mode. `flakiness 0.00` cannot see this — it compares reps inside ONE run — so
@@ -69,49 +61,21 @@ the judge's verdict; only an explicit author override beats it.
 6. **Add a test.** `skill-harness add-test <skill> --skills <root> --id <ID> --title <T>
    --turn "<turn>" [--turn ...] --check "<item>" [--check ...] [--critical]
    [--mode seeded --fixture <path>]`. Gather the fields conversationally first.
-7. **Compare a reference and candidate when isolation matters.** `skill-harness compare`
-   uses the same spec/fixture/model/mode/judge/repetition plan on both snapshots. Confirm
-   the spend first. It is paired setup, not seeded LLM sampling; partial/affected is
-   branch feedback and never SHIP.
-8. **Optimize.** The user edits `<skill>/SKILL.md` → re-run → compare the new
+7. **Optimize.** The user edits `<skill>/SKILL.md` → re-run → compare the new
    scorecard to the old `results.yaml`. Report the per-scenario delta, not just the
-   letter grade. Before spending a full wave on an edit, `skill-harness affected
-   <skill> --skills <root> --base <ref>` names the scenarios that edit could touch
-   (free, offline). An affected run is partial and never reports SHIP.
+   letter grade.
 
 ## Free, offline, and worth running first
 None of these spend a model or judge token. Reach for them before anything paid:
-`init`, `lint`, `list`, `rescore`, `restamp`, `screen`, `stability`, `coverage`, `affected`, `archive`,
-`learning`, and `judge-agreement`. In particular —
+`init`, `lint`, `list`, `rescore`, `restamp`, `stability`, and `coverage`. In particular —
 - `coverage <skill|all> --skills <root>` — which SKILL.md sections have a declared
   test. `covers` records that somebody LINKED a test to a section; it is not proof
   the behaviour is tested, and it is worth saying so when you report a percentage.
-- `affected <skill> --skills <root> --base <ref>` — which scenarios a diff could
-  touch. Resolves every ambiguity toward selecting more.
-- `screen <run-dir>...` — recompute control/treatment rates and criterion failures
-  from schema-v3 retained prompt observations and judge votes; older evidence stays UNKNOWN.
 
 **Match the remedy to the drift; `lint` names it.** `stimulus:` → `run` (spends),
 `rubric:` → `grade` (judge only), `policy:` → `rescore` (free), `gates:` → `regate`
 (no subject call; one judge call for each fail→pass rep). Never reach for `run` when lint
 asked for one of the other three. Confirm that possible judge spend before running `regate`.
-
-## Retained factory learning
-
-Use `/skill-harness learning` or `skill-harness learning` for guided retained cases,
-complete-artifact comparisons, trust setup/independent labels and explicit adoption decisions.
-Use the matching producer's `/grants learning` for exact host scope binding and its authorized
-next-order registry activation/rollback. Do not author manifests for the user, infer quality
-from exit zero, reset attention, or convert excerpt feedback to full-artifact acceptance.
-Reading starts no models/delegation or automatic exposure. Human quality, technical eligibility,
-adoption authority and later observation remain separate. Guide: `docs/factory/PRODUCT-GUIDE.md`;
-current register: `docs/factory/STATUS.md`.
-
-## Capturing a real failure
-`/skill-harness capture` (pi extension only — NOT a CLI command, and it refuses to
-run headless) promotes turns from a live pi conversation into a regression case.
-There is a preview step before anything is written; that preview is what keeps
-secrets out of a committed file, which is why the command has no unattended mode.
 
 ## Tenets
 1. **Judge ≠ subject.** Never let the judge model sit in the model set being tested.

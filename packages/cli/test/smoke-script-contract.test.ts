@@ -21,21 +21,17 @@ function executable(dir: string, name: string, body: string): void {
 
 
 describe("real-pi release smoke contract", () => {
-  it("separates the hostile-extension probe from authenticated delivery and adjudication", () => {
-    expect(script).toContain('EXTENSION_SKILL="trace-smoke"');
-    expect(script).toContain('DELIVERY_SKILL="delivery-smoke"');
+  it("exercises one structured extension run without producing delivery evidence", () => {
+    expect(script).toContain('SKILL="trace-smoke"');
     expect(script).toContain('MODEL="${SMOKE_MODEL:-openai-codex:gpt-5.6-sol}"');
     expect(script).toContain('JUDGE="${SMOKE_JUDGE:-openai-codex:gpt-5.6-terra}"');
     expect(script).toContain('--judge "$JUDGE"');
-    expect(script).toContain('expected unauthenticated extension delivery ERROR');
-    expect(script).toContain('authenticated delivery: PASS');
+    expect(script).toContain('if (r.schema !== 2)');
+    expect(script).toContain('fresh run produced NOT-MEASURED');
+    expect(script).not.toContain('authenticated delivery: PASS');
 
     const extension = spec("trace-smoke");
     expect(extension.scenarios[0].env.extensions).toHaveLength(1);
-    const delivery = spec("delivery-smoke");
-    expect(delivery.scenarios[0].env?.extensions).toBeUndefined();
-    expect(delivery.scenarios).toHaveLength(1);
-    expect(delivery.ship_bar).toMatchObject({ total: 1, min_pass: 1 });
   });
 
   it("stops before lint or paid work when Claude is present but not runnable", () => {

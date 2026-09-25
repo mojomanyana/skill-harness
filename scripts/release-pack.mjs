@@ -78,24 +78,21 @@ const packages = [
     inventoryRoots: [
       { path: "dist", accepts: (path) => path.endsWith(".js") || path.endsWith(".d.ts"), ignores: (path) => path === ".tsbuildinfo" || path.endsWith(".map"), pairedDeclarations: true },
       { path: "assets", exact: ["report.grade.js", "report.template.html"] },
-      { path: "docs", exact: ["PRODUCT-GUIDE.md", "STATUS.md"] },
     ],
   },
   {
     workspace: "skill-harness",
     directory: "packages/skill-harness",
     archivePrefix: "skill-harness",
-    staticFiles: ["package.json", "README.md", "LICENSE", "bin.js", "dist/index.js", "dist/prompt-capture-extension.js", "assets/report.template.html", "assets/report.grade.js"],
+    staticFiles: ["package.json", "README.md", "LICENSE", "bin.js", "dist/index.js", "assets/report.template.html", "assets/report.grade.js"],
     internalDependencies: ["@skill-harness/cli"],
-    inventoryRoots: [{ path: "docs", exact: ["PRODUCT-GUIDE.md", "STATUS.md"] }],
+    inventoryRoots: [],
     modes: { "bin.js": 0o755 },
   },
 ];
 const stagingDirectories = [
   { source: "schemas", destination: "packages/core/schemas", files: null },
   { source: "assets", destination: "packages/cli/assets", files: ["report.template.html", "report.grade.js"] },
-  { source: "docs/factory", destination: "packages/cli/docs", files: ["PRODUCT-GUIDE.md", "STATUS.md"] },
-  { source: "docs/factory", destination: "packages/skill-harness/docs", files: ["PRODUCT-GUIDE.md", "STATUS.md"] },
 ];
 const stagingFiles = [
   "packages/core/LICENSE",

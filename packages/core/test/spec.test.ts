@@ -369,72 +369,25 @@ scenarios:
   });
 });
 
-describe("assert.trajectory + env.event_sources", () => {
-  const base = (extra: string) => `
+describe("removed workflow keys fail closed", () => {
+  const parse = (extra: string) => parseSpec(`
 skill: demo
 judge_persona: a judge.
 ship_bar: { total: 1, min_pass: 1 }
 scenarios:
   - id: A1
-    title: governed workflow
+    title: retired config
     turns: ["run it"]
-    checklist: ["completes safely"]
-${extra}`;
+    checklist: ["done"]
+${extra}
+`, "retired.yaml");
 
-  test("parses an adapter-neutral trajectory assertion and versioned native sources", () => {
-    const scenario = parseSpec(base(`    env:
-      event_sources:
-        - adapter: principal-assurance-v1
-          path: .git/principal-pi-skills/assurance-v1/runs/*/events.jsonl
-        - adapter: pi-daddy-v1
-          path: .pi/grants-ledger.jsonl
-          required: false
-    assert:
-      trajectory:
-        version: "1.0"
-        require:
-          - event: risk_classified
-        forbid:
-          - event: writer_lease_conflict
-`), "f").scenarios[0];
-    expect(scenario.trajectoryAssert?.version).toBe("1.0");
-    expect(scenario.eventSources).toEqual([
-      { adapter: "principal-assurance-v1", path: ".git/principal-pi-skills/assurance-v1/runs/*/events.jsonl", required: true },
-      { adapter: "pi-daddy-v1", path: ".pi/grants-ledger.jsonl", required: false },
-    ]);
+  test("rejects assert.trajectory instead of silently judging the scenario", () => {
+    expect(() => parse(`    assert:\n      trajectory:\n        version: "1.0"`)).toThrow(/removed `assert\.trajectory`/);
   });
 
-  test("existing trace-only specs keep the old shape", () => {
-    const scenario = parseSpec(base(`    assert:
-      trace:
-        forbid_calls: [write]
-`), "f").scenarios[0];
-    expect(scenario.traceAssert).toBeDefined();
-    expect(scenario.trajectoryAssert).toBeUndefined();
-    expect(scenario.eventSources).toBeUndefined();
-  });
-
-  test("rejects an event source traversal rather than reading outside the workspace", () => {
-    expect(() => parseSpec(base(`    env:
-      event_sources:
-        - adapter: normalized-v1
-          path: ../../secrets.jsonl
-    assert:
-      trajectory:
-        version: "1.0"
-        require: [{ event: done }]
-`), "f")).toThrow(/event_sources.*workspace-relative/);
-  });
-
-  test("a trajectory assertion with no event sources still permits normalized pi tool events", () => {
-    const scenario = parseSpec(base(`    assert:
-      trajectory:
-        version: "1.0"
-        require:
-          - event: tool_started
-            where: { tool: read }
-`), "f").scenarios[0];
-    expect(scenario.eventSources).toBeUndefined();
+  test("rejects env.event_sources instead of silently dropping evidence collection", () => {
+    expect(() => parse(`    env:\n      event_sources:\n        - adapter: normalized-v1\n          path: events.jsonl`)).toThrow(/removed `env\.event_sources`/);
   });
 });
 

@@ -25,11 +25,8 @@
   "files": [
     "bin.js",
     "dist/index.js",
-    "dist/prompt-capture-extension.js",
     "assets/report.template.html",
     "assets/report.grade.js",
-    "docs/PRODUCT-GUIDE.md",
-    "docs/STATUS.md",
     "LICENSE",
     "README.md"
   ],

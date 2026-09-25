@@ -10,7 +10,7 @@ import {
   normalizePiTraces,
   collectTrajectorySources,
 } from "../src/trajectory.js";
-import { evaluateTrajectoryGates, parseTrace } from "@skill-harness/core";
+import { parseTrace } from "@skill-harness/core";
 
 const FIXTURES = join(fileURLToPath(new URL(".", import.meta.url)), "fixtures", "governance");
 const PI_FIXTURES = join(fileURLToPath(new URL(".", import.meta.url)), "fixtures", "pi-json");
@@ -147,7 +147,6 @@ describe("pi-daddy 0.17 and 0.18 ledger normalization", () => {
       child_id: "check:unit:11111111-1111-4111-8111-111111111111", workspace_id: "ws-18", digests: { tree: "6".repeat(40) },
       attributes: { receipt_id: "d".repeat(64), check_id: "unit", check_receipt_id: "d".repeat(64) },
     });
-    expect(evaluateTrajectoryGates({ version: "1.0", require: [{ event: "check_receipt_recorded" }] }, events).status).toBe("PASS");
   });
 
   it("uses production event order and does not treat authorization as child execution", () => {
@@ -331,7 +330,6 @@ describe("pi-daddy 0.17 and 0.18 ledger normalization", () => {
     const events = normalizePiDaddyLedger(`${JSON.stringify(decision)}\n`);
     expect(events.filter((event) => event.type === "capability_requested" && event.capability === "tool:read")).toHaveLength(1);
     expect(events.find((event) => event.type === "capability_decision")?.requested_capabilities).toEqual(["tool:read"]);
-    expect(evaluateTrajectoryGates({ version: "1.0", require: [{ event: "capability_requested" }] }, events).status).toBe("PASS");
   });
 
   it("rejects inconsistent approval and capability evidence", () => {
@@ -429,17 +427,6 @@ describe("pi-daddy 0.17 and 0.18 ledger normalization", () => {
     expect(event.digests?.tree).toBe("b".repeat(40));
     expect(event.digests?.correlation_tree).toBe("6".repeat(40));
     expect(event.attributes).toMatchObject({ correlation: { tree_sha: "6".repeat(40) } });
-
-    // An assertion over measured tree identity is answered by the receipt, never by
-    // the correlation copy.
-    expect(evaluateTrajectoryGates(
-      { version: "1.0", require: [{ event: "check_receipt_recorded", where: { "digests.tree": { equals: "b".repeat(40) } } }] },
-      normalizePiDaddyLedger(`${JSON.stringify(receipt)}\n`),
-    ).status).toBe("PASS");
-    expect(evaluateTrajectoryGates(
-      { version: "1.0", require: [{ event: "check_receipt_recorded", where: { "digests.tree": { equals: "6".repeat(40) } } }] },
-      normalizePiDaddyLedger(`${JSON.stringify(receipt)}\n`),
-    ).status).toBe("FAIL");
   });
 
   it("rejects executors outside pi-daddy's public process/herdr union", () => {
@@ -467,12 +454,10 @@ describe("pi-daddy 0.17 and 0.18 ledger normalization", () => {
     });
     expect(events.find((event) => event.type === "capability_refused" && event.capability === "tool:write")?.refusal_code).toBe("CAPABILITY_ESCALATION");
     expect(events.some((event) => event.type === "capability_granted")).toBe(false);
-    expect(evaluateTrajectoryGates({ version: "1.0", require: [{ event: "capability_granted" }] }, events).status).toBe("FAIL");
     expect(events.find((event) => event.type === "writer_lease_refused")).toMatchObject({
       refusal_code: "WORKSPACE_LEASE_STALE",
       attributes: { event_seq: 8, last_change_seq: 9, structured_refusal: { code: "WORKSPACE_LEASE_STALE" } },
     });
-    expect(evaluateTrajectoryGates({ version: "1.0", require: [{ event: "child_spawn_refused" }] }, events).status).toBe("PASS");
   });
 
   it("fails closed with an actionable error when a v2 event has no workflow join identity", () => {

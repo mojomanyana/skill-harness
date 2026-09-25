@@ -63,7 +63,6 @@ describe("piAdapter.runStructured", () => {
     expect(spawnCalls).toHaveLength(1);
     expect(spawnCalls[0]).toEqual(expect.arrayContaining(["--mode", "json", "--no-session", "--skill"]));
     expect(result.traces).toHaveLength(1);
-    expect(result.events).toBeDefined();
   });
 
   it("uses one session dir and -c on every turn after the first", async () => {

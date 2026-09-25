@@ -26,18 +26,6 @@ npm i -g @skill-harness/cli
 | `skill-harness add-test <skill> --skills <root> --id ID --title T ...` | scaffold a new scenario |
 | `skill-harness qualification prepare\|start\|status\|poll\|validate\|abort ...` | durable external-config qualification lifecycle |
 
-## Retained learning
-
-`skill-harness learning` opens the guided offline workflow; `learning help` documents
-named retained inputs, complete quality review, scoped trust, independent labels,
-separate adoption decisions and later observations. No hand-authored manifests or model calls.
-The Pi package exposes the same flow as `/skill-harness learning`; connected producer registry
-activation/rollback remain separately authorized operations, never a side effect of reading.
-`@skill-harness/cli/learning` exports `runLearningCommand`, `runLearningWizard` and
-`reviewLearningComparison` for the existing producer dashboard bridge.
-
-[Product guide](https://github.com/mojomanyana/skill-harness/blob/main/docs/factory/PRODUCT-GUIDE.md).
-
 ## More
 
 - Repo + full docs: https://github.com/mojomanyana/skill-harness

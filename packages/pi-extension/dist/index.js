@@ -1,21 +1,13 @@
 // packages/pi-extension/src/index.ts
-import { fileURLToPath as fileURLToPath4 } from "node:url";
-import { basename as basename3, dirname as dirname24, join as join53 } from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
+import { basename as basename3, dirname as dirname9, join as join27 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
-import { existsSync as existsSync32 } from "node:fs";
-import { homedir as homedir3 } from "node:os";
-import { dirname as dirname19, join as join44, resolve as resolve25, relative as relative7 } from "node:path";
-
-// packages/core/dist/trusted-host-supervision.js
-import { readFileSync as readFileSync2 } from "node:fs";
-
-// packages/core/dist/qualification-process.js
-import { readFileSync, readdirSync } from "node:fs";
-import { setTimeout as sleep } from "node:timers/promises";
+import { existsSync as existsSync19 } from "node:fs";
+import { dirname as dirname8, join as join26, resolve as resolve12, relative as relative4 } from "node:path";
 
 // packages/core/dist/spec.js
-import { readFileSync as readFileSync3 } from "node:fs";
+import { readFileSync } from "node:fs";
 
 // node_modules/js-yaml/dist/js-yaml.mjs
 function getDefaultExportFromCjs(x) {
@@ -39,20 +31,20 @@ function requireCommon() {
     else if (isNothing(sequence)) return [];
     return [sequence];
   }
-  function extend(target, source3) {
-    if (source3) {
-      const sourceKeys = Object.keys(source3);
+  function extend(target, source) {
+    if (source) {
+      const sourceKeys = Object.keys(source);
       for (let index = 0, length = sourceKeys.length; index < length; index += 1) {
-        const key3 = sourceKeys[index];
-        target[key3] = source3[key3];
+        const key = sourceKeys[index];
+        target[key] = source[key];
       }
     }
     return target;
   }
-  function repeat(string5, count) {
+  function repeat(string, count) {
     let result = "";
     for (let cycle = 0; cycle < count; cycle += 1) {
-      result += string5;
+      result += string;
     }
     return result;
   }
@@ -74,8 +66,8 @@ function requireException() {
   hasRequiredException = 1;
   function formatError(exception2, compact) {
     let where = "";
-    const message3 = exception2.reason || "(unknown reason)";
-    if (!exception2.mark) return message3;
+    const message = exception2.reason || "(unknown reason)";
+    if (!exception2.mark) return message;
     if (exception2.mark.name) {
       where += 'in "' + exception2.mark.name + '" ';
     }
@@ -83,7 +75,7 @@ function requireException() {
     if (!compact && exception2.mark.snippet) {
       where += "\n\n" + exception2.mark.snippet;
     }
-    return message3 + " " + where;
+    return message + " " + where;
   }
   function YAMLException2(reason, mark) {
     Error.call(this);
@@ -129,8 +121,8 @@ function requireSnippet() {
       // relative position
     };
   }
-  function padStart(string5, max) {
-    return common2.repeat(" ", max - string5.length) + string5;
+  function padStart(string, max) {
+    return common2.repeat(" ", max - string.length) + string;
   }
   function makeSnippet(mark, options) {
     options = Object.create(options || null);
@@ -409,8 +401,8 @@ function require_null() {
   function constructYamlNull() {
     return null;
   }
-  function isNull(object5) {
-    return object5 === null;
+  function isNull(object) {
+    return object === null;
   }
   _null = new Type22("tag:yaml.org,2002:null", {
     kind: "scalar",
@@ -452,8 +444,8 @@ function requireBool() {
   function constructYamlBoolean(data) {
     return data === "true" || data === "True" || data === "TRUE";
   }
-  function isBoolean(object5) {
-    return Object.prototype.toString.call(object5) === "[object Boolean]";
+  function isBoolean(object) {
+    return Object.prototype.toString.call(object) === "[object Boolean]";
   }
   bool = new Type22("tag:yaml.org,2002:bool", {
     kind: "scalar",
@@ -461,14 +453,14 @@ function requireBool() {
     construct: constructYamlBoolean,
     predicate: isBoolean,
     represent: {
-      lowercase: function(object5) {
-        return object5 ? "true" : "false";
+      lowercase: function(object) {
+        return object ? "true" : "false";
       },
-      uppercase: function(object5) {
-        return object5 ? "TRUE" : "FALSE";
+      uppercase: function(object) {
+        return object ? "TRUE" : "FALSE";
       },
-      camelcase: function(object5) {
-        return object5 ? "True" : "False";
+      camelcase: function(object) {
+        return object ? "True" : "False";
       }
     },
     defaultStyle: "lowercase"
@@ -540,27 +532,27 @@ function requireInt() {
     return isFinite(parseYamlInteger(data));
   }
   function parseYamlInteger(data) {
-    let value3 = data;
+    let value = data;
     let sign = 1;
-    let ch = value3[0];
+    let ch = value[0];
     if (ch === "-" || ch === "+") {
       if (ch === "-") sign = -1;
-      value3 = value3.slice(1);
-      ch = value3[0];
+      value = value.slice(1);
+      ch = value[0];
     }
-    if (value3 === "0") return 0;
+    if (value === "0") return 0;
     if (ch === "0") {
-      if (value3[1] === "b") return sign * parseInt(value3.slice(2), 2);
-      if (value3[1] === "x") return sign * parseInt(value3.slice(2), 16);
-      if (value3[1] === "o") return sign * parseInt(value3.slice(2), 8);
+      if (value[1] === "b") return sign * parseInt(value.slice(2), 2);
+      if (value[1] === "x") return sign * parseInt(value.slice(2), 16);
+      if (value[1] === "o") return sign * parseInt(value.slice(2), 8);
     }
-    return sign * parseInt(value3, 10);
+    return sign * parseInt(value, 10);
   }
   function constructYamlInteger(data) {
     return parseYamlInteger(data);
   }
-  function isInteger(object5) {
-    return Object.prototype.toString.call(object5) === "[object Number]" && (object5 % 1 === 0 && !common2.isNegativeZero(object5));
+  function isInteger(object) {
+    return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 === 0 && !common2.isNegativeZero(object));
   }
   int = new Type22("tag:yaml.org,2002:int", {
     kind: "scalar",
@@ -568,17 +560,17 @@ function requireInt() {
     construct: constructYamlInteger,
     predicate: isInteger,
     represent: {
-      binary: function(obj2) {
-        return obj2 >= 0 ? "0b" + obj2.toString(2) : "-0b" + obj2.toString(2).slice(1);
+      binary: function(obj) {
+        return obj >= 0 ? "0b" + obj.toString(2) : "-0b" + obj.toString(2).slice(1);
       },
-      octal: function(obj2) {
-        return obj2 >= 0 ? "0o" + obj2.toString(8) : "-0o" + obj2.toString(8).slice(1);
+      octal: function(obj) {
+        return obj >= 0 ? "0o" + obj.toString(8) : "-0o" + obj.toString(8).slice(1);
       },
-      decimal: function(obj2) {
-        return obj2.toString(10);
+      decimal: function(obj) {
+        return obj.toString(10);
       },
-      hexadecimal: function(obj2) {
-        return obj2 >= 0 ? "0x" + obj2.toString(16).toUpperCase() : "-0x" + obj2.toString(16).toUpperCase().slice(1);
+      hexadecimal: function(obj) {
+        return obj >= 0 ? "0x" + obj.toString(16).toUpperCase() : "-0x" + obj.toString(16).toUpperCase().slice(1);
       }
     },
     defaultStyle: "decimal",
@@ -616,21 +608,21 @@ function requireFloat() {
     return YAML_FLOAT_SPECIAL_PATTERN.test(data);
   }
   function constructYamlFloat(data) {
-    let value3 = data.toLowerCase();
-    const sign = value3[0] === "-" ? -1 : 1;
-    if ("+-".indexOf(value3[0]) >= 0) {
-      value3 = value3.slice(1);
+    let value = data.toLowerCase();
+    const sign = value[0] === "-" ? -1 : 1;
+    if ("+-".indexOf(value[0]) >= 0) {
+      value = value.slice(1);
     }
-    if (value3 === ".inf") {
+    if (value === ".inf") {
       return sign === 1 ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
-    } else if (value3 === ".nan") {
+    } else if (value === ".nan") {
       return NaN;
     }
-    return sign * parseFloat(value3, 10);
+    return sign * parseFloat(value, 10);
   }
   const SCIENTIFIC_WITHOUT_DOT = /^[-+]?[0-9]+e/;
-  function representYamlFloat(object5, style) {
-    if (isNaN(object5)) {
+  function representYamlFloat(object, style) {
+    if (isNaN(object)) {
       switch (style) {
         case "lowercase":
           return ".nan";
@@ -639,7 +631,7 @@ function requireFloat() {
         case "camelcase":
           return ".NaN";
       }
-    } else if (Number.POSITIVE_INFINITY === object5) {
+    } else if (Number.POSITIVE_INFINITY === object) {
       switch (style) {
         case "lowercase":
           return ".inf";
@@ -648,7 +640,7 @@ function requireFloat() {
         case "camelcase":
           return ".Inf";
       }
-    } else if (Number.NEGATIVE_INFINITY === object5) {
+    } else if (Number.NEGATIVE_INFINITY === object) {
       switch (style) {
         case "lowercase":
           return "-.inf";
@@ -657,14 +649,14 @@ function requireFloat() {
         case "camelcase":
           return "-.Inf";
       }
-    } else if (common2.isNegativeZero(object5)) {
+    } else if (common2.isNegativeZero(object)) {
       return "-0.0";
     }
-    const res = object5.toString(10);
+    const res = object.toString(10);
     return SCIENTIFIC_WITHOUT_DOT.test(res) ? res.replace("e", ".e") : res;
   }
-  function isFloat(object5) {
-    return Object.prototype.toString.call(object5) === "[object Number]" && (object5 % 1 !== 0 || common2.isNegativeZero(object5));
+  function isFloat(object) {
+    return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 !== 0 || common2.isNegativeZero(object));
   }
   float = new Type22("tag:yaml.org,2002:float", {
     kind: "scalar",
@@ -749,8 +741,8 @@ function requireTimestamp() {
     if (delta) date.setTime(date.getTime() - delta);
     return date;
   }
-  function representYamlTimestamp(object5) {
-    return object5.toISOString();
+  function representYamlTimestamp(object) {
+    return object.toISOString();
   }
   timestamp = new Type22("tag:yaml.org,2002:timestamp", {
     kind: "scalar",
@@ -823,10 +815,10 @@ function requireBinary() {
     }
     return new Uint8Array(result);
   }
-  function representYamlBinary(object5) {
+  function representYamlBinary(object) {
     let result = "";
     let bits = 0;
-    const max = object5.length;
+    const max = object.length;
     const map2 = BASE64_MAP;
     for (let idx = 0; idx < max; idx++) {
       if (idx % 3 === 0 && idx) {
@@ -835,7 +827,7 @@ function requireBinary() {
         result += map2[bits >> 6 & 63];
         result += map2[bits & 63];
       }
-      bits = (bits << 8) + object5[idx];
+      bits = (bits << 8) + object[idx];
     }
     const tail = max % 3;
     if (tail === 0) {
@@ -856,8 +848,8 @@ function requireBinary() {
     }
     return result;
   }
-  function isBinary(obj2) {
-    return Object.prototype.toString.call(obj2) === "[object Uint8Array]";
+  function isBinary(obj) {
+    return Object.prototype.toString.call(obj) === "[object Uint8Array]";
   }
   binary = new Type22("tag:yaml.org,2002:binary", {
     kind: "scalar",
@@ -879,9 +871,9 @@ function requireOmap() {
   function resolveYamlOmap(data) {
     if (data === null) return true;
     const objectKeys = {};
-    const object5 = data;
-    for (let index = 0, length = object5.length; index < length; index += 1) {
-      const pair = object5[index];
+    const object = data;
+    for (let index = 0, length = object.length; index < length; index += 1) {
+      const pair = object[index];
       let pairHasKey = false;
       if (_toString.call(pair) !== "[object Object]") return false;
       let pairKey;
@@ -916,25 +908,25 @@ function requirePairs() {
   const _toString = Object.prototype.toString;
   function resolveYamlPairs(data) {
     if (data === null) return true;
-    const object5 = data;
-    const result = new Array(object5.length);
-    for (let index = 0, length = object5.length; index < length; index += 1) {
-      const pair = object5[index];
+    const object = data;
+    const result = new Array(object.length);
+    for (let index = 0, length = object.length; index < length; index += 1) {
+      const pair = object[index];
       if (_toString.call(pair) !== "[object Object]") return false;
-      const keys7 = Object.keys(pair);
-      if (keys7.length !== 1) return false;
-      result[index] = [keys7[0], pair[keys7[0]]];
+      const keys = Object.keys(pair);
+      if (keys.length !== 1) return false;
+      result[index] = [keys[0], pair[keys[0]]];
     }
     return true;
   }
   function constructYamlPairs(data) {
     if (data === null) return [];
-    const object5 = data;
-    const result = new Array(object5.length);
-    for (let index = 0, length = object5.length; index < length; index += 1) {
-      const pair = object5[index];
-      const keys7 = Object.keys(pair);
-      result[index] = [keys7[0], pair[keys7[0]]];
+    const object = data;
+    const result = new Array(object.length);
+    for (let index = 0, length = object.length; index < length; index += 1) {
+      const pair = object[index];
+      const keys = Object.keys(pair);
+      result[index] = [keys[0], pair[keys[0]]];
     }
     return result;
   }
@@ -954,10 +946,10 @@ function requireSet() {
   const _hasOwnProperty = Object.prototype.hasOwnProperty;
   function resolveYamlSet(data) {
     if (data === null) return true;
-    const object5 = data;
-    for (const key3 in object5) {
-      if (_hasOwnProperty.call(object5, key3)) {
-        if (object5[key3] !== null) return false;
+    const object = data;
+    for (const key in object) {
+      if (_hasOwnProperty.call(object, key)) {
+        if (object[key] !== null) return false;
       }
     }
     return true;
@@ -1012,8 +1004,8 @@ function requireLoader() {
   const PATTERN_FLOW_INDICATORS = /[,\[\]{}]/;
   const PATTERN_TAG_HANDLE = /^(?:!|!!|![0-9A-Za-z-]+!)$/;
   const PATTERN_TAG_URI = /^(?:!|[^,\[\]{}])(?:%[0-9a-f]{2}|[0-9a-z\-#;/?:@&=+$,_.!~*'()\[\]])*$/i;
-  function _class(obj2) {
-    return Object.prototype.toString.call(obj2);
+  function _class(obj) {
+    return Object.prototype.toString.call(obj);
   }
   function isEol(c) {
     return c === 10 || c === 13;
@@ -1106,16 +1098,16 @@ function requireLoader() {
       (c - 65536 & 1023) + 56320
     );
   }
-  function setProperty(object5, key3, value3) {
-    if (key3 === "__proto__") {
-      Object.defineProperty(object5, key3, {
+  function setProperty(object, key, value) {
+    if (key === "__proto__") {
+      Object.defineProperty(object, key, {
         configurable: true,
         enumerable: true,
         writable: true,
-        value: value3
+        value
       });
     } else {
-      object5[key3] = value3;
+      object[key] = value;
     }
   }
   const simpleEscapeCheck = new Array(256);
@@ -1147,7 +1139,7 @@ function requireLoader() {
     this.documents = [];
     this.anchorMapTransactions = [];
   }
-  function generateError(state, message3) {
+  function generateError(state, message) {
     const mark = {
       name: state.filename,
       buffer: state.input.slice(0, -1),
@@ -1157,17 +1149,17 @@ function requireLoader() {
       column: state.position - state.lineStart
     };
     mark.snippet = makeSnippet(mark);
-    return new YAMLException2(message3, mark);
+    return new YAMLException2(message, mark);
   }
-  function throwError(state, message3) {
-    throw generateError(state, message3);
+  function throwError(state, message) {
+    throw generateError(state, message);
   }
-  function throwWarning(state, message3) {
+  function throwWarning(state, message) {
     if (state.onWarning) {
-      state.onWarning.call(null, generateError(state, message3));
+      state.onWarning.call(null, generateError(state, message));
     }
   }
-  function storeAnchor(state, name, value3) {
+  function storeAnchor(state, name, value) {
     const transactions = state.anchorMapTransactions;
     if (transactions.length !== 0) {
       const transaction = transactions[transactions.length - 1];
@@ -1178,7 +1170,7 @@ function requireLoader() {
         };
       }
     }
-    state.anchorMap[name] = value3;
+    state.anchorMap[name] = value;
   }
   function beginAnchorTransaction(state) {
     state.anchorMapTransactions.push(/* @__PURE__ */ Object.create(null));
@@ -1221,16 +1213,16 @@ function requireLoader() {
       result: state.result
     };
   }
-  function restoreState(state, snapshot2) {
-    state.position = snapshot2.position;
-    state.line = snapshot2.line;
-    state.lineStart = snapshot2.lineStart;
-    state.lineIndent = snapshot2.lineIndent;
-    state.firstTabInLine = snapshot2.firstTabInLine;
-    state.tag = snapshot2.tag;
-    state.anchor = snapshot2.anchor;
-    state.kind = snapshot2.kind;
-    state.result = snapshot2.result;
+  function restoreState(state, snapshot) {
+    state.position = snapshot.position;
+    state.line = snapshot.line;
+    state.lineStart = snapshot.lineStart;
+    state.lineIndent = snapshot.lineIndent;
+    state.firstTabInLine = snapshot.firstTabInLine;
+    state.tag = snapshot.tag;
+    state.anchor = snapshot.anchor;
+    state.kind = snapshot.kind;
+    state.result = snapshot.result;
   }
   const directiveHandlers = {
     YAML: function handleYamlDirective(state, name, args) {
@@ -1301,18 +1293,18 @@ function requireLoader() {
       throwError(state, "merge keys exceeded maxTotalMergeKeys (" + state.maxTotalMergeKeys + ")");
     }
   }
-  function mergeMappings(state, destination, source3, overridableKeys) {
-    if (!common2.isObject(source3)) {
+  function mergeMappings(state, destination, source, overridableKeys) {
+    if (!common2.isObject(source)) {
       throwError(state, "cannot merge mappings; the provided source object is unacceptable");
     }
     chargeMergeWork(state);
-    const sourceKeys = Object.keys(source3);
+    const sourceKeys = Object.keys(source);
     for (let index = 0, quantity = sourceKeys.length; index < quantity; index += 1) {
-      const key3 = sourceKeys[index];
+      const key = sourceKeys[index];
       chargeMergeWork(state);
-      if (!_hasOwnProperty.call(destination, key3)) {
-        setProperty(destination, key3, source3[key3]);
-        overridableKeys[key3] = true;
+      if (!_hasOwnProperty.call(destination, key)) {
+        setProperty(destination, key, source[key]);
+        overridableKeys[key] = true;
       }
     }
   }
@@ -2215,10 +2207,10 @@ function requireLoader() {
         type2 = state.typeMap[state.kind || "fallback"][state.tag];
       } else {
         type2 = null;
-        const typeList3 = state.typeMap.multi[state.kind || "fallback"];
-        for (let typeIndex = 0, typeQuantity = typeList3.length; typeIndex < typeQuantity; typeIndex += 1) {
-          if (state.tag.slice(0, typeList3[typeIndex].tag.length) === typeList3[typeIndex].tag) {
-            type2 = typeList3[typeIndex];
+        const typeList = state.typeMap.multi[state.kind || "fallback"];
+        for (let typeIndex = 0, typeQuantity = typeList.length; typeIndex < typeQuantity; typeIndex += 1) {
+          if (state.tag.slice(0, typeList[typeIndex].tag.length) === typeList[typeIndex].tag) {
+            type2 = typeList[typeIndex];
             break;
           }
         }
@@ -2357,7 +2349,7 @@ function requireLoader() {
       iterator(documents[index]);
     }
   }
-  function load22(input, options) {
+  function load2(input, options) {
     const documents = loadDocuments(input, options);
     if (documents.length === 0) {
       return void 0;
@@ -2367,7 +2359,7 @@ function requireLoader() {
     throw new YAMLException2("expected a single document in the stream, but found more");
   }
   loader.loadAll = loadAll2;
-  loader.load = load22;
+  loader.load = load2;
   return loader;
 }
 var dumper = {};
@@ -2443,9 +2435,9 @@ function requireDumper() {
   function compileStyleMap(schema2, map2) {
     if (map2 === null) return {};
     const result = {};
-    const keys7 = Object.keys(map2);
-    for (let index = 0, length = keys7.length; index < length; index += 1) {
-      let tag = keys7[index];
+    const keys = Object.keys(map2);
+    for (let index = 0, length = keys.length; index < length; index += 1) {
+      let tag = keys[index];
       let style = String(map2[tag]);
       if (tag.slice(0, 2) === "!!") {
         tag = "tag:yaml.org,2002:" + tag.slice(2);
@@ -2461,7 +2453,7 @@ function requireDumper() {
   function encodeHex(character) {
     let handle;
     let length;
-    const string5 = character.toString(16).toUpperCase();
+    const string = character.toString(16).toUpperCase();
     if (character <= 255) {
       handle = "x";
       length = 2;
@@ -2474,7 +2466,7 @@ function requireDumper() {
     } else {
       throw new YAMLException2("code point within a string may not be greater than 0xFFFFFFFF");
     }
-    return "\\" + handle + common2.repeat("0", length - string5.length) + string5;
+    return "\\" + handle + common2.repeat("0", length - string.length) + string;
   }
   const QUOTING_TYPE_SINGLE = 1;
   const QUOTING_TYPE_DOUBLE = 2;
@@ -2500,19 +2492,19 @@ function requireDumper() {
     this.duplicates = [];
     this.usedDuplicates = null;
   }
-  function indentString(string5, spaces) {
+  function indentString(string, spaces) {
     const ind = common2.repeat(" ", spaces);
     let position = 0;
     let result = "";
-    const length = string5.length;
+    const length = string.length;
     while (position < length) {
       let line;
-      const next = string5.indexOf("\n", position);
+      const next = string.indexOf("\n", position);
       if (next === -1) {
-        line = string5.slice(position);
+        line = string.slice(position);
         position = length;
       } else {
-        line = string5.slice(position, next + 1);
+        line = string.slice(position, next + 1);
         position = next + 1;
       }
       if (line.length && line !== "\n") result += ind;
@@ -2566,27 +2558,27 @@ function requireDumper() {
   function isPlainSafeLast(c) {
     return !isWhitespace(c) && c !== CHAR_COLON;
   }
-  function codePointAt(string5, pos) {
-    const first = string5.charCodeAt(pos);
+  function codePointAt(string, pos) {
+    const first = string.charCodeAt(pos);
     let second;
-    if (first >= 55296 && first <= 56319 && pos + 1 < string5.length) {
-      second = string5.charCodeAt(pos + 1);
+    if (first >= 55296 && first <= 56319 && pos + 1 < string.length) {
+      second = string.charCodeAt(pos + 1);
       if (second >= 56320 && second <= 57343) {
         return (first - 55296) * 1024 + second - 56320 + 65536;
       }
     }
     return first;
   }
-  function needIndentIndicator(string5) {
+  function needIndentIndicator(string) {
     const leadingSpaceRe = /^\n* /;
-    return leadingSpaceRe.test(string5);
+    return leadingSpaceRe.test(string);
   }
   const STYLE_PLAIN = 1;
   const STYLE_SINGLE = 2;
   const STYLE_LITERAL = 3;
   const STYLE_FOLDED = 4;
   const STYLE_DOUBLE = 5;
-  function chooseScalarStyle(string5, singleLineOnly, indentPerLevel, lineWidth, testAmbiguousType, quotingType, forceQuotes, inblock) {
+  function chooseScalarStyle(string, singleLineOnly, indentPerLevel, lineWidth, testAmbiguousType, quotingType, forceQuotes, inblock) {
     let i;
     let char = 0;
     let prevChar = null;
@@ -2594,10 +2586,10 @@ function requireDumper() {
     let hasFoldableLine = false;
     const shouldTrackWidth = lineWidth !== -1;
     let previousLineBreak = -1;
-    let plain = isPlainSafeFirst(codePointAt(string5, 0)) && isPlainSafeLast(codePointAt(string5, string5.length - 1));
+    let plain = isPlainSafeFirst(codePointAt(string, 0)) && isPlainSafeLast(codePointAt(string, string.length - 1));
     if (singleLineOnly || forceQuotes) {
-      for (i = 0; i < string5.length; char >= 65536 ? i += 2 : i++) {
-        char = codePointAt(string5, i);
+      for (i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
+        char = codePointAt(string, i);
         if (!isPrintable(char)) {
           return STYLE_DOUBLE;
         }
@@ -2605,13 +2597,13 @@ function requireDumper() {
         prevChar = char;
       }
     } else {
-      for (i = 0; i < string5.length; char >= 65536 ? i += 2 : i++) {
-        char = codePointAt(string5, i);
+      for (i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
+        char = codePointAt(string, i);
         if (char === CHAR_LINE_FEED) {
           hasLineBreak = true;
           if (shouldTrackWidth) {
             hasFoldableLine = hasFoldableLine || // Foldable line = too long, and not more-indented.
-            i - previousLineBreak - 1 > lineWidth && string5[previousLineBreak + 1] !== " ";
+            i - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ";
             previousLineBreak = i;
           }
         } else if (!isPrintable(char)) {
@@ -2620,15 +2612,15 @@ function requireDumper() {
         plain = plain && isPlainSafe(char, prevChar, inblock);
         prevChar = char;
       }
-      hasFoldableLine = hasFoldableLine || shouldTrackWidth && (i - previousLineBreak - 1 > lineWidth && string5[previousLineBreak + 1] !== " ");
+      hasFoldableLine = hasFoldableLine || shouldTrackWidth && (i - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ");
     }
     if (!hasLineBreak && !hasFoldableLine) {
-      if (plain && !forceQuotes && !testAmbiguousType(string5)) {
+      if (plain && !forceQuotes && !testAmbiguousType(string)) {
         return STYLE_PLAIN;
       }
       return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
     }
-    if (indentPerLevel > 9 && needIndentIndicator(string5)) {
+    if (indentPerLevel > 9 && needIndentIndicator(string)) {
       return STYLE_DOUBLE;
     }
     if (!forceQuotes) {
@@ -2636,25 +2628,25 @@ function requireDumper() {
     }
     return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
   }
-  function writeScalar(state, string5, level, iskey, inblock) {
+  function writeScalar(state, string, level, iskey, inblock) {
     state.dump = (function() {
-      if (string5.length === 0) {
+      if (string.length === 0) {
         return state.quotingType === QUOTING_TYPE_DOUBLE ? '""' : "''";
       }
       if (!state.noCompatMode) {
-        if (DEPRECATED_BOOLEANS_SYNTAX.indexOf(string5) !== -1 || DEPRECATED_BASE60_SYNTAX.test(string5)) {
-          return state.quotingType === QUOTING_TYPE_DOUBLE ? '"' + string5 + '"' : "'" + string5 + "'";
+        if (DEPRECATED_BOOLEANS_SYNTAX.indexOf(string) !== -1 || DEPRECATED_BASE60_SYNTAX.test(string)) {
+          return state.quotingType === QUOTING_TYPE_DOUBLE ? '"' + string + '"' : "'" + string + "'";
         }
       }
       const indent2 = state.indent * Math.max(1, level);
       const lineWidth = state.lineWidth === -1 ? -1 : Math.max(Math.min(state.lineWidth, 40), state.lineWidth - indent2);
       const singleLineOnly = iskey || // No block styles in flow mode.
       state.flowLevel > -1 && level >= state.flowLevel;
-      function testAmbiguity(string22) {
-        return testImplicitResolving(state, string22);
+      function testAmbiguity(string2) {
+        return testImplicitResolving(state, string2);
       }
       switch (chooseScalarStyle(
-        string5,
+        string,
         singleLineOnly,
         state.indent,
         lineWidth,
@@ -2664,42 +2656,42 @@ function requireDumper() {
         inblock
       )) {
         case STYLE_PLAIN:
-          return string5;
+          return string;
         case STYLE_SINGLE:
-          return "'" + string5.replace(/'/g, "''") + "'";
+          return "'" + string.replace(/'/g, "''") + "'";
         case STYLE_LITERAL:
-          return "|" + blockHeader(string5, state.indent) + dropEndingNewline(indentString(string5, indent2));
+          return "|" + blockHeader(string, state.indent) + dropEndingNewline(indentString(string, indent2));
         case STYLE_FOLDED:
-          return ">" + blockHeader(string5, state.indent) + dropEndingNewline(indentString(foldString(string5, lineWidth), indent2));
+          return ">" + blockHeader(string, state.indent) + dropEndingNewline(indentString(foldString(string, lineWidth), indent2));
         case STYLE_DOUBLE:
-          return '"' + escapeString(string5) + '"';
+          return '"' + escapeString(string) + '"';
         default:
           throw new YAMLException2("impossible error: invalid scalar style");
       }
     })();
   }
-  function blockHeader(string5, indentPerLevel) {
-    const indentIndicator = needIndentIndicator(string5) ? String(indentPerLevel) : "";
-    const clip = string5[string5.length - 1] === "\n";
-    const keep = clip && (string5[string5.length - 2] === "\n" || string5 === "\n");
+  function blockHeader(string, indentPerLevel) {
+    const indentIndicator = needIndentIndicator(string) ? String(indentPerLevel) : "";
+    const clip = string[string.length - 1] === "\n";
+    const keep = clip && (string[string.length - 2] === "\n" || string === "\n");
     const chomp = keep ? "+" : clip ? "" : "-";
     return indentIndicator + chomp + "\n";
   }
-  function dropEndingNewline(string5) {
-    return string5[string5.length - 1] === "\n" ? string5.slice(0, -1) : string5;
+  function dropEndingNewline(string) {
+    return string[string.length - 1] === "\n" ? string.slice(0, -1) : string;
   }
-  function foldString(string5, width) {
+  function foldString(string, width) {
     const lineRe = /(\n+)([^\n]*)/g;
     let result = (function() {
-      let nextLF = string5.indexOf("\n");
-      nextLF = nextLF !== -1 ? nextLF : string5.length;
+      let nextLF = string.indexOf("\n");
+      nextLF = nextLF !== -1 ? nextLF : string.length;
       lineRe.lastIndex = nextLF;
-      return foldLine(string5.slice(0, nextLF), width);
+      return foldLine(string.slice(0, nextLF), width);
     })();
-    let prevMoreIndented = string5[0] === "\n" || string5[0] === " ";
+    let prevMoreIndented = string[0] === "\n" || string[0] === " ";
     let moreIndented;
     let match;
-    while (match = lineRe.exec(string5)) {
+    while (match = lineRe.exec(string)) {
       const prefix = match[1];
       const line = match[2];
       moreIndented = line[0] === " ";
@@ -2734,30 +2726,30 @@ function requireDumper() {
     }
     return result.slice(1);
   }
-  function escapeString(string5) {
+  function escapeString(string) {
     let result = "";
     let char = 0;
-    for (let i = 0; i < string5.length; char >= 65536 ? i += 2 : i++) {
-      char = codePointAt(string5, i);
+    for (let i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
+      char = codePointAt(string, i);
       const escapeSeq = ESCAPE_SEQUENCES[char];
       if (!escapeSeq && isPrintable(char)) {
-        result += string5[i];
-        if (char >= 65536) result += string5[i + 1];
+        result += string[i];
+        if (char >= 65536) result += string[i + 1];
       } else {
         result += escapeSeq || encodeHex(char);
       }
     }
     return result;
   }
-  function writeFlowSequence(state, level, object5) {
+  function writeFlowSequence(state, level, object) {
     let _result = "";
     const _tag = state.tag;
-    for (let index = 0, length = object5.length; index < length; index += 1) {
-      let value3 = object5[index];
+    for (let index = 0, length = object.length; index < length; index += 1) {
+      let value = object[index];
       if (state.replacer) {
-        value3 = state.replacer.call(object5, String(index), value3);
+        value = state.replacer.call(object, String(index), value);
       }
-      if (writeNode(state, level, value3, false, false) || typeof value3 === "undefined" && writeNode(state, level, null, false, false)) {
+      if (writeNode(state, level, value, false, false) || typeof value === "undefined" && writeNode(state, level, null, false, false)) {
         if (_result !== "") _result += "," + (!state.condenseFlow ? " " : "");
         _result += state.dump;
       }
@@ -2765,15 +2757,15 @@ function requireDumper() {
     state.tag = _tag;
     state.dump = "[" + _result + "]";
   }
-  function writeBlockSequence(state, level, object5, compact) {
+  function writeBlockSequence(state, level, object, compact) {
     let _result = "";
     const _tag = state.tag;
-    for (let index = 0, length = object5.length; index < length; index += 1) {
-      let value3 = object5[index];
+    for (let index = 0, length = object.length; index < length; index += 1) {
+      let value = object[index];
       if (state.replacer) {
-        value3 = state.replacer.call(object5, String(index), value3);
+        value = state.replacer.call(object, String(index), value);
       }
-      if (writeNode(state, level + 1, value3, true, true, false, true) || typeof value3 === "undefined" && writeNode(state, level + 1, null, true, true, false, true)) {
+      if (writeNode(state, level + 1, value, true, true, false, true) || typeof value === "undefined" && writeNode(state, level + 1, null, true, true, false, true)) {
         if (!compact || _result !== "") {
           _result += generateNextLine(state, level);
         }
@@ -2788,18 +2780,18 @@ function requireDumper() {
     state.tag = _tag;
     state.dump = _result || "[]";
   }
-  function writeFlowMapping(state, level, object5) {
+  function writeFlowMapping(state, level, object) {
     let _result = "";
     const _tag = state.tag;
-    const objectKeyList = Object.keys(object5);
+    const objectKeyList = Object.keys(object);
     for (let index = 0, length = objectKeyList.length; index < length; index += 1) {
       let pairBuffer = "";
       if (_result !== "") pairBuffer += ", ";
       if (state.condenseFlow) pairBuffer += '"';
       const objectKey = objectKeyList[index];
-      let objectValue = object5[objectKey];
+      let objectValue = object[objectKey];
       if (state.replacer) {
-        objectValue = state.replacer.call(object5, objectKey, objectValue);
+        objectValue = state.replacer.call(object, objectKey, objectValue);
       }
       if (!writeNode(state, level, objectKey, false, false)) {
         continue;
@@ -2815,10 +2807,10 @@ function requireDumper() {
     state.tag = _tag;
     state.dump = "{" + _result + "}";
   }
-  function writeBlockMapping(state, level, object5, compact) {
+  function writeBlockMapping(state, level, object, compact) {
     let _result = "";
     const _tag = state.tag;
-    const objectKeyList = Object.keys(object5);
+    const objectKeyList = Object.keys(object);
     if (state.sortKeys === true) {
       objectKeyList.sort();
     } else if (typeof state.sortKeys === "function") {
@@ -2832,9 +2824,9 @@ function requireDumper() {
         pairBuffer += generateNextLine(state, level);
       }
       const objectKey = objectKeyList[index];
-      let objectValue = object5[objectKey];
+      let objectValue = object[objectKey];
       if (state.replacer) {
-        objectValue = state.replacer.call(object5, objectKey, objectValue);
+        objectValue = state.replacer.call(object, objectKey, objectValue);
       }
       if (!writeNode(state, level + 1, objectKey, true, true, true)) {
         continue;
@@ -2865,14 +2857,14 @@ function requireDumper() {
     state.tag = _tag;
     state.dump = _result || "{}";
   }
-  function detectType(state, object5, explicit) {
-    const typeList3 = explicit ? state.explicitTypes : state.implicitTypes;
-    for (let index = 0, length = typeList3.length; index < length; index += 1) {
-      const type2 = typeList3[index];
-      if ((type2.instanceOf || type2.predicate) && (!type2.instanceOf || typeof object5 === "object" && object5 instanceof type2.instanceOf) && (!type2.predicate || type2.predicate(object5))) {
+  function detectType(state, object, explicit) {
+    const typeList = explicit ? state.explicitTypes : state.implicitTypes;
+    for (let index = 0, length = typeList.length; index < length; index += 1) {
+      const type2 = typeList[index];
+      if ((type2.instanceOf || type2.predicate) && (!type2.instanceOf || typeof object === "object" && object instanceof type2.instanceOf) && (!type2.predicate || type2.predicate(object))) {
         if (explicit) {
           if (type2.multi && type2.representName) {
-            state.tag = type2.representName(object5);
+            state.tag = type2.representName(object);
           } else {
             state.tag = type2.tag;
           }
@@ -2883,9 +2875,9 @@ function requireDumper() {
           const style = state.styleMap[type2.tag] || type2.defaultStyle;
           let _result;
           if (_toString.call(type2.represent) === "[object Function]") {
-            _result = type2.represent(object5, style);
+            _result = type2.represent(object, style);
           } else if (_hasOwnProperty.call(type2.represent, style)) {
-            _result = type2.represent[style](object5, style);
+            _result = type2.represent[style](object, style);
           } else {
             throw new YAMLException2("!<" + type2.tag + '> tag resolver accepts not "' + style + '" style');
           }
@@ -2896,11 +2888,11 @@ function requireDumper() {
     }
     return false;
   }
-  function writeNode(state, level, object5, block, compact, iskey, isblockseq) {
+  function writeNode(state, level, object, block, compact, iskey, isblockseq) {
     state.tag = null;
-    state.dump = object5;
-    if (!detectType(state, object5, false)) {
-      detectType(state, object5, true);
+    state.dump = object;
+    if (!detectType(state, object, false)) {
+      detectType(state, object, true);
     }
     const type2 = _toString.call(state.dump);
     const inblock = block;
@@ -2911,7 +2903,7 @@ function requireDumper() {
     let duplicateIndex;
     let duplicate;
     if (objectOrArray) {
-      duplicateIndex = state.duplicates.indexOf(object5);
+      duplicateIndex = state.duplicates.indexOf(object);
       duplicate = duplicateIndex !== -1;
     }
     if (state.tag !== null && state.tag !== "?" || duplicate || state.indent !== 2 && level > 0) {
@@ -2977,33 +2969,33 @@ function requireDumper() {
     }
     return true;
   }
-  function getDuplicateReferences(object5, state) {
+  function getDuplicateReferences(object, state) {
     const objects = [];
     const duplicatesIndexes = [];
-    inspectNode(object5, objects, duplicatesIndexes);
+    inspectNode(object, objects, duplicatesIndexes);
     const length = duplicatesIndexes.length;
     for (let index = 0; index < length; index += 1) {
       state.duplicates.push(objects[duplicatesIndexes[index]]);
     }
     state.usedDuplicates = new Array(length);
   }
-  function inspectNode(object5, objects, duplicatesIndexes) {
-    if (object5 !== null && typeof object5 === "object") {
-      const index = objects.indexOf(object5);
+  function inspectNode(object, objects, duplicatesIndexes) {
+    if (object !== null && typeof object === "object") {
+      const index = objects.indexOf(object);
       if (index !== -1) {
         if (duplicatesIndexes.indexOf(index) === -1) {
           duplicatesIndexes.push(index);
         }
       } else {
-        objects.push(object5);
-        if (Array.isArray(object5)) {
-          for (let i = 0, length = object5.length; i < length; i += 1) {
-            inspectNode(object5[i], objects, duplicatesIndexes);
+        objects.push(object);
+        if (Array.isArray(object)) {
+          for (let i = 0, length = object.length; i < length; i += 1) {
+            inspectNode(object[i], objects, duplicatesIndexes);
           }
         } else {
-          const objectKeyList = Object.keys(object5);
+          const objectKeyList = Object.keys(object);
           for (let i = 0, length = objectKeyList.length; i < length; i += 1) {
-            inspectNode(object5[objectKeyList[i]], objects, duplicatesIndexes);
+            inspectNode(object[objectKeyList[i]], objects, duplicatesIndexes);
           }
         }
       }
@@ -3013,11 +3005,11 @@ function requireDumper() {
     options = options || {};
     const state = new State(options);
     if (!state.noRefs) getDuplicateReferences(input, state);
-    let value3 = input;
+    let value = input;
     if (state.replacer) {
-      value3 = state.replacer.call({ "": value3 }, "", value3);
+      value = state.replacer.call({ "": value }, "", value);
     }
-    if (writeNode(state, 0, value3, true, true)) return state.dump + "\n";
+    if (writeNode(state, 0, value, true, true)) return state.dump + "\n";
     return "";
   }
   dumper.dump = dump2;
@@ -3220,7 +3212,7 @@ function describeArgs(args) {
   if (!args || Object.keys(args).length === 0)
     return "";
   const parts = Object.entries(args).map(([k, p]) => {
-    const [op] = PREDICATE_KEYS.filter((key3) => p[key3] !== void 0);
+    const [op] = PREDICATE_KEYS.filter((key) => p[key] !== void 0);
     return op ? `${k} ${op} ${JSON.stringify(p[op])}` : k;
   });
   return ` (${parts.join(", ")})`;
@@ -3228,37 +3220,37 @@ function describeArgs(args) {
 function argsMatch(call, args) {
   if (!args)
     return true;
-  return Object.entries(args).every(([key3, predicate]) => testPredicate(call.args[key3], predicate));
+  return Object.entries(args).every(([key, predicate]) => testPredicate(call.args[key], predicate));
 }
-function valueWasLost(value3) {
-  if (typeof value3 === "string") {
-    return value3 === "[redacted]" || value3 === "[nested]" || value3.includes("\u2026 [truncated ");
+function valueWasLost(value) {
+  if (typeof value === "string") {
+    return value === "[redacted]" || value === "[nested]" || value.includes("\u2026 [truncated ");
   }
-  if (Array.isArray(value3))
-    return value3.some(valueWasLost);
-  if (value3 && typeof value3 === "object")
-    return Object.values(value3).some(valueWasLost);
+  if (Array.isArray(value))
+    return value.some(valueWasLost);
+  if (value && typeof value === "object")
+    return Object.values(value).some(valueWasLost);
   return false;
 }
 function lostArgs(call, args) {
   if (!args)
     return [];
-  return Object.keys(args).filter((key3) => valueWasLost(call.args[key3]));
+  return Object.keys(args).filter((key) => valueWasLost(call.args[key]));
 }
-function testPredicate(value3, p) {
+function testPredicate(value, p) {
   if (p.exists !== void 0) {
-    if (p.exists !== (value3 !== void 0 && value3 !== null))
+    if (p.exists !== (value !== void 0 && value !== null))
       return false;
     if (p.exists === false)
       return true;
   }
-  if (p.equals !== void 0 && !deepEqual(value3, p.equals))
+  if (p.equals !== void 0 && !deepEqual(value, p.equals))
     return false;
-  if (p.contains !== void 0 && !asString(value3).includes(p.contains))
+  if (p.contains !== void 0 && !asString(value).includes(p.contains))
     return false;
-  if (p.starts_with !== void 0 && !asString(value3).startsWith(p.starts_with))
+  if (p.starts_with !== void 0 && !asString(value).startsWith(p.starts_with))
     return false;
-  if (p.ends_with !== void 0 && !asString(value3).endsWith(p.ends_with))
+  if (p.ends_with !== void 0 && !asString(value).endsWith(p.ends_with))
     return false;
   if (p.matches !== void 0) {
     let re;
@@ -3267,13 +3259,13 @@ function testPredicate(value3, p) {
     } catch {
       return false;
     }
-    if (!re.test(asString(value3)))
+    if (!re.test(asString(value)))
       return false;
   }
   if (p.any !== void 0) {
-    if (!Array.isArray(value3))
+    if (!Array.isArray(value))
       return false;
-    if (!value3.some((v) => testPredicate(v, p.any)))
+    if (!value.some((v) => testPredicate(v, p.any)))
       return false;
   }
   return true;
@@ -3294,8 +3286,8 @@ function deepEqual(a, b) {
     return false;
   return JSON.stringify(a) === JSON.stringify(b);
 }
-function matchesGlob(pattern, path3) {
-  const p = normalizePath(path3);
+function matchesGlob(pattern, path) {
+  const p = normalizePath(path);
   const pat = normalizePath(pattern);
   if (pat === p)
     return true;
@@ -3309,16 +3301,16 @@ function parseTraceAssert(raw, ctx) {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
     throw new Error(`${ctx}: \`assert.trace\` must be a mapping`);
   }
-  const obj2 = raw;
+  const obj = raw;
   const allowed = /* @__PURE__ */ new Set(["require_calls", "require_subagents", "forbid_calls", "unchanged_paths"]);
-  for (const key3 of Object.keys(obj2)) {
-    if (!allowed.has(key3)) {
-      throw new Error(`${ctx}: unknown \`assert.trace\` key \`${key3}\` (allowed: ${[...allowed].join(", ")})`);
+  for (const key of Object.keys(obj)) {
+    if (!allowed.has(key)) {
+      throw new Error(`${ctx}: unknown \`assert.trace\` key \`${key}\` (allowed: ${[...allowed].join(", ")})`);
     }
   }
   const out = {};
-  if (obj2.require_calls !== void 0) {
-    out.require_calls = asArray(obj2.require_calls, `${ctx}: \`require_calls\``).map((item, i) => {
+  if (obj.require_calls !== void 0) {
+    out.require_calls = asArray(obj.require_calls, `${ctx}: \`require_calls\``).map((item, i) => {
       const entry = asObject(item, `${ctx}: \`require_calls[${i}]\``);
       const tool = requireToolName(entry.tool, `${ctx}: \`require_calls[${i}]\``);
       const req = { tool };
@@ -3326,21 +3318,21 @@ function parseTraceAssert(raw, ctx) {
         req.count = parseCount(entry.count, `${ctx}: \`require_calls[${i}].count\``);
       if (entry.args !== void 0)
         req.args = parseArgs(entry.args, `${ctx}: \`require_calls[${i}].args\``);
-      for (const key3 of Object.keys(entry)) {
-        if (!["tool", "count", "args"].includes(key3)) {
-          throw new Error(`${ctx}: unknown key \`${key3}\` in \`require_calls[${i}]\``);
+      for (const key of Object.keys(entry)) {
+        if (!["tool", "count", "args"].includes(key)) {
+          throw new Error(`${ctx}: unknown key \`${key}\` in \`require_calls[${i}]\``);
         }
       }
       return req;
     });
   }
-  if (obj2.require_subagents !== void 0) {
-    out.require_subagents = asArray(obj2.require_subagents, `${ctx}: \`require_subagents\``).map((item, i) => {
+  if (obj.require_subagents !== void 0) {
+    out.require_subagents = asArray(obj.require_subagents, `${ctx}: \`require_subagents\``).map((item, i) => {
       const where = `${ctx}: \`require_subagents[${i}]\``;
       const entry = asObject(item, where);
-      for (const key3 of Object.keys(entry)) {
-        if (!["tool", "agent", "count", "task_contains", "task_excludes"].includes(key3)) {
-          throw new Error(`${ctx}: unknown key \`${key3}\` in \`require_subagents[${i}]\``);
+      for (const key of Object.keys(entry)) {
+        if (!["tool", "agent", "count", "task_contains", "task_excludes"].includes(key)) {
+          throw new Error(`${ctx}: unknown key \`${key}\` in \`require_subagents[${i}]\``);
         }
       }
       const sub = {
@@ -3356,24 +3348,24 @@ function parseTraceAssert(raw, ctx) {
       return sub;
     });
   }
-  if (obj2.forbid_calls !== void 0) {
-    out.forbid_calls = asArray(obj2.forbid_calls, `${ctx}: \`forbid_calls\``).map((item, i) => {
+  if (obj.forbid_calls !== void 0) {
+    out.forbid_calls = asArray(obj.forbid_calls, `${ctx}: \`forbid_calls\``).map((item, i) => {
       if (typeof item === "string")
         return { tool: item };
       const entry = asObject(item, `${ctx}: \`forbid_calls[${i}]\``);
       const forbid = { tool: requireToolName(entry.tool, `${ctx}: \`forbid_calls[${i}]\``) };
       if (entry.args !== void 0)
         forbid.args = parseArgs(entry.args, `${ctx}: \`forbid_calls[${i}].args\``);
-      for (const key3 of Object.keys(entry)) {
-        if (!["tool", "args"].includes(key3)) {
-          throw new Error(`${ctx}: unknown key \`${key3}\` in \`forbid_calls[${i}]\``);
+      for (const key of Object.keys(entry)) {
+        if (!["tool", "args"].includes(key)) {
+          throw new Error(`${ctx}: unknown key \`${key}\` in \`forbid_calls[${i}]\``);
         }
       }
       return forbid;
     });
   }
-  if (obj2.unchanged_paths !== void 0) {
-    const paths = asArray(obj2.unchanged_paths, `${ctx}: \`unchanged_paths\``);
+  if (obj.unchanged_paths !== void 0) {
+    const paths = asArray(obj.unchanged_paths, `${ctx}: \`unchanged_paths\``);
     out.unchanged_paths = paths.map((p, i) => {
       if (typeof p !== "string" || p.trim() === "") {
         throw new Error(`${ctx}: \`unchanged_paths[${i}]\` must be a non-empty string`);
@@ -3414,20 +3406,20 @@ function asObject(v, ctx) {
   return v;
 }
 function parseCount(raw, ctx) {
-  const obj2 = asObject(raw, ctx);
+  const obj = asObject(raw, ctx);
   const out = {};
-  for (const key3 of Object.keys(obj2)) {
-    if (key3 !== "min" && key3 !== "max")
-      throw new Error(`${ctx}: unknown key \`${key3}\` (allowed: min, max)`);
+  for (const key of Object.keys(obj)) {
+    if (key !== "min" && key !== "max")
+      throw new Error(`${ctx}: unknown key \`${key}\` (allowed: min, max)`);
   }
-  for (const key3 of ["min", "max"]) {
-    if (obj2[key3] === void 0)
+  for (const key of ["min", "max"]) {
+    if (obj[key] === void 0)
       continue;
-    const n = obj2[key3];
+    const n = obj[key];
     if (typeof n !== "number" || !Number.isInteger(n) || n < 0) {
-      throw new Error(`${ctx}: \`${key3}\` must be a non-negative integer`);
+      throw new Error(`${ctx}: \`${key}\` must be a non-negative integer`);
     }
-    out[key3] = n;
+    out[key] = n;
   }
   if (out.min !== void 0 && out.max !== void 0 && out.min > out.max) {
     throw new Error(`${ctx}: min (${out.min}) exceeds max (${out.max}) \u2014 nothing can satisfy it`);
@@ -3435,10 +3427,10 @@ function parseCount(raw, ctx) {
   return out;
 }
 function parseArgs(raw, ctx) {
-  const obj2 = asObject(raw, ctx);
+  const obj = asObject(raw, ctx);
   const out = {};
-  for (const [key3, value3] of Object.entries(obj2)) {
-    out[key3] = parsePredicate(value3, `${ctx}.${key3}`);
+  for (const [key, value] of Object.entries(obj)) {
+    out[key] = parsePredicate(value, `${ctx}.${key}`);
   }
   return out;
 }
@@ -3446,651 +3438,68 @@ function parsePredicate(raw, ctx) {
   if (typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean") {
     return { equals: raw };
   }
-  const obj2 = asObject(raw, ctx);
+  const obj = asObject(raw, ctx);
   const out = {};
-  for (const [key3, value3] of Object.entries(obj2)) {
-    if (!PREDICATE_KEYS.includes(key3)) {
-      throw new Error(`${ctx}: unknown operator \`${key3}\` (allowed: ${PREDICATE_KEYS.join(", ")})`);
+  for (const [key, value] of Object.entries(obj)) {
+    if (!PREDICATE_KEYS.includes(key)) {
+      throw new Error(`${ctx}: unknown operator \`${key}\` (allowed: ${PREDICATE_KEYS.join(", ")})`);
     }
-    if (key3 === "matches") {
-      if (typeof value3 !== "string")
+    if (key === "matches") {
+      if (typeof value !== "string")
         throw new Error(`${ctx}: \`matches\` must be a string pattern`);
       try {
-        new RegExp(value3);
+        new RegExp(value);
       } catch (e) {
         throw new Error(`${ctx}: \`matches\` is not a valid regular expression: ${e instanceof Error ? e.message : e}`);
       }
-      out.matches = value3;
+      out.matches = value;
       continue;
     }
-    if (key3 === "exists") {
-      if (typeof value3 !== "boolean")
+    if (key === "exists") {
+      if (typeof value !== "boolean")
         throw new Error(`${ctx}: \`exists\` must be true or false`);
-      out.exists = value3;
+      out.exists = value;
       continue;
     }
-    if (key3 === "any") {
-      out.any = parsePredicate(value3, `${ctx}.any`);
+    if (key === "any") {
+      out.any = parsePredicate(value, `${ctx}.any`);
       continue;
     }
-    if (key3 === "equals") {
-      out.equals = value3;
+    if (key === "equals") {
+      out.equals = value;
       continue;
     }
-    if (typeof value3 !== "string")
-      throw new Error(`${ctx}: \`${key3}\` must be a string`);
-    out[key3] = value3;
+    if (typeof value !== "string")
+      throw new Error(`${ctx}: \`${key}\` must be a string`);
+    out[key] = value;
   }
   if (Object.keys(out).length === 0)
     throw new Error(`${ctx}: predicate declares no operator`);
   return out;
 }
 
-// packages/core/dist/trajectory-gates.js
-import { createHash } from "node:crypto";
-var LEGACY_TRAJECTORY_EVENT_VERSION = "1.0";
-var TRAJECTORY_EVENT_VERSION = "1.1";
-var TRAJECTORY_ASSERT_VERSION = "1.0";
-function trajectoryEventsSha256(events) {
-  return createHash("sha256").update(stableStringify(events)).digest("hex");
-}
-function serializeTrajectoryEvents(events) {
-  return events.map((event) => JSON.stringify(event)).join("\n") + (events.length ? "\n" : "");
-}
-function deserializeTrajectoryEvents(text15) {
-  const out = [];
-  try {
-    for (const line of text15.split("\n").filter((entry) => entry.trim())) {
-      const event = JSON.parse(line);
-      if (validateEvent(event) !== null)
-        return null;
-      out.push(event);
-    }
-  } catch {
-    return null;
-  }
-  if (!out.length)
-    return null;
-  const sequences = out.map((event) => event.seq).sort((a, b) => a - b);
-  if (new Set(sequences).size !== out.length || sequences.some((seq2, index) => seq2 !== index + 1))
-    return null;
-  return out;
-}
-function evaluateTrajectoryGates(assert, input) {
-  const assertions = [];
-  const events = [...input].sort((a, b) => a.seq - b.seq);
-  const invalid3 = input.map((event) => ({ event, problem: validateEvent(event) })).find((entry) => entry.problem !== null);
-  const sequences = [...input.map((event) => event.seq)].sort((a, b) => a - b);
-  const duplicateSeq = new Set(sequences).size !== input.length;
-  const nonContiguous = sequences.some((seq2, index) => seq2 !== index + 1);
-  if (invalid3 || duplicateSeq || nonContiguous) {
-    assertions.push({
-      kind: "evidence",
-      status: "ERROR",
-      detail: invalid3 ? `normalized event evidence is invalid at sequence ${String(invalid3.event.seq)}: ${invalid3.problem}` : duplicateSeq ? "normalized event evidence has duplicate sequence numbers" : "normalized event evidence sequence must be contiguous from 1"
-    });
-  }
-  for (const required of assert.require ?? []) {
-    const hits = matching(events, required);
-    const min = required.count?.min ?? 1;
-    const max = required.count?.max;
-    const ok = hits.length >= min && (max === void 0 || hits.length <= max);
-    assertions.push({
-      kind: "require_event",
-      status: ok ? "PASS" : "FAIL",
-      detail: ok ? `required event \`${required.event}\` occurred ${hits.length} time(s)` : `required event \`${required.event}\` expected ${bounds(min, max)}, saw ${hits.length}`
-    });
-  }
-  for (const forbidden2 of assert.forbid ?? []) {
-    const hits = matching(events, forbidden2);
-    assertions.push({
-      kind: "forbid_event",
-      status: hits.length ? "FAIL" : "PASS",
-      detail: hits.length ? `forbidden event \`${forbidden2.event}\` occurred at sequence(s) ${hits.map((event) => event.seq).join(", ")}` : `forbidden event \`${forbidden2.event}\` did not occur`
-    });
-  }
-  for (const chain of assert.ordered ?? []) {
-    let cursor = -Infinity;
-    const found = [];
-    for (const selector of chain) {
-      const next = matching(events, selector).find((event) => event.seq > cursor);
-      if (!next)
-        break;
-      found.push(next);
-      cursor = next.seq;
-    }
-    const ok = found.length === chain.length;
-    assertions.push({
-      kind: "ordered_events",
-      status: ok ? "PASS" : "FAIL",
-      detail: ok ? `ordered events occurred at sequences ${found.map((event) => event.seq).join(" < ")}` : `ordered trajectory broke at \`${chain[found.length]?.event ?? "unknown"}\` after sequence ${cursor === -Infinity ? "start" : cursor}`
-    });
-  }
-  for (const correlation of assert.correlate ?? []) {
-    const left = selected(events, correlation.left);
-    const right = selected(events, correlation.right);
-    if (!left.length || !right.length) {
-      assertions.push({ kind: "correlation", status: "FAIL", detail: `correlation needs \`${correlation.left.event}\` and \`${correlation.right.event}\`` });
-      continue;
-    }
-    for (const l of left)
-      for (const r of right) {
-        const checked = compareFields(l, r, correlation.same ?? [], correlation.different ?? []);
-        if (checked.error) {
-          assertions.push({ kind: "correlation", status: "ERROR", detail: checked.error });
-          continue;
-        }
-        const ordered = correlation.order === void 0 || (correlation.order === "before" ? l.seq < r.seq : l.seq > r.seq);
-        assertions.push({
-          kind: "correlation",
-          status: checked.ok && ordered ? "PASS" : "FAIL",
-          detail: checked.ok && ordered ? `\`${correlation.left.event}\` and \`${correlation.right.event}\` satisfy identity/order correlation` : `\`${correlation.left.event}\` and \`${correlation.right.event}\` violate ${!checked.ok ? "identity" : `${correlation.order} ordering`} correlation`
-        });
-      }
-  }
-  for (const freshness of assert.freshness ?? []) {
-    const subjects = selected(events, freshness.subject);
-    if (!subjects.length) {
-      assertions.push({ kind: "freshness", status: "FAIL", detail: `freshness subject \`${freshness.subject.event}\` is missing` });
-      continue;
-    }
-    for (const subject of subjects) {
-      let floor = -Infinity;
-      let failure = null;
-      let error = null;
-      for (const selector of freshness.after) {
-        const candidates = matching(events, selector);
-        const correlated = [];
-        for (const candidate of candidates) {
-          const checked = compareFields(subject, candidate, freshness.same ?? [], []);
-          if (checked.error)
-            error ??= checked.error;
-          else if (checked.ok)
-            correlated.push(candidate);
-        }
-        const anchor = correlated.at(-1);
-        if (!anchor)
-          failure = `freshness anchor \`${selector.event}\` is missing for the correlated identity`;
-        else
-          floor = Math.max(floor, anchor.seq);
-      }
-      assertions.push(error ? { kind: "freshness", status: "ERROR", detail: error } : failure ? { kind: "freshness", status: "FAIL", detail: failure } : subject.seq > floor ? { kind: "freshness", status: "PASS", detail: `\`${freshness.subject.event}\` at ${subject.seq} is newer than freshness floor ${floor}` } : { kind: "freshness", status: "FAIL", detail: `\`${freshness.subject.event}\` at ${subject.seq} is stale; freshness floor is ${floor}` });
-    }
-  }
-  for (const uniqueness of assert.unique ?? []) {
-    const hits = matching(events, uniqueness.events);
-    for (const field of uniqueness.fields) {
-      const values = hits.map((event) => fieldValue(event, field));
-      const missing5 = values.findIndex((value3) => value3 === void 0 || value3 === null || value3 === "");
-      if (missing5 >= 0) {
-        assertions.push({ kind: "unique", status: "ERROR", detail: `uniqueness field \`${field}\` is missing on \`${uniqueness.events.event}\` at sequence ${hits[missing5].seq}` });
-      } else {
-        const duplicates = values.filter((value3, index) => values.findIndex((other) => deepEqual2(value3, other)) !== index);
-        assertions.push({
-          kind: "unique",
-          status: duplicates.length ? "FAIL" : "PASS",
-          detail: duplicates.length ? `\`${field}\` was reused across independent \`${uniqueness.events.event}\` events` : `\`${field}\` is unique across ${hits.length} event(s)`
-        });
-      }
-    }
-  }
-  for (const rule of assert.forbid_after ?? []) {
-    const anchors = selected(events, rule.anchor);
-    if (!anchors.length) {
-      assertions.push({
-        kind: "forbid_after",
-        status: rule.anchor_optional ? "PASS" : "FAIL",
-        detail: rule.anchor_optional ? `optional anchor \`${rule.anchor.event}\` did not occur` : `anchor \`${rule.anchor.event}\` is missing`
-      });
-      continue;
-    }
-    for (const anchor of anchors) {
-      let violations = 0;
-      let error = null;
-      for (const selector of rule.forbidden) {
-        for (const candidate of matching(events, selector).filter((event) => event.seq > anchor.seq)) {
-          const checked = compareFields(anchor, candidate, rule.same ?? [], []);
-          if (checked.error)
-            error ??= checked.error;
-          else if (checked.ok)
-            violations++;
-        }
-      }
-      assertions.push(error ? { kind: "forbid_after", status: "ERROR", detail: error } : {
-        kind: "forbid_after",
-        status: violations ? "FAIL" : "PASS",
-        detail: violations ? `${violations} forbidden mutation event(s) occurred after \`${rule.anchor.event}\` for the same identity` : `no forbidden mutation followed \`${rule.anchor.event}\``
-      });
-    }
-  }
-  for (const approval of assert.approvals ?? []) {
-    const grants = selected(events, approval.grant);
-    const uses = approval.use.select ? selected(events, approval.use) : matching(events, approval.use);
-    if (!grants.length || !uses.length) {
-      assertions.push({ kind: "approval", status: "FAIL", detail: "approval grant/use evidence is incomplete" });
-      continue;
-    }
-    for (const grant of grants) {
-      const matchingUses = [];
-      let error = null;
-      let usedBeforeGrant = false;
-      const identityFields = [.../* @__PURE__ */ new Set([
-        ...approval.same ?? [],
-        "approval.id",
-        "approval.capability",
-        ...approval.scopes ? ["approval.scope"] : [],
-        ...approval.sources ? ["approval.source"] : []
-      ])];
-      for (const use of uses) {
-        const checked = compareFields(grant, use, identityFields, []);
-        if (checked.error)
-          error ??= checked.error;
-        else if (checked.ok && use.seq <= grant.seq)
-          usedBeforeGrant = true;
-        else if (checked.ok)
-          matchingUses.push(use);
-      }
-      const scope = grant.approval?.scope;
-      const source3 = grant.approval?.source;
-      if (error) {
-        assertions.push({ kind: "approval", status: "ERROR", detail: error });
-        continue;
-      }
-      if (approval.scopes && (!scope || !approval.scopes.includes(scope))) {
-        assertions.push({ kind: "approval", status: scope ? "FAIL" : "ERROR", detail: scope ? `approval scope \`${scope}\` is not allowed` : "approval scope is missing" });
-        continue;
-      }
-      if (approval.sources && (!source3 || !approval.sources.includes(source3))) {
-        assertions.push({ kind: "approval", status: source3 ? "FAIL" : "ERROR", detail: source3 ? `approval source \`${source3}\` is not allowed` : "approval source is missing" });
-        continue;
-      }
-      if (usedBeforeGrant) {
-        assertions.push({ kind: "approval", status: "FAIL", detail: "approval was used before its grant event" });
-        continue;
-      }
-      if (matchingUses.length === 0) {
-        assertions.push({ kind: "approval", status: "FAIL", detail: "no approval use matches the granted scope/identity" });
-        continue;
-      }
-      if (approval.max_uses !== void 0 && matchingUses.length > approval.max_uses) {
-        assertions.push({ kind: "approval", status: "FAIL", detail: `approval was used ${matchingUses.length} times (max ${approval.max_uses})` });
-        continue;
-      }
-      if (approval.unexpired) {
-        const approved = grant.approval?.approved_at ?? grant.at;
-        const expires = grant.approval?.expires_at;
-        const timestampsInvalid = !approved || !expires || !validDate(approved) || !validDate(expires) || matchingUses.some((use) => !validDate(use.approval?.used_at ?? use.at));
-        if (timestampsInvalid) {
-          assertions.push({ kind: "approval", status: "ERROR", detail: "approval grant/expiry/use timestamp is missing or invalid" });
-          continue;
-        }
-        const invalidUse = matchingUses.find((use) => {
-          const used = use.approval?.used_at ?? use.at;
-          return Date.parse(used) < Date.parse(approved) || Date.parse(used) >= Date.parse(expires);
-        });
-        if (Date.parse(approved) >= Date.parse(expires) || invalidUse) {
-          assertions.push({ kind: "approval", status: "FAIL", detail: "approval was used outside its grant/expiry interval" });
-          continue;
-        }
-      }
-      assertions.push({ kind: "approval", status: "PASS", detail: `approval was used ${matchingUses.length} time(s) within declared scope and expiry` });
-    }
-  }
-  for (const coverage2 of assert.coverage ?? []) {
-    const hits = coverage2.events ? matching(events, coverage2.events) : events;
-    const covered = new Set(hits.flatMap((event) => event.requirements ?? []));
-    const missing5 = coverage2.requirements.filter((requirement) => !covered.has(requirement));
-    assertions.push({
-      kind: "coverage",
-      status: missing5.length ? "FAIL" : "PASS",
-      detail: missing5.length ? `missing requirement coverage: ${missing5.join(", ")}` : `requirement coverage recorded: ${coverage2.requirements.join(", ")}`
-    });
-  }
-  return {
-    status: assertions.some((result) => result.status === "ERROR") ? "ERROR" : assertions.some((result) => result.status === "FAIL") ? "FAIL" : "PASS",
-    event_version: TRAJECTORY_EVENT_VERSION,
-    events_sha256: trajectoryEventsSha256(events),
-    assertions
-  };
-}
-function parseTrajectoryAssert(raw, ctx) {
-  const object5 = asObject2(raw, `${ctx}: \`assert.trajectory\``);
-  const allowed = /* @__PURE__ */ new Set(["version", "require", "forbid", "ordered", "correlate", "freshness", "unique", "forbid_after", "approvals", "coverage"]);
-  rejectUnknown(object5, allowed, `${ctx}: \`assert.trajectory\``);
-  if (object5.version !== TRAJECTORY_ASSERT_VERSION)
-    throw new Error(`${ctx}: \`assert.trajectory.version\` must be ${TRAJECTORY_ASSERT_VERSION}`);
-  const out = { version: TRAJECTORY_ASSERT_VERSION };
-  if (object5.require !== void 0)
-    out.require = nonEmptyArray(object5.require, `${ctx}: require`).map((value3, index) => parseRequired(value3, `${ctx}: require[${index}]`));
-  if (object5.forbid !== void 0)
-    out.forbid = nonEmptyArray(object5.forbid, `${ctx}: forbid`).map((value3, index) => parseSelector(value3, `${ctx}: forbid[${index}]`));
-  if (object5.ordered !== void 0)
-    out.ordered = nonEmptyArray(object5.ordered, `${ctx}: ordered`).map((chain, index) => nonEmptyArray(chain, `${ctx}: ordered[${index}]`).map((value3, step) => parseSelector(value3, `${ctx}: ordered[${index}][${step}]`)));
-  if (object5.correlate !== void 0)
-    out.correlate = nonEmptyArray(object5.correlate, `${ctx}: correlate`).map((value3, index) => parseCorrelation(value3, `${ctx}: correlate[${index}]`));
-  if (object5.freshness !== void 0)
-    out.freshness = nonEmptyArray(object5.freshness, `${ctx}: freshness`).map((value3, index) => parseFreshness(value3, `${ctx}: freshness[${index}]`));
-  if (object5.unique !== void 0)
-    out.unique = nonEmptyArray(object5.unique, `${ctx}: unique`).map((value3, index) => parseUnique(value3, `${ctx}: unique[${index}]`));
-  if (object5.forbid_after !== void 0)
-    out.forbid_after = nonEmptyArray(object5.forbid_after, `${ctx}: forbid_after`).map((value3, index) => parseForbidAfter(value3, `${ctx}: forbid_after[${index}]`));
-  if (object5.approvals !== void 0)
-    out.approvals = nonEmptyArray(object5.approvals, `${ctx}: approvals`).map((value3, index) => parseApproval(value3, `${ctx}: approvals[${index}]`));
-  if (object5.coverage !== void 0)
-    out.coverage = nonEmptyArray(object5.coverage, `${ctx}: coverage`).map((value3, index) => parseCoverage(value3, `${ctx}: coverage[${index}]`));
-  if (Object.keys(out).length === 1)
-    throw new Error(`${ctx}: \`assert.trajectory\` declares no assertions`);
-  return out;
-}
-function parseRequired(raw, ctx) {
-  const object5 = asObject2(raw, ctx);
-  rejectUnknown(object5, /* @__PURE__ */ new Set(["event", "where", "select", "count"]), ctx);
-  const out = parseSelector({ event: object5.event, ...object5.where === void 0 ? {} : { where: object5.where }, ...object5.select === void 0 ? {} : { select: object5.select } }, ctx);
-  if (object5.count !== void 0)
-    out.count = parseCount2(object5.count, `${ctx}.count`);
-  return out;
-}
-function parseSelector(raw, ctx) {
-  const object5 = asObject2(raw, ctx);
-  rejectUnknown(object5, /* @__PURE__ */ new Set(["event", "where", "select"]), ctx);
-  if (typeof object5.event !== "string" || !object5.event.trim())
-    throw new Error(`${ctx}.event must be a non-empty string`);
-  const out = { event: object5.event };
-  if (object5.where !== void 0) {
-    const where = asObject2(object5.where, `${ctx}.where`);
-    out.where = Object.fromEntries(Object.entries(where).map(([field, value3]) => [field, parsePredicate(value3, `${ctx}.where.${field}`)]));
-  }
-  if (object5.select !== void 0) {
-    if (!["first", "last", "all"].includes(object5.select))
-      throw new Error(`${ctx}.select must be first, last, or all`);
-    out.select = object5.select;
-  }
-  return out;
-}
-function parseCorrelation(raw, ctx) {
-  const object5 = asObject2(raw, ctx);
-  rejectUnknown(object5, /* @__PURE__ */ new Set(["left", "right", "same", "different", "order"]), ctx);
-  const out = { left: parseSelector(object5.left, `${ctx}.left`), right: parseSelector(object5.right, `${ctx}.right`) };
-  if (object5.same !== void 0)
-    out.same = stringList(object5.same, `${ctx}.same`);
-  if (object5.different !== void 0)
-    out.different = stringList(object5.different, `${ctx}.different`);
-  if (object5.order !== void 0) {
-    if (object5.order !== "before" && object5.order !== "after")
-      throw new Error(`${ctx}.order must be before or after`);
-    out.order = object5.order;
-  }
-  if (!out.same?.length && !out.different?.length && !out.order)
-    throw new Error(`${ctx} declares no relation`);
-  return out;
-}
-function parseFreshness(raw, ctx) {
-  const object5 = asObject2(raw, ctx);
-  rejectUnknown(object5, /* @__PURE__ */ new Set(["subject", "after", "same"]), ctx);
-  return {
-    subject: parseSelector(object5.subject, `${ctx}.subject`),
-    after: nonEmptyArray(object5.after, `${ctx}.after`).map((value3, index) => parseSelector(value3, `${ctx}.after[${index}]`)),
-    ...object5.same === void 0 ? {} : { same: stringList(object5.same, `${ctx}.same`) }
-  };
-}
-function parseUnique(raw, ctx) {
-  const object5 = asObject2(raw, ctx);
-  rejectUnknown(object5, /* @__PURE__ */ new Set(["events", "fields"]), ctx);
-  return { events: parseSelector(object5.events, `${ctx}.events`), fields: stringList(object5.fields, `${ctx}.fields`) };
-}
-function parseForbidAfter(raw, ctx) {
-  const object5 = asObject2(raw, ctx);
-  rejectUnknown(object5, /* @__PURE__ */ new Set(["anchor", "forbidden", "same", "anchor_optional"]), ctx);
-  if (object5.anchor_optional !== void 0 && typeof object5.anchor_optional !== "boolean")
-    throw new Error(`${ctx}.anchor_optional must be boolean`);
-  return {
-    anchor: parseSelector(object5.anchor, `${ctx}.anchor`),
-    forbidden: nonEmptyArray(object5.forbidden, `${ctx}.forbidden`).map((value3, index) => parseSelector(value3, `${ctx}.forbidden[${index}]`)),
-    ...object5.same === void 0 ? {} : { same: stringList(object5.same, `${ctx}.same`) },
-    ...object5.anchor_optional === void 0 ? {} : { anchor_optional: object5.anchor_optional }
-  };
-}
-function parseApproval(raw, ctx) {
-  const object5 = asObject2(raw, ctx);
-  rejectUnknown(object5, /* @__PURE__ */ new Set(["grant", "use", "same", "scopes", "sources", "unexpired", "max_uses"]), ctx);
-  if (object5.unexpired !== void 0 && typeof object5.unexpired !== "boolean")
-    throw new Error(`${ctx}.unexpired must be boolean`);
-  if (object5.max_uses !== void 0 && (!Number.isInteger(object5.max_uses) || Number(object5.max_uses) < 1))
-    throw new Error(`${ctx}.max_uses must be a positive integer`);
-  return {
-    grant: parseSelector(object5.grant, `${ctx}.grant`),
-    use: parseSelector(object5.use, `${ctx}.use`),
-    ...object5.same === void 0 ? {} : { same: stringList(object5.same, `${ctx}.same`) },
-    ...object5.scopes === void 0 ? {} : { scopes: stringList(object5.scopes, `${ctx}.scopes`) },
-    ...object5.sources === void 0 ? {} : { sources: stringList(object5.sources, `${ctx}.sources`) },
-    ...object5.unexpired === void 0 ? {} : { unexpired: object5.unexpired },
-    ...object5.max_uses === void 0 ? {} : { max_uses: Number(object5.max_uses) }
-  };
-}
-function parseCoverage(raw, ctx) {
-  const object5 = asObject2(raw, ctx);
-  rejectUnknown(object5, /* @__PURE__ */ new Set(["requirements", "events"]), ctx);
-  return { requirements: stringList(object5.requirements, `${ctx}.requirements`), ...object5.events === void 0 ? {} : { events: parseSelector(object5.events, `${ctx}.events`) } };
-}
-function parseCount2(raw, ctx) {
-  const object5 = asObject2(raw, ctx);
-  rejectUnknown(object5, /* @__PURE__ */ new Set(["min", "max"]), ctx);
-  const out = {};
-  for (const key3 of ["min", "max"]) {
-    if (object5[key3] === void 0)
-      continue;
-    if (!Number.isInteger(object5[key3]) || Number(object5[key3]) < 0)
-      throw new Error(`${ctx}.${key3} must be a non-negative integer`);
-    out[key3] = Number(object5[key3]);
-  }
-  if (out.min !== void 0 && out.max !== void 0 && out.min > out.max)
-    throw new Error(`${ctx}.min exceeds max`);
-  return out;
-}
-var V11_EVENT_KEYS = /* @__PURE__ */ new Set(["execution_id", "parent_execution_id", "task_from_execution_id", "workflow_fact_id", "deadline_at"]);
-var EVENT_KEYS = /* @__PURE__ */ new Set([
-  "event_version",
-  "seq",
-  "type",
-  "source",
-  "at",
-  "run_id",
-  "task_id",
-  "workspace_id",
-  "context_id",
-  "finding_id",
-  "parent_id",
-  "child_id",
-  ...V11_EVENT_KEYS,
-  "phase",
-  "tool",
-  "capability",
-  "requested_capabilities",
-  "effective_capabilities",
-  "refusal_code",
-  "exit_code",
-  "digests",
-  "approval",
-  "requirements",
-  "attributes"
-]);
-var APPROVAL_KEYS = /* @__PURE__ */ new Set(["id", "capability", "subject", "source", "scope", "approved_at", "expires_at", "used_at"]);
-var ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-var SHA256_RE = /^[a-fA-F0-9]{64}$/;
-var GIT_SHA_RE = /^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/;
-var REFUSAL_RE = /^[A-Z][A-Z0-9_]*$/;
-function validateEvent(event) {
-  if (!event || typeof event !== "object" || Array.isArray(event))
-    return "event must be an object";
-  const object5 = event;
-  const unknown = Object.keys(object5).find((key3) => !EVENT_KEYS.has(key3));
-  if (unknown)
-    return `unknown field ${unknown}`;
-  if (event.event_version !== LEGACY_TRAJECTORY_EVENT_VERSION && event.event_version !== TRAJECTORY_EVENT_VERSION) {
-    return `unsupported event_version ${String(event.event_version)}`;
-  }
-  if (event.event_version === LEGACY_TRAJECTORY_EVENT_VERSION) {
-    const versionedField = Object.keys(object5).find((key3) => V11_EVENT_KEYS.has(key3));
-    if (versionedField)
-      return `${versionedField} requires event_version ${TRAJECTORY_EVENT_VERSION}`;
-  }
-  if (!Number.isInteger(event.seq) || event.seq < 1)
-    return "seq must be a positive integer";
-  if (typeof event.type !== "string" || !event.type)
-    return "type must be a non-empty string";
-  if (typeof event.source !== "string" || !event.source)
-    return "source must be a non-empty string";
-  if (event.at !== void 0 && !validDate(event.at))
-    return "at must be an RFC 3339 date-time";
-  for (const field of ["run_id", "task_id", "workspace_id", "context_id", "finding_id", "parent_id", "child_id", "execution_id", "task_from_execution_id", "workflow_fact_id"]) {
-    if (event[field] !== void 0 && (typeof event[field] !== "string" || !ID_RE.test(event[field])))
-      return `${field} is not a valid bounded identifier`;
-  }
-  if (event.parent_execution_id !== void 0 && event.parent_execution_id !== null && (typeof event.parent_execution_id !== "string" || !ID_RE.test(event.parent_execution_id)))
-    return "parent_execution_id is not a valid bounded identifier or null";
-  if (event.deadline_at !== void 0 && !validDate(event.deadline_at))
-    return "deadline_at must be an RFC 3339 date-time";
-  for (const field of ["phase", "tool", "capability"]) {
-    if (event[field] !== void 0 && (typeof event[field] !== "string" || !event[field]))
-      return `${field} must be a non-empty string`;
-  }
-  for (const field of ["requested_capabilities", "effective_capabilities", "requirements"]) {
-    const values = event[field];
-    if (values !== void 0 && (!Array.isArray(values) || values.some((value3) => typeof value3 !== "string" || !value3) || new Set(values).size !== values.length)) {
-      return `${field} must be an array of unique non-empty strings`;
-    }
-  }
-  if (event.refusal_code !== void 0 && !REFUSAL_RE.test(event.refusal_code))
-    return "refusal_code is invalid";
-  if (event.exit_code !== void 0 && !Number.isInteger(event.exit_code))
-    return "exit_code must be an integer";
-  if (event.digests !== void 0) {
-    if (!event.digests || typeof event.digests !== "object" || Array.isArray(event.digests))
-      return "digests must be an object";
-    for (const [key3, value3] of Object.entries(event.digests)) {
-      if (typeof value3 !== "string")
-        return `digests.${key3} must be a string`;
-      if (["plan", "task", "definition"].includes(key3) && !SHA256_RE.test(value3))
-        return `digests.${key3} must be sha256`;
-      if (["head", "tree"].includes(key3) && !GIT_SHA_RE.test(value3))
-        return `digests.${key3} must be a git object id`;
-    }
-  }
-  if (event.approval !== void 0) {
-    if (!event.approval || typeof event.approval !== "object" || Array.isArray(event.approval))
-      return "approval must be an object";
-    const unknownApproval = Object.keys(event.approval).find((key3) => !APPROVAL_KEYS.has(key3));
-    if (unknownApproval)
-      return `approval.${unknownApproval} is unknown`;
-    for (const [key3, value3] of Object.entries(event.approval)) {
-      if (typeof value3 !== "string" || !value3)
-        return `approval.${key3} must be a non-empty string`;
-      if (key3 === "id" && !ID_RE.test(value3))
-        return "approval.id is invalid";
-      if (["approved_at", "expires_at", "used_at"].includes(key3) && !validDate(value3))
-        return `approval.${key3} must be an RFC 3339 date-time`;
-    }
-  }
-  if (event.attributes !== void 0 && (!event.attributes || typeof event.attributes !== "object" || Array.isArray(event.attributes)))
-    return "attributes must be an object";
-  return null;
-}
-function matching(events, selector) {
-  return events.filter((event) => event.type === selector.event && Object.entries(selector.where ?? {}).every(([field, predicate]) => testPredicate(fieldValue(event, field), predicate)));
-}
-function selected(events, selector) {
-  const hits = matching(events, selector);
-  if (selector.select === "all")
-    return hits;
-  return hits.length ? [selector.select === "first" ? hits[0] : hits[hits.length - 1]] : [];
-}
-function fieldValue(event, field) {
-  let current = event;
-  for (const part of field.split(".")) {
-    if (!current || typeof current !== "object" || Array.isArray(current) || !Object.hasOwn(current, part))
-      return void 0;
-    current = current[part];
-  }
-  return current;
-}
-function compareFields(left, right, same, different) {
-  for (const field of [...same, ...different]) {
-    const l = fieldValue(left, field), r = fieldValue(right, field);
-    if (l === void 0 || l === null || r === void 0 || r === null)
-      return { ok: false, error: `correlation field \`${field}\` is missing at sequence ${l === void 0 || l === null ? left.seq : right.seq}` };
-  }
-  return { ok: same.every((field) => deepEqual2(fieldValue(left, field), fieldValue(right, field))) && different.every((field) => !deepEqual2(fieldValue(left, field), fieldValue(right, field))) };
-}
-function deepEqual2(left, right) {
-  return JSON.stringify(left) === JSON.stringify(right);
-}
-function validDate(value3) {
-  if (typeof value3 !== "string")
-    return false;
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.exec(value3);
-  if (!match || !Number.isFinite(Date.parse(value3)))
-    return false;
-  const [, year, month, day, hour, minute, second] = match.map(Number);
-  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59)
-    return false;
-  return day >= 1 && day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
-}
-function bounds(min, max) {
-  return max === void 0 ? `at least ${min}` : min === 0 ? `at most ${max}` : `${min}..${max}`;
-}
-function asObject2(value3, ctx) {
-  if (!value3 || typeof value3 !== "object" || Array.isArray(value3))
-    throw new Error(`${ctx} must be a mapping`);
-  return value3;
-}
-function nonEmptyArray(value3, ctx) {
-  if (!Array.isArray(value3) || value3.length === 0)
-    throw new Error(`${ctx} must be a non-empty list`);
-  return value3;
-}
-function stringList(value3, ctx) {
-  const values = nonEmptyArray(value3, ctx);
-  if (values.some((item) => typeof item !== "string" || !item.trim()))
-    throw new Error(`${ctx} must contain non-empty strings`);
-  if (new Set(values).size !== values.length)
-    throw new Error(`${ctx} must not contain duplicates`);
-  return values;
-}
-function rejectUnknown(object5, allowed, ctx) {
-  const unknown = Object.keys(object5).find((key3) => !allowed.has(key3));
-  if (unknown)
-    throw new Error(`${ctx}: unknown key \`${unknown}\``);
-}
-function stableStringify(value3) {
-  if (value3 === null || typeof value3 !== "object")
-    return JSON.stringify(value3) ?? "null";
-  if (Array.isArray(value3))
-    return `[${value3.map(stableStringify).join(",")}]`;
-  return `{${Object.entries(value3).filter(([, entry]) => entry !== void 0).sort(([a], [b]) => a.localeCompare(b)).map(([key3, entry]) => `${JSON.stringify(key3)}:${stableStringify(entry)}`).join(",")}}`;
-}
-
 // packages/core/dist/spec.js
 var SpecError = class extends Error {
-  constructor(message3, file) {
-    super(`${file}: ${message3}`);
+  constructor(message, file) {
+    super(`${file}: ${message}`);
     this.name = "SpecError";
   }
 };
 function isStringArray(v) {
   return Array.isArray(v) && v.every((x) => typeof x === "string");
 }
-function assertStringList(v, id3, field, file) {
+function assertStringList(v, id, field, file) {
   if (!Array.isArray(v) || v.length === 0) {
-    throw new SpecError(`scenario \`${id3}\` needs at least one \`${field}\` entry`, file);
+    throw new SpecError(`scenario \`${id}\` needs at least one \`${field}\` entry`, file);
   }
   const i = v.findIndex((x) => typeof x !== "string");
   if (i >= 0) {
     const bad = v[i];
     const hint = bad !== null && typeof bad === "object" ? ` \u2014 item #${i + 1} parsed as a YAML mapping; an unquoted ": " does that, so quote the item` : ` \u2014 item #${i + 1} is not a string`;
-    throw new SpecError(`scenario \`${id3}\` \`${field}\` items must all be strings${hint}`, file);
+    throw new SpecError(`scenario \`${id}\` \`${field}\` items must all be strings${hint}`, file);
   }
 }
-function resolveWorkspace(env, mode, fixture, id3, file) {
+function resolveWorkspace(env, mode, fixture, id, file) {
   const raw = env && typeof env === "object" ? env.workspace : void 0;
   if (raw === void 0) {
     if (mode === "seeded" && fixture)
@@ -4099,7 +3508,7 @@ function resolveWorkspace(env, mode, fixture, id3, file) {
   }
   if (raw === "none") {
     if (mode === "seeded") {
-      throw new SpecError(`seeded scenario \`${id3}\` cannot use env.workspace: none \u2014 seeded gates need a git repo (omit env to use its fixture, or use empty-git/fixture:<path>)`, file);
+      throw new SpecError(`seeded scenario \`${id}\` cannot use env.workspace: none \u2014 seeded gates need a git repo (omit env to use its fixture, or use empty-git/fixture:<path>)`, file);
     }
     return raw;
   }
@@ -4108,88 +3517,45 @@ function resolveWorkspace(env, mode, fixture, id3, file) {
   if (typeof raw === "string" && raw.startsWith("fixture:")) {
     const p = raw.slice("fixture:".length).trim();
     if (!p)
-      throw new SpecError(`scenario \`${id3}\` env.workspace fixture path is empty`, file);
+      throw new SpecError(`scenario \`${id}\` env.workspace fixture path is empty`, file);
     return { fixture: p };
   }
-  throw new SpecError(`scenario \`${id3}\` env.workspace must be none | empty-git | fixture:<path>`, file);
+  throw new SpecError(`scenario \`${id}\` env.workspace must be none | empty-git | fixture:<path>`, file);
 }
-function resolveExtensions(env, hasSystemPrompt, id3, file) {
+function resolveExtensions(env, hasSystemPrompt, id, file) {
   const raw = env && typeof env === "object" ? env.extensions : void 0;
   if (raw === void 0)
     return void 0;
   if (!Array.isArray(raw) || raw.length === 0) {
-    throw new SpecError(`scenario \`${id3}\` env.extensions must be a non-empty list of paths`, file);
+    throw new SpecError(`scenario \`${id}\` env.extensions must be a non-empty list of paths`, file);
   }
   const paths = raw.map((p, i) => {
     if (typeof p !== "string" || p.trim() === "") {
-      throw new SpecError(`scenario \`${id3}\` env.extensions[${i}] must be a non-empty path`, file);
+      throw new SpecError(`scenario \`${id}\` env.extensions[${i}] must be a non-empty path`, file);
     }
     return p.trim();
   });
   if (hasSystemPrompt) {
-    throw new SpecError(`scenario \`${id3}\` sets both env.extensions and system_prompt_file \u2014 system_prompt_file replaces the system prompt to test a subagent in isolation, while env.extensions tests the parent that delegates to one. Pick one.`, file);
+    throw new SpecError(`scenario \`${id}\` sets both env.extensions and system_prompt_file \u2014 system_prompt_file replaces the system prompt to test a subagent in isolation, while env.extensions tests the parent that delegates to one. Pick one.`, file);
   }
   return paths;
 }
-function resolveEventSources(env, id3, file) {
-  const raw = env && typeof env === "object" ? env.event_sources : void 0;
-  if (raw === void 0)
-    return void 0;
-  if (!Array.isArray(raw) || raw.length === 0) {
-    throw new SpecError(`scenario \`${id3}\` env.event_sources must be a non-empty list`, file);
-  }
-  const allowedAdapters = /* @__PURE__ */ new Set([
-    "normalized-v1",
-    "principal-assurance-v1",
-    "pi-daddy-v1",
-    "pi-daddy-ledger-v3"
-  ]);
-  return raw.map((entry, index) => {
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-      throw new SpecError(`scenario \`${id3}\` env.event_sources[${index}] must be a mapping`, file);
-    }
-    const source3 = entry;
-    for (const key3 of Object.keys(source3)) {
-      if (!["adapter", "path", "required"].includes(key3)) {
-        throw new SpecError(`scenario \`${id3}\` env.event_sources[${index}] has unknown key \`${key3}\``, file);
-      }
-    }
-    if (!allowedAdapters.has(source3.adapter)) {
-      throw new SpecError(`scenario \`${id3}\` env.event_sources[${index}].adapter is unsupported`, file);
-    }
-    if (typeof source3.path !== "string" || !source3.path.trim()) {
-      throw new SpecError(`scenario \`${id3}\` env.event_sources[${index}].path must be non-empty`, file);
-    }
-    const path3 = source3.path.trim();
-    if (path3.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path3) || path3.includes("\\") || path3.split("/").some((part) => part === ".." || part === "." || part === "")) {
-      throw new SpecError(`scenario \`${id3}\` env.event_sources paths must be workspace-relative without traversal (got \`${path3}\`)`, file);
-    }
-    if (source3.required !== void 0 && typeof source3.required !== "boolean") {
-      throw new SpecError(`scenario \`${id3}\` env.event_sources[${index}].required must be true or false`, file);
-    }
-    return {
-      adapter: source3.adapter,
-      path: path3,
-      required: source3.required !== false
-    };
-  });
-}
-function resolveRemote(env, workspace, id3, file) {
+function resolveRemote(env, workspace, id, file) {
   const raw = env && typeof env === "object" ? env.remote : void 0;
   if (raw === void 0)
     return false;
   if (typeof raw !== "boolean") {
-    throw new SpecError(`scenario \`${id3}\` env.remote must be true or false`, file);
+    throw new SpecError(`scenario \`${id}\` env.remote must be true or false`, file);
   }
   if (raw && workspace === "none") {
-    throw new SpecError(`scenario \`${id3}\` sets env.remote but has no repo to attach it to \u2014 use env.workspace: empty-git or fixture:<path>`, file);
+    throw new SpecError(`scenario \`${id}\` sets env.remote but has no repo to attach it to \u2014 use env.workspace: empty-git or fixture:<path>`, file);
   }
   return raw;
 }
-function parseSpec(text15, file) {
+function parseSpec(text, file) {
   let doc;
   try {
-    doc = yaml.load(text15);
+    doc = yaml.load(text);
   } catch (e) {
     throw new SpecError(`not valid YAML \u2014 ${e.message}`, file);
   }
@@ -4232,26 +3598,26 @@ function parseSpec(text15, file) {
       throw new SpecError(`scenario #${i + 1} is not a mapping`, file);
     }
     const s = raw;
-    const id3 = s.id;
-    if (typeof id3 !== "string" || id3.length === 0) {
+    const id = s.id;
+    if (typeof id !== "string" || id.length === 0) {
       throw new SpecError(`scenario #${i + 1} missing \`id\` (string)`, file);
     }
-    if (seen.has(id3)) {
-      throw new SpecError(`duplicate scenario id \`${id3}\``, file);
+    if (seen.has(id)) {
+      throw new SpecError(`duplicate scenario id \`${id}\``, file);
     }
-    seen.add(id3);
+    seen.add(id);
     if (typeof s.title !== "string" || s.title.length === 0) {
-      throw new SpecError(`scenario \`${id3}\` missing \`title\``, file);
+      throw new SpecError(`scenario \`${id}\` missing \`title\``, file);
     }
     const mode = s.mode === void 0 ? "inline" : s.mode;
     if (mode !== "inline" && mode !== "seeded") {
-      throw new SpecError(`scenario \`${id3}\` has invalid \`mode\` (inline|seeded)`, file);
+      throw new SpecError(`scenario \`${id}\` has invalid \`mode\` (inline|seeded)`, file);
     }
-    assertStringList(s.turns, id3, "turns", file);
-    assertStringList(s.checklist, id3, "checklist", file);
-    const critFlag = s.critical === true || critical.includes(id3);
+    assertStringList(s.turns, id, "turns", file);
+    assertStringList(s.checklist, id, "checklist", file);
+    const critFlag = s.critical === true || critical.includes(id);
     const scenario = {
-      id: id3,
+      id,
       title: s.title,
       critical: critFlag,
       mode,
@@ -4261,15 +3627,15 @@ function parseSpec(text15, file) {
       remote: false
     };
     const rawAssert = s.assert;
-    if (rawAssert?.trace !== void 0) {
-      scenario.traceAssert = parseTraceAssert(rawAssert.trace, `${file}: scenario \`${id3}\``);
-    }
     if (rawAssert?.trajectory !== void 0) {
-      scenario.trajectoryAssert = parseTrajectoryAssert(rawAssert.trajectory, `${file}: scenario \`${id3}\``);
+      throw new SpecError(`scenario \`${id}\` uses removed \`assert.trajectory\`; delete it or replace it with an active objective gate`, file);
+    }
+    if (rawAssert?.trace !== void 0) {
+      scenario.traceAssert = parseTraceAssert(rawAssert.trace, `${file}: scenario \`${id}\``);
     }
     if (mode === "seeded") {
       if (typeof s.fixture !== "string" || s.fixture.length === 0) {
-        throw new SpecError(`seeded scenario \`${id3}\` requires a \`fixture\` path`, file);
+        throw new SpecError(`seeded scenario \`${id}\` requires a \`fixture\` path`, file);
       }
       scenario.fixture = s.fixture;
       const a = s.assert;
@@ -4279,72 +3645,71 @@ function parseSpec(text15, file) {
           assertObj.vitest = a.vitest === true;
         if (a.diff_contains !== void 0) {
           if (!isStringArray(a.diff_contains)) {
-            throw new SpecError(`seeded scenario \`${id3}\` \`assert.diff_contains\` must be strings`, file);
+            throw new SpecError(`seeded scenario \`${id}\` \`assert.diff_contains\` must be strings`, file);
           }
           if (a.diff_contains.some((n) => n === "")) {
-            throw new SpecError(`seeded scenario \`${id3}\` \`assert.diff_contains\` contains an empty string \u2014 it would match every diff, so the gate could never fail`, file);
+            throw new SpecError(`seeded scenario \`${id}\` \`assert.diff_contains\` contains an empty string \u2014 it would match every diff, so the gate could never fail`, file);
           }
           assertObj.diff_contains = a.diff_contains;
         }
         if (a.diff_excludes !== void 0) {
           if (!isStringArray(a.diff_excludes)) {
-            throw new SpecError(`seeded scenario \`${id3}\` \`assert.diff_excludes\` must be strings`, file);
+            throw new SpecError(`seeded scenario \`${id}\` \`assert.diff_excludes\` must be strings`, file);
           }
           if (a.diff_excludes.some((n) => n === "")) {
-            throw new SpecError(`seeded scenario \`${id3}\` \`assert.diff_excludes\` contains an empty string \u2014 it would match every diff`, file);
+            throw new SpecError(`seeded scenario \`${id}\` \`assert.diff_excludes\` contains an empty string \u2014 it would match every diff`, file);
           }
           assertObj.diff_excludes = a.diff_excludes;
         }
         const both = (assertObj.diff_contains ?? []).filter((n) => (assertObj.diff_excludes ?? []).includes(n));
         if (both.length > 0) {
-          throw new SpecError(`seeded scenario \`${id3}\` lists ${both.map((n) => JSON.stringify(n)).join(", ")} in both \`assert.diff_contains\` and \`assert.diff_excludes\` \u2014 the gate could never pass`, file);
+          throw new SpecError(`seeded scenario \`${id}\` lists ${both.map((n) => JSON.stringify(n)).join(", ")} in both \`assert.diff_contains\` and \`assert.diff_excludes\` \u2014 the gate could never pass`, file);
         }
         if (a.post_test !== void 0) {
           if (typeof a.post_test !== "string" || !a.post_test.trim()) {
-            throw new SpecError(`seeded scenario \`${id3}\` \`assert.post_test\` must be a non-empty path`, file);
+            throw new SpecError(`seeded scenario \`${id}\` \`assert.post_test\` must be a non-empty path`, file);
           }
           assertObj.post_test = a.post_test.trim();
         }
         scenario.assert = assertObj;
       }
     }
-    scenario.workspace = resolveWorkspace(s.env, mode, scenario.fixture, id3, file);
-    scenario.remote = resolveRemote(s.env, scenario.workspace, id3, file);
-    scenario.eventSources = resolveEventSources(s.env, id3, file);
-    if (scenario.eventSources && !scenario.trajectoryAssert) {
-      throw new SpecError(`scenario \`${id3}\` declares env.event_sources without assert.trajectory`, file);
+    if (s.env && typeof s.env === "object" && Object.hasOwn(s.env, "event_sources")) {
+      throw new SpecError(`scenario \`${id}\` uses removed \`env.event_sources\`; it is no longer collected`, file);
     }
+    scenario.workspace = resolveWorkspace(s.env, mode, scenario.fixture, id, file);
+    scenario.remote = resolveRemote(s.env, scenario.workspace, id, file);
     if (s.system_prompt_file !== void 0) {
       if (typeof s.system_prompt_file !== "string" || !s.system_prompt_file.trim()) {
-        throw new SpecError(`scenario \`${id3}\` \`system_prompt_file\` must be a non-empty string`, file);
+        throw new SpecError(`scenario \`${id}\` \`system_prompt_file\` must be a non-empty string`, file);
       }
       if (scenario.turns.length !== 1) {
-        throw new SpecError(`scenario \`${id3}\` uses system_prompt_file, so it must have exactly one turn (got ${scenario.turns.length}) \u2014 an agent definition is single-shot by contract`, file);
+        throw new SpecError(`scenario \`${id}\` uses system_prompt_file, so it must have exactly one turn (got ${scenario.turns.length}) \u2014 an agent definition is single-shot by contract`, file);
       }
       scenario.systemPromptFile = s.system_prompt_file.trim();
     }
     if (s.covers !== void 0) {
       if (!isStringArray(s.covers) || s.covers.length === 0) {
-        throw new SpecError(`scenario \`${id3}\` \`covers\` must be a non-empty list of strings`, file);
+        throw new SpecError(`scenario \`${id}\` \`covers\` must be a non-empty list of strings`, file);
       }
       const bad = s.covers.find((c) => c.trim() === "");
       if (bad !== void 0)
-        throw new SpecError(`scenario \`${id3}\` \`covers\` has an empty entry`, file);
+        throw new SpecError(`scenario \`${id}\` \`covers\` has an empty entry`, file);
       scenario.covers = s.covers.map((c) => c.trim());
     }
     if (scenario.traceAssert?.unchanged_paths?.length && scenario.workspace === "none") {
-      throw new SpecError(`scenario \`${id3}\` declares \`assert.trace.unchanged_paths\` but has no workspace to observe \u2014 set \`env.workspace: empty-git\` or \`fixture:<path>\`, or drop the assertion. A path policy with nothing to compare against would pass unconditionally.`, file);
+      throw new SpecError(`scenario \`${id}\` declares \`assert.trace.unchanged_paths\` but has no workspace to observe \u2014 set \`env.workspace: empty-git\` or \`fixture:<path>\`, or drop the assertion. A path policy with nothing to compare against would pass unconditionally.`, file);
     }
-    scenario.extensions = resolveExtensions(s.env, scenario.systemPromptFile !== void 0, id3, file);
+    scenario.extensions = resolveExtensions(s.env, scenario.systemPromptFile !== void 0, id, file);
     if (s.reps !== void 0) {
       if (typeof s.reps !== "number" || !Number.isInteger(s.reps) || s.reps < 1) {
-        throw new SpecError(`scenario \`${id3}\` \`reps\` must be a positive integer`, file);
+        throw new SpecError(`scenario \`${id}\` \`reps\` must be a positive integer`, file);
       }
       scenario.reps = s.reps;
     }
     if (s.pass_threshold !== void 0) {
       if (typeof s.pass_threshold !== "number" || s.pass_threshold < 0 || s.pass_threshold > 1) {
-        throw new SpecError(`scenario \`${id3}\` \`pass_threshold\` must be a number in [0, 1]`, file);
+        throw new SpecError(`scenario \`${id}\` \`pass_threshold\` must be a number in [0, 1]`, file);
       }
       scenario.passThreshold = s.pass_threshold;
     }
@@ -4354,36 +3719,36 @@ function parseSpec(text15, file) {
   return { schema: 1, skill: o.skill, judge_persona: o.judge_persona, ship_bar, critical: effectiveCritical, scenarios };
 }
 function loadSpec(file) {
-  let text15;
+  let text;
   try {
-    text15 = readFileSync3(file, "utf8");
+    text = readFileSync(file, "utf8");
   } catch (e) {
     throw new SpecError(`cannot read spec file \u2014 ${e.message}`, file);
   }
-  return parseSpec(text15, file);
+  return parseSpec(text, file);
 }
 
 // packages/core/dist/discover.js
-import { existsSync, readdirSync as readdirSync2, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 // packages/core/dist/run.js
-import { mkdirSync as mkdirSync4, writeFileSync as writeFileSync3, readFileSync as readFileSync11 } from "node:fs";
+import { mkdirSync as mkdirSync4, writeFileSync as writeFileSync3, readFileSync as readFileSync9 } from "node:fs";
 import { dirname, join as join14, resolve as resolve6 } from "node:path";
 
 // packages/core/dist/sources.js
-import { createHash as createHash3 } from "node:crypto";
-import { readFileSync as readFileSync4, readdirSync as readdirSync3 } from "node:fs";
+import { createHash as createHash2 } from "node:crypto";
+import { readFileSync as readFileSync2, readdirSync as readdirSync2 } from "node:fs";
 import { isAbsolute, join as join2, resolve as resolve2 } from "node:path";
 
 // packages/core/dist/prompt-normalization.js
-import { createHash as createHash2 } from "node:crypto";
+import { createHash } from "node:crypto";
 var PROMPT_NORMALIZATION_RULE = "cwd-line-v1";
 var PROMPT_NORMALIZATION_PATTERN = "^(Current working directory:)[^\\r\\n]*(\\r?)$";
 var PROMPT_NORMALIZATION_FLAGS = "gm";
 var PROMPT_NORMALIZATION_REPLACEMENT = "$1<normalized>$2";
 var PROMPT_NORMALIZATION_SOURCE_KEY = "observation:prompt-normalization";
-var PROMPT_NORMALIZATION_SOURCE_DIGEST = createHash2("sha256").update(JSON.stringify([
+var PROMPT_NORMALIZATION_SOURCE_DIGEST = createHash("sha256").update(JSON.stringify([
   "prompt-normalization-registry",
   PROMPT_NORMALIZATION_RULE,
   PROMPT_NORMALIZATION_PATTERN,
@@ -4400,9 +3765,9 @@ var POLICY_PREFIX = "policy:";
 var GATES_PREFIX = "gates:";
 var PERSONA_KEY = `${RUBRIC_PREFIX}__persona`;
 var UNREADABLE = "unreadable";
-function fileSha256(path3) {
+function fileSha256(path) {
   try {
-    return createHash3("sha256").update(readFileSync4(path3)).digest("hex");
+    return createHash2("sha256").update(readFileSync2(path)).digest("hex");
   } catch {
     return null;
   }
@@ -4414,12 +3779,12 @@ function dirSha256(dir) {
   } catch {
     return null;
   }
-  const h = createHash3("sha256");
+  const h = createHash2("sha256");
   for (const rel of files) {
     h.update(rel);
     h.update("\0");
     try {
-      h.update(readFileSync4(join2(dir, rel)));
+      h.update(readFileSync2(join2(dir, rel)));
     } catch {
       return null;
     }
@@ -4429,7 +3794,7 @@ function dirSha256(dir) {
 }
 function walk(dir, prefix = "") {
   const out = [];
-  for (const e of readdirSync3(dir, { withFileTypes: true })) {
+  for (const e of readdirSync2(dir, { withFileTypes: true })) {
     const rel = prefix ? `${prefix}/${e.name}` : e.name;
     if (e.isDirectory()) {
       out.push(...walk(join2(dir, e.name), rel));
@@ -4440,14 +3805,14 @@ function walk(dir, prefix = "") {
   return out;
 }
 function facets(s) {
-  const { id: id3, title, critical, mode, turns, checklist, fixture, assert, traceAssert, trajectoryAssert, workspace, remote, systemPromptFile, extensions, eventSources, reps: reps2, passThreshold, covers: _coversIsMetadata, ...restScenario } = s;
+  const { id, title, critical, mode, turns, checklist, fixture, assert, traceAssert, workspace, remote, systemPromptFile, extensions, reps: reps2, passThreshold, covers: _coversIsMetadata, ...restScenario } = s;
   const _scenarioExhaustive = restScenario;
   void _scenarioExhaustive;
   void _coversIsMetadata;
   const { vitest, diff_contains, diff_excludes, post_test, ...restAssert } = assert ?? {};
   const _assertExhaustive = restAssert;
   void _assertExhaustive;
-  const hasGates = diff_contains !== void 0 || diff_excludes !== void 0 || traceAssert !== void 0 || trajectoryAssert !== void 0;
+  const hasGates = diff_contains !== void 0 || diff_excludes !== void 0 || traceAssert !== void 0;
   return {
     // `vitest` and the `post_test` PATH are stimulus, not gates: both change what the
     // run executes in the workspace, and neither can be re-evaluated from a saved
@@ -4463,7 +3828,7 @@ function facets(s) {
     // measured: 62 real lint findings became 261 across the reference corpus, all of
     // them demanding paid re-runs for scenarios nobody had edited.
     stimulus: JSON.stringify([
-      id3,
+      id,
       mode,
       turns,
       workspace,
@@ -4472,27 +3837,22 @@ function facets(s) {
       fixture ?? null,
       vitest ?? null,
       post_test ?? null,
-      ...extensions ? [extensions] : [],
-      // Event-source paths choose which native ledgers are captured. A saved
-      // normalized artifact cannot answer for a source that was never collected,
-      // so changing this is stimulus and needs a re-run.
-      ...eventSources ? [eventSources] : []
+      ...extensions ? [extensions] : []
     ]),
-    rubric: JSON.stringify([id3, title, checklist]),
-    policy: JSON.stringify([id3, critical, reps2 ?? null, passThreshold ?? null]),
+    rubric: JSON.stringify([id, title, checklist]),
+    policy: JSON.stringify([id, critical, reps2 ?? null, passThreshold ?? null]),
     // Same rule as `stimulus` above: conditional, so a needle-gated scenario that
     // declares no trace assertions keeps the digest it was published with.
     gates: hasGates ? JSON.stringify([
-      id3,
+      id,
       diff_contains ?? null,
       diff_excludes ?? null,
-      ...traceAssert ? [traceAssert] : [],
-      ...trajectoryAssert ? [trajectoryAssert] : []
+      ...traceAssert ? [traceAssert] : []
     ]) : null
   };
 }
-function sha(canonical5) {
-  return createHash3("sha256").update(canonical5).digest("hex");
+function sha(canonical) {
+  return createHash2("sha256").update(canonical).digest("hex");
 }
 function stimulusDigest(s) {
   return sha(facets(s).stimulus);
@@ -4549,37 +3909,37 @@ function sourceHashes(ctx) {
   }
   return hashes;
 }
-function describeSourceKey(key3) {
-  if (key3 === PROMPT_NORMALIZATION_SOURCE_KEY)
+function describeSourceKey(key) {
+  if (key === PROMPT_NORMALIZATION_SOURCE_KEY)
     return "the prompt normalization rule registry";
-  if (key3 === PERSONA_KEY)
+  if (key === PERSONA_KEY)
     return "the judge persona";
-  if (key3 === SKILL_PROMPT_KEY)
+  if (key === SKILL_PROMPT_KEY)
     return SKILL_KEY;
-  if (key3.startsWith(PROMPT_PREFIX))
-    return key3.slice(PROMPT_PREFIX.length);
-  if (key3.startsWith(STIMULUS_PREFIX))
-    return `the stimulus for \`${key3.slice(STIMULUS_PREFIX.length)}\``;
-  if (key3.startsWith(RUBRIC_PREFIX))
-    return `the rubric for \`${key3.slice(RUBRIC_PREFIX.length)}\``;
-  if (key3.startsWith(POLICY_PREFIX))
-    return `the scoring policy for \`${key3.slice(POLICY_PREFIX.length)}\``;
-  if (key3.startsWith(GATES_PREFIX))
-    return `the gates for \`${key3.slice(GATES_PREFIX.length)}\``;
-  if (key3.startsWith(SCENARIO_PREFIX))
-    return `scenario \`${key3.slice(SCENARIO_PREFIX.length)}\``;
-  if (key3.startsWith(FIXTURE_PREFIX))
-    return `fixture \`${key3.slice(FIXTURE_PREFIX.length)}\``;
-  return key3;
+  if (key.startsWith(PROMPT_PREFIX))
+    return key.slice(PROMPT_PREFIX.length);
+  if (key.startsWith(STIMULUS_PREFIX))
+    return `the stimulus for \`${key.slice(STIMULUS_PREFIX.length)}\``;
+  if (key.startsWith(RUBRIC_PREFIX))
+    return `the rubric for \`${key.slice(RUBRIC_PREFIX.length)}\``;
+  if (key.startsWith(POLICY_PREFIX))
+    return `the scoring policy for \`${key.slice(POLICY_PREFIX.length)}\``;
+  if (key.startsWith(GATES_PREFIX))
+    return `the gates for \`${key.slice(GATES_PREFIX.length)}\``;
+  if (key.startsWith(SCENARIO_PREFIX))
+    return `scenario \`${key.slice(SCENARIO_PREFIX.length)}\``;
+  if (key.startsWith(FIXTURE_PREFIX))
+    return `fixture \`${key.slice(FIXTURE_PREFIX.length)}\``;
+  return key;
 }
 var SKILL_KEY = "SKILL.md";
 var SKILL_PROMPT_KEY = "skill:prompt";
 var PROMPT_PREFIX = "prompt:";
 var CAPABILITY_KEYS = /* @__PURE__ */ new Set(["allowed-tools", "tools"]);
 var FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
-function splitPromptDoc(text15) {
-  const m = FRONTMATTER_RE.exec(text15);
-  return m ? { frontmatter: m[1], body: text15.slice(m[0].length) } : { frontmatter: null, body: text15 };
+function splitPromptDoc(text) {
+  const m = FRONTMATTER_RE.exec(text);
+  return m ? { frontmatter: m[1], body: text.slice(m[0].length) } : { frontmatter: null, body: text };
 }
 function canonicalValue(v) {
   if (typeof v === "string")
@@ -4607,53 +3967,53 @@ function modelVisibleFrontmatter(fm) {
     Object.entries(parsed).filter(([k]) => !CAPABILITY_KEYS.has(k)).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([k, v]) => [k, canonicalValue(v)])
   ];
 }
-function promptDocDigest(text15) {
-  const { frontmatter, body } = splitPromptDoc(text15);
+function promptDocDigest(text) {
+  const { frontmatter, body } = splitPromptDoc(text);
   return sha(JSON.stringify(["prompt-doc/1", modelVisibleFrontmatter(frontmatter), body]));
 }
-function promptDocDigestOfFile(path3) {
+function promptDocDigestOfFile(path) {
   try {
-    return promptDocDigest(readFileSync4(path3, "utf8"));
+    return promptDocDigest(readFileSync2(path, "utf8"));
   } catch {
     return null;
   }
 }
-function isSupersededKey(key3, recorded) {
-  if (key3 === SKILL_PROMPT_KEY || key3.startsWith(PROMPT_PREFIX))
+function isSupersededKey(key, recorded) {
+  if (key === SKILL_PROMPT_KEY || key.startsWith(PROMPT_PREFIX))
     return false;
-  if (recorded[key3] === UNREADABLE)
+  if (recorded[key] === UNREADABLE)
     return false;
-  const upgraded = key3 === SKILL_KEY ? SKILL_PROMPT_KEY : PROMPT_PREFIX + key3;
+  const upgraded = key === SKILL_KEY ? SKILL_PROMPT_KEY : PROMPT_PREFIX + key;
   const v = recorded[upgraded];
   return v !== void 0 && v !== UNREADABLE;
 }
 function scenarioSourceKeys(s) {
-  const keys7 = [
+  const keys = [
     STIMULUS_PREFIX + s.id,
     RUBRIC_PREFIX + s.id,
     SCENARIO_PREFIX + s.id
     // legacy combined (pre-0.4.0 runs)
   ];
   if (gatesDigest(s) !== null)
-    keys7.push(GATES_PREFIX + s.id);
+    keys.push(GATES_PREFIX + s.id);
   if (s.systemPromptFile) {
-    keys7.push(s.systemPromptFile);
-    keys7.push(PROMPT_PREFIX + s.systemPromptFile);
+    keys.push(s.systemPromptFile);
+    keys.push(PROMPT_PREFIX + s.systemPromptFile);
   }
   for (const ext of s.extensions ?? [])
-    keys7.push(ext);
+    keys.push(ext);
   if (s.assert?.post_test)
-    keys7.push(s.assert.post_test);
+    keys.push(s.assert.post_test);
   const fx = effectiveFixture(s);
   if (fx)
-    keys7.push(FIXTURE_PREFIX + fx);
-  return keys7;
+    keys.push(FIXTURE_PREFIX + fx);
+  return keys;
 }
 
 // packages/core/dist/workspace.js
-import { appendFileSync, cpSync, existsSync as existsSync2, mkdtempSync, readFileSync as readFileSync5, readdirSync as readdirSync4, rmSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync as existsSync2, mkdtempSync, readFileSync as readFileSync3, readdirSync as readdirSync3, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { createHash as createHash4 } from "node:crypto";
+import { createHash as createHash3 } from "node:crypto";
 import { tmpdir } from "node:os";
 import { isAbsolute as isAbsolute2, join as join3, resolve as resolve3 } from "node:path";
 var GIT_TIMEOUT_MS = 3e4;
@@ -4661,7 +4021,7 @@ var UNCOMMITTED_DIR = "_uncommitted";
 var STAGED_DIR = "_staged";
 var MARKERS = [STAGED_DIR, UNCOMMITTED_DIR];
 function unknownMarkerDirs(src) {
-  return readdirSync4(src, { withFileTypes: true }).filter((e) => e.isDirectory() && /^_[A-Za-z]/.test(e.name) && !MARKERS.includes(e.name)).map((e) => e.name).sort();
+  return readdirSync3(src, { withFileTypes: true }).filter((e) => e.isDirectory() && /^_[A-Za-z]/.test(e.name) && !MARKERS.includes(e.name)).map((e) => e.name).sort();
 }
 function assertKnownMarkers(src) {
   const suspects = unknownMarkerDirs(src);
@@ -4672,7 +4032,7 @@ function assertKnownMarkers(src) {
 var TOOL_ARTIFACTS = ["node_modules/", "coverage/", ".vitest/", ".pi/skills/"];
 function excludeToolArtifacts(cwd) {
   const excludeFile = join3(cwd, ".git", "info", "exclude");
-  const existing = existsSync2(excludeFile) ? readFileSync5(excludeFile, "utf8") : "";
+  const existing = existsSync2(excludeFile) ? readFileSync3(excludeFile, "utf8") : "";
   const nl = existing.length > 0 && !existing.endsWith("\n") ? "\n" : "";
   appendFileSync(excludeFile, `${nl}# skill-harness: tool output, never the model's work
 ${TOOL_ARTIFACTS.join("\n")}
@@ -4742,7 +4102,7 @@ function snapshotPaths(cwd, kind) {
   const walk2 = (dir, prefix) => {
     let entries;
     try {
-      entries = readdirSync4(dir, { withFileTypes: true });
+      entries = readdirSync3(dir, { withFileTypes: true });
     } catch {
       return;
     }
@@ -4757,7 +4117,7 @@ function snapshotPaths(cwd, kind) {
         walk2(abs, rel);
       } else if (e.isFile()) {
         try {
-          out.set(rel, createHash4("sha256").update(readFileSync5(abs)).digest("hex"));
+          out.set(rel, createHash3("sha256").update(readFileSync3(abs)).digest("hex"));
         } catch {
           out.set(rel, "<unreadable>");
         }
@@ -4771,17 +4131,17 @@ function diffSnapshots(before, after) {
   if (!before || !after)
     return null;
   const changed = /* @__PURE__ */ new Set();
-  for (const [path3, hash15] of after)
-    if (before.get(path3) !== hash15)
-      changed.add(path3);
-  for (const path3 of before.keys())
-    if (!after.has(path3))
-      changed.add(path3);
+  for (const [path, hash] of after)
+    if (before.get(path) !== hash)
+      changed.add(path);
+  for (const path of before.keys())
+    if (!after.has(path))
+      changed.add(path);
   return [...changed].sort();
 }
 
 // packages/core/dist/results.js
-import { mkdirSync, readFileSync as readFileSync6, writeFileSync, existsSync as existsSync3, readdirSync as readdirSync5, appendFileSync as appendFileSync2 } from "node:fs";
+import { mkdirSync, readFileSync as readFileSync4, writeFileSync, existsSync as existsSync3, readdirSync as readdirSync4, appendFileSync as appendFileSync2 } from "node:fs";
 import { join as join4, relative, sep } from "node:path";
 
 // packages/core/dist/adapters/types.js
@@ -4949,9 +4309,9 @@ function effectiveThreshold(prevScenario, scenario) {
 function timestampSlug(iso) {
   return iso.replace(/[:.]/g, "-");
 }
-function runDirFor(skillDir, harness, model, timestamp3, armName) {
+function runDirFor(skillDir, harness, model, timestamp2, armName) {
   const arm = armName && armName !== "none" ? `+${armName}` : "";
-  return join4(skillDir, "tests", "results", `${harness}-${modelSlug(model)}${arm}`, timestampSlug(timestamp3));
+  return join4(skillDir, "tests", "results", `${harness}-${modelSlug(model)}${arm}`, timestampSlug(timestamp2));
 }
 function transcriptPath(runDir, scenarioId, mode, rep) {
   const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
@@ -5056,8 +4416,8 @@ function migrateResults(raw) {
   };
 }
 function readResults(runDir) {
-  const text15 = readFileSync6(resultsPath(runDir), "utf8");
-  return migrateResults(yaml.load(text15));
+  const text = readFileSync4(resultsPath(runDir), "utf8");
+  return migrateResults(yaml.load(text));
 }
 var CRITERION_RE = /^\s*(\d+)[.)]\s*\**\s*(PASS|FAIL)\b\**\s*(.*)$/gim;
 function parseCriterionVotes(raw) {
@@ -5202,7 +4562,7 @@ function validateResults(raw) {
     const aggregateObjectiveStatus = objectiveStatuses.includes("ERROR") ? "ERROR" : objectiveStatuses.includes("NOT-MEASURED") ? "NOT-MEASURED" : objectiveStatuses.includes("FAIL") ? "FAIL" : "PASS";
     if (!scenario.objective || scenario.objective.status !== aggregateObjectiveStatus)
       throw new Error(`scenario objective diverges from per-repetition objectives for ${scenario.id}`);
-    for (const judgment of [...scenario.judge_history ?? [], ...scenario.adjudication?.judgments ?? []])
+    for (const judgment of scenario.adjudication?.judgments ?? [])
       assertCriteria(judgment);
     let adjudicatedVerdict;
     if (scenario.adjudication) {
@@ -5266,7 +4626,7 @@ report.html
 function ensureResultsGitignore(resultsRoot) {
   mkdirSync(resultsRoot, { recursive: true });
   const giPath = join4(resultsRoot, ".gitignore");
-  const existing = existsSync3(giPath) ? readFileSync6(giPath, "utf8") : "";
+  const existing = existsSync3(giPath) ? readFileSync4(giPath, "utf8") : "";
   if (existing.startsWith(GITIGNORE_BODY))
     return;
   const preserved = existing.split("\n").filter((l) => l.startsWith("!") && l.trim() !== "!results.yaml");
@@ -5295,7 +4655,7 @@ function findTranscriptFiles(runDir, scenarioId, mode) {
     return [];
   const escapedId = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const matcher = mode !== void 0 ? new RegExp(`^${escapedId}\\.${mode}(\\.rep\\d+)?\\.txt$`) : null;
-  const files = readdirSync5(runDir).filter((f) => matcher ? matcher.test(f) : f.startsWith(`${scenarioId}.`) && f.endsWith(".txt") && !f.endsWith(".judge.txt") && !f.endsWith(".diff.txt"));
+  const files = readdirSync4(runDir).filter((f) => matcher ? matcher.test(f) : f.startsWith(`${scenarioId}.`) && f.endsWith(".txt") && !f.endsWith(".judge.txt") && !f.endsWith(".diff.txt"));
   return sortByRep(files);
 }
 function judgeRawPath(runDir, scenarioId, mode, rep) {
@@ -5307,14 +4667,14 @@ function findJudgeRawFiles(runDir, scenarioId, mode) {
     return [];
   const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.judge\\d*\\.txt$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.judge\\d*\\.txt$`);
-  return sortByRep(readdirSync5(runDir).filter((f) => re.test(f)));
+  return sortByRep(readdirSync4(runDir).filter((f) => re.test(f)));
 }
 function diffPath(runDir, scenarioId, mode, rep) {
   const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
   return join4(runDir, `${base}.diff.txt`);
 }
 function rebuildScenarioResult(fresh, prior, policy) {
-  const { id: id3, criterion_count: freshCriterionCount, judge_verdict, judge_reason, suspect, override: _freshOverride, note: _freshNote, reps: reps2, passes, clean, flakiness, pass_threshold, metrics: freshMetrics, objective: freshObjective, adjudication: freshAdjudication, judge_history: freshJudgeHistory, rep_judgments: freshRepJudgments, ...rest } = fresh;
+  const { id, criterion_count: freshCriterionCount, judge_verdict, judge_reason, suspect, override: _freshOverride, note: _freshNote, reps: reps2, passes, clean, flakiness, pass_threshold, metrics: freshMetrics, objective: freshObjective, adjudication: freshAdjudication, rep_judgments: freshRepJudgments, ...rest } = fresh;
   const _exhaustive = rest;
   void _exhaustive;
   void _freshOverride;
@@ -5331,7 +4691,7 @@ function rebuildScenarioResult(fresh, prior, policy) {
   const unresolved = adjudication?.state === "unresolved";
   const settled = policy.adjudication === "carry" && !conflictsWithFreshEvidence ? adjudication?.verdict : void 0;
   return {
-    id: id3,
+    id,
     ...(freshCriterionCount ?? prior?.criterion_count) === void 0 ? {} : { criterion_count: freshCriterionCount ?? prior.criterion_count },
     judge_verdict: settled ?? judge_verdict,
     judge_reason,
@@ -5352,7 +4712,6 @@ function rebuildScenarioResult(fresh, prior, policy) {
     // existed.
     ...objective ? { objective } : {},
     ...adjudication ? { adjudication } : {},
-    ...freshJudgeHistory ?? prior?.judge_history ? { judge_history: freshJudgeHistory ?? prior.judge_history } : {},
     ...freshRepJudgments ?? prior?.rep_judgments ? { rep_judgments: freshRepJudgments ?? prior.rep_judgments } : {}
   };
 }
@@ -5360,30 +4719,19 @@ function tracePath(runDir, scenarioId, mode, rep) {
   const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
   return join4(runDir, `${base}.trace.jsonl`);
 }
-function trajectoryPath(runDir, scenarioId, mode, rep) {
-  const base = rep === void 0 ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
-  return join4(runDir, `${base}.events.jsonl`);
-}
-function findTrajectoryFiles(runDir, scenarioId, mode) {
-  if (!existsSync3(runDir))
-    return [];
-  const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.events\\.jsonl$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.events\\.jsonl$`);
-  return sortByRep(readdirSync5(runDir).filter((f) => re.test(f)));
-}
 function findDiffFiles(runDir, scenarioId, mode) {
   if (!existsSync3(runDir))
     return [];
   const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.diff\\.txt$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.diff\\.txt$`);
-  return sortByRep(readdirSync5(runDir).filter((f) => re.test(f)));
+  return sortByRep(readdirSync4(runDir).filter((f) => re.test(f)));
 }
 function findTraceFiles(runDir, scenarioId, mode) {
   if (!existsSync3(runDir))
     return [];
   const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = mode === void 0 ? new RegExp(`^${esc}\\..*\\.trace\\.jsonl$`) : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.trace\\.jsonl$`);
-  return sortByRep(readdirSync5(runDir).filter((f) => re.test(f)));
+  return sortByRep(readdirSync4(runDir).filter((f) => re.test(f)));
 }
 function preserveTranscript(resultsRoot, runDir, scenarioId) {
   const files = [
@@ -5394,14 +4742,13 @@ function preserveTranscript(resultsRoot, runDir, scenarioId) {
     // same role the staged diff plays on a seeded one. Omitting it committed an
     // override whose justification was gitignored, and left `regate` with nothing
     // to re-evaluate on the one cell a human had disputed.
-    ...findTraceFiles(runDir, scenarioId),
-    ...findTrajectoryFiles(runDir, scenarioId)
+    ...findTraceFiles(runDir, scenarioId)
   ];
   if (files.length === 0)
     return;
   ensureResultsGitignore(resultsRoot);
   const giPath = join4(resultsRoot, ".gitignore");
-  const existingLines = readFileSync6(giPath, "utf8").split("\n");
+  const existingLines = readFileSync4(giPath, "utf8").split("\n");
   const newLines = [];
   for (const file of files) {
     const rel = relative(resultsRoot, join4(runDir, file)).split(sep).join("/");
@@ -5445,14 +4792,14 @@ function parseVerdict(out) {
   }
   const reasons = [...out.matchAll(REASON_RE)].map((m) => m[1].trim());
   const reason = reasons.length > 0 ? reasons[reasons.length - 1] : "";
-  const unique2 = [...new Set(verdicts)];
-  if (unique2.length > 1) {
+  const unique = [...new Set(verdicts)];
+  if (unique.length > 1) {
     return {
       verdict: "JUDGE-AMBIGUOUS",
       reason: `judge emitted conflicting verdicts (${verdicts.join(", ")}) \u2014 needs rejudge; last reason: ${reason}`
     };
   }
-  return { verdict: unique2[0], reason };
+  return { verdict: unique[0], reason };
 }
 function judgeResemblesSubject(judge, subject) {
   if (judge.provider !== subject.provider)
@@ -5503,7 +4850,7 @@ async function judgeInWorkspace(adapter, judge, prompt, specDir) {
 }
 
 // packages/core/dist/arms.js
-import { copyFileSync, existsSync as existsSync4, mkdirSync as mkdirSync2, readdirSync as readdirSync6, readFileSync as readFileSync7, realpathSync, statSync as statSync2 } from "node:fs";
+import { copyFileSync, existsSync as existsSync4, mkdirSync as mkdirSync2, readdirSync as readdirSync5, readFileSync as readFileSync5, realpathSync, statSync as statSync2 } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute as isAbsolute3, join as join5, resolve as resolve4, sep as sep2 } from "node:path";
 var NONE_ARM = { name: "none", extensions: [], seedSkills: [], requireDefinitions: 0, env: {} };
@@ -5523,7 +4870,7 @@ function seedArmDefinitions(arm, skillsRoot, workspaceCwd, opts = {}) {
   const ambient = opts.ambientSkillsDir ?? defaultAmbientSkillsDir();
   let ambientEntries = [];
   try {
-    ambientEntries = readdirSync6(ambient);
+    ambientEntries = readdirSync5(ambient);
   } catch (err) {
     if (err.code === "ENOENT") {
       ambientEntries = [];
@@ -5551,7 +4898,7 @@ function seedArmDefinitions(arm, skillsRoot, workspaceCwd, opts = {}) {
     }
     let names;
     try {
-      names = readdirSync6(src);
+      names = readdirSync5(src);
     } catch {
       throw new Error(`arm \`${arm.name}\`: seed_skills names ${src}, which cannot be read \u2014 pi would start with nothing to spawn`);
     }
@@ -5582,7 +4929,7 @@ function seedArmDefinitions(arm, skillsRoot, workspaceCwd, opts = {}) {
 }
 
 // packages/core/dist/journal.js
-import { appendFileSync as appendFileSync3, existsSync as existsSync5, mkdirSync as mkdirSync3, readFileSync as readFileSync8 } from "node:fs";
+import { appendFileSync as appendFileSync3, existsSync as existsSync5, mkdirSync as mkdirSync3, readFileSync as readFileSync6 } from "node:fs";
 import { join as join6 } from "node:path";
 function journalPath(runDir) {
   return join6(runDir, "journal.jsonl");
@@ -5593,7 +4940,7 @@ function appendJournal(runDir, e) {
 }
 
 // packages/core/dist/lift.js
-import { existsSync as existsSync6, readdirSync as readdirSync7, statSync as statSync3 } from "node:fs";
+import { existsSync as existsSync6, readdirSync as readdirSync6, statSync as statSync3 } from "node:fs";
 import { join as join7 } from "node:path";
 function aggregationShape(s) {
   const reps2 = s.reps ?? 1;
@@ -5630,22 +4977,22 @@ function computeLift(red, green, opts = {}) {
   let greenPassed = 0;
   const modeInsensitive = [];
   const aggregationMismatch = [];
-  for (const [id3, g] of greenV) {
-    const r = redV.get(id3);
+  for (const [id, g] of greenV) {
+    const r = redV.get(id);
     if (!r)
       continue;
-    if (insensitive.has(id3)) {
-      modeInsensitive.push(id3);
+    if (insensitive.has(id)) {
+      modeInsensitive.push(id);
       continue;
     }
-    const rShape = redShape.get(id3) ?? { reps: 1, threshold: null };
-    const gShape = greenShape.get(id3) ?? { reps: 1, threshold: null };
+    const rShape = redShape.get(id) ?? { reps: 1, threshold: null };
+    const gShape = greenShape.get(id) ?? { reps: 1, threshold: null };
     if (!comparableAggregation(rShape, gShape)) {
-      aggregationMismatch.push({ id: id3, red: rShape, green: gShape });
+      aggregationMismatch.push({ id, red: rShape, green: gShape });
       continue;
     }
     const cls = classify(r, g);
-    cells[id3] = { red: r.verdict, redSuspect: r.suspect, green: g.verdict, class: cls };
+    cells[id] = { red: r.verdict, redSuspect: r.suspect, green: g.verdict, class: cls };
     counts[cls]++;
     if (cls !== "inconclusive") {
       if (r.verdict === "PASS")
@@ -5669,8 +5016,8 @@ function computeLift(red, green, opts = {}) {
     redPassed,
     greenPassed,
     delta: greenPassed - redPassed,
-    greenOnly: [...greenV.keys()].filter((id3) => !redV.has(id3)),
-    redOnly: [...redV.keys()].filter((id3) => !greenV.has(id3)),
+    greenOnly: [...greenV.keys()].filter((id) => !redV.has(id)),
+    redOnly: [...redV.keys()].filter((id) => !greenV.has(id)),
     modeInsensitive,
     aggregationMismatch,
     partial: Boolean(red.partial || green.partial),
@@ -5752,9 +5099,9 @@ function collectLift(skillDir) {
     return [];
   const modeInsensitive = modeInsensitiveIds(skillDir);
   const lifts = [];
-  for (const tag of readdirSync7(resultsRoot).filter((n) => isDir(join7(resultsRoot, n))).sort()) {
+  for (const tag of readdirSync6(resultsRoot).filter((n) => isDir(join7(resultsRoot, n))).sort()) {
     const tagDir = join7(resultsRoot, tag);
-    const runDirs = readdirSync7(tagDir).map((n) => join7(tagDir, n)).filter((p) => isDir(p) && existsSync6(join7(p, "results.yaml"))).sort();
+    const runDirs = readdirSync6(tagDir).map((n) => join7(tagDir, n)).filter((p) => isDir(p) && existsSync6(join7(p, "results.yaml"))).sort();
     let red;
     let skillOn;
     for (const rd of runDirs) {
@@ -5786,8 +5133,8 @@ import { spawn } from "node:child_process";
 import { existsSync as existsSync7 } from "node:fs";
 import { join as join8, delimiter } from "node:path";
 function exec(cmd, args, opts = {}) {
-  return new Promise((resolve31, reject2) => {
-    const child3 = spawn(cmd, args, {
+  return new Promise((resolve13, reject) => {
+    const child = spawn(cmd, args, {
       cwd: opts.cwd,
       env: opts.env ?? process.env,
       stdio: ["ignore", "pipe", "pipe"]
@@ -5797,22 +5144,22 @@ function exec(cmd, args, opts = {}) {
     let timer;
     if (opts.timeoutMs) {
       timer = setTimeout(() => {
-        child3.kill("SIGKILL");
+        child.kill("SIGKILL");
         stderr += `
 [skill-harness] killed after ${opts.timeoutMs}ms timeout`;
       }, opts.timeoutMs);
     }
-    child3.stdout.on("data", (d) => stdout += d.toString());
-    child3.stderr.on("data", (d) => stderr += d.toString());
-    child3.on("error", (e) => {
+    child.stdout.on("data", (d) => stdout += d.toString());
+    child.stderr.on("data", (d) => stderr += d.toString());
+    child.on("error", (e) => {
       if (timer)
         clearTimeout(timer);
-      reject2(e);
+      reject(e);
     });
-    child3.on("close", (code) => {
+    child.on("close", (code) => {
       if (timer)
         clearTimeout(timer);
-      resolve31({ stdout, stderr, code });
+      resolve13({ stdout, stderr, code });
     });
   });
 }
@@ -5826,11 +5173,11 @@ function onPath(bin) {
 var NEW_PREFIX = "SKILL_HARNESS_";
 var LEGACY_PREFIX = "SKILL_CHECK_";
 var warned = /* @__PURE__ */ new Set();
-function warnOnce(key3, message3) {
-  if (warned.has(key3))
+function warnOnce(key, message) {
+  if (warned.has(key))
     return;
-  warned.add(key3);
-  process.stderr.write(`skill-harness: ${message3}
+  warned.add(key);
+  process.stderr.write(`skill-harness: ${message}
 `);
 }
 function readEnv(suffix) {
@@ -5883,21 +5230,21 @@ function changedLines(diff) {
 }
 function evaluateNeedleGates(scenario, diff) {
   const changed = changedLines(diff);
-  const lines2 = [];
+  const lines = [];
   let failure = null;
   for (const needle of scenario.assert?.diff_contains ?? []) {
     const ok = changed.includes(needle);
-    lines2.push(`  diff_contains ${JSON.stringify(needle)}: ${ok ? "OK" : "MISSING"}`);
+    lines.push(`  diff_contains ${JSON.stringify(needle)}: ${ok ? "OK" : "MISSING"}`);
     if (!ok && !failure)
       failure = `staged diff missing ${JSON.stringify(needle)}`;
   }
   for (const needle of scenario.assert?.diff_excludes ?? []) {
     const ok = !changed.includes(needle);
-    lines2.push(`  diff_excludes ${JSON.stringify(needle)}: ${ok ? "OK" : "PRESENT"}`);
+    lines.push(`  diff_excludes ${JSON.stringify(needle)}: ${ok ? "OK" : "PRESENT"}`);
     if (!ok && !failure)
       failure = `staged diff touches forbidden ${JSON.stringify(needle)}`;
   }
-  return { lines: lines2, failure };
+  return { lines, failure };
 }
 var DIFF_MAX_BYTES = envNum("DIFF_MAX_BYTES", 64e3);
 function capDiff(diff, maxBytes = DIFF_MAX_BYTES) {
@@ -5938,13 +5285,9 @@ async function runSeeded(scenario, opts) {
       ...scenario.extensions?.map((e) => resolve5(opts.specDir, e)) ?? [],
       ...opts.armExtensions ?? []
     ],
-    eventSources: scenario.eventSources,
-    ...opts.armEnv ? { armEnv: opts.armEnv } : {},
-    ...opts.onPromptObservation ? { onPromptObservation: opts.onPromptObservation } : {}
+    ...opts.armEnv ? { armEnv: opts.armEnv } : {}
   };
   let traces = [];
-  let events = [];
-  let eventErrors = [];
   let harnessOut;
   if (opts.trace) {
     if (!opts.adapter.runStructured) {
@@ -5957,8 +5300,6 @@ async function runSeeded(scenario, opts) {
     });
     harnessOut = structured.transcript;
     traces = structured.traces;
-    events = structured.events ?? [];
-    eventErrors = structured.eventErrors ?? [];
   } else {
     harnessOut = await opts.adapter.run(req);
   }
@@ -5976,7 +5317,7 @@ async function runSeeded(scenario, opts) {
     parts.push(`  staged diff: ERROR (${msg})`);
     gateFailure = msg;
     gateError = msg;
-    return finish(parts, gateFailure, gateError, diff, traces, events, eventErrors);
+    return finish(parts, gateFailure, gateError, diff, traces);
   }
   const needles = evaluateNeedleGates(scenario, diff);
   parts.push(...needles.lines);
@@ -6015,7 +5356,7 @@ async function runSeeded(scenario, opts) {
         if (!gateFailure)
           gateFailure = msg;
         gateError = msg;
-        return finish(parts, gateFailure, gateError, diff, traces, events, eventErrors);
+        return finish(parts, gateFailure, gateError, diff, traces);
       }
       const v = await runVitest([POST_TEST_BASE], repo);
       const out = `${v.stdout}
@@ -6051,7 +5392,7 @@ ${v.stderr}`;
         gateError = problem;
     }
   }
-  return finish(parts, gateFailure, gateError, diff, traces, events, eventErrors);
+  return finish(parts, gateFailure, gateError, diff, traces);
 }
 function git(cwd, args) {
   return exec("git", args, { cwd, timeoutMs: 3e4 });
@@ -6075,127 +5416,29 @@ function bothStreams(v) {
 ${e}`;
   return o || e;
 }
-function finish(parts, gateFailure, gateError, diff, traces = [], events = [], eventErrors = []) {
+function finish(parts, gateFailure, gateError, diff, traces = []) {
   parts.push("", "=== STAGED DIFF ===");
   parts.push(diff.trim() === "" ? "  (empty \u2014 the model left no staged changes)" : capDiff(diff));
-  return { transcript: parts.join("\n"), gateFailure, gateError, diff, traces, events, eventErrors };
+  return { transcript: parts.join("\n"), gateFailure, gateError, diff, traces };
 }
 function vitestTally(out) {
   const line = /^\s*Tests\s+(.+)$/m.exec(out);
   if (!line)
     return null;
-  const read5 = (word2) => {
-    const m = new RegExp(`(\\d+)\\s+${word2}`).exec(line[1]);
+  const read = (word) => {
+    const m = new RegExp(`(\\d+)\\s+${word}`).exec(line[1]);
     return m ? Number(m[1]) : 0;
   };
-  return { passed: read5("passed"), failed: read5("failed"), skipped: read5("skipped"), todo: read5("todo") };
+  return { passed: read("passed"), failed: read("failed"), skipped: read("skipped"), todo: read("todo") };
 }
 
 // packages/core/dist/execution-trace.js
-import { createHash as createHash6 } from "node:crypto";
+import { createHash as createHash4 } from "node:crypto";
 
 // packages/core/dist/capture-trace-types.js
 var EXECUTION_TRACE_VERSION = 2;
-var CAPTURE_SCHEMA_VERSION = 1;
 
-// packages/core/dist/capture.js
-import { createHash as createHash5 } from "node:crypto";
-import { sep as sep3 } from "node:path";
-function activeBranch(entries, leafId) {
-  const byId = /* @__PURE__ */ new Map();
-  for (const e of entries)
-    if (typeof e.id === "string")
-      byId.set(e.id, e);
-  let cursor = leafId;
-  if (cursor === void 0) {
-    for (let i = entries.length - 1; i >= 0; i--) {
-      if (typeof entries[i].id === "string") {
-        cursor = entries[i].id;
-        break;
-      }
-    }
-  }
-  const chain = [];
-  const seen = /* @__PURE__ */ new Set();
-  while (cursor !== void 0 && cursor !== null && byId.has(cursor) && chain.length <= entries.length) {
-    if (seen.has(cursor))
-      break;
-    seen.add(cursor);
-    const entry = byId.get(cursor);
-    chain.push(entry);
-    cursor = entry.parentId ?? void 0;
-  }
-  return chain.reverse();
-}
-function visibleText(blocks) {
-  if (!blocks)
-    return "";
-  const parts = [];
-  for (const b of blocks) {
-    if (b.type === "thinking")
-      continue;
-    if (b.type === "text" && typeof b.text === "string")
-      parts.push(b.text);
-    else if (b.type === "image")
-      parts.push("[image omitted]");
-  }
-  return parts.join("\n").trim();
-}
-function projectTurns(entries, homeDir) {
-  const turns = [];
-  let current = null;
-  for (const entry of entries) {
-    if (entry.type !== "message" || !entry.message)
-      continue;
-    const msg = entry.message;
-    const id3 = typeof entry.id === "string" ? entry.id : "";
-    if (msg.role === "user") {
-      current = {
-        index: turns.length,
-        user: visibleText(msg.content),
-        assistantText: "",
-        toolCalls: [],
-        entryIds: id3 ? [id3] : []
-      };
-      turns.push(current);
-      continue;
-    }
-    if (!current)
-      continue;
-    if (id3)
-      current.entryIds.push(id3);
-    if (msg.role === "assistant") {
-      const text15 = visibleText(msg.content);
-      if (text15)
-        current.assistantText = current.assistantText ? `${current.assistantText}
-${text15}` : text15;
-      for (const b of msg.content ?? []) {
-        if (b.type !== "toolCall")
-          continue;
-        current.toolCalls.push({
-          name: typeof b.name === "string" ? b.name : "(unknown)",
-          // Without `homeDir` this scrubbed secrets but left absolute home paths
-          // intact — and these args are what the evidence sidecar records.
-          args: redactArgs(b.arguments, homeDir),
-          isError: false,
-          ...typeof b.id === "string" ? { id: b.id } : {}
-        });
-      }
-      continue;
-    }
-    if (msg.role === "toolResult") {
-      const body = JSON.stringify(msg.content ?? []);
-      const callId = typeof msg.toolCallId === "string" ? msg.toolCallId : void 0;
-      const target = callId ? current.toolCalls.find((c) => c.id === callId) : current.toolCalls.find((c) => c.name === msg.toolName && c.resultBytes === void 0);
-      if (target) {
-        target.isError = msg.isError === true;
-        target.resultBytes = Buffer.byteLength(body, "utf8");
-        target.resultSha256 = sha256(body);
-      }
-    }
-  }
-  return turns;
-}
+// packages/core/dist/redaction.js
 var MAX_VALUE_CHARS = 2e3;
 var REDACTED = "[redacted]";
 var SECRET_KEY = /^(.*[-_])?(password|passwd|secret|token|api[-_]?key|apikey|auth|authorization|credential|private[-_]?key|access[-_]?key|session[-_]?key)([-_].*)?$/i;
@@ -6207,10 +5450,6 @@ var SECRET_VALUE = [
   /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/g,
   /\bAKIA[0-9A-Z]{16}\b/g,
   /\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
-  // JWT
-  // Credentials embedded in a URL — `postgres://user:pass@host/db`. Caught by
-  // shape rather than by key name: the key is usually something like `DB_URL`,
-  // which no list of secret-sounding names will ever match.
   /\b([a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^/\s@]+@/gi
 ];
 function redactText(input, homeDir) {
@@ -6218,9 +5457,8 @@ function redactText(input, homeDir) {
   out = out.replace(SECRET_VALUE[SECRET_VALUE.length - 1], `$1${REDACTED}@`);
   for (const re of SECRET_VALUE.slice(0, -1))
     out = out.replace(re, REDACTED);
-  if (homeDir && homeDir.length > 1) {
+  if (homeDir && homeDir.length > 1)
     out = out.split(homeDir).join("~");
-  }
   return out;
 }
 function truncate(input, max = MAX_VALUE_CHARS) {
@@ -6232,96 +5470,33 @@ function redactArgs(args, homeDir, depth = 0) {
   if (args === null || typeof args !== "object" || Array.isArray(args))
     return {};
   const out = {};
-  for (const [key3, value3] of Object.entries(args)) {
-    if (SECRET_KEY.test(key3)) {
-      out[key3] = REDACTED;
+  for (const [key, value] of Object.entries(args)) {
+    if (SECRET_KEY.test(key)) {
+      out[key] = REDACTED;
       continue;
     }
-    out[key3] = redactValue(value3, homeDir, depth);
+    out[key] = redactValue(value, homeDir, depth);
   }
   return out;
 }
-function redactValue(value3, homeDir, depth) {
-  if (typeof value3 === "string")
-    return truncate(redactText(value3, homeDir));
-  if (typeof value3 === "number" || typeof value3 === "boolean" || value3 === null)
-    return value3;
+function redactValue(value, homeDir, depth) {
+  if (typeof value === "string")
+    return truncate(redactText(value, homeDir));
+  if (typeof value === "number" || typeof value === "boolean" || value === null)
+    return value;
   if (depth >= 3)
     return "[nested]";
-  if (Array.isArray(value3))
-    return value3.slice(0, 20).map((v) => redactValue(v, homeDir, depth + 1));
-  if (typeof value3 === "object")
-    return redactArgs(value3, homeDir, depth + 1);
-  return String(value3);
-}
-function sha256(text15) {
-  return createHash5("sha256").update(text15, "utf8").digest("hex");
-}
-function captureId(seed, existing = []) {
-  const taken = new Set(existing);
-  const base = `CAP-${sha256(seed).slice(0, 6).toUpperCase()}`;
-  if (!taken.has(base))
-    return base;
-  for (let n = 2; ; n++) {
-    const candidate = `${base}-${n}`;
-    if (!taken.has(candidate))
-      return candidate;
-  }
-}
-function buildCaptureCase(opts) {
-  const { start, end } = opts.range;
-  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end >= opts.turns.length) {
-    throw new Error(`invalid capture range ${start}..${end} over ${opts.turns.length} turn(s)`);
-  }
-  if (opts.expectedBehavior.trim() === "") {
-    throw new Error("a capture needs a written expected behavior \u2014 it is what makes the case reviewable");
-  }
-  const checklist = opts.checklist.map((c) => c.trim()).filter(Boolean);
-  if (checklist.length === 0) {
-    throw new Error("a capture needs at least one checklist item");
-  }
-  const selected2 = opts.turns.slice(start, end + 1);
-  const turns = selected2.map((t) => truncate(redactText(t.user, opts.homeDir)));
-  const id3 = captureId(`${opts.sessionPath}:${start}:${end}:${opts.created}`, opts.existingIds ?? []);
-  return {
-    capture_schema: CAPTURE_SCHEMA_VERSION,
-    id: id3,
-    created: opts.created,
-    classification: opts.classification,
-    turns,
-    expected_behavior: truncate(redactText(opts.expectedBehavior, opts.homeDir)),
-    checklist: checklist.map((c) => truncate(redactText(c, opts.homeDir), 300)),
-    target: opts.target,
-    // `covers` refs resolve against the SPEC dir, and `target.path` is relative
-    // to the skill root — one level up. A subagent path (`.pi/agents/x.md`) is
-    // carried the same way; both are instruction files a section walk can read.
-    covers: [`../${opts.target.path.split(sep3).join("/")}`],
-    provenance: {
-      session_sha256: sha256(opts.sessionPath),
-      turn_range: { start, end },
-      ...opts.subject ? { subject: opts.subject } : {},
-      ...opts.gitCommit ? { git_commit: opts.gitCommit } : {},
-      ...opts.gitDirty === void 0 ? {} : { git_dirty: opts.gitDirty }
-    },
-    status: "pending"
-  };
-}
-function captureToScenario(capture, scenarioId, title) {
-  return {
-    id: scenarioId,
-    title,
-    turns: capture.turns,
-    checklist: capture.checklist
-  };
-}
-function draftChecklist(expectedBehavior) {
-  return expectedBehavior.split(/\n\s*[-*]\s+|\n{2,}|(?<=[.!?])\s+(?=[A-Z])/).map((s) => s.replace(/^[-*]\s+/, "").replace(/\s+/g, " ").trim().replace(/[.]$/, "")).filter((s) => s.length > 3);
+  if (Array.isArray(value))
+    return value.slice(0, 20).map((v) => redactValue(v, homeDir, depth + 1));
+  if (typeof value === "object")
+    return redactArgs(value, homeDir, depth + 1);
+  return String(value);
 }
 
 // packages/core/dist/execution-trace.js
 var SKIPPED = /* @__PURE__ */ new Set(["message_update", "tool_execution_update"]);
 var MAX_DETAILS_CHARS = 2e3;
-function parseTrace(lines2, meta) {
+function parseTrace(lines, meta) {
   const calls = /* @__PURE__ */ new Map();
   const issuedAt = /* @__PURE__ */ new Map();
   const completedAt = /* @__PURE__ */ new Map();
@@ -6339,7 +5514,7 @@ function parseTrace(lines2, meta) {
   let sawUsage = false;
   let activeCalls = 0;
   let maxConcurrency = 0;
-  for (const line of lines2) {
+  for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed)
       continue;
@@ -6354,36 +5529,36 @@ function parseTrace(lines2, meta) {
     if (typeof type2 !== "string" || SKIPPED.has(type2))
       continue;
     if (type2 === "tool_execution_start") {
-      const id3 = str2(ev.toolCallId);
-      if (!id3)
+      const id = str2(ev.toolCallId);
+      if (!id)
         continue;
-      calls.set(id3, {
-        id: id3,
+      calls.set(id, {
+        id,
         name: str2(ev.toolName) ?? "(unknown)",
         args: redactArgs(ev.args, meta.homeDir),
         issueIndex: issueCounter++,
-        ...issuedAt.get(id3) ? { started_at: issuedAt.get(id3) } : {},
+        ...issuedAt.get(id) ? { started_at: issuedAt.get(id) } : {},
         completionIndex: -1,
         // filled in on `end`; -1 means it never completed
         isError: false,
-        result: { bytes: 0, sha256: sha2562("") }
+        result: { bytes: 0, sha256: sha256("") }
       });
       activeCalls++;
       maxConcurrency = Math.max(maxConcurrency, activeCalls);
       continue;
     }
     if (type2 === "tool_execution_end") {
-      const id3 = str2(ev.toolCallId);
-      if (!id3)
+      const id = str2(ev.toolCallId);
+      if (!id)
         continue;
-      const call = calls.get(id3);
+      const call = calls.get(id);
       if (!call)
         continue;
       if (call.completionIndex < 0)
         activeCalls = Math.max(0, activeCalls - 1);
       call.completionIndex = completionCounter++;
-      if (completedAt.get(id3))
-        call.completed_at = completedAt.get(id3);
+      if (completedAt.get(id))
+        call.completed_at = completedAt.get(id);
       call.isError = ev.isError === true;
       call.result = resultMeta(ev.result, meta.homeDir);
       continue;
@@ -6410,11 +5585,11 @@ function parseTrace(lines2, meta) {
       }
       if (msg?.role !== "assistant")
         continue;
-      const text15 = assistantText(msg);
-      if (text15) {
-        lastAssistantText = text15;
+      const text = assistantText(msg);
+      if (text) {
+        lastAssistantText = text;
         if (msg.stopReason === "stop")
-          finalText = text15;
+          finalText = text;
       }
       if (msg.usage && (typeof msg.usage.input === "number" || typeof msg.usage.output === "number" || typeof msg.usage.cacheRead === "number" || typeof msg.usage.cacheWrite === "number" || typeof msg.usage.cost?.total === "number"))
         sawUsage = true;
@@ -6485,7 +5660,7 @@ function assistantText(msg) {
 }
 function resultMeta(result, homeDir) {
   const body = JSON.stringify(result?.content ?? result ?? null);
-  const meta = { bytes: Buffer.byteLength(body, "utf8"), sha256: sha2562(body) };
+  const meta = { bytes: Buffer.byteLength(body, "utf8"), sha256: sha256(body) };
   const details = result?.details;
   if (details && typeof details === "object" && !Array.isArray(details)) {
     const encoded = JSON.stringify(details);
@@ -6497,26 +5672,26 @@ function resultMeta(result, homeDir) {
 function str2(v) {
   return typeof v === "string" && v.length > 0 ? v : void 0;
 }
-function isoTime(value3) {
-  if (typeof value3 !== "number" && typeof value3 !== "string")
+function isoTime(value) {
+  if (typeof value !== "number" && typeof value !== "string")
     return void 0;
-  const date = new Date(value3);
+  const date = new Date(value);
   return Number.isNaN(date.getTime()) ? void 0 : date.toISOString();
 }
-function sha2562(text15) {
-  return createHash6("sha256").update(text15, "utf8").digest("hex");
+function sha256(text) {
+  return createHash4("sha256").update(text, "utf8").digest("hex");
 }
 function traceSha256(trace) {
   const { trace_sha256: _omit, ...rest } = trace;
-  return sha2562(stableStringify2(rest));
+  return sha256(stableStringify(rest));
 }
-function stableStringify2(value3) {
-  if (value3 === null || typeof value3 !== "object")
-    return JSON.stringify(value3) ?? "null";
-  if (Array.isArray(value3))
-    return `[${value3.map(stableStringify2).join(",")}]`;
-  const entries = Object.entries(value3).filter(([, v]) => v !== void 0).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
-  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify2(v)}`).join(",")}}`;
+function stableStringify(value) {
+  if (value === null || typeof value !== "object")
+    return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value))
+    return `[${value.map(stableStringify).join(",")}]`;
+  const entries = Object.entries(value).filter(([, v]) => v !== void 0).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(",")}}`;
 }
 function serializeTrace(trace) {
   return `${JSON.stringify(trace)}
@@ -6590,7 +5765,7 @@ function mergeTraces(traces) {
 
 // packages/core/dist/scheduler.js
 async function runPool(tasks, concurrency) {
-  const limit3 = Math.max(1, Math.floor(concurrency));
+  const limit = Math.max(1, Math.floor(concurrency));
   const results = new Array(tasks.length);
   let next = 0;
   async function worker() {
@@ -6601,7 +5776,7 @@ async function runPool(tasks, concurrency) {
       results[i] = await tasks[i]();
     }
   }
-  const workerCount = Math.min(limit3, tasks.length);
+  const workerCount = Math.min(limit, tasks.length);
   await Promise.all(Array.from({ length: workerCount }, () => worker()));
   return results;
 }
@@ -6614,12 +5789,10 @@ function aggregateObjective(outcomes) {
   const picked = present.find((o) => o.status === "ERROR") ?? present.find((o) => o.status === "NOT-MEASURED") ?? present.find((o) => o.status === "FAIL") ?? present[0];
   if (present.length === 1)
     return picked;
-  const eventHashes = present.map((objective) => objective.events_sha256);
   const traceHashes = present.map((objective) => objective.trace_sha256);
   return {
     ...picked,
-    ...eventHashes.every((hash15) => typeof hash15 === "string") ? { rep_events_sha256: eventHashes } : {},
-    ...traceHashes.every((hash15) => typeof hash15 === "string") ? { rep_trace_sha256: traceHashes } : {}
+    ...traceHashes.every((hash) => typeof hash === "string") ? { rep_trace_sha256: traceHashes } : {}
   };
 }
 function aggregateReps(outcomes, threshold) {
@@ -6643,7 +5816,7 @@ function aggregateReps(outcomes, threshold) {
   const reason = reps2 === 1 ? outcomes[0].reason : `${passes}/${clean.length} reps passed (flaky ${flakiness.toFixed(2)})`;
   return { verdict, reason, passes, reps: reps2, clean: clean.length, flakiness, suspect: false };
 }
-function outcomesToResult(id3, outcomes, repCount, threshold) {
+function outcomesToResult(id, outcomes, repCount, threshold) {
   const objective = aggregateObjective(outcomes);
   const objectiveField = objective ? { objective } : {};
   const metrics = aggregateMetrics(outcomes);
@@ -6652,11 +5825,11 @@ function outcomesToResult(id3, outcomes, repCount, threshold) {
   const repJudgmentField = outcomes.some((outcome) => outcome.judgment) ? { rep_judgments: repJudgments } : {};
   if (repCount === 1) {
     const o = outcomes[0];
-    return { id: id3, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, ...metricsField, override: null, note: "", ...objectiveField, ...repJudgmentField };
+    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, ...metricsField, override: null, note: "", ...objectiveField, ...repJudgmentField };
   }
   const agg = aggregateReps(outcomes, threshold);
   return {
-    id: id3,
+    id,
     judge_verdict: agg.verdict,
     judge_reason: agg.reason,
     suspect: agg.suspect,
@@ -6701,7 +5874,7 @@ function aggregateMetrics(outcomes) {
 }
 
 // packages/core/dist/regrade.js
-import { readFileSync as readFileSync9, writeFileSync as writeFileSync2, existsSync as existsSync8 } from "node:fs";
+import { readFileSync as readFileSync7, writeFileSync as writeFileSync2, existsSync as existsSync8 } from "node:fs";
 import { join as join10 } from "node:path";
 
 // packages/core/dist/provider-failure.js
@@ -6720,16 +5893,16 @@ function providerFailureFromJsonLine(line) {
   } catch {
     return null;
   }
-  const message3 = parsed?.message;
-  if (!message3 || typeof message3 !== "object")
+  const message = parsed?.message;
+  if (!message || typeof message !== "object")
     return null;
-  const diagnostics = message3.diagnostics;
+  const diagnostics = message.diagnostics;
   if (!Array.isArray(diagnostics))
     return null;
   for (const raw of diagnostics) {
     if (typeof raw?.type !== "string" || !FAILURE_DIAGNOSTICS.has(raw.type))
       continue;
-    const provider = typeof message3.provider === "string" ? message3.provider : "unknown provider";
+    const provider = typeof message.provider === "string" ? message.provider : "unknown provider";
     const detail = typeof raw.error?.message === "string" ? raw.error.message : raw.type;
     return `${provider}: ${detail}`;
   }
@@ -6751,10 +5924,10 @@ function refreshRubricHashes(recorded, spec, judgedIds) {
     return void 0;
   const next = { ...recorded };
   const specById = new Map(spec.scenarios.map((s) => [s.id, s]));
-  for (const id3 of judgedIds) {
-    const s = specById.get(id3);
-    if (s && RUBRIC_PREFIX + id3 in next)
-      next[RUBRIC_PREFIX + id3] = rubricDigest(s);
+  for (const id of judgedIds) {
+    const s = specById.get(id);
+    if (s && RUBRIC_PREFIX + id in next)
+      next[RUBRIC_PREFIX + id] = rubricDigest(s);
   }
   if (PERSONA_KEY in next)
     next[PERSONA_KEY] = personaDigest(spec.judge_persona);
@@ -6809,7 +5982,7 @@ async function regradeScenario(opts) {
   const outcomes = [];
   for (const file of files) {
     const rep = repIndexOf(file) ?? void 0;
-    const transcript = readFileSync9(join10(opts.runDir, file), "utf8");
+    const transcript = readFileSync7(join10(opts.runDir, file), "utf8");
     outcomes.push(await judgeOneRep({
       runDir: opts.runDir,
       spec: opts.spec,
@@ -6825,21 +5998,6 @@ async function regradeScenario(opts) {
     }));
   }
   return outcomesToResult(opts.scenario.id, outcomes, repCount, opts.threshold);
-}
-function appendJudgeHistory(prior, priorJudge, fresh) {
-  const history = prior?.judge_history ?? prior?.adjudication?.judgments ?? (prior && priorJudge ? [{
-    ordinal: 1,
-    judge: priorJudge,
-    verdict: prior.judge_verdict ?? "JUDGE-AMBIGUOUS",
-    reason: prior.judge_reason ?? "prior grade",
-    suspect: prior.suspect ?? true,
-    criteria: prior.rep_judgments?.find((panel) => panel.repetition === 0)?.judgments[0]?.criteria ?? []
-  }] : []);
-  const next = [
-    ...history,
-    { ...fresh, criteria: fresh.criteria ?? [], ordinal: history.length + 1 }
-  ].slice(-3).map((judgment, index) => ({ ...judgment, ordinal: index + 1 }));
-  return next.length >= 2 ? next : void 0;
 }
 async function regradeRun(opts) {
   const { runDir, spec, adapter, judge, specDir } = opts;
@@ -6857,7 +6015,7 @@ async function regradeRun(opts) {
   }
   if (prev?.schema === 3) {
     const blocked = new Set(prev.scenarios.filter((s) => s.objective?.assertions.some((a) => a.kind === "skill_delivered" && a.status !== "PASS")).map((s) => s.id));
-    targets = targets.filter((id3) => !blocked.has(id3));
+    targets = targets.filter((id) => !blocked.has(id));
   }
   if (targets.length === 0 && prev) {
     return prev;
@@ -6870,23 +6028,23 @@ async function regradeRun(opts) {
     return files.length === expected && JSON.stringify(actualIndices) === JSON.stringify(expectedIndices);
   };
   const recordedById = new Map(recorded.map((record) => [record.id, record]));
-  const missing5 = targets.filter((id3) => !specById.has(id3) || !completeTranscripts(recordedById.get(id3)));
-  if (missing5.length === targets.length) {
+  const missing = targets.filter((id) => !specById.has(id) || !completeTranscripts(recordedById.get(id)));
+  if (missing.length === targets.length) {
     throw new Error(`no ${mode} transcripts in ${runDir} \u2014 nothing to re-grade`);
   }
-  if (missing5.length > 0) {
-    throw new Error(`cannot re-grade ${missing5.join(", ")} in ${runDir} (transcript missing or scenario no longer in the spec) \u2014 re-run instead of grading`);
+  if (missing.length > 0) {
+    throw new Error(`cannot re-grade ${missing.join(", ")} in ${runDir} (transcript missing or scenario no longer in the spec) \u2014 re-run instead of grading`);
   }
   const targetSet = new Set(targets);
   const scenarioResults = [];
   for (const rec of recorded) {
-    const id3 = rec.id;
-    if (!targetSet.has(id3)) {
+    const id = rec.id;
+    if (!targetSet.has(id)) {
       scenarioResults.push(rec);
       continue;
     }
-    const scenario = specById.get(id3);
-    const prevScenario = prev?.scenarios.find((s) => s.id === id3);
+    const scenario = specById.get(id);
+    const prevScenario = prev?.scenarios.find((s) => s.id === id);
     const threshold = effectiveThreshold(prevScenario, scenario);
     const rr = await regradeScenario({
       runDir,
@@ -6900,18 +6058,11 @@ async function regradeRun(opts) {
       now,
       expectedReps: prevScenario?.reps ?? 1
     });
-    const carry = overrides.get(id3);
+    const carry = overrides.get(id);
     if (prev?.schema === 3)
       rr.criterion_count = scenario.checklist.length;
     rr.metrics = mergeScenarioMetrics(carry?.metrics, rr.metrics);
     rr.rep_judgments = carryRepObjectives(rr.rep_judgments, carry?.rep_judgments);
-    rr.judge_history = appendJudgeHistory(carry, prev?.judge, {
-      judge,
-      verdict: rr.judge_verdict,
-      reason: rr.judge_reason,
-      suspect: rr.suspect,
-      criteria: rr.rep_judgments?.find((panel) => panel.repetition === 0)?.judgments[0]?.criteria
-    });
     scenarioResults.push(rebuildScenarioResult(rr, carry, { objective: "carry", adjudication: "drop" }));
   }
   const ctx = scoreContextFor({ mode, partial: prev?.partial }, spec);
@@ -6965,11 +6116,11 @@ async function regradeRun(opts) {
 }
 
 // packages/core/dist/canary.js
-import { readFileSync as readFileSync10 } from "node:fs";
+import { readFileSync as readFileSync8 } from "node:fs";
 import { join as join11 } from "node:path";
-function skillBody(text15) {
-  const m = /^---\r?\n[\s\S]*?\r?\n---\r?\n/.exec(text15);
-  return m ? text15.slice(m[0].length) : text15;
+function skillBody(text) {
+  const m = /^---\r?\n[\s\S]*?\r?\n---\r?\n/.exec(text);
+  return m ? text.slice(m[0].length) : text;
 }
 function deliveryAnchor(skillMd) {
   const headings = [...skillBody(skillMd).matchAll(/^##[ \t]+(.+?)[ \t]*$/gm)].map((m) => m[1].trim());
@@ -6993,7 +6144,7 @@ function assistantReply(transcript) {
   return (parts.length > 1 ? parts[parts.length - 1] : transcript).trim();
 }
 async function runDeliveryCanary(opts) {
-  const skillMd = readFileSync10(join11(opts.skillDir, "SKILL.md"), "utf8");
+  const skillMd = readFileSync8(join11(opts.skillDir, "SKILL.md"), "utf8");
   const anchor = deliveryAnchor(skillMd);
   if (!anchor) {
     return {
@@ -7030,7 +6181,7 @@ function canaryFailure(skillName, result, cliVersion) {
 import { join as join13 } from "node:path";
 
 // packages/core/dist/trends.js
-import { existsSync as existsSync9, readdirSync as readdirSync8, statSync as statSync5 } from "node:fs";
+import { existsSync as existsSync9, readdirSync as readdirSync7, statSync as statSync5 } from "node:fs";
 import { join as join12 } from "node:path";
 function isDir2(p) {
   try {
@@ -7044,10 +6195,10 @@ function collectScoredRuns(skillDir) {
   if (!existsSync9(resultsRoot))
     return [];
   const groups = [];
-  const tags = readdirSync8(resultsRoot).filter((n) => isDir2(join12(resultsRoot, n))).sort();
+  const tags = readdirSync7(resultsRoot).filter((n) => isDir2(join12(resultsRoot, n))).sort();
   for (const tag of tags) {
     const tagDir = join12(resultsRoot, tag);
-    const runDirs = readdirSync8(tagDir).map((n) => join12(tagDir, n)).filter((p) => isDir2(p) && existsSync9(join12(p, "results.yaml"))).sort();
+    const runDirs = readdirSync7(tagDir).map((n) => join12(tagDir, n)).filter((p) => isDir2(p) && existsSync9(join12(p, "results.yaml"))).sort();
     if (runDirs.length === 0)
       continue;
     const byMode = /* @__PURE__ */ new Map();
@@ -7071,14 +6222,14 @@ function collectScoredRuns(skillDir) {
   }
   return groups;
 }
-function collectTrends(skillDir, limit3 = 20) {
+function collectTrends(skillDir, limit = 20) {
   const specPath = join12(skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const scenarios = spec.scenarios.map((s) => ({ id: s.id, title: s.title, critical: s.critical }));
   const models = [];
   for (const group of collectScoredRuns(skillDir)) {
-    const truncated = group.runs.length > limit3;
-    const kept = group.runs.slice(-limit3);
+    const truncated = group.runs.length > limit;
+    const kept = group.runs.slice(-limit);
     const runs = [];
     for (const r of kept) {
       const verdicts = effectiveVerdicts(r.scenarios);
@@ -7111,9 +6262,9 @@ function pointFor(r, s, verdict) {
   };
 }
 function skillTextChanged(prev, cur) {
-  for (const key3 of [SKILL_PROMPT_KEY, SKILL_KEY]) {
-    const a = prev?.[key3];
-    const b = cur?.[key3];
+  for (const key of [SKILL_PROMPT_KEY, SKILL_KEY]) {
+    const a = prev?.[key];
+    const b = cur?.[key];
     if (a === void 0 || b === void 0)
       continue;
     return a !== b;
@@ -7124,28 +6275,28 @@ function shapeOf(s) {
   const reps2 = s.reps ?? 1;
   return JSON.stringify([reps2, reps2 > 1 ? s.pass_threshold ?? null : null]);
 }
-function compareSources(a, b, keys7) {
+function compareSources(a, b, keys) {
   if (!a || !b)
     return { shared: 0, changed: [] };
   let shared = 0;
   const changed = [];
-  for (const key3 of keys7) {
-    if (isSupersededKey(key3, a) && isSupersededKey(key3, b))
+  for (const key of keys) {
+    if (isSupersededKey(key, a) && isSupersededKey(key, b))
       continue;
-    const va = a[key3];
-    const vb = b[key3];
+    const va = a[key];
+    const vb = b[key];
     if (va === void 0 || vb === void 0)
       continue;
     shared++;
     if (va !== vb)
-      changed.push(describeSourceKey(key3));
+      changed.push(describeSourceKey(key));
   }
   return { shared, changed };
 }
 function stabilityForScenario(group, scenario, window) {
   const relevant = group.runs.filter((r) => r.scenarios.some((s) => s.id === scenario.id));
   const kept = relevant.slice(-window);
-  const keys7 = [...scenarioSourceKeys(scenario), PERSONA_KEY];
+  const keys = [...scenarioSourceKeys(scenario), PERSONA_KEY];
   const points = [];
   const raw = [];
   for (const r of kept) {
@@ -7171,7 +6322,7 @@ function stabilityForScenario(group, scenario, window) {
       pairs2.push({ ...base, status: "aggregation" });
       continue;
     }
-    const src = compareSources(prev.r.source_hashes, cur.r.source_hashes, keys7);
+    const src = compareSources(prev.r.source_hashes, cur.r.source_hashes, keys);
     if (src.shared === 0) {
       pairs2.push({ ...base, status: "unverified" });
       continue;
@@ -7273,28 +6424,28 @@ var REJECTION = {
   unverified: "step(s) whose recorded hashes cannot be compared"
 };
 
-// packages/core/dist/comparison.js
+// packages/core/dist/metrics.js
 function aggregateMetrics2(scenarios) {
-  const metrics = scenarios.map((scenario) => scenario.metrics).filter((value3) => value3 !== void 0);
+  const metrics = scenarios.map((scenario) => scenario.metrics).filter((value) => value !== void 0);
   const sumOptional = (field) => {
-    const values = metrics.map((value3) => value3[field]).filter((value3) => typeof value3 === "number");
-    return values.length ? values.reduce((sum, value3) => sum + value3, 0) : null;
+    const values = metrics.map((value) => value[field]).filter((value) => typeof value === "number");
+    return values.length ? values.reduce((sum, value) => sum + value, 0) : null;
   };
-  const maxValues = metrics.map((value3) => value3.max_concurrency).filter((value3) => typeof value3 === "number");
+  const maxValues = metrics.map((value) => value.max_concurrency).filter((value) => typeof value === "number");
   return {
-    wall_time_ms: metrics.reduce((sum, value3) => sum + value3.wall_time_ms, 0),
-    judge_calls: metrics.reduce((sum, value3) => sum + value3.judge_calls, 0),
-    judge_rejudge_calls: metrics.reduce((sum, value3) => sum + value3.judge_rejudge_calls, 0),
-    subject_metrics_reps: metrics.reduce((sum, value3) => sum + value3.subject_metrics_reps, 0),
-    total_reps: metrics.reduce((sum, value3) => sum + value3.total_reps, 0),
+    wall_time_ms: metrics.reduce((sum, value) => sum + value.wall_time_ms, 0),
+    judge_calls: metrics.reduce((sum, value) => sum + value.judge_calls, 0),
+    judge_rejudge_calls: metrics.reduce((sum, value) => sum + value.judge_rejudge_calls, 0),
+    subject_metrics_reps: metrics.reduce((sum, value) => sum + value.subject_metrics_reps, 0),
+    total_reps: metrics.reduce((sum, value) => sum + value.total_reps, 0),
     input_tokens: sumOptional("input_tokens"),
     output_tokens: sumOptional("output_tokens"),
     cache_read_tokens: sumOptional("cache_read_tokens"),
     cache_write_tokens: sumOptional("cache_write_tokens"),
     subject_cost_usd: sumOptional("subject_cost_usd"),
     cost_source: (() => {
-      const sources = scenarios.map((scenario) => scenario.metrics?.cost_source).filter((source3) => source3 !== void 0);
-      return sources.length === 0 ? null : sources.every((source3) => source3 === sources[0]) ? sources[0] : "unreported";
+      const sources = scenarios.map((scenario) => scenario.metrics?.cost_source).filter((source) => source !== void 0);
+      return sources.length === 0 ? null : sources.every((source) => source === sources[0]) ? sources[0] : "unreported";
     })(),
     tool_calls: sumOptional("tool_calls"),
     delegated_children: sumOptional("delegated_children"),
@@ -7305,16 +6456,16 @@ function aggregateMetrics2(scenarios) {
 // packages/core/dist/run.js
 var LEDGER_FILENAME = "pi-daddy.ledger.jsonl";
 function countLedgerEvents(runDir) {
-  let text15;
+  let text;
   try {
-    text15 = readFileSync11(join14(runDir, LEDGER_FILENAME), "utf8");
+    text = readFileSync9(join14(runDir, LEDGER_FILENAME), "utf8");
   } catch {
     return 0;
   }
-  return text15.split("\n").filter((line) => line.trim().length > 0).length;
+  return text.split("\n").filter((line) => line.trim().length > 0).length;
 }
 async function runSkillModel(opts) {
-  const { spec, skillDir, adapter, model, judge, mode, timestamp: timestamp3 } = opts;
+  const { spec, skillDir, adapter, model, judge, mode, timestamp: timestamp2 } = opts;
   const log = opts.onProgress ?? (() => {
   });
   const now = opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
@@ -7322,7 +6473,7 @@ async function runSkillModel(opts) {
   const partial = Boolean(opts.only && opts.only.length > 0);
   if (partial) {
     const known = new Set(spec.scenarios.map((s) => s.id));
-    const unknown = opts.only.filter((id3) => !known.has(id3));
+    const unknown = opts.only.filter((id) => !known.has(id));
     if (unknown.length > 0) {
       throw new Error(`--only names unknown scenario id(s) ${unknown.join(", ")} \u2014 spec has: ${[...known].join(", ")}`);
     }
@@ -7334,7 +6485,7 @@ async function runSkillModel(opts) {
     log(`  \u26A0 judge (${judge.provider}:${judge.model}) resembles the model under test (${model.provider}:${model.model}) \u2014 verdicts may be inflated. Use a distinct judge.`);
   }
   const arm = opts.arm ?? NONE_ARM;
-  const runDir = runDirFor(skillDir, adapter.name, model, timestamp3, arm.name);
+  const runDir = runDirFor(skillDir, adapter.name, model, timestamp2, arm.name);
   mkdirSync4(runDir, { recursive: true });
   ensureResultsGitignore(dirname(dirname(runDir)));
   const harnessCliVersion = await adapter.version?.() ?? null;
@@ -7397,18 +6548,11 @@ async function runSkillModel(opts) {
     }
   });
   const flat = await runPool(tasks, opts.concurrency ?? 1);
-  const subjectInvocations = flat.flatMap((outcome) => outcome.subject_invocations ?? []);
   const grouped = scenarios.map(() => []);
   flat.forEach((outcome, i) => grouped[owners[i]].push(outcome));
   const scenarioResults = scenarios.map((scenario, si) => {
     const threshold = scenario.critical ? effectiveThreshold(void 0, scenario) : scenario.passThreshold ?? opts.passThreshold ?? 0.5;
-    const result = outcomesToResult(scenario.id, grouped[si], repCounts[si], threshold);
-    if (adapter.observesPrompts)
-      result.criterion_count = scenario.checklist.length;
-    if (adapter.observesPrompts && !result.rep_judgments) {
-      result.rep_judgments = grouped[si].map((outcome, repetition) => ({ repetition, judgments: [], recorded_verdict: outcome.verdict, ...outcome.objective ? { objective: outcome.objective } : {} }));
-    }
-    return result;
+    return outcomesToResult(scenario.id, grouped[si], repCounts[si], threshold);
   });
   const ctx = scoreContextFor({ mode, partial }, spec);
   const results = writeResults(runDir, {
@@ -7418,18 +6562,14 @@ async function runSkillModel(opts) {
     delivery_canary: canaryStatus ?? void 0,
     model: opts.modelToken,
     judge: { provider: judge.provider, model: judge.model },
-    timestamp: timestamp3,
+    timestamp: timestamp2,
     label: opts.label ?? null,
     mode,
     ...partial ? { partial: true } : {},
     // Only the scenarios this run actually measured: a --only run must not claim
     // coverage of scenarios it skipped.
-    source_hashes: {
-      ...sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios, judgePersona: spec.judge_persona }),
-      ...adapter.observesPrompts ? { [PROMPT_NORMALIZATION_SOURCE_KEY]: PROMPT_NORMALIZATION_SOURCE_DIGEST } : {}
-    },
+    source_hashes: sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios, judgePersona: spec.judge_persona }),
     scenarios: scenarioResults,
-    ...adapter.observesPrompts ? { schema: 3, subject_invocations: subjectInvocations } : {},
     ...arm.name === NONE_ARM.name ? {} : {
       arm: {
         name: arm.name,
@@ -7478,7 +6618,6 @@ async function runRep(scenario, rep, repCount, ctx) {
   let gatePrefix = null;
   let infrastructureFailure = null;
   let stagedDiff = null;
-  const subjectInvocations = [];
   try {
     try {
       ws = createWorkspace(scenario.workspace, { specDir: dirname(ctx.specPath), remote: scenario.remote });
@@ -7489,8 +6628,6 @@ async function runRep(scenario, rep, repCount, ctx) {
     }
     let noResponse = false;
     let traces = [];
-    let events = [];
-    let eventErrors = [];
     let unobservablePaths = false;
     let before = ws ? snapshotPaths(ws.cwd, scenario.workspace) : null;
     if (ws) {
@@ -7498,13 +6635,12 @@ async function runRep(scenario, rep, repCount, ctx) {
     }
     let adapterFailure = null;
     if (ws) {
-      const needsStructuredEvidence = Boolean(scenario.traceAssert || scenario.trajectoryAssert);
+      const needsStructuredEvidence = Boolean(scenario.traceAssert);
       if (needsStructuredEvidence && !ctx.adapter.runStructured) {
-        throw new Error(`scenario \`${scenario.id}\` declares structured objective assertions, but the \`${ctx.adapter.name}\` adapter cannot produce execution traces/events \u2014 the gate would have no evidence to read.`);
+        throw new Error(`scenario \`${scenario.id}\` declares structured objective assertions, but the \`${ctx.adapter.name}\` adapter cannot produce execution traces \u2014 the gate would have no evidence to read.`);
       }
       const useStructured = (Boolean(ctx.structured) || needsStructuredEvidence) && Boolean(ctx.adapter.runStructured);
       for (let attempt = 0; attempt < 2; attempt++) {
-        const observe = (prompt) => subjectInvocations.push({ scenario_id: scenario.id, repetition: rep, attempt, prompt });
         if (attempt > 0) {
           const why = adapterFailure ? `adapter failed (${adapterFailure})` : "empty response";
           appendJournal(runDir, { event: "empty-response-retry", ts: now(), id: scenario.id, attempt, reason: why, ...repField });
@@ -7538,16 +6674,13 @@ async function runRep(scenario, rep, repCount, ctx) {
               // builds the RunReq — the arm's extensions and env (with `<run-dir>`
               // already substituted) both must reach pi.
               armExtensions: arm.extensions,
-              ...armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {},
-              ...ctx.adapter.observesPrompts ? { onPromptObservation: observe } : {}
+              ...armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {}
             });
             transcript = r.transcript;
             gatePrefix = r.gateFailure;
             infrastructureFailure = r.gateError;
             stagedDiff = r.diff;
             traces = r.traces;
-            events = r.events;
-            eventErrors = r.eventErrors;
           } else {
             const req = {
               skillDir: ctx.skillDir,
@@ -7564,16 +6697,12 @@ async function runRep(scenario, rep, repCount, ctx) {
                 ...scenario.extensions?.map((e) => resolve6(dirname(ctx.specPath), e)) ?? [],
                 ...arm.extensions
               ],
-              eventSources: scenario.eventSources,
-              ...armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {},
-              ...ctx.adapter.observesPrompts ? { onPromptObservation: observe } : {}
+              ...armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {}
             };
             if (useStructured) {
               const structured = await ctx.adapter.runStructured({ ...req, scenarioId: scenario.id, rep });
               transcript = structured.transcript;
               traces = structured.traces;
-              events = structured.events ?? [];
-              eventErrors = structured.eventErrors ?? [];
               if (structured.providerFailure)
                 infrastructureFailure = `provider failure \u2014 ${structured.providerFailure}`;
             } else {
@@ -7586,8 +6715,6 @@ async function runRep(scenario, rep, repCount, ctx) {
           gatePrefix = null;
           stagedDiff = null;
           traces = [];
-          events = [];
-          eventErrors = [];
         }
         if (!infrastructureFailure) {
           const provider = providerFailureFromTranscript(transcript);
@@ -7621,20 +6748,11 @@ async function runRep(scenario, rep, repCount, ctx) {
         });
       }
     }
-    let deliveryObjective;
-    if (ctx.adapter.observesPrompts) {
-      const statuses = subjectInvocations.map((observation) => observation.prompt.status);
-      const status = deliveryStatusForObservations(subjectInvocations);
-      deliveryObjective = { status, assertions: [{ kind: "skill_delivered", status, detail: statuses.length === 0 ? "no model-visible prompt observation was retained" : `${statuses.length} provider request(s): ${statuses.join(", ")}` }] };
-      if (status !== "PASS")
-        gatePrefix = `objective: skill_delivered ${status.toLowerCase()} \u2014 ${deliveryObjective.assertions[0].detail}`;
-    }
-    let objective = deliveryObjective;
-    if ((scenario.traceAssert || scenario.trajectoryAssert) && !adapterFailure) {
+    let objective;
+    if (scenario.traceAssert && !adapterFailure) {
       const assertionResults = [];
       let status = "PASS";
       let traceMeta = {};
-      let trajectoryMeta = {};
       if (scenario.traceAssert) {
         if (traces.length > 0) {
           writeFileSync3(tracePath(runDir, scenario.id, mode, repSuffix), traces.map(serializeTrace).join(""), "utf8");
@@ -7653,30 +6771,7 @@ async function runRep(scenario, rep, repCount, ctx) {
           traceMeta = { trace_version: merged.trace_version, trace_sha256: merged.trace_sha256 };
         }
       }
-      if (scenario.trajectoryAssert) {
-        if (events.length > 0) {
-          writeFileSync3(trajectoryPath(runDir, scenario.id, mode, repSuffix), serializeTrajectoryEvents(events), "utf8");
-        }
-        if (eventErrors.length > 0) {
-          status = "ERROR";
-          assertionResults.push(...eventErrors.map((detail) => ({ kind: "trajectory_evidence", status: "ERROR", detail })));
-        } else if (events.length === 0) {
-          status = "ERROR";
-          assertionResults.push({ kind: "trajectory_evidence", status: "ERROR", detail: "no normalized workflow events were produced" });
-        } else {
-          const gate = evaluateTrajectoryGates(scenario.trajectoryAssert, events);
-          if (gate.status === "ERROR" || gate.status === "FAIL" && status === "PASS")
-            status = gate.status;
-          assertionResults.push(...gate.assertions);
-          trajectoryMeta = { trajectory_version: gate.event_version, events_sha256: gate.events_sha256 };
-        }
-      }
-      if (deliveryObjective) {
-        if (deliveryObjective.status === "ERROR" || deliveryObjective.status === "NOT-MEASURED" && status !== "ERROR" || deliveryObjective.status === "FAIL" && status === "PASS")
-          status = deliveryObjective.status;
-        assertionResults.unshift(...deliveryObjective.assertions);
-      }
-      objective = { status, ...traceMeta, ...trajectoryMeta, assertions: assertionResults };
+      objective = { status, ...traceMeta, assertions: assertionResults };
       if (status !== "PASS") {
         const details = assertionResults.filter((result) => result.status === status).map((result) => result.detail);
         gatePrefix = `objective: ${details.join("; ") || "structured evidence could not be evaluated"}`;
@@ -7742,7 +6837,6 @@ async function runRep(scenario, rep, repCount, ctx) {
       suspect,
       objective,
       judgment,
-      subject_invocations: subjectInvocations,
       metrics: {
         wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
         judge_calls: judgeCalls,
@@ -7760,12 +6854,12 @@ import { existsSync as existsSync10 } from "node:fs";
 import { join as join15 } from "node:path";
 
 // packages/core/dist/report.js
-import { existsSync as existsSync11, readdirSync as readdirSync9, statSync as statSync6 } from "node:fs";
+import { existsSync as existsSync11, readdirSync as readdirSync8, statSync as statSync6 } from "node:fs";
 import { join as join16 } from "node:path";
 function latestRunDir(tagDir) {
   if (!statSync6(tagDir).isDirectory())
     return null;
-  const runs = readdirSync9(tagDir).map((n) => join16(tagDir, n)).filter((p) => statSync6(p).isDirectory() && existsSync11(join16(p, "results.yaml"))).sort();
+  const runs = readdirSync8(tagDir).map((n) => join16(tagDir, n)).filter((p) => statSync6(p).isDirectory() && existsSync11(join16(p, "results.yaml"))).sort();
   return runs.length ? runs[runs.length - 1] : null;
 }
 function collectReport(skillDir) {
@@ -7777,7 +6871,7 @@ function collectReport(skillDir) {
   const boundaryByCell = new Map(boundaryCells(collectStability(skillDir)).map((c) => [`${c.tag}\0${c.mode}\0${c.id}`, c]));
   const columns = [];
   if (existsSync11(resultsRoot)) {
-    const tags = readdirSync9(resultsRoot).map((n) => join16(resultsRoot, n)).filter((p) => statSync6(p).isDirectory()).sort();
+    const tags = readdirSync8(resultsRoot).map((n) => join16(resultsRoot, n)).filter((p) => statSync6(p).isDirectory()).sort();
     for (const tagDir of tags) {
       const runDir = latestRunDir(tagDir);
       if (!runDir)
@@ -7802,14 +6896,6 @@ function collectReport(skillDir) {
             objective: {
               status: s.objective.status,
               detail: s.objective.assertions.length ? s.objective.assertions.map((a) => `${a.status} ${a.detail}`).join(" \xB7 ") : "no assertion evidence recorded"
-            }
-          } : {},
-          ...s.adjudication ? {
-            adjudication: {
-              state: s.adjudication.state,
-              trigger: s.adjudication.trigger,
-              count: s.adjudication.judgments.length,
-              detail: s.adjudication.judgments.map((j) => `#${j.ordinal} ${j.judge.provider}:${j.judge.model} ${j.verdict}${j.suspect ? " (misfired, not counted)" : ""}`).join(" \xB7 ")
             }
           } : {},
           judge_verdict: s.judge_verdict,
@@ -7871,16 +6957,16 @@ function stripExports(js) {
   return js.replace(/^export\s+/gm, "");
 }
 function renderReport(template, data, gradeScript) {
-  const json3 = JSON.stringify(publicView(data));
-  return template.replace("/*__DATA__*/null", json3).replace("/*__GRADE__*/", stripExports(gradeScript)).replace("__SKILL__", data.skill);
+  const json2 = JSON.stringify(publicView(data));
+  return template.replace("/*__DATA__*/null", json2).replace("/*__GRADE__*/", stripExports(gradeScript)).replace("__SKILL__", data.skill);
 }
 
 // packages/core/dist/lint.js
-import { existsSync as existsSync14, statSync as statSync8, readdirSync as readdirSync11, readFileSync as readFileSync13 } from "node:fs";
+import { existsSync as existsSync14, statSync as statSync8, readdirSync as readdirSync10, readFileSync as readFileSync11 } from "node:fs";
 import { basename, dirname as dirname3, isAbsolute as isAbsolute6, join as join18, resolve as resolve8 } from "node:path";
 
 // packages/core/dist/instruction-coverage.js
-import { existsSync as existsSync12, readFileSync as readFileSync12 } from "node:fs";
+import { existsSync as existsSync12, readFileSync as readFileSync10 } from "node:fs";
 import { resolve as resolve7, dirname as dirname2, relative as relative2, isAbsolute as isAbsolute5 } from "node:path";
 var FENCE = /^\s{0,3}(`{3,}|~{3,})/;
 var ATX = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
@@ -7890,11 +6976,11 @@ function slugify(title) {
   return title.toLowerCase().replace(/[`*_~[\]()]/g, "").replace(/[^\p{L}\p{N}\s-]/gu, "").trim().replace(/\s+/g, "-");
 }
 function parseSections(markdown) {
-  const lines2 = markdown.split("\n");
+  const lines = markdown.split("\n");
   const found = [];
   const seen = /* @__PURE__ */ new Map();
   let fence = null;
-  const start = frontmatterEnd(lines2);
+  const start = frontmatterEnd(lines);
   const push = (title, depth, startLine) => {
     const base = slugify(title);
     if (base === "")
@@ -7903,8 +6989,8 @@ function parseSections(markdown) {
     seen.set(base, n + 1);
     found.push({ slug: n === 0 ? base : `${base}-${n}`, title, depth, startLine });
   };
-  for (let i = start; i < lines2.length; i++) {
-    const line = lines2[i];
+  for (let i = start; i < lines.length; i++) {
+    const line = lines[i];
     const fenceMatch = FENCE.exec(line);
     if (fenceMatch) {
       const marker = fenceMatch[1][0];
@@ -7921,7 +7007,7 @@ function parseSections(markdown) {
       push(atx[2], atx[1].length, i + 1);
       continue;
     }
-    const prev = i > start ? lines2[i - 1] : "";
+    const prev = i > start ? lines[i - 1] : "";
     if (prev.trim() !== "" && !ATX.test(prev)) {
       if (SETEXT_H1.test(line))
         push(prev.trim(), 1, i);
@@ -7931,26 +7017,23 @@ function parseSections(markdown) {
   }
   return found.map((s, i) => ({
     ...s,
-    endLine: i + 1 < found.length ? found[i + 1].startLine - 1 : lines2.length
+    endLine: i + 1 < found.length ? found[i + 1].startLine - 1 : lines.length
   }));
 }
-function frontmatterEnd(lines2) {
-  if (lines2[0]?.trim() !== "---")
+function frontmatterEnd(lines) {
+  if (lines[0]?.trim() !== "---")
     return 0;
-  for (let i = 1; i < lines2.length; i++) {
-    if (lines2[i].trim() === "---")
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim() === "---")
       return i + 1;
   }
   return 0;
 }
-function sectionAtLine(sections, line) {
-  return sections.find((s) => line >= s.startLine && line <= s.endLine);
-}
 function parseCoversRef(raw) {
-  const hash15 = raw.indexOf("#");
-  if (hash15 < 0)
+  const hash = raw.indexOf("#");
+  if (hash < 0)
     return { raw, file: raw.trim() };
-  return { raw, file: raw.slice(0, hash15).trim(), slug: raw.slice(hash15 + 1).trim() || void 0 };
+  return { raw, file: raw.slice(0, hash).trim(), slug: raw.slice(hash + 1).trim() || void 0 };
 }
 function computeCoverage(opts) {
   const fileSections = /* @__PURE__ */ new Map();
@@ -7960,19 +7043,19 @@ function computeCoverage(opts) {
     const abs = isAbsolute5(file) ? file : resolve7(opts.specDir, file);
     if (!existsSync12(abs))
       return null;
-    const sections2 = parseSections(readFileSync12(abs, "utf8"));
+    const sections2 = parseSections(readFileSync10(abs, "utf8"));
     fileSections.set(file, sections2);
     return sections2;
   };
   for (const f of opts.baseFiles ?? [])
     readSections(f);
   const bySection = /* @__PURE__ */ new Map();
-  const key3 = (file, slug) => `${file}#${slug}`;
+  const key = (file, slug) => `${file}#${slug}`;
   const ensure = (file, section) => {
-    const k = key3(file, section.slug);
+    const k = key(file, section.slug);
     let entry = bySection.get(k);
     if (!entry) {
-      entry = { file, section, scenarios: [], pendingCaptures: [] };
+      entry = { file, section, scenarios: [] };
       bySection.set(k, entry);
     }
     return entry;
@@ -7982,32 +7065,32 @@ function computeCoverage(opts) {
       ensure(file, s);
   const broken = [];
   const unmapped = [];
-  const attach = (id3, refs, into) => {
+  const attach = (id, refs) => {
     for (const raw of refs) {
       const ref = parseCoversRef(raw);
       const sections2 = readSections(ref.file);
       if (sections2 === null) {
-        broken.push({ scenarioId: id3, raw, reason: "file-missing", didYouMean: [] });
+        broken.push({ scenarioId: id, raw, reason: "file-missing", didYouMean: [] });
         continue;
       }
       for (const s of sections2)
         ensure(ref.file, s);
       if (ref.slug === void 0) {
         for (const s of sections2)
-          ensure(ref.file, s)[into].push(id3);
+          ensure(ref.file, s).scenarios.push(id);
         continue;
       }
       const match = sections2.find((s) => s.slug === ref.slug);
       if (!match) {
         broken.push({
-          scenarioId: id3,
+          scenarioId: id,
           raw,
           reason: "section-missing",
           didYouMean: nearest(ref.slug, sections2.map((s) => s.slug))
         });
         continue;
       }
-      ensure(ref.file, match)[into].push(id3);
+      ensure(ref.file, match).scenarios.push(id);
     }
   };
   for (const s of opts.scenarios) {
@@ -8015,10 +7098,8 @@ function computeCoverage(opts) {
       unmapped.push(s.id);
       continue;
     }
-    attach(s.id, s.covers, "scenarios");
+    attach(s.id, s.covers);
   }
-  for (const c of opts.pendingCaptures ?? [])
-    attach(c.id, c.covers, "pendingCaptures");
   const sections = [...bySection.values()].sort((a, b) => a.file.localeCompare(b.file) || a.section.startLine - b.section.startLine);
   const covered = sections.filter((s) => s.scenarios.length > 0);
   const uncovered = sections.filter((s) => s.scenarios.length === 0);
@@ -8031,8 +7112,8 @@ function computeCoverage(opts) {
     pct: sections.length === 0 ? 0 : Math.round(covered.length / sections.length * 100)
   };
 }
-function nearest(target, candidates, limit3 = 3) {
-  return candidates.map((c) => ({ c, d: distance(target, c) })).filter(({ c, d }) => d <= Math.max(3, Math.floor(c.length / 2))).sort((a, b) => a.d - b.d).slice(0, limit3).map(({ c }) => c);
+function nearest(target, candidates, limit = 3) {
+  return candidates.map((c) => ({ c, d: distance(target, c) })).filter(({ c, d }) => d <= Math.max(3, Math.floor(c.length / 2))).sort((a, b) => a.d - b.d).slice(0, limit).map(({ c }) => c);
 }
 function distance(a, b) {
   const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
@@ -8074,13 +7155,13 @@ function formatCoverage(report, skill) {
 }
 
 // packages/core/dist/downgrade.js
-import { existsSync as existsSync13, readdirSync as readdirSync10, statSync as statSync7 } from "node:fs";
+import { existsSync as existsSync13, readdirSync as readdirSync9, statSync as statSync7 } from "node:fs";
 import { join as join17 } from "node:path";
 
 // packages/core/dist/restamp.js
-import { createHash as createHash7 } from "node:crypto";
+import { createHash as createHash5 } from "node:crypto";
 import { execFileSync as execFileSync2 } from "node:child_process";
-import { readFileSync as readFileSync14, renameSync, rmSync as rmSync2, writeFileSync as writeFileSync4 } from "node:fs";
+import { readFileSync as readFileSync12, renameSync, rmSync as rmSync2, writeFileSync as writeFileSync4 } from "node:fs";
 import { dirname as dirname4, join as join19, relative as relative3, resolve as resolve9 } from "node:path";
 
 // packages/core/dist/defaults.js
@@ -8111,2274 +7192,56 @@ function assertJudgeAllowed(judge, opts) {
 }
 
 // packages/core/dist/regate.js
-import { existsSync as existsSync15, readFileSync as readFileSync15, renameSync as renameSync2, writeFileSync as writeFileSync5 } from "node:fs";
+import { existsSync as existsSync15, readFileSync as readFileSync13, renameSync as renameSync2, writeFileSync as writeFileSync5 } from "node:fs";
 import { basename as basename2, join as join20 } from "node:path";
 
-// packages/core/dist/work-capture.js
-import { createHash as createHash8 } from "node:crypto";
-var canonical = (value3) => Array.isArray(value3) ? `[${value3.map(canonical).join(",")}]` : value3 !== null && typeof value3 === "object" ? `{${Object.keys(value3).sort().map((key3) => `${JSON.stringify(key3)}:${canonical(value3[key3])}`).join(",")}}` : JSON.stringify(value3);
-var sha2 = (value3) => createHash8("sha256").update(canonical(value3)).digest("hex");
-function closed(value3, names) {
-  if (!value3 || typeof value3 !== "object" || Array.isArray(value3) || ![Object.prototype, null].includes(Object.getPrototypeOf(value3)))
-    return false;
-  const fields = Object.getOwnPropertyDescriptors(value3);
-  return Reflect.ownKeys(fields).length === names.length && Reflect.ownKeys(fields).every((key3) => typeof key3 === "string" && names.includes(key3) && fields[key3].enumerable && Object.hasOwn(fields[key3], "value"));
-}
-var hash = /^[a-f0-9]{64}$/;
-var text = (s) => typeof s === "string" && s.length > 0 && s.length <= 512 && !/[\u0000-\u001f\u007f]/.test(s);
-function buildWorkCapture(input) {
-  if (!closed(input, ["detector", "target", "classification", "reason", "evidence", "metrics"]) || !closed(input.detector, ["id", "version", "population"]) || !closed(input.target, ["kind", "snapshotDigest", "obligationId", "obligationDigest"]) || !input.metrics || typeof input.metrics !== "object" || !closed(input.metrics, Object.keys(input.metrics)) || !Array.isArray(input.evidence) || input.evidence.length < 1 || input.evidence.length > 256 || Array.from({ length: input.evidence.length }, (_, i) => i).some((i) => !Object.hasOwn(input.evidence, i)))
-    throw new Error("invalid work capture fields");
-  if (![input.detector.id, input.detector.version, input.detector.population, input.target.obligationId].every(text) || input.target.kind !== "work" || !hash.test(input.target.snapshotDigest) || !hash.test(input.target.obligationDigest) || input.evidence.length > 256 || input.evidence.some((e) => !hash.test(e)) || !["candidate_defect", "candidate_exemplar", "coverage_issue"].includes(input.classification) || !["repeat_without_progress", "economical_exemplar", "coverage_gap"].includes(input.reason) || Object.keys(input.metrics).some((k) => !["equivalentAttempts", "measuredCost", "costLimit", "costUnit"].includes(k)) || Object.entries(input.metrics).some(([key3, n]) => key3 === "costUnit" ? !["wall_ms", "tool_calls", "usd"].includes(String(n)) : typeof n !== "number" || !Number.isFinite(n) || n < 0) || input.reason === "repeat_without_progress" && (input.metrics.equivalentAttempts === void 0 || input.metrics.equivalentAttempts < 2) || input.reason === "economical_exemplar" && (input.metrics.measuredCost === void 0 || input.metrics.costLimit === void 0 || input.metrics.costUnit === void 0 || input.metrics.measuredCost > input.metrics.costLimit) || input.metrics.equivalentAttempts !== void 0 && !Number.isSafeInteger(input.metrics.equivalentAttempts))
-    throw new Error("invalid work capture nomination");
-  const expected = { repeat_without_progress: "candidate_defect", economical_exemplar: "candidate_exemplar", coverage_gap: "coverage_issue" };
-  if (input.classification !== expected[input.reason])
-    throw new Error("work capture classification mismatch");
-  const detector = { id: input.detector.id, version: input.detector.version, population: input.detector.population };
-  const target = { kind: "work", snapshotDigest: input.target.snapshotDigest, obligationId: input.target.obligationId, obligationDigest: input.target.obligationDigest };
-  return {
-    capture_schema: 2,
-    id: sha2({ detector, target, reason: input.reason }),
-    detector,
-    target,
-    classification: input.classification,
-    reason: input.reason,
-    evidence: [...new Set(input.evidence)].sort(),
-    metrics: Object.fromEntries(Object.entries(input.metrics).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)),
-    status: "unresolved",
-    visibility: "silent",
-    causalAttribution: "not-established"
-  };
-}
-function validDecision(value3) {
-  return closed(value3, ["caseId", "priorDecisionId", "disposition", "author", "evidence", "note"]) && typeof value3.caseId === "string" && hash.test(value3.caseId) && (value3.priorDecisionId === null || typeof value3.priorDecisionId === "string" && hash.test(value3.priorDecisionId)) && text(value3.author) && typeof value3.note === "string" && value3.note.length <= 4e3 && Array.isArray(value3.evidence) && value3.evidence.length <= 256 && Array.from({ length: value3.evidence.length }, (_, i) => i).every((i) => Object.hasOwn(value3.evidence, i) && typeof value3.evidence[i] === "string" && hash.test(value3.evidence[i])) && ["confirmed_defect", "expected_behavior", "exemplar", "uncertain", "skip"].includes(value3.disposition);
-}
-function appendWorkCaseDecision(history, input) {
-  if (!validDecision(input))
-    throw new Error("invalid case decision");
-  if (history.length > 4096)
-    throw new Error("case decision history exceeds bound");
-  const heads = /* @__PURE__ */ new Map();
-  const seen = /* @__PURE__ */ new Set();
-  for (const decision of history) {
-    if (!closed(decision, ["decision_schema", "id", "caseId", "priorDecisionId", "disposition", "author", "evidence", "note"]) || decision.decision_schema !== 1)
-      throw new Error("invalid case decision history");
-    const { decision_schema: _schema, id: recordedId, ...prior } = decision;
-    if (!validDecision(prior) || sha2(prior) !== recordedId)
-      throw new Error("case decision history identity mismatch");
-    if (seen.has(recordedId))
-      continue;
-    if ((heads.get(decision.caseId) ?? null) !== decision.priorDecisionId)
-      throw new Error("case decision history fork or missing parent");
-    seen.add(recordedId);
-    heads.set(decision.caseId, recordedId);
-  }
-  const body = { ...input, evidence: [...new Set(input.evidence)].sort() };
-  const id3 = sha2(body);
-  if (history.some((d) => d.id === id3))
-    return [...history];
-  const own = history.filter((d) => d.caseId === input.caseId);
-  const last = own.at(-1)?.id ?? null;
-  if (last !== input.priorDecisionId)
-    throw new Error("stale case decision");
-  return [...history, { decision_schema: 1, id: id3, ...body }];
-}
-
-// packages/core/dist/work-signals.js
-import { createHash as createHash9 } from "node:crypto";
-var hash2 = (x) => typeof x === "string" && /^[a-f0-9]{64}$/.test(x);
-var text2 = (x) => typeof x === "string" && x.length > 0 && x.length <= 512 && !/[\u0000-\u001f\u007f]/.test(x);
-function signal(base, reason, metrics, evidence5) {
-  const target = base.target, detector = { id: reason, version: base.detector.version, population: base.detector.population };
-  const id3 = createHash9("sha256").update(JSON.stringify({ capture_schema: 3, detector, target, reason, metrics, evidence: [...new Set(evidence5)].sort() })).digest("hex");
-  return Object.freeze({ ...base, capture_schema: 3, id: id3, detector: Object.freeze(detector), reason, classification: "candidate_defect", metrics: Object.freeze(metrics), evidence: Object.freeze([...new Set(evidence5)].sort()) });
-}
-function detectAdditionalWorkCases(snapshot2, facts) {
-  if (!hash2(snapshot2.snapshotDigest) || !hash2(facts.scopeDigest) || snapshot2.snapshotDigest !== facts.scopeDigest)
-    throw new Error("work signal scope mismatch");
-  if (!text2(facts.version) || facts.version.length > 128 || !text2(facts.population) || !Array.isArray(snapshot2.obligations) || snapshot2.obligations.length > 256 || ![facts.expectedWaits, facts.checkpoints, facts.violations, facts.priorAccepted].every((a) => Array.isArray(a) && a.length <= 256) || facts.expectedWaits.some((d) => !hash2(d)))
-    throw new Error("invalid work signal bounds");
-  for (const o of snapshot2.obligations)
-    if (!text2(o.id) || ![o.digest, o.intentDigest, o.policyDigest].every(hash2) || !(o.artifactDigest === null || hash2(o.artifactDigest)) || !["accepted-under-supplied-authority", "unaccepted", "unresolved"].includes(o.acceptance) || !["available", "unknown", "unavailable", "conflicted"].includes(o.coverage))
-      throw new Error("invalid work signal obligation");
-  for (const c of facts.checkpoints)
-    if (!hash2(c.obligationDigest) || !hash2(c.evidence) || !["met", "pending", "unknown"].includes(c.status) || ![c.deadlineMs, c.observedAt].every((n) => Number.isSafeInteger(n) && n >= 0))
-      throw new Error("invalid declared checkpoint fact");
-  for (const v of facts.violations)
-    if (!hash2(v.obligationDigest) || !hash2(v.evidence) || !["FAIL", "ERROR"].includes(v.status))
-      throw new Error("invalid objective intent fact");
-  for (const p of facts.priorAccepted)
-    if (![p.obligationDigest, p.intentDigest, p.policyDigest, p.artifactDigest, p.acceptanceEvidence].every(hash2))
-      throw new Error("invalid prior acceptance fact");
-  const cases = [];
-  if (snapshot2.scopeValid !== true)
-    return { version: "work-signals-v1", cases, issues: ["scope-unresolved"] };
-  for (const o of snapshot2.obligations) {
-    const base = buildWorkCapture({
-      detector: { id: "coverage_gap", version: `work-signals-v1:${facts.version}`, population: facts.population },
-      target: { kind: "work", snapshotDigest: snapshot2.snapshotDigest, obligationId: o.id, obligationDigest: o.digest },
-      classification: "coverage_issue",
-      reason: "coverage_gap",
-      metrics: {},
-      evidence: [snapshot2.snapshotDigest, o.digest]
-    });
-    const violations = facts.violations.filter((v) => v.obligationDigest === o.digest);
-    const checkpointFacts = facts.checkpoints.filter((c) => c.obligationDigest === o.digest);
-    const checkpointStates = new Set(checkpointFacts.map((c) => JSON.stringify([c.deadlineMs, c.observedAt, c.status, c.evidence])));
-    if (checkpointStates.size > 1) {
-      cases.push(base);
-      continue;
-    }
-    if (o.coverage !== "available" || o.acceptance === "unresolved" || violations.some((v) => v.status === "ERROR")) {
-      cases.push(base);
-      continue;
-    }
-    if (violations.length)
-      cases.push(signal(base, "intent_conflict", { failedChecks: violations.length }, [...base.evidence, ...violations.map((v) => v.evidence)]));
-    if (facts.expectedWaits.includes(o.digest))
-      continue;
-    for (const c of checkpointFacts) {
-      if (c.status === "unknown") {
-        cases.push(base);
-        continue;
-      }
-      if (c.status === "pending" && c.observedAt > c.deadlineMs)
-        cases.push(signal(base, "overdue_checkpoint", { deadlineMs: c.deadlineMs, observedAt: c.observedAt }, [...base.evidence, c.evidence]));
-    }
-    if (o.acceptance === "unaccepted") {
-      const prior = facts.priorAccepted.filter((p) => p.obligationDigest === o.digest && p.intentDigest === o.intentDigest && p.policyDigest === o.policyDigest && p.artifactDigest === o.artifactDigest);
-      if (prior.length)
-        cases.push(signal(base, "reopened_acceptance", {}, [...base.evidence, ...prior.map((p) => p.acceptanceEvidence)]));
-    }
-  }
-  const unique2 = [...new Map(cases.map((c) => [c.id, c])).values()].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-  return { version: "work-signals-v1", cases: unique2, issues: [] };
-}
-
-// packages/core/dist/work-capture-schema.js
-var text3 = { type: "string", minLength: 1, maxLength: 512, pattern: "^[^\\u0000-\\u001f\\u007f]+$" };
-var hash3 = { type: "string", pattern: "^[a-f0-9]{64}$" };
-var closed2 = (properties, required = Object.keys(properties)) => ({ type: "object", properties, required, additionalProperties: false });
-var evidence = { type: "array", items: hash3, minItems: 1, maxItems: 256, uniqueItems: true };
-var metric = { type: "number", minimum: 0 };
-function freeze(value3) {
-  if (value3 && typeof value3 === "object") {
-    Object.values(value3).forEach(freeze);
-    Object.freeze(value3);
-  }
-  return value3;
-}
-var WORK_CAPTURE_SCHEMA = freeze({
-  $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: "https://github.com/mojomanyana/skill-harness/contracts/work-capture/v2/work-case.schema.json",
-  ...closed2({
-    capture_schema: { const: 2 },
-    id: hash3,
-    detector: closed2({ id: text3, version: text3, population: text3 }),
-    target: closed2({ kind: { const: "work" }, snapshotDigest: hash3, obligationId: text3, obligationDigest: hash3 }),
-    classification: { enum: ["candidate_defect", "candidate_exemplar", "coverage_issue"] },
-    reason: { enum: ["repeat_without_progress", "economical_exemplar", "coverage_gap"] },
-    evidence,
-    metrics: closed2({
-      equivalentAttempts: { type: "integer", minimum: 2, maximum: Number.MAX_SAFE_INTEGER },
-      measuredCost: metric,
-      costLimit: metric,
-      costUnit: { enum: ["wall_ms", "tool_calls", "usd"] }
-    }, []),
-    status: { const: "unresolved" },
-    visibility: { const: "silent" },
-    causalAttribution: { const: "not-established" }
-  }),
-  oneOf: [
-    { properties: { reason: { const: "repeat_without_progress" }, classification: { const: "candidate_defect" }, metrics: { required: ["equivalentAttempts"] } } },
-    { properties: { reason: { const: "economical_exemplar" }, classification: { const: "candidate_exemplar" }, metrics: { required: ["measuredCost", "costLimit", "costUnit"] } } },
-    { properties: { reason: { const: "coverage_gap" }, classification: { const: "coverage_issue" } } }
-  ]
-});
-var WORK_CASE_REVIEW_REQUEST_SCHEMA = freeze({
-  $schema: "https://json-schema.org/draft/2020-12/schema",
-  ...closed2({
-    caseManifestId: hash3,
-    priorDecisionId: { anyOf: [hash3, { type: "null" }] },
-    disposition: { enum: ["confirmed_defect", "expected_behavior", "exemplar", "uncertain", "skip"] },
-    note: { type: "string", maxLength: 4e3 }
-  })
-});
-
-// packages/core/dist/factory-calibration.js
-var computedReports = /* @__PURE__ */ new WeakSet();
-var text4 = (x) => typeof x === "string" && x.length > 0 && x.length <= 512 && !/[\u0000-\u001f\u007f]/.test(x);
-function closed3(x, fields) {
-  return x !== null && typeof x === "object" && !Array.isArray(x) && Object.keys(x).length === fields.length && Object.keys(x).every((k) => fields.includes(k));
-}
-function valid(x, outcome = false) {
-  return closed3(x, outcome ? ["id", "incidentId", "component", "kind", "split", "correct"] : ["id", "incidentId", "component", "kind", "split"]) && text4(x.id) && text4(x.incidentId) && closed3(x.component, ["kind", "id", "version", "population"]) && [x.component.id, x.component.version, x.component.population].every(text4) && ["calibration", "heldout", "tuning"].includes(x.split) && (x.component.kind === "detector" ? x.kind === "positive" : x.component.kind === "adjudicator" && ["approval", "rejection"].includes(x.kind)) && (!outcome || typeof x.correct === "boolean");
-}
-var key = (x) => JSON.stringify([x.component.kind, x.component.id, x.component.version, x.component.population, x.kind, x.split]);
-function interval(correct, count) {
-  const z = 1.96, z2 = z * z, p = correct / count, denominator = 1 + z2 / count;
-  const center = (p + z2 / (2 * count)) / denominator;
-  const half = z * Math.sqrt(p * (1 - p) / count + z2 / (4 * count * count)) / denominator;
-  return { lower: Math.max(0, center - half), upper: Math.min(1, center + half) };
-}
-function calibratePredictions(predictions, context = { outcomes: [] }) {
-  if (predictions.length > 1e4 || context.outcomes.length > 1e4 || predictions.some((p) => !valid(p)) || context.outcomes.some((r) => !valid(r, true)))
-    throw new Error("invalid calibration input");
-  const byId = /* @__PURE__ */ new Map();
-  for (const p of predictions) {
-    const previous = byId.get(p.id);
-    if (previous && (key(previous) !== key(p) || previous.incidentId !== p.incidentId))
-      throw new Error("prediction identity conflict");
-    byId.set(p.id, p);
-  }
-  const groups = /* @__PURE__ */ new Map();
-  let excludedTuning = 0;
-  for (const p of byId.values()) {
-    if (p.split === "tuning") {
-      excludedTuning++;
-      continue;
-    }
-    const k = key(p);
-    groups.set(k, [...groups.get(k) ?? [], p]);
-  }
-  const referenceIds = /* @__PURE__ */ new Map();
-  const conflictingIds = /* @__PURE__ */ new Set();
-  for (const r of context.outcomes) {
-    const signature = JSON.stringify([key(r), r.incidentId, r.correct]);
-    if (referenceIds.has(r.id) && referenceIds.get(r.id) !== signature)
-      conflictingIds.add(r.id);
-    referenceIds.set(r.id, signature);
-  }
-  const labels = /* @__PURE__ */ new Map();
-  const conflictedIncidents = /* @__PURE__ */ new Set();
-  for (const r of context.outcomes) {
-    const k = JSON.stringify([key(r), r.incidentId]);
-    if (conflictingIds.has(r.id)) {
-      conflictedIncidents.add(k);
-      continue;
-    }
-    const values = labels.get(k) ?? /* @__PURE__ */ new Set();
-    values.add(r.correct);
-    labels.set(k, values);
-  }
-  const reports = [...groups].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([groupKey, group]) => {
-    const incidents = new Set(group.map((p) => p.incidentId));
-    let correct = 0, incorrect = 0, unresolved = 0, conflicted = 0;
-    for (const incident of incidents) {
-      const incidentKey = JSON.stringify([groupKey, incident]);
-      const outcomes = labels.get(incidentKey) ?? /* @__PURE__ */ new Set();
-      if (outcomes.size !== 1 || conflictedIncidents.has(incidentKey)) {
-        unresolved++;
-        if (outcomes.size > 1 || conflictedIncidents.has(incidentKey))
-          conflicted++;
-      } else if (outcomes.has(true))
-        correct++;
-      else
-        incorrect++;
-    }
-    const resolved = correct + incorrect;
-    return {
-      component: { ...group[0].component },
-      kind: group[0].kind,
-      split: group[0].split,
-      correct,
-      incorrect,
-      resolved,
-      unresolved,
-      conflicted,
-      totalIncidents: incidents.size,
-      precision: resolved ? correct / resolved : null,
-      interval: resolved ? interval(correct, resolved) : null,
-      advisoryOnly: true
-    };
-  });
-  for (const report of reports) {
-    Object.freeze(report.component);
-    if (report.interval)
-      Object.freeze(report.interval);
-    Object.freeze(report);
-    computedReports.add(report);
-  }
-  return { version: "factory-calibration-v1", reports, excludedTuning, referenceBasis: "independently-supplied-host-context", advisoryOnly: true };
-}
-function recommendExposure(report, policy, now) {
-  if (!computedReports.has(report))
-    throw new Error("recompute calibration from predictions and independent reference context before evaluating exposure");
-  const result = (mode, reason) => ({ mode, reason, advisoryOnly: true });
-  if (!policy)
-    return result("silent", "policy-unavailable");
-  if (!text4(policy.id) || !Number.isSafeInteger(policy.minimumResolved) || policy.minimumResolved < 1 || !Number.isSafeInteger(policy.attentionRemaining) || policy.attentionRemaining < 0 || !Number.isFinite(policy.minimumLowerBound) || policy.minimumLowerBound < 0 || policy.minimumLowerBound > 1 || !Number.isFinite(policy.expiresAt) || !Number.isFinite(now) || policy.retireBelowUpperBound !== void 0 && (!Number.isFinite(policy.retireBelowUpperBound) || policy.retireBelowUpperBound < 0 || policy.retireBelowUpperBound > 1))
-    throw new Error("invalid exposure policy");
-  if (key(policy) !== key(report) || now >= policy.expiresAt)
-    return result("silent", "policy-inapplicable-or-expired");
-  if (!report.interval || report.resolved < policy.minimumResolved)
-    return result("silent", "insufficient-independent-evidence");
-  if (policy.retireBelowUpperBound !== void 0 && report.interval.upper < policy.retireBelowUpperBound)
-    return result("retire", "below-selected-reliability-policy");
-  if (report.interval.lower < policy.minimumLowerBound || policy.attentionRemaining === 0)
-    return result("silent", "confidence-or-attention-bound");
-  return result("ask", "selected-evidence-and-attention-policy-met");
-}
-
-// packages/core/dist/adoption.js
-import { createHash as createHash10 } from "node:crypto";
-var SHA = /^[a-f0-9]{64}$/;
-var text5 = (x) => typeof x === "string" && x.length > 0 && x.length <= 512 && !/[\u0000-\u001f\u007f]/.test(x);
-var closed4 = (value3, names) => {
-  if (!value3 || ![Object.prototype, null].includes(Object.getPrototypeOf(value3)))
-    return false;
-  const fields = Object.getOwnPropertyDescriptors(value3);
-  return Reflect.ownKeys(fields).length === names.length && Reflect.ownKeys(fields).every((key3) => typeof key3 === "string" && names.includes(key3) && fields[key3].enumerable && Object.hasOwn(fields[key3], "value"));
-};
-var hash4 = (value3) => createHash10("sha256").update(JSON.stringify(Object.keys(value3).sort().map((k) => [k, value3[k]]))).digest("hex");
-function buildAdoptionBinding(input) {
-  if (!input || !closed4(input, ["hypothesisDigest", "experimentDigest", "candidateDigest", "scopeDigest", "assessmentPolicyDigest", "rollbackCandidateDigest", "activationBoundary", "expiresAt"]) || ![input.hypothesisDigest, input.experimentDigest, input.candidateDigest, input.scopeDigest, input.assessmentPolicyDigest, input.rollbackCandidateDigest].every((s) => typeof s === "string" && SHA.test(s)) || input.activationBoundary !== "next-orders" || !Number.isSafeInteger(input.expiresAt) || input.expiresAt < 0)
-    throw new Error("invalid scoped adoption binding");
-  const body = { version: "adoption-binding-v1", ...input };
-  return Object.freeze({ ...body, id: hash4(body) });
-}
-function bindingValid(binding) {
-  const { version, id: id3, ...input } = binding;
-  if (version !== "adoption-binding-v1" || buildAdoptionBinding(input).id !== id3)
-    throw new Error("adoption binding changed");
-}
-function authorityValid(authority) {
-  return !!authority && text5(authority.id) && Array.isArray(authority.adoptions) && Array.isArray(authority.rollbacks) && authority.adoptions.length <= 256 && authority.rollbacks.length <= 256 && [...authority.adoptions, ...authority.rollbacks].every((id3) => typeof id3 === "string" && SHA.test(id3));
-}
-function authorizeAdoption(binding, authority, facts, now) {
-  bindingValid(binding);
-  if (!authorityValid(authority) || !authority.adoptions.includes(binding.id))
-    throw new Error("independent adoption authority required");
-  if (!Number.isSafeInteger(now) || now < 0 || now >= binding.expiresAt || !facts || !closed4(facts, ["experimentDigest", "candidateDigest", "scopeDigest", "assessmentPolicyDigest", "eligible"]) || facts.eligible !== true || facts.experimentDigest !== binding.experimentDigest || facts.candidateDigest !== binding.candidateDigest || facts.scopeDigest !== binding.scopeDigest || facts.assessmentPolicyDigest !== binding.assessmentPolicyDigest)
-    throw new Error("adoption expired, ineligible or outside verified scope");
-  const body = {
-    version: "adoption-receipt-v1",
-    bindingId: binding.id,
-    authorityId: authority.id,
-    hypothesisDigest: binding.hypothesisDigest,
-    experimentDigest: binding.experimentDigest,
-    candidateDigest: binding.candidateDigest,
-    scopeDigest: binding.scopeDigest,
-    assessmentPolicyDigest: binding.assessmentPolicyDigest,
-    rollbackCandidateDigest: binding.rollbackCandidateDigest,
-    activationBoundary: "next-orders",
-    grantExpansion: false,
-    expiresAt: binding.expiresAt
-  };
-  return Object.freeze({ ...body, id: hash4(body) });
-}
-function receiptValid(receipt) {
-  const { id: id3, ...body } = receipt;
-  if (!closed4(receipt, ["version", "bindingId", "authorityId", "hypothesisDigest", "experimentDigest", "candidateDigest", "scopeDigest", "assessmentPolicyDigest", "rollbackCandidateDigest", "activationBoundary", "grantExpansion", "expiresAt", "id"]) || body.version !== "adoption-receipt-v1" || !text5(body.authorityId) || body.activationBoundary !== "next-orders" || body.grantExpansion !== false || hash4(body) !== id3)
-    throw new Error("adoption receipt changed");
-  const binding = buildAdoptionBinding({
-    hypothesisDigest: body.hypothesisDigest,
-    experimentDigest: body.experimentDigest,
-    candidateDigest: body.candidateDigest,
-    scopeDigest: body.scopeDigest,
-    assessmentPolicyDigest: body.assessmentPolicyDigest,
-    rollbackCandidateDigest: body.rollbackCandidateDigest,
-    activationBoundary: body.activationBoundary,
-    expiresAt: body.expiresAt
-  });
-  if (binding.id !== body.bindingId)
-    throw new Error("adoption receipt binding mismatch");
-}
-function classifyProductionObservation(adoption, input) {
-  receiptValid(adoption);
-  if (!input || !text5(input.id) || input.evidence.length > 256 || input.evidence.some((h) => !SHA.test(h)) || ![input.originalRequirementDigest, input.currentRequirementDigest, input.candidateDigest, input.scopeDigest, input.observedArtifactDigest].every((h) => typeof h === "string" && SHA.test(h)) || ![input.acceptanceDigest, input.acceptedArtifactDigest].every((h) => h === null || typeof h === "string" && SHA.test(h)) || input.acceptanceDigest === null !== (input.acceptedArtifactDigest === null) || !["confirmed-defect", "success", "unknown"].includes(input.outcome))
-    throw new Error("invalid production observation");
-  const state = input.adoptionId !== adoption.id || input.candidateDigest !== adoption.candidateDigest || input.scopeDigest !== adoption.scopeDigest ? "out-of-scope" : input.originalRequirementDigest !== input.currentRequirementDigest ? "changed-requirements" : input.acceptedArtifactDigest !== null && input.acceptedArtifactDigest !== input.observedArtifactDigest ? "changed-artifact" : input.outcome === "confirmed-defect" && input.evidence.length ? input.acceptanceDigest === null ? "caught-defect" : "escape" : input.outcome === "success" ? "success" : "unknown";
-  return Object.freeze({ state, adoptionId: adoption.id, hypothesisDigest: adoption.hypothesisDigest, experimentDigest: adoption.experimentDigest, observationId: input.id, acceptanceDigest: input.acceptanceDigest, acceptedArtifactDigest: input.acceptedArtifactDigest, observedArtifactDigest: input.observedArtifactDigest, automaticRollback: false });
-}
-function buildRollbackRequest(adoption, reason, evidence5, expiresAt = adoption.expiresAt) {
-  receiptValid(adoption);
-  if (!Number.isSafeInteger(expiresAt) || expiresAt < 0 || !["operator-request", "confirmed-escape"].includes(reason) || !evidence5.length || evidence5.length > 256 || evidence5.some((h) => !SHA.test(h)))
-    throw new Error("invalid rollback request");
-  const body = { version: "rollback-request-v1", adoptionId: adoption.id, scopeDigest: adoption.scopeDigest, restoreCandidateDigest: adoption.rollbackCandidateDigest, reason, expiresAt, evidence: Object.freeze([...new Set(evidence5)].sort()) };
-  return Object.freeze({ ...body, id: hash4(body) });
-}
-function authorizeRollback(adoption, request, authority, now, current) {
-  receiptValid(adoption);
-  const { id: id3, ...body } = request;
-  if (!authorityValid(authority) || authority.id !== adoption.authorityId || !authority.rollbacks.includes(id3))
-    throw new Error("independent rollback authority required");
-  if (hash4(body) !== id3 || request.version !== "rollback-request-v1" || request.adoptionId !== adoption.id || request.scopeDigest !== adoption.scopeDigest || request.restoreCandidateDigest !== adoption.rollbackCandidateDigest || !Number.isSafeInteger(now) || now < 0 || !Number.isSafeInteger(request.expiresAt) || now >= request.expiresAt || !current || current.adoptionId !== adoption.id || current.candidateDigest !== adoption.candidateDigest || current.scopeDigest !== adoption.scopeDigest)
-    throw new Error("rollback binding changed or expired");
-  return Object.freeze({ requestId: id3, adoptionId: adoption.id, restoreCandidateDigest: request.restoreCandidateDigest, scopeDigest: adoption.scopeDigest, grantExpansion: false, application: "not-performed" });
-}
-
-// packages/core/dist/investigation.js
-import { createHash as createHash12 } from "node:crypto";
-import { readFileSync as readFileSync17, realpathSync as realpathSync2 } from "node:fs";
-
 // packages/core/dist/spec-write.js
-import { createHash as createHash11 } from "node:crypto";
-import { readFileSync as readFileSync16, renameSync as renameSync3, unlinkSync, writeFileSync as writeFileSync6 } from "node:fs";
+import { createHash as createHash6 } from "node:crypto";
+import { readFileSync as readFileSync14, renameSync as renameSync3, unlinkSync, writeFileSync as writeFileSync6 } from "node:fs";
 import { dirname as dirname5, join as join21 } from "node:path";
-var ConcurrentSpecModification = class extends Error {
-  constructor(specPath) {
-    super(`${specPath} changed on disk since it was read \u2014 refusing to append. Re-read the spec and retry; appending now would validate against a file that no longer exists.`);
-    this.name = "ConcurrentSpecModification";
-  }
-};
-var DuplicateScenarioId = class extends Error {
-  constructor(id3, specPath) {
-    super(`scenario id \`${id3}\` already exists in ${specPath}`);
-    this.name = "DuplicateScenarioId";
-  }
-};
-function specSha256(text15) {
-  return createHash11("sha256").update(text15, "utf8").digest("hex");
-}
-function renderScenarioBlock(scenario) {
-  const dumped = yaml.dump({ scenarios: [scenario] }, { lineWidth: -1, noRefs: true });
-  return "\n" + dumped.replace(/^scenarios:\n/, "");
-}
-function appendScenario(opts) {
-  const { specPath, scenario, baseSha256 } = opts;
-  const current = readFileSync16(specPath, "utf8");
-  if (baseSha256 !== void 0 && specSha256(current) !== baseSha256) {
-    throw new ConcurrentSpecModification(specPath);
-  }
-  const id3 = scenario.id;
-  if (typeof id3 !== "string" || id3.trim() === "") {
-    throw new Error("scenario needs a non-empty string `id`");
-  }
-  const existing = parseSpec(current, specPath);
-  if (existing.scenarios.some((s) => s.id === id3)) {
-    throw new DuplicateScenarioId(id3, specPath);
-  }
-  const block = renderScenarioBlock(scenario);
-  const merged = current + block;
-  parseSpec(merged, specPath);
-  atomicWrite(specPath, merged);
-  return { id: id3, sha256: specSha256(merged), block };
-}
-function atomicWrite(path3, text15) {
-  const tmp = join21(dirname5(path3), `.${Date.now()}-${process.pid}.specwrite.tmp`);
-  try {
-    writeFileSync6(tmp, text15, "utf8");
-    renameSync3(tmp, path3);
-  } catch (err) {
-    try {
-      unlinkSync(tmp);
-    } catch {
-    }
-    throw err;
-  }
-}
 
-// packages/core/dist/investigation.js
-var SHA2 = /^[a-f0-9]{64}$/;
-var keys = (x, expected) => Object.keys(x).sort().join() === [...expected].sort().join();
-var text6 = (x, max = 4e3) => typeof x === "string" && x.length > 0 && x.length <= max;
-function json2(input) {
-  let nodes = 0;
-  const visit = (x, depth) => {
-    if (++nodes > 4096 || depth > 16)
-      throw new Error("investigation JSON exceeds bounds");
-    if (x === null || typeof x === "boolean" || typeof x === "string" || typeof x === "number" && Number.isFinite(x))
-      return x;
-    if (!x || typeof x !== "object" || !Array.isArray(x) && ![Object.prototype, null].includes(Object.getPrototypeOf(x)))
-      throw new Error("plain investigation JSON required");
-    const descriptors = Object.getOwnPropertyDescriptors(x);
-    if (Array.isArray(x)) {
-      if (Object.getPrototypeOf(x) !== Array.prototype || x.length > 256 || Reflect.ownKeys(x).length !== x.length + 1)
-        throw new Error("bounded dense JSON array required");
-      return Array.from({ length: x.length }, (_, i) => {
-        const d = descriptors[String(i)];
-        if (!d || !("value" in d))
-          throw new Error("plain JSON array required");
-        return visit(d.value, depth + 1);
-      });
-    }
-    const out = {};
-    for (const key3 of Reflect.ownKeys(descriptors).sort((a, b) => String(a) < String(b) ? -1 : 1)) {
-      const d = descriptors[key3];
-      if (typeof key3 !== "string" || !d.enumerable || !("value" in d))
-        throw new Error("plain JSON properties required");
-      Object.defineProperty(out, key3, { value: visit(d.value, depth + 1), enumerable: true });
-    }
-    return out;
-  };
-  const result = visit(input, 0);
-  if (Buffer.byteLength(JSON.stringify(result)) > 65536)
-    throw new Error("investigation JSON exceeds byte bound");
-  return result;
-}
-var digest = (x) => createHash12("sha256").update(JSON.stringify(json2(x))).digest("hex");
-function freeze2(value3) {
-  if (value3 && typeof value3 === "object") {
-    Object.values(value3).forEach(freeze2);
-    Object.freeze(value3);
-  }
-  return value3;
-}
-function buildHypothesis(input) {
-  const p = json2(input);
-  if (!keys(p, ["archiveSnapshot", "caseIds", "population", "intervention", "alternatives", "prediction", "downside", "disproof", "rollback", "limits", "effectProfile"]) || !SHA2.test(p.archiveSnapshot) || !Array.isArray(p.caseIds) || !p.caseIds.length || p.caseIds.some((id3) => typeof id3 !== "string" || !SHA2.test(id3)) || ![p.population, p.intervention, p.prediction, p.downside, p.disproof, p.rollback].every((s) => text6(s)) || !Array.isArray(p.alternatives) || !p.alternatives.length || p.alternatives.some((a) => !text6(a)) || !p.limits || !keys(p.limits, ["subjectCalls", "judgeCalls", "wallMs"]) || !Object.values(p.limits).every((n) => Number.isSafeInteger(n) && n >= 0 && n <= 1e9) || !(p.effectProfile === null || text6(p.effectProfile, 512)))
-    throw new Error("invalid bounded hypothesis");
-  return freeze2({ version: "factory-hypothesis-v1", id: digest({ version: "factory-hypothesis-v1", proposal: p }), proposal: p, status: "proposed" });
-}
-
-// packages/core/dist/intervention.js
-import { createHash as createHash13, randomBytes } from "node:crypto";
-var SHA3 = /^[a-f0-9]{64}$/;
-var text7 = (x, max = 512) => typeof x === "string" && x.length > 0 && x.length <= max && !/[\u0000-\u001f\u007f]/.test(x);
-var closed5 = (x, names) => !!x && typeof x === "object" && !Array.isArray(x) && Object.keys(x).sort().join() === [...names].sort().join();
-function canonical2(x, depth = 0) {
-  if (depth > 16)
-    throw new Error("intervention data exceeds depth");
-  if (x === null || typeof x === "string" || typeof x === "boolean" || typeof x === "number" && Number.isFinite(x))
-    return JSON.stringify(x);
-  if (!x || typeof x !== "object" || !Array.isArray(x) && ![Object.prototype, null].includes(Object.getPrototypeOf(x)))
-    throw new Error("plain intervention JSON required");
-  const d = Object.getOwnPropertyDescriptors(x);
-  if (Array.isArray(x)) {
-    if (x.length > 4096 || Reflect.ownKeys(x).length !== x.length + 1)
-      throw new Error("bounded dense array required");
-    return `[${Array.from({ length: x.length }, (_, i) => {
-      if (!d[i] || !Object.hasOwn(d[i], "value"))
-        throw new Error("plain array required");
-      return canonical2(d[i].value, depth + 1);
-    }).join(",")}]`;
-  }
-  return `{${Reflect.ownKeys(d).sort((a, b) => String(a) < String(b) ? -1 : 1).map((k) => {
-    if (typeof k !== "string" || !d[k].enumerable || !Object.hasOwn(d[k], "value"))
-      throw new Error("plain object required");
-    return `${JSON.stringify(k)}:${canonical2(d[k].value, depth + 1)}`;
-  }).join(",")}}`;
-}
-function interventionCanonicalJson(value3) {
-  const bytes3 = canonical2(value3);
-  if (Buffer.byteLength(bytes3) > 2 * 1024 * 1024)
-    throw new Error("intervention data exceeds byte bound");
-  return bytes3;
-}
-var digest2 = (value3) => createHash13("sha256").update(interventionCanonicalJson(value3)).digest("hex");
-function frozen(value3) {
-  if (value3 && typeof value3 === "object") {
-    Object.values(value3).forEach(frozen);
-    Object.freeze(value3);
-  }
-  return value3;
-}
-var clone = (value3) => JSON.parse(canonical2(value3));
-var axes = ["model", "effort", "skill", "prompt", "configuration"];
-function freezeIntervention(input) {
-  const d = clone(input);
-  if (!closed5(d, ["family", "investigationSha256", "resourceMetric", "axes", "common", "proposer", "judge", "cases", "arms"]) || d.family !== "intervention" || !SHA3.test(d.investigationSha256) || !["usd", "wall_ms", "tool_calls"].includes(d.resourceMetric) || !Array.isArray(d.axes) || !d.axes.length || new Set(d.axes).size !== d.axes.length || d.axes.some((a) => !axes.includes(a)) || !closed5(d.common, ["mode", "scenarioSha256", "rubricSha256", "fixtureSha256", "heldoutSha256", "harnessSha256", "judgePolicySha256"]) || !["green", "force"].includes(d.common.mode) || Object.entries(d.common).some(([k, v]) => k !== "mode" && !SHA3.test(v)) || !text7(d.proposer) || !text7(d.judge) || !Array.isArray(d.arms) || d.arms.length < 2 || d.arms.length > 8 || !Array.isArray(d.cases) || !d.cases.length || d.cases.length > 128)
-    throw new Error("invalid intervention manifest");
-  for (const arm of d.arms)
-    if (!closed5(arm, ["id", "configuration"]) || !text7(arm.id, 128) || !closed5(arm.configuration, axes) || !text7(arm.configuration.model) || !text7(arm.configuration.effort) || ["skill", "prompt", "configuration"].some((k) => !SHA3.test(arm.configuration[k])))
-      throw new Error("invalid intervention arm");
-  if (new Set(d.arms.map((a) => a.id)).size !== d.arms.length || new Set(d.cases.map((c) => c.id)).size !== d.cases.length)
-    throw new Error("duplicate intervention identity");
-  for (const c of d.cases)
-    if (!closed5(c, ["id", "criteria", "reps", "threshold", "critical"]) || !text7(c.id, 128) || !Number.isSafeInteger(c.criteria) || c.criteria < 1 || c.criteria > 128 || !Number.isSafeInteger(c.reps) || c.reps < 1 || c.reps > 20 || !Number.isFinite(c.threshold) || c.threshold <= 0 || c.threshold > 1 || typeof c.critical !== "boolean" || (c.critical || c.id.startsWith("B")) && c.threshold !== 1)
-      throw new Error("invalid frozen case policy");
-  const changedAxes = axes.filter((axis) => d.arms.some((a) => a.configuration[axis] !== d.arms[0].configuration[axis]));
-  if (changedAxes.some((axis) => !d.axes.includes(axis)))
-    throw new Error("undeclared intervention axis");
-  const body = { ...d, version: "intervention-comparison-v1", inputDigest: digest2({ common: d.common, cases: d.cases }), changedAxes, deterministicSampling: false };
-  return frozen({ ...body, id: digest2(body) });
-}
-var interventionEvidenceDigest = (value3) => digest2(value3);
-var assessments = /* @__PURE__ */ new WeakSet();
-var assessmentArtifacts = /* @__PURE__ */ new WeakMap();
-function manifestValid(m) {
-  const detached = clone(m);
-  const { version, id: _id, inputDigest: _inputs, changedAxes: _axes, deterministicSampling, ...draft } = detached;
-  if (version !== "intervention-comparison-v1" || deterministicSampling !== false || canonical2(freezeIntervention(draft)) !== canonical2(detached))
-    throw new Error("frozen intervention changed");
-}
-function assertInterventionRoles(manifest, qualification) {
-  manifestValid(manifest);
-  if (!qualification || !qualification.proposer || !qualification.judge || !qualification.subjects || qualification.manifestId !== manifest.id || qualification.proposer.requested !== manifest.proposer || qualification.judge.requested !== manifest.judge || !text7(qualification.proposer.canonical) || !text7(qualification.judge.canonical))
-    throw new Error("independent role qualification required");
-  const reserved = /* @__PURE__ */ new Set([qualification.proposer.canonical, qualification.judge.canonical]);
-  if (reserved.size !== 2 || manifest.arms.some((a) => !Object.hasOwn(qualification.subjects, a.id) || qualification.subjects[a.id].requested !== a.configuration.model || !text7(qualification.subjects[a.id].canonical) || reserved.has(qualification.subjects[a.id].canonical)))
-    throw new Error("role identity conflict or unresolved role");
-}
-function assessIntervention(manifest, evidence5, qualification) {
-  assertInterventionRoles(manifest, qualification);
-  if (evidence5.length > manifest.arms.length || new Set(evidence5.map((e) => e.armId)).size !== evidence5.length || evidence5.some((e) => !manifest.arms.some((a) => a.id === e.armId)))
-    throw new Error("unexpected intervention evidence identity");
-  const retained = /* @__PURE__ */ new Map();
-  let retainedBytes = 0;
-  const arms = manifest.arms.map((arm) => {
-    const e = evidence5.find((e2) => e2.armId === arm.id);
-    let admitted = false;
-    const result2 = (state) => ({ armId: arm.id, state, eligible: state === "MEASURED", artifactDigests: admitted ? [...e.artifactDigests] : [], cost: admitted ? e.cost : null, costUnit: admitted ? e.costUnit : "unknown" });
-    if (!e)
-      return result2("MISSING");
-    if (qualification.evidenceDigests[arm.id] !== interventionEvidenceDigest(e) || !closed5(e, ["armId", "inputDigest", "artifactDigests", "cells", "cost", "costUnit"]) || e.inputDigest !== manifest.inputDigest || !Array.isArray(e.artifactDigests) || e.artifactDigests.length > 4096 || e.artifactDigests.some((h) => !SHA3.test(h)) || !(e.cost === null || Number.isFinite(e.cost) && e.cost >= 0) || e.costUnit !== manifest.resourceMetric || !Array.isArray(e.cells) || new Set(e.artifactDigests).size !== e.artifactDigests.length || e.cells.length !== manifest.cases.reduce((n, c) => n + c.reps, 0))
-      return result2("ERROR");
-    admitted = true;
-    const cells = /* @__PURE__ */ new Map();
-    let error = false, unmeasured = false, unresolved = false, missingOutput = false;
-    for (const c of e.cells) {
-      const spec = manifest.cases.find((s) => s.id === c.caseId), id3 = `${c.caseId}:${c.repetition}`;
-      if (!closed5(c, ["caseId", "repetition", "delivery", "objective", "criteria", "suspect", "artifactSha256"]) || !spec || !Number.isSafeInteger(c.repetition) || c.repetition < 0 || c.repetition >= spec.reps || cells.has(id3) || !["PASS", "NOT-MEASURED", "ERROR"].includes(c.delivery) || !["PASS", "FAIL", "ERROR", "NOT-MEASURED"].includes(c.objective) || !Array.isArray(c.criteria) || typeof c.suspect !== "boolean") {
-        error = true;
-        continue;
-      }
-      cells.set(id3, c);
-      if (c.artifactSha256 !== null && (typeof c.artifactSha256 !== "string" || !SHA3.test(c.artifactSha256) || !e.artifactDigests.includes(c.artifactSha256)))
-        error = true;
-      if (c.delivery === "PASS" && c.objective === "PASS" && c.artifactSha256 === null)
-        missingOutput = true;
-      if (c.delivery !== "PASS" || c.objective !== "PASS") {
-        if (c.criteria.length)
-          error = true;
-        if (c.delivery === "NOT-MEASURED")
-          unmeasured = true;
-        if (c.delivery === "ERROR" || c.objective === "ERROR" || c.objective === "NOT-MEASURED" && c.delivery !== "NOT-MEASURED")
-          error = true;
-      } else if (c.criteria.length !== spec.criteria || c.criteria.some((v) => !["PASS", "FAIL", "UNKNOWN"].includes(v)))
-        error = true;
-      else if (c.suspect || c.criteria.includes("UNKNOWN"))
-        unresolved = true;
-    }
-    if (error)
-      return result2("ERROR");
-    if (unmeasured)
-      return result2("NOT-MEASURED");
-    if (unresolved)
-      return result2("UNRESOLVED");
-    if (missingOutput)
-      return result2("MISSING");
-    const passed = manifest.cases.every((spec) => Array.from(cells.values()).filter((c) => c.caseId === spec.id && c.objective === "PASS" && c.criteria.every((v) => v === "PASS")).length / spec.reps >= spec.threshold);
-    if (!passed)
-      return result2("FAILED");
-    if (!e.artifactDigests.length)
-      return result2("MISSING");
-    for (const hash15 of e.artifactDigests) {
-      const bytes3 = qualification.artifacts?.get(hash15);
-      if (bytes3 === void 0)
-        return result2("MISSING");
-      if (!(bytes3 instanceof Uint8Array) || bytes3.byteLength > 8 * 1024 * 1024)
-        return result2("ERROR");
-      const stable = Buffer.from(bytes3);
-      if (createHash13("sha256").update(stable).digest("hex") !== hash15)
-        return result2("ERROR");
-      if (!retained.has(hash15)) {
-        if (retainedBytes + bytes3.byteLength > 64 * 1024 * 1024)
-          return result2("ERROR");
-        retained.set(hash15, stable);
-        retainedBytes += stable.byteLength;
-      }
-    }
-    return result2("MEASURED");
-  });
-  const eligible = arms.filter((a) => a.eligible), knownCosts = eligible.length && eligible.every((a) => a.cost !== null && a.costUnit === eligible[0].costUnit);
-  const cheapestEligible = knownCosts ? [...eligible].sort((a, b) => a.cost - b.cost || (a.armId < b.armId ? -1 : 1))[0].armId : null;
-  const result = frozen({ manifestId: manifest.id, complete: arms.every((a) => a.state === "MEASURED" || a.state === "FAILED"), arms, cheapestEligible, routingDefault: null, adoptionAuthorized: false });
-  assessments.add(result);
-  assessmentArtifacts.set(result, retained);
-  return result;
-}
-function createBlindComparison(manifest, assessment, fixtureOrPersistedSeed) {
-  manifestValid(manifest);
-  if (!assessments.has(assessment) || assessment.manifestId !== manifest.id || !assessment.complete)
-    throw new Error("complete recomputed intervention assessment required");
-  const seed = fixtureOrPersistedSeed ?? randomBytes(32).toString("hex");
-  if (!SHA3.test(seed))
-    throw new Error("invalid private blinding seed");
-  const assessmentId = digest2(assessment);
-  const eligible = assessment.arms.filter((a) => a.eligible).sort((a, b) => {
-    const left = digest2([seed, manifest.id, assessmentId, a.armId]), right = digest2([seed, manifest.id, assessmentId, b.armId]);
-    return left < right ? -1 : left > right ? 1 : 0;
-  });
-  const mapping = new Map(eligible.map((a, i) => [`variant-${digest2([seed, manifest.id, assessmentId, i]).slice(0, 16)}`, a.armId]));
-  if (mapping.size !== eligible.length)
-    throw new Error("opaque label collision");
-  const cards = [...mapping].map(([label, armId]) => ({ label, artifactDigests: assessment.arms.find((a) => a.armId === armId).artifactDigests }));
-  let choice = null, revealed = false;
-  return Object.freeze({
-    view: () => frozen({ version: "blind-intervention-view-v1", cards, limitations: ["artifact-content-may-disclose-identity"] }),
-    readArtifact(label, hash15) {
-      const armId = mapping.get(label), arm = assessment.arms.find((a) => a.armId === armId);
-      if (!arm || !arm.artifactDigests.includes(hash15))
-        throw new Error("artifact outside blind view");
-      const bytes3 = assessmentArtifacts.get(assessment)?.get(hash15);
-      if (!bytes3)
-        throw new Error("retained blind artifact missing");
-      return Buffer.from(bytes3);
-    },
-    choose(input) {
-      const value3 = clone(input);
-      if (!closed5(value3, ["kind", "labels"]) || !["one", "tie", "none", "insufficient"].includes(value3.kind) || !Array.isArray(value3.labels) || new Set(value3.labels).size !== value3.labels.length || value3.labels.some((l) => !mapping.has(l)) || (value3.kind === "one" ? value3.labels.length !== 1 : value3.kind === "tie" ? value3.labels.length < 2 : value3.labels.length !== 0))
-        throw new Error("invalid blind quality choice");
-      value3.labels.sort();
-      if (revealed && canonical2(choice) !== canonical2(value3))
-        throw new Error("quality choice locked after reveal");
-      choice = frozen(value3);
-      return choice;
-    },
-    reveal() {
-      if (!choice)
-        throw new Error("quality choice required before reveal");
-      revealed = true;
-      return frozen({ manifestId: manifest.id, choice, arms: [...mapping].map(([label, armId]) => ({
-        label,
-        armId,
-        configuration: manifest.arms.find((a) => a.id === armId).configuration,
-        cost: assessment.arms.find((a) => a.armId === armId).cost,
-        costUnit: assessment.arms.find((a) => a.armId === armId).costUnit
-      })), routingDefault: null });
-    }
-  });
-}
-
-// packages/core/dist/intervention-results.js
-import { createHash as createHash14 } from "node:crypto";
-
-// packages/core/dist/affected.js
-import { existsSync as existsSync16, readFileSync as readFileSync18 } from "node:fs";
-import { resolve as resolve10, dirname as dirname6, relative as relative4 } from "node:path";
-function parseDiffHunks(diff) {
-  const hunks = [];
-  let file = null;
-  for (const line of diff.split("\n")) {
-    if (line.startsWith("+++ ")) {
-      const p = line.slice(4).trim();
-      file = p === "/dev/null" ? null : p.replace(/^b\//, "");
-      continue;
-    }
-    if (!line.startsWith("@@") || file === null)
-      continue;
-    const m = /@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(line);
-    if (!m)
-      continue;
-    hunks.push({ file, start: Number(m[1]), count: m[2] === void 0 ? 1 : Number(m[2]) });
-  }
-  return hunks;
-}
-function parseDiffFiles(diff) {
-  const files = /* @__PURE__ */ new Set();
-  for (const line of diff.split("\n")) {
-    const m = /^diff --git a\/(.+?) b\/(.+)$/.exec(line);
-    if (m) {
-      files.add(m[1]);
-      files.add(m[2]);
-    }
-  }
-  return [...files];
-}
-async function gitDiff(repoRoot, base) {
-  const r = await exec("git", ["diff", "--unified=0", base], { cwd: repoRoot, timeoutMs: 6e4 });
-  if (r.code !== 0)
-    throw new Error(`git diff --unified=0 ${base} failed: ${r.stderr.trim() || `exit ${r.code}`}`);
-  return r.stdout;
-}
-function selectAffected(opts) {
-  const { scenarios, specDir, diff, repoRoot } = opts;
-  const reasons = /* @__PURE__ */ new Map();
-  const add = (id3, reason) => {
-    const list3 = reasons.get(id3) ?? [];
-    list3.push(reason);
-    reasons.set(id3, list3);
-  };
-  const selectAll = (why) => {
-    for (const s of scenarios)
-      if (!reasons.has(s.id))
-        add(s.id, { kind: "unmapped-change", detail: why });
-    return {
-      selected: [...reasons.entries()].map(([id3, rs]) => ({ id: id3, reasons: rs })),
-      conservative: true,
-      conservativeReason: why,
-      unmappedFiles: []
-    };
-  };
-  for (const s of scenarios) {
-    if (s.critical)
-      add(s.id, { kind: "critical" });
-    if (/^B/i.test(s.id))
-      add(s.id, { kind: "under-pressure" });
-  }
-  const hunks = parseDiffHunks(diff);
-  const changedFiles = parseDiffFiles(diff);
-  for (const s of scenarios) {
-    if (!s.covers || s.covers.length === 0)
-      add(s.id, { kind: "no-covers-declared" });
-  }
-  const stimulusFiles = (s) => {
-    const files = [];
-    if (s.fixture)
-      files.push(s.fixture);
-    if (s.assert?.post_test)
-      files.push(s.assert.post_test);
-    if (s.systemPromptFile)
-      files.push(s.systemPromptFile);
-    for (const e of s.extensions ?? [])
-      files.push(e);
-    return files;
-  };
-  const changedAbs = new Set(changedFiles.map((f) => resolve10(repoRoot, f)));
-  for (const s of scenarios) {
-    for (const f of stimulusFiles(s)) {
-      const abs = resolve10(specDir, f);
-      const hit = [...changedAbs].some((c) => c === abs || c.startsWith(`${abs}/`));
-      if (hit)
-        add(s.id, { kind: "stimulus-changed", detail: f });
-    }
-  }
-  const sectionsFor = /* @__PURE__ */ new Map();
-  const load4 = (abs) => {
-    if (sectionsFor.has(abs))
-      return sectionsFor.get(abs);
-    const parsed = existsSync16(abs) ? parseSections(readFileSync18(abs, "utf8")) : null;
-    sectionsFor.set(abs, parsed);
-    return parsed;
-  };
-  const coversIndex = /* @__PURE__ */ new Map();
-  for (const s of scenarios) {
-    for (const raw of s.covers ?? []) {
-      const ref = parseCoversRef(raw);
-      const abs = resolve10(specDir, ref.file);
-      const key3 = ref.slug === void 0 ? abs : `${abs}#${ref.slug}`;
-      coversIndex.set(key3, [...coversIndex.get(key3) ?? [], s.id]);
-    }
-  }
-  const skillRoot = dirname6(specDir);
-  const isInstructionText = (abs) => abs.startsWith(`${skillRoot}/`) && !abs.startsWith(`${specDir}/`) && /\.(?:md|markdown)$/i.test(abs);
-  const unmappedFiles = /* @__PURE__ */ new Set();
-  for (const hunk of hunks) {
-    const abs = resolve10(repoRoot, hunk.file);
-    const referenced = [...coversIndex.keys()].some((k) => k === abs || k.startsWith(`${abs}#`));
-    if (!referenced) {
-      if (isInstructionText(abs)) {
-        return selectAll(`${relative4(repoRoot, abs) || hunk.file} is instruction text that no scenario \`covers\` \u2014 the mapping cannot rule it out`);
-      }
-      continue;
-    }
-    const sections = load4(abs);
-    if (sections === null) {
-      return selectAll(`${hunk.file} is referenced by \`covers\` but is not readable \u2014 it may have been renamed or deleted`);
-    }
-    for (const id3 of coversIndex.get(abs) ?? [])
-      add(id3, { kind: "covers", detail: `${hunk.file} (whole file)` });
-    const lines2 = hunk.count === 0 ? [hunk.start] : Array.from({ length: hunk.count }, (_, i) => hunk.start + i);
-    let mappedAny = false;
-    for (const line of lines2) {
-      const section = sectionAtLine(sections, line);
-      if (!section)
-        continue;
-      const ids = coversIndex.get(`${abs}#${section.slug}`) ?? [];
-      for (const id3 of ids)
-        add(id3, { kind: "covers", detail: `${hunk.file}#${section.slug}` });
-      if (ids.length > 0)
-        mappedAny = true;
-    }
-    if (!mappedAny && (coversIndex.get(abs) ?? []).length === 0)
-      unmappedFiles.add(hunk.file);
-  }
-  const rewritten = hunks.filter((h) => h.count > 200);
-  if (rewritten.length > 0) {
-    return selectAll(`${rewritten[0].file} changed by ${rewritten[0].count} lines in one hunk \u2014 too large to map to sections reliably`);
-  }
-  return {
-    selected: [...reasons.entries()].map(([id3, rs]) => ({ id: id3, reasons: rs })),
-    conservative: false,
-    conservativeReason: null,
-    unmappedFiles: [...unmappedFiles]
-  };
-}
-function formatAffected(result, total) {
-  const out = [];
-  if (result.conservative) {
-    out.push(`selecting ALL ${total} scenario(s): ${result.conservativeReason}`);
-  } else {
-    out.push(`selected ${result.selected.length}/${total} scenario(s):`);
-  }
-  for (const s of [...result.selected].sort((a, b) => a.id.localeCompare(b.id))) {
-    out.push(`  ${s.id}  ${s.reasons.map(describe).join(", ")}`);
-  }
-  if (result.unmappedFiles.length) {
-    out.push(`  note: changes in ${result.unmappedFiles.join(", ")} map to no covered section`);
-  }
-  out.push("");
-  out.push("an affected run is partial and never reports SHIP \u2014 a full run still gates a release");
-  return out.join("\n");
-}
-function describe(r) {
-  switch (r.kind) {
-    case "covers":
-      return `covers ${r.detail}`;
-    case "critical":
-      return "critical (always run)";
-    case "under-pressure":
-      return "B-series (always run)";
-    case "stimulus-changed":
-      return `stimulus changed: ${r.detail}`;
-    case "unmapped-change":
-      return `conservative: ${r.detail}`;
-    case "no-covers-declared":
-      return "declares no `covers` \u2014 cannot be ruled out";
-  }
-}
-
-// packages/core/dist/adjudication.js
-import { existsSync as existsSync17, readFileSync as readFileSync19, writeFileSync as writeFileSync7 } from "node:fs";
-import { join as join22 } from "node:path";
-function planAdjudication(input) {
-  const enabled = new Set(input.enabled ?? ["ambiguous", "contradictory", "non_unanimous", "ship_deciding"]);
-  const decisions = [];
-  for (const cell of input.cells) {
-    if (cell.deliveryStatus && cell.deliveryStatus !== "PASS")
-      continue;
-    const triggers = [];
-    if (enabled.has("ambiguous") && (cell.verdict === "JUDGE-AMBIGUOUS" || cell.verdict === "ERROR")) {
-      triggers.push("ambiguous");
-    }
-    if (enabled.has("contradictory") && cell.suspect && cell.verdict !== "JUDGE-AMBIGUOUS" && cell.verdict !== "ERROR") {
-      triggers.push("contradictory");
-    }
-    if (enabled.has("non_unanimous") && isNonUnanimous(cell))
-      triggers.push("non_unanimous");
-    if (enabled.has("ship_deciding") && flipsShipDecision(cell, input))
-      triggers.push("ship_deciding");
-    decisions.push({ id: cell.id, triggers });
-  }
-  const suspectById = new Map(input.cells.map((c) => [c.id, c.suspect]));
-  const fired = decisions.filter((d) => d.triggers.length > 0);
-  const needsTieBreak = input.tieBreakAvailable ? [] : fired.filter((d) => suspectById.get(d.id)).map((d) => d.id);
-  const triggered = fired.map((d) => d.id);
-  const perCell = input.tieBreakAvailable ? 2 : 1;
-  return { decisions, triggered, needsTieBreak, maxAdditionalCalls: triggered.length * perCell };
-}
-function isNonUnanimous(cell) {
-  const reps2 = cell.repVerdicts ?? [];
-  if (reps2.length < 2)
-    return false;
-  const passes = reps2.filter((v) => v === "PASS").length;
-  return passes > 0 && passes < reps2.length;
-}
-function flipsShipDecision(cell, input) {
-  const verdictsWith = (targetVerdict) => input.cells.map((c) => c.id === cell.id ? { id: c.id, verdict: targetVerdict, suspect: false } : { id: c.id, verdict: c.verdict, suspect: c.suspect });
-  const opts = { shipBar: input.shipBar, critical: input.critical };
-  const flipped = cell.verdict === "PASS" ? "FAIL" : "PASS";
-  return score(verdictsWith(cell.verdict), opts).ship !== score(verdictsWith(flipped), opts).ship;
-}
-function collapseJudgments(judgments, trigger) {
-  const collapsed = collapseVotePanel(judgments);
-  return {
-    trigger,
-    judgments,
-    state: collapsed.state,
-    ...collapsed.verdict ? { verdict: collapsed.verdict } : {}
-  };
-}
-function boundAdjudicationToRepetitions(result, scenario, adj) {
-  const criticalAggregate = (result.reps ?? 1) > 1 && effectiveThreshold(result, scenario) === 1;
-  return criticalAggregate && result.judge_verdict !== "PASS" && adj.verdict === "PASS" ? { ...adj, state: "unresolved", verdict: void 0 } : adj;
-}
-function projectAdjudication(result, adj) {
-  if (adj.state === "unresolved") {
-    return {
-      ...result,
-      // Verdict is left as recorded rather than forced to FAIL: `suspect` is what
-      // blocks the ship, and overwriting the verdict would destroy the
-      // first-wave answer an author needs in order to adjudicate.
-      judge_reason: `${adj.judgments.length} judgments disagree (${adj.trigger}) \u2014 resolve or re-judge`,
-      suspect: true,
-      adjudication: adj
-    };
-  }
-  return {
-    ...result,
-    judge_verdict: adj.verdict ?? result.judge_verdict,
-    judge_reason: reasonFor(adj),
-    // A confirmed or tie-broken cell is no longer untrustworthy — that is the
-    // entire point of having asked again.
-    suspect: false,
-    adjudication: adj
-  };
-}
-function projectAdjudicationForScenario(result, scenario, adj) {
-  const bounded = boundAdjudicationToRepetitions(result, scenario, adj);
-  const projected = projectAdjudication(result, bounded);
-  if (bounded !== adj) {
-    projected.judge_reason = `${adj.judgments.length} judgments on one transcript cannot replace a critical all-repetitions aggregate`;
-  }
-  return projected;
-}
-function reasonFor(adj) {
-  const n = adj.judgments.length;
-  const verb = adj.state === "confirmed" ? "confirmed by" : "resolved by majority of";
-  return `${adj.verdict} ${verb} ${n} judgments (${adj.trigger})`;
-}
-async function runAdjudication(opts) {
-  const byId = /* @__PURE__ */ new Map();
-  const log = opts.log ?? (() => {
-  });
-  let callsMade = 0;
-  for (const decision of opts.plan.decisions) {
-    if (decision.triggers.length === 0)
-      continue;
-    const cell = opts.cells.find((c) => c.id === decision.id);
-    if (!cell)
-      continue;
-    const trigger = decision.triggers[0];
-    const judgments = [
-      cell.primaryJudgment ? { ...cell.primaryJudgment, ordinal: 1 } : { ordinal: 1, judge: { ...opts.primaryJudge }, verdict: cell.verdict, reason: cell.reason, suspect: cell.suspect, criteria: cell.criteria ?? [] }
-    ];
-    const second = await opts.rejudge(decision.id, opts.secondaryJudge);
-    callsMade++;
-    judgments.push({ ordinal: 2, judge: { ...opts.secondaryJudge }, ...second });
-    let collapsed = collapseJudgments(judgments, trigger);
-    if (collapsed.state === "unresolved" && opts.tieBreakJudge) {
-      const third = await opts.rejudge(decision.id, opts.tieBreakJudge);
-      callsMade++;
-      judgments.push({ ordinal: 3, judge: { ...opts.tieBreakJudge }, ...third });
-      collapsed = collapseJudgments(judgments, trigger);
-    }
-    log(`  ${decision.id}: ${collapsed.state}${collapsed.verdict ? ` \u2192 ${collapsed.verdict}` : ""} (${judgments.length} judgments)`);
-    byId.set(decision.id, collapsed);
-  }
-  return { byId, callsMade };
-}
-async function adjudicateRun(opts) {
-  const log = opts.log ?? (() => {
-  });
-  const mode = opts.results.mode;
-  const cells = cellsFromResults(opts.runDir, opts.results);
-  const plan = planAdjudication({
-    cells,
-    scenarios: opts.spec.scenarios,
-    shipBar: opts.spec.ship_bar,
-    critical: opts.spec.critical,
-    tieBreakAvailable: opts.tieBreakJudge !== void 0
-  });
-  log(formatAdjudicationPlan(plan, { secondary: opts.secondaryJudge, tieBreak: opts.tieBreakJudge }));
-  if (plan.triggered.length === 0)
-    return opts.results;
-  const byIdScenario = new Map(opts.spec.scenarios.map((s) => [s.id, s]));
-  const { byId, callsMade } = await runAdjudication({
-    plan,
-    cells,
-    primaryJudge: opts.primaryJudge,
-    secondaryJudge: opts.secondaryJudge,
-    tieBreakJudge: opts.tieBreakJudge,
-    log,
-    rejudge: async (id3, judge) => {
-      const scenario = byIdScenario.get(id3);
-      if (!scenario)
-        throw new Error(`adjudication: scenario \`${id3}\` is not in the spec`);
-      return judgeCell({ ...opts, scenario, judge, mode });
-    }
-  });
-  const scenarios = opts.results.scenarios.map((s) => {
-    const adj = byId.get(s.id);
-    if (!adj)
-      return s;
-    const scenario = byIdScenario.get(s.id);
-    const withRepetition = { ...adj, repetition: s.rep_judgments?.[0]?.repetition ?? 0 };
-    const projected = scenario ? projectAdjudicationForScenario(s, scenario, withRepetition) : projectAdjudication(s, withRepetition);
-    const extraCalls = adj.judgments.filter((judgment) => judgment.ordinal > 1).length;
-    projected.metrics = mergeScenarioMetrics(s.metrics, {
-      wall_time_ms: 0,
-      judge_calls: extraCalls,
-      judge_rejudge_calls: extraCalls,
-      subject_metrics_reps: 0,
-      total_reps: s.metrics?.total_reps ?? s.reps ?? 1
-    });
-    return rebuildScenarioResult(projected, s, { objective: "carry", adjudication: "fresh" });
-  });
-  appendJournal(opts.runDir, {
-    event: "adjudication",
-    ts: opts.now(),
-    triggered: plan.triggered,
-    judge_calls: callsMade,
-    unresolved: [...byId.entries()].filter(([, a]) => a.state === "unresolved").map(([id3]) => id3)
-  });
-  const ctx = scoreContextFor(opts.results, opts.spec);
-  return writeResults(opts.runDir, { ...opts.results, scenarios }, ctx);
-}
-async function judgeCell(opts) {
-  const files = findTranscriptFiles(opts.runDir, opts.scenario.id, opts.mode);
-  if (files.length === 0) {
-    throw new Error(`adjudication: no ${opts.mode} transcript for \`${opts.scenario.id}\` in ${opts.runDir} \u2014 transcripts are gitignored, so this needs the run dir that produced them`);
-  }
-  const transcript = readFileSync19(join22(opts.runDir, files[0]), "utf8");
-  const prompt = buildJudgePrompt({
-    skill: opts.spec.skill,
-    persona: opts.spec.judge_persona,
-    scenario: opts.scenario,
-    transcript
-  });
-  const g = await judgeInWorkspace(opts.adapter, opts.judge, prompt, opts.specDir);
-  const rep = repIndexOf(files[0]) ?? void 0;
-  const base = judgeRawPath(opts.runDir, opts.scenario.id, opts.mode, rep);
-  const nth = existsSync17(base.replace(/\.judge\.txt$/, ".judge2.txt")) ? 3 : 2;
-  writeFileSync7(base.replace(/\.judge\.txt$/, `.judge${nth}.txt`), g.raw, "utf8");
-  appendJournal(opts.runDir, {
-    event: "judge-verdict",
-    ts: opts.now(),
-    id: opts.scenario.id,
-    verdict: g.verdict,
-    reason: g.reason,
-    suspect: g.suspect
-  });
-  return { verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, opts.scenario.checklist.length) };
-}
-function cellsFromResults(runDir, results) {
-  return results.scenarios.map((s) => {
-    const primaryJudgment = s.rep_judgments?.find((panel) => panel.repetition === 0)?.judgments[0];
-    const deliveryStatus = s.objective?.assertions.find((assertion) => assertion.kind === "skill_delivered")?.status;
-    return {
-      id: s.id,
-      verdict: s.judge_verdict,
-      reason: s.judge_reason,
-      suspect: s.suspect,
-      repVerdicts: repVerdictsOf(runDir, s, results.mode),
-      criteria: primaryJudgment?.criteria,
-      ...deliveryStatus === "PASS" || deliveryStatus === "NOT-MEASURED" || deliveryStatus === "ERROR" ? { deliveryStatus } : {},
-      ...primaryJudgment ? { primaryJudgment } : {}
-    };
-  });
-}
-function repVerdictsOf(runDir, s, mode) {
-  if (!s.reps || s.reps < 2)
-    return void 0;
-  const out = [];
-  for (let rep = 0; rep < s.reps; rep++) {
-    const path3 = judgeRawPath(runDir, s.id, mode, rep);
-    if (!existsSync17(path3)) {
-      out.push("ERROR");
-      continue;
-    }
-    out.push(parseVerdict(readFileSync19(path3, "utf8")).verdict);
-  }
-  return out.length >= 2 ? out : void 0;
-}
-function resolveAdjudicationJudges(opts) {
-  if (!opts.enabled)
-    return null;
-  let subject = null;
-  try {
-    subject = opts.parseRef(opts.subjectToken);
-  } catch {
-    opts.warn(`  \u26A0 cannot read the run's model (\`${opts.subjectToken}\`) \u2014 skipping the judge\u2260subject check`);
-  }
-  const secondary = opts.secondaryToken ? opts.parseRef(opts.secondaryToken) : opts.primary;
-  const tieBreak = opts.tieBreakToken ? opts.parseRef(opts.tieBreakToken) : void 0;
-  opts.assertAllowed(secondary, "--secondary-judge");
-  if (tieBreak)
-    opts.assertAllowed(tieBreak, "--tie-break-judge");
-  if (subject) {
-    for (const [label, judge] of [["secondary", secondary], ["tie-break", tieBreak]]) {
-      if (judge && opts.resemblesSubject(judge, subject)) {
-        opts.warn(`  \u26A0 ${label} judge (${judge.provider}:${judge.model}) resembles the model under test (${subject.provider}:${subject.model}) \u2014 same-family grading inflates scores.`);
-      }
-    }
-  }
-  return tieBreak ? { secondary, tieBreak } : { secondary };
-}
-function formatAdjudicationPlan(plan, judges) {
-  const stuck = plan.needsTieBreak.length ? [
-    `  ${plan.needsTieBreak.length} of those cannot be SETTLED by this plan: ${plan.needsTieBreak.join(", ")}`,
-    "    (their first judgment misfired, so one more judge cannot reach two clean votes \u2014 the call",
-    "     buys a second opinion to resolve by hand; add a tie-break judge to settle them outright)"
-  ] : [];
-  if (plan.triggered.length === 0) {
-    return ["adjudication: no cell triggered \u2014 no additional judge calls", ...stuck].join("\n");
-  }
-  const lines2 = [
-    `adjudication: ${plan.triggered.length} cell(s) triggered \u2014 up to ${plan.maxAdditionalCalls} additional judge call(s)`,
-    `  secondary judge: ${judges.secondary.provider}:${judges.secondary.model}`
-  ];
-  if (judges.tieBreak)
-    lines2.push(`  tie-break judge: ${judges.tieBreak.provider}:${judges.tieBreak.model}`);
-  else
-    lines2.push("  no tie-break judge \u2014 a disagreement stays unresolved and blocks SHIP");
-  for (const d of plan.decisions) {
-    if (d.triggers.length)
-      lines2.push(`  ${d.id}: ${d.triggers.join(", ")}`);
-  }
-  return [...lines2, ...stuck].join("\n");
-}
-
-// packages/core/dist/qualification-panel-store.js
-import { existsSync as existsSync21, readdirSync as readdirSync15 } from "node:fs";
-import { join as join29 } from "node:path";
-
-// packages/core/dist/qualification-runner.js
-import { spawn as spawn3 } from "node:child_process";
-import { randomBytes as randomBytes3 } from "node:crypto";
-import { closeSync as closeSync5, constants as constants5, existsSync as existsSync20, fstatSync as fstatSync5, lstatSync as lstatSync4, mkdirSync as mkdirSync7, openSync as openSync5, readFileSync as readFileSync24, readdirSync as readdirSync14, realpathSync as realpathSync6, renameSync as renameSync6, rmSync as rmSync5 } from "node:fs";
-import { isAbsolute as isAbsolute9, join as join28 } from "node:path";
-import { setTimeout as sleep2 } from "node:timers/promises";
-
-// packages/core/dist/qualification-capture.js
-import { spawn as spawn2 } from "node:child_process";
-import { closeSync as closeSync2, constants as constants2, fstatSync as fstatSync2, fsyncSync, openSync as openSync2, readFileSync as readFileSync21, writeSync } from "node:fs";
-import { join as join24 } from "node:path";
-import { StringDecoder } from "node:string_decoder";
-
-// packages/core/dist/qualification-config.js
-import { execFileSync as execFileSync3 } from "node:child_process";
-import { createHash as createHash15 } from "node:crypto";
-import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync as readFileSync20, realpathSync as realpathSync3 } from "node:fs";
-import { isAbsolute as isAbsolute7, join as join23 } from "node:path";
-
-// packages/core/dist/qualification-lock.js
-import { existsSync as existsSync18, mkdirSync as mkdirSync5, renameSync as renameSync4, rmSync as rmSync3 } from "node:fs";
-import { join as join25 } from "node:path";
-
-// packages/core/dist/qualification-oauth-directory.js
-import { closeSync as closeSync3, constants as constants3, fstatSync as fstatSync3, lstatSync as lstatSync2, openSync as openSync3, readFileSync as readFileSync22, readdirSync as readdirSync12, realpathSync as realpathSync4 } from "node:fs";
-import { basename as pathBasename, dirname as dirname7, isAbsolute as isAbsolute8, join as join26, resolve as resolve11 } from "node:path";
-
-// packages/core/dist/qualification-store.js
-import { randomBytes as randomBytes2 } from "node:crypto";
-import { closeSync as closeSync4, constants as constants4, existsSync as existsSync19, fsyncSync as fsyncSync2, fstatSync as fstatSync4, linkSync, lstatSync as lstatSync3, mkdirSync as mkdirSync6, openSync as openSync4, readFileSync as readFileSync23, readdirSync as readdirSync13, realpathSync as realpathSync5, renameSync as renameSync5, rmSync as rmSync4, unlinkSync as unlinkSync2, writeFileSync as writeFileSync8 } from "node:fs";
-import { dirname as dirname8, extname as extname2, join as join27, resolve as resolve12 } from "node:path";
-
-// packages/adapters/dist/producer-product.js
-import { existsSync as existsSync23 } from "node:fs";
-import { isAbsolute as isAbsolute14 } from "node:path";
-import { createHash as createHash27 } from "node:crypto";
-
-// packages/adapters/dist/learning-journal.js
-import { constants as constants6, openSync as openSync6, closeSync as closeSync6, readSync, writeSync as writeSync2, fstatSync as fstatSync6, lstatSync as lstatSync5, fsyncSync as fsyncSync3, mkdirSync as mkdirSync8, unlinkSync as unlinkSync3 } from "node:fs";
-import { createHash as createHash16, randomUUID } from "node:crypto";
-import { types as types2 } from "node:util";
-import { isAbsolute as isAbsolute10, join as join30, dirname as dirname9, parse, resolve as resolve13 } from "node:path";
-function learningJson(value3) {
-  const limit3 = 2 * 1024 * 1024, cache = /* @__PURE__ */ new WeakMap(), visiting = /* @__PURE__ */ new WeakSet();
-  const size = (v, depth) => {
-    if (depth > 16)
-      throw Error("learning JSON depth bound");
-    if (v === null || typeof v === "boolean" || typeof v === "string" || typeof v === "number" && Number.isFinite(v)) {
-      if (typeof v === "string" && Buffer.byteLength(v) > limit3)
-        throw Error("learning JSON byte bound");
-      const bytes4 = Buffer.byteLength(JSON.stringify(v));
-      if (bytes4 > limit3)
-        throw Error("learning JSON byte bound");
-      return { bytes: bytes4, height: 0 };
-    }
-    if (!v || typeof v !== "object")
-      throw Error("plain learning JSON required");
-    if (types2.isProxy(v))
-      throw Error("learning proxy refused");
-    const old = cache.get(v);
-    if (old) {
-      if (depth + old.height > 16)
-        throw Error("learning JSON depth bound");
-      return old;
-    }
-    if (visiting.has(v))
-      throw Error("cyclic learning JSON refused");
-    visiting.add(v);
-    const array3 = Array.isArray(v), prototype = Object.getPrototypeOf(v), descriptors = Object.getOwnPropertyDescriptors(v);
-    if (array3 ? prototype !== Array.prototype : prototype !== Object.prototype && prototype !== null)
-      throw Error("plain learning JSON required");
-    const keys7 = Reflect.ownKeys(descriptors);
-    if (array3 && (v.length > 4096 || keys7.length !== v.length + 1))
-      throw Error("dense bounded learning array required");
-    const fields = array3 ? Array.from({ length: v.length }, (_, i) => String(i)) : keys7;
-    let bytes3 = 2, height = 0;
-    for (let i = 0; i < fields.length; i++) {
-      const key3 = fields[i];
-      if (typeof key3 !== "string")
-        throw Error("plain learning property required");
-      const d = descriptors[key3];
-      if (!d || !("value" in d) || !d.enumerable)
-        throw Error("plain learning property required");
-      const child3 = size(d.value, depth + 1);
-      bytes3 += child3.bytes + (i ? 1 : 0) + (array3 ? 0 : Buffer.byteLength(JSON.stringify(key3)) + 1);
-      height = Math.max(height, child3.height + 1);
-      if (bytes3 > limit3)
-        throw Error("learning JSON byte bound");
-    }
-    visiting.delete(v);
-    const result = { bytes: bytes3, height };
-    cache.set(v, result);
-    return result;
-  };
-  size(value3, 0);
-  return interventionCanonicalJson(value3);
-}
-var learningHash = (value3) => createHash16("sha256").update(learningJson(value3)).digest("hex");
-var learningCopy = (value3) => JSON.parse(learningJson(value3));
-var LIMIT = 4 * 1024 * 1024;
-function directory(path3) {
-  if (!isAbsolute10(path3))
-    throw Error("absolute learning directory required");
-  for (let p = path3; ; p = dirname9(p)) {
-    const s2 = lstatSync5(p);
-    if (!s2.isDirectory() || s2.isSymbolicLink())
-      throw Error("learning directory substitution");
-    if (p === parse(p).root)
-      break;
-  }
-  const s = lstatSync5(path3);
-  if (s.mode & 63 || process.getuid && s.uid !== process.getuid())
-    throw Error("private owned learning directory required");
-}
-function sync(path3) {
-  const fd = openSync6(path3, constants6.O_RDONLY | constants6.O_DIRECTORY | constants6.O_NOFOLLOW);
-  try {
-    fsyncSync3(fd);
-  } finally {
-    closeSync6(fd);
-  }
-}
-function learningFile(path3, limit3 = 1024 * 1024) {
-  if (!constants6.O_NOFOLLOW || !constants6.O_NONBLOCK)
-    throw Error("required safe file flags unavailable");
-  if (!isAbsolute10(path3))
-    throw Error("absolute learning file required");
-  for (let p = dirname9(path3); ; p = dirname9(p)) {
-    const s = lstatSync5(p);
-    if (!s.isDirectory() || s.isSymbolicLink())
-      throw Error("learning file ancestor substitution");
-    if (p === parse(p).root)
-      break;
-  }
-  const fd = openSync6(path3, constants6.O_RDONLY | constants6.O_NOFOLLOW | constants6.O_NONBLOCK);
-  try {
-    const s = fstatSync6(fd);
-    if (!s.isFile() || s.nlink !== 1 || s.size > limit3)
-      throw Error("bounded regular learning file required");
-    const out = Buffer.alloc(limit3 + 1);
-    let n = 0;
-    while (n < out.length) {
-      const k = readSync(fd, out, n, out.length - n, n);
-      if (!k)
-        break;
-      n += k;
-    }
-    if (n > limit3)
-      throw Error("learning file bound exceeded");
-    return out.subarray(0, n);
-  } finally {
-    closeSync6(fd);
-  }
-}
-function learningJournal(path3, initial) {
-  if (!constants6.O_NOFOLLOW || !constants6.O_NONBLOCK || !constants6.O_DIRECTORY)
-    throw Error("required safe journal flags unavailable");
-  if (initial !== void 0) {
-    directory(dirname9(path3));
-    mkdirSync8(path3, { mode: 448 });
-    directory(path3);
-    const value3 = learningCopy(initial), body = { prior: null, value: value3 }, record = { ...body, id: learningHash(body) };
-    const fd = openSync6(join30(path3, "events.jsonl"), constants6.O_WRONLY | constants6.O_CREAT | constants6.O_EXCL | constants6.O_NOFOLLOW, 384);
-    try {
-      writeAll(fd, Buffer.from(learningJson(record) + "\n"));
-      fsyncSync3(fd);
-    } finally {
-      closeSync6(fd);
-    }
-    sync(path3);
-    sync(dirname9(path3));
-  }
-  directory(path3);
-  const identity2 = lstatSync5(path3), file = join30(path3, "events.jsonl");
-  const check = () => {
-    directory(path3);
-    const s = lstatSync5(path3);
-    if (s.dev !== identity2.dev || s.ino !== identity2.ino)
-      throw Error("learning directory identity changed");
-  };
-  const read5 = () => {
-    check();
-    const stat = lstatSync5(file);
-    if (stat.mode & 63 || process.getuid && stat.uid !== process.getuid())
-      throw Error("private learning journal required");
-    const text15 = learningFile(file, LIMIT).toString("utf8");
-    if (!text15.endsWith("\n"))
-      throw Error("learning history incomplete");
-    const lines2 = text15.slice(0, -1).split("\n");
-    if (!lines2.length || lines2.length > 4096)
-      throw Error("learning history bound");
-    let prior = null;
-    return lines2.map((line) => {
-      const r = JSON.parse(line);
-      if (learningJson(r) !== line || Object.keys(r).sort().join() !== "id,prior,value" || r.prior !== prior || r.id !== learningHash({ prior, value: r.value }))
-        throw Error("learning history identity mismatch");
-      prior = r.id;
-      return r;
-    });
-  };
-  read5();
-  return { read: read5, append(prior, value3) {
-    check();
-    const lock = join30(path3, "writer.lock"), token = randomUUID();
-    const fd = openSync6(lock, constants6.O_RDWR | constants6.O_CREAT | constants6.O_EXCL | constants6.O_NOFOLLOW, 384), owned = fstatSync6(fd);
-    let error, result;
-    try {
-      writeAll(fd, Buffer.from(token));
-      fsyncSync3(fd);
-      const history = read5();
-      if (history.at(-1).id !== prior)
-        throw Error("stale learning CAS");
-      if (history.length >= 4096)
-        throw Error("learning history bound");
-      const body = { prior, value: learningCopy(value3) }, event = { ...body, id: learningHash(body) }, line = Buffer.from(learningJson(event) + "\n");
-      const out = openSync6(file, constants6.O_WRONLY | constants6.O_APPEND | constants6.O_NOFOLLOW | constants6.O_NONBLOCK);
-      try {
-        const s = fstatSync6(out);
-        if (!s.isFile() || s.nlink !== 1 || s.mode & 63 || s.size + line.length > LIMIT)
-          throw Error("learning append refused");
-        writeAll(out, line);
-        fsyncSync3(out);
-      } finally {
-        closeSync6(out);
-      }
-      sync(path3);
-      result = event;
-    } catch (e) {
-      error = e;
-    } finally {
-      try {
-        const s = lstatSync5(lock);
-        if (s.dev !== owned.dev || s.ino !== owned.ino || learningFile(lock, 128).toString() !== token)
-          throw Error("learning lock ownership lost");
-        unlinkSync3(lock);
-        sync(path3);
-      } catch (e) {
-        error ??= e;
-      } finally {
-        try {
-          closeSync6(fd);
-        } catch (e) {
-          error ??= e;
-        }
-      }
-    }
-    if (error)
-      throw error;
-    return result;
-  } };
-}
-function registerLearningStore(root, kind, key3, target, binding) {
-  if (!/^[a-f0-9]{64}$/.test(key3) || !isAbsolute10(target) || !["weekly", "trust", "intervention", "access", "workspace"].includes(kind))
-    throw Error("invalid learning registration");
-  directory(root);
-  directory(dirname9(target));
-  const parent = join30(root, "learning-stores");
-  try {
-    mkdirSync8(parent, { mode: 448 });
-    sync(root);
-  } catch (e) {
-    if (e.code !== "EEXIST")
-      throw e;
-  }
-  directory(parent);
-  const path3 = join30(parent, `${kind}-${key3}`), initial = { type: "learning-registration-v1", target: resolve13(target), binding };
-  try {
-    learningJournal(path3, initial);
-  } catch (e) {
-    if (e.code !== "EEXIST")
-      throw e;
-    const records2 = learningJournal(path3).read();
-    if (records2.length !== 1 || learningHash(records2[0].value) !== learningHash(initial))
-      throw Error("learning key already bound to another store or input");
-  }
-}
-function verifyLearningStore(root, kind, key3, target, binding) {
-  if (!/^[a-f0-9]{64}$/.test(key3) || !isAbsolute10(target))
-    throw Error("invalid learning registration");
-  const records2 = learningJournal(join30(root, "learning-stores", `${kind}-${key3}`)).read();
-  if (records2.length !== 1 || learningHash(records2[0].value) !== learningHash({ type: "learning-registration-v1", target: resolve13(target), binding }))
-    throw Error("learning store registration mismatch");
-}
-function writeAll(fd, bytes3) {
-  let n = 0;
-  while (n < bytes3.length) {
-    const k = writeSync2(fd, bytes3, n, bytes3.length - n);
-    if (!k)
-      throw Error("learning write stalled");
-    n += k;
-  }
-}
-
-// packages/adapters/dist/intervention-run.js
-import { createHash as createHash19, randomBytes as randomBytes5 } from "node:crypto";
-import { mkdirSync as mkdirSync11 } from "node:fs";
-
-// packages/adapters/dist/evidence-archive.js
-import { closeSync as closeSync7, constants as constants7, fsyncSync as fsyncSync4, fstatSync as fstatSync7, linkSync as linkSync2, lstatSync as lstatSync6, mkdirSync as mkdirSync9, openSync as openSync7, readSync as readSync2, unlinkSync as unlinkSync4, writeFileSync as writeFileSync9 } from "node:fs";
-import { createHash as createHash17, randomUUID as randomUUID2 } from "node:crypto";
-import { join as join31, parse as parse2, resolve as resolve14, sep as sep4 } from "node:path";
-var LIMIT2 = 8 * 1024 * 1024;
-var HASH = /^[a-f0-9]{64}$/;
-var ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-var digest3 = (bytes3) => createHash17("sha256").update(bytes3).digest("hex");
-var absent = (error) => error?.code === "ENOENT";
-function fail(message3) {
-  throw new Error(`archive: ${message3}`);
-}
-function keys2(value3, expected) {
-  return !!value3 && typeof value3 === "object" && !Array.isArray(value3) && Object.keys(value3).length === expected.length && Object.keys(value3).every((key3) => expected.includes(key3));
-}
-function validReference(value3) {
-  if (!keys2(value3, ["schema", "sourceId", "parser", "sha256", "bytes", "retention"]))
-    return false;
-  return value3.schema === "archive-source-v1" && typeof value3.sourceId === "string" && ID.test(value3.sourceId) && keys2(value3.parser, ["id", "version"]) && typeof value3.parser.id === "string" && ID.test(value3.parser.id) && typeof value3.parser.version === "string" && ID.test(value3.parser.version) && typeof value3.sha256 === "string" && HASH.test(value3.sha256) && Number.isSafeInteger(value3.bytes) && Number(value3.bytes) >= 0 && Number(value3.bytes) <= LIMIT2 && typeof value3.retention === "string" && ["exact", "redacted", "reference-only"].includes(value3.retention);
-}
-function directory2(path3, create) {
-  if (!constants7.O_NOFOLLOW || !constants7.O_DIRECTORY || !constants7.O_NONBLOCK)
-    fail("required filesystem flags unavailable");
-  const absolute = resolve14(path3);
-  let current = parse2(absolute).root;
-  for (const part of absolute.slice(current.length).split(sep4).filter(Boolean)) {
-    current = join31(current, part);
-    let stat2;
-    try {
-      stat2 = lstatSync6(current);
-    } catch (error) {
-      if (!absent(error) || !create)
-        throw error;
-      mkdirSync9(current, { mode: 448 });
-      stat2 = lstatSync6(current);
-    }
-    if (stat2.isSymbolicLink())
-      fail("symlink directory refused");
-    if (!stat2.isDirectory())
-      fail("non-directory path refused");
-  }
-  const stat = lstatSync6(absolute);
-  if ((stat.mode & 63) !== 0)
-    fail("archive directory must be private");
-  if (process.getuid && stat.uid !== process.getuid())
-    fail("archive directory owner mismatch");
-}
-function syncDirectory(path3) {
-  const fd = openSync7(path3, constants7.O_RDONLY | constants7.O_DIRECTORY | constants7.O_NOFOLLOW);
-  try {
-    fsyncSync4(fd);
-  } finally {
-    closeSync7(fd);
-  }
-}
-function readVerified(path3, hash15, limit3 = LIMIT2) {
-  const fd = openSync7(path3, constants7.O_RDONLY | constants7.O_NOFOLLOW | constants7.O_NONBLOCK);
-  try {
-    const stat = fstatSync7(fd);
-    if (!stat.isFile() || stat.size > limit3 || (stat.mode & 63) !== 0)
-      fail("invalid retained file");
-    const buffer = Buffer.alloc(limit3 + 1);
-    let size = 0;
-    while (size <= limit3) {
-      const count = readSync2(fd, buffer, size, buffer.length - size, size);
-      if (!count)
-        break;
-      size += count;
-    }
-    if (size > limit3)
-      fail("retained byte limit exceeded");
-    const bytes3 = buffer.subarray(0, size);
-    if (digest3(bytes3) !== hash15)
-      fail("content identity mismatch");
-    return bytes3;
-  } finally {
-    closeSync7(fd);
-  }
-}
-function put(root, category, bytes3) {
-  const hash15 = digest3(bytes3);
-  const dir = join31(root, category);
-  directory2(dir, true);
-  const target = join31(dir, hash15);
-  try {
-    readVerified(target, hash15);
-    return hash15;
-  } catch (error) {
-    if (!absent(error))
-      throw error;
-  }
-  const temporary = join31(dir, `.pending-${randomUUID2()}`);
-  let owned = false;
-  try {
-    const fd = openSync7(temporary, constants7.O_WRONLY | constants7.O_CREAT | constants7.O_EXCL | constants7.O_NOFOLLOW, 384);
-    owned = true;
-    try {
-      writeFileSync9(fd, bytes3);
-      fsyncSync4(fd);
-    } finally {
-      closeSync7(fd);
-    }
-    try {
-      linkSync2(temporary, target);
-    } catch (error) {
-      if (error.code !== "EEXIST")
-        throw error;
-      readVerified(target, hash15);
-    }
-  } finally {
-    if (owned)
-      unlinkSync4(temporary);
-  }
-  syncDirectory(dir);
-  return hash15;
-}
-function retainArchiveSource(root, input) {
-  if (!(input.bytes instanceof Uint8Array))
-    fail("bytes required");
-  if (input.bytes.byteLength > LIMIT2)
-    fail("source byte limit exceeded");
-  const bytes3 = Buffer.from(input.bytes);
-  const reference3 = {
-    schema: "archive-source-v1",
-    sourceId: input.sourceId,
-    parser: { id: input.parser?.id, version: input.parser?.version },
-    sha256: digest3(bytes3),
-    bytes: bytes3.length,
-    retention: input.retention
-  };
-  if (!validReference(reference3))
-    fail("invalid metadata or retention policy");
-  directory2(root, true);
-  if (reference3.retention !== "reference-only")
-    put(root, "objects", bytes3);
-  const manifestId = put(root, "manifests", Buffer.from(JSON.stringify(reference3)));
-  syncDirectory(resolve14(root));
-  return { manifestId, reference: reference3 };
-}
-function readArchiveSourceReference(root, manifestId) {
-  if (!HASH.test(manifestId))
-    return { status: "error", reason: "invalid manifest identity" };
-  try {
-    directory2(root, false);
-    directory2(join31(root, "manifests"), false);
-    const text15 = readVerified(join31(root, "manifests", manifestId), manifestId, 8192).toString("utf8");
-    const reference3 = JSON.parse(text15);
-    if (!validReference(reference3) || JSON.stringify(reference3) !== text15)
-      fail("invalid manifest");
-    return { status: "available", reference: reference3 };
-  } catch (error) {
-    return absent(error) ? { status: "missing", reason: "manifest" } : { status: "error", reason: "invalid or inaccessible retained evidence" };
-  }
-}
-function readArchiveSource(root, manifestId, maxBytes = LIMIT2) {
-  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > LIMIT2)
-    return { status: "error", reason: "invalid read bound" };
-  try {
-    const manifest = readArchiveSourceReference(root, manifestId);
-    if (manifest.status !== "available")
-      return manifest;
-    const { reference: reference3 } = manifest;
-    if (reference3.retention === "reference-only")
-      return { status: "missing", reason: "not-retained" };
-    if (reference3.bytes > maxBytes)
-      return { status: "error", reason: "read bound exceeded" };
-    let bytes3;
-    try {
-      directory2(join31(root, "objects"), false);
-      bytes3 = readVerified(join31(root, "objects", reference3.sha256), reference3.sha256, maxBytes);
-    } catch (error) {
-      if (absent(error))
-        return { status: "missing", reason: "content" };
-      throw error;
-    }
-    if (bytes3.length !== reference3.bytes)
-      fail("retained length mismatch");
-    return { status: "available", reference: reference3, bytes: bytes3 };
-  } catch {
-    return { status: "error", reason: "invalid or inaccessible retained evidence" };
-  }
-}
-
-// packages/adapters/dist/blind-intervention.js
-import { constants as constants8, closeSync as closeSync8, fstatSync as fstatSync8, fsyncSync as fsyncSync5, lstatSync as lstatSync7, mkdirSync as mkdirSync10, openSync as openSync8, readSync as readSync3, writeSync as writeSync3 } from "node:fs";
-import { createHash as createHash18, randomBytes as randomBytes4 } from "node:crypto";
-import { join as join32 } from "node:path";
-var SHA4 = /^[a-f0-9]{64}$/;
-var missing = (e) => e?.code === "ENOENT";
-var encode = interventionCanonicalJson;
-function keys3(value3, names) {
-  if (!value3 || typeof value3 !== "object" || Array.isArray(value3) || Object.keys(value3).sort().join() !== names.sort().join())
-    throw new Error("invalid blind record fields");
-}
-function authorValid(author) {
-  if (typeof author !== "string" || !author.length || author.length > 512 || /[\u0000-\u001f\u007f]/.test(author))
-    throw new Error("explicit blind author required");
-}
-function claimsValid(claims, manifest) {
-  keys3(claims, ["manifestId", "proposer", "judge", "subjects", "evidenceDigests"]);
-  for (const role of [claims.proposer, claims.judge])
-    keys3(role, ["requested", "canonical"]);
-  keys3(claims.subjects, manifest.arms.map((a) => a.id));
-  keys3(claims.evidenceDigests, manifest.arms.map((a) => a.id));
-  for (const role of Object.values(claims.subjects))
-    keys3(role, ["requested", "canonical"]);
-}
-function load2(root, id3, author) {
-  authorValid(author);
-  const source3 = readArchiveSource(root, id3);
-  if (source3.status !== "available" || source3.reference.retention !== "exact" || source3.reference.parser.id !== "blind-intervention" || source3.reference.parser.version !== "1")
-    throw new Error("blind input unavailable");
-  let bundle;
-  try {
-    const text15 = new TextDecoder("utf-8", { fatal: true }).decode(source3.bytes);
-    bundle = JSON.parse(text15);
-    if (encode(bundle) !== text15)
-      throw new Error();
-  } catch {
-    throw new Error("invalid blind input JSON");
-  }
-  keys3(bundle, ["version", "manifest", "evidence", "qualification", "artifacts", "seed", "author"]);
-  if (bundle.version !== "retained-blind-intervention-v1" || bundle.author !== author)
-    throw new Error("blind author or version mismatch");
-  claimsValid(bundle.qualification, bundle.manifest);
-  if (!Array.isArray(bundle.artifacts) || bundle.artifacts.length > 4096)
-    throw new Error("invalid blind artifacts");
-  const artifacts = /* @__PURE__ */ new Map();
-  let total = 0;
-  for (const ref of bundle.artifacts) {
-    keys3(ref, ["hash", "manifestId"]);
-    if (!SHA4.test(ref.hash) || artifacts.has(ref.hash))
-      throw new Error("invalid blind artifact identity");
-    const artifact = readArchiveSource(root, ref.manifestId);
-    if (artifact.status !== "available" || artifact.reference.retention !== "exact" || artifact.reference.parser.id !== "blind-artifact" || artifact.reference.parser.version !== "1" || artifact.reference.sha256 !== ref.hash || (total += artifact.bytes.length) > 64 * 1024 * 1024)
-      throw new Error("blind artifact unavailable");
-    artifacts.set(ref.hash, artifact.bytes);
-  }
-  const assessment = assessIntervention(bundle.manifest, bundle.evidence, { ...bundle.qualification, artifacts });
-  return { blind: createBlindComparison(bundle.manifest, assessment, bundle.seed), manifest: bundle.manifest };
-}
-function readBlindInterventionBinding(root, id3, author) {
-  const { manifest } = load2(root, id3, author);
-  return Object.freeze({ experimentDigest: manifest.id, investigationDigest: manifest.investigationSha256 });
-}
-function directory3(path3) {
-  const s = lstatSync7(path3);
-  if (!s.isDirectory() || s.isSymbolicLink() || s.mode & 63 || process.getuid && s.uid !== process.getuid())
-    throw new Error("private blind directory required");
-}
-function syncDirectory2(path3) {
-  const fd = openSync8(path3, constants8.O_RDONLY | constants8.O_DIRECTORY | constants8.O_NOFOLLOW);
-  try {
-    fsyncSync5(fd);
-  } finally {
-    closeSync8(fd);
-  }
-}
-function readChoice(root, id3) {
-  const parent = join32(root, "blind-decisions"), dir = join32(parent, id3);
-  try {
-    directory3(parent);
-    directory3(dir);
-  } catch (e) {
-    if (missing(e))
-      return null;
-    throw e;
-  }
-  let fd;
-  try {
-    fd = openSync8(join32(dir, "choice.json"), constants8.O_RDONLY | constants8.O_NOFOLLOW | constants8.O_NONBLOCK);
-  } catch (e) {
-    if (missing(e))
-      throw new Error("blind choice incomplete; explicit recovery required");
-    throw e;
-  }
-  try {
-    const s = fstatSync8(fd);
-    if (!s.isFile() || s.nlink !== 1 || s.mode & 63 || process.getuid && s.uid !== process.getuid() || s.size > 16384)
-      throw new Error("invalid blind choice file");
-    const bytes3 = Buffer.alloc(16385);
-    let used = 0;
-    while (used < bytes3.length) {
-      const n = readSync3(fd, bytes3, used, bytes3.length - used, used);
-      if (!n)
-        break;
-      used += n;
-    }
-    if (used > 16384)
-      throw new Error("invalid blind choice bound");
-    try {
-      const text15 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3.subarray(0, used));
-      const value3 = JSON.parse(text15);
-      if (encode(value3) !== text15)
-        throw new Error();
-      return value3;
-    } catch {
-      throw new Error("invalid blind choice JSON; explicit recovery required");
-    }
-  } finally {
-    closeSync8(fd);
-  }
-}
-function openBlindIntervention(root, id3, author) {
-  if (!SHA4.test(id3))
-    throw new Error("invalid blind comparison identity");
-  const current = () => load2(root, id3, author).blind;
-  return Object.freeze({
-    view: () => current().view(),
-    quality() {
-      const blind = current(), choice = readChoice(root, id3);
-      return choice ? blind.choose(choice) : null;
-    },
-    previewChoice(input) {
-      return current().choose(input);
-    },
-    readArtifact: (label, hash15) => current().readArtifact(label, hash15),
-    choose(input) {
-      const blind = current(), choice = blind.choose(input);
-      const before = readChoice(root, id3);
-      if (before) {
-        blind.choose(before);
-        if (encode(before) !== encode(choice))
-          throw new Error("blind quality choice locked");
-        return before;
-      }
-      const parent = join32(root, "blind-decisions"), dir = join32(parent, id3);
-      try {
-        mkdirSync10(parent, { mode: 448 });
-      } catch (e) {
-        if (e.code !== "EEXIST")
-          throw e;
-      }
-      directory3(parent);
-      mkdirSync10(dir, { mode: 448 });
-      const fd = openSync8(join32(dir, "choice.json"), constants8.O_WRONLY | constants8.O_CREAT | constants8.O_EXCL | constants8.O_NOFOLLOW, 384);
-      try {
-        const data = Buffer.from(encode(choice));
-        let offset = 0;
-        while (offset < data.length) {
-          const n = writeSync3(fd, data, offset, data.length - offset);
-          if (!n)
-            throw new Error("blind choice write stalled");
-          offset += n;
-        }
-        fsyncSync5(fd);
-      } finally {
-        closeSync8(fd);
-      }
-      syncDirectory2(dir);
-      syncDirectory2(parent);
-      syncDirectory2(root);
-      return choice;
-    },
-    reveal() {
-      const blind = current(), choice = readChoice(root, id3);
-      if (!choice)
-        throw new Error("durable quality choice required before reveal");
-      blind.choose(choice);
-      return blind.reveal();
-    }
-  });
-}
-
-// packages/adapters/dist/codex-host-observer.js
-import { createHash as createHash21, randomBytes as randomBytes6 } from "node:crypto";
-
-// packages/adapters/dist/codex-sdk-transport.js
-import { createHash as createHash20 } from "node:crypto";
-import { PassThrough, Writable } from "node:stream";
-import { isDeepStrictEqual } from "node:util";
-import * as zlib from "node:zlib";
-var fixtureCredential = "fixture." + Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: "fixture-no-account" } })).toString("base64url") + ".invalid";
-
-// packages/adapters/dist/codex-producer-ipc.js
-import { createHash as createHash22 } from "node:crypto";
-
-// packages/adapters/dist/codex-diagnostic-model.js
-import { createHash as createHash23 } from "node:crypto";
-import { isAbsolute as isAbsolute11 } from "node:path";
-
-// packages/adapters/dist/codex-subscription.js
-import { existsSync as existsSync22, realpathSync as realpathSync7 } from "node:fs";
-import { dirname as dirname10, isAbsolute as isAbsolute12, resolve as resolve15 } from "node:path";
-import { Readable } from "node:stream";
-var CODEX_RUNTIME_FILES = Object.freeze(["node_modules/@earendil-works/pi-ai/dist/api/openai-codex-responses.js", "node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js", "node_modules/@earendil-works/pi-ai/dist/providers/data/openai-codex.json", "dist/core/auth-storage.js"]);
-
-// packages/adapters/dist/weekly-investigation.js
-import { createHash as createHash26 } from "node:crypto";
-import { isAbsolute as isAbsolute13 } from "node:path";
-import { constants as constants10, openSync as openSync10, fstatSync as fstatSync10, writeSync as writeSync5, fsyncSync as fsyncSync7, closeSync as closeSync10, realpathSync as realpathSync8 } from "node:fs";
-
-// packages/adapters/dist/archive-read-capability.js
-import { createHash as createHash24 } from "node:crypto";
-import { performance as performance2 } from "node:perf_hooks";
-
-// packages/adapters/dist/work-case-review.js
-import { constants as constants9, closeSync as closeSync9, fstatSync as fstatSync9, fsyncSync as fsyncSync6, lstatSync as lstatSync8, mkdirSync as mkdirSync12, openSync as openSync9, readSync as readSync4, unlinkSync as unlinkSync5, writeFileSync as writeFileSync10, writeSync as writeSync4 } from "node:fs";
-import { randomUUID as randomUUID3 } from "node:crypto";
-import { join as join33 } from "node:path";
-
-// packages/adapters/dist/work-candidates.js
-import { createHash as createHash25 } from "node:crypto";
-
-// packages/adapters/dist/work-case-archive.js
-function validate(value3) {
-  if (!value3 || value3.capture_schema !== 2 || value3.status !== "unresolved" || value3.visibility !== "silent" || value3.causalAttribution !== "not-established")
-    throw new Error("invalid work case state");
-  const built = buildWorkCapture({
-    detector: value3.detector,
-    target: value3.target,
-    classification: value3.classification,
-    reason: value3.reason,
-    evidence: value3.evidence,
-    metrics: value3.metrics
-  });
-  if (built.id !== value3.id || Object.keys(value3).sort().join() !== Object.keys(built).sort().join())
-    throw new Error("invalid work case identity");
-  return built;
-}
-function readWorkCandidate(root, manifestId) {
-  const source3 = readArchiveSource(root, manifestId);
-  if (source3.status !== "available" || source3.reference.retention !== "exact" || source3.reference.parser.id !== "work-capture" || source3.reference.parser.version !== "2")
-    throw new Error("work case missing or invalid");
-  const value3 = validate(JSON.parse(source3.bytes.toString("utf8")));
-  if (source3.reference.sourceId !== `work-case-${value3.id}`)
-    throw new Error("work case source mismatch");
-  return value3;
-}
-
-// packages/adapters/dist/work-signal-observation.js
-var LIMIT3 = 1024 * 1024;
-function closed6(value3, keys7) {
-  if (!value3 || typeof value3 !== "object" || Array.isArray(value3) || ![Object.prototype, null].includes(Object.getPrototypeOf(value3)))
-    throw new Error("closed work signal object required");
-  const descriptors = Object.getOwnPropertyDescriptors(value3), names = Reflect.ownKeys(value3);
-  if (names.length !== keys7.length || names.some((k) => typeof k !== "string" || !keys7.includes(k) || !descriptors[k].enumerable || !Object.hasOwn(descriptors[k], "value")))
-    throw new Error("closed work signal fields required");
-}
-function array(value3) {
-  if (!Array.isArray(value3) || Object.getPrototypeOf(value3) !== Array.prototype || value3.length > 256 || Reflect.ownKeys(value3).length !== value3.length + 1)
-    throw new Error("bounded dense work signal array required");
-  for (let i = 0; i < value3.length; i++) {
-    const d = Object.getOwnPropertyDescriptor(value3, String(i));
-    if (!d || !d.enumerable || !Object.hasOwn(d, "value"))
-      throw new Error("dense work signal data array required");
-  }
-}
-function canonical3(value3) {
-  if (Array.isArray(value3))
-    return `[${value3.map(canonical3).join(",")}]`;
-  if (value3 !== null && typeof value3 === "object")
-    return `{${Object.keys(value3).sort().map((k) => `${JSON.stringify(k)}:${canonical3(value3[k])}`).join(",")}}`;
-  return JSON.stringify(value3);
-}
-function validate2(value3) {
-  closed6(value3, ["observation_schema", "snapshot", "facts"]);
-  if (value3.observation_schema !== "work-signal-observation-v1")
-    throw new Error("unsupported work signal observation");
-  closed6(value3.snapshot, ["snapshotDigest", "scopeValid", "obligations"]);
-  closed6(value3.facts, ["scopeDigest", "version", "population", "expectedWaits", "checkpoints", "violations", "priorAccepted"]);
-  const s = value3.snapshot, f = value3.facts;
-  if (typeof s.scopeValid !== "boolean")
-    throw new Error("invalid work signal scope state");
-  array(s.obligations);
-  array(f.expectedWaits);
-  array(f.checkpoints);
-  array(f.violations);
-  array(f.priorAccepted);
-  const seen = /* @__PURE__ */ new Set();
-  for (const o of s.obligations) {
-    closed6(o, ["id", "digest", "intentDigest", "policyDigest", "artifactDigest", "acceptance", "coverage"]);
-    if (seen.has(o.digest))
-      throw new Error("duplicate work signal obligation identity");
-    seen.add(o.digest);
-  }
-  for (const c of f.checkpoints)
-    closed6(c, ["obligationDigest", "deadlineMs", "observedAt", "status", "evidence"]);
-  for (const v of f.violations)
-    closed6(v, ["obligationDigest", "status", "evidence"]);
-  for (const p of f.priorAccepted)
-    closed6(p, ["obligationDigest", "intentDigest", "policyDigest", "artifactDigest", "acceptanceEvidence"]);
-  const input = value3;
-  detectAdditionalWorkCases(input.snapshot, input.facts);
-  return input;
-}
-function readWorkSignalObservation(root, manifestId) {
-  const stored = readArchiveSource(root, manifestId);
-  if (stored.status !== "available" || stored.reference.retention !== "exact" || stored.reference.parser.id !== "work-signal-observation" || stored.reference.parser.version !== "1" || stored.bytes.length > LIMIT3)
-    throw new Error("work signal observation unavailable or unsupported");
-  let text15, decoded;
-  try {
-    text15 = new TextDecoder("utf-8", { fatal: true }).decode(stored.bytes);
-    decoded = JSON.parse(text15);
-  } catch {
-    throw new Error("invalid work signal observation JSON");
-  }
-  const input = validate2(decoded);
-  if (canonical3(input) !== text15 || stored.reference.sourceId !== `work-signals-${input.snapshot.snapshotDigest}`)
-    throw new Error("work signal observation binding mismatch");
-  return { manifestId, inputSha256: stored.reference.sha256, input, detection: detectAdditionalWorkCases(input.snapshot, input.facts) };
-}
-
-// packages/adapters/dist/work-signal-cases.js
-var SHA5 = /^[a-f0-9]{64}$/;
-var hash5 = (v) => typeof v === "string" && SHA5.test(v);
-function read(root, id3, parser) {
-  const source3 = readArchiveSource(root, id3);
-  if (source3.status !== "available" || source3.reference.retention !== "exact" || source3.reference.parser.id !== parser || source3.reference.parser.version !== "1" || source3.bytes.length > 128 * 1024)
-    throw new Error("work signal case evidence unavailable or unsupported");
-  let value3;
-  try {
-    value3 = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(source3.bytes));
-  } catch {
-    throw new Error("invalid work signal case JSON");
-  }
-  return { value: value3, sourceId: source3.reference.sourceId };
-}
-function closed7(v, keys7) {
-  if (!v || typeof v !== "object" || Array.isArray(v) || Object.keys(v).sort().join() !== [...keys7].sort().join())
-    throw new Error("invalid closed work signal case record");
-}
-function readWorkSignalCase(root, manifestId) {
-  const { value: value3, sourceId } = read(root, manifestId, "work-signal-case");
-  closed7(value3, ["version", "observationId", "caseId"]);
-  if (value3.version !== "work-signal-case-v1" || !hash5(value3.observationId) || !hash5(value3.caseId) || sourceId !== `work-signal-case-${value3.caseId}`)
-    throw new Error("work signal case binding mismatch");
-  const observation = readWorkSignalObservation(root, value3.observationId);
-  const candidate = observation.detection.cases.find((c) => c.id === value3.caseId);
-  if (!candidate)
-    throw new Error("case is not nominated by frozen work signal inputs");
-  return { observationId: value3.observationId, candidate };
-}
-function readWorkSignalBatch(root, manifestId) {
-  const { value: value3, sourceId } = read(root, manifestId, "work-signal-batch");
-  closed7(value3, ["version", "observationId", "candidateIds", "visibility", "promotion"]);
-  if (value3.version !== "work-signal-batch-v1" || !hash5(value3.observationId) || sourceId !== `work-signal-batch-${value3.observationId}` || value3.visibility !== "silent" || value3.promotion !== "not-authorized" || !Array.isArray(value3.candidateIds) || value3.candidateIds.length > 1024 || !value3.candidateIds.every(hash5) || new Set(value3.candidateIds).size !== value3.candidateIds.length)
-    throw new Error("invalid work signal batch binding");
-  const observation = readWorkSignalObservation(root, value3.observationId);
-  return { observationId: value3.observationId, candidateIds: value3.candidateIds, issues: observation.detection.issues };
-}
-
-// packages/adapters/dist/work-case-review.js
-var SHA6 = /^[a-f0-9]{64}$/;
-var missing2 = (error) => error?.code === "ENOENT";
-function assertDirectory(path3) {
-  const stat = lstatSync8(path3);
-  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.mode & 63 || process.getuid && stat.uid !== process.getuid())
-    throw new Error("private case directory required");
-}
-function syncDirectory3(path3) {
-  const fd = openSync9(path3, constants9.O_RDONLY | constants9.O_DIRECTORY | constants9.O_NOFOLLOW);
-  try {
-    fsyncSync6(fd);
-  } finally {
-    closeSync9(fd);
-  }
-}
-function privateDirectory(path3) {
-  let created = false;
-  try {
-    mkdirSync12(path3, { mode: 448 });
-    created = true;
-  } catch (error) {
-    if (error.code !== "EEXIST")
-      throw error;
-  }
-  assertDirectory(path3);
-  return created;
-}
-function bytes(path3, limit3) {
-  const fd = openSync9(path3, constants9.O_RDONLY | constants9.O_NOFOLLOW | constants9.O_NONBLOCK);
-  try {
-    const stat = fstatSync9(fd);
-    if (!stat.isFile() || stat.nlink !== 1 || stat.size > limit3 || stat.mode & 63)
-      throw new Error("invalid case history file");
-    const out = Buffer.alloc(limit3 + 1);
-    let used = 0;
-    while (used <= limit3) {
-      const n = readSync4(fd, out, used, out.length - used, used);
-      if (!n)
-        break;
-      used += n;
-    }
-    if (used > limit3)
-      throw new Error("case history bound exceeded");
-    return out.subarray(0, used);
-  } finally {
-    closeSync9(fd);
-  }
-}
-function historyAt(directory7, caseId, brandNew = false) {
-  let raw;
-  try {
-    raw = bytes(join33(directory7, "history.jsonl"), 1024 * 1024);
-  } catch (error) {
-    if (missing2(error) && brandNew)
-      return [];
-    if (missing2(error))
-      throw new Error("case history missing; explicit recovery required");
-    throw error;
-  }
-  if (!raw.length || raw.at(-1) !== 10)
-    throw new Error("case history incomplete; explicit recovery required");
-  const records2 = raw.toString("utf8").trimEnd().split("\n").map((line) => JSON.parse(line));
-  let valid2 = [];
-  for (const record of records2) {
-    if (record.caseId !== caseId || record.decision_schema !== 1)
-      throw new Error("case history binding mismatch");
-    const { id: id3, decision_schema: _schema, ...input } = record;
-    valid2 = appendWorkCaseDecision(valid2, input);
-    if (!valid2.some((r) => r.id === id3))
-      throw new Error("case history identity mismatch");
-  }
-  return valid2;
-}
-function assertAuthor(author) {
-  if (typeof author !== "string" || !author || author.length > 512 || /[\u0000-\u001f\u007f]/.test(author))
-    throw new Error("explicit operator author required");
-}
-function createWorkCaseReviewer(root, batchId, author) {
-  assertAuthor(author);
-  const source3 = readArchiveSource(root, batchId);
-  if (source3.status !== "available" || source3.reference.parser.id !== "work-candidate-batch" || source3.reference.parser.version !== "1" || source3.reference.retention !== "exact")
-    throw new Error("case batch missing or invalid");
-  const batch = JSON.parse(source3.bytes.toString("utf8"));
-  if (batch.version !== "work-candidate-batch-v1" || batch.visibility !== "silent" || batch.promotion !== "not-authorized" || !Array.isArray(batch.candidateIds) || batch.candidateIds.length > 4096 || batch.candidateIds.some((id3) => typeof id3 !== "string" || !SHA6.test(id3)))
-    throw new Error("invalid selected case batch");
-  return createSelectedCaseReviewer(root, author, batch.candidateIds, (id3) => readWorkCandidate(root, id3));
-}
-function createWorkSignalReviewer(root, batchId, author) {
-  assertAuthor(author);
-  const batch = readWorkSignalBatch(root, batchId);
-  const reviewer = createSelectedCaseReviewer(root, author, batch.candidateIds, (id3) => {
-    const selected2 = readWorkSignalCase(root, id3);
-    if (selected2.observationId !== batch.observationId)
-      throw new Error("work signal case outside frozen observation");
-    return selected2.candidate;
-  });
-  return { ...reviewer, list(offset = 0, limit3 = 5) {
-    const current = readWorkSignalBatch(root, batchId);
-    return { ...reviewer.list(offset, limit3), observationId: current.observationId, issues: current.issues };
-  } };
-}
-function createSelectedCaseReviewer(root, author, ids, readCandidate) {
-  const allowed = new Set(ids);
-  const selected2 = (id3) => {
-    if (!allowed.has(id3))
-      throw new Error("case outside selected batch");
-    return readCandidate(id3);
-  };
-  const getHistory = (caseManifestId) => {
-    const candidate = selected2(caseManifestId), directory7 = join33(root, "case-decisions", candidate.id);
-    try {
-      assertDirectory(join33(root, "case-decisions"));
-      assertDirectory(directory7);
-    } catch (error) {
-      if (missing2(error))
-        return [];
-      throw error;
-    }
-    return historyAt(directory7, candidate.id);
-  };
-  return {
-    history: getHistory,
-    list(offset = 0, limit3 = 5) {
-      if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit3) || limit3 < 1 || limit3 > 5)
-        throw new Error("bounded case page required");
-      const ids2 = [...allowed].sort();
-      return { total: ids2.length, offset, items: ids2.slice(offset, offset + limit3).map((caseManifestId) => {
-        const candidate = selected2(caseManifestId), current = getHistory(caseManifestId).at(-1) ?? null;
-        return { caseManifestId, candidate, priorDecisionId: current?.id ?? null, disposition: current?.disposition ?? "unresolved" };
-      }) };
-    },
-    decide(request) {
-      if (!request || Object.keys(request).sort().join() !== "caseManifestId,disposition,note,priorDecisionId" || !["confirmed_defect", "expected_behavior", "exemplar", "uncertain", "skip"].includes(request.disposition) || typeof request.note !== "string" || request.note.length > 4e3 || !(request.priorDecisionId === null || typeof request.priorDecisionId === "string" && SHA6.test(request.priorDecisionId)))
-        throw new Error("invalid case review request");
-      const candidate = selected2(request.caseManifestId);
-      const parent = join33(root, "case-decisions");
-      privateDirectory(parent);
-      const directory7 = join33(parent, candidate.id);
-      const lockPath = join33(parent, candidate.id + ".lock"), token = randomUUID3();
-      const lock = openSync9(lockPath, constants9.O_RDWR | constants9.O_CREAT | constants9.O_EXCL | constants9.O_NOFOLLOW, 384);
-      const identity2 = fstatSync9(lock);
-      let primary;
-      let result;
-      try {
-        writeFileSync10(lock, token);
-        fsyncSync6(lock);
-        const brandNew = privateDirectory(directory7);
-        const before = historyAt(directory7, candidate.id, brandNew);
-        const after = appendWorkCaseDecision(before, {
-          caseId: candidate.id,
-          priorDecisionId: request.priorDecisionId,
-          disposition: request.disposition,
-          author,
-          evidence: [request.caseManifestId],
-          note: request.note
-        });
-        if (after.length > before.length) {
-          const path3 = join33(directory7, "history.jsonl");
-          const fd = openSync9(path3, constants9.O_WRONLY | constants9.O_APPEND | constants9.O_CREAT | constants9.O_NOFOLLOW | constants9.O_NONBLOCK, 384);
-          try {
-            const stat = fstatSync9(fd);
-            if (!stat.isFile() || stat.nlink !== 1 || stat.mode & 63)
-              throw new Error("invalid case history destination");
-            const line = Buffer.from(JSON.stringify(after.at(-1)) + "\n");
-            if (stat.size + line.length > 1024 * 1024)
-              throw new Error("case history bound exceeded");
-            let offset = 0;
-            while (offset < line.length) {
-              const n = writeSync4(fd, line, offset, line.length - offset);
-              if (!n)
-                throw new Error("case history write stalled");
-              offset += n;
-            }
-            fsyncSync6(fd);
-          } finally {
-            closeSync9(fd);
-          }
-        }
-        syncDirectory3(directory7);
-        syncDirectory3(parent);
-        syncDirectory3(root);
-        result = { current: after.at(-1), replayed: after.length === before.length };
-      } catch (error) {
-        primary = error;
-      } finally {
-        try {
-          const present = lstatSync8(lockPath);
-          if (present.dev !== identity2.dev || present.ino !== identity2.ino || bytes(lockPath, 128).toString() !== token)
-            throw new Error("case writer lock ownership lost");
-          unlinkSync5(lockPath);
-          syncDirectory3(parent);
-        } catch (error) {
-          if (!primary)
-            primary = error;
-        } finally {
-          closeSync9(lock);
-        }
-      }
-      if (primary)
-        throw primary;
-      return result;
-    }
-  };
-}
-
-// packages/adapters/dist/learning-case.js
-function readLearningCase(root, input) {
-  const c = learningCopy(input);
-  if (Object.keys(c).sort().join() !== "batchId,decisionId,manifestId,version" || c.version !== 2 && c.version !== 3)
-    throw Error("explicit selected case reference required");
-  const review = c.version === 3 ? createWorkSignalReviewer(root, c.batchId, "learning-reader") : createWorkCaseReviewer(root, c.batchId, "learning-reader");
-  const current = review.history(c.manifestId).at(-1) ?? null;
-  const candidate = c.version === 3 ? readWorkSignalCase(root, c.manifestId).candidate : readWorkCandidate(root, c.manifestId);
-  return { candidate, current, matched: current?.id === c.decisionId };
-}
-
-// packages/adapters/dist/weekly-investigation.js
-import { ftruncateSync as truncateCandidate } from "node:fs";
+// packages/core/dist/trajectory-events.js
+var V11_EVENT_KEYS = /* @__PURE__ */ new Set(["execution_id", "parent_execution_id", "task_from_execution_id", "workflow_fact_id", "deadline_at"]);
+var EVENT_KEYS = /* @__PURE__ */ new Set([
+  "event_version",
+  "seq",
+  "type",
+  "source",
+  "at",
+  "run_id",
+  "task_id",
+  "workspace_id",
+  "context_id",
+  "finding_id",
+  "parent_id",
+  "child_id",
+  ...V11_EVENT_KEYS,
+  "phase",
+  "tool",
+  "capability",
+  "requested_capabilities",
+  "effective_capabilities",
+  "refusal_code",
+  "exit_code",
+  "digests",
+  "approval",
+  "requirements",
+  "attributes"
+]);
 
 // packages/adapters/dist/pi.js
-import { existsSync as existsSync24, mkdtempSync as mkdtempSync2, readFileSync as readFileSync26, rmSync as rmSync6, statSync as statSync9, writeFileSync as writeFileSync11 } from "node:fs";
+import { existsSync as existsSync16, mkdtempSync as mkdtempSync2, readFileSync as readFileSync15, statSync as statSync9 } from "node:fs";
 import { tmpdir as tmpdir2, homedir as homedir2 } from "node:os";
-import { randomBytes as randomBytes7 } from "node:crypto";
-import { join as join35, resolve as resolve16 } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join as join22, resolve as resolve10 } from "node:path";
 
 // packages/adapters/dist/pi-json.js
-import { spawn as spawn4 } from "node:child_process";
+import { spawn as spawn2 } from "node:child_process";
 import { createInterface } from "node:readline";
 var SKIPPED_TYPE_RE = /^\s*\{\s*"type"\s*:\s*"(?:message_update|tool_execution_update)"/;
 var MAX_STDERR_CHARS = 8e3;
 function runPiJson(opts) {
-  return new Promise((resolve31, reject2) => {
-    const child3 = spawn4("pi", opts.args, {
+  return new Promise((resolve13, reject) => {
+    const child = spawn2("pi", opts.args, {
       cwd: opts.cwd,
       env: opts.env,
       // stdin from /dev/null: pi hangs waiting on it otherwise, and a hang in a
@@ -10393,10 +7256,10 @@ function runPiJson(opts) {
       if (settled)
         return;
       settled = true;
-      child3.kill("SIGKILL");
-      reject2(new Error(`pi --mode json timed out after ${opts.timeoutMs}ms`));
+      child.kill("SIGKILL");
+      reject(new Error(`pi --mode json timed out after ${opts.timeoutMs}ms`));
     }, opts.timeoutMs);
-    const rl = createInterface({ input: child3.stdout, crlfDelay: Infinity });
+    const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
     rl.on("line", (line) => {
       if (!line.trim())
         return;
@@ -10406,18 +7269,18 @@ function runPiJson(opts) {
       if (providerFailure === null)
         providerFailure = providerFailureFromJsonLine(line);
     });
-    child3.stderr.on("data", (chunk) => {
+    child.stderr.on("data", (chunk) => {
       if (stderr.length < MAX_STDERR_CHARS)
         stderr += chunk.toString("utf8");
     });
-    child3.on("error", (err) => {
+    child.on("error", (err) => {
       if (settled)
         return;
       settled = true;
       clearTimeout(timer);
-      reject2(err);
+      reject(err);
     });
-    child3.on("close", (code) => {
+    child.on("close", (code) => {
       if (settled)
         return;
       settled = true;
@@ -10432,15 +7295,252 @@ function runPiJson(opts) {
         changedPaths: opts.changedPaths,
         homeDir: opts.homeDir
       });
-      resolve31({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS), providerFailure });
+      resolve13({ ...parsed, code, stderr: stderr.slice(0, MAX_STDERR_CHARS), providerFailure });
     });
   });
 }
 
+// packages/adapters/dist/pi.js
+var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
+var PROVIDER_STDERR_SIGNATURES = [
+  "invalidated oauth token",
+  "invalid_api_key",
+  "insufficient_quota"
+];
+function providerStderr(stderr) {
+  const hay = stderr.toLowerCase();
+  return PROVIDER_STDERR_SIGNATURES.some((sig) => hay.includes(sig)) ? stderr.trim() : null;
+}
+function requireSkillDir(skillDir, mode) {
+  const abs = resolve10(skillDir);
+  const md = join22(abs, "SKILL.md");
+  const isDir3 = existsSync16(abs) && statSync9(abs).isDirectory();
+  if (!isDir3 || !existsSync16(md)) {
+    throw new Error(`mode=${mode} needs a skill directory with a SKILL.md, but ${abs} ${isDir3 ? "has none" : "is not a directory"}` + (abs === skillDir ? "" : ` (given \`${skillDir}\`, resolved against ${process.cwd()})`) + ` \u2014 pi accepts \`--skill <nonexistent>\` silently (exit 0, a normal answer, no skill in context), so this run would measure a model with no skill and report it as a result.`);
+  }
+  return abs;
+}
+function skillFlags(mode, skillDir, boundRaw) {
+  switch (mode) {
+    case "red":
+      return ["--no-skills"];
+    case "green":
+      return ["--skill", requireSkillDir(skillDir, mode)];
+    case "force": {
+      requireSkillDir(skillDir, mode);
+      const body = boundRaw ?? readFileSync15(join22(resolve10(skillDir), "SKILL.md"), "utf8");
+      return ["--no-skills", "--append-system-prompt", body];
+    }
+  }
+}
+function extensionFlags(extensions) {
+  if (!extensions || extensions.length === 0)
+    return [];
+  return extensions.flatMap((p) => {
+    const abs = resolve10(p);
+    if (!existsSync16(abs)) {
+      throw new Error(`env.extensions names ${abs}, which does not exist \u2014 pi would start without it and the scenario would silently test an agent with no subagent tool at all.`);
+    }
+    return ["--extension", abs];
+  });
+}
+function header(turnNo, total, text) {
+  const label = total === 1 ? "USER" : `USER (turn ${turnNo}/${total})`;
+  return `>>> ${label}:
+${text}
+`;
+}
+var piAdapter = {
+  name: "pi",
+  available() {
+    return Promise.resolve(onPath("pi"));
+  },
+  /**
+   * `pi --version` (it prints a bare version, e.g. `0.83.0`), recorded in
+   * results.yaml as `harness_cli_version`.
+   *
+   * Null on any failure — a non-zero exit, empty output, or pi missing entirely.
+   * A run must not abort because provenance was unavailable, and a fabricated
+   * version would be worse than an absent one.
+   */
+  async version() {
+    try {
+      const r = await exec("pi", ["--version"], { timeoutMs: 3e4 });
+      const line = r.stdout.split("\n")[0]?.trim() ?? "";
+      if (r.code !== 0 || line === "")
+        return null;
+      return /\d+\.\d+\.\d+\S*/.exec(line)?.[0] ?? line;
+    } catch {
+      return null;
+    }
+  },
+  /**
+   * Run a scenario through pi. Single turn → --no-session -p. Multi turn → a
+   * shared --session-dir, -c on every turn after the first. Returns a transcript
+   * interleaving user turns with assistant output.
+   */
+  async run(req) {
+    const common2 = [
+      "--no-context-files",
+      "--no-extensions",
+      ...extensionFlags(req.extensions),
+      "--provider",
+      req.model.provider,
+      "--model",
+      req.model.model
+    ];
+    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync15(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
+    const total = req.turns.length;
+    const parts = [];
+    const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
+    let providerFailure = null;
+    if (total === 1) {
+      const args = [...flags, ...common2, "--no-session", "-p", req.turns[0]];
+      const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env });
+      parts.push(header(1, 1, req.turns[0]));
+      parts.push(`<<< ASSISTANT:
+${r.stdout.trim()}
+`);
+      if (r.code !== 0) {
+        providerFailure = providerStderr(r.stderr);
+        if (!providerFailure)
+          parts.push(`[pi exited ${r.code}]
+${r.stderr.trim()}
+`);
+      }
+      return withProviderFailure(parts.join("\n"), providerFailure);
+    }
+    const session = mkdtempSync2(join22(tmpdir2(), "sc-pi-session-"));
+    for (let i = 0; i < total; i++) {
+      const turnFlags = i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
+      const args = [...flags, ...common2, ...turnFlags, "-p", req.turns[i]];
+      const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env });
+      parts.push(header(i + 1, total, req.turns[i]));
+      parts.push(`<<< ASSISTANT:
+${r.stdout.trim()}
+`);
+      if (r.code !== 0) {
+        const provider = providerStderr(r.stderr);
+        if (provider && providerFailure === null)
+          providerFailure = provider;
+        if (!provider)
+          parts.push(`[pi exited ${r.code} on turn ${i + 1}]
+${r.stderr.trim()}
+`);
+      }
+    }
+    return withProviderFailure(parts.join("\n"), providerFailure);
+  },
+  /**
+   * Structured run: same flags, same turn loop, plus `--mode json` and a trace
+   * per turn.
+   *
+   * Shares `skillFlags` and the turn structure with `run()` on purpose — if the
+   * two drifted, a trace-gated scenario would be measuring a different delivery
+   * than an ungated one, and the gate would be attesting to the wrong execution.
+   *
+   * The transcript is REBUILT from each turn's final assistant message rather
+   * than read from stdout, which is byte-identical to print mode's output (proven
+   * on a deterministic prompt; see docs/pi-native-capture-design-2026-08-08.md §2).
+   */
+  async runStructured(req) {
+    const common2 = [
+      "--no-context-files",
+      "--no-extensions",
+      ...extensionFlags(req.extensions),
+      "--provider",
+      req.model.provider,
+      "--model",
+      req.model.model
+    ];
+    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync15(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
+    const piVersion = await this.version();
+    const total = req.turns.length;
+    const traces = [];
+    const parts = [];
+    const session = total === 1 ? null : mkdtempSync2(join22(tmpdir2(), "sc-pi-session-"));
+    let providerFailure = null;
+    const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
+    for (let i = 0; i < total; i++) {
+      const turnFlags = session === null ? ["--no-session"] : i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
+      const args = [...flags, ...common2, "--mode", "json", ...turnFlags, "-p", req.turns[i]];
+      const r = await runPiJson({
+        args,
+        cwd: req.cwd,
+        timeoutMs: PI_TIMEOUT_MS,
+        piVersion,
+        subject: req.model,
+        scenarioId: req.scenarioId ?? "(unknown)",
+        mode: req.mode,
+        rep: req.rep ?? 0,
+        turn: i,
+        homeDir: homedir2(),
+        env
+      });
+      if (!r.isComplete) {
+        throw new Error(`pi --mode json produced no terminal events for turn ${i + 1}/${total} (exit ${r.code}${r.malformedLines ? `, ${r.malformedLines} malformed line(s)` : ""})` + (r.stderr.trim() ? `: ${r.stderr.trim()}` : ""));
+      }
+      if (r.malformedLines > 0) {
+        r.trace.capture_errors = [`pi JSONL contained ${r.malformedLines} malformed line(s); absence-based trace assertions are unsafe`];
+        r.trace.trace_sha256 = traceSha256(r.trace);
+      }
+      if (providerFailure === null && r.providerFailure)
+        providerFailure = r.providerFailure;
+      traces.push(r.trace);
+      parts.push(header(i + 1, total, req.turns[i]));
+      parts.push(`<<< ASSISTANT:
+${r.trace.final_text.trim()}
+`);
+      if (r.code !== 0)
+        parts.push(`[pi exited ${r.code} on turn ${i + 1}]
+${r.stderr.trim()}
+`);
+    }
+    return {
+      transcript: withProviderFailure(parts.join("\n"), providerFailure),
+      traces,
+      ...providerFailure ? { providerFailure } : {}
+    };
+  },
+  /**
+   * Run the judge: no skills, no context files, no session, single prompt.
+   * Judge provider `claude-code` routes to the Claude Code CLI (`claude -p`),
+   * which authenticates via the user's Claude subscription (OAuth) instead of
+   * a provider API key.
+   */
+  async judge(req) {
+    if (req.model.provider === "claude-code") {
+      const args2 = ["-p", req.prompt, "--model", req.model.model];
+      const r2 = await exec("claude", args2, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS });
+      if (r2.stdout.trim().length === 0 && (r2.code !== 0 || r2.stderr.trim())) {
+        return `[judge error: claude exited ${r2.code}] ${r2.stderr.trim()}`;
+      }
+      return r2.stdout;
+    }
+    const args = [
+      "--no-skills",
+      "--no-context-files",
+      "--no-extensions",
+      "--no-session",
+      "--provider",
+      req.model.provider,
+      "--model",
+      req.model.model,
+      "-p",
+      req.prompt
+    ];
+    const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS });
+    if (r.stdout.trim().length === 0 && (r.code !== 0 || r.stderr.trim())) {
+      return `[judge error: pi exited ${r.code}] ${r.stderr.trim()}`;
+    }
+    return r.stdout;
+  }
+};
+
 // packages/adapters/dist/trajectory.js
-import { createHash as createHash28 } from "node:crypto";
-import { readFileSync as readFileSync25, readdirSync as readdirSync16 } from "node:fs";
-import { join as join34 } from "node:path";
+import { createHash as createHash7 } from "node:crypto";
+import { readFileSync as readFileSync16, readdirSync as readdirSync11 } from "node:fs";
+import { join as join23 } from "node:path";
 
 // packages/adapters/dist/closed-schema.js
 var ANNOTATION_KEYWORDS = /* @__PURE__ */ new Set(["$schema", "$id", "title", "description", "$defs"]);
@@ -10473,319 +7573,8 @@ var V3_SUPPORTED_KEYWORDS = /* @__PURE__ */ new Set([
   "minItems",
   "maxItems"
 ]);
-var KEYWORD_SHAPES = {
-  $ref: { check: (value3) => typeof value3 === "string", expected: "a string" },
-  oneOf: { check: (value3) => Array.isArray(value3) && value3.length > 0, expected: "a non-empty array" },
-  allOf: { check: (value3) => Array.isArray(value3) && value3.length > 0, expected: "a non-empty array" },
-  anyOf: { check: (value3) => Array.isArray(value3) && value3.length > 0, expected: "a non-empty array" },
-  if: { check: (value3) => isSchemaObject(value3), expected: "a schema object" },
-  then: { check: (value3) => isSchemaObject(value3), expected: "a schema object" },
-  propertyNames: { check: (value3) => isSchemaObject(value3), expected: "a schema object" },
-  type: { check: (value3) => typeof value3 === "string" || Array.isArray(value3) && value3.length > 0 && value3.every((entry) => typeof entry === "string"), expected: "a string or array of strings" },
-  properties: { check: (value3) => isSchemaObject(value3), expected: "an object" },
-  required: { check: (value3) => Array.isArray(value3) && value3.every((entry) => typeof entry === "string"), expected: "an array of strings" },
-  additionalProperties: { check: (value3) => typeof value3 === "boolean" || isSchemaObject(value3), expected: "a boolean or a schema object" },
-  items: { check: (value3) => isSchemaObject(value3), expected: "a schema object" },
-  enum: { check: (value3) => Array.isArray(value3) && value3.length > 0, expected: "a non-empty array" },
-  minLength: { check: (value3) => typeof value3 === "number", expected: "a number" },
-  maxLength: { check: (value3) => typeof value3 === "number", expected: "a number" },
-  minimum: { check: (value3) => typeof value3 === "number", expected: "a number" },
-  minItems: { check: (value3) => Number.isInteger(value3) && Number(value3) >= 0, expected: "a non-negative integer" },
-  maxItems: { check: (value3) => Number.isInteger(value3) && Number(value3) >= 0, expected: "a non-negative integer" },
-  pattern: { check: (value3) => typeof value3 === "string", expected: "a string" },
-  format: { check: (value3) => typeof value3 === "string", expected: "a string" }
-  // `const` may legitimately be any JSON value, including null.
-};
-var SUPPORTED_FORMATS = /* @__PURE__ */ new Set(["date-time"]);
-var SUPPORTED_TYPES = /* @__PURE__ */ new Set(["object", "array", "string", "number", "integer", "boolean", "null"]);
-function assertSupportedSchema(schema2, label, path3 = "#") {
-  assertSchemaSupported(schema2, label, path3, false);
-}
-function assertSupportedSchemaV3(schema2, label, path3 = "#") {
-  assertSchemaSupported(schema2, label, path3, true);
-}
-function assertSchemaSupported(schema2, label, path3, v3) {
-  if (typeof schema2 !== "object" || schema2 === null || Array.isArray(schema2)) {
-    throw new Error(`${label} is not a JSON Schema object at ${path3}`);
-  }
-  const node = schema2;
-  const supported = v3 ? V3_SUPPORTED_KEYWORDS : SUPPORTED_KEYWORDS;
-  for (const keyword of Object.keys(node)) {
-    if (!supported.has(keyword)) {
-      throw new Error(`${label} uses unsupported JSON Schema keyword \`${keyword}\` at ${path3}; the closed-contract evaluator refuses to validate less than the schema declares`);
-    }
-    const shape = KEYWORD_SHAPES[keyword];
-    if (shape && !shape.check(node[keyword])) {
-      throw new Error(`${label} declares \`${keyword}\` at ${path3} as something other than ${shape.expected}; the closed-contract evaluator refuses to skip a keyword it cannot read`);
-    }
-  }
-  if (node.format !== void 0 && !SUPPORTED_FORMATS.has(String(node.format))) {
-    throw new Error(`${label} uses unsupported format \`${String(node.format)}\` at ${path3}`);
-  }
-  for (const type2 of typeList(node)) {
-    if (!SUPPORTED_TYPES.has(type2))
-      throw new Error(`${label} uses unsupported type \`${type2}\` at ${path3}`);
-  }
-  if (node.$ref !== void 0) {
-    if (!/^#\/\$defs\/[A-Za-z0-9_]+$/.test(String(node.$ref))) {
-      throw new Error(`${label} uses unsupported $ref \`${String(node.$ref)}\` at ${path3}; only #/$defs/<name> is resolvable`);
-    }
-    const siblings = Object.keys(node).filter((keyword) => keyword !== "$ref" && !ANNOTATION_KEYWORDS.has(keyword));
-    if (siblings.length > 0) {
-      throw new Error(`${label} combines $ref with ${siblings.map((keyword) => `\`${keyword}\``).join(", ")} at ${path3}; the closed-contract evaluator would drop the sibling constraint, so it refuses the schema instead`);
-    }
-  }
-  for (const [name, entry] of Object.entries(object(node.$defs) ?? {}))
-    assertSchemaSupported(entry, label, `${path3}/$defs/${name}`, v3);
-  for (const keyword of ["oneOf", "allOf", "anyOf"]) {
-    for (const [index, entry] of (Array.isArray(node[keyword]) ? node[keyword] : []).entries()) {
-      assertSchemaSupported(entry, label, `${path3}/${keyword}/${index}`, v3);
-    }
-  }
-  for (const [name, entry] of Object.entries(object(node.properties) ?? {}))
-    assertSchemaSupported(entry, label, `${path3}/properties/${name}`, v3);
-  for (const keyword of ["items", "propertyNames", "if", "then"]) {
-    if (node[keyword] !== void 0)
-      assertSchemaSupported(node[keyword], label, `${path3}/${keyword}`, v3);
-  }
-  if (node.additionalProperties !== void 0 && node.additionalProperties !== false && node.additionalProperties !== true) {
-    assertSchemaSupported(node.additionalProperties, label, `${path3}/additionalProperties`, v3);
-  }
-}
-function validateClosedSchema(schema2, value3, options = {}) {
-  return validate3(schema2, schema2, value3, "", options.knownFieldNames ?? /* @__PURE__ */ new Set());
-}
-function validateClosedSchemaV3(schema2, value3, options = {}) {
-  return validate3(schema2, schema2, value3, "", options.knownFieldNames ?? /* @__PURE__ */ new Set());
-}
-function declaredPropertyNames(schema2) {
-  const names = /* @__PURE__ */ new Set();
-  const walk2 = (node) => {
-    const current = object(node);
-    if (!current)
-      return;
-    for (const [name, entry] of Object.entries(object(current.properties) ?? {})) {
-      names.add(name);
-      walk2(entry);
-    }
-    for (const entry of Object.values(object(current.$defs) ?? {}))
-      walk2(entry);
-    for (const keyword of ["oneOf", "allOf", "anyOf"]) {
-      for (const entry of Array.isArray(current[keyword]) ? current[keyword] : [])
-        walk2(entry);
-    }
-    for (const keyword of ["items", "propertyNames", "if", "then"])
-      if (current[keyword] !== void 0)
-        walk2(current[keyword]);
-    if (current.additionalProperties && typeof current.additionalProperties === "object")
-      walk2(current.additionalProperties);
-  };
-  walk2(schema2);
-  return names;
-}
-function validate3(root, schema2, value3, path3, known) {
-  if (schema2.$ref !== void 0) {
-    const resolved = resolveRef(root, String(schema2.$ref));
-    return validate3(root, resolved, value3, path3, known);
-  }
-  const violations = [];
-  if (Array.isArray(schema2.allOf)) {
-    for (const branch of schema2.allOf)
-      violations.push(...validate3(root, branch, value3, path3, known));
-  }
-  if (Array.isArray(schema2.anyOf)) {
-    const branches = schema2.anyOf.map((branch) => validate3(root, branch, value3, path3, known));
-    if (!branches.some((branch) => branch.length === 0))
-      violations.push(...bestBranch(root, schema2.anyOf, branches, value3, path3));
-  }
-  if (schema2.if !== void 0 && validate3(root, schema2.if, value3, path3, known).length === 0 && schema2.then !== void 0) {
-    violations.push(...validate3(root, schema2.then, value3, path3, known));
-  }
-  const types4 = typeList(schema2);
-  if (types4.length && !types4.some((type2) => matchesType(type2, value3))) {
-    return [{ path: path3, message: `must be ${describeTypes(types4)}` }];
-  }
-  if (schema2.const !== void 0 && !sameJson(schema2.const, value3)) {
-    return [{ path: path3, message: `must be ${JSON.stringify(schema2.const)}` }];
-  }
-  if (Array.isArray(schema2.enum) && !schema2.enum.some((allowed) => sameJson(allowed, value3))) {
-    return [{ path: path3, message: `must be one of ${schema2.enum.map((allowed) => stringifyAllowed(allowed)).join(", ")}` }];
-  }
-  if (Array.isArray(schema2.oneOf)) {
-    const branches = schema2.oneOf.map((branch) => validate3(root, branch, value3, path3, known));
-    const matched = branches.filter((branch) => branch.length === 0).length;
-    if (matched === 0)
-      return bestBranch(root, schema2.oneOf, branches, value3, path3);
-    if (matched > 1)
-      return [{ path: path3, message: `matches ${matched} of the ${branches.length} allowed shapes and is therefore ambiguous` }];
-  }
-  if (typeof value3 === "string")
-    violations.push(...validateString(schema2, value3, path3));
-  if (typeof value3 === "number")
-    violations.push(...validateNumber(schema2, value3, path3));
-  if (Array.isArray(value3)) {
-    if (typeof schema2.minItems === "number" && value3.length < schema2.minItems) {
-      violations.push({ path: path3, message: `must contain at least ${schema2.minItems} item(s)` });
-    }
-    if (typeof schema2.maxItems === "number" && value3.length > schema2.maxItems) {
-      violations.push({ path: path3, message: `must contain at most ${schema2.maxItems} item(s)` });
-    }
-    if (schema2.items !== void 0) {
-      value3.forEach((entry, index) => violations.push(...validate3(root, schema2.items, entry, `${path3}[${index}]`, known)));
-    }
-  }
-  const record = object(value3);
-  if (record)
-    violations.push(...validateObject(root, schema2, record, path3, known));
-  return violations;
-}
-function validateObject(root, schema2, record, path3, known) {
-  const violations = [];
-  const properties = object(schema2.properties) ?? {};
-  if (schema2.propertyNames !== void 0) {
-    for (const name of Object.keys(record))
-      violations.push(...validate3(root, schema2.propertyNames, name, path3, known));
-  }
-  for (const name of Array.isArray(schema2.required) ? schema2.required : []) {
-    if (!Object.hasOwn(record, name))
-      violations.push({ path: child(path3, name), message: "is required" });
-  }
-  for (const [name, entry] of Object.entries(record)) {
-    if (entry === void 0)
-      continue;
-    const propertySchema = Object.hasOwn(properties, name) ? object(properties[name]) : void 0;
-    if (propertySchema) {
-      violations.push(...validate3(root, propertySchema, entry, child(path3, name), known));
-      continue;
-    }
-    if (schema2.additionalProperties === false) {
-      violations.push({
-        path: path3 || "(top level)",
-        message: `carries undeclared field ${known.has(name) ? name : "[REDACTED field name]"}, which the closed contract does not allow`
-      });
-      continue;
-    }
-    const extra = typeof schema2.additionalProperties === "object" && schema2.additionalProperties !== null ? schema2.additionalProperties : void 0;
-    if (extra)
-      violations.push(...validate3(root, extra, entry, child(path3, name), known));
-  }
-  return violations;
-}
-function validateString(schema2, value3, path3) {
-  const violations = [];
-  if (typeof schema2.minLength === "number" && value3.length < schema2.minLength) {
-    violations.push({ path: path3, message: schema2.minLength === 1 ? "must not be empty" : `must be at least ${schema2.minLength} characters` });
-  }
-  if (typeof schema2.maxLength === "number" && value3.length > schema2.maxLength) {
-    violations.push({ path: path3, message: `must be at most ${schema2.maxLength} characters` });
-  }
-  if (typeof schema2.pattern === "string" && !new RegExp(schema2.pattern).test(value3)) {
-    violations.push({ path: path3, message: `must match ${schema2.pattern}` });
-  }
-  if (schema2.format === "date-time" && !isRfc3339(value3)) {
-    violations.push({ path: path3, message: "must be an RFC 3339 date-time" });
-  }
-  return violations;
-}
-function validateNumber(schema2, value3, path3) {
-  if (typeof schema2.minimum === "number" && value3 < schema2.minimum) {
-    return [{ path: path3, message: `must be >= ${schema2.minimum}` }];
-  }
-  return [];
-}
-function bestBranch(root, schemas, branches, value3, path3) {
-  const discriminated = schemas.map((schema2, index) => ({ schema: schema2, violations: branches[index] })).filter(({ schema: schema2 }) => matchesDiscriminator(root, schema2, value3));
-  const candidates = discriminated.length === 1 ? [discriminated[0].violations] : branches;
-  let best = candidates[0] ?? [];
-  for (const branch of candidates)
-    if (branch.length < best.length)
-      best = branch;
-  return best.length ? best : [{ path: path3, message: "does not match any allowed shape" }];
-}
-function matchesDiscriminator(root, schema2, value3) {
-  const resolved = schema2.$ref !== void 0 ? resolveRef(root, String(schema2.$ref)) : schema2;
-  const record = object(value3);
-  const properties = object(resolved.properties);
-  if (!record || !properties)
-    return false;
-  const required = new Set(Array.isArray(resolved.required) ? resolved.required : []);
-  const consts = Object.entries(properties).filter(([name]) => required.has(name)).map(([name, entry]) => [name, object(entry)?.const]).filter(([, constant]) => constant !== void 0);
-  return consts.length > 0 && consts.every(([name, constant]) => sameJson(constant, record[name]));
-}
-function resolveRef(root, ref) {
-  const name = ref.replace("#/$defs/", "");
-  const resolved = object((object(root.$defs) ?? {})[name]);
-  if (!resolved)
-    throw new Error(`unresolvable $ref ${ref} in pinned schema`);
-  return resolved;
-}
-function typeList(schema2) {
-  if (typeof schema2.type === "string")
-    return [schema2.type];
-  if (Array.isArray(schema2.type))
-    return schema2.type.map(String);
-  return [];
-}
-function matchesType(type2, value3) {
-  switch (type2) {
-    case "object":
-      return object(value3) !== void 0;
-    case "array":
-      return Array.isArray(value3);
-    case "string":
-      return typeof value3 === "string";
-    case "boolean":
-      return typeof value3 === "boolean";
-    case "null":
-      return value3 === null;
-    case "integer":
-      return typeof value3 === "number" && Number.isInteger(value3);
-    case "number":
-      return typeof value3 === "number" && Number.isFinite(value3);
-    default:
-      return false;
-  }
-}
-function describeTypes(types4) {
-  const article = (type2) => ["object", "array", "integer"].includes(type2) ? `an ${type2}` : `a ${type2}`;
-  if (types4.length === 1)
-    return types4[0] === "null" ? "null" : article(types4[0]);
-  return types4.map((type2) => type2 === "null" ? "null" : article(type2)).join(" or ");
-}
-function stringifyAllowed(value3) {
-  return typeof value3 === "string" ? value3 : JSON.stringify(value3);
-}
-function child(path3, name) {
-  const safe = /^[A-Za-z0-9_.:-]{1,64}$/.test(name) && redactText(name) === name ? name : "[REDACTED key]";
-  if (safe === "[REDACTED key]")
-    return path3 ? `${path3}[REDACTED key]` : "[REDACTED key]";
-  if (!path3)
-    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(safe) ? safe : `[${JSON.stringify(safe)}]`;
-  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(safe) ? `${path3}.${safe}` : `${path3}[${JSON.stringify(safe)}]`;
-}
-function sameJson(left, right) {
-  return left === right || JSON.stringify(left) === JSON.stringify(right);
-}
-function isRfc3339(value3) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|([+-])(\d{2}):(\d{2}))$/.exec(value3);
-  if (!match)
-    return false;
-  const [year, month, day, hour, minute, second] = match.slice(1, 7).map(Number);
-  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 60)
-    return false;
-  if (match[8] !== void 0 && (Number(match[8]) > 23 || Number(match[9]) > 59))
-    return false;
-  return day >= 1 && day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
-}
-function object(value3) {
-  return value3 && typeof value3 === "object" && !Array.isArray(value3) ? value3 : void 0;
-}
-function isSchemaObject(value3) {
-  return object(value3) !== void 0;
-}
 
 // packages/adapters/dist/pi-daddy-ledger-v2.js
-var PI_DADDY_CONTRACT_COMMIT = "c364a6717e3d5e369ecd3298b9cbb595eb94d9b2";
 var PI_DADDY_LEDGER_V2_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/mojomanyana/pi-daddy/contracts/ledger/v2/ledger-event.schema.json",
@@ -11421,7 +8210,6 @@ var PI_DADDY_LEDGER_V2_SCHEMA = {
 };
 
 // packages/adapters/dist/pi-daddy-ledger-v3.js
-var PI_DADDY_LEDGER_V3_CONTRACT_COMMIT = "4a9524394ca995fd74ed9bbb836dc4e73cda3b8c";
 var PI_DADDY_LEDGER_V3_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/mojomanyana/pi-daddy/contracts/ledger/v3/ledger-event.schema.json",
@@ -12379,3427 +9167,10 @@ var PI_DADDY_LEDGER_V3_SCHEMA = {
 };
 
 // packages/adapters/dist/trajectory.js
-function collectTrajectorySources(cwd, sources) {
-  const files = walkFiles(cwd);
-  const streams = [];
-  const errors = [];
-  const seenFiles = /* @__PURE__ */ new Set();
-  for (const source3 of sources) {
-    const matched = files.filter((file) => matchesGlob(source3.path, file));
-    if (matched.length === 0) {
-      if (source3.required)
-        errors.push(`required event source ${source3.adapter}:${source3.path} is missing`);
-      continue;
-    }
-    for (const file of matched.sort()) {
-      const sourceFile = `${source3.adapter}:${file}`;
-      if (seenFiles.has(sourceFile)) {
-        errors.push(`event source ${sourceFile} was declared more than once`);
-        continue;
-      }
-      seenFiles.add(sourceFile);
-      try {
-        const text15 = readFileSync25(join34(cwd, file), "utf8");
-        const normalized = source3.adapter === "principal-assurance-v1" ? normalizePrincipalAssuranceLedger(text15) : source3.adapter === "pi-daddy-v1" ? normalizePiDaddyLegacyLedger(text15) : source3.adapter === "pi-daddy-ledger-v3" ? normalizePiDaddyLedgerV3(text15) : deserializeTrajectoryEvents(text15);
-        if (!normalized)
-          throw new Error("normalized-v1 source is empty, malformed, or unsupported");
-        const times = normalized.map((event) => validTime(event.at) ? Date.parse(event.at) : null);
-        if (times.every((time) => time !== null)) {
-          const highWaterByStream = /* @__PURE__ */ new Map();
-          for (let index = 0; index < times.length; index += 1) {
-            const stream = source3.adapter === "pi-daddy-v1" || source3.adapter === "pi-daddy-ledger-v3" ? normalizedPiDaddyStreamKey(normalized[index], index) : "source";
-            const highWater = highWaterByStream.get(stream);
-            if (highWater !== void 0 && times[index] < highWater && !isAllowedPiDaddyReceiptInversion(source3.adapter, normalized, index)) {
-              throw new Error("native event timestamps move backwards relative to the source's recorded sequence");
-            }
-            highWaterByStream.set(stream, Math.max(highWater ?? times[index], times[index]));
-          }
-        }
-        streams.push({ file, adapter: source3.adapter, events: normalized });
-      } catch (error) {
-        errors.push(`${source3.adapter}:${file}: ${sanitizePersistedError(error)}`);
-      }
-    }
-  }
-  if (streams.length > 1) {
-    if (streams.some((stream) => stream.events.some((event) => !validTime(event.at)))) {
-      errors.push("multiple native event files cannot be globally ordered because at least one event has no valid `at` timestamp");
-    }
-    const owners = /* @__PURE__ */ new Map();
-    for (const stream of streams)
-      for (const event of stream.events) {
-        if (!event.at)
-          continue;
-        const instant = String(Date.parse(event.at));
-        const filesAtTime = owners.get(instant) ?? /* @__PURE__ */ new Set();
-        filesAtTime.add(stream.file);
-        owners.set(instant, filesAtTime);
-      }
-    if ([...owners.values()].some((filesAtTime) => filesAtTime.size > 1)) {
-      errors.push("native event files contain equal timestamps, so strict cross-source order is ambiguous");
-    }
-    const principalRuns = /* @__PURE__ */ new Map();
-    for (const stream of streams.filter((entry) => entry.adapter === "principal-assurance-v1")) {
-      for (const runId of new Set(stream.events.map((event) => event.run_id).filter((value3) => Boolean(value3)))) {
-        const prior = principalRuns.get(runId);
-        if (prior && prior !== stream.file)
-          errors.push(`principal assurance run ${runId} appears in multiple ledger files (${prior}, ${stream.file})`);
-        else
-          principalRuns.set(runId, stream.file);
-      }
-    }
-  }
-  return { events: resequence(streams.flatMap((stream) => stream.events)), errors };
-}
-function resequence(events) {
-  const native = events.map((event, index) => ({
-    event,
-    index,
-    at: validTime(event.at) ? Date.parse(event.at) : null
-  }));
-  if (native.every((entry) => entry.at !== null))
-    native.sort((a, b) => a.at - b.at || a.index - b.index);
-  return native.map(({ event }, index) => ({
-    ...event,
-    seq: index + 1,
-    attributes: { native_seq: event.seq, ...event.attributes ?? {} }
-  }));
-}
-function normalizePiTraces(traces) {
-  const events = [];
-  let seq2 = 1;
-  for (const trace of [...traces].sort((a, b) => a.turn - b.turn)) {
-    const base = { scenario_id: trace.scenario_id, rep: trace.rep, turn: trace.turn };
-    const calls = [...trace.tool_calls].sort((a, b) => a.issueIndex - b.issueIndex);
-    for (const call of calls) {
-      events.push({
-        event_version: TRAJECTORY_EVENT_VERSION,
-        seq: seq2++,
-        type: "tool_started",
-        source: "pi",
-        at: call.started_at,
-        tool: call.name,
-        attributes: { ...base, tool_call_id: call.id, args: call.args, issue_index: call.issueIndex }
-      });
-    }
-    for (const call of calls.filter((item) => item.completionIndex >= 0).sort((a, b) => a.completionIndex - b.completionIndex)) {
-      events.push({
-        event_version: TRAJECTORY_EVENT_VERSION,
-        seq: seq2++,
-        type: "tool_completed",
-        source: "pi",
-        at: call.completed_at,
-        tool: call.name,
-        attributes: {
-          ...base,
-          tool_call_id: call.id,
-          success: !call.isError,
-          issue_index: call.issueIndex,
-          completion_index: call.completionIndex,
-          result_sha256: call.result.sha256,
-          ...call.result.details ? { details: call.result.details } : {}
-        }
-      });
-    }
-  }
-  return events;
-}
-var PRINCIPAL_ASSURANCE_SOURCES = /* @__PURE__ */ new Set([
-  "default",
-  "flag",
-  "alias",
-  "natural-language",
-  "policy",
-  "user",
-  "user-downgrade"
-]);
-function validatePrincipalAssurance(record, line) {
-  if (record.assurance === void 0)
-    return;
-  const assurance = object2(record.assurance);
-  if (!assurance || typeof assurance.source !== "string" || !PRINCIPAL_ASSURANCE_SOURCES.has(assurance.source)) {
-    throw new Error(`invalid principal assurance v1 event at line ${line}: assurance.source is not a recognized source`);
-  }
-  const scope = object2(assurance.scope);
-  if (!scope || Object.keys(scope).some((key3) => key3 !== "type" && key3 !== "selectors") || scope.type !== "entire-run" && scope.type !== "selectors" || !Array.isArray(scope.selectors) || scope.selectors.some((selector) => typeof selector !== "string" || !selector) || new Set(scope.selectors).size !== scope.selectors.length || scope.type === "entire-run" && scope.selectors.length !== 0 || scope.type === "selectors" && scope.selectors.length === 0) {
-    throw new Error(`invalid principal assurance v1 event at line ${line}: assurance.scope is not a closed structured scope`);
-  }
-}
-function normalizePrincipalAssuranceLedger(text15) {
-  const records2 = parseJsonl(text15, "principal assurance");
-  validatePrincipalIntegrity(records2);
-  return records2.map((record, index) => {
-    if (record.schema_version !== "1.0") {
-      throw new Error(`unsupported principal assurance schema version ${safeDiagnosticValue(record.schema_version)} at line ${index + 1}; expected "1.0"`);
-    }
-    if (!Number.isInteger(record.seq) || Number(record.seq) < 1 || typeof record.type !== "string" || typeof record.run_id !== "string") {
-      throw new Error(`invalid principal assurance v1 event at line ${index + 1}: seq, type, and run_id are required`);
-    }
-    validatePrincipalAssurance(record, index + 1);
-    const packet = object2(record.packet);
-    const definitionDigests = object2(packet?.definition_digests);
-    const definition = typeof record.definition_digest === "string" ? record.definition_digest : typeof definitionDigests?.["skill:build"] === "string" ? definitionDigests["skill:build"] : void 0;
-    const taskId = string(record.task_id) ?? string(packet?.task_id);
-    const workspaceId = string(record.workspace_id) ?? string(packet?.workspace_id);
-    const plan = string(record.plan_digest) ?? string(packet?.plan_digest);
-    const head = string(record.head_sha);
-    const tree = string(record.tree_sha);
-    const attributes = without(record, [
-      "schema_version",
-      "seq",
-      "type",
-      "at",
-      "run_id",
-      "task_id",
-      "workspace_id",
-      "context_id",
-      "finding_id",
-      "phase",
-      "plan_digest",
-      "definition_digest",
-      "head_sha",
-      "tree_sha",
-      "exit_code"
-    ]);
-    return cleanEvent({
-      event_version: TRAJECTORY_EVENT_VERSION,
-      seq: Number(record.seq),
-      type: record.type,
-      source: "principal-assurance-v1",
-      at: string(record.at),
-      run_id: record.run_id,
-      task_id: taskId,
-      workspace_id: workspaceId,
-      context_id: string(record.context_id),
-      finding_id: string(record.finding_id),
-      phase: string(record.phase),
-      exit_code: Number.isInteger(record.exit_code) ? Number(record.exit_code) : void 0,
-      digests: anyDefined({ plan, definition, head, tree }),
-      requirements: stringArray(record.requirements),
-      attributes: sanitizeAttributes(attributes)
-    });
-  });
-}
-function normalizePiDaddyLegacyLedger(text15) {
-  const records2 = parseJsonl(text15, "pi-daddy");
-  const explicitV3 = records2.findIndex((record) => record.ledgerVersion === 3);
-  if (explicitV3 >= 0)
-    throw new Error(`pi-daddy-v1 selector does not admit ledgerVersion 3 at line ${explicitV3 + 1}; use pi-daddy-ledger-v3`);
-  return normalizePiDaddyLedger(text15);
-}
-function normalizePiDaddyLedgerV3(text15) {
-  const records2 = parseJsonl(text15, "pi-daddy");
-  const wrong = records2.findIndex((record) => record.ledgerVersion !== 3);
-  if (wrong >= 0)
-    throw new Error(`pi-daddy-ledger-v3 requires explicit ledgerVersion 3 at line ${wrong + 1}`);
-  return normalizePiDaddyLedger(text15);
-}
-function normalizePiDaddyLedger(text15) {
-  const records2 = parseJsonl(text15, "pi-daddy");
-  validatePiDaddyTimestampOrder(records2);
-  const out = [];
-  let seq2 = 1;
-  records2.forEach((record, index) => {
-    if (record.ledgerVersion !== void 0) {
-      if (record.ledgerVersion === 2) {
-        requireV2Discriminator(record, index + 1);
-        assertPinnedV2Contract(record, index + 1);
-        for (const event of normalizePiDaddyV2(record, index))
-          out.push({ ...event, seq: seq2++ });
-        return;
-      }
-      if (record.ledgerVersion === 3) {
-        requireV3Discriminator(record, index + 1);
-        assertPinnedV3Contract(record, index + 1);
-        for (const event of normalizePiDaddyV3(record, index))
-          out.push({ ...event, seq: seq2++ });
-        return;
-      }
-      throw new Error(`unsupported pi-daddy ledgerVersion ${safeDiagnosticValue(record.ledgerVersion)} at line ${index + 1}; expected 2, 3, or an unversioned 0.17 GrantRecord`);
-    }
-    if (record.schema_version !== void 0) {
-      throw new Error(`pi-daddy schema_version/record_type at line ${index + 1} is not a public pi-daddy ledger format; expected ledgerVersion 2, ledgerVersion 3, or an unversioned 0.17 GrantRecord`);
-    }
-    if (record.event !== void 0) {
-      throw new Error(`pi-daddy event [REDACTED invalid value] at line ${index + 1} is missing explicit ledgerVersion 2 or 3`);
-    }
-    for (const event of normalizeLegacyGrant(record, index))
-      out.push({ ...event, seq: seq2++ });
-  });
-  return out;
-}
-var V2_EVENTS = /* @__PURE__ */ new Set(["capability_decision", "workspace_lease", "child_lifecycle", "check_receipt"]);
-function requireV2Discriminator(record, line) {
-  const nativeEvent = string(record.event);
-  if (!nativeEvent || !V2_EVENTS.has(nativeEvent)) {
-    throw new Error(`invalid pi-daddy v2 event at line ${line}: event must be capability_decision, workspace_lease, child_lifecycle, or check_receipt`);
-  }
-  return nativeEvent;
-}
-var pinnedContractChecked = false;
-var pinnedContractFieldNames;
-function assertPinnedV2Contract(record, line) {
-  if (!pinnedContractChecked) {
-    assertSupportedSchema(PI_DADDY_LEDGER_V2_SCHEMA, "pinned pi-daddy ledger v2 schema");
-    pinnedContractFieldNames = declaredPropertyNames(PI_DADDY_LEDGER_V2_SCHEMA);
-    pinnedContractChecked = true;
-  }
-  const violations = validateClosedSchema(PI_DADDY_LEDGER_V2_SCHEMA, record, { knownFieldNames: pinnedContractFieldNames });
-  if (violations.length === 0)
-    return;
-  const nativeEvent = string(record.event);
-  const label = nativeEvent && V2_EVENTS.has(nativeEvent) ? nativeEvent : "record";
-  const [first] = violations;
-  const extra = violations.length > 1 ? ` (+${violations.length - 1} more contract violation${violations.length > 2 ? "s" : ""})` : "";
-  throw new Error(`invalid pi-daddy v2 ${label} at line ${line}: closed contract violation \u2014 ${first.path ? `${first.path} ` : ""}${first.message}${extra} [pi-daddy ${PI_DADDY_CONTRACT_COMMIT.slice(0, 12)}]`);
-}
-var V3_EVENTS = /* @__PURE__ */ new Set(["capability_decision", "workspace_lease", "child_lifecycle", "check_receipt", "workflow_fact"]);
-function requireV3Discriminator(record, line) {
-  const nativeEvent = string(record.event);
-  if (!nativeEvent || !V3_EVENTS.has(nativeEvent)) {
-    throw new Error(`invalid pi-daddy v3 event at line ${line}: event discriminator is required and must be capability_decision, workspace_lease, child_lifecycle, check_receipt, or workflow_fact`);
-  }
-  return nativeEvent;
-}
-var pinnedV3ContractChecked = false;
-var pinnedV3ContractFieldNames;
-function assertPinnedV3Contract(record, line) {
-  if (!pinnedV3ContractChecked) {
-    assertSupportedSchemaV3(PI_DADDY_LEDGER_V3_SCHEMA, "pinned pi-daddy ledger v3 schema");
-    pinnedV3ContractFieldNames = declaredPropertyNames(PI_DADDY_LEDGER_V3_SCHEMA);
-    pinnedV3ContractChecked = true;
-  }
-  const violations = validateClosedSchemaV3(PI_DADDY_LEDGER_V3_SCHEMA, record, { knownFieldNames: pinnedV3ContractFieldNames });
-  if (violations.length === 0)
-    return;
-  const nativeEvent = string(record.event);
-  const label = nativeEvent && V3_EVENTS.has(nativeEvent) ? nativeEvent : "record";
-  const [first] = violations;
-  const extra = violations.length > 1 ? ` (+${violations.length - 1} more contract violation${violations.length > 2 ? "s" : ""})` : "";
-  throw new Error(`invalid pi-daddy v3 ${label} at line ${line}: closed contract violation \u2014 ${first.path ? `${first.path} ` : ""}${first.message}${extra} [pi-daddy ${PI_DADDY_LEDGER_V3_CONTRACT_COMMIT.slice(0, 12)}]`);
-}
-var V2_LEASE_OUTCOMES = /* @__PURE__ */ new Set([
-  "acquired",
-  "uncontended",
-  "refused",
-  "released",
-  "released-unrecorded",
-  "lost",
-  "retained",
-  "timeout",
-  "recovered"
-]);
-var V2_LEASE_ACCESS = /* @__PURE__ */ new Set(["read", "write"]);
-var V2_RECEIPT_PRIOR_LEASE_OUTCOMES = /* @__PURE__ */ new Set(["acquired", "recovered"]);
-var V2_REFUSAL_FIELDS = /* @__PURE__ */ new Set(["code", "message", "details"]);
-var V2_REFUSAL_DETAIL_TYPES = /* @__PURE__ */ new Set(["string", "number", "boolean", "null"]);
-var V2_LIFECYCLE_STATES = /* @__PURE__ */ new Set(["starting", "completed", "failed"]);
-var V2_EXECUTORS = /* @__PURE__ */ new Set(["process", "herdr"]);
-var V2_RECEIPT_RELEASE_OUTCOMES = /* @__PURE__ */ new Set(["released", "released-unrecorded", "lost", "timeout"]);
-var NORMALIZED_RECEIPT_RELEASE_EVENTS = /* @__PURE__ */ new Set([
-  "writer_lease_released",
-  "writer_lease_released_unrecorded",
-  "writer_lease_lost",
-  "writer_lease_timeout"
-]);
-var V2_CORRELATION_FIELDS = /* @__PURE__ */ new Set([
-  "schema_version",
-  "run_id",
-  "task_id",
-  "workspace_id",
-  "context_id",
-  "phase",
-  "assurance",
-  "assurance_effective",
-  "policy_label",
-  "assurance_source",
-  "assurance_scope",
-  "activated_at",
-  "plan_digest",
-  "definition_digest",
-  "task_digest",
-  "base_sha",
-  "head_sha",
-  "tree_sha",
-  "event_seq",
-  "last_change_seq",
-  "last_authority_seq",
-  "check_receipt_id"
-]);
-var V2_CORRELATION_NUMERIC_FIELDS = /* @__PURE__ */ new Set(["event_seq", "last_change_seq", "last_authority_seq"]);
-var V2_APPROVAL_SOURCES = /* @__PURE__ */ new Set(["prompt", "session", "persisted", "inherited"]);
-var V2_APPROVAL_SCOPES = /* @__PURE__ */ new Set(["once", "session", "always"]);
 var V2_REFUSAL_CODES = new Set(PI_DADDY_LEDGER_V2_SCHEMA.$defs.refusalCode.enum);
 var V3_REFUSAL_CODES = new Set(PI_DADDY_LEDGER_V3_SCHEMA.$defs.refusalCode.enum);
 var V2_CORRELATION_MAX_BYTES = 32 * 1024;
-var V2_CORRELATION_MAX_FIELD_CHARS = 512;
 var V2_CORRELATION_MAX_SCOPE_BYTES = 4 * 1024;
-function piDaddyStreamKey(record, index) {
-  if (record.ledgerVersion === void 0)
-    return JSON.stringify(["legacy", string(record.childId) ?? `missing-child:${index}`]);
-  if (record.ledgerVersion === 3) {
-    return record.event === "workflow_fact" ? JSON.stringify(["v3-fact", string(record.factId) ?? `missing-fact:${index}`]) : JSON.stringify(["v3-execution", string(record.executionId) ?? `missing-execution:${index}`]);
-  }
-  const correlation = object2(record.correlation);
-  return JSON.stringify([
-    string(correlation?.run_id) ?? `missing-run:${index}`,
-    string(correlation?.task_id) ?? `missing-task:${index}`,
-    string(record.workspaceId) ?? string(correlation?.workspace_id) ?? "",
-    string(record.childId) ?? `missing-child:${index}`
-  ]);
-}
-function normalizedPiDaddyStreamKey(event, index) {
-  if (event.source === "pi-daddy-0.17")
-    return JSON.stringify(["legacy", event.child_id ?? `missing-child:${index}`]);
-  if (event.source === "pi-daddy-v3") {
-    return event.workflow_fact_id ? JSON.stringify(["v3-fact", event.workflow_fact_id]) : JSON.stringify(["v3-execution", event.execution_id ?? `missing-execution:${index}`]);
-  }
-  const correlation = object2(event.attributes?.correlation);
-  return JSON.stringify([
-    event.run_id ?? `missing-run:${index}`,
-    event.task_id ?? `missing-task:${index}`,
-    event.workspace_id ?? string(correlation?.workspace_id) ?? "",
-    event.child_id ?? `missing-child:${index}`
-  ]);
-}
-function sameRawCorrelationIdentity(left, right) {
-  const leftCorrelation = object2(left.correlation);
-  const rightCorrelation = object2(right.correlation);
-  return string(leftCorrelation?.run_id) === string(rightCorrelation?.run_id) && string(leftCorrelation?.task_id) === string(rightCorrelation?.task_id);
-}
-function validatePiDaddyTimestampOrder(records2) {
-  const highWaterByChild = /* @__PURE__ */ new Map();
-  records2.forEach((record, index) => {
-    const supportedVersion = record.ledgerVersion === 2 || record.ledgerVersion === 3;
-    const legacy = record.ledgerVersion === void 0 && record.schema_version === void 0 && record.event === void 0;
-    if (!supportedVersion && !legacy)
-      return;
-    const at = string(record.ts);
-    if (!validTime(at))
-      throw new Error(`invalid pi-daddy ledger timestamp at line ${index + 1}: ts must be a date-time`);
-    const time = Date.parse(at);
-    const child3 = piDaddyStreamKey(record, index);
-    const highWater = highWaterByChild.get(child3);
-    if (highWater !== void 0 && time < highWater && !isRawPiDaddyReceiptInversion(records2, index, time)) {
-      throw new Error(`pi-daddy ledger timestamp moves backwards at line ${index + 1}`);
-    }
-    highWaterByChild.set(child3, Math.max(highWater ?? time, time));
-  });
-}
-function isRawPiDaddyReceiptInversion(records2, index, receiptTime) {
-  const receipt = records2[index];
-  const release = records2[index - 1];
-  if (receipt?.ledgerVersion !== 2 && receipt?.ledgerVersion !== 3 || receipt.event !== "check_receipt" || release?.ledgerVersion !== receipt.ledgerVersion || release.event !== "workspace_lease")
-    return false;
-  if (receipt.childId !== release.childId || receipt.workspaceId !== release.workspaceId || !sameRawCorrelationIdentity(receipt, release) || !V2_RECEIPT_RELEASE_OUTCOMES.has(string(release.outcome) ?? ""))
-    return false;
-  const previousLease = records2.slice(0, index - 1).reverse().find((record) => record.ledgerVersion === receipt.ledgerVersion && record.event === "workspace_lease" && record.childId === receipt.childId && record.workspaceId === receipt.workspaceId && sameRawCorrelationIdentity(receipt, record));
-  return Boolean(previousLease && V2_RECEIPT_PRIOR_LEASE_OUTCOMES.has(string(previousLease.outcome) ?? "") && validTime(string(previousLease.ts)) && Date.parse(string(previousLease.ts)) <= receiptTime);
-}
-function isAllowedPiDaddyReceiptInversion(adapter, events, index) {
-  if (adapter !== "pi-daddy-v1" && adapter !== "pi-daddy-ledger-v3")
-    return false;
-  const receipt = events[index];
-  const release = events[index - 1];
-  if (receipt?.type !== "check_receipt_recorded" || !NORMALIZED_RECEIPT_RELEASE_EVENTS.has(release?.type))
-    return false;
-  if (receipt.child_id !== release.child_id || receipt.workspace_id !== release.workspace_id || receipt.run_id !== release.run_id || receipt.task_id !== release.task_id || !validTime(receipt.at))
-    return false;
-  const receiptTime = Date.parse(receipt.at);
-  const previousLease = events.slice(0, index - 1).reverse().find((event) => event.attributes?.native_event === "workspace_lease" && event.child_id === receipt.child_id && event.workspace_id === receipt.workspace_id && event.run_id === receipt.run_id && event.task_id === receipt.task_id);
-  return Boolean(previousLease && (/* @__PURE__ */ new Set(["writer_lease_acquired", "writer_lease_recovered"])).has(previousLease.type) && validTime(previousLease.at) && Date.parse(previousLease.at) <= receiptTime);
-}
-function normalizePiDaddyV2(record, index) {
-  const line = index + 1;
-  const nativeEvent = requireV2Discriminator(record, line);
-  const at = requireV2String(record, "ts", nativeEvent, line);
-  const childId = requireV2String(record, "childId", nativeEvent, line);
-  const correlation = requireV2Correlation(record, nativeEvent, line);
-  const carriesTopWorkspace = nativeEvent === "workspace_lease" || nativeEvent === "check_receipt";
-  if (!carriesTopWorkspace && record.workspaceId !== void 0) {
-    throw new Error(`invalid pi-daddy v2 ${nativeEvent} at line ${line}: workspaceId is not part of the public variant`);
-  }
-  const topWorkspace = carriesTopWorkspace ? string(record.workspaceId) : void 0;
-  const correlationWorkspace = string(correlation.workspace_id);
-  if (topWorkspace && correlationWorkspace && topWorkspace !== correlationWorkspace) {
-    throw new Error(`invalid pi-daddy v2 ${nativeEvent} at line ${line}: workspaceId disagrees with correlation.workspace_id`);
-  }
-  if (nativeEvent !== "capability_decision" && (record.taskDigest !== void 0 || record.definitionDigest !== void 0)) {
-    throw new Error(`invalid pi-daddy v2 ${nativeEvent} at line ${line}: taskDigest and definitionDigest belong only to capability_decision`);
-  }
-  const definition = nativeEvent === "capability_decision" ? object2(record.definitionDigest) : void 0;
-  const trustedTask = nativeEvent === "capability_decision" ? string(record.taskDigest) : void 0;
-  const trustedDefinition = nativeEvent === "capability_decision" ? string(definition?.sha256) : void 0;
-  const common2 = {
-    event_version: TRAJECTORY_EVENT_VERSION,
-    source: "pi-daddy-v2",
-    at,
-    run_id: string(correlation.run_id),
-    task_id: string(correlation.task_id),
-    // correlation.workspace_id is a controller-supplied join label, not proof that
-    // pi-daddy resolved or leased that workspace. Only a top-level runtime identity
-    // is promoted into the adapter-neutral authoritative-looking field.
-    workspace_id: topWorkspace,
-    context_id: string(correlation.context_id),
-    child_id: childId,
-    phase: string(correlation.phase),
-    digests: anyDefined({
-      task: trustedTask,
-      definition: trustedDefinition,
-      correlation_plan: string(correlation.plan_digest),
-      correlation_task: string(correlation.task_digest),
-      correlation_definition: string(correlation.definition_digest),
-      correlation_base: string(correlation.base_sha),
-      correlation_head: string(correlation.head_sha),
-      correlation_tree: string(correlation.tree_sha)
-    })
-  };
-  const commonAttributes = safeAttributes({
-    ledger_version: 2,
-    native_event: nativeEvent,
-    correlation: sanitizeAttributes(correlation),
-    event_seq: finiteNumber(correlation.event_seq),
-    last_change_seq: finiteNumber(correlation.last_change_seq),
-    last_authority_seq: finiteNumber(correlation.last_authority_seq),
-    check_receipt_id: string(correlation.check_receipt_id),
-    assurance: string(correlation.assurance),
-    assurance_effective: string(correlation.assurance_effective),
-    policy_label: string(correlation.policy_label),
-    assurance_source: string(correlation.assurance_source),
-    assurance_scope: correlation.assurance_scope,
-    activated_at: string(correlation.activated_at)
-  });
-  if (nativeEvent === "capability_decision") {
-    if (record.definitionDigest !== void 0 && (!definition || !string(definition.name) || !string(definition.source) || !trustedDefinition || !/^[a-fA-F0-9]{64}$/.test(trustedDefinition))) {
-      throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: definitionDigest requires non-empty name, source, and sha256`);
-    }
-    const parentId = requireV2String(record, "parentId", nativeEvent, line);
-    const executor = requireV2Executor(record, nativeEvent, line);
-    const taskDigest = requireV2String(record, "taskDigest", nativeEvent, line);
-    if (!/^[a-fA-F0-9]{64}$/.test(taskDigest))
-      throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: taskDigest must be sha256`);
-    if (!Number.isInteger(record.depth) || typeof record.blocked !== "boolean") {
-      throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: depth and blocked are required`);
-    }
-    const requested = requireV2StringArray(record, "requested", nativeEvent, line);
-    const parentGrant = requireV2StringArray(record, "parentGrant", nativeEvent, line);
-    const effective = requireV2StringArray(record, "effective", nativeEvent, line);
-    const denied = requireV2StringArray(record, "denied", nativeEvent, line);
-    const clipped = requireV2StringArray(record, "clipped", nativeEvent, line);
-    const gated = requireV2StringArray(record, "gatedBlocked", nativeEvent, line);
-    const approved = optionalV2StringArray(record, "approved", nativeEvent, line);
-    const agentType = optionalV2SafeString(record.agentType, "agentType", nativeEvent, line);
-    const humanDenied = optionalV2Boolean(record, "humanDenied", nativeEvent, line);
-    const refusal = structuredRefusal(record.refusal, nativeEvent, line);
-    if (!record.blocked && refusal)
-      throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: an allowed decision cannot carry a refusal`);
-    validateCapabilityPartition(requested, effective, denied, clipped, gated, approved, Boolean(record.blocked), line);
-    const approvalSource = optionalV2Enum(record.approvalSource, "approvalSource", V2_APPROVAL_SOURCES, nativeEvent, line);
-    const approvalSources = optionalV2EnumMap(record.approvalSources, "approvalSources", V2_APPROVAL_SOURCES, nativeEvent, line);
-    const approvalScope = optionalV2Enum(record.approvalScope, "approvalScope", V2_APPROVAL_SCOPES, nativeEvent, line);
-    const approvalScopes = optionalV2EnumMap(record.approvalScopes, "approvalScopes", V2_APPROVAL_SCOPES, nativeEvent, line);
-    const approvalExpiresAt = optionalV2StringMap(record.approvalExpiresAt, "approvalExpiresAt", nativeEvent, line, validTime);
-    const approvalUses = optionalV2ApprovalUses(record.approvalUses, nativeEvent, line);
-    validateApprovalEvidence(approved ?? [], approvalSource, approvalSources, approvalScopes, approvalExpiresAt, approvalUses, line);
-    const normalizedRequested = [...new Set(requested)];
-    const attributes = safeAttributes({
-      ...commonAttributes,
-      depth: record.depth,
-      agent_type: agentType,
-      native_requested: normalizedRequested.length === requested.length ? void 0 : requested,
-      executor,
-      task_from: string(record.taskFrom),
-      parent_grant: parentGrant,
-      denied,
-      clipped,
-      gated_blocked: gated,
-      blocked: record.blocked,
-      reason: string(record.reason),
-      approved,
-      approval_source: approvalSource,
-      approval_sources: approvalSources,
-      approval_scope: approvalScope,
-      approval_scopes: approvalScopes,
-      approval_expires_at: approvalExpiresAt,
-      approval_uses: approvalUses,
-      human_denied: humanDenied,
-      gate_outcome: string(record.gateOutcome),
-      definition_name: string(definition?.name),
-      definition_source: string(definition?.source),
-      structured_refusal: refusal
-    });
-    const base = { ...common2, parent_id: parentId, requested_capabilities: normalizedRequested, effective_capabilities: effective, attributes };
-    const refusalCode = string(refusal?.code);
-    const events = [
-      ...normalizedRequested.map((capability) => ({ ...base, type: "capability_requested", capability }))
-    ];
-    const sources = approvalSources;
-    const scopes = approvalScopes;
-    const expiries = approvalExpiresAt;
-    const uses = approvalUses;
-    for (const capability of approved ?? []) {
-      events.push(cleanEvent({
-        ...base,
-        type: "approval_used",
-        capability,
-        approval: cleanObject({
-          capability,
-          subject: approvalSubject(agentType),
-          source: string(sources?.[capability]) ?? string(record.approvalSource),
-          scope: string(scopes?.[capability]) ?? string(record.approvalScope),
-          expires_at: string(expiries?.[capability]),
-          used_at: at
-        }),
-        attributes: safeAttributes({ ...attributes, approval_uses: object2(uses?.[capability]) })
-      }));
-    }
-    const approvedSet = new Set(approved ?? []);
-    events.push(...record.blocked ? [] : effective.map((capability) => ({ ...base, type: "capability_granted", capability })), ...[.../* @__PURE__ */ new Set([...denied, ...gated.filter((capability) => !approvedSet.has(capability))])].map((capability) => ({
-      ...base,
-      type: "capability_refused",
-      capability,
-      refusal_code: denied.includes(capability) ? "CAPABILITY_ESCALATION" : refusalCode
-    })));
-    events.push(cleanEvent({
-      ...base,
-      type: record.blocked ? "child_spawn_refused" : "capability_decision",
-      refusal_code: refusalCode
-    }));
-    return events;
-  }
-  if (nativeEvent === "workspace_lease") {
-    const workspaceId2 = requireV2String(record, "workspaceId", nativeEvent, line);
-    requireV2String(record, "root", nativeEvent, line);
-    const access = requireV2String(record, "access", nativeEvent, line);
-    const outcome = requireV2String(record, "outcome", nativeEvent, line);
-    if (!V2_LEASE_ACCESS.has(access) || !V2_LEASE_OUTCOMES.has(outcome)) {
-      throw new Error(`invalid pi-daddy v2 workspace_lease at line ${line}: access or outcome is unsupported`);
-    }
-    if (record.recovered !== void 0 && typeof record.recovered !== "boolean" && record.recovered !== "unknown") {
-      throw new Error(`invalid pi-daddy v2 workspace_lease at line ${line}: recovered must be boolean or "unknown"`);
-    }
-    const refusal = structuredRefusal(record.refusal, nativeEvent, line);
-    const type2 = access === "read" ? `workspace_read_${outcome.replaceAll("-", "_")}` : outcome === "refused" && refusal?.code === "WORKSPACE_WRITE_CONFLICT" ? "writer_lease_conflict" : `writer_lease_${outcome.replaceAll("-", "_")}`;
-    return [cleanEvent({
-      ...common2,
-      workspace_id: workspaceId2,
-      type: type2,
-      refusal_code: string(refusal?.code),
-      attributes: safeAttributes({
-        ...commonAttributes,
-        root: string(record.root),
-        access,
-        outcome,
-        recovered: record.recovered,
-        release_reason: string(record.releaseReason),
-        structured_refusal: refusal
-      })
-    })];
-  }
-  if (nativeEvent === "child_lifecycle") {
-    const state = requireV2String(record, "state", nativeEvent, line);
-    const executor = requireV2Executor(record, nativeEvent, line);
-    if (!V2_LIFECYCLE_STATES.has(state)) {
-      throw new Error(`invalid pi-daddy v2 child_lifecycle at line ${line}: state is unsupported`);
-    }
-    if (record.exitCode !== void 0 && record.exitCode !== null && !Number.isInteger(record.exitCode)) {
-      throw new Error(`invalid pi-daddy v2 child_lifecycle at line ${line}: exitCode must be an integer or null`);
-    }
-    const timedOut = optionalV2Boolean(record, "timedOut", nativeEvent, line);
-    const aborted = optionalV2Boolean(record, "aborted", nativeEvent, line);
-    const truncated = optionalV2Boolean(record, "truncated", nativeEvent, line);
-    const type2 = state === "starting" ? "child_started" : state === "completed" ? "child_completed" : "child_failed";
-    return [cleanEvent({
-      ...common2,
-      type: type2,
-      exit_code: Number.isInteger(record.exitCode) ? Number(record.exitCode) : void 0,
-      attributes: safeAttributes({
-        ...commonAttributes,
-        state,
-        executor,
-        exit_code: record.exitCode,
-        signal: record.signal,
-        timed_out: timedOut,
-        aborted,
-        truncated,
-        reason: string(record.reason)
-      })
-    })];
-  }
-  const workspaceId = requireV2String(record, "workspaceId", nativeEvent, line);
-  const receiptId = requireV2String(record, "receiptId", nativeEvent, line);
-  if (!/^[a-fA-F0-9]{64}$/.test(receiptId)) {
-    throw new Error(`invalid pi-daddy v2 check_receipt at line ${line}: receiptId must be sha256`);
-  }
-  const checkId = requireV2String(record, "checkId", nativeEvent, line);
-  const treeSha = requireV2String(record, "treeSha", nativeEvent, line);
-  if (!/^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/.test(treeSha)) {
-    throw new Error(`invalid pi-daddy v2 check_receipt at line ${line}: treeSha must be a git object id`);
-  }
-  return [cleanEvent({
-    ...common2,
-    workspace_id: workspaceId,
-    type: "check_receipt_recorded",
-    digests: { ...common2.digests ?? {}, tree: treeSha },
-    attributes: safeAttributes({
-      ...commonAttributes,
-      receipt_id: receiptId,
-      check_id: checkId,
-      check_receipt_id: string(correlation.check_receipt_id)
-    })
-  })];
-}
-function normalizePiDaddyV3(record, index) {
-  const line = index + 1;
-  const nativeEvent = requireV3Discriminator(record, line);
-  const at = requireV3String(record, "ts", nativeEvent, line);
-  const correlation = object2(record.correlation) ?? {};
-  const correlationDigests = anyDefined({
-    correlation_plan: string(correlation.plan_digest),
-    correlation_task: string(correlation.task_digest),
-    correlation_definition: string(correlation.definition_digest),
-    correlation_base: string(correlation.base_sha),
-    correlation_head: string(correlation.head_sha),
-    correlation_tree: string(correlation.tree_sha)
-  });
-  const correlationAttributes = safeAttributes({
-    ledger_version: 3,
-    native_event: nativeEvent,
-    correlation: Object.keys(correlation).length ? sanitizeAttributes(correlation) : void 0,
-    event_seq: finiteNumber(correlation.event_seq),
-    last_change_seq: finiteNumber(correlation.last_change_seq),
-    last_authority_seq: finiteNumber(correlation.last_authority_seq),
-    check_receipt_id: string(correlation.check_receipt_id),
-    assurance: string(correlation.assurance),
-    assurance_effective: string(correlation.assurance_effective),
-    policy_label: string(correlation.policy_label),
-    assurance_source: string(correlation.assurance_source),
-    assurance_scope: correlation.assurance_scope,
-    activated_at: string(correlation.activated_at)
-  });
-  if (nativeEvent === "workflow_fact") {
-    return [cleanEvent({
-      event_version: TRAJECTORY_EVENT_VERSION,
-      type: "workflow_fact",
-      source: "pi-daddy-v3",
-      at,
-      run_id: string(correlation.run_id),
-      task_id: string(correlation.task_id),
-      workspace_id: string(correlation.workspace_id),
-      context_id: string(correlation.context_id),
-      phase: string(correlation.phase),
-      workflow_fact_id: requireV3String(record, "factId", nativeEvent, line),
-      digests: correlationDigests,
-      attributes: safeAttributes({
-        ...correlationAttributes,
-        source: string(record.source),
-        provenance: string(record.provenance),
-        fact_kind: string(record.kind),
-        fact_subject: string(record.subject),
-        fact_state: string(record.state)
-      })
-    })];
-  }
-  const executionId = requireV3String(record, "executionId", nativeEvent, line);
-  const parentExecutionId = record.parentExecutionId === null ? null : requireV3String(record, "parentExecutionId", nativeEvent, line);
-  if (parentExecutionId === executionId)
-    throw new Error(`invalid pi-daddy v3 ${nativeEvent} at line ${line}: an execution cannot be its own parent`);
-  const childId = requireV3String(record, "childId", nativeEvent, line);
-  const carriesTopWorkspace = nativeEvent === "workspace_lease" || nativeEvent === "check_receipt";
-  const topWorkspace = carriesTopWorkspace ? string(record.workspaceId) : void 0;
-  const correlationWorkspace = string(correlation.workspace_id);
-  if (topWorkspace && correlationWorkspace && topWorkspace !== correlationWorkspace) {
-    throw new Error(`invalid pi-daddy v3 ${nativeEvent} at line ${line}: workspaceId disagrees with correlation.workspace_id`);
-  }
-  const common2 = {
-    event_version: TRAJECTORY_EVENT_VERSION,
-    source: "pi-daddy-v3",
-    at,
-    run_id: string(correlation.run_id),
-    task_id: string(correlation.task_id),
-    workspace_id: topWorkspace,
-    context_id: string(correlation.context_id),
-    child_id: childId,
-    execution_id: executionId,
-    parent_execution_id: parentExecutionId,
-    phase: string(correlation.phase),
-    digests: correlationDigests
-  };
-  if (nativeEvent === "capability_decision") {
-    const requested = record.requested;
-    const parentGrant = record.parentGrant;
-    const effective = record.effective;
-    const denied = record.denied;
-    const clipped = record.clipped;
-    const gated = record.gatedBlocked;
-    const approved = record.approved;
-    validateCapabilityPartition(requested, effective, denied, clipped, gated, approved, Boolean(record.blocked), line, 3);
-    const approvalSources = object2(record.approvalSources);
-    const approvalScopes = object2(record.approvalScopes);
-    const approvalExpiresAt = object2(record.approvalExpiresAt);
-    const approvalUses = object2(record.approvalUses);
-    if (approvalUses && Object.values(approvalUses).some((use) => !object2(use) || !Number.isInteger(use.max) || !Number.isInteger(use.remaining) || use.max < 0 || use.remaining < 0 || use.remaining > use.max))
-      throw new Error(`invalid pi-daddy v3 capability_decision at line ${line}: approvalUses requires remaining <= max integer bounds`);
-    validateApprovalEvidence(approved ?? [], string(record.approvalSource), approvalSources, approvalScopes, approvalExpiresAt, approvalUses, line, 3);
-    const refusal = structuredRefusal(record.refusal, nativeEvent, line, 3);
-    if (!record.blocked && refusal)
-      throw new Error(`invalid pi-daddy v3 capability_decision at line ${line}: an allowed decision cannot carry a refusal`);
-    const definition = object2(record.definitionDigest);
-    const taskDigest = requireV3String(record, "taskDigest", nativeEvent, line);
-    const trustedDefinition = string(definition?.sha256);
-    const normalizedRequested = [...new Set(requested)];
-    const attributes = safeAttributes({
-      ...correlationAttributes,
-      depth: record.depth,
-      agent_type: string(record.agentType),
-      executor: string(record.executor),
-      task_from: string(record.taskFrom),
-      parent_grant: parentGrant,
-      denied,
-      clipped,
-      gated_blocked: gated,
-      blocked: record.blocked,
-      reason: string(record.reason),
-      approved,
-      approval_source: string(record.approvalSource),
-      approval_sources: approvalSources,
-      approval_scope: string(record.approvalScope),
-      approval_scopes: approvalScopes,
-      approval_expires_at: approvalExpiresAt,
-      approval_uses: approvalUses,
-      human_denied: record.humanDenied,
-      gate_outcome: string(record.gateOutcome),
-      definition_name: string(definition?.name),
-      definition_source: string(definition?.source),
-      structured_refusal: refusal
-    });
-    const base = {
-      ...common2,
-      parent_id: requireV3String(record, "parentId", nativeEvent, line),
-      task_from_execution_id: string(record.taskFromExecutionId),
-      requested_capabilities: normalizedRequested,
-      effective_capabilities: effective,
-      digests: anyDefined({ ...correlationDigests, task: taskDigest, definition: trustedDefinition }),
-      attributes
-    };
-    const refusalCode = string(refusal?.code);
-    const events = normalizedRequested.map((capability) => ({ ...base, type: "capability_requested", capability }));
-    for (const capability of approved ?? []) {
-      events.push(cleanEvent({
-        ...base,
-        type: "approval_used",
-        capability,
-        approval: cleanObject({
-          capability,
-          subject: approvalSubject(record.agentType),
-          source: string(approvalSources?.[capability]) ?? string(record.approvalSource),
-          scope: string(approvalScopes?.[capability]) ?? string(record.approvalScope),
-          expires_at: string(approvalExpiresAt?.[capability]),
-          used_at: at
-        }),
-        attributes: safeAttributes({ ...attributes, approval_uses: object2(approvalUses?.[capability]) })
-      }));
-    }
-    const approvedSet = new Set(approved ?? []);
-    if (!record.blocked)
-      events.push(...effective.map((capability) => ({ ...base, type: "capability_granted", capability })));
-    events.push(...[.../* @__PURE__ */ new Set([...denied, ...gated.filter((capability) => !approvedSet.has(capability))])].map((capability) => ({
-      ...base,
-      type: "capability_refused",
-      capability,
-      refusal_code: denied.includes(capability) ? "CAPABILITY_ESCALATION" : refusalCode
-    })));
-    events.push(cleanEvent({ ...base, type: record.blocked ? "child_spawn_refused" : "capability_decision", refusal_code: refusalCode }));
-    return events;
-  }
-  if (nativeEvent === "workspace_lease") {
-    const workspaceId2 = requireV3String(record, "workspaceId", nativeEvent, line);
-    const access = requireV3String(record, "access", nativeEvent, line);
-    const outcome = requireV3String(record, "outcome", nativeEvent, line);
-    const refusal = structuredRefusal(record.refusal, nativeEvent, line, 3);
-    const type2 = access === "read" ? `workspace_read_${outcome.replaceAll("-", "_")}` : outcome === "refused" && refusal?.code === "WORKSPACE_WRITE_CONFLICT" ? "writer_lease_conflict" : `writer_lease_${outcome.replaceAll("-", "_")}`;
-    return [cleanEvent({
-      ...common2,
-      workspace_id: workspaceId2,
-      type: type2,
-      refusal_code: string(refusal?.code),
-      attributes: safeAttributes({
-        ...correlationAttributes,
-        root: string(record.root),
-        access,
-        outcome,
-        recovered: record.recovered,
-        release_reason: string(record.releaseReason),
-        structured_refusal: refusal
-      })
-    })];
-  }
-  if (nativeEvent === "child_lifecycle") {
-    const state = requireV3String(record, "state", nativeEvent, line);
-    const type2 = state === "starting" ? "child_started" : state === "running" ? "child_running" : state === "completed" ? "child_completed" : "child_failed";
-    return [cleanEvent({
-      ...common2,
-      type: type2,
-      deadline_at: string(record.deadlineAt),
-      exit_code: Number.isInteger(record.exitCode) ? Number(record.exitCode) : void 0,
-      attributes: safeAttributes({
-        ...correlationAttributes,
-        state,
-        executor: string(record.executor),
-        exit_code: record.exitCode,
-        signal: record.signal,
-        timed_out: record.timedOut,
-        aborted: record.aborted,
-        truncated: record.truncated,
-        reason: string(record.reason),
-        deadline_at: string(record.deadlineAt),
-        herdr_pane_id: string(record.herdrPaneId),
-        herdr_agent_name: string(record.herdrAgentName)
-      })
-    })];
-  }
-  const workspaceId = requireV3String(record, "workspaceId", nativeEvent, line);
-  const receiptId = requireV3String(record, "receiptId", nativeEvent, line);
-  const treeSha = requireV3String(record, "treeSha", nativeEvent, line);
-  if (!/^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/.test(treeSha)) {
-    throw new Error(`invalid pi-daddy v3 check_receipt at line ${line}: treeSha must be a git object id for normalized tree evidence`);
-  }
-  return [cleanEvent({
-    ...common2,
-    workspace_id: workspaceId,
-    type: "check_receipt_recorded",
-    digests: anyDefined({ ...correlationDigests, tree: treeSha }),
-    attributes: safeAttributes({
-      ...correlationAttributes,
-      receipt_id: receiptId,
-      check_id: string(record.checkId),
-      check_receipt_id: string(correlation.check_receipt_id)
-    })
-  })];
-}
-function requireV3String(record, field, event, line) {
-  const value3 = string(record[field]);
-  if (!value3)
-    throw new Error(`invalid pi-daddy v3 ${event} at line ${line}: ${field} is required`);
-  if (redactText(value3) !== value3)
-    throw new Error(`invalid pi-daddy v3 ${event} at line ${line}: ${field} contains a sensitive value`);
-  return value3;
-}
-function requireV2Correlation(record, event, line) {
-  const correlation = object2(record.correlation);
-  if (!correlation) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation.run_id and correlation.task_id are required for workflow joins`);
-  }
-  const encoded = JSON.stringify(correlation);
-  if (Buffer.byteLength(encoded) > V2_CORRELATION_MAX_BYTES) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation exceeds ${V2_CORRELATION_MAX_BYTES} bytes`);
-  }
-  const undeclared = Object.keys(correlation).filter((key3) => !V2_CORRELATION_FIELDS.has(key3));
-  if (undeclared.length > 0) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation carries fields outside the pinned schema 1.0 contract [REDACTED field names]`);
-  }
-  for (const [key3, value3] of Object.entries(correlation)) {
-    if (value3 === void 0 || value3 === null)
-      continue;
-    if (key3 === "assurance_scope") {
-      const size = Buffer.byteLength(JSON.stringify(value3));
-      if (size > V2_CORRELATION_MAX_SCOPE_BYTES) {
-        throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation assurance_scope exceeds ${V2_CORRELATION_MAX_SCOPE_BYTES} bytes`);
-      }
-      continue;
-    }
-    if (V2_CORRELATION_NUMERIC_FIELDS.has(key3)) {
-      if (typeof value3 !== "number" || !Number.isFinite(value3)) {
-        throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation ${key3} must be a finite number`);
-      }
-      continue;
-    }
-    if (typeof value3 !== "string") {
-      throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation ${key3} must be a string`);
-    }
-    if (value3.length > V2_CORRELATION_MAX_FIELD_CHARS) {
-      throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation ${key3} exceeds ${V2_CORRELATION_MAX_FIELD_CHARS} characters`);
-    }
-    if (redactText(value3) !== value3) {
-      throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation ${key3} contains a sensitive value`);
-    }
-  }
-  if (!string(correlation.run_id) || !string(correlation.task_id)) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation.run_id and correlation.task_id are required for workflow joins`);
-  }
-  return Object.fromEntries(Object.entries(correlation).filter(([, value3]) => value3 !== void 0 && value3 !== null));
-}
-function requireV2String(record, field, event, line) {
-  const value3 = string(record[field]);
-  if (!value3)
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} is required`);
-  if (redactText(value3) !== value3)
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} contains a sensitive value`);
-  return value3;
-}
-function requireV2Executor(record, event, line) {
-  const executor = requireV2String(record, "executor", event, line);
-  if (!V2_EXECUTORS.has(executor)) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: executor must be process or herdr`);
-  }
-  return executor;
-}
-function requireV2StringArray(record, field, event, line) {
-  const value3 = stringArray(record[field]);
-  if (!value3)
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be an array of strings`);
-  if (value3.some((entry) => redactText(entry) !== entry)) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} contains a sensitive value`);
-  }
-  return value3;
-}
-function optionalV2StringArray(record, field, event, line) {
-  if (record[field] === void 0)
-    return void 0;
-  return requireV2StringArray(record, field, event, line);
-}
-function optionalV2SafeString(value3, field, event, line) {
-  if (value3 === void 0)
-    return void 0;
-  const parsed = string(value3);
-  if (!parsed)
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be a non-empty string`);
-  if (redactText(parsed) !== parsed)
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} contains a sensitive value`);
-  return parsed;
-}
-function optionalV2Enum(value3, field, allowed, event, line) {
-  if (value3 === void 0)
-    return void 0;
-  const parsed = string(value3);
-  if (!parsed || !allowed.has(parsed)) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be one of ${[...allowed].join(", ")}`);
-  }
-  return parsed;
-}
-function optionalV2EnumMap(value3, field, allowed, event, line) {
-  if (value3 === void 0)
-    return void 0;
-  const parsed = object2(value3);
-  if (!parsed)
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be an object`);
-  const entries = Object.entries(parsed);
-  if (entries.some(([key3, entry]) => !key3 || typeof entry !== "string" || !allowed.has(entry))) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} values must be one of ${[...allowed].join(", ")}`);
-  }
-  return Object.fromEntries(entries);
-}
-function optionalV2StringMap(value3, field, event, line, validate11 = () => true) {
-  if (value3 === void 0)
-    return void 0;
-  const parsed = object2(value3);
-  if (!parsed)
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be an object`);
-  const entries = Object.entries(parsed);
-  if (entries.some(([key3, entry]) => !key3 || typeof entry !== "string" || !validate11(entry))) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must map capabilities to valid strings`);
-  }
-  return Object.fromEntries(entries);
-}
-function optionalV2ApprovalUses(value3, event, line) {
-  if (value3 === void 0)
-    return void 0;
-  const parsed = object2(value3);
-  if (!parsed)
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: approvalUses must be an object`);
-  const output = {};
-  for (const [capability, boundsValue] of Object.entries(parsed)) {
-    const bounds2 = object2(boundsValue);
-    if (!capability || !bounds2 || !Number.isInteger(bounds2.max) || !Number.isInteger(bounds2.remaining) || Number(bounds2.max) < 0 || Number(bounds2.remaining) < 0 || Number(bounds2.remaining) > Number(bounds2.max)) {
-      throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: approvalUses requires integer max/remaining bounds`);
-    }
-    output[capability] = { max: Number(bounds2.max), remaining: Number(bounds2.remaining) };
-  }
-  return output;
-}
-function validateCapabilityPartition(requested, effective, denied, clipped, gated, approved, blocked, line, version = 2) {
-  const groups = [effective, denied, clipped, gated];
-  if (groups.some((values) => new Set(values).size !== values.length)) {
-    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: result capability arrays must not contain duplicates`);
-  }
-  const requestedSet = new Set(requested);
-  if (groups.some((values) => values.some((capability) => !requestedSet.has(capability)))) {
-    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: effective, denied, clipped, and gatedBlocked must partition requested`);
-  }
-  const flattened = groups.flat();
-  if (new Set(flattened).size !== flattened.length) {
-    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: effective, denied, clipped, and gatedBlocked must be disjoint subsets of requested`);
-  }
-  if ((approved ?? []).some((capability) => !requestedSet.has(capability) || (blocked ? !effective.includes(capability) && !gated.includes(capability) : !effective.includes(capability)))) {
-    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: approved capabilities must be requested and reflected in the resolved decision`);
-  }
-}
-function validateApprovalEvidence(approved, scalarSource, sources, scopes, expiries, uses, line, version = 2) {
-  const approvedSet = new Set(approved);
-  for (const [field, map2] of [["approvalSources", sources], ["approvalScopes", scopes], ["approvalExpiresAt", expiries], ["approvalUses", uses]]) {
-    if (map2 && Object.keys(map2).some((capability) => !approvedSet.has(capability))) {
-      throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: ${field} keys must be approved capabilities`);
-    }
-  }
-  if (approved.some((capability) => !sources?.[capability] && !scalarSource)) {
-    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: each approved capability requires an approval source`);
-  }
-  if (approved.length === 0 && (scalarSource || sources || scopes || expiries || uses)) {
-    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: approval evidence requires approved capabilities`);
-  }
-}
-function optionalV2Boolean(record, field, event, line) {
-  const value3 = record[field];
-  if (value3 === void 0)
-    return void 0;
-  if (typeof value3 !== "boolean")
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be boolean`);
-  return value3;
-}
-function approvalSubject(value3) {
-  const agentType = string(value3);
-  return agentType === void 0 || agentType === "delegate" ? "<delegate>" : agentType;
-}
-function structuredRefusal(value3, event, line, version = 2) {
-  if (value3 === void 0)
-    return void 0;
-  const parsed = object2(value3);
-  const code = string(parsed?.code);
-  if (!parsed || !code || !string(parsed.message)) {
-    throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal requires code and message`);
-  }
-  const refusalCodes = version === 3 ? V3_REFUSAL_CODES : V2_REFUSAL_CODES;
-  if (!refusalCodes.has(code)) {
-    throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal has unsupported code ${safeDiagnosticValue(code)}`);
-  }
-  const unknown = Object.keys(parsed).filter((key3) => !V2_REFUSAL_FIELDS.has(key3));
-  if (unknown.length > 0)
-    throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal carries unsupported fields`);
-  const details = parsed.details === void 0 ? void 0 : object2(parsed.details);
-  if (parsed.details !== void 0 && (!details || Object.values(details).some((entry) => !V2_REFUSAL_DETAIL_TYPES.has(entry === null ? "null" : typeof entry)))) {
-    throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal.details must contain scalar values`);
-  }
-  return parsed;
-}
-function finiteNumber(value3) {
-  return typeof value3 === "number" && Number.isFinite(value3) ? value3 : void 0;
-}
-function normalizeLegacyGrant(record, index) {
-  const requiredArrays = ["requested", "parentGrant", "effective", "denied", "clipped", "gatedBlocked"];
-  if (typeof record.ts !== "string" || typeof record.parentId !== "string" || typeof record.childId !== "string" || !Number.isInteger(record.depth) || typeof record.blocked !== "boolean" || typeof record.executor !== "string" || requiredArrays.some((field) => !Array.isArray(record[field]) || !record[field].every((value3) => typeof value3 === "string"))) {
-    throw new Error(`invalid unversioned pi-daddy grant record at line ${index + 1}; expected the 0.17 GrantRecord shape`);
-  }
-  const requested = record.requested;
-  const effective = record.effective;
-  const denied = record.denied;
-  const gated = record.gatedBlocked;
-  const digest6 = object2(record.definitionDigest);
-  const common2 = {
-    event_version: TRAJECTORY_EVENT_VERSION,
-    source: "pi-daddy-0.17",
-    at: record.ts,
-    parent_id: record.parentId,
-    child_id: record.childId
-  };
-  const attributes = sanitizeAttributes({
-    native_record: index + 1,
-    depth: record.depth,
-    agent_type: record.agentType,
-    executor: record.executor,
-    parent_grant: record.parentGrant,
-    clipped: record.clipped,
-    gated_blocked: gated,
-    gate_outcome: record.gateOutcome,
-    human_denied: record.humanDenied === true,
-    reason: record.reason,
-    definition_name: digest6?.name,
-    legacy_schema: "pi-daddy-grant-ledger/0.17"
-  });
-  const refusal = record.blocked ? legacyRefusalCode(record) : void 0;
-  const spawn6 = cleanEvent({
-    ...common2,
-    type: record.blocked ? "child_spawn_refused" : "child_started",
-    requested_capabilities: requested,
-    effective_capabilities: effective,
-    refusal_code: refusal,
-    digests: anyDefined({ definition: string(digest6?.sha256) }),
-    attributes
-  });
-  const events = [
-    ...requested.map((capability) => ({ ...common2, type: "capability_requested", capability, requested_capabilities: requested, effective_capabilities: effective, attributes })),
-    ...effective.map((capability) => ({ ...common2, type: "capability_granted", capability, requested_capabilities: requested, effective_capabilities: effective, attributes })),
-    ...[.../* @__PURE__ */ new Set([...denied, ...gated])].map((capability) => ({ ...common2, type: "capability_refused", capability, requested_capabilities: requested, effective_capabilities: effective, refusal_code: denied.includes(capability) ? "CAPABILITY_ESCALATION" : refusal, attributes }))
-  ];
-  const sources = object2(record.approvalSources);
-  const scopes = object2(record.approvalScopes);
-  for (const capability of stringArray(record.approved) ?? []) {
-    events.push(cleanEvent({
-      ...common2,
-      type: "approval_used",
-      capability,
-      approval: {
-        capability,
-        source: string(sources?.[capability]) ?? string(record.approvalSource),
-        scope: string(scopes?.[capability]) ?? string(record.approvalScope),
-        used_at: record.ts
-      },
-      attributes
-    }));
-  }
-  events.push(spawn6);
-  return events;
-}
-function legacyRefusalCode(record) {
-  const denied = stringArray(record.denied) ?? [];
-  const gated = stringArray(record.gatedBlocked) ?? [];
-  const reason = string(record.reason) ?? "";
-  if (denied.length)
-    return "CAPABILITY_ESCALATION";
-  if (/declares no `allowed-tools`/i.test(reason))
-    return "UNDECLARED_CAPABILITIES";
-  if (/unknown capabilit/i.test(reason))
-    return "UNKNOWN_CAPABILITY";
-  if (/depth limit/i.test(reason))
-    return "DEPTH_LIMIT";
-  if (/needs a task/i.test(reason))
-    return "MISSING_TASK";
-  if (/universal capability|cannot narrow/i.test(reason))
-    return "NON_NARROWING_GRANT";
-  if (gated.length) {
-    if (record.humanDenied === true || record.gateOutcome === "declined")
-      return "APPROVAL_DECLINED";
-    if (record.gateOutcome === "no-ui")
-      return "APPROVAL_NO_UI";
-    if (record.gateOutcome === "dismissed")
-      return "APPROVAL_DISMISSED";
-    if (record.gateOutcome === "error")
-      return "APPROVAL_ERROR";
-    return "APPROVAL_REQUIRED";
-  }
-  return "LEGACY_UNCLASSIFIED";
-}
-function validatePrincipalIntegrity(records2) {
-  let previous = null;
-  let previousTime = null;
-  let runId = null;
-  records2.forEach((record, index) => {
-    const line = index + 1;
-    if (record.schema_version !== "1.0") {
-      throw new Error(`unsupported principal assurance schema version ${safeDiagnosticValue(record.schema_version)} at line ${line}; expected "1.0"`);
-    }
-    if (record.seq !== line)
-      throw new Error(`principal assurance integrity failure at line ${line}: sequence mismatch`);
-    if (index === 0 && record.type !== "run_initialized")
-      throw new Error("principal assurance integrity failure: first event must initialize the run");
-    if (typeof record.run_id !== "string" || !record.run_id)
-      throw new Error(`principal assurance integrity failure at line ${line}: run_id is missing`);
-    if (runId === null)
-      runId = record.run_id;
-    else if (record.run_id !== runId)
-      throw new Error(`principal assurance integrity failure at line ${line}: run_id changed`);
-    if (record.prev_digest !== previous)
-      throw new Error(`principal assurance integrity failure at line ${line}: previous digest mismatch`);
-    if (typeof record.event_digest !== "string" || !/^[a-f0-9]{64}$/i.test(record.event_digest)) {
-      throw new Error(`principal assurance integrity failure at line ${line}: event_digest is invalid`);
-    }
-    const copy2 = { ...record };
-    delete copy2.event_digest;
-    const expected = createHash28("sha256").update(canonicalJson(copy2)).digest("hex");
-    if (record.event_digest !== expected)
-      throw new Error(`principal assurance integrity failure at line ${line}: event digest mismatch`);
-    if (!validTime(typeof record.at === "string" ? record.at : void 0))
-      throw new Error(`invalid principal assurance v1 event at line ${line}: at must be a date-time`);
-    const at = Date.parse(record.at);
-    if (previousTime !== null && at < previousTime)
-      throw new Error(`principal assurance integrity failure at line ${line}: timestamp moves backwards`);
-    previousTime = at;
-    previous = record.event_digest;
-  });
-}
-function canonicalJson(value3) {
-  if (value3 === null || typeof value3 === "string" || typeof value3 === "boolean")
-    return JSON.stringify(value3);
-  if (typeof value3 === "number") {
-    if (!Number.isFinite(value3))
-      throw new Error("principal assurance event contains a non-finite number");
-    return JSON.stringify(value3);
-  }
-  if (Array.isArray(value3))
-    return `[${value3.map(canonicalJson).join(",")}]`;
-  if (!value3 || typeof value3 !== "object")
-    throw new Error("principal assurance event contains a non-JSON value");
-  return `{${Object.entries(value3).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0).map(([key3, entry]) => `${JSON.stringify(key3)}:${canonicalJson(entry)}`).join(",")}}`;
-}
-function validTime(value3) {
-  if (typeof value3 !== "string")
-    return false;
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.exec(value3);
-  if (!match || !Number.isFinite(Date.parse(value3)))
-    return false;
-  const [, year, month, day, hour, minute, second] = match.map(Number);
-  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59)
-    return false;
-  return day >= 1 && day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
-}
-function safeDiagnosticValue(value3) {
-  if (typeof value3 === "number" && Number.isFinite(value3))
-    return String(value3);
-  if (typeof value3 === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(value3) && redactText(value3) === value3)
-    return JSON.stringify(value3);
-  return "[REDACTED invalid value]";
-}
-function sanitizePersistedError(error) {
-  const raw = error instanceof Error ? error.message : String(error);
-  return redactText(raw).replace(/("?(?:password|passwd|secret|token|api[-_]?key|authorization|credential)"?\s*[:=]\s*"?)[^\s,}"']+/gi, "$1[REDACTED]").slice(0, 1e3);
-}
-function sanitizeAttributes(value3) {
-  const redacted = redactArgs(value3);
-  const sensitiveKey = /(secret|token|password|passphrase|api[_-]?key|authorization|cookie|credential)/i;
-  const freeTextKey = /^(request|command|stdout|stderr|output|prompt|content|reason|message|release_reason|diagnostic)$/i;
-  const walk2 = (current, key3 = "") => {
-    if (sensitiveKey.test(key3))
-      return "[REDACTED]";
-    if (typeof current === "string" && freeTextKey.test(key3)) {
-      return `[REDACTED sha256:${createHash28("sha256").update(current).digest("hex")}]`;
-    }
-    if (Array.isArray(current))
-      return current.map((entry) => walk2(entry));
-    if (current && typeof current === "object")
-      return Object.fromEntries(Object.entries(current).map(([childKey, entry]) => [childKey, walk2(entry, childKey)]));
-    return current;
-  };
-  return walk2(redacted);
-}
-function parseJsonl(text15, label) {
-  const lines2 = text15.split("\n").filter((line) => line.trim());
-  if (!lines2.length)
-    throw new Error(`${label} ledger is empty`);
-  return lines2.map((line, index) => {
-    try {
-      const value3 = JSON.parse(line);
-      if (!value3 || typeof value3 !== "object" || Array.isArray(value3))
-        throw new Error("record is not an object");
-      return value3;
-    } catch (error) {
-      throw new Error(`${label} ledger line ${index + 1} is invalid JSON [REDACTED parser detail]`);
-    }
-  });
-}
-function object2(value3) {
-  return value3 && typeof value3 === "object" && !Array.isArray(value3) ? value3 : void 0;
-}
-function string(value3) {
-  return typeof value3 === "string" && value3.length ? value3 : void 0;
-}
-function stringArray(value3) {
-  return Array.isArray(value3) && value3.every((item) => typeof item === "string") ? value3 : void 0;
-}
-function anyDefined(value3) {
-  const defined = cleanObject(value3);
-  return Object.keys(defined).length > 0 ? defined : void 0;
-}
-function cleanObject(value3) {
-  return Object.fromEntries(Object.entries(value3).filter(([, entry]) => entry !== void 0));
-}
-function safeAttributes(value3) {
-  return sanitizeAttributes(cleanObject(value3));
-}
-function cleanEvent(event) {
-  return cleanObject(event);
-}
-function without(record, keys7) {
-  const omitted = new Set(keys7);
-  return Object.fromEntries(Object.entries(record).filter(([key3, value3]) => !omitted.has(key3) && value3 !== void 0));
-}
-function walkFiles(root, relative9 = "") {
-  const out = [];
-  let entries;
-  try {
-    entries = readdirSync16(join34(root, relative9), { withFileTypes: true });
-  } catch {
-    return out;
-  }
-  for (const entry of entries) {
-    const path3 = relative9 ? `${relative9}/${entry.name}` : entry.name;
-    if (entry.isDirectory())
-      out.push(...walkFiles(root, path3));
-    else if (entry.isFile())
-      out.push(path3);
-  }
-  return out;
-}
-
-// packages/adapters/dist/prompt-provenance.js
-import { createHash as createHash29, createHmac, timingSafeEqual } from "node:crypto";
-function sha3(bytes3) {
-  return createHash29("sha256").update(bytes3, "utf8").digest("hex");
-}
-function normalizePromptPayload(value3, rule) {
-  if (rule !== PROMPT_NORMALIZATION_RULE)
-    throw new Error(`unknown prompt normalization rule ${String(rule)}`);
-  if (typeof value3 === "string")
-    return value3.replace(new RegExp(PROMPT_NORMALIZATION_PATTERN, PROMPT_NORMALIZATION_FLAGS), PROMPT_NORMALIZATION_REPLACEMENT);
-  if (Array.isArray(value3))
-    return value3.map((entry) => normalizePromptPayload(entry, rule));
-  if (value3 && typeof value3 === "object")
-    return Object.fromEntries(Object.entries(value3).map(([key3, entry]) => [key3, normalizePromptPayload(entry, rule)]));
-  return value3;
-}
-function countInStrings(value3, needle) {
-  if (typeof value3 === "string") {
-    if (!needle)
-      return 0;
-    let count = 0, at = 0;
-    while ((at = value3.indexOf(needle, at)) !== -1) {
-      count++;
-      at += needle.length;
-    }
-    return count;
-  }
-  if (Array.isArray(value3))
-    return value3.reduce((sum, entry) => sum + countInStrings(entry, needle), 0);
-  if (value3 && typeof value3 === "object") {
-    const record = value3;
-    if (record.role === "user") {
-      const content = Array.isArray(record.content) ? record.content : Array.isArray(record.parts) ? record.parts : [];
-      return content.filter((block) => block && typeof block === "object" && (["tool_result", "tool_response", "function_response"].includes(String(block.type ?? "")) || "functionResponse" in block || "function_response" in block)).reduce((sum, block) => sum + countInStrings(block, needle), 0);
-    }
-    return Object.values(record).reduce((sum, entry) => sum + countInStrings(entry, needle), 0);
-  }
-  return 0;
-}
-var PROMPT_FIELDS = /* @__PURE__ */ new Set(["instructions", "input", "system", "messages", "prompt", "contents"]);
-function promptProjection(payload) {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload))
-    return null;
-  const record = payload;
-  const projected = Object.fromEntries(Object.entries(record).filter(([key3]) => PROMPT_FIELDS.has(key3)));
-  const config = record.config && typeof record.config === "object" ? record.config : null;
-  if (config?.systemInstruction !== void 0)
-    projected.systemInstruction = config.systemInstruction;
-  return Object.keys(projected).length ? projected : null;
-}
-function promptCaptureIsTrusted(extensionCount, hasRuntimeInjection2 = false) {
-  return extensionCount === 0 && !hasRuntimeInjection2;
-}
-function observationMac(observation, authenticationKey) {
-  return createHmac("sha256", authenticationKey).update(JSON.stringify(observation)).digest("hex");
-}
-function validMac(supplied, expected) {
-  if (typeof supplied !== "string" || !/^[a-f0-9]{64}$/i.test(supplied))
-    return false;
-  const suppliedBytes = Buffer.from(supplied, "hex"), expectedBytes = Buffer.from(expected, "hex");
-  return suppliedBytes.length === expectedBytes.length && timingSafeEqual(suppliedBytes, expectedBytes);
-}
-function verifyPromptSummary(value3, expectedCount, authenticationKey) {
-  if (!value3 || typeof value3 !== "object")
-    return false;
-  const envelope = value3;
-  if (!envelope.summary || envelope.summary.count !== expectedCount)
-    return false;
-  const expected = createHmac("sha256", authenticationKey).update(JSON.stringify(envelope.summary)).digest("hex");
-  return validMac(envelope.mac, expected);
-}
-function statusFor(occurrences, mechanism, observable) {
-  if (!observable)
-    return "ERROR";
-  return occurrences === (mechanism === "none" ? 0 : 1) ? "PASS" : "NOT-MEASURED";
-}
-function observeProviderPayload(payload, contract, mechanism, requestIndex) {
-  const projection = promptProjection(payload);
-  const raw = JSON.stringify(projection ?? {});
-  const normalized = JSON.stringify(normalizePromptPayload(projection ?? {}, PROMPT_NORMALIZATION_RULE));
-  const occurrences = countInStrings(projection ?? {}, contract);
-  const observable = projection !== null;
-  return {
-    capture_version: "prompt-provenance-v1",
-    request_index: requestIndex,
-    raw_sha256: sha3(raw),
-    normalized_sha256: sha3(normalized),
-    normalization_rule: PROMPT_NORMALIZATION_RULE,
-    bytes: Buffer.byteLength(raw),
-    contract_sha256: sha3(contract),
-    contract_bytes: Buffer.byteLength(contract),
-    contract_occurrences: occurrences,
-    mechanism,
-    status: statusFor(occurrences, mechanism, observable),
-    ...observable ? {} : { error: "provider payload has no supported model-visible prompt field" }
-  };
-}
-function bindPromptObservation(value3, contract, mechanism, requestIndex, authenticationKey, observerRequestIndex = requestIndex) {
-  const fallback = { ...observeProviderPayload({}, contract, mechanism, requestIndex), status: "ERROR" };
-  if (!value3 || typeof value3 !== "object")
-    return { ...fallback, error: "prompt observer emitted a non-object record" };
-  const envelope = value3;
-  if (!envelope.observation)
-    return { ...fallback, error: "prompt observation authentication missing" };
-  const expectedMac = observationMac(envelope.observation, authenticationKey);
-  if (!validMac(envelope.mac, expectedMac))
-    return { ...fallback, error: "prompt observation authentication failed" };
-  const record = envelope.observation;
-  if (record.request_index !== observerRequestIndex)
-    return { ...fallback, error: "prompt observation replay or ordering mismatch" };
-  const expectedDigest = sha3(contract), expectedBytes = Buffer.byteLength(contract);
-  const valid2 = record.capture_version === "prompt-provenance-v1" && record.normalization_rule === PROMPT_NORMALIZATION_RULE && record.mechanism === mechanism && record.contract_sha256 === expectedDigest && record.contract_bytes === expectedBytes && typeof record.raw_sha256 === "string" && /^[a-f0-9]{64}$/i.test(record.raw_sha256) && typeof record.normalized_sha256 === "string" && /^[a-f0-9]{64}$/i.test(record.normalized_sha256) && Number.isInteger(record.bytes) && record.bytes >= 0 && Number.isInteger(record.contract_occurrences) && record.contract_occurrences >= 0;
-  if (!valid2)
-    return { ...fallback, error: "prompt observation failed parent contract/provenance binding" };
-  const occurrences = record.contract_occurrences;
-  return {
-    capture_version: "prompt-provenance-v1",
-    request_index: requestIndex,
-    raw_sha256: record.raw_sha256,
-    normalized_sha256: record.normalized_sha256,
-    normalization_rule: PROMPT_NORMALIZATION_RULE,
-    bytes: record.bytes,
-    contract_sha256: expectedDigest,
-    contract_bytes: expectedBytes,
-    contract_occurrences: occurrences,
-    mechanism,
-    status: statusFor(occurrences, mechanism, true)
-  };
-}
-
-// packages/adapters/dist/pi.js
-var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
-var PROMPT_CAPTURE_EXTENSION = fileURLToPath(new URL("./prompt-capture-extension.js", import.meta.url));
-function contractFor(req) {
-  if (req.systemPromptFile) {
-    const raw2 = readFileSync26(req.systemPromptFile, "utf8");
-    return { text: raw2, raw: raw2, mechanism: "system-prompt-file" };
-  }
-  const raw = readFileSync26(join35(requireSkillDir(req.skillDir, req.mode), "SKILL.md"), "utf8");
-  const body = splitPromptDoc(raw).body;
-  if (req.mode === "red")
-    return { text: body, raw, mechanism: "none" };
-  return { text: body, raw, mechanism: req.mode === "green" ? "pi-skill" : "append-system-prompt" };
-}
-var RUNTIME_INJECTION_ENV = ["NODE_OPTIONS", "NODE_PATH", "LD_PRELOAD", "DYLD_INSERT_LIBRARIES"];
-function hasRuntimeInjection(req) {
-  return Boolean(req.armEnv && Object.keys(req.armEnv).length) || RUNTIME_INJECTION_ENV.some((key3) => Boolean(process.env[key3]));
-}
-function captureSetup(req, env, contract, counter) {
-  if (!req.onPromptObservation)
-    return { env, finish: () => {
-    } };
-  if (!promptCaptureIsTrusted(req.extensions?.length ?? 0, hasRuntimeInjection(req)))
-    return { env, finish: () => {
-      const empty = observeProviderPayload({}, contract.text, contract.mechanism, counter.value++);
-      req.onPromptObservation?.({ ...empty, status: "ERROR", error: "prompt delivery provenance is unauthenticated when subject extensions or runtime-injection env share Pi's process" });
-    } };
-  const dir = mkdtempSync2(join35(tmpdir2(), "skill-harness-prompt-"));
-  const path3 = join35(dir, "observations.jsonl"), contractPath = join35(dir, "contract.json");
-  const authenticationKey = randomBytes7(32).toString("hex");
-  writeFileSync11(path3, "", { mode: 384 });
-  writeFileSync11(contractPath, JSON.stringify({ text: contract.text, mechanism: contract.mechanism, authentication_key: authenticationKey }), { mode: 384 });
-  const finish2 = () => {
-    try {
-      const lines2 = readFileSync26(path3, "utf8").split("\n").filter(Boolean);
-      const parsed = lines2.map((line) => {
-        try {
-          return JSON.parse(line);
-        } catch {
-          return null;
-        }
-      });
-      const records2 = parsed.slice(0, -1), summary = parsed.at(-1);
-      if (!verifyPromptSummary(summary, records2.length, authenticationKey)) {
-        const empty = observeProviderPayload({}, contract.text, contract.mechanism, counter.value++);
-        req.onPromptObservation?.({ ...empty, status: "ERROR", error: "Pi prompt observation log is missing, truncated, replayed, or unauthenticated" });
-      } else
-        records2.forEach((record, observerRequestIndex) => {
-          req.onPromptObservation?.(bindPromptObservation(record, contract.text, contract.mechanism, counter.value++, authenticationKey, observerRequestIndex));
-        });
-    } finally {
-      rmSync6(dir, { recursive: true, force: true });
-    }
-  };
-  return { env: { ...env ?? process.env, SKILL_HARNESS_PROMPT_CAPTURE_FILE: path3, SKILL_HARNESS_PROMPT_CONTRACT_FILE: contractPath }, finish: finish2 };
-}
-function observerFlags(req) {
-  return req.onPromptObservation && promptCaptureIsTrusted(req.extensions?.length ?? 0, hasRuntimeInjection(req)) ? ["--extension", PROMPT_CAPTURE_EXTENSION] : [];
-}
-var PROVIDER_STDERR_SIGNATURES = [
-  "invalidated oauth token",
-  "invalid_api_key",
-  "insufficient_quota"
-];
-function providerStderr(stderr) {
-  const hay = stderr.toLowerCase();
-  return PROVIDER_STDERR_SIGNATURES.some((sig) => hay.includes(sig)) ? stderr.trim() : null;
-}
-function requireSkillDir(skillDir, mode) {
-  const abs = resolve16(skillDir);
-  const md = join35(abs, "SKILL.md");
-  const isDir3 = existsSync24(abs) && statSync9(abs).isDirectory();
-  if (!isDir3 || !existsSync24(md)) {
-    throw new Error(`mode=${mode} needs a skill directory with a SKILL.md, but ${abs} ${isDir3 ? "has none" : "is not a directory"}` + (abs === skillDir ? "" : ` (given \`${skillDir}\`, resolved against ${process.cwd()})`) + ` \u2014 pi accepts \`--skill <nonexistent>\` silently (exit 0, a normal answer, no skill in context), so this run would measure a model with no skill and report it as a result.`);
-  }
-  return abs;
-}
-function skillFlags(mode, skillDir, boundRaw) {
-  switch (mode) {
-    case "red":
-      return ["--no-skills"];
-    case "green":
-      return ["--skill", requireSkillDir(skillDir, mode)];
-    case "force": {
-      requireSkillDir(skillDir, mode);
-      const body = boundRaw ?? readFileSync26(join35(resolve16(skillDir), "SKILL.md"), "utf8");
-      return ["--no-skills", "--append-system-prompt", body];
-    }
-  }
-}
-function extensionFlags(extensions) {
-  if (!extensions || extensions.length === 0)
-    return [];
-  return extensions.flatMap((p) => {
-    const abs = resolve16(p);
-    if (!existsSync24(abs)) {
-      throw new Error(`env.extensions names ${abs}, which does not exist \u2014 pi would start without it and the scenario would silently test an agent with no subagent tool at all.`);
-    }
-    return ["--extension", abs];
-  });
-}
-function header(turnNo, total, text15) {
-  const label = total === 1 ? "USER" : `USER (turn ${turnNo}/${total})`;
-  return `>>> ${label}:
-${text15}
-`;
-}
-var piAdapter = {
-  name: "pi",
-  observesPrompts: true,
-  available() {
-    return Promise.resolve(onPath("pi"));
-  },
-  /**
-   * `pi --version` (it prints a bare version, e.g. `0.83.0`), recorded in
-   * results.yaml as `harness_cli_version`.
-   *
-   * Null on any failure — a non-zero exit, empty output, or pi missing entirely.
-   * A run must not abort because provenance was unavailable, and a fabricated
-   * version would be worse than an absent one.
-   */
-  async version() {
-    try {
-      const r = await exec("pi", ["--version"], { timeoutMs: 3e4 });
-      const line = r.stdout.split("\n")[0]?.trim() ?? "";
-      if (r.code !== 0 || line === "")
-        return null;
-      return /\d+\.\d+\.\d+\S*/.exec(line)?.[0] ?? line;
-    } catch {
-      return null;
-    }
-  },
-  /**
-   * Run a scenario through pi. Single turn → --no-session -p. Multi turn → a
-   * shared --session-dir, -c on every turn after the first. Returns a transcript
-   * interleaving user turns with assistant output.
-   */
-  async run(req) {
-    const common2 = [
-      "--no-context-files",
-      "--no-extensions",
-      ...extensionFlags(req.extensions),
-      ...observerFlags(req),
-      "--provider",
-      req.model.provider,
-      "--model",
-      req.model.model
-    ];
-    const contract = contractFor(req);
-    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", contract.raw] : skillFlags(req.mode, req.skillDir, contract.raw);
-    const requestCounter = { value: 0 };
-    const total = req.turns.length;
-    const parts = [];
-    const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
-    let providerFailure = null;
-    if (total === 1) {
-      const args = [...flags, ...common2, "--no-session", "-p", req.turns[0]];
-      const capture = captureSetup(req, env, contract, requestCounter);
-      let r;
-      try {
-        r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env: capture.env });
-      } finally {
-        capture.finish();
-      }
-      parts.push(header(1, 1, req.turns[0]));
-      parts.push(`<<< ASSISTANT:
-${r.stdout.trim()}
-`);
-      if (r.code !== 0) {
-        providerFailure = providerStderr(r.stderr);
-        if (!providerFailure)
-          parts.push(`[pi exited ${r.code}]
-${r.stderr.trim()}
-`);
-      }
-      return withProviderFailure(parts.join("\n"), providerFailure);
-    }
-    const session = mkdtempSync2(join35(tmpdir2(), "sc-pi-session-"));
-    for (let i = 0; i < total; i++) {
-      const turnFlags = i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
-      const args = [...flags, ...common2, ...turnFlags, "-p", req.turns[i]];
-      const capture = captureSetup(req, env, contract, requestCounter);
-      let r;
-      try {
-        r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env: capture.env });
-      } finally {
-        capture.finish();
-      }
-      parts.push(header(i + 1, total, req.turns[i]));
-      parts.push(`<<< ASSISTANT:
-${r.stdout.trim()}
-`);
-      if (r.code !== 0) {
-        const provider = providerStderr(r.stderr);
-        if (provider && providerFailure === null)
-          providerFailure = provider;
-        if (!provider)
-          parts.push(`[pi exited ${r.code} on turn ${i + 1}]
-${r.stderr.trim()}
-`);
-      }
-    }
-    return withProviderFailure(parts.join("\n"), providerFailure);
-  },
-  /**
-   * Structured run: same flags, same turn loop, plus `--mode json` and a trace
-   * per turn.
-   *
-   * Shares `skillFlags` and the turn structure with `run()` on purpose — if the
-   * two drifted, a trace-gated scenario would be measuring a different delivery
-   * than an ungated one, and the gate would be attesting to the wrong execution.
-   *
-   * The transcript is REBUILT from each turn's final assistant message rather
-   * than read from stdout, which is byte-identical to print mode's output (proven
-   * on a deterministic prompt; see docs/pi-native-capture-design-2026-08-08.md §2).
-   */
-  async runStructured(req) {
-    const common2 = [
-      "--no-context-files",
-      "--no-extensions",
-      ...extensionFlags(req.extensions),
-      ...observerFlags(req),
-      "--provider",
-      req.model.provider,
-      "--model",
-      req.model.model
-    ];
-    const contract = contractFor(req);
-    const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", contract.raw] : skillFlags(req.mode, req.skillDir, contract.raw);
-    const requestCounter = { value: 0 };
-    const piVersion = await this.version();
-    const total = req.turns.length;
-    const traces = [];
-    const parts = [];
-    const session = total === 1 ? null : mkdtempSync2(join35(tmpdir2(), "sc-pi-session-"));
-    let providerFailure = null;
-    const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
-    for (let i = 0; i < total; i++) {
-      const turnFlags = session === null ? ["--no-session"] : i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
-      const args = [...flags, ...common2, "--mode", "json", ...turnFlags, "-p", req.turns[i]];
-      const capture = captureSetup(req, env, contract, requestCounter);
-      let r;
-      try {
-        r = await runPiJson({
-          args,
-          cwd: req.cwd,
-          timeoutMs: PI_TIMEOUT_MS,
-          piVersion,
-          subject: req.model,
-          scenarioId: req.scenarioId ?? "(unknown)",
-          mode: req.mode,
-          rep: req.rep ?? 0,
-          turn: i,
-          homeDir: homedir2(),
-          env: capture.env
-        });
-      } finally {
-        capture.finish();
-      }
-      if (!r.isComplete) {
-        throw new Error(`pi --mode json produced no terminal events for turn ${i + 1}/${total} (exit ${r.code}${r.malformedLines ? `, ${r.malformedLines} malformed line(s)` : ""})` + (r.stderr.trim() ? `: ${r.stderr.trim()}` : ""));
-      }
-      if (r.malformedLines > 0) {
-        r.trace.capture_errors = [`pi JSONL contained ${r.malformedLines} malformed line(s); absence-based trace assertions are unsafe`];
-        r.trace.trace_sha256 = traceSha256(r.trace);
-      }
-      if (providerFailure === null && r.providerFailure)
-        providerFailure = r.providerFailure;
-      traces.push(r.trace);
-      parts.push(header(i + 1, total, req.turns[i]));
-      parts.push(`<<< ASSISTANT:
-${r.trace.final_text.trim()}
-`);
-      if (r.code !== 0)
-        parts.push(`[pi exited ${r.code} on turn ${i + 1}]
-${r.stderr.trim()}
-`);
-    }
-    const native = req.eventSources?.length ? collectTrajectorySources(req.cwd, req.eventSources) : { events: [], errors: [] };
-    const piEvents = normalizePiTraces(traces);
-    const combined = [...piEvents, ...native.events];
-    const chronologyErrors = [];
-    if (piEvents.length && native.events.length) {
-      if (combined.some((event) => !event.at || !Number.isFinite(Date.parse(event.at)))) {
-        chronologyErrors.push("pi/native events cannot be globally ordered because at least one event has no valid `at` timestamp");
-      } else {
-        const piTimes = new Set(piEvents.map((event) => Date.parse(event.at)));
-        if (native.events.some((event) => piTimes.has(Date.parse(event.at)))) {
-          chronologyErrors.push("pi/native events contain equal timestamps, so strict cross-source order is ambiguous");
-        }
-      }
-    }
-    const eventErrors = [...native.errors, ...chronologyErrors];
-    return {
-      transcript: withProviderFailure(parts.join("\n"), providerFailure),
-      traces,
-      events: resequence(combined),
-      ...eventErrors.length ? { eventErrors } : {},
-      ...providerFailure ? { providerFailure } : {}
-    };
-  },
-  /**
-   * Run the judge: no skills, no context files, no session, single prompt.
-   * Judge provider `claude-code` routes to the Claude Code CLI (`claude -p`),
-   * which authenticates via the user's Claude subscription (OAuth) instead of
-   * a provider API key.
-   */
-  async judge(req) {
-    if (req.model.provider === "claude-code") {
-      const args2 = ["-p", req.prompt, "--model", req.model.model];
-      const r2 = await exec("claude", args2, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS });
-      if (r2.stdout.trim().length === 0 && (r2.code !== 0 || r2.stderr.trim())) {
-        return `[judge error: claude exited ${r2.code}] ${r2.stderr.trim()}`;
-      }
-      return r2.stdout;
-    }
-    const args = [
-      "--no-skills",
-      "--no-context-files",
-      "--no-extensions",
-      "--no-session",
-      "--provider",
-      req.model.provider,
-      "--model",
-      req.model.model,
-      "-p",
-      req.prompt
-    ];
-    const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS });
-    if (r.stdout.trim().length === 0 && (r.code !== 0 || r.stderr.trim())) {
-      return `[judge error: pi exited ${r.code}] ${r.stderr.trim()}`;
-    }
-    return r.stdout;
-  }
-};
-
-// packages/adapters/dist/archive-checkpoint.js
-import { createHash as createHash30 } from "node:crypto";
-var LIMIT4 = 8 * 1024 * 1024;
-
-// packages/adapters/dist/archive-policy.js
-import { closeSync as closeSync11, constants as constants12, fstatSync as fstatSync11, lstatSync as lstatSync9, openSync as openSync11, readSync as readSync5 } from "node:fs";
-import { createHash as createHash34 } from "node:crypto";
-import { dirname as dirname12, isAbsolute as isAbsolute16, join as join37, parse as parse3, resolve as resolve17, sep as sep6 } from "node:path";
-
-// packages/adapters/dist/archive-retention-policy.js
-import { dirname as dirname11, join as join36 } from "node:path";
-
-// packages/adapters/dist/generated/retention-v2-contract.js
-import { Compile } from "typebox/compile";
-
-// packages/adapters/dist/generated/retention-v2-json.js
-import { createHash as createHash31 } from "node:crypto";
-var WORK_EVENT_BYTES = 64 * 1024;
-var WORK_TEXT_BYTES = 16 * 1024 * 1024;
-
-// packages/adapters/dist/generated/retention-v2-contract.js
-var string2 = (maxLength = 512) => ({ type: "string", minLength: 1, maxLength, pattern: "^[^\\u0000-\\u001f\\u007f]+$" });
-var nullable = (schema2) => ({ anyOf: [schema2, { type: "null" }] });
-var literal = (value3) => ({ const: value3 });
-var closed8 = (properties) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
-var hash6 = { type: "string", pattern: "^[a-f0-9]{64}$" };
-var integer = { type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER };
-var uuid = { type: "string", pattern: "^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$" };
-var RETENTION_CONTENT_KINDS = ["stdout", "stderr", "paneSnapshot", "checkReceipt", "result", "session"];
-var RETENTION_SCHEMA = freeze3({
-  $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: "https://pi-daddy.local/contracts/execution-retention/v2/manifest.schema.json",
-  ...closed8({
-    version: literal("2.0"),
-    archiveId: uuid,
-    identity: closed8({
-      executionId: string2(),
-      parentExecutionId: nullable(string2()),
-      childId: string2(),
-      toolCallId: nullable(string2()),
-      executor: { enum: ["process", "herdr", "check"] },
-      taskDigest: nullable(hash6),
-      definitionDigest: nullable(hash6),
-      configurationDigest: hash6,
-      workspaceId: nullable(string2())
-    }),
-    native: closed8({
-      pid: nullable({ type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER }),
-      paneId: nullable(string2(4096)),
-      agentName: nullable(string2(4096)),
-      tabId: nullable(string2(4096)),
-      sessionId: nullable(uuid),
-      sessionPath: nullable(string2(4096)),
-      branchLeafId: nullable(string2(128))
-    }),
-    nativeSession: closed8({
-      source: { enum: [null, "herdr-id", "herdr-path", "pi-session-file", "pi-session-manager"] },
-      status: { enum: ["missing", "verified", "invalid", "changed", "truncated", "unsupported"] },
-      sessionId: nullable(uuid),
-      sessionPath: nullable(string2(4096)),
-      parentSessionPath: nullable(string2(4096)),
-      branchLeafId: nullable(string2(128)),
-      branchState: { enum: ["unknown", "observed"] },
-      lastPersistedEntryId: nullable(string2(128)),
-      sha256: nullable(hash6),
-      reason: nullable(string2())
-    }),
-    state: { enum: ["running", "terminal"] },
-    outcome: nullable(closed8({
-      code: nullable({ type: "integer", minimum: -2147483648, maximum: 2147483647 }),
-      signal: nullable(string2(64)),
-      timedOut: { type: "boolean" },
-      aborted: { type: "boolean" },
-      truncated: { type: "boolean" },
-      failed: { type: "boolean" }
-    })),
-    content: closed8(Object.fromEntries(RETENTION_CONTENT_KINDS.map((kind) => [kind, { oneOf: [
-      closed8({ status: literal("missing"), path: literal(null), sha256: literal(null), bytes: literal(null) }),
-      closed8({
-        status: literal("retained"),
-        path: { type: "string", pattern: `^${kind}-[a-f0-9]{64}\\.bin$` },
-        sha256: hash6,
-        bytes: { ...integer, maximum: 1024 * 1024 }
-      })
-    ] }]))),
-    coverage: closed8({ complete: literal(false), losses: { type: "array", items: string2(), maxItems: 64, uniqueItems: true } }),
-    acceptance: literal("not-assessed")
-  }),
-  allOf: [
-    {
-      if: { properties: { state: literal("running") } },
-      then: { properties: { outcome: literal(null) } },
-      else: { properties: { outcome: { type: "object" } } }
-    },
-    {
-      if: { properties: { nativeSession: { properties: { branchState: literal("unknown") } } } },
-      then: { properties: { nativeSession: { properties: { branchLeafId: literal(null) } }, native: { properties: { branchLeafId: literal(null) } } } }
-    }
-  ]
-});
-var validator = Compile(RETENTION_SCHEMA);
-function freeze3(value3) {
-  if (value3 && typeof value3 === "object") {
-    for (const child3 of Object.values(value3))
-      freeze3(child3);
-    Object.freeze(value3);
-  }
-  return value3;
-}
-
-// packages/adapters/dist/execution-retention-archive.js
-import { createHash as createHash33 } from "node:crypto";
-
-// packages/adapters/dist/generated/retention-v2-native.js
-import { constants as constants11 } from "node:fs";
-import { open, lstat, realpath } from "node:fs/promises";
-import { isAbsolute as isAbsolute15, relative as relative5, sep as sep5 } from "node:path";
-import { createHash as createHash32 } from "node:crypto";
-var MAX_NATIVE_SESSION_BYTES = 1024 * 1024;
-
-// packages/adapters/dist/execution-projection-schema.js
-import { Compile as Compile2 } from "typebox/compile";
-var text8 = { type: "string", minLength: 1, maxLength: 512 };
-var hash7 = { type: "string", pattern: "^[a-f0-9]{64}$" };
-var nullable2 = (schema2) => ({ anyOf: [schema2, { type: "null" }] });
-var list = (items) => ({ type: "array", items, maxItems: 4096, uniqueItems: true });
-var closed9 = (properties) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
-function freeze4(value3) {
-  if (value3 && typeof value3 === "object") {
-    Object.values(value3).forEach(freeze4);
-    Object.freeze(value3);
-  }
-  return value3;
-}
-var EXECUTION_ARCHIVE_PROJECTION_SCHEMA = freeze4({
-  $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: "https://github.com/mojomanyana/skill-harness/contracts/execution-archive/v1/projection.schema.json",
-  ...closed9({
-    version: { const: "execution-archive-projection-v1" },
-    executions: { type: "array", maxItems: 4096, items: closed9({
-      executionId: text8,
-      parentExecutionIds: list(nullable2(text8)),
-      retainedSessionIds: list(text8),
-      activeBranch: { const: null },
-      toolCallIds: list(nullable2(text8)),
-      archiveIds: list(text8),
-      runtime: { enum: ["running", "terminal", "conflict"] },
-      outcome: nullable2(closed9({
-        code: nullable2({ type: "integer", minimum: -2147483648, maximum: 2147483647 }),
-        signal: nullable2(text8),
-        timedOut: { type: "boolean" },
-        aborted: { type: "boolean" },
-        truncated: { type: "boolean" },
-        failed: { type: "boolean" }
-      })),
-      sourceReferences: list(hash7),
-      issues: list(text8),
-      coverage: { const: "partial" },
-      acceptance: { const: "not-assessed" }
-    }) },
-    acceptance: { const: "not-assessed" }
-  })
-});
-var compiled = Compile2(EXECUTION_ARCHIVE_PROJECTION_SCHEMA);
-
-// packages/adapters/dist/generated/work-v4/reader.js
-import { isDate } from "node:util/types";
-
-// packages/adapters/dist/generated/work-v4/json.js
-import { createHash as createHash35 } from "node:crypto";
-var WORK_EVENT_BYTES2 = 64 * 1024;
-var WORK_TEXT_BYTES2 = 16 * 1024 * 1024;
-
-// packages/adapters/dist/generated/work-v4/execution-id.js
-import { randomUUID as randomUUID4 } from "node:crypto";
-
-// packages/adapters/dist/learning-lifecycle.js
-var SHA7 = /^[a-f0-9]{64}$/;
-var closed10 = (value3, names) => !!value3 && typeof value3 === "object" && !Array.isArray(value3) && Object.keys(value3).sort().join() === names.sort().join();
-function available(root, id3, parser) {
-  if (!SHA7.test(id3))
-    throw Error("invalid retained learning link");
-  const source3 = readArchiveSource(root, id3);
-  if (source3.status !== "available" || source3.reference.retention !== "exact" || parser && source3.reference.parser.id !== parser)
-    throw Error("retained learning link unavailable");
-  return source3;
-}
-function validate4(root, input, depth = 0) {
-  if (depth > 64)
-    throw Error("learning lifecycle predecessor bound exceeded");
-  if (!closed10(input, ["caseManifestId", "hypothesisManifestId", "comparisonManifestId", "choiceManifestId", "adoptionManifestId", "rollbackManifestId", "outcomeManifestIds", "predecessorManifestId"]) || !Array.isArray(input.outcomeManifestIds) || input.outcomeManifestIds.length > 64 || new Set(input.outcomeManifestIds).size !== input.outcomeManifestIds.length)
-    throw Error("invalid bounded learning lifecycle");
-  for (const id3 of [input.caseManifestId, input.hypothesisManifestId, input.comparisonManifestId])
-    available(root, id3);
-  for (const id3 of [input.choiceManifestId, input.adoptionManifestId, input.rollbackManifestId, ...input.outcomeManifestIds])
-    if (id3 !== null)
-      available(root, id3);
-  if (input.adoptionManifestId && !input.choiceManifestId)
-    throw Error("quality choice required before adoption");
-  if (input.rollbackManifestId && !input.adoptionManifestId)
-    throw Error("adoption required before rollback");
-  if (input.outcomeManifestIds.length && !input.adoptionManifestId)
-    throw Error("adoption required before outcomes");
-  if (input.predecessorManifestId) {
-    const prior = read2(root, input.predecessorManifestId, depth + 1);
-    if (prior.links.case !== input.caseManifestId || prior.links.hypothesis !== input.hypothesisManifestId || prior.links.comparison !== input.comparisonManifestId)
-      throw Error("learning lifecycle identity changed");
-    for (const key3 of ["choice", "adoption", "rollback"])
-      if (prior.links[key3] !== null && prior.links[key3] !== { choice: input.choiceManifestId, adoption: input.adoptionManifestId, rollback: input.rollbackManifestId }[key3])
-        throw Error("learning lifecycle cannot regress or replace decisions");
-    if (prior.links.outcomes.some((id3, index) => input.outcomeManifestIds[index] !== id3))
-      throw Error("learning lifecycle cannot regress or replace outcomes");
-  }
-  const state = input.outcomeManifestIds.length ? "outcome-observed" : input.rollbackManifestId ? "rolled-back" : input.adoptionManifestId ? "adopted-awaiting-outcome" : input.choiceManifestId ? "decision-recorded" : "awaiting-human-choice";
-  return { version: "retained-learning-lifecycle-v1", state, predecessorManifestId: input.predecessorManifestId, links: { case: input.caseManifestId, hypothesis: input.hypothesisManifestId, comparison: input.comparisonManifestId, choice: input.choiceManifestId, adoption: input.adoptionManifestId, rollback: input.rollbackManifestId, outcomes: [...input.outcomeManifestIds] } };
-}
-function retainLearningLifecycle(root, input) {
-  const view = validate4(root, input);
-  return retainArchiveSource(root, { sourceId: `learning-${view.links.comparison.slice(0, 24)}`, parser: { id: "learning-lifecycle", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(view)) }).manifestId;
-}
-function read2(root, manifestId, depth) {
-  if (depth > 64)
-    throw Error("learning lifecycle predecessor bound exceeded");
-  const source3 = available(root, manifestId, "learning-lifecycle");
-  let value3;
-  try {
-    value3 = JSON.parse(source3.bytes.toString("utf8"));
-  } catch {
-    throw Error("invalid retained learning lifecycle");
-  }
-  if (!closed10(value3, ["version", "state", "predecessorManifestId", "links"]) || value3.version !== "retained-learning-lifecycle-v1" || !closed10(value3.links, ["case", "hypothesis", "comparison", "choice", "adoption", "rollback", "outcomes"]))
-    throw Error("invalid retained learning lifecycle");
-  const links = value3.links;
-  const rebuilt = validate4(root, { caseManifestId: links.case, hypothesisManifestId: links.hypothesis, comparisonManifestId: links.comparison, choiceManifestId: links.choice, adoptionManifestId: links.adoption, rollbackManifestId: links.rollback, outcomeManifestIds: links.outcomes, predecessorManifestId: value3.predecessorManifestId }, depth);
-  if (rebuilt.state !== value3.state || JSON.stringify(rebuilt) !== source3.bytes.toString("utf8"))
-    throw Error("retained learning lifecycle changed");
-  return Object.freeze({ ...rebuilt, links: Object.freeze({ ...rebuilt.links, outcomes: Object.freeze(rebuilt.links.outcomes) }) });
-}
-
-// packages/adapters/dist/session-retention.js
-import { createHash as createHash36 } from "node:crypto";
-import { resolve as resolve18 } from "node:path";
-
-// packages/adapters/dist/session-observation.js
-function sessionText(bytes3) {
-  if (bytes3.byteLength > 8 * 1024 * 1024)
-    throw Error("session source exceeds 8 MiB");
-  return new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
-}
-function sessionRows(bytes3) {
-  const text15 = sessionText(bytes3);
-  if (!text15.endsWith("\n"))
-    throw Error("incomplete session/ledger line; retry after the writer settles");
-  const lines2 = text15.slice(0, -1).split("\n");
-  if (lines2.length > 4096)
-    throw Error("session source exceeds 4096 records");
-  return lines2.map((line, i) => {
-    let row;
-    try {
-      row = JSON.parse(line);
-    } catch {
-      throw Error("invalid JSON record at line " + (i + 1));
-    }
-    if (!row || typeof row !== "object" || Array.isArray(row))
-      throw Error("object record required at line " + (i + 1));
-    return row;
-  });
-}
-function value(v, max = 512) {
-  if (typeof v !== "string" || !v.trim() || v.length > max)
-    throw Error("bounded session identifier required");
-  return v;
-}
-var stamp = (v) => typeof v === "string" && Number.isFinite(Date.parse(v)) ? v : null;
-var excerpt = (v) => v.length > 512 ? v.slice(0, 512) + " \u2026 [excerpt; inspect retained source for complete text]" : v;
-function observePiSession(bytes3) {
-  const rows = sessionRows(bytes3), header2 = rows[0];
-  if (header2?.type !== "session" || header2.version !== 3)
-    throw Error("Pi session format version 3 required");
-  const sessionId = value(header2.id), cwd = value(header2.cwd, 4096), ids = /* @__PURE__ */ new Set();
-  const timeline = [], tools = /* @__PURE__ */ new Map(), models = /* @__PURE__ */ new Map();
-  const fields = {};
-  let userMessages = 0, assistantMessages = 0, lastAssistantStop = null, lastActivity = null, opaque = 0;
-  const add = (i, row, kind, text15) => timeline.push({ line: i + 1, timestamp: stamp(row.timestamp), kind, excerpt: excerpt(text15) });
-  rows.forEach((row, i) => {
-    if (i && row.type === "session")
-      throw Error("multiple session headers");
-    if (row.id !== void 0) {
-      const id3 = value(row.id);
-      if (ids.has(id3))
-        throw Error("duplicate session record id");
-      ids.add(id3);
-    }
-    lastActivity = stamp(row.timestamp) ?? lastActivity;
-    if (row.type === "model_change") {
-      add(i, row, "model-setting", [row.provider, row.modelId].filter((x) => typeof x === "string").join("/"));
-      return;
-    }
-    if (row.type === "thinking_level_change") {
-      add(i, row, "thinking-setting", String(row.thinkingLevel ?? "unknown"));
-      return;
-    }
-    if (row.type !== "message")
-      return;
-    const m = row.message;
-    if (!m || typeof m !== "object" || Array.isArray(m))
-      throw Error("invalid session message");
-    const content = typeof m.content === "string" ? [{ type: "text", text: m.content }] : m.content;
-    if (!Array.isArray(content))
-      throw Error("invalid session message content");
-    const text15 = content.filter((c) => c?.type === "text" && typeof c.text === "string").map((c) => c.text).join("\n");
-    if (m.role === "user") {
-      userMessages++;
-      add(i, row, "user-message", text15);
-    } else if (m.role === "assistant") {
-      assistantMessages++;
-      lastAssistantStop = typeof m.stopReason === "string" ? m.stopReason : null;
-      const provider = typeof m.provider === "string" ? m.provider : "unknown", model = typeof m.model === "string" ? m.model : "unknown";
-      const key3 = JSON.stringify([provider, model]), record = models.get(key3) ?? { provider, model, messages: 0 };
-      record.messages++;
-      models.set(key3, record);
-      if (text15)
-        add(i, row, "assistant-message", text15);
-      for (const field of ["input", "output", "cacheRead", "cacheWrite", "totalTokens"]) {
-        const n = m.usage?.[field];
-        if (n === void 0)
-          continue;
-        if (!Number.isSafeInteger(n) || n < 0)
-          throw Error("invalid provider-reported usage");
-        const f = fields[field] ?? { sum: 0, reportedMessages: 0 };
-        f.sum += n;
-        f.reportedMessages++;
-        if (!Number.isSafeInteger(f.sum))
-          throw Error("usage sum overflow");
-        fields[field] = f;
-      }
-      for (const c of content)
-        if (c?.type === "toolCall") {
-          const name = value(c.name, 128);
-          tools.set(name, (tools.get(name) ?? 0) + 1);
-          add(i, row, "tool-call", name);
-        }
-    } else if (m.role === "toolResult")
-      add(i, row, "tool-result", String(m.toolName ?? "unknown") + (m.isError === true ? " \u2014 tool reported error" : " \u2014 result recorded; success not inferred"));
-    else
-      opaque++;
-  });
-  const gaps = [
-    "Retrospective chronological transcript; branch selection and live continuity are not established.",
-    "Messages and tool results are evidence to inspect, not independently verified decisions, tests or acceptance.",
-    "Only explicit inputs are captured. Source revision, initial workspace and external user feedback may be missing.",
-    "Usage is provider-reported repeated-request usage, not unique context, billing or complete parent/child accounting."
-  ];
-  if (opaque)
-    gaps.push(opaque + " message(s) with other roles omitted from the timeline; retained source is complete.");
-  if (!assistantMessages || Object.values(fields).some((f) => f.reportedMessages < assistantMessages) || Object.keys(fields).length < 5)
-    gaps.push("Usage fields are missing; sums cover only reported messages.");
-  if (lastAssistantStop !== "stop")
-    gaps.push("No final assistant stop observed; this snapshot may represent unfinished work.");
-  return { version: "pi-session-observation-v1", sessionId, cwd, timeline, toolCalls: Object.fromEntries(tools), userMessages, assistantMessages, modelRecords: [...models.values()], usage: { fields, assistantMessages, scope: "this-transcript-only" }, lastActivity, lastAssistantStop, gaps };
-}
-function observeSessionLedger(bytes3) {
-  const rows = sessionRows(bytes3);
-  normalizePiDaddyLedgerV3(sessionText(bytes3));
-  const attempts = /* @__PURE__ */ new Map(), decisions = /* @__PURE__ */ new Set(), lifecycles = /* @__PURE__ */ new Set(), deadlines = /* @__PURE__ */ new Map(), displayed = /* @__PURE__ */ new Set();
-  for (const row of rows) {
-    if (!["capability_decision", "child_lifecycle", "workspace_lease"].includes(row.event) || String(row.childId).startsWith("check:"))
-      continue;
-    const id3 = value(row.executionId), old = attempts.get(id3);
-    if (old && (old.parentExecutionId !== row.parentExecutionId || old.logicalChildId !== row.childId))
-      throw Error("execution identity changed");
-    const a = old ?? { executionId: id3, parentExecutionId: row.parentExecutionId, logicalChildId: row.childId, agent: null, state: "unknown", pane: null, startedAt: null, endedAt: null, runningSeconds: null };
-    if (row.event === "workspace_lease") {
-      attempts.set(id3, a);
-      continue;
-    }
-    displayed.add(id3);
-    if (row.event === "capability_decision") {
-      if (decisions.has(id3))
-        throw Error("duplicate capability decision for one execution");
-      decisions.add(id3);
-      a.agent = row.agentType;
-      a.state = row.blocked ? "refused" : a.state === "unknown" ? "authorised" : a.state;
-    } else {
-      if (a.endedAt)
-        throw Error("lifecycle after terminal execution");
-      if (lifecycles.has(id3) && row.state === "starting")
-        throw Error("duplicate starting lifecycle event");
-      if (deadlines.has(id3) && stamp(row.deadlineAt) && deadlines.get(id3) !== row.deadlineAt)
-        throw Error("lifecycle deadline changed");
-      if (stamp(row.deadlineAt))
-        deadlines.set(id3, row.deadlineAt);
-      lifecycles.add(id3);
-      a.state = row.state;
-      a.pane = row.herdrPaneId ?? a.pane;
-      if (row.state === "running")
-        a.startedAt = a.startedAt ?? row.ts;
-      if (["completed", "failed"].includes(row.state))
-        a.endedAt = row.ts;
-    }
-    if (a.startedAt && a.endedAt) {
-      a.runningSeconds = (Date.parse(a.endedAt) - Date.parse(a.startedAt)) / 1e3;
-      if (a.runningSeconds < 0)
-        throw Error("negative execution duration");
-    }
-    attempts.set(id3, a);
-  }
-  for (const a of attempts.values()) {
-    const seen = /* @__PURE__ */ new Set();
-    let cursor = a;
-    while (cursor) {
-      if (seen.has(cursor.executionId))
-        throw Error("execution parent cycle");
-      seen.add(cursor.executionId);
-      cursor = cursor.parentExecutionId ? attempts.get(cursor.parentExecutionId) : void 0;
-    }
-  }
-  return [...attempts.values()].filter((a) => displayed.has(a.executionId));
-}
-function sessionScope(observation, sourceSha256) {
-  return learningHash({ kind: "retrospective-pi-session", sessionId: observation.sessionId, sourceSha256 });
-}
-
-// packages/adapters/dist/session-retention.js
-var captured = /* @__PURE__ */ new WeakMap();
-var sha4 = (bytes3) => createHash36("sha256").update(bytes3).digest("hex");
-function checkedSelections(input) {
-  if (!Array.isArray(input) || input.length < 1 || input.length > 16)
-    throw Error("select 1\u201316 explicit session sources");
-  const seen = /* @__PURE__ */ new Set(), executions = /* @__PURE__ */ new Set();
-  let parents = 0, ledgers = 0;
-  for (const s of input) {
-    if (!s || typeof s !== "object" || Object.keys(s).some((k) => !["kind", "path", "executionId"].includes(k)))
-      throw Error("closed source selection required");
-    if (!["parent", "child", "ledger", "feedback", "artifact"].includes(s.kind) || typeof s.path !== "string" || resolve18(s.path) !== s.path)
-      throw Error("explicit absolute source path required");
-    if (seen.has(s.path))
-      throw Error("duplicate session source");
-    seen.add(s.path);
-    if (s.kind === "parent")
-      parents++;
-    if (s.kind === "ledger")
-      ledgers++;
-    if (s.executionId !== void 0) {
-      if (s.kind !== "child" || !/^exec:[0-9a-f-]{36}$/i.test(s.executionId) || executions.has(s.executionId))
-        throw Error("unique child execution id required");
-      executions.add(s.executionId);
-    }
-  }
-  if (parents !== 1 || ledgers > 1)
-    throw Error("exactly one parent and at most one ledger required");
-}
-function projectSession(selections, buffers) {
-  const parent = observePiSession(buffers[selections.findIndex((s) => s.kind === "parent")]);
-  const children = selections.flatMap((s, i) => s.kind === "child" ? [{ source: i, executionId: s.executionId ?? null, session: observePiSession(buffers[i]) }] : []);
-  if ((/* @__PURE__ */ new Set([parent.sessionId, ...children.map((c) => c.session.sessionId)])).size !== children.length + 1)
-    throw Error("duplicate parent/child session id");
-  const ledger = selections.findIndex((s) => s.kind === "ledger"), attempts = ledger < 0 ? [] : observeSessionLedger(buffers[ledger]);
-  for (const child3 of children)
-    if (child3.executionId && !attempts.some((a) => a.executionId === child3.executionId))
-      throw Error("selected child execution absent from ledger");
-  const gaps = [...parent.gaps, "No quality, acceptance, calibrated learning or adoption is inferred from this import."];
-  for (const child3 of children)
-    gaps.push(...child3.session.gaps.map((g) => "Child source " + (child3.source + 1) + " (" + child3.session.sessionId + "): " + g));
-  if (ledger < 0)
-    gaps.push("No delegation ledger selected.");
-  else
-    gaps.push("Ledger/session association is operator-selected, not authenticated; ledger may include other sessions.");
-  if (attempts.length > children.filter((c) => c.executionId).length)
-    gaps.push("Child transcript coverage incomplete; no combined token total is claimed.");
-  if (children.length)
-    gaps.push("Child execution mappings are explicit operator declarations, not proof of parentage. Each transcript has separate usage.");
-  if (!selections.some((s) => s.kind === "feedback"))
-    gaps.push("External feedback not supplied; user messages remain available for review.");
-  if (!selections.some((s) => s.kind === "artifact"))
-    gaps.push("No final artifact or source snapshot supplied.");
-  return { parent, children, attempts, gaps };
-}
-function prepareSessionImport(selections) {
-  checkedSelections(selections);
-  const buffers = selections.map((s) => learningFile(s.path, 8 * 1024 * 1024));
-  if (buffers.reduce((n, b) => n + b.length, 0) > 32 * 1024 * 1024)
-    throw Error("session selection exceeds 32 MiB");
-  const sources = selections.map((s, i) => ({ ...s, executionId: s.executionId ?? null, sha256: sha4(buffers[i]), bytes: buffers[i].length }));
-  const { parent, children, attempts, gaps } = projectSession(selections, buffers);
-  const digest6 = learningHash({ version: "session-selection-v1", sources });
-  const preview = { version: "session-import-preview-v1", digest: digest6, sources, parent, children, attempts, gaps, acceptance: "not-assessed" };
-  captured.set(preview, { preview: learningCopy(preview), buffers });
-  return preview;
-}
-function retainSessionImport(root, preview, expectedDigest) {
-  const c = captured.get(preview);
-  if (!c || learningHash(c.preview) !== learningHash(preview) || expectedDigest !== c.preview.digest)
-    throw Error("exact preview digest required; changed or forged session import");
-  for (const s of c.preview.sources)
-    if (sha4(learningFile(s.path, 8 * 1024 * 1024)) !== s.sha256)
-      throw Error("session source changed since preview; prepare again");
-  const sources = c.preview.sources.map((s, i) => {
-    const parser = s.kind === "parent" || s.kind === "child" ? "pi-session-jsonl" : s.kind === "ledger" ? "pi-daddy-session-ledger" : "session-evidence";
-    const r = retainArchiveSource(root, { sourceId: "session-" + s.sha256, parser: { id: parser, version: "1" }, retention: "exact", bytes: c.buffers[i] });
-    return { ...s, manifestId: r.manifestId };
-  });
-  const record = { version: "retrospective-session-v1", selectionDigest: preview.digest, sources };
-  return retainArchiveSource(root, { sourceId: "retrospective-" + preview.digest, parser: { id: "retrospective-session", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(record)) }).manifestId;
-}
-function readRetainedSession(root, manifestId) {
-  const selected2 = readArchiveSource(root, manifestId);
-  if (selected2.status !== "available" || selected2.reference.retention !== "exact" || selected2.reference.parser.id !== "retrospective-session" || selected2.reference.parser.version !== "1")
-    throw Error("retained session unavailable or unsupported");
-  const record = JSON.parse(sessionText(selected2.bytes));
-  if (!record || record.version !== "retrospective-session-v1" || Object.keys(record).sort().join() !== "selectionDigest,sources,version" || !Array.isArray(record.sources))
-    throw Error("invalid retained session");
-  checkedSelections(record.sources.map((s) => ({ kind: s.kind, path: s.path, ...s.executionId === null ? {} : { executionId: s.executionId } })));
-  const sources = record.sources.map((s) => {
-    if (Object.keys(s).sort().join() !== "bytes,executionId,kind,manifestId,path,sha256")
-      throw Error("invalid retained session source");
-    const r = readArchiveSource(root, s.manifestId);
-    if (r.status !== "available" || r.reference.retention !== "exact" || r.reference.sha256 !== s.sha256 || r.bytes.length !== s.bytes)
-      throw Error("retained session source missing or changed");
-    return { selection: s, bytes: r.bytes };
-  });
-  if (sources.reduce((n, s) => n + s.bytes.length, 0) > 32 * 1024 * 1024)
-    throw Error("session selection exceeds 32 MiB");
-  const plain = record.sources.map(({ manifestId: manifestId2, ...s }) => s);
-  if (learningHash({ version: "session-selection-v1", sources: plain }) !== record.selectionDigest)
-    throw Error("retained session selection mismatch");
-  const projection = projectSession(record.sources.map((s) => ({ kind: s.kind, path: s.path, ...s.executionId === null ? {} : { executionId: s.executionId } })), sources.map((s) => s.bytes));
-  return { version: record.version, manifestId, selectionDigest: record.selectionDigest, sources: record.sources, ...projection, acceptance: "not-assessed" };
-}
-function readRetainedSessionSource(root, manifestId, index) {
-  const session = readRetainedSession(root, manifestId), source3 = session.sources[index];
-  if (!Number.isSafeInteger(index) || !source3)
-    throw Error("select a listed session source");
-  const result = readArchiveSource(root, source3.manifestId);
-  if (result.status !== "available")
-    throw Error("session source unavailable");
-  return result.bytes;
-}
-
-// packages/adapters/dist/learning-workspace.js
-import { mkdirSync as mkdirSync13, readdirSync as readdirSync17, lstatSync as lstatSync10 } from "node:fs";
-import { dirname as dirname13, isAbsolute as isAbsolute18, join as join38, resolve as resolve19 } from "node:path";
-
-// packages/adapters/dist/trust-lifecycle.js
-import { isAbsolute as isAbsolute17 } from "node:path";
-var trustPolicyDigest = (input) => learningHash({ version: "trust-lifecycle-v1", input });
-var trustOutcomeDigest = (outcome) => learningHash({ version: "trust-reference-v1", outcome });
-function evidence2(root, id3) {
-  const result = readArchiveSource(root, id3);
-  if (result.status !== "available" || !["exact", "redacted"].includes(result.reference.retention))
-    throw Error("independent retained evidence unavailable");
-  return result;
-}
-var text9 = (v) => typeof v === "string" && v.length > 0 && v.length <= 512 && !/[\u0000-\u001f\u007f]/.test(v);
-function validate5(input) {
-  if (!isAbsolute17(input.archiveRoot) || Object.keys(input).sort().join() !== "archiveRoot,cohort,component,exposure,maxUnflagged,seed" || !/^([a-f0-9]{64})$/.test(input.seed) || !Number.isSafeInteger(input.maxUnflagged) || input.maxUnflagged < 0 || input.maxUnflagged > 32 || !Array.isArray(input.cohort) || !input.cohort.length || input.cohort.length > 1024 || new Set(input.cohort.map((c) => c.incidentId)).size !== input.cohort.length)
-    throw Error("invalid frozen trust cohort");
-  for (const c of input.cohort) {
-    if (Object.keys(c).sort().join() !== "flagged,incidentId,manifestId,split" || !text9(c.incidentId) || typeof c.flagged !== "boolean" || !["calibration", "heldout", "tuning"].includes(c.split))
-      throw Error("invalid cohort row");
-    evidence2(input.archiveRoot, c.manifestId);
-  }
-  const dummy = { id: "validation", incidentId: "validation", component: input.component, kind: input.component.kind === "detector" ? "positive" : "approval", split: "calibration" };
-  calibratePredictions([dummy]);
-  if (input.exposure) {
-    if (learningHash(input.exposure.component) !== learningHash(input.component))
-      throw Error("policy component scope mismatch");
-    const report = calibratePredictions([{ ...dummy, kind: input.exposure.kind, split: input.exposure.split }]).reports[0];
-    recommendExposure(report, input.exposure, 0);
-  }
-}
-function createTrustLifecycle(directory7, input, authorizedPolicyDigests) {
-  const safe = learningCopy(input);
-  validate5(safe);
-  const policyId = trustPolicyDigest(safe);
-  if (!authorizedPolicyDigests.includes(policyId))
-    throw Error("independent predeclared policy authority required");
-  const sampledIncidentIds = safe.cohort.filter((c) => !c.flagged && c.split !== "tuning").sort((a, b) => learningHash([safe.seed, a.incidentId]).localeCompare(learningHash([safe.seed, b.incidentId]))).slice(0, safe.maxUnflagged).map((c) => c.incidentId);
-  const initial = { type: "initial", kind: "trust-lifecycle-v1", input: safe, policyId, sampledIncidentIds };
-  registerLearningStore(safe.archiveRoot, "trust", policyId, directory7, learningHash(initial));
-  try {
-    learningJournal(directory7, initial);
-  } catch (e) {
-    if (e.code !== "EEXIST")
-      throw e;
-    const old = learningJournal(directory7).read()[0].value;
-    if (learningHash(old) !== learningHash(initial))
-      throw Error("trust policy already predeclared");
-  }
-  return openTrustLifecycle(directory7);
-}
-function openTrustLifecycle(directory7) {
-  const journal = learningJournal(directory7), initial = journal.read()[0].value;
-  if (initial.kind !== "trust-lifecycle-v1" || initial.type !== "initial")
-    throw Error("wrong trust journal");
-  const input = initial.input, sampledIncidentIds = initial.sampledIncidentIds;
-  validate5(input);
-  const replay = () => {
-    verifyLearningStore(input.archiveRoot, "trust", String(initial.policyId), directory7, learningHash(initial));
-    const history = journal.read(), predictions = /* @__PURE__ */ new Map(), allIds = /* @__PURE__ */ new Set(), outcomes = /* @__PURE__ */ new Map(), caseLinks = /* @__PURE__ */ new Map(), exposures = /* @__PURE__ */ new Map();
-    let retired = false, lastExposureAt = 0;
-    for (const { value: v } of history.slice(1)) {
-      if (v.type === "prediction" || v.type === "correction") {
-        const p = v.prediction;
-        calibratePredictions([p]);
-        if (allIds.has(p.id))
-          throw Error("duplicate prediction identity");
-        const c = input.cohort.find((c2) => c2.incidentId === p.incidentId);
-        if (!c?.flagged || c.split !== p.split || learningHash(p.component) !== learningHash(input.component))
-          throw Error("prediction scope mismatch");
-        if (v.type === "correction") {
-          const old = predictions.get(String(v.prior));
-          if (!old || old.incidentId !== p.incidentId)
-            throw Error("stale prediction correction");
-          predictions.delete(String(v.prior));
-        }
-        predictions.set(p.id, p);
-        allIds.add(p.id);
-      } else if (v.type === "outcome") {
-        const r = v.outcome;
-        if (outcomes.has(r.referenceId))
-          throw Error("duplicate reference identity");
-        outcomes.set(r.referenceId, r);
-        if (v.caseReference)
-          caseLinks.set(r.referenceId, v.caseReference);
-      } else if (v.type === "exposure") {
-        const id3 = String(v.id), result = v.result;
-        if (typeof v.now !== "number" || !Number.isFinite(v.now) || v.now < lastExposureAt || exposures.has(id3) || !["ask", "silent", "retire"].includes(result.mode))
-          throw Error("invalid exposure history");
-        lastExposureAt = v.now;
-        exposures.set(id3, result);
-        retired ||= result.mode === "retire";
-      } else
-        throw Error("unknown trust history event");
-    }
-    return { history, predictions, allIds, outcomes, caseLinks, exposures, retired, lastExposureAt, tip: history.at(-1).id };
-  };
-  replay();
-  const inspect = (now) => {
-    if (!Number.isFinite(now) || now < 0)
-      throw Error("valid policy clock required");
-    const s = replay(), labels = [];
-    for (const r of s.outcomes.values()) {
-      evidence2(input.archiveRoot, r.evidenceManifestId);
-      const p = s.predictions.get(r.targetId), link = s.caseLinks.get(r.referenceId);
-      if (link && !readLearningCase(input.archiveRoot, link).matched)
-        continue;
-      if (r.kind === "prediction" && p)
-        labels.push({ ...p, id: r.referenceId, correct: r.value });
-    }
-    for (const p of s.predictions.values())
-      evidence2(input.archiveRoot, input.cohort.find((c) => c.incidentId === p.incidentId).manifestId);
-    const calibration = calibratePredictions([...s.predictions.values()], { outcomes: labels });
-    let misses = 0, resolved = 0, conflicted = 0;
-    for (const id3 of sampledIncidentIds) {
-      evidence2(input.archiveRoot, input.cohort.find((c) => c.incidentId === id3).manifestId);
-      const values = new Set([...s.outcomes.values()].filter((r) => r.kind === "unflagged" && r.targetId === id3).map((r) => r.value));
-      if (values.size === 1) {
-        resolved++;
-        if (values.has(true))
-          misses++;
-      } else if (values.size > 1)
-        conflicted++;
-    }
-    return { policyId: String(initial.policyId), component: learningCopy(input.component), calibration, sampledIncidentIds: [...sampledIncidentIds], unflagged: { sampled: sampledIncidentIds.length, resolved, misses, unresolved: sampledIncidentIds.length - resolved, conflicted }, attentionUsed: [...s.exposures.values()].filter((e) => e.mode === "ask").length, retired: s.retired, exposures: [...s.exposures].map(([id3, result]) => ({ id: id3, ...result })), tip: s.tip, grantExpansion: false };
-  };
-  const prediction = (p) => {
-    const copy2 = learningCopy(p);
-    calibratePredictions([copy2]);
-    const row = input.cohort.find((c) => c.incidentId === copy2.incidentId);
-    if (!row?.flagged || row.split !== copy2.split || learningHash(copy2.component) !== learningHash(input.component))
-      throw Error("prediction scope mismatch");
-    evidence2(input.archiveRoot, row.manifestId);
-    return copy2;
-  };
-  const previewCaseOutcome = (predictionId, reference3) => {
-    const ref = learningCopy(reference3), s = replay(), p = s.predictions.get(predictionId), row = p && input.cohort.find((c) => c.incidentId === p.incidentId), resolved = readLearningCase(input.archiveRoot, ref);
-    if (!p || p.kind !== "positive" || row?.manifestId !== ref.manifestId || !resolved.matched || !["confirmed_defect", "expected_behavior"].includes(resolved.current.disposition) || learningHash(resolved.candidate.detector) !== learningHash({ id: p.component.id, version: p.component.version, population: p.component.population }))
-      throw Error("current independent case outcome scope required");
-    const outcome = { kind: "prediction", targetId: p.id, value: resolved.current.disposition === "confirmed_defect", evidenceManifestId: ref.manifestId, referenceId: ref.decisionId };
-    return { outcome, caseReference: ref, digest: learningHash({ outcome, caseReference: ref }), tip: s.tip };
-  };
-  const previewExposure = (now) => {
-    const view = inspect(now), policy = input.exposure ? { ...input.exposure, attentionRemaining: Math.max(0, input.exposure.attentionRemaining - view.attentionUsed) } : null;
-    const report = view.calibration.reports.find((r) => policy && r.kind === policy.kind && r.split === policy.split);
-    return view.retired ? { mode: "retire", reason: "previously-retired" } : report ? recommendExposure(report, policy, now) : { mode: "silent", reason: policy ? "insufficient-independent-evidence" : "policy-unavailable" };
-  };
-  return {
-    inspect,
-    configuration: () => learningCopy(input),
-    previewExposure,
-    history: () => journal.read(),
-    previewCaseOutcome,
-    linkCaseOutcome(predictionId, reference3, authorizedDigests, referenceAuthor) {
-      if (referenceAuthor !== void 0 && !text9(referenceAuthor))
-        throw Error("explicit reference author required");
-      const preview = previewCaseOutcome(predictionId, reference3);
-      if (!authorizedDigests.includes(preview.digest))
-        throw Error("independent exact reference authority required");
-      const s = replay();
-      if (s.tip !== preview.tip)
-        throw Error("stale case outcome snapshot");
-      const old = s.outcomes.get(preview.outcome.referenceId);
-      if (old) {
-        if (trustOutcomeDigest(old) !== trustOutcomeDigest(preview.outcome) || learningHash(s.caseLinks.get(old.referenceId) ?? null) !== learningHash(reference3))
-          throw Error("reference identity conflict");
-        return;
-      }
-      journal.append(s.tip, { type: "outcome", outcome: preview.outcome, caseReference: preview.caseReference, authorityDigest: preview.digest, ...referenceAuthor === void 0 ? {} : { referenceAuthor } });
-    },
-    predict(p) {
-      const safe = prediction(p), s = replay();
-      if (s.allIds.has(safe.id)) {
-        if (learningHash(s.predictions.get(safe.id) ?? null) !== learningHash(safe))
-          throw Error("prediction identity conflict");
-        return;
-      }
-      journal.append(s.tip, { type: "prediction", prediction: safe });
-    },
-    correct(prior, p, reason) {
-      const safe = prediction(p), s = replay(), old = s.predictions.get(prior);
-      if (!old || old.incidentId !== safe.incidentId || s.allIds.has(safe.id) || !text9(reason))
-        throw Error("stale or invalid prediction correction");
-      journal.append(s.tip, { type: "correction", prior, prediction: safe, reason });
-    },
-    outcome(value3, authorizedReferenceDigests, referenceAuthor) {
-      if (referenceAuthor !== void 0 && !text9(referenceAuthor))
-        throw Error("explicit reference author required");
-      const r = learningCopy(value3);
-      if (Object.keys(r).sort().join() !== "evidenceManifestId,kind,referenceId,targetId,value" || !["prediction", "unflagged"].includes(r.kind) || !text9(r.targetId) || !text9(r.referenceId) || typeof r.value !== "boolean")
-        throw Error("invalid reference outcome");
-      const digest6 = trustOutcomeDigest(r);
-      if (!authorizedReferenceDigests.includes(digest6))
-        throw Error("independent exact reference authority required");
-      evidence2(input.archiveRoot, r.evidenceManifestId);
-      const s = replay();
-      if (r.kind === "prediction" ? !s.predictions.has(r.targetId) : !sampledIncidentIds.includes(r.targetId))
-        throw Error("outcome outside current prediction or frozen sample");
-      const old = s.outcomes.get(r.referenceId);
-      if (old) {
-        if (trustOutcomeDigest(old) !== digest6)
-          throw Error("reference identity conflict");
-        return;
-      }
-      journal.append(s.tip, { type: "outcome", outcome: r, authorityDigest: digest6, ...referenceAuthor === void 0 ? {} : { referenceAuthor } });
-    },
-    expose(id3, now) {
-      if (!text9(id3))
-        throw Error("exposure identity required");
-      const s = replay(), existing = s.exposures.get(id3);
-      if (existing)
-        return { ...learningCopy(existing), replayed: true };
-      if (now < s.lastExposureAt)
-        throw Error("policy clock moved backwards");
-      const view = inspect(now);
-      if (view.tip !== s.tip)
-        throw Error("stale exposure snapshot");
-      const policy = input.exposure ? { ...input.exposure, attentionRemaining: Math.max(0, input.exposure.attentionRemaining - view.attentionUsed) } : null;
-      const report = view.calibration.reports.find((r) => policy && r.kind === policy.kind && r.split === policy.split);
-      const result = s.retired ? { mode: "retire", reason: "previously-retired" } : report ? recommendExposure(report, policy, now) : { mode: "silent", reason: policy ? "insufficient-independent-evidence" : "policy-unavailable" };
-      journal.append(s.tip, { type: "exposure", id: id3, now, result, policyId: initial.policyId, evidenceTip: s.tip });
-      return { ...learningCopy(result), replayed: false };
-    }
-  };
-}
-
-// packages/adapters/dist/learning-workspace.js
-var SHA8 = /^[a-f0-9]{64}$/;
-var NAME = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
-function closed11(value3, keys7) {
-  if (!value3 || typeof value3 !== "object" || Array.isArray(value3) || Object.keys(value3).sort().join() !== [...keys7].sort().join())
-    throw Error("closed learning workspace input required");
-}
-function text10(value3, max = 4e3) {
-  if (typeof value3 !== "string" || !value3.trim() || value3.length > max || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value3))
-    throw Error("bounded learning text required");
-}
-function hash8(value3) {
-  if (typeof value3 !== "string" || !SHA8.test(value3))
-    throw Error("retained digest required");
-}
-function path(value3) {
-  if (!isAbsolute18(value3) || resolve19(value3) !== value3)
-    throw Error("canonical absolute learning path required");
-}
-function named(value3) {
-  if (!NAME.test(value3.name))
-    throw Error("learning name must be a short slug");
-  text10(value3.title, 512);
-}
-function clock(now) {
-  if (!Number.isSafeInteger(now) || now < 0)
-    throw Error("valid learning clock required");
-}
-var message = (error) => error instanceof Error ? error.message : "learning evidence unavailable";
-function source(root, id3, parser) {
-  hash8(id3);
-  const r = readArchiveSource(root, id3);
-  if (r.status !== "available" || r.reference.retention !== "exact" || parser && (r.reference.parser.id !== parser || r.reference.parser.version !== "1"))
-    throw Error("retained learning evidence missing, changed or unsupported");
-  return r;
-}
-function jsonSource(root, id3, parser) {
-  return learningCopy(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(source(root, id3, parser).bytes)));
-}
-function retain(root, parser, value3) {
-  return retainArchiveSource(root, { sourceId: `${parser}-${learningHash(value3).slice(0, 32)}`, parser: { id: parser, version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(value3)) }).manifestId;
-}
-function prepareLearningDirectory(directory7) {
-  path(directory7);
-  try {
-    const s = lstatSync10(directory7);
-    if (!s.isDirectory() || s.isSymbolicLink())
-      throw Error("learning directory substitution");
-  } catch (e) {
-    if (e.code !== "ENOENT")
-      throw e;
-    prepareLearningDirectory(dirname13(directory7));
-    mkdirSync13(directory7, { mode: 448 });
-  }
-  for (let p = directory7; ; p = dirname13(p)) {
-    const s = lstatSync10(p);
-    if (!s.isDirectory() || s.isSymbolicLink())
-      throw Error("learning directory ancestor substitution");
-    if (p === dirname13(p))
-      break;
-  }
-}
-function validInput(input) {
-  closed11(input, ["archiveRoot", "scopeDigest", "population", "author"]);
-  path(input.archiveRoot);
-  hash8(input.scopeDigest);
-  text10(input.population, 512);
-  text10(input.author, 512);
-  if (/[\u0000-\u001f\u007f]/.test(input.population + input.author))
-    throw Error("single-line population and explicit author required");
-}
-var workspaceKey = (input) => learningHash({ scopeDigest: input.scopeDigest, population: input.population, author: input.author });
-function createLearningWorkspace(directory7, input) {
-  const safe = learningCopy(input);
-  validInput(safe);
-  path(directory7);
-  prepareLearningDirectory(dirname13(directory7));
-  prepareLearningDirectory(safe.archiveRoot);
-  const initial = { type: "learning-workspace-v1", input: safe };
-  let exists = true;
-  try {
-    lstatSync10(directory7);
-  } catch (e) {
-    if (e.code !== "ENOENT")
-      throw e;
-    exists = false;
-  }
-  if (exists) {
-    if (learningHash(learningJournal(directory7).read()[0].value) !== learningHash(initial))
-      throw Error("learning workspace already bound");
-    return openLearningWorkspace(directory7);
-  }
-  registerLearningStore(safe.archiveRoot, "workspace", workspaceKey(safe), directory7, learningHash(initial));
-  try {
-    learningJournal(directory7, initial);
-  } catch (e) {
-    if (e.code !== "EEXIST")
-      throw e;
-    if (learningHash(learningJournal(directory7).read()[0].value) !== learningHash(initial))
-      throw Error("learning workspace already bound");
-  }
-  return openLearningWorkspace(directory7);
-}
-function openLearningWorkspace(directory7) {
-  path(directory7);
-  const journal = learningJournal(directory7), initial = journal.read()[0].value;
-  closed11(initial, ["type", "input"]);
-  if (initial.type !== "learning-workspace-v1")
-    throw Error("wrong learning workspace");
-  const input = initial.input;
-  validInput(input);
-  const history = () => {
-    verifyLearningStore(input.archiveRoot, "workspace", workspaceKey(input), directory7, learningHash(initial));
-    const rows = journal.read(), names = /* @__PURE__ */ new Set(), decisions = /* @__PURE__ */ new Map();
-    const known = /* @__PURE__ */ new Set(["session-note", "session-binding", "case-binding", "comparison-binding", "comparison-context", "hypothesis-binding", "unflagged-binding", "trust-binding", "quality-pending", "quality", "decision", "adoption", "activation", "rollback-request", "rollback", "outcome", "lifecycle"]);
-    for (const row of rows.slice(1)) {
-      const v = row.value;
-      if (!known.has(String(v.type)))
-        throw Error("unknown learning workspace event");
-      if (String(v.type).endsWith("-binding") && v.type !== "trust-binding") {
-        const b = v.binding;
-        if (!b || !NAME.test(b.name) || names.has(`${v.type}:${b.name}`))
-          throw Error("duplicate or invalid learning binding");
-        names.add(`${v.type}:${b.name}`);
-      }
-      if (v.type === "decision") {
-        const r = v.request;
-        if (!r || r.priorDecisionId !== (decisions.get(String(v.name)) ?? null))
-          throw Error("learning decision history fork");
-        decisions.set(String(v.name), row.id);
-      }
-    }
-    return rows;
-  };
-  const events = () => history().map((e) => e.value);
-  const append = (value3, prior = history().at(-1).id) => journal.append(prior, value3);
-  const bindings = (type2) => events().filter((e) => e.type === type2).map((e) => e.binding);
-  const selected2 = (type2, name) => {
-    const b = bindings(type2).find((b2) => b2.name === name);
-    if (!b)
-      throw Error(`unknown retained learning name: ${name}`);
-    return learningCopy(b);
-  };
-  const bound = (type2, binding) => {
-    const before = history().at(-1).id;
-    const old = bindings(type2).find((b) => b.name === binding.name);
-    if (old) {
-      if (learningHash(old) !== learningHash(binding))
-        throw Error("learning name already bound; use a new name for changed evidence");
-      return;
-    }
-    if (bindings(type2).length >= 128)
-      throw Error("learning binding limit reached");
-    append({ type: type2, binding }, before);
-  };
-  const reviewer = (b) => b.version === 3 ? createWorkSignalReviewer(input.archiveRoot, b.batchId, input.author) : createWorkCaseReviewer(input.archiveRoot, b.batchId, input.author);
-  const validateCases = (b) => {
-    closed11(b, ["name", "title", "version", "batchId"]);
-    named(b);
-    if (![2, 3].includes(b.version))
-      throw Error("unsupported case version");
-    hash8(b.batchId);
-    const r = reviewer(b);
-    for (let offset = 0; ; offset += 5) {
-      const p = r.list(offset);
-      for (const c of p.items)
-        if (c.candidate.detector.population !== input.population || c.candidate.target.snapshotDigest !== input.scopeDigest)
-          throw Error("case snapshot scope or population mismatch");
-      if (offset + 5 >= p.total)
-        break;
-    }
-    return r;
-  };
-  const caseEvidenceIds = (name, caseManifestId) => {
-    const binding = selected2("case-binding", name), r = validateCases(binding);
-    for (let offset = 0; ; offset += 5) {
-      const page = r.list(offset), item = page.items.find((c) => c.caseManifestId === caseManifestId);
-      if (item) {
-        const observationId = binding.version === 3 ? readWorkSignalCase(input.archiveRoot, caseManifestId).observationId : jsonSource(input.archiveRoot, binding.batchId, "work-candidate-batch").observationId;
-        if (observationId === void 0)
-          return [caseManifestId];
-        hash8(observationId);
-        const observed = readArchiveSourceReference(input.archiveRoot, observationId);
-        if (binding.version === 2 && observed.status === "available" && !item.candidate.evidence.includes(observed.reference.sha256))
-          throw Error("observation link is outside case evidence");
-        return [caseManifestId, observationId];
-      }
-      if (offset + 5 >= page.total)
-        break;
-    }
-    throw Error("case outside named batch");
-  };
-  const hypothesis = (id3) => {
-    const h = jsonSource(input.archiveRoot, id3, "factory-hypothesis");
-    if (learningHash(buildHypothesis(h.proposal)) !== learningHash(h) || h.proposal.population !== input.population)
-      throw Error("hypothesis changed or population mismatch");
-    return h;
-  };
-  const validateComparison = (b) => {
-    closed11(b, ["name", "title", "scopeStatement", "comparisonManifestId", "caseReference", "hypothesisManifestId", "priorFeedbackManifestIds", "adoptionBinding"]);
-    named(b);
-    text10(b.scopeStatement);
-    const metadata3 = readBlindInterventionBinding(input.archiveRoot, b.comparisonManifestId, input.author);
-    if (!Array.isArray(b.priorFeedbackManifestIds) || b.priorFeedbackManifestIds.length > 32 || new Set(b.priorFeedbackManifestIds).size !== b.priorFeedbackManifestIds.length)
-      throw Error("bounded prior feedback required");
-    b.priorFeedbackManifestIds.forEach((id3) => source(input.archiveRoot, id3));
-    const c = b.caseReference ? readLearningCase(input.archiveRoot, b.caseReference) : null;
-    if (c && (!c.matched || c.candidate.detector.population !== input.population || c.candidate.target.snapshotDigest !== input.scopeDigest))
-      throw Error("case decision stale or snapshot scope/population mismatch");
-    const h = b.hypothesisManifestId ? hypothesis(b.hypothesisManifestId) : null;
-    if (h && c && !h.proposal.caseIds.includes(c.candidate.id))
-      throw Error("hypothesis case mismatch");
-    if (h && metadata3.investigationDigest !== h.id)
-      throw Error("comparison belongs to a different retained hypothesis");
-    if (b.adoptionBinding) {
-      const { version, id: id3, ...draft } = b.adoptionBinding;
-      if (version !== "adoption-binding-v1" || buildAdoptionBinding(draft).id !== id3 || b.adoptionBinding.scopeDigest !== input.scopeDigest || b.adoptionBinding.experimentDigest !== metadata3.experimentDigest || !h || !c || c.current?.disposition !== "confirmed_defect" || b.adoptionBinding.hypothesisDigest !== h.id)
-        throw Error("adoption case/hypothesis/comparison/scope mismatch");
-    }
-    return openBlindIntervention(input.archiveRoot, b.comparisonManifestId, input.author);
-  };
-  const comparisonBinding = (name) => {
-    const b = selected2("comparison-binding", name);
-    const context = events().filter((e) => e.type === "comparison-context" && e.name === name).at(-1);
-    return context ? { ...b, ...learningCopy(context.context) } : b;
-  };
-  const last = (type2, name) => events().filter((e) => e.type === type2 && e.name === name).at(-1);
-  const decision = (name) => {
-    const e = history().filter((e2) => e2.value.type === "decision" && e2.value.name === name).at(-1);
-    return e ? { id: e.id, ...e.value.request } : null;
-  };
-  const adoption = (name) => {
-    const e = last("adoption", name);
-    if (!e)
-      throw Error("authorized adoption receipt missing");
-    if (learningHash(jsonSource(input.archiveRoot, String(e.manifestId), "learning-adoption")) !== learningHash(e.receipt))
-      throw Error("retained adoption receipt changed or missing");
-    return learningCopy(e.receipt);
-  };
-  const quality = (name) => {
-    const b = comparisonBinding(name), blind = validateComparison(b), choice = blind.quality(), receipt = last("quality", name);
-    if (receipt) {
-      if (learningHash(receipt.choice) !== learningHash(choice))
-        throw Error("durable quality choice changed");
-      const { manifestId, ...body } = receipt;
-      if (learningHash(jsonSource(input.archiveRoot, String(manifestId), "learning-quality")) !== learningHash(body))
-        throw Error("retained quality receipt changed or missing");
-    }
-    return { b, blind, choice, receipt };
-  };
-  const requireQuality = (name) => {
-    const q = quality(name);
-    if (!q.choice || !q.receipt)
-      throw Error("durable full-artifact-scope quality receipt required; excerpt feedback is not a choice");
-    return q;
-  };
-  const validateTrustScope = (c) => {
-    if (c.archiveRoot !== input.archiveRoot || c.component.population !== input.population)
-      throw Error("trust archive/population mismatch");
-    const incidents = /* @__PURE__ */ new Set(), unflagged = bindings("unflagged-binding");
-    for (const row of c.cohort) {
-      if (row.flagged) {
-        const p = source(input.archiveRoot, row.manifestId).reference.parser;
-        const candidate = p.id === "work-capture" ? readWorkCandidate(input.archiveRoot, row.manifestId) : p.id === "work-signal-case" ? readWorkSignalCase(input.archiveRoot, row.manifestId).candidate : null;
-        if (!candidate || candidate.target.snapshotDigest !== input.scopeDigest || candidate.detector.population !== input.population || c.component.kind === "detector" && learningHash(candidate.detector) !== learningHash({ id: c.component.id, version: c.component.version, population: c.component.population }))
-          throw Error("trust cohort requires actual same-snapshot scoped cases");
-        const key3 = learningHash(candidate.target);
-        if (incidents.has(key3))
-          throw Error("trust cohort repeats one work incident");
-        incidents.add(key3);
-      } else if (!unflagged.some((b) => b.manifestId === row.manifestId && b.split === row.split))
-        throw Error("unflagged cohort source not explicitly bound to this workspace scope");
-    }
-  };
-  const currentTrust = () => {
-    const e = events().filter((e2) => e2.type === "trust-binding").at(-1);
-    if (!e)
-      return null;
-    const trust = openTrustLifecycle(String(e.directory)), c = trust.configuration();
-    validateTrustScope(c);
-    if (trustPolicyDigest(c) !== e.policyId)
-      throw Error("trust policy mismatch");
-    return trust;
-  };
-  const registryEvidence = (id3, operation, name, permitted) => {
-    if (!permitted.includes(id3))
-      throw Error("independent exact registry linkage authority required");
-    const r = jsonSource(input.archiveRoot, id3, "learning-registry-receipt");
-    closed11(r, ["version", "operation", "requestId", "adoptionId", "scopeDigest", "candidateDigest", "revision", "registryManifestId"]);
-    const a = adoption(name);
-    if (r.version !== "learning-registry-receipt-v1" || r.operation !== operation || r.adoptionId !== a.id || r.scopeDigest !== input.scopeDigest || !Number.isSafeInteger(r.revision) || r.revision < 1 || r.candidateDigest !== (operation === "activate" ? a.candidateDigest : a.rollbackCandidateDigest))
-      throw Error("registry receipt outside adopted scope");
-    text10(r.requestId, 128);
-    const view = jsonSource(input.archiveRoot, r.registryManifestId);
-    if (view.version !== "factory-registry-view-v1" || view.scopeDigest !== r.scopeDigest || view.candidateDigest !== r.candidateDigest || view.revision !== r.revision)
-      throw Error("original registry observation mismatch");
-    if (operation === "activate") {
-      const active = view.activation;
-      const change = view.lastChange;
-      if (view.application !== "applied" || view.requestId !== r.requestId || change?.operation !== "activate" || change.requestId !== r.requestId || change.adoptionId !== r.adoptionId || active?.requestId !== r.requestId || active.receipt?.id !== r.adoptionId || learningHash(active.receipt) !== learningHash(a))
-        throw Error("activation not applied by original registry for the exact request and adoption");
-    }
-    if (operation === "rollback" && (view.application !== "applied" || view.requestId !== r.requestId || r.requestId !== last("rollback-request", name)?.request?.id))
-      throw Error("rollback not applied by original registry");
-    return r;
-  };
-  history();
-  return {
-    configuration: () => learningCopy(input),
-    bindSession(raw) {
-      const b = learningCopy(raw);
-      closed11(b, ["name", "title", "manifestId"]);
-      named(b);
-      hash8(b.manifestId);
-      readRetainedSession(input.archiveRoot, b.manifestId);
-      bound("session-binding", b);
-      return b;
-    },
-    noteSession(name, raw) {
-      const a = learningCopy(raw);
-      closed11(a, ["kind", "note", "item", "line"]);
-      text10(a.note);
-      if (!["finding", "proposal", "acceptance", "context"].includes(a.kind) || !Number.isSafeInteger(a.item) || a.item < 1 || !Number.isSafeInteger(a.line) || a.line < 1)
-        throw Error("valid annotation and evidence reference required");
-      const b = selected2("session-binding", name);
-      const bytes3 = readRetainedSessionSource(input.archiveRoot, b.manifestId, a.item - 1);
-      const content = new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
-      const count = content.length === 0 ? 0 : content.split("\n").length - (content.endsWith("\n") ? 1 : 0);
-      if (a.line > count)
-        throw Error("annotation evidence line outside retained source");
-      const annotation = { ...a, author: input.author };
-      append({ type: "session-note", name, annotation });
-      return annotation;
-    },
-    sessions() {
-      return bindings("session-binding").map((b) => {
-        try {
-          const view = readRetainedSession(input.archiveRoot, b.manifestId);
-          return { ...b, state: "ready", sessionId: view.parent.sessionId, reason: "retrospective evidence; assessment pending" };
-        } catch (e) {
-          return { ...b, state: "deferred", sessionId: null, reason: message(e) };
-        }
-      });
-    },
-    session(name) {
-      const b = selected2("session-binding", name);
-      return {
-        ...b,
-        ...readRetainedSession(input.archiveRoot, b.manifestId),
-        annotations: events().filter((e) => e.type === "session-note" && e.name === name).map((e) => e.annotation)
-      };
-    },
-    dashboardBinding() {
-      const trust = currentTrust(), binding = events().filter((e) => e.type === "trust-binding").at(-1);
-      return { trustDirectory: trust && binding ? String(binding.directory) : null, trustPolicyId: trust ? trust.inspect(0).policyId : null };
-    },
-    preparedAdoption(name) {
-      return last("adoption", name) ? adoption(name) : null;
-    },
-    adoptionStatus(name) {
-      const b = comparisonBinding(name), a = last("adoption", name), activation = last("activation", name), rollback = last("rollback", name);
-      const receipt = a ? adoption(name) : null;
-      if (activation)
-        registryEvidence(String(activation.manifestId), "activate", name, [String(activation.manifestId)]);
-      if (rollback)
-        registryEvidence(String(rollback.manifestId), "rollback", name, [String(rollback.manifestId)]);
-      return { binding: b.adoptionBinding, receipt, activationManifestId: activation ? String(activation.manifestId) : null, rollbackManifestId: rollback ? String(rollback.manifestId) : null };
-    },
-    bindCases(raw) {
-      const b = learningCopy(raw);
-      validateCases(b);
-      bound("case-binding", b);
-      return b;
-    },
-    bindComparison(raw) {
-      const b = learningCopy(raw);
-      validateComparison(b);
-      bound("comparison-binding", b);
-      return { name: b.name, comparisonManifestId: b.comparisonManifestId };
-    },
-    linkComparisonContext(name, context) {
-      const before = history().at(-1).id, b = comparisonBinding(name), safe = learningCopy(context);
-      closed11(safe, ["caseReference", "hypothesisManifestId", "adoptionBinding"]);
-      for (const key3 of ["caseReference", "hypothesisManifestId", "adoptionBinding"])
-        if (b[key3] !== null && learningHash(b[key3]) !== learningHash(safe[key3]))
-          throw Error("comparison context cannot replace retained links");
-      validateComparison({ ...b, ...safe });
-      if (learningHash({ caseReference: b.caseReference, hypothesisManifestId: b.hypothesisManifestId, adoptionBinding: b.adoptionBinding }) !== learningHash(safe))
-        append({ type: "comparison-context", name, context: safe }, before);
-      return { name, linked: true };
-    },
-    comparisonContext(name) {
-      const b = comparisonBinding(name);
-      validateComparison(b);
-      return { caseReference: b.caseReference, hypothesisManifestId: b.hypothesisManifestId, adoptionBinding: b.adoptionBinding };
-    },
-    bindTrust(trustDirectory) {
-      const before = history().at(-1).id;
-      path(trustDirectory);
-      const trust = openTrustLifecycle(trustDirectory), config = trust.configuration();
-      validateTrustScope(config);
-      const old = currentTrust();
-      if (old) {
-        if (old.inspect(0).policyId !== trust.inspect(0).policyId)
-          throw Error("trust is frozen for this workspace; no attention refill");
-        return;
-      }
-      append({ type: "trust-binding", directory: trustDirectory, policyId: trust.inspect(0).policyId }, before);
-    },
-    configureTrust(raw, authorizedPolicyDigests) {
-      const config = learningCopy(raw);
-      validateTrustScope(config);
-      const existing = currentTrust();
-      if (existing && existing.inspect(0).policyId !== trustPolicyDigest(config))
-        throw Error("trust already frozen; no attention refill");
-      const trust = createTrustLifecycle(join38(directory7, "trust"), config, authorizedPolicyDigests);
-      this.bindTrust(join38(directory7, "trust"));
-      return trust.inspect(0);
-    },
-    trust() {
-      const trust = currentTrust();
-      if (!trust)
-        throw Error("trust not configured; use learning trust setup");
-      return trust;
-    },
-    addUnflagged(raw) {
-      const b = learningCopy(raw);
-      closed11(b, ["name", "title", "manifestId", "split"]);
-      named(b);
-      source(input.archiveRoot, b.manifestId);
-      if (!["calibration", "heldout", "tuning"].includes(b.split))
-        throw Error("explicit unflagged split required");
-      if (currentTrust())
-        throw Error("cohort already frozen; cannot add samples after labels");
-      bound("unflagged-binding", b);
-      return b;
-    },
-    unflagged() {
-      return bindings("unflagged-binding").map((b) => {
-        source(input.archiveRoot, b.manifestId);
-        return { ...b, incidentId: learningHash({ scope: input.scopeDigest, evidence: source(input.archiveRoot, b.manifestId).reference.sha256 }) };
-      });
-    },
-    cases(name, offset = 0) {
-      const b = selected2("case-binding", name);
-      return { ...validateCases(b).list(offset), batchId: b.batchId, version: b.version };
-    },
-    caseEvidence(name, caseManifestId) {
-      return caseEvidenceIds(name, caseManifestId).map((manifestId) => ({ manifestId, role: manifestId === caseManifestId ? "nomination" : "frozen-inputs", ...readArchiveSourceReference(input.archiveRoot, manifestId) }));
-    },
-    readCaseEvidence(name, caseManifestId, manifestId) {
-      if (!caseEvidenceIds(name, caseManifestId).includes(manifestId))
-        throw Error("evidence outside selected case");
-      return readArchiveSource(input.archiveRoot, manifestId);
-    },
-    decideCase(name, request) {
-      return validateCases(selected2("case-binding", name)).decide(learningCopy(request));
-    },
-    hypotheses() {
-      const named3 = bindings("hypothesis-binding");
-      const origins = bindings("comparison-binding").map((b) => comparisonBinding(b.name)).filter((b) => b.hypothesisManifestId).map((b) => ({ name: `origin:${b.name}`, manifestId: b.hypothesisManifestId }));
-      return [...named3, ...origins.filter((b) => !named3.some((n) => n.manifestId === b.manifestId))].map((b) => ({ ...b, hypothesis: hypothesis(b.manifestId) }));
-    },
-    propose(name, proposal, hypothesisName = name) {
-      const h = buildHypothesis(proposal);
-      if (h.proposal.population !== input.population)
-        throw Error("hypothesis population mismatch");
-      const rows = this.cases(name);
-      const all = [...rows.items];
-      for (let offset = 5; offset < rows.total; offset += 5)
-        all.push(...this.cases(name, offset).items);
-      if (h.proposal.caseIds.some((id3) => !all.some((c) => c.candidate.id === id3 && c.disposition === "confirmed_defect")))
-        throw Error("current confirmed cases required for hypothesis");
-      if (!NAME.test(hypothesisName))
-        throw Error("hypothesis name must be a short slug");
-      const manifestId = retain(input.archiveRoot, "factory-hypothesis", h);
-      bound("hypothesis-binding", { name: hypothesisName, manifestId });
-      return { hypothesis: h, manifestId };
-    },
-    comparison(name) {
-      const q = quality(name), cards = q.blind.view().cards.map((c, i) => ({ ...c, displayLabel: String.fromCharCode(65 + i) }));
-      const d = decision(name), a = this.adoptionStatus(name);
-      const outcomes = events().filter((e) => e.type === "outcome" && e.name === name).map((e) => {
-        const { manifestId, ...body } = e;
-        if (learningHash(jsonSource(input.archiveRoot, String(manifestId), "learning-outcome")) !== learningHash(body))
-          throw Error("retained outcome changed or missing");
-        const observation = e.observation;
-        observation.evidence.forEach((id3) => source(input.archiveRoot, id3));
-        const classification = classifyProductionObservation(adoption(name), observation);
-        if (learningHash(classification) !== learningHash(e.classification))
-          throw Error("outcome classification changed");
-        return { manifestId: e.manifestId, classification };
-      });
-      return {
-        name,
-        title: q.b.title,
-        scopeStatement: q.b.scopeStatement,
-        mode: "deliberate-review",
-        cards,
-        choice: q.choice,
-        qualityScope: q.receipt ? "full-artifacts" : q.choice ? "legacy-unscoped" : null,
-        priorFeedback: q.b.priorFeedbackManifestIds.map((manifestId) => ({ manifestId, scope: "prior-feedback-only" })),
-        decision: d,
-        activation: a.activationManifestId ? "recorded" : "not-activated",
-        rollback: a.rollbackManifestId ? "recorded" : "not-recorded",
-        outcomes,
-        adoptionReadiness: { state: a.rollbackManifestId ? "rollback-recorded" : a.activationManifestId ? "activation-recorded" : "deferred", reason: a.rollbackManifestId ? "original registry rollback recorded; historical activation retained" : a.activationManifestId ? "original activation receipt linked; current registry state remains producer-owned" : !q.b.adoptionBinding ? "scoped candidate and independent eligibility/authority not configured" : !q.receipt ? "full-artifact quality choice missing" : d?.disposition !== "adopt" ? "explicit adoption intent missing" : !a.receipt ? "independent adoption authority and current eligible facts required" : "prepared only; original registry activation still required" },
-        laterOutcomeReadiness: outcomes.length ? "observations-linked (not an improvement claim)" : "no later outcome observed",
-        revealReady: !!q.choice && !!q.receipt,
-        adoptionConfigured: !!q.b.adoptionBinding,
-        limitations: ["Artifact content may disclose identity.", "A quality choice is not acceptance, calibration or adoption.", ...q.b.priorFeedbackManifestIds.length ? ["Previously exposed feedback is linked, not a fresh blind experiment."] : []]
-      };
-    },
-    artifact(name, label, digest6) {
-      return quality(name).blind.readArtifact(label, digest6);
-    },
-    choose(name, raw, rawReview) {
-      const before = history().at(-1).id, review = learningCopy(rawReview), q = quality(name), choice = q.blind.previewChoice(learningCopy(raw));
-      if (q.choice && learningHash(q.choice) !== learningHash(choice))
-        throw Error("blind quality choice locked");
-      closed11(review, ["scope", "note", "reviewedArtifactDigests"]);
-      text10(review.note);
-      const required = [...new Set(q.blind.view().cards.flatMap((c) => c.artifactDigests))].sort();
-      if (review.scope !== "full-artifacts" || !required.length && choice.kind !== "insufficient" || !Array.isArray(review.reviewedArtifactDigests) || new Set(review.reviewedArtifactDigests).size !== review.reviewedArtifactDigests.length || review.reviewedArtifactDigests.some((h) => !required.includes(h)) || choice.kind !== "insufficient" && learningHash([...review.reviewedArtifactDigests].sort()) !== learningHash(required))
-        throw Error("explicit complete artifact review required; excerpts do not qualify");
-      review.reviewedArtifactDigests.sort();
-      if (q.receipt) {
-        if (learningHash(q.receipt.choice) !== learningHash(choice) || learningHash(q.receipt.review) !== learningHash(review))
-          throw Error("quality receipt locked");
-        return learningCopy(q.receipt);
-      }
-      const pending = last("quality-pending", name), request = { choice, review };
-      if (pending && learningHash(pending.request) !== learningHash(request))
-        throw Error("quality write pending; repeat the exact choice to finish");
-      const claimed = pending ? before : append({ type: "quality-pending", name, request }, before).id;
-      const actual = q.blind.choose(choice);
-      const receipt = { type: "quality", name, choice: actual, review, author: input.author, comparisonManifestId: q.b.comparisonManifestId };
-      const manifestId = retain(input.archiveRoot, "learning-quality", receipt);
-      append({ ...receipt, manifestId }, claimed);
-      return { ...receipt, manifestId };
-    },
-    reveal(name) {
-      return requireQuality(name).blind.reveal();
-    },
-    decisionStatus(name) {
-      const b = comparisonBinding(name);
-      return { name, title: b.title, scopeStatement: b.scopeStatement, current: decision(name) };
-    },
-    decide(name, raw) {
-      const before = history().at(-1).id, request = learningCopy(raw);
-      closed11(request, ["disposition", "note", "priorDecisionId"]);
-      text10(request.note);
-      if (!["adopt", "reject", "defer"].includes(request.disposition))
-        throw Error("choose adopt, reject or defer");
-      if (request.priorDecisionId !== null)
-        hash8(request.priorDecisionId);
-      comparisonBinding(name);
-      const old = decision(name);
-      if (old && learningHash({ disposition: old.disposition, note: old.note, priorDecisionId: old.priorDecisionId }) === learningHash(request))
-        return old;
-      if ((old?.id ?? null) !== request.priorDecisionId)
-        throw Error("stale learning decision");
-      if (last("adoption", name))
-        throw Error("adoption already authorized; use explicit rollback rather than replacing its decision");
-      if (request.disposition === "adopt") {
-        const q = requireQuality(name);
-        if (!["one", "tie"].includes(q.choice.kind))
-          throw Error("positive quality choice required for adoption intent");
-      }
-      const e = append({ type: "decision", name, request, author: input.author }, before);
-      return { id: e.id, ...request };
-    },
-    prepareAdoption(name, authority, facts, now) {
-      const before = history().at(-1).id, q = requireQuality(name), b = q.b.adoptionBinding;
-      if (!b || decision(name)?.disposition !== "adopt")
-        throw Error("scoped binding and explicit adopt decision required");
-      const selected3 = q.blind.reveal().arms.filter((a) => q.choice.labels.includes(a.label));
-      if (!selected3.some((a) => a.configuration.configuration === b.candidateDigest))
-        throw Error("adoption candidate is not a quality-selected configuration");
-      const receipt = authorizeAdoption(b, authority, facts, now), old = last("adoption", name);
-      if (old) {
-        if (learningHash(old.receipt) !== learningHash(receipt))
-          throw Error("adoption receipt locked");
-        return receipt;
-      }
-      append({ type: "adoption", name, receipt, manifestId: retain(input.archiveRoot, "learning-adoption", receipt) }, before);
-      return receipt;
-    },
-    linkActivation(name, manifestId, authorizedManifestIds) {
-      const before = history().at(-1).id, receipt = registryEvidence(manifestId, "activate", name, authorizedManifestIds), old = last("activation", name);
-      if (old) {
-        if (old.manifestId !== manifestId)
-          throw Error("activation link locked");
-        return receipt;
-      }
-      append({ type: "activation", name, manifestId }, before);
-      return receipt;
-    },
-    previewRollback(name, reason, evidence5, expiresAt) {
-      if (!this.adoptionStatus(name).activationManifestId)
-        throw Error("observed activation required before rollback");
-      evidence5.forEach((id3) => source(input.archiveRoot, id3));
-      return buildRollbackRequest(adoption(name), reason, evidence5, expiresAt);
-    },
-    prepareRollback(name, request, authority, now, current) {
-      const before = history().at(-1).id;
-      if (!this.adoptionStatus(name).activationManifestId)
-        throw Error("observed activation required before rollback");
-      request.evidence.forEach((id3) => source(input.archiveRoot, id3));
-      if (buildRollbackRequest(adoption(name), request.reason, [...request.evidence], request.expiresAt).id !== request.id)
-        throw Error("rollback request changed");
-      const result = authorizeRollback(adoption(name), request, authority, now, current), old = last("rollback-request", name);
-      if (old) {
-        if (learningHash(old.request) !== learningHash(request))
-          throw Error("rollback request locked");
-        return result;
-      }
-      append({ type: "rollback-request", name, request: learningCopy(request) }, before);
-      return result;
-    },
-    linkRollback(name, manifestId, authorizedManifestIds) {
-      const before = history().at(-1).id, receipt = registryEvidence(manifestId, "rollback", name, authorizedManifestIds), old = last("rollback", name);
-      const activation = jsonSource(input.archiveRoot, String(last("activation", name)?.manifestId), "learning-registry-receipt");
-      if (receipt.revision <= activation.revision)
-        throw Error("rollback registry revision must follow activation");
-      if (old) {
-        if (old.manifestId !== manifestId)
-          throw Error("rollback link locked");
-        return receipt;
-      }
-      append({ type: "rollback", name, manifestId }, before);
-      return receipt;
-    },
-    previewObservation(name, raw) {
-      if (!this.adoptionStatus(name).activationManifestId)
-        throw Error("later outcome needs observed activation, not just prepared adoption");
-      const observation = learningCopy(raw);
-      closed11(observation, ["id", "adoptionId", "candidateDigest", "scopeDigest", "originalRequirementDigest", "currentRequirementDigest", "outcome", "acceptanceDigest", "acceptedArtifactDigest", "observedArtifactDigest", "evidence"]);
-      observation.evidence.forEach((id3) => source(input.archiveRoot, id3));
-      const classification = classifyProductionObservation(adoption(name), observation);
-      return { observation, classification, digest: learningHash({ name, observation }) };
-    },
-    observe(name, raw, authorizedDigests, referenceAuthor) {
-      const before = history().at(-1).id, preview = this.previewObservation(name, raw);
-      if (!authorizedDigests.includes(preview.digest))
-        throw Error("independent exact observation authority required");
-      const old = events().find((e) => e.type === "outcome" && e.name === name && e.observation.id === raw.id);
-      if (old) {
-        if (learningHash(old.observation) !== learningHash(preview.observation))
-          throw Error("outcome identity conflict");
-        return learningCopy(old);
-      }
-      if (referenceAuthor !== void 0)
-        text10(referenceAuthor, 512);
-      const value3 = { type: "outcome", name, ...preview, ...referenceAuthor === void 0 ? {} : { referenceAuthor } };
-      const manifestId = retain(input.archiveRoot, "learning-outcome", value3);
-      append({ ...value3, manifestId }, before);
-      return { ...value3, manifestId };
-    },
-    lifecycle(name) {
-      const before = history().at(-1).id, q = quality(name), b = q.b;
-      this.comparison(name);
-      if (!b.caseReference || !b.hypothesisManifestId)
-        return { state: "incomplete-links", manifestId: null };
-      const activation = last("activation", name), rollback = last("rollback", name), prior = last("lifecycle", name);
-      const links = {
-        caseManifestId: b.caseReference.manifestId,
-        hypothesisManifestId: b.hypothesisManifestId,
-        comparisonManifestId: b.comparisonManifestId,
-        choiceManifestId: q.receipt ? String(q.receipt.manifestId) : null,
-        adoptionManifestId: activation ? String(activation.manifestId) : null,
-        rollbackManifestId: rollback ? String(rollback.manifestId) : null,
-        outcomeManifestIds: events().filter((e) => e.type === "outcome" && e.name === name).map((e) => String(e.manifestId))
-      };
-      if (prior && learningHash(prior.links) === learningHash(links))
-        return { state: "linked", manifestId: String(prior.manifestId) };
-      const manifestId = retainLearningLifecycle(input.archiveRoot, { ...links, predecessorManifestId: prior ? String(prior.manifestId) : null });
-      append({ type: "lifecycle", name, links, manifestId }, before);
-      return { state: "linked", manifestId };
-    },
-    inspect(now) {
-      clock(now);
-      const cases = bindings("case-binding").map((b) => {
-        try {
-          const p = validateCases(b).list();
-          return { name: b.name, title: b.title, state: "ready", total: p.total, reason: "deliberate review; nomination is not confirmation" };
-        } catch (e) {
-          return { name: b.name, title: b.title, state: "deferred", total: null, reason: message(e) };
-        }
-      });
-      const comparisons = bindings("comparison-binding").map((b) => {
-        try {
-          const v = this.comparison(b.name);
-          return { state: "ready", reason: v.revealReady ? "quality recorded; adoption remains separate" : "quality choice pending; identity and cost hidden", ...v };
-        } catch (e) {
-          return { name: b.name, title: b.title, state: "deferred", reason: message(e), decision: decision(b.name) };
-        }
-      });
-      let trust;
-      try {
-        const t = currentTrust();
-        trust = t ? { state: "configured", ...t.inspect(now), automaticExposure: t.previewExposure(now) } : { state: "deferred", reason: "trust not configured", automaticExposure: { mode: "silent", reason: "policy-unavailable" } };
-      } catch (e) {
-        trust = { state: "deferred", reason: message(e), automaticExposure: { mode: "silent", reason: "invalid-trust-evidence" } };
-      }
-      return { version: "learning-workspace-view-v1", configuration: learningCopy(input), mode: "deliberate-review", sessions: this.sessions(), cases, comparisons, trust, automaticExposureReserved: false, delegationStarted: false, acceptance: "not-assessed" };
-    }
-  };
-}
-function catalogLearningArchive(root, author) {
-  path(root);
-  text10(author, 512);
-  const dir = join38(root, "manifests");
-  for (let p = dir; ; p = dirname13(p)) {
-    const s = lstatSync10(p);
-    if (!s.isDirectory() || s.isSymbolicLink())
-      throw Error("archive manifest directory substituted");
-    if (p === dirname13(p))
-      break;
-  }
-  const files = readdirSync17(dir);
-  if (files.length > 8192)
-    throw Error("archive catalog bound exceeded");
-  return files.filter((id3) => SHA8.test(id3)).sort().flatMap((manifestId) => {
-    const r = readArchiveSourceReference(root, manifestId);
-    if (r.status !== "available")
-      return [];
-    const p = r.reference.parser;
-    if (p.id === "work-candidate-batch" && p.version === "1" || p.id === "work-signal-batch" && p.version === "1") {
-      try {
-        const page = (p.id === "work-signal-batch" ? createWorkSignalReviewer(root, manifestId, author) : createWorkCaseReviewer(root, manifestId, author)).list();
-        return [{ kind: "cases", manifestId, version: p.id === "work-signal-batch" ? 3 : 2, description: `${page.total} nomination(s)${page.items[0] ? ` \u2014 ${page.items[0].candidate.target.obligationId}: ${page.items[0].candidate.reason}` : ""}`, ...page.items[0] ? { scopeDigest: page.items[0].candidate.target.snapshotDigest, population: page.items[0].candidate.detector.population } : {} }];
-      } catch {
-        return [];
-      }
-    }
-    if (p.id === "blind-intervention" && p.version === "1") {
-      try {
-        readBlindInterventionBinding(root, manifestId, author);
-        return [{ kind: "comparison", manifestId, version: 1, description: "Retained comparison (identity hidden)" }];
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
-}
-
-// packages/adapters/dist/learning-trust-setup.js
-function previewLearningTrust(directory7, raw) {
-  const options = learningCopy(raw), workspace = openLearningWorkspace(directory7), config = workspace.configuration();
-  if (Object.keys(options).sort().join() !== "caseName,detectorId,exposure,maxUnflagged,split,unflagged" || !["calibration", "heldout", "tuning"].includes(options.split) || !Array.isArray(options.unflagged) || options.unflagged.length > 1024)
-    throw Error("closed trust setup required");
-  const page = workspace.cases(options.caseName), items = [...page.items];
-  for (let offset = 5; offset < page.total; offset += 5)
-    items.push(...workspace.cases(options.caseName, offset).items);
-  const chosen = items.filter((c) => c.candidate.detector.id === options.detectorId);
-  if (!chosen.length)
-    throw Error("selected detector has no retained cases");
-  const component = { kind: "detector", ...chosen[0].candidate.detector };
-  if (chosen.some((c) => learningHash(c.candidate.detector) !== learningHash(chosen[0].candidate.detector)))
-    throw Error("detector versions/populations must be calibrated separately");
-  const binding = workspace.inspect(0).cases.find((b) => b.name === options.caseName);
-  if (!binding || binding.state !== "ready")
-    throw Error("case binding unavailable");
-  const incidents = /* @__PURE__ */ new Map();
-  for (const c of chosen) {
-    const id3 = learningHash({ target: c.candidate.target, population: component.population });
-    if (!incidents.has(id3))
-      incidents.set(id3, c);
-  }
-  const cohort = [...[...incidents].map(([incidentId, c]) => ({ incidentId, manifestId: c.caseManifestId, flagged: true, split: options.split })), ...options.unflagged.map((c) => ({ ...c, flagged: false }))];
-  const input = {
-    archiveRoot: config.archiveRoot,
-    component,
-    seed: learningHash({ scope: config.scopeDigest, component, cohort }),
-    maxUnflagged: options.maxUnflagged,
-    cohort,
-    exposure: options.exposure ? { ...options.exposure, component, kind: "positive", split: options.split === "tuning" ? "calibration" : options.split } : null
-  };
-  const predictions = [...incidents].map(([incidentId]) => ({ id: learningHash({ incidentId, component, split: options.split }), incidentId, component, kind: "positive", split: options.split }));
-  return {
-    input,
-    policyDigest: trustPolicyDigest(input),
-    predictions,
-    nominationCount: chosen.length,
-    independentIncidentCount: incidents.size,
-    caseManifestIds: [...incidents.values()].map((c) => c.caseManifestId),
-    labelsCreated: 0,
-    excludedOtherDetectors: items.length - chosen.length
-  };
-}
-function configureLearningTrust(directory7, options, authorizedPolicyDigests) {
-  const preview = previewLearningTrust(directory7, options), workspace = openLearningWorkspace(directory7);
-  workspace.configureTrust(preview.input, authorizedPolicyDigests);
-  for (const p of preview.predictions)
-    workspace.trust().predict(p);
-  return workspace.trust().inspect(0);
-}
-function previewLearningCaseLabel(directory7, reference3) {
-  const trust = openLearningWorkspace(directory7).trust(), config = trust.configuration();
-  const row = config.cohort.find((c) => c.flagged && c.manifestId === reference3.manifestId);
-  if (!row)
-    throw Error("case outside frozen calibration cohort");
-  const predictions = trust.history().filter((e) => e.value.type === "prediction" || e.value.type === "correction").map((e) => e.value.prediction);
-  const p = predictions.filter((p2) => p2.incidentId === row.incidentId).at(-1);
-  if (!p)
-    throw Error("prediction missing");
-  return { predictionId: p.id, ...trust.previewCaseOutcome(p.id, reference3) };
-}
-
-// packages/adapters/dist/archive-observer.js
-import { randomUUID as randomUUID5 } from "node:crypto";
-
-// packages/adapters/dist/principal-payload-port.js
-import { createHash as createHash37 } from "node:crypto";
-import { isAbsolute as isAbsolute19 } from "node:path";
-
-// packages/adapters/dist/reviewed-archive-export.js
-import { constants as constants13, openSync as openSync12, closeSync as closeSync12, writeSync as writeSync6, fsyncSync as fsyncSync8, realpathSync as realpathSync9, lstatSync as lstatSync11 } from "node:fs";
-import { dirname as dirname14, isAbsolute as isAbsolute20, resolve as resolve20 } from "node:path";
-import { createHash as createHash38 } from "node:crypto";
-
-// packages/adapters/dist/archive-facts.js
-import { createHash as createHash39 } from "node:crypto";
-
-// packages/adapters/dist/producer-review.js
-import { existsSync as existsSync26 } from "node:fs";
-import { isAbsolute as isAbsolute22 } from "node:path";
-import { createHash as createHash41 } from "node:crypto";
-
-// packages/adapters/dist/installed-review-session.js
-import { readFileSync as readFileSync27, realpathSync as realpathSync10, lstatSync as lstatSync12, mkdirSync as mkdirSync14, existsSync as existsSync25 } from "node:fs";
-import { isAbsolute as isAbsolute21, resolve as resolve21, join as join39, dirname as dirname15 } from "node:path";
-import { createHash as createHash40 } from "node:crypto";
-import { isDeepStrictEqual as isDeepStrictEqual2 } from "node:util";
-
-// packages/adapters/dist/producer-review.js
-var REVIEW_LIMITS = Object.freeze({ calls: 2, requestBytes: 65536, responseBytes: 262144, totalRequestBytes: 131072, totalResponseBytes: 524288, callMs: 3e4, wallMs: 9e4 });
 
 // packages/adapters/dist/index.js
 var ADAPTERS = {
@@ -15815,56 +9186,56 @@ function getAdapter(name) {
 
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
-import { readFileSync as readFileSync28, existsSync as existsSync27 } from "node:fs";
-import { join as join40, dirname as dirname16 } from "node:path";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { spawn as spawn5 } from "node:child_process";
-var __dirname = dirname16(fileURLToPath2(import.meta.url));
+import { readFileSync as readFileSync17, existsSync as existsSync17 } from "node:fs";
+import { join as join24, dirname as dirname6 } from "node:path";
+import { fileURLToPath } from "node:url";
+import { spawn as spawn3 } from "node:child_process";
+var __dirname = dirname6(fileURLToPath(import.meta.url));
 function templatePath(assetsDir) {
   if (assetsDir)
-    return join40(assetsDir, "report.template.html");
+    return join24(assetsDir, "report.template.html");
   const candidates = [
-    join40(__dirname, "..", "..", "..", "assets", "report.template.html"),
+    join24(__dirname, "..", "..", "..", "assets", "report.template.html"),
     // packages/cli/{dist,src} -> ../../../assets
-    join40(__dirname, "..", "assets", "report.template.html"),
-    join40(__dirname, "..", "..", "assets", "report.template.html")
+    join24(__dirname, "..", "assets", "report.template.html"),
+    join24(__dirname, "..", "..", "assets", "report.template.html")
   ];
   for (const c of candidates)
-    if (existsSync27(c))
+    if (existsSync17(c))
       return c;
   throw new Error("cannot find assets/report.template.html");
 }
 function gradeScriptPath(assetsDir) {
-  return join40(dirname16(templatePath(assetsDir)), "report.grade.js");
+  return join24(dirname6(templatePath(assetsDir)), "report.grade.js");
 }
 function readBody(req) {
-  return new Promise((resolve31) => {
+  return new Promise((resolve13) => {
     let b = "";
     req.on("data", (c) => b += c);
-    req.on("end", () => resolve31(b));
+    req.on("end", () => resolve13(b));
   });
 }
-function findTranscript(runDir, id3) {
-  const files = findTranscriptFiles(runDir, id3);
+function findTranscript(runDir, id) {
+  const files = findTranscriptFiles(runDir, id);
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync28(join40(runDir, files[0]), "utf8");
+    return readFileSync17(join24(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync28(join40(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync17(join24(runDir, f), "utf8")}`).join("\n\n");
 }
-function findJudgeRaw(runDir, id3) {
-  const files = findJudgeRawFiles(runDir, id3);
+function findJudgeRaw(runDir, id) {
+  const files = findJudgeRawFiles(runDir, id);
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync28(join40(runDir, files[0]), "utf8");
+    return readFileSync17(join24(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync28(join40(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync17(join24(runDir, f), "utf8")}`).join("\n\n");
 }
 async function serveReview(opts) {
-  const template = readFileSync28(templatePath(opts.assetsDir), "utf8");
-  const gradeScript = readFileSync28(gradeScriptPath(opts.assetsDir), "utf8");
+  const template = readFileSync17(templatePath(opts.assetsDir), "utf8");
+  const gradeScript = readFileSync17(gradeScriptPath(opts.assetsDir), "utf8");
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://localhost");
@@ -15876,22 +9247,22 @@ async function serveReview(opts) {
       }
       if (req.method === "GET" && url.pathname === "/transcript") {
         const col = Number(url.searchParams.get("col"));
-        const id3 = url.searchParams.get("id") ?? "";
+        const id = url.searchParams.get("id") ?? "";
         const data = collectReport(opts.skillDir);
         const column = data.columns.find((c) => c.index === col);
-        const text15 = column ? findTranscript(column.runDir, id3) : null;
-        res.writeHead(text15 ? 200 : 404, { "content-type": "text/plain; charset=utf-8" });
-        res.end(text15 ?? "transcript not found");
+        const text = column ? findTranscript(column.runDir, id) : null;
+        res.writeHead(text ? 200 : 404, { "content-type": "text/plain; charset=utf-8" });
+        res.end(text ?? "transcript not found");
         return;
       }
       if (req.method === "GET" && url.pathname === "/judge") {
         const col = Number(url.searchParams.get("col"));
-        const id3 = url.searchParams.get("id") ?? "";
+        const id = url.searchParams.get("id") ?? "";
         const data = collectReport(opts.skillDir);
         const column = data.columns.find((c) => c.index === col);
-        const text15 = column ? findJudgeRaw(column.runDir, id3) : null;
-        res.writeHead(text15 ? 200 : 404, { "content-type": "text/plain; charset=utf-8" });
-        res.end(text15 ?? "judge output not captured");
+        const text = column ? findJudgeRaw(column.runDir, id) : null;
+        res.writeHead(text ? 200 : 404, { "content-type": "text/plain; charset=utf-8" });
+        res.end(text ?? "judge output not captured");
         return;
       }
       if (req.method === "GET" && url.pathname === "/trends") {
@@ -15914,7 +9285,7 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be re-judged here \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
           return;
         }
-        const specPath = join40(opts.skillDir, "tests", "specification.yaml");
+        const specPath = join24(opts.skillDir, "tests", "specification.yaml");
         const spec = loadSpec(specPath);
         const scenario = spec.scenarios.find((s) => s.id === body.scenarioId);
         if (!scenario) {
@@ -15946,7 +9317,7 @@ async function serveReview(opts) {
             scenario,
             adapter,
             judge: results.judge,
-            specDir: dirname16(specPath),
+            specDir: dirname6(specPath),
             threshold,
             mode: results.mode,
             expectedReps: prev.reps ?? 1
@@ -15954,14 +9325,7 @@ async function serveReview(opts) {
           const merged = results.scenarios.map((s) => {
             if (s.id !== body.scenarioId)
               return s;
-            const judge_history = appendJudgeHistory(s, results.judge, {
-              judge: results.judge,
-              verdict: rr.judge_verdict,
-              reason: rr.judge_reason,
-              suspect: rr.suspect,
-              criteria: rr.rep_judgments?.find((panel) => panel.repetition === 0)?.judgments[0]?.criteria
-            });
-            return rebuildScenarioResult({ ...rr, metrics: mergeScenarioMetrics(s.metrics, rr.metrics), rep_judgments: carryRepObjectives(rr.rep_judgments, s.rep_judgments), judge_history }, s, { objective: "carry", adjudication: "drop" });
+            return rebuildScenarioResult({ ...rr, metrics: mergeScenarioMetrics(s.metrics, rr.metrics), rep_judgments: carryRepObjectives(rr.rep_judgments, s.rep_judgments) }, s, { objective: "carry", adjudication: "drop" });
           });
           const written = writeResults(column.runDir, {
             schema: results.schema,
@@ -15991,77 +9355,11 @@ async function serveReview(opts) {
             // the same doctrine `grade` follows (see refreshRubricHashes).
             source_hashes: refreshRubricHashes(results.source_hashes, spec, [body.scenarioId])
           }, scoreContextFor(results, spec));
-          ensureResultsGitignore(join40(opts.skillDir, "tests", "results"));
+          ensureResultsGitignore(join24(opts.skillDir, "tests", "results"));
           const g = written.effective_grade;
           appendJournal(column.runDir, { event: "score", ts: (/* @__PURE__ */ new Date()).toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
           res.writeHead(200, { "content-type": "application/json" });
           res.end(JSON.stringify({ ok: true, grade: g }));
-        } catch (e) {
-          res.writeHead(400, { "content-type": "application/json" });
-          res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
-        }
-        return;
-      }
-      if (req.method === "POST" && url.pathname === "/adjudicate") {
-        const body = JSON.parse(await readBody(req) || "{}");
-        const data = collectReport(opts.skillDir);
-        const column = data.columns.find((c) => c.index === body.col);
-        if (!column) {
-          res.writeHead(404).end("unknown column");
-          return;
-        }
-        const results = readResults(column.runDir);
-        if (!isScoredMode(results.mode)) {
-          res.writeHead(400, { "content-type": "application/json" });
-          res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be adjudicated \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
-          return;
-        }
-        const specPath = join40(opts.skillDir, "tests", "specification.yaml");
-        const spec = loadSpec(specPath);
-        const adapter = opts.adapter ?? getAdapter(results.harness);
-        const cells = cellsFromResults(column.runDir, results);
-        const plan = planAdjudication({
-          cells,
-          scenarios: spec.scenarios,
-          shipBar: spec.ship_bar,
-          critical: spec.critical,
-          tieBreakAvailable: false
-        });
-        if (body.step !== "run") {
-          res.writeHead(200, { "content-type": "application/json" });
-          res.end(JSON.stringify({
-            ok: true,
-            step: "plan",
-            triggered: plan.triggered,
-            maxAdditionalCalls: plan.maxAdditionalCalls,
-            judge: `${results.judge.provider}:${results.judge.model}`,
-            detail: plan.decisions.filter((d) => d.triggers.length).map((d) => `${d.id}: ${d.triggers.join(", ")}`)
-          }));
-          return;
-        }
-        if (!await adapter.available()) {
-          res.writeHead(400, { "content-type": "application/json" });
-          res.end(JSON.stringify({ ok: false, error: `harness \`${results.harness}\` is not on PATH` }));
-          return;
-        }
-        try {
-          assertJudgeAllowed(results.judge, { source: "the run's recorded judge", allowMetered: envFlag("SKILL_HARNESS_ALLOW_METERED_JUDGE") });
-          const written = await adjudicateRun({
-            runDir: column.runDir,
-            spec,
-            adapter,
-            results,
-            primaryJudge: results.judge,
-            // Asked again as an independent draw. The judge-variance study measured
-            // ~2% self-disagreement on identical transcripts, so this is a real
-            // second opinion rather than a no-op.
-            secondaryJudge: results.judge,
-            specDir: dirname16(specPath),
-            now: () => (/* @__PURE__ */ new Date()).toISOString()
-          });
-          ensureResultsGitignore(join40(opts.skillDir, "tests", "results"));
-          res.writeHead(200, { "content-type": "application/json" });
-          res.end(JSON.stringify({ ok: true, step: "run", grade: written.effective_grade }));
         } catch (e) {
           res.writeHead(400, { "content-type": "application/json" });
           res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
@@ -16085,11 +9383,11 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
           return;
         }
-        const spec = loadSpec(join40(opts.skillDir, "tests", "specification.yaml"));
+        const spec = loadSpec(join24(opts.skillDir, "tests", "specification.yaml"));
         writeResults(column.runDir, patched, scoreContextFor(patched, spec));
-        ensureResultsGitignore(join40(opts.skillDir, "tests", "results"));
+        ensureResultsGitignore(join24(opts.skillDir, "tests", "results"));
         if (body.override != null) {
-          preserveTranscript(join40(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
+          preserveTranscript(join24(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
         }
         appendJournal(column.runDir, {
           event: "override",
@@ -16108,7 +9406,7 @@ async function serveReview(opts) {
       res.end(`server error: ${e instanceof Error ? e.message : e}`);
     }
   });
-  await new Promise((resolve31) => server.listen(opts.port ?? 0, "127.0.0.1", resolve31));
+  await new Promise((resolve13) => server.listen(opts.port ?? 0, "127.0.0.1", resolve13));
   const addr = server.address();
   const port = typeof addr === "object" && addr ? addr.port : opts.port;
   const link = `http://127.0.0.1:${port}/`;
@@ -16125,27 +9423,27 @@ async function serveReview(opts) {
 function tryOpen(url, cmd) {
   const opener = cmd ?? (process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open");
   try {
-    const child3 = spawn5(opener, [url], { stdio: "ignore", detached: true });
-    child3.on("error", () => {
+    const child = spawn3(opener, [url], { stdio: "ignore", detached: true });
+    child.on("error", () => {
     });
-    child3.unref();
+    child.unref();
   } catch {
   }
 }
 
 // packages/pi-extension/src/runner.ts
-import { existsSync as existsSync28 } from "node:fs";
-import { dirname as dirname17, join as join41, resolve as resolve22 } from "node:path";
+import { existsSync as existsSync18 } from "node:fs";
+import { dirname as dirname7, join as join25, resolve as resolve11 } from "node:path";
 function resolveSkillDir(cwd, arg) {
   if (arg) {
-    const dir2 = resolve22(cwd, arg);
-    if (existsSync28(join41(dir2, "tests", "specification.yaml"))) return dir2;
+    const dir2 = resolve11(cwd, arg);
+    if (existsSync18(join25(dir2, "tests", "specification.yaml"))) return dir2;
     throw new Error(`no tests/specification.yaml found at ${dir2}`);
   }
   let dir = cwd;
   for (; ; ) {
-    if (existsSync28(join41(dir, "tests", "specification.yaml"))) return dir;
-    const parent = dirname17(dir);
+    if (existsSync18(join25(dir, "tests", "specification.yaml"))) return dir;
+    const parent = dirname7(dir);
     if (parent === dir) break;
     dir = parent;
   }
@@ -16153,7 +9451,7 @@ function resolveSkillDir(cwd, arg) {
 }
 var DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 async function runViaExtension(opts) {
-  const specPath = join41(opts.skillDir, "tests", "specification.yaml");
+  const specPath = join25(opts.skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const modelToken = opts.model ?? DEFAULT_MODEL;
   const model = parseModelRef(modelToken);
@@ -16181,7 +9479,7 @@ async function runViaExtension(opts) {
   });
   const g = summary.results.effective_grade;
   const verdicts = effectiveVerdicts(summary.results.scenarios);
-  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join41(summary.runDir, f)));
+  const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join25(summary.runDir, f)));
   return {
     skill: summary.results.skill,
     model: summary.results.model,
@@ -16191,1198 +9489,9 @@ async function runViaExtension(opts) {
   };
 }
 
-// packages/pi-extension/src/capture-cmd.ts
-import { existsSync as existsSync29, mkdirSync as mkdirSync15, writeFileSync as writeFileSync12, readdirSync as readdirSync18, readFileSync as readFileSync29 } from "node:fs";
-import { join as join42 } from "node:path";
-import { createHash as createHash42 } from "node:crypto";
-var CANCELLED = { status: "cancelled", files: [] };
-var CAPTURES_GITIGNORE = "# Local review evidence for captured cases \u2014 never commit.\n.local/\n";
-async function runCapture(skillDir, ctx) {
-  const ui = ctx.ui;
-  const now = ctx.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
-  if (ctx.isStreaming()) {
-    ui.say("the agent is still streaming \u2014 let it finish, then run capture again");
-    return CANCELLED;
-  }
-  const specPath = join42(skillDir, "tests", "specification.yaml");
-  if (!existsSync29(specPath)) {
-    ui.say(`${specPath} does not exist \u2014 run \`skill-harness init\` before capturing into this skill`);
-    return CANCELLED;
-  }
-  const baseSha256 = specSha256(readFileSync29(specPath, "utf8"));
-  const turns = projectTurns(activeBranch(ctx.sessionEntries()), ctx.homeDir);
-  if (turns.length === 0) {
-    ui.say("no user turns in this session yet \u2014 nothing to capture");
-    return CANCELLED;
-  }
-  const labels = turns.map((t) => turnLabel(t));
-  const start = await ui.select("capture from which turn?", labels);
-  if (start === null) return CANCELLED;
-  const endChoices = labels.slice(start);
-  const endRel = await ui.select("\u2026through which turn?", endChoices);
-  if (endRel === null) return CANCELLED;
-  const end = start + endRel;
-  const target = await chooseTarget(skillDir, ctx);
-  if (!target) return CANCELLED;
-  const cls = await ui.select("what is this?", [
-    "failure \u2014 the agent got this wrong",
-    "good_example \u2014 the agent got this right, keep it working"
-  ]);
-  if (cls === null) return CANCELLED;
-  const classification = cls === 0 ? "failure" : "good_example";
-  const expected = await ui.input("what SHOULD it have done? (one or two sentences)");
-  if (expected === null || expected.trim() === "") {
-    ui.say("cancelled \u2014 a capture needs a written expectation");
-    return CANCELLED;
-  }
-  const drafted = draftChecklist(expected);
-  const edited = await ui.editor(
-    "checklist \u2014 one item per line; these are what the judge grades",
-    (drafted.length ? drafted : [expected.trim()]).join("\n")
-  );
-  if (edited === null) return CANCELLED;
-  const checklist = edited.split("\n").map((l) => l.trim()).filter(Boolean);
-  if (checklist.length === 0) {
-    ui.say("cancelled \u2014 a capture needs at least one checklist item");
-    return CANCELLED;
-  }
-  const capturesDir = join42(skillDir, "tests", "captures");
-  const existingIds = existsSync29(capturesDir) ? readdirSync18(capturesDir).filter((f) => f.endsWith(".yaml")).map((f) => f.replace(/\.yaml$/, "")) : [];
-  const capture = buildCaptureCase({
-    turns,
-    range: { start, end },
-    classification,
-    expectedBehavior: expected,
-    checklist,
-    target,
-    sessionPath: ctx.sessionPath(),
-    created: now(),
-    homeDir: ctx.homeDir,
-    existingIds
-  });
-  const previewYaml = yaml.dump(capture, { lineWidth: -1, noRefs: true });
-  ui.say(`
---- ${capture.id} (preview, nothing written yet) ---
-${previewYaml}---`);
-  const action = await ui.select("what now?", [
-    "save as a pending capture (review and promote later)",
-    "promote to a scenario now",
-    "cancel \u2014 write nothing"
-  ]);
-  if (action === null || action === 2) {
-    ui.say("cancelled \u2014 no files written");
-    return CANCELLED;
-  }
-  const files = writeCapture(capturesDir, capture, turns.slice(start, end + 1), ctx.homeDir);
-  if (action === 0) {
-    ui.say(`saved ${capture.id} \u2014 promote it later, or edit ${files[0]} first`);
-    return { status: "pending", capture, files };
-  }
-  const suggested = suggestScenarioId(specPath, capture.id);
-  const scenarioId = await ui.input("scenario id for the spec", suggested);
-  if (scenarioId === null || scenarioId.trim() === "") {
-    ui.say(`kept ${capture.id} as pending \u2014 no scenario appended`);
-    return { status: "pending", capture, files };
-  }
-  const title = await ui.input("scenario title", defaultTitle(capture));
-  if (title === null || title.trim() === "") {
-    ui.say(`kept ${capture.id} as pending \u2014 no scenario appended`);
-    return { status: "pending", capture, files };
-  }
-  appendScenario({
-    specPath,
-    scenario: captureToScenario(capture, scenarioId.trim(), title.trim()),
-    baseSha256
-  });
-  const promoted = { ...capture, status: "promoted", scenario_id: scenarioId.trim() };
-  writeFileSync12(join42(capturesDir, `${capture.id}.yaml`), yaml.dump(promoted, { lineWidth: -1, noRefs: true }), "utf8");
-  ui.say(`promoted ${capture.id} \u2192 scenario ${scenarioId.trim()} in ${specPath}`);
-  if (ctx.runOnly && await ui.confirm(`run scenario ${scenarioId.trim()} now? (spends subject + judge tokens for 1 scenario)`)) {
-    ui.say(await ctx.runOnly(skillDir, scenarioId.trim()));
-  }
-  return { status: "promoted", capture: promoted, files: [...files, specPath], scenarioId: scenarioId.trim() };
-}
-function turnLabel(t) {
-  const head = t.user.replace(/\s+/g, " ").trim();
-  const tools = t.toolCalls.length ? ` [${t.toolCalls.length} tool call(s)]` : "";
-  return `${t.index + 1}. ${head.length > 70 ? `${head.slice(0, 70)}\u2026` : head}${tools}`;
-}
-function defaultTitle(capture) {
-  const first = capture.turns[0] ?? "captured case";
-  const trimmed = first.replace(/\s+/g, " ").trim();
-  return trimmed.length > 60 ? `${trimmed.slice(0, 60)}\u2026` : trimmed;
-}
-async function chooseTarget(skillDir, ctx) {
-  const candidates = [];
-  const skillMd = join42(skillDir, "SKILL.md");
-  if (existsSync29(skillMd)) candidates.push({ label: "SKILL.md (this skill)", kind: "skill", path: "SKILL.md", abs: skillMd });
-  const agentsDir = join42(ctx.cwd, ".pi", "agents");
-  if (existsSync29(agentsDir)) {
-    for (const f of readdirSync18(agentsDir).filter((x) => x.endsWith(".md"))) {
-      candidates.push({ label: `subagent: ${f}`, kind: "subagent", path: join42(".pi", "agents", f), abs: join42(agentsDir, f) });
-    }
-  }
-  if (candidates.length === 0) {
-    ctx.ui.say("no SKILL.md or .pi/agents/*.md found to attribute this to");
-    return null;
-  }
-  const pick = await ctx.ui.select("which instructions are responsible? (your call \u2014 the session cannot prove this)", candidates.map((c) => c.label));
-  if (pick === null) return null;
-  const chosen = candidates[pick];
-  return {
-    kind: chosen.kind,
-    path: chosen.path,
-    content_sha256: createHash42("sha256").update(readFileSync29(chosen.abs, "utf8"), "utf8").digest("hex")
-  };
-}
-function suggestScenarioId(specPath, fallback) {
-  try {
-    const ids = new Set(loadSpec(specPath).scenarios.map((s) => s.id));
-    for (let n = 1; n < 1e3; n++) {
-      const candidate = `R${n}`;
-      if (!ids.has(candidate)) return candidate;
-    }
-  } catch {
-  }
-  return fallback;
-}
-function writeCapture(capturesDir, capture, selected2, homeDir) {
-  mkdirSync15(join42(capturesDir, ".local"), { recursive: true });
-  const gitignore = join42(capturesDir, ".gitignore");
-  const existingIgnore = existsSync29(gitignore) ? readFileSync29(gitignore, "utf8") : "";
-  if (!existingIgnore.split("\n").some((l) => l.trim() === ".local/" || l.trim() === ".local")) {
-    writeFileSync12(gitignore, existingIgnore ? `${existingIgnore.replace(/\n*$/, "\n")}${CAPTURES_GITIGNORE}` : CAPTURES_GITIGNORE, "utf8");
-  }
-  const casePath = join42(capturesDir, `${capture.id}.yaml`);
-  writeFileSync12(casePath, yaml.dump(capture, { lineWidth: -1, noRefs: true }), "utf8");
-  const evidencePath = join42(capturesDir, ".local", `${capture.id}.evidence.json`);
-  writeFileSync12(
-    evidencePath,
-    JSON.stringify(
-      {
-        capture_id: capture.id,
-        assistant_excerpt: selected2.map((t) => redactText(t.assistantText, homeDir)).join("\n---\n").slice(0, 4e3),
-        tool_calls: selected2.flatMap((t) => t.toolCalls.map((c) => ({ name: c.name, isError: c.isError, args: c.args })))
-      },
-      null,
-      2
-    ),
-    "utf8"
-  );
-  return [casePath, evidencePath, gitignore];
-}
-
-// packages/cli/dist/session-learning.js
-import { resolve as resolve23, relative as relative6, isAbsolute as isAbsolute23, sep as sep7 } from "node:path";
-import { existsSync as existsSync30 } from "node:fs";
-var text11 = (v, label) => {
-  if (typeof v !== "string" || !v.trim())
-    throw Error(label + " is required");
-  return v;
-};
-var SESSION_HELP = [
-  "Session learning \u2014 retrospective, no model calls",
-  "  learning session preview --session FILE [--ledger FILE --feedback FILE --artifact FILE]",
-  "      [--sources FILE]                    additional explicit {kind,path,executionId?} selections",
-  "  learning session import --session FILE ... --name NAME --title TEXT",
-  "      --expected DIGEST --confirm [--archive DIR --author NAME for a new workspace]",
-  "  learning session list",
-  "  learning session show NAME              timeline excerpts, model/tool/usage evidence and gaps",
-  "  learning session source NAME --item N   complete selected retained source, display only",
-  "  learning session note NAME --kind finding|proposal|acceptance|context --note TEXT",
-  "      --item N --line N --confirm         operator annotation, not calibrated quality or adoption",
-  "Use --state DIR to select a learning workspace; --json returns structured readback.",
-  "Preview writes nothing. Import retains exact selected bytes privately, including potentially sensitive",
-  "session content. Inspect selected files before confirming. No automatic discovery, redaction or export.",
-  "A changed preview needs a new digest. No running worker is contacted."
-].join("\n");
-function formatSession(view) {
-  const p = view.parent;
-  const lines2 = [
-    "Session \u2014 " + view.title,
-    "Session ID: " + p.sessionId,
-    "Snapshot: " + view.selectionDigest,
-    "Retrospective evidence; quality and acceptance are not inferred.",
-    p.userMessages + " user messages \xB7 " + p.assistantMessages + " assistant messages \xB7 " + view.attempts.length + " ledger executions \xB7 " + view.children.length + " child transcripts",
-    "Last assistant stop: " + (p.lastAssistantStop ?? "unknown") + " (not a completion or acceptance receipt)",
-    "",
-    "Models observed:",
-    ...p.modelRecords.map((m) => "  " + m.provider + "/" + m.model + ": " + m.messages + " assistant records"),
-    "",
-    "Parent usage \u2014 reported sums only; not billing or combined child usage:",
-    ...Object.entries(p.usage.fields).map(([k, v]) => "  " + k + ": " + v.sum + " (" + v.reportedMessages + "/" + p.assistantMessages + " messages reported)"),
-    "",
-    "Delegations \u2014 operator-selected ledger, association not authenticated:",
-    ...view.attempts.map((a) => "  " + a.executionId + " \xB7 " + (a.agent ?? "unknown") + " \xB7 " + a.state + " \xB7 " + (a.runningSeconds ?? "?") + " s \xB7 " + (a.pane ?? "no pane")),
-    "",
-    "Child transcripts \u2014 separately reported, no combined token total:",
-    ...view.children.flatMap((c) => [
-      "  Source " + (c.source + 1) + " \xB7 " + c.session.sessionId + " \xB7 " + (c.executionId ?? "unmapped execution"),
-      "  Last assistant stop: " + (c.session.lastAssistantStop ?? "unknown") + " (not acceptance)",
-      ...c.session.modelRecords.map((m) => "    " + m.provider + "/" + m.model + ": " + m.messages + " assistant records"),
-      ...Object.entries(c.session.usage.fields).map(([k, v]) => "    " + k + ": " + v.sum + " (" + v.reportedMessages + "/" + c.session.assistantMessages + " messages reported)"),
-      ...c.session.timeline.map((e) => "    line " + e.line + " \xB7 " + e.kind + ": " + e.excerpt)
-    ]),
-    "",
-    "Sources \u2014 use session source NAME --item N for complete retained bytes:",
-    ...view.sources.map((s, i) => "  " + (i + 1) + ". " + s.kind + ": " + s.path + " (" + s.bytes + " bytes; " + s.sha256 + ")"),
-    "",
-    "Chronological visible timeline \u2014 excerpts, not a complete artifact review:",
-    ...p.timeline.map((e) => "  " + (e.timestamp ?? "unknown time") + " \xB7 line " + e.line + " \xB7 " + e.kind + ": " + e.excerpt),
-    "",
-    "Operator annotations \u2014 not automatically verified labels:",
-    ...view.annotations.map((a) => "  " + a.kind + " \xB7 source " + a.item + ", line " + a.line + " \xB7 " + a.author + ": " + a.note),
-    "",
-    "Evidence gaps:",
-    ...view.gaps.map((g) => "  - " + g)
-  ];
-  return lines2.join("\n");
-}
-async function runSessionLearning(args, flags, options) {
-  const { cwd, directory: directory7, emit: emit2 } = options, [verb, name] = args;
-  const allowed = { preview: ["session", "ledger", "feedback", "artifact", "sources"], import: ["session", "ledger", "feedback", "artifact", "sources", "name", "title", "expected", "archive", "author"], list: [], show: [], source: ["item"], note: ["kind", "note", "item", "line"] };
-  if (!verb || verb === "help")
-    return emit2(SESSION_HELP);
-  if (!Object.hasOwn(allowed, verb) || args.length > (["show", "source", "note"].includes(verb) ? 2 : 1))
-    throw Error("unknown session command; use learning session help");
-  for (const key3 of Object.keys(flags))
-    if (!["state", "json", "confirm", "help", ...allowed[verb]].includes(key3))
-      throw Error("unsupported session option: --" + key3);
-  if (verb === "preview" || verb === "import") {
-    const selections = [];
-    if (flags.session)
-      selections.push({ kind: "parent", path: resolve23(cwd, text11(flags.session, "--session")) });
-    for (const kind2 of ["ledger", "feedback", "artifact"])
-      if (flags[kind2])
-        selections.push({ kind: kind2, path: resolve23(cwd, text11(flags[kind2], "--" + kind2)) });
-    if (flags.sources) {
-      const raw = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(learningFile(resolve23(cwd, text11(flags.sources, "--sources")), 65536)));
-      if (!Array.isArray(raw))
-        throw Error("source selection file must be an array");
-      for (const s of raw) {
-        if (!s || typeof s !== "object" || typeof s.path !== "string")
-          throw Error("invalid source selection");
-        selections.push({ ...s, path: resolve23(cwd, s.path) });
-      }
-    }
-    const preview = prepareSessionImport(selections);
-    const summary = {
-      state: "preview",
-      digest: preview.digest,
-      sources: preview.sources,
-      sessionId: preview.parent.sessionId,
-      userMessages: preview.parent.userMessages,
-      assistantMessages: preview.parent.assistantMessages,
-      executions: preview.attempts.length,
-      childTranscripts: preview.children.length,
-      gaps: preview.gaps,
-      privacy: "Exact source bytes, potentially sensitive, will be retained privately. Inspect sources first; no automatic redaction or publication.",
-      next: "Repeat import with --expected " + preview.digest + " --confirm after reviewing the selected inputs."
-    };
-    if (verb === "preview" || flags.confirm !== true)
-      return emit2(summary);
-    if (flags.expected !== preview.digest)
-      throw Error("exact preview digest required; re-preview changed inputs");
-    const label = text11(flags.name, "--name"), title = text11(flags.title, "--title");
-    if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(label) || title.length > 512)
-      throw Error("bounded session name/title required");
-    let workspace2;
-    if (existsSync30(directory7)) {
-      if (flags.archive || flags.author)
-        throw Error("existing workspace already binds archive and author");
-      workspace2 = openLearningWorkspace(directory7);
-    } else {
-      const archiveRoot = resolve23(cwd, text11(flags.archive, "--archive for new workspace")), author = text11(flags.author, "--author for new workspace");
-      const archiveRelative = relative6(directory7, archiveRoot);
-      if (!archiveRelative || !isAbsolute23(archiveRelative) && archiveRelative !== ".." && !archiveRelative.startsWith(".." + sep7))
-        throw Error("archive must be outside the workspace journal directory");
-      workspace2 = createLearningWorkspace(directory7, { archiveRoot, author, population: "pi-session:" + preview.parent.sessionId, scopeDigest: sessionScope(preview.parent, preview.sources.find((s) => s.kind === "parent").sha256) });
-    }
-    const previous = workspace2.sessions().find((s) => s.name === label);
-    if (previous) {
-      const old = workspace2.session(label);
-      if (old.selectionDigest !== preview.digest || old.title !== title)
-        throw Error("session name already bound; use a new name for changed evidence");
-      return emit2({ state: "already-retained", name: label, manifestId: old.manifestId });
-    }
-    const manifestId = retainSessionImport(workspace2.configuration().archiveRoot, preview, preview.digest);
-    workspace2.bindSession({ name: label, title, manifestId });
-    return emit2({ state: "retained", name: label, manifestId, sources: preview.sources.length, acceptance: "not-assessed", next: "learning session show " + label });
-  }
-  const workspace = openLearningWorkspace(directory7);
-  if (verb === "list")
-    return emit2(workspace.sessions());
-  const view = workspace.session(text11(name, "session name"));
-  if (verb === "show")
-    return emit2(flags.json ? view : formatSession(view));
-  const item = Number(flags.item);
-  if (!Number.isSafeInteger(item) || item < 1 || item > view.sources.length)
-    throw Error("select a listed source with --item N");
-  if (verb === "source")
-    return emit2(new TextDecoder("utf-8", { fatal: true }).decode(readRetainedSessionSource(workspace.configuration().archiveRoot, view.manifestId, item - 1)));
-  const kind = text11(flags.kind, "--kind"), note = text11(flags.note, "--note"), line = Number(flags.line);
-  if (!["finding", "proposal", "acceptance", "context"].includes(kind) || note.length > 4e3 || !Number.isSafeInteger(line) || line < 1)
-    throw Error("bounded annotation and evidence line required");
-  if (flags.confirm !== true)
-    return emit2({ state: "confirmation-required", name, item, line, kind, note, meaning: "operator annotation only; no trust/adoption authority" });
-  return emit2(workspace.noteSession(name, { kind, note, item, line }));
-}
-async function reviewSessionLearning(directory7, ui, display) {
-  const w = openLearningWorkspace(directory7), name = await ui.select("Retained sessions", w.sessions().map((s) => s.name));
-  if (!name)
-    return;
-  const view = w.session(name);
-  await ui.editor("Session assessment \u2014 display only", display(formatSession(view)));
-  for (; ; ) {
-    const choices = view.sources.map((s, i) => i + 1 + ". " + s.kind + ": " + s.path), selected2 = await ui.select("Complete retained evidence (may contain sensitive text)", [...choices, "Done"]);
-    if (!selected2 || selected2 === "Done")
-      return;
-    const index = choices.indexOf(selected2);
-    if (index < 0)
-      throw Error("select a listed retained source");
-    await ui.editor("Exact source \u2014 changes discarded", display(new TextDecoder("utf-8", { fatal: true }).decode(readRetainedSessionSource(w.configuration().archiveRoot, view.manifestId, index))));
-  }
-}
-
-// packages/cli/dist/learning.js
-import { resolve as resolve24, join as join43, dirname as dirname18 } from "node:path";
-import { fileURLToPath as fileURLToPath3 } from "node:url";
-import { existsSync as existsSync31 } from "node:fs";
-import { createInterface as createInterface2 } from "node:readline/promises";
-var LEARNING_HELP = `Learning \u2014 retained evidence, no model calls
-  learning                         open guided review (interactive terminal)
-  learning init --archive DIR --author NAME [--scope-item N] --confirm
-      [--scope TEXT --population TEXT only for a comparison-only archive without retained cases]
-  learning session help             whole-session retrospective import, timeline and annotations
-  learning status [--json]          readiness; never automatic exposure
-  learning import                  list retained batches/comparisons
-  learning import --item N --name NAME --title TEXT --scope-note TEXT --confirm
-  learning cases NAME [--offset N]
-  learning evidence NAME --item N [--evidence N]   inspect only the selected case's retained sources
-  learning case NAME --item N --disposition confirmed_defect|expected_behavior|exemplar|uncertain|skip --note TEXT --confirm
-  learning comparisons
-  learning review NAME             guided complete-output review in a terminal
-  learning artifact NAME --variant A [--artifact N]
-  learning choose NAME --kind one|tie|none|insufficient [--variants A,B] --full-review --note TEXT --confirm
-  learning reveal NAME             requires durable full-scope quality receipt
-  learning decide NAME --disposition adopt|reject|defer --note TEXT --confirm
-  learning hypothesis NAME --name SLUG --intervention TEXT --prediction TEXT --disproof TEXT --downside TEXT --rollback TEXT --alternative TEXT --confirm
-  learning link NAME --cases BATCH --item N --hypothesis SLUG --confirm
-  learning trust sample FILE --name SLUG --title TEXT [--split calibration|heldout|tuning] --confirm
-  learning trust setup --cases NAME [--detector ID] [--split calibration|heldout|tuning] [--max-unflagged N]
-      [--attention N --minimum-resolved N --minimum-lower-bound T --expires DAYS] --confirm
-  learning trust status
-  learning trust label --cases NAME --item N --reference-author NAME --confirm
-  learning trust unflagged --item N --miss yes|no --evidence FILE --reference-author NAME --note TEXT --confirm
-  learning adoption NAME           scope/decision/readiness; activation is producer-owned
-  learning outcome NAME            inspect observed outcomes
-  learning outcome NAME --result success|confirmed-defect|unknown --artifact FILE --original-requirement FILE --current-requirement FILE --evidence FILE --reference-author NAME --note TEXT [--accepted-artifact FILE --acceptance-evidence FILE] --confirm
-  learning guide | current         installed portable guide / requirement register
-All commands accept --state DIR (default .skill-harness/learning), --json for structured output.
---confirm authorizes only the displayed local write, never models, acceptance or registry activation.
-No raw manifest authoring. Import selects actual retained inputs. Exit zero is command completion, not quality.
-Registry activation/rollback use /grants learning in interactive Pi, with independent authority.`;
-function learningDisplay(text15) {
-  return text15.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
-}
-function parse4(argv) {
-  const args = [], flags = {};
-  for (let i = 0; i < argv.length; i++) {
-    const token = argv[i];
-    if (!token.startsWith("--")) {
-      args.push(token);
-      continue;
-    }
-    const eq = token.indexOf("="), key3 = token.slice(2, eq < 0 ? void 0 : eq);
-    if (!key3 || Object.hasOwn(flags, key3))
-      throw Error("duplicate or empty learning option");
-    if (eq >= 0)
-      flags[key3] = token.slice(eq + 1);
-    else if (["confirm", "json", "full-review", "help"].includes(key3))
-      flags[key3] = true;
-    else {
-      if (!argv[i + 1] || argv[i + 1].startsWith("--"))
-        throw Error(`--${key3} needs a value`);
-      flags[key3] = argv[++i];
-    }
-  }
-  return { args, flags };
-}
-var word = (v, name) => {
-  if (typeof v !== "string" || !v.trim())
-    throw Error(`${name} is required`);
-  return v;
-};
-var integer2 = (v, fallback) => {
-  const n = v === void 0 ? fallback : Number(v);
-  if (!Number.isSafeInteger(n) || n < 0)
-    throw Error("nonnegative integer required");
-  return n;
-};
-function artifactText(bytes3) {
-  try {
-    return learningDisplay(new TextDecoder("utf-8", { fatal: true }).decode(bytes3));
-  } catch {
-    throw Error("Retained source is not UTF-8 text; no complete text view is claimed");
-  }
-}
-function allCases(workspace, name) {
-  const page = workspace.cases(name), items = [...page.items];
-  for (let offset = 5; offset < page.total; offset += 5)
-    items.push(...workspace.cases(name, offset).items);
-  return { ...page, items };
-}
-function caseAt(workspace, name, index) {
-  const page = allCases(workspace, name), item = page.items[index - 1];
-  if (!item)
-    throw Error("select a listed case number");
-  return { page, item };
-}
-function trustSetup(workspace, flags) {
-  const caseName = word(flags.cases, "--cases"), cases = allCases(workspace, caseName).items;
-  const detectorId = typeof flags.detector === "string" ? flags.detector : cases[0]?.candidate.detector.id;
-  if (!detectorId)
-    throw Error("no retained detector cases available");
-  const attention = integer2(flags.attention, 0), days = integer2(flags.expires, 7), split = String(flags.split ?? "calibration");
-  if (attention && (flags["minimum-resolved"] === void 0 || flags["minimum-lower-bound"] === void 0))
-    throw Error("automatic questions need explicit --minimum-resolved and --minimum-lower-bound");
-  const minimumLowerBound = Number(flags["minimum-lower-bound"]);
-  if (attention && (!Number.isFinite(minimumLowerBound) || minimumLowerBound < 0 || minimumLowerBound > 1 || days < 1 || days > 365))
-    throw Error("invalid explicit exposure policy");
-  return {
-    caseName,
-    detectorId,
-    split,
-    maxUnflagged: integer2(flags["max-unflagged"], 0),
-    unflagged: workspace.unflagged().map(({ incidentId, manifestId, split: split2 }) => ({ incidentId, manifestId, split: split2 })),
-    exposure: attention ? { id: `operator-${workspace.configuration().scopeDigest.slice(0, 20)}`, attentionRemaining: attention, minimumResolved: integer2(flags["minimum-resolved"], 10), minimumLowerBound, expiresAt: Date.now() + days * 864e5 } : null
-  };
-}
-function formatLearningStatus(view) {
-  const lines2 = [`Learning \u2014 ${view.configuration.population}`, "Deliberate review; no model calls, automatic questions, or activation from reading."];
-  for (const c of view.cases)
-    lines2.push(`Cases: ${c.title} (${c.name}) \u2014 ${c.state === "ready" ? `${c.total} retained nomination(s)` : c.reason}`);
-  for (const c of view.comparisons)
-    lines2.push(`Comparison: ${c.title} (${c.name}) \u2014 ${c.reason}${"decision" in c && c.decision ? `; decision: ${c.decision.disposition}` : ""}`);
-  for (const s of view.sessions)
-    lines2.push("Session: " + s.title + " (" + s.name + ") \u2014 " + s.reason);
-  if (!view.cases.length && !view.comparisons.length && !view.sessions.length)
-    lines2.push("No inputs connected. Choose Connect retained input; missing evidence is not a failure or acceptance.");
-  lines2.push(formatLearningTrust(view.trust));
-  return learningDisplay(lines2.join("\n"));
-}
-function formatLearningTrust(trust) {
-  const advice = trust.automaticExposure;
-  const calibration = trust.calibration;
-  const sample = trust.unflagged;
-  const lines2 = [`Automatic questions: ${advice?.mode ?? "silent"} \u2014 ${advice?.reason ?? trust.reason ?? "not configured"} (reading reserves no attention).`];
-  for (const r of calibration?.reports ?? [])
-    lines2.push(`Independent labels: ${r.resolved} resolved, ${r.unresolved} unresolved, ${r.conflicted} conflicted; precision ${r.precision === null ? "unknown" : `${Math.round(r.precision * 100)}%`}${r.interval ? ` (95% interval ${Math.round(r.interval.lower * 100)}\u2013${Math.round(r.interval.upper * 100)}%)` : ""}.`);
-  if (sample)
-    lines2.push(`Unflagged sample: ${sample.sampled} frozen, ${sample.resolved} independently labelled, ${sample.misses} observed miss(es).${sample.sampled ? "" : " No unflagged coverage established."}`);
-  if (typeof trust.attentionUsed === "number")
-    lines2.push(`Attention already used: ${trust.attentionUsed}. Reopening does not refill it.`);
-  return learningDisplay(lines2.join("\n"));
-}
-async function runLearningCommand(argv, options = {}) {
-  const { args, flags } = parse4(argv), cwd = options.cwd ?? process.cwd(), directory7 = resolve24(cwd, typeof flags.state === "string" ? flags.state : ".skill-harness/learning");
-  const out = options.write ?? console.log;
-  const emit2 = (value3) => {
-    out(flags.json ? JSON.stringify(value3, null, 2) : typeof value3 === "string" ? learningDisplay(value3) : learningDisplay(JSON.stringify(value3, null, 2)));
-    return value3;
-  };
-  const confirm = (preview, write) => {
-    if (flags.confirm !== true)
-      return emit2({ state: "confirmation-required", preview, next: "Repeat with --confirm to authorize this exact local action." });
-    return emit2(write());
-  };
-  const global = ["state", "json", "confirm", "help"];
-  const allowed = {
-    init: ["archive", "scope", "population", "author", "scope-item"],
-    status: [],
-    import: ["item", "name", "title", "scope-note"],
-    cases: ["offset"],
-    evidence: ["item", "evidence"],
-    case: ["item", "disposition", "note"],
-    comparisons: [],
-    review: [],
-    artifact: ["variant", "artifact"],
-    choose: ["kind", "variants", "full-review", "note"],
-    reveal: [],
-    decide: ["disposition", "note"],
-    hypothesis: ["name", "intervention", "prediction", "disproof", "downside", "rollback", "alternative"],
-    link: ["cases", "item", "hypothesis"],
-    trust: ["cases", "item", "detector", "split", "max-unflagged", "attention", "minimum-resolved", "minimum-lower-bound", "expires", "name", "title", "reference-author", "miss", "evidence", "note"],
-    adoption: [],
-    outcome: ["result", "artifact", "original-requirement", "current-requirement", "evidence", "reference-author", "note", "accepted-artifact", "acceptance-evidence"],
-    guide: [],
-    help: []
-  };
-  const command = args[0];
-  if (command === "session")
-    return runSessionLearning(args.slice(1), flags, { cwd, directory: directory7, emit: emit2 });
-  if (command === "guide" || command === "current") {
-    const file = command === "guide" ? "PRODUCT-GUIDE.md" : "STATUS.md", base = dirname18(fileURLToPath3(import.meta.url));
-    const selected2 = [resolve24(base, "../docs", file), resolve24(base, "../../../docs/factory", file)].find((p) => existsSync31(p));
-    if (!selected2)
-      throw Error("packaged learning guide missing; reinstall a complete compatible package");
-    return emit2(learningFile(selected2, 65536).toString("utf8"));
-  }
-  if (flags.help || command === "help")
-    return emit2(LEARNING_HELP);
-  if (!command) {
-    const terminal = options.ui ? null : terminalLearningUI();
-    try {
-      return await runLearningWizard({ cwd, directory: directory7, ui: options.ui ?? terminal });
-    } finally {
-      terminal?.close();
-    }
-  }
-  if (!Object.hasOwn(allowed, command))
-    throw Error("unknown learning command; use learning help");
-  const unexpected = Object.keys(flags).filter((k) => !global.includes(k) && !allowed[command].includes(k));
-  if (unexpected.length)
-    throw Error(`unsupported learning option: --${unexpected[0]}`);
-  if (command === "init") {
-    const archiveRoot = resolve24(cwd, word(flags.archive, "--archive")), author = word(flags.author, "--author"), scopes = learningArchiveScopes(archiveRoot, author);
-    if (scopes.length > 1 && flags["scope-item"] === void 0)
-      return emit2({ state: "scope-selection-required", scopes: scopes.map((s, i) => ({ item: i + 1, description: s.description, population: s.population })), next: "Repeat init with --scope-item N; scope identity is derived from retained facts, not typed hashes." });
-    const selected2 = scopes[integer2(flags["scope-item"], 1) - 1];
-    if (scopes.length && !selected2)
-      throw Error("select a listed retained scope number");
-    if (selected2 && flags.population !== void 0 && flags.population !== selected2.population)
-      throw Error("population differs from retained case scope");
-    const input = { archiveRoot, scopeDigest: selected2?.scopeDigest ?? learningHash({ declaredScope: word(flags.scope, "--scope for a comparison-only archive") }), population: selected2?.population ?? word(flags.population, "--population for a comparison-only archive"), author };
-    return confirm({ directory: directory7, ...input, scopeMeaning: selected2 ? "exact retained case snapshot" : "operator-declared comparison-only scope; cannot bind mismatching case snapshots" }, () => createLearningWorkspace(directory7, input).inspect(Date.now()));
-  }
-  if (!existsSync31(directory7))
-    throw Error("learning workspace not connected; use learning init or /grants learning with the current host");
-  const workspace = openLearningWorkspace(directory7), config = workspace.configuration(), name = args[1];
-  if (command === "status") {
-    const view = workspace.inspect(Date.now());
-    return emit2(flags.json ? view : formatLearningStatus(view));
-  }
-  if (command === "import") {
-    const catalog = catalogLearningArchive(config.archiveRoot, config.author);
-    if (flags.item === void 0)
-      return emit2(flags.json ? catalog.map((c, i) => ({ item: i + 1, ...c })) : catalog.length ? catalog.map((c, i) => `${i + 1}. ${c.kind}: ${c.description}`).join("\n") : "No compatible retained inputs. Ordinary work must retain actual evidence first.");
-    const item = catalog[integer2(flags.item, 0) - 1];
-    if (!item)
-      throw Error("select a listed retained input number");
-    const binding = { name: word(flags.name, "--name"), title: word(flags.title, "--title") };
-    return confirm({ selected: item, ...binding }, () => item.kind === "cases" ? workspace.bindCases({ ...binding, version: item.version, batchId: item.manifestId }) : workspace.bindComparison({ ...binding, scopeStatement: word(flags["scope-note"], "--scope-note"), comparisonManifestId: item.manifestId, caseReference: null, hypothesisManifestId: null, adoptionBinding: null, priorFeedbackManifestIds: [] }));
-  }
-  if (command === "cases") {
-    const page = workspace.cases(word(name, "case batch name"), integer2(flags.offset, 0));
-    return emit2(flags.json ? page : page.items.map((c, i) => `${page.offset + i + 1}. ${c.candidate.target.obligationId}: ${c.candidate.reason} \u2014 ${c.disposition}`).join("\n") + `
-${page.total} retained nomination(s). Use learning evidence for retained bytes; learning case records an independent disposition.`);
-  }
-  if (command === "evidence") {
-    const batch = word(name, "case batch name"), { item } = caseAt(workspace, batch, integer2(flags.item, 1)), refs = workspace.caseEvidence(batch, item.caseManifestId);
-    if (flags.evidence === void 0)
-      return emit2(flags.json ? refs : (refs.length === 1 ? "Only nomination retained; no original observation link. Not independent proof.\n" : "") + refs.map((r, i) => `${i + 1}. ${r.role}: ${r.status === "available" ? `${r.reference.parser.id} (${r.reference.retention})` : r.status}`).join("\n"));
-    const ref = refs[integer2(flags.evidence, 1) - 1];
-    if (!ref)
-      throw Error("select a listed evidence number");
-    const result = workspace.readCaseEvidence(batch, item.caseManifestId, ref.manifestId);
-    if (result.status !== "available")
-      return emit2({ state: "deferred", reason: result.status });
-    return emit2(`${result.reference.retention === "exact" ? "Exact retained source" : "Redacted retained source \u2014 not full evidence"}
-${artifactText(result.bytes)}`);
-  }
-  if (command === "case") {
-    const batch = word(name, "case batch name"), { item } = caseAt(workspace, batch, integer2(flags.item, 0));
-    const request = { caseManifestId: item.caseManifestId, priorDecisionId: item.priorDecisionId, disposition: word(flags.disposition, "--disposition"), note: word(flags.note, "--note") };
-    return confirm({ candidate: item.candidate, request }, () => workspace.decideCase(batch, request));
-  }
-  if (command === "comparisons") {
-    const view = workspace.inspect(Date.now());
-    return emit2(flags.json ? view.comparisons : view.comparisons.map((c) => `${c.name}: ${c.title} \u2014 ${c.reason}`).join("\n") || "No retained comparisons connected.");
-  }
-  if (command === "review") {
-    const terminal = options.ui ? null : terminalLearningUI();
-    try {
-      return await reviewLearningComparison(directory7, word(name, "comparison name"), options.ui ?? terminal);
-    } finally {
-      terminal?.close();
-    }
-  }
-  if (command === "artifact") {
-    const v = workspace.comparison(word(name, "comparison name")), card = v.cards.find((c) => c.displayLabel === flags.variant);
-    if (!card)
-      throw Error("select a listed variant letter");
-    const digest6 = card.artifactDigests[integer2(flags.artifact, 1) - 1];
-    if (!digest6)
-      throw Error("select a listed artifact number");
-    const bytes3 = workspace.artifact(name, card.label, digest6);
-    const text15 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
-    return emit2(flags.json ? { variant: card.displayLabel, digest: digest6, bytes: bytes3.length, scope: "complete-artifact-display", controlCharacters: "escaped (retained bytes unchanged)", text: learningDisplay(text15) } : `Variant ${card.displayLabel} \u2014 complete artifact (${bytes3.length} bytes; controls escaped, retained bytes unchanged)
-
-${learningDisplay(text15)}`);
-  }
-  if (command === "choose") {
-    const v = workspace.comparison(word(name, "comparison name")), kind = word(flags.kind, "--kind");
-    const letters = typeof flags.variants === "string" ? flags.variants.split(",") : [];
-    const labels = letters.map((letter) => {
-      const c = v.cards.find((c2) => c2.displayLabel === letter);
-      if (!c)
-        throw Error("select listed variant letters");
-      return c.label;
-    });
-    if (kind !== "insufficient" && flags["full-review"] !== true)
-      throw Error("--full-review explicitly acknowledges all complete artifacts, not excerpts");
-    const choice = { kind, labels }, review = { scope: "full-artifacts", note: word(flags.note, "--note"), reviewedArtifactDigests: flags["full-review"] === true ? [...new Set(v.cards.flatMap((c) => c.artifactDigests))] : [] };
-    return confirm({ comparison: name, choice, review }, () => workspace.choose(name, choice, review));
-  }
-  if (command === "reveal")
-    return emit2(workspace.reveal(word(name, "comparison name")));
-  if (command === "decide") {
-    const v = workspace.decisionStatus(word(name, "comparison name")), request = { disposition: word(flags.disposition, "--disposition"), note: word(flags.note, "--note"), priorDecisionId: v.current?.id ?? null };
-    return confirm({ comparison: name, scope: v.scopeStatement, request, activation: "not-performed" }, () => workspace.decide(name, request));
-  }
-  if (command === "hypothesis") {
-    const batch = word(name, "case batch name"), cases = allCases(workspace, batch).items.filter((c) => c.disposition === "confirmed_defect");
-    if (!cases.length)
-      throw Error("confirm a retained defect before proposing a repair");
-    const proposal = {
-      archiveSnapshot: learningHash(cases.map((c) => ({ case: c.caseManifestId, decision: c.priorDecisionId }))),
-      caseIds: cases.map((c) => c.candidate.id),
-      population: config.population,
-      intervention: word(flags.intervention, "--intervention"),
-      prediction: word(flags.prediction, "--prediction"),
-      disproof: word(flags.disproof, "--disproof"),
-      downside: word(flags.downside, "--downside"),
-      rollback: word(flags.rollback, "--rollback"),
-      alternatives: [word(flags.alternative, "--alternative")],
-      limits: { subjectCalls: 0, judgeCalls: 0, wallMs: 0 },
-      effectProfile: null
-    };
-    return confirm({ proposal, scope: "proposal-only; zero calls, no authorization" }, () => workspace.propose(batch, proposal, word(flags.name, "--name")));
-  }
-  if (command === "link") {
-    const batch = word(flags.cases, "--cases"), { page, item } = caseAt(workspace, batch, integer2(flags.item, 0));
-    if (!item.priorDecisionId)
-      throw Error("case decision required");
-    const h = workspace.hypotheses().find((h2) => h2.name === flags.hypothesis);
-    if (!h)
-      throw Error("select a hypothesis created with learning hypothesis");
-    const context = { ...workspace.comparisonContext(word(name, "comparison name")), caseReference: { version: page.version, batchId: page.batchId, manifestId: item.caseManifestId, decisionId: item.priorDecisionId }, hypothesisManifestId: h.manifestId };
-    return confirm({ comparison: name, context }, () => workspace.linkComparisonContext(name, context));
-  }
-  if (command === "trust") {
-    if (name === "sample") {
-      const bytes3 = learningFile(resolve24(cwd, word(args[2], "sample evidence file")), 65536), sampleName = word(flags.name, "--name");
-      return confirm({ source: args[2], bytes: bytes3.length, title: flags.title, meaning: "operator-selected unflagged incident; NOT a correctness label" }, () => {
-        const manifestId = retainArchiveSource(config.archiveRoot, { sourceId: `unflagged-${learningHash(bytes3.toString("base64")).slice(0, 24)}`, parser: { id: "operator-unflagged-evidence", version: "1" }, retention: "exact", bytes: bytes3 }).manifestId;
-        return workspace.addUnflagged({ name: sampleName, title: word(flags.title, "--title"), manifestId, split: String(flags.split ?? "calibration") });
-      });
-    }
-    if (name === "setup") {
-      const setup = trustSetup(workspace, flags), preview = previewLearningTrust(directory7, setup);
-      return confirm({ ...preview, independentLabels: "none created", automaticQuestions: setup.exposure ? "only if independently calibrated policy is met" : "disabled" }, () => configureLearningTrust(directory7, setup, [preview.policyDigest]));
-    }
-    const trust = workspace.trust();
-    if (name === "status" || !name) {
-      const view = { ...trust.inspect(Date.now()), automaticExposure: trust.previewExposure(Date.now()), cohort: trust.configuration().cohort };
-      return emit2(flags.json ? view : formatLearningTrust(view));
-    }
-    if (name === "label") {
-      const batch = word(flags.cases, "--cases"), { page, item } = caseAt(workspace, batch, integer2(flags.item, 0));
-      if (!item.priorDecisionId)
-        throw Error("record an independent case decision first");
-      const reference3 = { version: page.version, batchId: page.batchId, manifestId: item.caseManifestId, decisionId: item.priorDecisionId }, preview = previewLearningCaseLabel(directory7, reference3), author = word(flags["reference-author"], "--reference-author");
-      return confirm({ author, reference: reference3, preview, meaning: "independent correctness label, NOT writing preference or panel agreement" }, () => {
-        trust.linkCaseOutcome(preview.predictionId, reference3, [preview.digest], author);
-        return { recorded: true, author, ...trust.inspect(Date.now()) };
-      });
-    }
-    if (name === "unflagged") {
-      const id3 = trust.inspect(Date.now()).sampledIncidentIds[integer2(flags.item, 0) - 1];
-      if (!id3)
-        throw Error("select a frozen sampled unflagged incident number");
-      const author = word(flags["reference-author"], "--reference-author"), note = word(flags.note, "--note");
-      if (!["yes", "no"].includes(String(flags.miss)))
-        throw Error("--miss yes|no required");
-      const bytes3 = learningFile(resolve24(cwd, word(flags.evidence, "--evidence")), 65536);
-      return confirm({ author, note, incident: id3, miss: flags.miss, evidenceBytes: bytes3.length }, () => {
-        const evidence5 = retainArchiveSource(config.archiveRoot, { sourceId: `independent-label-${learningHash({ author, note, bytes: bytes3.toString("base64") }).slice(0, 24)}`, parser: { id: "operator-reference-evidence", version: "1" }, retention: "exact", bytes: bytes3 }).manifestId;
-        const outcome = { kind: "unflagged", targetId: id3, value: flags.miss === "yes", evidenceManifestId: evidence5, referenceId: learningHash({ author, note, id: id3, evidence: evidence5 }) };
-        trust.outcome(outcome, [trustOutcomeDigest(outcome)], author);
-        return trust.inspect(Date.now());
-      });
-    }
-    throw Error("unknown learning trust operation");
-  }
-  if (command === "adoption") {
-    const v = workspace.comparison(word(name, "comparison name"));
-    return emit2({
-      scope: v.scopeStatement,
-      quality: v.qualityScope,
-      decision: v.decision,
-      configured: v.adoptionConfigured,
-      activation: v.activation,
-      rollback: v.rollback,
-      reason: !v.adoptionConfigured ? "independent scoped candidate/eligibility/authority not configured" : v.activation === "recorded" ? "activation receipt linked; existing sessions unchanged" : "prepared/intent is not activation; use original producer registry controls",
-      next: "Use /grants learning in interactive Pi for authorized next-order activation/rollback."
-    });
-  }
-  if (command === "outcome") {
-    word(name, "comparison name");
-    if (flags.result === void 0)
-      return emit2({ outcomes: workspace.comparison(name).outcomes, meaning: "observed linkage only; no later outcome is inferred from exit zero", next: "Record with learning outcome --result \u2026 and explicit independently reviewed evidence, or connected producer controls." });
-    const status = workspace.adoptionStatus(name);
-    if (!status.receipt || !status.activationManifestId)
-      throw Error("an actual linked registry activation is required before later outcomes");
-    const author = word(flags["reference-author"], "--reference-author"), note = word(flags.note, "--note"), result = word(flags.result, "--result");
-    if (!["success", "confirmed-defect", "unknown"].includes(result))
-      throw Error("explicit success, confirmed-defect or unknown result required");
-    if (flags["accepted-artifact"] === void 0 !== (flags["acceptance-evidence"] === void 0))
-      throw Error("accepted artifact and independent acceptance evidence must be supplied together; excerpts never imply acceptance");
-    const keys7 = ["artifact", "original-requirement", "current-requirement", "evidence", ...flags["accepted-artifact"] === void 0 ? [] : ["accepted-artifact", "acceptance-evidence"]];
-    const files = keys7.map((key3) => ({ key: key3, bytes: learningFile(resolve24(cwd, word(flags[key3], `--${key3}`)), 1024 * 1024) }));
-    return confirm({ name, result, author, note, files: files.map((f) => ({ kind: f.key, bytes: f.bytes.length })), meaning: "independently supplied observation, not detector calibration or model exit status" }, () => {
-      const retained = new Map(files.map((f) => [f.key, retainArchiveSource(config.archiveRoot, { sourceId: `outcome-${f.key}-${learningHash(f.bytes.toString("base64")).slice(0, 24)}`, parser: { id: "operator-outcome-evidence", version: "1" }, retention: "exact", bytes: f.bytes })]));
-      const audit = retainArchiveSource(config.archiveRoot, { sourceId: `outcome-reference-${learningHash({ author, note, result }).slice(0, 24)}`, parser: { id: "operator-outcome-reference", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify({ author, note, result, scopeDigest: config.scopeDigest, source: "explicit-operator-review-not-exit-status" })) });
-      const observation = {
-        id: learningHash({ author, note, result, files: [...retained.values()].map((r) => r.manifestId) }),
-        adoptionId: status.receipt.id,
-        candidateDigest: status.receipt.candidateDigest,
-        scopeDigest: config.scopeDigest,
-        originalRequirementDigest: retained.get("original-requirement").reference.sha256,
-        currentRequirementDigest: retained.get("current-requirement").reference.sha256,
-        outcome: result,
-        observedArtifactDigest: retained.get("artifact").reference.sha256,
-        acceptedArtifactDigest: retained.get("accepted-artifact")?.reference.sha256 ?? null,
-        acceptanceDigest: retained.get("acceptance-evidence")?.reference.sha256 ?? null,
-        evidence: [...retained.values()].map((r) => r.manifestId).concat(audit.manifestId)
-      };
-      const preview = workspace.previewObservation(name, observation);
-      return workspace.observe(name, observation, [preview.digest], author);
-    });
-  }
-}
-function learningArchiveScopes(root, author) {
-  if (!existsSync31(join43(root, "manifests")))
-    return [];
-  const selected2 = catalogLearningArchive(root, author).filter((c) => !!c.scopeDigest && !!c.population);
-  return selected2.filter((c, i) => selected2.findIndex((s) => s.scopeDigest === c.scopeDigest && s.population === c.population) === i);
-}
-function terminalLearningUI() {
-  if (!process.stdin.isTTY || !process.stdout.isTTY)
-    throw Error("guided learning needs an interactive terminal; use explicit learning subcommands");
-  const rl = createInterface2({ input: process.stdin, output: process.stdout });
-  return {
-    close: () => rl.close(),
-    notify: (text15) => console.log(learningDisplay(text15)),
-    input: async (title, initial) => {
-      const answer = await rl.question(`${title}${initial ? ` [${initial}]` : ""}: `);
-      return answer || initial;
-    },
-    select: async (title, choices) => {
-      console.log(learningDisplay(title));
-      choices.forEach((c, i) => console.log(`${i + 1}. ${learningDisplay(c)}`));
-      const answer = await rl.question("Number (empty cancels): ");
-      return choices[Number(answer) - 1];
-    },
-    confirm: async (title, detail) => (console.log(learningDisplay(`${title}
-${detail}`)), (await rl.question("Confirm [y/N]: ")).toLowerCase() === "y"),
-    editor: async (title, text15) => {
-      console.log(learningDisplay(`${title}
-${text15}`));
-      await rl.question("Enter to return (this is the complete display): ");
-      return text15;
-    }
-  };
-}
-async function reviewLearningComparison(directory7, name, ui) {
-  const workspace = openLearningWorkspace(directory7);
-  let view = workspace.comparison(name);
-  ui.notify(`${view.title}
-${view.scopeStatement}
-Deliberate review, not an earned automatic question.
-${view.limitations.join("\n")}`);
-  const reviewed = /* @__PURE__ */ new Set();
-  for (; ; ) {
-    view = workspace.comparison(name);
-    const choices = [
-      ...view.cards.map((c) => `Read variant ${c.displayLabel} (${c.artifactDigests.length} artifact(s))`),
-      ...view.revealReady ? ["Reveal model and cost"] : ["Record quality choice"],
-      "Adopt / reject / defer",
-      "Done"
-    ];
-    const selected2 = await ui.select("Comparison \u2014 quality is separate from adoption", choices);
-    if (!selected2 || selected2 === "Done")
-      return;
-    const index = choices.indexOf(selected2);
-    if (index < view.cards.length) {
-      const card = view.cards[index];
-      for (const digest6 of card.artifactDigests) {
-        const bytes3 = workspace.artifact(name, card.label, digest6);
-        let text15;
-        try {
-          text15 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
-        } catch {
-          ui.notify("This artifact is not UTF-8 text; use a suitable full-artifact viewer. No review acknowledgement recorded.", "warning");
-          continue;
-        }
-        if (bytes3.length > 1024 * 1024) {
-          ui.notify("Artifact exceeds interactive viewer bound. Use learning artifact in a terminal; no partial view counts as full review.", "warning");
-          continue;
-        }
-        const display = learningDisplay(text15), returned = await ui.editor(`Variant ${card.displayLabel} \u2014 complete artifact (${bytes3.length} bytes; controls escaped)`, display);
-        if (returned === display && await ui.confirm("Acknowledge complete artifact review?", "Only confirm if you reviewed the complete artifact, not an excerpt. This does not accept or adopt it."))
-          reviewed.add(digest6);
-      }
-    } else if (selected2 === "Record quality choice") {
-      const all = [...new Set(view.cards.flatMap((c) => c.artifactDigests))], complete = all.length > 0 && all.every((id3) => reviewed.has(id3));
-      const answers = [...complete ? [...view.cards.map((c) => `Prefer ${c.displayLabel}`), ...view.cards.length > 1 ? ["Tie (all shown variants)"] : [], "None acceptable"] : [], "Insufficient evidence", "Cancel"];
-      const answer = await ui.select(complete ? "Quality \u2014 full artifacts" : "Full artifacts not yet acknowledged; only insufficient evidence is available", answers);
-      if (!answer || answer === "Cancel")
-        continue;
-      const choice = answer === "Insufficient evidence" ? { kind: "insufficient", labels: [] } : answer === "None acceptable" ? { kind: "none", labels: [] } : answer.startsWith("Tie") ? { kind: "tie", labels: view.cards.map((c) => c.label) } : { kind: "one", labels: [view.cards.find((c) => `Prefer ${c.displayLabel}` === answer).label] };
-      const note = await ui.input("Reason / limitations (required)");
-      if (!note)
-        continue;
-      if (await ui.confirm("Record immutable quality choice?", "This locks the quality choice before reveal; it is not acceptance, calibration, or adoption.")) {
-        workspace.choose(name, choice, { scope: "full-artifacts", note, reviewedArtifactDigests: [...reviewed] });
-        ui.notify("Quality choice durably recorded. Identity remains hidden until you choose Reveal.");
-      }
-    } else if (selected2 === "Reveal model and cost")
-      ui.notify(JSON.stringify(workspace.reveal(name), null, 2));
-    else if (selected2 === "Adopt / reject / defer") {
-      const disposition = await ui.select("Adoption decision (not activation)", [...view.revealReady && ["one", "tie"].includes(view.choice.kind) ? ["adopt"] : [], "reject", "defer"]);
-      if (!disposition)
-        continue;
-      const note = await ui.input("Decision reason (required)");
-      if (!note)
-        continue;
-      if (await ui.confirm(`Record ${disposition}?`, `${view.scopeStatement}
-No active session or next order changes here.`)) {
-        workspace.decide(name, { disposition, note, priorDecisionId: view.decision?.id ?? null });
-        ui.notify("Decision recorded. Adoption still needs independent eligibility, authority and original registry activation.");
-      }
-    }
-  }
-}
-async function runLearningWizard(options) {
-  const { directory: directory7, ui, cwd } = options;
-  if (!existsSync31(directory7)) {
-    ui.notify("Connect an explicitly selected retained archive. This reads no live/private Pi session and calls no model.");
-    const archive = await ui.input("Retained archive directory"), author = await ui.input("Review author");
-    if (!archive || !author)
-      return;
-    const archiveRoot = resolve24(cwd, archive), scopes = learningArchiveScopes(archiveRoot, author), labels = scopes.map((s, i) => `${i + 1}. ${s.description} (${s.population})`);
-    const choice = scopes.length ? await ui.select("Exact retained work scope", labels) : void 0;
-    if (scopes.length && !choice)
-      return;
-    const selected2 = choice ? scopes[labels.indexOf(choice)] : null;
-    const population = selected2?.population ?? await ui.input("Comparison-only population (no case scope available)"), scope = selected2 ? "Retained case snapshot" : await ui.input("Comparison-only scope description");
-    if (!population || !scope)
-      return;
-    if (!await ui.confirm("Create learning workspace?", `${archiveRoot}
-Population: ${population}
-Scope: ${scope}
-Author: ${author}
-For an existing producer host use /grants learning so the exact snapshot is bound.`))
-      return;
-    createLearningWorkspace(directory7, { archiveRoot, population, scopeDigest: selected2?.scopeDigest ?? learningHash({ declaredScope: scope }), author });
-  }
-  const workspace = openLearningWorkspace(directory7);
-  for (; ; ) {
-    const status = workspace.inspect(Date.now());
-    const selected2 = await ui.select("Learning \u2014 retained evidence, no model calls", ["Readiness", "Connect retained input", "Import session", "Review sessions", "Review cases", "Review comparisons", "Record adopt / reject / defer", "Propose hypothesis", "Link original hypothesis", "Trust / independent labels", "Adoption / outcomes", "Done"]);
-    if (!selected2 || selected2 === "Done")
-      return;
-    try {
-      if (selected2 === "Readiness")
-        ui.notify(formatLearningStatus(status));
-      if (selected2 === "Review sessions")
-        await reviewSessionLearning(directory7, ui, learningDisplay);
-      if (selected2 === "Import session") {
-        const session = await ui.input("Explicit Pi session JSONL path (no directory scanning)"), name = await ui.input("Short session name"), title = await ui.input("Session title");
-        if (!session || !name || !title)
-          continue;
-        const ledger = await ui.input("Optional explicit pi-daddy grants.jsonl path"), feedback = await ui.input("Optional feedback file path");
-        const args = ["session", "preview", "--session", session, "--state", directory7, "--json"];
-        if (ledger)
-          args.push("--ledger", ledger);
-        if (feedback)
-          args.push("--feedback", feedback);
-        let raw = "";
-        await runLearningCommand(args, { cwd, write: (t) => {
-          raw = t;
-        } });
-        const preview = JSON.parse(raw);
-        await ui.editor("Session import preview \u2014 read only", learningDisplay(raw));
-        if (await ui.confirm("Retain these exact selected files privately?", "May include sensitive session text. Inspect your selected files first. No automatic redaction, model calls or acceptance.")) {
-          args[1] = "import";
-          args.push("--name", name, "--title", title, "--expected", preview.digest, "--confirm");
-          await runLearningCommand(args, { cwd, write: (t) => ui.notify(learningDisplay(t)) });
-        }
-      }
-      if (selected2 === "Connect retained input") {
-        const catalog = catalogLearningArchive(status.configuration.archiveRoot, status.configuration.author), labels = catalog.map((c2, i) => `${i + 1}. ${c2.kind}: ${c2.description}`);
-        if (!labels.length) {
-          ui.notify("No compatible retained case batch or qualified comparison for this author. Run ordinary work first; no evidence will be fabricated.", "warning");
-          continue;
-        }
-        const item = await ui.select("Retained inputs in selected archive", labels);
-        if (!item)
-          continue;
-        const c = catalog[labels.indexOf(item)], name = await ui.input("Short name (letters, digits, - or _)"), title = await ui.input("Display title");
-        if (!name || !title)
-          continue;
-        const scope = c.kind === "comparison" ? await ui.input("What complete artifacts will this quality review assess?") : void 0;
-        if (c.kind === "comparison" && !scope)
-          continue;
-        if (!await ui.confirm("Connect retained input?", `${title}
-${scope ?? "Case nominations remain unconfirmed."}`))
-          continue;
-        if (c.kind === "cases")
-          workspace.bindCases({ name, title, version: c.version, batchId: c.manifestId });
-        else
-          workspace.bindComparison({ name, title, scopeStatement: scope, comparisonManifestId: c.manifestId, caseReference: null, hypothesisManifestId: null, priorFeedbackManifestIds: [], adoptionBinding: null });
-        ui.notify("Retained input connected. Reading never activates or reserves attention.");
-      }
-      if (selected2 === "Review comparisons") {
-        const names = status.comparisons.map((c) => c.name), name = await ui.select("Choose retained comparison", names);
-        if (name)
-          await reviewLearningComparison(directory7, name, ui);
-      }
-      if (selected2 === "Review cases") {
-        const name = await ui.select("Choose case batch", status.cases.map((c) => c.name));
-        if (!name)
-          continue;
-        const p = allCases(workspace, name), labels = p.items.map((c, i) => `${i + 1}. ${c.candidate.reason} \u2014 ${c.candidate.target.obligationId} (${c.disposition})`);
-        const chosen = await ui.select("Retained nominations (not confirmed defects)", labels);
-        if (!chosen)
-          continue;
-        const item = p.items[labels.indexOf(chosen)];
-        await ui.editor("Case nomination \u2014 not an independent label", learningDisplay(JSON.stringify(item.candidate, null, 2)));
-        const refs = workspace.caseEvidence(name, item.caseManifestId), choices = refs.map((r, i) => `${i + 1}. ${r.role}: ${r.status === "available" ? `${r.reference.parser.id} (${r.reference.retention})` : r.status}`);
-        let cancelled = false;
-        if (refs.length === 1)
-          ui.notify("Only nomination retained; no original observation link. This alone is not independent proof.", "warning");
-        for (; ; ) {
-          const selected3 = await ui.select("Inspect retained case evidence (no bytes are edited)", [...choices, "Choose disposition", "Back"]);
-          if (!selected3 || selected3 === "Back") {
-            cancelled = true;
-            break;
-          }
-          if (selected3 === "Choose disposition")
-            break;
-          const ref = refs[choices.indexOf(selected3)], result = workspace.readCaseEvidence(name, item.caseManifestId, ref.manifestId);
-          if (result.status !== "available") {
-            ui.notify(`Evidence unavailable: ${result.status}`, "warning");
-            continue;
-          }
-          await ui.editor(`${result.reference.retention === "exact" ? "Exact" : "Redacted \u2014 not full"} retained source (display only)`, artifactText(result.bytes));
-        }
-        if (cancelled)
-          continue;
-        const disposition = await ui.select("Your independent case disposition", ["confirmed_defect", "expected_behavior", "exemplar", "uncertain", "skip"]);
-        if (!disposition)
-          continue;
-        const note = await ui.input("Evidence/reason (required)");
-        if (note && await ui.confirm("Record case disposition?", `${disposition}
-${note}
-This is not a writing preference, adoption or test promotion.`)) {
-          workspace.decideCase(name, { caseManifestId: item.caseManifestId, priorDecisionId: item.priorDecisionId, disposition, note });
-          ui.notify("Case disposition durably recorded. Trust linkage is a separate action.");
-        }
-      }
-      if (selected2 === "Record adopt / reject / defer") {
-        const name = await ui.select("Retained comparison (defer/reject also works when evidence is unavailable)", status.comparisons.map((c) => c.name));
-        if (!name)
-          continue;
-        const current = workspace.decisionStatus(name);
-        let adopt = false;
-        try {
-          const c = workspace.comparison(name);
-          adopt = c.revealReady && !!c.choice && ["one", "tie"].includes(c.choice.kind);
-        } catch {
-        }
-        const disposition = await ui.select(current.scopeStatement, [...adopt ? ["adopt"] : [], "reject", "defer"]), note = await ui.input("Reason (required)");
-        if (!disposition || !note)
-          continue;
-        if (await ui.confirm(`Record ${disposition}?`, "Intent only. No acceptance, activation, model calls or automatic exposure.")) {
-          workspace.decide(name, { disposition, note, priorDecisionId: current.current?.id ?? null });
-          ui.notify("Decision durably recorded.");
-        }
-      }
-      if (selected2 === "Propose hypothesis") {
-        const name = await ui.select("Confirmed case batch", status.cases.map((c) => c.name));
-        if (!name)
-          continue;
-        const flags = [];
-        for (const [key3, title] of [["name", "Hypothesis short name"], ["intervention", "Proposed change"], ["prediction", "Falsifiable expected result"], ["disproof", "What would disprove it?"], ["downside", "Downside/risk"], ["rollback", "Rollback plan"], ["alternative", "Alternative explanation"]]) {
-          const value3 = await ui.input(title);
-          if (!value3)
-            break;
-          flags.push(`--${key3}`, value3);
-        }
-        if (flags.length !== 14)
-          continue;
-        if (await ui.confirm("Retain hypothesis?", "Proposal only: no scenario edit, model call, adoption or causal claim."))
-          await runLearningCommand(["hypothesis", name, ...flags, "--state", directory7, "--confirm"], { cwd, write: (t) => ui.notify(t) });
-      }
-      if (selected2 === "Link original hypothesis") {
-        const comparison = await ui.select("Comparison", status.comparisons.map((c) => c.name)), batch = await ui.select("Confirmed case batch", status.cases.map((c) => c.name));
-        if (!comparison || !batch)
-          continue;
-        const p = allCases(workspace, batch), labels = p.items.map((c, i) => `${i + 1}. ${c.candidate.target.obligationId} \u2014 ${c.disposition}`), item = await ui.select("Current independent case decision", labels), hypothesis = await ui.select("Original retained hypothesis", workspace.hypotheses().map((h) => h.name));
-        if (!item || !hypothesis)
-          continue;
-        if (await ui.confirm("Link original evidence?", "Only the comparison\u2019s actual originating hypothesis is accepted. A new hypothesis cannot be retroactively presented as the experiment origin."))
-          await runLearningCommand(["link", comparison, "--cases", batch, "--item", String(labels.indexOf(item) + 1), "--hypothesis", hypothesis, "--state", directory7, "--confirm"], { cwd, write: (t) => ui.notify(t) });
-      }
-      if (selected2 === "Trust / independent labels")
-        await trustLearningWizard(directory7, cwd, ui);
-      if (selected2 === "Adoption / outcomes") {
-        const name = await ui.select("Comparison", status.comparisons.map((c) => c.name));
-        if (!name)
-          continue;
-        await runLearningCommand(["adoption", name, "--state", directory7], { cwd, write: (t) => ui.notify(t) });
-        await runLearningCommand(["outcome", name, "--state", directory7], { cwd, write: (t) => ui.notify(t) });
-        if (await ui.confirm("Record a later independent observation?", "Requires an actual linked activation. Unknown is valid; exit zero is not quality. No adoption or rollback is performed.")) {
-          const result = await ui.select("Observed result", ["success", "confirmed-defect", "unknown"]);
-          if (!result)
-            continue;
-          const flags = ["--result", result];
-          for (const [key3, title] of [["artifact", "Complete later artifact file"], ["original-requirement", "Original requirement file"], ["current-requirement", "Current requirement file"], ["evidence", "Independent outcome evidence file"], ["reference-author", "Independent reference author"], ["note", "Evidence/reason"]]) {
-            const value3 = await ui.input(title);
-            if (!value3)
-              break;
-            flags.push(`--${key3}`, value3);
-          }
-          if (flags.length !== 14)
-            continue;
-          if (await ui.confirm("Was this exact artifact independently accepted?", "No is normal. Never substitute an excerpt preference for full artifact acceptance.")) {
-            const artifact = await ui.input("Exact independently accepted artifact file"), evidence5 = await ui.input("Independent acceptance evidence file");
-            if (!artifact || !evidence5)
-              continue;
-            flags.push("--accepted-artifact", artifact, "--acceptance-evidence", evidence5);
-          }
-          if (await ui.confirm("Retain this independent outcome?", "Links only to the scoped adoption. It does not become calibration, improvement proof or automatic rollback."))
-            await runLearningCommand(["outcome", name, ...flags, "--state", directory7, "--confirm"], { cwd, write: (t) => ui.notify(t) });
-        }
-      }
-    } catch (e) {
-      ui.notify(e instanceof Error ? e.message : "Learning action failed; no success claimed.", "error");
-    }
-  }
-}
-async function trustLearningWizard(directory7, cwd, ui) {
-  const workspace = openLearningWorkspace(directory7), action = await ui.select("Trust \u2014 independent evidence, never preference", ["Readiness", "Add unflagged evidence before freeze", "Configure frozen policy", "Link current case label", "Label frozen unflagged sample", "Back"]);
-  if (!action || action === "Back")
-    return;
-  if (action === "Readiness") {
-    ui.notify(formatLearningTrust(workspace.inspect(Date.now()).trust));
-    return;
-  }
-  if (action === "Add unflagged evidence before freeze") {
-    const file2 = await ui.input("Explicit retained/source evidence file (no private sessions)"), name = await ui.input("Incident short name"), title = await ui.input("What unflagged incident does this evidence document?"), split = await ui.select("Predeclare split", ["calibration", "heldout", "tuning"]);
-    if (file2 && name && title && split && await ui.confirm("Retain unflagged incident?", "This is not a correctness label. Do not include secrets or private sessions."))
-      await runLearningCommand(["trust", "sample", file2, "--name", name, "--title", title, "--split", split, "--state", directory7, "--confirm"], { cwd, write: (t) => ui.notify(t) });
-    return;
-  }
-  if (action === "Configure frozen policy") {
-    const name = await ui.select("Case batch", workspace.inspect(0).cases.map((c) => c.name));
-    if (!name)
-      return;
-    const detectors = [...new Set(allCases(workspace, name).items.map((c) => c.candidate.detector.id))], detector = await ui.select("Detector (version and population remain exact)", detectors), split = await ui.select("Predeclare evaluation split", ["calibration", "heldout", "tuning"]);
-    if (!detector || !split)
-      return;
-    const max = await ui.input("Maximum unflagged sample (0\u201332; missing samples stay missing)", "0");
-    if (max === void 0)
-      return;
-    const flags = { cases: name, detector, split, "max-unflagged": max };
-    if (await ui.confirm("Configure automatic questions?", "Default is silent. Explicit policy plus sufficient independent labels is required. This does not show a question or refill attention.")) {
-      const count = await ui.input("Minimum resolved independent incidents", "10"), lower = await ui.input("Minimum 95% interval lower bound", "0.8"), quota = await ui.input("Total question attention budget", "5"), days = await ui.input("Policy validity in days", "7");
-      if (!count || !lower || !quota || !days)
-        return;
-      Object.assign(flags, { "minimum-resolved": count, "minimum-lower-bound": lower, attention: quota, expires: days });
-    }
-    const setup = trustSetup(workspace, flags), preview = previewLearningTrust(directory7, setup);
-    if (await ui.confirm("Freeze this exact scoped policy?", JSON.stringify({ ...preview, notice: "No independent labels are created. Missing evidence keeps automatic questions silent." }, null, 2))) {
-      configureLearningTrust(directory7, setup, [preview.policyDigest]);
-      ui.notify("Policy and predictions retained; independent labels still pending.");
-    }
-    return;
-  }
-  if (action === "Link current case label") {
-    const name = await ui.select("Case batch", workspace.inspect(0).cases.map((c) => c.name));
-    if (!name)
-      return;
-    const p = allCases(workspace, name), labels2 = p.items.map((c, i) => `${i + 1}. ${c.candidate.reason}: ${c.disposition}`), chosen2 = await ui.select("Current independently reviewed case", labels2), author2 = await ui.input("Independent reference author");
-    if (!chosen2 || !author2)
-      return;
-    if (await ui.confirm("Link independent correctness label?", "Use the actual case disposition; never treat writing preference, panel agreement or model self-report as detector accuracy."))
-      await runLearningCommand(["trust", "label", "--cases", name, "--item", String(labels2.indexOf(chosen2) + 1), "--reference-author", author2, "--state", directory7, "--confirm"], { cwd, write: (t) => ui.notify(t) });
-    return;
-  }
-  const trust = workspace.trust(), view = trust.inspect(Date.now()), labels = view.sampledIncidentIds.map((id3, i) => `${i + 1}. ${id3.slice(0, 12)} (frozen unflagged incident)`), chosen = await ui.select("Frozen sample", labels);
-  if (!chosen)
-    return;
-  const miss = await ui.select("Independent review: was a defect missed?", ["yes", "no"]), file = await ui.input("Independent evidence file"), author = await ui.input("Independent reference author"), note = await ui.input("Evidence/reason");
-  if (miss && file && author && note && await ui.confirm("Record independent sample outcome?", "This label is scope-bound and separate from positive precision."))
-    await runLearningCommand(["trust", "unflagged", "--item", String(labels.indexOf(chosen) + 1), "--miss", miss, "--evidence", file, "--reference-author", author, "--note", note, "--state", directory7, "--confirm"], { cwd, write: (t) => ui.notify(t) });
-}
-
-// packages/pi-extension/src/learning-cmd.ts
-function tokenizeLearningArgs(text15) {
-  const tokens = [];
-  let current = "", quote = "", started = false;
-  for (let i = 0; i < text15.length; i++) {
-    const c = text15[i];
-    if (c === "\\" && quote !== "'") {
-      if (i + 1 === text15.length) throw Error("unfinished learning argument escape");
-      current += text15[++i];
-      started = true;
-    } else if (quote) {
-      if (c === quote) quote = "";
-      else current += c;
-      started = true;
-    } else if (c === '"' || c === "'") {
-      quote = c;
-      started = true;
-    } else if (/\s/.test(c)) {
-      if (started) tokens.push(current);
-      current = "";
-      started = false;
-    } else {
-      current += c;
-      started = true;
-    }
-  }
-  if (quote) throw Error("unfinished learning argument quote");
-  if (started) tokens.push(current);
-  return tokens;
-}
-async function handleLearningCommand(text15, ctx) {
-  const say2 = (text16, level = "info") => ctx.hasUI ? ctx.ui.notify(learningDisplay(text16), level) : console.log(learningDisplay(text16));
-  let ui;
-  if (ctx.hasUI && ctx.ui.select && ctx.ui.input && ctx.ui.editor && ctx.ui.confirm) {
-    const actual = ctx.ui;
-    ui = {
-      notify: say2,
-      select: async (title, choices) => {
-        const answer = await actual.select(title, choices);
-        return typeof answer === "number" ? choices[answer] : typeof answer === "string" ? answer : void 0;
-      },
-      input: async (title, initial) => await actual.input(title, initial) ?? void 0,
-      editor: async (title, text16) => await actual.editor(title, text16) ?? void 0,
-      confirm: (title, detail) => actual.confirm(title, detail)
-    };
-  }
-  const args = tokenizeLearningArgs(text15);
-  if (!ui && (!args.length || args[0] === "review")) throw Error("guided learning requires interactive Pi; use explicit learning subcommands for offline reads/writes");
-  await runLearningCommand(args, { cwd: ctx.cwd, write: (t) => say2(t), ui });
-}
-
 // packages/pi-extension/src/commands.ts
-var USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m] | review [skill] | capture [skill] | coverage [skill] | affected [skill] [--base ref] | learning [status|import|review|trust|decide|adoption|outcome|guide]";
-function parse5(argstr) {
+var USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] | review [skill] | coverage [skill]";
+function parse(argstr) {
   const tokens = argstr.trim().length ? argstr.trim().split(/\s+/) : [];
   const [sub = "", ...rest] = tokens;
   const positional = [];
@@ -17390,13 +9499,13 @@ function parse5(argstr) {
   for (let i = 0; i < rest.length; i++) {
     const tok = rest[i];
     if (tok.startsWith("--")) {
-      const key3 = tok.slice(2);
+      const key = tok.slice(2);
       const next = rest[i + 1];
       if (next !== void 0 && !next.startsWith("--")) {
-        flags[key3] = next;
+        flags[key] = next;
         i++;
       } else {
-        flags[key3] = "";
+        flags[key] = "";
       }
     } else {
       positional.push(tok);
@@ -17409,11 +9518,10 @@ function say(ctx, msg, level = "info") {
   else console.log(msg);
 }
 async function handleSkillCheck(argstr, ctx, opts) {
-  if (/^learning(?:\s|$)/.test(argstr.trim())) {
-    await handleLearningCommand(argstr.trim().slice("learning".length).trim(), ctx);
-    return;
-  }
-  const { sub, positional, flags } = parse5(argstr);
+  const { sub, positional, flags } = parse(argstr);
+  const retired = sub === "run" ? ["affected"] : sub === "judge" ? ["auto-rejudge", "secondary-judge", "tie-break-judge"] : [];
+  const retiredFlag = retired.find((flag) => Object.hasOwn(flags, flag));
+  if (retiredFlag) throw new Error(`--${retiredFlag} was removed; this command refuses to silently run with different behavior`);
   const adapter = opts?.adapter;
   const nowIso = () => (/* @__PURE__ */ new Date()).toISOString();
   if (sub === "run") {
@@ -17441,10 +9549,10 @@ ${card.failedTranscripts.join("\n")}`);
     return;
   }
   if (sub === "judge") {
-    const runDir = resolve25(ctx.cwd, positional[0] ?? ".");
-    const testsDir = dirname19(dirname19(dirname19(runDir)));
-    const spec = loadSpec(join44(testsDir, "specification.yaml"));
-    const prev = existsSync32(join44(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const runDir = resolve12(ctx.cwd, positional[0] ?? ".");
+    const testsDir = dirname8(dirname8(dirname8(runDir)));
+    const spec = loadSpec(join26(testsDir, "specification.yaml"));
+    const prev = existsSync19(join26(runDir, "results.yaml")) ? readResults(runDir) : null;
     const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? parseModelRef(defaultJudge());
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge"
@@ -17459,129 +9567,24 @@ ${card.failedTranscripts.join("\n")}`);
       now: nowIso
     });
     say(ctx, `re-judged ${runDir}: ${results.effective_grade.letter} (${results.effective_grade.pct}%)`);
-    const judges = resolveAdjudicationJudges({
-      enabled: flags["auto-rejudge"] !== void 0 && flags["auto-rejudge"] !== "false",
-      primary: judge,
-      secondaryToken: flags["secondary-judge"] || void 0,
-      tieBreakToken: flags["tie-break-judge"] || void 0,
-      subjectToken: results.model,
-      parseRef: parseModelRef,
-      assertAllowed: (j, source3) => assertJudgeAllowed(j, { source: source3 }),
-      resemblesSubject: judgeResemblesSubject,
-      warn: (m) => say(ctx, m, "warning")
-    });
-    if (!judges) return;
-    const plan = planAdjudication({
-      // Same construction as the executor, so the dialog's ceiling is the real one.
-      cells: cellsFromResults(runDir, results),
-      scenarios: spec.scenarios,
-      shipBar: spec.ship_bar,
-      critical: spec.critical,
-      tieBreakAvailable: judges.tieBreak !== void 0
-    });
-    say(ctx, formatAdjudicationPlan(plan, judges));
-    if (plan.triggered.length === 0) return;
-    if (ctx.ui.confirm) {
-      const ok = await ctx.ui.confirm(
-        `adjudicate ${plan.triggered.length} cell(s)? up to ${plan.maxAdditionalCalls} additional judge call(s)`
-      );
-      if (!ok) {
-        say(ctx, "cancelled \u2014 nothing spent");
-        return;
-      }
-    } else {
-      say(ctx, "  (no confirm dialog here \u2014 `--auto-rejudge` is the authorization)");
-    }
-    const adjudicated = await adjudicateRun({
-      runDir,
-      spec,
-      adapter: resolvedAdapter,
-      results,
-      primaryJudge: judge,
-      secondaryJudge: judges.secondary,
-      tieBreakJudge: judges.tieBreak,
-      specDir: testsDir,
-      now: nowIso,
-      log: (m) => say(ctx, m)
-    });
-    const ag = adjudicated.effective_grade;
-    say(ctx, `adjudicated \u2192 ${ag.letter} (${ag.pct}%) ${ag.ship ? "SHIP" : "NOT READY"}`, ag.ship ? "info" : "warning");
     return;
   }
   if (sub === "coverage") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const specPath = join44(skillDir, "tests", "specification.yaml");
+    const specPath = join26(skillDir, "tests", "specification.yaml");
     const spec = loadSpec(specPath);
-    const specDir = dirname19(specPath);
+    const specDir = dirname8(specPath);
     const report = computeCoverage({
       specDir,
       scenarios: spec.scenarios,
-      baseFiles: [relative7(specDir, join44(skillDir, "SKILL.md")).split("\\").join("/")]
+      baseFiles: [relative4(specDir, join26(skillDir, "SKILL.md")).split("\\").join("/")]
     });
     say(ctx, formatCoverage(report, spec.skill), report.broken.length ? "warning" : "info");
     return;
   }
-  if (sub === "affected") {
-    const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const specPath = join44(skillDir, "tests", "specification.yaml");
-    const spec = loadSpec(specPath);
-    const base = flags.base || "HEAD";
-    const rev = await exec("git", ["rev-parse", "--show-toplevel"], { cwd: dirname19(specPath), timeoutMs: 3e4 });
-    if (rev.code !== 0) {
-      say(ctx, "affected needs a git repository to diff against", "error");
-      return;
-    }
-    const repoRoot = rev.stdout.trim();
-    const result = selectAffected({
-      scenarios: spec.scenarios,
-      specDir: dirname19(specPath),
-      diff: await gitDiff(repoRoot, base),
-      repoRoot
-    });
-    say(ctx, formatAffected(result, spec.scenarios.length));
-    return;
-  }
-  if (sub === "capture") {
-    const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const ui = ctx.ui;
-    if (!ctx.sessionManager || !ui.select || !ui.input || !ui.editor || !ui.confirm) {
-      say(ctx, "capture needs an interactive pi session (it is unavailable under -p / --mode json)", "error");
-      return;
-    }
-    const sm = ctx.sessionManager;
-    const result = await runCapture(skillDir, {
-      cwd: ctx.cwd,
-      ui: {
-        select: ui.select.bind(ui),
-        input: ui.input.bind(ui),
-        editor: ui.editor.bind(ui),
-        confirm: ui.confirm.bind(ui),
-        say: (m) => say(ctx, m)
-      },
-      sessionEntries: () => sm.getBranch(),
-      sessionPath: () => sm.getSessionPath?.() ?? "",
-      isStreaming: () => ctx.isStreaming?.() ?? false,
-      homeDir: homedir3(),
-      now: nowIso,
-      runOnly: async (dir, scenarioId) => {
-        const card = await runViaExtension({
-          skillDir: dir,
-          only: [scenarioId],
-          adapter,
-          timestamp: nowIso(),
-          log: (m) => {
-            if (ctx.hasUI) ctx.ui.setStatus?.("skill-harness", m);
-          }
-        });
-        return card.scenarios.map((s) => `  ${s.id}: ${s.suspect ? "?" : s.verdict}`).join("\n");
-      }
-    });
-    if (result.status !== "cancelled") say(ctx, `capture ${result.status}: ${result.capture?.id}`);
-    return;
-  }
   if (sub === "review") {
     const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const spec = loadSpec(join44(skillDir, "tests", "specification.yaml"));
+    const spec = loadSpec(join26(skillDir, "tests", "specification.yaml"));
     const handle = await serveReview({
       skillDir,
       skillName: spec.skill,
@@ -17603,7 +9606,7 @@ function closeReview() {
 }
 function registerCommand(pi, assetsDir) {
   pi.registerCommand("skill-harness", {
-    description: "Run, judge, review scenarios, or open retained learning (learning)",
+    description: "Run, judge, and review skill scenarios",
     handler: async (args, ctx) => {
       const h = await handleSkillCheck(args, ctx, { assetsDir });
       if (h) {
@@ -17651,7074 +9654,10 @@ function registerTool(pi) {
   pi.registerTool(skillCheckRunTool);
 }
 
-// packages/adapters/src/learning-journal.ts
-import { constants as constants14, openSync as openSync13, closeSync as closeSync13, readSync as readSync6, writeSync as writeSync7, fstatSync as fstatSync12, lstatSync as lstatSync13, fsyncSync as fsyncSync9, mkdirSync as mkdirSync16, unlinkSync as unlinkSync6 } from "node:fs";
-import { createHash as createHash43, randomUUID as randomUUID6 } from "node:crypto";
-import { types as types3 } from "node:util";
-import { isAbsolute as isAbsolute24, join as join45, dirname as dirname20, parse as parse6, resolve as resolve26 } from "node:path";
-function learningJson2(value3) {
-  const limit3 = 2 * 1024 * 1024, cache = /* @__PURE__ */ new WeakMap(), visiting = /* @__PURE__ */ new WeakSet();
-  const size = (v, depth) => {
-    if (depth > 16) throw Error("learning JSON depth bound");
-    if (v === null || typeof v === "boolean" || typeof v === "string" || typeof v === "number" && Number.isFinite(v)) {
-      if (typeof v === "string" && Buffer.byteLength(v) > limit3) throw Error("learning JSON byte bound");
-      const bytes4 = Buffer.byteLength(JSON.stringify(v));
-      if (bytes4 > limit3) throw Error("learning JSON byte bound");
-      return { bytes: bytes4, height: 0 };
-    }
-    if (!v || typeof v !== "object") throw Error("plain learning JSON required");
-    if (types3.isProxy(v)) throw Error("learning proxy refused");
-    const old = cache.get(v);
-    if (old) {
-      if (depth + old.height > 16) throw Error("learning JSON depth bound");
-      return old;
-    }
-    if (visiting.has(v)) throw Error("cyclic learning JSON refused");
-    visiting.add(v);
-    const array3 = Array.isArray(v), prototype = Object.getPrototypeOf(v), descriptors = Object.getOwnPropertyDescriptors(v);
-    if (array3 ? prototype !== Array.prototype : prototype !== Object.prototype && prototype !== null) throw Error("plain learning JSON required");
-    const keys7 = Reflect.ownKeys(descriptors);
-    if (array3 && (v.length > 4096 || keys7.length !== v.length + 1)) throw Error("dense bounded learning array required");
-    const fields = array3 ? Array.from({ length: v.length }, (_, i) => String(i)) : keys7;
-    let bytes3 = 2, height = 0;
-    for (let i = 0; i < fields.length; i++) {
-      const key3 = fields[i];
-      if (typeof key3 !== "string") throw Error("plain learning property required");
-      const d = descriptors[key3];
-      if (!d || !("value" in d) || !d.enumerable) throw Error("plain learning property required");
-      const child3 = size(d.value, depth + 1);
-      bytes3 += child3.bytes + (i ? 1 : 0) + (array3 ? 0 : Buffer.byteLength(JSON.stringify(key3)) + 1);
-      height = Math.max(height, child3.height + 1);
-      if (bytes3 > limit3) throw Error("learning JSON byte bound");
-    }
-    visiting.delete(v);
-    const result = { bytes: bytes3, height };
-    cache.set(v, result);
-    return result;
-  };
-  size(value3, 0);
-  return interventionCanonicalJson(value3);
-}
-var learningHash2 = (value3) => createHash43("sha256").update(learningJson2(value3)).digest("hex");
-var learningCopy2 = (value3) => JSON.parse(learningJson2(value3));
-var LIMIT5 = 4 * 1024 * 1024;
-function directory4(path3) {
-  if (!isAbsolute24(path3)) throw Error("absolute learning directory required");
-  for (let p = path3; ; p = dirname20(p)) {
-    const s2 = lstatSync13(p);
-    if (!s2.isDirectory() || s2.isSymbolicLink()) throw Error("learning directory substitution");
-    if (p === parse6(p).root) break;
-  }
-  const s = lstatSync13(path3);
-  if (s.mode & 63 || process.getuid && s.uid !== process.getuid()) throw Error("private owned learning directory required");
-}
-function sync2(path3) {
-  const fd = openSync13(path3, constants14.O_RDONLY | constants14.O_DIRECTORY | constants14.O_NOFOLLOW);
-  try {
-    fsyncSync9(fd);
-  } finally {
-    closeSync13(fd);
-  }
-}
-function learningFile2(path3, limit3 = 1024 * 1024) {
-  if (!constants14.O_NOFOLLOW || !constants14.O_NONBLOCK) throw Error("required safe file flags unavailable");
-  if (!isAbsolute24(path3)) throw Error("absolute learning file required");
-  for (let p = dirname20(path3); ; p = dirname20(p)) {
-    const s = lstatSync13(p);
-    if (!s.isDirectory() || s.isSymbolicLink()) throw Error("learning file ancestor substitution");
-    if (p === parse6(p).root) break;
-  }
-  const fd = openSync13(path3, constants14.O_RDONLY | constants14.O_NOFOLLOW | constants14.O_NONBLOCK);
-  try {
-    const s = fstatSync12(fd);
-    if (!s.isFile() || s.nlink !== 1 || s.size > limit3) throw Error("bounded regular learning file required");
-    const out = Buffer.alloc(limit3 + 1);
-    let n = 0;
-    while (n < out.length) {
-      const k = readSync6(fd, out, n, out.length - n, n);
-      if (!k) break;
-      n += k;
-    }
-    if (n > limit3) throw Error("learning file bound exceeded");
-    return out.subarray(0, n);
-  } finally {
-    closeSync13(fd);
-  }
-}
-function learningJournal2(path3, initial) {
-  if (!constants14.O_NOFOLLOW || !constants14.O_NONBLOCK || !constants14.O_DIRECTORY) throw Error("required safe journal flags unavailable");
-  if (initial !== void 0) {
-    directory4(dirname20(path3));
-    mkdirSync16(path3, { mode: 448 });
-    directory4(path3);
-    const value3 = learningCopy2(initial), body = { prior: null, value: value3 }, record = { ...body, id: learningHash2(body) };
-    const fd = openSync13(join45(path3, "events.jsonl"), constants14.O_WRONLY | constants14.O_CREAT | constants14.O_EXCL | constants14.O_NOFOLLOW, 384);
-    try {
-      writeAll2(fd, Buffer.from(learningJson2(record) + "\n"));
-      fsyncSync9(fd);
-    } finally {
-      closeSync13(fd);
-    }
-    sync2(path3);
-    sync2(dirname20(path3));
-  }
-  directory4(path3);
-  const identity2 = lstatSync13(path3), file = join45(path3, "events.jsonl");
-  const check = () => {
-    directory4(path3);
-    const s = lstatSync13(path3);
-    if (s.dev !== identity2.dev || s.ino !== identity2.ino) throw Error("learning directory identity changed");
-  };
-  const read5 = () => {
-    check();
-    const stat = lstatSync13(file);
-    if (stat.mode & 63 || process.getuid && stat.uid !== process.getuid()) throw Error("private learning journal required");
-    const text15 = learningFile2(file, LIMIT5).toString("utf8");
-    if (!text15.endsWith("\n")) throw Error("learning history incomplete");
-    const lines2 = text15.slice(0, -1).split("\n");
-    if (!lines2.length || lines2.length > 4096) throw Error("learning history bound");
-    let prior = null;
-    return lines2.map((line) => {
-      const r = JSON.parse(line);
-      if (learningJson2(r) !== line || Object.keys(r).sort().join() !== "id,prior,value" || r.prior !== prior || r.id !== learningHash2({ prior, value: r.value })) throw Error("learning history identity mismatch");
-      prior = r.id;
-      return r;
-    });
-  };
-  read5();
-  return { read: read5, append(prior, value3) {
-    check();
-    const lock = join45(path3, "writer.lock"), token = randomUUID6();
-    const fd = openSync13(lock, constants14.O_RDWR | constants14.O_CREAT | constants14.O_EXCL | constants14.O_NOFOLLOW, 384), owned = fstatSync12(fd);
-    let error, result;
-    try {
-      writeAll2(fd, Buffer.from(token));
-      fsyncSync9(fd);
-      const history = read5();
-      if (history.at(-1).id !== prior) throw Error("stale learning CAS");
-      if (history.length >= 4096) throw Error("learning history bound");
-      const body = { prior, value: learningCopy2(value3) }, event = { ...body, id: learningHash2(body) }, line = Buffer.from(learningJson2(event) + "\n");
-      const out = openSync13(file, constants14.O_WRONLY | constants14.O_APPEND | constants14.O_NOFOLLOW | constants14.O_NONBLOCK);
-      try {
-        const s = fstatSync12(out);
-        if (!s.isFile() || s.nlink !== 1 || s.mode & 63 || s.size + line.length > LIMIT5) throw Error("learning append refused");
-        writeAll2(out, line);
-        fsyncSync9(out);
-      } finally {
-        closeSync13(out);
-      }
-      sync2(path3);
-      result = event;
-    } catch (e) {
-      error = e;
-    } finally {
-      try {
-        const s = lstatSync13(lock);
-        if (s.dev !== owned.dev || s.ino !== owned.ino || learningFile2(lock, 128).toString() !== token) throw Error("learning lock ownership lost");
-        unlinkSync6(lock);
-        sync2(path3);
-      } catch (e) {
-        error ??= e;
-      } finally {
-        try {
-          closeSync13(fd);
-        } catch (e) {
-          error ??= e;
-        }
-      }
-    }
-    if (error) throw error;
-    return result;
-  } };
-}
-function registerLearningStore2(root, kind, key3, target, binding) {
-  if (!/^[a-f0-9]{64}$/.test(key3) || !isAbsolute24(target) || !["weekly", "trust", "intervention", "access", "workspace"].includes(kind)) throw Error("invalid learning registration");
-  directory4(root);
-  directory4(dirname20(target));
-  const parent = join45(root, "learning-stores");
-  try {
-    mkdirSync16(parent, { mode: 448 });
-    sync2(root);
-  } catch (e) {
-    if (e.code !== "EEXIST") throw e;
-  }
-  directory4(parent);
-  const path3 = join45(parent, `${kind}-${key3}`), initial = { type: "learning-registration-v1", target: resolve26(target), binding };
-  try {
-    learningJournal2(path3, initial);
-  } catch (e) {
-    if (e.code !== "EEXIST") throw e;
-    const records2 = learningJournal2(path3).read();
-    if (records2.length !== 1 || learningHash2(records2[0].value) !== learningHash2(initial)) throw Error("learning key already bound to another store or input");
-  }
-}
-function verifyLearningStore2(root, kind, key3, target, binding) {
-  if (!/^[a-f0-9]{64}$/.test(key3) || !isAbsolute24(target)) throw Error("invalid learning registration");
-  const records2 = learningJournal2(join45(root, "learning-stores", `${kind}-${key3}`)).read();
-  if (records2.length !== 1 || learningHash2(records2[0].value) !== learningHash2({ type: "learning-registration-v1", target: resolve26(target), binding })) throw Error("learning store registration mismatch");
-}
-function writeAll2(fd, bytes3) {
-  let n = 0;
-  while (n < bytes3.length) {
-    const k = writeSync7(fd, bytes3, n, bytes3.length - n);
-    if (!k) throw Error("learning write stalled");
-    n += k;
-  }
-}
-
-// packages/adapters/src/trust-lifecycle.ts
-import { isAbsolute as isAbsolute25 } from "node:path";
-
-// packages/adapters/src/evidence-archive.ts
-import {
-  closeSync as closeSync14,
-  constants as constants15,
-  fsyncSync as fsyncSync10,
-  fstatSync as fstatSync13,
-  linkSync as linkSync3,
-  lstatSync as lstatSync14,
-  mkdirSync as mkdirSync17,
-  openSync as openSync14,
-  readSync as readSync7,
-  unlinkSync as unlinkSync7,
-  writeFileSync as writeFileSync13
-} from "node:fs";
-import { createHash as createHash44, randomUUID as randomUUID7 } from "node:crypto";
-import { join as join46, parse as parse7, resolve as resolve27, sep as sep8 } from "node:path";
-var LIMIT6 = 8 * 1024 * 1024;
-var HASH2 = /^[a-f0-9]{64}$/;
-var ID2 = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-var digest4 = (bytes3) => createHash44("sha256").update(bytes3).digest("hex");
-var absent2 = (error) => error?.code === "ENOENT";
-function fail2(message3) {
-  throw new Error(`archive: ${message3}`);
-}
-function keys4(value3, expected) {
-  return !!value3 && typeof value3 === "object" && !Array.isArray(value3) && Object.keys(value3).length === expected.length && Object.keys(value3).every((key3) => expected.includes(key3));
-}
-function validReference2(value3) {
-  if (!keys4(value3, ["schema", "sourceId", "parser", "sha256", "bytes", "retention"])) return false;
-  return value3.schema === "archive-source-v1" && typeof value3.sourceId === "string" && ID2.test(value3.sourceId) && keys4(value3.parser, ["id", "version"]) && typeof value3.parser.id === "string" && ID2.test(value3.parser.id) && typeof value3.parser.version === "string" && ID2.test(value3.parser.version) && typeof value3.sha256 === "string" && HASH2.test(value3.sha256) && Number.isSafeInteger(value3.bytes) && Number(value3.bytes) >= 0 && Number(value3.bytes) <= LIMIT6 && typeof value3.retention === "string" && ["exact", "redacted", "reference-only"].includes(value3.retention);
-}
-function directory5(path3, create) {
-  if (!constants15.O_NOFOLLOW || !constants15.O_DIRECTORY || !constants15.O_NONBLOCK) fail2("required filesystem flags unavailable");
-  const absolute = resolve27(path3);
-  let current = parse7(absolute).root;
-  for (const part of absolute.slice(current.length).split(sep8).filter(Boolean)) {
-    current = join46(current, part);
-    let stat2;
-    try {
-      stat2 = lstatSync14(current);
-    } catch (error) {
-      if (!absent2(error) || !create) throw error;
-      mkdirSync17(current, { mode: 448 });
-      stat2 = lstatSync14(current);
-    }
-    if (stat2.isSymbolicLink()) fail2("symlink directory refused");
-    if (!stat2.isDirectory()) fail2("non-directory path refused");
-  }
-  const stat = lstatSync14(absolute);
-  if ((stat.mode & 63) !== 0) fail2("archive directory must be private");
-  if (process.getuid && stat.uid !== process.getuid()) fail2("archive directory owner mismatch");
-}
-function syncDirectory4(path3) {
-  const fd = openSync14(path3, constants15.O_RDONLY | constants15.O_DIRECTORY | constants15.O_NOFOLLOW);
-  try {
-    fsyncSync10(fd);
-  } finally {
-    closeSync14(fd);
-  }
-}
-function readVerified2(path3, hash15, limit3 = LIMIT6) {
-  const fd = openSync14(path3, constants15.O_RDONLY | constants15.O_NOFOLLOW | constants15.O_NONBLOCK);
-  try {
-    const stat = fstatSync13(fd);
-    if (!stat.isFile() || stat.size > limit3 || (stat.mode & 63) !== 0) fail2("invalid retained file");
-    const buffer = Buffer.alloc(limit3 + 1);
-    let size = 0;
-    while (size <= limit3) {
-      const count = readSync7(fd, buffer, size, buffer.length - size, size);
-      if (!count) break;
-      size += count;
-    }
-    if (size > limit3) fail2("retained byte limit exceeded");
-    const bytes3 = buffer.subarray(0, size);
-    if (digest4(bytes3) !== hash15) fail2("content identity mismatch");
-    return bytes3;
-  } finally {
-    closeSync14(fd);
-  }
-}
-function put2(root, category, bytes3) {
-  const hash15 = digest4(bytes3);
-  const dir = join46(root, category);
-  directory5(dir, true);
-  const target = join46(dir, hash15);
-  try {
-    readVerified2(target, hash15);
-    return hash15;
-  } catch (error) {
-    if (!absent2(error)) throw error;
-  }
-  const temporary = join46(dir, `.pending-${randomUUID7()}`);
-  let owned = false;
-  try {
-    const fd = openSync14(temporary, constants15.O_WRONLY | constants15.O_CREAT | constants15.O_EXCL | constants15.O_NOFOLLOW, 384);
-    owned = true;
-    try {
-      writeFileSync13(fd, bytes3);
-      fsyncSync10(fd);
-    } finally {
-      closeSync14(fd);
-    }
-    try {
-      linkSync3(temporary, target);
-    } catch (error) {
-      if (error.code !== "EEXIST") throw error;
-      readVerified2(target, hash15);
-    }
-  } finally {
-    if (owned) unlinkSync7(temporary);
-  }
-  syncDirectory4(dir);
-  return hash15;
-}
-function retainArchiveSource2(root, input) {
-  if (!(input.bytes instanceof Uint8Array)) fail2("bytes required");
-  if (input.bytes.byteLength > LIMIT6) fail2("source byte limit exceeded");
-  const bytes3 = Buffer.from(input.bytes);
-  const reference3 = {
-    schema: "archive-source-v1",
-    sourceId: input.sourceId,
-    parser: { id: input.parser?.id, version: input.parser?.version },
-    sha256: digest4(bytes3),
-    bytes: bytes3.length,
-    retention: input.retention
-  };
-  if (!validReference2(reference3)) fail2("invalid metadata or retention policy");
-  directory5(root, true);
-  if (reference3.retention !== "reference-only") put2(root, "objects", bytes3);
-  const manifestId = put2(root, "manifests", Buffer.from(JSON.stringify(reference3)));
-  syncDirectory4(resolve27(root));
-  return { manifestId, reference: reference3 };
-}
-function readArchiveSourceReference2(root, manifestId) {
-  if (!HASH2.test(manifestId)) return { status: "error", reason: "invalid manifest identity" };
-  try {
-    directory5(root, false);
-    directory5(join46(root, "manifests"), false);
-    const text15 = readVerified2(join46(root, "manifests", manifestId), manifestId, 8192).toString("utf8");
-    const reference3 = JSON.parse(text15);
-    if (!validReference2(reference3) || JSON.stringify(reference3) !== text15) fail2("invalid manifest");
-    return { status: "available", reference: reference3 };
-  } catch (error) {
-    return absent2(error) ? { status: "missing", reason: "manifest" } : { status: "error", reason: "invalid or inaccessible retained evidence" };
-  }
-}
-function readArchiveSource2(root, manifestId, maxBytes = LIMIT6) {
-  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > LIMIT6) return { status: "error", reason: "invalid read bound" };
-  try {
-    const manifest = readArchiveSourceReference2(root, manifestId);
-    if (manifest.status !== "available") return manifest;
-    const { reference: reference3 } = manifest;
-    if (reference3.retention === "reference-only") return { status: "missing", reason: "not-retained" };
-    if (reference3.bytes > maxBytes) return { status: "error", reason: "read bound exceeded" };
-    let bytes3;
-    try {
-      directory5(join46(root, "objects"), false);
-      bytes3 = readVerified2(join46(root, "objects", reference3.sha256), reference3.sha256, maxBytes);
-    } catch (error) {
-      if (absent2(error)) return { status: "missing", reason: "content" };
-      throw error;
-    }
-    if (bytes3.length !== reference3.bytes) fail2("retained length mismatch");
-    return { status: "available", reference: reference3, bytes: bytes3 };
-  } catch {
-    return { status: "error", reason: "invalid or inaccessible retained evidence" };
-  }
-}
-function parseArchivedJsonl2(bytes3) {
-  if (bytes3.byteLength > LIMIT6) fail2("source byte limit exceeded");
-  const buffer = Buffer.from(bytes3);
-  const records2 = [];
-  const errors = [];
-  let start = 0;
-  let line = 1;
-  while (start < buffer.length) {
-    const newline = buffer.indexOf(10, start);
-    if (newline < 0) break;
-    try {
-      const text15 = new TextDecoder("utf-8", { fatal: true }).decode(buffer.subarray(start, newline));
-      records2.push({ line, start, end: newline + 1, value: JSON.parse(text15) });
-    } catch {
-      errors.push({ line, start, reason: "invalid-json" });
-    }
-    start = newline + 1;
-    line++;
-  }
-  return { status: errors.length ? "error" : start === buffer.length ? "complete" : "partial", records: records2, errors, completeBytes: start, pendingBytes: buffer.length - start };
-}
-
-// packages/adapters/src/work-case-review.ts
-import { constants as constants16, closeSync as closeSync15, fstatSync as fstatSync14, fsyncSync as fsyncSync11, lstatSync as lstatSync15, mkdirSync as mkdirSync18, openSync as openSync15, readSync as readSync8, unlinkSync as unlinkSync8, writeFileSync as writeFileSync14, writeSync as writeSync8 } from "node:fs";
-import { randomUUID as randomUUID8 } from "node:crypto";
-import { join as join47 } from "node:path";
-
-// packages/adapters/src/work-candidates.ts
-import { createHash as createHash45 } from "node:crypto";
-
-// packages/adapters/src/work-case-archive.ts
-function validate6(value3) {
-  if (!value3 || value3.capture_schema !== 2 || value3.status !== "unresolved" || value3.visibility !== "silent" || value3.causalAttribution !== "not-established") throw new Error("invalid work case state");
-  const built = buildWorkCapture({
-    detector: value3.detector,
-    target: value3.target,
-    classification: value3.classification,
-    reason: value3.reason,
-    evidence: value3.evidence,
-    metrics: value3.metrics
-  });
-  if (built.id !== value3.id || Object.keys(value3).sort().join() !== Object.keys(built).sort().join()) throw new Error("invalid work case identity");
-  return built;
-}
-function readWorkCandidate2(root, manifestId) {
-  const source3 = readArchiveSource2(root, manifestId);
-  if (source3.status !== "available" || source3.reference.retention !== "exact" || source3.reference.parser.id !== "work-capture" || source3.reference.parser.version !== "2") throw new Error("work case missing or invalid");
-  const value3 = validate6(JSON.parse(source3.bytes.toString("utf8")));
-  if (source3.reference.sourceId !== `work-case-${value3.id}`) throw new Error("work case source mismatch");
-  return value3;
-}
-
-// packages/adapters/src/work-signal-observation.ts
-var LIMIT7 = 1024 * 1024;
-function closed12(value3, keys7) {
-  if (!value3 || typeof value3 !== "object" || Array.isArray(value3) || ![Object.prototype, null].includes(Object.getPrototypeOf(value3))) throw new Error("closed work signal object required");
-  const descriptors = Object.getOwnPropertyDescriptors(value3), names = Reflect.ownKeys(value3);
-  if (names.length !== keys7.length || names.some((k) => typeof k !== "string" || !keys7.includes(k) || !descriptors[k].enumerable || !Object.hasOwn(descriptors[k], "value"))) throw new Error("closed work signal fields required");
-}
-function array2(value3) {
-  if (!Array.isArray(value3) || Object.getPrototypeOf(value3) !== Array.prototype || value3.length > 256 || Reflect.ownKeys(value3).length !== value3.length + 1) throw new Error("bounded dense work signal array required");
-  for (let i = 0; i < value3.length; i++) {
-    const d = Object.getOwnPropertyDescriptor(value3, String(i));
-    if (!d || !d.enumerable || !Object.hasOwn(d, "value")) throw new Error("dense work signal data array required");
-  }
-}
-function canonical4(value3) {
-  if (Array.isArray(value3)) return `[${value3.map(canonical4).join(",")}]`;
-  if (value3 !== null && typeof value3 === "object") return `{${Object.keys(value3).sort().map((k) => `${JSON.stringify(k)}:${canonical4(value3[k])}`).join(",")}}`;
-  return JSON.stringify(value3);
-}
-function validate7(value3) {
-  closed12(value3, ["observation_schema", "snapshot", "facts"]);
-  if (value3.observation_schema !== "work-signal-observation-v1") throw new Error("unsupported work signal observation");
-  closed12(value3.snapshot, ["snapshotDigest", "scopeValid", "obligations"]);
-  closed12(value3.facts, ["scopeDigest", "version", "population", "expectedWaits", "checkpoints", "violations", "priorAccepted"]);
-  const s = value3.snapshot, f = value3.facts;
-  if (typeof s.scopeValid !== "boolean") throw new Error("invalid work signal scope state");
-  array2(s.obligations);
-  array2(f.expectedWaits);
-  array2(f.checkpoints);
-  array2(f.violations);
-  array2(f.priorAccepted);
-  const seen = /* @__PURE__ */ new Set();
-  for (const o of s.obligations) {
-    closed12(o, ["id", "digest", "intentDigest", "policyDigest", "artifactDigest", "acceptance", "coverage"]);
-    if (seen.has(o.digest)) throw new Error("duplicate work signal obligation identity");
-    seen.add(o.digest);
-  }
-  for (const c of f.checkpoints) closed12(c, ["obligationDigest", "deadlineMs", "observedAt", "status", "evidence"]);
-  for (const v of f.violations) closed12(v, ["obligationDigest", "status", "evidence"]);
-  for (const p of f.priorAccepted) closed12(p, ["obligationDigest", "intentDigest", "policyDigest", "artifactDigest", "acceptanceEvidence"]);
-  const input = value3;
-  detectAdditionalWorkCases(input.snapshot, input.facts);
-  return input;
-}
-function retainWorkSignalObservation2(root, snapshot2, facts) {
-  const input = validate7({ observation_schema: "work-signal-observation-v1", snapshot: snapshot2, facts });
-  const bytes3 = Buffer.from(canonical4(input));
-  if (bytes3.length > LIMIT7) throw new Error("work signal observation exceeds byte bound");
-  const stored = retainArchiveSource2(root, { sourceId: `work-signals-${snapshot2.snapshotDigest}`, parser: { id: "work-signal-observation", version: "1" }, retention: "exact", bytes: bytes3 });
-  return { manifestId: stored.manifestId, inputSha256: stored.reference.sha256 };
-}
-function readWorkSignalObservation2(root, manifestId) {
-  const stored = readArchiveSource2(root, manifestId);
-  if (stored.status !== "available" || stored.reference.retention !== "exact" || stored.reference.parser.id !== "work-signal-observation" || stored.reference.parser.version !== "1" || stored.bytes.length > LIMIT7) throw new Error("work signal observation unavailable or unsupported");
-  let text15, decoded;
-  try {
-    text15 = new TextDecoder("utf-8", { fatal: true }).decode(stored.bytes);
-    decoded = JSON.parse(text15);
-  } catch {
-    throw new Error("invalid work signal observation JSON");
-  }
-  const input = validate7(decoded);
-  if (canonical4(input) !== text15 || stored.reference.sourceId !== `work-signals-${input.snapshot.snapshotDigest}`) throw new Error("work signal observation binding mismatch");
-  return { manifestId, inputSha256: stored.reference.sha256, input, detection: detectAdditionalWorkCases(input.snapshot, input.facts) };
-}
-
-// packages/adapters/src/work-signal-cases.ts
-var SHA9 = /^[a-f0-9]{64}$/;
-var hash9 = (v) => typeof v === "string" && SHA9.test(v);
-function read3(root, id3, parser) {
-  const source3 = readArchiveSource2(root, id3);
-  if (source3.status !== "available" || source3.reference.retention !== "exact" || source3.reference.parser.id !== parser || source3.reference.parser.version !== "1" || source3.bytes.length > 128 * 1024) throw new Error("work signal case evidence unavailable or unsupported");
-  let value3;
-  try {
-    value3 = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(source3.bytes));
-  } catch {
-    throw new Error("invalid work signal case JSON");
-  }
-  return { value: value3, sourceId: source3.reference.sourceId };
-}
-function closed13(v, keys7) {
-  if (!v || typeof v !== "object" || Array.isArray(v) || Object.keys(v).sort().join() !== [...keys7].sort().join()) throw new Error("invalid closed work signal case record");
-}
-function retain2(root, sourceId, parser, value3) {
-  return retainArchiveSource2(root, { sourceId, parser: { id: parser, version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(value3)) }).manifestId;
-}
-function captureWorkSignalCases2(root, observationId) {
-  const observation = readWorkSignalObservation2(root, observationId);
-  const candidateIds = observation.detection.cases.map((candidate) => retain2(
-    root,
-    `work-signal-case-${candidate.id}`,
-    "work-signal-case",
-    { version: "work-signal-case-v1", observationId, caseId: candidate.id }
-  ));
-  const batchId = retain2(
-    root,
-    `work-signal-batch-${observationId}`,
-    "work-signal-batch",
-    { version: "work-signal-batch-v1", observationId, candidateIds, visibility: "silent", promotion: "not-authorized" }
-  );
-  return { batchId, observationId, candidateIds };
-}
-function readWorkSignalCase2(root, manifestId) {
-  const { value: value3, sourceId } = read3(root, manifestId, "work-signal-case");
-  closed13(value3, ["version", "observationId", "caseId"]);
-  if (value3.version !== "work-signal-case-v1" || !hash9(value3.observationId) || !hash9(value3.caseId) || sourceId !== `work-signal-case-${value3.caseId}`) throw new Error("work signal case binding mismatch");
-  const observation = readWorkSignalObservation2(root, value3.observationId);
-  const candidate = observation.detection.cases.find((c) => c.id === value3.caseId);
-  if (!candidate) throw new Error("case is not nominated by frozen work signal inputs");
-  return { observationId: value3.observationId, candidate };
-}
-function readWorkSignalBatch2(root, manifestId) {
-  const { value: value3, sourceId } = read3(root, manifestId, "work-signal-batch");
-  closed13(value3, ["version", "observationId", "candidateIds", "visibility", "promotion"]);
-  if (value3.version !== "work-signal-batch-v1" || !hash9(value3.observationId) || sourceId !== `work-signal-batch-${value3.observationId}` || value3.visibility !== "silent" || value3.promotion !== "not-authorized" || !Array.isArray(value3.candidateIds) || value3.candidateIds.length > 1024 || !value3.candidateIds.every(hash9) || new Set(value3.candidateIds).size !== value3.candidateIds.length) throw new Error("invalid work signal batch binding");
-  const observation = readWorkSignalObservation2(root, value3.observationId);
-  return { observationId: value3.observationId, candidateIds: value3.candidateIds, issues: observation.detection.issues };
-}
-
-// packages/adapters/src/work-case-review.ts
-var SHA10 = /^[a-f0-9]{64}$/;
-var missing3 = (error) => error?.code === "ENOENT";
-function assertDirectory2(path3) {
-  const stat = lstatSync15(path3);
-  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.mode & 63 || process.getuid && stat.uid !== process.getuid()) throw new Error("private case directory required");
-}
-function syncDirectory5(path3) {
-  const fd = openSync15(path3, constants16.O_RDONLY | constants16.O_DIRECTORY | constants16.O_NOFOLLOW);
-  try {
-    fsyncSync11(fd);
-  } finally {
-    closeSync15(fd);
-  }
-}
-function privateDirectory2(path3) {
-  let created = false;
-  try {
-    mkdirSync18(path3, { mode: 448 });
-    created = true;
-  } catch (error) {
-    if (error.code !== "EEXIST") throw error;
-  }
-  assertDirectory2(path3);
-  return created;
-}
-function bytes2(path3, limit3) {
-  const fd = openSync15(path3, constants16.O_RDONLY | constants16.O_NOFOLLOW | constants16.O_NONBLOCK);
-  try {
-    const stat = fstatSync14(fd);
-    if (!stat.isFile() || stat.nlink !== 1 || stat.size > limit3 || stat.mode & 63) throw new Error("invalid case history file");
-    const out = Buffer.alloc(limit3 + 1);
-    let used = 0;
-    while (used <= limit3) {
-      const n = readSync8(fd, out, used, out.length - used, used);
-      if (!n) break;
-      used += n;
-    }
-    if (used > limit3) throw new Error("case history bound exceeded");
-    return out.subarray(0, used);
-  } finally {
-    closeSync15(fd);
-  }
-}
-function historyAt2(directory7, caseId, brandNew = false) {
-  let raw;
-  try {
-    raw = bytes2(join47(directory7, "history.jsonl"), 1024 * 1024);
-  } catch (error) {
-    if (missing3(error) && brandNew) return [];
-    if (missing3(error)) throw new Error("case history missing; explicit recovery required");
-    throw error;
-  }
-  if (!raw.length || raw.at(-1) !== 10) throw new Error("case history incomplete; explicit recovery required");
-  const records2 = raw.toString("utf8").trimEnd().split("\n").map((line) => JSON.parse(line));
-  let valid2 = [];
-  for (const record of records2) {
-    if (record.caseId !== caseId || record.decision_schema !== 1) throw new Error("case history binding mismatch");
-    const { id: id3, decision_schema: _schema, ...input } = record;
-    valid2 = appendWorkCaseDecision(valid2, input);
-    if (!valid2.some((r) => r.id === id3)) throw new Error("case history identity mismatch");
-  }
-  return valid2;
-}
-function assertAuthor2(author) {
-  if (typeof author !== "string" || !author || author.length > 512 || /[\u0000-\u001f\u007f]/.test(author)) throw new Error("explicit operator author required");
-}
-function createWorkCaseReviewer2(root, batchId, author) {
-  assertAuthor2(author);
-  const source3 = readArchiveSource2(root, batchId);
-  if (source3.status !== "available" || source3.reference.parser.id !== "work-candidate-batch" || source3.reference.parser.version !== "1" || source3.reference.retention !== "exact") throw new Error("case batch missing or invalid");
-  const batch = JSON.parse(source3.bytes.toString("utf8"));
-  if (batch.version !== "work-candidate-batch-v1" || batch.visibility !== "silent" || batch.promotion !== "not-authorized" || !Array.isArray(batch.candidateIds) || batch.candidateIds.length > 4096 || batch.candidateIds.some((id3) => typeof id3 !== "string" || !SHA10.test(id3))) throw new Error("invalid selected case batch");
-  return createSelectedCaseReviewer2(root, author, batch.candidateIds, (id3) => readWorkCandidate2(root, id3));
-}
-function createWorkSignalReviewer2(root, batchId, author) {
-  assertAuthor2(author);
-  const batch = readWorkSignalBatch2(root, batchId);
-  const reviewer = createSelectedCaseReviewer2(root, author, batch.candidateIds, (id3) => {
-    const selected2 = readWorkSignalCase2(root, id3);
-    if (selected2.observationId !== batch.observationId) throw new Error("work signal case outside frozen observation");
-    return selected2.candidate;
-  });
-  return { ...reviewer, list(offset = 0, limit3 = 5) {
-    const current = readWorkSignalBatch2(root, batchId);
-    return { ...reviewer.list(offset, limit3), observationId: current.observationId, issues: current.issues };
-  } };
-}
-function createSelectedCaseReviewer2(root, author, ids, readCandidate) {
-  const allowed = new Set(ids);
-  const selected2 = (id3) => {
-    if (!allowed.has(id3)) throw new Error("case outside selected batch");
-    return readCandidate(id3);
-  };
-  const getHistory = (caseManifestId) => {
-    const candidate = selected2(caseManifestId), directory7 = join47(root, "case-decisions", candidate.id);
-    try {
-      assertDirectory2(join47(root, "case-decisions"));
-      assertDirectory2(directory7);
-    } catch (error) {
-      if (missing3(error)) return [];
-      throw error;
-    }
-    return historyAt2(directory7, candidate.id);
-  };
-  return {
-    history: getHistory,
-    list(offset = 0, limit3 = 5) {
-      if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit3) || limit3 < 1 || limit3 > 5) throw new Error("bounded case page required");
-      const ids2 = [...allowed].sort();
-      return { total: ids2.length, offset, items: ids2.slice(offset, offset + limit3).map((caseManifestId) => {
-        const candidate = selected2(caseManifestId), current = getHistory(caseManifestId).at(-1) ?? null;
-        return { caseManifestId, candidate, priorDecisionId: current?.id ?? null, disposition: current?.disposition ?? "unresolved" };
-      }) };
-    },
-    decide(request) {
-      if (!request || Object.keys(request).sort().join() !== "caseManifestId,disposition,note,priorDecisionId" || !["confirmed_defect", "expected_behavior", "exemplar", "uncertain", "skip"].includes(request.disposition) || typeof request.note !== "string" || request.note.length > 4e3 || !(request.priorDecisionId === null || typeof request.priorDecisionId === "string" && SHA10.test(request.priorDecisionId))) throw new Error("invalid case review request");
-      const candidate = selected2(request.caseManifestId);
-      const parent = join47(root, "case-decisions");
-      privateDirectory2(parent);
-      const directory7 = join47(parent, candidate.id);
-      const lockPath = join47(parent, candidate.id + ".lock"), token = randomUUID8();
-      const lock = openSync15(lockPath, constants16.O_RDWR | constants16.O_CREAT | constants16.O_EXCL | constants16.O_NOFOLLOW, 384);
-      const identity2 = fstatSync14(lock);
-      let primary;
-      let result;
-      try {
-        writeFileSync14(lock, token);
-        fsyncSync11(lock);
-        const brandNew = privateDirectory2(directory7);
-        const before = historyAt2(directory7, candidate.id, brandNew);
-        const after = appendWorkCaseDecision(before, {
-          caseId: candidate.id,
-          priorDecisionId: request.priorDecisionId,
-          disposition: request.disposition,
-          author,
-          evidence: [request.caseManifestId],
-          note: request.note
-        });
-        if (after.length > before.length) {
-          const path3 = join47(directory7, "history.jsonl");
-          const fd = openSync15(path3, constants16.O_WRONLY | constants16.O_APPEND | constants16.O_CREAT | constants16.O_NOFOLLOW | constants16.O_NONBLOCK, 384);
-          try {
-            const stat = fstatSync14(fd);
-            if (!stat.isFile() || stat.nlink !== 1 || stat.mode & 63) throw new Error("invalid case history destination");
-            const line = Buffer.from(JSON.stringify(after.at(-1)) + "\n");
-            if (stat.size + line.length > 1024 * 1024) throw new Error("case history bound exceeded");
-            let offset = 0;
-            while (offset < line.length) {
-              const n = writeSync8(fd, line, offset, line.length - offset);
-              if (!n) throw new Error("case history write stalled");
-              offset += n;
-            }
-            fsyncSync11(fd);
-          } finally {
-            closeSync15(fd);
-          }
-        }
-        syncDirectory5(directory7);
-        syncDirectory5(parent);
-        syncDirectory5(root);
-        result = { current: after.at(-1), replayed: after.length === before.length };
-      } catch (error) {
-        primary = error;
-      } finally {
-        try {
-          const present = lstatSync15(lockPath);
-          if (present.dev !== identity2.dev || present.ino !== identity2.ino || bytes2(lockPath, 128).toString() !== token) throw new Error("case writer lock ownership lost");
-          unlinkSync8(lockPath);
-          syncDirectory5(parent);
-        } catch (error) {
-          if (!primary) primary = error;
-        } finally {
-          closeSync15(lock);
-        }
-      }
-      if (primary) throw primary;
-      return result;
-    }
-  };
-}
-
-// packages/adapters/src/learning-case.ts
-function readLearningCase2(root, input) {
-  const c = learningCopy2(input);
-  if (Object.keys(c).sort().join() !== "batchId,decisionId,manifestId,version" || c.version !== 2 && c.version !== 3) throw Error("explicit selected case reference required");
-  const review = c.version === 3 ? createWorkSignalReviewer2(root, c.batchId, "learning-reader") : createWorkCaseReviewer2(root, c.batchId, "learning-reader");
-  const current = review.history(c.manifestId).at(-1) ?? null;
-  const candidate = c.version === 3 ? readWorkSignalCase2(root, c.manifestId).candidate : readWorkCandidate2(root, c.manifestId);
-  return { candidate, current, matched: current?.id === c.decisionId };
-}
-
-// packages/adapters/src/trust-lifecycle.ts
-var trustPolicyDigest2 = (input) => learningHash2({ version: "trust-lifecycle-v1", input });
-var trustOutcomeDigest2 = (outcome) => learningHash2({ version: "trust-reference-v1", outcome });
-function evidence3(root, id3) {
-  const result = readArchiveSource2(root, id3);
-  if (result.status !== "available" || !["exact", "redacted"].includes(result.reference.retention)) throw Error("independent retained evidence unavailable");
-  return result;
-}
-var text12 = (v) => typeof v === "string" && v.length > 0 && v.length <= 512 && !/[\u0000-\u001f\u007f]/.test(v);
-function validate8(input) {
-  if (!isAbsolute25(input.archiveRoot) || Object.keys(input).sort().join() !== "archiveRoot,cohort,component,exposure,maxUnflagged,seed" || !/^([a-f0-9]{64})$/.test(input.seed) || !Number.isSafeInteger(input.maxUnflagged) || input.maxUnflagged < 0 || input.maxUnflagged > 32 || !Array.isArray(input.cohort) || !input.cohort.length || input.cohort.length > 1024 || new Set(input.cohort.map((c) => c.incidentId)).size !== input.cohort.length) throw Error("invalid frozen trust cohort");
-  for (const c of input.cohort) {
-    if (Object.keys(c).sort().join() !== "flagged,incidentId,manifestId,split" || !text12(c.incidentId) || typeof c.flagged !== "boolean" || !["calibration", "heldout", "tuning"].includes(c.split)) throw Error("invalid cohort row");
-    evidence3(input.archiveRoot, c.manifestId);
-  }
-  const dummy = { id: "validation", incidentId: "validation", component: input.component, kind: input.component.kind === "detector" ? "positive" : "approval", split: "calibration" };
-  calibratePredictions([dummy]);
-  if (input.exposure) {
-    if (learningHash2(input.exposure.component) !== learningHash2(input.component)) throw Error("policy component scope mismatch");
-    const report = calibratePredictions([{ ...dummy, kind: input.exposure.kind, split: input.exposure.split }]).reports[0];
-    recommendExposure(report, input.exposure, 0);
-  }
-}
-function createTrustLifecycle2(directory7, input, authorizedPolicyDigests) {
-  const safe = learningCopy2(input);
-  validate8(safe);
-  const policyId = trustPolicyDigest2(safe);
-  if (!authorizedPolicyDigests.includes(policyId)) throw Error("independent predeclared policy authority required");
-  const sampledIncidentIds = safe.cohort.filter((c) => !c.flagged && c.split !== "tuning").sort((a, b) => learningHash2([safe.seed, a.incidentId]).localeCompare(learningHash2([safe.seed, b.incidentId]))).slice(0, safe.maxUnflagged).map((c) => c.incidentId);
-  const initial = { type: "initial", kind: "trust-lifecycle-v1", input: safe, policyId, sampledIncidentIds };
-  registerLearningStore2(safe.archiveRoot, "trust", policyId, directory7, learningHash2(initial));
-  try {
-    learningJournal2(directory7, initial);
-  } catch (e) {
-    if (e.code !== "EEXIST") throw e;
-    const old = learningJournal2(directory7).read()[0].value;
-    if (learningHash2(old) !== learningHash2(initial)) throw Error("trust policy already predeclared");
-  }
-  return openTrustLifecycle2(directory7);
-}
-function openTrustLifecycle2(directory7) {
-  const journal = learningJournal2(directory7), initial = journal.read()[0].value;
-  if (initial.kind !== "trust-lifecycle-v1" || initial.type !== "initial") throw Error("wrong trust journal");
-  const input = initial.input, sampledIncidentIds = initial.sampledIncidentIds;
-  validate8(input);
-  const replay = () => {
-    verifyLearningStore2(input.archiveRoot, "trust", String(initial.policyId), directory7, learningHash2(initial));
-    const history = journal.read(), predictions = /* @__PURE__ */ new Map(), allIds = /* @__PURE__ */ new Set(), outcomes = /* @__PURE__ */ new Map(), caseLinks = /* @__PURE__ */ new Map(), exposures = /* @__PURE__ */ new Map();
-    let retired = false, lastExposureAt = 0;
-    for (const { value: v } of history.slice(1)) {
-      if (v.type === "prediction" || v.type === "correction") {
-        const p = v.prediction;
-        calibratePredictions([p]);
-        if (allIds.has(p.id)) throw Error("duplicate prediction identity");
-        const c = input.cohort.find((c2) => c2.incidentId === p.incidentId);
-        if (!c?.flagged || c.split !== p.split || learningHash2(p.component) !== learningHash2(input.component)) throw Error("prediction scope mismatch");
-        if (v.type === "correction") {
-          const old = predictions.get(String(v.prior));
-          if (!old || old.incidentId !== p.incidentId) throw Error("stale prediction correction");
-          predictions.delete(String(v.prior));
-        }
-        predictions.set(p.id, p);
-        allIds.add(p.id);
-      } else if (v.type === "outcome") {
-        const r = v.outcome;
-        if (outcomes.has(r.referenceId)) throw Error("duplicate reference identity");
-        outcomes.set(r.referenceId, r);
-        if (v.caseReference) caseLinks.set(r.referenceId, v.caseReference);
-      } else if (v.type === "exposure") {
-        const id3 = String(v.id), result = v.result;
-        if (typeof v.now !== "number" || !Number.isFinite(v.now) || v.now < lastExposureAt || exposures.has(id3) || !["ask", "silent", "retire"].includes(result.mode)) throw Error("invalid exposure history");
-        lastExposureAt = v.now;
-        exposures.set(id3, result);
-        retired ||= result.mode === "retire";
-      } else throw Error("unknown trust history event");
-    }
-    return { history, predictions, allIds, outcomes, caseLinks, exposures, retired, lastExposureAt, tip: history.at(-1).id };
-  };
-  replay();
-  const inspect = (now) => {
-    if (!Number.isFinite(now) || now < 0) throw Error("valid policy clock required");
-    const s = replay(), labels = [];
-    for (const r of s.outcomes.values()) {
-      evidence3(input.archiveRoot, r.evidenceManifestId);
-      const p = s.predictions.get(r.targetId), link = s.caseLinks.get(r.referenceId);
-      if (link && !readLearningCase2(input.archiveRoot, link).matched) continue;
-      if (r.kind === "prediction" && p) labels.push({ ...p, id: r.referenceId, correct: r.value });
-    }
-    for (const p of s.predictions.values()) evidence3(input.archiveRoot, input.cohort.find((c) => c.incidentId === p.incidentId).manifestId);
-    const calibration = calibratePredictions([...s.predictions.values()], { outcomes: labels });
-    let misses = 0, resolved = 0, conflicted = 0;
-    for (const id3 of sampledIncidentIds) {
-      evidence3(input.archiveRoot, input.cohort.find((c) => c.incidentId === id3).manifestId);
-      const values = new Set([...s.outcomes.values()].filter((r) => r.kind === "unflagged" && r.targetId === id3).map((r) => r.value));
-      if (values.size === 1) {
-        resolved++;
-        if (values.has(true)) misses++;
-      } else if (values.size > 1) conflicted++;
-    }
-    return { policyId: String(initial.policyId), component: learningCopy2(input.component), calibration, sampledIncidentIds: [...sampledIncidentIds], unflagged: { sampled: sampledIncidentIds.length, resolved, misses, unresolved: sampledIncidentIds.length - resolved, conflicted }, attentionUsed: [...s.exposures.values()].filter((e) => e.mode === "ask").length, retired: s.retired, exposures: [...s.exposures].map(([id3, result]) => ({ id: id3, ...result })), tip: s.tip, grantExpansion: false };
-  };
-  const prediction = (p) => {
-    const copy2 = learningCopy2(p);
-    calibratePredictions([copy2]);
-    const row = input.cohort.find((c) => c.incidentId === copy2.incidentId);
-    if (!row?.flagged || row.split !== copy2.split || learningHash2(copy2.component) !== learningHash2(input.component)) throw Error("prediction scope mismatch");
-    evidence3(input.archiveRoot, row.manifestId);
-    return copy2;
-  };
-  const previewCaseOutcome = (predictionId, reference3) => {
-    const ref = learningCopy2(reference3), s = replay(), p = s.predictions.get(predictionId), row = p && input.cohort.find((c) => c.incidentId === p.incidentId), resolved = readLearningCase2(input.archiveRoot, ref);
-    if (!p || p.kind !== "positive" || row?.manifestId !== ref.manifestId || !resolved.matched || !["confirmed_defect", "expected_behavior"].includes(resolved.current.disposition) || learningHash2(resolved.candidate.detector) !== learningHash2({ id: p.component.id, version: p.component.version, population: p.component.population })) throw Error("current independent case outcome scope required");
-    const outcome = { kind: "prediction", targetId: p.id, value: resolved.current.disposition === "confirmed_defect", evidenceManifestId: ref.manifestId, referenceId: ref.decisionId };
-    return { outcome, caseReference: ref, digest: learningHash2({ outcome, caseReference: ref }), tip: s.tip };
-  };
-  const previewExposure = (now) => {
-    const view = inspect(now), policy = input.exposure ? { ...input.exposure, attentionRemaining: Math.max(0, input.exposure.attentionRemaining - view.attentionUsed) } : null;
-    const report = view.calibration.reports.find((r) => policy && r.kind === policy.kind && r.split === policy.split);
-    return view.retired ? { mode: "retire", reason: "previously-retired" } : report ? recommendExposure(report, policy, now) : { mode: "silent", reason: policy ? "insufficient-independent-evidence" : "policy-unavailable" };
-  };
-  return {
-    inspect,
-    configuration: () => learningCopy2(input),
-    previewExposure,
-    history: () => journal.read(),
-    previewCaseOutcome,
-    linkCaseOutcome(predictionId, reference3, authorizedDigests, referenceAuthor) {
-      if (referenceAuthor !== void 0 && !text12(referenceAuthor)) throw Error("explicit reference author required");
-      const preview = previewCaseOutcome(predictionId, reference3);
-      if (!authorizedDigests.includes(preview.digest)) throw Error("independent exact reference authority required");
-      const s = replay();
-      if (s.tip !== preview.tip) throw Error("stale case outcome snapshot");
-      const old = s.outcomes.get(preview.outcome.referenceId);
-      if (old) {
-        if (trustOutcomeDigest2(old) !== trustOutcomeDigest2(preview.outcome) || learningHash2(s.caseLinks.get(old.referenceId) ?? null) !== learningHash2(reference3)) throw Error("reference identity conflict");
-        return;
-      }
-      journal.append(s.tip, { type: "outcome", outcome: preview.outcome, caseReference: preview.caseReference, authorityDigest: preview.digest, ...referenceAuthor === void 0 ? {} : { referenceAuthor } });
-    },
-    predict(p) {
-      const safe = prediction(p), s = replay();
-      if (s.allIds.has(safe.id)) {
-        if (learningHash2(s.predictions.get(safe.id) ?? null) !== learningHash2(safe)) throw Error("prediction identity conflict");
-        return;
-      }
-      journal.append(s.tip, { type: "prediction", prediction: safe });
-    },
-    correct(prior, p, reason) {
-      const safe = prediction(p), s = replay(), old = s.predictions.get(prior);
-      if (!old || old.incidentId !== safe.incidentId || s.allIds.has(safe.id) || !text12(reason)) throw Error("stale or invalid prediction correction");
-      journal.append(s.tip, { type: "correction", prior, prediction: safe, reason });
-    },
-    outcome(value3, authorizedReferenceDigests, referenceAuthor) {
-      if (referenceAuthor !== void 0 && !text12(referenceAuthor)) throw Error("explicit reference author required");
-      const r = learningCopy2(value3);
-      if (Object.keys(r).sort().join() !== "evidenceManifestId,kind,referenceId,targetId,value" || !["prediction", "unflagged"].includes(r.kind) || !text12(r.targetId) || !text12(r.referenceId) || typeof r.value !== "boolean") throw Error("invalid reference outcome");
-      const digest6 = trustOutcomeDigest2(r);
-      if (!authorizedReferenceDigests.includes(digest6)) throw Error("independent exact reference authority required");
-      evidence3(input.archiveRoot, r.evidenceManifestId);
-      const s = replay();
-      if (r.kind === "prediction" ? !s.predictions.has(r.targetId) : !sampledIncidentIds.includes(r.targetId)) throw Error("outcome outside current prediction or frozen sample");
-      const old = s.outcomes.get(r.referenceId);
-      if (old) {
-        if (trustOutcomeDigest2(old) !== digest6) throw Error("reference identity conflict");
-        return;
-      }
-      journal.append(s.tip, { type: "outcome", outcome: r, authorityDigest: digest6, ...referenceAuthor === void 0 ? {} : { referenceAuthor } });
-    },
-    expose(id3, now) {
-      if (!text12(id3)) throw Error("exposure identity required");
-      const s = replay(), existing = s.exposures.get(id3);
-      if (existing) return { ...learningCopy2(existing), replayed: true };
-      if (now < s.lastExposureAt) throw Error("policy clock moved backwards");
-      const view = inspect(now);
-      if (view.tip !== s.tip) throw Error("stale exposure snapshot");
-      const policy = input.exposure ? { ...input.exposure, attentionRemaining: Math.max(0, input.exposure.attentionRemaining - view.attentionUsed) } : null;
-      const report = view.calibration.reports.find((r) => policy && r.kind === policy.kind && r.split === policy.split);
-      const result = s.retired ? { mode: "retire", reason: "previously-retired" } : report ? recommendExposure(report, policy, now) : { mode: "silent", reason: policy ? "insufficient-independent-evidence" : "policy-unavailable" };
-      journal.append(s.tip, { type: "exposure", id: id3, now, result, policyId: initial.policyId, evidenceTip: s.tip });
-      return { ...learningCopy2(result), replayed: false };
-    }
-  };
-}
-
-// packages/adapters/src/archive-policy.ts
-import { closeSync as closeSync16, constants as constants18, fstatSync as fstatSync15, lstatSync as lstatSync16, openSync as openSync16, readSync as readSync9 } from "node:fs";
-import { createHash as createHash50 } from "node:crypto";
-import { dirname as dirname22, isAbsolute as isAbsolute27, join as join49, parse as parse8, resolve as resolve28, sep as sep10 } from "node:path";
-
-// packages/adapters/src/archive-checkpoint.ts
-import { createHash as createHash46 } from "node:crypto";
-var hash10 = (value3) => createHash46("sha256").update(value3).digest("hex");
-var SHA11 = /^[a-f0-9]{64}$/;
-var LIMIT8 = 8 * 1024 * 1024;
-var parserEqual = (a, b) => a.id === b.id && a.version === b.version;
-function reject() {
-  throw new Error("invalid archive checkpoint");
-}
-function parseCheckpoint(bytes3) {
-  const text15 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
-  const v = JSON.parse(text15);
-  if (JSON.stringify(v) !== text15) reject();
-  const names = ["version", "sourceId", "sourceManifestId", "sourceSha256", "sourceBytes", "previousCheckpointId", "lineage", "declaredParser", "reader", "retention", "change", "syntax", "completeBytes", "pendingBytes", "invalidLines", "issues", "activeBranch", "acceptance"];
-  if (!v || Object.keys(v).length !== names.length || Object.keys(v).some((k) => !names.includes(k)) || v.version !== "archive-checkpoint-v1" || v.reader !== "jsonl-syntax-v1" || typeof v.sourceId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(v.sourceId) || ![v.sourceManifestId, v.sourceSha256, v.lineage].every((h) => typeof h === "string" && SHA11.test(h)) || !(v.previousCheckpointId === null || typeof v.previousCheckpointId === "string" && SHA11.test(v.previousCheckpointId)) || ![v.sourceBytes, v.completeBytes, v.pendingBytes, v.invalidLines].every((n) => Number.isSafeInteger(n) && n >= 0 && n <= LIMIT8) || v.completeBytes + v.pendingBytes !== v.sourceBytes || !v.declaredParser || Object.keys(v.declaredParser).sort().join() !== "id,version" || ![v.declaredParser.id, v.declaredParser.version].every((s) => typeof s === "string" && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(s)) || !["exact", "redacted", "reference-only"].includes(v.retention) || !["initial", "append", "replaced", "unknown"].includes(v.change) || !["complete", "partial", "error", "unavailable"].includes(v.syntax) || v.retention === "reference-only" && (v.syntax !== "unavailable" || v.completeBytes !== 0 || v.invalidLines !== 0) || !Array.isArray(v.issues) || v.issues.length > 16 || v.issues.some((i) => typeof i !== "string" || i.length > 128) || v.activeBranch !== null || v.acceptance !== "not-assessed") reject();
-  return v;
-}
-function records(checkpoint, source3) {
-  if (source3.status !== "available") return [];
-  const parsed = parseArchivedJsonl2(source3.bytes);
-  return parsed.records.map((record) => ({
-    ...record,
-    id: hash10(JSON.stringify([checkpoint.sourceId, checkpoint.lineage, record.start, hash10(source3.bytes.subarray(record.start, record.end))]))
-  }));
-}
-function readArchiveCheckpoint2(root, checkpointId) {
-  const stored = readArchiveSource2(root, checkpointId);
-  if (stored.status !== "available" || stored.reference.retention !== "exact") reject();
-  const checkpoint = parseCheckpoint(stored.bytes);
-  const source3 = readArchiveSource2(root, checkpoint.sourceManifestId);
-  if (source3.status === "available") {
-    const ref = source3.reference;
-    if (ref.sourceId !== checkpoint.sourceId || ref.sha256 !== checkpoint.sourceSha256 || ref.bytes !== checkpoint.sourceBytes || ref.retention !== checkpoint.retention || !parserEqual(ref.parser, checkpoint.declaredParser)) reject();
-    const actual = parseArchivedJsonl2(source3.bytes);
-    if (actual.status !== checkpoint.syntax || actual.completeBytes !== checkpoint.completeBytes || actual.pendingBytes !== checkpoint.pendingBytes || actual.errors.length !== checkpoint.invalidLines) reject();
-  }
-  return { checkpoint, source: source3, records: records(checkpoint, source3) };
-}
-function ingestArchiveSnapshot2(root, input) {
-  const previous = input.previousCheckpointId ? readArchiveCheckpoint2(root, input.previousCheckpointId) : void 0;
-  if (previous && previous.checkpoint.sourceId !== input.sourceId) throw new Error("checkpoint source mismatch");
-  const captured2 = retainArchiveSource2(root, input);
-  const source3 = readArchiveSource2(root, captured2.manifestId);
-  const issues = [];
-  let change = previous ? "unknown" : "initial";
-  let lineage = captured2.manifestId;
-  if (previous) {
-    if (!parserEqual(previous.checkpoint.declaredParser, captured2.reference.parser) || previous.checkpoint.retention !== input.retention) {
-      issues.push("parser-or-representation-changed");
-    } else if (previous.source.status !== "available") {
-      issues.push("previous-content-unavailable");
-    } else if (input.retention !== "exact") {
-      issues.push("non-exact-continuity-unknown");
-    } else if (source3.status === "available") {
-      if (captured2.manifestId === previous.checkpoint.sourceManifestId) {
-        return { ...previous, checkpointId: input.previousCheckpointId, change: "repeat", newRecords: [] };
-      }
-      if (source3.bytes.length >= previous.source.bytes.length && source3.bytes.subarray(0, previous.source.bytes.length).equals(previous.source.bytes)) {
-        change = "append";
-        lineage = previous.checkpoint.lineage;
-      } else {
-        change = "replaced";
-        issues.push("source-replaced");
-      }
-    }
-  }
-  if (input.retention === "redacted") issues.push("redacted-representation");
-  if (source3.status !== "available") issues.push("content-not-retained");
-  const syntax = source3.status === "available" ? parseArchivedJsonl2(source3.bytes) : void 0;
-  const checkpoint = {
-    version: "archive-checkpoint-v1",
-    sourceId: input.sourceId,
-    sourceManifestId: captured2.manifestId,
-    sourceSha256: captured2.reference.sha256,
-    sourceBytes: captured2.reference.bytes,
-    previousCheckpointId: input.previousCheckpointId ?? null,
-    lineage,
-    declaredParser: captured2.reference.parser,
-    reader: "jsonl-syntax-v1",
-    retention: input.retention,
-    change,
-    syntax: syntax?.status ?? "unavailable",
-    completeBytes: syntax?.completeBytes ?? 0,
-    pendingBytes: syntax?.pendingBytes ?? captured2.reference.bytes,
-    invalidLines: syntax?.errors.length ?? 0,
-    issues,
-    activeBranch: null,
-    acceptance: "not-assessed"
-  };
-  const result = retainArchiveSource2(root, {
-    sourceId: `checkpoint-${hash10(input.sourceId)}`,
-    parser: { id: "archive-checkpoint", version: "1" },
-    retention: "exact",
-    bytes: Buffer.from(JSON.stringify(checkpoint))
-  });
-  const all = records(checkpoint, source3);
-  return {
-    checkpointId: result.manifestId,
-    checkpoint,
-    source: source3,
-    records: all,
-    change,
-    newRecords: change === "append" ? all.filter((record) => record.start >= previous.checkpoint.completeBytes) : all
-  };
-}
-
-// packages/adapters/src/archive-retention-policy.ts
-import { dirname as dirname21, join as join48 } from "node:path";
-
-// packages/adapters/src/generated/retention-v2-contract.ts
-import { Compile as Compile3 } from "typebox/compile";
-
-// packages/adapters/src/generated/retention-v2-json.ts
-import { createHash as createHash47 } from "node:crypto";
-
-// packages/adapters/src/generated/retention-v2-work-types.ts
-var WorkInputError3 = class extends TypeError {
-  code;
-  constructor(code) {
-    super(code);
-    this.name = "WorkInputError";
-    this.code = code;
-  }
-};
-
-// packages/adapters/src/generated/retention-v2-json.ts
-var WORK_EVENT_BYTES3 = 64 * 1024;
-var WORK_TEXT_BYTES3 = 16 * 1024 * 1024;
-var MAX_DEPTH = 16;
-var MAX_ARRAY = 256;
-var invalid = () => {
-  throw new WorkInputError3("WORK_SCHEMA_INVALID");
-};
-var limit = () => {
-  throw new WorkInputError3("WORK_LIMIT_EXCEEDED");
-};
-function unicode(value3) {
-  for (let i = 0; i < value3.length; i++) {
-    const code = value3.charCodeAt(i);
-    if (code >= 55296 && code <= 56319) {
-      const next = value3.charCodeAt(++i);
-      if (!(next >= 56320 && next <= 57343)) invalid();
-    } else if (code >= 56320 && code <= 57343) invalid();
-  }
-  return value3;
-}
-function integerToken(token) {
-  const match = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(token);
-  let digits = (match[2] + (match[3] ?? "")).replace(/^0+/, "");
-  if (!digits) return 0;
-  let shift = BigInt(match[4] ?? "0") - BigInt((match[3] ?? "").length);
-  const trailing = /0*$/.exec(digits)[0].length;
-  digits = digits.slice(0, digits.length - trailing);
-  shift += BigInt(trailing);
-  if (shift < 0n || BigInt(digits.length) + shift > 16n) invalid();
-  const exact = BigInt(digits) * 10n ** shift;
-  if (exact > BigInt(Number.MAX_SAFE_INTEGER)) invalid();
-  return Number(match[1] === "-" ? -exact : exact);
-}
-function checkMembers(node) {
-  if (node.type === "object") {
-    const names = /* @__PURE__ */ new Set();
-    for (const [key3, child3] of node.entries) {
-      if (names.has(key3)) throw new WorkInputError3("WORK_DUPLICATE_MEMBER");
-      names.add(key3);
-      checkMembers(child3);
-    }
-  } else if (node.type === "array") node.items.forEach(checkMembers);
-}
-function materialize(node) {
-  if (node.type === "number") return integerToken(node.token);
-  if (node.type === "literal") return typeof node.value === "string" ? unicode(node.value) : node.value;
-  if (node.type === "array") return node.items.map(materialize);
-  return Object.fromEntries(node.entries.map(([key3, child3]) => [unicode(key3), materialize(child3)]));
-}
-function parseWorkJson3(text15) {
-  if (typeof text15 !== "string") invalid();
-  if (Buffer.byteLength(text15, "utf8") > WORK_EVENT_BYTES3) limit();
-  let at = 0;
-  const syntax = () => {
-    throw new WorkInputError3("WORK_JSON_INVALID");
-  };
-  const whitespace = () => {
-    while (at < text15.length && /[ \t\r\n]/.test(text15[at])) at++;
-  };
-  function string5() {
-    const start = at++;
-    while (at < text15.length) {
-      const char = text15[at++];
-      if (char === '"') {
-        return JSON.parse(text15.slice(start, at));
-      }
-      if (char.charCodeAt(0) < 32) syntax();
-      if (char === "\\") {
-        const escape = text15[at++];
-        if (escape === "u") {
-          if (!/^[0-9a-fA-F]{4}$/.test(text15.slice(at, at + 4))) syntax();
-          at += 4;
-        } else if (!escape || !'"\\/bfnrt'.includes(escape)) syntax();
-      }
-    }
-    return syntax();
-  }
-  function value3(depth) {
-    whitespace();
-    const char = text15[at];
-    if (char === '"') return { type: "literal", value: string5() };
-    if (char === "{" || char === "[") {
-      if (depth > MAX_DEPTH) limit();
-      at++;
-      whitespace();
-      const object5 = char === "{";
-      const end = object5 ? "}" : "]";
-      const entries = [];
-      const items = [];
-      if (text15[at] !== end) for (; ; ) {
-        whitespace();
-        let key3 = "";
-        if (object5) {
-          if (text15[at] !== '"') syntax();
-          key3 = string5();
-          whitespace();
-          if (text15[at++] !== ":") syntax();
-        } else if (items.length >= MAX_ARRAY) limit();
-        const child3 = value3(depth + 1);
-        if (object5) entries.push([key3, child3]);
-        else items.push(child3);
-        whitespace();
-        if (text15[at] === end) break;
-        if (text15[at++] !== ",") syntax();
-      }
-      at++;
-      return object5 ? { type: "object", entries } : { type: "array", items };
-    }
-    for (const [token2, literal3] of [["null", null], ["true", true], ["false", false]]) {
-      if (text15.startsWith(token2, at)) {
-        at += token2.length;
-        return { type: "literal", value: literal3 };
-      }
-    }
-    const token = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(text15.slice(at));
-    if (!token) return syntax();
-    at += token[0].length;
-    return { type: "number", token: token[0] };
-  }
-  const result = value3(1);
-  whitespace();
-  if (at !== text15.length) syntax();
-  checkMembers(result);
-  return materialize(result);
-}
-
-// packages/adapters/src/generated/retention-v2-contract.ts
-var string3 = (maxLength = 512) => ({ type: "string", minLength: 1, maxLength, pattern: "^[^\\u0000-\\u001f\\u007f]+$" });
-var nullable3 = (schema2) => ({ anyOf: [schema2, { type: "null" }] });
-var literal2 = (value3) => ({ const: value3 });
-var closed14 = (properties) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
-var hash11 = { type: "string", pattern: "^[a-f0-9]{64}$" };
-var integer3 = { type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER };
-var uuid2 = { type: "string", pattern: "^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$" };
-var RETENTION_CONTENT_KINDS2 = ["stdout", "stderr", "paneSnapshot", "checkReceipt", "result", "session"];
-var RETENTION_SCHEMA2 = freeze5({
-  $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: "https://pi-daddy.local/contracts/execution-retention/v2/manifest.schema.json",
-  ...closed14({
-    version: literal2("2.0"),
-    archiveId: uuid2,
-    identity: closed14({
-      executionId: string3(),
-      parentExecutionId: nullable3(string3()),
-      childId: string3(),
-      toolCallId: nullable3(string3()),
-      executor: { enum: ["process", "herdr", "check"] },
-      taskDigest: nullable3(hash11),
-      definitionDigest: nullable3(hash11),
-      configurationDigest: hash11,
-      workspaceId: nullable3(string3())
-    }),
-    native: closed14({
-      pid: nullable3({ type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER }),
-      paneId: nullable3(string3(4096)),
-      agentName: nullable3(string3(4096)),
-      tabId: nullable3(string3(4096)),
-      sessionId: nullable3(uuid2),
-      sessionPath: nullable3(string3(4096)),
-      branchLeafId: nullable3(string3(128))
-    }),
-    nativeSession: closed14({
-      source: { enum: [null, "herdr-id", "herdr-path", "pi-session-file", "pi-session-manager"] },
-      status: { enum: ["missing", "verified", "invalid", "changed", "truncated", "unsupported"] },
-      sessionId: nullable3(uuid2),
-      sessionPath: nullable3(string3(4096)),
-      parentSessionPath: nullable3(string3(4096)),
-      branchLeafId: nullable3(string3(128)),
-      branchState: { enum: ["unknown", "observed"] },
-      lastPersistedEntryId: nullable3(string3(128)),
-      sha256: nullable3(hash11),
-      reason: nullable3(string3())
-    }),
-    state: { enum: ["running", "terminal"] },
-    outcome: nullable3(closed14({
-      code: nullable3({ type: "integer", minimum: -2147483648, maximum: 2147483647 }),
-      signal: nullable3(string3(64)),
-      timedOut: { type: "boolean" },
-      aborted: { type: "boolean" },
-      truncated: { type: "boolean" },
-      failed: { type: "boolean" }
-    })),
-    content: closed14(Object.fromEntries(RETENTION_CONTENT_KINDS2.map((kind) => [kind, { oneOf: [
-      closed14({ status: literal2("missing"), path: literal2(null), sha256: literal2(null), bytes: literal2(null) }),
-      closed14({
-        status: literal2("retained"),
-        path: { type: "string", pattern: `^${kind}-[a-f0-9]{64}\\.bin$` },
-        sha256: hash11,
-        bytes: { ...integer3, maximum: 1024 * 1024 }
-      })
-    ] }]))),
-    coverage: closed14({ complete: literal2(false), losses: { type: "array", items: string3(), maxItems: 64, uniqueItems: true } }),
-    acceptance: literal2("not-assessed")
-  }),
-  allOf: [
-    {
-      if: { properties: { state: literal2("running") } },
-      then: { properties: { outcome: literal2(null) } },
-      else: { properties: { outcome: { type: "object" } } }
-    },
-    {
-      if: { properties: { nativeSession: { properties: { branchState: literal2("unknown") } } } },
-      then: { properties: { nativeSession: { properties: { branchLeafId: literal2(null) } }, native: { properties: { branchLeafId: literal2(null) } } } }
-    }
-  ]
-});
-var validator2 = Compile3(RETENTION_SCHEMA2);
-function freeze5(value3) {
-  if (value3 && typeof value3 === "object") {
-    for (const child3 of Object.values(value3)) freeze5(child3);
-    Object.freeze(value3);
-  }
-  return value3;
-}
-function buildExecutionRetentionManifest(value3) {
-  let nodes = 0;
-  const inspect = (x, depth) => {
-    if (++nodes > 4096 || depth > 16) throw new TypeError("retention manifest exceeds bounds");
-    if (x === null || typeof x === "string" || typeof x === "boolean" || typeof x === "number" && Number.isSafeInteger(x)) return;
-    if (!x || typeof x !== "object" || !Array.isArray(x) && Object.getPrototypeOf(x) !== Object.prototype && Object.getPrototypeOf(x) !== null) throw new TypeError("retention manifest must be JSON data");
-    if (Array.isArray(x) && (Object.getPrototypeOf(x) !== Array.prototype || x.length > 256 || Reflect.ownKeys(x).length !== x.length + 1 || Array.from({ length: x.length }, (_, i) => String(i)).some((key3) => !Object.hasOwn(x, key3)))) throw new TypeError("retention arrays must be dense plain JSON arrays");
-    for (const key3 of Reflect.ownKeys(x)) {
-      if (Array.isArray(x) && key3 === "length") continue;
-      const d = Object.getOwnPropertyDescriptor(x, key3);
-      if (typeof key3 !== "string" || !d.enumerable || !("value" in d)) throw new TypeError("retention manifest must be plain JSON data");
-      inspect(d.value, depth + 1);
-    }
-  };
-  inspect(value3, 0);
-  if (!validator2.Check(value3)) throw new TypeError("invalid execution-retention 2.0 manifest");
-  const m = JSON.parse(JSON.stringify(value3));
-  if (m.native.sessionId !== m.nativeSession.sessionId || m.native.sessionPath !== m.nativeSession.sessionPath || m.native.branchLeafId !== m.nativeSession.branchLeafId) {
-    throw new TypeError("native session projection mismatch");
-  }
-  for (const kind of RETENTION_CONTENT_KINDS2) {
-    const ref = m.content[kind];
-    if (ref.status === "retained" && ref.path !== `${kind}-${ref.sha256}.bin`) throw new TypeError("retention content identity mismatch");
-  }
-  if (m.nativeSession.branchState === "observed" && (m.nativeSession.source !== "pi-session-manager" || m.nativeSession.status !== "verified")) throw new TypeError("unverified active native branch");
-  if (m.nativeSession.status === "verified" && (!m.nativeSession.sessionId || !m.nativeSession.sha256 || m.content.session.sha256 !== m.nativeSession.sha256)) throw new TypeError("verified native session requires retained bytes");
-  return freeze5(m);
-}
-function parseExecutionRetentionManifest2(text15) {
-  if (Buffer.byteLength(text15) > 64 * 1024) throw new TypeError("retention manifest exceeds bounds");
-  let value3;
-  try {
-    value3 = parseWorkJson3(text15);
-  } catch {
-    throw new TypeError("invalid retention JSON");
-  }
-  return buildExecutionRetentionManifest(value3);
-}
-
-// packages/adapters/src/execution-retention-archive.ts
-import { createHash as createHash49 } from "node:crypto";
-
-// packages/adapters/src/generated/retention-v2-native.ts
-import { constants as constants17 } from "node:fs";
-import { open as open2, lstat as lstat2, realpath as realpath2 } from "node:fs/promises";
-import { isAbsolute as isAbsolute26, relative as relative8, sep as sep9 } from "node:path";
-import { createHash as createHash48 } from "node:crypto";
-
-// packages/adapters/src/generated/retention-v2-native-json.ts
-function parseRetentionJson2(text15, maxBytes = 64 * 1024) {
-  if (Buffer.byteLength(text15) > maxBytes) throw new TypeError("retention JSON exceeds bounds");
-  const value3 = JSON.parse(text15);
-  const stack = [];
-  for (const match of text15.matchAll(/"(?:[^"\\]|\\[\s\S])*"|[{}\[\],:]|[^\s{}\[\],:]+/g)) {
-    const token = match[0], top = stack.at(-1);
-    if (token === "{" || token === "[") {
-      if (stack.length >= 64) throw new TypeError("retention JSON exceeds depth");
-      stack.push({ object: token === "{", key: token === "{", seen: /* @__PURE__ */ new Set() });
-    } else if (token === "}" || token === "]") stack.pop();
-    else if (token === ",") {
-      if (top?.object) top.key = true;
-    } else if (token.startsWith('"') && top?.object && top.key) {
-      const key3 = JSON.parse(token);
-      if (top.seen.has(key3)) throw new TypeError("duplicate retention JSON member");
-      top.seen.add(key3);
-      top.key = false;
-    } else if (/^-?\d/.test(token) && !Number.isFinite(Number(token))) throw new TypeError("non-finite retention JSON number");
-  }
-  return value3;
-}
-
-// packages/adapters/src/generated/retention-v2-native.ts
-var MAX_NATIVE_SESSION_BYTES2 = 1024 * 1024;
-var missingNativeSession = () => ({
-  source: null,
-  status: "missing",
-  sessionId: null,
-  sessionPath: null,
-  parentSessionPath: null,
-  branchLeafId: null,
-  branchState: "unknown",
-  lastPersistedEntryId: null,
-  sha256: null,
-  reason: "native-session-unavailable"
-});
-var id = (x) => typeof x === "string" && /^[a-zA-Z0-9_-]{1,128}$/.test(x);
-var uuid3 = (x) => typeof x === "string" && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(x);
-var obj = (x) => x !== null && typeof x === "object" && !Array.isArray(x);
-var filePath = (x) => typeof x === "string" && x.length <= 4096 && isAbsolute26(x) && !x.includes("\0");
-function parseNativeSessionBytes2(bytes3, input) {
-  const observation = { ...missingNativeSession(), source: input.source, sessionPath: input.path };
-  const result = { observation };
-  const fail5 = (status, reason) => {
-    observation.status = status;
-    observation.reason = reason;
-    observation.branchLeafId = null;
-    observation.branchState = "unknown";
-    return result;
-  };
-  if (bytes3.length > MAX_NATIVE_SESSION_BYTES2) return fail5("truncated", "native-session-size-limit");
-  const raw = Buffer.from(bytes3), newline = raw.indexOf(10);
-  let header2;
-  try {
-    header2 = parseRetentionJson2(new TextDecoder("utf-8", { fatal: true }).decode(raw.subarray(0, newline < 0 ? raw.length : newline)), MAX_NATIVE_SESSION_BYTES2);
-  } catch {
-    return fail5("invalid", "native-session-header-invalid");
-  }
-  if (!obj(header2) || header2.type !== "session" || header2.version !== 3 || !uuid3(header2.id) || !filePath(header2.cwd) || typeof header2.timestamp !== "string" || !Number.isFinite(Date.parse(header2.timestamp)) || header2.parentSession !== void 0 && !filePath(header2.parentSession)) return fail5("invalid", "native-session-header-invalid");
-  if (input.expectedSessionId !== void 0 && header2.id !== input.expectedSessionId) return fail5("changed", "native-session-id-changed");
-  result.bytes = Buffer.from(bytes3);
-  observation.sessionId = header2.id;
-  observation.parentSessionPath = header2.parentSession ?? null;
-  observation.sha256 = createHash48("sha256").update(bytes3).digest("hex");
-  if (input.truncated || raw.at(-1) !== 10) return fail5("truncated", "native-session-incomplete-bytes");
-  let text15;
-  try {
-    text15 = new TextDecoder("utf-8", { fatal: true }).decode(raw);
-  } catch {
-    return fail5("invalid", "native-session-utf8-invalid");
-  }
-  const lines2 = text15.split("\n");
-  const ids = /* @__PURE__ */ new Set();
-  if (lines2.length > 10002) return fail5("invalid", "native-session-entry-limit");
-  for (const line of lines2.slice(1, -1)) {
-    let entry;
-    try {
-      entry = parseRetentionJson2(line, MAX_NATIVE_SESSION_BYTES2);
-    } catch {
-      return fail5("invalid", "native-session-entry-invalid");
-    }
-    if (!obj(entry) || typeof entry.type !== "string" || entry.type === "session" || !id(entry.id) || ids.has(entry.id) || !(entry.parentId === null || id(entry.parentId) && ids.has(entry.parentId)) || typeof entry.timestamp !== "string" || !Number.isFinite(Date.parse(entry.timestamp))) return fail5("invalid", "native-session-parent-link-invalid");
-    ids.add(entry.id);
-    observation.lastPersistedEntryId = entry.id;
-  }
-  if (input.liveLeaf) {
-    if (input.liveLeaf.sessionId !== header2.id || input.liveLeaf.leafId !== null && !ids.has(input.liveLeaf.leafId)) {
-      return fail5("changed", "native-session-live-leaf-mismatch");
-    }
-    observation.branchLeafId = input.liveLeaf.leafId;
-    observation.branchState = "observed";
-  }
-  observation.status = "verified";
-  observation.reason = observation.branchState === "unknown" ? "active-branch-unknown" : null;
-  return result;
-}
-
-// packages/adapters/src/generated/retention-v2-pin.ts
-var RETENTION_V2_COMMIT2 = "7c78769c47177b1972b09e1f5c5474ad44cd2cac";
-
-// packages/adapters/src/execution-projection-schema.ts
-import { Compile as Compile4 } from "typebox/compile";
-var text13 = { type: "string", minLength: 1, maxLength: 512 };
-var hash12 = { type: "string", pattern: "^[a-f0-9]{64}$" };
-var nullable4 = (schema2) => ({ anyOf: [schema2, { type: "null" }] });
-var list2 = (items) => ({ type: "array", items, maxItems: 4096, uniqueItems: true });
-var closed15 = (properties) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
-function freeze6(value3) {
-  if (value3 && typeof value3 === "object") {
-    Object.values(value3).forEach(freeze6);
-    Object.freeze(value3);
-  }
-  return value3;
-}
-var EXECUTION_ARCHIVE_PROJECTION_SCHEMA2 = freeze6({
-  $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: "https://github.com/mojomanyana/skill-harness/contracts/execution-archive/v1/projection.schema.json",
-  ...closed15({
-    version: { const: "execution-archive-projection-v1" },
-    executions: { type: "array", maxItems: 4096, items: closed15({
-      executionId: text13,
-      parentExecutionIds: list2(nullable4(text13)),
-      retainedSessionIds: list2(text13),
-      activeBranch: { const: null },
-      toolCallIds: list2(nullable4(text13)),
-      archiveIds: list2(text13),
-      runtime: { enum: ["running", "terminal", "conflict"] },
-      outcome: nullable4(closed15({
-        code: nullable4({ type: "integer", minimum: -2147483648, maximum: 2147483647 }),
-        signal: nullable4(text13),
-        timedOut: { type: "boolean" },
-        aborted: { type: "boolean" },
-        truncated: { type: "boolean" },
-        failed: { type: "boolean" }
-      })),
-      sourceReferences: list2(hash12),
-      issues: list2(text13),
-      coverage: { const: "partial" },
-      acceptance: { const: "not-assessed" }
-    }) },
-    acceptance: { const: "not-assessed" }
-  })
-});
-var compiled2 = Compile4(EXECUTION_ARCHIVE_PROJECTION_SCHEMA2);
-function assertExecutionProjection2(value3) {
-  if (!compiled2.Check(value3) || Buffer.byteLength(JSON.stringify(value3)) > 8 * 1024 * 1024) throw new Error("invalid or oversized execution archive projection");
-}
-
-// packages/adapters/src/execution-retention-archive.ts
-var hash13 = (bytes3) => createHash49("sha256").update(bytes3).digest("hex");
-var SHA12 = /^[a-f0-9]{64}$/;
-var parseManifest = (bytes3) => parseExecutionRetentionManifest2(new TextDecoder("utf-8", { fatal: true }).decode(bytes3));
-function project(manifest, manifestBytes, supplied) {
-  const content = {};
-  const issues = [...manifest.coverage.losses];
-  for (const kind of RETENTION_CONTENT_KINDS2) {
-    const ref = manifest.content[kind], bytes3 = ref.path ? supplied.get(ref.path) : void 0;
-    const status = ref.status === "missing" || bytes3 === void 0 ? "missing" : bytes3 instanceof Uint8Array && bytes3.byteLength === ref.bytes && hash13(bytes3) === ref.sha256 ? "available" : "mismatch";
-    content[kind] = { status, sha256: status === "available" ? ref.sha256 : null, bytes: status === "available" ? ref.bytes : null };
-    if (status !== "available") issues.push(`content-${status}:${kind}`);
-  }
-  let sessionId = null;
-  if (content.session.status === "available") {
-    const native = manifest.nativeSession;
-    if (!native.source || !native.sessionPath || !native.sessionId) issues.push("native-session-locator-unavailable");
-    else {
-      const parsed = parseNativeSessionBytes2(supplied.get(manifest.content.session.path), {
-        source: native.source,
-        path: native.sessionPath,
-        expectedSessionId: native.sessionId,
-        truncated: native.status === "truncated",
-        ...native.branchState === "observed" ? { liveLeaf: { sessionId: native.sessionId, leafId: native.branchLeafId } } : {}
-      });
-      if (parsed.observation.status !== native.status || parsed.observation.sha256 !== native.sha256 || parsed.observation.lastPersistedEntryId !== native.lastPersistedEntryId) issues.push("native-session-inconsistent");
-      else sessionId = parsed.observation.sessionId;
-    }
-  }
-  if (manifest.nativeSession.branchState === "observed") issues.push("active-branch-not-independently-verified");
-  return {
-    version: "retention-projection-v1",
-    sourceSha256: hash13(manifestBytes),
-    producerCommit: RETENTION_V2_COMMIT2,
-    archiveId: manifest.archiveId,
-    identity: manifest.identity,
-    runtime: manifest.state,
-    outcome: manifest.outcome,
-    content,
-    sessionId,
-    reportedBranch: { state: manifest.nativeSession.branchState, leafId: manifest.nativeSession.branchLeafId },
-    activeBranch: null,
-    coverage: "partial",
-    issues: [...new Set(issues)].sort(),
-    acceptance: "not-assessed"
-  };
-}
-function ingestRetainedExecution2(root, input) {
-  if (input.retention !== "exact") throw new Error("native semantic ingestion requires explicit exact-content policy; archive redacted/reference-only data as opaque evidence");
-  const bytes3 = Buffer.from(input.manifest);
-  const manifest = parseManifest(bytes3);
-  for (const ref of Object.values(manifest.content)) {
-    const supplied = ref.path ? input.blobs.get(ref.path) : void 0;
-    if (supplied !== void 0 && (!(supplied instanceof Uint8Array) || supplied.byteLength > 1024 * 1024)) throw new Error("retention blob exceeds input bounds");
-  }
-  const projection = project(manifest, bytes3, input.blobs);
-  const source3 = retainArchiveSource2(root, { sourceId: input.sourceId ?? `retention-${manifest.archiveId}`, parser: { id: "pi-daddy-execution-retention", version: "2.0" }, retention: "exact", bytes: bytes3 });
-  const blobs = {};
-  for (const kind of RETENTION_CONTENT_KINDS2) {
-    blobs[kind] = null;
-    const ref = manifest.content[kind];
-    if (!ref.path || input.blobs.get(ref.path) === void 0) continue;
-    blobs[kind] = retainArchiveSource2(root, { sourceId: `${manifest.archiveId}-${kind}`, parser: { id: "opaque-bytes", version: "1" }, retention: "exact", bytes: input.blobs.get(ref.path) }).manifestId;
-  }
-  const snapshot2 = { version: "retention-archive-snapshot-v1", producerCommit: RETENTION_V2_COMMIT2, manifestId: source3.manifestId, blobs };
-  const stored = retainArchiveSource2(root, { sourceId: `execution-${manifest.archiveId}`, parser: { id: "retention-archive-snapshot", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(snapshot2)) });
-  return { snapshotId: stored.manifestId, projection };
-}
-function readRetainedExecution2(root, snapshotId) {
-  const stored = readArchiveSource2(root, snapshotId);
-  if (stored.status !== "available" || stored.reference.retention !== "exact") throw new Error("retention snapshot missing or invalid");
-  const text15 = stored.bytes.toString("utf8"), snapshot2 = JSON.parse(text15);
-  if (JSON.stringify(snapshot2) !== text15 || !snapshot2 || Object.keys(snapshot2).sort().join() !== "blobs,manifestId,producerCommit,version" || snapshot2.version !== "retention-archive-snapshot-v1" || snapshot2.producerCommit !== RETENTION_V2_COMMIT2 || !SHA12.test(snapshot2.manifestId) || !snapshot2.blobs || Object.keys(snapshot2.blobs).sort().join() !== [...RETENTION_CONTENT_KINDS2].sort().join() || Object.values(snapshot2.blobs).some((id3) => id3 !== null && (typeof id3 !== "string" || !SHA12.test(id3)))) throw new Error("invalid retention snapshot");
-  const source3 = readArchiveSource2(root, snapshot2.manifestId);
-  if (source3.status !== "available" || source3.reference.retention !== "exact") throw new Error("retained producer manifest missing or invalid");
-  const manifest = parseManifest(source3.bytes);
-  const supplied = /* @__PURE__ */ new Map();
-  for (const kind of RETENTION_CONTENT_KINDS2) {
-    const id3 = snapshot2.blobs[kind], ref = manifest.content[kind];
-    if (!id3 || !ref.path) continue;
-    const content = readArchiveSource2(root, id3);
-    if (content.status === "available" && content.reference.retention === "exact") supplied.set(ref.path, content.bytes);
-  }
-  return { snapshotId, sourceId: source3.reference.sourceId, manifest, projection: project(manifest, source3.bytes, supplied) };
-}
-function projectRetainedExecutions(snapshots) {
-  if (snapshots.length > 4096) throw new Error("retention projection exceeds snapshot bound");
-  const unique2 = [...new Map(snapshots.map((p) => [JSON.stringify(p), p])).values()];
-  const objectKey = (value3) => JSON.stringify(Object.keys(value3).sort().map((key3) => [key3, value3[key3]]));
-  const groups = /* @__PURE__ */ new Map();
-  for (const snapshot2 of unique2) {
-    const id3 = snapshot2.identity.executionId;
-    groups.set(id3, [...groups.get(id3) ?? [], snapshot2]);
-  }
-  const lineageIssue = (start) => {
-    const seen = /* @__PURE__ */ new Set();
-    let id3 = start;
-    while (id3 !== null && groups.has(id3)) {
-      if (seen.has(id3)) return "cyclic-parentage";
-      seen.add(id3);
-      const parents = [...new Set(groups.get(id3).map((p) => p.identity.parentExecutionId))];
-      if (parents.length !== 1) return "ambiguous-parentage";
-      id3 = parents[0];
-    }
-    return null;
-  };
-  const executions = [...groups].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([executionId, values]) => {
-    const identities = new Set(values.map((p) => objectKey(p.identity)));
-    const terminals = values.filter((p) => p.runtime === "terminal");
-    const outcomes = new Set(terminals.map((p) => objectKey(p.outcome)));
-    const issues = new Set(values.flatMap((p) => p.issues));
-    if (identities.size > 1) issues.add("execution-identity-conflict");
-    if (outcomes.size > 1) issues.add("terminal-outcome-conflict");
-    const lineage = lineageIssue(executionId);
-    if (lineage) issues.add(lineage);
-    const parentExecutionIds = [...new Set(values.map((p) => p.identity.parentExecutionId))].sort();
-    const retainedSessionIds = [...new Set(values.map((p) => p.sessionId).filter((id3) => id3 !== null))].sort();
-    if (retainedSessionIds.length > 1) issues.add("session-identity-conflict");
-    if (parentExecutionIds.some((id3) => id3 !== null && !groups.has(id3))) issues.add("parent-not-in-snapshot");
-    return {
-      executionId,
-      parentExecutionIds,
-      retainedSessionIds,
-      activeBranch: null,
-      toolCallIds: [...new Set(values.map((p) => p.identity.toolCallId))].sort(),
-      archiveIds: [...new Set(values.map((p) => p.archiveId))].sort(),
-      runtime: identities.size > 1 || outcomes.size > 1 ? "conflict" : terminals.length ? "terminal" : "running",
-      outcome: identities.size === 1 && outcomes.size === 1 ? terminals[0].outcome : null,
-      sourceReferences: [...new Set(values.map((p) => p.sourceSha256))].sort(),
-      issues: [...issues].sort(),
-      coverage: "partial",
-      acceptance: "not-assessed"
-    };
-  });
-  const projection = { version: "execution-archive-projection-v1", executions, acceptance: "not-assessed" };
-  assertExecutionProjection2(projection);
-  return projection;
-}
-
-// packages/adapters/src/archive-retention-policy.ts
-function metadata(context, checkpointId, projection) {
-  return {
-    kind: "execution-retention-v2",
-    checkpointId,
-    policySha256: context.policySha256,
-    sourceId: context.source.id,
-    archiveSourceId: context.archiveSourceId,
-    sourceSha256: projection.sourceSha256,
-    sourceStatus: "available",
-    retention: "exact",
-    syntax: "not-applicable",
-    runtime: projection.runtime,
-    content: projection.content,
-    activeBranch: null,
-    coverage: projection.coverage,
-    issueCount: projection.issues.length,
-    acceptance: projection.acceptance
-  };
-}
-function inspectNativePolicy2(context, checkpointId) {
-  const read5 = readRetainedExecution2(context.policy.archiveRoot, checkpointId);
-  if (read5.sourceId !== context.archiveSourceId || Object.values(read5.manifest.content).some((ref) => ref.bytes !== null && ref.bytes > context.policy.maxBytes)) throw new Error("native snapshot outside policy");
-  return metadata(context, checkpointId, read5.projection);
-}
-function ingestNativePolicy2(context, previous, readBytes) {
-  if (previous) inspectNativePolicy2(context, previous);
-  const path3 = join48(context.policy.sourceRoot, context.source.path);
-  const manifestBytes = readBytes(path3, Math.min(context.policy.maxBytes, 65536));
-  const manifest = parseExecutionRetentionManifest2(new TextDecoder("utf-8", { fatal: true }).decode(manifestBytes));
-  const blobs = /* @__PURE__ */ new Map();
-  for (const ref of Object.values(manifest.content)) {
-    if (!ref.path) continue;
-    if (ref.bytes > context.policy.maxBytes) throw new Error("native content exceeds policy bound");
-    try {
-      blobs.set(ref.path, readBytes(join48(dirname21(path3), ref.path), Math.min(context.policy.maxBytes, 1024 * 1024)));
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error;
-    }
-  }
-  const result = ingestRetainedExecution2(context.policy.archiveRoot, {
-    manifest: manifestBytes,
-    blobs,
-    retention: "exact",
-    sourceId: context.archiveSourceId
-  });
-  const receipt = retainArchiveSource2(context.policy.archiveRoot, {
-    sourceId: `policy-${context.policySha256}`,
-    parser: { id: "archive-policy-receipt", version: "1" },
-    retention: "exact",
-    bytes: Buffer.from(JSON.stringify({ version: "archive-policy-receipt-v1", policySha256: context.policySha256, checkpointId: result.snapshotId, sourceId: context.source.id }))
-  });
-  return { ...metadata(context, result.snapshotId, result.projection), change: previous === result.snapshotId ? "repeat" : previous ? "observation" : "initial", policyReceiptId: receipt.manifestId };
-}
-
-// packages/adapters/src/archive-policy.ts
-var ID3 = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-var forbidden = /* @__PURE__ */ new Set([".pi", ".env", "auth.json", "credentials", "credentials.json"]);
-function fail3() {
-  throw new Error("archive policy refused invalid, expired or inaccessible input");
-}
-var keys5 = (v, names) => !!v && typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === names.length && Object.keys(v).every((k) => names.includes(k));
-var identifier = (v) => typeof v === "string" && ID3.test(v);
-function regularBytes(path3, limit3) {
-  if (!constants18.O_NOFOLLOW || !constants18.O_NONBLOCK) fail3();
-  const absolute = resolve28(path3);
-  if (absolute.split(sep10).some((part) => forbidden.has(part))) fail3();
-  let current = parse8(absolute).root;
-  for (const part of dirname22(absolute).slice(current.length).split(sep10).filter(Boolean)) {
-    current = join49(current, part);
-    const stat = lstatSync16(current);
-    if (!stat.isDirectory() || stat.isSymbolicLink()) fail3();
-  }
-  const fd = openSync16(absolute, constants18.O_RDONLY | constants18.O_NOFOLLOW | constants18.O_NONBLOCK);
-  try {
-    const stat = fstatSync15(fd);
-    if (!stat.isFile() || stat.size > limit3 || (stat.mode & 63) !== 0 || process.getuid && stat.uid !== process.getuid()) fail3();
-    const bytes3 = Buffer.alloc(limit3 + 1);
-    let size = 0;
-    while (size <= limit3) {
-      const n = readSync9(fd, bytes3, size, bytes3.length - size, size);
-      if (!n) break;
-      size += n;
-    }
-    if (size > limit3) fail3();
-    return bytes3.subarray(0, size);
-  } finally {
-    closeSync16(fd);
-  }
-}
-function selectedPolicy(path3, sourceId) {
-  const bytes3 = regularBytes(path3, 65536);
-  const text15 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
-  const p = JSON.parse(text15);
-  if (JSON.stringify(p) !== text15 || !keys5(p, ["version", "id", "revision", "sourceRoot", "archiveRoot", "maxBytes", "retention", "expiresAt", "sources"]) || !["archive-policy-v1", "archive-policy-v2"].includes(p.version) || !identifier(p.id) || !identifier(p.revision) || typeof p.sourceRoot !== "string" || !isAbsolute27(p.sourceRoot) || typeof p.archiveRoot !== "string" || !isAbsolute27(p.archiveRoot) || resolve28(p.sourceRoot) === resolve28(p.archiveRoot) || [p.sourceRoot, p.archiveRoot].some((root2) => root2.split(/[\\/]/).some((part) => forbidden.has(part))) || !Number.isSafeInteger(p.maxBytes) || p.maxBytes < 1 || p.maxBytes > 8 * 1024 * 1024 || !["exact", "redacted", "reference-only"].includes(p.retention) || typeof p.expiresAt !== "string" || !Number.isFinite(Date.parse(p.expiresAt)) || new Date(p.expiresAt).toISOString() !== p.expiresAt || Date.parse(p.expiresAt) <= Date.now() || !Array.isArray(p.sources) || p.sources.length < 1 || p.sources.length > 128) fail3();
-  const ids = /* @__PURE__ */ new Set();
-  for (const item of p.sources) {
-    if (!keys5(item, p.version === "archive-policy-v2" ? ["id", "path", "parser", "contentPolicy"] : ["id", "path", "parser"]) || !identifier(item.id) || ids.has(item.id) || typeof item.path !== "string" || !item.path || isAbsolute27(item.path) || item.path.includes("\\") || item.path.split("/").some((part) => !part || part === "." || part === ".." || forbidden.has(part)) || !keys5(item.parser, ["id", "version"]) || !identifier(item.parser.id) || !identifier(item.parser.version)) fail3();
-    if (p.version === "archive-policy-v2" && !["manifest-only", "referenced-blobs"].includes(item.contentPolicy)) fail3();
-    if (item.contentPolicy === "referenced-blobs" && (p.retention !== "exact" || item.parser.id !== "pi-daddy-execution-retention" || item.parser.version !== "2.0")) fail3();
-    ids.add(item.id);
-  }
-  const source3 = p.sources.find((s) => s.id === sourceId);
-  if (!source3) fail3();
-  const root = lstatSync16(p.sourceRoot);
-  if (!root.isDirectory() || root.isSymbolicLink() || (root.mode & 63) !== 0 || process.getuid && root.uid !== process.getuid()) fail3();
-  const archiveSourceId = `policy-source-${createHash50("sha256").update(JSON.stringify([p.id, source3.id, resolve28(p.sourceRoot), source3.path])).digest("hex")}`;
-  return { policy: p, source: source3, archiveSourceId, policySha256: createHash50("sha256").update(bytes3).digest("hex") };
-}
-function metadata2(result, checkpointId, policySha256) {
-  return {
-    checkpointId,
-    policySha256,
-    sourceId: result.checkpoint.sourceId,
-    sourceSha256: result.checkpoint.sourceSha256,
-    sourceStatus: result.source.status,
-    retention: result.checkpoint.retention,
-    syntax: result.checkpoint.syntax,
-    completeBytes: result.checkpoint.completeBytes,
-    pendingBytes: result.checkpoint.pendingBytes,
-    invalidLines: result.checkpoint.invalidLines,
-    issues: result.checkpoint.issues,
-    activeBranch: result.checkpoint.activeBranch,
-    acceptance: result.checkpoint.acceptance
-  };
-}
-function archivePolicyBinding2(policyPath, sourceId) {
-  const selected2 = selectedPolicy(policyPath, sourceId);
-  return Object.freeze({
-    policySha256: selected2.policySha256,
-    archiveRoot: selected2.policy.archiveRoot,
-    sourceId,
-    archiveSourceId: selected2.archiveSourceId,
-    expiresAt: selected2.policy.expiresAt
-  });
-}
-function ingestPolicySource2(policyPath, sourceId, previousCheckpointId, expectedPolicySha256) {
-  try {
-    const { policy, source: source3, archiveSourceId, policySha256 } = selectedPolicy(policyPath, sourceId);
-    if (expectedPolicySha256 !== void 0 && expectedPolicySha256 !== policySha256) throw new Error("archive policy changed");
-    if (source3.contentPolicy === "referenced-blobs") return ingestNativePolicy2({ policy, source: source3, archiveSourceId, policySha256 }, previousCheckpointId, regularBytes);
-    const bytes3 = regularBytes(join49(policy.sourceRoot, source3.path), policy.maxBytes);
-    const result = ingestArchiveSnapshot2(policy.archiveRoot, { sourceId: archiveSourceId, parser: source3.parser, retention: policy.retention, bytes: bytes3, previousCheckpointId });
-    const receipt = retainArchiveSource2(policy.archiveRoot, {
-      sourceId: `policy-${policySha256}`,
-      parser: { id: "archive-policy-receipt", version: "1" },
-      retention: "exact",
-      bytes: Buffer.from(JSON.stringify({ version: "archive-policy-receipt-v1", policySha256, checkpointId: result.checkpointId, sourceId }))
-    });
-    return { ...metadata2(result, result.checkpointId, policySha256), sourceId, archiveSourceId, change: result.change, policyReceiptId: receipt.manifestId };
-  } catch {
-    fail3();
-  }
-}
-
-// packages/adapters/src/generated/work-v4/reader.ts
-import { isDate as isDate2 } from "node:util/types";
-
-// packages/adapters/src/generated/work-v4/json.ts
-import { createHash as createHash51 } from "node:crypto";
-
-// packages/adapters/src/generated/work-v4/types.ts
-var WorkInputError4 = class extends TypeError {
-  code;
-  constructor(code) {
-    super(code);
-    this.name = "WorkInputError";
-    this.code = code;
-  }
-};
-
-// packages/adapters/src/generated/work-v4/json.ts
-var WORK_EVENT_BYTES4 = 64 * 1024;
-var WORK_TEXT_BYTES4 = 16 * 1024 * 1024;
-var WORK_RECORDS2 = 1e4;
-var MAX_DEPTH2 = 16;
-var MAX_ARRAY2 = 256;
-var invalid2 = () => {
-  throw new WorkInputError4("WORK_SCHEMA_INVALID");
-};
-var limit2 = () => {
-  throw new WorkInputError4("WORK_LIMIT_EXCEEDED");
-};
-function unicode2(value3) {
-  for (let i = 0; i < value3.length; i++) {
-    const code = value3.charCodeAt(i);
-    if (code >= 55296 && code <= 56319) {
-      const next = value3.charCodeAt(++i);
-      if (!(next >= 56320 && next <= 57343)) invalid2();
-    } else if (code >= 56320 && code <= 57343) invalid2();
-  }
-  return value3;
-}
-function ownWorkFields2(value3) {
-  if (value3 === null || typeof value3 !== "object" || Array.isArray(value3)) invalid2();
-  const prototype = Object.getPrototypeOf(value3);
-  if (prototype !== Object.prototype && prototype !== null) invalid2();
-  const descriptors = Object.getOwnPropertyDescriptors(value3);
-  for (const key3 of Reflect.ownKeys(descriptors)) {
-    if (typeof key3 !== "string") return invalid2();
-    const descriptor = descriptors[key3];
-    if (!Object.hasOwn(descriptor, "value") || !descriptor.enumerable) invalid2();
-    unicode2(key3);
-  }
-  return descriptors;
-}
-function copyWorkJson2(value3) {
-  const ancestors = /* @__PURE__ */ new Set();
-  function copy2(v, depth) {
-    if (v === null || typeof v === "boolean") return v;
-    if (typeof v === "string") return unicode2(v);
-    if (typeof v === "number") return Number.isSafeInteger(v) ? v : invalid2();
-    if (typeof v !== "object") return invalid2();
-    if (depth > MAX_DEPTH2) limit2();
-    if (ancestors.has(v)) invalid2();
-    ancestors.add(v);
-    let result;
-    if (Array.isArray(v)) {
-      if (Object.getPrototypeOf(v) !== Array.prototype) invalid2();
-      if (v.length > MAX_ARRAY2) limit2();
-      const fields = Object.getOwnPropertyDescriptors(v);
-      if (Reflect.ownKeys(fields).length !== v.length + 1) invalid2();
-      result = [];
-      for (let i = 0; i < v.length; i++) {
-        const d = fields[String(i)];
-        if (!d || !Object.hasOwn(d, "value") || !d.enumerable) invalid2();
-        result.push(copy2(d.value, depth + 1));
-      }
-    } else {
-      const fields = ownWorkFields2(v);
-      result = {};
-      for (const key3 of Object.keys(fields)) {
-        Object.defineProperty(result, key3, { value: copy2(fields[key3].value, depth + 1), enumerable: true, writable: true, configurable: true });
-      }
-    }
-    ancestors.delete(v);
-    return result;
-  }
-  return copy2(value3, 1);
-}
-function integerToken2(token) {
-  const match = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(token);
-  let digits = (match[2] + (match[3] ?? "")).replace(/^0+/, "");
-  if (!digits) return 0;
-  let shift = BigInt(match[4] ?? "0") - BigInt((match[3] ?? "").length);
-  const trailing = /0*$/.exec(digits)[0].length;
-  digits = digits.slice(0, digits.length - trailing);
-  shift += BigInt(trailing);
-  if (shift < 0n || BigInt(digits.length) + shift > 16n) invalid2();
-  const exact = BigInt(digits) * 10n ** shift;
-  if (exact > BigInt(Number.MAX_SAFE_INTEGER)) invalid2();
-  return Number(match[1] === "-" ? -exact : exact);
-}
-function checkMembers2(node) {
-  if (node.type === "object") {
-    const names = /* @__PURE__ */ new Set();
-    for (const [key3, child3] of node.entries) {
-      if (names.has(key3)) throw new WorkInputError4("WORK_DUPLICATE_MEMBER");
-      names.add(key3);
-      checkMembers2(child3);
-    }
-  } else if (node.type === "array") node.items.forEach(checkMembers2);
-}
-function materialize2(node) {
-  if (node.type === "number") return integerToken2(node.token);
-  if (node.type === "literal") return typeof node.value === "string" ? unicode2(node.value) : node.value;
-  if (node.type === "array") return node.items.map(materialize2);
-  return Object.fromEntries(node.entries.map(([key3, child3]) => [unicode2(key3), materialize2(child3)]));
-}
-function parseWorkJson4(text15) {
-  if (typeof text15 !== "string") invalid2();
-  if (Buffer.byteLength(text15, "utf8") > WORK_EVENT_BYTES4) limit2();
-  let at = 0;
-  const syntax = () => {
-    throw new WorkInputError4("WORK_JSON_INVALID");
-  };
-  const whitespace = () => {
-    while (at < text15.length && /[ \t\r\n]/.test(text15[at])) at++;
-  };
-  function string5() {
-    const start = at++;
-    while (at < text15.length) {
-      const char = text15[at++];
-      if (char === '"') {
-        return JSON.parse(text15.slice(start, at));
-      }
-      if (char.charCodeAt(0) < 32) syntax();
-      if (char === "\\") {
-        const escape = text15[at++];
-        if (escape === "u") {
-          if (!/^[0-9a-fA-F]{4}$/.test(text15.slice(at, at + 4))) syntax();
-          at += 4;
-        } else if (!escape || !'"\\/bfnrt'.includes(escape)) syntax();
-      }
-    }
-    return syntax();
-  }
-  function value3(depth) {
-    whitespace();
-    const char = text15[at];
-    if (char === '"') return { type: "literal", value: string5() };
-    if (char === "{" || char === "[") {
-      if (depth > MAX_DEPTH2) limit2();
-      at++;
-      whitespace();
-      const object5 = char === "{";
-      const end = object5 ? "}" : "]";
-      const entries = [];
-      const items = [];
-      if (text15[at] !== end) for (; ; ) {
-        whitespace();
-        let key3 = "";
-        if (object5) {
-          if (text15[at] !== '"') syntax();
-          key3 = string5();
-          whitespace();
-          if (text15[at++] !== ":") syntax();
-        } else if (items.length >= MAX_ARRAY2) limit2();
-        const child3 = value3(depth + 1);
-        if (object5) entries.push([key3, child3]);
-        else items.push(child3);
-        whitespace();
-        if (text15[at] === end) break;
-        if (text15[at++] !== ",") syntax();
-      }
-      at++;
-      return object5 ? { type: "object", entries } : { type: "array", items };
-    }
-    for (const [token2, literal3] of [["null", null], ["true", true], ["false", false]]) {
-      if (text15.startsWith(token2, at)) {
-        at += token2.length;
-        return { type: "literal", value: literal3 };
-      }
-    }
-    const token = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(text15.slice(at));
-    if (!token) return syntax();
-    at += token[0].length;
-    return { type: "number", token: token[0] };
-  }
-  const result = value3(1);
-  whitespace();
-  if (at !== text15.length) syntax();
-  checkMembers2(result);
-  return materialize2(result);
-}
-function emit(value3) {
-  if (value3 === null || typeof value3 !== "object") return JSON.stringify(value3);
-  if (Array.isArray(value3)) return `[${value3.map(emit).join(",")}]`;
-  return `{${Object.keys(value3).sort().map((key3) => `${JSON.stringify(key3)}:${emit(value3[key3])}`).join(",")}}`;
-}
-function canonicalWorkJson2(value3) {
-  return emit(copyWorkJson2(value3));
-}
-function workDigest2(value3) {
-  return createHash51("sha256").update(canonicalWorkJson2(value3), "utf8").digest("hex");
-}
-function workResultKey2(value3) {
-  return emit(value3);
-}
-function sortWorkResults2(values) {
-  const rows = new Map([...values].map((value3) => [workResultKey2(value3), value3]));
-  return [...rows].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([, value3]) => value3);
-}
-function mergeWorkProblems2(values) {
-  const rows = /* @__PURE__ */ new Map();
-  for (const row of values) {
-    const id3 = workResultKey2([row.code, row.reference]), prior = rows.get(id3);
-    rows.set(id3, { ...row, affectedObligations: sortWorkResults2([...prior?.affectedObligations ?? [], ...row.affectedObligations]) });
-  }
-  return sortWorkResults2(rows.values());
-}
-function mergeWorkConflicts2(values) {
-  const rows = /* @__PURE__ */ new Map();
-  for (const row of values) {
-    const id3 = workResultKey2([row.kind, row.id]), prior = rows.get(id3);
-    rows.set(id3, {
-      ...row,
-      digests: sortWorkResults2([...prior?.digests ?? [], ...row.digests]),
-      affectedObligations: sortWorkResults2([...prior?.affectedObligations ?? [], ...row.affectedObligations])
-    });
-  }
-  return sortWorkResults2(rows.values());
-}
-function freezeWork2(value3) {
-  if (value3 !== null && typeof value3 === "object") {
-    for (const child3 of Object.values(value3)) freezeWork2(child3);
-    Object.freeze(value3);
-  }
-  return value3;
-}
-
-// packages/adapters/src/generated/work-v4/execution-id.ts
-import { randomUUID as randomUUID9 } from "node:crypto";
-var EXECUTION_ID_RE = /^exec:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-function isExecutionId2(value3) {
-  return typeof value3 === "string" && EXECUTION_ID_RE.test(value3);
-}
-
-// packages/adapters/src/generated/work-v4/validation.ts
-var kinds = ["scope", "goal", "node", "obligation", "artifact", "policy"];
-var fail4 = () => {
-  throw new WorkInputError4("WORK_SCHEMA_INVALID");
-};
-function require3(value3) {
-  if (!value3) fail4();
-}
-function workObject(value3) {
-  if (value3 === null || typeof value3 !== "object" || Array.isArray(value3)) return fail4();
-  return value3;
-}
-function closed16(value3, keys7) {
-  const object5 = workObject(value3);
-  require3(Object.keys(object5).length === keys7.length && keys7.every((key3) => Object.hasOwn(object5, key3)));
-  return object5;
-}
-function id2(value3) {
-  require3(typeof value3 === "string" && /^[A-Za-z0-9][A-Za-z0-9._:/@+\-]{0,127}$/.test(value3));
-}
-function digest5(value3) {
-  require3(typeof value3 === "string" && /^[0-9a-f]{64}$/.test(value3));
-}
-function integer4(value3) {
-  require3(typeof value3 === "number" && Number.isSafeInteger(value3) && value3 >= 1);
-}
-function member(value3, values) {
-  require3(typeof value3 === "string" && values.includes(value3));
-}
-function nullable5(value3, validate11) {
-  if (value3 !== null) validate11(value3);
-}
-function reference(value3, allowed = kinds) {
-  const ref = closed16(value3, ["kind", "id", "revision", "digest"]);
-  member(ref.kind, allowed);
-  id2(ref.id);
-  integer4(ref.revision);
-  digest5(ref.digest);
-}
-function identity(value3) {
-  const ref = closed16(value3, ["id", "digest"]);
-  id2(ref.id);
-  digest5(ref.digest);
-}
-function eventRef(value3) {
-  const ref = closed16(value3, ["eventId", "digest"]);
-  id2(ref.eventId);
-  digest5(ref.digest);
-}
-function validateWorkSelection2(value3) {
-  if (value3 === null) return;
-  const selected2 = closed16(value3, ["snapshot", "event"]);
-  identity(selected2.snapshot);
-  eventRef(selected2.event);
-}
-function timestamp2(value3) {
-  require3(typeof value3 === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value3));
-  require3(!value3.startsWith("0000") && Number.isFinite(Date.parse(value3)) && new Date(value3).toISOString() === value3);
-}
-function set2(value3, validate11, building, key3 = canonicalWorkJson2) {
-  require3(Array.isArray(value3));
-  value3.forEach(validate11);
-  const keyed = value3.map((item) => ({ item, key: key3(item) }));
-  const sorted2 = [...keyed].sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
-  for (let i = 1; i < sorted2.length; i++) require3(sorted2[i - 1].key !== sorted2[i].key);
-  if (building) value3.splice(0, value3.length, ...sorted2.map((entry) => entry.item));
-  else require3(keyed.every((entry, i) => entry.key === sorted2[i].key));
-}
-function ownKeys(keys7, building) {
-  return building ? keys7 : [...keys7, "digest"];
-}
-function revision(value3, building) {
-  const r = closed16(value3, ownKeys([
-    "kind",
-    "id",
-    "revision",
-    "scopeId",
-    "predecessor",
-    "contentDigest",
-    "parent",
-    "dependencies",
-    "ownerId",
-    "permittedEffects",
-    "policy"
-  ], building));
-  member(r.kind, kinds);
-  id2(r.id);
-  integer4(r.revision);
-  id2(r.scopeId);
-  id2(r.ownerId);
-  digest5(r.contentDigest);
-  nullable5(r.predecessor, (v) => reference(v));
-  nullable5(r.parent, (v) => reference(v));
-  nullable5(r.policy, (v) => reference(v, ["policy"]));
-  set2(r.dependencies, (v) => reference(v, ["obligation"]), building);
-  set2(r.permittedEffects, id2, building, (v) => v);
-  if (r.revision === 1) require3(r.predecessor === null);
-  else {
-    require3(r.predecessor !== null);
-    const predecessor = workObject(r.predecessor);
-    require3(predecessor.kind === r.kind && predecessor.id === r.id && predecessor.revision === r.revision - 1);
-  }
-  const noDependencies = r.dependencies.length === 0;
-  if (r.kind === "scope") require3(r.scopeId === r.id && r.parent === null && noDependencies && r.policy === null);
-  if (r.kind === "artifact" || r.kind === "policy") {
-    require3(r.parent === null && noDependencies && r.policy === null && r.permittedEffects.length === 0);
-  }
-  if (r.kind === "goal" || r.kind === "node" || r.kind === "obligation") {
-    reference(r.parent, r.kind === "goal" ? ["scope", "goal"] : ["goal", "node"]);
-    if (r.kind === "obligation") reference(r.policy, ["policy"]);
-    else require3(noDependencies && r.policy === null);
-  }
-  if (!building) digest5(r.digest);
-}
-function obligationBinding(value3) {
-  const b = closed16(value3, ["intent", "obligation", "artifact", "policy"]);
-  reference(b.intent, ["goal", "node"]);
-  reference(b.obligation, ["obligation"]);
-  nullable5(b.artifact, (v) => reference(v, ["artifact"]));
-  reference(b.policy, ["policy"]);
-}
-function snapshot(value3, building) {
-  const s = closed16(value3, ownKeys(["snapshotId", "scope", "revisions", "bindings"], building));
-  id2(s.snapshotId);
-  reference(s.scope, ["scope"]);
-  set2(s.revisions, (v) => reference(v, kinds.filter((k) => k !== "scope")), building);
-  set2(s.bindings, obligationBinding, building, (v) => canonicalWorkJson2(workObject(v).obligation));
-  if (!building) digest5(s.digest);
-}
-function occurrence(value3) {
-  const p = closed16(value3, [
-    "scope",
-    "obligation",
-    "executionId",
-    "parentExecutionId",
-    "childId",
-    "variantId",
-    "artifact",
-    "provenance",
-    "state",
-    "labels"
-  ]);
-  reference(p.scope, ["scope"]);
-  reference(p.obligation, ["obligation"]);
-  require3(isExecutionId2(p.executionId));
-  require3(p.parentExecutionId === null || isExecutionId2(p.parentExecutionId));
-  require3(p.executionId !== p.parentExecutionId);
-  nullable5(p.childId, id2);
-  nullable5(p.variantId, id2);
-  nullable5(p.artifact, (v) => reference(v, ["artifact"]));
-  member(p.provenance, ["declared", "observed"]);
-  member(p.state, ["unknown", "starting", "running", "completed", "failed"]);
-  const labels = closed16(p.labels, [
-    "sessionId",
-    "branchLeafId",
-    "toolCallId",
-    "taskId",
-    "workspaceId",
-    "definitionDigest",
-    "configurationDigest",
-    "modelId",
-    "effortId"
-  ]);
-  for (const [key3, value4] of Object.entries(labels)) nullable5(value4, key3.endsWith("Digest") ? digest5 : id2);
-}
-function evidence4(value3) {
-  const e = closed16(value3, ["id", "digest", "event"]);
-  id2(e.id);
-  digest5(e.digest);
-  nullable5(e.event, eventRef);
-}
-function acceptance(value3, building) {
-  const p = closed16(value3, ["authorityId", "binding"]);
-  id2(p.authorityId);
-  acceptanceBinding(p.binding, building);
-}
-function acceptanceBinding(value3, building) {
-  const b = closed16(value3, ["snapshot", "scope", "intent", "obligation", "artifact", "artifactDigest", "policy", "evidence"]);
-  identity(b.snapshot);
-  reference(b.scope, ["scope"]);
-  reference(b.intent, ["goal", "node"]);
-  reference(b.obligation, ["obligation"]);
-  reference(b.artifact, ["artifact"]);
-  digest5(b.artifactDigest);
-  reference(b.policy, ["policy"]);
-  set2(b.evidence, evidence4, building);
-  require3(b.evidence.length > 0);
-}
-function validateWorkContext2(value3) {
-  const c = closed16(value3, ["selectedSnapshot", "authority"]);
-  validateWorkSelection2(c.selectedSnapshot);
-  if (c.authority === null) return;
-  const a = closed16(c.authority, ["snapshot", "decisions", "availability"]);
-  identity(a.snapshot);
-  require3(Array.isArray(a.decisions));
-  require3(Array.isArray(a.availability));
-  for (const value4 of a.decisions) {
-    const d = closed16(value4, ["receiptId", "authorityId", "claim", "binding", "decision"]);
-    id2(d.receiptId);
-    id2(d.authorityId);
-    eventRef(d.claim);
-    acceptanceBinding(d.binding, false);
-    member(d.decision, ["accept", "reject"]);
-  }
-  for (const value4 of a.availability) {
-    const row = closed16(value4, ["kind", "id", "digest", "available"]);
-    member(row.kind, ["artifact", "evidence"]);
-    id2(row.id);
-    digest5(row.digest);
-    require3(typeof row.available === "boolean");
-  }
-}
-function ownDigest(object5, building) {
-  const { digest: supplied, ...body } = object5;
-  const computed = workDigest2(body);
-  if (building) object5.digest = computed;
-  else if (supplied !== computed) throw new WorkInputError4("WORK_DIGEST_MISMATCH");
-}
-function validateWorkEvent2(value3, building = false) {
-  const e = workObject(value3);
-  if (e.ledgerVersion !== 4) throw new WorkInputError4("WORK_VERSION_UNSUPPORTED");
-  closed16(e, ownKeys(["ledgerVersion", "event", "eventId", "ts", "payload"], building));
-  member(e.event, ["work_revision", "work_snapshot", "work_occurrence", "work_acceptance"]);
-  id2(e.eventId);
-  timestamp2(e.ts);
-  let nested;
-  if (e.event === "work_revision") {
-    nested = workObject(closed16(e.payload, ["revision"]).revision);
-    revision(nested, building);
-  } else if (e.event === "work_snapshot") {
-    nested = workObject(closed16(e.payload, ["snapshot"]).snapshot);
-    snapshot(nested, building);
-  } else if (e.event === "work_occurrence") occurrence(e.payload);
-  else acceptance(e.payload, building);
-  if (!building) digest5(e.digest);
-  if (nested) ownDigest(nested, building);
-  ownDigest(e, building);
-  return e;
-}
-
-// packages/adapters/src/generated/work-v4/projection.ts
-var revisionIdentity = ({ kind, id: id3, revision: revision2, digest: digest6 }) => workResultKey2(["revision", kind, id3, revision2, digest6]);
-function nestedIdentity(event) {
-  switch (event.event) {
-    case "work_revision":
-      return revisionIdentity(event.payload.revision);
-    case "work_snapshot":
-      return workResultKey2(["snapshot", event.payload.snapshot.snapshotId, event.payload.snapshot.digest]);
-    case "work_occurrence":
-      return workResultKey2(["occurrence", event.payload]);
-    case "work_acceptance":
-      return null;
-  }
-}
-function sourceIds(index, event) {
-  const nested = "event" in event ? nestedIdentity(event) : null;
-  return [
-    ...index.conflictSources.events[workResultKey2(event.eventId)] ? [event.eventId] : [],
-    ...nested === null ? [] : index.conflictSources.bodies[nested] ?? []
-  ];
-}
-function workEventConflictSources2(index, event) {
-  return sortWorkResults2(sortWorkResults2(sourceIds(index, event)).flatMap((id3) => index.conflictSources.events[workResultKey2(id3)]));
-}
-function workRevisionConflictSources2(index, ref) {
-  return sortWorkResults2((index.conflictSources.bodies[revisionIdentity(ref)] ?? []).flatMap((id3) => index.conflictSources.events[workResultKey2(id3)]));
-}
-function sorted(values) {
-  return [...values].map((value3) => ({ value: value3, key: canonicalWorkJson2(value3) })).sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0).map((entry) => entry.value);
-}
-function indexWorkLedgerText2(text15) {
-  const ingestion = parseWorkLedgerText2(text15);
-  const groups = /* @__PURE__ */ new Map();
-  for (const event of ingestion.events) {
-    let group = groups.get(event.eventId);
-    if (!group) {
-      group = /* @__PURE__ */ new Map();
-      groups.set(event.eventId, group);
-    }
-    if (!group.has(event.digest)) {
-      const normalized = JSON.parse(canonicalWorkJson2(event));
-      group.set(event.digest, freezeWork2(normalized));
-    }
-  }
-  const conflictingEvents = [];
-  const quarantined = /* @__PURE__ */ new Map();
-  const bodies = /* @__PURE__ */ new Map(), eventGroups = /* @__PURE__ */ new Map();
-  for (const [eventId, group] of groups) {
-    if (group.size < 2) continue;
-    eventGroups.set(workResultKey2(eventId), sorted([...group.values()].map((event) => ({ eventId, digest: event.digest }))));
-    for (const event of group.values()) {
-      conflictingEvents.push({ eventId, digest: event.digest });
-      const identity2 = nestedIdentity(event);
-      if (identity2 !== null) {
-        const ids = bodies.get(identity2) ?? /* @__PURE__ */ new Set();
-        ids.add(eventId);
-        bodies.set(identity2, ids);
-      }
-      if (event.event === "work_revision") {
-        const { kind, id: id3, revision: revision2, digest: digest6 } = event.payload.revision;
-        quarantined.set(digest6, { kind, id: id3, revision: revision2, digest: digest6 });
-      }
-    }
-  }
-  const candidates = sorted([...groups.values()].flatMap((group) => [...group.values()]));
-  const byKey = (map2) => [...map2].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
-  const conflictSources = {
-    bodies: Object.fromEntries(byKey(bodies).map(([identity2, ids]) => [identity2, [...ids].sort()])),
-    events: Object.fromEntries(byKey(eventGroups))
-  };
-  const effectiveEvents = ingestion.complete ? candidates.filter((event) => !sourceIds({ conflictSources }, event).length) : [];
-  return freezeWork2({
-    ingestion,
-    candidates,
-    conflictingEvents: sorted(conflictingEvents),
-    conflictSources,
-    quarantinedRevisions: sorted(quarantined.values()),
-    effectiveEvents
-  });
-}
-var eventRef2 = (event) => ({ eventId: event.eventId, digest: event.digest });
-var eventReference = (event) => ({ type: "event", ref: eventRef2(event) });
-var isConflict = (p) => p.code.endsWith("CONFLICT");
-function coverage(items) {
-  const state = ["conflicted", "unavailable", "unknown"].find((s) => items.some((item) => item.state === s));
-  return { state: state ?? (items.length ? "available" : "unknown"), items: sortWorkResults2(items) };
-}
-function indexWorkReceipts2(authority) {
-  const receipts = /* @__PURE__ */ new Map();
-  const conflicts = [];
-  for (const d of authority?.decisions ?? []) {
-    const group = receipts.get(d.receiptId) ?? /* @__PURE__ */ new Map();
-    group.set(workDigest2({ authoritySnapshot: authority.snapshot, ...d }), d);
-    receipts.set(d.receiptId, group);
-  }
-  for (const [id3, group] of receipts) if (group.size > 1) {
-    conflicts.push({ kind: "receipt", id: id3, digests: sortWorkResults2(group.keys()), affectedObligations: [] });
-  }
-  return { receipts, conflicts: sortWorkResults2(conflicts) };
-}
-function projectWorkAcceptance2(index, structure, authority, runtime) {
-  const snapshot2 = structure.snapshot;
-  const claims = [], obligations = [];
-  const problems = [...structure.problems];
-  const conflicts = [...structure.conflicts, ...runtime.conflicts];
-  const eventConflicts = new Set(index.conflictingEvents.map((e) => e.eventId));
-  const events = new Map(index.candidates.map((e) => [workResultKey2(eventRef2(e)), e]));
-  const receiptIndex = indexWorkReceipts2(authority), { receipts } = receiptIndex;
-  conflicts.push(...receiptIndex.conflicts);
-  const decisions = [...receipts.values()].filter((g) => g.size === 1).flatMap((g) => [...g.values()]);
-  function available3(kind, id3, digest6) {
-    const values = sortWorkResults2((authority?.availability ?? []).filter((row) => row.kind === kind && row.id === id3 && row.digest === digest6).map((row) => row.available));
-    const state = values.length > 1 ? "conflicted" : values.length === 0 ? "unknown" : values[0] ? "available" : "unavailable";
-    return { kind, identity: { id: id3, digest: digest6 }, state };
-  }
-  const allClaims = index.candidates.filter((e) => e.event === "work_acceptance");
-  function sourceProblems(ref, affected) {
-    const result = [];
-    const found = events.get(workResultKey2(ref));
-    for (const event of workEventConflictSources2(index, found ?? ref)) {
-      result.push({ code: "EVENT_CONFLICT", reference: { type: "event", ref: event }, affectedObligations: affected });
-    }
-    if (!found) result.push({ code: "REFERENCE_MISSING", reference: { type: "event", ref }, affectedObligations: affected });
-    for (const p of runtime.eventProblems.get(workResultKey2(ref)) ?? []) result.push({ ...p, affectedObligations: affected });
-    return mergeWorkProblems2(result);
-  }
-  for (const row of structure.obligations) {
-    let coverageProblems2 = function(items) {
-      return items.filter((item) => item.state !== "available").map((item) => problem(
-        item.state === "conflicted" ? "AVAILABILITY_CONFLICT" : item.state === "unavailable" ? "BYTES_UNAVAILABLE" : "AVAILABILITY_MISSING",
-        { type: item.kind === "artifact" ? "artifact-bytes" : "evidence-bytes", ref: item.identity }
-      ));
-    };
-    var coverageProblems = coverageProblems2;
-    const binding = row.binding, affected = [binding.obligation];
-    const problem = (code, reference3) => ({ code, reference: reference3, affectedObligations: affected });
-    const inventoryProblem = problem("ARTIFACT_UNSELECTED", { type: "revision", ref: binding.obligation });
-    const blockers = [...row.problems, ...binding.artifact === null ? [inventoryProblem] : []];
-    const selectedClaims = allClaims.filter((e) => e.payload.binding.scope.id === snapshot2.scope.id && e.payload.binding.obligation.id === binding.obligation.id);
-    const applicable = (claim) => {
-      const b = claim.payload.binding;
-      return workResultKey2(b.snapshot) === workResultKey2(structure.selectedSnapshot) && workResultKey2(b.scope) === workResultKey2(snapshot2.scope) && workResultKey2(b.intent) === workResultKey2(binding.intent) && workResultKey2(b.obligation) === workResultKey2(binding.obligation) && workResultKey2(b.artifact) === workResultKey2(binding.artifact) && workResultKey2(b.policy) === workResultKey2(binding.policy);
-    };
-    const current = selectedClaims.filter(applicable);
-    const currentRefs = new Set(current.map((e) => workResultKey2(eventRef2(e))));
-    for (const e of current) if (eventConflicts.has(e.eventId)) {
-      blockers.push(...index.conflictingEvents.filter((ref) => ref.eventId === e.eventId).map((ref) => problem("EVENT_CONFLICT", { type: "event", ref })));
-    }
-    for (const [id3, group] of receipts) if (group.size > 1 && [...group.values()].some((d) => currentRefs.has(workResultKey2(d.claim)))) {
-      conflicts.push({ kind: "receipt", id: id3, digests: sortWorkResults2(group.keys()), affectedObligations: affected });
-      blockers.push(problem("RECEIPT_CONFLICT", { type: "authority", ref: authority.snapshot }));
-    }
-    const artifactItems = row.artifact ? [available3("artifact", row.artifact.id, row.artifact.contentDigest)] : [];
-    const artifactCoverage = binding.artifact === null ? { state: "unselected", items: [] } : coverage(artifactItems);
-    const evidenceCoverage = coverage(sortWorkResults2(current.flatMap((e) => e.payload.binding.evidence.map((ref) => available3("evidence", ref.id, ref.digest)))));
-    const rowClaims = [];
-    const trustedDecisions = /* @__PURE__ */ new Set();
-    for (const claim of selectedClaims) {
-      if (eventConflicts.has(claim.eventId)) continue;
-      if (!applicable(claim)) {
-        rowClaims.push({
-          claim: eventRef2(claim),
-          obligation: claim.payload.binding.obligation,
-          applicability: "superseded",
-          matchedReceiptIds: [],
-          problems: [problem("SUPERSEDED_BINDING", eventReference(claim))]
-        });
-        continue;
-      }
-      const b = claim.payload.binding;
-      const local = [];
-      const bytesMatch = row.artifact !== null && b.artifactDigest === row.artifact.contentDigest;
-      if (row.artifact && !bytesMatch) local.push(problem("ARTIFACT_DIGEST_MISMATCH", { type: "artifact-bytes", ref: { id: row.artifact.id, digest: b.artifactDigest } }));
-      if (!row.artifact && binding.artifact) local.push(problem("REFERENCE_MISSING", { type: "revision", ref: binding.artifact }));
-      const matching2 = decisions.filter((d) => bytesMatch && workResultKey2(d.claim) === workResultKey2(eventRef2(claim)) && d.authorityId === claim.payload.authorityId && workResultKey2(d.binding) === workResultKey2(b));
-      for (const d of matching2) trustedDecisions.add(d.decision);
-      if (!authority) local.push(problem("AUTHORITY_MISSING", null));
-      else if (!matching2.length) local.push(problem(decisions.some((d) => d.claim.eventId === claim.eventId) ? "RECEIPT_MISMATCH" : "RECEIPT_MISSING", eventReference(claim)));
-      const support = b.evidence.flatMap((ref) => ref.event ? sourceProblems(ref.event, affected) : []);
-      const availabilityProblems = coverageProblems2([...artifactItems, ...b.evidence.map((ref) => available3("evidence", ref.id, ref.digest))]);
-      local.push(...support, ...availabilityProblems);
-      if (matching2.length) blockers.push(...support.filter(isConflict), ...availabilityProblems.filter(isConflict));
-      const rejection = matching2.some((d) => d.decision === "reject");
-      rowClaims.push({
-        claim: eventRef2(claim),
-        obligation: b.obligation,
-        applicability: rejection ? "unaccepted" : matching2.some((d) => d.decision === "accept") && local.length === 0 ? "accepted-under-supplied-authority" : "unresolved",
-        matchedReceiptIds: sortWorkResults2(matching2.map((d) => d.receiptId)),
-        problems: rejection ? [problem("TRUSTED_REJECTION", eventReference(claim))] : mergeWorkProblems2(local)
-      });
-    }
-    if (trustedDecisions.size > 1) blockers.push(problem("DECISION_CONFLICT", { type: "revision", ref: binding.obligation }));
-    const blocked = mergeWorkProblems2(blockers);
-    for (const p of blocked) if (p.code === "EVENT_CONFLICT" && p.reference?.type === "event") {
-      const id3 = p.reference.ref.eventId;
-      conflicts.push({ kind: "event", id: id3, digests: index.conflictingEvents.filter((e) => e.eventId === id3).map((e) => e.digest), affectedObligations: affected });
-    }
-    const finalClaims = rowClaims.map((c) => blocked.length && c.applicability !== "superseded" ? { ...c, applicability: "unresolved", problems: blocked } : c);
-    const accepted = finalClaims.some((c) => c.applicability === "accepted-under-supplied-authority");
-    const rejected = finalClaims.some((c) => c.applicability === "unaccepted");
-    const unresolved = finalClaims.filter((c) => c.applicability === "unresolved");
-    const acceptance2 = blocked.length ? "unresolved" : accepted ? "accepted-under-supplied-authority" : rejected ? "unaccepted" : unresolved.length ? "unresolved" : "unaccepted";
-    const obligationProblems = blocked.length ? blocked : accepted ? [] : rejected ? finalClaims.filter((c) => c.applicability === "unaccepted").flatMap((c) => c.problems) : unresolved.length ? unresolved.flatMap((c) => c.problems) : [problem("NO_CLAIM", { type: "revision", ref: binding.obligation })];
-    obligations.push({ binding, acceptance: acceptance2, artifactCoverage, evidenceCoverage, claims: sortWorkResults2(finalClaims.map((c) => c.claim)), problems: mergeWorkProblems2(obligationProblems) });
-    claims.push(...finalClaims);
-    problems.push(...obligationProblems, ...finalClaims.flatMap((c) => c.problems));
-  }
-  return {
-    obligations: sortWorkResults2(obligations),
-    claims: sortWorkResults2(claims),
-    supersededClaims: claims.filter((c) => c.applicability === "superseded").length,
-    conflicts: mergeWorkConflicts2(conflicts),
-    problems: mergeWorkProblems2([...problems, ...runtime.problems]),
-    progress: { accepted: obligations.filter((o) => o.acceptance === "accepted-under-supplied-authority").length, total: obligations.length }
-  };
-}
-
-// packages/adapters/src/generated/work-v4/snapshot.ts
-var key2 = canonicalWorkJson2;
-var entity = (ref) => `${ref.kind}:${ref.id}`;
-var reference2 = (ref) => ({ type: "revision", ref });
-function unique(values) {
-  const rows = new Map(values.map((value3) => [key2(value3), value3]));
-  return [...rows].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([, value3]) => value3);
-}
-function diagnosticKey(row) {
-  const affected = key2(row.affectedObligations);
-  return "code" in row ? `{"affectedObligations":${affected},"code":${JSON.stringify(row.code)},"reference":${key2(row.reference)}}` : `{"affectedObligations":${affected},"digests":${JSON.stringify(row.digests)},"id":${JSON.stringify(row.id)},"kind":${JSON.stringify(row.kind)}}`;
-}
-function sortedDiagnostics(rows) {
-  return rows.map((value3) => ({ value: value3, key: diagnosticKey(value3) })).sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0).map((row) => row.value);
-}
-function resolveWorkSnapshotText2(text15, requested = null) {
-  const index = indexWorkLedgerText2(text15);
-  const errors = [...index.ingestion.errors];
-  let selection = null;
-  try {
-    const copied = copyWorkJson2(requested);
-    validateWorkSelection2(copied);
-    selection = copied;
-  } catch (error) {
-    if (!(error instanceof WorkInputError4)) throw error;
-    errors.push({ line: null, code: "WORK_CONTEXT_INVALID" });
-  }
-  const problems = /* @__PURE__ */ new Map();
-  const conflicts = /* @__PURE__ */ new Map();
-  for (const ref of index.conflictingEvents) {
-    const row = conflicts.get(ref.eventId) ?? { digests: [], affected: [] };
-    row.digests.push(ref.digest);
-    conflicts.set(ref.eventId, row);
-  }
-  function problem(code, ref, affected2 = []) {
-    const id3 = `${code}:${key2(ref)}`;
-    const old = problems.get(id3);
-    problems.set(id3, { code, reference: ref, affectedObligations: unique([...old?.affectedObligations ?? [], ...affected2]) });
-  }
-  function conflict(id3, affected2) {
-    const row = conflicts.get(id3);
-    if (!row) return;
-    row.affected = unique([...row.affected, ...affected2]);
-    for (const digest6 of row.digests) problem("EVENT_CONFLICT", { type: "event", ref: { eventId: id3, digest: digest6 } }, affected2);
-  }
-  function reports() {
-    return {
-      problems: sortedDiagnostics([...problems.values()]),
-      conflicts: sortedDiagnostics([...conflicts].map(([id3, row]) => ({
-        kind: "event",
-        id: id3,
-        digests: [...row.digests].sort(),
-        affectedObligations: unique(row.affected)
-      }))),
-      errors
-    };
-  }
-  function empty(scopeState) {
-    return freezeWork2({
-      scopeState,
-      selectedSnapshot: selection?.snapshot ?? null,
-      snapshot: null,
-      scope: null,
-      revisions: [],
-      obligations: [],
-      ...reports()
-    });
-  }
-  if (errors.length) {
-    problem("INPUT_INCOMPLETE", null);
-    return empty("unresolved");
-  }
-  if (!selection) {
-    problem("NO_SELECTION", null);
-    return empty("unselected");
-  }
-  const nominated = index.candidates.find((event) => event.eventId === selection.event.eventId && event.digest === selection.event.digest);
-  const exactSnapshot = nominated?.event === "work_snapshot" && nominated.payload.snapshot.snapshotId === selection.snapshot.id && nominated.payload.snapshot.digest === selection.snapshot.digest ? nominated.payload.snapshot : null;
-  const affected = exactSnapshot?.revisions.filter((ref) => ref.kind === "obligation") ?? [];
-  const snapshotSources = workEventConflictSources2(index, exactSnapshot ? nominated : selection.event);
-  for (const source3 of snapshotSources) conflict(source3.eventId, affected);
-  if (snapshotSources.length) return empty("unresolved");
-  if (!nominated) {
-    problem("REFERENCE_MISSING", { type: "event", ref: selection.event });
-    return empty("unresolved");
-  }
-  if (!exactSnapshot) {
-    problem("SCOPE_INVALID", { type: "snapshot", ref: selection.snapshot });
-    return empty("invalid");
-  }
-  const snapshot2 = exactSnapshot;
-  const selected2 = /* @__PURE__ */ new Map();
-  let invalid3 = false, missing5 = false;
-  function reject2(code, ref, affected2 = []) {
-    invalid3 = true;
-    problem(code, reference2(ref), affected2);
-  }
-  for (const ref of [snapshot2.scope, ...snapshot2.revisions]) {
-    if (selected2.has(entity(ref))) reject2("REVISION_INVALID", ref);
-    selected2.set(entity(ref), ref);
-  }
-  const obligationRefs = snapshot2.revisions.filter((ref) => ref.kind === "obligation");
-  const allAffected = unique(obligationRefs);
-  const records2 = /* @__PURE__ */ new Map();
-  const quarantineSources = /* @__PURE__ */ new Map();
-  for (const event of index.candidates) if (event.event === "work_revision") {
-    const r = event.payload.revision;
-    const ref = { kind: r.kind, id: r.id, revision: r.revision, digest: r.digest };
-    if (!records2.has(key2(ref))) {
-      const sources = workRevisionConflictSources2(index, ref);
-      if (sources.length) quarantineSources.set(key2(ref), sources);
-    }
-    records2.set(key2(ref), r);
-  }
-  const isSelected = (ref) => key2(selected2.get(entity(ref)) ?? null) === key2(ref);
-  function lookup(ref, affected2, localArtifact = false) {
-    if (ref.kind === "scope" && ref.id !== snapshot2.scope.id) reject2("SCOPE_INVALID", ref, affected2);
-    const sources = quarantineSources.get(key2(ref));
-    if (sources) {
-      for (const source3 of sources) conflict(source3.eventId, affected2);
-      if (!localArtifact) missing5 = true;
-      return null;
-    }
-    const r = records2.get(key2(ref));
-    if (!r) {
-      problem("REFERENCE_MISSING", reference2(ref), affected2);
-      if (!localArtifact) missing5 = true;
-      return null;
-    }
-    if (r.scopeId !== snapshot2.scope.id) reject2("REVISION_INVALID", ref, affected2);
-    return r;
-  }
-  function walk2(root, affected2, localArtifact = false) {
-    const stack = [{ ref: root, current: true, local: localArtifact }];
-    const done = /* @__PURE__ */ new Set(), active = /* @__PURE__ */ new Set();
-    while (stack.length) {
-      const frame = stack.pop(), id3 = `${frame.current}:${key2(frame.ref)}`;
-      if (frame.exit) {
-        active.delete(id3);
-        done.add(id3);
-        continue;
-      }
-      if (active.has(id3)) {
-        reject2("CYCLE", frame.ref, affected2);
-        continue;
-      }
-      if (done.has(id3)) continue;
-      if (frame.current && selected2.has(entity(frame.ref)) && !isSelected(frame.ref)) reject2("REVISION_INVALID", frame.ref, affected2);
-      if (frame.current && frame.ref.kind === "scope" && key2(frame.ref) !== key2(snapshot2.scope)) reject2("SCOPE_INVALID", frame.ref, affected2);
-      const r = lookup(frame.ref, affected2, frame.local);
-      if (!r) continue;
-      active.add(id3);
-      stack.push({ ...frame, exit: true });
-      if (r.predecessor) {
-        const prior = lookup(r.predecessor, affected2);
-        if (prior && (prior.kind !== r.kind || prior.id !== r.id || prior.scopeId !== r.scopeId || prior.revision + 1 !== r.revision)) {
-          reject2("REVISION_INVALID", frame.ref, affected2);
-        }
-        stack.push({ ref: r.predecessor, current: false });
-      }
-      if (r.parent) {
-        if (entity(r.parent) === entity(frame.ref)) reject2("CYCLE", frame.ref, affected2);
-        stack.push({ ref: r.parent, current: frame.current });
-      }
-      if (r.policy) {
-        if (frame.current && !isSelected(r.policy)) reject2("REVISION_INVALID", r.policy, affected2);
-        stack.push({ ref: r.policy, current: frame.current });
-      }
-      for (const dep of r.dependencies) {
-        if (entity(dep) === entity(frame.ref)) reject2("CYCLE", frame.ref, affected2);
-        if (frame.current && !isSelected(dep)) reject2("DEPENDENCY_INVALID", dep, affected2);
-        stack.push({ ref: dep, current: frame.current });
-      }
-    }
-  }
-  walk2(snapshot2.scope, allAffected);
-  for (const ref of snapshot2.revisions) {
-    const affected2 = ref.kind === "obligation" ? [ref] : snapshot2.bindings.filter(
-      (binding) => [binding.intent, binding.policy, binding.artifact].some((value3) => value3 && key2(value3) === key2(ref))
-    ).map((binding) => binding.obligation).filter(isSelected);
-    walk2(ref, affected2, ref.kind === "artifact");
-  }
-  function ancestor(obligation, intent) {
-    const seen = /* @__PURE__ */ new Set();
-    let cursor = obligation;
-    while (cursor) {
-      const id3 = key2(cursor);
-      if (seen.has(id3) || quarantineSources.has(id3)) return null;
-      seen.add(id3);
-      const r = records2.get(id3);
-      if (!r) return null;
-      cursor = r.parent;
-      if (cursor && key2(cursor) === key2(intent)) return true;
-    }
-    return false;
-  }
-  for (const ref of obligationRefs) {
-    if (snapshot2.bindings.filter((binding) => key2(binding.obligation) === key2(ref)).length !== 1) reject2("SCOPE_INVALID", ref, [ref]);
-  }
-  for (const binding of snapshot2.bindings) {
-    const affected2 = isSelected(binding.obligation) ? [binding.obligation] : [];
-    if (!isSelected(binding.obligation)) reject2("SCOPE_INVALID", binding.obligation);
-    if (!isSelected(binding.intent)) reject2("SCOPE_INVALID", binding.intent, affected2);
-    if (!isSelected(binding.policy)) reject2("REVISION_INVALID", binding.policy, affected2);
-    const r = lookup(binding.obligation, affected2);
-    if (r && key2(r.policy) !== key2(binding.policy)) reject2("REVISION_INVALID", binding.policy, affected2);
-    if (r && ancestor(binding.obligation, binding.intent) === false) reject2("SCOPE_INVALID", binding.intent, affected2);
-    if (binding.artifact && !isSelected(binding.artifact)) reject2("ARTIFACT_UNSELECTED", binding.artifact, affected2);
-  }
-  if (invalid3) return empty("invalid");
-  if (missing5) return empty("unresolved");
-  const diagnostics = reports();
-  return freezeWork2({
-    scopeState: "valid",
-    selectedSnapshot: selection.snapshot,
-    snapshot: snapshot2,
-    scope: records2.get(key2(snapshot2.scope)),
-    revisions: unique(snapshot2.revisions.flatMap((ref) => {
-      const r = quarantineSources.has(key2(ref)) ? void 0 : records2.get(key2(ref));
-      return r ? [r] : [];
-    })),
-    obligations: snapshot2.bindings.map((binding) => ({
-      binding,
-      revision: records2.get(key2(binding.obligation)),
-      artifact: binding.artifact && !quarantineSources.has(key2(binding.artifact)) ? records2.get(key2(binding.artifact)) ?? null : null,
-      problems: diagnostics.problems.filter((p) => p.affectedObligations.some((ref) => key2(ref) === key2(binding.obligation)))
-    })),
-    ...diagnostics
-  });
-}
-
-// packages/adapters/src/generated/work-v4/occurrences.ts
-var eventRef3 = (e) => ({ eventId: e.eventId, digest: e.digest });
-var emptyLabels = () => ({
-  sessionId: null,
-  branchLeafId: null,
-  toolCallId: null,
-  taskId: null,
-  workspaceId: null,
-  definitionDigest: null,
-  configurationDigest: null,
-  modelId: null,
-  effortId: null
-});
-function foldWorkOccurrences2(index, snapshot2) {
-  const groups = /* @__PURE__ */ new Map();
-  const effectiveRefs = new Set(index.effectiveEvents.map((e) => workResultKey2({ eventId: e.eventId, digest: e.digest })));
-  for (const event of index.candidates) if (event.event === "work_occurrence") {
-    const group = groups.get(event.payload.executionId) ?? [];
-    group.push(event);
-    groups.set(event.payload.executionId, group);
-  }
-  const effective = new Map([...groups].map(([id3, group]) => [id3, group.filter((e) => effectiveRefs.has(workResultKey2(eventRef3(e))))]));
-  const selectedObligations = new Set(snapshot2.bindings.map((b) => workResultKey2(b.obligation)));
-  const selectedJoin = (e) => workResultKey2(e.payload.scope) === workResultKey2(snapshot2.scope) && selectedObligations.has(workResultKey2(e.payload.obligation));
-  const attempts = [], occurrences = [];
-  const allProblems = [], conflicts = [];
-  const eventProblems = /* @__PURE__ */ new Map();
-  for (const [executionId, candidates] of groups) {
-    const clean = effective.get(executionId);
-    const bindings = /* @__PURE__ */ new Map();
-    for (const event of clean.filter(selectedJoin)) {
-      const p = event.payload, id3 = workResultKey2([p.scope, p.obligation]), prior = bindings.get(id3);
-      bindings.set(id3, {
-        scope: p.scope,
-        obligation: p.obligation,
-        variantIds: sortWorkResults2([...prior?.variantIds ?? [], ...p.variantId ? [p.variantId] : []]),
-        artifacts: sortWorkResults2([...prior?.artifacts ?? [], ...p.artifact ? [p.artifact] : []])
-      });
-    }
-    const affected = sortWorkResults2([...bindings.values()].map((b) => b.obligation));
-    const problems = [];
-    const problem = (code, id3 = executionId) => problems.push({ code, reference: { type: "execution", id: id3 }, affectedObligations: affected });
-    const badSources = sortWorkResults2(candidates.flatMap((e) => workEventConflictSources2(index, e)));
-    for (const ref of badSources) problems.push({ code: "EVENT_CONFLICT", reference: { type: "event", ref }, affectedObligations: affected });
-    if (bindings.size) for (const id3 of sortWorkResults2(badSources.map((ref) => ref.eventId))) {
-      conflicts.push({ kind: "event", id: id3, digests: index.conflictingEvents.filter((ref) => ref.eventId === id3).map((ref) => ref.digest), affectedObligations: affected });
-    }
-    const parents = sortWorkResults2(clean.map((e) => e.payload.parentExecutionId));
-    const children = sortWorkResults2(clean.flatMap((e) => e.payload.childId ? [e.payload.childId] : []));
-    const identityConflict = parents.length > 1 || children.length > 1;
-    if (identityConflict) problem("OCCURRENCE_CONFLICT");
-    let parentExecutionId = parents.length === 1 ? parents[0] : null;
-    let childId = children.length === 1 ? children[0] : null;
-    const observed = clean.filter((e) => e.payload.provenance === "observed");
-    const declaredLabels = sortWorkResults2(clean.filter((e) => e.payload.provenance === "declared").map((e) => e.payload.labels));
-    const observedLabels = sortWorkResults2(observed.map((e) => e.payload.labels));
-    const effectiveLabels = emptyLabels();
-    for (const label of Object.keys(effectiveLabels)) {
-      const values = sortWorkResults2(observed.flatMap((e) => e.payload.labels[label] === null ? [] : [e.payload.labels[label]]));
-      if (values.length > 1) problem("OBSERVATION_CONFLICT");
-      else effectiveLabels[label] = values[0] ?? null;
-    }
-    const states = new Set(observed.map((e) => e.payload.state));
-    const terminalConflict = states.has("completed") && states.has("failed");
-    if (terminalConflict) problem("OBSERVATION_CONFLICT");
-    let state = terminalConflict ? "conflicted" : states.has("completed") ? "completed" : states.has("failed") ? "failed" : states.has("running") ? "running" : states.has("starting") ? "starting" : "unknown";
-    if (identityConflict || badSources.length) {
-      state = "conflicted";
-      parentExecutionId = null;
-      childId = null;
-      Object.assign(effectiveLabels, emptyLabels());
-    } else {
-      const seen = /* @__PURE__ */ new Set([executionId]);
-      let parent = parentExecutionId;
-      while (parent !== null) {
-        if (seen.has(parent)) {
-          problem("PARENT_CYCLE", parent);
-          break;
-        }
-        seen.add(parent);
-        const bodies = effective.get(parent);
-        if (!bodies?.length) {
-          problem("PARENT_MISSING", parent);
-          break;
-        }
-        const alternatives = sortWorkResults2(bodies.map((e) => e.payload.parentExecutionId));
-        if (alternatives.length !== 1) {
-          problem("OCCURRENCE_CONFLICT", parent);
-          break;
-        }
-        parent = alternatives[0];
-      }
-      if (effectiveLabels.branchLeafId === null) problem("BRANCH_UNKNOWN");
-    }
-    const rowProblems = mergeWorkProblems2(problems);
-    for (const candidate of candidates) eventProblems.set(workResultKey2(eventRef3(candidate)), rowProblems);
-    if (!bindings.size) continue;
-    allProblems.push(...rowProblems);
-    occurrences.push(...candidates.map((e) => ({ event: eventRef3(e), payload: e.payload })));
-    attempts.push({
-      executionId,
-      bindings: sortWorkResults2(bindings.values()),
-      parentExecutionId,
-      childId,
-      declaredLabels,
-      observedLabels,
-      effectiveLabels,
-      state,
-      resolution: rowProblems.length ? "unresolved" : "resolved",
-      problems: rowProblems
-    });
-  }
-  const runtime = { attempts: sortWorkResults2(attempts), occurrences: sortWorkResults2(occurrences), counts: {
-    attempts: attempts.length,
-    variants: new Set(attempts.flatMap((a) => a.bindings.flatMap((b) => b.variantIds))).size,
-    observedCompletedAttempts: attempts.filter((a) => a.resolution === "resolved" && a.state === "completed").length
-  } };
-  return { runtime, problems: mergeWorkProblems2(allProblems), conflicts, eventProblems };
-}
-
-// packages/adapters/src/generated/work-v4/reader.ts
-function* lines(text15) {
-  let start = 0, line = 1;
-  while (start < text15.length) {
-    const end = text15.indexOf("\n", start);
-    yield { text: text15.slice(start, end === -1 ? text15.length : end), line: line++ };
-    if (end === -1) return;
-    start = end + 1;
-  }
-}
-var blank = (text15) => /^[ \t\r]*$/.test(text15);
-function parseWorkLedgerText2(text15) {
-  const wholeError = (code) => freezeWork2({ events: [], errors: [{ line: null, code }], complete: false });
-  if (typeof text15 !== "string") return wholeError("WORK_SCHEMA_INVALID");
-  if (Buffer.byteLength(text15, "utf8") > WORK_TEXT_BYTES4) return wholeError("WORK_LIMIT_EXCEEDED");
-  let records2 = 0;
-  for (const row of lines(text15)) if (!blank(row.text) && ++records2 > WORK_RECORDS2) return wholeError("WORK_LIMIT_EXCEEDED");
-  const events = [], errors = [];
-  for (const row of lines(text15)) {
-    if (blank(row.text)) continue;
-    try {
-      events.push(validateWorkEvent2(parseWorkJson4(row.text)));
-    } catch (error) {
-      if (!(error instanceof WorkInputError4)) throw error;
-      errors.push({ line: row.line, code: error.code });
-    }
-  }
-  return freezeWork2({ events, errors, complete: errors.length === 0 });
-}
-function projectWorkLedger2(text15, context = { selectedSnapshot: null, authority: null }) {
-  const index = indexWorkLedgerText2(text15);
-  const errors = [...index.ingestion.errors];
-  let copied = null;
-  try {
-    const value3 = copyWorkJson2(context);
-    validateWorkContext2(value3);
-    copied = JSON.parse(canonicalWorkJson2(value3));
-  } catch (error) {
-    if (!(error instanceof WorkInputError4)) throw error;
-    errors.push({ line: null, code: "WORK_CONTEXT_INVALID" });
-  }
-  errors.sort((a, b) => (a.line ?? Infinity) - (b.line ?? Infinity) || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0));
-  const conflicts = mergeWorkConflicts2([
-    ...index.conflictingEvents.map((ref) => ({ kind: "event", id: ref.eventId, digests: [ref.digest], affectedObligations: [] })),
-    ...indexWorkReceipts2(copied?.authority ?? null).conflicts
-  ]);
-  const identities = { selectedSnapshot: copied?.selectedSnapshot?.snapshot ?? null, authoritySnapshot: copied?.authority?.snapshot ?? null };
-  function empty(scopeState, problems, retained = conflicts) {
-    return freezeWork2({
-      ...identities,
-      scopeState,
-      progress: null,
-      obligations: [],
-      claims: [],
-      supersededClaims: 0,
-      conflicts: mergeWorkConflicts2([...retained, ...conflicts]),
-      problems,
-      errors,
-      runtime: null
-    });
-  }
-  if (errors.length) return empty("unresolved", [{ code: "INPUT_INCOMPLETE", reference: null, affectedObligations: [] }]);
-  const structure = resolveWorkSnapshotText2(text15, copied.selectedSnapshot);
-  if (structure.scopeState !== "valid") return empty(structure.scopeState, structure.problems, structure.conflicts);
-  const runtime = foldWorkOccurrences2(index, structure.snapshot);
-  const acceptance2 = projectWorkAcceptance2(index, structure, copied.authority, runtime);
-  return freezeWork2({ ...identities, scopeState: "valid", ...acceptance2, errors, runtime: runtime.runtime });
-}
-
-// packages/adapters/src/generated/work-v4/pin.ts
-var WORK_V4_READER_COMMIT2 = "7c78769c47177b1972b09e1f5c5474ad44cd2cac";
-
-// packages/adapters/src/archived-work.ts
-function readArchivedWork(root, manifestId, context = { selectedSnapshot: null, authority: null }) {
-  const source3 = readArchiveSource2(root, manifestId);
-  if (source3.status !== "available") return { state: source3.status === "missing" ? "missing" : "error", manifestId, reason: "work-source-unavailable" };
-  if (source3.reference.retention !== "exact" || source3.reference.parser.id !== "pi-daddy-work-ledger" || source3.reference.parser.version !== "4") return { state: "error", manifestId, reason: "exact-work-v4-source-required" };
-  try {
-    const text15 = new TextDecoder("utf-8", { fatal: true }).decode(source3.bytes);
-    const projection = projectWorkLedger2(text15, context);
-    return { state: "available", manifestId, sourceSha256: source3.reference.sha256, producerCommit: WORK_V4_READER_COMMIT2, projection };
-  } catch {
-    return { state: "error", manifestId, reason: "invalid-work-source-or-context" };
-  }
-}
-function captureArchivedWorkSignals(root, manifestId, context, suppliedFacts) {
-  const read5 = readArchivedWork(root, manifestId, context);
-  if (read5.state !== "available" || read5.projection.errors.length || read5.projection.scopeState !== "valid" || !read5.projection.selectedSnapshot || !read5.projection.runtime) throw new Error("work source/selection incomplete; cannot capture signals");
-  const work = read5.projection, runtime = read5.projection.runtime, snapshotDigest = read5.projection.selectedSnapshot.digest;
-  const snapshot2 = {
-    snapshotDigest,
-    scopeValid: true,
-    obligations: work.obligations.map((o) => ({
-      id: o.binding.obligation.id,
-      digest: o.binding.obligation.digest,
-      intentDigest: o.binding.intent.digest,
-      policyDigest: o.binding.policy.digest,
-      artifactDigest: o.binding.artifact?.digest ?? null,
-      acceptance: o.acceptance,
-      coverage: [o.artifactCoverage.state, o.evidenceCoverage.state].includes("conflicted") ? "conflicted" : [o.artifactCoverage.state, o.evidenceCoverage.state].includes("unavailable") ? "unavailable" : o.artifactCoverage.state === "available" && o.evidenceCoverage.state === "available" && o.problems.every((p) => p.code === "TRUSTED_REJECTION") ? "available" : "unknown"
-    }))
-  };
-  const facts = suppliedFacts ?? {
-    scopeDigest: snapshotDigest,
-    version: "observed-work-v1",
-    population: "retained-work",
-    expectedWaits: [],
-    checkpoints: [],
-    violations: [],
-    priorAccepted: []
-  };
-  const runtimeFacts = {
-    version: "observed-work-runtime-v1",
-    snapshotDigest,
-    sourceManifestId: manifestId,
-    attempts: runtime.attempts.map((attempt) => {
-      const eventDigests = runtime.occurrences.filter((occurrence2) => occurrence2.payload.executionId === attempt.executionId && occurrence2.payload.provenance === "observed" && ["completed", "failed", "cancelled"].includes(occurrence2.payload.state)).map((occurrence2) => occurrence2.event.digest).sort();
-      return {
-        executionId: attempt.executionId,
-        state: attempt.state,
-        resolution: attempt.resolution,
-        completionEvidence: { state: eventDigests.length ? "available" : "unavailable", eventDigests }
-      };
-    }).sort((a, b) => a.executionId < b.executionId ? -1 : a.executionId > b.executionId ? 1 : 0),
-    obligations: snapshot2.obligations.map((obligation) => ({ obligationDigest: obligation.digest, acceptance: obligation.acceptance, coverage: obligation.coverage })).sort((a, b) => a.obligationDigest < b.obligationDigest ? -1 : a.obligationDigest > b.obligationDigest ? 1 : 0),
-    unavailable: ["checkpoint-evidence", "expected-wait-evidence", "prior-acceptance-history"]
-  };
-  const retainedRuntimeFacts = retainArchiveSource2(root, { sourceId: `observed-runtime-${read5.sourceSha256}`, parser: { id: "observed-work-runtime-facts", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(runtimeFacts)) });
-  const observation = retainWorkSignalObservation2(root, snapshot2, facts);
-  const projection = retainArchiveSource2(root, { sourceId: `work-signal-projection-${read5.sourceSha256}`, parser: { id: "pi-daddy-work-projection", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(work)) });
-  const cases = captureWorkSignalCases2(root, observation.manifestId);
-  const linkage = {
-    version: "archived-work-signals-v1",
-    bindingProfile: "work-v4-revision-digests-v1",
-    workManifestId: manifestId,
-    workSha256: read5.sourceSha256,
-    producerCommit: read5.producerCommit,
-    projectionManifestId: projection.manifestId,
-    runtimeFactsManifestId: retainedRuntimeFacts.manifestId,
-    observationId: observation.manifestId,
-    caseBatchId: cases.batchId,
-    candidateIds: cases.candidateIds,
-    authorityBasis: "independently-supplied-host-context",
-    acceptance: "not-assessed"
-  };
-  const stored = retainArchiveSource2(root, { sourceId: `work-signal-link-${read5.sourceSha256}`, parser: { id: "archived-work-signals", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(linkage)) });
-  return { ...linkage, linkageManifestId: stored.manifestId };
-}
-
-// packages/adapters/src/blind-intervention.ts
-import { constants as constants19, closeSync as closeSync17, fstatSync as fstatSync16, fsyncSync as fsyncSync12, lstatSync as lstatSync17, mkdirSync as mkdirSync19, openSync as openSync17, readSync as readSync10, writeSync as writeSync9 } from "node:fs";
-import { createHash as createHash52, randomBytes as randomBytes8 } from "node:crypto";
-import { join as join50 } from "node:path";
-var SHA13 = /^[a-f0-9]{64}$/;
-var missing4 = (e) => e?.code === "ENOENT";
-var encode2 = interventionCanonicalJson;
-var copy = (value3) => JSON.parse(encode2(value3));
-function keys6(value3, names) {
-  if (!value3 || typeof value3 !== "object" || Array.isArray(value3) || Object.keys(value3).sort().join() !== names.sort().join()) throw new Error("invalid blind record fields");
-}
-function authorValid2(author) {
-  if (typeof author !== "string" || !author.length || author.length > 512 || /[\u0000-\u001f\u007f]/.test(author)) throw new Error("explicit blind author required");
-}
-function claimsValid2(claims, manifest) {
-  keys6(claims, ["manifestId", "proposer", "judge", "subjects", "evidenceDigests"]);
-  for (const role of [claims.proposer, claims.judge]) keys6(role, ["requested", "canonical"]);
-  keys6(claims.subjects, manifest.arms.map((a) => a.id));
-  keys6(claims.evidenceDigests, manifest.arms.map((a) => a.id));
-  for (const role of Object.values(claims.subjects)) keys6(role, ["requested", "canonical"]);
-}
-function retainBlindIntervention2(root, manifest, evidence5, qualification, author) {
-  authorValid2(author);
-  const descriptors = Object.getOwnPropertyDescriptors(qualification);
-  if (Reflect.ownKeys(descriptors).some((k) => typeof k !== "string" || !descriptors[k].enumerable || !Object.hasOwn(descriptors[k], "value"))) throw new Error("plain qualification required");
-  keys6(qualification, ["manifestId", "proposer", "judge", "subjects", "evidenceDigests", "artifacts"]);
-  const { artifacts: artifactDescriptor, ...rest } = descriptors;
-  const claims = copy(Object.fromEntries(Object.entries(rest).map(([k, d]) => [k, d.value])));
-  const stableManifest = copy(manifest), stableEvidence = copy(evidence5);
-  claimsValid2(claims, stableManifest);
-  if (!(artifactDescriptor.value instanceof Map)) throw new Error("retained artifact map required");
-  const artifacts = /* @__PURE__ */ new Map();
-  let total = 0;
-  for (const [hash15, bytes3] of Map.prototype.entries.call(artifactDescriptor.value)) {
-    if (typeof hash15 !== "string" || !SHA13.test(hash15) || !(bytes3 instanceof Uint8Array) || bytes3.byteLength > 8 * 1024 * 1024 || artifacts.size >= 4096 || (total += bytes3.byteLength) > 64 * 1024 * 1024) throw new Error("bounded blind artifacts required");
-    const stable = Buffer.from(bytes3);
-    if (createHash52("sha256").update(stable).digest("hex") !== hash15) throw new Error("blind artifact digest mismatch");
-    artifacts.set(hash15, stable);
-  }
-  const assessment = assessIntervention(stableManifest, stableEvidence, { ...claims, artifacts });
-  const seed = randomBytes8(32).toString("hex");
-  createBlindComparison(stableManifest, assessment, seed);
-  const referenced = new Set(stableEvidence.flatMap((e) => e.artifactDigests));
-  if ([...artifacts.keys()].some((h) => !referenced.has(h))) throw new Error("unreferenced blind artifact");
-  const refs = [...artifacts].sort(([a], [b]) => a.localeCompare(b)).map(([hash15, bytes3]) => ({
-    hash: hash15,
-    manifestId: retainArchiveSource2(root, { sourceId: `blind-artifact-${hash15}`, parser: { id: "blind-artifact", version: "1" }, retention: "exact", bytes: bytes3 }).manifestId
-  }));
-  const bundle = { version: "retained-blind-intervention-v1", manifest: stableManifest, evidence: stableEvidence, qualification: claims, artifacts: refs, seed, author };
-  return retainArchiveSource2(root, { sourceId: `blind-${stableManifest.id}`, parser: { id: "blind-intervention", version: "1" }, retention: "exact", bytes: Buffer.from(encode2(bundle)) }).manifestId;
-}
-function load3(root, id3, author) {
-  authorValid2(author);
-  const source3 = readArchiveSource2(root, id3);
-  if (source3.status !== "available" || source3.reference.retention !== "exact" || source3.reference.parser.id !== "blind-intervention" || source3.reference.parser.version !== "1") throw new Error("blind input unavailable");
-  let bundle;
-  try {
-    const text15 = new TextDecoder("utf-8", { fatal: true }).decode(source3.bytes);
-    bundle = JSON.parse(text15);
-    if (encode2(bundle) !== text15) throw new Error();
-  } catch {
-    throw new Error("invalid blind input JSON");
-  }
-  keys6(bundle, ["version", "manifest", "evidence", "qualification", "artifacts", "seed", "author"]);
-  if (bundle.version !== "retained-blind-intervention-v1" || bundle.author !== author) throw new Error("blind author or version mismatch");
-  claimsValid2(bundle.qualification, bundle.manifest);
-  if (!Array.isArray(bundle.artifacts) || bundle.artifacts.length > 4096) throw new Error("invalid blind artifacts");
-  const artifacts = /* @__PURE__ */ new Map();
-  let total = 0;
-  for (const ref of bundle.artifacts) {
-    keys6(ref, ["hash", "manifestId"]);
-    if (!SHA13.test(ref.hash) || artifacts.has(ref.hash)) throw new Error("invalid blind artifact identity");
-    const artifact = readArchiveSource2(root, ref.manifestId);
-    if (artifact.status !== "available" || artifact.reference.retention !== "exact" || artifact.reference.parser.id !== "blind-artifact" || artifact.reference.parser.version !== "1" || artifact.reference.sha256 !== ref.hash || (total += artifact.bytes.length) > 64 * 1024 * 1024) throw new Error("blind artifact unavailable");
-    artifacts.set(ref.hash, artifact.bytes);
-  }
-  const assessment = assessIntervention(bundle.manifest, bundle.evidence, { ...bundle.qualification, artifacts });
-  return { blind: createBlindComparison(bundle.manifest, assessment, bundle.seed), manifest: bundle.manifest };
-}
-function readBlindInterventionBinding2(root, id3, author) {
-  const { manifest } = load3(root, id3, author);
-  return Object.freeze({ experimentDigest: manifest.id, investigationDigest: manifest.investigationSha256 });
-}
-function directory6(path3) {
-  const s = lstatSync17(path3);
-  if (!s.isDirectory() || s.isSymbolicLink() || s.mode & 63 || process.getuid && s.uid !== process.getuid()) throw new Error("private blind directory required");
-}
-function syncDirectory6(path3) {
-  const fd = openSync17(path3, constants19.O_RDONLY | constants19.O_DIRECTORY | constants19.O_NOFOLLOW);
-  try {
-    fsyncSync12(fd);
-  } finally {
-    closeSync17(fd);
-  }
-}
-function readChoice2(root, id3) {
-  const parent = join50(root, "blind-decisions"), dir = join50(parent, id3);
-  try {
-    directory6(parent);
-    directory6(dir);
-  } catch (e) {
-    if (missing4(e)) return null;
-    throw e;
-  }
-  let fd;
-  try {
-    fd = openSync17(join50(dir, "choice.json"), constants19.O_RDONLY | constants19.O_NOFOLLOW | constants19.O_NONBLOCK);
-  } catch (e) {
-    if (missing4(e)) throw new Error("blind choice incomplete; explicit recovery required");
-    throw e;
-  }
-  try {
-    const s = fstatSync16(fd);
-    if (!s.isFile() || s.nlink !== 1 || s.mode & 63 || process.getuid && s.uid !== process.getuid() || s.size > 16384) throw new Error("invalid blind choice file");
-    const bytes3 = Buffer.alloc(16385);
-    let used = 0;
-    while (used < bytes3.length) {
-      const n = readSync10(fd, bytes3, used, bytes3.length - used, used);
-      if (!n) break;
-      used += n;
-    }
-    if (used > 16384) throw new Error("invalid blind choice bound");
-    try {
-      const text15 = new TextDecoder("utf-8", { fatal: true }).decode(bytes3.subarray(0, used));
-      const value3 = JSON.parse(text15);
-      if (encode2(value3) !== text15) throw new Error();
-      return value3;
-    } catch {
-      throw new Error("invalid blind choice JSON; explicit recovery required");
-    }
-  } finally {
-    closeSync17(fd);
-  }
-}
-function openBlindIntervention2(root, id3, author) {
-  if (!SHA13.test(id3)) throw new Error("invalid blind comparison identity");
-  const current = () => load3(root, id3, author).blind;
-  return Object.freeze({
-    view: () => current().view(),
-    quality() {
-      const blind = current(), choice = readChoice2(root, id3);
-      return choice ? blind.choose(choice) : null;
-    },
-    previewChoice(input) {
-      return current().choose(input);
-    },
-    readArtifact: (label, hash15) => current().readArtifact(label, hash15),
-    choose(input) {
-      const blind = current(), choice = blind.choose(input);
-      const before = readChoice2(root, id3);
-      if (before) {
-        blind.choose(before);
-        if (encode2(before) !== encode2(choice)) throw new Error("blind quality choice locked");
-        return before;
-      }
-      const parent = join50(root, "blind-decisions"), dir = join50(parent, id3);
-      try {
-        mkdirSync19(parent, { mode: 448 });
-      } catch (e) {
-        if (e.code !== "EEXIST") throw e;
-      }
-      directory6(parent);
-      mkdirSync19(dir, { mode: 448 });
-      const fd = openSync17(join50(dir, "choice.json"), constants19.O_WRONLY | constants19.O_CREAT | constants19.O_EXCL | constants19.O_NOFOLLOW, 384);
-      try {
-        const data = Buffer.from(encode2(choice));
-        let offset = 0;
-        while (offset < data.length) {
-          const n = writeSync9(fd, data, offset, data.length - offset);
-          if (!n) throw new Error("blind choice write stalled");
-          offset += n;
-        }
-        fsyncSync12(fd);
-      } finally {
-        closeSync17(fd);
-      }
-      syncDirectory6(dir);
-      syncDirectory6(parent);
-      syncDirectory6(root);
-      return choice;
-    },
-    reveal() {
-      const blind = current(), choice = readChoice2(root, id3);
-      if (!choice) throw new Error("durable quality choice required before reveal");
-      blind.choose(choice);
-      return blind.reveal();
-    }
-  });
-}
-
-// packages/adapters/src/learning-lifecycle.ts
-var SHA14 = /^[a-f0-9]{64}$/;
-var closed17 = (value3, names) => !!value3 && typeof value3 === "object" && !Array.isArray(value3) && Object.keys(value3).sort().join() === names.sort().join();
-function available2(root, id3, parser) {
-  if (!SHA14.test(id3)) throw Error("invalid retained learning link");
-  const source3 = readArchiveSource2(root, id3);
-  if (source3.status !== "available" || source3.reference.retention !== "exact" || parser && source3.reference.parser.id !== parser) throw Error("retained learning link unavailable");
-  return source3;
-}
-function validate9(root, input, depth = 0) {
-  if (depth > 64) throw Error("learning lifecycle predecessor bound exceeded");
-  if (!closed17(input, ["caseManifestId", "hypothesisManifestId", "comparisonManifestId", "choiceManifestId", "adoptionManifestId", "rollbackManifestId", "outcomeManifestIds", "predecessorManifestId"]) || !Array.isArray(input.outcomeManifestIds) || input.outcomeManifestIds.length > 64 || new Set(input.outcomeManifestIds).size !== input.outcomeManifestIds.length) throw Error("invalid bounded learning lifecycle");
-  for (const id3 of [input.caseManifestId, input.hypothesisManifestId, input.comparisonManifestId]) available2(root, id3);
-  for (const id3 of [input.choiceManifestId, input.adoptionManifestId, input.rollbackManifestId, ...input.outcomeManifestIds]) if (id3 !== null) available2(root, id3);
-  if (input.adoptionManifestId && !input.choiceManifestId) throw Error("quality choice required before adoption");
-  if (input.rollbackManifestId && !input.adoptionManifestId) throw Error("adoption required before rollback");
-  if (input.outcomeManifestIds.length && !input.adoptionManifestId) throw Error("adoption required before outcomes");
-  if (input.predecessorManifestId) {
-    const prior = read4(root, input.predecessorManifestId, depth + 1);
-    if (prior.links.case !== input.caseManifestId || prior.links.hypothesis !== input.hypothesisManifestId || prior.links.comparison !== input.comparisonManifestId) throw Error("learning lifecycle identity changed");
-    for (const key3 of ["choice", "adoption", "rollback"]) if (prior.links[key3] !== null && prior.links[key3] !== { choice: input.choiceManifestId, adoption: input.adoptionManifestId, rollback: input.rollbackManifestId }[key3]) throw Error("learning lifecycle cannot regress or replace decisions");
-    if (prior.links.outcomes.some((id3, index) => input.outcomeManifestIds[index] !== id3)) throw Error("learning lifecycle cannot regress or replace outcomes");
-  }
-  const state = input.outcomeManifestIds.length ? "outcome-observed" : input.rollbackManifestId ? "rolled-back" : input.adoptionManifestId ? "adopted-awaiting-outcome" : input.choiceManifestId ? "decision-recorded" : "awaiting-human-choice";
-  return { version: "retained-learning-lifecycle-v1", state, predecessorManifestId: input.predecessorManifestId, links: { case: input.caseManifestId, hypothesis: input.hypothesisManifestId, comparison: input.comparisonManifestId, choice: input.choiceManifestId, adoption: input.adoptionManifestId, rollback: input.rollbackManifestId, outcomes: [...input.outcomeManifestIds] } };
-}
-function retainLearningLifecycle2(root, input) {
-  const view = validate9(root, input);
-  return retainArchiveSource2(root, { sourceId: `learning-${view.links.comparison.slice(0, 24)}`, parser: { id: "learning-lifecycle", version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(view)) }).manifestId;
-}
-function read4(root, manifestId, depth) {
-  if (depth > 64) throw Error("learning lifecycle predecessor bound exceeded");
-  const source3 = available2(root, manifestId, "learning-lifecycle");
-  let value3;
-  try {
-    value3 = JSON.parse(source3.bytes.toString("utf8"));
-  } catch {
-    throw Error("invalid retained learning lifecycle");
-  }
-  if (!closed17(value3, ["version", "state", "predecessorManifestId", "links"]) || value3.version !== "retained-learning-lifecycle-v1" || !closed17(value3.links, ["case", "hypothesis", "comparison", "choice", "adoption", "rollback", "outcomes"])) throw Error("invalid retained learning lifecycle");
-  const links = value3.links;
-  const rebuilt = validate9(root, { caseManifestId: links.case, hypothesisManifestId: links.hypothesis, comparisonManifestId: links.comparison, choiceManifestId: links.choice, adoptionManifestId: links.adoption, rollbackManifestId: links.rollback, outcomeManifestIds: links.outcomes, predecessorManifestId: value3.predecessorManifestId }, depth);
-  if (rebuilt.state !== value3.state || JSON.stringify(rebuilt) !== source3.bytes.toString("utf8")) throw Error("retained learning lifecycle changed");
-  return Object.freeze({ ...rebuilt, links: Object.freeze({ ...rebuilt.links, outcomes: Object.freeze(rebuilt.links.outcomes) }) });
-}
-function readLearningLifecycle(root, manifestId) {
-  return read4(root, manifestId, 0);
-}
-
-// packages/adapters/src/session-retention.ts
-import { createHash as createHash54 } from "node:crypto";
-import { resolve as resolve29 } from "node:path";
-
-// packages/adapters/src/trajectory.ts
-import { createHash as createHash53 } from "node:crypto";
-import { readFileSync as readFileSync30, readdirSync as readdirSync19 } from "node:fs";
-import { join as join51 } from "node:path";
-
-// packages/adapters/src/closed-schema.ts
-var ANNOTATION_KEYWORDS2 = /* @__PURE__ */ new Set(["$schema", "$id", "title", "description", "$defs"]);
-var SUPPORTED_KEYWORDS2 = /* @__PURE__ */ new Set([
-  ...ANNOTATION_KEYWORDS2,
-  // structure
-  "$ref",
-  "oneOf",
-  "type",
-  "properties",
-  "required",
-  "additionalProperties",
-  "items",
-  // value constraints
-  "enum",
-  "const",
-  "minLength",
-  "maxLength",
-  "minimum",
-  "pattern",
-  "format"
-]);
-var V3_SUPPORTED_KEYWORDS2 = /* @__PURE__ */ new Set([
-  ...SUPPORTED_KEYWORDS2,
-  "allOf",
-  "anyOf",
-  "if",
-  "then",
-  "propertyNames",
-  "minItems",
-  "maxItems"
-]);
-var KEYWORD_SHAPES2 = {
-  $ref: { check: (value3) => typeof value3 === "string", expected: "a string" },
-  oneOf: { check: (value3) => Array.isArray(value3) && value3.length > 0, expected: "a non-empty array" },
-  allOf: { check: (value3) => Array.isArray(value3) && value3.length > 0, expected: "a non-empty array" },
-  anyOf: { check: (value3) => Array.isArray(value3) && value3.length > 0, expected: "a non-empty array" },
-  if: { check: (value3) => isSchemaObject2(value3), expected: "a schema object" },
-  then: { check: (value3) => isSchemaObject2(value3), expected: "a schema object" },
-  propertyNames: { check: (value3) => isSchemaObject2(value3), expected: "a schema object" },
-  type: { check: (value3) => typeof value3 === "string" || Array.isArray(value3) && value3.length > 0 && value3.every((entry) => typeof entry === "string"), expected: "a string or array of strings" },
-  properties: { check: (value3) => isSchemaObject2(value3), expected: "an object" },
-  required: { check: (value3) => Array.isArray(value3) && value3.every((entry) => typeof entry === "string"), expected: "an array of strings" },
-  additionalProperties: { check: (value3) => typeof value3 === "boolean" || isSchemaObject2(value3), expected: "a boolean or a schema object" },
-  items: { check: (value3) => isSchemaObject2(value3), expected: "a schema object" },
-  enum: { check: (value3) => Array.isArray(value3) && value3.length > 0, expected: "a non-empty array" },
-  minLength: { check: (value3) => typeof value3 === "number", expected: "a number" },
-  maxLength: { check: (value3) => typeof value3 === "number", expected: "a number" },
-  minimum: { check: (value3) => typeof value3 === "number", expected: "a number" },
-  minItems: { check: (value3) => Number.isInteger(value3) && Number(value3) >= 0, expected: "a non-negative integer" },
-  maxItems: { check: (value3) => Number.isInteger(value3) && Number(value3) >= 0, expected: "a non-negative integer" },
-  pattern: { check: (value3) => typeof value3 === "string", expected: "a string" },
-  format: { check: (value3) => typeof value3 === "string", expected: "a string" }
-  // `const` may legitimately be any JSON value, including null.
-};
-var SUPPORTED_FORMATS2 = /* @__PURE__ */ new Set(["date-time"]);
-var SUPPORTED_TYPES2 = /* @__PURE__ */ new Set(["object", "array", "string", "number", "integer", "boolean", "null"]);
-function assertSupportedSchema2(schema2, label, path3 = "#") {
-  assertSchemaSupported2(schema2, label, path3, false);
-}
-function assertSupportedSchemaV32(schema2, label, path3 = "#") {
-  assertSchemaSupported2(schema2, label, path3, true);
-}
-function assertSchemaSupported2(schema2, label, path3, v3) {
-  if (typeof schema2 !== "object" || schema2 === null || Array.isArray(schema2)) {
-    throw new Error(`${label} is not a JSON Schema object at ${path3}`);
-  }
-  const node = schema2;
-  const supported = v3 ? V3_SUPPORTED_KEYWORDS2 : SUPPORTED_KEYWORDS2;
-  for (const keyword of Object.keys(node)) {
-    if (!supported.has(keyword)) {
-      throw new Error(`${label} uses unsupported JSON Schema keyword \`${keyword}\` at ${path3}; the closed-contract evaluator refuses to validate less than the schema declares`);
-    }
-    const shape = KEYWORD_SHAPES2[keyword];
-    if (shape && !shape.check(node[keyword])) {
-      throw new Error(`${label} declares \`${keyword}\` at ${path3} as something other than ${shape.expected}; the closed-contract evaluator refuses to skip a keyword it cannot read`);
-    }
-  }
-  if (node.format !== void 0 && !SUPPORTED_FORMATS2.has(String(node.format))) {
-    throw new Error(`${label} uses unsupported format \`${String(node.format)}\` at ${path3}`);
-  }
-  for (const type2 of typeList2(node)) {
-    if (!SUPPORTED_TYPES2.has(type2)) throw new Error(`${label} uses unsupported type \`${type2}\` at ${path3}`);
-  }
-  if (node.$ref !== void 0) {
-    if (!/^#\/\$defs\/[A-Za-z0-9_]+$/.test(String(node.$ref))) {
-      throw new Error(`${label} uses unsupported $ref \`${String(node.$ref)}\` at ${path3}; only #/$defs/<name> is resolvable`);
-    }
-    const siblings = Object.keys(node).filter((keyword) => keyword !== "$ref" && !ANNOTATION_KEYWORDS2.has(keyword));
-    if (siblings.length > 0) {
-      throw new Error(`${label} combines $ref with ${siblings.map((keyword) => `\`${keyword}\``).join(", ")} at ${path3}; the closed-contract evaluator would drop the sibling constraint, so it refuses the schema instead`);
-    }
-  }
-  for (const [name, entry] of Object.entries(object3(node.$defs) ?? {})) assertSchemaSupported2(entry, label, `${path3}/$defs/${name}`, v3);
-  for (const keyword of ["oneOf", "allOf", "anyOf"]) {
-    for (const [index, entry] of (Array.isArray(node[keyword]) ? node[keyword] : []).entries()) {
-      assertSchemaSupported2(entry, label, `${path3}/${keyword}/${index}`, v3);
-    }
-  }
-  for (const [name, entry] of Object.entries(object3(node.properties) ?? {})) assertSchemaSupported2(entry, label, `${path3}/properties/${name}`, v3);
-  for (const keyword of ["items", "propertyNames", "if", "then"]) {
-    if (node[keyword] !== void 0) assertSchemaSupported2(node[keyword], label, `${path3}/${keyword}`, v3);
-  }
-  if (node.additionalProperties !== void 0 && node.additionalProperties !== false && node.additionalProperties !== true) {
-    assertSchemaSupported2(node.additionalProperties, label, `${path3}/additionalProperties`, v3);
-  }
-}
-function validateClosedSchema2(schema2, value3, options = {}) {
-  return validate10(schema2, schema2, value3, "", options.knownFieldNames ?? /* @__PURE__ */ new Set());
-}
-function validateClosedSchemaV32(schema2, value3, options = {}) {
-  return validate10(schema2, schema2, value3, "", options.knownFieldNames ?? /* @__PURE__ */ new Set());
-}
-function declaredPropertyNames2(schema2) {
-  const names = /* @__PURE__ */ new Set();
-  const walk2 = (node) => {
-    const current = object3(node);
-    if (!current) return;
-    for (const [name, entry] of Object.entries(object3(current.properties) ?? {})) {
-      names.add(name);
-      walk2(entry);
-    }
-    for (const entry of Object.values(object3(current.$defs) ?? {})) walk2(entry);
-    for (const keyword of ["oneOf", "allOf", "anyOf"]) {
-      for (const entry of Array.isArray(current[keyword]) ? current[keyword] : []) walk2(entry);
-    }
-    for (const keyword of ["items", "propertyNames", "if", "then"]) if (current[keyword] !== void 0) walk2(current[keyword]);
-    if (current.additionalProperties && typeof current.additionalProperties === "object") walk2(current.additionalProperties);
-  };
-  walk2(schema2);
-  return names;
-}
-function validate10(root, schema2, value3, path3, known) {
-  if (schema2.$ref !== void 0) {
-    const resolved = resolveRef2(root, String(schema2.$ref));
-    return validate10(root, resolved, value3, path3, known);
-  }
-  const violations = [];
-  if (Array.isArray(schema2.allOf)) {
-    for (const branch of schema2.allOf) violations.push(...validate10(root, branch, value3, path3, known));
-  }
-  if (Array.isArray(schema2.anyOf)) {
-    const branches = schema2.anyOf.map((branch) => validate10(root, branch, value3, path3, known));
-    if (!branches.some((branch) => branch.length === 0)) violations.push(...bestBranch2(root, schema2.anyOf, branches, value3, path3));
-  }
-  if (schema2.if !== void 0 && validate10(root, schema2.if, value3, path3, known).length === 0 && schema2.then !== void 0) {
-    violations.push(...validate10(root, schema2.then, value3, path3, known));
-  }
-  const types4 = typeList2(schema2);
-  if (types4.length && !types4.some((type2) => matchesType2(type2, value3))) {
-    return [{ path: path3, message: `must be ${describeTypes2(types4)}` }];
-  }
-  if (schema2.const !== void 0 && !sameJson2(schema2.const, value3)) {
-    return [{ path: path3, message: `must be ${JSON.stringify(schema2.const)}` }];
-  }
-  if (Array.isArray(schema2.enum) && !schema2.enum.some((allowed) => sameJson2(allowed, value3))) {
-    return [{ path: path3, message: `must be one of ${schema2.enum.map((allowed) => stringifyAllowed2(allowed)).join(", ")}` }];
-  }
-  if (Array.isArray(schema2.oneOf)) {
-    const branches = schema2.oneOf.map((branch) => validate10(root, branch, value3, path3, known));
-    const matched = branches.filter((branch) => branch.length === 0).length;
-    if (matched === 0) return bestBranch2(root, schema2.oneOf, branches, value3, path3);
-    if (matched > 1) return [{ path: path3, message: `matches ${matched} of the ${branches.length} allowed shapes and is therefore ambiguous` }];
-  }
-  if (typeof value3 === "string") violations.push(...validateString2(schema2, value3, path3));
-  if (typeof value3 === "number") violations.push(...validateNumber2(schema2, value3, path3));
-  if (Array.isArray(value3)) {
-    if (typeof schema2.minItems === "number" && value3.length < schema2.minItems) {
-      violations.push({ path: path3, message: `must contain at least ${schema2.minItems} item(s)` });
-    }
-    if (typeof schema2.maxItems === "number" && value3.length > schema2.maxItems) {
-      violations.push({ path: path3, message: `must contain at most ${schema2.maxItems} item(s)` });
-    }
-    if (schema2.items !== void 0) {
-      value3.forEach((entry, index) => violations.push(...validate10(root, schema2.items, entry, `${path3}[${index}]`, known)));
-    }
-  }
-  const record = object3(value3);
-  if (record) violations.push(...validateObject2(root, schema2, record, path3, known));
-  return violations;
-}
-function validateObject2(root, schema2, record, path3, known) {
-  const violations = [];
-  const properties = object3(schema2.properties) ?? {};
-  if (schema2.propertyNames !== void 0) {
-    for (const name of Object.keys(record)) violations.push(...validate10(root, schema2.propertyNames, name, path3, known));
-  }
-  for (const name of Array.isArray(schema2.required) ? schema2.required : []) {
-    if (!Object.hasOwn(record, name)) violations.push({ path: child2(path3, name), message: "is required" });
-  }
-  for (const [name, entry] of Object.entries(record)) {
-    if (entry === void 0) continue;
-    const propertySchema = Object.hasOwn(properties, name) ? object3(properties[name]) : void 0;
-    if (propertySchema) {
-      violations.push(...validate10(root, propertySchema, entry, child2(path3, name), known));
-      continue;
-    }
-    if (schema2.additionalProperties === false) {
-      violations.push({
-        path: path3 || "(top level)",
-        message: `carries undeclared field ${known.has(name) ? name : "[REDACTED field name]"}, which the closed contract does not allow`
-      });
-      continue;
-    }
-    const extra = typeof schema2.additionalProperties === "object" && schema2.additionalProperties !== null ? schema2.additionalProperties : void 0;
-    if (extra) violations.push(...validate10(root, extra, entry, child2(path3, name), known));
-  }
-  return violations;
-}
-function validateString2(schema2, value3, path3) {
-  const violations = [];
-  if (typeof schema2.minLength === "number" && value3.length < schema2.minLength) {
-    violations.push({ path: path3, message: schema2.minLength === 1 ? "must not be empty" : `must be at least ${schema2.minLength} characters` });
-  }
-  if (typeof schema2.maxLength === "number" && value3.length > schema2.maxLength) {
-    violations.push({ path: path3, message: `must be at most ${schema2.maxLength} characters` });
-  }
-  if (typeof schema2.pattern === "string" && !new RegExp(schema2.pattern).test(value3)) {
-    violations.push({ path: path3, message: `must match ${schema2.pattern}` });
-  }
-  if (schema2.format === "date-time" && !isRfc33392(value3)) {
-    violations.push({ path: path3, message: "must be an RFC 3339 date-time" });
-  }
-  return violations;
-}
-function validateNumber2(schema2, value3, path3) {
-  if (typeof schema2.minimum === "number" && value3 < schema2.minimum) {
-    return [{ path: path3, message: `must be >= ${schema2.minimum}` }];
-  }
-  return [];
-}
-function bestBranch2(root, schemas, branches, value3, path3) {
-  const discriminated = schemas.map((schema2, index) => ({ schema: schema2, violations: branches[index] })).filter(({ schema: schema2 }) => matchesDiscriminator2(root, schema2, value3));
-  const candidates = discriminated.length === 1 ? [discriminated[0].violations] : branches;
-  let best = candidates[0] ?? [];
-  for (const branch of candidates) if (branch.length < best.length) best = branch;
-  return best.length ? best : [{ path: path3, message: "does not match any allowed shape" }];
-}
-function matchesDiscriminator2(root, schema2, value3) {
-  const resolved = schema2.$ref !== void 0 ? resolveRef2(root, String(schema2.$ref)) : schema2;
-  const record = object3(value3);
-  const properties = object3(resolved.properties);
-  if (!record || !properties) return false;
-  const required = new Set(Array.isArray(resolved.required) ? resolved.required : []);
-  const consts = Object.entries(properties).filter(([name]) => required.has(name)).map(([name, entry]) => [name, object3(entry)?.const]).filter(([, constant]) => constant !== void 0);
-  return consts.length > 0 && consts.every(([name, constant]) => sameJson2(constant, record[name]));
-}
-function resolveRef2(root, ref) {
-  const name = ref.replace("#/$defs/", "");
-  const resolved = object3((object3(root.$defs) ?? {})[name]);
-  if (!resolved) throw new Error(`unresolvable $ref ${ref} in pinned schema`);
-  return resolved;
-}
-function typeList2(schema2) {
-  if (typeof schema2.type === "string") return [schema2.type];
-  if (Array.isArray(schema2.type)) return schema2.type.map(String);
-  return [];
-}
-function matchesType2(type2, value3) {
-  switch (type2) {
-    case "object":
-      return object3(value3) !== void 0;
-    case "array":
-      return Array.isArray(value3);
-    case "string":
-      return typeof value3 === "string";
-    case "boolean":
-      return typeof value3 === "boolean";
-    case "null":
-      return value3 === null;
-    case "integer":
-      return typeof value3 === "number" && Number.isInteger(value3);
-    case "number":
-      return typeof value3 === "number" && Number.isFinite(value3);
-    default:
-      return false;
-  }
-}
-function describeTypes2(types4) {
-  const article = (type2) => ["object", "array", "integer"].includes(type2) ? `an ${type2}` : `a ${type2}`;
-  if (types4.length === 1) return types4[0] === "null" ? "null" : article(types4[0]);
-  return types4.map((type2) => type2 === "null" ? "null" : article(type2)).join(" or ");
-}
-function stringifyAllowed2(value3) {
-  return typeof value3 === "string" ? value3 : JSON.stringify(value3);
-}
-function child2(path3, name) {
-  const safe = /^[A-Za-z0-9_.:-]{1,64}$/.test(name) && redactText(name) === name ? name : "[REDACTED key]";
-  if (safe === "[REDACTED key]") return path3 ? `${path3}[REDACTED key]` : "[REDACTED key]";
-  if (!path3) return /^[A-Za-z_][A-Za-z0-9_]*$/.test(safe) ? safe : `[${JSON.stringify(safe)}]`;
-  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(safe) ? `${path3}.${safe}` : `${path3}[${JSON.stringify(safe)}]`;
-}
-function sameJson2(left, right) {
-  return left === right || JSON.stringify(left) === JSON.stringify(right);
-}
-function isRfc33392(value3) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|([+-])(\d{2}):(\d{2}))$/.exec(value3);
-  if (!match) return false;
-  const [year, month, day, hour, minute, second] = match.slice(1, 7).map(Number);
-  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 60) return false;
-  if (match[8] !== void 0 && (Number(match[8]) > 23 || Number(match[9]) > 59)) return false;
-  return day >= 1 && day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
-}
-function object3(value3) {
-  return value3 && typeof value3 === "object" && !Array.isArray(value3) ? value3 : void 0;
-}
-function isSchemaObject2(value3) {
-  return object3(value3) !== void 0;
-}
-
-// packages/adapters/src/pi-daddy-ledger-v2.ts
-var PI_DADDY_CONTRACT_COMMIT2 = "c364a6717e3d5e369ecd3298b9cbb595eb94d9b2";
-var PI_DADDY_LEDGER_V2_SCHEMA2 = {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/mojomanyana/pi-daddy/contracts/ledger/v2/ledger-event.schema.json",
-  "title": "pi-daddy ledgerVersion 2 event",
-  "description": "One JSON object per JSONL line. This schema covers only explicit ledgerVersion 2 events; legacy GrantRecord lines have no version/event discriminator and are intentionally outside this schema.",
-  "oneOf": [
-    {
-      "$ref": "#/$defs/capabilityDecision"
-    },
-    {
-      "$ref": "#/$defs/workspaceLease"
-    },
-    {
-      "$ref": "#/$defs/childLifecycle"
-    },
-    {
-      "$ref": "#/$defs/checkReceipt"
-    }
-  ],
-  "$defs": {
-    "correlation": {
-      "type": "object",
-      "description": "Opaque, non-authoritative controller metadata. String and aggregate byte limits are additionally enforced by the runtime and cannot be represented exactly in JSON Schema.",
-      "properties": {
-        "schema_version": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "run_id": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "task_id": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "workspace_id": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "context_id": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "phase": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "assurance": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "assurance_effective": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "policy_label": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "assurance_source": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "assurance_scope": {},
-        "activated_at": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "plan_digest": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "definition_digest": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "task_digest": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "base_sha": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "head_sha": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "tree_sha": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "event_seq": {
-          "type": "number"
-        },
-        "last_change_seq": {
-          "type": "number"
-        },
-        "last_authority_seq": {
-          "type": "number"
-        },
-        "check_receipt_id": {
-          "type": "string",
-          "maxLength": 512
-        }
-      },
-      "additionalProperties": false
-    },
-    "refusalCode": {
-      "type": "string",
-      "enum": [
-        "CAPABILITY_ESCALATION",
-        "GRANT_ID_MALFORMED",
-        "DEFINITION_NOT_AUTHORIZED",
-        "UNDECLARED_TOOLS",
-        "UNKNOWN_TOOL",
-        "GATED_UNAPPROVED",
-        "APPROVAL_EXPIRED",
-        "APPROVAL_SCOPE_MISMATCH",
-        "APPROVAL_FLOW_FAILED",
-        "DEPTH_EXCEEDED",
-        "FANOUT_EXCEEDED",
-        "EXECUTOR_UNAVAILABLE",
-        "CHILD_TIMED_OUT",
-        "CHILD_CANCELLED",
-        "CHILD_EXIT_NONZERO",
-        "TASK_MISSING",
-        "UNKNOWN_DEFINITION",
-        "CEILING_PATTERNS_UNRESOLVED",
-        "NARROWING_VIOLATED",
-        "DEFINITION_UNREADABLE",
-        "CORRELATION_TOO_LARGE",
-        "CORRELATION_INVALID",
-        "LEDGER_WRITE_FAILED",
-        "FANOUT_FAILED",
-        "WORKSPACE_NOT_REGISTERED",
-        "WORKSPACE_NOT_AUTHORIZED",
-        "WORKSPACE_WRITE_CONFLICT",
-        "WORKSPACE_LEASE_STALE",
-        "CHECK_NOT_CONFIGURED",
-        "CHECK_CONFIGURATION_INVALID",
-        "CHECK_IDENTITY_UNAVAILABLE",
-        "CHECK_IDENTITY_MISMATCH"
-      ]
-    },
-    "refusal": {
-      "type": "object",
-      "properties": {
-        "code": {
-          "$ref": "#/$defs/refusalCode"
-        },
-        "message": {
-          "type": "string"
-        },
-        "details": {
-          "type": "object",
-          "additionalProperties": {
-            "type": [
-              "string",
-              "number",
-              "boolean",
-              "null"
-            ]
-          }
-        }
-      },
-      "required": [
-        "code",
-        "message"
-      ],
-      "additionalProperties": false
-    },
-    "approvalSource": {
-      "type": "string",
-      "enum": [
-        "prompt",
-        "session",
-        "persisted",
-        "inherited"
-      ]
-    },
-    "approvalScope": {
-      "type": "string",
-      "enum": [
-        "once",
-        "session",
-        "always"
-      ]
-    },
-    "approvalUse": {
-      "type": "object",
-      "properties": {
-        "max": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "remaining": {
-          "type": "integer",
-          "minimum": 0
-        }
-      },
-      "required": [
-        "max",
-        "remaining"
-      ],
-      "additionalProperties": false
-    },
-    "definitionDigest": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "source": {
-          "type": "string"
-        },
-        "sha256": {
-          "type": "string",
-          "pattern": "^[a-fA-F0-9]{64}$"
-        }
-      },
-      "required": [
-        "name",
-        "source",
-        "sha256"
-      ],
-      "additionalProperties": false
-    },
-    "capabilityDecision": {
-      "type": "object",
-      "properties": {
-        "ledgerVersion": {
-          "const": 2
-        },
-        "event": {
-          "const": "capability_decision"
-        },
-        "ts": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "parentId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "childId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "depth": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "agentType": {
-          "type": "string"
-        },
-        "requested": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "parentGrant": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "effective": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "denied": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "clipped": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "gatedBlocked": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "blocked": {
-          "type": "boolean"
-        },
-        "reason": {
-          "type": "string"
-        },
-        "approved": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "approvalSource": {
-          "$ref": "#/$defs/approvalSource"
-        },
-        "approvalSources": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/approvalSource"
-          }
-        },
-        "approvalScopes": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/approvalScope"
-          }
-        },
-        "approvalExpiresAt": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "approvalUses": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/approvalUse"
-          }
-        },
-        "approvalScope": {
-          "$ref": "#/$defs/approvalScope"
-        },
-        "humanDenied": {
-          "const": true
-        },
-        "gateOutcome": {
-          "type": "string",
-          "enum": [
-            "declined",
-            "dismissed",
-            "no-ui",
-            "error"
-          ]
-        },
-        "definitionDigest": {
-          "$ref": "#/$defs/definitionDigest"
-        },
-        "executor": {
-          "type": "string",
-          "enum": [
-            "process",
-            "herdr"
-          ]
-        },
-        "taskFrom": {
-          "type": "string"
-        },
-        "taskDigest": {
-          "type": "string",
-          "pattern": "^[a-fA-F0-9]{64}$"
-        },
-        "correlation": {
-          "$ref": "#/$defs/correlation"
-        },
-        "refusal": {
-          "$ref": "#/$defs/refusal"
-        }
-      },
-      "required": [
-        "ledgerVersion",
-        "event",
-        "ts",
-        "parentId",
-        "childId",
-        "depth",
-        "requested",
-        "parentGrant",
-        "effective",
-        "denied",
-        "clipped",
-        "gatedBlocked",
-        "blocked",
-        "executor",
-        "taskDigest"
-      ],
-      "additionalProperties": false
-    },
-    "workspaceLease": {
-      "type": "object",
-      "properties": {
-        "ledgerVersion": {
-          "const": 2
-        },
-        "event": {
-          "const": "workspace_lease"
-        },
-        "ts": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "childId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "workspaceId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "root": {
-          "type": "string",
-          "minLength": 1
-        },
-        "access": {
-          "type": "string",
-          "enum": [
-            "read",
-            "write"
-          ]
-        },
-        "outcome": {
-          "type": "string",
-          "enum": [
-            "acquired",
-            "uncontended",
-            "refused",
-            "released",
-            "released-unrecorded",
-            "lost",
-            "retained",
-            "timeout",
-            "recovered"
-          ]
-        },
-        "recovered": {
-          "oneOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "const": "unknown"
-            }
-          ]
-        },
-        "releaseReason": {
-          "type": "string"
-        },
-        "refusal": {
-          "$ref": "#/$defs/refusal"
-        },
-        "correlation": {
-          "$ref": "#/$defs/correlation"
-        }
-      },
-      "required": [
-        "ledgerVersion",
-        "event",
-        "ts",
-        "childId",
-        "workspaceId",
-        "root",
-        "access",
-        "outcome"
-      ],
-      "additionalProperties": false
-    },
-    "childLifecycle": {
-      "type": "object",
-      "properties": {
-        "ledgerVersion": {
-          "const": 2
-        },
-        "event": {
-          "const": "child_lifecycle"
-        },
-        "ts": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "childId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "state": {
-          "type": "string",
-          "enum": [
-            "starting",
-            "completed",
-            "failed"
-          ]
-        },
-        "executor": {
-          "type": "string",
-          "enum": [
-            "process",
-            "herdr"
-          ]
-        },
-        "exitCode": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "signal": {
-          "oneOf": [
-            {
-              "type": "string",
-              "enum": [
-                "SIGABRT",
-                "SIGALRM",
-                "SIGBUS",
-                "SIGCHLD",
-                "SIGCONT",
-                "SIGFPE",
-                "SIGHUP",
-                "SIGILL",
-                "SIGINT",
-                "SIGIO",
-                "SIGIOT",
-                "SIGKILL",
-                "SIGPIPE",
-                "SIGPOLL",
-                "SIGPROF",
-                "SIGPWR",
-                "SIGQUIT",
-                "SIGSEGV",
-                "SIGSTKFLT",
-                "SIGSTOP",
-                "SIGSYS",
-                "SIGTERM",
-                "SIGTRAP",
-                "SIGTSTP",
-                "SIGTTIN",
-                "SIGTTOU",
-                "SIGUNUSED",
-                "SIGURG",
-                "SIGUSR1",
-                "SIGUSR2",
-                "SIGVTALRM",
-                "SIGWINCH",
-                "SIGXCPU",
-                "SIGXFSZ",
-                "SIGBREAK",
-                "SIGLOST",
-                "SIGINFO"
-              ]
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "timedOut": {
-          "const": true
-        },
-        "aborted": {
-          "const": true
-        },
-        "truncated": {
-          "const": true
-        },
-        "reason": {
-          "type": "string"
-        },
-        "correlation": {
-          "$ref": "#/$defs/correlation"
-        }
-      },
-      "required": [
-        "ledgerVersion",
-        "event",
-        "ts",
-        "childId",
-        "state",
-        "executor"
-      ],
-      "additionalProperties": false
-    },
-    "checkReceipt": {
-      "type": "object",
-      "properties": {
-        "ledgerVersion": {
-          "const": 2
-        },
-        "event": {
-          "const": "check_receipt"
-        },
-        "ts": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "childId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "receiptId": {
-          "type": "string",
-          "pattern": "^[a-fA-F0-9]{64}$"
-        },
-        "workspaceId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "checkId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "treeSha": {
-          "type": "string",
-          "minLength": 1
-        },
-        "correlation": {
-          "$ref": "#/$defs/correlation"
-        }
-      },
-      "required": [
-        "ledgerVersion",
-        "event",
-        "ts",
-        "childId",
-        "receiptId",
-        "workspaceId",
-        "checkId",
-        "treeSha"
-      ],
-      "additionalProperties": false
-    }
-  }
-};
-
-// packages/adapters/src/pi-daddy-ledger-v3.ts
-var PI_DADDY_LEDGER_V3_CONTRACT_COMMIT2 = "4a9524394ca995fd74ed9bbb836dc4e73cda3b8c";
-var PI_DADDY_LEDGER_V3_SCHEMA2 = {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/mojomanyana/pi-daddy/contracts/ledger/v3/ledger-event.schema.json",
-  "title": "pi-daddy ledgerVersion 3 event",
-  "description": "One JSON object per JSONL line. Version 3 adds unique execution identity and explicit parent execution identity; legacy and v2 lines are intentionally outside this schema.",
-  "oneOf": [
-    {
-      "$ref": "#/$defs/capabilityDecision"
-    },
-    {
-      "$ref": "#/$defs/workspaceLease"
-    },
-    {
-      "$ref": "#/$defs/childLifecycle"
-    },
-    {
-      "$ref": "#/$defs/checkReceipt"
-    },
-    {
-      "$ref": "#/$defs/workflowFact"
-    }
-  ],
-  "$defs": {
-    "timestamp": {
-      "type": "string",
-      "format": "date-time",
-      "pattern": ":[0-5][0-9](?:\\.[0-9]+)?(?:[Zz]|[+-][0-9]{2}:[0-9]{2})$"
-    },
-    "correlation": {
-      "type": "object",
-      "description": "Non-authoritative controller metadata under the pinned 1.0 contract. String and aggregate byte limits are additionally enforced by the runtime and cannot be represented exactly in JSON Schema.",
-      "properties": {
-        "schema_version": {
-          "const": "1.0"
-        },
-        "run_id": {
-          "$ref": "#/$defs/ledgerCorrelationIdentifier"
-        },
-        "task_id": {
-          "$ref": "#/$defs/ledgerCorrelationIdentifier"
-        },
-        "workspace_id": {
-          "$ref": "#/$defs/ledgerCorrelationIdentifier"
-        },
-        "context_id": {
-          "$ref": "#/$defs/ledgerCorrelationIdentifier"
-        },
-        "phase": {
-          "$ref": "#/$defs/ledgerCorrelationIdentifier"
-        },
-        "assurance": {
-          "$ref": "#/$defs/ledgerCorrelationIdentifier"
-        },
-        "assurance_effective": {
-          "$ref": "#/$defs/ledgerCorrelationIdentifier"
-        },
-        "policy_label": {
-          "$ref": "#/$defs/ledgerCorrelationIdentifier"
-        },
-        "assurance_source": {
-          "$ref": "#/$defs/ledgerCorrelationIdentifier"
-        },
-        "assurance_scope": {
-          "oneOf": [
-            {
-              "type": "object",
-              "properties": {
-                "type": {
-                  "const": "entire-run"
-                },
-                "selectors": {
-                  "type": "array",
-                  "maxItems": 0
-                }
-              },
-              "required": [
-                "type",
-                "selectors"
-              ],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": {
-                "type": {
-                  "const": "selectors"
-                },
-                "selectors": {
-                  "type": "array",
-                  "minItems": 1,
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                }
-              },
-              "required": [
-                "type",
-                "selectors"
-              ],
-              "additionalProperties": false
-            }
-          ]
-        },
-        "activated_at": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "plan_digest": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "definition_digest": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "task_digest": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "base_sha": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "head_sha": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "tree_sha": {
-          "type": "string",
-          "maxLength": 512
-        },
-        "event_seq": {
-          "type": "number"
-        },
-        "last_change_seq": {
-          "type": "number"
-        },
-        "last_authority_seq": {
-          "type": "number"
-        },
-        "check_receipt_id": {
-          "type": "string",
-          "maxLength": 512
-        }
-      },
-      "additionalProperties": false
-    },
-    "ledgerDisplayIdentifier": {
-      "type": "string",
-      "pattern": "^[A-Za-z0-9@*][A-Za-z0-9@*._:/-]{0,511}$"
-    },
-    "ledgerCorrelationIdentifier": {
-      "type": "string",
-      "pattern": "^[A-Za-z0-9@*][A-Za-z0-9@*._:/-]{0,127}$"
-    },
-    "ledgerCapabilityIdentifier": {
-      "type": "string",
-      "pattern": "^(tool|skill|agent|workspace|ext):[A-Za-z0-9@*][A-Za-z0-9@*._/-]{0,255}$"
-    },
-    "refusalCode": {
-      "type": "string",
-      "enum": [
-        "CAPABILITY_ESCALATION",
-        "GRANT_ID_MALFORMED",
-        "DEFINITION_NOT_AUTHORIZED",
-        "UNDECLARED_TOOLS",
-        "UNKNOWN_TOOL",
-        "GATED_UNAPPROVED",
-        "APPROVAL_EXPIRED",
-        "APPROVAL_SCOPE_MISMATCH",
-        "APPROVAL_FLOW_FAILED",
-        "DEPTH_EXCEEDED",
-        "FANOUT_EXCEEDED",
-        "EXECUTOR_UNAVAILABLE",
-        "MODEL_UNRESOLVED",
-        "GRANT_STORE_INVALID",
-        "CHILD_TIMED_OUT",
-        "CHILD_CANCELLED",
-        "CHILD_EXIT_NONZERO",
-        "TASK_MISSING",
-        "UNKNOWN_DEFINITION",
-        "CEILING_PATTERNS_UNRESOLVED",
-        "NARROWING_VIOLATED",
-        "DEFINITION_UNREADABLE",
-        "CORRELATION_TOO_LARGE",
-        "CORRELATION_INVALID",
-        "LEDGER_WRITE_FAILED",
-        "FANOUT_FAILED",
-        "WORKSPACE_NOT_REGISTERED",
-        "WORKSPACE_NOT_AUTHORIZED",
-        "WORKSPACE_WRITE_CONFLICT",
-        "WORKSPACE_LEASE_STALE",
-        "CHECK_NOT_CONFIGURED",
-        "CHECK_CONFIGURATION_INVALID",
-        "CHECK_IDENTITY_UNAVAILABLE",
-        "CHECK_IDENTITY_MISMATCH"
-      ]
-    },
-    "refusal": {
-      "type": "object",
-      "properties": {
-        "code": {
-          "$ref": "#/$defs/refusalCode"
-        },
-        "message": {
-          "type": "string"
-        },
-        "details": {
-          "type": "object",
-          "additionalProperties": {
-            "type": [
-              "string",
-              "number",
-              "boolean",
-              "null"
-            ]
-          }
-        }
-      },
-      "required": [
-        "code",
-        "message"
-      ],
-      "additionalProperties": false
-    },
-    "approvalSource": {
-      "type": "string",
-      "enum": [
-        "prompt",
-        "session",
-        "persisted",
-        "inherited"
-      ]
-    },
-    "approvalScope": {
-      "type": "string",
-      "enum": [
-        "once",
-        "session",
-        "always"
-      ]
-    },
-    "approvalUse": {
-      "type": "object",
-      "properties": {
-        "max": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "remaining": {
-          "type": "integer",
-          "minimum": 0
-        }
-      },
-      "required": [
-        "max",
-        "remaining"
-      ],
-      "additionalProperties": false
-    },
-    "definitionDigest": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "source": {
-          "type": "string"
-        },
-        "sha256": {
-          "type": "string",
-          "pattern": "^[a-fA-F0-9]{64}$"
-        }
-      },
-      "required": [
-        "name",
-        "source",
-        "sha256"
-      ],
-      "additionalProperties": false
-    },
-    "capabilityDecision": {
-      "type": "object",
-      "properties": {
-        "ledgerVersion": {
-          "const": 3
-        },
-        "event": {
-          "const": "capability_decision"
-        },
-        "ts": {
-          "$ref": "#/$defs/timestamp"
-        },
-        "parentId": {
-          "$ref": "#/$defs/ledgerDisplayIdentifier"
-        },
-        "childId": {
-          "$ref": "#/$defs/ledgerDisplayIdentifier"
-        },
-        "depth": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "agentType": {
-          "$ref": "#/$defs/ledgerDisplayIdentifier"
-        },
-        "requested": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ledgerCapabilityIdentifier"
-          }
-        },
-        "parentGrant": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ledgerCapabilityIdentifier"
-          }
-        },
-        "effective": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ledgerCapabilityIdentifier"
-          }
-        },
-        "denied": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ledgerCapabilityIdentifier"
-          }
-        },
-        "clipped": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ledgerCapabilityIdentifier"
-          }
-        },
-        "gatedBlocked": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ledgerCapabilityIdentifier"
-          }
-        },
-        "blocked": {
-          "type": "boolean"
-        },
-        "reason": {
-          "type": "string"
-        },
-        "approved": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ledgerCapabilityIdentifier"
-          }
-        },
-        "approvalSource": {
-          "$ref": "#/$defs/approvalSource"
-        },
-        "approvalSources": {
-          "type": "object",
-          "propertyNames": {
-            "$ref": "#/$defs/ledgerCapabilityIdentifier"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/approvalSource"
-          }
-        },
-        "approvalScopes": {
-          "type": "object",
-          "propertyNames": {
-            "$ref": "#/$defs/ledgerCapabilityIdentifier"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/approvalScope"
-          }
-        },
-        "approvalExpiresAt": {
-          "type": "object",
-          "propertyNames": {
-            "$ref": "#/$defs/ledgerCapabilityIdentifier"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/timestamp"
-          }
-        },
-        "approvalUses": {
-          "type": "object",
-          "propertyNames": {
-            "$ref": "#/$defs/ledgerCapabilityIdentifier"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/approvalUse"
-          }
-        },
-        "approvalScope": {
-          "$ref": "#/$defs/approvalScope"
-        },
-        "humanDenied": {
-          "const": true
-        },
-        "gateOutcome": {
-          "type": "string",
-          "enum": [
-            "declined",
-            "dismissed",
-            "no-ui",
-            "error"
-          ]
-        },
-        "definitionDigest": {
-          "$ref": "#/$defs/definitionDigest"
-        },
-        "executor": {
-          "type": "string",
-          "enum": [
-            "process",
-            "herdr"
-          ]
-        },
-        "taskFrom": {
-          "$ref": "#/$defs/ledgerDisplayIdentifier"
-        },
-        "taskDigest": {
-          "type": "string",
-          "pattern": "^[a-fA-F0-9]{64}$"
-        },
-        "correlation": {
-          "$ref": "#/$defs/correlation"
-        },
-        "refusal": {
-          "$ref": "#/$defs/refusal"
-        },
-        "executionId": {
-          "$ref": "#/$defs/executionId"
-        },
-        "parentExecutionId": {
-          "oneOf": [
-            {
-              "$ref": "#/$defs/executionId"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "taskFromExecutionId": {
-          "$ref": "#/$defs/executionId"
-        }
-      },
-      "required": [
-        "ledgerVersion",
-        "event",
-        "ts",
-        "executionId",
-        "parentExecutionId",
-        "parentId",
-        "childId",
-        "depth",
-        "requested",
-        "parentGrant",
-        "effective",
-        "denied",
-        "clipped",
-        "gatedBlocked",
-        "blocked",
-        "executor",
-        "taskDigest"
-      ],
-      "additionalProperties": false
-    },
-    "workspaceLease": {
-      "type": "object",
-      "properties": {
-        "ledgerVersion": {
-          "const": 3
-        },
-        "event": {
-          "const": "workspace_lease"
-        },
-        "ts": {
-          "$ref": "#/$defs/timestamp"
-        },
-        "childId": {
-          "$ref": "#/$defs/ledgerDisplayIdentifier"
-        },
-        "workspaceId": {
-          "$ref": "#/$defs/ledgerDisplayIdentifier"
-        },
-        "root": {
-          "type": "string",
-          "minLength": 1
-        },
-        "access": {
-          "type": "string",
-          "enum": [
-            "read",
-            "write"
-          ]
-        },
-        "outcome": {
-          "type": "string",
-          "enum": [
-            "acquired",
-            "uncontended",
-            "refused",
-            "released",
-            "released-unrecorded",
-            "lost",
-            "retained",
-            "timeout",
-            "recovered"
-          ]
-        },
-        "recovered": {
-          "oneOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "const": "unknown"
-            }
-          ]
-        },
-        "releaseReason": {
-          "type": "string"
-        },
-        "refusal": {
-          "$ref": "#/$defs/refusal"
-        },
-        "correlation": {
-          "$ref": "#/$defs/correlation"
-        },
-        "executionId": {
-          "$ref": "#/$defs/executionId"
-        },
-        "parentExecutionId": {
-          "oneOf": [
-            {
-              "$ref": "#/$defs/executionId"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "required": [
-        "ledgerVersion",
-        "event",
-        "ts",
-        "executionId",
-        "parentExecutionId",
-        "childId",
-        "workspaceId",
-        "root",
-        "access",
-        "outcome"
-      ],
-      "additionalProperties": false
-    },
-    "childLifecycle": {
-      "type": "object",
-      "properties": {
-        "ledgerVersion": {
-          "const": 3
-        },
-        "event": {
-          "const": "child_lifecycle"
-        },
-        "ts": {
-          "$ref": "#/$defs/timestamp"
-        },
-        "childId": {
-          "$ref": "#/$defs/ledgerDisplayIdentifier"
-        },
-        "state": {
-          "type": "string",
-          "enum": [
-            "starting",
-            "running",
-            "completed",
-            "failed"
-          ]
-        },
-        "executor": {
-          "type": "string",
-          "enum": [
-            "process",
-            "herdr"
-          ]
-        },
-        "exitCode": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "signal": {
-          "oneOf": [
-            {
-              "type": "string",
-              "enum": [
-                "SIGABRT",
-                "SIGALRM",
-                "SIGBUS",
-                "SIGCHLD",
-                "SIGCONT",
-                "SIGFPE",
-                "SIGHUP",
-                "SIGILL",
-                "SIGINT",
-                "SIGIO",
-                "SIGIOT",
-                "SIGKILL",
-                "SIGPIPE",
-                "SIGPOLL",
-                "SIGPROF",
-                "SIGPWR",
-                "SIGQUIT",
-                "SIGSEGV",
-                "SIGSTKFLT",
-                "SIGSTOP",
-                "SIGSYS",
-                "SIGTERM",
-                "SIGTRAP",
-                "SIGTSTP",
-                "SIGTTIN",
-                "SIGTTOU",
-                "SIGUNUSED",
-                "SIGURG",
-                "SIGUSR1",
-                "SIGUSR2",
-                "SIGVTALRM",
-                "SIGWINCH",
-                "SIGXCPU",
-                "SIGXFSZ",
-                "SIGBREAK",
-                "SIGLOST",
-                "SIGINFO"
-              ]
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "timedOut": {
-          "const": true
-        },
-        "aborted": {
-          "const": true
-        },
-        "truncated": {
-          "const": true
-        },
-        "reason": {
-          "type": "string"
-        },
-        "correlation": {
-          "$ref": "#/$defs/correlation"
-        },
-        "executionId": {
-          "$ref": "#/$defs/executionId"
-        },
-        "parentExecutionId": {
-          "oneOf": [
-            {
-              "$ref": "#/$defs/executionId"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "deadlineAt": {
-          "$ref": "#/$defs/timestamp"
-        },
-        "herdrPaneId": {
-          "$ref": "#/$defs/ledgerDisplayIdentifier"
-        },
-        "herdrAgentName": {
-          "$ref": "#/$defs/ledgerDisplayIdentifier"
-        }
-      },
-      "required": [
-        "ledgerVersion",
-        "event",
-        "ts",
-        "executionId",
-        "parentExecutionId",
-        "childId",
-        "state",
-        "executor"
-      ],
-      "additionalProperties": false,
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "state": {
-                "enum": [
-                  "starting",
-                  "running"
-                ]
-              }
-            },
-            "required": [
-              "state"
-            ]
-          },
-          "then": {
-            "required": [
-              "deadlineAt"
-            ]
-          }
-        },
-        {
-          "if": {
-            "anyOf": [
-              {
-                "required": [
-                  "herdrPaneId"
-                ]
-              },
-              {
-                "required": [
-                  "herdrAgentName"
-                ]
-              }
-            ]
-          },
-          "then": {
-            "required": [
-              "herdrPaneId",
-              "herdrAgentName"
-            ],
-            "properties": {
-              "executor": {
-                "const": "herdr"
-              }
-            }
-          }
-        }
-      ]
-    },
-    "checkReceipt": {
-      "type": "object",
-      "properties": {
-        "ledgerVersion": {
-          "const": 3
-        },
-        "event": {
-          "const": "check_receipt"
-        },
-        "ts": {
-          "$ref": "#/$defs/timestamp"
-        },
-        "childId": {
-          "$ref": "#/$defs/ledgerDisplayIdentifier"
-        },
-        "receiptId": {
-          "type": "string",
-          "pattern": "^[a-fA-F0-9]{64}$"
-        },
-        "workspaceId": {
-          "$ref": "#/$defs/ledgerDisplayIdentifier"
-        },
-        "checkId": {
-          "$ref": "#/$defs/ledgerDisplayIdentifier"
-        },
-        "treeSha": {
-          "type": "string",
-          "minLength": 1
-        },
-        "correlation": {
-          "$ref": "#/$defs/correlation"
-        },
-        "executionId": {
-          "$ref": "#/$defs/executionId"
-        },
-        "parentExecutionId": {
-          "oneOf": [
-            {
-              "$ref": "#/$defs/executionId"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "required": [
-        "ledgerVersion",
-        "event",
-        "ts",
-        "executionId",
-        "parentExecutionId",
-        "childId",
-        "receiptId",
-        "workspaceId",
-        "checkId",
-        "treeSha"
-      ],
-      "additionalProperties": false
-    },
-    "executionId": {
-      "type": "string",
-      "pattern": "^exec:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
-    },
-    "workflowFact": {
-      "type": "object",
-      "properties": {
-        "ledgerVersion": {
-          "const": 3
-        },
-        "event": {
-          "const": "workflow_fact"
-        },
-        "ts": {
-          "$ref": "#/$defs/timestamp"
-        },
-        "factId": {
-          "type": "string",
-          "pattern": "^fact:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
-        },
-        "source": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
-        },
-        "provenance": {
-          "enum": [
-            "planned",
-            "observed",
-            "controller_validated"
-          ]
-        },
-        "kind": {
-          "enum": [
-            "workflow_phase",
-            "inline_skill",
-            "transition"
-          ]
-        },
-        "subject": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
-        },
-        "state": {
-          "enum": [
-            "pending",
-            "observed",
-            "started",
-            "completed",
-            "blocked"
-          ]
-        },
-        "correlation": {
-          "allOf": [
-            {
-              "$ref": "#/$defs/correlation"
-            },
-            {
-              "type": "object",
-              "properties": {
-                "run_id": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "required": [
-                "run_id"
-              ]
-            }
-          ]
-        }
-      },
-      "required": [
-        "ledgerVersion",
-        "event",
-        "ts",
-        "factId",
-        "source",
-        "provenance",
-        "kind",
-        "subject",
-        "state",
-        "correlation"
-      ],
-      "additionalProperties": false,
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "provenance": {
-                "const": "planned"
-              }
-            },
-            "required": [
-              "provenance"
-            ]
-          },
-          "then": {
-            "properties": {
-              "state": {
-                "const": "pending"
-              }
-            }
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "provenance": {
-                "const": "observed"
-              }
-            },
-            "required": [
-              "provenance"
-            ]
-          },
-          "then": {
-            "properties": {
-              "state": {
-                "const": "observed"
-              }
-            }
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "provenance": {
-                "const": "controller_validated"
-              }
-            },
-            "required": [
-              "provenance"
-            ]
-          },
-          "then": {
-            "properties": {
-              "state": {
-                "enum": [
-                  "started",
-                  "completed",
-                  "blocked"
-                ]
-              }
-            }
-          }
-        }
-      ]
-    }
-  }
-};
-
-// packages/adapters/src/trajectory.ts
-function normalizePiDaddyLedgerV32(text15) {
-  const records2 = parseJsonl2(text15, "pi-daddy");
-  const wrong = records2.findIndex((record) => record.ledgerVersion !== 3);
-  if (wrong >= 0) throw new Error(`pi-daddy-ledger-v3 requires explicit ledgerVersion 3 at line ${wrong + 1}`);
-  return normalizePiDaddyLedger2(text15);
-}
-function normalizePiDaddyLedger2(text15) {
-  const records2 = parseJsonl2(text15, "pi-daddy");
-  validatePiDaddyTimestampOrder2(records2);
-  const out = [];
-  let seq2 = 1;
-  records2.forEach((record, index) => {
-    if (record.ledgerVersion !== void 0) {
-      if (record.ledgerVersion === 2) {
-        requireV2Discriminator2(record, index + 1);
-        assertPinnedV2Contract2(record, index + 1);
-        for (const event of normalizePiDaddyV22(record, index)) out.push({ ...event, seq: seq2++ });
-        return;
-      }
-      if (record.ledgerVersion === 3) {
-        requireV3Discriminator2(record, index + 1);
-        assertPinnedV3Contract2(record, index + 1);
-        for (const event of normalizePiDaddyV32(record, index)) out.push({ ...event, seq: seq2++ });
-        return;
-      }
-      throw new Error(`unsupported pi-daddy ledgerVersion ${safeDiagnosticValue2(record.ledgerVersion)} at line ${index + 1}; expected 2, 3, or an unversioned 0.17 GrantRecord`);
-    }
-    if (record.schema_version !== void 0) {
-      throw new Error(`pi-daddy schema_version/record_type at line ${index + 1} is not a public pi-daddy ledger format; expected ledgerVersion 2, ledgerVersion 3, or an unversioned 0.17 GrantRecord`);
-    }
-    if (record.event !== void 0) {
-      throw new Error(`pi-daddy event [REDACTED invalid value] at line ${index + 1} is missing explicit ledgerVersion 2 or 3`);
-    }
-    for (const event of normalizeLegacyGrant2(record, index)) out.push({ ...event, seq: seq2++ });
-  });
-  return out;
-}
-var V2_EVENTS2 = /* @__PURE__ */ new Set(["capability_decision", "workspace_lease", "child_lifecycle", "check_receipt"]);
-function requireV2Discriminator2(record, line) {
-  const nativeEvent = string4(record.event);
-  if (!nativeEvent || !V2_EVENTS2.has(nativeEvent)) {
-    throw new Error(`invalid pi-daddy v2 event at line ${line}: event must be capability_decision, workspace_lease, child_lifecycle, or check_receipt`);
-  }
-  return nativeEvent;
-}
-var pinnedContractChecked2 = false;
-var pinnedContractFieldNames2;
-function assertPinnedV2Contract2(record, line) {
-  if (!pinnedContractChecked2) {
-    assertSupportedSchema2(PI_DADDY_LEDGER_V2_SCHEMA2, "pinned pi-daddy ledger v2 schema");
-    pinnedContractFieldNames2 = declaredPropertyNames2(PI_DADDY_LEDGER_V2_SCHEMA2);
-    pinnedContractChecked2 = true;
-  }
-  const violations = validateClosedSchema2(PI_DADDY_LEDGER_V2_SCHEMA2, record, { knownFieldNames: pinnedContractFieldNames2 });
-  if (violations.length === 0) return;
-  const nativeEvent = string4(record.event);
-  const label = nativeEvent && V2_EVENTS2.has(nativeEvent) ? nativeEvent : "record";
-  const [first] = violations;
-  const extra = violations.length > 1 ? ` (+${violations.length - 1} more contract violation${violations.length > 2 ? "s" : ""})` : "";
-  throw new Error(
-    `invalid pi-daddy v2 ${label} at line ${line}: closed contract violation \u2014 ${first.path ? `${first.path} ` : ""}${first.message}${extra} [pi-daddy ${PI_DADDY_CONTRACT_COMMIT2.slice(0, 12)}]`
-  );
-}
-var V3_EVENTS2 = /* @__PURE__ */ new Set(["capability_decision", "workspace_lease", "child_lifecycle", "check_receipt", "workflow_fact"]);
-function requireV3Discriminator2(record, line) {
-  const nativeEvent = string4(record.event);
-  if (!nativeEvent || !V3_EVENTS2.has(nativeEvent)) {
-    throw new Error(`invalid pi-daddy v3 event at line ${line}: event discriminator is required and must be capability_decision, workspace_lease, child_lifecycle, check_receipt, or workflow_fact`);
-  }
-  return nativeEvent;
-}
-var pinnedV3ContractChecked2 = false;
-var pinnedV3ContractFieldNames2;
-function assertPinnedV3Contract2(record, line) {
-  if (!pinnedV3ContractChecked2) {
-    assertSupportedSchemaV32(PI_DADDY_LEDGER_V3_SCHEMA2, "pinned pi-daddy ledger v3 schema");
-    pinnedV3ContractFieldNames2 = declaredPropertyNames2(PI_DADDY_LEDGER_V3_SCHEMA2);
-    pinnedV3ContractChecked2 = true;
-  }
-  const violations = validateClosedSchemaV32(PI_DADDY_LEDGER_V3_SCHEMA2, record, { knownFieldNames: pinnedV3ContractFieldNames2 });
-  if (violations.length === 0) return;
-  const nativeEvent = string4(record.event);
-  const label = nativeEvent && V3_EVENTS2.has(nativeEvent) ? nativeEvent : "record";
-  const [first] = violations;
-  const extra = violations.length > 1 ? ` (+${violations.length - 1} more contract violation${violations.length > 2 ? "s" : ""})` : "";
-  throw new Error(
-    `invalid pi-daddy v3 ${label} at line ${line}: closed contract violation \u2014 ${first.path ? `${first.path} ` : ""}${first.message}${extra} [pi-daddy ${PI_DADDY_LEDGER_V3_CONTRACT_COMMIT2.slice(0, 12)}]`
-  );
-}
-var V2_LEASE_OUTCOMES2 = /* @__PURE__ */ new Set([
-  "acquired",
-  "uncontended",
-  "refused",
-  "released",
-  "released-unrecorded",
-  "lost",
-  "retained",
-  "timeout",
-  "recovered"
-]);
-var V2_LEASE_ACCESS2 = /* @__PURE__ */ new Set(["read", "write"]);
-var V2_RECEIPT_PRIOR_LEASE_OUTCOMES2 = /* @__PURE__ */ new Set(["acquired", "recovered"]);
-var V2_REFUSAL_FIELDS2 = /* @__PURE__ */ new Set(["code", "message", "details"]);
-var V2_REFUSAL_DETAIL_TYPES2 = /* @__PURE__ */ new Set(["string", "number", "boolean", "null"]);
-var V2_LIFECYCLE_STATES2 = /* @__PURE__ */ new Set(["starting", "completed", "failed"]);
-var V2_EXECUTORS2 = /* @__PURE__ */ new Set(["process", "herdr"]);
-var V2_RECEIPT_RELEASE_OUTCOMES2 = /* @__PURE__ */ new Set(["released", "released-unrecorded", "lost", "timeout"]);
-var V2_CORRELATION_FIELDS2 = /* @__PURE__ */ new Set([
-  "schema_version",
-  "run_id",
-  "task_id",
-  "workspace_id",
-  "context_id",
-  "phase",
-  "assurance",
-  "assurance_effective",
-  "policy_label",
-  "assurance_source",
-  "assurance_scope",
-  "activated_at",
-  "plan_digest",
-  "definition_digest",
-  "task_digest",
-  "base_sha",
-  "head_sha",
-  "tree_sha",
-  "event_seq",
-  "last_change_seq",
-  "last_authority_seq",
-  "check_receipt_id"
-]);
-var V2_CORRELATION_NUMERIC_FIELDS2 = /* @__PURE__ */ new Set(["event_seq", "last_change_seq", "last_authority_seq"]);
-var V2_APPROVAL_SOURCES2 = /* @__PURE__ */ new Set(["prompt", "session", "persisted", "inherited"]);
-var V2_APPROVAL_SCOPES2 = /* @__PURE__ */ new Set(["once", "session", "always"]);
-var V2_REFUSAL_CODES2 = new Set(PI_DADDY_LEDGER_V2_SCHEMA2.$defs.refusalCode.enum);
-var V3_REFUSAL_CODES2 = new Set(PI_DADDY_LEDGER_V3_SCHEMA2.$defs.refusalCode.enum);
-var V2_CORRELATION_MAX_BYTES2 = 32 * 1024;
-var V2_CORRELATION_MAX_FIELD_CHARS2 = 512;
-var V2_CORRELATION_MAX_SCOPE_BYTES2 = 4 * 1024;
-function piDaddyStreamKey2(record, index) {
-  if (record.ledgerVersion === void 0) return JSON.stringify(["legacy", string4(record.childId) ?? `missing-child:${index}`]);
-  if (record.ledgerVersion === 3) {
-    return record.event === "workflow_fact" ? JSON.stringify(["v3-fact", string4(record.factId) ?? `missing-fact:${index}`]) : JSON.stringify(["v3-execution", string4(record.executionId) ?? `missing-execution:${index}`]);
-  }
-  const correlation = object4(record.correlation);
-  return JSON.stringify([
-    string4(correlation?.run_id) ?? `missing-run:${index}`,
-    string4(correlation?.task_id) ?? `missing-task:${index}`,
-    string4(record.workspaceId) ?? string4(correlation?.workspace_id) ?? "",
-    string4(record.childId) ?? `missing-child:${index}`
-  ]);
-}
-function sameRawCorrelationIdentity2(left, right) {
-  const leftCorrelation = object4(left.correlation);
-  const rightCorrelation = object4(right.correlation);
-  return string4(leftCorrelation?.run_id) === string4(rightCorrelation?.run_id) && string4(leftCorrelation?.task_id) === string4(rightCorrelation?.task_id);
-}
-function validatePiDaddyTimestampOrder2(records2) {
-  const highWaterByChild = /* @__PURE__ */ new Map();
-  records2.forEach((record, index) => {
-    const supportedVersion = record.ledgerVersion === 2 || record.ledgerVersion === 3;
-    const legacy = record.ledgerVersion === void 0 && record.schema_version === void 0 && record.event === void 0;
-    if (!supportedVersion && !legacy) return;
-    const at = string4(record.ts);
-    if (!validTime2(at)) throw new Error(`invalid pi-daddy ledger timestamp at line ${index + 1}: ts must be a date-time`);
-    const time = Date.parse(at);
-    const child3 = piDaddyStreamKey2(record, index);
-    const highWater = highWaterByChild.get(child3);
-    if (highWater !== void 0 && time < highWater && !isRawPiDaddyReceiptInversion2(records2, index, time)) {
-      throw new Error(`pi-daddy ledger timestamp moves backwards at line ${index + 1}`);
-    }
-    highWaterByChild.set(child3, Math.max(highWater ?? time, time));
-  });
-}
-function isRawPiDaddyReceiptInversion2(records2, index, receiptTime) {
-  const receipt = records2[index];
-  const release = records2[index - 1];
-  if (receipt?.ledgerVersion !== 2 && receipt?.ledgerVersion !== 3 || receipt.event !== "check_receipt" || release?.ledgerVersion !== receipt.ledgerVersion || release.event !== "workspace_lease") return false;
-  if (receipt.childId !== release.childId || receipt.workspaceId !== release.workspaceId || !sameRawCorrelationIdentity2(receipt, release) || !V2_RECEIPT_RELEASE_OUTCOMES2.has(string4(release.outcome) ?? "")) return false;
-  const previousLease = records2.slice(0, index - 1).reverse().find(
-    (record) => record.ledgerVersion === receipt.ledgerVersion && record.event === "workspace_lease" && record.childId === receipt.childId && record.workspaceId === receipt.workspaceId && sameRawCorrelationIdentity2(receipt, record)
-  );
-  return Boolean(
-    previousLease && V2_RECEIPT_PRIOR_LEASE_OUTCOMES2.has(string4(previousLease.outcome) ?? "") && validTime2(string4(previousLease.ts)) && Date.parse(string4(previousLease.ts)) <= receiptTime
-  );
-}
-function normalizePiDaddyV22(record, index) {
-  const line = index + 1;
-  const nativeEvent = requireV2Discriminator2(record, line);
-  const at = requireV2String2(record, "ts", nativeEvent, line);
-  const childId = requireV2String2(record, "childId", nativeEvent, line);
-  const correlation = requireV2Correlation2(record, nativeEvent, line);
-  const carriesTopWorkspace = nativeEvent === "workspace_lease" || nativeEvent === "check_receipt";
-  if (!carriesTopWorkspace && record.workspaceId !== void 0) {
-    throw new Error(`invalid pi-daddy v2 ${nativeEvent} at line ${line}: workspaceId is not part of the public variant`);
-  }
-  const topWorkspace = carriesTopWorkspace ? string4(record.workspaceId) : void 0;
-  const correlationWorkspace = string4(correlation.workspace_id);
-  if (topWorkspace && correlationWorkspace && topWorkspace !== correlationWorkspace) {
-    throw new Error(`invalid pi-daddy v2 ${nativeEvent} at line ${line}: workspaceId disagrees with correlation.workspace_id`);
-  }
-  if (nativeEvent !== "capability_decision" && (record.taskDigest !== void 0 || record.definitionDigest !== void 0)) {
-    throw new Error(`invalid pi-daddy v2 ${nativeEvent} at line ${line}: taskDigest and definitionDigest belong only to capability_decision`);
-  }
-  const definition = nativeEvent === "capability_decision" ? object4(record.definitionDigest) : void 0;
-  const trustedTask = nativeEvent === "capability_decision" ? string4(record.taskDigest) : void 0;
-  const trustedDefinition = nativeEvent === "capability_decision" ? string4(definition?.sha256) : void 0;
-  const common2 = {
-    event_version: TRAJECTORY_EVENT_VERSION,
-    source: "pi-daddy-v2",
-    at,
-    run_id: string4(correlation.run_id),
-    task_id: string4(correlation.task_id),
-    // correlation.workspace_id is a controller-supplied join label, not proof that
-    // pi-daddy resolved or leased that workspace. Only a top-level runtime identity
-    // is promoted into the adapter-neutral authoritative-looking field.
-    workspace_id: topWorkspace,
-    context_id: string4(correlation.context_id),
-    child_id: childId,
-    phase: string4(correlation.phase),
-    digests: anyDefined2({
-      task: trustedTask,
-      definition: trustedDefinition,
-      correlation_plan: string4(correlation.plan_digest),
-      correlation_task: string4(correlation.task_digest),
-      correlation_definition: string4(correlation.definition_digest),
-      correlation_base: string4(correlation.base_sha),
-      correlation_head: string4(correlation.head_sha),
-      correlation_tree: string4(correlation.tree_sha)
-    })
-  };
-  const commonAttributes = safeAttributes2({
-    ledger_version: 2,
-    native_event: nativeEvent,
-    correlation: sanitizeAttributes2(correlation),
-    event_seq: finiteNumber2(correlation.event_seq),
-    last_change_seq: finiteNumber2(correlation.last_change_seq),
-    last_authority_seq: finiteNumber2(correlation.last_authority_seq),
-    check_receipt_id: string4(correlation.check_receipt_id),
-    assurance: string4(correlation.assurance),
-    assurance_effective: string4(correlation.assurance_effective),
-    policy_label: string4(correlation.policy_label),
-    assurance_source: string4(correlation.assurance_source),
-    assurance_scope: correlation.assurance_scope,
-    activated_at: string4(correlation.activated_at)
-  });
-  if (nativeEvent === "capability_decision") {
-    if (record.definitionDigest !== void 0 && (!definition || !string4(definition.name) || !string4(definition.source) || !trustedDefinition || !/^[a-fA-F0-9]{64}$/.test(trustedDefinition))) {
-      throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: definitionDigest requires non-empty name, source, and sha256`);
-    }
-    const parentId = requireV2String2(record, "parentId", nativeEvent, line);
-    const executor = requireV2Executor2(record, nativeEvent, line);
-    const taskDigest = requireV2String2(record, "taskDigest", nativeEvent, line);
-    if (!/^[a-fA-F0-9]{64}$/.test(taskDigest)) throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: taskDigest must be sha256`);
-    if (!Number.isInteger(record.depth) || typeof record.blocked !== "boolean") {
-      throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: depth and blocked are required`);
-    }
-    const requested = requireV2StringArray2(record, "requested", nativeEvent, line);
-    const parentGrant = requireV2StringArray2(record, "parentGrant", nativeEvent, line);
-    const effective = requireV2StringArray2(record, "effective", nativeEvent, line);
-    const denied = requireV2StringArray2(record, "denied", nativeEvent, line);
-    const clipped = requireV2StringArray2(record, "clipped", nativeEvent, line);
-    const gated = requireV2StringArray2(record, "gatedBlocked", nativeEvent, line);
-    const approved = optionalV2StringArray2(record, "approved", nativeEvent, line);
-    const agentType = optionalV2SafeString2(record.agentType, "agentType", nativeEvent, line);
-    const humanDenied = optionalV2Boolean2(record, "humanDenied", nativeEvent, line);
-    const refusal = structuredRefusal2(record.refusal, nativeEvent, line);
-    if (!record.blocked && refusal) throw new Error(`invalid pi-daddy v2 capability_decision at line ${line}: an allowed decision cannot carry a refusal`);
-    validateCapabilityPartition2(requested, effective, denied, clipped, gated, approved, Boolean(record.blocked), line);
-    const approvalSource = optionalV2Enum2(record.approvalSource, "approvalSource", V2_APPROVAL_SOURCES2, nativeEvent, line);
-    const approvalSources = optionalV2EnumMap2(record.approvalSources, "approvalSources", V2_APPROVAL_SOURCES2, nativeEvent, line);
-    const approvalScope = optionalV2Enum2(record.approvalScope, "approvalScope", V2_APPROVAL_SCOPES2, nativeEvent, line);
-    const approvalScopes = optionalV2EnumMap2(record.approvalScopes, "approvalScopes", V2_APPROVAL_SCOPES2, nativeEvent, line);
-    const approvalExpiresAt = optionalV2StringMap2(record.approvalExpiresAt, "approvalExpiresAt", nativeEvent, line, validTime2);
-    const approvalUses = optionalV2ApprovalUses2(record.approvalUses, nativeEvent, line);
-    validateApprovalEvidence2(approved ?? [], approvalSource, approvalSources, approvalScopes, approvalExpiresAt, approvalUses, line);
-    const normalizedRequested = [...new Set(requested)];
-    const attributes = safeAttributes2({
-      ...commonAttributes,
-      depth: record.depth,
-      agent_type: agentType,
-      native_requested: normalizedRequested.length === requested.length ? void 0 : requested,
-      executor,
-      task_from: string4(record.taskFrom),
-      parent_grant: parentGrant,
-      denied,
-      clipped,
-      gated_blocked: gated,
-      blocked: record.blocked,
-      reason: string4(record.reason),
-      approved,
-      approval_source: approvalSource,
-      approval_sources: approvalSources,
-      approval_scope: approvalScope,
-      approval_scopes: approvalScopes,
-      approval_expires_at: approvalExpiresAt,
-      approval_uses: approvalUses,
-      human_denied: humanDenied,
-      gate_outcome: string4(record.gateOutcome),
-      definition_name: string4(definition?.name),
-      definition_source: string4(definition?.source),
-      structured_refusal: refusal
-    });
-    const base = { ...common2, parent_id: parentId, requested_capabilities: normalizedRequested, effective_capabilities: effective, attributes };
-    const refusalCode = string4(refusal?.code);
-    const events = [
-      ...normalizedRequested.map((capability) => ({ ...base, type: "capability_requested", capability }))
-    ];
-    const sources = approvalSources;
-    const scopes = approvalScopes;
-    const expiries = approvalExpiresAt;
-    const uses = approvalUses;
-    for (const capability of approved ?? []) {
-      events.push(cleanEvent2({
-        ...base,
-        type: "approval_used",
-        capability,
-        approval: cleanObject2({
-          capability,
-          subject: approvalSubject2(agentType),
-          source: string4(sources?.[capability]) ?? string4(record.approvalSource),
-          scope: string4(scopes?.[capability]) ?? string4(record.approvalScope),
-          expires_at: string4(expiries?.[capability]),
-          used_at: at
-        }),
-        attributes: safeAttributes2({ ...attributes, approval_uses: object4(uses?.[capability]) })
-      }));
-    }
-    const approvedSet = new Set(approved ?? []);
-    events.push(
-      ...record.blocked ? [] : effective.map((capability) => ({ ...base, type: "capability_granted", capability })),
-      ...[.../* @__PURE__ */ new Set([...denied, ...gated.filter((capability) => !approvedSet.has(capability))])].map((capability) => ({
-        ...base,
-        type: "capability_refused",
-        capability,
-        refusal_code: denied.includes(capability) ? "CAPABILITY_ESCALATION" : refusalCode
-      }))
-    );
-    events.push(cleanEvent2({
-      ...base,
-      type: record.blocked ? "child_spawn_refused" : "capability_decision",
-      refusal_code: refusalCode
-    }));
-    return events;
-  }
-  if (nativeEvent === "workspace_lease") {
-    const workspaceId2 = requireV2String2(record, "workspaceId", nativeEvent, line);
-    requireV2String2(record, "root", nativeEvent, line);
-    const access = requireV2String2(record, "access", nativeEvent, line);
-    const outcome = requireV2String2(record, "outcome", nativeEvent, line);
-    if (!V2_LEASE_ACCESS2.has(access) || !V2_LEASE_OUTCOMES2.has(outcome)) {
-      throw new Error(`invalid pi-daddy v2 workspace_lease at line ${line}: access or outcome is unsupported`);
-    }
-    if (record.recovered !== void 0 && typeof record.recovered !== "boolean" && record.recovered !== "unknown") {
-      throw new Error(`invalid pi-daddy v2 workspace_lease at line ${line}: recovered must be boolean or "unknown"`);
-    }
-    const refusal = structuredRefusal2(record.refusal, nativeEvent, line);
-    const type2 = access === "read" ? `workspace_read_${outcome.replaceAll("-", "_")}` : outcome === "refused" && refusal?.code === "WORKSPACE_WRITE_CONFLICT" ? "writer_lease_conflict" : `writer_lease_${outcome.replaceAll("-", "_")}`;
-    return [cleanEvent2({
-      ...common2,
-      workspace_id: workspaceId2,
-      type: type2,
-      refusal_code: string4(refusal?.code),
-      attributes: safeAttributes2({
-        ...commonAttributes,
-        root: string4(record.root),
-        access,
-        outcome,
-        recovered: record.recovered,
-        release_reason: string4(record.releaseReason),
-        structured_refusal: refusal
-      })
-    })];
-  }
-  if (nativeEvent === "child_lifecycle") {
-    const state = requireV2String2(record, "state", nativeEvent, line);
-    const executor = requireV2Executor2(record, nativeEvent, line);
-    if (!V2_LIFECYCLE_STATES2.has(state)) {
-      throw new Error(`invalid pi-daddy v2 child_lifecycle at line ${line}: state is unsupported`);
-    }
-    if (record.exitCode !== void 0 && record.exitCode !== null && !Number.isInteger(record.exitCode)) {
-      throw new Error(`invalid pi-daddy v2 child_lifecycle at line ${line}: exitCode must be an integer or null`);
-    }
-    const timedOut = optionalV2Boolean2(record, "timedOut", nativeEvent, line);
-    const aborted = optionalV2Boolean2(record, "aborted", nativeEvent, line);
-    const truncated = optionalV2Boolean2(record, "truncated", nativeEvent, line);
-    const type2 = state === "starting" ? "child_started" : state === "completed" ? "child_completed" : "child_failed";
-    return [cleanEvent2({
-      ...common2,
-      type: type2,
-      exit_code: Number.isInteger(record.exitCode) ? Number(record.exitCode) : void 0,
-      attributes: safeAttributes2({
-        ...commonAttributes,
-        state,
-        executor,
-        exit_code: record.exitCode,
-        signal: record.signal,
-        timed_out: timedOut,
-        aborted,
-        truncated,
-        reason: string4(record.reason)
-      })
-    })];
-  }
-  const workspaceId = requireV2String2(record, "workspaceId", nativeEvent, line);
-  const receiptId = requireV2String2(record, "receiptId", nativeEvent, line);
-  if (!/^[a-fA-F0-9]{64}$/.test(receiptId)) {
-    throw new Error(`invalid pi-daddy v2 check_receipt at line ${line}: receiptId must be sha256`);
-  }
-  const checkId = requireV2String2(record, "checkId", nativeEvent, line);
-  const treeSha = requireV2String2(record, "treeSha", nativeEvent, line);
-  if (!/^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/.test(treeSha)) {
-    throw new Error(`invalid pi-daddy v2 check_receipt at line ${line}: treeSha must be a git object id`);
-  }
-  return [cleanEvent2({
-    ...common2,
-    workspace_id: workspaceId,
-    type: "check_receipt_recorded",
-    digests: { ...common2.digests ?? {}, tree: treeSha },
-    attributes: safeAttributes2({
-      ...commonAttributes,
-      receipt_id: receiptId,
-      check_id: checkId,
-      check_receipt_id: string4(correlation.check_receipt_id)
-    })
-  })];
-}
-function normalizePiDaddyV32(record, index) {
-  const line = index + 1;
-  const nativeEvent = requireV3Discriminator2(record, line);
-  const at = requireV3String2(record, "ts", nativeEvent, line);
-  const correlation = object4(record.correlation) ?? {};
-  const correlationDigests = anyDefined2({
-    correlation_plan: string4(correlation.plan_digest),
-    correlation_task: string4(correlation.task_digest),
-    correlation_definition: string4(correlation.definition_digest),
-    correlation_base: string4(correlation.base_sha),
-    correlation_head: string4(correlation.head_sha),
-    correlation_tree: string4(correlation.tree_sha)
-  });
-  const correlationAttributes = safeAttributes2({
-    ledger_version: 3,
-    native_event: nativeEvent,
-    correlation: Object.keys(correlation).length ? sanitizeAttributes2(correlation) : void 0,
-    event_seq: finiteNumber2(correlation.event_seq),
-    last_change_seq: finiteNumber2(correlation.last_change_seq),
-    last_authority_seq: finiteNumber2(correlation.last_authority_seq),
-    check_receipt_id: string4(correlation.check_receipt_id),
-    assurance: string4(correlation.assurance),
-    assurance_effective: string4(correlation.assurance_effective),
-    policy_label: string4(correlation.policy_label),
-    assurance_source: string4(correlation.assurance_source),
-    assurance_scope: correlation.assurance_scope,
-    activated_at: string4(correlation.activated_at)
-  });
-  if (nativeEvent === "workflow_fact") {
-    return [cleanEvent2({
-      event_version: TRAJECTORY_EVENT_VERSION,
-      type: "workflow_fact",
-      source: "pi-daddy-v3",
-      at,
-      run_id: string4(correlation.run_id),
-      task_id: string4(correlation.task_id),
-      workspace_id: string4(correlation.workspace_id),
-      context_id: string4(correlation.context_id),
-      phase: string4(correlation.phase),
-      workflow_fact_id: requireV3String2(record, "factId", nativeEvent, line),
-      digests: correlationDigests,
-      attributes: safeAttributes2({
-        ...correlationAttributes,
-        source: string4(record.source),
-        provenance: string4(record.provenance),
-        fact_kind: string4(record.kind),
-        fact_subject: string4(record.subject),
-        fact_state: string4(record.state)
-      })
-    })];
-  }
-  const executionId = requireV3String2(record, "executionId", nativeEvent, line);
-  const parentExecutionId = record.parentExecutionId === null ? null : requireV3String2(record, "parentExecutionId", nativeEvent, line);
-  if (parentExecutionId === executionId) throw new Error(`invalid pi-daddy v3 ${nativeEvent} at line ${line}: an execution cannot be its own parent`);
-  const childId = requireV3String2(record, "childId", nativeEvent, line);
-  const carriesTopWorkspace = nativeEvent === "workspace_lease" || nativeEvent === "check_receipt";
-  const topWorkspace = carriesTopWorkspace ? string4(record.workspaceId) : void 0;
-  const correlationWorkspace = string4(correlation.workspace_id);
-  if (topWorkspace && correlationWorkspace && topWorkspace !== correlationWorkspace) {
-    throw new Error(`invalid pi-daddy v3 ${nativeEvent} at line ${line}: workspaceId disagrees with correlation.workspace_id`);
-  }
-  const common2 = {
-    event_version: TRAJECTORY_EVENT_VERSION,
-    source: "pi-daddy-v3",
-    at,
-    run_id: string4(correlation.run_id),
-    task_id: string4(correlation.task_id),
-    workspace_id: topWorkspace,
-    context_id: string4(correlation.context_id),
-    child_id: childId,
-    execution_id: executionId,
-    parent_execution_id: parentExecutionId,
-    phase: string4(correlation.phase),
-    digests: correlationDigests
-  };
-  if (nativeEvent === "capability_decision") {
-    const requested = record.requested;
-    const parentGrant = record.parentGrant;
-    const effective = record.effective;
-    const denied = record.denied;
-    const clipped = record.clipped;
-    const gated = record.gatedBlocked;
-    const approved = record.approved;
-    validateCapabilityPartition2(requested, effective, denied, clipped, gated, approved, Boolean(record.blocked), line, 3);
-    const approvalSources = object4(record.approvalSources);
-    const approvalScopes = object4(record.approvalScopes);
-    const approvalExpiresAt = object4(record.approvalExpiresAt);
-    const approvalUses = object4(record.approvalUses);
-    if (approvalUses && Object.values(approvalUses).some(
-      (use) => !object4(use) || !Number.isInteger(use.max) || !Number.isInteger(use.remaining) || use.max < 0 || use.remaining < 0 || use.remaining > use.max
-    )) throw new Error(`invalid pi-daddy v3 capability_decision at line ${line}: approvalUses requires remaining <= max integer bounds`);
-    validateApprovalEvidence2(approved ?? [], string4(record.approvalSource), approvalSources, approvalScopes, approvalExpiresAt, approvalUses, line, 3);
-    const refusal = structuredRefusal2(record.refusal, nativeEvent, line, 3);
-    if (!record.blocked && refusal) throw new Error(`invalid pi-daddy v3 capability_decision at line ${line}: an allowed decision cannot carry a refusal`);
-    const definition = object4(record.definitionDigest);
-    const taskDigest = requireV3String2(record, "taskDigest", nativeEvent, line);
-    const trustedDefinition = string4(definition?.sha256);
-    const normalizedRequested = [...new Set(requested)];
-    const attributes = safeAttributes2({
-      ...correlationAttributes,
-      depth: record.depth,
-      agent_type: string4(record.agentType),
-      executor: string4(record.executor),
-      task_from: string4(record.taskFrom),
-      parent_grant: parentGrant,
-      denied,
-      clipped,
-      gated_blocked: gated,
-      blocked: record.blocked,
-      reason: string4(record.reason),
-      approved,
-      approval_source: string4(record.approvalSource),
-      approval_sources: approvalSources,
-      approval_scope: string4(record.approvalScope),
-      approval_scopes: approvalScopes,
-      approval_expires_at: approvalExpiresAt,
-      approval_uses: approvalUses,
-      human_denied: record.humanDenied,
-      gate_outcome: string4(record.gateOutcome),
-      definition_name: string4(definition?.name),
-      definition_source: string4(definition?.source),
-      structured_refusal: refusal
-    });
-    const base = {
-      ...common2,
-      parent_id: requireV3String2(record, "parentId", nativeEvent, line),
-      task_from_execution_id: string4(record.taskFromExecutionId),
-      requested_capabilities: normalizedRequested,
-      effective_capabilities: effective,
-      digests: anyDefined2({ ...correlationDigests, task: taskDigest, definition: trustedDefinition }),
-      attributes
-    };
-    const refusalCode = string4(refusal?.code);
-    const events = normalizedRequested.map((capability) => ({ ...base, type: "capability_requested", capability }));
-    for (const capability of approved ?? []) {
-      events.push(cleanEvent2({
-        ...base,
-        type: "approval_used",
-        capability,
-        approval: cleanObject2({
-          capability,
-          subject: approvalSubject2(record.agentType),
-          source: string4(approvalSources?.[capability]) ?? string4(record.approvalSource),
-          scope: string4(approvalScopes?.[capability]) ?? string4(record.approvalScope),
-          expires_at: string4(approvalExpiresAt?.[capability]),
-          used_at: at
-        }),
-        attributes: safeAttributes2({ ...attributes, approval_uses: object4(approvalUses?.[capability]) })
-      }));
-    }
-    const approvedSet = new Set(approved ?? []);
-    if (!record.blocked) events.push(...effective.map((capability) => ({ ...base, type: "capability_granted", capability })));
-    events.push(...[.../* @__PURE__ */ new Set([...denied, ...gated.filter((capability) => !approvedSet.has(capability))])].map((capability) => ({
-      ...base,
-      type: "capability_refused",
-      capability,
-      refusal_code: denied.includes(capability) ? "CAPABILITY_ESCALATION" : refusalCode
-    })));
-    events.push(cleanEvent2({ ...base, type: record.blocked ? "child_spawn_refused" : "capability_decision", refusal_code: refusalCode }));
-    return events;
-  }
-  if (nativeEvent === "workspace_lease") {
-    const workspaceId2 = requireV3String2(record, "workspaceId", nativeEvent, line);
-    const access = requireV3String2(record, "access", nativeEvent, line);
-    const outcome = requireV3String2(record, "outcome", nativeEvent, line);
-    const refusal = structuredRefusal2(record.refusal, nativeEvent, line, 3);
-    const type2 = access === "read" ? `workspace_read_${outcome.replaceAll("-", "_")}` : outcome === "refused" && refusal?.code === "WORKSPACE_WRITE_CONFLICT" ? "writer_lease_conflict" : `writer_lease_${outcome.replaceAll("-", "_")}`;
-    return [cleanEvent2({
-      ...common2,
-      workspace_id: workspaceId2,
-      type: type2,
-      refusal_code: string4(refusal?.code),
-      attributes: safeAttributes2({
-        ...correlationAttributes,
-        root: string4(record.root),
-        access,
-        outcome,
-        recovered: record.recovered,
-        release_reason: string4(record.releaseReason),
-        structured_refusal: refusal
-      })
-    })];
-  }
-  if (nativeEvent === "child_lifecycle") {
-    const state = requireV3String2(record, "state", nativeEvent, line);
-    const type2 = state === "starting" ? "child_started" : state === "running" ? "child_running" : state === "completed" ? "child_completed" : "child_failed";
-    return [cleanEvent2({
-      ...common2,
-      type: type2,
-      deadline_at: string4(record.deadlineAt),
-      exit_code: Number.isInteger(record.exitCode) ? Number(record.exitCode) : void 0,
-      attributes: safeAttributes2({
-        ...correlationAttributes,
-        state,
-        executor: string4(record.executor),
-        exit_code: record.exitCode,
-        signal: record.signal,
-        timed_out: record.timedOut,
-        aborted: record.aborted,
-        truncated: record.truncated,
-        reason: string4(record.reason),
-        deadline_at: string4(record.deadlineAt),
-        herdr_pane_id: string4(record.herdrPaneId),
-        herdr_agent_name: string4(record.herdrAgentName)
-      })
-    })];
-  }
-  const workspaceId = requireV3String2(record, "workspaceId", nativeEvent, line);
-  const receiptId = requireV3String2(record, "receiptId", nativeEvent, line);
-  const treeSha = requireV3String2(record, "treeSha", nativeEvent, line);
-  if (!/^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/.test(treeSha)) {
-    throw new Error(`invalid pi-daddy v3 check_receipt at line ${line}: treeSha must be a git object id for normalized tree evidence`);
-  }
-  return [cleanEvent2({
-    ...common2,
-    workspace_id: workspaceId,
-    type: "check_receipt_recorded",
-    digests: anyDefined2({ ...correlationDigests, tree: treeSha }),
-    attributes: safeAttributes2({
-      ...correlationAttributes,
-      receipt_id: receiptId,
-      check_id: string4(record.checkId),
-      check_receipt_id: string4(correlation.check_receipt_id)
-    })
-  })];
-}
-function requireV3String2(record, field, event, line) {
-  const value3 = string4(record[field]);
-  if (!value3) throw new Error(`invalid pi-daddy v3 ${event} at line ${line}: ${field} is required`);
-  if (redactText(value3) !== value3) throw new Error(`invalid pi-daddy v3 ${event} at line ${line}: ${field} contains a sensitive value`);
-  return value3;
-}
-function requireV2Correlation2(record, event, line) {
-  const correlation = object4(record.correlation);
-  if (!correlation) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation.run_id and correlation.task_id are required for workflow joins`);
-  }
-  const encoded = JSON.stringify(correlation);
-  if (Buffer.byteLength(encoded) > V2_CORRELATION_MAX_BYTES2) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation exceeds ${V2_CORRELATION_MAX_BYTES2} bytes`);
-  }
-  const undeclared = Object.keys(correlation).filter((key3) => !V2_CORRELATION_FIELDS2.has(key3));
-  if (undeclared.length > 0) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation carries fields outside the pinned schema 1.0 contract [REDACTED field names]`);
-  }
-  for (const [key3, value3] of Object.entries(correlation)) {
-    if (value3 === void 0 || value3 === null) continue;
-    if (key3 === "assurance_scope") {
-      const size = Buffer.byteLength(JSON.stringify(value3));
-      if (size > V2_CORRELATION_MAX_SCOPE_BYTES2) {
-        throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation assurance_scope exceeds ${V2_CORRELATION_MAX_SCOPE_BYTES2} bytes`);
-      }
-      continue;
-    }
-    if (V2_CORRELATION_NUMERIC_FIELDS2.has(key3)) {
-      if (typeof value3 !== "number" || !Number.isFinite(value3)) {
-        throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation ${key3} must be a finite number`);
-      }
-      continue;
-    }
-    if (typeof value3 !== "string") {
-      throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation ${key3} must be a string`);
-    }
-    if (value3.length > V2_CORRELATION_MAX_FIELD_CHARS2) {
-      throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation ${key3} exceeds ${V2_CORRELATION_MAX_FIELD_CHARS2} characters`);
-    }
-    if (redactText(value3) !== value3) {
-      throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation ${key3} contains a sensitive value`);
-    }
-  }
-  if (!string4(correlation.run_id) || !string4(correlation.task_id)) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: correlation.run_id and correlation.task_id are required for workflow joins`);
-  }
-  return Object.fromEntries(Object.entries(correlation).filter(([, value3]) => value3 !== void 0 && value3 !== null));
-}
-function requireV2String2(record, field, event, line) {
-  const value3 = string4(record[field]);
-  if (!value3) throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} is required`);
-  if (redactText(value3) !== value3) throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} contains a sensitive value`);
-  return value3;
-}
-function requireV2Executor2(record, event, line) {
-  const executor = requireV2String2(record, "executor", event, line);
-  if (!V2_EXECUTORS2.has(executor)) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: executor must be process or herdr`);
-  }
-  return executor;
-}
-function requireV2StringArray2(record, field, event, line) {
-  const value3 = stringArray2(record[field]);
-  if (!value3) throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be an array of strings`);
-  if (value3.some((entry) => redactText(entry) !== entry)) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} contains a sensitive value`);
-  }
-  return value3;
-}
-function optionalV2StringArray2(record, field, event, line) {
-  if (record[field] === void 0) return void 0;
-  return requireV2StringArray2(record, field, event, line);
-}
-function optionalV2SafeString2(value3, field, event, line) {
-  if (value3 === void 0) return void 0;
-  const parsed = string4(value3);
-  if (!parsed) throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be a non-empty string`);
-  if (redactText(parsed) !== parsed) throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} contains a sensitive value`);
-  return parsed;
-}
-function optionalV2Enum2(value3, field, allowed, event, line) {
-  if (value3 === void 0) return void 0;
-  const parsed = string4(value3);
-  if (!parsed || !allowed.has(parsed)) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be one of ${[...allowed].join(", ")}`);
-  }
-  return parsed;
-}
-function optionalV2EnumMap2(value3, field, allowed, event, line) {
-  if (value3 === void 0) return void 0;
-  const parsed = object4(value3);
-  if (!parsed) throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be an object`);
-  const entries = Object.entries(parsed);
-  if (entries.some(([key3, entry]) => !key3 || typeof entry !== "string" || !allowed.has(entry))) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} values must be one of ${[...allowed].join(", ")}`);
-  }
-  return Object.fromEntries(entries);
-}
-function optionalV2StringMap2(value3, field, event, line, validate11 = () => true) {
-  if (value3 === void 0) return void 0;
-  const parsed = object4(value3);
-  if (!parsed) throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be an object`);
-  const entries = Object.entries(parsed);
-  if (entries.some(([key3, entry]) => !key3 || typeof entry !== "string" || !validate11(entry))) {
-    throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must map capabilities to valid strings`);
-  }
-  return Object.fromEntries(entries);
-}
-function optionalV2ApprovalUses2(value3, event, line) {
-  if (value3 === void 0) return void 0;
-  const parsed = object4(value3);
-  if (!parsed) throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: approvalUses must be an object`);
-  const output = {};
-  for (const [capability, boundsValue] of Object.entries(parsed)) {
-    const bounds2 = object4(boundsValue);
-    if (!capability || !bounds2 || !Number.isInteger(bounds2.max) || !Number.isInteger(bounds2.remaining) || Number(bounds2.max) < 0 || Number(bounds2.remaining) < 0 || Number(bounds2.remaining) > Number(bounds2.max)) {
-      throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: approvalUses requires integer max/remaining bounds`);
-    }
-    output[capability] = { max: Number(bounds2.max), remaining: Number(bounds2.remaining) };
-  }
-  return output;
-}
-function validateCapabilityPartition2(requested, effective, denied, clipped, gated, approved, blocked, line, version = 2) {
-  const groups = [effective, denied, clipped, gated];
-  if (groups.some((values) => new Set(values).size !== values.length)) {
-    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: result capability arrays must not contain duplicates`);
-  }
-  const requestedSet = new Set(requested);
-  if (groups.some((values) => values.some((capability) => !requestedSet.has(capability)))) {
-    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: effective, denied, clipped, and gatedBlocked must partition requested`);
-  }
-  const flattened = groups.flat();
-  if (new Set(flattened).size !== flattened.length) {
-    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: effective, denied, clipped, and gatedBlocked must be disjoint subsets of requested`);
-  }
-  if ((approved ?? []).some(
-    (capability) => !requestedSet.has(capability) || (blocked ? !effective.includes(capability) && !gated.includes(capability) : !effective.includes(capability))
-  )) {
-    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: approved capabilities must be requested and reflected in the resolved decision`);
-  }
-}
-function validateApprovalEvidence2(approved, scalarSource, sources, scopes, expiries, uses, line, version = 2) {
-  const approvedSet = new Set(approved);
-  for (const [field, map2] of [["approvalSources", sources], ["approvalScopes", scopes], ["approvalExpiresAt", expiries], ["approvalUses", uses]]) {
-    if (map2 && Object.keys(map2).some((capability) => !approvedSet.has(capability))) {
-      throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: ${field} keys must be approved capabilities`);
-    }
-  }
-  if (approved.some((capability) => !sources?.[capability] && !scalarSource)) {
-    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: each approved capability requires an approval source`);
-  }
-  if (approved.length === 0 && (scalarSource || sources || scopes || expiries || uses)) {
-    throw new Error(`invalid pi-daddy v${version} capability_decision at line ${line}: approval evidence requires approved capabilities`);
-  }
-}
-function optionalV2Boolean2(record, field, event, line) {
-  const value3 = record[field];
-  if (value3 === void 0) return void 0;
-  if (typeof value3 !== "boolean") throw new Error(`invalid pi-daddy v2 ${event} at line ${line}: ${field} must be boolean`);
-  return value3;
-}
-function approvalSubject2(value3) {
-  const agentType = string4(value3);
-  return agentType === void 0 || agentType === "delegate" ? "<delegate>" : agentType;
-}
-function structuredRefusal2(value3, event, line, version = 2) {
-  if (value3 === void 0) return void 0;
-  const parsed = object4(value3);
-  const code = string4(parsed?.code);
-  if (!parsed || !code || !string4(parsed.message)) {
-    throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal requires code and message`);
-  }
-  const refusalCodes = version === 3 ? V3_REFUSAL_CODES2 : V2_REFUSAL_CODES2;
-  if (!refusalCodes.has(code)) {
-    throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal has unsupported code ${safeDiagnosticValue2(code)}`);
-  }
-  const unknown = Object.keys(parsed).filter((key3) => !V2_REFUSAL_FIELDS2.has(key3));
-  if (unknown.length > 0) throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal carries unsupported fields`);
-  const details = parsed.details === void 0 ? void 0 : object4(parsed.details);
-  if (parsed.details !== void 0 && (!details || Object.values(details).some((entry) => !V2_REFUSAL_DETAIL_TYPES2.has(entry === null ? "null" : typeof entry)))) {
-    throw new Error(`invalid pi-daddy v${version} ${event} at line ${line}: refusal.details must contain scalar values`);
-  }
-  return parsed;
-}
-function finiteNumber2(value3) {
-  return typeof value3 === "number" && Number.isFinite(value3) ? value3 : void 0;
-}
-function normalizeLegacyGrant2(record, index) {
-  const requiredArrays = ["requested", "parentGrant", "effective", "denied", "clipped", "gatedBlocked"];
-  if (typeof record.ts !== "string" || typeof record.parentId !== "string" || typeof record.childId !== "string" || !Number.isInteger(record.depth) || typeof record.blocked !== "boolean" || typeof record.executor !== "string" || requiredArrays.some((field) => !Array.isArray(record[field]) || !record[field].every((value3) => typeof value3 === "string"))) {
-    throw new Error(`invalid unversioned pi-daddy grant record at line ${index + 1}; expected the 0.17 GrantRecord shape`);
-  }
-  const requested = record.requested;
-  const effective = record.effective;
-  const denied = record.denied;
-  const gated = record.gatedBlocked;
-  const digest6 = object4(record.definitionDigest);
-  const common2 = {
-    event_version: TRAJECTORY_EVENT_VERSION,
-    source: "pi-daddy-0.17",
-    at: record.ts,
-    parent_id: record.parentId,
-    child_id: record.childId
-  };
-  const attributes = sanitizeAttributes2({
-    native_record: index + 1,
-    depth: record.depth,
-    agent_type: record.agentType,
-    executor: record.executor,
-    parent_grant: record.parentGrant,
-    clipped: record.clipped,
-    gated_blocked: gated,
-    gate_outcome: record.gateOutcome,
-    human_denied: record.humanDenied === true,
-    reason: record.reason,
-    definition_name: digest6?.name,
-    legacy_schema: "pi-daddy-grant-ledger/0.17"
-  });
-  const refusal = record.blocked ? legacyRefusalCode2(record) : void 0;
-  const spawn6 = cleanEvent2({
-    ...common2,
-    type: record.blocked ? "child_spawn_refused" : "child_started",
-    requested_capabilities: requested,
-    effective_capabilities: effective,
-    refusal_code: refusal,
-    digests: anyDefined2({ definition: string4(digest6?.sha256) }),
-    attributes
-  });
-  const events = [
-    ...requested.map((capability) => ({ ...common2, type: "capability_requested", capability, requested_capabilities: requested, effective_capabilities: effective, attributes })),
-    ...effective.map((capability) => ({ ...common2, type: "capability_granted", capability, requested_capabilities: requested, effective_capabilities: effective, attributes })),
-    ...[.../* @__PURE__ */ new Set([...denied, ...gated])].map((capability) => ({ ...common2, type: "capability_refused", capability, requested_capabilities: requested, effective_capabilities: effective, refusal_code: denied.includes(capability) ? "CAPABILITY_ESCALATION" : refusal, attributes }))
-  ];
-  const sources = object4(record.approvalSources);
-  const scopes = object4(record.approvalScopes);
-  for (const capability of stringArray2(record.approved) ?? []) {
-    events.push(cleanEvent2({
-      ...common2,
-      type: "approval_used",
-      capability,
-      approval: {
-        capability,
-        source: string4(sources?.[capability]) ?? string4(record.approvalSource),
-        scope: string4(scopes?.[capability]) ?? string4(record.approvalScope),
-        used_at: record.ts
-      },
-      attributes
-    }));
-  }
-  events.push(spawn6);
-  return events;
-}
-function legacyRefusalCode2(record) {
-  const denied = stringArray2(record.denied) ?? [];
-  const gated = stringArray2(record.gatedBlocked) ?? [];
-  const reason = string4(record.reason) ?? "";
-  if (denied.length) return "CAPABILITY_ESCALATION";
-  if (/declares no `allowed-tools`/i.test(reason)) return "UNDECLARED_CAPABILITIES";
-  if (/unknown capabilit/i.test(reason)) return "UNKNOWN_CAPABILITY";
-  if (/depth limit/i.test(reason)) return "DEPTH_LIMIT";
-  if (/needs a task/i.test(reason)) return "MISSING_TASK";
-  if (/universal capability|cannot narrow/i.test(reason)) return "NON_NARROWING_GRANT";
-  if (gated.length) {
-    if (record.humanDenied === true || record.gateOutcome === "declined") return "APPROVAL_DECLINED";
-    if (record.gateOutcome === "no-ui") return "APPROVAL_NO_UI";
-    if (record.gateOutcome === "dismissed") return "APPROVAL_DISMISSED";
-    if (record.gateOutcome === "error") return "APPROVAL_ERROR";
-    return "APPROVAL_REQUIRED";
-  }
-  return "LEGACY_UNCLASSIFIED";
-}
-function validTime2(value3) {
-  if (typeof value3 !== "string") return false;
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.exec(value3);
-  if (!match || !Number.isFinite(Date.parse(value3))) return false;
-  const [, year, month, day, hour, minute, second] = match.map(Number);
-  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return false;
-  return day >= 1 && day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
-}
-function safeDiagnosticValue2(value3) {
-  if (typeof value3 === "number" && Number.isFinite(value3)) return String(value3);
-  if (typeof value3 === "string" && /^[A-Za-z0-9_.-]{1,64}$/.test(value3) && redactText(value3) === value3) return JSON.stringify(value3);
-  return "[REDACTED invalid value]";
-}
-function sanitizeAttributes2(value3) {
-  const redacted = redactArgs(value3);
-  const sensitiveKey = /(secret|token|password|passphrase|api[_-]?key|authorization|cookie|credential)/i;
-  const freeTextKey = /^(request|command|stdout|stderr|output|prompt|content|reason|message|release_reason|diagnostic)$/i;
-  const walk2 = (current, key3 = "") => {
-    if (sensitiveKey.test(key3)) return "[REDACTED]";
-    if (typeof current === "string" && freeTextKey.test(key3)) {
-      return `[REDACTED sha256:${createHash53("sha256").update(current).digest("hex")}]`;
-    }
-    if (Array.isArray(current)) return current.map((entry) => walk2(entry));
-    if (current && typeof current === "object") return Object.fromEntries(Object.entries(current).map(([childKey, entry]) => [childKey, walk2(entry, childKey)]));
-    return current;
-  };
-  return walk2(redacted);
-}
-function parseJsonl2(text15, label) {
-  const lines2 = text15.split("\n").filter((line) => line.trim());
-  if (!lines2.length) throw new Error(`${label} ledger is empty`);
-  return lines2.map((line, index) => {
-    try {
-      const value3 = JSON.parse(line);
-      if (!value3 || typeof value3 !== "object" || Array.isArray(value3)) throw new Error("record is not an object");
-      return value3;
-    } catch (error) {
-      throw new Error(`${label} ledger line ${index + 1} is invalid JSON [REDACTED parser detail]`);
-    }
-  });
-}
-function object4(value3) {
-  return value3 && typeof value3 === "object" && !Array.isArray(value3) ? value3 : void 0;
-}
-function string4(value3) {
-  return typeof value3 === "string" && value3.length ? value3 : void 0;
-}
-function stringArray2(value3) {
-  return Array.isArray(value3) && value3.every((item) => typeof item === "string") ? value3 : void 0;
-}
-function anyDefined2(value3) {
-  const defined = cleanObject2(value3);
-  return Object.keys(defined).length > 0 ? defined : void 0;
-}
-function cleanObject2(value3) {
-  return Object.fromEntries(Object.entries(value3).filter(([, entry]) => entry !== void 0));
-}
-function safeAttributes2(value3) {
-  return sanitizeAttributes2(cleanObject2(value3));
-}
-function cleanEvent2(event) {
-  return cleanObject2(event);
-}
-
-// packages/adapters/src/session-observation.ts
-function sessionText2(bytes3) {
-  if (bytes3.byteLength > 8 * 1024 * 1024) throw Error("session source exceeds 8 MiB");
-  return new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
-}
-function sessionRows2(bytes3) {
-  const text15 = sessionText2(bytes3);
-  if (!text15.endsWith("\n")) throw Error("incomplete session/ledger line; retry after the writer settles");
-  const lines2 = text15.slice(0, -1).split("\n");
-  if (lines2.length > 4096) throw Error("session source exceeds 4096 records");
-  return lines2.map((line, i) => {
-    let row;
-    try {
-      row = JSON.parse(line);
-    } catch {
-      throw Error("invalid JSON record at line " + (i + 1));
-    }
-    if (!row || typeof row !== "object" || Array.isArray(row)) throw Error("object record required at line " + (i + 1));
-    return row;
-  });
-}
-function value2(v, max = 512) {
-  if (typeof v !== "string" || !v.trim() || v.length > max) throw Error("bounded session identifier required");
-  return v;
-}
-var stamp2 = (v) => typeof v === "string" && Number.isFinite(Date.parse(v)) ? v : null;
-var excerpt2 = (v) => v.length > 512 ? v.slice(0, 512) + " \u2026 [excerpt; inspect retained source for complete text]" : v;
-function observePiSession2(bytes3) {
-  const rows = sessionRows2(bytes3), header2 = rows[0];
-  if (header2?.type !== "session" || header2.version !== 3) throw Error("Pi session format version 3 required");
-  const sessionId = value2(header2.id), cwd = value2(header2.cwd, 4096), ids = /* @__PURE__ */ new Set();
-  const timeline = [], tools = /* @__PURE__ */ new Map(), models = /* @__PURE__ */ new Map();
-  const fields = {};
-  let userMessages = 0, assistantMessages = 0, lastAssistantStop = null, lastActivity = null, opaque = 0;
-  const add = (i, row, kind, text15) => timeline.push({ line: i + 1, timestamp: stamp2(row.timestamp), kind, excerpt: excerpt2(text15) });
-  rows.forEach((row, i) => {
-    if (i && row.type === "session") throw Error("multiple session headers");
-    if (row.id !== void 0) {
-      const id3 = value2(row.id);
-      if (ids.has(id3)) throw Error("duplicate session record id");
-      ids.add(id3);
-    }
-    lastActivity = stamp2(row.timestamp) ?? lastActivity;
-    if (row.type === "model_change") {
-      add(i, row, "model-setting", [row.provider, row.modelId].filter((x) => typeof x === "string").join("/"));
-      return;
-    }
-    if (row.type === "thinking_level_change") {
-      add(i, row, "thinking-setting", String(row.thinkingLevel ?? "unknown"));
-      return;
-    }
-    if (row.type !== "message") return;
-    const m = row.message;
-    if (!m || typeof m !== "object" || Array.isArray(m)) throw Error("invalid session message");
-    const content = typeof m.content === "string" ? [{ type: "text", text: m.content }] : m.content;
-    if (!Array.isArray(content)) throw Error("invalid session message content");
-    const text15 = content.filter((c) => c?.type === "text" && typeof c.text === "string").map((c) => c.text).join("\n");
-    if (m.role === "user") {
-      userMessages++;
-      add(i, row, "user-message", text15);
-    } else if (m.role === "assistant") {
-      assistantMessages++;
-      lastAssistantStop = typeof m.stopReason === "string" ? m.stopReason : null;
-      const provider = typeof m.provider === "string" ? m.provider : "unknown", model = typeof m.model === "string" ? m.model : "unknown";
-      const key3 = JSON.stringify([provider, model]), record = models.get(key3) ?? { provider, model, messages: 0 };
-      record.messages++;
-      models.set(key3, record);
-      if (text15) add(i, row, "assistant-message", text15);
-      for (const field of ["input", "output", "cacheRead", "cacheWrite", "totalTokens"]) {
-        const n = m.usage?.[field];
-        if (n === void 0) continue;
-        if (!Number.isSafeInteger(n) || n < 0) throw Error("invalid provider-reported usage");
-        const f = fields[field] ?? { sum: 0, reportedMessages: 0 };
-        f.sum += n;
-        f.reportedMessages++;
-        if (!Number.isSafeInteger(f.sum)) throw Error("usage sum overflow");
-        fields[field] = f;
-      }
-      for (const c of content) if (c?.type === "toolCall") {
-        const name = value2(c.name, 128);
-        tools.set(name, (tools.get(name) ?? 0) + 1);
-        add(i, row, "tool-call", name);
-      }
-    } else if (m.role === "toolResult") add(i, row, "tool-result", String(m.toolName ?? "unknown") + (m.isError === true ? " \u2014 tool reported error" : " \u2014 result recorded; success not inferred"));
-    else opaque++;
-  });
-  const gaps = [
-    "Retrospective chronological transcript; branch selection and live continuity are not established.",
-    "Messages and tool results are evidence to inspect, not independently verified decisions, tests or acceptance.",
-    "Only explicit inputs are captured. Source revision, initial workspace and external user feedback may be missing.",
-    "Usage is provider-reported repeated-request usage, not unique context, billing or complete parent/child accounting."
-  ];
-  if (opaque) gaps.push(opaque + " message(s) with other roles omitted from the timeline; retained source is complete.");
-  if (!assistantMessages || Object.values(fields).some((f) => f.reportedMessages < assistantMessages) || Object.keys(fields).length < 5) gaps.push("Usage fields are missing; sums cover only reported messages.");
-  if (lastAssistantStop !== "stop") gaps.push("No final assistant stop observed; this snapshot may represent unfinished work.");
-  return { version: "pi-session-observation-v1", sessionId, cwd, timeline, toolCalls: Object.fromEntries(tools), userMessages, assistantMessages, modelRecords: [...models.values()], usage: { fields, assistantMessages, scope: "this-transcript-only" }, lastActivity, lastAssistantStop, gaps };
-}
-function observeSessionLedger2(bytes3) {
-  const rows = sessionRows2(bytes3);
-  normalizePiDaddyLedgerV32(sessionText2(bytes3));
-  const attempts = /* @__PURE__ */ new Map(), decisions = /* @__PURE__ */ new Set(), lifecycles = /* @__PURE__ */ new Set(), deadlines = /* @__PURE__ */ new Map(), displayed = /* @__PURE__ */ new Set();
-  for (const row of rows) {
-    if (!["capability_decision", "child_lifecycle", "workspace_lease"].includes(row.event) || String(row.childId).startsWith("check:")) continue;
-    const id3 = value2(row.executionId), old = attempts.get(id3);
-    if (old && (old.parentExecutionId !== row.parentExecutionId || old.logicalChildId !== row.childId)) throw Error("execution identity changed");
-    const a = old ?? { executionId: id3, parentExecutionId: row.parentExecutionId, logicalChildId: row.childId, agent: null, state: "unknown", pane: null, startedAt: null, endedAt: null, runningSeconds: null };
-    if (row.event === "workspace_lease") {
-      attempts.set(id3, a);
-      continue;
-    }
-    displayed.add(id3);
-    if (row.event === "capability_decision") {
-      if (decisions.has(id3)) throw Error("duplicate capability decision for one execution");
-      decisions.add(id3);
-      a.agent = row.agentType;
-      a.state = row.blocked ? "refused" : a.state === "unknown" ? "authorised" : a.state;
-    } else {
-      if (a.endedAt) throw Error("lifecycle after terminal execution");
-      if (lifecycles.has(id3) && row.state === "starting") throw Error("duplicate starting lifecycle event");
-      if (deadlines.has(id3) && stamp2(row.deadlineAt) && deadlines.get(id3) !== row.deadlineAt) throw Error("lifecycle deadline changed");
-      if (stamp2(row.deadlineAt)) deadlines.set(id3, row.deadlineAt);
-      lifecycles.add(id3);
-      a.state = row.state;
-      a.pane = row.herdrPaneId ?? a.pane;
-      if (row.state === "running") a.startedAt = a.startedAt ?? row.ts;
-      if (["completed", "failed"].includes(row.state)) a.endedAt = row.ts;
-    }
-    if (a.startedAt && a.endedAt) {
-      a.runningSeconds = (Date.parse(a.endedAt) - Date.parse(a.startedAt)) / 1e3;
-      if (a.runningSeconds < 0) throw Error("negative execution duration");
-    }
-    attempts.set(id3, a);
-  }
-  for (const a of attempts.values()) {
-    const seen = /* @__PURE__ */ new Set();
-    let cursor = a;
-    while (cursor) {
-      if (seen.has(cursor.executionId)) throw Error("execution parent cycle");
-      seen.add(cursor.executionId);
-      cursor = cursor.parentExecutionId ? attempts.get(cursor.parentExecutionId) : void 0;
-    }
-  }
-  return [...attempts.values()].filter((a) => displayed.has(a.executionId));
-}
-
-// packages/adapters/src/session-retention.ts
-function checkedSelections2(input) {
-  if (!Array.isArray(input) || input.length < 1 || input.length > 16) throw Error("select 1\u201316 explicit session sources");
-  const seen = /* @__PURE__ */ new Set(), executions = /* @__PURE__ */ new Set();
-  let parents = 0, ledgers = 0;
-  for (const s of input) {
-    if (!s || typeof s !== "object" || Object.keys(s).some((k) => !["kind", "path", "executionId"].includes(k))) throw Error("closed source selection required");
-    if (!["parent", "child", "ledger", "feedback", "artifact"].includes(s.kind) || typeof s.path !== "string" || resolve29(s.path) !== s.path) throw Error("explicit absolute source path required");
-    if (seen.has(s.path)) throw Error("duplicate session source");
-    seen.add(s.path);
-    if (s.kind === "parent") parents++;
-    if (s.kind === "ledger") ledgers++;
-    if (s.executionId !== void 0) {
-      if (s.kind !== "child" || !/^exec:[0-9a-f-]{36}$/i.test(s.executionId) || executions.has(s.executionId)) throw Error("unique child execution id required");
-      executions.add(s.executionId);
-    }
-  }
-  if (parents !== 1 || ledgers > 1) throw Error("exactly one parent and at most one ledger required");
-}
-function projectSession2(selections, buffers) {
-  const parent = observePiSession2(buffers[selections.findIndex((s) => s.kind === "parent")]);
-  const children = selections.flatMap((s, i) => s.kind === "child" ? [{ source: i, executionId: s.executionId ?? null, session: observePiSession2(buffers[i]) }] : []);
-  if ((/* @__PURE__ */ new Set([parent.sessionId, ...children.map((c) => c.session.sessionId)])).size !== children.length + 1) throw Error("duplicate parent/child session id");
-  const ledger = selections.findIndex((s) => s.kind === "ledger"), attempts = ledger < 0 ? [] : observeSessionLedger2(buffers[ledger]);
-  for (const child3 of children) if (child3.executionId && !attempts.some((a) => a.executionId === child3.executionId)) throw Error("selected child execution absent from ledger");
-  const gaps = [...parent.gaps, "No quality, acceptance, calibrated learning or adoption is inferred from this import."];
-  for (const child3 of children) gaps.push(...child3.session.gaps.map((g) => "Child source " + (child3.source + 1) + " (" + child3.session.sessionId + "): " + g));
-  if (ledger < 0) gaps.push("No delegation ledger selected.");
-  else gaps.push("Ledger/session association is operator-selected, not authenticated; ledger may include other sessions.");
-  if (attempts.length > children.filter((c) => c.executionId).length) gaps.push("Child transcript coverage incomplete; no combined token total is claimed.");
-  if (children.length) gaps.push("Child execution mappings are explicit operator declarations, not proof of parentage. Each transcript has separate usage.");
-  if (!selections.some((s) => s.kind === "feedback")) gaps.push("External feedback not supplied; user messages remain available for review.");
-  if (!selections.some((s) => s.kind === "artifact")) gaps.push("No final artifact or source snapshot supplied.");
-  return { parent, children, attempts, gaps };
-}
-function readRetainedSession2(root, manifestId) {
-  const selected2 = readArchiveSource2(root, manifestId);
-  if (selected2.status !== "available" || selected2.reference.retention !== "exact" || selected2.reference.parser.id !== "retrospective-session" || selected2.reference.parser.version !== "1") throw Error("retained session unavailable or unsupported");
-  const record = JSON.parse(sessionText2(selected2.bytes));
-  if (!record || record.version !== "retrospective-session-v1" || Object.keys(record).sort().join() !== "selectionDigest,sources,version" || !Array.isArray(record.sources)) throw Error("invalid retained session");
-  checkedSelections2(record.sources.map((s) => ({ kind: s.kind, path: s.path, ...s.executionId === null ? {} : { executionId: s.executionId } })));
-  const sources = record.sources.map((s) => {
-    if (Object.keys(s).sort().join() !== "bytes,executionId,kind,manifestId,path,sha256") throw Error("invalid retained session source");
-    const r = readArchiveSource2(root, s.manifestId);
-    if (r.status !== "available" || r.reference.retention !== "exact" || r.reference.sha256 !== s.sha256 || r.bytes.length !== s.bytes) throw Error("retained session source missing or changed");
-    return { selection: s, bytes: r.bytes };
-  });
-  if (sources.reduce((n, s) => n + s.bytes.length, 0) > 32 * 1024 * 1024) throw Error("session selection exceeds 32 MiB");
-  const plain = record.sources.map(({ manifestId: manifestId2, ...s }) => s);
-  if (learningHash2({ version: "session-selection-v1", sources: plain }) !== record.selectionDigest) throw Error("retained session selection mismatch");
-  const projection = projectSession2(record.sources.map((s) => ({ kind: s.kind, path: s.path, ...s.executionId === null ? {} : { executionId: s.executionId } })), sources.map((s) => s.bytes));
-  return { version: record.version, manifestId, selectionDigest: record.selectionDigest, sources: record.sources, ...projection, acceptance: "not-assessed" };
-}
-function readRetainedSessionSource2(root, manifestId, index) {
-  const session = readRetainedSession2(root, manifestId), source3 = session.sources[index];
-  if (!Number.isSafeInteger(index) || !source3) throw Error("select a listed session source");
-  const result = readArchiveSource2(root, source3.manifestId);
-  if (result.status !== "available") throw Error("session source unavailable");
-  return result.bytes;
-}
-
-// packages/adapters/src/learning-workspace.ts
-import { mkdirSync as mkdirSync20, readdirSync as readdirSync20, lstatSync as lstatSync18 } from "node:fs";
-import { dirname as dirname23, isAbsolute as isAbsolute28, join as join52, resolve as resolve30 } from "node:path";
-var SHA15 = /^[a-f0-9]{64}$/;
-var NAME2 = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
-function closed18(value3, keys7) {
-  if (!value3 || typeof value3 !== "object" || Array.isArray(value3) || Object.keys(value3).sort().join() !== [...keys7].sort().join()) throw Error("closed learning workspace input required");
-}
-function text14(value3, max = 4e3) {
-  if (typeof value3 !== "string" || !value3.trim() || value3.length > max || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value3)) throw Error("bounded learning text required");
-}
-function hash14(value3) {
-  if (typeof value3 !== "string" || !SHA15.test(value3)) throw Error("retained digest required");
-}
-function path2(value3) {
-  if (!isAbsolute28(value3) || resolve30(value3) !== value3) throw Error("canonical absolute learning path required");
-}
-function named2(value3) {
-  if (!NAME2.test(value3.name)) throw Error("learning name must be a short slug");
-  text14(value3.title, 512);
-}
-function clock2(now) {
-  if (!Number.isSafeInteger(now) || now < 0) throw Error("valid learning clock required");
-}
-var message2 = (error) => error instanceof Error ? error.message : "learning evidence unavailable";
-function source2(root, id3, parser) {
-  hash14(id3);
-  const r = readArchiveSource2(root, id3);
-  if (r.status !== "available" || r.reference.retention !== "exact" || parser && (r.reference.parser.id !== parser || r.reference.parser.version !== "1")) throw Error("retained learning evidence missing, changed or unsupported");
-  return r;
-}
-function jsonSource2(root, id3, parser) {
-  return learningCopy2(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(source2(root, id3, parser).bytes)));
-}
-function retain3(root, parser, value3) {
-  return retainArchiveSource2(root, { sourceId: `${parser}-${learningHash2(value3).slice(0, 32)}`, parser: { id: parser, version: "1" }, retention: "exact", bytes: Buffer.from(JSON.stringify(value3)) }).manifestId;
-}
-function prepareLearningDirectory2(directory7) {
-  path2(directory7);
-  try {
-    const s = lstatSync18(directory7);
-    if (!s.isDirectory() || s.isSymbolicLink()) throw Error("learning directory substitution");
-  } catch (e) {
-    if (e.code !== "ENOENT") throw e;
-    prepareLearningDirectory2(dirname23(directory7));
-    mkdirSync20(directory7, { mode: 448 });
-  }
-  for (let p = directory7; ; p = dirname23(p)) {
-    const s = lstatSync18(p);
-    if (!s.isDirectory() || s.isSymbolicLink()) throw Error("learning directory ancestor substitution");
-    if (p === dirname23(p)) break;
-  }
-}
-function validInput2(input) {
-  closed18(input, ["archiveRoot", "scopeDigest", "population", "author"]);
-  path2(input.archiveRoot);
-  hash14(input.scopeDigest);
-  text14(input.population, 512);
-  text14(input.author, 512);
-  if (/[\u0000-\u001f\u007f]/.test(input.population + input.author)) throw Error("single-line population and explicit author required");
-}
-var workspaceKey2 = (input) => learningHash2({ scopeDigest: input.scopeDigest, population: input.population, author: input.author });
-function createLearningWorkspace2(directory7, input) {
-  const safe = learningCopy2(input);
-  validInput2(safe);
-  path2(directory7);
-  prepareLearningDirectory2(dirname23(directory7));
-  prepareLearningDirectory2(safe.archiveRoot);
-  const initial = { type: "learning-workspace-v1", input: safe };
-  let exists = true;
-  try {
-    lstatSync18(directory7);
-  } catch (e) {
-    if (e.code !== "ENOENT") throw e;
-    exists = false;
-  }
-  if (exists) {
-    if (learningHash2(learningJournal2(directory7).read()[0].value) !== learningHash2(initial)) throw Error("learning workspace already bound");
-    return openLearningWorkspace2(directory7);
-  }
-  registerLearningStore2(safe.archiveRoot, "workspace", workspaceKey2(safe), directory7, learningHash2(initial));
-  try {
-    learningJournal2(directory7, initial);
-  } catch (e) {
-    if (e.code !== "EEXIST") throw e;
-    if (learningHash2(learningJournal2(directory7).read()[0].value) !== learningHash2(initial)) throw Error("learning workspace already bound");
-  }
-  return openLearningWorkspace2(directory7);
-}
-function openLearningWorkspace2(directory7) {
-  path2(directory7);
-  const journal = learningJournal2(directory7), initial = journal.read()[0].value;
-  closed18(initial, ["type", "input"]);
-  if (initial.type !== "learning-workspace-v1") throw Error("wrong learning workspace");
-  const input = initial.input;
-  validInput2(input);
-  const history = () => {
-    verifyLearningStore2(input.archiveRoot, "workspace", workspaceKey2(input), directory7, learningHash2(initial));
-    const rows = journal.read(), names = /* @__PURE__ */ new Set(), decisions = /* @__PURE__ */ new Map();
-    const known = /* @__PURE__ */ new Set(["session-note", "session-binding", "case-binding", "comparison-binding", "comparison-context", "hypothesis-binding", "unflagged-binding", "trust-binding", "quality-pending", "quality", "decision", "adoption", "activation", "rollback-request", "rollback", "outcome", "lifecycle"]);
-    for (const row of rows.slice(1)) {
-      const v = row.value;
-      if (!known.has(String(v.type))) throw Error("unknown learning workspace event");
-      if (String(v.type).endsWith("-binding") && v.type !== "trust-binding") {
-        const b = v.binding;
-        if (!b || !NAME2.test(b.name) || names.has(`${v.type}:${b.name}`)) throw Error("duplicate or invalid learning binding");
-        names.add(`${v.type}:${b.name}`);
-      }
-      if (v.type === "decision") {
-        const r = v.request;
-        if (!r || r.priorDecisionId !== (decisions.get(String(v.name)) ?? null)) throw Error("learning decision history fork");
-        decisions.set(String(v.name), row.id);
-      }
-    }
-    return rows;
-  };
-  const events = () => history().map((e) => e.value);
-  const append = (value3, prior = history().at(-1).id) => journal.append(prior, value3);
-  const bindings = (type2) => events().filter((e) => e.type === type2).map((e) => e.binding);
-  const selected2 = (type2, name) => {
-    const b = bindings(type2).find((b2) => b2.name === name);
-    if (!b) throw Error(`unknown retained learning name: ${name}`);
-    return learningCopy2(b);
-  };
-  const bound = (type2, binding) => {
-    const before = history().at(-1).id;
-    const old = bindings(type2).find((b) => b.name === binding.name);
-    if (old) {
-      if (learningHash2(old) !== learningHash2(binding)) throw Error("learning name already bound; use a new name for changed evidence");
-      return;
-    }
-    if (bindings(type2).length >= 128) throw Error("learning binding limit reached");
-    append({ type: type2, binding }, before);
-  };
-  const reviewer = (b) => b.version === 3 ? createWorkSignalReviewer2(input.archiveRoot, b.batchId, input.author) : createWorkCaseReviewer2(input.archiveRoot, b.batchId, input.author);
-  const validateCases = (b) => {
-    closed18(b, ["name", "title", "version", "batchId"]);
-    named2(b);
-    if (![2, 3].includes(b.version)) throw Error("unsupported case version");
-    hash14(b.batchId);
-    const r = reviewer(b);
-    for (let offset = 0; ; offset += 5) {
-      const p = r.list(offset);
-      for (const c of p.items) if (c.candidate.detector.population !== input.population || c.candidate.target.snapshotDigest !== input.scopeDigest) throw Error("case snapshot scope or population mismatch");
-      if (offset + 5 >= p.total) break;
-    }
-    return r;
-  };
-  const caseEvidenceIds = (name, caseManifestId) => {
-    const binding = selected2("case-binding", name), r = validateCases(binding);
-    for (let offset = 0; ; offset += 5) {
-      const page = r.list(offset), item = page.items.find((c) => c.caseManifestId === caseManifestId);
-      if (item) {
-        const observationId = binding.version === 3 ? readWorkSignalCase2(input.archiveRoot, caseManifestId).observationId : jsonSource2(input.archiveRoot, binding.batchId, "work-candidate-batch").observationId;
-        if (observationId === void 0) return [caseManifestId];
-        hash14(observationId);
-        const observed = readArchiveSourceReference2(input.archiveRoot, observationId);
-        if (binding.version === 2 && observed.status === "available" && !item.candidate.evidence.includes(observed.reference.sha256)) throw Error("observation link is outside case evidence");
-        return [caseManifestId, observationId];
-      }
-      if (offset + 5 >= page.total) break;
-    }
-    throw Error("case outside named batch");
-  };
-  const hypothesis = (id3) => {
-    const h = jsonSource2(input.archiveRoot, id3, "factory-hypothesis");
-    if (learningHash2(buildHypothesis(h.proposal)) !== learningHash2(h) || h.proposal.population !== input.population) throw Error("hypothesis changed or population mismatch");
-    return h;
-  };
-  const validateComparison = (b) => {
-    closed18(b, ["name", "title", "scopeStatement", "comparisonManifestId", "caseReference", "hypothesisManifestId", "priorFeedbackManifestIds", "adoptionBinding"]);
-    named2(b);
-    text14(b.scopeStatement);
-    const metadata3 = readBlindInterventionBinding2(input.archiveRoot, b.comparisonManifestId, input.author);
-    if (!Array.isArray(b.priorFeedbackManifestIds) || b.priorFeedbackManifestIds.length > 32 || new Set(b.priorFeedbackManifestIds).size !== b.priorFeedbackManifestIds.length) throw Error("bounded prior feedback required");
-    b.priorFeedbackManifestIds.forEach((id3) => source2(input.archiveRoot, id3));
-    const c = b.caseReference ? readLearningCase2(input.archiveRoot, b.caseReference) : null;
-    if (c && (!c.matched || c.candidate.detector.population !== input.population || c.candidate.target.snapshotDigest !== input.scopeDigest)) throw Error("case decision stale or snapshot scope/population mismatch");
-    const h = b.hypothesisManifestId ? hypothesis(b.hypothesisManifestId) : null;
-    if (h && c && !h.proposal.caseIds.includes(c.candidate.id)) throw Error("hypothesis case mismatch");
-    if (h && metadata3.investigationDigest !== h.id) throw Error("comparison belongs to a different retained hypothesis");
-    if (b.adoptionBinding) {
-      const { version, id: id3, ...draft } = b.adoptionBinding;
-      if (version !== "adoption-binding-v1" || buildAdoptionBinding(draft).id !== id3 || b.adoptionBinding.scopeDigest !== input.scopeDigest || b.adoptionBinding.experimentDigest !== metadata3.experimentDigest || !h || !c || c.current?.disposition !== "confirmed_defect" || b.adoptionBinding.hypothesisDigest !== h.id) throw Error("adoption case/hypothesis/comparison/scope mismatch");
-    }
-    return openBlindIntervention2(input.archiveRoot, b.comparisonManifestId, input.author);
-  };
-  const comparisonBinding = (name) => {
-    const b = selected2("comparison-binding", name);
-    const context = events().filter((e) => e.type === "comparison-context" && e.name === name).at(-1);
-    return context ? { ...b, ...learningCopy2(context.context) } : b;
-  };
-  const last = (type2, name) => events().filter((e) => e.type === type2 && e.name === name).at(-1);
-  const decision = (name) => {
-    const e = history().filter((e2) => e2.value.type === "decision" && e2.value.name === name).at(-1);
-    return e ? { id: e.id, ...e.value.request } : null;
-  };
-  const adoption = (name) => {
-    const e = last("adoption", name);
-    if (!e) throw Error("authorized adoption receipt missing");
-    if (learningHash2(jsonSource2(input.archiveRoot, String(e.manifestId), "learning-adoption")) !== learningHash2(e.receipt)) throw Error("retained adoption receipt changed or missing");
-    return learningCopy2(e.receipt);
-  };
-  const quality = (name) => {
-    const b = comparisonBinding(name), blind = validateComparison(b), choice = blind.quality(), receipt = last("quality", name);
-    if (receipt) {
-      if (learningHash2(receipt.choice) !== learningHash2(choice)) throw Error("durable quality choice changed");
-      const { manifestId, ...body } = receipt;
-      if (learningHash2(jsonSource2(input.archiveRoot, String(manifestId), "learning-quality")) !== learningHash2(body)) throw Error("retained quality receipt changed or missing");
-    }
-    return { b, blind, choice, receipt };
-  };
-  const requireQuality = (name) => {
-    const q = quality(name);
-    if (!q.choice || !q.receipt) throw Error("durable full-artifact-scope quality receipt required; excerpt feedback is not a choice");
-    return q;
-  };
-  const validateTrustScope = (c) => {
-    if (c.archiveRoot !== input.archiveRoot || c.component.population !== input.population) throw Error("trust archive/population mismatch");
-    const incidents = /* @__PURE__ */ new Set(), unflagged = bindings("unflagged-binding");
-    for (const row of c.cohort) {
-      if (row.flagged) {
-        const p = source2(input.archiveRoot, row.manifestId).reference.parser;
-        const candidate = p.id === "work-capture" ? readWorkCandidate2(input.archiveRoot, row.manifestId) : p.id === "work-signal-case" ? readWorkSignalCase2(input.archiveRoot, row.manifestId).candidate : null;
-        if (!candidate || candidate.target.snapshotDigest !== input.scopeDigest || candidate.detector.population !== input.population || c.component.kind === "detector" && learningHash2(candidate.detector) !== learningHash2({ id: c.component.id, version: c.component.version, population: c.component.population })) throw Error("trust cohort requires actual same-snapshot scoped cases");
-        const key3 = learningHash2(candidate.target);
-        if (incidents.has(key3)) throw Error("trust cohort repeats one work incident");
-        incidents.add(key3);
-      } else if (!unflagged.some((b) => b.manifestId === row.manifestId && b.split === row.split)) throw Error("unflagged cohort source not explicitly bound to this workspace scope");
-    }
-  };
-  const currentTrust = () => {
-    const e = events().filter((e2) => e2.type === "trust-binding").at(-1);
-    if (!e) return null;
-    const trust = openTrustLifecycle2(String(e.directory)), c = trust.configuration();
-    validateTrustScope(c);
-    if (trustPolicyDigest2(c) !== e.policyId) throw Error("trust policy mismatch");
-    return trust;
-  };
-  const registryEvidence = (id3, operation, name, permitted) => {
-    if (!permitted.includes(id3)) throw Error("independent exact registry linkage authority required");
-    const r = jsonSource2(input.archiveRoot, id3, "learning-registry-receipt");
-    closed18(r, ["version", "operation", "requestId", "adoptionId", "scopeDigest", "candidateDigest", "revision", "registryManifestId"]);
-    const a = adoption(name);
-    if (r.version !== "learning-registry-receipt-v1" || r.operation !== operation || r.adoptionId !== a.id || r.scopeDigest !== input.scopeDigest || !Number.isSafeInteger(r.revision) || r.revision < 1 || r.candidateDigest !== (operation === "activate" ? a.candidateDigest : a.rollbackCandidateDigest)) throw Error("registry receipt outside adopted scope");
-    text14(r.requestId, 128);
-    const view = jsonSource2(input.archiveRoot, r.registryManifestId);
-    if (view.version !== "factory-registry-view-v1" || view.scopeDigest !== r.scopeDigest || view.candidateDigest !== r.candidateDigest || view.revision !== r.revision) throw Error("original registry observation mismatch");
-    if (operation === "activate") {
-      const active = view.activation;
-      const change = view.lastChange;
-      if (view.application !== "applied" || view.requestId !== r.requestId || change?.operation !== "activate" || change.requestId !== r.requestId || change.adoptionId !== r.adoptionId || active?.requestId !== r.requestId || active.receipt?.id !== r.adoptionId || learningHash2(active.receipt) !== learningHash2(a)) throw Error("activation not applied by original registry for the exact request and adoption");
-    }
-    if (operation === "rollback" && (view.application !== "applied" || view.requestId !== r.requestId || r.requestId !== last("rollback-request", name)?.request?.id)) throw Error("rollback not applied by original registry");
-    return r;
-  };
-  history();
-  return {
-    configuration: () => learningCopy2(input),
-    bindSession(raw) {
-      const b = learningCopy2(raw);
-      closed18(b, ["name", "title", "manifestId"]);
-      named2(b);
-      hash14(b.manifestId);
-      readRetainedSession2(input.archiveRoot, b.manifestId);
-      bound("session-binding", b);
-      return b;
-    },
-    noteSession(name, raw) {
-      const a = learningCopy2(raw);
-      closed18(a, ["kind", "note", "item", "line"]);
-      text14(a.note);
-      if (!["finding", "proposal", "acceptance", "context"].includes(a.kind) || !Number.isSafeInteger(a.item) || a.item < 1 || !Number.isSafeInteger(a.line) || a.line < 1) throw Error("valid annotation and evidence reference required");
-      const b = selected2("session-binding", name);
-      const bytes3 = readRetainedSessionSource2(input.archiveRoot, b.manifestId, a.item - 1);
-      const content = new TextDecoder("utf-8", { fatal: true }).decode(bytes3);
-      const count = content.length === 0 ? 0 : content.split("\n").length - (content.endsWith("\n") ? 1 : 0);
-      if (a.line > count) throw Error("annotation evidence line outside retained source");
-      const annotation = { ...a, author: input.author };
-      append({ type: "session-note", name, annotation });
-      return annotation;
-    },
-    sessions() {
-      return bindings("session-binding").map((b) => {
-        try {
-          const view = readRetainedSession2(input.archiveRoot, b.manifestId);
-          return { ...b, state: "ready", sessionId: view.parent.sessionId, reason: "retrospective evidence; assessment pending" };
-        } catch (e) {
-          return { ...b, state: "deferred", sessionId: null, reason: message2(e) };
-        }
-      });
-    },
-    session(name) {
-      const b = selected2("session-binding", name);
-      return {
-        ...b,
-        ...readRetainedSession2(input.archiveRoot, b.manifestId),
-        annotations: events().filter((e) => e.type === "session-note" && e.name === name).map((e) => e.annotation)
-      };
-    },
-    dashboardBinding() {
-      const trust = currentTrust(), binding = events().filter((e) => e.type === "trust-binding").at(-1);
-      return { trustDirectory: trust && binding ? String(binding.directory) : null, trustPolicyId: trust ? trust.inspect(0).policyId : null };
-    },
-    preparedAdoption(name) {
-      return last("adoption", name) ? adoption(name) : null;
-    },
-    adoptionStatus(name) {
-      const b = comparisonBinding(name), a = last("adoption", name), activation = last("activation", name), rollback = last("rollback", name);
-      const receipt = a ? adoption(name) : null;
-      if (activation) registryEvidence(String(activation.manifestId), "activate", name, [String(activation.manifestId)]);
-      if (rollback) registryEvidence(String(rollback.manifestId), "rollback", name, [String(rollback.manifestId)]);
-      return { binding: b.adoptionBinding, receipt, activationManifestId: activation ? String(activation.manifestId) : null, rollbackManifestId: rollback ? String(rollback.manifestId) : null };
-    },
-    bindCases(raw) {
-      const b = learningCopy2(raw);
-      validateCases(b);
-      bound("case-binding", b);
-      return b;
-    },
-    bindComparison(raw) {
-      const b = learningCopy2(raw);
-      validateComparison(b);
-      bound("comparison-binding", b);
-      return { name: b.name, comparisonManifestId: b.comparisonManifestId };
-    },
-    linkComparisonContext(name, context) {
-      const before = history().at(-1).id, b = comparisonBinding(name), safe = learningCopy2(context);
-      closed18(safe, ["caseReference", "hypothesisManifestId", "adoptionBinding"]);
-      for (const key3 of ["caseReference", "hypothesisManifestId", "adoptionBinding"]) if (b[key3] !== null && learningHash2(b[key3]) !== learningHash2(safe[key3])) throw Error("comparison context cannot replace retained links");
-      validateComparison({ ...b, ...safe });
-      if (learningHash2({ caseReference: b.caseReference, hypothesisManifestId: b.hypothesisManifestId, adoptionBinding: b.adoptionBinding }) !== learningHash2(safe)) append({ type: "comparison-context", name, context: safe }, before);
-      return { name, linked: true };
-    },
-    comparisonContext(name) {
-      const b = comparisonBinding(name);
-      validateComparison(b);
-      return { caseReference: b.caseReference, hypothesisManifestId: b.hypothesisManifestId, adoptionBinding: b.adoptionBinding };
-    },
-    bindTrust(trustDirectory) {
-      const before = history().at(-1).id;
-      path2(trustDirectory);
-      const trust = openTrustLifecycle2(trustDirectory), config = trust.configuration();
-      validateTrustScope(config);
-      const old = currentTrust();
-      if (old) {
-        if (old.inspect(0).policyId !== trust.inspect(0).policyId) throw Error("trust is frozen for this workspace; no attention refill");
-        return;
-      }
-      append({ type: "trust-binding", directory: trustDirectory, policyId: trust.inspect(0).policyId }, before);
-    },
-    configureTrust(raw, authorizedPolicyDigests) {
-      const config = learningCopy2(raw);
-      validateTrustScope(config);
-      const existing = currentTrust();
-      if (existing && existing.inspect(0).policyId !== trustPolicyDigest2(config)) throw Error("trust already frozen; no attention refill");
-      const trust = createTrustLifecycle2(join52(directory7, "trust"), config, authorizedPolicyDigests);
-      this.bindTrust(join52(directory7, "trust"));
-      return trust.inspect(0);
-    },
-    trust() {
-      const trust = currentTrust();
-      if (!trust) throw Error("trust not configured; use learning trust setup");
-      return trust;
-    },
-    addUnflagged(raw) {
-      const b = learningCopy2(raw);
-      closed18(b, ["name", "title", "manifestId", "split"]);
-      named2(b);
-      source2(input.archiveRoot, b.manifestId);
-      if (!["calibration", "heldout", "tuning"].includes(b.split)) throw Error("explicit unflagged split required");
-      if (currentTrust()) throw Error("cohort already frozen; cannot add samples after labels");
-      bound("unflagged-binding", b);
-      return b;
-    },
-    unflagged() {
-      return bindings("unflagged-binding").map((b) => {
-        source2(input.archiveRoot, b.manifestId);
-        return { ...b, incidentId: learningHash2({ scope: input.scopeDigest, evidence: source2(input.archiveRoot, b.manifestId).reference.sha256 }) };
-      });
-    },
-    cases(name, offset = 0) {
-      const b = selected2("case-binding", name);
-      return { ...validateCases(b).list(offset), batchId: b.batchId, version: b.version };
-    },
-    caseEvidence(name, caseManifestId) {
-      return caseEvidenceIds(name, caseManifestId).map((manifestId) => ({ manifestId, role: manifestId === caseManifestId ? "nomination" : "frozen-inputs", ...readArchiveSourceReference2(input.archiveRoot, manifestId) }));
-    },
-    readCaseEvidence(name, caseManifestId, manifestId) {
-      if (!caseEvidenceIds(name, caseManifestId).includes(manifestId)) throw Error("evidence outside selected case");
-      return readArchiveSource2(input.archiveRoot, manifestId);
-    },
-    decideCase(name, request) {
-      return validateCases(selected2("case-binding", name)).decide(learningCopy2(request));
-    },
-    hypotheses() {
-      const named3 = bindings("hypothesis-binding");
-      const origins = bindings("comparison-binding").map((b) => comparisonBinding(b.name)).filter((b) => b.hypothesisManifestId).map((b) => ({ name: `origin:${b.name}`, manifestId: b.hypothesisManifestId }));
-      return [...named3, ...origins.filter((b) => !named3.some((n) => n.manifestId === b.manifestId))].map((b) => ({ ...b, hypothesis: hypothesis(b.manifestId) }));
-    },
-    propose(name, proposal, hypothesisName = name) {
-      const h = buildHypothesis(proposal);
-      if (h.proposal.population !== input.population) throw Error("hypothesis population mismatch");
-      const rows = this.cases(name);
-      const all = [...rows.items];
-      for (let offset = 5; offset < rows.total; offset += 5) all.push(...this.cases(name, offset).items);
-      if (h.proposal.caseIds.some((id3) => !all.some((c) => c.candidate.id === id3 && c.disposition === "confirmed_defect"))) throw Error("current confirmed cases required for hypothesis");
-      if (!NAME2.test(hypothesisName)) throw Error("hypothesis name must be a short slug");
-      const manifestId = retain3(input.archiveRoot, "factory-hypothesis", h);
-      bound("hypothesis-binding", { name: hypothesisName, manifestId });
-      return { hypothesis: h, manifestId };
-    },
-    comparison(name) {
-      const q = quality(name), cards = q.blind.view().cards.map((c, i) => ({ ...c, displayLabel: String.fromCharCode(65 + i) }));
-      const d = decision(name), a = this.adoptionStatus(name);
-      const outcomes = events().filter((e) => e.type === "outcome" && e.name === name).map((e) => {
-        const { manifestId, ...body } = e;
-        if (learningHash2(jsonSource2(input.archiveRoot, String(manifestId), "learning-outcome")) !== learningHash2(body)) throw Error("retained outcome changed or missing");
-        const observation = e.observation;
-        observation.evidence.forEach((id3) => source2(input.archiveRoot, id3));
-        const classification = classifyProductionObservation(adoption(name), observation);
-        if (learningHash2(classification) !== learningHash2(e.classification)) throw Error("outcome classification changed");
-        return { manifestId: e.manifestId, classification };
-      });
-      return {
-        name,
-        title: q.b.title,
-        scopeStatement: q.b.scopeStatement,
-        mode: "deliberate-review",
-        cards,
-        choice: q.choice,
-        qualityScope: q.receipt ? "full-artifacts" : q.choice ? "legacy-unscoped" : null,
-        priorFeedback: q.b.priorFeedbackManifestIds.map((manifestId) => ({ manifestId, scope: "prior-feedback-only" })),
-        decision: d,
-        activation: a.activationManifestId ? "recorded" : "not-activated",
-        rollback: a.rollbackManifestId ? "recorded" : "not-recorded",
-        outcomes,
-        adoptionReadiness: { state: a.rollbackManifestId ? "rollback-recorded" : a.activationManifestId ? "activation-recorded" : "deferred", reason: a.rollbackManifestId ? "original registry rollback recorded; historical activation retained" : a.activationManifestId ? "original activation receipt linked; current registry state remains producer-owned" : !q.b.adoptionBinding ? "scoped candidate and independent eligibility/authority not configured" : !q.receipt ? "full-artifact quality choice missing" : d?.disposition !== "adopt" ? "explicit adoption intent missing" : !a.receipt ? "independent adoption authority and current eligible facts required" : "prepared only; original registry activation still required" },
-        laterOutcomeReadiness: outcomes.length ? "observations-linked (not an improvement claim)" : "no later outcome observed",
-        revealReady: !!q.choice && !!q.receipt,
-        adoptionConfigured: !!q.b.adoptionBinding,
-        limitations: ["Artifact content may disclose identity.", "A quality choice is not acceptance, calibration or adoption.", ...q.b.priorFeedbackManifestIds.length ? ["Previously exposed feedback is linked, not a fresh blind experiment."] : []]
-      };
-    },
-    artifact(name, label, digest6) {
-      return quality(name).blind.readArtifact(label, digest6);
-    },
-    choose(name, raw, rawReview) {
-      const before = history().at(-1).id, review = learningCopy2(rawReview), q = quality(name), choice = q.blind.previewChoice(learningCopy2(raw));
-      if (q.choice && learningHash2(q.choice) !== learningHash2(choice)) throw Error("blind quality choice locked");
-      closed18(review, ["scope", "note", "reviewedArtifactDigests"]);
-      text14(review.note);
-      const required = [...new Set(q.blind.view().cards.flatMap((c) => c.artifactDigests))].sort();
-      if (review.scope !== "full-artifacts" || !required.length && choice.kind !== "insufficient" || !Array.isArray(review.reviewedArtifactDigests) || new Set(review.reviewedArtifactDigests).size !== review.reviewedArtifactDigests.length || review.reviewedArtifactDigests.some((h) => !required.includes(h)) || choice.kind !== "insufficient" && learningHash2([...review.reviewedArtifactDigests].sort()) !== learningHash2(required)) throw Error("explicit complete artifact review required; excerpts do not qualify");
-      review.reviewedArtifactDigests.sort();
-      if (q.receipt) {
-        if (learningHash2(q.receipt.choice) !== learningHash2(choice) || learningHash2(q.receipt.review) !== learningHash2(review)) throw Error("quality receipt locked");
-        return learningCopy2(q.receipt);
-      }
-      const pending = last("quality-pending", name), request = { choice, review };
-      if (pending && learningHash2(pending.request) !== learningHash2(request)) throw Error("quality write pending; repeat the exact choice to finish");
-      const claimed = pending ? before : append({ type: "quality-pending", name, request }, before).id;
-      const actual = q.blind.choose(choice);
-      const receipt = { type: "quality", name, choice: actual, review, author: input.author, comparisonManifestId: q.b.comparisonManifestId };
-      const manifestId = retain3(input.archiveRoot, "learning-quality", receipt);
-      append({ ...receipt, manifestId }, claimed);
-      return { ...receipt, manifestId };
-    },
-    reveal(name) {
-      return requireQuality(name).blind.reveal();
-    },
-    decisionStatus(name) {
-      const b = comparisonBinding(name);
-      return { name, title: b.title, scopeStatement: b.scopeStatement, current: decision(name) };
-    },
-    decide(name, raw) {
-      const before = history().at(-1).id, request = learningCopy2(raw);
-      closed18(request, ["disposition", "note", "priorDecisionId"]);
-      text14(request.note);
-      if (!["adopt", "reject", "defer"].includes(request.disposition)) throw Error("choose adopt, reject or defer");
-      if (request.priorDecisionId !== null) hash14(request.priorDecisionId);
-      comparisonBinding(name);
-      const old = decision(name);
-      if (old && learningHash2({ disposition: old.disposition, note: old.note, priorDecisionId: old.priorDecisionId }) === learningHash2(request)) return old;
-      if ((old?.id ?? null) !== request.priorDecisionId) throw Error("stale learning decision");
-      if (last("adoption", name)) throw Error("adoption already authorized; use explicit rollback rather than replacing its decision");
-      if (request.disposition === "adopt") {
-        const q = requireQuality(name);
-        if (!["one", "tie"].includes(q.choice.kind)) throw Error("positive quality choice required for adoption intent");
-      }
-      const e = append({ type: "decision", name, request, author: input.author }, before);
-      return { id: e.id, ...request };
-    },
-    prepareAdoption(name, authority, facts, now) {
-      const before = history().at(-1).id, q = requireQuality(name), b = q.b.adoptionBinding;
-      if (!b || decision(name)?.disposition !== "adopt") throw Error("scoped binding and explicit adopt decision required");
-      const selected3 = q.blind.reveal().arms.filter((a) => q.choice.labels.includes(a.label));
-      if (!selected3.some((a) => a.configuration.configuration === b.candidateDigest)) throw Error("adoption candidate is not a quality-selected configuration");
-      const receipt = authorizeAdoption(b, authority, facts, now), old = last("adoption", name);
-      if (old) {
-        if (learningHash2(old.receipt) !== learningHash2(receipt)) throw Error("adoption receipt locked");
-        return receipt;
-      }
-      append({ type: "adoption", name, receipt, manifestId: retain3(input.archiveRoot, "learning-adoption", receipt) }, before);
-      return receipt;
-    },
-    linkActivation(name, manifestId, authorizedManifestIds) {
-      const before = history().at(-1).id, receipt = registryEvidence(manifestId, "activate", name, authorizedManifestIds), old = last("activation", name);
-      if (old) {
-        if (old.manifestId !== manifestId) throw Error("activation link locked");
-        return receipt;
-      }
-      append({ type: "activation", name, manifestId }, before);
-      return receipt;
-    },
-    previewRollback(name, reason, evidence5, expiresAt) {
-      if (!this.adoptionStatus(name).activationManifestId) throw Error("observed activation required before rollback");
-      evidence5.forEach((id3) => source2(input.archiveRoot, id3));
-      return buildRollbackRequest(adoption(name), reason, evidence5, expiresAt);
-    },
-    prepareRollback(name, request, authority, now, current) {
-      const before = history().at(-1).id;
-      if (!this.adoptionStatus(name).activationManifestId) throw Error("observed activation required before rollback");
-      request.evidence.forEach((id3) => source2(input.archiveRoot, id3));
-      if (buildRollbackRequest(adoption(name), request.reason, [...request.evidence], request.expiresAt).id !== request.id) throw Error("rollback request changed");
-      const result = authorizeRollback(adoption(name), request, authority, now, current), old = last("rollback-request", name);
-      if (old) {
-        if (learningHash2(old.request) !== learningHash2(request)) throw Error("rollback request locked");
-        return result;
-      }
-      append({ type: "rollback-request", name, request: learningCopy2(request) }, before);
-      return result;
-    },
-    linkRollback(name, manifestId, authorizedManifestIds) {
-      const before = history().at(-1).id, receipt = registryEvidence(manifestId, "rollback", name, authorizedManifestIds), old = last("rollback", name);
-      const activation = jsonSource2(input.archiveRoot, String(last("activation", name)?.manifestId), "learning-registry-receipt");
-      if (receipt.revision <= activation.revision) throw Error("rollback registry revision must follow activation");
-      if (old) {
-        if (old.manifestId !== manifestId) throw Error("rollback link locked");
-        return receipt;
-      }
-      append({ type: "rollback", name, manifestId }, before);
-      return receipt;
-    },
-    previewObservation(name, raw) {
-      if (!this.adoptionStatus(name).activationManifestId) throw Error("later outcome needs observed activation, not just prepared adoption");
-      const observation = learningCopy2(raw);
-      closed18(observation, ["id", "adoptionId", "candidateDigest", "scopeDigest", "originalRequirementDigest", "currentRequirementDigest", "outcome", "acceptanceDigest", "acceptedArtifactDigest", "observedArtifactDigest", "evidence"]);
-      observation.evidence.forEach((id3) => source2(input.archiveRoot, id3));
-      const classification = classifyProductionObservation(adoption(name), observation);
-      return { observation, classification, digest: learningHash2({ name, observation }) };
-    },
-    observe(name, raw, authorizedDigests, referenceAuthor) {
-      const before = history().at(-1).id, preview = this.previewObservation(name, raw);
-      if (!authorizedDigests.includes(preview.digest)) throw Error("independent exact observation authority required");
-      const old = events().find((e) => e.type === "outcome" && e.name === name && e.observation.id === raw.id);
-      if (old) {
-        if (learningHash2(old.observation) !== learningHash2(preview.observation)) throw Error("outcome identity conflict");
-        return learningCopy2(old);
-      }
-      if (referenceAuthor !== void 0) text14(referenceAuthor, 512);
-      const value3 = { type: "outcome", name, ...preview, ...referenceAuthor === void 0 ? {} : { referenceAuthor } };
-      const manifestId = retain3(input.archiveRoot, "learning-outcome", value3);
-      append({ ...value3, manifestId }, before);
-      return { ...value3, manifestId };
-    },
-    lifecycle(name) {
-      const before = history().at(-1).id, q = quality(name), b = q.b;
-      this.comparison(name);
-      if (!b.caseReference || !b.hypothesisManifestId) return { state: "incomplete-links", manifestId: null };
-      const activation = last("activation", name), rollback = last("rollback", name), prior = last("lifecycle", name);
-      const links = {
-        caseManifestId: b.caseReference.manifestId,
-        hypothesisManifestId: b.hypothesisManifestId,
-        comparisonManifestId: b.comparisonManifestId,
-        choiceManifestId: q.receipt ? String(q.receipt.manifestId) : null,
-        adoptionManifestId: activation ? String(activation.manifestId) : null,
-        rollbackManifestId: rollback ? String(rollback.manifestId) : null,
-        outcomeManifestIds: events().filter((e) => e.type === "outcome" && e.name === name).map((e) => String(e.manifestId))
-      };
-      if (prior && learningHash2(prior.links) === learningHash2(links)) return { state: "linked", manifestId: String(prior.manifestId) };
-      const manifestId = retainLearningLifecycle2(input.archiveRoot, { ...links, predecessorManifestId: prior ? String(prior.manifestId) : null });
-      append({ type: "lifecycle", name, links, manifestId }, before);
-      return { state: "linked", manifestId };
-    },
-    inspect(now) {
-      clock2(now);
-      const cases = bindings("case-binding").map((b) => {
-        try {
-          const p = validateCases(b).list();
-          return { name: b.name, title: b.title, state: "ready", total: p.total, reason: "deliberate review; nomination is not confirmation" };
-        } catch (e) {
-          return { name: b.name, title: b.title, state: "deferred", total: null, reason: message2(e) };
-        }
-      });
-      const comparisons = bindings("comparison-binding").map((b) => {
-        try {
-          const v = this.comparison(b.name);
-          return { state: "ready", reason: v.revealReady ? "quality recorded; adoption remains separate" : "quality choice pending; identity and cost hidden", ...v };
-        } catch (e) {
-          return { name: b.name, title: b.title, state: "deferred", reason: message2(e), decision: decision(b.name) };
-        }
-      });
-      let trust;
-      try {
-        const t = currentTrust();
-        trust = t ? { state: "configured", ...t.inspect(now), automaticExposure: t.previewExposure(now) } : { state: "deferred", reason: "trust not configured", automaticExposure: { mode: "silent", reason: "policy-unavailable" } };
-      } catch (e) {
-        trust = { state: "deferred", reason: message2(e), automaticExposure: { mode: "silent", reason: "invalid-trust-evidence" } };
-      }
-      return { version: "learning-workspace-view-v1", configuration: learningCopy2(input), mode: "deliberate-review", sessions: this.sessions(), cases, comparisons, trust, automaticExposureReserved: false, delegationStarted: false, acceptance: "not-assessed" };
-    }
-  };
-}
-function catalogLearningArchive2(root, author) {
-  path2(root);
-  text14(author, 512);
-  const dir = join52(root, "manifests");
-  for (let p = dir; ; p = dirname23(p)) {
-    const s = lstatSync18(p);
-    if (!s.isDirectory() || s.isSymbolicLink()) throw Error("archive manifest directory substituted");
-    if (p === dirname23(p)) break;
-  }
-  const files = readdirSync20(dir);
-  if (files.length > 8192) throw Error("archive catalog bound exceeded");
-  return files.filter((id3) => SHA15.test(id3)).sort().flatMap((manifestId) => {
-    const r = readArchiveSourceReference2(root, manifestId);
-    if (r.status !== "available") return [];
-    const p = r.reference.parser;
-    if (p.id === "work-candidate-batch" && p.version === "1" || p.id === "work-signal-batch" && p.version === "1") {
-      try {
-        const page = (p.id === "work-signal-batch" ? createWorkSignalReviewer2(root, manifestId, author) : createWorkCaseReviewer2(root, manifestId, author)).list();
-        return [{ kind: "cases", manifestId, version: p.id === "work-signal-batch" ? 3 : 2, description: `${page.total} nomination(s)${page.items[0] ? ` \u2014 ${page.items[0].candidate.target.obligationId}: ${page.items[0].candidate.reason}` : ""}`, ...page.items[0] ? { scopeDigest: page.items[0].candidate.target.snapshotDigest, population: page.items[0].candidate.detector.population } : {} }];
-      } catch {
-        return [];
-      }
-    }
-    if (p.id === "blind-intervention" && p.version === "1") {
-      try {
-        readBlindInterventionBinding2(root, manifestId, author);
-        return [{ kind: "comparison", manifestId, version: 1, description: "Retained comparison (identity hidden)" }];
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
-}
-
-// packages/adapters/src/learning-trust-setup.ts
-function previewLearningTrust2(directory7, raw) {
-  const options = learningCopy2(raw), workspace = openLearningWorkspace2(directory7), config = workspace.configuration();
-  if (Object.keys(options).sort().join() !== "caseName,detectorId,exposure,maxUnflagged,split,unflagged" || !["calibration", "heldout", "tuning"].includes(options.split) || !Array.isArray(options.unflagged) || options.unflagged.length > 1024) throw Error("closed trust setup required");
-  const page = workspace.cases(options.caseName), items = [...page.items];
-  for (let offset = 5; offset < page.total; offset += 5) items.push(...workspace.cases(options.caseName, offset).items);
-  const chosen = items.filter((c) => c.candidate.detector.id === options.detectorId);
-  if (!chosen.length) throw Error("selected detector has no retained cases");
-  const component = { kind: "detector", ...chosen[0].candidate.detector };
-  if (chosen.some((c) => learningHash2(c.candidate.detector) !== learningHash2(chosen[0].candidate.detector))) throw Error("detector versions/populations must be calibrated separately");
-  const binding = workspace.inspect(0).cases.find((b) => b.name === options.caseName);
-  if (!binding || binding.state !== "ready") throw Error("case binding unavailable");
-  const incidents = /* @__PURE__ */ new Map();
-  for (const c of chosen) {
-    const id3 = learningHash2({ target: c.candidate.target, population: component.population });
-    if (!incidents.has(id3)) incidents.set(id3, c);
-  }
-  const cohort = [...[...incidents].map(([incidentId, c]) => ({ incidentId, manifestId: c.caseManifestId, flagged: true, split: options.split })), ...options.unflagged.map((c) => ({ ...c, flagged: false }))];
-  const input = {
-    archiveRoot: config.archiveRoot,
-    component,
-    seed: learningHash2({ scope: config.scopeDigest, component, cohort }),
-    maxUnflagged: options.maxUnflagged,
-    cohort,
-    exposure: options.exposure ? { ...options.exposure, component, kind: "positive", split: options.split === "tuning" ? "calibration" : options.split } : null
-  };
-  const predictions = [...incidents].map(([incidentId]) => ({ id: learningHash2({ incidentId, component, split: options.split }), incidentId, component, kind: "positive", split: options.split }));
-  return {
-    input,
-    policyDigest: trustPolicyDigest2(input),
-    predictions,
-    nominationCount: chosen.length,
-    independentIncidentCount: incidents.size,
-    caseManifestIds: [...incidents.values()].map((c) => c.caseManifestId),
-    labelsCreated: 0,
-    excludedOtherDetectors: items.length - chosen.length
-  };
-}
-function configureLearningTrust2(directory7, options, authorizedPolicyDigests) {
-  const preview = previewLearningTrust2(directory7, options), workspace = openLearningWorkspace2(directory7);
-  workspace.configureTrust(preview.input, authorizedPolicyDigests);
-  for (const p of preview.predictions) workspace.trust().predict(p);
-  return workspace.trust().inspect(0);
-}
-function previewLearningCaseLabel2(directory7, reference3) {
-  const trust = openLearningWorkspace2(directory7).trust(), config = trust.configuration();
-  const row = config.cohort.find((c) => c.flagged && c.manifestId === reference3.manifestId);
-  if (!row) throw Error("case outside frozen calibration cohort");
-  const predictions = trust.history().filter((e) => e.value.type === "prediction" || e.value.type === "correction").map((e) => e.value.prediction);
-  const p = predictions.filter((p2) => p2.incidentId === row.incidentId).at(-1);
-  if (!p) throw Error("prediction missing");
-  return { predictionId: p.id, ...trust.previewCaseOutcome(p.id, reference3) };
-}
-
-// packages/pi-extension/src/dashboard-bridge.ts
-var DASHBOARD_HARNESS_SOURCE = "d123257e53d48a2cad6919708976b5371dc7590e";
-var DASHBOARD_HARNESS_BRIDGE = /* @__PURE__ */ Symbol.for("skill-harness.dashboard-host.v1");
-var functions = {
-  learningJournal: learningJournal2,
-  createTrustLifecycle: createTrustLifecycle2,
-  openTrustLifecycle: openTrustLifecycle2,
-  trustPolicyDigest: trustPolicyDigest2,
-  archivePolicyBinding: archivePolicyBinding2,
-  ingestPolicySource: ingestPolicySource2,
-  readArchiveCheckpoint: readArchiveCheckpoint2,
-  readArchiveSource: readArchiveSource2,
-  retainArchiveSource: retainArchiveSource2,
-  captureArchivedWorkSignals,
-  readRetainedExecution: readRetainedExecution2,
-  projectRetainedExecutions,
-  createWorkCaseReviewer: createWorkCaseReviewer2,
-  createWorkSignalReviewer: createWorkSignalReviewer2,
-  retainBlindIntervention: retainBlindIntervention2,
-  openBlindIntervention: openBlindIntervention2,
-  retainLearningLifecycle: retainLearningLifecycle2,
-  readLearningLifecycle,
-  createLearningWorkspace: createLearningWorkspace2,
-  openLearningWorkspace: openLearningWorkspace2,
-  catalogLearningArchive: catalogLearningArchive2,
-  previewLearningTrust: previewLearningTrust2,
-  configureLearningTrust: configureLearningTrust2,
-  previewLearningCaseLabel: previewLearningCaseLabel2,
-  runLearningWizard,
-  reviewLearningComparison,
-  runLearningCommand
-};
-function publishDashboardHarnessBridge(target = globalThis) {
-  const old = target[DASHBOARD_HARNESS_BRIDGE];
-  if (old) {
-    if (old.version === "skill-harness-dashboard-bridge-v1" && old.sourceCommit === DASHBOARD_HARNESS_SOURCE) return old;
-    throw new Error("dashboard harness bridge already published by another provider");
-  }
-  const api = Object.freeze({ ...functions });
-  const bridge = Object.freeze({ version: "skill-harness-dashboard-bridge-v1", sourceCommit: DASHBOARD_HARNESS_SOURCE, api });
-  Object.defineProperty(target, DASHBOARD_HARNESS_BRIDGE, { value: bridge, enumerable: false, configurable: false, writable: false });
-  return bridge;
-}
-
 // packages/pi-extension/src/index.ts
 function index_default(pi) {
-  const moduleDir = dirname24(fileURLToPath4(import.meta.url));
-  const assetsDir = basename3(dirname24(moduleDir)) === "skill-harness" ? join53(moduleDir, "..", "assets") : join53(moduleDir, "..", "..", "..", "assets");
-  publishDashboardHarnessBridge();
+  const moduleDir = dirname9(fileURLToPath2(import.meta.url));
+  const assetsDir = basename3(dirname9(moduleDir)) === "skill-harness" ? join27(moduleDir, "..", "assets") : join27(moduleDir, "..", "..", "..", "assets");
   registerCommand(pi, assetsDir);
   registerTool(pi);
   pi.on("session_shutdown", async () => {

@@ -204,7 +204,7 @@ and two full waves ran before anyone noticed: the affected skill scored ≈ its 
 no-skill baseline while looking entirely plausible. The only tell was a contradictory
 failure mix — over-ceremony and capitulation at once — that no single skill edit produces.
 
-**What the harness does about it now.** New runs use results schema 3. The Pi adapter loads a read-only observation extension last and computes delivery from final provider-payload prompt fields; callers never supply the status. Each provider request records contract SHA-256/bytes/occurrences, mechanism, and raw plus normalized prompt digests. `cwd-line-v1` is the first named normalization registry rule: it replaces exactly the `Current working directory:` line. The payload text itself is not retained.
+**What the harness does about it now.** The adapter refuses an invalid skill path, every run records the harness CLI version, green can use a one-call canary, and force places the skill body directly in the system prompt. New runs use results schema 2 and do not produce authenticated delivery observations. Historical schema-3 delivery fields remain readable, and a retained `NOT-MEASURED` verdict still blocks SHIP.
 
 - the pi adapter **refuses** a skill dir with no `SKILL.md` rather than letting pi swallow
   the flag, and resolves the path first (a relative `--skills .` used to hand a child
@@ -296,16 +296,6 @@ It also shows up without being asked for: a `⇄` line under a fresh run's score
 only gate-failing findings. A boundary cell is not a broken spec — the remedy is `--reps`
 on that scenario, or an override with a note once you have decided which side is right.
 
-## 4g. Screen retained evidence before buying another run
-
-```bash
-node bin/skill-harness.js screen <run-dir> [<run-dir> ...]
-```
-
-`screen` is free, offline, and read-only: it never resolves an adapter and makes zero subject or judge calls. From schema-v3 fields alone it groups by skill × model × scenario, reports delivery-proven control and treatment pass rates, and reports each retained criterion's fail rate. Control ≥80% is `CEILING`, ≤10% is `FLOOR`, 20–70% is `INFORMATIVE`; incomplete, legacy, or inconclusive evidence is `UNKNOWN`. An informative baseline means headroom exists, not that the skill helps.
-
-Schema 1/2 records remain valid and byte-identical, but cannot acquire prompt/vote evidence that was never retained. Reading never upgrades them. Re-running writes schema 3; `grade`, `rescore`, `regate`, adjudication, and review carry the observations without re-attributing delivery.
-
 ## 5. Review — flip verdicts, read transcripts
 
 ```bash
@@ -322,24 +312,6 @@ node bin/skill-harness.js grade <run-dir> --judge claude-code:opus
 
 Re-scores the **saved transcripts** of a prior run with a (possibly different) judge — no model re-runs. Use it to de-confound a suspicious result before a fresh `run`. It reads the transcripts of the run's own mode, so a force run and a red baseline are both re-gradable, and a force run comes back scored.
 
-## 6b. Judge agreement — offline after two distinct grades
-
-A normal `grade` now retains the prior full-cell verdict before replacing it. After the
-same saved run has been graded by two distinct judges, report agreement without making
-another call:
-
-```bash
-node bin/skill-harness.js judge-agreement <run-dir>
-```
-
-It prints agree/disagree/error per scenario and an aggregate; missing, suspect, or
-ambiguous votes are errors, never agreements. Start with
-`openai-codex:gpt-5.6-sol` against `claude-code:claude-opus-4-8`; both are
-subscription-backed with zero marginal per-token cost. Open-weight judges remain a
-secondary tier until this report measures their agreement. Structured results record
-`metrics.cost_source`; positive tokens plus zero recorded cost warn unless the provider
-is a recognized subscription provider.
-
 ## 7. Add a test case
 
 ```bash
@@ -351,39 +323,6 @@ node bin/skill-harness.js add-test golden-skill --skills packages/core/test/fixt
 ```
 
 Appends a scenario to the skill's `specification.yaml`. Gather the fields conversationally first.
-
-### `/skill-harness capture` — turn the conversation you're in into a test
-
-Inside a pi session, when the agent has just done something wrong (or something
-right that you want to keep working):
-
-```
-/skill-harness capture [skill]
-```
-
-It reads the **active branch** of the session, groups it into logical turns, and
-walks you through: pick a contiguous turn range → confirm which instructions were
-responsible → mark it `failure` or `good_example` → write what it *should* have
-done → edit the drafted checklist → **preview the whole case** → save as pending,
-promote to a scenario, or cancel.
-
-**Free.** Zero model calls; the checklist draft is a sentence splitter, not a
-model. The only spend is the optional "run just this scenario now?" at the end,
-which names the cost before asking.
-
-Two things worth knowing:
-
-- **A pending capture is not a test yet.** It lives in `<skill>/tests/captures/`,
-  outside `specification.yaml`, so it cannot touch ship-bar totals, staleness,
-  lift or stability until you promote it.
-- **Only your user turns are committed.** The model's reply is evidence for
-  writing the expectation, not an oracle to match against — it goes to a
-  git-ignored `.local/` sidecar. Hidden thinking, tool-result bodies, secrets and
-  home paths are stripped before anything is written, and the preview is your
-  chance to check that.
-
-Requires an interactive session: under `-p` / `--mode json` there is no preview
-step, so `capture` refuses rather than writing unreviewed.
 
 ## 7b. Objective gates — assert what the model DID
 
@@ -439,55 +378,7 @@ arguments. It says nothing about what that tool then did to the machine — a `b
 command string is not a filesystem audit. For a real path policy, forbid `bash` or
 assert on `unchanged_paths`.
 
-## 7c. Workflow trajectories — state, authority, and fresh evidence
-
-`assert.trajectory` is the multi-phase counterpart to `assert.trace`. The pi adapter normalizes pi
-tool events, principal assurance v1 events, and current pi-daddy grant/governance ledgers into one
-versioned event model. Assertions can require/forbid events, order transitions, correlate
-run/task/workspace/context IDs and distinct head/tree identities, enforce freshness after the last
-change/authority/Build completion, prove lease and approval lifecycle, reject superseded-task
-mutation, and verify finalization.
-
-```yaml
-env:
-  workspace: empty-git
-  event_sources:
-    - adapter: principal-assurance-v1
-      path: .git/principal-pi-skills/assurance-v1/runs/*/events.jsonl
-assert:
-  trajectory:
-    version: "1.0"
-    ordered:
-      - [{ event: phase_started, where: { phase: build } }, { event: code_changed }, { event: phase_completed, where: { phase: build } }, { event: evidence_recorded }]
-    correlate:
-      - left: { event: code_changed, select: last }
-        right: { event: evidence_recorded, select: last }
-        same: [run_id, task_id, workspace_id, digests.head, digests.tree]
-```
-
-A missing field needed for governance is `ERROR`, never success. Gates run before the judge and are
-replayable with `regate` from `.events.jsonl`. Mutation-testing machinery was removed by explicit user instruction on 2026-09-07. Ordinary trajectory, delivery and results validators and regression tests remain; historical mutation results are not current requirements.
-Full schema and adapter details: [`ASSURANCE-WORKFLOWS.md`](ASSURANCE-WORKFLOWS.md).
-
-## 7d. Paired reference-versus-candidate comparison
-
-```bash
-node bin/skill-harness.js compare build \
-  --reference main --candidate ../principal-pi-skills \
-  --model fireworks:accounts/fireworks/models/deepseek-v4-pro \
-  --reps 3 --mode force
-```
-
-This **spends subject and judge calls**; confirm the skill, model(s), and judge first. Both sides use
-the same scenario/spec/fixture/model/mode/judge/repetition plan and remain independently inspectable
-under `.skill-harness/comparisons/`. Reports include exact digests, per-scenario lift/regression and
-flakiness, token/tool/judge/wall metrics where available, and explicit cost thresholds separate from
-behavior. This is paired setup, not provider-seeded deterministic sampling.
-
-Exit 2 means a critical regression; exit 1 an ordinary ship-bar/behavioral regression or unresolved
-infrastructure error. `--only` and `--affected` are branch feedback and can never report SHIP.
-
-## 7e. Coverage + affected — which instructions have no test (free, offline)
+## 7e. Coverage — which instructions have no test (free, offline)
 
 Opt a scenario in with `covers`:
 
@@ -500,8 +391,6 @@ scenarios:
 
 ```bash
 node bin/skill-harness.js coverage <skill|all> --skills <root> [--strict]
-node bin/skill-harness.js affected <skill> --skills <root> [--base <git-ref>]
-node bin/skill-harness.js run <skill> --skills <root> --affected --base <git-ref>
 ```
 
 ```
@@ -520,89 +409,7 @@ exactly that reason. A **broken** reference fails regardless of `--strict`, sinc
 that's a wrong statement in the spec rather than a gap; renaming a heading is the
 usual cause, so the finding suggests near-miss slugs.
 
-`affected` reads `git diff --unified=0 <base>`, maps changed lines to heading
-sections, reverses the `covers` map, and prints a **reason per scenario**:
-
-```
-selected 2/3 scenario(s):
-  A2  covers skills/demo/SKILL.md#edge-cases
-  B1  B-series (always run)
-
-an affected run is partial and never reports SHIP — a full run still gates a release
-```
-
-**Selection always errs toward more**, because under-inclusive means shipping a
-regression while over-inclusive only costs tokens:
-
-- every **critical** and **B-series** scenario runs, whatever the diff said;
-- a scenario with **no `covers`** is always selected — there's nothing to consult;
-- a changed **fixture / post-test / agent file / extension** selects its scenario;
-- a referenced file that was **renamed or deleted**, or a **wholesale rewrite**,
-  selects *everything*.
-
-`run --affected` reuses `--only`, so it's partial and can never report SHIP. Use it
-to iterate; a full run still gates a release.
-
-**`covers` costs nothing to change** — it's in no staleness facet. Editing it
-changes what `--affected` selects next time, not what any past run measured.
-
-## 7f. Confidence-aware rejudging — when one judge isn't enough
-
-Re-judging saved transcripts holds the model constant, so movement is the judge. Ours
-disagreed with itself in **1 of 57 judgments (~2%)** — and the one that mattered was a
-published FAIL that turned out to be a 1-in-7 minority draw, the difference between a
-skill reading 93% and 100%.
-
-```bash
-node bin/skill-harness.js grade <run-dir> --auto-rejudge \
-  --secondary-judge claude-code:claude-opus-4-8 \
-  --tie-break-judge claude-code:claude-opus-4-8
-```
-
-Four triggers, computed from the **complete** first wave:
-
-| Trigger | Fires when |
-|---|---|
-| `ambiguous` | the judge's verdict blocks disagree, or nothing parseable came back |
-| `contradictory` | the overall verdict disagrees with its own per-item grades (the misfire) |
-| `non_unanimous` | the reps split — 2 PASS + 1 FAIL is not a settled result |
-| `ship_deciding` | flipping this one cell would change SHIP ⇄ NOT READY |
-
-`ship_deciding` is a counterfactual against the **real scorer**, so min-pass, critical
-and B-series all move it.
-
-**Off by default. Spec configuration alone never authorizes a judge call** — the only
-switch is `--auto-rejudge`. The preflight prints the ceiling before the first extra call:
-
-```
-adjudication: 1 cell(s) triggered — up to 1 additional judge call(s)
-  secondary judge: claude-code:claude-opus-4-8
-  no tie-break judge — a disagreement stays unresolved and blocks SHIP
-  A4: contradictory
-```
-
-**That is a call count, not a dollar figure, on purpose.** The default judge is your
-Claude subscription and reports no per-call usage back to the harness, so a dollar
-estimate would be invented. (Metered reference, measured on the real corpus: ~760 input
-/ ~130 output tokens per call ≈ $0.008 at Opus rates.)
-
-Every configured judge passes the same gates as the primary — metered refusal and
-judge≠subject.
-
-**Three outcomes:**
-
-- **confirmed** — two clean votes agree; suspect cleared.
-- **tie_broken** — a clean two-of-three majority; suspect cleared.
-- **unresolved** — anything else: `suspect: true`, which **blocks SHIP** through the
-  existing gate rather than a second one.
-
-**A malformed answer is not a vote.** Ambiguous and misfired judgments are recorded in
-full and never counted — so when the *first* wave misfired, a cell needs **two** fresh
-judgments to agree. A misfire cannot confirm itself.
-
-Caps at 3 judgments per cell. Adjudicates one documented rep, never the rep that would
-move the headline. **Human overrides survive untouched** — a judge panel does not
-outvote the author.
+**`covers` costs nothing to change** — it's in no staleness facet.
 
 ## 8. The optimize loop
 

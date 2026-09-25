@@ -24,16 +24,6 @@ No spec yet and don't want to spend tokens? `skill-harness init my-skill` writes
 commented template instead — free and offline. Already have runs? `lint` and
 `list` need no models and no API keys at all.
 
-## Retained factory learning
-
-`skill-harness learning` and `/skill-harness learning` open the same guided retained-case,
-comparison and trust workflow (offline, no model calls). Quality choice, adopt/reject/defer,
-independent authority, registry activation and later outcomes remain distinct.
-Use `/grants learning` with the matching producer host for exact scope binding and its
-supported registry controls. [Product guide](docs/factory/PRODUCT-GUIDE.md) ·
-[current requirement register](docs/factory/STATUS.md). Candidate capability is not publication
-or calibrated improvement; prior excerpt feedback never becomes full-artifact acceptance.
-
 ## What it does
 
 Point it at a repo of skills, and for any skill with a spec it will:
@@ -177,40 +167,6 @@ costs zero judge tokens. And **an objective FAIL or ERROR outranks the judge's
 verdict** — only an explicit author override beats it. A gate whose evidence is
 missing reports ERROR, never a pass.
 
-### `assert.trajectory` — gates over multi-phase workflow state
-
-`assert.trajectory` evaluates a saved, versioned, adapter-neutral event stream. It covers ordered
-phase transitions, required/forbidden tool and capability use, run/task/workspace/context correlation,
-head-versus-candidate-tree identity, writer leases, approval scope/expiry/use, stale evidence,
-packet supersession, repair rebinding, and finalization. Native `principal-assurance-v1` and current
-pi-daddy ledgers are normalized by the pi adapter; missing governance fields are `ERROR`, never a
-pass.
-
-```yaml
-env:
-  workspace: empty-git
-  event_sources:
-    - adapter: principal-assurance-v1
-      path: .git/principal-pi-skills/assurance-v1/runs/*/events.jsonl
-assert:
-  trajectory:
-    version: "1.0"
-    ordered:
-      - [{ event: code_changed }, { event: phase_completed, where: { phase: build } }, { event: evidence_recorded }]
-    correlate:
-      - left: { event: code_changed, select: last }
-        right: { event: evidence_recorded, select: last }
-        same: [run_id, task_id, workspace_id, digests.head, digests.tree]
-    freshness:
-      - subject: { event: evidence_recorded, where: { exit_code: 0 }, select: last }
-        after: [{ event: code_changed, select: last }, { event: phase_completed, where: { phase: build }, select: last }]
-        same: [run_id, task_id, workspace_id]
-```
-
-Like trace gates, trajectory gates run before the judge and a decisive objective failure cannot be
-outvoted by repetitions or judge prose. See [Risk-adaptive workflow measurement](docs/ASSURANCE-WORKFLOWS.md)
-for the complete DSL, pi-daddy mapping, evidence boundary, and sandbox limitation.
-
 Both needle gates deliberately match only added/removed lines, never context
 lines or `+++`/`---` file headers. A unified diff carries context around every
 hunk, so an untouched symbol near the edit site appears in the diff verbatim.
@@ -244,18 +200,11 @@ unguessable, not tamper-proof.
 ```
 skill-harness run    <skill|all> --skills <root> [--model prov:model ...] [--models file]
                                [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T] [--canary]
-                               [--only A1,A2 | --affected --base <ref>]   # scenario subset; a partial run never reports SHIP
-                               [--auto-rejudge] [--secondary-judge prov:model] [--tie-break-judge prov:model]
-skill-harness compare <skill|all> --reference <git-ref-or-root> --candidate <skills-root> --model prov:model --reps N
-                                                          # paired reference/candidate run; spends subject + judge calls
-skill-harness archive ingest|inspect|watch --policy file --source id  # explicit local archive policy; metadata output, no worker/model calls
-skill-harness judge-agreement <run-dir>                   # compare persisted votes after grading with two distinct judges (free, offline)
+                               [--only A1,A2]   # scenario subset; a partial run never reports SHIP
 skill-harness stability <skill|all> --skills <root> [--window N] [--all]  # run-over-run verdict flips (free, offline)
-skill-harness screen <run-dir>...                         # retained delivery-aware scenario/criterion rates (free, offline)
 skill-harness restamp <skill|all> --skills <root> [--from <git-ref>]  # one-time hash upgrade; see "what stales a run" (free, offline)
 skill-harness coverage <skill|all> --skills <root> [--strict]  # which instruction sections have a declared test (free, offline)
-skill-harness affected <skill>   --skills <root> [--base ref]  # which scenarios a change could touch (free, offline)
-skill-harness grade  <run-dir>   [--judge prov:model] [--auto-rejudge] [--secondary-judge p:m] [--tie-break-judge p:m]
+skill-harness grade  <run-dir>   [--judge prov:model]
                                                           # re-grade saved transcripts (neutral judge)
 skill-harness regate <run-dir>...                          # re-evaluate saved gates; may judge each fail→pass rep
 skill-harness rescore <run-dir>...                         # re-apply the current pass threshold to saved reps (free, offline)
@@ -266,46 +215,7 @@ skill-harness init   <skill>     --skills <root> [--force]     # scaffold a comm
 skill-harness suggest <skill>    --skills <root> [--model prov:model] [--force]  # LLM-draft a spec from SKILL.md (spends tokens)
 skill-harness list   --skills <root>                          # discovered skills + spec status
 skill-harness lint   <skill|all> --skills <root>               # validate specs/fixtures + results-consistency; CI gate (exits non-zero on findings)
-skill-harness qualification prepare --spool DIR --config FILE --request FILE [--expected-config-sha256 HEX]  # digest required in production
-skill-harness qualification start|status|poll|abort --spool DIR --id ID
-skill-harness qualification panel --spool DIR --panel-id ID --members ID,ID[,ID]  # offline collapse under approved board
-skill-harness qualification cell --spool DIR --cell-id ID  # offline aggregate under approved board
-skill-harness qualification validate --spool DIR               # validates invocations plus derived panel/cell evidence
 ```
-
-The separately versioned [`qualification-runner-v1`](docs/QUALIFICATION-RUNNER.md)
-uses external, closed configuration; exact source-built pins; an OAuth-only child
-environment; atomic exactly-once call accounting; detached supervision; and
-post-run provider/model attestation. A prospective `qualification-judge-panel-policy-v1`
-configuration reuses the adjudication clean-vote collapse: two initial calls, a third only
-on a clean split, and persisted per-cell disagreement rates; each member remains its own
-exactly-once invocation. Critical behavioral failures fail acceptance but do not halt a
-read-only board. New configurations explicitly select
-`qualification-oauth-directory-policy-v2`, which permits only `auth.json`, optional
-empty `models.json`, and metadata-only Pi runtime state `models-store.json` while
-leaving omitted-policy historical evidence unchanged. It contains no Principal board,
-holdout, or measurement identity. Its inert example invokes no model.
-
-`capture` is deliberately absent from this list: it exists only as
-`/skill-harness capture` inside the pi extension, and it refuses to run headless
-because the preview step before the write is what keeps secrets out of a committed
-file.
-
-**Adjudication (`--auto-rejudge`) is off by default and discloses before it spends.**
-It asks a second judge about cells that are ambiguous, self-contradictory,
-non-unanimous across reps, or ship-deciding, and prints the exact maximum number of
-ADDITIONAL judge calls first — a count, never a dollar estimate, because the default
-judge reports no per-call usage and a dollar figure there would be invented. It also
-names any cell that no single second opinion can settle, which needs
-`--tie-break-judge`. An unresolved disagreement blocks SHIP rather than resolving
-itself.
-
-**Judge agreement is measured offline after two grades.** Grade the same saved run with
-two distinct judges, then run `judge-agreement <run-dir>`; the report makes no judge
-calls and reports agree/disagree/error per scenario plus an aggregate. Start with
-`openai-codex:gpt-5.6-sol` against `claude-code:claude-opus-4-8`: both are
-subscription-backed and have zero marginal per-token cost. Treat open-weight judges as
-secondary candidates until their agreement has been measured.
 
 Structured runs record `metrics.cost_source`. Subscription providers
 (`openai-codex`, `claude-code`) are labeled `subscription`; a non-subscription provider
@@ -656,14 +566,9 @@ the model's description of it. Cap the judge's copy with
 `SKILL_HARNESS_DIFF_MAX_BYTES` (default 64000); the artifact on disk is never
 truncated.
 
-New runs write `results.yaml` **schema 3**. Schema-1 and schema-2 files remain readable at their own version and are never migrated or rewritten merely by reading them. Schema 3 is also an intentional meaning boundary: behavioral efficacy is counted only after delivery is established. Earlier schemas made no such guarantee. It adds the observations needed to recompute rather than trust a score:
+New runs write `results.yaml` **schema 2**. Historical schema-1, schema-2 and schema-3 files remain readable at their own version and are never migrated merely by reading them. Legacy schema-3 `subject_invocations`, `skill_delivered`, criterion panels and `NOT-MEASURED` verdicts are validated and carried by artifact-only rewrites; new runs do not produce delivery observations or `NOT-MEASURED`. A retained `NOT-MEASURED` verdict continues to block SHIP.
 
-- `subject_invocations[]` records each provider request's adapter-computed delivery status, mechanism, contract SHA-256/bytes/occurrences, and prompt provenance. `raw_sha256` commits to the model-visible prompt fields projected from the captured final provider payload JSON (`instructions`/`system` plus message/input content). `normalized_sha256` applies the named registry rule `cwd-line-v1`, which replaces exactly lines beginning `Current working directory:` and no other bytes. The payload itself is not retained.
-- every scenario has `rep_judgments[]`; each panel member retains every numbered criterion verdict/reason. Readers recompute each recorded panel verdict from those votes and reject divergence.
-- `skill_delivered` is an objective assertion. Force/system-prompt requests require exactly one contract occurrence per provider request; red/control requests require zero. Green progressive disclosure may begin with zero, but must eventually deliver exactly one and may never duplicate it. Known zero/duplicate delivery becomes `NOT-MEASURED`: it is not judged, is excluded from efficacy denominators, and blocks SHIP without blaming the product. Missing, malformed, or unauthenticated instrumentation is `ERROR`. The extension-free observer HMAC-authenticates its complete log and shutdown count; the parent rejects mutation, replay, or truncation and rebinds contract identity. Because arbitrary scenario/arm extensions or arm runtime environment share Pi's process, their payload provenance cannot be authenticated in-process; those runs fail this observation closed until an out-of-process recorder exists.
-- `screen <run-dir>...` reads only these retained fields. It reports skill/model/scenario control and treatment pass rates, a separate not-measured bucket, and criterion failure rates. Control pass rate ≥80% is CEILING, ≤10% FLOOR, 20–70% INFORMATIVE; absent/inconclusive evidence is UNKNOWN. It makes no model or judge call.
-
-Fields retained from schema 2:
+Result fields include:
 
 - `effective_grade` is always override-aware — it's recomputed from the current
   verdicts (judge, or your override where present) on every write, so a saved
@@ -703,7 +608,7 @@ Fields retained from schema 2:
   | `gates:<id>` | `diff_contains` / `diff_excludes` needles | `regate` (no subject call; one judge call per fail→pass rep) |
   | `fixture:<path>` | every file under one fixture dir, including `_staged/`/`_uncommitted/` | `run` (subject + judge) |
   | `<relative path>` | a `system_prompt_file`, or an `assert.post_test` file's contents | `run` (subject + judge) |
-  | `observation:prompt-normalization` | normalization registry identity (`cwd-line-v1`) | `run` — original payload bytes are not retained |
+  | `observation:prompt-normalization` | legacy schema-3 normalization identity (`cwd-line-v1`) | historical only — original payload bytes are not retained |
 
   Lint names the remedy in the finding itself — only stimulus drift costs model spend.
   Runs recorded by 0.3.x carry a single combined `scenario:<id>` key instead of the

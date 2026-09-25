@@ -1,6 +1,6 @@
 ---
 name: delivery-smoke
-description: Release smoke skill used only to verify authenticated prompt delivery and live judging.
+description: Minimal release-pack lint fixture with a deterministic response contract.
 ---
 
 # Delivery smoke

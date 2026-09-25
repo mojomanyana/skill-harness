@@ -651,44 +651,6 @@ never enter `specification.yaml` before a human promotes them.
         dangerous direction (dropping `adjudication` + `suspect` would un-block a
         blocked run), and a runtime backstop asserting no key escapes the known set.
 
-### Sprint 1.10 — Risk-adaptive workflow measurement (owner work order, 2026-08-20)
-
-- [x] **Versioned trajectory assertions, principal/pi-daddy normalization, paired compare,
-      critical repetition gates, mutation self-test, and cost/latency reporting** (2026-08-20,
-      implementation working tree). Objective workflow events now cover phase/state/authority/
-      capability/workspace/evidence/finalization contracts before the judge; `compare` preserves
-      paired artifacts and never overclaims seeded sampling; `mutation-test` proves 15 assertion
-      classes turn red offline. The principal v3 skill cells and eight live workflow E2E cells remain
-      explicitly unrun. Sandbox delivery is bounded to an interface + fake; no containment claim.
-      Post: `docs/posts/2026-08-20-the-final-answer-is-not-the-workflow.md`
-
-### Sprint 1.11 — Qualification packet execution integrity (owner repair, 2026-08-28)
-
-- [x] **`qualification-runner-v1` + pi-daddy ledger-v3 consumer.** A separately
-      versioned, external-config-only runner for future Principal qualification
-      packets: durable prepare/start/status/poll/validate/abort lifecycle; exact-once
-      launch accounting; OAuth-only sanitized child environment; detached deadline
-      supervision; no automatic retry; provider/model artifact attestation; and a
-      separate production ledger-v3 selector preserving execution ancestry and
-      workflow facts while leaving 0.17/v2 unchanged. Infrastructure only — no board,
-      holdout, measurement identity, or model call. (2026-09-01, PR #65,
-      implementation commit `91479b0`; final reviewed head recorded in the PR.)
-      Post: `docs/posts/2026-08-28-one-call-means-one-launch.md`
-
-### Sprint 1.12 — Reproducible qualification judging (owner finding, 2026-09-03)
-
-- [x] **Per-artifact judge panels through shared adjudication machinery.** A frozen
-      same-input calibration produced both PASS and FAIL from the same judge. Prospective
-      qualification configs now bind an approved read-only board and a two-clean-vote plus
-      conditional-third policy; every vote remains an independently OAuth-authenticated,
-      exactly-once invocation. Derived panel/cell evidence records disagreement rates,
-      Critical behavioral failures fail acceptance without halting collection, and final
-      validation recomputes complete board evidence from receipts/artifacts. Historical
-      single-draw records remain unchanged. Handoff:
-      `docs/handoff/2026-09-B2-judge-panels.md`. Post:
-      `docs/posts/2026-09-03-one-judge-call-is-one-draw.md`.
-
-## PHASE 2 — Launch & first 100 fans (weeks 5–10)
 
 **Goal:** exist in the heads of everyone who writes skills.
 **Exit criteria:** ~500 stars; 20+ external issue-filers; listed in pi ecosystem docs +

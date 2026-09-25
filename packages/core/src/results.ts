@@ -110,8 +110,6 @@ export interface ScenarioResult {
    * actually blocks SHIP; this field is the audit trail behind that flag.
    */
   adjudication?: AdjudicationResult;
-  /** Latest three full-cell grades; enables offline agreement reports with distinct judges. */
-  judge_history?: Judgment[];
   /** Initial and panel judge members, by repetition, sufficient to recompute the recorded verdict. */
   rep_judgments?: RepJudgmentPanel[];
 }
@@ -147,10 +145,7 @@ export interface ObjectiveResult {
   status: "PASS" | "FAIL" | "ERROR" | "NOT-MEASURED";
   trace_version?: number;
   trace_sha256?: string;
-  trajectory_version?: string;
-  events_sha256?: string;
   /** Per-repetition hashes retained when an aggregate has more than one rep. */
-  rep_events_sha256?: string[];
   rep_trace_sha256?: string[];
   assertions: { kind: string; status: "PASS" | "FAIL" | "ERROR" | "NOT-MEASURED"; detail: string }[];
 }
@@ -638,7 +633,7 @@ export function validateResults(raw: unknown): ResultsFile {
     const objectiveStatuses = scenario.rep_judgments.map(panel => panel.objective!.status);
     const aggregateObjectiveStatus: ObjectiveResult["status"] = objectiveStatuses.includes("ERROR") ? "ERROR" : objectiveStatuses.includes("NOT-MEASURED") ? "NOT-MEASURED" : objectiveStatuses.includes("FAIL") ? "FAIL" : "PASS";
     if (!scenario.objective || scenario.objective.status !== aggregateObjectiveStatus) throw new Error(`scenario objective diverges from per-repetition objectives for ${scenario.id}`);
-    for (const judgment of [...(scenario.judge_history ?? []), ...(scenario.adjudication?.judgments ?? [])]) assertCriteria(judgment);
+    for (const judgment of scenario.adjudication?.judgments ?? []) assertCriteria(judgment);
     let adjudicatedVerdict: Verdict | undefined;
     if (scenario.adjudication) {
       if (!Number.isInteger(scenario.adjudication.repetition) || scenario.adjudication.repetition! < 0 || scenario.adjudication.repetition! >= reps) throw new Error(`schema v3 adjudication repetition missing or out of range for ${scenario.id}`);
@@ -854,7 +849,6 @@ export function rebuildScenarioResult(
     metrics: freshMetrics,
     objective: freshObjective,
     adjudication: freshAdjudication,
-    judge_history: freshJudgeHistory,
     rep_judgments: freshRepJudgments,
     ...rest
   } = fresh;
@@ -926,7 +920,6 @@ export function rebuildScenarioResult(
     // existed.
     ...(objective ? { objective } : {}),
     ...(adjudication ? { adjudication } : {}),
-    ...((freshJudgeHistory ?? prior?.judge_history) ? { judge_history: freshJudgeHistory ?? prior!.judge_history } : {}),
     ...((freshRepJudgments ?? prior?.rep_judgments) ? { rep_judgments: freshRepJudgments ?? prior!.rep_judgments } : {}),
   };
 }
@@ -941,22 +934,6 @@ export function rebuildScenarioResult(
 export function tracePath(runDir: string, scenarioId: string, mode: string, rep?: number): string {
   const base = rep === undefined ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
   return join(runDir, `${base}.trace.jsonl`);
-}
-
-/** Saved adapter-neutral workflow events for one scenario rep. */
-export function trajectoryPath(runDir: string, scenarioId: string, mode: string, rep?: number): string {
-  const base = rep === undefined ? `${scenarioId}.${mode}` : `${scenarioId}.${mode}.rep${rep}`;
-  return join(runDir, `${base}.events.jsonl`);
-}
-
-/** A scenario's normalized-event files, sorted (plain first, then numeric rep). */
-export function findTrajectoryFiles(runDir: string, scenarioId: string, mode?: string): string[] {
-  if (!existsSync(runDir)) return [];
-  const esc = scenarioId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = mode === undefined
-    ? new RegExp(`^${esc}\\..*\\.events\\.jsonl$`)
-    : new RegExp(`^${esc}\\.${mode}(\\.rep\\d+)?\\.events\\.jsonl$`);
-  return sortByRep(readdirSync(runDir).filter((f) => re.test(f)));
 }
 
 /** A scenario's staged-diff files, sorted (plain first, then numeric rep). Mode-scoped when given. */
@@ -1008,7 +985,6 @@ export function preserveTranscript(resultsRoot: string, runDir: string, scenario
     // override whose justification was gitignored, and left `regate` with nothing
     // to re-evaluate on the one cell a human had disputed.
     ...findTraceFiles(runDir, scenarioId),
-    ...findTrajectoryFiles(runDir, scenarioId),
   ];
   if (files.length === 0) return;
   ensureResultsGitignore(resultsRoot);

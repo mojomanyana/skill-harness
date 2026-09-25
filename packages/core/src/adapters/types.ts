@@ -1,6 +1,4 @@
 import type { ExecutionTraceV1 } from "../capture-trace-types.js";
-import type { TrajectoryEventSource } from "../spec.js";
-import type { TrajectoryEventV1 } from "../trajectory-gates.js";
 
 export type RunMode = "red" | "green" | "force";
 
@@ -76,16 +74,12 @@ export interface RunReq {
    * extension the developer happens to have installed cannot join the test.
    */
   extensions?: string[];
-  /** Workspace-local native ledgers to normalize after the subject finishes. */
-  eventSources?: TrajectoryEventSource[];
   /**
    * Extra env for the subject process, from the arm. Merged over `process.env` by
    * the adapter — an arm must be able to add `PI_GRANTS_*` without the harness
    * inheriting a caller's copy of them.
    */
   armEnv?: Record<string, string>;
-  /** Adapter-produced observation callback. Callers receive evidence; they never supply delivery status. */
-  onPromptObservation?: (observation: PromptProvenance) => void;
 }
 
 /** A judge request: single prompt, no skills, no session. */
@@ -100,10 +94,6 @@ export interface StructuredRun {
   transcript: string;
   /** One trace per turn — each `pi` invocation emits an independent event stream. */
   traces: ExecutionTraceV1[];
-  /** Adapter-neutral workflow/tool events. Additive; absent on older adapters. */
-  events?: TrajectoryEventV1[];
-  /** Native sources that were required but missing/malformed. Never treated as an empty success. */
-  eventErrors?: string[];
   /**
    * Set when pi failed provider-side (auth, transport) rather than the model
    * answering badly. `run.ts` turns this into ERROR — never a model verdict.
@@ -113,8 +103,6 @@ export interface StructuredRun {
 
 export interface HarnessAdapter {
   name: string;
-  /** True only when the adapter computes final provider-payload observations. */
-  observesPrompts?: boolean;
   available(): Promise<boolean>; // is the CLI on PATH?
   run(req: RunReq): Promise<string>; // returns the full transcript text
   /**

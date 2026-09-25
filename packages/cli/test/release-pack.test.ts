@@ -149,20 +149,6 @@ function tarEntry(archive: string, wantedPath: string): { mode: number; content:
   throw new Error(`${archive} is missing ${wantedPath}`);
 }
 
-function assertPackagedGuides(root: string, manifest: ReleaseManifest): void {
-  for (const [directory, name] of [["cli", "@skill-harness/cli"], ["skill-harness", "skill-harness"]]) {
-    const pkg = manifest.artifacts.find(artifact => artifact.package === name)!;
-    for (const file of ["PRODUCT-GUIDE.md", "STATUS.md"]) {
-      const expected = readFileSync(join(root, "docs", "factory", file));
-      expect(readFileSync(join(root, "packages", directory, "docs", file))).toEqual(expected);
-      expect(pkg.files.find(entry => entry.path === `docs/${file}`)?.mode).toBe(CANONICAL_MODE);
-      const archived = tarEntry(join(root, "release-artifacts", pkg.filename), `package/docs/${file}`);
-      expect(archived.content).toEqual(expected);
-      expect(archived.mode).toBe(CANONICAL_MODE);
-    }
-  }
-}
-
 afterAll(() => {
   if (TMP) rmSync(TMP, { recursive: true, force: true });
 });
@@ -171,14 +157,11 @@ describe.skipIf(!pinnedToolchain)("authoritative release packaging", () => {
   it("builds absent outputs, records digests, and packs cli.js as canonical 0644", () => {
     const root = cloneRepo("clean");
     expect(existsSync(join(root, CLI_OUTPUT))).toBe(false);
-    for (const pkg of ["cli", "skill-harness"]) expect(existsSync(join(root, "packages", pkg, "docs"))).toBe(false);
-
     const result = runReleasePack(root);
     requireSuccess(result);
 
     expect(mode(join(root, CLI_OUTPUT))).toBe(CANONICAL_MODE);
     const manifest = readManifest(root);
-    assertPackagedGuides(root, manifest);
     expect(manifest.source).toEqual({
       commit: spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim(),
       tree: spawnSync("git", ["rev-parse", "HEAD^{tree}"], { cwd: root, encoding: "utf8" }).stdout.trim(),
@@ -247,23 +230,12 @@ describe.skipIf(!pinnedToolchain)("authoritative release packaging", () => {
     chmodSync(reusedCli, 0o755);
     expect(mode(reusedCli)).toBe(0o755);
     expect(readFileSync(reusedCli)).toEqual(cleanCli);
-    for (const pkg of ["cli", "skill-harness"]) {
-      const docs = join(reused, "packages", pkg, "docs");
-      mkdirSync(docs);
-      for (const file of ["PRODUCT-GUIDE.md", "STATUS.md", "obsolete.md"]) {
-        writeFileSync(join(docs, file), "stale generated document\n");
-        chmodSync(join(docs, file), 0o755);
-      }
-    }
-
     const reusedResult = runReleasePack(reused);
     requireSuccess(reusedResult);
     expect(mode(reusedCli)).toBe(CANONICAL_MODE);
     expect(readFileSync(reusedCli)).toEqual(cleanCli);
 
     const reusedManifest = readManifest(reused);
-    assertPackagedGuides(reused, reusedManifest);
-    for (const pkg of ["cli", "skill-harness"]) expect(existsSync(join(reused, "packages", pkg, "docs", "obsolete.md"))).toBe(false);
     expect(reusedManifest.artifacts.map(({ filename, sha256: digest }) => ({ filename, digest })))
       .toEqual(cleanManifest.artifacts.map(({ filename, sha256: digest }) => ({ filename, digest })));
     for (const [filename, bytes] of cleanArtifacts) {
