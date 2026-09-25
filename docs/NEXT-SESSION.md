@@ -1,18 +1,11 @@
 # Next session — start here
 
-## Removal branch — current
+## 0.18.0 release — current
 
-The inert retained-learning lifecycle and its factory/archive support are being removed on
-`remove/never-exercised-capabilities`. Historical release notes below remain records of what
-older versions shipped; they are not current workflow guidance.
-
-## 2026-09-11 0.14.0 release candidate
-
-PR76 merged as `1fde8fc` after exact-head CI and final independent review. The 0.14.0 candidate makes the public `skill-harness` meta-package declare and carry the canonical Pi extension bundle, observer sibling and review assets, plus direct `typebox` runtime resolution and the frozen dashboard source bridge. Released 0.13.0 remains CLI-only historical fact. Candidate pack/install loading and bridge host startup are already observed; canonical post-merge pack, required Sol-subject/Terra-judge real-Pi smoke, released-install verification, publication and tags remain the active release steps. C06 human choice and C08 genuine-domain evidence remain external, not release gates or release claims.
-
-*Reconciled 2026-09-03 against `main` `51f0f82`. Read this before
-`docs/ROADMAP.md`: the roadmap says where the project is going, this says what remains
-open and what will bite you. Release notes live in `PUBLISHING.md`.*
+PR #85 merged on `main` as `3d9a4d5`, removing the inert retained-learning lifecycle and
+other never-exercised capabilities while preserving historical result parsing. Release metadata
+is being prepared on `release/0.18.0`; `PUBLISHING.md` is the authoritative release order.
+PR #84 remains open and is deliberately outside this release.
 
 ## Pi-daddy ledger-v3 contract
 

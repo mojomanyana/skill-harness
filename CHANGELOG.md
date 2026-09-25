@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.18.0 — focused measurement core (2026-09-25)
+
+### Removed
+
+- Remove the retained-learning lifecycle, evidence archive, screening internals, qualification runner, paired comparisons, judge-agreement reporting, affected selection, live conversation capture, workflow trajectory assertions and confidence-triggered rejudging.
+- Remove authenticated prompt-delivery production and its observer bundle. Fresh runs write results schema 2 and cannot produce `NOT-MEASURED` delivery verdicts.
+
+### Compatibility
+
+- Historical schema-3 results remain readable without migration, including retained delivery observations and ship-blocking `NOT-MEASURED` verdicts.
+- The retained run→grade→review core remains: offline lint, Pi/multi-model execution, red/green/force placement, objective gates, critical/B-series shipping gates, saved-transcript grading, source-aware staleness and offline rescoring.
+
 ## 0.17.0 — whole-session retrospectives (2026-09-15)
 
 - Import explicitly selected Pi parent/child transcripts, delegation ledgers, feedback and artifacts.
