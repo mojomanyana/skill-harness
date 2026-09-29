@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.20.0 — Split skill and spec roots (2026-09-30)
+## 0.21.0 — Split skill and spec roots (2026-09-30)
 
 ### Added
 
