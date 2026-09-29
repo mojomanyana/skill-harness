@@ -5,9 +5,8 @@ import { BAKED_DEFAULT_JUDGE } from "./defaults.js";
 /**
  * Judge providers that cannot bill a per-token API.
  *
- * `claude-code` shells out to the `claude` CLI, authenticated with the user's
- * Claude subscription (OAuth). `openai-codex` stays in Pi and authenticates with
- * the user's ChatGPT subscription (OAuth). `ollama`/`lmstudio`/`llamacpp`/`local`
+ * `openai-codex` runs through Pi and authenticates with the user's ChatGPT
+ * subscription (OAuth). `ollama`/`lmstudio`/`llamacpp`/`local`
  * are local runtimes. Everything else — including direct `openai` — is assumed
  * to charge.
  *
@@ -16,7 +15,7 @@ import { BAKED_DEFAULT_JUDGE } from "./defaults.js";
  * being wrong in that direction produces a surprise invoice while being wrong in
  * this direction produces one extra flag.
  */
-const FREE_JUDGE_PROVIDERS = new Set(["claude-code", "openai-codex", "ollama", "lmstudio", "llamacpp", "local"]);
+const FREE_JUDGE_PROVIDERS = new Set(["openai-codex", "ollama", "lmstudio", "llamacpp", "local"]);
 
 /** Whether judging with this ref can charge a per-token API. */
 export function isMeteredJudge(judge: ModelRef): boolean {
@@ -57,8 +56,8 @@ export interface JudgeAllowOpts {
  *
  * That third path is latent rather than live in the corpus this was built against:
  * checked 2026-08-05, all ~140 committed `results.yaml` in `principal-pi-skills`
- * record `provider: claude-code`, because its owner always passed the subscription
- * judge explicitly. The old default was reachable, not taken. Worth stating
+ * recorded the then-supported subscription judge explicitly. The old default was
+ * reachable, not taken. Worth stating
  * precisely — "your whole archive bills on regrade" would have been a scarier claim
  * than the evidence supports.
  *
@@ -66,6 +65,9 @@ export interface JudgeAllowOpts {
  * is what a run *is*.
  */
 export function assertJudgeAllowed(judge: ModelRef, opts: JudgeAllowOpts): void {
+  if (judge.provider === "claude-code") {
+    throw new Error("judge provider `claude-code` was removed; choose a provider configured in Pi, such as `openai-codex`");
+  }
   if (!isMeteredJudge(judge)) return;
   if (opts.allowMetered || allowMeteredJudge()) return;
 
@@ -73,7 +75,7 @@ export function assertJudgeAllowed(judge: ModelRef, opts: JudgeAllowOpts): void 
   throw new Error(
     `refusing to judge with ${token}: \`${judge.provider}\` bills a per-token API key, and it came from ${opts.source}.\n` +
       `  Judging is meant to cost nothing you did not ask for.\n` +
-      `  • judge on your Claude subscription instead:  --judge ${BAKED_DEFAULT_JUDGE}\n` +
+      `  • judge through Pi on your subscription:      --judge ${BAKED_DEFAULT_JUDGE}\n` +
       `  • allow the metered API for this command:     --allow-metered-judge\n` +
       `  • allow it for this repo or shell:            export SKILL_HARNESS_ALLOW_METERED_JUDGE=1`,
   );

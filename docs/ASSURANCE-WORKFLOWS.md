@@ -12,19 +12,14 @@ behavioral FAIL. It blocks release as missing evidence. One objective failure ca
 other reps. A full green/force `run` that is NOT READY exits non-zero; red baselines and partial runs
 do not pretend to be release gates.
 
-## Mutation testing removed
-
-Mutation-testing machinery was removed by explicit user instruction on 2026-09-07. This requirement
-was withdrawn, not passed. Runtime validators, ordinary behavioral regression tests and historical
-evidence remain.
-
 ## Cost/latency availability
 
-Wall time and judge-call counts are available for every newly run rep. Subject input/output/cache
-tokens, subject cost, tool calls, delegated-child count, and maximum concurrency come from pi JSON
-traces, so today they are available for reps that use structured execution. Reports state the
-coverage (`reported reps / total reps`) rather than presenting a partial sum as complete. Judge
-providers currently do not expose judge token counts.
+Wall time and judge-call counts are available for every newly run rep. Pi requests structured
+capture by default. Subject input/output/cache-read tokens, tool calls, delegated-child count, and
+maximum concurrency come from Pi JSON traces; providers may still leave counters unreported. Subject
+cost is derived only for models in the dated table at
+`packages/adapters/prices/model-prices.json`. Reports state coverage (`reported reps / total reps`)
+rather than presenting a partial sum as complete. Judge usage is not recorded.
 
 ## Sandbox status
 

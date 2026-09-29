@@ -24,13 +24,6 @@ say "0 · preflight (free, offline)"
 command -v pi >/dev/null || fail "pi is not on PATH"
 pi --version >/dev/null 2>&1 || fail "pi is on PATH but not runnable"
 echo "pi      $(pi --version)"
-case "$JUDGE" in
-  claude-code:*)
-    command -v claude >/dev/null || fail "claude is not on PATH (the selected judge needs it)"
-    claude --version >/dev/null 2>&1 || fail "claude is on PATH but not runnable"
-    echo "claude  $(claude --version | head -1)"
-    ;;
-esac
 echo "subject $MODEL"
 echo "judge   $JUDGE"
 

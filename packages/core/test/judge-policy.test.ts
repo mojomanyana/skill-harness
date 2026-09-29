@@ -9,8 +9,7 @@ beforeEach(() => { delete process.env[ENV]; __resetEnvWarnings(); });
 afterEach(() => { delete process.env[ENV]; });
 
 describe("isMeteredJudge", () => {
-  test("subscription-backed providers are not metered", () => {
-    expect(isMeteredJudge(parseModelRef("claude-code:claude-opus-4-8"))).toBe(false);
+  test("the Pi subscription-backed provider is not metered", () => {
     expect(isMeteredJudge(parseModelRef("openai-codex:gpt-5.6-sol"))).toBe(false);
   });
 
@@ -33,8 +32,12 @@ describe("isMeteredJudge", () => {
 });
 
 describe("assertJudgeAllowed", () => {
+  test("the removed direct Claude provider is refused even with metered opt-in", () => {
+    expect(() => assertJudgeAllowed(parseModelRef("claude-code:opus"), { source: "--judge", allowMetered: true }))
+      .toThrow(/claude-code.*removed/i);
+  });
+
   test("subscription judges pass silently", () => {
-    expect(() => assertJudgeAllowed(parseModelRef("claude-code:claude-opus-4-8"), { source: "--judge" })).not.toThrow();
     expect(() => assertJudgeAllowed(parseModelRef("openai-codex:gpt-5.6-sol"), { source: "--judge" })).not.toThrow();
   });
 
@@ -51,7 +54,7 @@ describe("assertJudgeAllowed", () => {
     let msg = "";
     try { assertJudgeAllowed(parseModelRef("anthropic:claude-opus-4-8"), { source: "--judge" }); }
     catch (e) { msg = e instanceof Error ? e.message : String(e); }
-    expect(msg).toContain("claude-code:claude-opus-4-8");
+    expect(msg).toContain("openai-codex:gpt-5.6-sol");
     expect(msg).toContain("--allow-metered-judge");
     expect(msg).toContain(ENV);
   });

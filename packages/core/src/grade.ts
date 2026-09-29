@@ -175,7 +175,7 @@ export async function gradeTranscript(
 /**
  * Grade a transcript in a fresh, isolated, throwaway workspace — never the
  * subject's scenario dir — so the judge can't ingest repo context the subject
- * left behind (matters for CLI judges that read cwd, e.g. claude-code).
+ * left behind (matters for provider CLIs that read cwd, including Pi).
  */
 export async function judgeInWorkspace(
   adapter: HarnessAdapter,

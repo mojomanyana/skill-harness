@@ -34,25 +34,6 @@ describe("real-pi release smoke contract", () => {
     expect(extension.scenarios[0].env.extensions).toHaveLength(1);
   });
 
-  it("stops before lint or paid work when Claude is present but not runnable", () => {
-    const dir = mkdtempSync(resolve(tmpdir(), "smoke-script-contract-"));
-    const marker = resolve(dir, "node-called");
-    try {
-      executable(dir, "pi", 'echo "pi-test"');
-      executable(dir, "claude", 'exit 1');
-      executable(dir, "node", `: > "${marker}"; exit 0`);
-      const result = spawnSync("/bin/bash", [scriptPath], {
-        cwd: root, encoding: "utf8",
-        env: { ...process.env, SMOKE_JUDGE: "claude-code:test", PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` },
-      });
-      expect(result.status).not.toBe(0);
-      expect(result.stderr).toContain("claude is on PATH but not runnable");
-      expect(() => readFileSync(marker)).toThrow();
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
   for (const [name, lintOutput] of [
     ["an unexplained lint failure", "error: simulated lint crash"],
     ["a stale finding mixed with an unexplained failure", "✗ fixture: stale — old run\\nerror: simulated lint crash"],
@@ -62,7 +43,6 @@ describe("real-pi release smoke contract", () => {
       const marker = resolve(dir, "paid-run-started");
       try {
         executable(dir, "pi", 'echo "pi-test"');
-        executable(dir, "claude", 'echo "claude-test"');
         executable(dir, "node", `
 if [ "$2" = "lint" ]; then printf '%b\\n' "${lintOutput}" >&2; exit 1; fi
 if [ "$2" = "run" ]; then : > "${marker}"; fi

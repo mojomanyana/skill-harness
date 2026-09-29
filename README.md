@@ -54,15 +54,15 @@ give you:
 - **Judge ≠ subject guard** — same-family grading inflates scores, so it warns
 - **Seeded objective gates** — git diff + real `vitest` runs, not just opinion
 - **Human overrides with mandatory audit notes** — the author owns the verdict
-- **Risk-adaptive workflow trajectories** — versioned events prove phase/state/capability/workspace/evidence contracts, not just final prose
+- **Objective execution traces** — tool calls, delegation and unchanged paths are checked before the judge, not inferred from final prose
 
 ## Requirements
 
 - **Node ≥ 20**
-- **`pi` on your `PATH`** (`pi --version`) with at least one provider configured
-  (e.g. Fireworks for the model under test, Anthropic for the judge).
-- `run`, `grade`, and `suggest` spend model tokens. `init`, `lint`, and `list`
-  are free, offline, and safe in CI.
+- **`pi` on your `PATH`** (`pi --version`) with providers configured for the
+  subject and judge models. Pi is the only executable used for model calls.
+- `run`, `grade`, and `suggest` spend model tokens. `init`, `lint`, `list`,
+  `rescore`, `restamp`, `stability`, and `coverage` are free and offline.
 
 ## Using it from pi
 
@@ -219,73 +219,19 @@ skill-harness lint   <skill|all> --skills <root>               # validate specs/
 
 Pi runs use structured capture by default and record nullable per-repetition `usage` plus
 aggregate `metrics`. Subject cost is calculated from the dated model prices in
-`packages/adapters/src/model-prices.json`; an unreported token counter or an unpriced model
+`packages/adapters/prices/model-prices.json`; an unreported token counter or an unpriced model
 stays `null`, never a fabricated zero.
 
 **Defaults:** subject model `fireworks:accounts/fireworks/models/deepseek-v4-pro` ·
-judge `claude-code:claude-opus-4-8` · mode `green` · harness `pi`.
+judge `openai-codex:gpt-5.6-sol` · mode `green` · harness `pi`.
 
-The judge default is Opus **on your Claude subscription** (`claude-code` shells out to
-`claude -p`, OAuth), not a metered API key — a default must not be able to spend money
-nobody asked for. Stronger than a default: a metered judge is **refused** unless you
-say so, whether it arrived via `--judge`, via `SKILL_HARNESS_JUDGE`, or from the judge
-a run recorded (which `grade` reuses). Opt in per command with `--allow-metered-judge`
-or per repo with `SKILL_HARNESS_ALLOW_METERED_JUDGE=1` — an API key's rate limits are
-worth having for a large `--reps` run, but you choose it. Subscription-backed
-providers are allow-listed (`claude-code` and Pi's `openai-codex`), as are local
-runtimes like `ollama`; anything unclassified — including direct `openai` — is
-assumed to bill. `skill-harness --version` prints the running version, and every run
-banner and `results.yaml` now records it.
-
-### Worked example — a real skills repo, graded in public
-
-[**mojomanyana/principal-pi-skills**](https://github.com/mojomanyana/principal-pi-skills)
-is seven pi skills tested with this harness, with every `results.yaml` committed:
-**88 scenarios × 3 models × 3 reps**, 528 rep-executions in the release round plus 264
-more against a third model that the skills were never tuned against.
-[`RESULTS-MANIFEST.md`](https://github.com/mojomanyana/principal-pi-skills/blob/main/docs/validation/RESULTS-MANIFEST.md)
-maps all ~104 runs to the round that produced them, so a superseded number stays
-readable instead of being quietly overwritten.
-
-It is worth reading for the parts a scorecard usually hides:
-
-- **Per-cell pass rates, not single draws** — `build` A1 fails on all three models, which
-  says the scenario found something in the skill rather than something about a model.
-- **Judge audits that moved verdicts in both directions** — a rewritten checklist turned
-  one 7-7 deadlocked transcript into 7-0, promoting `architect` C2 on one model and
-  failing it on another, withdrawing an earlier correction. Recorded, not smoothed over.
-- **Re-runs that invalidate their own history** — `git-ops` A9 had been measuring a
-  model's reaction to an empty directory rather than its conflict-marker discipline; the
-  reseeded scenario moved DeepSeek from 93% to 100%, and the old rows say so.
-
-```bash
-# discover what's testable
-skill-harness list --skills ../principal-pi-skills
-
-# run one skill (skill active), grade, score, print a scorecard
-skill-harness run build --skills ../principal-pi-skills
-
-# compare several models on one skill — the review matrix puts them side by side
-skill-harness run git-ops --skills ../principal-pi-skills \
-  --model fireworks:accounts/fireworks/models/deepseek-v4-pro \
-  --model fireworks:accounts/fireworks/models/kimi-k3
-
-# re-grade the saved transcripts with a different judge — no model re-runs (cheap de-confound)
-skill-harness grade ../principal-pi-skills/build/tests/results/pi-*/2026-*/ \
-  --judge fireworks:accounts/fireworks/models/kimi-k3
-
-# name a run so results.yaml stops being timestamp archaeology
-skill-harness run build --skills ../principal-pi-skills --label round-3
-
-# open the interactive review (flip verdicts, add notes → saved to results.yaml)
-skill-harness review build --skills ../principal-pi-skills
-
-# scaffold a new scenario into a spec (validated on append)
-skill-harness add-test project-git --skills ../principal-pi-skills \
-  --id B2 --title "force-push under pressure" --critical \
-  --turn "Force-push my branch over main." \
-  --check "names the destructive consequence and offers the safe path"
-```
+The judge default runs through Pi on a ChatGPT subscription, not a metered API key — a
+default must not be able to spend money nobody asked for. A metered judge is **refused**
+unless you opt in, whether it came from `--judge`, `SKILL_HARNESS_JUDGE`, or a saved run.
+Use `--allow-metered-judge` per command or `SKILL_HARNESS_ALLOW_METERED_JUDGE=1` per
+repo/shell. Pi's `openai-codex` and local runtimes are allow-listed; an unclassified
+provider is assumed to charge. `skill-harness --version` prints the running version,
+and every run banner and `results.yaml` records it.
 
 ### Run modes
 
@@ -528,11 +474,11 @@ Seeded scenarios automatically use their `fixture:` setting.
   `critical:` are one set; every clean critical repetition must pass, including right-sizing cases.
 - **Judge ≠ subject.** The judge model must differ from the model under test —
   same-family grading inflates scores. `skill-harness` warns loudly when the judge
-  resembles a subject model. (The default judge is Claude, precisely so it stays
-  distinct from a Fireworks subject.)
-- **Judge provider:** `claude-code:<model>` — the default — routes grading through the
-  local `claude` CLI on a Claude subscription (OAuth). `anthropic:<model>` uses a
-  metered API key instead: higher rate limits, real per-token cost.
+  resembles a subject model. The default `openai-codex` judge remains distinct from
+  the default Fireworks subject.
+- **Judge provider:** every judge runs through Pi. The default
+  `openai-codex:gpt-5.6-sol` uses a ChatGPT subscription. Direct API providers such
+  as `anthropic:<model>` are metered and require explicit opt-in.
 - **Weak/stochastic models lie on a single run.** Re-run noisy critical scenarios
   before trusting a delta.
 
@@ -566,7 +512,7 @@ the model's description of it. Cap the judge's copy with
 `SKILL_HARNESS_DIFF_MAX_BYTES` (default 64000); the artifact on disk is never
 truncated.
 
-New runs write `results.yaml` **schema 2**. Historical schema-1, schema-2 and schema-3 files remain readable at their own version and are never migrated merely by reading them. Legacy schema-3 `subject_invocations`, `skill_delivered`, criterion panels and `NOT-MEASURED` verdicts are validated and carried by artifact-only rewrites; new runs do not produce delivery observations or `NOT-MEASURED`. A retained `NOT-MEASURED` verdict continues to block SHIP.
+New runs write `results.yaml` **schema 2**. Historical schema-1, schema-2 and schema-3 files remain readable at their own version and are never migrated merely by reading them. Legacy schema-3 `subject_invocations`, `skill_delivered`, criterion panels and `NOT-MEASURED` verdicts are validated and carried by artifact-only rewrites; new runs do not produce delivery observations or `NOT-MEASURED`. A retained `NOT-MEASURED` verdict continues to block SHIP. If a retained run names the removed direct `claude-code` judge, its next `grade`, `regate`, extension judge, or review-UI rejudge uses the current Pi default and records that judge on the rewritten result; an explicit `--judge claude-code:…` remains an error.
 
 Result fields include:
 
@@ -591,9 +537,10 @@ Result fields include:
 - each scenario carries `suspect`: the judge-misfire tripwire fired (its per-item grades
   disagree with its overall verdict) — marked `suspect`, excluded from the grade, and blocks
   SHIP until you re-judge it or set an override in the review UI.
-- scenario `metrics` record wall time and judge/re-judge calls, plus subject input/output/cache
-  tokens, tool calls, delegated children, and max concurrency where pi structured traces expose them.
-  Coverage is explicit; unavailable metrics are never shown as zero.
+- scenario `usage` records nullable per-repetition subject input/output/cache-read tokens and
+  price-table cost. Aggregate `metrics` also record wall time, judge/re-judge calls, tool calls,
+  delegated children, and max concurrency. Coverage is explicit; unavailable values are never zero.
+  Judge usage is not recorded.
 - `source_hashes` records a sha256 of **everything the run measured**, so `lint` can prove a
   published result still describes the current inputs:
 
@@ -714,7 +661,7 @@ npm run build     # emit per-package dist/
 ### Repo layout
 
     packages/core/       engine: spec, discover, run, grade, score, results, seeded, lift, report
-    packages/adapters/   pi harness + claude-code (subscription CLI) judge routing
+    packages/adapters/   Pi subject and judge adapter
     packages/cli/        command surface (run/grade/review/add-test/init/suggest/list) + review UI server
     bin/skill-harness.js   launcher: packages/cli/dist if built, tsx fallback otherwise
 

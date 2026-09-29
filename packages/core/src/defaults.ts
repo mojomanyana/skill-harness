@@ -1,20 +1,15 @@
+import { parseModelRef, type ModelRef } from "./adapters/types.js";
 import { readEnv } from "./util/env.js";
 
 /**
- * The judge used when nothing else says otherwise: Opus through the **`claude-code`
- * provider**, which authenticates with the user's Claude subscription (OAuth via
- * `claude -p`) rather than a metered API key.
+ * The judge used when nothing else says otherwise: a Pi `openai-codex` model,
+ * authenticated through the user's ChatGPT subscription rather than a metered API
+ * key. Subjects and judges now share the sole supported harness executable: `pi`.
  *
- * The model is deliberately the strongest available — judging is the one place
- * where a weak model silently corrupts every number in a scorecard. The *provider*
- * is what changed in 0.3.3: the default was `anthropic:claude-opus-4-8`, a metered
- * API, and it billed a corpus once by accident because nothing in the tool surface
- * distinguishes "the flag I forgot" from "the flag I meant". A default must not be
- * able to spend money that was not asked for. The metered path is still one flag
- * away (`--judge anthropic:claude-opus-4-8`) for anyone who wants it — an API key
- * scales past a subscription's rate limits, which matters for a large `--reps` run.
+ * A default must not be able to spend money that was not explicitly authorized.
+ * Direct API providers remain available only through the metered-judge opt-in.
  */
-export const BAKED_DEFAULT_JUDGE = "claude-code:claude-opus-4-8";
+export const BAKED_DEFAULT_JUDGE = "openai-codex:gpt-5.6-sol";
 
 /**
  * Resolve the default judge: `SKILL_HARNESS_JUDGE` if set, else the baked value.
@@ -22,9 +17,9 @@ export const BAKED_DEFAULT_JUDGE = "claude-code:claude-opus-4-8";
  *
  * The env layer exists because this harness is built for someone who steers a
  * process rather than typing every flag: judge policy belongs to the repo or the
- * shell, set once. It is also how you opt *into* the metered API deliberately
- * (`SKILL_HARNESS_JUDGE=anthropic:claude-opus-4-8`) instead of by forgetting a
- * flag. Read through `readEnv`, so the pre-rename `SKILL_CHECK_JUDGE` keeps working
+ * shell, set once. It is also how you opt *into* a different judge deliberately
+ * instead of repeating a flag. Read through `readEnv`, so the pre-rename
+ * `SKILL_CHECK_JUDGE` keeps working
  * with the usual one-time notice.
  *
  * Resolved per call, not at module load: tests and long-lived processes (the pi
@@ -32,4 +27,19 @@ export const BAKED_DEFAULT_JUDGE = "claude-code:claude-opus-4-8";
  */
 export function defaultJudge(): string {
   return readEnv("JUDGE") ?? BAKED_DEFAULT_JUDGE;
+}
+
+/**
+ * Choose a judge for an artifact-only operation when the caller supplied no
+ * explicit override. Retained results may name the removed direct Claude
+ * adapter; keep those files readable, but execute their next judge call through
+ * today's Pi default and let the rewrite record that current judge.
+ */
+export function recordedJudgeOrDefault(recorded?: ModelRef): {
+  judge: ModelRef;
+  migratedFrom?: ModelRef;
+} {
+  if (!recorded) return { judge: parseModelRef(defaultJudge()) };
+  if (recorded.provider !== "claude-code") return { judge: recorded };
+  return { judge: parseModelRef(defaultJudge()), migratedFrom: recorded };
 }

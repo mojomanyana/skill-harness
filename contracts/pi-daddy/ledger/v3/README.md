@@ -36,7 +36,7 @@ adding an authoritative commit/tree/version to the vendor script and regeneratin
 the producer Git object, not copying a dirty working tree.
 
 The source selector is `pi-daddy-ledger-v3`. It accepts only explicit v3 records. The
-historical `pi-daddy-v1` selector remains unversioned 0.17 plus frozen ledger v2. An
+compatibility `pi-daddy-v1` selector accepts unversioned 0.17 plus frozen ledger v2. An
 unknown version or a v2-shaped event stamped v3 fails closed; v3 is never stripped and
 reinterpreted as v2.
 

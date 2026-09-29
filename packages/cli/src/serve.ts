@@ -12,7 +12,7 @@ import {
   loadSpec,
   regradeScenario, refreshRubricHashes, findJudgeRawFiles,
   effectiveThreshold, scoreContextFor, isScoredMode, rebuildScenarioResult, mergeScenarioMetrics, carryRepObjectives,
-  envFlag,
+  envFlag, recordedJudgeOrDefault, assertJudgeAllowed,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 
@@ -147,6 +147,16 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
           res.end(JSON.stringify({ ok: false, error: `scenario ${body.scenarioId} is ${delivery?.status ?? "ERROR"}: delivery-gated evidence cannot be re-judged` }));
           return;
         }
+        const resolvedRecordedJudge = recordedJudgeOrDefault(results.judge);
+        try {
+          assertJudgeAllowed(resolvedRecordedJudge.judge, {
+            source: resolvedRecordedJudge.migratedFrom ? "the current default judge" : "the run's recorded judge",
+          });
+        } catch (e) {
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+          return;
+        }
         const adapter = opts.adapter ?? getAdapter(results.harness);
         if (!(await adapter.available())) {
           res.writeHead(400, { "content-type": "application/json" });
@@ -156,7 +166,7 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
         const threshold = effectiveThreshold(prev, scenario);
         try {
           const rr = await regradeScenario({
-            runDir: column.runDir, spec, scenario, adapter, judge: results.judge,
+            runDir: column.runDir, spec, scenario, adapter, judge: resolvedRecordedJudge.judge,
             specDir: dirname(specPath), threshold, mode: results.mode,
             expectedReps: prev.reps ?? 1,
           });
@@ -171,7 +181,7 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
           });
           const written = writeResults(column.runDir, {
             schema: results.schema, subject_invocations: results.subject_invocations,
-            skill: results.skill, harness: results.harness, model: results.model, judge: results.judge,
+            skill: results.skill, harness: results.harness, model: results.model, judge: resolvedRecordedJudge.judge,
             timestamp: results.timestamp, label: results.label, mode: results.mode, scenarios: merged,
             partial: results.partial,
             // Provenance survives a UI re-judge, same as it does through `grade`.
@@ -193,7 +203,13 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
           const g = written.effective_grade;
           appendJournal(column.runDir, { event: "score", ts: new Date().toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
           res.writeHead(200, { "content-type": "application/json" });
-          res.end(JSON.stringify({ ok: true, grade: g }));
+          res.end(JSON.stringify({
+            ok: true,
+            grade: g,
+            judgeMigration: resolvedRecordedJudge.migratedFrom
+              ? `${resolvedRecordedJudge.migratedFrom.provider}:${resolvedRecordedJudge.migratedFrom.model} → ${resolvedRecordedJudge.judge.provider}:${resolvedRecordedJudge.judge.model}`
+              : undefined,
+          }));
         } catch (e) {
           // regradeScenario (or the write/journal that follows) failed — surface the
           // real reason as JSON so the client's r.json().catch(()=>({})) sees body.error

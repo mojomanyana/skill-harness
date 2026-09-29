@@ -7187,13 +7187,20 @@ import { readFileSync as readFileSync12, renameSync, rmSync as rmSync2, writeFil
 import { dirname as dirname4, join as join19, relative as relative3, resolve as resolve9 } from "node:path";
 
 // packages/core/dist/defaults.js
-var BAKED_DEFAULT_JUDGE = "claude-code:claude-opus-4-8";
+var BAKED_DEFAULT_JUDGE = "openai-codex:gpt-5.6-sol";
 function defaultJudge() {
   return readEnv("JUDGE") ?? BAKED_DEFAULT_JUDGE;
 }
+function recordedJudgeOrDefault(recorded) {
+  if (!recorded)
+    return { judge: parseModelRef(defaultJudge()) };
+  if (recorded.provider !== "claude-code")
+    return { judge: recorded };
+  return { judge: parseModelRef(defaultJudge()), migratedFrom: recorded };
+}
 
 // packages/core/dist/judge-policy.js
-var FREE_JUDGE_PROVIDERS = /* @__PURE__ */ new Set(["claude-code", "openai-codex", "ollama", "lmstudio", "llamacpp", "local"]);
+var FREE_JUDGE_PROVIDERS = /* @__PURE__ */ new Set(["openai-codex", "ollama", "lmstudio", "llamacpp", "local"]);
 function isMeteredJudge(judge) {
   return !FREE_JUDGE_PROVIDERS.has(judge.provider);
 }
@@ -7201,6 +7208,9 @@ function allowMeteredJudge() {
   return envFlag("ALLOW_METERED_JUDGE");
 }
 function assertJudgeAllowed(judge, opts) {
+  if (judge.provider === "claude-code") {
+    throw new Error("judge provider `claude-code` was removed; choose a provider configured in Pi, such as `openai-codex`");
+  }
   if (!isMeteredJudge(judge))
     return;
   if (opts.allowMetered || allowMeteredJudge())
@@ -7208,7 +7218,7 @@ function assertJudgeAllowed(judge, opts) {
   const token = `${judge.provider}:${judge.model}`;
   throw new Error(`refusing to judge with ${token}: \`${judge.provider}\` bills a per-token API key, and it came from ${opts.source}.
   Judging is meant to cost nothing you did not ask for.
-  \u2022 judge on your Claude subscription instead:  --judge ${BAKED_DEFAULT_JUDGE}
+  \u2022 judge through Pi on your subscription:      --judge ${BAKED_DEFAULT_JUDGE}
   \u2022 allow the metered API for this command:     --allow-metered-judge
   \u2022 allow it for this repo or shell:            export SKILL_HARNESS_ALLOW_METERED_JUDGE=1`);
 }
@@ -7527,9 +7537,8 @@ ${r.stderr.trim()}
    * two drifted, a trace-gated scenario would be measuring a different delivery
    * than an ungated one, and the gate would be attesting to the wrong execution.
    *
-   * The transcript is REBUILT from each turn's final assistant message rather
-   * than read from stdout, which is byte-identical to print mode's output (proven
-   * on a deterministic prompt; see docs/pi-native-capture-design-2026-08-08.md §2).
+   * The transcript is rebuilt from each turn's final assistant message rather
+   * than read from stdout; fixture-backed parity tests pin the expected output.
    */
   async runStructured(req) {
     const common2 = [
@@ -7591,20 +7600,10 @@ ${r.stderr.trim()}
       ...providerFailure ? { providerFailure } : {}
     };
   },
-  /**
-   * Run the judge: no skills, no context files, no session, single prompt.
-   * Judge provider `claude-code` routes to the Claude Code CLI (`claude -p`),
-   * which authenticates via the user's Claude subscription (OAuth) instead of
-   * a provider API key.
-   */
+  /** Run the judge through Pi: no skills, context files, extensions or session. */
   async judge(req) {
     if (req.model.provider === "claude-code") {
-      const args2 = ["-p", req.prompt, "--model", req.model.model];
-      const r2 = await exec("claude", args2, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS });
-      if (r2.stdout.trim().length === 0 && (r2.code !== 0 || r2.stderr.trim())) {
-        return `[judge error: claude exited ${r2.code}] ${r2.stderr.trim()}`;
-      }
-      return r2.stdout;
+      throw new Error("judge provider `claude-code` was removed; configure a Pi provider such as `openai-codex`");
     }
     const args = [
       "--no-skills",
@@ -9392,6 +9391,16 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: `scenario ${body.scenarioId} is ${delivery?.status ?? "ERROR"}: delivery-gated evidence cannot be re-judged` }));
           return;
         }
+        const resolvedRecordedJudge = recordedJudgeOrDefault(results.judge);
+        try {
+          assertJudgeAllowed(resolvedRecordedJudge.judge, {
+            source: resolvedRecordedJudge.migratedFrom ? "the current default judge" : "the run's recorded judge"
+          });
+        } catch (e) {
+          res.writeHead(400, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+          return;
+        }
         const adapter = opts.adapter ?? getAdapter(results.harness);
         if (!await adapter.available()) {
           res.writeHead(400, { "content-type": "application/json" });
@@ -9405,7 +9414,7 @@ async function serveReview(opts) {
             spec,
             scenario,
             adapter,
-            judge: results.judge,
+            judge: resolvedRecordedJudge.judge,
             specDir: dirname6(specPath),
             threshold,
             mode: results.mode,
@@ -9422,7 +9431,7 @@ async function serveReview(opts) {
             skill: results.skill,
             harness: results.harness,
             model: results.model,
-            judge: results.judge,
+            judge: resolvedRecordedJudge.judge,
             timestamp: results.timestamp,
             label: results.label,
             mode: results.mode,
@@ -9448,7 +9457,11 @@ async function serveReview(opts) {
           const g = written.effective_grade;
           appendJournal(column.runDir, { event: "score", ts: (/* @__PURE__ */ new Date()).toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
           res.writeHead(200, { "content-type": "application/json" });
-          res.end(JSON.stringify({ ok: true, grade: g }));
+          res.end(JSON.stringify({
+            ok: true,
+            grade: g,
+            judgeMigration: resolvedRecordedJudge.migratedFrom ? `${resolvedRecordedJudge.migratedFrom.provider}:${resolvedRecordedJudge.migratedFrom.model} \u2192 ${resolvedRecordedJudge.judge.provider}:${resolvedRecordedJudge.judge.model}` : void 0
+          }));
         } catch (e) {
           res.writeHead(400, { "content-type": "application/json" });
           res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
@@ -9642,7 +9655,11 @@ ${card.failedTranscripts.join("\n")}`);
     const testsDir = dirname8(dirname8(dirname8(runDir)));
     const spec = loadSpec(join26(testsDir, "specification.yaml"));
     const prev = existsSync19(join26(runDir, "results.yaml")) ? readResults(runDir) : null;
-    const judge = flags.judge ? parseModelRef(flags.judge) : prev?.judge ?? parseModelRef(defaultJudge());
+    const resolvedRecordedJudge = flags.judge ? void 0 : recordedJudgeOrDefault(prev?.judge);
+    const judge = flags.judge ? parseModelRef(flags.judge) : resolvedRecordedJudge.judge;
+    if (resolvedRecordedJudge?.migratedFrom) {
+      say(ctx, `recorded judge ${resolvedRecordedJudge.migratedFrom.provider}:${resolvedRecordedJudge.migratedFrom.model} was removed; re-judging through Pi with ${judge.provider}:${judge.model}`, "warning");
+    }
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge"
     });
