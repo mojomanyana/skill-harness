@@ -1,8 +1,6 @@
 # `pi --mode json` event fixtures
 
-Offline captures of pi's JSON event stream, recorded 2026-08-08 against **pi 0.83.0**
-for the Phase 0 feasibility spike of
-`docs/superpowers/plans/2026-08-07-pi-native-regression-capture-program.md`.
+Offline captures of Pi's JSON event stream against **Pi 0.83.0**.
 
 They exist so the trace parser can be built and tested without spending tokens, and
 so a pi upgrade that changes the event shape fails a test instead of silently

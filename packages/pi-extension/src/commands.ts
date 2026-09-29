@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { dirname, join, resolve, relative } from "node:path";
-import { loadSpec, regradeRun, readResults, parseModelRef, defaultJudge, assertJudgeAllowed, type HarnessAdapter, computeCoverage, formatCoverage } from "@skill-harness/core";
+import { loadSpec, regradeRun, readResults, parseModelRef, recordedJudgeOrDefault, assertJudgeAllowed, type HarnessAdapter, computeCoverage, formatCoverage } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview, type ServeHandle } from "@skill-harness/cli/serve";
 import { resolveSkillDir, runViaExtension } from "./runner.js";
@@ -115,11 +115,14 @@ export async function handleSkillCheck(
     const testsDir = dirname(dirname(dirname(runDir))); // <skillDir>/tests
     const spec = loadSpec(join(testsDir, "specification.yaml"));
     // Re-judge with the run's RECORDED judge + harness (parity with cmdGrade,
-    // the same block in cli.ts's cmdGrade — M6's whole premise is CLI/extension parity); an
-    // explicit --judge flag still wins, and a run with no prior results.yaml
-    // falls back to the default judge.
+    // the same block in cli.ts's cmdGrade — NOT from cwd, which could be a different skill.
+    // An explicit --judge flag wins; absent or retired recorded judges use the Pi default.
     const prev = existsSync(join(runDir, "results.yaml")) ? readResults(runDir) : null;
-    const judge = flags.judge ? parseModelRef(flags.judge) : (prev?.judge ?? parseModelRef(defaultJudge()));
+    const resolvedRecordedJudge = flags.judge ? undefined : recordedJudgeOrDefault(prev?.judge);
+    const judge = flags.judge ? parseModelRef(flags.judge) : resolvedRecordedJudge!.judge;
+    if (resolvedRecordedJudge?.migratedFrom) {
+      say(ctx, `recorded judge ${resolvedRecordedJudge.migratedFrom.provider}:${resolvedRecordedJudge.migratedFrom.model} was removed; re-judging through Pi with ${judge.provider}:${judge.model}`, "warning");
+    }
     assertJudgeAllowed(judge, {
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge",
     });

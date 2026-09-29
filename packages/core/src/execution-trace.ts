@@ -8,9 +8,8 @@ import type { ModelRef, RunMode } from "./adapters/types.js";
 /**
  * Parse pi's `--mode json` event stream into an `ExecutionTraceV1`.
  *
- * Measured against pi 0.83.0; see `docs/pi-native-capture-design-2026-08-08.md`
- * and the fixtures in `packages/adapters/test/fixtures/pi-json/`. Three findings
- * from that spike are baked in here and each one is a bug if removed:
+ * Pinned by the fixtures in `packages/adapters/test/fixtures/pi-json/`. Three
+ * event-shape constraints are baked in here and each one is a bug if removed:
  *
  * 1. **Line-at-a-time, never buffered.** `message_update` re-sends the entire
  *    accumulated message on every delta, so the stream is quadratic in output

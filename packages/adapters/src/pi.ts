@@ -207,9 +207,8 @@ export const piAdapter: HarnessAdapter = {
    * two drifted, a trace-gated scenario would be measuring a different delivery
    * than an ungated one, and the gate would be attesting to the wrong execution.
    *
-   * The transcript is REBUILT from each turn's final assistant message rather
-   * than read from stdout, which is byte-identical to print mode's output (proven
-   * on a deterministic prompt; see docs/pi-native-capture-design-2026-08-08.md §2).
+   * The transcript is rebuilt from each turn's final assistant message rather
+   * than read from stdout; fixture-backed parity tests pin the expected output.
    */
   async runStructured(req: RunReq): Promise<StructuredRun> {
     const common = [
@@ -295,20 +294,10 @@ export const piAdapter: HarnessAdapter = {
     };
   },
 
-  /**
-   * Run the judge: no skills, no context files, no session, single prompt.
-   * Judge provider `claude-code` routes to the Claude Code CLI (`claude -p`),
-   * which authenticates via the user's Claude subscription (OAuth) instead of
-   * a provider API key.
-   */
+  /** Run the judge through Pi: no skills, context files, extensions or session. */
   async judge(req: JudgeReq): Promise<string> {
     if (req.model.provider === "claude-code") {
-      const args = ["-p", req.prompt, "--model", req.model.model];
-      const r = await exec("claude", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS });
-      if (r.stdout.trim().length === 0 && (r.code !== 0 || r.stderr.trim())) {
-        return `[judge error: claude exited ${r.code}] ${r.stderr.trim()}`;
-      }
-      return r.stdout;
+      throw new Error("judge provider `claude-code` was removed; configure a Pi provider such as `openai-codex`");
     }
     const args = [
       "--no-skills",

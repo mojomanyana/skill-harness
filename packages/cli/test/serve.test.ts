@@ -247,6 +247,7 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
     const body = await r.json();
     expect(body.ok).toBe(true);
     expect(body.grade.ship).toBe(true);
+    expect(body.judgeMigration).toBe("claude-code:opus → openai-codex:gpt-5.6-sol");
     expect(judgeCalls).toBe(before + 1); // the fake adapter (not a live process) was actually invoked
 
     const after = readResults(greenRunDir);
@@ -255,6 +256,7 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
     expect(a1.judge_verdict).toBe("PASS");
     expect(a1.override).toBeNull(); // no override going in — still null coming out
     expect(a1.adjudication).toBeUndefined();
+    expect(after.judge).toEqual({ provider: "openai-codex", model: "gpt-5.6-sol" });
     expect(after.effective_grade.ship).toBe(true); // no longer blocked by the suspect
   });
 
@@ -277,6 +279,23 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
     const r = await fetch(`${base2}/rejudge`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ col: 3, scenarioId: "A1" }) });
     expect(r.status).toBe(400);
     expect(await r.json()).toMatchObject({ ok: false });
+    expect(judgeCalls).toBe(beforeJudge);
+    expect(availableCalls).toBe(beforeAvailable);
+  });
+
+  test("a migrated default cannot bypass metered-judge refusal", async () => {
+    const beforeJudge = judgeCalls, beforeAvailable = availableCalls;
+    process.env.SKILL_HARNESS_JUDGE = "fireworks:metered-judge";
+    try {
+      const r = await fetch(`${base2}/rejudge`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ col: 2, scenarioId: "A1" }),
+      });
+      expect(r.status).toBe(400);
+      expect((await r.json()).error).toMatch(/refusing to judge.*fireworks:metered-judge/i);
+    } finally {
+      delete process.env.SKILL_HARNESS_JUDGE;
+    }
     expect(judgeCalls).toBe(beforeJudge);
     expect(availableCalls).toBe(beforeAvailable);
   });

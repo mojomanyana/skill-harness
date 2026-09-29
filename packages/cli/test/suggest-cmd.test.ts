@@ -95,7 +95,7 @@ describe("cmdSuggest", () => {
 
   test("fails fast on a hard adapter error (no retry)", async () => {
     const { root } = skillRoot();
-    await expect(cmdSuggest(args(root, "greeter"), fakeAdapter(["[judge error: claude exited 127] not found"]))).rejects.toThrow(/--model/);
+    await expect(cmdSuggest(args(root, "greeter"), fakeAdapter(["[judge error: pi exited 127] not found"]))).rejects.toThrow(/--model/);
   });
 
   test("retries a transient empty response, then succeeds", async () => {

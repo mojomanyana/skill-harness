@@ -126,6 +126,25 @@ describe("handleSkillCheck", () => {
     expect(results.judge).toEqual({ provider: "ollama", model: "custom-judge-model" });
   });
 
+  it("judge migrates a retained direct-Claude run to the current Pi default", async () => {
+    const skillDir = skillFixture();
+    const runDir = join(skillDir, "tests", "results", "pi-fake", "2026-07-05T00-00-00Z");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "A1.green.txt"), "USER: hi\nASSISTANT: ok", "utf8");
+    writeResults(runDir, {
+      skill: "demo", harness: "pi", model: "fireworks:accounts/fireworks/models/deepseek-v4-pro",
+      judge: { provider: "claude-code", model: "opus" },
+      timestamp: "2026-07-05T00:00:00Z", label: null, mode: "green",
+      scenarios: [{ id: "A1", judge_verdict: "FAIL", judge_reason: "stale", suspect: false, override: null, note: "" }],
+    }, { shipBar: { total: 1, min_pass: 1 }, critical: [] });
+    const ctx = fakeCtx(skillDir);
+
+    await handleSkillCheck(`judge ${runDir}`, ctx, { adapter: fakeAdapter });
+
+    expect(readResults(runDir).judge).toEqual({ provider: "openai-codex", model: "gpt-5.6-sol" });
+    expect(ctx.notified.some((n) => /recorded judge claude-code:opus was removed/.test(n.msg))).toBe(true);
+  });
+
   it("judge honors an explicit --judge flag over the run's recorded judge", async () => {
     const skillDir = skillFixture();
     const runDir = join(skillDir, "tests", "results", "pi-fake", "2026-07-05T00-00-00Z");
@@ -143,7 +162,12 @@ describe("handleSkillCheck", () => {
     }, { shipBar: { total: 1, min_pass: 1 }, critical: [] });
     const ctx = fakeCtx(skillDir);
 
-    await handleSkillCheck(`judge ${runDir} --judge ollama:another-judge-model`, ctx, { adapter: fakeAdapter });
+    process.env.SKILL_HARNESS_JUDGE = "malformed";
+    try {
+      await handleSkillCheck(`judge ${runDir} --judge ollama:another-judge-model`, ctx, { adapter: fakeAdapter });
+    } finally {
+      delete process.env.SKILL_HARNESS_JUDGE;
+    }
 
     const results = readResults(runDir);
     expect(results.judge).toEqual({ provider: "ollama", model: "another-judge-model" });

@@ -41,15 +41,35 @@ describe("pi adapter nested-run safety", () => {
     expect(args).toContain("--skill");
   });
 
-  it("non-claude-code judge passes --no-extensions", async () => {
+  it("every judge runs through Pi with extensions disabled", async () => {
     await piAdapter.judge({
-      model: { provider: "fireworks", model: "x" },
+      model: { provider: "openai-codex", model: "gpt-5.6-sol" },
       prompt: "p",
       cwd: "/tmp",
     });
     const [cmd, args] = mockedExec.mock.calls[0];
     expect(cmd).toBe("pi");
     expect(args).toContain("--no-extensions");
+    expect(args).toContain("openai-codex");
+  });
+
+  it("refuses the removed direct Claude judge provider", async () => {
+    await expect(piAdapter.judge({
+      model: { provider: "claude-code", model: "opus" },
+      prompt: "p",
+      cwd: "/tmp",
+    })).rejects.toThrow(/claude-code.*removed/i);
+    expect(mockedExec).not.toHaveBeenCalled();
+  });
+
+  it("surfaces Pi judge failure as a tagged string", async () => {
+    mockedExec.mockResolvedValueOnce({ code: 1, stdout: "", stderr: "boom" });
+    const out = await piAdapter.judge({
+      model: { provider: "openai-codex", model: "gpt-5.6-sol" },
+      prompt: "p",
+      cwd: "/tmp",
+    });
+    expect(out).toMatch(/^\[judge error: pi exited 1\]/);
   });
 
   it("preserves thinking suffixes and colon-bearing exact model ids in Pi argv", async () => {

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import yaml from "js-yaml";
 import { HARNESS_VERSION } from "../src/version.js";
-import { defaultJudge, BAKED_DEFAULT_JUDGE } from "../src/defaults.js";
+import { defaultJudge, BAKED_DEFAULT_JUDGE, recordedJudgeOrDefault } from "../src/defaults.js";
 import { finalizeResults, writeResults, readResults, migrateResults, type ResultsDraft } from "../src/results.js";
 import { __resetEnvWarnings } from "../src/util/env.js";
 
@@ -77,17 +77,26 @@ describe("defaultJudge", () => {
     expect(defaultJudge()).toBe(BAKED_DEFAULT_JUDGE);
   });
 
-  // The default must not be able to spend money nobody asked for. `claude-code`
-  // routes through `claude -p` on the user's subscription (OAuth); `anthropic`
-  // is a metered API key, and it billed a corpus once by accident as the default.
+  // The default must not be able to spend money nobody asked for. `openai-codex`
+  // runs through Pi on the user's subscription; `anthropic` is a metered API key.
   test("the baked default is the subscription path, not a metered API", () => {
-    expect(BAKED_DEFAULT_JUDGE.split(":")[0]).toBe("claude-code");
+    expect(BAKED_DEFAULT_JUDGE.split(":")[0]).toBe("openai-codex");
     expect(defaultJudge().startsWith("anthropic:")).toBe(false);
   });
 
-  // The baked default is a metered API. A user who steers rather than types every
-  // flag needs to set judge policy once, per repo or per shell, instead of
+  // A user who steers rather than types every flag can set judge policy once, per
+  // repo or shell, instead of
   // remembering `--judge` on every invocation — a forgotten flag must not bill.
+  test("retained direct-Claude results migrate to the current default judge", () => {
+    expect(recordedJudgeOrDefault({ provider: "claude-code", model: "opus" })).toEqual({
+      judge: { provider: "openai-codex", model: "gpt-5.6-sol" },
+      migratedFrom: { provider: "claude-code", model: "opus" },
+    });
+    expect(recordedJudgeOrDefault({ provider: "fireworks", model: "judge" })).toEqual({
+      judge: { provider: "fireworks", model: "judge" },
+    });
+  });
+
   test("SKILL_HARNESS_JUDGE overrides it", () => {
     process.env.SKILL_HARNESS_JUDGE = "fireworks:accounts/fireworks/models/kimi-k3";
     expect(defaultJudge()).toBe("fireworks:accounts/fireworks/models/kimi-k3");

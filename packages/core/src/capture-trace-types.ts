@@ -1,10 +1,8 @@
 /**
- * Data contracts for the pi-native regression capture program.
+ * Persisted data contracts for Pi execution traces.
  *
- * Types only — no behavior. Phase 0 of
- * `docs/superpowers/plans/2026-08-07-pi-native-regression-capture-program.md`
- * fixes the shapes before any parser, capture UI, or gate evaluator is written,
- * because both shapes get persisted and a persisted shape is expensive to move.
+ * Types only — no behavior. Both shapes are versioned because persisted formats
+ * are expensive to move and readers must fail closed on unsupported versions.
  *
  * Both carry an explicit version. The pi event stream they derive from is not a
  * stable public contract (measured against pi 0.83.0; see

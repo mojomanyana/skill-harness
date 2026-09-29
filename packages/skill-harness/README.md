@@ -4,6 +4,7 @@ A portable **test / optimize loop for agent skills**, driven from [pi](https://p
 Point it at a repo of skills, and for any skill with a `tests/specification.yaml`
 spec it will run each scenario, LLM-judge the transcript, score it against a ship
 bar, and open an interactive review UI so you can measure a `SKILL.md` edit.
+Subject, judge, and spec-drafting model calls all run through Pi.
 
 ## Install
 
@@ -31,9 +32,16 @@ The Pi package declares its bundled extension directly. After install/update, `/
 | `skill-harness list --skills <root>` | discovered skills + spec status |
 | `skill-harness lint <skill\|all> --skills <root>` | validate specs/fixtures; CI gate, exits non-zero on findings |
 | `skill-harness run <skill\|all> --skills <root> [--model p:m ...] [--judge p:m]` | run scenarios, grade, score |
-| `skill-harness grade <run-dir> [--judge p:m]` | re-grade saved transcripts — no model re-run |
+| `skill-harness grade <run-dir> [--judge p:m]` | re-grade saved transcripts — no subject re-run |
+| `skill-harness rescore <run-dir>...` | re-apply current score thresholds offline |
+| `skill-harness regate <run-dir>...` | re-evaluate saved objective gates |
+| `skill-harness restamp <skill\|all> --skills <root> --from <ref>` | migrate matching model-visible digests |
+| `skill-harness stability <skill\|all> --skills <root>` | report run-over-run verdict flips |
 | `skill-harness review <skill> --skills <root> [--port N]` | serve the interactive review UI |
 | `skill-harness add-test <skill> --skills <root> --id ID --title T ...` | scaffold a new scenario |
+| `skill-harness init <skill> --skills <root>` | write an offline spec template |
+| `skill-harness suggest <skill> --skills <root>` | draft a spec through Pi |
+| `skill-harness coverage <skill\|all> --skills <root>` | report declared instruction coverage |
 
 **Judge ≠ subject.** The judge model must differ from the model under test —
 same-family grading inflates scores; `skill-harness` warns when they resemble

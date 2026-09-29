@@ -7,8 +7,8 @@ A verified walkthrough of setting up and using `skill-harness` locally. `skill-h
 ## 0. Requirements
 
 - **Node ≥ 20.**
-- For **`run`** only: **`pi` on your `PATH`** (`pi --version`) with a provider configured for the model under test (e.g. Fireworks), and a judge — either an Anthropic API key or the Claude CLI (`claude`) for `claude-code:<model>` (judges on the Claude subscription, no metered key).
-- **`lint` and `list` need neither `pi` nor any API key** — they are pure static checks.
+- **`pi` on your `PATH`** (`pi --version`) with providers configured for each model you call. `run` uses Pi for subject and judge; `grade` uses it for the judge; `suggest` uses it for drafting.
+- **`init`, `lint`, `list`, `rescore`, `restamp`, `stability`, and `coverage` need neither Pi nor an API key** — they are offline.
 
 ## 1. Set up (one time)
 
@@ -31,7 +31,7 @@ Examples below use `node bin/skill-harness.js` against the bundled fixture skill
 New skill with no spec? Two ways to get a `tests/specification.yaml`:
 
 - `skill-harness init <skill> --skills <root>` — writes a commented template to fill in. Free, offline.
-- `skill-harness suggest <skill> --skills <root>` — reads the skill's `SKILL.md` and LLM-drafts scenarios, a checklist, and a *proposed* critical set for you to review. Spends model tokens; defaults to `claude-code:claude-opus-4-8` (no metered key if the `claude` CLI is signed in). Override with `--model prov:model`.
+- `skill-harness suggest <skill> --skills <root>` — reads the skill's `SKILL.md` and LLM-drafts scenarios, a checklist, and a *proposed* critical set for you to review. Spends model tokens through Pi; defaults to `openai-codex:gpt-5.6-sol` on a ChatGPT subscription. Override with `--model prov:model`.
 
 `suggest` never marks scenarios critical for you and never auto-runs — review the draft (especially the proposed critical set commented at the top), then `run`.
 
@@ -67,8 +67,12 @@ Runs every scenario on `pi` (skill active in `green` mode), grades each transcri
 ```bash
 node bin/skill-harness.js run golden-skill --skills packages/core/test/fixtures \
   --model fireworks:accounts/fireworks/models/deepseek-v4-pro \
-  --judge claude-code:opus            # judge on the Claude subscription (no metered key) — the default
-  --judge anthropic:claude-opus-4-8 --allow-metered-judge   # deliberately use a metered API key
+  --judge openai-codex:gpt-5.6-sol    # default: Pi + ChatGPT subscription
+
+# Deliberately use a metered provider instead:
+node bin/skill-harness.js run golden-skill --skills packages/core/test/fixtures \
+  --model fireworks:accounts/fireworks/models/deepseek-v4-pro \
+  --judge fireworks:accounts/fireworks/models/kimi-k3 --allow-metered-judge
 ```
 
 - `--model prov:model` repeats for multi-model comparison (or `--models <file>`).
@@ -302,12 +306,12 @@ on that scenario, or an override with a note once you have decided which side is
 node bin/skill-harness.js review golden-skill --skills packages/core/test/fixtures [--port N]
 ```
 
-Opens a local matrix UI (model × scenario). Click cells to read transcripts + raw judge output, flip verdicts, add notes, inspect the misfire queue, view trends across runs, and one-click re-judge. Saves persist to `results.yaml`. Ctrl-C to stop. **The author owns the verdict** — the judge proposes; your overrides + notes are the durable record. Commit `results.yaml`, not transcripts.
+Opens a local matrix UI (model × scenario). Click cells to read transcripts + raw judge output, flip verdicts, add notes, inspect the misfire queue, view trends across runs, and one-click re-judge. Saves persist to `results.yaml`. Ctrl-C to stop. **The author owns the verdict** — the judge proposes; your overrides + notes are the durable record. Normally commit only `results.yaml`; when an override unignores its transcript/judge evidence, commit that evidence with the override.
 
 ## 6. Re-grade cheaply — before spending tokens on a re-run
 
 ```bash
-node bin/skill-harness.js grade <run-dir> --judge claude-code:opus
+node bin/skill-harness.js grade <run-dir> --judge openai-codex:gpt-5.6-sol
 ```
 
 Re-scores the **saved transcripts** of a prior run with a (possibly different) judge — no model re-runs. Use it to de-confound a suspicious result before a fresh `run`. It reads the transcripts of the run's own mode, so a force run and a red baseline are both re-gradable, and a force run comes back scored.

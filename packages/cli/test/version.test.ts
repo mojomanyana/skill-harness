@@ -86,8 +86,7 @@ describe("a metered judge is refused before anything is spent", () => {
 
   // The path nobody types a flag for: `grade` re-judges with the judge the RUN
   // recorded, so a results.yaml naming a metered judge spends on every regrade.
-  // (Latent in the reference corpus — all ~140 committed runs there say claude-code —
-  // which is why it needs a test rather than a bug report.)
+  // This path needs a test because a saved file, not a new flag, chooses the provider.
   test("grade refuses a metered judge inherited from the run's own results.yaml", async () => {
     const runDir = skillWithRun({ provider: "anthropic", model: "claude-opus-4-8" });
     await expect(cmdGrade({ _: [runDir], flags: {}, multi: {} })).rejects.toThrow(
@@ -96,7 +95,7 @@ describe("a metered judge is refused before anything is spent", () => {
   });
 
   test("grade proceeds when the recorded judge is a subscription one", async () => {
-    const runDir = skillWithRun({ provider: "claude-code", model: "claude-opus-4-8" });
+    const runDir = skillWithRun({ provider: "openai-codex", model: "gpt-5.6-sol" });
     const fake: HarnessAdapter = {
       name: "pi",
       available: async () => true,
@@ -133,8 +132,8 @@ describe("removed flags fail before work", () => {
   test.each([
     [["run", "demo", "--affected"], "--affected"],
     [["grade", "/missing", "--auto-rejudge"], "--auto-rejudge"],
-    [["grade", "/missing", "--secondary-judge", "claude-code:x"], "--secondary-judge"],
-    [["grade", "/missing", "--tie-break-judge", "claude-code:x"], "--tie-break-judge"],
+    [["grade", "/missing", "--secondary-judge", "openai-codex:x"], "--secondary-judge"],
+    [["grade", "/missing", "--tie-break-judge", "openai-codex:x"], "--tie-break-judge"],
   ] as const)("refuses %s instead of silently changing behavior", async (argv, flag) => {
     await expect(main([...argv])).rejects.toThrow(new RegExp(flag));
   });
