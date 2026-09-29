@@ -9,6 +9,15 @@ import type { ShipBar, Scenario } from "./spec.js";
 import type { CostSource } from "./capture-trace-types.js";
 import { collapseVotePanel } from "./vote-panel.js";
 
+export interface SubjectUsage {
+  repetition: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cacheReadTokens: number | null;
+  costUsd: number | null;
+  priceAsOf: string | null;
+}
+
 export interface ScenarioMetrics {
   wall_time_ms: number;
   judge_calls: number;
@@ -94,6 +103,8 @@ export interface ScenarioResult {
   pass_threshold?: number; // effective threshold used (reps runs only) — lets re-judge reproduce the aggregate
   /** Cost/latency counters. Separate from verdicts: cheaper failure is still failure. */
   metrics?: ScenarioMetrics;
+  /** Per-repetition subject usage; null values mean Pi did not report that counter. */
+  usage?: SubjectUsage[];
   /**
    * Objective trace-gate evidence. ADDITIVE and optional.
    *
@@ -847,6 +858,7 @@ export function rebuildScenarioResult(
     override: _freshOverride, note: _freshNote,
     reps, passes, clean, flakiness, pass_threshold,
     metrics: freshMetrics,
+    usage: freshUsage,
     objective: freshObjective,
     adjudication: freshAdjudication,
     rep_judgments: freshRepJudgments,
@@ -912,6 +924,7 @@ export function rebuildScenarioResult(
     ...(flakiness === undefined ? {} : { flakiness }),
     ...(pass_threshold === undefined ? {} : { pass_threshold }),
     ...((freshMetrics ?? prior?.metrics) ? { metrics: freshMetrics ?? prior!.metrics } : {}),
+    ...((freshUsage ?? prior?.usage) ? { usage: freshUsage ?? prior!.usage } : {}),
     // The author owns the verdict; a re-measurement never discards their call.
     override: prior?.override ?? null,
     note: prior?.note ?? "",

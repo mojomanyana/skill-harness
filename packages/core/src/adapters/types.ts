@@ -103,6 +103,8 @@ export interface StructuredRun {
 
 export interface HarnessAdapter {
   name: string;
+  /** Prefer structured execution for ordinary runs so subject usage is retained. */
+  preferStructured?: boolean;
   available(): Promise<boolean>; // is the CLI on PATH?
   run(req: RunReq): Promise<string>; // returns the full transcript text
   /**

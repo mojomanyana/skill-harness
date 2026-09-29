@@ -110,28 +110,19 @@ describe("parseTrace — tool calls", () => {
 });
 
 describe("parseTrace — cost and latency inputs", () => {
-  it("records subject input/output/cache tokens and cost when pi reports them", () => {
+  it("records subject input/output/cache tokens without trusting provider cost", () => {
     const { trace } = fixture("tool-error.jsonl");
     expect(trace.metrics).toMatchObject({
       input_tokens: 1356,
       output_tokens: 73,
       cache_read_tokens: 1218,
-      cache_write_tokens: 0,
+      cache_write_tokens: null,
+      cost_usd: null,
+      cost_source: "unreported",
+      price_as_of: null,
       tool_calls: 1,
       max_concurrency: 1,
     });
-    expect(trace.metrics?.cost_usd).toBeCloseTo(0.00015945, 8);
-    expect(trace.metrics?.cost_source).toBe("provider-reported");
-  });
-
-  it("labels subscription zero-cost usage and warns only through its recorded source", () => {
-    const raw = Array.from(lines(readFileSync(join(FIXTURES, "tool-error.jsonl"), "utf8")), (line) => {
-      const event = JSON.parse(line);
-      if (event.type === "message_end" && event.message?.usage) delete event.message.usage.cost;
-      return JSON.stringify(event);
-    });
-    const parsed = parseTrace(raw, { ...META, subject: { provider: "openai-codex", model: "gpt-5.6-terra" } });
-    expect(parsed.trace.metrics).toMatchObject({ input_tokens: 1356, cost_usd: 0, cost_source: "subscription" });
   });
 
   it("records delegated child count and maximum observed tool concurrency", () => {
@@ -140,12 +131,19 @@ describe("parseTrace — cost and latency inputs", () => {
     expect(fixture("parallel-out-of-order.jsonl").trace.metrics?.tool_calls).toBe(3);
   });
 
-  it("leaves aggregate metrics unavailable when pi reports no usage instead of fabricating zero tokens/cost", () => {
+  it("records nulls when pi reports no usage instead of fabricating zero tokens/cost", () => {
     const parsed = parseTrace([
       JSON.stringify({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "done" }], stopReason: "stop" } }),
     ], META);
     expect(parsed.isComplete).toBe(true);
-    expect(parsed.trace.metrics).toBeUndefined();
+    expect(parsed.trace.metrics).toMatchObject({
+      input_tokens: null,
+      output_tokens: null,
+      cache_read_tokens: null,
+      cache_write_tokens: null,
+      cost_usd: null,
+      cost_source: "unreported",
+    });
     expect(parsed.trace.cost_usd).toBeNull();
   });
 });
@@ -249,10 +247,9 @@ describe("trace identity", () => {
 });
 
 describe("cost", () => {
-  it("sums pi's reported per-message cost for disclosure", () => {
+  it("leaves cost null for the adapter's repository price table", () => {
     const { trace } = fixture("tool-call.jsonl");
-    expect(trace.cost_usd).toBeGreaterThan(0);
-    expect(trace.cost_usd).toBeLessThan(0.01);
+    expect(trace.cost_usd).toBeNull();
   });
 
   it("is null when pi reported none", () => {

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runSkillModel } from "../src/run.js";
+import { formatScorecard, runSkillModel } from "../src/run.js";
 import { loadSpec } from "../src/spec.js";
 import { EXECUTION_TRACE_VERSION } from "../src/capture-trace-types.js";
 import type { HarnessAdapter, RunReq, StructuredRun } from "../src/adapters/types.js";
@@ -39,6 +39,8 @@ function traceWithTokens(): ExecutionTraceV1 {
       cache_read_tokens: 0,
       cache_write_tokens: 0,
       cost_usd: 0.02,
+      cost_source: "price-table",
+      price_as_of: "2026-09-29",
       tool_calls: 0,
       delegated_children: 0,
       max_concurrency: 0,
@@ -46,11 +48,12 @@ function traceWithTokens(): ExecutionTraceV1 {
   };
 }
 
-function structuredSpyAdapter(): { adapter: HarnessAdapter; structuredCalls: () => number; plainCalls: () => number } {
+function structuredSpyAdapter(preferStructured = false): { adapter: HarnessAdapter; structuredCalls: () => number; plainCalls: () => number } {
   let structuredCalls = 0;
   let plainCalls = 0;
   const adapter: HarnessAdapter = {
     name: "fake",
+    preferStructured,
     available: async () => true,
     run: async (_req: RunReq) => {
       plainCalls += 1;
@@ -118,8 +121,8 @@ describe("--structured on an ungated plain scenario (T2)", () => {
     expect(summary.results.scenarios[0].objective).toBeUndefined();
   });
 
-  it("takes the plain path with no metrics when --structured is not requested", async () => {
-    const { adapter, structuredCalls, plainCalls } = structuredSpyAdapter();
+  it("uses structured capture by default when the adapter requests it", async () => {
+    const { adapter, structuredCalls, plainCalls } = structuredSpyAdapter(true);
     const summary = await runSkillModel({
       spec: loadSpec(specPath),
       skillDir,
@@ -131,9 +134,18 @@ describe("--structured on an ungated plain scenario (T2)", () => {
       mode: "green",
       timestamp: "2026-08-22T00:00:00.000Z",
     });
-    expect(structuredCalls()).toBe(0);
-    expect(plainCalls()).toBe(1);
-    expect(summary.results.scenarios[0].metrics?.input_tokens).toBeUndefined();
+    expect(structuredCalls()).toBe(1);
+    expect(plainCalls()).toBe(0);
+    expect(summary.results.scenarios[0].metrics?.input_tokens).toBe(321);
+    expect(summary.results.scenarios[0].usage).toEqual([{
+      repetition: 0,
+      inputTokens: 321,
+      outputTokens: 45,
+      cacheReadTokens: null,
+      costUsd: 0.02,
+      priceAsOf: "2026-09-29",
+    }]);
+    expect(formatScorecard(summary)).toContain("$0.020000 price table");
   });
 });
 
@@ -190,9 +202,9 @@ describe("--structured on a mode: seeded scenario with no trace assert (I3)", ()
     expect(summary.results.scenarios[0].metrics?.input_tokens).toBe(321);
   });
 
-  it("takes the plain path with no metrics on the seeded path when --structured is not requested", async () => {
+  it("uses structured capture by default on the seeded path when the adapter requests it", async () => {
     const { dir, specPath } = seededCorpusNoGate();
-    const { adapter, structuredCalls, plainCalls } = structuredSpyAdapter();
+    const { adapter, structuredCalls, plainCalls } = structuredSpyAdapter(true);
     const summary = await runSkillModel({
       spec: loadSpec(specPath),
       skillDir: dir,
@@ -204,9 +216,9 @@ describe("--structured on a mode: seeded scenario with no trace assert (I3)", ()
       mode: "green",
       timestamp: "2026-08-22T00:00:00.000Z",
     });
-    expect(structuredCalls()).toBe(0);
-    expect(plainCalls()).toBe(1);
-    expect(summary.results.scenarios[0].metrics?.input_tokens).toBeUndefined();
+    expect(structuredCalls()).toBe(1);
+    expect(plainCalls()).toBe(0);
+    expect(summary.results.scenarios[0].metrics?.input_tokens).toBe(321);
   });
 
   // The two branches degraded ASYMMETRICALLY. The non-seeded branch fell back to

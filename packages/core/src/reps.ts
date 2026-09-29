@@ -101,17 +101,31 @@ export function outcomesToResult(id: string, outcomes: RepOutcome[], repCount: n
   const objectiveField = objective ? { objective } : {};
   const metrics = aggregateMetrics(outcomes);
   const metricsField = metrics ? { metrics } : {};
+  const usage = outcomes.flatMap((outcome, repetition) => {
+    const subject = outcome.metrics?.subject;
+    if (!subject) return [];
+    const reported = (value: number | null): number | null => value !== null && value > 0 ? value : null;
+    return [{
+      repetition,
+      inputTokens: reported(subject.input_tokens),
+      outputTokens: reported(subject.output_tokens),
+      cacheReadTokens: reported(subject.cache_read_tokens),
+      costUsd: reported(subject.cost_usd),
+      priceAsOf: subject.price_as_of,
+    }];
+  });
+  const usageField = usage.length ? { usage } : {};
   const repJudgments = outcomes.map((outcome, repetition) => ({ repetition, judgments: outcome.judgment ? [outcome.judgment] : [], recorded_verdict: outcome.verdict, ...(outcome.objective ? { objective: outcome.objective } : {}) }));
   const repJudgmentField = outcomes.some(outcome => outcome.judgment) ? { rep_judgments: repJudgments } : {};
   if (repCount === 1) {
     const o = outcomes[0];
-    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, ...metricsField, override: null, note: "", ...objectiveField, ...repJudgmentField };
+    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, ...metricsField, ...usageField, override: null, note: "", ...objectiveField, ...repJudgmentField };
   }
   const agg = aggregateReps(outcomes, threshold);
   return {
     id, judge_verdict: agg.verdict, judge_reason: agg.reason, suspect: agg.suspect,
     reps: agg.reps, passes: agg.passes, clean: agg.clean, flakiness: agg.flakiness,
-    pass_threshold: threshold, ...metricsField, override: null, note: "", ...objectiveField, ...repJudgmentField,
+    pass_threshold: threshold, ...metricsField, ...usageField, override: null, note: "", ...objectiveField, ...repJudgmentField,
   };
 }
 
@@ -119,21 +133,33 @@ function aggregateMetrics(outcomes: RepOutcome[]): ScenarioMetrics | undefined {
   const present = outcomes.map((outcome) => outcome.metrics).filter((metrics): metrics is NonNullable<RepOutcome["metrics"]> => metrics !== undefined);
   if (present.length === 0) return undefined;
   const subjects = present.map((metrics) => metrics.subject).filter((metrics): metrics is TraceMetrics => metrics !== undefined);
+  const reportedSubjects = subjects.filter(metrics =>
+    metrics.input_tokens !== null || metrics.output_tokens !== null || metrics.cache_read_tokens !== null,
+  );
   const base: ScenarioMetrics = {
     wall_time_ms: present.reduce((sum, metrics) => sum + metrics.wall_time_ms, 0),
     judge_calls: present.reduce((sum, metrics) => sum + metrics.judge_calls, 0),
     judge_rejudge_calls: present.reduce((sum, metrics) => sum + metrics.judge_rejudge_calls, 0),
-    subject_metrics_reps: subjects.length,
+    subject_metrics_reps: reportedSubjects.length,
     total_reps: outcomes.length,
   };
   if (subjects.length === 0) return base;
+  const sumReported = (field: "input_tokens" | "output_tokens" | "cache_read_tokens" | "cache_write_tokens" | "cost_usd"): number | undefined => {
+    const values = subjects.map(metrics => metrics[field]).filter((value): value is number => value !== null && value > 0);
+    return values.length ? values.reduce((sum, value) => sum + value, 0) : undefined;
+  };
+  const inputTokens = sumReported("input_tokens");
+  const outputTokens = sumReported("output_tokens");
+  const cacheReadTokens = sumReported("cache_read_tokens");
+  const cacheWriteTokens = sumReported("cache_write_tokens");
+  const subjectCost = sumReported("cost_usd");
   return {
     ...base,
-    input_tokens: subjects.reduce((sum, metrics) => sum + metrics.input_tokens, 0),
-    output_tokens: subjects.reduce((sum, metrics) => sum + metrics.output_tokens, 0),
-    cache_read_tokens: subjects.reduce((sum, metrics) => sum + metrics.cache_read_tokens, 0),
-    cache_write_tokens: subjects.reduce((sum, metrics) => sum + metrics.cache_write_tokens, 0),
-    subject_cost_usd: subjects.reduce((sum, metrics) => sum + metrics.cost_usd, 0),
+    ...(inputTokens === undefined ? {} : { input_tokens: inputTokens }),
+    ...(outputTokens === undefined ? {} : { output_tokens: outputTokens }),
+    ...(cacheReadTokens === undefined ? {} : { cache_read_tokens: cacheReadTokens }),
+    ...(cacheWriteTokens === undefined ? {} : { cache_write_tokens: cacheWriteTokens }),
+    ...(subjectCost === undefined ? {} : { subject_cost_usd: subjectCost }),
     cost_source: subjects.every((metrics) => metrics.cost_source === subjects[0].cost_source)
       ? subjects[0].cost_source
       : "unreported",

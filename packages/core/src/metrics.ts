@@ -1,4 +1,5 @@
 import type { ScenarioMetrics, ScenarioResult } from "./results.js";
+import type { CostSource } from "./capture-trace-types.js";
 
 export interface AggregateMetrics {
   wall_time_ms: number;
@@ -11,7 +12,7 @@ export interface AggregateMetrics {
   cache_read_tokens: number | null;
   cache_write_tokens: number | null;
   subject_cost_usd: number | null;
-  cost_source: "provider-reported" | "subscription" | "unreported" | null;
+  cost_source: CostSource | null;
   tool_calls: number | null;
   delegated_children: number | null;
   max_concurrency: number | null;

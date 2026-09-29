@@ -23,6 +23,16 @@ describe("versioned public schemas", () => {
     const v2 = { schema: 2, skill: "x", harness: "pi", model: "p:m", judge: { provider: "p", model: "j" }, timestamp: "t", label: null, mode: "red", effective_grade: { passed: 0, total: 0, pct: 0, letter: "-", ship: false, note: "" }, scenarios: [] };
     const validateV2 = ajv.compile(v2Schema);
     expect(validateV2(v2)).toBe(true);
+    const withUsage = {
+      ...v2,
+      scenarios: [{
+        id: "A1", judge_verdict: "PASS", judge_reason: "ok", suspect: false, override: null, note: "",
+        usage: [{ repetition: 0, inputTokens: 10, outputTokens: 2, cacheReadTokens: null, costUsd: 0.0001, priceAsOf: "2026-09-29" }],
+      }],
+    };
+    expect(validateV2(withUsage), JSON.stringify(validateV2.errors)).toBe(true);
+    const zeroUsage = structuredClone(withUsage); zeroUsage.scenarios[0].usage[0].inputTokens = 0;
+    expect(validateV2(zeroUsage)).toBe(false);
     const h = "a".repeat(64);
     const historicalTrajectory = { ...v2, scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "ok", suspect: false, override: null, note: "", objective: { status: "PASS", trajectory_version: "1.0", events_sha256: h, rep_events_sha256: [h], assertions: [] } }] };
     expect(validateV2(historicalTrajectory), JSON.stringify(validateV2.errors)).toBe(true);

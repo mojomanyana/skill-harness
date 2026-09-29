@@ -1,0 +1,43 @@
+{
+  "asOf": "2026-09-29",
+  "currency": "USD",
+  "unit": "per_million_tokens",
+  "models": {
+    "accounts/fireworks/models/deepseek-v4-flash-0731": {
+      "input": 0.14,
+      "cachedInput": 0.028,
+      "output": 0.28,
+      "source": "https://fireworks.ai/models/deepseek-ai/deepseek-v4-flash-0731"
+    },
+    "accounts/fireworks/models/deepseek-v4-pro": {
+      "input": 1.32,
+      "cachedInput": 0.044,
+      "output": 3.96,
+      "source": "https://fireworks.ai/models/deepseek-ai/deepseek-v4-pro-0813"
+    },
+    "accounts/fireworks/models/deepseek-v4-pro-0813": {
+      "input": 1.32,
+      "cachedInput": 0.044,
+      "output": 3.96,
+      "source": "https://fireworks.ai/models/deepseek-ai/deepseek-v4-pro-0813"
+    },
+    "accounts/fireworks/models/glm-5p2": {
+      "input": 1.4,
+      "cachedInput": 0.14,
+      "output": 4.4,
+      "source": "https://fireworks.ai/models/fireworks/glm-5p2"
+    },
+    "accounts/fireworks/models/glm-5p3-flash": {
+      "input": 0.15,
+      "cachedInput": 0.03,
+      "output": 0.5,
+      "source": "https://fireworks.ai/models/fireworks/glm-5p3-flash"
+    },
+    "accounts/fireworks/models/kimi-k3": {
+      "input": 3.0,
+      "cachedInput": 0.3,
+      "output": 15.0,
+      "source": "https://fireworks.ai/models/fireworks/kimi-k3"
+    }
+  }
+}

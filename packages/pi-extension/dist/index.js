@@ -4674,7 +4674,7 @@ function diffPath(runDir, scenarioId, mode, rep) {
   return join4(runDir, `${base}.diff.txt`);
 }
 function rebuildScenarioResult(fresh, prior, policy) {
-  const { id, criterion_count: freshCriterionCount, judge_verdict, judge_reason, suspect, override: _freshOverride, note: _freshNote, reps: reps2, passes, clean, flakiness, pass_threshold, metrics: freshMetrics, objective: freshObjective, adjudication: freshAdjudication, rep_judgments: freshRepJudgments, ...rest } = fresh;
+  const { id, criterion_count: freshCriterionCount, judge_verdict, judge_reason, suspect, override: _freshOverride, note: _freshNote, reps: reps2, passes, clean, flakiness, pass_threshold, metrics: freshMetrics, usage: freshUsage, objective: freshObjective, adjudication: freshAdjudication, rep_judgments: freshRepJudgments, ...rest } = fresh;
   const _exhaustive = rest;
   void _exhaustive;
   void _freshOverride;
@@ -4704,6 +4704,7 @@ function rebuildScenarioResult(fresh, prior, policy) {
     ...flakiness === void 0 ? {} : { flakiness },
     ...pass_threshold === void 0 ? {} : { pass_threshold },
     ...freshMetrics ?? prior?.metrics ? { metrics: freshMetrics ?? prior.metrics } : {},
+    ...freshUsage ?? prior?.usage ? { usage: freshUsage ?? prior.usage } : {},
     // The author owns the verdict; a re-measurement never discards their call.
     override: prior?.override ?? null,
     note: prior?.note ?? "",
@@ -5506,12 +5507,10 @@ function parseTrace(lines, meta) {
   let sawTerminal = false;
   let finalText = "";
   let lastAssistantText = "";
-  let cost = null;
-  let inputTokens = 0;
-  let outputTokens = 0;
-  let cacheReadTokens = 0;
-  let cacheWriteTokens = 0;
-  let sawUsage = false;
+  let inputTokens = null;
+  let outputTokens = null;
+  let cacheReadTokens = null;
+  let cacheWriteTokens = null;
   let activeCalls = 0;
   let maxConcurrency = 0;
   for (const line of lines) {
@@ -5591,19 +5590,10 @@ function parseTrace(lines, meta) {
         if (msg.stopReason === "stop")
           finalText = text;
       }
-      if (msg.usage && (typeof msg.usage.input === "number" || typeof msg.usage.output === "number" || typeof msg.usage.cacheRead === "number" || typeof msg.usage.cacheWrite === "number" || typeof msg.usage.cost?.total === "number"))
-        sawUsage = true;
-      const total = msg.usage?.cost?.total;
-      if (typeof total === "number")
-        cost = (cost ?? 0) + total;
-      if (typeof msg.usage?.input === "number")
-        inputTokens += msg.usage.input;
-      if (typeof msg.usage?.output === "number")
-        outputTokens += msg.usage.output;
-      if (typeof msg.usage?.cacheRead === "number")
-        cacheReadTokens += msg.usage.cacheRead;
-      if (typeof msg.usage?.cacheWrite === "number")
-        cacheWriteTokens += msg.usage.cacheWrite;
+      inputTokens = addReported(inputTokens, msg.usage?.input);
+      outputTokens = addReported(outputTokens, msg.usage?.output);
+      cacheReadTokens = addReported(cacheReadTokens, msg.usage?.cacheRead);
+      cacheWriteTokens = addReported(cacheWriteTokens, msg.usage?.cacheWrite);
       continue;
     }
     if (type2 === "turn_end" || type2 === "agent_end" || type2 === "agent_settled") {
@@ -5612,15 +5602,14 @@ function parseTrace(lines, meta) {
     }
   }
   const toolCalls = [...calls.values()].sort((a, b) => a.issueIndex - b.issueIndex);
-  const subscription = meta.subject.provider === "openai-codex" || meta.subject.provider === "claude-code";
-  const costSource = subscription ? "subscription" : cost !== null ? "provider-reported" : "unreported";
   const metrics = {
     input_tokens: inputTokens,
     output_tokens: outputTokens,
     cache_read_tokens: cacheReadTokens,
     cache_write_tokens: cacheWriteTokens,
-    cost_usd: cost ?? 0,
-    cost_source: costSource,
+    cost_usd: null,
+    cost_source: "unreported",
+    price_as_of: null,
     tool_calls: toolCalls.length,
     delegated_children: toolCalls.filter((call) => call.name === "Agent").reduce((count, call) => count + normalizeSubagentCall(call.args).length, 0),
     max_concurrency: maxConcurrency
@@ -5646,14 +5635,16 @@ function parseTrace(lines, meta) {
     // overwrites this after observing the workspace. Defaulting to `[]` claimed
     // "observed, nothing changed" for every trace ever parsed.
     changed_paths: meta.changedPaths ? [...meta.changedPaths].sort() : null,
-    cost_usd: cost,
-    // Tool calls remain in the trace for objective gates. Aggregate usage/cost/
-    // tool metrics are published only when pi actually reported usage; otherwise
-    // zero would mean "free" instead of "unavailable".
-    ...sawUsage ? { metrics } : {}
+    cost_usd: null,
+    // Tool metrics are observed directly. Token and cost fields stay null when
+    // Pi does not report them; zero would falsely mean "free".
+    metrics
   };
   trace.trace_sha256 = traceSha256(trace);
   return { trace, isComplete: sawTerminal, malformedLines };
+}
+function addReported(current, value) {
+  return typeof value === "number" && value > 0 ? (current ?? 0) + value : current;
 }
 function assistantText(msg) {
   return (msg.content ?? []).filter((b) => b.type === "text" && typeof b.text === "string").map((b) => b.text).join("\n").trim();
@@ -5697,6 +5688,9 @@ function serializeTrace(trace) {
   return `${JSON.stringify(trace)}
 `;
 }
+function sumNullable(left, right) {
+  return left === null ? right : right === null ? left : left + right;
+}
 function mergeTraces(traces) {
   if (traces.length === 0)
     return null;
@@ -5724,22 +5718,24 @@ function mergeTraces(traces) {
   }
   const completeMetrics = traces.every((trace) => trace.metrics !== void 0);
   const metrics = completeMetrics ? traces.reduce((sum, trace) => ({
-    input_tokens: sum.input_tokens + trace.metrics.input_tokens,
-    output_tokens: sum.output_tokens + trace.metrics.output_tokens,
-    cache_read_tokens: sum.cache_read_tokens + trace.metrics.cache_read_tokens,
-    cache_write_tokens: sum.cache_write_tokens + trace.metrics.cache_write_tokens,
-    cost_usd: sum.cost_usd + trace.metrics.cost_usd,
+    input_tokens: sumNullable(sum.input_tokens, trace.metrics.input_tokens),
+    output_tokens: sumNullable(sum.output_tokens, trace.metrics.output_tokens),
+    cache_read_tokens: sumNullable(sum.cache_read_tokens, trace.metrics.cache_read_tokens),
+    cache_write_tokens: sumNullable(sum.cache_write_tokens, trace.metrics.cache_write_tokens),
+    cost_usd: sumNullable(sum.cost_usd, trace.metrics.cost_usd),
     cost_source: sum.cost_source === trace.metrics.cost_source ? sum.cost_source : "unreported",
+    price_as_of: sum.price_as_of === trace.metrics.price_as_of ? sum.price_as_of : null,
     tool_calls: sum.tool_calls + trace.metrics.tool_calls,
     delegated_children: sum.delegated_children + trace.metrics.delegated_children,
     max_concurrency: Math.max(sum.max_concurrency, trace.metrics.max_concurrency)
   }), {
-    input_tokens: 0,
-    output_tokens: 0,
-    cache_read_tokens: 0,
-    cache_write_tokens: 0,
-    cost_usd: 0,
+    input_tokens: null,
+    output_tokens: null,
+    cache_read_tokens: null,
+    cache_write_tokens: null,
+    cost_usd: null,
     cost_source: traces[0].metrics.cost_source,
+    price_as_of: traces[0].metrics.price_as_of,
     tool_calls: 0,
     delegated_children: 0,
     max_concurrency: 0
@@ -5821,11 +5817,26 @@ function outcomesToResult(id, outcomes, repCount, threshold) {
   const objectiveField = objective ? { objective } : {};
   const metrics = aggregateMetrics(outcomes);
   const metricsField = metrics ? { metrics } : {};
+  const usage = outcomes.flatMap((outcome, repetition) => {
+    const subject = outcome.metrics?.subject;
+    if (!subject)
+      return [];
+    const reported = (value) => value !== null && value > 0 ? value : null;
+    return [{
+      repetition,
+      inputTokens: reported(subject.input_tokens),
+      outputTokens: reported(subject.output_tokens),
+      cacheReadTokens: reported(subject.cache_read_tokens),
+      costUsd: reported(subject.cost_usd),
+      priceAsOf: subject.price_as_of
+    }];
+  });
+  const usageField = usage.length ? { usage } : {};
   const repJudgments = outcomes.map((outcome, repetition) => ({ repetition, judgments: outcome.judgment ? [outcome.judgment] : [], recorded_verdict: outcome.verdict, ...outcome.objective ? { objective: outcome.objective } : {} }));
   const repJudgmentField = outcomes.some((outcome) => outcome.judgment) ? { rep_judgments: repJudgments } : {};
   if (repCount === 1) {
     const o = outcomes[0];
-    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, ...metricsField, override: null, note: "", ...objectiveField, ...repJudgmentField };
+    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, ...metricsField, ...usageField, override: null, note: "", ...objectiveField, ...repJudgmentField };
   }
   const agg = aggregateReps(outcomes, threshold);
   return {
@@ -5839,6 +5850,7 @@ function outcomesToResult(id, outcomes, repCount, threshold) {
     flakiness: agg.flakiness,
     pass_threshold: threshold,
     ...metricsField,
+    ...usageField,
     override: null,
     note: "",
     ...objectiveField,
@@ -5850,22 +5862,32 @@ function aggregateMetrics(outcomes) {
   if (present.length === 0)
     return void 0;
   const subjects = present.map((metrics) => metrics.subject).filter((metrics) => metrics !== void 0);
+  const reportedSubjects = subjects.filter((metrics) => metrics.input_tokens !== null || metrics.output_tokens !== null || metrics.cache_read_tokens !== null);
   const base = {
     wall_time_ms: present.reduce((sum, metrics) => sum + metrics.wall_time_ms, 0),
     judge_calls: present.reduce((sum, metrics) => sum + metrics.judge_calls, 0),
     judge_rejudge_calls: present.reduce((sum, metrics) => sum + metrics.judge_rejudge_calls, 0),
-    subject_metrics_reps: subjects.length,
+    subject_metrics_reps: reportedSubjects.length,
     total_reps: outcomes.length
   };
   if (subjects.length === 0)
     return base;
+  const sumReported = (field) => {
+    const values = subjects.map((metrics) => metrics[field]).filter((value) => value !== null && value > 0);
+    return values.length ? values.reduce((sum, value) => sum + value, 0) : void 0;
+  };
+  const inputTokens = sumReported("input_tokens");
+  const outputTokens = sumReported("output_tokens");
+  const cacheReadTokens = sumReported("cache_read_tokens");
+  const cacheWriteTokens = sumReported("cache_write_tokens");
+  const subjectCost = sumReported("cost_usd");
   return {
     ...base,
-    input_tokens: subjects.reduce((sum, metrics) => sum + metrics.input_tokens, 0),
-    output_tokens: subjects.reduce((sum, metrics) => sum + metrics.output_tokens, 0),
-    cache_read_tokens: subjects.reduce((sum, metrics) => sum + metrics.cache_read_tokens, 0),
-    cache_write_tokens: subjects.reduce((sum, metrics) => sum + metrics.cache_write_tokens, 0),
-    subject_cost_usd: subjects.reduce((sum, metrics) => sum + metrics.cost_usd, 0),
+    ...inputTokens === void 0 ? {} : { input_tokens: inputTokens },
+    ...outputTokens === void 0 ? {} : { output_tokens: outputTokens },
+    ...cacheReadTokens === void 0 ? {} : { cache_read_tokens: cacheReadTokens },
+    ...cacheWriteTokens === void 0 ? {} : { cache_write_tokens: cacheWriteTokens },
+    ...subjectCost === void 0 ? {} : { subject_cost_usd: subjectCost },
     cost_source: subjects.every((metrics) => metrics.cost_source === subjects[0].cost_source) ? subjects[0].cost_source : "unreported",
     tool_calls: subjects.reduce((sum, metrics) => sum + metrics.tool_calls, 0),
     delegated_children: subjects.reduce((sum, metrics) => sum + metrics.delegated_children, 0),
@@ -6639,7 +6661,7 @@ async function runRep(scenario, rep, repCount, ctx) {
       if (needsStructuredEvidence && !ctx.adapter.runStructured) {
         throw new Error(`scenario \`${scenario.id}\` declares structured objective assertions, but the \`${ctx.adapter.name}\` adapter cannot produce execution traces \u2014 the gate would have no evidence to read.`);
       }
-      const useStructured = (Boolean(ctx.structured) || needsStructuredEvidence) && Boolean(ctx.adapter.runStructured);
+      const useStructured = (Boolean(ctx.structured) || needsStructuredEvidence || Boolean(ctx.adapter.preferStructured)) && Boolean(ctx.adapter.runStructured);
       for (let attempt = 0; attempt < 2; attempt++) {
         if (attempt > 0) {
           const why = adapterFailure ? `adapter failed (${adapterFailure})` : "empty response";
@@ -7300,6 +7322,71 @@ function runPiJson(opts) {
   });
 }
 
+// packages/adapters/dist/model-prices.json
+var model_prices_default = {
+  asOf: "2026-09-29",
+  currency: "USD",
+  unit: "per_million_tokens",
+  models: {
+    "accounts/fireworks/models/deepseek-v4-flash-0731": {
+      input: 0.14,
+      cachedInput: 0.028,
+      output: 0.28,
+      source: "https://fireworks.ai/models/deepseek-ai/deepseek-v4-flash-0731"
+    },
+    "accounts/fireworks/models/deepseek-v4-pro": {
+      input: 1.32,
+      cachedInput: 0.044,
+      output: 3.96,
+      source: "https://fireworks.ai/models/deepseek-ai/deepseek-v4-pro-0813"
+    },
+    "accounts/fireworks/models/deepseek-v4-pro-0813": {
+      input: 1.32,
+      cachedInput: 0.044,
+      output: 3.96,
+      source: "https://fireworks.ai/models/deepseek-ai/deepseek-v4-pro-0813"
+    },
+    "accounts/fireworks/models/glm-5p2": {
+      input: 1.4,
+      cachedInput: 0.14,
+      output: 4.4,
+      source: "https://fireworks.ai/models/fireworks/glm-5p2"
+    },
+    "accounts/fireworks/models/glm-5p3-flash": {
+      input: 0.15,
+      cachedInput: 0.03,
+      output: 0.5,
+      source: "https://fireworks.ai/models/fireworks/glm-5p3-flash"
+    },
+    "accounts/fireworks/models/kimi-k3": {
+      input: 3,
+      cachedInput: 0.3,
+      output: 15,
+      source: "https://fireworks.ai/models/fireworks/kimi-k3"
+    }
+  }
+};
+
+// packages/adapters/dist/model-pricing.js
+var prices = model_prices_default.models;
+var MILLION = 1e6;
+function priceSubjectUsage(trace) {
+  if (!trace.metrics)
+    return trace;
+  const price = prices[trace.subject.model];
+  const { input_tokens, output_tokens, cache_read_tokens } = trace.metrics;
+  const hasUsage = input_tokens !== null || output_tokens !== null || cache_read_tokens !== null;
+  const cost = price && hasUsage ? ((input_tokens ?? 0) * price.input + (cache_read_tokens ?? 0) * price.cachedInput + (output_tokens ?? 0) * price.output) / MILLION : null;
+  const metrics = {
+    ...trace.metrics,
+    cost_usd: cost !== null && cost > 0 ? cost : null,
+    cost_source: cost !== null && cost > 0 ? "price-table" : "unreported",
+    price_as_of: model_prices_default.asOf
+  };
+  const priced = { ...trace, cost_usd: metrics.cost_usd, metrics };
+  return { ...priced, trace_sha256: traceSha256(priced) };
+}
+
 // packages/adapters/dist/pi.js
 var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
 var PROVIDER_STDERR_SIGNATURES = [
@@ -7352,6 +7439,7 @@ ${text}
 }
 var piAdapter = {
   name: "pi",
+  preferStructured: true,
   available() {
     return Promise.resolve(onPath("pi"));
   },
@@ -7486,10 +7574,11 @@ ${r.stderr.trim()}
       }
       if (providerFailure === null && r.providerFailure)
         providerFailure = r.providerFailure;
-      traces.push(r.trace);
+      const pricedTrace = priceSubjectUsage(r.trace);
+      traces.push(pricedTrace);
       parts.push(header(i + 1, total, req.turns[i]));
       parts.push(`<<< ASSISTANT:
-${r.trace.final_text.trim()}
+${pricedTrace.final_text.trim()}
 `);
       if (r.code !== 0)
         parts.push(`[pi exited ${r.code} on turn ${i + 1}]

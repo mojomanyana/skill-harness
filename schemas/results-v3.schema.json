@@ -141,6 +141,19 @@
         }
       }
     },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repetition", "inputTokens", "outputTokens", "cacheReadTokens", "costUsd", "priceAsOf"],
+      "properties": {
+        "repetition": { "type": "integer", "minimum": 0 },
+        "inputTokens": { "type": ["integer", "null"], "minimum": 1 },
+        "outputTokens": { "type": ["integer", "null"], "minimum": 1 },
+        "cacheReadTokens": { "type": ["integer", "null"], "minimum": 1 },
+        "costUsd": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+        "priceAsOf": { "type": ["string", "null"] }
+      }
+    },
     "metrics": {
       "type": "object",
       "required": [
@@ -195,6 +208,7 @@
           "enum": [
             "provider-reported",
             "subscription",
+            "price-table",
             "unreported"
           ]
         },
@@ -333,6 +347,10 @@
         },
         "metrics": {
           "$ref": "#/$defs/metrics"
+        },
+        "usage": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/usage" }
         },
         "objective": {
           "type": "object",
