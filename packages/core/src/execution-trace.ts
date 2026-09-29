@@ -87,12 +87,10 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
 
   let finalText = "";
   let lastAssistantText = "";
-  let cost: number | null = null;
-  let inputTokens = 0;
-  let outputTokens = 0;
-  let cacheReadTokens = 0;
-  let cacheWriteTokens = 0;
-  let sawUsage = false;
+  let inputTokens: number | null = null;
+  let outputTokens: number | null = null;
+  let cacheReadTokens: number | null = null;
+  let cacheWriteTokens: number | null = null;
   let activeCalls = 0;
   let maxConcurrency = 0;
 
@@ -166,17 +164,10 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
         // mid-flight narration and is deliberately not the transcript.
         if (msg.stopReason === "stop") finalText = text;
       }
-      if (msg.usage && (
-        typeof msg.usage.input === "number" || typeof msg.usage.output === "number" ||
-        typeof msg.usage.cacheRead === "number" || typeof msg.usage.cacheWrite === "number" ||
-        typeof msg.usage.cost?.total === "number"
-      )) sawUsage = true;
-      const total = msg.usage?.cost?.total;
-      if (typeof total === "number") cost = (cost ?? 0) + total;
-      if (typeof msg.usage?.input === "number") inputTokens += msg.usage.input;
-      if (typeof msg.usage?.output === "number") outputTokens += msg.usage.output;
-      if (typeof msg.usage?.cacheRead === "number") cacheReadTokens += msg.usage.cacheRead;
-      if (typeof msg.usage?.cacheWrite === "number") cacheWriteTokens += msg.usage.cacheWrite;
+      inputTokens = addReported(inputTokens, msg.usage?.input);
+      outputTokens = addReported(outputTokens, msg.usage?.output);
+      cacheReadTokens = addReported(cacheReadTokens, msg.usage?.cacheRead);
+      cacheWriteTokens = addReported(cacheWriteTokens, msg.usage?.cacheWrite);
       continue;
     }
 
@@ -191,19 +182,14 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
   }
 
   const toolCalls = [...calls.values()].sort((a, b) => a.issueIndex - b.issueIndex);
-  const subscription = meta.subject.provider === "openai-codex" || meta.subject.provider === "claude-code";
-  const costSource: TraceMetrics["cost_source"] = subscription
-    ? "subscription"
-    : cost !== null
-      ? "provider-reported"
-      : "unreported";
   const metrics: TraceMetrics = {
     input_tokens: inputTokens,
     output_tokens: outputTokens,
     cache_read_tokens: cacheReadTokens,
     cache_write_tokens: cacheWriteTokens,
-    cost_usd: cost ?? 0,
-    cost_source: costSource,
+    cost_usd: null,
+    cost_source: "unreported",
+    price_as_of: null,
     tool_calls: toolCalls.length,
     delegated_children: toolCalls
       .filter((call) => call.name === "Agent")
@@ -231,15 +217,18 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
     // overwrites this after observing the workspace. Defaulting to `[]` claimed
     // "observed, nothing changed" for every trace ever parsed.
     changed_paths: meta.changedPaths ? [...meta.changedPaths].sort() : null,
-    cost_usd: cost,
-    // Tool calls remain in the trace for objective gates. Aggregate usage/cost/
-    // tool metrics are published only when pi actually reported usage; otherwise
-    // zero would mean "free" instead of "unavailable".
-    ...(sawUsage ? { metrics } : {}),
+    cost_usd: null,
+    // Tool metrics are observed directly. Token and cost fields stay null when
+    // Pi does not report them; zero would falsely mean "free".
+    metrics,
   };
   trace.trace_sha256 = traceSha256(trace);
 
   return { trace, isComplete: sawTerminal, malformedLines };
+}
+
+function addReported(current: number | null, value: number | undefined): number | null {
+  return typeof value === "number" && value > 0 ? (current ?? 0) + value : current;
 }
 
 /** Visible assistant text. Thinking is dropped here, and at every other reader. */
@@ -347,6 +336,10 @@ export function deserializeTrace(text: string): ExecutionTraceV1 | null {
  * Returns null for an empty list — "no turns produced evidence" must not look
  * like "a run in which nothing happened".
  */
+function sumNullable(left: number | null, right: number | null): number | null {
+  return left === null ? right : right === null ? left : left + right;
+}
+
 export function mergeTraces(traces: ExecutionTraceV1[]): ExecutionTraceV1 | null {
   if (traces.length === 0) return null;
   if (traces.length === 1) {
@@ -389,18 +382,20 @@ export function mergeTraces(traces: ExecutionTraceV1[]): ExecutionTraceV1 | null
   const completeMetrics = traces.every((trace) => trace.metrics !== undefined);
   const metrics = completeMetrics
     ? traces.reduce<TraceMetrics>((sum, trace) => ({
-        input_tokens: sum.input_tokens + trace.metrics!.input_tokens,
-        output_tokens: sum.output_tokens + trace.metrics!.output_tokens,
-        cache_read_tokens: sum.cache_read_tokens + trace.metrics!.cache_read_tokens,
-        cache_write_tokens: sum.cache_write_tokens + trace.metrics!.cache_write_tokens,
-        cost_usd: sum.cost_usd + trace.metrics!.cost_usd,
+        input_tokens: sumNullable(sum.input_tokens, trace.metrics!.input_tokens),
+        output_tokens: sumNullable(sum.output_tokens, trace.metrics!.output_tokens),
+        cache_read_tokens: sumNullable(sum.cache_read_tokens, trace.metrics!.cache_read_tokens),
+        cache_write_tokens: sumNullable(sum.cache_write_tokens, trace.metrics!.cache_write_tokens),
+        cost_usd: sumNullable(sum.cost_usd, trace.metrics!.cost_usd),
         cost_source: sum.cost_source === trace.metrics!.cost_source ? sum.cost_source : "unreported",
+        price_as_of: sum.price_as_of === trace.metrics!.price_as_of ? sum.price_as_of : null,
         tool_calls: sum.tool_calls + trace.metrics!.tool_calls,
         delegated_children: sum.delegated_children + trace.metrics!.delegated_children,
         max_concurrency: Math.max(sum.max_concurrency, trace.metrics!.max_concurrency),
       }), {
-        input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0,
-        cost_usd: 0, cost_source: traces[0].metrics!.cost_source, tool_calls: 0, delegated_children: 0, max_concurrency: 0,
+        input_tokens: null, output_tokens: null, cache_read_tokens: null, cache_write_tokens: null,
+        cost_usd: null, cost_source: traces[0].metrics!.cost_source, price_as_of: traces[0].metrics!.price_as_of,
+        tool_calls: 0, delegated_children: 0, max_concurrency: 0,
       })
     : undefined;
   const last = traces[traces.length - 1];

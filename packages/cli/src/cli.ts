@@ -734,7 +734,7 @@ export function help(): string {
   run    <skill|all> --skills <root> [--model prov:model ...] [--models file] [--only A1,D2]
                      [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
                      [--canary]  green only: spend ONE probe proving the skill reached the model, and abort the run if it did not
-                     [--structured]  record subject tokens, cost and wall time (needs pi --mode json)
+                     [--structured]  request structured capture (Pi uses it by default for subject usage)
                      [--arm <name>]  measure under a named arm from <skills-root>/tests/arms.yaml
                                      (loads its extensions, seeds pi-daddy definitions, tags the run dir)
   grade  <run-dir>   [--judge prov:model] [--suspect-only]   re-grade saved transcripts (neutral judge)

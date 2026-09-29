@@ -217,10 +217,10 @@ skill-harness list   --skills <root>                          # discovered skill
 skill-harness lint   <skill|all> --skills <root>               # validate specs/fixtures + results-consistency; CI gate (exits non-zero on findings)
 ```
 
-Structured runs record `metrics.cost_source`. Subscription providers
-(`openai-codex`, `claude-code`) are labeled `subscription`; a non-subscription provider
-that reports positive subject tokens with zero cost is warned about rather than silently
-presented as free.
+Pi runs use structured capture by default and record nullable per-repetition `usage` plus
+aggregate `metrics`. Subject cost is calculated from the dated model prices in
+`packages/adapters/src/model-prices.json`; an unreported token counter or an unpriced model
+stays `null`, never a fabricated zero.
 
 **Defaults:** subject model `fireworks:accounts/fireworks/models/deepseek-v4-pro` ·
 judge `claude-code:claude-opus-4-8` · mode `green` · harness `pi`.

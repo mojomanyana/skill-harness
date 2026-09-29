@@ -72,6 +72,8 @@ const ADJUDICATION: AdjudicationResult = {
  * record indistinguishable from a vacuous one — and re-grading is exactly what
  * you do to a run you care about.
  */
+const USAGE = [{ repetition: 0, inputTokens: 10, outputTokens: 2, cacheReadTokens: null, costUsd: 0.0001, priceAsOf: "2026-09-29" }];
+
 const ARM = {
   name: "pi-daddy",
   extensions: ["/opt/pi-daddy/ext/grants.ts"],
@@ -123,7 +125,7 @@ beforeEach(() => {
     arm: ARM,
     scenarios: [{
       id: "A1", criterion_count: 1, judge_verdict: "PASS", judge_reason: "ok", suspect: true,
-      override: "PASS", note: "author says fine",
+      override: "PASS", note: "author says fine", usage: USAGE,
       objective: OBJECTIVE, adjudication: ADJUDICATION,
       rep_judgments: [{ repetition: 0, recorded_verdict: "PASS", objective: OBJECTIVE, judgments: [{ ordinal: 1, judge: { provider: "claude-code", model: "j1" }, verdict: "PASS", reason: "ok", suspect: false, criteria: [{ index: 1, verdict: "PASS", reason: "ok" }] }] }],
     }],
@@ -137,6 +139,7 @@ describe("writeResults / readResults", () => {
     const c = cell();
     expect(c.objective).toEqual(OBJECTIVE);
     expect(c.adjudication).toEqual(ADJUDICATION);
+    expect(c.usage).toEqual(USAGE);
   });
 
   it("round-trips the arm record, env included", () => {
@@ -152,10 +155,11 @@ describe("grade (regradeRun)", () => {
     expect(cell().objective).toEqual(OBJECTIVE);
   });
 
-  it("preserves the author's override and note", async () => {
+  it("preserves the author's override, note, and subject usage", async () => {
     await regradeRun({ runDir, spec: loadSpec(specPath), adapter: judge, judge: { provider: "claude-code", model: "j1" }, specDir: join(skillDir, "tests") });
     expect(cell().override).toBe("PASS");
     expect(cell().note).toBe("author says fine");
+    expect(cell().usage).toEqual(USAGE);
   });
 
   it("drops `adjudication` deliberately — it described the judgments just replaced", async () => {
@@ -191,6 +195,7 @@ describe("regate (regateRun)", () => {
     await regateRun({ runDir, spec: loadSpec(specPath), adapter: judge, judge: { provider: "claude-code", model: "j1" }, specDir: join(skillDir, "tests") });
     expect(cell().override).toBe("PASS");
     expect(cell().note).toBe("author says fine");
+    expect(cell().usage).toEqual(USAGE);
   });
 
   it("carries the arm record forward", async () => {
@@ -205,6 +210,7 @@ describe("rescore (rescoreRun)", () => {
     rescoreRun({ runDir, spec: loadSpec(specPath) });
     expect(cell().objective).toEqual(OBJECTIVE);
     expect(cell().adjudication).toEqual(ADJUDICATION);
+    expect(cell().usage).toEqual(USAGE);
   });
 
   it("carries the arm record forward", () => {
@@ -244,7 +250,7 @@ describe("rebuildScenarioResult", () => {
   });
   const prior = (): ScenarioResult => ({
     id: "A1", judge_verdict: "PASS", judge_reason: "old", suspect: true,
-    override: "PASS", note: "author note",
+    override: "PASS", note: "author note", usage: USAGE,
     objective: OBJECTIVE, adjudication: ADJUDICATION,
   });
 
@@ -351,7 +357,7 @@ describe("rebuildScenarioResult", () => {
     // assertion names it.
     const known = new Set([
       "id", "criterion_count", "judge_verdict", "judge_reason", "suspect", "override", "note",
-      "reps", "passes", "clean", "flakiness", "pass_threshold",
+      "reps", "passes", "clean", "flakiness", "pass_threshold", "usage",
       "objective", "adjudication",
     ]);
     const r = rebuildScenarioResult(fresh(), prior(), { objective: "carry", adjudication: "carry" });

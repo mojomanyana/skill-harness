@@ -372,7 +372,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
             ` cannot produce execution traces — the gate would have no evidence to read.`,
         );
       }
-      const useStructured = (Boolean(ctx.structured) || needsStructuredEvidence) && Boolean(ctx.adapter.runStructured);
+      const useStructured = (Boolean(ctx.structured) || needsStructuredEvidence || Boolean(ctx.adapter.preferStructured)) && Boolean(ctx.adapter.runStructured);
 
       // A blank assistant turn is a harness timeout, not model behavior: retry ONCE in a
       // fresh workspace (the first attempt may have half-mutated a seeded repo), and if
@@ -672,7 +672,9 @@ export function formatScorecard(summary: RunSummary, lift?: Lift, stability?: Sc
           ? " · WARNING: subject tokens were used but the provider reported $0 cost"
           : metrics.subject_cost_usd === null
             ? " · subject cost unavailable"
-            : ` · $${metrics.subject_cost_usd.toFixed(6)} provider-reported`;
+            : metrics.cost_source === "price-table"
+              ? ` · $${metrics.subject_cost_usd.toFixed(6)} price table`
+              : ` · $${metrics.subject_cost_usd.toFixed(6)} provider-reported`;
     lines.push(`  COST:   ${tokens} (${metrics.subject_metrics_reps}/${metrics.total_reps} reps reported)${cost} · ${metrics.judge_calls} judge + ${metrics.judge_rejudge_calls} re-judge call(s) · ${metrics.wall_time_ms}ms · ${tools}`);
   }
   // Lift is a statement about a skill-delivered run (green or force). On a red run

@@ -103,7 +103,7 @@ describe("outcomesToResult", () => {
       ...pass(),
       metrics: {
         wall_time_ms: 120, judge_calls: 1, judge_rejudge_calls: 0,
-        subject: { input_tokens: 10, output_tokens: 2, cache_read_tokens: 3, cache_write_tokens: 0, cost_usd: 0.01, tool_calls: 2, delegated_children: 1, max_concurrency: 2 },
+        subject: { input_tokens: 10, output_tokens: 2, cache_read_tokens: 3, cache_write_tokens: null, cost_usd: 0.01, cost_source: "price-table", price_as_of: "2026-09-29", tool_calls: 2, delegated_children: 1, max_concurrency: 2 },
       },
     };
     const second: RepOutcome = {
@@ -120,12 +120,32 @@ describe("outcomesToResult", () => {
       input_tokens: 10,
       output_tokens: 2,
       cache_read_tokens: 3,
-      cache_write_tokens: 0,
       subject_cost_usd: 0.01,
+      cost_source: "price-table",
       tool_calls: 2,
       delegated_children: 1,
       max_concurrency: 2,
     });
+    expect(result.usage).toEqual([{
+      repetition: 0,
+      inputTokens: 10,
+      outputTokens: 2,
+      cacheReadTokens: 3,
+      costUsd: 0.01,
+      priceAsOf: "2026-09-29",
+    }]);
+  });
+
+  test("does not count an all-null usage block as a provider-reported rep", () => {
+    const result = outcomesToResult("A1", [{
+      ...pass(),
+      metrics: {
+        wall_time_ms: 10, judge_calls: 1, judge_rejudge_calls: 0,
+        subject: { input_tokens: null, output_tokens: null, cache_read_tokens: null, cache_write_tokens: null, cost_usd: null, cost_source: "unreported", price_as_of: "2026-09-29", tool_calls: 0, delegated_children: 0, max_concurrency: 0 },
+      },
+    }], 1, 0.5);
+    expect(result.metrics?.subject_metrics_reps).toBe(0);
+    expect(result.usage?.[0]).toMatchObject({ inputTokens: null, outputTokens: null, cacheReadTokens: null, costUsd: null });
   });
 
   test("multi rep → reps/passes/clean/flakiness + persisted pass_threshold", () => {

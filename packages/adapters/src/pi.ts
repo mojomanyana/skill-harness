@@ -3,6 +3,7 @@ import { tmpdir, homedir } from "node:os";
 import { join, resolve } from "node:path";
 import type { HarnessAdapter, RunReq, JudgeReq, RunMode, StructuredRun, ExecutionTraceV1 } from "@skill-harness/core";
 import { runPiJson } from "./pi-json.js";
+import { priceSubjectUsage } from "./model-pricing.js";
 import { exec, onPath, envNum, traceSha256, withProviderFailure } from "@skill-harness/core";
 
 const PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 300_000);
@@ -109,6 +110,7 @@ function header(turnNo: number, total: number, text: string): string {
 
 export const piAdapter: HarnessAdapter = {
   name: "pi",
+  preferStructured: true,
 
   available() {
     return Promise.resolve(onPath("pi"));
@@ -279,9 +281,10 @@ export const piAdapter: HarnessAdapter = {
       // exits 0 while carrying the evidence, so a field a re-judge never sees
       // leaves it unrecoverable from the saved transcript.
       if (providerFailure === null && r.providerFailure) providerFailure = r.providerFailure;
-      traces.push(r.trace);
+      const pricedTrace = priceSubjectUsage(r.trace);
+      traces.push(pricedTrace);
       parts.push(header(i + 1, total, req.turns[i]));
-      parts.push(`<<< ASSISTANT:\n${r.trace.final_text.trim()}\n`);
+      parts.push(`<<< ASSISTANT:\n${pricedTrace.final_text.trim()}\n`);
       if (r.code !== 0) parts.push(`[pi exited ${r.code} on turn ${i + 1}]\n${r.stderr.trim()}\n`);
     }
 
