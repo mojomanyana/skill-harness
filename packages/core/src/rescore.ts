@@ -126,6 +126,7 @@ export function rescoreRun(opts: RescoreOptions): RescoreResult {
     // that is what makes `rescore` the honest remedy lint names for it. Stimulus,
     // rubric and gate hashes are untouched: none of them was re-evaluated here.
     source_hashes: refreshPolicyHashes(prev.source_hashes, opts.spec),
+    source_hash_roots: prev.source_hash_roots,
     scenarios,
   }, ctx);
 

@@ -340,6 +340,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
     // Only the `gates:` keys of the scenarios actually re-evaluated. Stimulus, rubric
     // and policy were not re-decided here, so their hashes stay exactly as recorded.
     source_hashes: refreshGateHashes(prev.source_hashes, targets),
+    source_hash_roots: prev.source_hash_roots,
     scenarios,
   }, ctx);
 

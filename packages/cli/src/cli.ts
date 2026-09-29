@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync, existsSync, mkdirSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
-import { basename, dirname, join, resolve, relative } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import {
   discover, resolveSkill,
@@ -116,6 +116,22 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+function roots(args: Args): { skills: string; specs?: string } {
+  return {
+    skills: flagStr(args, "skills", process.cwd())!,
+    specs: flagStr(args, "specs", process.env.SKILL_HARNESS_SPECS) || undefined,
+  };
+}
+
+function discoverUsable(skillsRoot: string, specsRoot?: string) {
+  const skills = discover(skillsRoot, specsRoot);
+  const duplicate = skills.find((skill) => skill.specSource === "both");
+  if (duplicate) {
+    throw new Error(`skill \`${duplicate.name}\` has a specification.yaml in both --skills and --specs; remove one (specs are not merged)`);
+  }
+  return skills;
+}
+
 /** Parse the run's reps + pass-threshold flags. Throws on an invalid provided value. */
 export function parseRunTuning(args: Args): { reps: number; passThreshold: number } {
   let reps = 1;
@@ -138,24 +154,33 @@ export function parseRunTuning(args: Args): { reps: number; passThreshold: numbe
 // ---------------------------------------------------------------- commands
 
 async function cmdList(args: Args): Promise<void> {
-  const root = flagStr(args, "skills", process.cwd())!;
-  const skills = discover(root);
+  const { skills: root, specs } = roots(args);
+  const skills = discover(root, specs);
+  let duplicate = false;
   console.log(`skills under ${root}:`);
   for (const s of skills) {
+    if (s.specSource === "both") {
+      duplicate = true;
+      console.log(`  ✗ ${s.name}  INVALID: specification.yaml exists in both --skills and --specs (specs are not merged)`);
+      continue;
+    }
     if (!s.hasSpec) {
-      console.log(`  ○ ${s.name}  (no spec)`);
+      const localOnly = specs && s.specSource === "skills" ? "; spec found under --skills" : "";
+      console.log(`  ○ ${s.name}  (no spec${localOnly})`);
       continue;
     }
     try {
       const spec = loadSpec(s.specPath);
       const seeded = spec.scenarios.filter((x) => x.mode === "seeded").length;
       const seededNote = seeded ? `, ${seeded} seeded` : "";
-      console.log(`  ● ${s.name}  (${spec.scenarios.length} scenarios${seededNote})`);
+      const sourceNote = specs ? `; spec: --${s.specSource}` : "";
+      console.log(`  ● ${s.name}  (${spec.scenarios.length} scenarios${seededNote}${sourceNote})`);
     } catch (e) {
       console.log(`  ✗ ${s.name}  INVALID: ${e instanceof Error ? e.message : e}`);
     }
   }
   console.log(`\n● = testable · ○ = no spec yet · ✗ = spec present but invalid`);
+  if (duplicate) process.exitCode = 1;
 }
 
 export function releaseExitCode(
@@ -164,8 +189,8 @@ export function releaseExitCode(
   return summaries.some(({ results }) => isScoredMode(results.mode) && !results.partial && !results.effective_grade.ship) ? 1 : 0;
 }
 
-export async function cmdRun(args: Args): Promise<void> {
-  const root = flagStr(args, "skills", process.cwd())!;
+export async function cmdRun(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
+  const { skills: root, specs } = roots(args);
   const target = args._[0];
   if (!target) throw new Error("usage: skill-harness run <skill|all> --skills <root>");
 
@@ -189,7 +214,7 @@ export async function cmdRun(args: Args): Promise<void> {
   const only = onlyRaw ? onlyRaw.split(",").map((x) => x.trim()).filter(Boolean) : undefined;
 
   const harnessName = flagStr(args, "harness", "pi")!;
-  const adapter = getAdapter(harnessName);
+  const adapter = adapterOverride ?? getAdapter(harnessName);
   if (!(await adapter.available())) throw new Error(`harness \`${harnessName}\` is not on PATH`);
 
   const mode = (flagStr(args, "mode", "green") as "red" | "green" | "force") || "green";
@@ -207,8 +232,8 @@ export async function cmdRun(args: Args): Promise<void> {
 
   const skills =
     target === "all"
-      ? discover(root).filter((s) => s.hasSpec)
-      : [resolveSkill(root, target)];
+      ? discoverUsable(root, specs).filter((s) => s.hasSpec)
+      : [resolveSkill(root, target, specs)];
 
   const summaries: RunSummary[] = [];
   for (const skill of skills) {
@@ -218,7 +243,7 @@ export async function cmdRun(args: Args): Promise<void> {
     }
     // A run from an older tool than the records already here would produce numbers
     // that look comparable and are not. Checked per skill, before its first token.
-    assertNotDowngraded(skill.dir, "run");
+    assertNotDowngraded(dirname(skill.testsDir), "run");
     const spec = loadSpec(skill.specPath);
     for (const token of modelTokens) {
       const model = parseModelRef(token);
@@ -230,6 +255,8 @@ export async function cmdRun(args: Args): Promise<void> {
         spec,
         skillDir: skill.dir,
         specPath: skill.specPath,
+        testsDir: skill.testsDir,
+        recordSourceRoots: skill.specSource === "specs",
         adapter,
         model,
         modelToken: token,
@@ -251,16 +278,17 @@ export async function cmdRun(args: Args): Promise<void> {
       // Lift is derived from what's on disk, so it picks up a red baseline from
       // any earlier run — the tag dir (<harness>-<modelslug>) is the join key.
       const tag = basename(dirname(summary.runDir));
-      const lift = collectLift(skill.dir).find((l) => l.tag === tag);
+      const resultsSkillDir = dirname(skill.testsDir);
+      const lift = collectLift(resultsSkillDir).find((l) => l.tag === tag);
       // Stability is derived from history INCLUDING the run just written, and scoped to
       // this tag + mode: another model's flips under this model's scorecard would be a
       // worse error than not reporting them at all.
-      const stability = collectStability(skill.dir).filter((c) => c.tag === tag && c.mode === summary.results.mode);
+      const stability = collectStability(resultsSkillDir).filter((c) => c.tag === tag && c.mode === summary.results.mode);
       console.log("\n" + formatScorecard(summary, lift, stability) + "\n");
     }
   }
 
-  console.log(`\nReview interactively:  skill-harness review ${skills[0]?.name ?? "<skill>"} --skills ${root}`);
+  console.log(`\nReview interactively:  skill-harness review ${skills[0]?.name ?? "<skill>"} --skills ${root}${specs ? ` --specs ${specs}` : ""}`);
   // A full delivered run is a release gate. NOT READY — including one critical
   // failure hidden by a high aggregate — must be machine-visible to CI. Red
   // baselines and partial branch feedback are deliberately excluded.
@@ -408,9 +436,9 @@ export async function cmdRegate(args: Args, adapterOverride?: HarnessAdapter): P
  * inventing freshness is the one thing this gate must never do.
  */
 async function cmdRestamp(args: Args): Promise<void> {
-  const root = flagStr(args, "skills", process.cwd())!;
+  const { skills: root, specs } = roots(args);
   const target = args._[0] ?? "all";
-  const skills = target === "all" ? discover(root).filter((s) => s.hasSpec) : [resolveSkill(root, target)];
+  const skills = target === "all" ? discoverUsable(root, specs).filter((s) => s.hasSpec) : [resolveSkill(root, target, specs)];
   if (skills.length === 0) throw new Error(`no skills with a spec under ${root}`);
 
   let runs = 0;
@@ -419,7 +447,7 @@ async function cmdRestamp(args: Args): Promise<void> {
   let unchanged = 0;
   let partial = 0;
   for (const skill of skills) {
-    const r = restampSkill(skill.dir, { from: flagStr(args, "from") });
+    const r = restampSkill(skill.dir, { from: flagStr(args, "from"), testsDir: skill.testsDir });
     runs += r.runs;
     upgraded += r.upgraded;
     unprovable += r.unprovable;
@@ -443,7 +471,7 @@ async function cmdRestamp(args: Args): Promise<void> {
 }
 
 async function cmdStability(args: Args): Promise<void> {
-  const root = flagStr(args, "skills", process.cwd())!;
+  const { skills: root, specs } = roots(args);
   const target = args._[0] ?? "all";
   const windowRaw = flagStr(args, "window");
   const window = windowRaw ? Number(windowRaw) : undefined;
@@ -452,12 +480,12 @@ async function cmdStability(args: Args): Promise<void> {
   }
   const showAll = flagBool(args, "all");
 
-  const skills = target === "all" ? discover(root).filter((s) => s.hasSpec) : [resolveSkill(root, target)];
+  const skills = target === "all" ? discoverUsable(root, specs).filter((s) => s.hasSpec) : [resolveSkill(root, target, specs)];
   if (skills.length === 0) throw new Error(`no skills with a spec under ${root}`);
 
   let boundaries = 0;
   for (const skill of skills) {
-    const all = collectStability(skill.dir, { window });
+    const all = collectStability(dirname(skill.testsDir), { window });
     if (all.length === 0) {
       console.log(`\n${skill.name}: no scored runs yet — stability needs at least two runs of the same skill × model × mode`);
       continue;
@@ -497,19 +525,19 @@ async function cmdStability(args: Args): Promise<void> {
 }
 
 async function cmdReview(args: Args): Promise<void> {
-  const root = flagStr(args, "skills", process.cwd())!;
+  const { skills: root, specs } = roots(args);
   const target = args._[0];
   if (!target) throw new Error("usage: skill-harness review <skill> --skills <root>");
-  const skill = resolveSkill(root, target);
+  const skill = resolveSkill(root, target, specs);
   const port = Number(flagStr(args, "port", "0")) || 0;
-  await serveReview({ skillDir: skill.dir, skillName: skill.name, port });
+  await serveReview({ skillDir: dirname(skill.testsDir), skillName: skill.name, port });
 }
 
 async function cmdAddTest(args: Args): Promise<void> {
-  const root = flagStr(args, "skills", process.cwd())!;
+  const { skills: root, specs } = roots(args);
   const target = args._[0];
   if (!target) throw new Error("usage: skill-harness add-test <skill> --skills <root> --id ... --title ... --turn ... --check ...");
-  const skill = resolveSkill(root, target);
+  const skill = resolveSkill(root, target, specs);
   if (!skill.hasSpec) throw new Error(`${target} has no spec yet — create tests/specification.yaml first`);
 
   const id = flagStr(args, "id");
@@ -545,11 +573,11 @@ async function cmdAddTest(args: Args): Promise<void> {
  * reddens CI for it teaches people to add a token `covers:` to silence it.
  */
 async function cmdCoverage(args: Args): Promise<void> {
-  const root = flagStr(args, "skills", process.cwd())!;
+  const { skills: root, specs } = roots(args);
   const target = args._[0];
   if (!target) throw new Error("usage: skill-harness coverage <skill|all> --skills <root> [--strict]");
   const strict = flagBool(args, "strict");
-  const skills = target === "all" ? discover(root).filter((s) => s.hasSpec) : [resolveSkill(root, target)];
+  const skills = target === "all" ? discoverUsable(root, specs).filter((s) => s.hasSpec) : [resolveSkill(root, target, specs)];
 
   let anyUncovered = false;
   let anyBroken = false;
@@ -557,13 +585,13 @@ async function cmdCoverage(args: Args): Promise<void> {
     if (!skill.hasSpec) continue;
     const spec = loadSpec(skill.specPath);
     const specDir = dirname(skill.specPath);
+    const skillRef = "../SKILL.md";
     const report = computeCoverage({
       specDir,
       scenarios: spec.scenarios,
-      // SKILL.md lives one level above tests/, and is the file `covers` almost
-      // always points at, so report on it even when nothing references it —
-      // otherwise a skill with zero `covers` reports 0 sections and looks fine.
-      baseFiles: [relative(specDir, join(skill.dir, "SKILL.md")).split("\\").join("/")],
+      // Keep the spec-facing path stable even when SKILL.md lives in another repo.
+      baseFiles: [skillRef],
+      fileOverrides: { [skillRef]: join(skill.dir, "SKILL.md") },
     });
     console.log(formatCoverage(report, spec.skill));
     if (report.uncovered.length) anyUncovered = true;
@@ -591,10 +619,10 @@ function writeSpecFile(specPath: string, text: string): void {
 }
 
 export async function cmdInit(args: Args): Promise<void> {
-  const root = flagStr(args, "skills", process.cwd())!;
+  const { skills: root, specs } = roots(args);
   const target = args._[0];
   if (!target) throw new Error("usage: skill-harness init <skill> --skills <root> [--force]");
-  const skill = resolveSkill(root, target);
+  const skill = resolveSkill(root, target, specs);
   const force = flagStr(args, "force") !== undefined;
   if (skill.hasSpec && !force) {
     throw new Error(`${skill.specPath} exists — edit it, or pass --force to overwrite`);
@@ -606,14 +634,14 @@ export async function cmdInit(args: Args): Promise<void> {
 }
 
 export async function cmdSuggest(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
-  const root = flagStr(args, "skills", process.cwd())!;
+  const { skills: root, specs } = roots(args);
   const target = args._[0];
   if (!target) throw new Error("usage: skill-harness suggest <skill> --skills <root> [--model prov:model] [--force]");
 
   // resolveSkill throws a SKILL.md-specific error when the directory exists but
   // lacks one, so we don't reimplement that check here; a resolved skill always
   // has a SKILL.md at skill.dir.
-  const skill = resolveSkill(root, target);
+  const skill = resolveSkill(root, target, specs);
   const skillMd = readFileSync(join(skill.dir, "SKILL.md"), "utf8");
 
   // Overwrite without --force only when the target is absent or an *unedited*
@@ -668,7 +696,7 @@ export async function cmdSuggest(args: Args, adapterOverride?: HarnessAdapter): 
     }
     writeSpecFile(skill.specPath, text);
     console.log(`drafted ${count} scenario(s) → ${skill.specPath}`);
-    console.log(`review it (especially the proposed critical set), then \`skill-harness run ${skill.name} --skills ${root}\``);
+    console.log(`review it (especially the proposed critical set), then \`skill-harness run ${skill.name} --skills ${root}${specs ? ` --specs ${specs}` : ""}\``);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
@@ -684,28 +712,29 @@ export async function cmdSuggest(args: Args, adapterOverride?: HarnessAdapter): 
  * teach everyone to stop reading it.
  */
 export async function cmdLint(args: Args): Promise<void> {
-  const root = flagStr(args, "skills", process.cwd())!;
+  const { skills: root, specs } = roots(args);
   const target = args._[0] ?? "all";
-  let skillDirs: string[];
+  let skills: ReturnType<typeof discover>;
   try {
-    skillDirs = target === "all"
-      ? discover(root).filter((s) => s.hasSpec).map((s) => s.dir)
-      : [resolveSkill(root, target).dir];
+    skills = target === "all"
+      ? discoverUsable(root, specs).filter((s) => s.hasSpec)
+      : [resolveSkill(root, target, specs)];
   } catch (e) {
     console.error(`error: ${e instanceof Error ? e.message : e}`);
     process.exitCode = 1;
     return;
   }
-  if (skillDirs.length === 0) {
+  if (skills.length === 0) {
     console.error(`no skills with a spec under ${root}`);
     process.exitCode = 1;
     return;
   }
   const gha = process.env.GITHUB_ACTIONS === "true";
   const findings: LintFinding[] = [];
-  for (const dir of skillDirs) {
+  for (const skill of skills) {
+    const dir = skill.dir;
     let f: LintFinding[];
-    try { f = lintSkill(dir); }
+    try { f = lintSkill(dir, skill.testsDir); }
     catch (e) { f = [{ skill: dir, code: "lint-error", message: e instanceof Error ? e.message : String(e) }]; }
     findings.push(...f);
     if (f.filter(failsGate).length === 0) console.log(`✓ ${dir}`);
@@ -718,7 +747,7 @@ export async function cmdLint(args: Args): Promise<void> {
   }
   const gating = findings.filter(failsGate).length;
   const notes = findings.length - gating;
-  console.log(`\n${skillDirs.length} skill(s), ${gating} finding(s)${notes > 0 ? `, ${notes} note(s) (do not fail the gate)` : ""}`);
+  console.log(`\n${skills.length} skill(s), ${gating} finding(s)${notes > 0 ? `, ${notes} note(s) (do not fail the gate)` : ""}`);
   process.exitCode = gating > 0 ? 1 : 0;
 }
 
@@ -757,6 +786,9 @@ export function help(): string {
   list   --skills <root>                        discovered skills + spec status (${free("list")})
   lint   <skill|all> --skills <root>           validate specs/fixtures + results-consistency (${free("lint")}; CI gate; exits non-zero on findings)
   coverage <skill|all> --skills <root> [--strict]   which instruction sections have a declared test (${free("coverage")})
+
+  Every command with --skills also accepts --specs <root> (default: SKILL_HARNESS_SPECS).
+  Skill text comes from --skills; test assets and results come from --specs.
 
   version  print ${HARNESS_VERSION} and exit (also --version / -v)
 

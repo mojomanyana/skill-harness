@@ -289,6 +289,7 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     // *stimulus* hashes stay" — see refreshRubricHashes.
     partial: prev?.partial,
     source_hashes: refreshRubricHashes(prev?.source_hashes, spec, targets),
+    source_hash_roots: prev?.source_hash_roots,
     scenarios: scenarioResults,
   }, ctx);
   const g = results.effective_grade;

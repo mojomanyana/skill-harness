@@ -91,6 +91,8 @@ function rawHashes(doc: unknown): Record<string, string> | null {
 export interface RestampOptions {
   /** Git ref holding the bytes the runs measured, for a tree that has already been edited. */
   from?: string;
+  /** Tests/results location; defaults to <skillDir>/tests. */
+  testsDir?: string;
 }
 
 /**
@@ -181,7 +183,8 @@ interface Provable {
 /** Upgrade every provable record under one skill's tests/results. */
 export function restampSkill(skillDir: string, opts: RestampOptions = {}): RestampReport {
   const report: RestampReport = { runs: 0, upgraded: 0, unprovable: 0, unchanged: 0, partial: 0, added: [] };
-  const specPath = join(skillDir, "tests", "specification.yaml");
+  const testsDir = opts.testsDir ?? join(skillDir, "tests");
+  const specPath = join(testsDir, "specification.yaml");
   const spec = loadSpec(specPath);
   const specDir = dirname(specPath);
 
@@ -213,7 +216,7 @@ export function restampSkill(skillDir: string, opts: RestampOptions = {}): Resta
     });
   }
 
-  for (const runDir of enumerateRunDirs(join(skillDir, "tests", "results"))) {
+  for (const runDir of enumerateRunDirs(join(testsDir, "results"))) {
     report.runs++;
     let doc: unknown;
     try {

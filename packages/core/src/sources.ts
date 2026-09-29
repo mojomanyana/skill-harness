@@ -389,6 +389,13 @@ export function sourceHashes(ctx: SourceContext): Record<string, string> {
   return hashes;
 }
 
+/** Per-hash root provenance for split --skills/--specs runs. */
+export function sourceHashRoots(hashes: Record<string, string>): Record<string, "skills" | "specs"> {
+  return Object.fromEntries(
+    Object.keys(hashes).map((key) => [key, key === SKILL_KEY || key === SKILL_PROMPT_KEY ? "skills" : "specs"]),
+  );
+}
+
 /**
  * The current hash for a recorded key, or null when the source is gone.
  *

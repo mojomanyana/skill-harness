@@ -54,8 +54,8 @@ function isFile(p: string): boolean {
  * becomes a single `code:"spec"` finding. Returns ALL findings so the CLI can
  * report every problem across every skill.
  */
-export function lintSkill(skillDir: string): LintFinding[] {
-  const specPath = join(skillDir, "tests", "specification.yaml");
+export function lintSkill(skillDir: string, testsDir = join(skillDir, "tests")): LintFinding[] {
+  const specPath = join(testsDir, "specification.yaml");
   const findings: LintFinding[] = [];
   let spec: import("./spec.js").Spec;
   try {
@@ -72,7 +72,8 @@ export function lintSkill(skillDir: string): LintFinding[] {
   // kinds added after it shipped. Reported as a finding (so CI sees it) rather than
   // thrown, because refusing to lint is worse than linting with a caveat, and it is
   // one of the few ways this situation announces itself at all.
-  const stale = downgradeWarning(skillDir);
+  const resultsSkillDir = dirname(testsDir);
+  const stale = downgradeWarning(resultsSkillDir);
   if (stale) {
     findings.push({ skill, code: "consistency", message: stale.replace(/^warning: /, "") });
   }
@@ -171,7 +172,11 @@ export function lintSkill(skillDir: string): LintFinding[] {
     // uncovered section is only reported by `coverage --strict`. Renaming a heading
     // is the usual cause, so the finding names the near-misses.
     if (s.covers?.length) {
-      const report = computeCoverage({ specDir, scenarios: [s] });
+      const report = computeCoverage({
+        specDir,
+        scenarios: [s],
+        fileOverrides: { "../SKILL.md": join(skillDir, "SKILL.md") },
+      });
       for (const b of report.broken) {
         const hint = b.didYouMean.length ? ` — did you mean ${b.didYouMean.map((x: string) => `#${x}`).join(", ")}?` : "";
         findings.push({
@@ -204,7 +209,7 @@ export function lintSkill(skillDir: string): LintFinding[] {
   // malformed fields — e.g. `scenarios: null`) is caught and surfaces as a `consistency`
   // finding instead of throwing (lintSkill never throws) or being silently dropped (a
   // broken committed artifact must fail the gate, not pass it).
-  const resultsRoot = join(skillDir, "tests", "results");
+  const resultsRoot = join(testsDir, "results");
   for (const runDir of enumerateRunDirs(resultsRoot)) {
     try {
       const raw = yaml.load(readFileSync(resultsPath(runDir), "utf8")) as { schema?: unknown };
@@ -330,7 +335,7 @@ export function lintSkill(skillDir: string): LintFinding[] {
   // is on disk. Wrapped: lintSkill must never throw, and a stability read touches every
   // run file in the tree.
   try {
-    for (const cell of boundaryCells(stabilityFrom(collectScoredRuns(skillDir), spec))) {
+    for (const cell of boundaryCells(stabilityFrom(collectScoredRuns(resultsSkillDir), spec))) {
       findings.push({
         skill, scenario: cell.id, code: "stability", severity: "info",
         message: `${cell.tag} mode=${cell.mode}: ${stabilityNote(cell)}`,

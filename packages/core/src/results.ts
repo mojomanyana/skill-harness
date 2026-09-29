@@ -266,6 +266,8 @@ export interface ResultsFile {
    * simply don't carry it, and are never retroactively flagged.
    */
   source_hashes?: Record<string, string>;
+  /** For split-root runs, identifies whether each hash came from --skills or --specs. */
+  source_hash_roots?: Record<string, "skills" | "specs">;
   effective_grade: GradeSummary; // always override-aware; only finalizeResults writes it
   scenarios: ScenarioResult[];
   /** Adapter-computed model-visible prompt observations. Required for schema v3. */
@@ -468,6 +470,7 @@ export function finalizeResults(draft: ResultsDraft, ctx: ScoreContext | null): 
     ...(draft.arm ? { arm: draft.arm } : {}),
     ...(draft.partial ? { partial: true } : {}),
     ...(draft.source_hashes ? { source_hashes: draft.source_hashes } : {}),
+    ...(draft.source_hash_roots ? { source_hash_roots: draft.source_hash_roots } : {}),
     effective_grade,
     scenarios: draft.scenarios,
     ...(draft.subject_invocations ? { subject_invocations: draft.subject_invocations } : {}),

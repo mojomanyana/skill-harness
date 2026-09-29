@@ -80,6 +80,12 @@
         "type": "string"
       }
     },
+    "source_hash_roots": {
+      "type": "object",
+      "additionalProperties": {
+        "enum": ["skills", "specs"]
+      }
+    },
     "effective_grade": {
       "$ref": "#/$defs/grade"
     },

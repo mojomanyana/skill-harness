@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.21.0 — Split skill and spec roots (2026-09-30)
+
+### Added
+
+- Add `--specs <root>` and `SKILL_HARNESS_SPECS` so skill text can remain in one repository while specifications, fixtures, post-tests, and results live in another.
+- Record whether each source hash came from the skills root or the specs root.
+- Report each spec's root in `list` and reject duplicate specs across both roots.
+
 ## 0.20.0 — Pi-only model routing (2026-09-29)
 
 ### Changed

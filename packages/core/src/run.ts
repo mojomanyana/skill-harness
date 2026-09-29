@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { Spec, Scenario } from "./spec.js";
-import { sourceHashes } from "./sources.js";
+import { sourceHashes, sourceHashRoots } from "./sources.js";
 import type { HarnessAdapter, ModelRef, RunMode } from "./adapters/types.js";
 import { judgeResemblesSubject } from "./grade.js";
 import { NONE_ARM, seedArmDefinitions, type Arm } from "./arms.js";
@@ -38,6 +38,10 @@ export interface RunOptions {
   spec: Spec;
   skillDir: string;
   specPath: string; // abs path to specification.yaml (seeded fixtures resolve against its dir)
+  /** Tests/results location; defaults to <skillDir>/tests for the single-root layout. */
+  testsDir?: string;
+  /** Record per-hash skills/specs provenance for a split-root run. */
+  recordSourceRoots?: boolean;
   adapter: HarnessAdapter;
   model: ModelRef;
   modelToken: string; // original provider:model token (for results.yaml)
@@ -142,7 +146,7 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   }
 
   const arm = opts.arm ?? NONE_ARM;
-  const runDir = runDirFor(skillDir, adapter.name, model, timestamp, arm.name);
+  const runDir = runDirFor(dirname(opts.testsDir ?? join(skillDir, "tests")), adapter.name, model, timestamp, arm.name);
   mkdirSync(runDir, { recursive: true });
   ensureResultsGitignore(dirname(dirname(runDir))); // .../tests/results/.gitignore
 
@@ -224,6 +228,7 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   });
 
   const ctx = scoreContextFor({ mode, partial }, spec);
+  const hashes = sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios, judgePersona: spec.judge_persona });
   const results = writeResults(runDir, {
     skill: spec.skill,
     harness: adapter.name,
@@ -237,7 +242,8 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     ...(partial ? { partial: true } : {}),
     // Only the scenarios this run actually measured: a --only run must not claim
     // coverage of scenarios it skipped.
-    source_hashes: sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios, judgePersona: spec.judge_persona }),
+    source_hashes: hashes,
+    ...(opts.recordSourceRoots ? { source_hash_roots: sourceHashRoots(hashes) } : {}),
     scenarios: scenarioResults,
     ...(arm.name === NONE_ARM.name ? {} : {
       arm: {
