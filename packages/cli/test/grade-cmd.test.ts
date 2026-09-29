@@ -45,7 +45,7 @@ function threeScenarioRun() {
   mkdirSync(runDir, { recursive: true });
   writeResults(runDir, {
     skill: "golden", harness: "pi", model: "fireworks:fake",
-    judge: { provider: "claude-code", model: "opus" },
+    judge: { provider: "openai-codex", model: "gpt-5.6-sol" },
     timestamp: "2026-07-03T00:00:00Z", label: null, mode: "green",
     scenarios: [
       { id: "A1", judge_verdict: "PASS", judge_reason: "greeted", suspect: false, override: null, note: "" },
@@ -80,7 +80,7 @@ describe("cmdGrade refuses to destroy a run with no green transcripts", () => {
     // NOTE: no *.green.txt transcripts written for this run.
     writeResults(runDir, {
       skill: "golden", harness: "pi", model: "fireworks:fake",
-      judge: { provider: "claude-code", model: "opus" },
+      judge: { provider: "openai-codex", model: "gpt-5.6-sol" },
       timestamp: "2026-07-03T00:00:00Z", label: null, mode: "green",
       scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "greeted", suspect: false, override: null, note: "" }],
     }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
@@ -118,7 +118,7 @@ function repsRunFixture() {
   writeFileSync(join(runDir, "A1.green.rep1.txt"), "USER: Say hello.\nASSISTANT: Hello!", "utf8");
   writeResults(runDir, {
     skill: "golden", harness: "pi", model: "fireworks:fake",
-    judge: { provider: "claude-code", model: "opus" },
+    judge: { provider: "claude-code", model: "opus" }, // retained pre-Pi-only result
     timestamp: "2026-07-03T00:00:00Z", label: null, mode: "green",
     scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "greeted", suspect: false, override: null, note: "", reps: 2, pass_threshold: 0.5 }],
   }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
@@ -129,7 +129,7 @@ describe("cmdGrade on a --reps run", () => {
   test("a --reps run is now re-gradable (no longer rejected)", async () => {
     const { runDir } = repsRunFixture();
     const before = readFileSync(join(runDir, "results.yaml"), "utf8");
-    // Inject a fake judge so this test is hermetic: no `pi`/`claude` subprocess
+    // Inject a fake judge so this test is hermetic: no `pi` subprocess
     // is ever spawned. This proves both that the old reps-run rejection is
     // gone AND that a re-grade actually happens (aggregated verdict, updated
     // results.yaml) — not just "didn't throw a specific message".
@@ -146,8 +146,24 @@ describe("cmdGrade on a --reps run", () => {
     const a1 = after.scenarios.find((s) => s.id === "A1")!;
     expect(a1.judge_verdict).toBe("PASS"); // re-judged both reps → aggregated PASS
     expect(a1.reps).toBe(2);
+    expect(after.judge).toEqual({ provider: "openai-codex", model: "gpt-5.6-sol" });
     expect(readFileSync(join(runDir, "results.yaml"), "utf8")).not.toBe(before); // results updated
     expect(after.timestamp).toBe("2026-07-03T00:00:00Z"); // re-grade preserves the run's original timestamp
+  });
+
+  test("an explicit judge wins without parsing a stale default", async () => {
+    const { runDir } = repsRunFixture();
+    const fake: HarnessAdapter = {
+      name: "pi", available: async () => true, run: async () => "",
+      judge: async () => "1. PASS — ok\nVERDICT: PASS\nREASON: fine",
+    };
+    process.env.SKILL_HARNESS_JUDGE = "malformed";
+    try {
+      await cmdGrade({ _: [runDir], flags: { judge: "ollama:current" }, multi: {} }, fake);
+    } finally {
+      delete process.env.SKILL_HARNESS_JUDGE;
+    }
+    expect(readResults(runDir).judge).toEqual({ provider: "ollama", model: "current" });
   });
 });
 
@@ -168,7 +184,7 @@ describe("cmdGrade re-grades a run in the run's OWN mode", () => {
     writeFileSync(join(runDir, `A1.${mode}.txt`), "USER: Say hello.\nASSISTANT: Hi!", "utf8");
     writeResults(runDir, {
       skill: "golden", harness: "pi", model: "fireworks:fake",
-      judge: { provider: "claude-code", model: "opus" },
+      judge: { provider: "openai-codex", model: "gpt-5.6-sol" },
       timestamp: "2026-07-03T00:00:00Z", label: null, mode,
       scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "greeted", suspect: false, override: null, note: "" }],
     }, mode === "red" ? null : { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });

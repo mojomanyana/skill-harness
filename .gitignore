@@ -32,3 +32,6 @@ release-artifacts/
 .env
 .env.*
 !.env.example
+
+# SH-1 scratch analysis output
+scratch/

@@ -14,15 +14,13 @@ the schema digest, and a SHA-256 for every byte-vendored artifact.
 | `pi-daddy-README.md` | pi-daddy's own contract notes, verbatim (renamed so it does not shadow this file). |
 | `PINNED.json` | Producer repository/commit, source paths, schema digest, and per-artifact SHA-256. |
 
+Paths mentioned inside byte-exact `pi-daddy-README.md` are producer-relative; resolve them
+against the pinned pi-daddy checkout, not this consumer repository.
+
 ## Why the copy exists
 
-The adapter used to restate this contract in its own words. A restatement is where
-drift hides: a refusal code the producer had added (`GRANT_ID_MALFORMED`) read as
-"unsupported", a field the closed schema forbids rode through unnoticed, and the
-harness required a receipt's measured `treeSha` to equal the controller's
-`correlation.tree_sha` — which pi-daddy's own canonical receipt does not satisfy.
-
-So the schema is now *interpreted*, not transcribed:
+The adapter interprets the pinned schema rather than maintaining a second,
+hand-written restatement that can drift:
 
 - `packages/adapters/src/pi-daddy-ledger-v2.ts` is the runtime copy of the schema,
   generated from these bytes. It is a module rather than a file read so it survives

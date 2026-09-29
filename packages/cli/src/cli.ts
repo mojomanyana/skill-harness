@@ -21,6 +21,7 @@ import {
   computeCoverage, formatCoverage,
   HARNESS_VERSION,
   defaultJudge,
+  recordedJudgeOrDefault,
   assertJudgeAllowed,
   assertNotDowngraded,
   downgradeWarning,
@@ -35,7 +36,7 @@ const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 // The judge default lives in core (`defaultJudge()`), which resolves
 // SKILL_HARNESS_JUDGE over a baked value — it was duplicated in three places
 // before, and the pi extension's copy could disagree with this one.
-const DEFAULT_SUGGEST_MODEL = "claude-code:claude-opus-4-8";
+const DEFAULT_SUGGEST_MODEL = "openai-codex:gpt-5.6-sol";
 
 export interface Args {
   _: string[];
@@ -308,14 +309,17 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
 
   const prev = existsSync(join(runDir, "results.yaml")) ? readResults(runDir) : null;
   // Re-judge with the run's RECORDED judge + harness (parity with /rejudge) —
-  // an explicit --judge flag still wins; with no prior results, fall back to
-  // the CLI default.
+  // an explicit --judge flag still wins; absent or retired recorded judges use
+  // the current Pi default.
   const judgeFlag = flagStr(args, "judge");
-  const judge = judgeFlag ? parseModelRef(judgeFlag) : (prev?.judge ?? parseModelRef(defaultJudge()));
-  // A regrade reuses the judge the run RECORDED, so a run that names a metered judge
-  // bills on every later regrade with no flag typed anywhere. Latent rather than live
-  // in the reference corpus (all ~140 committed runs there record `claude-code`), but
-  // it is the one path where the cost decision was made by a file, not a person.
+  const resolvedRecordedJudge = judgeFlag ? undefined : recordedJudgeOrDefault(prev?.judge);
+  const judge = judgeFlag ? parseModelRef(judgeFlag) : resolvedRecordedJudge!.judge;
+  if (resolvedRecordedJudge?.migratedFrom) {
+    console.error(`skill-harness: recorded judge ${resolvedRecordedJudge.migratedFrom.provider}:${resolvedRecordedJudge.migratedFrom.model} was removed; re-judging through Pi with ${judge.provider}:${judge.model}`);
+  }
+  // A regrade normally reuses the judge the run RECORDED, so a run that names a
+  // metered judge bills on every later regrade with no flag typed anywhere. It is the one path
+  // where the cost decision was made by a file, not a person.
   assertJudgeAllowed(judge, {
     source: judgeFlag ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge",
     allowMetered: flagBool(args, "allow-metered-judge"),
@@ -383,7 +387,11 @@ export async function cmdRegate(args: Args, adapterOverride?: HarnessAdapter): P
     const specPath = specPathForRunDir(runDir);
     const spec = loadSpec(specPath);
     const prev = readResults(runDir);
-    const judge = judgeFlag ? parseModelRef(judgeFlag) : (prev.judge ?? parseModelRef(defaultJudge()));
+    const resolvedRecordedJudge = judgeFlag ? undefined : recordedJudgeOrDefault(prev.judge);
+    const judge = judgeFlag ? parseModelRef(judgeFlag) : resolvedRecordedJudge!.judge;
+    if (resolvedRecordedJudge?.migratedFrom) {
+      console.error(`skill-harness: recorded judge ${resolvedRecordedJudge.migratedFrom.provider}:${resolvedRecordedJudge.migratedFrom.model} was removed; re-judging through Pi with ${judge.provider}:${judge.model}`);
+    }
     assertJudgeAllowed(judge, {
       source: judgeFlag ? "--judge" : "the run's recorded judge",
       allowMetered: flagBool(args, "allow-metered-judge"),
@@ -788,8 +796,8 @@ defaults: model=${DEFAULT_MODEL}  judge=${defaultJudge()}  mode=green  harness=p
   green and force are both scored; red is the unscored baseline. green delivery depends on the
   harness version (pi >= 0.83.0 discloses only the skill's description and loads the body on demand),
   so --mode force is the delivery that cannot silently degrade — and --canary proves green per run.
-  the judge default is Opus on your Claude subscription (\`claude-code\` → \`claude -p\`), not a
-  metered API key. Set SKILL_HARNESS_JUDGE to change it for a repo or a shell; --judge wins over both.`;
+  the judge default runs through Pi on your ChatGPT subscription (\`openai-codex\`), not a metered
+  API key. Set SKILL_HARNESS_JUDGE to change it for a repo or a shell; --judge wins over both.`;
 }
 
 export async function main(argv: string[]): Promise<void> {

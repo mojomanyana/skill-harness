@@ -34,8 +34,8 @@ the judge's verdict; only an explicit author override beats it.
 2. **Confirm the run.** Ask the user: which skill (or `all`), which model(s) under
    test, and the judge. Offer the defaults:
    - subject model: `fireworks:accounts/fireworks/models/deepseek-v4-pro`
-   - judge: `claude-code:claude-opus-4-8` (distinct from the subject; runs on the
-     user's Claude subscription, not a metered key). A metered judge is **refused**
+   - judge: `openai-codex:gpt-5.6-sol` (distinct from the default subject; runs
+     through Pi on the user's ChatGPT subscription, not a metered key). A metered judge is **refused**
      unless the user opts in with `--allow-metered-judge` — never add that flag on
      their behalf; ask. `SKILL_HARNESS_JUDGE` sets the default once per repo/shell.
    - mode: `green` (the harness activates the skill) or `force` (SKILL.md as the
@@ -87,7 +87,8 @@ asked for one of the other three. Confirm that possible judge spend before runni
    reports ERROR and blocks. A vacuous PASS is the one outcome the harness will not
    print, because it is indistinguishable from a real one.
 3. **The author owns the verdict.** The judge proposes; overrides + notes in the
-   review UI are the durable record. Commit `results.yaml`, not transcripts.
+   review UI are the durable record. Normally commit only `results.yaml`; if an override
+   unignores its transcript/judge evidence, commit that evidence with the override.
 4. **Re-grade cheaply before re-running.** `skill-harness grade <run-dir> --judge <m>`
    re-scores saved transcripts with a different judge — no model re-runs. Use it to
    de-confound a suspicious result before spending tokens on a fresh run.

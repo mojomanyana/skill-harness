@@ -7,13 +7,11 @@ import { SKIPPED_TYPE_RE } from "../src/pi-json.js";
 /**
  * Characterization tests for pi's `--mode json` event stream.
  *
- * These assert facts about the FIXTURES, not about harness code — no parser
- * exists yet (that is Phase 2 of the pi-native capture program). Their job is to
- * make a pi upgrade that changes the event contract fail here, loudly, instead of
- * silently degrading an objective gate built on top of it.
+ * These assert facts about the fixtures rather than the parser implementation.
+ * Their job is to make a Pi upgrade that changes the event contract fail loudly
+ * instead of silently degrading an objective gate.
  *
- * Every expectation below was measured against pi 0.83.0 on 2026-08-08. See
- * `docs/pi-native-capture-design-2026-08-08.md` and `fixtures/pi-json/README.md`.
+ * The captured event shapes are documented in `fixtures/pi-json/README.md`.
  */
 
 const DIR = join(fileURLToPath(new URL(".", import.meta.url)), "fixtures", "pi-json");

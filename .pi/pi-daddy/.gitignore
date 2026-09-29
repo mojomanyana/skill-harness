@@ -1,0 +1,4 @@
+# Written by pi-daddy init. Only settings.json is meant to be committed; the rest is private runtime state.
+*
+!.gitignore
+!settings.json

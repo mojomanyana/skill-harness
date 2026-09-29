@@ -48,7 +48,7 @@ function args(skills: string, specs?: string) {
     flags: {
       skills,
       ...(specs ? { specs } : {}),
-      judge: "claude-code:judge",
+      judge: "openai-codex:gpt-5.6-sol",
       mode: "green",
     },
     multi: { model: ["fake:subject"] },

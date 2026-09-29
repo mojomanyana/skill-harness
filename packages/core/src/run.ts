@@ -89,10 +89,8 @@ export interface RunSummary {
 
 /**
  * The pi-daddy arm's delivery proof, by convention: `arms.yaml` points
- * `PI_GRANTS_LEDGER` at exactly this filename inside the run dir (see
- * `../principal-pi-skills/tests/arms.yaml` and CODEX-ARMS-RUNBOOK.md §4.3), so
- * a fixed name here is what makes the count readable without parsing the arm's
- * own `env` map back out.
+ * `PI_GRANTS_LEDGER` at exactly this filename inside the run directory. A fixed
+ * name keeps the count readable without parsing the arm's `env` map back out.
  */
 const LEDGER_FILENAME = "pi-daddy.ledger.jsonl";
 
