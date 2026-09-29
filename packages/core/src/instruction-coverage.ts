@@ -183,6 +183,8 @@ export interface CoverageOptions {
   scenarios: Scenario[];
   /** Instruction files to report on even if nothing references them. */
   baseFiles?: string[];
+  /** Resolve selected spec-relative references from another root (for split skill/spec repos). */
+  fileOverrides?: Record<string, string>;
 }
 
 /**
@@ -195,7 +197,7 @@ export function computeCoverage(opts: CoverageOptions): CoverageReport {
   const fileSections = new Map<string, Section[]>();
   const readSections = (file: string): Section[] | null => {
     if (fileSections.has(file)) return fileSections.get(file)!;
-    const abs = isAbsolute(file) ? file : resolve(opts.specDir, file);
+    const abs = opts.fileOverrides?.[file] ?? (isAbsolute(file) ? file : resolve(opts.specDir, file));
     if (!existsSync(abs)) return null;
     const sections = parseSections(readFileSync(abs, "utf8"));
     fileSections.set(file, sections);

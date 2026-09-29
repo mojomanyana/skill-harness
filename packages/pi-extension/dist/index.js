@@ -3909,6 +3909,9 @@ function sourceHashes(ctx) {
   }
   return hashes;
 }
+function sourceHashRoots(hashes) {
+  return Object.fromEntries(Object.keys(hashes).map((key) => [key, key === SKILL_KEY || key === SKILL_PROMPT_KEY ? "skills" : "specs"]));
+}
 function describeSourceKey(key) {
   if (key === PROMPT_NORMALIZATION_SOURCE_KEY)
     return "the prompt normalization rule registry";
@@ -4369,6 +4372,7 @@ function finalizeResults(draft, ctx) {
     ...draft.arm ? { arm: draft.arm } : {},
     ...draft.partial ? { partial: true } : {},
     ...draft.source_hashes ? { source_hashes: draft.source_hashes } : {},
+    ...draft.source_hash_roots ? { source_hash_roots: draft.source_hash_roots } : {},
     effective_grade,
     scenarios: draft.scenarios,
     ...draft.subject_invocations ? { subject_invocations: draft.subject_invocations } : {}
@@ -6119,6 +6123,7 @@ async function regradeRun(opts) {
     // *stimulus* hashes stay" — see refreshRubricHashes.
     partial: prev?.partial,
     source_hashes: refreshRubricHashes(prev?.source_hashes, spec, targets),
+    source_hash_roots: prev?.source_hash_roots,
     scenarios: scenarioResults
   }, ctx);
   const g = results.effective_grade;
@@ -6507,7 +6512,7 @@ async function runSkillModel(opts) {
     log(`  \u26A0 judge (${judge.provider}:${judge.model}) resembles the model under test (${model.provider}:${model.model}) \u2014 verdicts may be inflated. Use a distinct judge.`);
   }
   const arm = opts.arm ?? NONE_ARM;
-  const runDir = runDirFor(skillDir, adapter.name, model, timestamp2, arm.name);
+  const runDir = runDirFor(dirname(opts.testsDir ?? join14(skillDir, "tests")), adapter.name, model, timestamp2, arm.name);
   mkdirSync4(runDir, { recursive: true });
   ensureResultsGitignore(dirname(dirname(runDir)));
   const harnessCliVersion = await adapter.version?.() ?? null;
@@ -6577,6 +6582,7 @@ async function runSkillModel(opts) {
     return outcomesToResult(scenario.id, grouped[si], repCounts[si], threshold);
   });
   const ctx = scoreContextFor({ mode, partial }, spec);
+  const hashes = sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios, judgePersona: spec.judge_persona });
   const results = writeResults(runDir, {
     skill: spec.skill,
     harness: adapter.name,
@@ -6590,7 +6596,8 @@ async function runSkillModel(opts) {
     ...partial ? { partial: true } : {},
     // Only the scenarios this run actually measured: a --only run must not claim
     // coverage of scenarios it skipped.
-    source_hashes: sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios, judgePersona: spec.judge_persona }),
+    source_hashes: hashes,
+    ...opts.recordSourceRoots ? { source_hash_roots: sourceHashRoots(hashes) } : {},
     scenarios: scenarioResults,
     ...arm.name === NONE_ARM.name ? {} : {
       arm: {
@@ -7062,7 +7069,7 @@ function computeCoverage(opts) {
   const readSections = (file) => {
     if (fileSections.has(file))
       return fileSections.get(file);
-    const abs = isAbsolute5(file) ? file : resolve7(opts.specDir, file);
+    const abs = opts.fileOverrides?.[file] ?? (isAbsolute5(file) ? file : resolve7(opts.specDir, file));
     if (!existsSync12(abs))
       return null;
     const sections2 = parseSections(readFileSync10(abs, "utf8"));
@@ -9442,7 +9449,8 @@ async function serveReview(opts) {
             // retired the staleness gate for any run re-judged from the UI. Carried,
             // with the one `rubric:` key this re-judge actually applied refreshed —
             // the same doctrine `grade` follows (see refreshRubricHashes).
-            source_hashes: refreshRubricHashes(results.source_hashes, spec, [body.scenarioId])
+            source_hashes: refreshRubricHashes(results.source_hashes, spec, [body.scenarioId]),
+            source_hash_roots: results.source_hash_roots
           }, scoreContextFor(results, spec));
           ensureResultsGitignore(join24(opts.skillDir, "tests", "results"));
           const g = written.effective_grade;

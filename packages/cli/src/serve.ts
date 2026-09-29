@@ -188,6 +188,7 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
             // with the one `rubric:` key this re-judge actually applied refreshed —
             // the same doctrine `grade` follows (see refreshRubricHashes).
             source_hashes: refreshRubricHashes(results.source_hashes, spec, [body.scenarioId]),
+            source_hash_roots: results.source_hash_roots,
           }, scoreContextFor(results, spec));
           ensureResultsGitignore(join(opts.skillDir, "tests", "results"));
           const g = written.effective_grade;

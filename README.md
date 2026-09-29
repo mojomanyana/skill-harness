@@ -94,6 +94,14 @@ flip verdicts and edit the `SKILL.md` under test; pi measures it.
 Discovery scans `<skills-root>/*/tests/specification.yaml`. A skill with that file
 next to its `SKILL.md` is testable; one without is listed as "no spec".
 
+### Keep specs in a separate repository
+
+Pass `--specs <root>` to any command that accepts `--skills` (or set
+`SKILL_HARNESS_SPECS`). `SKILL.md` is read from `<skills>/<name>/`, while the
+specification, fixtures, post-tests, and results are read and written under
+`<specs>/<name>/tests/`. A spec present in both roots is an error; the harness
+never merges them.
+
 No spec yet? Don't hand-write the YAML — scaffold it: `skill-harness init <skill>`
 writes a commented template (free, offline), or `skill-harness suggest <skill>`
 LLM-drafts scenarios and a checklist from the skill's own `SKILL.md` for you to
