@@ -1,5 +1,5 @@
 import { traceSha256, type ExecutionTraceV1 } from "@skill-harness/core";
-import table from "./model-prices.json" with { type: "json" };
+import table from "../prices/model-prices.json" with { type: "json" };
 
 interface ModelPrice {
   input: number;

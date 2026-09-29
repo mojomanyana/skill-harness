@@ -67,6 +67,7 @@ const packages = [
     internalDependencies: ["@skill-harness/core"],
     inventoryRoots: [
       { path: "dist", accepts: (path) => path.endsWith(".js") || path.endsWith(".d.ts"), ignores: (path) => path === ".tsbuildinfo" || path.endsWith(".map"), pairedDeclarations: true },
+      { path: "prices", accepts: (path) => path.endsWith(".json") },
     ],
   },
   {
@@ -364,7 +365,7 @@ function assertTrackedBytesMatchHead(identity) {
 
 function assertNoUntrackedBuildInputs(identity) {
   const tracked = new Set(runGitRaw(["ls-tree", "-r", "-z", "--name-only", identity.commit]).split("\0").filter(Boolean));
-  const roots = ["packages/core/src", "packages/adapters/src", "packages/cli/src", "schemas"];
+  const roots = ["packages/core/src", "packages/adapters/src", "packages/adapters/prices", "packages/cli/src", "schemas"];
   function visit(directory) {
     for (const name of readdirSync(directory).sort()) {
       const path = join(directory, name);

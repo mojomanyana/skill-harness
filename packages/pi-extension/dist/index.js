@@ -7322,7 +7322,7 @@ function runPiJson(opts) {
   });
 }
 
-// packages/adapters/dist/model-prices.json
+// packages/adapters/prices/model-prices.json
 var model_prices_default = {
   asOf: "2026-09-29",
   currency: "USD",
