@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.19.0 — Pi subject usage accounting (2026-09-29)
+
+### Changed
+
+- The Pi adapter now uses structured capture by default; previously it used print mode.
+- Runs record per-repetition subject input, output and cache-read token counts plus price-table-derived cost from `packages/adapters/prices/model-prices.json`.
+
+### Known limitation
+
+- Judge usage is not yet recorded.
+
 ## 0.18.0 — focused measurement core (2026-09-25)
 
 ### Removed
