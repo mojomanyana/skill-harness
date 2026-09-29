@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "writtenBy": "pi-daddy init",
+  "review": "Every capability below was read from a SKILL.md's own allowed-tools; pi-daddy chose none of them. Review and commit this file. Delete an agent: id from `grant` to withhold that definition, a tool: id to withhold that tool from every child. A child never receives more than this grant ∩ its definition.",
+  "grant": [
+    "agent:architect",
+    "agent:decide",
+    "context:files",
+    "context:summary",
+    "tool:delegate",
+    "tool:find",
+    "tool:grep",
+    "tool:ls",
+    "tool:read"
+  ],
+  "definitions": [
+    {
+      "name": "decide",
+      "declares": [
+        "context:summary",
+        "tool:find",
+        "tool:grep",
+        "tool:ls",
+        "tool:read"
+      ],
+      "spawnable": true
+    },
+    {
+      "name": "architect",
+      "declares": [
+        "context:summary",
+        "tool:find",
+        "tool:grep",
+        "tool:ls",
+        "tool:read"
+      ],
+      "spawnable": true
+    },
+    {
+      "name": "plan",
+      "declares": [
+        "context:summary",
+        "tool:find",
+        "tool:grep",
+        "tool:ls",
+        "tool:read",
+        "tool:write"
+      ],
+      "spawnable": false,
+      "reason": "needs tool:write, withheld by default — see below"
+    },
+    {
+      "name": "build",
+      "declares": [
+        "context:files",
+        "tool:bash",
+        "tool:edit",
+        "tool:find",
+        "tool:grep",
+        "tool:ls",
+        "tool:read",
+        "tool:write"
+      ],
+      "spawnable": false,
+      "reason": "needs tool:bash, tool:edit, tool:write, withheld by default — see below"
+    },
+    {
+      "name": "review",
+      "declares": [
+        "context:files",
+        "tool:bash",
+        "tool:find",
+        "tool:grep",
+        "tool:ls",
+        "tool:read"
+      ],
+      "spawnable": false,
+      "reason": "needs tool:bash, withheld by default — see below"
+    },
+    {
+      "name": "debug",
+      "declares": [
+        "context:files",
+        "tool:bash",
+        "tool:find",
+        "tool:grep",
+        "tool:ls",
+        "tool:read"
+      ],
+      "spawnable": false,
+      "reason": "needs tool:bash, withheld by default — see below"
+    },
+    {
+      "name": "git-ops",
+      "declares": [
+        "tool:bash",
+        "tool:read"
+      ],
+      "spawnable": false,
+      "reason": "needs tool:bash, withheld by default — see below"
+    }
+  ],
+  "withheld": [
+    {
+      "capability": "tool:bash",
+      "declaredBy": [
+        "build",
+        "review",
+        "debug",
+        "git-ops"
+      ]
+    },
+    {
+      "capability": "tool:edit",
+      "declaredBy": [
+        "build"
+      ]
+    },
+    {
+      "capability": "tool:write",
+      "declaredBy": [
+        "plan",
+        "build"
+      ]
+    }
+  ],
+  "withheldDefinitions": [
+    "plan",
+    "build",
+    "review",
+    "debug",
+    "git-ops"
+  ],
+  "routableWorkspaces": [],
+  "crossReferences": [],
+  "cautions": [],
+  "ledger": "grants.jsonl",
+  "gatedByDefault": [
+    "tool:bash"
+  ]
+}
