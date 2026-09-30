@@ -391,6 +391,42 @@ ${extra}
   });
 });
 
+describe("assert.output_matches / assert.output_excludes", () => {
+  const inline = (assertBlock: string) => `
+skill: t
+judge_persona: a tester.
+ship_bar: { total: 1, min_pass: 1 }
+scenarios:
+  - id: A1
+    title: output contract
+    turns: ["answer"]
+    checklist: ["answers"]
+    assert:
+${assertBlock}
+`;
+
+  test("parses output regex gates on an inline scenario", () => {
+    const sc = parseSpec(
+      inline(`      output_matches: ["src/.+:[0-9]+"]\n      output_excludes: ["SKILLHARNESSCANARY"]`),
+      "f",
+    ).scenarios[0];
+    expect(sc.assert?.output_matches).toEqual(["src/.+:[0-9]+"]);
+    expect(sc.assert?.output_excludes).toEqual(["SKILLHARNESSCANARY"]);
+  });
+
+  test.each(["output_matches", "output_excludes"])("%s requires valid non-empty regex strings", (key) => {
+    expect(() => parseSpec(inline(`      ${key}: ["("]`), "f")).toThrow(/invalid regular expression/);
+    expect(() => parseSpec(inline(`      ${key}: [""]`), "f")).toThrow(/must not be empty/);
+    expect(() => parseSpec(inline(`      ${key}: []`), "f")).toThrow(/needs at least one/);
+  });
+
+  test("rejects an unknown assert key instead of silently dropping it", () => {
+    expect(() => parseSpec(inline(`      output_contains: ["citation"]`), "f")).toThrow(
+      /unknown `assert` key `output_contains`/,
+    );
+  });
+});
+
 describe("assert.diff_excludes / assert.post_test (additive seeded gates)", () => {
   const seeded = (assertBlock: string) => `
 skill: t

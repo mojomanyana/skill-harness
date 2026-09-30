@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.22.0 — Objective output assertions (2026-10-01)
+
+### Added
+
+- Add `assert.output_matches` and `assert.output_excludes` regex gates over the final assistant message.
+- Re-evaluate output gates from retained transcripts with `regate`, without rerunning the subject or spending judge calls on objective failures.
+- Reject unknown assertion keys and invalid output regexes during lint.
+
 ## 0.21.0 — Split skill and spec roots (2026-09-30)
 
 ### Added

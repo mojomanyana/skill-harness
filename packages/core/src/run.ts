@@ -21,7 +21,7 @@ import {
 } from "./results.js";
 import { appendJournal } from "./journal.js";
 import { liftHeadline, type Lift } from "./lift.js";
-import { runSeeded } from "./seeded.js";
+import { evaluateOutputGates, hasOutputGates, runSeeded } from "./seeded.js";
 import { serializeTrace, mergeTraces, traceSha256 } from "./execution-trace.js";
 import { evaluateTraceGates } from "./trace-gates.js";
 import type { ExecutionTraceV1 } from "./capture-trace-types.js";
@@ -292,10 +292,10 @@ interface ScenarioCtx {
  * ends the last assistant section.
  */
 export function hasEmptyAssistantTurn(transcript: string): boolean {
-  const sections = transcript.split(/^<<< ASSISTANT:\s*$/m).slice(1);
+  const sections = transcript.split(/^<<< ASSISTANT:[ \t]*$/m).slice(1);
   if (sections.length === 0) return false;
   return sections.some((sec) => {
-    const body = sec.split(/^(?:>>> |=== SEEDED GATES ===|\[pi exited )/m)[0];
+    const body = sec.split(/^(?:>>> USER(?: \(turn \d+\/\d+\))?:[ \t]*|=== SEEDED GATES ===[ \t]*|\[pi exited [^\]]+\][ \t]*)$/m)[0];
     return body.trim() === "";
   });
 }
@@ -493,6 +493,9 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
     }
 
     const repSuffix = repCount > 1 ? rep : undefined;
+    const outputGate = !adapterFailure && !noResponse && !infrastructureFailure
+      ? evaluateOutputGates(scenario, transcript)
+      : { status: "PASS" as const, failure: null, assertions: [], lines: [] };
     writeFileSync(transcriptPath(runDir, scenario.id, mode, repSuffix), transcript, "utf8");
     if (scenario.mode === "seeded") {
       // The workspace is torn down in the `finally` below, so this is the only
@@ -538,10 +541,11 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
     // timeout that caused it, and it is that text, not the real reason, that would
     // reach the results record. The verdict is ERROR either way.
     let objective: ObjectiveResult | undefined;
-    if (scenario.traceAssert && !adapterFailure) {
-      const assertionResults: ObjectiveResult["assertions"] = [];
-      let status: ObjectiveResult["status"] = "PASS";
+    if ((scenario.traceAssert || hasOutputGates(scenario)) && !adapterFailure && !noResponse && !infrastructureFailure) {
+      const assertionResults: ObjectiveResult["assertions"] = [...outputGate.assertions];
+      let status: ObjectiveResult["status"] = outputGate.status;
       let traceMeta: Pick<ObjectiveResult, "trace_version" | "trace_sha256"> = {};
+      const outputMeta = outputGate.outputSha256 ? { output_sha256: outputGate.outputSha256 } : {};
 
       if (scenario.traceAssert) {
         if (traces.length > 0) {
@@ -560,13 +564,14 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
           assertionResults.push({ kind: "trace_evidence", status: "ERROR", detail: "no execution trace was produced" });
         } else {
           const gate = evaluateTraceGates(scenario.traceAssert, merged);
-          status = gate.status;
+          if (gate.status === "ERROR" || status === "ERROR") status = "ERROR";
+          else if (gate.status === "FAIL" || status === "FAIL") status = "FAIL";
           assertionResults.push(...gate.assertions);
           traceMeta = { trace_version: merged.trace_version, trace_sha256: merged.trace_sha256 };
         }
       }
 
-      objective = { status, ...traceMeta, assertions: assertionResults };
+      objective = { status, ...traceMeta, ...outputMeta, assertions: assertionResults };
       if (status !== "PASS") {
         const details = assertionResults.filter((result) => result.status === status).map((result) => result.detail);
         gatePrefix = `objective: ${details.join("; ") || "structured evidence could not be evaluated"}`;

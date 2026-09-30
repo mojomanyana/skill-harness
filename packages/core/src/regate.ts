@@ -3,13 +3,13 @@ import { basename, join } from "node:path";
 import type { Spec, Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
 import { parseVerdict, detectMisfire } from "./grade.js";
-import { evaluateNeedleGates, hasNeedleGates } from "./seeded.js";
+import { evaluateNeedleGates, evaluateOutputGates, hasNeedleGates, hasOutputGates } from "./seeded.js";
 import { evaluateTraceGates } from "./trace-gates.js";
 import { mergeTraces, deserializeTrace } from "./execution-trace.js";
 import { judgeOneRep } from "./regrade.js";
 import {
-  readResults, writeResults, diffPath, transcriptPath, judgeRawPath, repIndexOf,
-  findDiffFiles, findTraceFiles, tracePath,
+  readResults, writeResults, diffPath, transcriptPath, judgeRawPath,
+  findDiffFiles, findTranscriptFiles, findTraceFiles, tracePath,
   type ObjectiveResult, effectiveThreshold, scoreContextFor,
   rebuildScenarioResult, mergeScenarioMetrics, deliveryStatusForObservations,
   type ResultsFile, type ScenarioResult,
@@ -50,6 +50,19 @@ const GATE_FAILED_RE = /: (MISSING|PRESENT)$/m;
 
 const TRAILER = "=== SEEDED GATES ===";
 const DIFF_HEADER = "=== STAGED DIFF ===";
+const TRAILER_LINE_RE = /^=== SEEDED GATES ===[ \t]*$/gm;
+const DIFF_HEADER_LINE_RE = /^=== STAGED DIFF ===[ \t]*$/gm;
+
+/** Last exact full-line marker before `before`; model/diff substrings do not count. */
+function lastLineIndexBefore(text: string, pattern: RegExp, before = text.length): number {
+  pattern.lastIndex = 0;
+  let found = -1;
+  for (const match of text.matchAll(pattern)) {
+    if (match.index >= before) break;
+    found = match.index;
+  }
+  return found;
+}
 
 /**
  * Rebuild a transcript with a fresh gates trailer, preserving the model's turns and
@@ -62,10 +75,12 @@ const DIFF_HEADER = "=== STAGED DIFF ===";
  */
 function rewriteTranscript(path: string, gateLines: string[]): void {
   const original = readFileSync(path, "utf8");
-  const trailerAt = original.indexOf(TRAILER);
+  // The harness-owned diff header is last; the harness-owned trailer is the last
+  // exact trailer line before it. Prefixes and marker text inside the diff do not
+  // become structural boundaries.
+  const diffAt = lastLineIndexBefore(original, DIFF_HEADER_LINE_RE);
+  const trailerAt = lastLineIndexBefore(original, TRAILER_LINE_RE, diffAt === -1 ? original.length : diffAt);
   if (trailerAt === -1) return; // no trailer to correct (non-seeded shape); leave it alone
-
-  const diffAt = original.indexOf(DIFF_HEADER);
   const head = original.slice(0, trailerAt);
   const tail = diffAt === -1 ? "" : original.slice(diffAt);
   renameSync(path, path.replace(/\.txt$/, ".pre-regate.txt"));
@@ -82,10 +97,12 @@ function verdictFromSavedJudgement(runDir: string, id: string, mode: string, rep
 }
 
 /**
- * Re-evaluate needle gates against a run's **saved staged diffs** and re-decide the
- * verdicts they determined — without re-running the model.
+ * Re-evaluate diff, output, and trace gates against a run's saved artifacts and
+ * re-decide the verdicts they determined — without re-running the model.
  *
- * `diff_contains` / `diff_excludes` are pure functions of the diff, and since
+ * `diff_contains` / `diff_excludes` are pure functions of the diff, and
+ * `output_matches` / `output_excludes` are pure functions of the saved final
+ * assistant message. Since
  * `f6a5f6c` every seeded rep persists its diff as a run artifact. So the defect class
  * "the gate was wrong, the behavior wasn't" — hit three times in the reference corpus
  * (a context needle, a baseline-satisfied needle, a filename needle) — no longer costs
@@ -103,6 +120,9 @@ function verdictFromSavedJudgement(runDir: string, id: string, mode: string, rep
  *
  * That third row is what keeps this cheap without guessing: a rep the judge already
  * saw has its verdict on disk, so regate re-reads it rather than re-asking.
+ *
+ * Output gates likewise use the complete saved transcript set and never re-run the
+ * subject. A newly failing output gate is therefore judge-free.
  *
  * **Limits, deliberately hard failures rather than partial work:** `assert.vitest` and
  * `assert.post_test` need the workspace and cannot be re-evaluated from any artifact,
@@ -127,8 +147,9 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
   for (const rec of prev.scenarios) {
     const s = specById.get(rec.id);
     const needles = hasNeedleGates(s ?? ({} as Scenario));
+    const outputGated = hasOutputGates(s ?? ({} as Scenario));
     const traceGated = Boolean(s?.traceAssert);
-    if (!s || (!needles && !traceGated)) continue; // nothing for regate to re-decide
+    if (!s || (!needles && !outputGated && !traceGated)) continue; // nothing for regate to re-decide
     if (s.assert?.vitest || s.assert?.post_test) {
       blocked.push(
         `${s.id}: declares ${s.assert.vitest ? "assert.vitest" : "assert.post_test"}, which needs the workspace — ` +
@@ -142,6 +163,10 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
       paths.length === expectedPaths.length && expectedPaths.every((path) => paths.includes(basename(path)));
     if (needles && !complete(findDiffFiles(opts.runDir, s.id, mode), expectedSuffixes.map((rep) => diffPath(opts.runDir, s.id, mode, rep)))) {
       blocked.push(`${s.id}: staged-diff artifacts are incomplete for ${expectedReps} recorded rep(s) — regate refuses a partial repetition set`);
+      continue;
+    }
+    if (outputGated && !complete(findTranscriptFiles(opts.runDir, s.id, mode), expectedSuffixes.map((rep) => transcriptPath(opts.runDir, s.id, mode, rep)))) {
+      blocked.push(`${s.id}: transcript artifacts are incomplete for ${expectedReps} recorded rep(s) — regate refuses a partial repetition set`);
       continue;
     }
     // A trace gate is only re-decidable from a saved trace. A run recorded before
@@ -160,7 +185,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
   if (targets.length === 0) {
     throw new Error(
       `nothing to regate in ${opts.runDir}` +
-        (blocked.length > 0 ? `:\n  ${blocked.join("\n  ")}` : " — no scenario declares diff_contains/diff_excludes or assert.trace"),
+        (blocked.length > 0 ? `:\n  ${blocked.join("\n  ")}` : " — no scenario declares diff/output assertions or assert.trace"),
     );
   }
 
@@ -175,11 +200,11 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
       continue;
     }
 
-    const diffFiles = findDiffFiles(opts.runDir, scenario.id, mode);
-    const traceFiles = findTraceFiles(opts.runDir, scenario.id, mode);
-    const repKeys = diffFiles.length > 0
-      ? diffFiles.map((f) => ({ rep: repIndexOf(f) ?? undefined, diffFile: f as string | undefined }))
-      : traceFiles.map((f) => ({ rep: repIndexOf(f) ?? undefined, diffFile: undefined }));
+    const expectedReps = rec.reps ?? 1;
+    const repKeys = (expectedReps === 1 ? [undefined] : Array.from({ length: expectedReps }, (_, index) => index)).map((rep) => ({
+      rep,
+      diffFile: hasNeedleGates(scenario) ? basename(diffPath(opts.runDir, scenario.id, mode, rep)) : undefined,
+    }));
     const outcomes: RepOutcome[] = [];
     // Per scenario, not run-wide: with several regated scenarios, a global counter
     // would report every change as "re-judged" because some other scenario was.
@@ -189,10 +214,25 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
     for (const { rep, diffFile } of repKeys) {
       const diff = diffFile ? readFileSync(join(opts.runDir, diffFile), "utf8") : "";
       const needleGate = diffFile ? evaluateNeedleGates(scenario, diff) : { lines: [] as string[], failure: null as string | null };
+      const tPath = transcriptPath(opts.runDir, scenario.id, mode, rep);
+      const before = existsSync(tPath) ? readFileSync(tPath, "utf8") : "";
+      const outputGate = evaluateOutputGates(scenario, before);
 
-      // Trace gate, re-decided from the saved trace. Free: no model, no judge.
+      // Output and trace gates are re-decided from saved artifacts. Free: no model, no judge.
       let traceFailure: string | null = null;
-      let objective: ObjectiveResult | undefined;
+      const expectedOutputHash = rec.objective?.rep_output_sha256?.[rep ?? 0]
+        ?? (rec.reps === undefined ? rec.objective?.output_sha256 : undefined);
+      const outputDigestMismatch = expectedOutputHash !== undefined && expectedOutputHash !== outputGate.outputSha256;
+      const outputIntegrityAssertion = outputDigestMismatch
+        ? [{ kind: "output_evidence", status: "ERROR" as const, detail: "saved final assistant message no longer matches the hash recorded by the run" }]
+        : [];
+      let objective: ObjectiveResult | undefined = hasOutputGates(scenario)
+        ? {
+            status: outputDigestMismatch ? "ERROR" : outputGate.status,
+            ...(outputGate.outputSha256 ? { output_sha256: outputGate.outputSha256 } : {}),
+            assertions: [...outputIntegrityAssertion, ...outputGate.assertions],
+          }
+        : undefined;
       if (scenario.traceAssert) {
         const tp = tracePath(opts.runDir, scenario.id, mode, rep);
         // A PARTIAL read is refused, not graded. `deserializeTrace` returns null
@@ -214,7 +254,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
             usable.length === lines.length
               ? "objective: saved trace is missing or unreadable — cannot re-evaluate assert.trace"
               : `objective: saved trace is incomplete (${usable.length}/${lines.length} turns readable) — cannot re-evaluate assert.trace`;
-          objective = { status: "ERROR", assertions: [] };
+          objective = { ...(objective ?? {}), status: "ERROR", assertions: objective?.assertions ?? [] };
         } else {
           const g = evaluateTraceGates(scenario.traceAssert, merged);
           const expectedHash = rec.objective?.rep_trace_sha256?.[rep ?? 0] ?? (rec.reps === undefined ? rec.objective?.trace_sha256 : undefined);
@@ -222,7 +262,17 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
           const integrityAssertion = digestMismatch
             ? [{ kind: "trace_evidence", status: "ERROR" as const, detail: "saved trace no longer matches the hash recorded by the run" }]
             : [];
-          objective = { status: digestMismatch ? "ERROR" : g.status, trace_version: merged.trace_version, trace_sha256: merged.trace_sha256, assertions: [...integrityAssertion, ...g.assertions] };
+          const priorStatus = objective?.status ?? "PASS";
+          const status = digestMismatch || g.status === "ERROR" || priorStatus === "ERROR"
+            ? "ERROR"
+            : g.status === "FAIL" || priorStatus === "FAIL"
+              ? "FAIL"
+              : "PASS";
+          objective = {
+            ...(objective ?? { assertions: [] }), status,
+            trace_version: merged.trace_version, trace_sha256: merged.trace_sha256,
+            assertions: [...(objective?.assertions ?? []), ...integrityAssertion, ...g.assertions],
+          };
           if (g.status === "FAIL" || g.status === "ERROR" || digestMismatch) {
             const bad = [...integrityAssertion.map((x) => x.detail), ...g.assertions.filter((x) => x.status === g.status && g.status !== "PASS").map((x) => x.detail)];
             traceFailure = `objective: ${bad.join("; ")}`;
@@ -245,18 +295,30 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
         if (delivery.status !== "PASS") traceFailure = `objective: ${delivery.detail}`;
       }
 
-      const gate = { lines: needleGate.lines, failure: needleGate.failure ?? traceFailure };
+      const outputFailure = outputDigestMismatch
+        ? "objective: saved final assistant message no longer matches the hash recorded by the run"
+        : outputGate.status === "ERROR" || outputGate.status === "FAIL" ? outputGate.failure : null;
+      const gate = { lines: [...needleGate.lines, ...outputGate.lines], failure: needleGate.failure ?? outputFailure ?? traceFailure };
 
-      const tPath = transcriptPath(opts.runDir, scenario.id, mode, rep);
-      const before = existsSync(tPath) ? readFileSync(tPath, "utf8") : "";
       // Two sources, because the two gate kinds record their prior state
       // differently: a seeded needle gate leaves a trailer in the transcript, a
       // trace gate leaves an `objective` block on the result. Reading only the
       // trailer meant a trace gate flipping to PASS never triggered the re-judge
       // it needs, leaving a stale FAIL verdict beside a PASS objective.
-      const oldObjectiveFailed = rec.objective?.status === "FAIL" || rec.objective?.status === "ERROR" || rec.objective?.status === "NOT-MEASURED";
-      const oldGateFailed =
-        GATE_FAILED_RE.test(before.slice(before.indexOf(TRAILER))) || oldObjectiveFailed;
+      const perRepObjective = rec.rep_judgments?.find(panel => panel.repetition === (rep ?? 0))?.objective;
+      // Modern --reps records carry objective evidence per repetition. Falling
+      // back to the strict scenario aggregate there would label every rep failed
+      // when only one failed, and unnecessarily re-judge already-passing reps.
+      // Legacy records without panels have only the aggregate, so retain that
+      // conservative fallback for compatibility.
+      const oldObjective = perRepObjective ?? (rec.rep_judgments?.length ? undefined : rec.objective);
+      const oldObjectiveFailed = oldObjective?.status === "FAIL" || oldObjective?.status === "ERROR" || oldObjective?.status === "NOT-MEASURED";
+      const oldDiffAt = lastLineIndexBefore(before, DIFF_HEADER_LINE_RE);
+      const oldTrailerAt = lastLineIndexBefore(before, TRAILER_LINE_RE, oldDiffAt === -1 ? before.length : oldDiffAt);
+      const oldGateTrailer = oldTrailerAt === -1
+        ? ""
+        : before.slice(oldTrailerAt, oldDiffAt === -1 ? before.length : oldDiffAt);
+      const oldGateFailed = GATE_FAILED_RE.test(oldGateTrailer) || oldObjectiveFailed;
 
       // The trailer is regenerated whatever the outcome: leaving a stale
       // `MISSING` note beside a corrected verdict would misinform the next reader

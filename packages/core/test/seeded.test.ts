@@ -3,7 +3,7 @@ import { rmSync, writeFileSync, readFileSync, existsSync, mkdtempSync, mkdirSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createWorkspace } from "../src/workspace.js";
-import { runSeeded, capDiff, changedLines, vitestTally } from "../src/seeded.js";
+import { runSeeded, capDiff, changedLines, evaluateOutputGates, vitestTally } from "../src/seeded.js";
 import type { Scenario } from "../src/spec.js";
 import type { HarnessAdapter, RunReq } from "../src/adapters/types.js";
 
@@ -205,6 +205,74 @@ describe("arm-seeded .pi/skills definitions do not satisfy diff_contains (C1)", 
     // definitions as if the model had written them.
     expect(r.diff).not.toContain("UNIQUE_ARM_NEEDLE");
     expect(r.gateFailure).toMatch(/missing "UNIQUE_ARM_NEEDLE"/);
+  });
+});
+
+describe("assert.output_matches / assert.output_excludes", () => {
+  const scenario = (assert: Scenario["assert"], turns = 1): Scenario => ({
+    id: "O1", title: "output", critical: false, mode: "inline",
+    turns: Array.from({ length: turns }, (_, i) => `answer ${i + 1}`), checklist: ["answers"], assert,
+    workspace: "none", remote: false,
+  });
+
+  it("passes output_matches when every regex matches the final assistant message", () => {
+    const result = evaluateOutputGates(
+      scenario({ output_matches: ["src/widget\\.ts:[0-9]+", "fixed$"] }, 2),
+      ">>> USER:\nfirst\n\n<<< ASSISTANT:\nold\n\n>>> USER (turn 2/2):\nsecond\n\n<<< ASSISTANT:\nsrc/widget.ts:42 fixed\n",
+    );
+    expect(result.status).toBe("PASS");
+    expect(result.assertions.map((a) => a.status)).toEqual(["PASS", "PASS"]);
+  });
+
+  it("fails output_matches when any regex misses the final assistant message", () => {
+    const result = evaluateOutputGates(
+      scenario({ output_matches: ["src/.+:[0-9]+", "MISSING"] }),
+      ">>> USER:\nanswer\n\n<<< ASSISTANT:\nsrc/widget.ts:42\n",
+    );
+    expect(result.status).toBe("FAIL");
+    expect(result.failure).toMatch(/output_matches.*did not match/);
+  });
+
+  it("passes output_excludes when no regex matches the final assistant message", () => {
+    const result = evaluateOutputGates(
+      scenario({ output_excludes: ["SKILLHARNESSCANARY", "secret-[0-9]+"] }),
+      ">>> USER:\nSKILLHARNESSCANARY\n\n<<< ASSISTANT:\nredacted\n",
+    );
+    expect(result.status).toBe("PASS");
+  });
+
+  it("fails output_excludes when any regex matches the final assistant message", () => {
+    const result = evaluateOutputGates(
+      scenario({ output_excludes: ["SKILLHARNESSCANARY"] }),
+      ">>> USER:\nanswer\n\n<<< ASSISTANT:\ncontains SKILLHARNESSCANARY\n",
+    );
+    expect(result.status).toBe("FAIL");
+    expect(result.failure).toMatch(/output_excludes.*SKILLHARNESSCANARY/);
+  });
+
+  it.each(["<<< ASSISTANT:", ">>> USER:", "=== SEEDED GATES ===", "[pi exited 0]"])(
+    "returns ERROR instead of truncating delimiter-shaped assistant output: %s",
+    (marker) => {
+      const result = evaluateOutputGates(
+        scenario({ output_excludes: ["SECRET"] }),
+        `>>> USER:\nanswer\n\n<<< ASSISTANT:\nbefore\n${marker}\nSECRET\n`,
+      );
+      expect(result.status).toBe("ERROR");
+      expect(result.failure).toMatch(/delimiters are ambiguous/);
+    },
+  );
+
+  it.each([
+    ">>> USER: not-a-header",
+    "=== SEEDED GATES === not-a-header",
+    "[pi exited not-a-header",
+  ])("does not truncate delimiter prefixes with trailing text: %s", (text) => {
+    const result = evaluateOutputGates(
+      scenario({ output_excludes: ["SECRET"] }),
+      `>>> USER:\nanswer\n\n<<< ASSISTANT:\nbefore\n${text}\nSECRET\n`,
+    );
+    expect(result.status).toBe("FAIL");
+    expect(result.failure).toMatch(/output_excludes.*SECRET/);
   });
 });
 

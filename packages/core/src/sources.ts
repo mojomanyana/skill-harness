@@ -61,7 +61,7 @@ export const FIXTURE_PREFIX = "fixture:";
  * | `stimulus:<id>` | mode, turns, workspace, remote, agent-file path, fixture path, `assert.vitest`, `post_test` path | the transcripts answer a different question | `run` (model + judge) |
  * | `rubric:<id>` | title, checklist | transcripts fine, verdicts wrong | `grade` (judge only) |
  * | `policy:<id>` | critical, reps, pass_threshold | only the scoring moved | `rescore` (free) |
- * | `gates:<id>` | `diff_contains`, `diff_excludes` | needle wrong, behavior fine | `regate` (no subject call; judges fail→pass reps) |
+ * | `gates:<id>` | diff/output regex gates and `assert.trace` | gate wrong, saved evidence still valid | `regate` (no subject call; judges fail→pass reps) |
  * | `rubric:__persona` | spec-level `judge_persona` | every verdict in the skill | `grade` per model |
  *
  * Why this matters more than it looks: with one key, lint had exactly one remedy for
@@ -168,7 +168,7 @@ function walk(dir: string, prefix = ""): string[] {
  * A scenario's fields, sorted into the four buckets, as canonical JSON.
  *
  * One function so the exhaustive-destructure trick below covers all four digests at
- * once: adding a field to `Scenario` or `SeededAssert` fails the build **here** until
+ * once: adding a field to `Scenario` or `ScenarioAssert` fails the build **here** until
  * someone decides which bucket — and therefore which remedy — it belongs to. A field
  * nobody assigned is a permanent staleness blind spot, and a field assigned to the
  * wrong bucket is worse than that: it would tell a user `rescore` is enough when the
@@ -191,7 +191,7 @@ function facets(s: Scenario): { stimulus: string; rubric: string; policy: string
   // which is the exact trap the facet split was built to remove.
   void _coversIsMetadata;
 
-  const { vitest, diff_contains, diff_excludes, post_test, ...restAssert } = assert ?? {};
+  const { vitest, diff_contains, diff_excludes, output_matches, output_excludes, post_test, ...restAssert } = assert ?? {};
   const _assertExhaustive: Record<string, never> = restAssert;
   void _assertExhaustive;
 
@@ -199,7 +199,7 @@ function facets(s: Scenario): { stimulus: string; rubric: string; policy: string
   // already saved, so `regate` can re-answer it without re-running the subject model.
   // Note the asymmetry with `env.extensions` in Phase 3, which IS stimulus — one
   // changes what gets executed, the other only what we conclude from it.
-  const hasGates = diff_contains !== undefined || diff_excludes !== undefined || traceAssert !== undefined;
+  const hasGates = diff_contains !== undefined || diff_excludes !== undefined || output_matches !== undefined || output_excludes !== undefined || traceAssert !== undefined;
   return {
     // `vitest` and the `post_test` PATH are stimulus, not gates: both change what the
     // run executes in the workspace, and neither can be re-evaluated from a saved
@@ -226,6 +226,8 @@ function facets(s: Scenario): { stimulus: string; rubric: string; policy: string
     gates: hasGates
       ? JSON.stringify([
           id, diff_contains ?? null, diff_excludes ?? null,
+          ...(output_matches ? [["output_matches", output_matches]] : []),
+          ...(output_excludes ? [["output_excludes", output_excludes]] : []),
           ...(traceAssert ? [traceAssert] : []),
         ])
       : null,
@@ -248,7 +250,7 @@ export function policyDigest(s: Scenario): string {
   return sha(facets(s).policy);
 }
 
-/** Null when the scenario declares no needle gates — no key is recorded for it. */
+/** Null when the scenario declares no offline-replayable gates — no key is recorded for it. */
 export function gatesDigest(s: Scenario): string | null {
   const g = facets(s).gates;
   return g === null ? null : sha(g);
