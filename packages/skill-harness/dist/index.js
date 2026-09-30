@@ -3488,6 +3488,20 @@ var SpecError = class extends Error {
 function isStringArray(v) {
   return Array.isArray(v) && v.every((x) => typeof x === "string");
 }
+function parseRegexList(v, id, field, file) {
+  assertStringList(v, id, field, file);
+  for (const pattern of v) {
+    if (pattern === "") {
+      throw new SpecError(`scenario \`${id}\` \`${field}\` patterns must not be empty`, file);
+    }
+    try {
+      new RegExp(pattern, "m");
+    } catch (e) {
+      throw new SpecError(`scenario \`${id}\` \`${field}\` contains invalid regular expression ${JSON.stringify(pattern)} \u2014 ${e.message}`, file);
+    }
+  }
+  return v;
+}
 function assertStringList(v, id, field, file) {
   if (!Array.isArray(v) || v.length === 0) {
     throw new SpecError(`scenario \`${id}\` needs at least one \`${field}\` entry`, file);
@@ -3626,21 +3640,44 @@ function parseSpec(text, file) {
       workspace: "none",
       remote: false
     };
+    if (s.assert !== void 0 && (s.assert === null || typeof s.assert !== "object" || Array.isArray(s.assert))) {
+      throw new SpecError(`scenario \`${id}\` \`assert\` must be a mapping`, file);
+    }
     const rawAssert = s.assert;
     if (rawAssert?.trajectory !== void 0) {
       throw new SpecError(`scenario \`${id}\` uses removed \`assert.trajectory\`; delete it or replace it with an active objective gate`, file);
     }
+    const allowedAssertKeys = /* @__PURE__ */ new Set([
+      "vitest",
+      "diff_contains",
+      "diff_excludes",
+      "post_test",
+      "trace",
+      "output_matches",
+      "output_excludes"
+    ]);
+    for (const key of Object.keys(rawAssert ?? {})) {
+      if (!allowedAssertKeys.has(key)) {
+        throw new SpecError(`scenario \`${id}\` has unknown \`assert\` key \`${key}\``, file);
+      }
+    }
     if (rawAssert?.trace !== void 0) {
       scenario.traceAssert = parseTraceAssert(rawAssert.trace, `${file}: scenario \`${id}\``);
+    }
+    const assertObj = {};
+    if (rawAssert?.output_matches !== void 0) {
+      assertObj.output_matches = parseRegexList(rawAssert.output_matches, id, "assert.output_matches", file);
+    }
+    if (rawAssert?.output_excludes !== void 0) {
+      assertObj.output_excludes = parseRegexList(rawAssert.output_excludes, id, "assert.output_excludes", file);
     }
     if (mode === "seeded") {
       if (typeof s.fixture !== "string" || s.fixture.length === 0) {
         throw new SpecError(`seeded scenario \`${id}\` requires a \`fixture\` path`, file);
       }
       scenario.fixture = s.fixture;
-      const a = s.assert;
+      const a = rawAssert;
       if (a) {
-        const assertObj = {};
         if (a.vitest !== void 0)
           assertObj.vitest = a.vitest === true;
         if (a.diff_contains !== void 0) {
@@ -3671,9 +3708,10 @@ function parseSpec(text, file) {
           }
           assertObj.post_test = a.post_test.trim();
         }
-        scenario.assert = assertObj;
       }
     }
+    if (Object.keys(assertObj).length > 0)
+      scenario.assert = assertObj;
     if (s.env && typeof s.env === "object" && Object.hasOwn(s.env, "event_sources")) {
       throw new SpecError(`scenario \`${id}\` uses removed \`env.event_sources\`; it is no longer collected`, file);
     }
@@ -3809,10 +3847,10 @@ function facets(s) {
   const _scenarioExhaustive = restScenario;
   void _scenarioExhaustive;
   void _coversIsMetadata;
-  const { vitest, diff_contains, diff_excludes, post_test, ...restAssert } = assert ?? {};
+  const { vitest, diff_contains, diff_excludes, output_matches, output_excludes, post_test, ...restAssert } = assert ?? {};
   const _assertExhaustive = restAssert;
   void _assertExhaustive;
-  const hasGates = diff_contains !== void 0 || diff_excludes !== void 0 || traceAssert !== void 0;
+  const hasGates = diff_contains !== void 0 || diff_excludes !== void 0 || output_matches !== void 0 || output_excludes !== void 0 || traceAssert !== void 0;
   return {
     // `vitest` and the `post_test` PATH are stimulus, not gates: both change what the
     // run executes in the workspace, and neither can be re-evaluated from a saved
@@ -3847,6 +3885,8 @@ function facets(s) {
       id,
       diff_contains ?? null,
       diff_excludes ?? null,
+      ...output_matches ? [["output_matches", output_matches]] : [],
+      ...output_excludes ? [["output_excludes", output_excludes]] : [],
       ...traceAssert ? [traceAssert] : []
     ]) : null
   };
@@ -5130,6 +5170,7 @@ function collectLift(skillDir) {
 }
 
 // packages/core/dist/seeded.js
+import { createHash as createHash4 } from "node:crypto";
 import { copyFileSync as copyFileSync2, statSync as statSync4 } from "node:fs";
 import { extname, isAbsolute as isAbsolute4, join as join9, resolve as resolve5 } from "node:path";
 
@@ -5232,6 +5273,65 @@ function changedLines(diff) {
       out.push(line);
   }
   return out.join("\n");
+}
+function hasOutputGates(scenario) {
+  return (scenario.assert?.output_matches?.length ?? 0) > 0 || (scenario.assert?.output_excludes?.length ?? 0) > 0;
+}
+function finalAssistantMessage(transcript, scenario) {
+  const assistantMarker = /^<<< ASSISTANT:[ \t]*$/gm;
+  const userMarker = /^>>> USER(?: \(turn \d+\/\d+\))?:[ \t]*$/gm;
+  const gateMarker = /^=== SEEDED GATES ===[ \t]*$/gm;
+  const exitMarker = /^\[pi exited [^\]]+\][ \t]*$/gm;
+  const assistantCount = [...transcript.matchAll(assistantMarker)].length;
+  const userCount = [...transcript.matchAll(userMarker)].length;
+  const gateCount = [...transcript.matchAll(gateMarker)].length;
+  const exitCount = [...transcript.matchAll(exitMarker)].length;
+  const expectedGates = scenario.mode === "seeded" ? 1 : 0;
+  if (assistantCount !== scenario.turns.length || userCount !== scenario.turns.length || gateCount !== expectedGates || exitCount !== 0) {
+    return null;
+  }
+  const sections = transcript.split(/^<<< ASSISTANT:[ \t]*$/m);
+  return sections[sections.length - 1].split(/^(?:>>> USER(?: \(turn \d+\/\d+\))?:[ \t]*|=== SEEDED GATES ===[ \t]*|\[pi exited [^\]]+\][ \t]*)$/m)[0].trim();
+}
+function evaluateOutputGates(scenario, transcript) {
+  if (!hasOutputGates(scenario))
+    return { status: "PASS", failure: null, assertions: [], lines: [] };
+  const output = finalAssistantMessage(transcript, scenario);
+  if (output === null) {
+    const detail = "final assistant message is missing or transcript delimiters are ambiguous";
+    return {
+      status: "ERROR",
+      failure: `output evidence: ${detail}`,
+      assertions: [{ kind: "output_evidence", status: "ERROR", detail }],
+      lines: [`  output: ERROR (${detail})`]
+    };
+  }
+  const assertions = [];
+  const lines = [];
+  let failure = null;
+  for (const pattern of scenario.assert?.output_matches ?? []) {
+    const ok = new RegExp(pattern, "m").test(output);
+    const detail = ok ? `final assistant message matches ${JSON.stringify(pattern)}` : `final assistant message does not match ${JSON.stringify(pattern)}`;
+    assertions.push({ kind: "output_matches", status: ok ? "PASS" : "FAIL", detail });
+    lines.push(`  output_matches ${JSON.stringify(pattern)}: ${ok ? "MATCH" : "MISSING"}`);
+    if (!ok && !failure)
+      failure = `output_matches ${JSON.stringify(pattern)} did not match the final assistant message`;
+  }
+  for (const pattern of scenario.assert?.output_excludes ?? []) {
+    const ok = !new RegExp(pattern, "m").test(output);
+    const detail = ok ? `final assistant message excludes ${JSON.stringify(pattern)}` : `final assistant message matches forbidden regex ${JSON.stringify(pattern)}`;
+    assertions.push({ kind: "output_excludes", status: ok ? "PASS" : "FAIL", detail });
+    lines.push(`  output_excludes ${JSON.stringify(pattern)}: ${ok ? "ABSENT" : "PRESENT"}`);
+    if (!ok && !failure)
+      failure = `output_excludes ${JSON.stringify(pattern)} matched the final assistant message`;
+  }
+  return {
+    status: failure ? "FAIL" : "PASS",
+    failure,
+    outputSha256: createHash4("sha256").update(output).digest("hex"),
+    assertions,
+    lines
+  };
 }
 function evaluateNeedleGates(scenario, diff) {
   const changed = changedLines(diff);
@@ -5438,7 +5538,7 @@ function vitestTally(out) {
 }
 
 // packages/core/dist/execution-trace.js
-import { createHash as createHash4 } from "node:crypto";
+import { createHash as createHash5 } from "node:crypto";
 
 // packages/core/dist/capture-trace-types.js
 var EXECUTION_TRACE_VERSION = 2;
@@ -5674,7 +5774,7 @@ function isoTime(value) {
   return Number.isNaN(date.getTime()) ? void 0 : date.toISOString();
 }
 function sha256(text) {
-  return createHash4("sha256").update(text, "utf8").digest("hex");
+  return createHash5("sha256").update(text, "utf8").digest("hex");
 }
 function traceSha256(trace) {
   const { trace_sha256: _omit, ...rest } = trace;
@@ -5790,9 +5890,11 @@ function aggregateObjective(outcomes) {
   if (present.length === 1)
     return picked;
   const traceHashes = present.map((objective) => objective.trace_sha256);
+  const outputHashes = present.map((objective) => objective.output_sha256);
   return {
     ...picked,
-    ...traceHashes.every((hash) => typeof hash === "string") ? { rep_trace_sha256: traceHashes } : {}
+    ...traceHashes.every((hash) => typeof hash === "string") ? { rep_trace_sha256: traceHashes } : {},
+    ...outputHashes.every((hash) => typeof hash === "string") ? { rep_output_sha256: outputHashes } : {}
   };
 }
 function aggregateReps(outcomes, threshold) {
@@ -6623,11 +6725,11 @@ async function runSkillModel(opts) {
   return { runDir, results };
 }
 function hasEmptyAssistantTurn(transcript) {
-  const sections = transcript.split(/^<<< ASSISTANT:\s*$/m).slice(1);
+  const sections = transcript.split(/^<<< ASSISTANT:[ \t]*$/m).slice(1);
   if (sections.length === 0)
     return false;
   return sections.some((sec) => {
-    const body = sec.split(/^(?:>>> |=== SEEDED GATES ===|\[pi exited )/m)[0];
+    const body = sec.split(/^(?:>>> USER(?: \(turn \d+\/\d+\))?:[ \t]*|=== SEEDED GATES ===[ \t]*|\[pi exited [^\]]+\][ \t]*)$/m)[0];
     return body.trim() === "";
   });
 }
@@ -6759,6 +6861,7 @@ async function runRep(scenario, rep, repCount, ctx) {
       }
     }
     const repSuffix = repCount > 1 ? rep : void 0;
+    const outputGate = !adapterFailure && !noResponse && !infrastructureFailure ? evaluateOutputGates(scenario, transcript) : { status: "PASS", failure: null, assertions: [], lines: [] };
     writeFileSync3(transcriptPath(runDir, scenario.id, mode, repSuffix), transcript, "utf8");
     if (scenario.mode === "seeded") {
       if (stagedDiff !== null) {
@@ -6778,10 +6881,11 @@ async function runRep(scenario, rep, repCount, ctx) {
       }
     }
     let objective;
-    if (scenario.traceAssert && !adapterFailure) {
-      const assertionResults = [];
-      let status = "PASS";
+    if ((scenario.traceAssert || hasOutputGates(scenario)) && !adapterFailure && !noResponse && !infrastructureFailure) {
+      const assertionResults = [...outputGate.assertions];
+      let status = outputGate.status;
       let traceMeta = {};
+      const outputMeta = outputGate.outputSha256 ? { output_sha256: outputGate.outputSha256 } : {};
       if (scenario.traceAssert) {
         if (traces.length > 0) {
           writeFileSync3(tracePath(runDir, scenario.id, mode, repSuffix), traces.map(serializeTrace).join(""), "utf8");
@@ -6795,12 +6899,15 @@ async function runRep(scenario, rep, repCount, ctx) {
           assertionResults.push({ kind: "trace_evidence", status: "ERROR", detail: "no execution trace was produced" });
         } else {
           const gate = evaluateTraceGates(scenario.traceAssert, merged);
-          status = gate.status;
+          if (gate.status === "ERROR" || status === "ERROR")
+            status = "ERROR";
+          else if (gate.status === "FAIL" || status === "FAIL")
+            status = "FAIL";
           assertionResults.push(...gate.assertions);
           traceMeta = { trace_version: merged.trace_version, trace_sha256: merged.trace_sha256 };
         }
       }
-      objective = { status, ...traceMeta, assertions: assertionResults };
+      objective = { status, ...traceMeta, ...outputMeta, assertions: assertionResults };
       if (status !== "PASS") {
         const details = assertionResults.filter((result) => result.status === status).map((result) => result.detail);
         gatePrefix = `objective: ${details.join("; ") || "structured evidence could not be evaluated"}`;
@@ -7188,7 +7295,7 @@ import { existsSync as existsSync13, readdirSync as readdirSync9, statSync as st
 import { join as join17 } from "node:path";
 
 // packages/core/dist/restamp.js
-import { createHash as createHash5 } from "node:crypto";
+import { createHash as createHash6 } from "node:crypto";
 import { execFileSync as execFileSync2 } from "node:child_process";
 import { readFileSync as readFileSync12, renameSync, rmSync as rmSync2, writeFileSync as writeFileSync4 } from "node:fs";
 import { dirname as dirname4, join as join19, relative as relative3, resolve as resolve9 } from "node:path";
@@ -7235,7 +7342,7 @@ import { existsSync as existsSync15, readFileSync as readFileSync13, renameSync 
 import { basename as basename2, join as join20 } from "node:path";
 
 // packages/core/dist/spec-write.js
-import { createHash as createHash6 } from "node:crypto";
+import { createHash as createHash7 } from "node:crypto";
 import { readFileSync as readFileSync14, renameSync as renameSync3, unlinkSync, writeFileSync as writeFileSync6 } from "node:fs";
 import { dirname as dirname5, join as join21 } from "node:path";
 
@@ -7633,7 +7740,7 @@ ${r.stderr.trim()}
 };
 
 // packages/adapters/dist/trajectory.js
-import { createHash as createHash7 } from "node:crypto";
+import { createHash as createHash8 } from "node:crypto";
 import { readFileSync as readFileSync16, readdirSync as readdirSync11 } from "node:fs";
 import { join as join23 } from "node:path";
 

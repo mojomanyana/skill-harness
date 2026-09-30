@@ -30,6 +30,12 @@ describe("lintSkill static checks", () => {
     expect(f).toHaveLength(1);
     expect(f[0].code).toBe("spec");
   });
+  it("unknown assert key → lint-time spec finding", () => {
+    const f = lintSkill(skill(`${GOOD}    assert:\n      output_contains: ["citation"]\n`));
+    expect(f).toHaveLength(1);
+    expect(f[0]).toMatchObject({ code: "spec" });
+    expect(f[0].message).toMatch(/unknown `assert` key `output_contains`/);
+  });
   it("ship_bar min_pass > total → ship_bar finding", () => {
     const f = lintSkill(skill(`skill: d\njudge_persona: j.\nship_bar: { total: 1, min_pass: 2 }\nscenarios:\n  - id: A1\n    title: t\n    turns: ["h"]\n    checklist: ["ok"]\n`));
     expect(f.some((x) => x.code === "ship_bar" && /min_pass/.test(x.message))).toBe(true);

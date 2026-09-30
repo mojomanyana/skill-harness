@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { copyFileSync, statSync } from "node:fs";
 import { extname, isAbsolute, join, resolve } from "node:path";
 import type { Scenario } from "./spec.js";
@@ -119,6 +120,83 @@ export function changedLines(diff: string): string {
 /** Whether a scenario declares any needle gate at all. */
 export function hasNeedleGates(scenario: Scenario): boolean {
   return (scenario.assert?.diff_contains?.length ?? 0) > 0 || (scenario.assert?.diff_excludes?.length ?? 0) > 0;
+}
+
+/** Whether a scenario declares any final-assistant-message gate. */
+export function hasOutputGates(scenario: Scenario): boolean {
+  return (scenario.assert?.output_matches?.length ?? 0) > 0 || (scenario.assert?.output_excludes?.length ?? 0) > 0;
+}
+
+/**
+ * The final assistant turn exactly as the transcript artifact records its text.
+ *
+ * Delimiter-shaped model output is ambiguous in this plain-text artifact. Refuse
+ * it instead of truncating the output and turning a forbidden suffix into PASS.
+ */
+export function finalAssistantMessage(transcript: string, scenario: Scenario): string | null {
+  const assistantMarker = /^<<< ASSISTANT:[ \t]*$/gm;
+  const userMarker = /^>>> USER(?: \(turn \d+\/\d+\))?:[ \t]*$/gm;
+  const gateMarker = /^=== SEEDED GATES ===[ \t]*$/gm;
+  const exitMarker = /^\[pi exited [^\]]+\][ \t]*$/gm;
+  const assistantCount = [...transcript.matchAll(assistantMarker)].length;
+  const userCount = [...transcript.matchAll(userMarker)].length;
+  const gateCount = [...transcript.matchAll(gateMarker)].length;
+  const exitCount = [...transcript.matchAll(exitMarker)].length;
+  const expectedGates = scenario.mode === "seeded" ? 1 : 0;
+  if (assistantCount !== scenario.turns.length || userCount !== scenario.turns.length || gateCount !== expectedGates || exitCount !== 0) {
+    return null;
+  }
+  const sections = transcript.split(/^<<< ASSISTANT:[ \t]*$/m);
+  return sections[sections.length - 1]
+    .split(/^(?:>>> USER(?: \(turn \d+\/\d+\))?:[ \t]*|=== SEEDED GATES ===[ \t]*|\[pi exited [^\]]+\][ \t]*)$/m)[0]
+    .trim();
+}
+
+export interface OutputGateResult {
+  status: "PASS" | "FAIL" | "ERROR";
+  failure: string | null;
+  outputSha256?: string;
+  assertions: { kind: "output_matches" | "output_excludes" | "output_evidence"; status: "PASS" | "FAIL" | "ERROR"; detail: string }[];
+  lines: string[];
+}
+
+/** Evaluate final-message regex gates without exposing the matched text. */
+export function evaluateOutputGates(scenario: Scenario, transcript: string): OutputGateResult {
+  if (!hasOutputGates(scenario)) return { status: "PASS", failure: null, assertions: [], lines: [] };
+  const output = finalAssistantMessage(transcript, scenario);
+  if (output === null) {
+    const detail = "final assistant message is missing or transcript delimiters are ambiguous";
+    return {
+      status: "ERROR", failure: `output evidence: ${detail}`,
+      assertions: [{ kind: "output_evidence", status: "ERROR", detail }],
+      lines: [`  output: ERROR (${detail})`],
+    };
+  }
+
+  const assertions: OutputGateResult["assertions"] = [];
+  const lines: string[] = [];
+  let failure: string | null = null;
+  for (const pattern of scenario.assert?.output_matches ?? []) {
+    const ok = new RegExp(pattern, "m").test(output);
+    const detail = ok ? `final assistant message matches ${JSON.stringify(pattern)}` : `final assistant message does not match ${JSON.stringify(pattern)}`;
+    assertions.push({ kind: "output_matches", status: ok ? "PASS" : "FAIL", detail });
+    lines.push(`  output_matches ${JSON.stringify(pattern)}: ${ok ? "MATCH" : "MISSING"}`);
+    if (!ok && !failure) failure = `output_matches ${JSON.stringify(pattern)} did not match the final assistant message`;
+  }
+  for (const pattern of scenario.assert?.output_excludes ?? []) {
+    const ok = !new RegExp(pattern, "m").test(output);
+    const detail = ok ? `final assistant message excludes ${JSON.stringify(pattern)}` : `final assistant message matches forbidden regex ${JSON.stringify(pattern)}`;
+    assertions.push({ kind: "output_excludes", status: ok ? "PASS" : "FAIL", detail });
+    lines.push(`  output_excludes ${JSON.stringify(pattern)}: ${ok ? "ABSENT" : "PRESENT"}`);
+    if (!ok && !failure) failure = `output_excludes ${JSON.stringify(pattern)} matched the final assistant message`;
+  }
+  return {
+    status: failure ? "FAIL" : "PASS",
+    failure,
+    outputSha256: createHash("sha256").update(output).digest("hex"),
+    assertions,
+    lines,
+  };
 }
 
 /**

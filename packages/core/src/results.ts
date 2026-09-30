@@ -156,8 +156,11 @@ export interface ObjectiveResult {
   status: "PASS" | "FAIL" | "ERROR" | "NOT-MEASURED";
   trace_version?: number;
   trace_sha256?: string;
+  /** SHA-256 of the final assistant message evaluated by output regex gates. */
+  output_sha256?: string;
   /** Per-repetition hashes retained when an aggregate has more than one rep. */
   rep_trace_sha256?: string[];
+  rep_output_sha256?: string[];
   assertions: { kind: string; status: "PASS" | "FAIL" | "ERROR" | "NOT-MEASURED"; detail: string }[];
 }
 

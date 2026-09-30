@@ -5,7 +5,7 @@ import { parseTraceAssert, type TraceAssert } from "./trace-gates.js";
 
 export type ScenarioMode = "inline" | "seeded";
 
-export interface SeededAssert {
+export interface ScenarioAssert {
   vitest?: boolean;
   diff_contains?: string[];
   /**
@@ -15,6 +15,10 @@ export interface SeededAssert {
    * from the model's prose.
    */
   diff_excludes?: string[];
+  /** Regular expressions that must all match the final assistant message. */
+  output_matches?: string[];
+  /** Regular expressions that must not match the final assistant message. */
+  output_excludes?: string[];
   /**
    * A test file copied into the workspace AFTER the agent finishes, then run.
    * The model never sees it, so it cannot write code shaped to pass it — this
@@ -33,12 +37,12 @@ export interface Scenario {
   turns: string[];
   checklist: string[];
   fixture?: string;
-  assert?: SeededAssert;
+  assert?: ScenarioAssert;
   /**
    * Objective assertions over the execution trace.
    *
-   * Deliberately NOT part of `SeededAssert`: the other gates read a staged git
-   * diff and are meaningless without a fixture, while a trace exists for any run.
+   * Deliberately NOT part of `ScenarioAssert`: trace assertions have their own
+   * closed schema and opt execution into structured capture.
    * Declaring it opts the scenario into structured (`--mode json`) execution.
    */
   traceAssert?: TraceAssert;
@@ -95,6 +99,24 @@ export class SpecError extends Error {
 
 function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === "string");
+}
+
+function parseRegexList(v: unknown, id: string, field: string, file: string): string[] {
+  assertStringList(v, id, field, file);
+  for (const pattern of v) {
+    if (pattern === "") {
+      throw new SpecError(`scenario \`${id}\` \`${field}\` patterns must not be empty`, file);
+    }
+    try {
+      new RegExp(pattern, "m");
+    } catch (e) {
+      throw new SpecError(
+        `scenario \`${id}\` \`${field}\` contains invalid regular expression ${JSON.stringify(pattern)} — ${(e as Error).message}`,
+        file,
+      );
+    }
+  }
+  return v;
 }
 
 /**
@@ -287,14 +309,32 @@ export function parseSpec(text: string, file: string): Spec {
       remote: false,
     };
 
-    // `assert.trace` is legal for inline AND seeded scenarios — it reads the
-    // execution trace, which every run produces, not a staged diff.
+    // Output and trace assertions are legal for inline AND seeded scenarios.
+    if (s.assert !== undefined && (s.assert === null || typeof s.assert !== "object" || Array.isArray(s.assert))) {
+      throw new SpecError(`scenario \`${id}\` \`assert\` must be a mapping`, file);
+    }
     const rawAssert = s.assert as Record<string, unknown> | undefined;
     if (rawAssert?.trajectory !== undefined) {
       throw new SpecError(`scenario \`${id}\` uses removed \`assert.trajectory\`; delete it or replace it with an active objective gate`, file);
     }
+    const allowedAssertKeys = new Set([
+      "vitest", "diff_contains", "diff_excludes", "post_test", "trace", "output_matches", "output_excludes",
+    ]);
+    for (const key of Object.keys(rawAssert ?? {})) {
+      if (!allowedAssertKeys.has(key)) {
+        throw new SpecError(`scenario \`${id}\` has unknown \`assert\` key \`${key}\``, file);
+      }
+    }
     if (rawAssert?.trace !== undefined) {
       scenario.traceAssert = parseTraceAssert(rawAssert.trace, `${file}: scenario \`${id}\``);
+    }
+
+    const assertObj: ScenarioAssert = {};
+    if (rawAssert?.output_matches !== undefined) {
+      assertObj.output_matches = parseRegexList(rawAssert.output_matches, id, "assert.output_matches", file);
+    }
+    if (rawAssert?.output_excludes !== undefined) {
+      assertObj.output_excludes = parseRegexList(rawAssert.output_excludes, id, "assert.output_excludes", file);
     }
 
     if (mode === "seeded") {
@@ -302,9 +342,8 @@ export function parseSpec(text: string, file: string): Spec {
         throw new SpecError(`seeded scenario \`${id}\` requires a \`fixture\` path`, file);
       }
       scenario.fixture = s.fixture;
-      const a = s.assert as Record<string, unknown> | undefined;
+      const a = rawAssert;
       if (a) {
-        const assertObj: SeededAssert = {};
         if (a.vitest !== undefined) assertObj.vitest = a.vitest === true;
         if (a.diff_contains !== undefined) {
           if (!isStringArray(a.diff_contains)) {
@@ -352,9 +391,9 @@ export function parseSpec(text: string, file: string): Spec {
           }
           assertObj.post_test = a.post_test.trim();
         }
-        scenario.assert = assertObj;
       }
     }
+    if (Object.keys(assertObj).length > 0) scenario.assert = assertObj;
 
     if (s.env && typeof s.env === "object" && Object.hasOwn(s.env as object, "event_sources")) {
       throw new SpecError(`scenario \`${id}\` uses removed \`env.event_sources\`; it is no longer collected`, file);

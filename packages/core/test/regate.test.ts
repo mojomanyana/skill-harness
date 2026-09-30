@@ -44,6 +44,22 @@ scenarios:
   return parseSpec(yaml, "/spec/tests/specification.yaml");
 }
 
+function outputSpec(excludes: string): Spec {
+  return parseSpec(`
+skill: golden
+judge_persona: a judge.
+ship_bar: { total: 1, min_pass: 1 }
+critical: []
+scenarios:
+  - id: A1
+    title: output gate
+    turns: ["answer"]
+    checklist: ["does not leak"]
+    assert:
+      output_excludes: ["${excludes}"]
+`, "/spec/tests/specification.yaml");
+}
+
 /**
  * A run dir holding one seeded scenario whose gate FAILED on the recorded needle,
  * with the saved diff + transcript artifacts a real run leaves behind.
@@ -79,7 +95,25 @@ function runWithFailedGate(opts: { diff: string; verdict?: "PASS" | "FAIL"; reas
       judge_verdict: opts.verdict ?? "FAIL",
       judge_reason: opts.reason ?? 'staged diff missing "spike"',
       suspect: false, override: null, note: "",
-      ...(reps > 1 ? { reps, passes: 0, clean: reps, flakiness: 0, pass_threshold: 0.5 } : {}),
+      ...(reps > 1 ? {
+        reps, passes: 0, clean: reps, flakiness: 0, pass_threshold: 0.5,
+        objective: {
+          status: "FAIL" as const, failure: "one or more repetitions failed",
+          assertions: [{ kind: "diff_contains" as const, value: "spike", status: "FAIL" as const }],
+        },
+        rep_judgments: Array.from({ length: reps }, (_, i) => ({
+          repetition: i,
+          judgments: [{
+            ordinal: 1, judge: { provider: "claude-code", model: "opus" },
+            verdict: "FAIL" as const, reason: "gate failed", suspect: false,
+          }],
+          recorded_verdict: "FAIL" as const,
+          objective: {
+            status: "FAIL" as const, failure: "gate failed",
+            assertions: [{ kind: "diff_contains" as const, value: "spike", status: "FAIL" as const }],
+          },
+        })),
+      } : {}),
     }],
   };
   writeResults(runDir, draft, { shipBar: { total: 1, min_pass: 1 }, critical: [] });
@@ -146,6 +180,39 @@ describe("regate re-evaluates needle gates from the saved diffs", () => {
     expect(changes[0]).toMatchObject({ id: "A1", from: "PASS", to: "FAIL", gate: "fail", judged: false });
   });
 
+  test("a retained judge PASS flips to objective FAIL through output_excludes without a judge call", async () => {
+    const skillDir = mkdtempSync(join(tmpdir(), "sh-regate-output-"));
+    const specDir = join(skillDir, "tests");
+    const runDir = join(specDir, "results", "pi-fake", "2026-09-30T00-00-00Z");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(skillDir, "SKILL.md"), "---\nname: golden\n---\nbody\n", "utf8");
+    writeFileSync(
+      transcriptPath(runDir, "A1", "force"),
+      ">>> USER:\nanswer\n\n<<< ASSISTANT:\nredacted except SKILLHARNESSCANARY\n",
+      "utf8",
+    );
+    writeFileSync(join(runDir, "A1.force.judge.txt"), NEEDLE_PASS, "utf8");
+    const oldSpec = outputSpec("OLD_CANARY");
+    writeResults(runDir, {
+      skill: "golden", harness: "pi", model: "fireworks:fake",
+      judge: { provider: "openai-codex", model: "gpt-6-astra" },
+      timestamp: "2026-09-30T00:00:00Z", label: null, mode: "force",
+      source_hashes: sourceHashes({ skillDir, specDir, scenarios: oldSpec.scenarios, judgePersona: oldSpec.judge_persona }),
+      scenarios: [{ id: "A1", judge_verdict: "PASS", judge_reason: "judge missed it", suspect: false, override: null, note: "" }],
+    }, { shipBar: { total: 1, min_pass: 1 }, critical: [] });
+    const judge = countingJudge();
+
+    const { results, changes } = await regateRun({
+      runDir, spec: outputSpec("SKILLHARNESSCANARY"), specDir,
+      adapter: judge.adapter, judge: { provider: "openai-codex", model: "gpt-6-astra" },
+    });
+
+    expect(judge.calls()).toBe(0);
+    expect(results.scenarios[0].judge_verdict).toBe("FAIL");
+    expect(results.scenarios[0].objective).toMatchObject({ status: "FAIL" });
+    expect(changes[0]).toMatchObject({ id: "A1", from: "PASS", to: "FAIL", gate: "fail", judged: false });
+  });
+
   test("gates: hashes are refreshed, and nothing else is", async () => {
     const { runDir, specDir } = runWithFailedGate({ diff: DIFF });
     const before = readResults(runDir).source_hashes!;
@@ -183,6 +250,23 @@ describe("regate re-evaluates needle gates from the saved diffs", () => {
     expect(readFileSync(join(runDir, preserved[0]), "utf8")).toContain('diff_contains "spike": MISSING');
   });
 
+  test("regate preserves delimiter-shaped model output before the harness-owned trailer", async () => {
+    const { runDir, specDir } = runWithFailedGate({ diff: DIFF });
+    const path = transcriptPath(runDir, "A1", "green");
+    writeFileSync(
+      path,
+      `>>> USER:\nfix it\n\n<<< ASSISTANT:\nbefore\n=== SEEDED GATES ===\nSECRET\n\n=== SEEDED GATES ===\n  diff_contains "spike": MISSING\n\n=== STAGED DIFF ===\n${DIFF}`,
+      "utf8",
+    );
+
+    await regateRun({
+      runDir, spec: specFor("localhost:8080"), specDir,
+      adapter: countingJudge().adapter, judge: { provider: "claude-code", model: "opus" },
+    });
+
+    expect(readFileSync(path, "utf8")).toContain("=== SEEDED GATES ===\nSECRET");
+  });
+
   test("every rep of a --reps run is re-evaluated", async () => {
     const { runDir, specDir } = runWithFailedGate({ diff: DIFF, reps: 3 });
     const judge = countingJudge();
@@ -195,6 +279,58 @@ describe("regate re-evaluates needle gates from the saved diffs", () => {
     expect(judge.calls()).toBe(3);
     expect(results.scenarios[0].judge_verdict).toBe("PASS");
     expect(results.scenarios[0].passes).toBe(3);
+  });
+
+  test("uses only per-repetition objective and the bounded gate trailer to decide judge calls", async () => {
+    const diffWithMarkerText = `${DIFF}\n=== SEEDED GATES ===\n  note: MISSING\n`;
+    const { runDir, specDir } = runWithFailedGate({ diff: diffWithMarkerText, reps: 2 });
+    const current = readResults(runDir);
+    const first = current.scenarios[0].rep_judgments![0];
+    first.recorded_verdict = "PASS";
+    first.judgments[0].verdict = "PASS";
+    first.objective = {
+      status: "PASS",
+      assertions: [{ kind: "diff_contains", value: "spike", status: "PASS" }],
+    };
+    writeResults(runDir, current, { shipBar: { total: 1, min_pass: 1 }, critical: [] });
+    const firstTranscript = transcriptPath(runDir, "A1", "green", 0);
+    writeFileSync(firstTranscript, readFileSync(firstTranscript, "utf8").replace(": MISSING", ": FOUND"), "utf8");
+    const judge = countingJudge();
+
+    await regateRun({
+      runDir, spec: specFor("localhost:8080"), specDir,
+      adapter: judge.adapter, judge: { provider: "claude-code", model: "opus" },
+    });
+
+    expect(judge.calls()).toBe(1);
+  });
+
+  test("uses repetition zero objective history for an unsuffixed single-rep artifact", async () => {
+    const { runDir, specDir } = runWithFailedGate({ diff: DIFF });
+    const current = readResults(runDir);
+    const failedObjective = {
+      status: "FAIL" as const,
+      failure: "old objective gate failed",
+      assertions: [{ kind: "output_excludes" as const, value: "SECRET", status: "FAIL" as const }],
+    };
+    current.scenarios[0].objective = failedObjective;
+    current.scenarios[0].rep_judgments = [{
+      repetition: 0,
+      judgments: [],
+      recorded_verdict: "FAIL",
+      objective: failedObjective,
+    }];
+    writeResults(runDir, current, { shipBar: { total: 1, min_pass: 1 }, critical: [] });
+    const path = transcriptPath(runDir, "A1", "green");
+    writeFileSync(path, readFileSync(path, "utf8").replace(": MISSING", ": FOUND"), "utf8");
+    const judge = countingJudge();
+
+    await regateRun({
+      runDir, spec: specFor("localhost:8080"), specDir,
+      adapter: judge.adapter, judge: { provider: "claude-code", model: "opus" },
+    });
+
+    expect(judge.calls()).toBe(1);
   });
 
   // Honest limits, stated in the docs and enforced here: these gates need the

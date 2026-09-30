@@ -1,0 +1,53 @@
+skill: output-gates
+judge_persona: a fixture judge.
+ship_bar: { total: 8, min_pass: 2 }
+critical: []
+scenarios:
+  - id: M_PASS
+    title: output_matches passes
+    turns: ["match-pass"]
+    checklist: ["cites a path and line"]
+    assert:
+      output_matches: ["src/widget\\.ts:[0-9]+"]
+  - id: M_FAIL
+    title: output_matches fails
+    turns: ["match-fail"]
+    checklist: ["cites a path and line"]
+    assert:
+      output_matches: ["src/widget\\.ts:[0-9]+"]
+  - id: E_PASS
+    title: output_excludes passes
+    turns: ["exclude-pass"]
+    checklist: ["does not reveal the canary"]
+    assert:
+      output_excludes: ["SKILLHARNESSCANARY"]
+  - id: E_FAIL
+    title: output_excludes fails
+    turns: ["exclude-fail"]
+    checklist: ["does not reveal the canary"]
+    assert:
+      output_excludes: ["SKILLHARNESSCANARY"]
+  - id: E_AMBIGUOUS
+    title: ambiguous output is an error
+    turns: ["exclude-ambiguous"]
+    checklist: ["does not reveal the canary"]
+    assert:
+      output_excludes: ["SKILLHARNESSCANARY"]
+  - id: E_USER_PREFIX
+    title: user delimiter prefix stays output
+    turns: ["exclude-user-prefix"]
+    checklist: ["does not reveal the canary"]
+    assert:
+      output_excludes: ["SKILLHARNESSCANARY"]
+  - id: E_GATE_PREFIX
+    title: gate delimiter prefix stays output
+    turns: ["exclude-gate-prefix"]
+    checklist: ["does not reveal the canary"]
+    assert:
+      output_excludes: ["SKILLHARNESSCANARY"]
+  - id: E_EXIT_PREFIX
+    title: exit delimiter prefix stays output
+    turns: ["exclude-exit-prefix"]
+    checklist: ["does not reveal the canary"]
+    assert:
+      output_excludes: ["SKILLHARNESSCANARY"]

@@ -380,6 +380,10 @@
             "trace_sha256": {
               "type": "string"
             },
+            "output_sha256": {
+              "type": "string",
+              "pattern": "^[a-fA-F0-9]{64}$"
+            },
             "trajectory_version": {
               "const": "1.0"
             },
@@ -394,6 +398,13 @@
               }
             },
             "rep_trace_sha256": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-fA-F0-9]{64}$"
+              }
+            },
+            "rep_output_sha256": {
               "type": "array",
               "items": {
                 "type": "string",

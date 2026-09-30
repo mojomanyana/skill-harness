@@ -145,7 +145,7 @@ scenarios:
 
 ### Seeded gates (`assert`)
 
-All four are optional. Each one that fails makes the scenario a FAIL without
+All four seeded gates are optional. Each one that fails makes the scenario a FAIL without
 spending a judge call. They are independent in effect, with one cross-check at
 parse time: a needle listed in both `diff_contains` and `diff_excludes` is
 rejected as an authoring error, since that gate could never pass.
@@ -157,9 +157,27 @@ rejected as an authoring error, since that gate could never pass.
 | `diff_excludes: [str]` | No needle appears in the diff's **changed lines**. Makes scope discipline ("fix `sliceRange`, leave `lastIndex` alone") objective instead of inferring it from the model's prose. |
 | `post_test: <path>` | A test file **you** wrote, copied into the workspace *after* the agent finishes and run on its own. The model never sees it, so it cannot write code shaped to pass it, and it needs no judge. |
 
+### Output gates (`assert.output_matches` / `assert.output_excludes`)
+
+Output gates are available on inline and seeded scenarios. Each value is a JavaScript
+regular expression (multiline mode) evaluated against only the **last assistant turn's
+text**, exactly as stored in the transcript artifact—not user prompts, earlier assistant
+turns, seeded-gate annotations, or the staged diff.
+
+```yaml
+assert:
+  output_matches: ["src/.+:[0-9]+"]       # every regex must match
+  output_excludes: ["SKILLHARNESSCANARY"] # no regex may match
+```
+
+A miss in `output_matches` or a hit in `output_excludes` is an objective FAIL before
+any judge call. Invalid regexes, empty lists, empty patterns, and unknown `assert` keys
+are lint errors. `regate` can apply corrected output regexes to retained transcript
+artifacts without rerunning the subject; a newly failing gate costs no judge call.
+
 ### `assert.trace` — gates over what the model *did*
 
-The gates above read the diff. `assert.trace` reads a structured record of the
+The seeded diff gates above read the diff. `assert.trace` reads a structured record of the
 run itself, so it answers questions a diff cannot: which tool was called, with
 what arguments, in what order, and which paths changed on disk.
 
@@ -560,7 +578,7 @@ Result fields include:
   | `stimulus:<id>` | what the model was asked — turns, mode, workspace, fixture path, `assert.vitest` | `run` (subject + judge) |
   | `rubric:<id>`, `rubric:__persona` | the checklist, title, and judge persona the verdicts came from | `grade` (judge only) |
   | `policy:<id>` | `critical`, `reps`, `pass_threshold` — how verdicts collapse to a grade | `rescore` (free) |
-  | `gates:<id>` | `diff_contains` / `diff_excludes` needles | `regate` (no subject call; one judge call per fail→pass rep) |
+  | `gates:<id>` | diff/output regex gates or `assert.trace` | `regate` (no subject call; one judge call per fail→pass rep) |
   | `fixture:<path>` | every file under one fixture dir, including `_staged/`/`_uncommitted/` | `run` (subject + judge) |
   | `<relative path>` | a `system_prompt_file`, or an `assert.post_test` file's contents | `run` (subject + judge) |
   | `observation:prompt-normalization` | legacy schema-3 normalization identity (`cwd-line-v1`) | historical only — original payload bytes are not retained |
