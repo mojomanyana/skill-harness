@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.22.3 — Judge criterion-vote recovery (2026-10-01)
+
+### Fixed
+
+- Judging now retries missing criterion votes once with identical judge input; previously missing votes remained ERROR immediately. Record optional `judgeRetries: 1`, count both calls, and retain ERROR votes and the last raw reply if the retry also fails. Judge prompts and overall verdict semantics are unchanged.
+
+### Added
+
+- Add `regrade <run-dir> --unparsed-only` to repair only retained repetitions with ERROR criterion votes using their recorded judge, without rerunning subjects or rejudging clean repetitions.
+
 ## 0.22.2 — Fireworks model prices (2026-10-01)
 
 v0.22.1 was tagged before the version bump and has no published artifacts; this release supersedes it.

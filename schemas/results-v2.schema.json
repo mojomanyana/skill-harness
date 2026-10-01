@@ -232,6 +232,7 @@
         "suspect"
       ],
       "properties": {
+        "judgeRetries": { "type": "integer", "const": 1 },
         "ordinal": {
           "type": "integer",
           "minimum": 1,

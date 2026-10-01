@@ -316,6 +316,17 @@ node bin/skill-harness.js grade <run-dir> --judge openai-codex:gpt-5.6-sol
 
 Re-scores the **saved transcripts** of a prior run with a (possibly different) judge — no model re-runs. Use it to de-confound a suspicious result before a fresh `run`. It reads the transcripts of the run's own mode, so a force run and a red baseline are both re-gradable, and a force run comes back scored.
 
+To repair only retained repetitions with unparsed (`ERROR`) criterion votes:
+
+```bash
+node bin/skill-harness.js regrade <run-dir> --unparsed-only
+```
+
+This uses the run's recorded judge, leaves clean repetitions untouched, and makes
+no subject calls. Missing criterion votes trigger one identical-input judge retry;
+`judgeRetries: 1` records it. A second parse miss retains ERROR votes and the raw reply.
+Judge tokens are spent, so confirm the run and recorded judge before invoking it.
+
 ## 7. Add a test case
 
 ```bash

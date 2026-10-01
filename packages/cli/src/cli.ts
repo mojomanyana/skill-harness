@@ -77,7 +77,7 @@ function parseArgs(argv: string[]): Args {
 function assertNoRetiredFlags(command: string | undefined, args: Args): void {
   const retired = command === "run"
     ? ["affected"]
-    : command === "grade"
+    : command === "grade" || command === "regrade"
       ? ["auto-rejudge", "secondary-judge", "tie-break-judge"]
       : [];
   const found = retired.find((flag) => Object.hasOwn(args.flags, flag));
@@ -297,7 +297,7 @@ export async function cmdRun(args: Args, adapterOverride?: HarnessAdapter): Prom
 
 export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
   const runDir = args._[0];
-  if (!runDir) throw new Error("usage: skill-harness grade <run-dir> [--judge prov:model] [--suspect-only]");
+  if (!runDir) throw new Error("usage: skill-harness grade <run-dir> [--judge prov:model] [--suspect-only | --unparsed-only]");
   if (!existsSync(runDir)) {
     throw new Error(`run dir not found: ${resolve(runDir)} (relative paths resolve against the cwd)`);
   }
@@ -312,8 +312,11 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
   // an explicit --judge flag still wins; absent or retired recorded judges use
   // the current Pi default.
   const judgeFlag = flagStr(args, "judge");
+  const onlyUnparsed = flagBool(args, "unparsed-only");
+  if (onlyUnparsed && judgeFlag !== undefined) throw new Error("--unparsed-only uses the recorded judge; --judge cannot be combined with it");
   const resolvedRecordedJudge = judgeFlag ? undefined : recordedJudgeOrDefault(prev?.judge);
   const judge = judgeFlag ? parseModelRef(judgeFlag) : resolvedRecordedJudge!.judge;
+  if (onlyUnparsed && resolvedRecordedJudge?.migratedFrom) throw new Error("--unparsed-only cannot use this retired recorded judge; use grade to migrate it explicitly");
   if (resolvedRecordedJudge?.migratedFrom) {
     console.error(`skill-harness: recorded judge ${resolvedRecordedJudge.migratedFrom.provider}:${resolvedRecordedJudge.migratedFrom.model} was removed; re-judging through Pi with ${judge.provider}:${judge.model}`);
   }
@@ -334,7 +337,7 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
 
   const results = await regradeRun({
     runDir, spec, adapter, judge, specDir: testsDir, now: nowIso,
-    onlySuspect: flagBool(args, "suspect-only"),
+    onlySuspect: flagBool(args, "suspect-only"), onlyUnparsed,
   });
   for (const s of results.scenarios) {
     console.log(`  ${s.id} → ${s.judge_verdict}: ${s.judge_reason}`);
@@ -775,6 +778,7 @@ export function help(): string {
                      [--arm <name>]  measure under a named arm from <skills-root>/tests/arms.yaml
                                      (loads its extensions, seeds pi-daddy definitions, tags the run dir)
   grade  <run-dir>   [--judge prov:model] [--suspect-only]   re-grade saved transcripts (neutral judge)
+  regrade <run-dir>  --unparsed-only                      re-judge ERROR criterion reps with recorded judge
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (${free("rescore")})
   regate <run-dir>...  [--judge prov:model]     re-evaluate saved gates (no subject call; judges fail→pass reps)
   restamp <skill|all> --skills <root> [--from <git-ref>]   record the model-visible skill digest on runs that still match (${free("restamp")}; one-time migration)
@@ -806,7 +810,8 @@ export async function main(argv: string[]): Promise<void> {
   assertNoRetiredFlags(cmd, args);
   switch (cmd) {
     case "run": return cmdRun(args);
-    case "grade": return cmdGrade(args);
+    case "grade":
+    case "regrade": return cmdGrade(args);
     case "rescore": return cmdRescore(args);
     case "regate": return cmdRegate(args);
     case "restamp": return cmdRestamp(args);

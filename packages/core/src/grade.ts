@@ -2,7 +2,7 @@ import type { Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
 import type { Verdict } from "./score.js";
 import { createWorkspace } from "./workspace.js";
-import { parseCriterionVotes, type CriterionVote } from "./results.js";
+import { parseCriterionVotes, completeCriterionVotes, type CriterionVote } from "./results.js";
 
 export interface JudgePromptInput {
   skill: string;
@@ -113,6 +113,8 @@ export function judgeResemblesSubject(judge: ModelRef, subject: ModelRef): boole
 export interface GradeResult extends ParsedVerdict {
   raw: string;
   criteria: CriterionVote[];
+  /** One identical-input retry after missing criterion votes. Absent on the first attempt. */
+  judgeRetries?: 1;
   /** Judge misfire: the overall verdict disagrees with AND(per-item grades). Recorded, never auto-passed; blocks SHIP until re-judged or overridden. */
   suspect: boolean;
 }
@@ -158,9 +160,18 @@ export async function gradeTranscript(
   adapter: HarnessAdapter,
   judge: ModelRef,
   prompt: string,
-  cwd: string
+  cwd: string,
+  expectedCriteria?: number,
 ): Promise<GradeResult> {
-  const raw = await adapter.judge({ model: judge, prompt, cwd });
+  const request = { model: judge, prompt, cwd };
+  let raw = await adapter.judge(request);
+  let criteria = parseCriterionVotes(raw);
+  let judgeRetries: 1 | undefined;
+  if (expectedCriteria !== undefined && completeCriterionVotes(criteria, expectedCriteria).some(vote => vote.verdict === "ERROR")) {
+    raw = await adapter.judge(request);
+    criteria = parseCriterionVotes(raw);
+    judgeRetries = 1;
+  }
   const parsed = parseVerdict(raw);
   // On a parse failure, surface what the judge actually emitted (e.g. a provider
   // error) rather than a generic message — otherwise the cause is invisible.
@@ -169,7 +180,7 @@ export async function gradeTranscript(
     if (snippet) parsed.reason = `judge unparseable: ${snippet}`;
   }
   const suspect = detectMisfire(raw, parsed.verdict);
-  return { ...parsed, raw, suspect, criteria: parseCriterionVotes(raw) };
+  return { ...parsed, raw, suspect, criteria, ...(judgeRetries ? { judgeRetries } : {}) };
 }
 
 /**
@@ -181,11 +192,12 @@ export async function judgeInWorkspace(
   adapter: HarnessAdapter,
   judge: ModelRef,
   prompt: string,
-  specDir: string
+  specDir: string,
+  expectedCriteria?: number,
 ): Promise<GradeResult> {
   const ws = createWorkspace("none", { specDir });
   try {
-    return await gradeTranscript(adapter, judge, prompt, ws.cwd);
+    return await gradeTranscript(adapter, judge, prompt, ws.cwd, expectedCriteria);
   } finally {
     ws.cleanup();
   }

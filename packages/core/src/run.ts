@@ -614,7 +614,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
         specDir: dirname(ctx.specPath), mode, rep: repCount > 1 ? rep : undefined, now,
       });
       verdict = o.verdict; reason = o.reason; suspect = o.suspect; judgment = o.judgment; // judgeOneRep already journaled (verdict + misfire)
-      judgeCalls = 1;
+      judgeCalls = o.metrics?.judge_calls ?? 0;
     }
     log(`  → ${scenario.id}${repCount > 1 ? `#${rep}` : ""} ${verdict}${reason ? `: ${reason}` : ""}${suspect ? "  ⚠ suspect" : ""}`);
     const subject = mergeTraces(traces)?.metrics;

@@ -115,6 +115,181 @@ describe("regradeRun", () => {
   });
 });
 
+function retainedVoteRun() {
+  const runDir = tmp();
+  const spec = scenarioOf(SPEC);
+  const judge = { provider: "openai-codex", model: "recorded" };
+  const prior = writeResults(runDir, {
+    skill: spec.skill, harness: "pi", model: "fake", judge, timestamp: "original", label: null, mode: "force",
+    scenarios: [{ id: "A1", criterion_count: 1, judge_verdict: "PASS", judge_reason: "old", suspect: false, override: null, note: "", reps: 2, passes: 2, clean: 2, flakiness: 0, pass_threshold: 1,
+      rep_judgments: [1, 0].map(repetition => ({ repetition, recorded_verdict: "PASS", judgments: [{ ordinal: 1, judge, verdict: "PASS", reason: "old", suspect: false, criteria: [{ index: 1, verdict: "ERROR", reason: "unparsed" }] }] })),
+    }],
+  }, { shipBar: spec.ship_bar, critical: [] });
+  for (const rep of [0, 1]) {
+    writeFileSync(join(runDir, `A1.force.rep${rep}.txt`), `transcript ${rep}`);
+    writeFileSync(join(runDir, `A1.force.rep${rep}.judge.txt`), `old raw ${rep}`);
+  }
+  return { runDir, spec, judge, prior };
+}
+
+describe("criterion-vote recovery", () => {
+  it("accepts unordered retained repetition panels", async () => {
+    const { runDir, spec, judge } = retainedVoteRun();
+    let calls = 0;
+    const adapter = { ...judgeAdapter(""), judge: async () => { calls++; return "1. PASS — ok\nVERDICT: PASS\nREASON: fine"; } };
+    const out = await regradeRun({ runDir, spec, judge, adapter, specDir: runDir, onlyUnparsed: true });
+    expect(calls).toBe(2);
+    expect(out.scenarios[0].rep_judgments?.map(panel => panel.repetition)).toEqual([0, 1]);
+  });
+
+  it("rejects schema-3 criterion-count drift before judge calls or artifact writes", async () => {
+    const { runDir, spec, judge, prior } = retainedVoteRun();
+    const objective = { status: "PASS" as const, assertions: [{ kind: "skill_delivered", status: "PASS" as const, detail: "observed" }] };
+    prior.schema = 3;
+    prior.scenarios[0].objective = objective;
+    prior.scenarios[0].rep_judgments!.forEach(panel => { panel.objective = objective; });
+    prior.scenarios[0].rep_judgments![1].judgments[0].criteria![0].verdict = "PASS";
+    const h = "a".repeat(64);
+    prior.subject_invocations = [0, 1].map(repetition => ({ scenario_id: "A1", repetition, prompt: {
+      capture_version: "prompt-provenance-v1", request_index: 0, raw_sha256: h, normalized_sha256: h,
+      normalization_rule: "cwd-line-v1", bytes: 1, contract_sha256: h, contract_bytes: 1,
+      contract_occurrences: 0, mechanism: "none", status: "PASS",
+    } }));
+    writeResults(runDir, prior, { shipBar: spec.ship_bar, critical: [] });
+    const before = readFileSync(join(runDir, "results.yaml"), "utf8");
+    spec.scenarios[0].checklist.push("new criterion");
+    let calls = 0;
+    const adapter = { ...judgeAdapter(""), judge: async () => { calls++; return "1. PASS — ok\n2. PASS — ok\nVERDICT: PASS\nREASON: fine"; } };
+    await expect(regradeRun({ runDir, spec, judge, adapter, specDir: runDir, onlyUnparsed: true })).rejects.toThrow(/criterion count.*full grade/);
+    expect(calls).toBe(0);
+    expect(readFileSync(join(runDir, "results.yaml"), "utf8")).toBe(before);
+    expect(readFileSync(join(runDir, "A1.force.rep1.judge.txt"), "utf8")).toBe("old raw 1");
+  });
+
+  it.each(["PASS", "FAIL"] as const)("preserves untouched adjudication, bounded by the all-clean policy (%s)", async verdict => {
+    const { runDir, spec, judge, prior } = retainedVoteRun();
+    const cleanPanel = prior.scenarios[0].rep_judgments!.find(panel => panel.repetition === 0)!;
+    cleanPanel.judgments[0].criteria![0].verdict = "PASS";
+    cleanPanel.judgments[0].verdict = "FAIL";
+    cleanPanel.judgments[0].suspect = true;
+    cleanPanel.judgments.push(...[2, 3].map(ordinal => ({ ...cleanPanel.judgments[0], ordinal, verdict: "PASS" as const, suspect: false })));
+    prior.scenarios[0].adjudication = { repetition: 0, state: "confirmed", trigger: "contradictory", verdict: "PASS", judgments: cleanPanel.judgments };
+    writeResults(runDir, prior, { shipBar: spec.ship_bar, critical: [] });
+    const out = await regradeRun({ runDir, spec, judge, adapter: judgeAdapter(`1. ${verdict} — ok\nVERDICT: ${verdict}\nREASON: fine`), specDir: runDir, onlyUnparsed: true });
+    expect(out.scenarios[0].clean).toBe(2);
+    expect(out.scenarios[0].rep_judgments?.[0]).toEqual(cleanPanel);
+    expect(out.scenarios[0].adjudication?.state).toBe(verdict === "PASS" ? "confirmed" : "unresolved");
+    expect(out.scenarios[0].judge_verdict).toBe(verdict);
+    expect(out.scenarios[0].adjudication?.verdict).toBe(verdict === "PASS" ? "PASS" : undefined);
+  });
+
+  it("preserves a settled FAIL adjudication during schema-3 selective repair", async () => {
+    const { runDir, spec, judge, prior } = retainedVoteRun();
+    const recorded = prior.scenarios[0];
+    const failedPanel = recorded.rep_judgments!.find(panel => panel.repetition === 0)!;
+    failedPanel.recorded_verdict = "FAIL";
+    failedPanel.judgments[0].verdict = "FAIL";
+    failedPanel.judgments[0].criteria![0].verdict = "FAIL";
+    failedPanel.judgments.push({ ...failedPanel.judgments[0], ordinal: 2 });
+    recorded.adjudication = { repetition: 0, state: "confirmed", trigger: "ship_deciding", verdict: "FAIL", judgments: failedPanel.judgments };
+    recorded.judge_verdict = "FAIL";
+    recorded.passes = 1;
+    recorded.flakiness = 1;
+    const objective = { status: "PASS" as const, assertions: [{ kind: "skill_delivered", status: "PASS" as const, detail: "observed" }] };
+    prior.schema = 3;
+    recorded.objective = objective;
+    recorded.rep_judgments!.forEach(panel => { panel.objective = objective; });
+    const h = "a".repeat(64);
+    prior.subject_invocations = [0, 1].map(repetition => ({ scenario_id: "A1", repetition, prompt: {
+      capture_version: "prompt-provenance-v1", request_index: 0, raw_sha256: h, normalized_sha256: h,
+      normalization_rule: "cwd-line-v1", bytes: 1, contract_sha256: h, contract_bytes: 1,
+      contract_occurrences: 0, mechanism: "none", status: "PASS",
+    } }));
+    writeResults(runDir, prior, { shipBar: spec.ship_bar, critical: [] });
+    const raw = "1. PASS — ok\nVERDICT: PASS\nREASON: fine";
+    let calls = 0;
+    const adapter = { ...judgeAdapter(""), judge: async () => { calls++; return raw; } };
+    const out = await regradeRun({ runDir, spec, judge, adapter, specDir: runDir, onlyUnparsed: true });
+    expect(calls).toBe(1);
+    expect(out.scenarios[0].adjudication).toEqual(recorded.adjudication);
+    expect(out.scenarios[0].judge_verdict).toBe("FAIL");
+    expect(out.scenarios[0].suspect).toBe(false);
+    expect(out.scenarios[0].rep_judgments?.[0]).toEqual(failedPanel);
+    expect(readResults(runDir)).toEqual(out);
+    expect(readFileSync(join(runDir, "A1.force.rep0.judge.txt"), "utf8")).toBe("old raw 0");
+    expect(readFileSync(join(runDir, "A1.force.rep1.judge.txt"), "utf8")).toBe(raw);
+  });
+
+  it.each([true, false])("retries missing criterion votes once (retry succeeds: %s)", async (succeeds) => {
+    const runDir = tmp();
+    const spec = scenarioOf(SPEC.replace('checklist: ["ok"]', 'checklist: ["ok", "complete"]'));
+    const requests: JudgeReq[] = [];
+    const broken = "1. PASS — ok\nVERDICT: PASS\nREASON: fine";
+    const repaired = "1. PASS — ok\n2. PASS — complete\nVERDICT: PASS\nREASON: fine";
+    const adapter: HarnessAdapter = {
+      ...judgeAdapter(broken),
+      judge: async (req) => { requests.push(req); return requests.length === 2 && succeeds ? repaired : broken; },
+    };
+    const outcome = await judgeOneRep({
+      runDir, spec, scenario: spec.scenarios[0], transcript: "saved response",
+      adapter, judge: { provider: "openai-codex", model: "recorded" },
+      specDir: runDir, mode: "force", rep: undefined, now: () => "t",
+    });
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toEqual(requests[0]);
+    expect(outcome.judgment?.judgeRetries).toBe(1);
+    expect(outcome.judgment?.criteria?.map(v => v.verdict)).toEqual(["PASS", succeeds ? "PASS" : "ERROR"]);
+    expect(outcome.metrics?.judge_calls).toBe(2);
+    expect(readFileSync(join(runDir, "A1.force.judge.txt"), "utf8")).toBe(succeeds ? repaired : broken);
+  });
+
+  it("regrades only ERROR-criterion reps, preserving clean siblings and scenarios", async () => {
+    const runDir = tmp();
+    const spec = scenarioOf(SPEC.replace("total: 1, min_pass: 1", "total: 2, min_pass: 2") + `
+  - id: A2
+    title: clean
+    turns: ["bye"]
+    checklist: ["ok"]
+`);
+    const recordedJudge = { provider: "openai-codex", model: "recorded" };
+    const judgment = (verdict: "PASS" | "ERROR") => ({ ordinal: 1, judge: recordedJudge, verdict: "PASS" as const, reason: "old", suspect: false, criteria: [{ index: 1, verdict, reason: "old" }] });
+    const cleanPanel = { repetition: 0, recorded_verdict: "PASS" as const, judgments: [judgment("PASS")] };
+    const prior = writeResults(runDir, {
+      skill: spec.skill, harness: "pi", model: "fake", judge: recordedJudge,
+      timestamp: "original", label: null, mode: "force",
+      scenarios: [
+        { id: "A1", judge_verdict: "PASS", judge_reason: "old", suspect: false, override: null, note: "keep", reps: 2, passes: 2, clean: 2, flakiness: 0, pass_threshold: 1,
+          rep_judgments: [cleanPanel, { repetition: 1, recorded_verdict: "PASS", judgments: [judgment("ERROR")] }] },
+        { id: "A2", judge_verdict: "PASS", judge_reason: "old", suspect: false, override: null, note: "", rep_judgments: [cleanPanel] },
+      ],
+    }, { shipBar: spec.ship_bar, critical: [] });
+    // Clean transcripts deliberately absent: no reason to require them for this repair.
+    writeFileSync(join(runDir, "A1.force.rep1.txt"), "broken-vote transcript");
+    writeFileSync(join(runDir, "A1.force.rep0.judge.txt"), "clean raw bytes");
+    const requests: JudgeReq[] = [];
+    const adapter: HarnessAdapter = {
+      ...judgeAdapter(""), judge: async req => { requests.push(req); return "1. FAIL — missing\nVERDICT: FAIL\nREASON: missing"; },
+    };
+    const out = await regradeRun({
+      runDir, spec, adapter, judge: recordedJudge, specDir: runDir, onlyUnparsed: true, now: () => "t",
+    });
+    expect(requests).toHaveLength(1);
+    expect(requests[0].model).toEqual(recordedJudge);
+    expect(requests[0].prompt).toContain("broken-vote transcript");
+    expect(out.scenarios[0].rep_judgments?.[0]).toEqual(cleanPanel);
+    expect(out.scenarios[1]).toEqual(prior.scenarios[1]);
+    expect(out.scenarios[0].rep_judgments?.[1].judgments[0].criteria?.[0].verdict).toBe("FAIL");
+    expect(out.scenarios[0].judge_verdict).toBe("FAIL");
+    expect(out.scenarios[0].metrics?.judge_calls).toBe(1);
+    expect(out.scenarios[0].note).toBe("keep");
+    expect(readFileSync(join(runDir, "A1.force.rep0.judge.txt"), "utf8")).toBe("clean raw bytes");
+    const bytes = readFileSync(join(runDir, "results.yaml"), "utf8");
+    await regradeRun({ runDir, spec, adapter, judge: recordedJudge, specDir: runDir, onlyUnparsed: true });
+    expect(requests).toHaveLength(1);
+    expect(readFileSync(join(runDir, "results.yaml"), "utf8")).toBe(bytes);
+  });
+});
+
 describe("judgeOneRep", () => {
   it("judgeOneRep judges a transcript, writes judge-raw, journals, returns the outcome", async () => {
     const runDir = tmp();
