@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.22.1 — Fireworks model prices (2026-10-01)
+## 0.22.2 — Fireworks model prices (2026-10-01)
+
+v0.22.1 was tagged before the version bump and has no published artifacts; this release supersedes it.
 
 ### Fixed
 
