@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeResults, readResults, type HarnessAdapter } from "@skill-harness/core";
-import { cmdGrade } from "../src/cli.js";
+import { cmdGrade, main } from "../src/cli.js";
 
 const SPEC = `
 skill: golden
@@ -69,6 +69,31 @@ afterEach(() => {
 function args(runDir: string) {
   return { _: [runDir], flags: {}, multi: {} };
 }
+
+describe("regrade --unparsed-only", () => {
+  test("registers the regrade alias", async () => {
+    await expect(main(["regrade", "/missing-run", "--unparsed-only"])).rejects.toThrow(/run dir not found/);
+  });
+
+  test("uses the recorded judge and skips clean scenarios without transcripts", async () => {
+    const { runDir } = threeScenarioRun();
+    const prior = readResults(runDir);
+    prior.scenarios[0].rep_judgments = [{ repetition: 0, recorded_verdict: "PASS", judgments: [{
+      ordinal: 1, judge: prior.judge, verdict: "PASS", reason: "old", suspect: false,
+      criteria: [{ index: 1, verdict: "ERROR", reason: "unparsed" }],
+    }] }];
+    writeFileSync(join(runDir, "results.yaml"), (await import("js-yaml")).default.dump(prior));
+    writeFileSync(join(runDir, "A1.green.txt"), "saved response");
+    const models: unknown[] = [];
+    const fake: HarnessAdapter = { name: "pi", available: async () => true, run: async () => { throw new Error("no subject call"); }, judge: async req => {
+      models.push(req.model); return "1. PASS — hello\nVERDICT: PASS\nREASON: greeted";
+    } };
+    await cmdGrade({ _: [runDir], flags: { "unparsed-only": true }, multi: {} }, fake);
+    expect(models).toEqual([prior.judge]);
+    expect(readResults(runDir).scenarios.slice(1)).toEqual(prior.scenarios.slice(1));
+    await expect(cmdGrade({ _: [runDir], flags: { "unparsed-only": true, judge: "ollama:other" }, multi: {} }, fake)).rejects.toThrow(/recorded judge/);
+  });
+});
 
 describe("cmdGrade refuses to destroy a run with no green transcripts", () => {
   test("rejects with /no green transcripts/ and leaves results.yaml unchanged", async () => {

@@ -340,12 +340,13 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
       }
       // The gate blocked this rep before, so no judgement of it exists anywhere.
       const transcript = readFileSync(tPath, "utf8");
-      outcomes.push({ ...(await judgeOneRep({
+      const judged = await judgeOneRep({
         runDir: opts.runDir, spec: opts.spec, scenario, transcript,
         adapter: opts.adapter, judge: opts.judge, specDir: opts.specDir,
         mode, rep, now, rejudge: true,
-      })), objective });
-      judgeCalls++;
+      });
+      outcomes.push({ ...judged, objective });
+      judgeCalls += judged.metrics?.judge_calls ?? 0;
       judgedHere++;
     }
 

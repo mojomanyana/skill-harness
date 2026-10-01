@@ -4730,7 +4730,7 @@ function rebuildScenarioResult(fresh, prior, policy) {
   };
   const objective = pick(policy.objective, freshObjective, prior?.objective);
   const pickedAdjudication = pick(policy.adjudication, freshAdjudication, prior?.adjudication);
-  const conflictsWithFreshEvidence = Boolean(pickedAdjudication?.verdict && (objective?.status === "FAIL" || objective?.status === "ERROR" || objective?.status === "NOT-MEASURED" || pass_threshold === 1 && (reps2 ?? 1) > 1 && judge_verdict !== "PASS"));
+  const conflictsWithFreshEvidence = Boolean(pickedAdjudication?.verdict && (objective?.status === "FAIL" || objective?.status === "ERROR" || objective?.status === "NOT-MEASURED" || pickedAdjudication.verdict === "PASS" && pass_threshold === 1 && (reps2 ?? 1) > 1 && judge_verdict !== "PASS"));
   const adjudication = conflictsWithFreshEvidence && pickedAdjudication ? { ...pickedAdjudication, state: "unresolved", verdict: void 0 } : pickedAdjudication;
   const unresolved = adjudication?.state === "unresolved";
   const settled = policy.adjudication === "carry" && !conflictsWithFreshEvidence ? adjudication?.verdict : void 0;
@@ -4874,8 +4874,16 @@ function detectMisfire(raw, verdict) {
   return verdictBool !== andItems;
 }
 var REASON_LINE_RE = /^\s*\**\s*REASON\**\s*:\s*\**\s*(.*)$/im;
-async function gradeTranscript(adapter, judge, prompt, cwd) {
-  const raw = await adapter.judge({ model: judge, prompt, cwd });
+async function gradeTranscript(adapter, judge, prompt, cwd, expectedCriteria) {
+  const request = { model: judge, prompt, cwd };
+  let raw = await adapter.judge(request);
+  let criteria = parseCriterionVotes(raw);
+  let judgeRetries;
+  if (expectedCriteria !== void 0 && completeCriterionVotes(criteria, expectedCriteria).some((vote) => vote.verdict === "ERROR")) {
+    raw = await adapter.judge(request);
+    criteria = parseCriterionVotes(raw);
+    judgeRetries = 1;
+  }
   const parsed = parseVerdict(raw);
   if (parsed.verdict === "ERROR") {
     const snippet2 = raw.trim().replace(/\s+/g, " ").slice(0, 160);
@@ -4883,12 +4891,12 @@ async function gradeTranscript(adapter, judge, prompt, cwd) {
       parsed.reason = `judge unparseable: ${snippet2}`;
   }
   const suspect = detectMisfire(raw, parsed.verdict);
-  return { ...parsed, raw, suspect, criteria: parseCriterionVotes(raw) };
+  return { ...parsed, raw, suspect, criteria, ...judgeRetries ? { judgeRetries } : {} };
 }
-async function judgeInWorkspace(adapter, judge, prompt, specDir) {
+async function judgeInWorkspace(adapter, judge, prompt, specDir, expectedCriteria) {
   const ws = createWorkspace("none", { specDir });
   try {
-    return await gradeTranscript(adapter, judge, prompt, ws.cwd);
+    return await gradeTranscript(adapter, judge, prompt, ws.cwd, expectedCriteria);
   } finally {
     ws.cleanup();
   }
@@ -6077,7 +6085,7 @@ async function judgeOneRep(opts) {
     };
   }
   const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
-  const g = await judgeInWorkspace(adapter, judge, prompt, specDir);
+  const g = await judgeInWorkspace(adapter, judge, prompt, specDir, scenario.checklist.length);
   writeFileSync2(judgeRawPath(runDir, scenario.id, mode, rep), g.raw, "utf8");
   appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict: g.verdict, reason: g.reason, suspect: g.suspect, ...repField });
   if (g.suspect)
@@ -6086,29 +6094,39 @@ async function judgeOneRep(opts) {
     verdict: g.verdict,
     reason: g.reason,
     suspect: g.suspect,
-    judgment: { ordinal: 1, judge: { ...judge }, verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, scenario.checklist.length) },
+    judgment: { ordinal: 1, judge: { ...judge }, verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, scenario.checklist.length), ...g.judgeRetries ? { judgeRetries: g.judgeRetries } : {} },
     metrics: {
       wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
-      judge_calls: 1,
-      judge_rejudge_calls: opts.rejudge ? 1 : 0
+      judge_calls: 1 + (g.judgeRetries ?? 0),
+      judge_rejudge_calls: opts.rejudge ? 1 + (g.judgeRetries ?? 0) : 0
     }
   };
 }
 async function regradeScenario(opts) {
   const now = opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
   const mode = opts.mode ?? "green";
-  const files = findTranscriptFiles(opts.runDir, opts.scenario.id, mode);
+  let files = findTranscriptFiles(opts.runDir, opts.scenario.id, mode);
+  if (opts.onlyUnparsed)
+    files = files.filter((file) => hasUnparsedVotes(opts.prior?.rep_judgments?.find((panel) => panel.repetition === (repIndexOf(file) ?? 0))));
   if (files.length === 0)
     throw new Error(`no ${mode} transcripts for ${opts.scenario.id} in ${opts.runDir}`);
   const expected = opts.expectedReps ?? files.length;
-  const expectedIndices = expected === 1 ? [null] : Array.from({ length: expected }, (_, index) => index);
+  const expectedIndices = opts.onlyUnparsed ? opts.prior.rep_judgments.filter(hasUnparsedVotes).map((panel) => expected === 1 ? null : panel.repetition).sort((a, b) => (a ?? -1) - (b ?? -1)) : expected === 1 ? [null] : Array.from({ length: expected }, (_, index) => index);
   const actualIndices = files.map((file) => repIndexOf(file)).sort((a, b) => (a ?? -1) - (b ?? -1));
-  if (files.length !== expected || JSON.stringify(actualIndices) !== JSON.stringify(expectedIndices)) {
+  if (files.length !== expectedIndices.length || JSON.stringify(actualIndices) !== JSON.stringify(expectedIndices)) {
     throw new Error(`${opts.scenario.id}: transcript artifacts are incomplete for ${expected} recorded rep(s) \u2014 re-run instead of grading a smaller repetition set`);
   }
   const repCount = expected;
   const outcomes = [];
-  for (const file of files) {
+  for (let repetition = 0; repetition < expected; repetition++) {
+    const panel = opts.prior?.rep_judgments?.find((panel2) => panel2.repetition === repetition);
+    if (opts.onlyUnparsed && !hasUnparsedVotes(panel)) {
+      if (!panel)
+        throw new Error(`missing retained judgments for ${opts.scenario.id}#${repetition}`);
+      outcomes.push({ verdict: panel.recorded_verdict, reason: panel.judgments[0]?.reason ?? "", suspect: panel.judgments.length > 0 && !panel.judgments.some((judgment) => !judgment.suspect && (judgment.verdict === "PASS" || judgment.verdict === "FAIL")), judgment: panel.judgments[0], objective: panel.objective });
+      continue;
+    }
+    const file = files.find((file2) => (repIndexOf(file2) ?? 0) === repetition);
     const rep = repIndexOf(file) ?? void 0;
     const transcript = readFileSync7(join10(opts.runDir, file), "utf8");
     outcomes.push(await judgeOneRep({
@@ -6125,12 +6143,26 @@ async function regradeScenario(opts) {
       rejudge: true
     }));
   }
-  return outcomesToResult(opts.scenario.id, outcomes, repCount, opts.threshold);
+  const result = outcomesToResult(opts.scenario.id, outcomes, repCount, opts.threshold);
+  if (opts.onlyUnparsed)
+    result.rep_judgments = result.rep_judgments?.map((panel) => {
+      const prior = opts.prior.rep_judgments.find((prior2) => prior2.repetition === panel.repetition);
+      return hasUnparsedVotes(prior) ? panel : prior;
+    });
+  return result;
+}
+function hasUnparsedVotes(panel) {
+  return panel?.judgments.some((judgment) => judgment.criteria?.some((vote) => vote.verdict === "ERROR")) ?? false;
 }
 async function regradeRun(opts) {
-  const { runDir, spec, adapter, judge, specDir } = opts;
+  const { runDir, spec, adapter, specDir } = opts;
   const now = opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
   const prev = existsSync8(join10(runDir, "results.yaml")) ? readResults(runDir) : null;
+  if (opts.onlyUnparsed && !prev)
+    throw new Error(`--unparsed-only needs a prior results.yaml in ${runDir}`);
+  if (opts.onlyUnparsed && opts.onlySuspect)
+    throw new Error("--unparsed-only cannot be combined with --suspect-only");
+  const judge = opts.onlyUnparsed ? prev.judge : opts.judge;
   const overrides = new Map((prev?.scenarios ?? []).map((s) => [s.id, s]));
   const mode = prev?.mode ?? "green";
   const specById = new Map(spec.scenarios.map((s) => [s.id, s]));
@@ -6141,6 +6173,8 @@ async function regradeRun(opts) {
       throw new Error(`--suspect-only needs a prior results.yaml in ${runDir}`);
     targets = prev.scenarios.filter((s) => s.suspect || s.judge_verdict === "JUDGE-AMBIGUOUS").map((s) => s.id);
   }
+  if (opts.onlyUnparsed)
+    targets = recorded.filter((s) => s.rep_judgments?.some(hasUnparsedVotes)).map((s) => s.id);
   if (prev?.schema === 3) {
     const blocked = new Set(prev.scenarios.filter((s) => s.objective?.assertions.some((a) => a.kind === "skill_delivered" && a.status !== "PASS")).map((s) => s.id));
     targets = targets.filter((id) => !blocked.has(id));
@@ -6151,6 +6185,9 @@ async function regradeRun(opts) {
   const completeTranscripts = (record) => {
     const expected = record.reps ?? 1;
     const files = findTranscriptFiles(runDir, record.id, mode);
+    if (opts.onlyUnparsed) {
+      return record.rep_judgments?.length === expected && record.rep_judgments.every((panel) => !hasUnparsedVotes(panel) || files.some((file) => (repIndexOf(file) ?? 0) === panel.repetition)) || false;
+    }
     const expectedIndices = expected === 1 ? [null] : Array.from({ length: expected }, (_, index) => index);
     const actualIndices = files.map((file) => repIndexOf(file)).sort((a, b) => (a ?? -1) - (b ?? -1));
     return files.length === expected && JSON.stringify(actualIndices) === JSON.stringify(expectedIndices);
@@ -6162,6 +6199,14 @@ async function regradeRun(opts) {
   }
   if (missing.length > 0) {
     throw new Error(`cannot re-grade ${missing.join(", ")} in ${runDir} (transcript missing or scenario no longer in the spec) \u2014 re-run instead of grading`);
+  }
+  if (opts.onlyUnparsed) {
+    const drifted = targets.filter((id) => {
+      const count = recordedById.get(id).criterion_count;
+      return count !== void 0 && count !== specById.get(id).checklist.length;
+    });
+    if (drifted.length)
+      throw new Error(`criterion count changed for ${drifted.join(", ")} \u2014 use full grade instead of --unparsed-only`);
   }
   const targetSet = new Set(targets);
   const scenarioResults = [];
@@ -6184,14 +6229,17 @@ async function regradeRun(opts) {
       threshold,
       mode,
       now,
-      expectedReps: prevScenario?.reps ?? 1
+      expectedReps: prevScenario?.reps ?? 1,
+      onlyUnparsed: opts.onlyUnparsed,
+      prior: prevScenario
     });
     const carry = overrides.get(id);
     if (prev?.schema === 3)
       rr.criterion_count = scenario.checklist.length;
     rr.metrics = mergeScenarioMetrics(carry?.metrics, rr.metrics);
     rr.rep_judgments = carryRepObjectives(rr.rep_judgments, carry?.rep_judgments);
-    scenarioResults.push(rebuildScenarioResult(rr, carry, { objective: "carry", adjudication: "drop" }));
+    const carryAdjudication = opts.onlyUnparsed && carry?.adjudication && !hasUnparsedVotes(carry.rep_judgments?.find((panel) => panel.repetition === (carry.adjudication.repetition ?? 0)));
+    scenarioResults.push(rebuildScenarioResult(rr, carry, { objective: "carry", adjudication: carryAdjudication ? "carry" : "drop" }));
   }
   const ctx = scoreContextFor({ mode, partial: prev?.partial }, spec);
   const results = writeResults(runDir, {
@@ -6224,7 +6272,7 @@ async function regradeRun(opts) {
     // say so. Doctrine narrowed 0.4.0, from "recorded hashes stay" to "recorded
     // *stimulus* hashes stay" — see refreshRubricHashes.
     partial: prev?.partial,
-    source_hashes: refreshRubricHashes(prev?.source_hashes, spec, targets),
+    source_hashes: opts.onlyUnparsed ? prev?.source_hashes : refreshRubricHashes(prev?.source_hashes, spec, targets),
     source_hash_roots: prev?.source_hash_roots,
     scenarios: scenarioResults
   }, ctx);
@@ -6963,7 +7011,7 @@ async function runRep(scenario, rep, repCount, ctx) {
       reason = o.reason;
       suspect = o.suspect;
       judgment = o.judgment;
-      judgeCalls = 1;
+      judgeCalls = o.metrics?.judge_calls ?? 0;
     }
     log(`  \u2192 ${scenario.id}${repCount > 1 ? `#${rep}` : ""} ${verdict}${reason ? `: ${reason}` : ""}${suspect ? "  \u26A0 suspect" : ""}`);
     const subject = mergeTraces(traces)?.metrics;

@@ -136,6 +136,8 @@ export interface Judgment {
   suspect: boolean;
   /** Every numbered rubric-item vote parsed from this exact judge response. Required in schema v3. */
   criteria?: CriterionVote[];
+  /** One retry with identical judge input after unparseable criterion votes. */
+  judgeRetries?: 1;
 }
 
 export interface AdjudicationResult {
@@ -885,7 +887,7 @@ export function rebuildScenarioResult(
   const conflictsWithFreshEvidence = Boolean(
     pickedAdjudication?.verdict && (
       objective?.status === "FAIL" || objective?.status === "ERROR" || objective?.status === "NOT-MEASURED" ||
-      (pass_threshold === 1 && (reps ?? 1) > 1 && judge_verdict !== "PASS")
+      (pickedAdjudication.verdict === "PASS" && pass_threshold === 1 && (reps ?? 1) > 1 && judge_verdict !== "PASS")
     ),
   );
   // A settled cell-level panel cannot overrule newly evaluated objective gates,

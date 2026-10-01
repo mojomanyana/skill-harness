@@ -6,7 +6,7 @@ import { buildJudgePrompt, judgeInWorkspace } from "./grade.js";
 import {
   findTranscriptFiles, judgeRawPath, repIndexOf, readResults, writeResults, effectiveThreshold,
   scoreContextFor, rebuildScenarioResult, mergeScenarioMetrics, carryRepObjectives,
-  type ScenarioResult, type ResultsFile, completeCriterionVotes,
+  type ScenarioResult, type ResultsFile, type RepJudgmentPanel, completeCriterionVotes,
 } from "./results.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
 import { appendJournal } from "./journal.js";
@@ -62,6 +62,9 @@ export interface RegradeOptions {
   mode?: string;
   /** Recorded repetition count; when supplied, missing/extra rep artifacts fail before judge calls. */
   expectedReps?: number;
+  /** Select only repetitions with retained ERROR criterion votes. */
+  onlyUnparsed?: boolean;
+  prior?: ScenarioResult;
   now?: () => string;
 }
 
@@ -95,17 +98,17 @@ export async function judgeOneRep(opts: {
   }
 
   const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
-  const g = await judgeInWorkspace(adapter, judge, prompt, specDir);
+  const g = await judgeInWorkspace(adapter, judge, prompt, specDir, scenario.checklist.length);
   writeFileSync(judgeRawPath(runDir, scenario.id, mode, rep), g.raw, "utf8");
   appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict: g.verdict, reason: g.reason, suspect: g.suspect, ...repField });
   if (g.suspect) appendJournal(runDir, { event: "misfire-flag", ts: now(), id: scenario.id, reason: g.reason, ...repField });
   return {
     verdict: g.verdict, reason: g.reason, suspect: g.suspect,
-    judgment: { ordinal: 1, judge: { ...judge }, verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, scenario.checklist.length) },
+    judgment: { ordinal: 1, judge: { ...judge }, verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, scenario.checklist.length), ...(g.judgeRetries ? { judgeRetries: g.judgeRetries } : {}) },
     metrics: {
       wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
-      judge_calls: 1,
-      judge_rejudge_calls: opts.rejudge ? 1 : 0,
+      judge_calls: 1 + (g.judgeRetries ?? 0),
+      judge_rejudge_calls: opts.rejudge ? 1 + (g.judgeRetries ?? 0) : 0,
     },
   };
 }
@@ -120,17 +123,27 @@ export async function judgeOneRep(opts: {
 export async function regradeScenario(opts: RegradeOptions): Promise<ScenarioResult> {
   const now = opts.now ?? (() => new Date().toISOString());
   const mode = opts.mode ?? "green";
-  const files = findTranscriptFiles(opts.runDir, opts.scenario.id, mode);
+  let files = findTranscriptFiles(opts.runDir, opts.scenario.id, mode);
+  if (opts.onlyUnparsed) files = files.filter(file => hasUnparsedVotes(opts.prior?.rep_judgments?.find(panel => panel.repetition === (repIndexOf(file) ?? 0))));
   if (files.length === 0) throw new Error(`no ${mode} transcripts for ${opts.scenario.id} in ${opts.runDir}`);
   const expected = opts.expectedReps ?? files.length;
-  const expectedIndices = expected === 1 ? [null] : Array.from({ length: expected }, (_, index) => index);
+  const expectedIndices = opts.onlyUnparsed
+    ? opts.prior!.rep_judgments!.filter(hasUnparsedVotes).map(panel => expected === 1 ? null : panel.repetition).sort((a, b) => (a ?? -1) - (b ?? -1))
+    : expected === 1 ? [null] : Array.from({ length: expected }, (_, index) => index);
   const actualIndices = files.map((file) => repIndexOf(file)).sort((a, b) => (a ?? -1) - (b ?? -1));
-  if (files.length !== expected || JSON.stringify(actualIndices) !== JSON.stringify(expectedIndices)) {
+  if (files.length !== expectedIndices.length || JSON.stringify(actualIndices) !== JSON.stringify(expectedIndices)) {
     throw new Error(`${opts.scenario.id}: transcript artifacts are incomplete for ${expected} recorded rep(s) — re-run instead of grading a smaller repetition set`);
   }
   const repCount = expected;
   const outcomes: RepOutcome[] = [];
-  for (const file of files) {
+  for (let repetition = 0; repetition < expected; repetition++) {
+    const panel = opts.prior?.rep_judgments?.find(panel => panel.repetition === repetition);
+    if (opts.onlyUnparsed && !hasUnparsedVotes(panel)) {
+      if (!panel) throw new Error(`missing retained judgments for ${opts.scenario.id}#${repetition}`);
+      outcomes.push({ verdict: panel.recorded_verdict, reason: panel.judgments[0]?.reason ?? "", suspect: panel.judgments.length > 0 && !panel.judgments.some(judgment => !judgment.suspect && (judgment.verdict === "PASS" || judgment.verdict === "FAIL")), judgment: panel.judgments[0], objective: panel.objective });
+      continue;
+    }
+    const file = files.find(file => (repIndexOf(file) ?? 0) === repetition)!;
     const rep = repIndexOf(file) ?? undefined;
     const transcript = readFileSync(join(opts.runDir, file), "utf8");
     outcomes.push(await judgeOneRep({
@@ -138,7 +151,16 @@ export async function regradeScenario(opts: RegradeOptions): Promise<ScenarioRes
       adapter: opts.adapter, judge: opts.judge, specDir: opts.specDir, mode, rep, now, rejudge: true,
     }));
   }
-  return outcomesToResult(opts.scenario.id, outcomes, repCount, opts.threshold);
+  const result = outcomesToResult(opts.scenario.id, outcomes, repCount, opts.threshold);
+  if (opts.onlyUnparsed) result.rep_judgments = result.rep_judgments?.map(panel => {
+    const prior = opts.prior!.rep_judgments!.find(prior => prior.repetition === panel.repetition)!;
+    return hasUnparsedVotes(prior) ? panel : prior;
+  });
+  return result;
+}
+
+function hasUnparsedVotes(panel: RepJudgmentPanel | undefined): boolean {
+  return panel?.judgments.some(judgment => judgment.criteria?.some(vote => vote.verdict === "ERROR")) ?? false;
 }
 
 export interface RegradeRunOptions {
@@ -154,6 +176,8 @@ export interface RegradeRunOptions {
    * cleanly, so spending judge calls on them buys nothing.
    */
   onlySuspect?: boolean;
+  /** Rejudge only retained repetitions containing ERROR criterion votes, with the recorded judge. */
+  onlyUnparsed?: boolean;
 }
 
 /**
@@ -168,18 +192,20 @@ export interface RegradeRunOptions {
  * ResultsFile. Shared by `cmdGrade` and the pi-extension's `judge` command.
  */
 export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> {
-  const { runDir, spec, adapter, judge, specDir } = opts;
+  const { runDir, spec, adapter, specDir } = opts;
   const now = opts.now ?? (() => new Date().toISOString());
 
   const prev = existsSync(join(runDir, "results.yaml")) ? readResults(runDir) : null;
+  if (opts.onlyUnparsed && !prev) throw new Error(`--unparsed-only needs a prior results.yaml in ${runDir}`);
+  if (opts.onlyUnparsed && opts.onlySuspect) throw new Error("--unparsed-only cannot be combined with --suspect-only");
+  const judge = opts.onlyUnparsed ? prev!.judge : opts.judge;
   // Carried across a re-judge, per field, because the right answer differs:
   //  - `override`/`note`  — the author's, never the judge's to discard.
   //  - `objective`        — a re-judge does NOT re-evaluate trace gates (that is
   //    `regate`), so the recorded evidence still describes this run. Dropping it
   //    silently downgraded a gated scenario to "no assertions declared".
-  // `adjudication` is deliberately NOT carried: it describes the judgments this
-  // re-grade just replaced, and a stale panel beside a fresh verdict is worse
-  // than none.
+  // `adjudication` is dropped when its repetition is rejudged. A selective
+  // repair of a different repetition carries that untouched evidence instead.
   // The whole prior result per id — `rebuildScenarioResult` decides, field by
   // field, what survives. Passing a hand-picked subset here is how fields got
   // dropped before.
@@ -203,6 +229,7 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
       .filter((s) => s.suspect || s.judge_verdict === "JUDGE-AMBIGUOUS")
       .map((s) => s.id);
   }
+  if (opts.onlyUnparsed) targets = recorded.filter(s => s.rep_judgments?.some(hasUnparsedVotes)).map(s => s.id);
   // Schema-3 delivery is a prerequisite for behavioral judging. A later `grade`
   // cannot turn an undelivered or unauthenticated transcript into product evidence.
   if (prev?.schema === 3) {
@@ -217,6 +244,11 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
   const completeTranscripts = (record: ScenarioResult): boolean => {
     const expected = record.reps ?? 1;
     const files = findTranscriptFiles(runDir, record.id, mode);
+    if (opts.onlyUnparsed) {
+      return record.rep_judgments?.length === expected && record.rep_judgments.every(panel =>
+        !hasUnparsedVotes(panel) || files.some(file => (repIndexOf(file) ?? 0) === panel.repetition),
+      ) || false;
+    }
     const expectedIndices = expected === 1 ? [null] : Array.from({ length: expected }, (_, index) => index);
     const actualIndices = files.map((file) => repIndexOf(file)).sort((a, b) => (a ?? -1) - (b ?? -1));
     return files.length === expected && JSON.stringify(actualIndices) === JSON.stringify(expectedIndices);
@@ -232,6 +264,14 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     );
   }
 
+  if (opts.onlyUnparsed) {
+    const drifted = targets.filter(id => {
+      const count = recordedById.get(id)!.criterion_count;
+      return count !== undefined && count !== specById.get(id)!.checklist.length;
+    });
+    if (drifted.length) throw new Error(`criterion count changed for ${drifted.join(", ")} — use full grade instead of --unparsed-only`);
+  }
+
   const targetSet = new Set(targets);
   const scenarioResults: ScenarioResult[] = [];
   for (const rec of recorded) {
@@ -245,16 +285,18 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     const threshold = effectiveThreshold(prevScenario, scenario);
     const rr = await regradeScenario({
       runDir, spec, scenario, adapter, judge, specDir, threshold, mode, now,
-      expectedReps: prevScenario?.reps ?? 1,
+      expectedReps: prevScenario?.reps ?? 1, onlyUnparsed: opts.onlyUnparsed, prior: prevScenario,
     });
     const carry = overrides.get(id);
     if (prev?.schema === 3) rr.criterion_count = scenario.checklist.length;
     rr.metrics = mergeScenarioMetrics(carry?.metrics, rr.metrics);
     rr.rep_judgments = carryRepObjectives(rr.rep_judgments, carry?.rep_judgments);
-    // `grade` re-judges the saved transcript. It does not re-evaluate trace gates
-    // (that is `regate`), so `objective` still describes this run; and it replaced
-    // the judgments a prior adjudication described, so that panel must go.
-    scenarioResults.push(rebuildScenarioResult(rr, carry, { objective: "carry", adjudication: "drop" }));
+    // Gates still describe the original subject execution. An adjudication of
+    // an untouched repetition also survives, bounded by rebuild's conflict guards.
+    const carryAdjudication = opts.onlyUnparsed && carry?.adjudication && !hasUnparsedVotes(
+      carry.rep_judgments?.find(panel => panel.repetition === (carry.adjudication!.repetition ?? 0)),
+    );
+    scenarioResults.push(rebuildScenarioResult(rr, carry, { objective: "carry", adjudication: carryAdjudication ? "carry" : "drop" }));
   }
 
   const ctx = scoreContextFor({ mode, partial: prev?.partial }, spec);
@@ -288,7 +330,7 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     // say so. Doctrine narrowed 0.4.0, from "recorded hashes stay" to "recorded
     // *stimulus* hashes stay" — see refreshRubricHashes.
     partial: prev?.partial,
-    source_hashes: refreshRubricHashes(prev?.source_hashes, spec, targets),
+    source_hashes: opts.onlyUnparsed ? prev?.source_hashes : refreshRubricHashes(prev?.source_hashes, spec, targets),
     source_hash_roots: prev?.source_hash_roots,
     scenarios: scenarioResults,
   }, ctx);

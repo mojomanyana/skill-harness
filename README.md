@@ -436,6 +436,18 @@ the verdicts that moved.
 `JUDGE-AMBIGUOUS`), carrying clean ones verbatim — the rejudge path for ambiguity without
 re-spending the whole run's judge calls. With nothing suspect it is a no-op.
 
+**`regrade <run-dir> --unparsed-only`** re-judges only repetitions with retained `ERROR`
+criterion votes, using the run's recorded judge. Clean repetitions, their artifacts,
+and all other scenarios are carried unchanged; no subject runs occur. It cannot be
+combined with `--judge` or `--suspect-only`, and is a no-op when no votes need repair.
+Partial repairs retain source hashes rather than certifying untouched rubric evidence.
+
+When an expected criterion vote is missing, judging now retries once with the same
+judge, prompt, and workspace. The retained judgment records `judgeRetries: 1`, call
+metrics include both attempts, and the `.judge.txt` artifact contains the last raw
+reply. A second parse miss remains an `ERROR` criterion vote; the overall verdict
+and misfire policy are unchanged.
+
 **Per-scenario overrides:** `reps:` and `pass_threshold:` in `specification.yaml` override the run flags for ordinary scenarios. Critical scenarios always require every clean repetition (`1.0`); an ERROR stays infrastructure and cannot be voted into PASS.
 
 **Scenarios can declare their workspace** with `env: { workspace: none | empty-git | fixture:<path> }`:
