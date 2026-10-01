@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.22.1 — Fireworks model prices (2026-10-01)
+
+### Fixed
+
+- Add current Fireworks token prices for DeepSeek V4.1 Flash and Nemotron Lightning 3.5 30B A3B.
+
 ## 0.22.0 — Objective output assertions (2026-10-01)
 
 ### Added

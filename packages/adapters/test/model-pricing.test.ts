@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import { priceSubjectUsage } from "../src/model-pricing.js";
 import type { ExecutionTraceV1 } from "@skill-harness/core";
 
-function trace(metrics: ExecutionTraceV1["metrics"]): ExecutionTraceV1 {
+function trace(
+  metrics: ExecutionTraceV1["metrics"],
+  model = "accounts/fireworks/models/deepseek-v4-flash-0731",
+): ExecutionTraceV1 {
   return {
     trace_version: 2,
     pi_version: "0.84.2",
-    subject: { provider: "fireworks", model: "accounts/fireworks/models/deepseek-v4-flash-0731" },
+    subject: { provider: "fireworks", model },
     scenario_id: "A1",
     mode: "force",
     rep: 0,
@@ -42,7 +45,7 @@ describe("priceSubjectUsage", () => {
       cache_write_tokens: null,
       cost_usd: 0.287,
       cost_source: "price-table",
-      price_as_of: "2026-09-29",
+      price_as_of: "2026-10-01",
     });
     expect(priced.cost_usd).toBe(0.287);
   });
@@ -60,9 +63,22 @@ describe("priceSubjectUsage", () => {
       cache_read_tokens: null,
       cost_usd: null,
       cost_source: "unreported",
-      price_as_of: "2026-09-29",
+      price_as_of: "2026-10-01",
     });
     expect(priced.cost_usd).toBeNull();
+  });
+
+  it.each([
+    ["accounts/fireworks/models/deepseek-v4p1-flash", 0.55175],
+    ["accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b", 0.1525],
+    ["accounts/fireworks/models/kimi-k3", 10.575],
+  ])("prices current Fireworks model %s", (model, expectedCost) => {
+    const priced = priceSubjectUsage(trace(OBSERVED, model));
+    expect(priced.metrics).toMatchObject({
+      cost_usd: expectedCost,
+      cost_source: "price-table",
+      price_as_of: "2026-10-01",
+    });
   });
 
   it("leaves cost null for an unpriced model while retaining reported tokens", () => {
