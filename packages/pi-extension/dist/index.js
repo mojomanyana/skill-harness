@@ -7448,7 +7448,7 @@ function runPiJson(opts) {
 
 // packages/adapters/prices/model-prices.json
 var model_prices_default = {
-  asOf: "2026-09-29",
+  asOf: "2026-10-01",
   currency: "USD",
   unit: "per_million_tokens",
   models: {
@@ -7470,6 +7470,12 @@ var model_prices_default = {
       output: 3.96,
       source: "https://fireworks.ai/models/deepseek-ai/deepseek-v4-pro-0813"
     },
+    "accounts/fireworks/models/deepseek-v4p1-flash": {
+      input: 0.22,
+      cachedInput: 7e-3,
+      output: 0.66,
+      source: "https://fireworks.ai/models/deepseek-ai/deepseek-v4p1-flash"
+    },
     "accounts/fireworks/models/glm-5p2": {
       input: 1.4,
       cachedInput: 0.14,
@@ -7487,6 +7493,12 @@ var model_prices_default = {
       cachedInput: 0.3,
       output: 15,
       source: "https://fireworks.ai/models/fireworks/kimi-k3"
+    },
+    "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b": {
+      input: 0.05,
+      cachedInput: 0.01,
+      output: 0.2,
+      source: "https://fireworks.ai/models/fireworks/nemotron-lightning-3p5-30b-a3b"
     }
   }
 };
