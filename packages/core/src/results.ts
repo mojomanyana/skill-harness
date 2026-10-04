@@ -8,6 +8,7 @@ import type { Verdict } from "./score.js";
 import type { ShipBar, Scenario } from "./spec.js";
 import type { CostSource } from "./capture-trace-types.js";
 import { collapseVotePanel } from "./vote-panel.js";
+import { outcomesToResult, type RepOutcome } from "./reps.js";
 
 export interface SubjectUsage {
   repetition: number;
@@ -100,6 +101,8 @@ export interface ScenarioResult {
   passes?: number; // PASSes among clean reps (reps runs only)
   clean?: number; // number of clean (non-misfired) reps — the real denominator for `passes` (reps runs only)
   flakiness?: number; // 0 = unanimous, 1 = even split (reps runs only)
+  /** Reps with incomplete criterion votes; included as non-passes, never misfires. */
+  ungraded_reps?: number;
   pass_threshold?: number; // effective threshold used (reps runs only) — lets re-judge reproduce the aggregate
   /** Cost/latency counters. Separate from verdicts: cheaper failure is still failure. */
   metrics?: ScenarioMetrics;
@@ -415,8 +418,27 @@ export function resultsPath(runDir: string): string {
  * deterministic assertion is a deliberate, recorded human act — and the failure
  * this guards against was never a human deciding, it was nobody deciding.
  */
+export function normalizeScenarioResult(s: ScenarioResult): ScenarioResult {
+  const panels = s.rep_judgments;
+  if (!panels?.some(panel => panel.recorded_verdict === "UNGRADED" || panel.judgments.some(judgment => judgment.criteria?.some(vote => vote.verdict === "ERROR")))) return s;
+  const reps = s.reps ?? 1;
+  if (panels.length !== reps) return { ...s, judge_verdict: "UNGRADED", suspect: false, ungraded_reps: panels.filter(panel => panel.judgments.some(judgment => judgment.criteria?.some(vote => vote.verdict === "ERROR"))).length };
+  const outcomes: RepOutcome[] = [...panels].sort((a, b) => a.repetition - b.repetition).map(panel => ({
+    verdict: panel.recorded_verdict,
+    reason: panel.judgments[0]?.reason ?? s.judge_reason,
+    suspect: panel.recorded_verdict === "UNGRADED" ? false : panel.judgments.length > 0 && !panel.judgments.some(judgment => !judgment.suspect && (judgment.verdict === "PASS" || judgment.verdict === "FAIL")),
+    objective: panel.objective,
+    judgment: panel.judgments.find(judgment => judgment.criteria?.some(vote => vote.verdict === "ERROR")) ?? panel.judgments[0],
+  }));
+  const fresh = outcomesToResult(s.id, outcomes, reps, s.pass_threshold ?? 0.5);
+  fresh.metrics = s.metrics;
+  fresh.usage = s.usage;
+  fresh.rep_judgments = panels.map(panel => ({ ...panel, recorded_verdict: fresh.rep_judgments?.find(candidate => candidate.repetition === panel.repetition)?.recorded_verdict ?? panel.recorded_verdict }));
+  return rebuildScenarioResult(fresh, s, { objective: "carry", adjudication: "carry" });
+}
+
 export function effectiveVerdicts(scenarios: ScenarioResult[]): ScenarioVerdict[] {
-  return scenarios.map((s) => ({
+  return scenarios.map(normalizeScenarioResult).map((s) => ({
     id: s.id,
     verdict: s.override ?? objectiveVerdict(s) ?? s.judge_verdict,
     suspect: s.suspect && s.override == null, // an override resolves the misfire
@@ -446,9 +468,10 @@ function objectiveVerdict(s: ScenarioResult): Verdict | undefined {
  * deployment and is scored (see SCORED_MODES directly above).
  */
 export function finalizeResults(draft: ResultsDraft, ctx: ScoreContext | null): ResultsFile {
+  const scenarios = draft.scenarios.map(normalizeScenarioResult);
   let effective_grade: GradeSummary;
   if (ctx) {
-    const s = score(effectiveVerdicts(draft.scenarios), { shipBar: ctx.shipBar, critical: ctx.critical });
+    const s = score(effectiveVerdicts(scenarios), { shipBar: ctx.shipBar, critical: ctx.critical });
     effective_grade = { passed: s.passed, total: s.total, pct: s.pct, letter: s.letter, ship: s.ship, note: s.note };
   } else {
     const why = draft.partial ? "partial run (--only) — not scored" : `mode=${draft.mode} (not scored)`;
@@ -477,7 +500,7 @@ export function finalizeResults(draft: ResultsDraft, ctx: ScoreContext | null): 
     ...(draft.source_hashes ? { source_hashes: draft.source_hashes } : {}),
     ...(draft.source_hash_roots ? { source_hash_roots: draft.source_hash_roots } : {}),
     effective_grade,
-    scenarios: draft.scenarios,
+    scenarios,
     ...(draft.subject_invocations ? { subject_invocations: draft.subject_invocations } : {}),
   };
 }
@@ -576,7 +599,9 @@ export function recomputeRecordedPanels(results: ResultsFile): Array<{ scenario_
   for (const scenario of results.scenarios) for (const panel of scenario.rep_judgments ?? []) {
     const clean = panel.judgments.filter(j => !j.suspect && (j.verdict === "PASS" || j.verdict === "FAIL"));
     let verdict: Verdict = panel.recorded_verdict;
-    if (clean.length === 1) verdict = clean[0].verdict;
+    if (panel.objective && panel.objective.status !== "PASS") verdict = panel.objective.status;
+    else if (panel.recorded_verdict === "UNGRADED" && panel.judgments.some(judgment => judgment.criteria?.some(vote => vote.verdict === "ERROR"))) verdict = "UNGRADED";
+    else if (clean.length === 1) verdict = clean[0].verdict;
     else if (clean.length >= 2) verdict = collapseVotePanel(panel.judgments).verdict ?? "JUDGE-AMBIGUOUS";
     out.push({ scenario_id: scenario.id, repetition: panel.repetition, verdict });
   }
@@ -657,24 +682,25 @@ export function validateResults(raw: unknown): ResultsFile {
     if (scenario.adjudication) {
       if (!Number.isInteger(scenario.adjudication.repetition) || scenario.adjudication.repetition! < 0 || scenario.adjudication.repetition! >= reps) throw new Error(`schema v3 adjudication repetition missing or out of range for ${scenario.id}`);
       const collapsed = collapseVotePanel(scenario.adjudication.judgments);
-      const boundedCriticalAggregate = (scenario.reps ?? 1) > 1 && scenario.pass_threshold === 1 && scenario.judge_verdict !== "PASS" && collapsed.verdict === "PASS" && scenario.adjudication.state === "unresolved" && scenario.adjudication.verdict === undefined;
+      const boundedCriticalAggregate = ((scenario.reps ?? 1) > 1 && scenario.pass_threshold === 1 || scenario.judge_verdict === "UNGRADED") && scenario.judge_verdict !== "PASS" && collapsed.verdict === "PASS" && scenario.adjudication.state === "unresolved" && scenario.adjudication.verdict === undefined;
       if (!boundedCriticalAggregate && (scenario.adjudication.state !== collapsed.state || scenario.adjudication.verdict !== collapsed.verdict)) throw new Error(`recorded adjudication state/verdict diverges from recomputed votes for ${scenario.id}`);
       if (scenario.adjudication.state !== "unresolved") adjudicatedVerdict = scenario.adjudication.verdict;
     }
     const panels = scenario.rep_judgments;
     const errorCount = panels.filter(panel => panel.recorded_verdict === "ERROR").length;
     const notMeasuredCount = panels.filter(panel => panel.recorded_verdict === "NOT-MEASURED").length;
-    const cleanPanels = panels.filter(panel => !(panel.judgments[0]?.suspect ?? false));
+    const cleanPanels = panels.filter(panel => panel.objective && panel.objective.status !== "PASS" || panel.recorded_verdict === "UNGRADED" || !(panel.judgments[0]?.suspect ?? false));
+    const ungradedCount = panels.filter(panel => panel.recorded_verdict === "UNGRADED").length;
     const passes = cleanPanels.filter(panel => panel.recorded_verdict === "PASS").length;
     let aggregateVerdict: Verdict;
     let aggregateSuspect = false;
     if (panels.length === 1) {
       aggregateVerdict = panels[0].recorded_verdict;
-      aggregateSuspect = panels[0].judgments[0]?.suspect ?? false;
+      aggregateSuspect = panels[0].objective && panels[0].objective.status !== "PASS" || panels[0].recorded_verdict === "UNGRADED" ? false : panels[0].judgments[0]?.suspect ?? false;
     } else if (errorCount > 0) aggregateVerdict = "ERROR";
     else if (notMeasuredCount > 0) aggregateVerdict = "NOT-MEASURED";
     else if (cleanPanels.length * 2 < panels.length) { aggregateVerdict = "FAIL"; aggregateSuspect = true; }
-    else aggregateVerdict = passes / cleanPanels.length >= (scenario.pass_threshold ?? 0.5) ? "PASS" : "FAIL";
+    else aggregateVerdict = passes / cleanPanels.length >= (scenario.pass_threshold ?? 0.5) && (ungradedCount === 0 || passes > 0) ? "PASS" : ungradedCount > 0 ? "UNGRADED" : "FAIL";
     const expectedVerdict = adjudicatedVerdict ?? aggregateVerdict;
     const expectedSuspect = scenario.adjudication ? scenario.adjudication.state === "unresolved" : aggregateSuspect;
     if (scenario.judge_verdict !== expectedVerdict || scenario.suspect !== expectedSuspect) throw new Error(`schema v3 scenario verdict/suspect diverges from repetition aggregate for ${scenario.id}`);
@@ -864,7 +890,7 @@ export function rebuildScenarioResult(
   const {
     id, criterion_count: freshCriterionCount, judge_verdict, judge_reason, suspect,
     override: _freshOverride, note: _freshNote,
-    reps, passes, clean, flakiness, pass_threshold,
+    reps, passes, clean, flakiness, pass_threshold, ungraded_reps,
     metrics: freshMetrics,
     usage: freshUsage,
     objective: freshObjective,
@@ -887,7 +913,7 @@ export function rebuildScenarioResult(
   const conflictsWithFreshEvidence = Boolean(
     pickedAdjudication?.verdict && (
       objective?.status === "FAIL" || objective?.status === "ERROR" || objective?.status === "NOT-MEASURED" ||
-      (pickedAdjudication.verdict === "PASS" && pass_threshold === 1 && (reps ?? 1) > 1 && judge_verdict !== "PASS")
+      (pickedAdjudication.verdict === "PASS" && (judge_verdict === "UNGRADED" || pass_threshold === 1 && (reps ?? 1) > 1 && judge_verdict !== "PASS"))
     ),
   );
   // A settled cell-level panel cannot overrule newly evaluated objective gates,
@@ -931,6 +957,7 @@ export function rebuildScenarioResult(
     ...(clean === undefined ? {} : { clean }),
     ...(flakiness === undefined ? {} : { flakiness }),
     ...(pass_threshold === undefined ? {} : { pass_threshold }),
+    ...(ungraded_reps === undefined ? {} : { ungraded_reps }),
     ...((freshMetrics ?? prior?.metrics) ? { metrics: freshMetrics ?? prior!.metrics } : {}),
     ...((freshUsage ?? prior?.usage) ? { usage: freshUsage ?? prior!.usage } : {}),
     // The author owns the verdict; a re-measurement never discards their call.

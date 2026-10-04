@@ -4225,6 +4225,7 @@ function score(verdicts, input) {
   let suspectCount = 0;
   let errorCount = 0;
   let notMeasuredCount = 0;
+  let ungradedCount = 0;
   for (const v of verdicts) {
     if (v.suspect) {
       suspectCount++;
@@ -4243,6 +4244,8 @@ function score(verdicts, input) {
       passed++;
       continue;
     }
+    if (v.verdict === "UNGRADED")
+      ungradedCount++;
     if (critical.includes(v.id))
       criticalFails++;
     if (/^B/i.test(v.id))
@@ -4261,12 +4264,14 @@ function score(verdicts, input) {
     note = `${errorCount} infrastructure error${errorCount === 1 ? "" : "s"}: retry/repair evidence`;
   } else if (notMeasuredCount > 0) {
     note = `${notMeasuredCount} not measured: skill delivery was not established`;
+  } else if (ungradedCount > 0) {
+    note = `${ungradedCount} UNGRADED: incomplete criterion votes (counted as non-passes)`;
   } else if (criticalFails > 0) {
     note = `gated: ${criticalFails} critical fail${criticalFails === 1 ? "" : "s"}`;
   } else if (bSeriesFails > 0) {
     note = `gated: ${bSeriesFails} B-series fail${bSeriesFails === 1 ? "" : "s"}`;
   }
-  return { passed, total, pct, letter, ship, criticalFails, bSeriesFails, suspectCount, errorCount, notMeasuredCount, note };
+  return { passed, total, pct, letter, ship, criticalFails, bSeriesFails, suspectCount, errorCount, notMeasuredCount, ungradedCount, note };
 }
 
 // packages/core/dist/version.js
@@ -4301,6 +4306,145 @@ function collapseVotePanel(votes) {
   if (failVotes > passVotes)
     return { ...base, state: "tie_broken", verdict: "FAIL" };
   return { ...base, state: "unresolved" };
+}
+
+// packages/core/dist/reps.js
+function normalizeRepOutcome(outcome) {
+  if (outcome.verdict === "ERROR")
+    return outcome;
+  if (outcome.objective && outcome.objective.status !== "PASS") {
+    return { ...outcome, verdict: outcome.objective.status, suspect: false };
+  }
+  if (outcome.verdict === "NOT-MEASURED")
+    return outcome;
+  if (outcome.verdict === "UNGRADED" || outcome.judgment?.criteria?.some((vote) => vote.verdict === "ERROR")) {
+    return { ...outcome, verdict: "UNGRADED", reason: "UNGRADED: incomplete criterion votes after judge retry", suspect: false };
+  }
+  return outcome;
+}
+function aggregateObjective(outcomes) {
+  const present = outcomes.map((o) => o.objective).filter((o) => o !== void 0);
+  if (present.length === 0)
+    return void 0;
+  const picked = present.find((o) => o.status === "ERROR") ?? present.find((o) => o.status === "NOT-MEASURED") ?? present.find((o) => o.status === "FAIL") ?? present[0];
+  if (present.length === 1)
+    return picked;
+  const traceHashes = present.map((objective) => objective.trace_sha256);
+  const outputHashes = present.map((objective) => objective.output_sha256);
+  return {
+    ...picked,
+    ...traceHashes.every((hash) => typeof hash === "string") ? { rep_trace_sha256: traceHashes } : {},
+    ...outputHashes.every((hash) => typeof hash === "string") ? { rep_output_sha256: outputHashes } : {}
+  };
+}
+function aggregateReps(outcomes, threshold) {
+  outcomes = outcomes.map(normalizeRepOutcome);
+  const reps2 = outcomes.length;
+  const ungraded = outcomes.filter((o) => o.verdict === "UNGRADED").length;
+  const clean = outcomes.filter((o) => !o.suspect);
+  const passes = clean.filter((o) => o.verdict === "PASS").length;
+  const errored = outcomes.filter((o) => o.verdict === "ERROR").length;
+  if (errored > 0) {
+    return { verdict: "ERROR", reason: `${errored}/${reps2} reps errored \u2014 infrastructure, not behavior`, passes, reps: reps2, clean: clean.length, flakiness: 0, suspect: false };
+  }
+  const notMeasured = outcomes.filter((o) => o.verdict === "NOT-MEASURED").length;
+  if (notMeasured > 0) {
+    return { verdict: "NOT-MEASURED", reason: `${notMeasured}/${reps2} reps not measured \u2014 skill delivery was not established`, passes, reps: reps2, clean: clean.length - notMeasured, flakiness: 0, suspect: false };
+  }
+  if (clean.length * 2 < reps2) {
+    return { verdict: "FAIL", reason: `${reps2 - clean.length}/${reps2} reps misfired \u2014 re-judge`, passes, reps: reps2, clean: clean.length, flakiness: 0, suspect: true };
+  }
+  const passRate = passes / clean.length;
+  const verdict = passRate >= threshold && (ungraded === 0 || passes > 0) ? "PASS" : ungraded > 0 ? "UNGRADED" : "FAIL";
+  const flakiness = 1 - Math.abs(2 * passRate - 1);
+  const reason = reps2 === 1 ? outcomes[0].reason : `${passes}/${clean.length} reps passed (flaky ${flakiness.toFixed(2)})${ungraded ? `; ${ungraded} UNGRADED` : ""}`;
+  return { verdict, reason, passes, reps: reps2, clean: clean.length, flakiness, suspect: false };
+}
+function outcomesToResult(id, outcomes, repCount, threshold) {
+  outcomes = outcomes.map(normalizeRepOutcome);
+  const ungraded = outcomes.filter((outcome) => outcome.verdict === "UNGRADED").length;
+  const ungradedField = ungraded ? { ungraded_reps: ungraded } : {};
+  const objective = aggregateObjective(outcomes);
+  const objectiveField = objective ? { objective } : {};
+  const metrics = aggregateMetrics(outcomes);
+  const metricsField = metrics ? { metrics } : {};
+  const usage = outcomes.flatMap((outcome, repetition) => {
+    const subject = outcome.metrics?.subject;
+    if (!subject)
+      return [];
+    const reported = (value) => value !== null && value > 0 ? value : null;
+    return [{
+      repetition,
+      inputTokens: reported(subject.input_tokens),
+      outputTokens: reported(subject.output_tokens),
+      cacheReadTokens: reported(subject.cache_read_tokens),
+      costUsd: reported(subject.cost_usd),
+      priceAsOf: subject.price_as_of
+    }];
+  });
+  const usageField = usage.length ? { usage } : {};
+  const repJudgments = outcomes.map((outcome, repetition) => ({ repetition, judgments: outcome.judgment ? [outcome.judgment] : [], recorded_verdict: outcome.verdict, ...outcome.objective ? { objective: outcome.objective } : {} }));
+  const repJudgmentField = outcomes.some((outcome) => outcome.judgment) ? { rep_judgments: repJudgments } : {};
+  if (repCount === 1) {
+    const o = outcomes[0];
+    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, ...ungradedField, ...metricsField, ...usageField, override: null, note: "", ...objectiveField, ...repJudgmentField };
+  }
+  const agg = aggregateReps(outcomes, threshold);
+  return {
+    id,
+    judge_verdict: agg.verdict,
+    judge_reason: agg.reason,
+    suspect: agg.suspect,
+    reps: agg.reps,
+    passes: agg.passes,
+    clean: agg.clean,
+    flakiness: agg.flakiness,
+    pass_threshold: threshold,
+    ...ungradedField,
+    ...metricsField,
+    ...usageField,
+    override: null,
+    note: "",
+    ...objectiveField,
+    ...repJudgmentField
+  };
+}
+function aggregateMetrics(outcomes) {
+  const present = outcomes.map((outcome) => outcome.metrics).filter((metrics) => metrics !== void 0);
+  if (present.length === 0)
+    return void 0;
+  const subjects = present.map((metrics) => metrics.subject).filter((metrics) => metrics !== void 0);
+  const reportedSubjects = subjects.filter((metrics) => metrics.input_tokens !== null || metrics.output_tokens !== null || metrics.cache_read_tokens !== null);
+  const base = {
+    wall_time_ms: present.reduce((sum, metrics) => sum + metrics.wall_time_ms, 0),
+    judge_calls: present.reduce((sum, metrics) => sum + metrics.judge_calls, 0),
+    judge_rejudge_calls: present.reduce((sum, metrics) => sum + metrics.judge_rejudge_calls, 0),
+    subject_metrics_reps: reportedSubjects.length,
+    total_reps: outcomes.length
+  };
+  if (subjects.length === 0)
+    return base;
+  const sumReported = (field) => {
+    const values = subjects.map((metrics) => metrics[field]).filter((value) => value !== null && value > 0);
+    return values.length ? values.reduce((sum, value) => sum + value, 0) : void 0;
+  };
+  const inputTokens = sumReported("input_tokens");
+  const outputTokens = sumReported("output_tokens");
+  const cacheReadTokens = sumReported("cache_read_tokens");
+  const cacheWriteTokens = sumReported("cache_write_tokens");
+  const subjectCost = sumReported("cost_usd");
+  return {
+    ...base,
+    ...inputTokens === void 0 ? {} : { input_tokens: inputTokens },
+    ...outputTokens === void 0 ? {} : { output_tokens: outputTokens },
+    ...cacheReadTokens === void 0 ? {} : { cache_read_tokens: cacheReadTokens },
+    ...cacheWriteTokens === void 0 ? {} : { cache_write_tokens: cacheWriteTokens },
+    ...subjectCost === void 0 ? {} : { subject_cost_usd: subjectCost },
+    cost_source: subjects.every((metrics) => metrics.cost_source === subjects[0].cost_source) ? subjects[0].cost_source : "unreported",
+    tool_calls: subjects.reduce((sum, metrics) => sum + metrics.tool_calls, 0),
+    delegated_children: subjects.reduce((sum, metrics) => sum + metrics.delegated_children, 0),
+    max_concurrency: Math.max(...subjects.map((metrics) => metrics.max_concurrency))
+  };
 }
 
 // packages/core/dist/results.js
@@ -4363,8 +4507,28 @@ function transcriptPath(runDir, scenarioId, mode, rep) {
 function resultsPath(runDir) {
   return join4(runDir, "results.yaml");
 }
+function normalizeScenarioResult(s) {
+  const panels = s.rep_judgments;
+  if (!panels?.some((panel) => panel.recorded_verdict === "UNGRADED" || panel.judgments.some((judgment) => judgment.criteria?.some((vote) => vote.verdict === "ERROR"))))
+    return s;
+  const reps2 = s.reps ?? 1;
+  if (panels.length !== reps2)
+    return { ...s, judge_verdict: "UNGRADED", suspect: false, ungraded_reps: panels.filter((panel) => panel.judgments.some((judgment) => judgment.criteria?.some((vote) => vote.verdict === "ERROR"))).length };
+  const outcomes = [...panels].sort((a, b) => a.repetition - b.repetition).map((panel) => ({
+    verdict: panel.recorded_verdict,
+    reason: panel.judgments[0]?.reason ?? s.judge_reason,
+    suspect: panel.recorded_verdict === "UNGRADED" ? false : panel.judgments.length > 0 && !panel.judgments.some((judgment) => !judgment.suspect && (judgment.verdict === "PASS" || judgment.verdict === "FAIL")),
+    objective: panel.objective,
+    judgment: panel.judgments.find((judgment) => judgment.criteria?.some((vote) => vote.verdict === "ERROR")) ?? panel.judgments[0]
+  }));
+  const fresh = outcomesToResult(s.id, outcomes, reps2, s.pass_threshold ?? 0.5);
+  fresh.metrics = s.metrics;
+  fresh.usage = s.usage;
+  fresh.rep_judgments = panels.map((panel) => ({ ...panel, recorded_verdict: fresh.rep_judgments?.find((candidate) => candidate.repetition === panel.repetition)?.recorded_verdict ?? panel.recorded_verdict }));
+  return rebuildScenarioResult(fresh, s, { objective: "carry", adjudication: "carry" });
+}
 function effectiveVerdicts(scenarios) {
-  return scenarios.map((s) => ({
+  return scenarios.map(normalizeScenarioResult).map((s) => ({
     id: s.id,
     verdict: s.override ?? objectiveVerdict(s) ?? s.judge_verdict,
     suspect: s.suspect && s.override == null
@@ -4383,9 +4547,10 @@ function objectiveVerdict(s) {
   return void 0;
 }
 function finalizeResults(draft, ctx) {
+  const scenarios = draft.scenarios.map(normalizeScenarioResult);
   let effective_grade;
   if (ctx) {
-    const s = score(effectiveVerdicts(draft.scenarios), { shipBar: ctx.shipBar, critical: ctx.critical });
+    const s = score(effectiveVerdicts(scenarios), { shipBar: ctx.shipBar, critical: ctx.critical });
     effective_grade = { passed: s.passed, total: s.total, pct: s.pct, letter: s.letter, ship: s.ship, note: s.note };
   } else {
     const why = draft.partial ? "partial run (--only) \u2014 not scored" : `mode=${draft.mode} (not scored)`;
@@ -4414,7 +4579,7 @@ function finalizeResults(draft, ctx) {
     ...draft.source_hashes ? { source_hashes: draft.source_hashes } : {},
     ...draft.source_hash_roots ? { source_hash_roots: draft.source_hash_roots } : {},
     effective_grade,
-    scenarios: draft.scenarios,
+    scenarios,
     ...draft.subject_invocations ? { subject_invocations: draft.subject_invocations } : {}
   };
 }
@@ -4503,7 +4668,11 @@ function recomputeRecordedPanels(results) {
     for (const panel of scenario.rep_judgments ?? []) {
       const clean = panel.judgments.filter((j) => !j.suspect && (j.verdict === "PASS" || j.verdict === "FAIL"));
       let verdict = panel.recorded_verdict;
-      if (clean.length === 1)
+      if (panel.objective && panel.objective.status !== "PASS")
+        verdict = panel.objective.status;
+      else if (panel.recorded_verdict === "UNGRADED" && panel.judgments.some((judgment) => judgment.criteria?.some((vote) => vote.verdict === "ERROR")))
+        verdict = "UNGRADED";
+      else if (clean.length === 1)
         verdict = clean[0].verdict;
       else if (clean.length >= 2)
         verdict = collapseVotePanel(panel.judgments).verdict ?? "JUDGE-AMBIGUOUS";
@@ -4613,7 +4782,7 @@ function validateResults(raw) {
       if (!Number.isInteger(scenario.adjudication.repetition) || scenario.adjudication.repetition < 0 || scenario.adjudication.repetition >= reps2)
         throw new Error(`schema v3 adjudication repetition missing or out of range for ${scenario.id}`);
       const collapsed = collapseVotePanel(scenario.adjudication.judgments);
-      const boundedCriticalAggregate = (scenario.reps ?? 1) > 1 && scenario.pass_threshold === 1 && scenario.judge_verdict !== "PASS" && collapsed.verdict === "PASS" && scenario.adjudication.state === "unresolved" && scenario.adjudication.verdict === void 0;
+      const boundedCriticalAggregate = ((scenario.reps ?? 1) > 1 && scenario.pass_threshold === 1 || scenario.judge_verdict === "UNGRADED") && scenario.judge_verdict !== "PASS" && collapsed.verdict === "PASS" && scenario.adjudication.state === "unresolved" && scenario.adjudication.verdict === void 0;
       if (!boundedCriticalAggregate && (scenario.adjudication.state !== collapsed.state || scenario.adjudication.verdict !== collapsed.verdict))
         throw new Error(`recorded adjudication state/verdict diverges from recomputed votes for ${scenario.id}`);
       if (scenario.adjudication.state !== "unresolved")
@@ -4622,13 +4791,14 @@ function validateResults(raw) {
     const panels = scenario.rep_judgments;
     const errorCount = panels.filter((panel) => panel.recorded_verdict === "ERROR").length;
     const notMeasuredCount = panels.filter((panel) => panel.recorded_verdict === "NOT-MEASURED").length;
-    const cleanPanels = panels.filter((panel) => !(panel.judgments[0]?.suspect ?? false));
+    const cleanPanels = panels.filter((panel) => panel.objective && panel.objective.status !== "PASS" || panel.recorded_verdict === "UNGRADED" || !(panel.judgments[0]?.suspect ?? false));
+    const ungradedCount = panels.filter((panel) => panel.recorded_verdict === "UNGRADED").length;
     const passes = cleanPanels.filter((panel) => panel.recorded_verdict === "PASS").length;
     let aggregateVerdict;
     let aggregateSuspect = false;
     if (panels.length === 1) {
       aggregateVerdict = panels[0].recorded_verdict;
-      aggregateSuspect = panels[0].judgments[0]?.suspect ?? false;
+      aggregateSuspect = panels[0].objective && panels[0].objective.status !== "PASS" || panels[0].recorded_verdict === "UNGRADED" ? false : panels[0].judgments[0]?.suspect ?? false;
     } else if (errorCount > 0)
       aggregateVerdict = "ERROR";
     else if (notMeasuredCount > 0)
@@ -4637,7 +4807,7 @@ function validateResults(raw) {
       aggregateVerdict = "FAIL";
       aggregateSuspect = true;
     } else
-      aggregateVerdict = passes / cleanPanels.length >= (scenario.pass_threshold ?? 0.5) ? "PASS" : "FAIL";
+      aggregateVerdict = passes / cleanPanels.length >= (scenario.pass_threshold ?? 0.5) && (ungradedCount === 0 || passes > 0) ? "PASS" : ungradedCount > 0 ? "UNGRADED" : "FAIL";
     const expectedVerdict = adjudicatedVerdict ?? aggregateVerdict;
     const expectedSuspect = scenario.adjudication ? scenario.adjudication.state === "unresolved" : aggregateSuspect;
     if (scenario.judge_verdict !== expectedVerdict || scenario.suspect !== expectedSuspect)
@@ -4718,7 +4888,7 @@ function diffPath(runDir, scenarioId, mode, rep) {
   return join4(runDir, `${base}.diff.txt`);
 }
 function rebuildScenarioResult(fresh, prior, policy) {
-  const { id, criterion_count: freshCriterionCount, judge_verdict, judge_reason, suspect, override: _freshOverride, note: _freshNote, reps: reps2, passes, clean, flakiness, pass_threshold, metrics: freshMetrics, usage: freshUsage, objective: freshObjective, adjudication: freshAdjudication, rep_judgments: freshRepJudgments, ...rest } = fresh;
+  const { id, criterion_count: freshCriterionCount, judge_verdict, judge_reason, suspect, override: _freshOverride, note: _freshNote, reps: reps2, passes, clean, flakiness, pass_threshold, ungraded_reps, metrics: freshMetrics, usage: freshUsage, objective: freshObjective, adjudication: freshAdjudication, rep_judgments: freshRepJudgments, ...rest } = fresh;
   const _exhaustive = rest;
   void _exhaustive;
   void _freshOverride;
@@ -4730,7 +4900,7 @@ function rebuildScenarioResult(fresh, prior, policy) {
   };
   const objective = pick(policy.objective, freshObjective, prior?.objective);
   const pickedAdjudication = pick(policy.adjudication, freshAdjudication, prior?.adjudication);
-  const conflictsWithFreshEvidence = Boolean(pickedAdjudication?.verdict && (objective?.status === "FAIL" || objective?.status === "ERROR" || objective?.status === "NOT-MEASURED" || pickedAdjudication.verdict === "PASS" && pass_threshold === 1 && (reps2 ?? 1) > 1 && judge_verdict !== "PASS"));
+  const conflictsWithFreshEvidence = Boolean(pickedAdjudication?.verdict && (objective?.status === "FAIL" || objective?.status === "ERROR" || objective?.status === "NOT-MEASURED" || pickedAdjudication.verdict === "PASS" && (judge_verdict === "UNGRADED" || pass_threshold === 1 && (reps2 ?? 1) > 1 && judge_verdict !== "PASS")));
   const adjudication = conflictsWithFreshEvidence && pickedAdjudication ? { ...pickedAdjudication, state: "unresolved", verdict: void 0 } : pickedAdjudication;
   const unresolved = adjudication?.state === "unresolved";
   const settled = policy.adjudication === "carry" && !conflictsWithFreshEvidence ? adjudication?.verdict : void 0;
@@ -4747,6 +4917,7 @@ function rebuildScenarioResult(fresh, prior, policy) {
     ...clean === void 0 ? {} : { clean },
     ...flakiness === void 0 ? {} : { flakiness },
     ...pass_threshold === void 0 ? {} : { pass_threshold },
+    ...ungraded_reps === void 0 ? {} : { ungraded_reps },
     ...freshMetrics ?? prior?.metrics ? { metrics: freshMetrics ?? prior.metrics } : {},
     ...freshUsage ?? prior?.usage ? { usage: freshUsage ?? prior.usage } : {},
     // The author owns the verdict; a re-measurement never discards their call.
@@ -5003,7 +5174,7 @@ function comparableAggregation(red, green) {
   return red.reps === green.reps && red.threshold === green.threshold;
 }
 function conclusive(verdict, suspect) {
-  return !suspect && verdict !== "ERROR" && verdict !== "NOT-MEASURED" && verdict !== "JUDGE-AMBIGUOUS";
+  return !suspect && verdict !== "ERROR" && verdict !== "NOT-MEASURED" && verdict !== "JUDGE-AMBIGUOUS" && verdict !== "UNGRADED";
 }
 function classify(red, green) {
   if (!conclusive(red.verdict, red.suspect) || !conclusive(green.verdict, green.suspect))
@@ -5889,126 +6060,6 @@ async function runPool(tasks, concurrency) {
   return results;
 }
 
-// packages/core/dist/reps.js
-function aggregateObjective(outcomes) {
-  const present = outcomes.map((o) => o.objective).filter((o) => o !== void 0);
-  if (present.length === 0)
-    return void 0;
-  const picked = present.find((o) => o.status === "ERROR") ?? present.find((o) => o.status === "NOT-MEASURED") ?? present.find((o) => o.status === "FAIL") ?? present[0];
-  if (present.length === 1)
-    return picked;
-  const traceHashes = present.map((objective) => objective.trace_sha256);
-  const outputHashes = present.map((objective) => objective.output_sha256);
-  return {
-    ...picked,
-    ...traceHashes.every((hash) => typeof hash === "string") ? { rep_trace_sha256: traceHashes } : {},
-    ...outputHashes.every((hash) => typeof hash === "string") ? { rep_output_sha256: outputHashes } : {}
-  };
-}
-function aggregateReps(outcomes, threshold) {
-  const reps2 = outcomes.length;
-  const clean = outcomes.filter((o) => !o.suspect);
-  const passes = clean.filter((o) => o.verdict === "PASS").length;
-  const errored = outcomes.filter((o) => o.verdict === "ERROR").length;
-  if (errored > 0) {
-    return { verdict: "ERROR", reason: `${errored}/${reps2} reps errored \u2014 infrastructure, not behavior`, passes, reps: reps2, clean: clean.length, flakiness: 0, suspect: false };
-  }
-  const notMeasured = outcomes.filter((o) => o.verdict === "NOT-MEASURED").length;
-  if (notMeasured > 0) {
-    return { verdict: "NOT-MEASURED", reason: `${notMeasured}/${reps2} reps not measured \u2014 skill delivery was not established`, passes, reps: reps2, clean: clean.length - notMeasured, flakiness: 0, suspect: false };
-  }
-  if (clean.length * 2 < reps2) {
-    return { verdict: "FAIL", reason: `${reps2 - clean.length}/${reps2} reps misfired \u2014 re-judge`, passes, reps: reps2, clean: clean.length, flakiness: 0, suspect: true };
-  }
-  const passRate = passes / clean.length;
-  const verdict = passRate >= threshold ? "PASS" : "FAIL";
-  const flakiness = 1 - Math.abs(2 * passRate - 1);
-  const reason = reps2 === 1 ? outcomes[0].reason : `${passes}/${clean.length} reps passed (flaky ${flakiness.toFixed(2)})`;
-  return { verdict, reason, passes, reps: reps2, clean: clean.length, flakiness, suspect: false };
-}
-function outcomesToResult(id, outcomes, repCount, threshold) {
-  const objective = aggregateObjective(outcomes);
-  const objectiveField = objective ? { objective } : {};
-  const metrics = aggregateMetrics(outcomes);
-  const metricsField = metrics ? { metrics } : {};
-  const usage = outcomes.flatMap((outcome, repetition) => {
-    const subject = outcome.metrics?.subject;
-    if (!subject)
-      return [];
-    const reported = (value) => value !== null && value > 0 ? value : null;
-    return [{
-      repetition,
-      inputTokens: reported(subject.input_tokens),
-      outputTokens: reported(subject.output_tokens),
-      cacheReadTokens: reported(subject.cache_read_tokens),
-      costUsd: reported(subject.cost_usd),
-      priceAsOf: subject.price_as_of
-    }];
-  });
-  const usageField = usage.length ? { usage } : {};
-  const repJudgments = outcomes.map((outcome, repetition) => ({ repetition, judgments: outcome.judgment ? [outcome.judgment] : [], recorded_verdict: outcome.verdict, ...outcome.objective ? { objective: outcome.objective } : {} }));
-  const repJudgmentField = outcomes.some((outcome) => outcome.judgment) ? { rep_judgments: repJudgments } : {};
-  if (repCount === 1) {
-    const o = outcomes[0];
-    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, ...metricsField, ...usageField, override: null, note: "", ...objectiveField, ...repJudgmentField };
-  }
-  const agg = aggregateReps(outcomes, threshold);
-  return {
-    id,
-    judge_verdict: agg.verdict,
-    judge_reason: agg.reason,
-    suspect: agg.suspect,
-    reps: agg.reps,
-    passes: agg.passes,
-    clean: agg.clean,
-    flakiness: agg.flakiness,
-    pass_threshold: threshold,
-    ...metricsField,
-    ...usageField,
-    override: null,
-    note: "",
-    ...objectiveField,
-    ...repJudgmentField
-  };
-}
-function aggregateMetrics(outcomes) {
-  const present = outcomes.map((outcome) => outcome.metrics).filter((metrics) => metrics !== void 0);
-  if (present.length === 0)
-    return void 0;
-  const subjects = present.map((metrics) => metrics.subject).filter((metrics) => metrics !== void 0);
-  const reportedSubjects = subjects.filter((metrics) => metrics.input_tokens !== null || metrics.output_tokens !== null || metrics.cache_read_tokens !== null);
-  const base = {
-    wall_time_ms: present.reduce((sum, metrics) => sum + metrics.wall_time_ms, 0),
-    judge_calls: present.reduce((sum, metrics) => sum + metrics.judge_calls, 0),
-    judge_rejudge_calls: present.reduce((sum, metrics) => sum + metrics.judge_rejudge_calls, 0),
-    subject_metrics_reps: reportedSubjects.length,
-    total_reps: outcomes.length
-  };
-  if (subjects.length === 0)
-    return base;
-  const sumReported = (field) => {
-    const values = subjects.map((metrics) => metrics[field]).filter((value) => value !== null && value > 0);
-    return values.length ? values.reduce((sum, value) => sum + value, 0) : void 0;
-  };
-  const inputTokens = sumReported("input_tokens");
-  const outputTokens = sumReported("output_tokens");
-  const cacheReadTokens = sumReported("cache_read_tokens");
-  const cacheWriteTokens = sumReported("cache_write_tokens");
-  const subjectCost = sumReported("cost_usd");
-  return {
-    ...base,
-    ...inputTokens === void 0 ? {} : { input_tokens: inputTokens },
-    ...outputTokens === void 0 ? {} : { output_tokens: outputTokens },
-    ...cacheReadTokens === void 0 ? {} : { cache_read_tokens: cacheReadTokens },
-    ...cacheWriteTokens === void 0 ? {} : { cache_write_tokens: cacheWriteTokens },
-    ...subjectCost === void 0 ? {} : { subject_cost_usd: subjectCost },
-    cost_source: subjects.every((metrics) => metrics.cost_source === subjects[0].cost_source) ? subjects[0].cost_source : "unreported",
-    tool_calls: subjects.reduce((sum, metrics) => sum + metrics.tool_calls, 0),
-    delegated_children: subjects.reduce((sum, metrics) => sum + metrics.delegated_children, 0),
-    max_concurrency: Math.max(...subjects.map((metrics) => metrics.max_concurrency))
-  };
-}
-
 // packages/core/dist/regrade.js
 import { readFileSync as readFileSync7, writeFileSync as writeFileSync2, existsSync as existsSync8 } from "node:fs";
 import { join as join10 } from "node:path";
@@ -6087,20 +6138,22 @@ async function judgeOneRep(opts) {
   const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
   const g = await judgeInWorkspace(adapter, judge, prompt, specDir, scenario.checklist.length);
   writeFileSync2(judgeRawPath(runDir, scenario.id, mode, rep), g.raw, "utf8");
-  appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict: g.verdict, reason: g.reason, suspect: g.suspect, ...repField });
-  if (g.suspect)
-    appendJournal(runDir, { event: "misfire-flag", ts: now(), id: scenario.id, reason: g.reason, ...repField });
-  return {
+  const outcome = normalizeRepOutcome({
     verdict: g.verdict,
     reason: g.reason,
     suspect: g.suspect,
+    objective: opts.objective,
     judgment: { ordinal: 1, judge: { ...judge }, verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, scenario.checklist.length), ...g.judgeRetries ? { judgeRetries: g.judgeRetries } : {} },
     metrics: {
       wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
       judge_calls: 1 + (g.judgeRetries ?? 0),
       judge_rejudge_calls: opts.rejudge ? 1 + (g.judgeRetries ?? 0) : 0
     }
-  };
+  });
+  appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict: outcome.verdict, reason: outcome.reason, suspect: outcome.suspect, ...repField });
+  if (outcome.suspect)
+    appendJournal(runDir, { event: "misfire-flag", ts: now(), id: scenario.id, reason: outcome.reason, ...repField });
+  return outcome;
 }
 async function regradeScenario(opts) {
   const now = opts.now ?? (() => (/* @__PURE__ */ new Date()).toISOString());
@@ -6140,7 +6193,8 @@ async function regradeScenario(opts) {
       mode,
       rep,
       now,
-      rejudge: true
+      rejudge: true,
+      objective: panel?.objective ?? (expected === 1 ? opts.prior?.objective : void 0)
     }));
   }
   const result = outcomesToResult(opts.scenario.id, outcomes, repCount, opts.threshold);
@@ -6409,12 +6463,14 @@ function collectTrends(skillDir, limit = 20) {
     const kept = group.runs.slice(-limit);
     const runs = [];
     for (const r of kept) {
-      const verdicts = effectiveVerdicts(r.scenarios);
+      const normalized = r.scenarios.map(normalizeScenarioResult);
+      const grade = normalized.some((s, i) => s !== r.scenarios[i]) ? finalizeResults({ ...r, scenarios: normalized }, scoreContextFor(r, spec)).effective_grade : r.effective_grade;
+      const verdicts = effectiveVerdicts(normalized);
       const cells = {};
-      r.scenarios.forEach((s, i) => {
+      normalized.forEach((s, i) => {
         cells[s.id] = { verdict: verdicts[i].verdict, suspect: verdicts[i].suspect ?? false, flakiness: s.flakiness };
       });
-      runs.push({ timestamp: r.timestamp, label: r.label, grade: r.effective_grade, cells });
+      runs.push({ timestamp: r.timestamp, label: r.label, grade, cells });
     }
     models.push({ model: group.model, tag: group.tag, mode: group.mode, runs, truncated, skipped: group.skipped });
   }
@@ -6424,7 +6480,7 @@ function collectTrends(skillDir, limit = 20) {
 // packages/core/dist/stability.js
 var DEFAULT_WINDOW = 5;
 function conclusive2(v) {
-  return !v.suspect && v.verdict !== "ERROR" && v.verdict !== "NOT-MEASURED" && v.verdict !== "JUDGE-AMBIGUOUS";
+  return !v.suspect && v.verdict !== "ERROR" && v.verdict !== "NOT-MEASURED" && v.verdict !== "JUDGE-AMBIGUOUS" && v.verdict !== "UNGRADED";
 }
 function pointFor(r, s, verdict) {
   const reps2 = s.reps ?? 1;
@@ -7061,9 +7117,11 @@ function collectReport(skillDir) {
       if (!runDir)
         continue;
       const r = readResults(runDir);
+      const normalized = r.scenarios.map(normalizeScenarioResult);
+      const grade = normalized.some((s, i) => s !== r.scenarios[i]) ? finalizeResults({ ...r, scenarios: normalized }, scoreContextFor(r, spec)).effective_grade : r.effective_grade;
       const tagName = tagDir.split("/").pop();
       const cells = {};
-      for (const s of r.scenarios) {
+      for (const s of normalized) {
         const boundary = boundaryByCell.get(`${tagName}\0${r.mode}\0${s.id}`);
         cells[s.id] = {
           ...boundary ? {
@@ -7090,6 +7148,7 @@ function collectReport(skillDir) {
           passes: s.passes,
           clean: s.clean,
           flakiness: s.flakiness,
+          ...s.ungraded_reps ? { ungraded_reps: s.ungraded_reps } : {},
           metrics: s.metrics,
           override: s.override,
           note: s.note
@@ -7106,7 +7165,7 @@ function collectReport(skillDir) {
         timestamp: r.timestamp,
         mode: r.mode,
         partial: r.partial === true,
-        grade: r.effective_grade,
+        grade,
         judge: r.judge,
         metrics: aggregateMetrics2(r.scenarios),
         cells,

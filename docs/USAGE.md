@@ -324,7 +324,11 @@ node bin/skill-harness.js regrade <run-dir> --unparsed-only
 
 This uses the run's recorded judge, leaves clean repetitions untouched, and makes
 no subject calls. Missing criterion votes trigger one identical-input judge retry;
-`judgeRetries: 1` records it. A second parse miss retains ERROR votes and the raw reply.
+`judgeRetries: 1` records it. A second parse miss retains ERROR votes and the raw reply,
+but the repetition is **UNGRADED**, never a credited PASS or a judged FAIL. It remains
+in the denominator as a non-pass; fully graded siblings can still meet the threshold.
+UNGRADED uses existing FAIL ship-bar allowances. Reports and `list` show a separate
+`ungraded_reps` count. `rescore` reclassifies old missing-vote records for free.
 Judge tokens are spent, so confirm the run and recorded judge before invoking it.
 
 ## 7. Add a test case

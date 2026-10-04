@@ -426,8 +426,9 @@ kind are silent (no retroactive noise); partial runs never count as coverage.
 **`rescore <run-dir>...`** re-collapses saved reps against the *current* spec thresholds —
 no model calls, no judge calls, free. Reps are the measurement (`passes` of `clean`); a
 threshold is policy. When the policy changes, recompute the old measurements under it and
-record what moved, rather than reconciling two numbers in prose. Only reps-bearing
-scenarios move; single-rep verdicts, `ERROR` and `JUDGE-AMBIGUOUS` are carried verbatim
+record what moved, rather than reconciling two numbers in prose. Retained repetitions
+with ERROR criterion votes are first reclassified as UNGRADED, including single reps.
+Otherwise only reps-bearing scenarios move; `ERROR` and `JUDGE-AMBIGUOUS` are carried verbatim
 (no rate to re-apply), and overrides/notes/suspect flags are preserved — this changes the
 collapse rule, never what the judge said. Every re-score journals a `rescore` event with
 the verdicts that moved.
@@ -445,8 +446,13 @@ Partial repairs retain source hashes rather than certifying untouched rubric evi
 When an expected criterion vote is missing, judging now retries once with the same
 judge, prompt, and workspace. The retained judgment records `judgeRetries: 1`, call
 metrics include both attempts, and the `.judge.txt` artifact contains the last raw
-reply. A second parse miss remains an `ERROR` criterion vote; the overall verdict
-and misfire policy are unchanged.
+reply. Any `ERROR` criterion vote after that retry makes the repetition **UNGRADED**,
+not PASS or a judged FAIL. It counts as a failed rep in the denominator, even if the
+judge's raw overall verdict says PASS. Fully graded passing siblings can still meet
+the scenario threshold. `ungraded_reps` records the separate count in results, reports,
+and `list`; ordinary FAIL ship-bar allowances apply, including critical/B-series gates.
+`rescore` upgrades retained missing-vote records offline; `regrade --unparsed-only`
+can obtain new votes using the recorded judge.
 
 **Per-scenario overrides:** `reps:` and `pass_threshold:` in `specification.yaml` override the run flags for ordinary scenarios. Critical scenarios always require every clean repetition (`1.0`); an ERROR stays infrastructure and cannot be voted into PASS.
 

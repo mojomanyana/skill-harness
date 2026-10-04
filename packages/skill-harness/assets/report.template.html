@@ -25,6 +25,7 @@
   .cell.PASS { background: rgba(31,139,76,.22); }
   .cell.FAIL { background: rgba(192,57,43,.24); }
   .cell.ERROR { background: rgba(107,114,128,.22); }
+  .cell.UNGRADED { background: rgba(180,83,9,.18); }
   .cell.NOT-MEASURED { background: rgba(180,83,9,.18); }
   .cell.empty { color: var(--dim); cursor: default; font-weight: 400; }
   .cell .ov { display: block; font-size: 11px; color: var(--over); font-weight: 600; }
@@ -229,6 +230,7 @@ function render() {
         ? `<span class='ov unsaved'>unsaved</span>`
         : (cell.override ? `<span class='ov'>override</span>` : "");
       const misfired = cell.clean != null && cell.clean < cell.reps ? ` · ${cell.reps - cell.clean} misfired` : "";
+      const ungraded = cell.ungraded_reps ? `<span class='reps'>${cell.ungraded_reps} UNGRADED rep${cell.ungraded_reps === 1 ? "" : "s"} (not judged FAIL)</span>` : "";
       const reps = cell.reps ? `<span class='reps'>${cell.passes}/${cell.clean}${misfired}${cell.flakiness ? ` · flaky ${cell.flakiness.toFixed(2)}` : ""}</span>` : "";
       const suspectBadge = cell.suspect && !cell.override ? `<span class='ov suspect'>suspect</span>` : "";
       // Per-cell lift marker: only the two classes that mean the skill changed
@@ -255,7 +257,7 @@ function render() {
       const objMark = obj
         ? `<span class='lm obj-${obj.status.toLowerCase()}' title='${escapeHtml(`objective ${obj.status}: ${obj.detail}`)}'>◉ ${escapeHtml(obj.status.toLowerCase())}</span>`
         : "";
-      html += `<td class='cell ${v}${sel}' data-col='${col.index}' data-id='${scn.id}'>${v}${ov}${suspectBadge}${liftMark}${stabMark}${objMark}${reps}</td>`;
+      html += `<td class='cell ${v}${sel}' data-col='${col.index}' data-id='${scn.id}'>${v}${ov}${suspectBadge}${liftMark}${stabMark}${objMark}${reps}${ungraded}</td>`;
     });
     html += "</tr>";
   }
@@ -389,7 +391,7 @@ function sparkline(runs) {
 function renderTrends(data) {
   const box = document.getElementById("trends");
   if (!data.models.length) { box.innerHTML = `<div class="empty-state">No runs yet.</div>`; return; }
-  const glyph = { PASS: "✓", FAIL: "✗", ERROR: "!", "NOT-MEASURED": "∅" };
+  const glyph = { PASS: "✓", FAIL: "✗", ERROR: "!", UNGRADED: "?", "NOT-MEASURED": "∅" };
   let html = "";
   for (const m of data.models) {
     const last = m.runs[m.runs.length - 1].grade;

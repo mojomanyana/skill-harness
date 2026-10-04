@@ -660,7 +660,8 @@ export function formatScorecard(summary: RunSummary, lift?: Lift, stability?: Sc
     const susp = s.suspect ? " ⚠suspect" : "";
     const misfired = s.clean !== undefined && s.reps !== undefined && s.clean < s.reps ? ` · ${s.reps - s.clean} misfired` : "";
     const repInfo = s.reps ? `  [${s.passes}/${s.clean}${misfired}${s.flakiness ? ` flaky ${s.flakiness.toFixed(2)}` : ""}]` : "";
-    lines.push(`  ${mark} ${s.id}${ov}${susp}  ${s.judge_reason}${repInfo}`);
+    const ungradedInfo = s.ungraded_reps ? ` · ${s.ungraded_reps} ungraded rep${s.ungraded_reps === 1 ? "" : "s"} (UNGRADED)` : "";
+    lines.push(`  ${mark} ${s.id}${ov}${susp}  ${s.judge_reason}${repInfo}${ungradedInfo}`);
   }
   const ship = g.ship ? "SHIP" : "NOT READY";
   const note = g.note ? ` (${g.note})` : "";

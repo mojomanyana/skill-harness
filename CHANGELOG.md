@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.22.4 — Incomplete criterion votes are UNGRADED (2026-10-04)
+
+### Fixed
+
+- Repetitions with any ERROR criterion vote after the judge retry now aggregate as UNGRADED; previously a raw overall PASS could credit incomplete evidence. UNGRADED reps remain in the denominator as non-passes, passing siblings can still meet the scenario threshold, and existing FAIL ship-bar allowances apply.
+- Offline `rescore` reclassifies retained missing-vote repetitions without changing raw judge evidence or spending model tokens.
+
+### Added
+
+- Add the UNGRADED verdict and optional `ungraded_reps` count to results schemas 2 and 3. Reports and `list` surface the count separately from judged failures; lift and stability do not label ungraded results as behavioral failures.
+
 ## 0.22.3 — Judge criterion-vote recovery (2026-10-01)
 
 ### Fixed

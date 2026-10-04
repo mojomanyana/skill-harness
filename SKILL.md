@@ -1,6 +1,6 @@
 ---
 name: skill-harness
-version: 0.22.3
+version: 0.22.4
 description: >
   Use to test, grade, and optimize an agent skill against a spec. Triggers:
   "test the <skill> skill", "/skill-harness", "run the skill bench", "grade these
@@ -86,6 +86,11 @@ asked for one of the other three. Confirm that possible judge spend before runni
    no trace produced, a workspace never observed, an argument redaction destroyed —
    reports ERROR and blocks. A vacuous PASS is the one outcome the harness will not
    print, because it is indistinguishable from a real one.
+2c. **Incomplete criterion votes are UNGRADED.** After one judge retry, any ERROR
+   criterion vote makes that rep a non-pass in the denominator, not a judged FAIL.
+   Graded siblings can still meet the threshold; existing FAIL ship-bar allowances
+   apply. `list` and reports show the separate count; `rescore` updates old records
+   offline, or `regrade --unparsed-only` can repair votes with the recorded judge.
 3. **The author owns the verdict.** The judge proposes; overrides + notes in the
    review UI are the durable record. Normally commit only `results.yaml`; if an override
    unignores its transcript/judge evidence, commit that evidence with the override.
