@@ -10,7 +10,7 @@ import { gradeColumn } from "../../../assets/report.grade.js";
 
 interface CellFixture {
   id: string;
-  judge_verdict: "PASS" | "FAIL" | "ERROR" | "NOT-MEASURED";
+  judge_verdict: "PASS" | "FAIL" | "ERROR" | "NOT-MEASURED" | "UNGRADED";
   override?: "PASS" | "FAIL" | "ERROR" | null;
   suspect?: boolean;
   objective?: { status: "PASS" | "FAIL" | "ERROR" | "NOT-MEASURED" };
@@ -46,6 +46,11 @@ const FIXTURES: Record<string, CellFixture[]> = {
   "all pass": [
     { id: "A1", judge_verdict: "PASS" },
     { id: "C2", judge_verdict: "PASS" },
+    { id: "C3", judge_verdict: "PASS" },
+  ],
+  "UNGRADED counts in the denominator without becoming a judged fail": [
+    { id: "A1", judge_verdict: "PASS" },
+    { id: "C2", judge_verdict: "UNGRADED" },
     { id: "C3", judge_verdict: "PASS" },
   ],
   "plain fail (non-critical, non-B) still scores": [
@@ -121,6 +126,7 @@ describe("report.grade.js gradeColumn matches score.ts score() (drift guard)", (
       expect(actual.suspect).toBe(expected.suspectCount);
       expect(actual.errors).toBe(expected.errorCount);
       expect(actual.notMeasured).toBe(expected.notMeasuredCount);
+      expect(actual.ungraded).toBe(expected.ungradedCount);
     });
   }
 });

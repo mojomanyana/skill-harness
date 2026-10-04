@@ -102,7 +102,8 @@
         "PASS",
         "FAIL",
         "ERROR",
-        "JUDGE-AMBIGUOUS"
+        "JUDGE-AMBIGUOUS",
+        "UNGRADED"
       ]
     },
     "grade": {
@@ -320,6 +321,10 @@
           "type": "number",
           "minimum": 0,
           "maximum": 1
+        },
+        "ungraded_reps": {
+          "type": "integer",
+          "minimum": 1
         },
         "pass_threshold": {
           "type": "number",

@@ -87,6 +87,13 @@ afterEach(() => {
 });
 
 describe("--specs overlay", () => {
+  it("list distinguishes retained UNGRADED reps from judged failures", async () => {
+    const { skills, specs } = fixture();
+    await capture(() => cmdRun(args(skills, specs), { ...fake, judge: async () => "VERDICT: PASS\nREASON: no criterion vote" }));
+    const listed = await capture(() => main(["list", "--skills", skills, "--specs", specs]));
+    expect(listed.logs.some(line => /demo.*1 UNGRADED rep/.test(line))).toBe(true);
+  });
+
   it("run writes under --specs, records both source roots, and grade/rescore resolve the overlay spec", async () => {
     const { skills, specs } = fixture();
     await capture(() => cmdRun(args(skills, specs), fake));

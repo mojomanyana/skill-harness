@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { regradeScenario, parseSpec, type HarnessAdapter, type JudgeReq } from "../src/index.js";
 import { judgeOneRep, regradeRun } from "../src/regrade.js";
 import { readJournal, readResults, writeResults } from "../src/index.js";
+import yaml from "js-yaml";
 import { PROVIDER_FAILURE_MARKER } from "../src/provider-failure.js";
 
 const tmps: string[] = [];
@@ -119,12 +120,16 @@ function retainedVoteRun() {
   const runDir = tmp();
   const spec = scenarioOf(SPEC);
   const judge = { provider: "openai-codex", model: "recorded" };
-  const prior = writeResults(runDir, {
+  // Seed historical 0.22.3 bytes directly: a current writer correctly upgrades
+  // missing-vote PASSs, which would no longer exercise retained-record repair.
+  const prior: import("../src/results.js").ResultsFile = {
+    schema: 2, harness_version: "0.22.3", effective_grade: { passed: 1, total: 1, pct: 100, letter: "A", ship: true, note: "" },
     skill: spec.skill, harness: "pi", model: "fake", judge, timestamp: "original", label: null, mode: "force",
     scenarios: [{ id: "A1", criterion_count: 1, judge_verdict: "PASS", judge_reason: "old", suspect: false, override: null, note: "", reps: 2, passes: 2, clean: 2, flakiness: 0, pass_threshold: 1,
       rep_judgments: [1, 0].map(repetition => ({ repetition, recorded_verdict: "PASS", judgments: [{ ordinal: 1, judge, verdict: "PASS", reason: "old", suspect: false, criteria: [{ index: 1, verdict: "ERROR", reason: "unparsed" }] }] })),
     }],
-  }, { shipBar: spec.ship_bar, critical: [] });
+  };
+  writeFileSync(join(runDir, "results.yaml"), yaml.dump(prior));
   for (const rep of [0, 1]) {
     writeFileSync(join(runDir, `A1.force.rep${rep}.txt`), `transcript ${rep}`);
     writeFileSync(join(runDir, `A1.force.rep${rep}.judge.txt`), `old raw ${rep}`);
@@ -155,7 +160,7 @@ describe("criterion-vote recovery", () => {
       normalization_rule: "cwd-line-v1", bytes: 1, contract_sha256: h, contract_bytes: 1,
       contract_occurrences: 0, mechanism: "none", status: "PASS",
     } }));
-    writeResults(runDir, prior, { shipBar: spec.ship_bar, critical: [] });
+    writeFileSync(join(runDir, "results.yaml"), yaml.dump(prior));
     const before = readFileSync(join(runDir, "results.yaml"), "utf8");
     spec.scenarios[0].checklist.push("new criterion");
     let calls = 0;
@@ -174,7 +179,7 @@ describe("criterion-vote recovery", () => {
     cleanPanel.judgments[0].suspect = true;
     cleanPanel.judgments.push(...[2, 3].map(ordinal => ({ ...cleanPanel.judgments[0], ordinal, verdict: "PASS" as const, suspect: false })));
     prior.scenarios[0].adjudication = { repetition: 0, state: "confirmed", trigger: "contradictory", verdict: "PASS", judgments: cleanPanel.judgments };
-    writeResults(runDir, prior, { shipBar: spec.ship_bar, critical: [] });
+    writeFileSync(join(runDir, "results.yaml"), yaml.dump(prior));
     const out = await regradeRun({ runDir, spec, judge, adapter: judgeAdapter(`1. ${verdict} — ok\nVERDICT: ${verdict}\nREASON: fine`), specDir: runDir, onlyUnparsed: true });
     expect(out.scenarios[0].clean).toBe(2);
     expect(out.scenarios[0].rep_judgments?.[0]).toEqual(cleanPanel);
@@ -205,7 +210,7 @@ describe("criterion-vote recovery", () => {
       normalization_rule: "cwd-line-v1", bytes: 1, contract_sha256: h, contract_bytes: 1,
       contract_occurrences: 0, mechanism: "none", status: "PASS",
     } }));
-    writeResults(runDir, prior, { shipBar: spec.ship_bar, critical: [] });
+    writeFileSync(join(runDir, "results.yaml"), yaml.dump(prior));
     const raw = "1. PASS — ok\nVERDICT: PASS\nREASON: fine";
     let calls = 0;
     const adapter = { ...judgeAdapter(""), judge: async () => { calls++; return raw; } };

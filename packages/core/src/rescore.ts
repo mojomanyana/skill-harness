@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Spec } from "./spec.js";
-import { readResults, writeResults, scoreContextFor, rebuildScenarioResult, effectiveThreshold, type ResultsFile, type ScenarioResult } from "./results.js";
+import { readResults, writeResults, scoreContextFor, rebuildScenarioResult, normalizeScenarioResult, effectiveThreshold, type ResultsFile, type ScenarioResult } from "./results.js";
 import { appendJournal } from "./journal.js";
 import { policyDigest, POLICY_PREFIX } from "./sources.js";
 
@@ -72,7 +72,8 @@ export function rescoreRun(opts: RescoreOptions): RescoreResult {
   const specById = new Map(opts.spec.scenarios.map((s) => [s.id, s]));
 
   const changes: RescoreChange[] = [];
-  const scenarios: ScenarioResult[] = prev.scenarios.map((s) => {
+  const scenarios: ScenarioResult[] = prev.scenarios.map((recorded) => {
+    const s = normalizeScenarioResult(recorded);
     const scenario = specById.get(s.id);
     // no rate to re-apply, or an untrustworthy verdict → carry verbatim
     if (!scenario || s.reps === undefined || s.clean === undefined || s.passes === undefined) return s;
@@ -84,7 +85,7 @@ export function rescoreRun(opts: RescoreOptions): RescoreResult {
     if (toThreshold === fromThreshold) return s;
 
     const rate = s.passes / s.clean;
-    const verdict: ScenarioResult["judge_verdict"] = rate >= toThreshold ? "PASS" : "FAIL";
+    const verdict: ScenarioResult["judge_verdict"] = rate >= toThreshold && (!s.ungraded_reps || s.passes > 0) ? "PASS" : s.ungraded_reps ? "UNGRADED" : "FAIL";
     if (verdict !== s.judge_verdict) {
       changes.push({ id: s.id, from: s.judge_verdict, to: verdict, passes: s.passes, clean: s.clean, fromThreshold, toThreshold });
     }
@@ -104,6 +105,14 @@ export function rescoreRun(opts: RescoreOptions): RescoreResult {
     );
   });
 
+  for (const s of scenarios) {
+    const recorded = prev.scenarios.find(prior => prior.id === s.id)!;
+    if (s.judge_verdict !== recorded.judge_verdict && !changes.some(change => change.id === s.id)) {
+      changes.push({ id: s.id, from: recorded.judge_verdict, to: s.judge_verdict,
+        passes: s.passes ?? (s.judge_verdict === "PASS" ? 1 : 0), clean: s.clean ?? 1,
+        fromThreshold: recorded.pass_threshold ?? 0.5, toThreshold: s.pass_threshold ?? 0.5 });
+    }
+  }
   const ctx = scoreContextFor(prev, opts.spec);
   const results = writeResults(opts.runDir, {
     schema: prev.schema, subject_invocations: prev.subject_invocations,

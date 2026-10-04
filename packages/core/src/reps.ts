@@ -18,6 +18,16 @@ export interface RepOutcome {
   };
 }
 
+/** Missing criterion evidence is a non-pass, not a judge misfire or a judged FAIL. */
+export function normalizeRepOutcome(outcome: RepOutcome): RepOutcome {
+  if (outcome.objective && outcome.objective.status !== "PASS") return outcome;
+  if (outcome.verdict === "ERROR" || outcome.verdict === "NOT-MEASURED") return outcome;
+  if (outcome.verdict === "UNGRADED" || outcome.judgment?.criteria?.some(vote => vote.verdict === "ERROR")) {
+    return { ...outcome, verdict: "UNGRADED", reason: "UNGRADED: incomplete criterion votes after judge retry", suspect: false };
+  }
+  return outcome;
+}
+
 /**
  * Collapse per-rep objective results.
  *
@@ -61,7 +71,9 @@ export interface RepAggregate {
  * (default caller threshold 0.5, ties pass). Flakiness = 1 - |2·pass_rate - 1|.
  */
 export function aggregateReps(outcomes: RepOutcome[], threshold: number): RepAggregate {
+  outcomes = outcomes.map(normalizeRepOutcome);
   const reps = outcomes.length;
+  const ungraded = outcomes.filter(o => o.verdict === "UNGRADED").length;
   const clean = outcomes.filter((o) => !o.suspect);
   const passes = clean.filter((o) => o.verdict === "PASS").length;
 
@@ -83,9 +95,9 @@ export function aggregateReps(outcomes: RepOutcome[], threshold: number): RepAgg
   }
 
   const passRate = passes / clean.length;
-  const verdict: Verdict = passRate >= threshold ? "PASS" : "FAIL";
+  const verdict: Verdict = passRate >= threshold && (ungraded === 0 || passes > 0) ? "PASS" : ungraded > 0 ? "UNGRADED" : "FAIL";
   const flakiness = 1 - Math.abs(2 * passRate - 1);
-  const reason = reps === 1 ? outcomes[0].reason : `${passes}/${clean.length} reps passed (flaky ${flakiness.toFixed(2)})`;
+  const reason = reps === 1 ? outcomes[0].reason : `${passes}/${clean.length} reps passed (flaky ${flakiness.toFixed(2)})${ungraded ? `; ${ungraded} UNGRADED` : ""}`;
   return { verdict, reason, passes, reps, clean: clean.length, flakiness, suspect: false };
 }
 
@@ -97,6 +109,9 @@ export function aggregateReps(outcomes: RepOutcome[], threshold: number): RepAgg
  * caller to merge.
  */
 export function outcomesToResult(id: string, outcomes: RepOutcome[], repCount: number, threshold: number): ScenarioResult {
+  outcomes = outcomes.map(normalizeRepOutcome);
+  const ungraded = outcomes.filter(outcome => outcome.verdict === "UNGRADED").length;
+  const ungradedField = ungraded ? { ungraded_reps: ungraded } : {};
   // Spread rather than always-set: a scenario with no trace assertions must
   // produce a result byte-identical to one from before this field existed.
   const objective = aggregateObjective(outcomes);
@@ -121,13 +136,13 @@ export function outcomesToResult(id: string, outcomes: RepOutcome[], repCount: n
   const repJudgmentField = outcomes.some(outcome => outcome.judgment) ? { rep_judgments: repJudgments } : {};
   if (repCount === 1) {
     const o = outcomes[0];
-    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, ...metricsField, ...usageField, override: null, note: "", ...objectiveField, ...repJudgmentField };
+    return { id, judge_verdict: o.verdict, judge_reason: o.reason, suspect: o.suspect, ...ungradedField, ...metricsField, ...usageField, override: null, note: "", ...objectiveField, ...repJudgmentField };
   }
   const agg = aggregateReps(outcomes, threshold);
   return {
     id, judge_verdict: agg.verdict, judge_reason: agg.reason, suspect: agg.suspect,
     reps: agg.reps, passes: agg.passes, clean: agg.clean, flakiness: agg.flakiness,
-    pass_threshold: threshold, ...metricsField, ...usageField, override: null, note: "", ...objectiveField, ...repJudgmentField,
+    pass_threshold: threshold, ...ungradedField, ...metricsField, ...usageField, override: null, note: "", ...objectiveField, ...repJudgmentField,
   };
 }
 

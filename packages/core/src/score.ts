@@ -4,7 +4,7 @@ import type { ShipBar } from "./spec.js";
  * "JUDGE-AMBIGUOUS": the judge emitted conflicting verdicts for one transcript. It is
  * never a pass and never silently resolved — it marks the run for a rejudge.
  */
-export type Verdict = "PASS" | "FAIL" | "ERROR" | "NOT-MEASURED" | "JUDGE-AMBIGUOUS";
+export type Verdict = "PASS" | "FAIL" | "ERROR" | "NOT-MEASURED" | "JUDGE-AMBIGUOUS" | "UNGRADED";
 
 export interface ScenarioVerdict {
   id: string;
@@ -28,6 +28,7 @@ export interface ScoreResult {
   suspectCount: number;
   errorCount: number;
   notMeasuredCount: number;
+  ungradedCount: number;
   note: string;
 }
 
@@ -58,6 +59,7 @@ export function score(verdicts: ScenarioVerdict[], input: ScoreInput): ScoreResu
   let suspectCount = 0;
   let errorCount = 0;
   let notMeasuredCount = 0;
+  let ungradedCount = 0;
 
   for (const v of verdicts) {
     if (v.suspect) {
@@ -77,6 +79,7 @@ export function score(verdicts: ScenarioVerdict[], input: ScoreInput): ScoreResu
       passed++;
       continue;
     }
+    if (v.verdict === "UNGRADED") ungradedCount++;
     if (critical.includes(v.id)) criticalFails++;
     if (/^B/i.test(v.id)) bSeriesFails++;
   }
@@ -104,11 +107,13 @@ export function score(verdicts: ScenarioVerdict[], input: ScoreInput): ScoreResu
     note = `${errorCount} infrastructure error${errorCount === 1 ? "" : "s"}: retry/repair evidence`;
   } else if (notMeasuredCount > 0) {
     note = `${notMeasuredCount} not measured: skill delivery was not established`;
+  } else if (ungradedCount > 0) {
+    note = `${ungradedCount} UNGRADED: incomplete criterion votes (counted as non-passes)`;
   } else if (criticalFails > 0) {
     note = `gated: ${criticalFails} critical fail${criticalFails === 1 ? "" : "s"}`;
   } else if (bSeriesFails > 0) {
     note = `gated: ${bSeriesFails} B-series fail${bSeriesFails === 1 ? "" : "s"}`;
   }
 
-  return { passed, total, pct, letter, ship, criticalFails, bSeriesFails, suspectCount, errorCount, notMeasuredCount, note };
+  return { passed, total, pct, letter, ship, criticalFails, bSeriesFails, suspectCount, errorCount, notMeasuredCount, ungradedCount, note };
 }

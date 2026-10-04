@@ -16,6 +16,7 @@ import {
   regateRun,
   specPathForRunDir,
   collectLift,
+  collectReport,
   collectStability, boundaryCells, stabilityNote, PATH_LEGEND,
   restampSkill,
   computeCoverage, formatCoverage,
@@ -174,7 +175,10 @@ async function cmdList(args: Args): Promise<void> {
       const seeded = spec.scenarios.filter((x) => x.mode === "seeded").length;
       const seededNote = seeded ? `, ${seeded} seeded` : "";
       const sourceNote = specs ? `; spec: --${s.specSource}` : "";
-      console.log(`  ● ${s.name}  (${spec.scenarios.length} scenarios${seededNote}${sourceNote})`);
+      const ungraded = collectReport(dirname(dirname(s.specPath))).columns.reduce((total, column) =>
+        total + Object.values(column.cells).reduce((n, cell) => n + (cell.ungraded_reps ?? 0), 0), 0);
+      const ungradedNote = ungraded ? `; latest results: ${ungraded} UNGRADED rep${ungraded === 1 ? "" : "s"}` : "";
+      console.log(`  ● ${s.name}  (${spec.scenarios.length} scenarios${seededNote}${sourceNote}${ungradedNote})`);
     } catch (e) {
       console.log(`  ✗ ${s.name}  INVALID: ${e instanceof Error ? e.message : e}`);
     }

@@ -55,6 +55,7 @@ export function gradeColumn(col, shipBar, critical) {
   let suspect = 0;
   let errors = 0;
   let notMeasured = 0;
+  let ungraded = 0;
 
   for (const id of Object.keys(col.cells)) {
     const cell = col.cells[id];
@@ -77,12 +78,13 @@ export function gradeColumn(col, shipBar, critical) {
       passed++;
       continue;
     }
+    if (verdict === "UNGRADED") ungraded++;
     if (critical.includes(id)) criticalFails++;
     if (/^B/i.test(id)) bFails++;
   }
 
   if (col.partial === true) {
-    return { passed: 0, total: 0, pct: 0, letter: "-", ship: false, criticalFails, bFails, suspect, errors, notMeasured };
+    return { passed: 0, total: 0, pct: 0, letter: "-", ship: false, criticalFails, bFails, suspect, errors, notMeasured, ungraded };
   }
 
   const pct = total > 0 ? Math.round((passed * 100) / total) : 0;
@@ -98,7 +100,7 @@ export function gradeColumn(col, shipBar, critical) {
     errors === 0 &&
     notMeasured === 0;
 
-  return { passed, total, pct, letter, ship, criticalFails, bFails, suspect, errors, notMeasured };
+  return { passed, total, pct, letter, ship, criticalFails, bFails, suspect, errors, notMeasured, ungraded };
 }
 
 /**
@@ -114,7 +116,7 @@ export function gradeColumn(col, shipBar, critical) {
  */
 export function liftClass(liftCell, greenCell) {
   const conclusive = (verdict, suspect) =>
-    !suspect && verdict !== "ERROR" && verdict !== "NOT-MEASURED" && verdict !== "JUDGE-AMBIGUOUS";
+    !suspect && verdict !== "ERROR" && verdict !== "NOT-MEASURED" && verdict !== "JUDGE-AMBIGUOUS" && verdict !== "UNGRADED";
 
   const redOk = conclusive(liftCell.red, liftCell.redSuspect);
   const greenOk = conclusive(effective(greenCell), !!greenCell.suspect && !greenCell.override);

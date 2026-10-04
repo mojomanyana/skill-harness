@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { loadSpec, type ShipBar } from "./spec.js";
-import { readResults, type ResultsFile } from "./results.js";
+import { readResults, normalizeScenarioResult, finalizeResults, scoreContextFor, type ResultsFile } from "./results.js";
 import { collectLift, liftHeadline, type Lift } from "./lift.js";
 import { boundaryCells, collectStability, stabilityNote } from "./stability.js";
 import { aggregateMetrics, type AggregateMetrics } from "./metrics.js";
@@ -22,6 +22,7 @@ export interface RunColumn {
     /** Objective trace-gate outcome, when the scenario declared `assert.trace`. */
     objective?: { status: string; detail: string };
     reps?: number; passes?: number; clean?: number; flakiness?: number;
+    ungraded_reps?: number;
     metrics?: import("./results.js").ScenarioMetrics;
     override: string | null; note: string;
     /**
@@ -91,9 +92,13 @@ export function collectReport(skillDir: string): ReportData {
       const runDir = latestRunDir(tagDir);
       if (!runDir) continue;
       const r = readResults(runDir);
+      const normalized = r.scenarios.map(normalizeScenarioResult);
+      const grade = normalized.some((s, i) => s !== r.scenarios[i])
+        ? finalizeResults({ ...r, scenarios: normalized }, scoreContextFor(r, spec)).effective_grade
+        : r.effective_grade;
       const tagName = tagDir.split("/").pop()!;
       const cells: RunColumn["cells"] = {};
-      for (const s of r.scenarios) {
+      for (const s of normalized) {
         const boundary = boundaryByCell.get(`${tagName}\u0000${r.mode}\u0000${s.id}`);
         cells[s.id] = {
           ...(boundary
@@ -123,6 +128,7 @@ export function collectReport(skillDir: string): ReportData {
           passes: s.passes,
           clean: s.clean,
           flakiness: s.flakiness,
+          ...(s.ungraded_reps ? { ungraded_reps: s.ungraded_reps } : {}),
           metrics: s.metrics,
           override: s.override,
           note: s.note,
@@ -147,7 +153,7 @@ export function collectReport(skillDir: string): ReportData {
         timestamp: r.timestamp,
         mode: r.mode,
         partial: r.partial === true,
-        grade: r.effective_grade,
+        grade,
         judge: r.judge,
         metrics: aggregateMetrics(r.scenarios),
         cells,

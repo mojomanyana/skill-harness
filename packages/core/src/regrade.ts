@@ -8,7 +8,7 @@ import {
   scoreContextFor, rebuildScenarioResult, mergeScenarioMetrics, carryRepObjectives,
   type ScenarioResult, type ResultsFile, type RepJudgmentPanel, completeCriterionVotes,
 } from "./results.js";
-import { outcomesToResult, type RepOutcome } from "./reps.js";
+import { outcomesToResult, normalizeRepOutcome, type RepOutcome } from "./reps.js";
 import { appendJournal } from "./journal.js";
 import { rubricDigest, personaDigest, RUBRIC_PREFIX, PERSONA_KEY } from "./sources.js";
 import { providerFailureFromTranscript } from "./provider-failure.js";
@@ -100,9 +100,7 @@ export async function judgeOneRep(opts: {
   const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
   const g = await judgeInWorkspace(adapter, judge, prompt, specDir, scenario.checklist.length);
   writeFileSync(judgeRawPath(runDir, scenario.id, mode, rep), g.raw, "utf8");
-  appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict: g.verdict, reason: g.reason, suspect: g.suspect, ...repField });
-  if (g.suspect) appendJournal(runDir, { event: "misfire-flag", ts: now(), id: scenario.id, reason: g.reason, ...repField });
-  return {
+  const outcome = normalizeRepOutcome({
     verdict: g.verdict, reason: g.reason, suspect: g.suspect,
     judgment: { ordinal: 1, judge: { ...judge }, verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, scenario.checklist.length), ...(g.judgeRetries ? { judgeRetries: g.judgeRetries } : {}) },
     metrics: {
@@ -110,7 +108,10 @@ export async function judgeOneRep(opts: {
       judge_calls: 1 + (g.judgeRetries ?? 0),
       judge_rejudge_calls: opts.rejudge ? 1 + (g.judgeRetries ?? 0) : 0,
     },
-  };
+  });
+  appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict: outcome.verdict, reason: outcome.reason, suspect: outcome.suspect, ...repField });
+  if (outcome.suspect) appendJournal(runDir, { event: "misfire-flag", ts: now(), id: scenario.id, reason: outcome.reason, ...repField });
+  return outcome;
 }
 
 /**
