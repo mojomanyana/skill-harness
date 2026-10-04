@@ -31,8 +31,8 @@ async function runWithWobble(threshold: number, critical = true) {
     // A1's first rep fails, the other two pass; B1 always passes
     judge: async (r) => {
       const isA1 = r.prompt.includes("greets the user");
-      if (isA1 && a1++ === 0) return "1. FAIL nope\nVERDICT: FAIL\nREASON: missed";
-      return "1. PASS ok\nVERDICT: PASS\nREASON: fine";
+      if (isA1 && a1++ === 0) return '{"votes":[{"criterion":1,"vote":"FAIL","reason":"missed"}],"verdict":"FAIL","reason":"missed"}';
+      return '{"votes":[{"criterion":1,"vote":"PASS","reason":"ok"}],"verdict":"PASS","reason":"fine"}';
     },
   };
   const { runDir } = await runSkillModel({

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.23.0 — Structured judge votes (2026-10-04)
+
+### Changed
+
+- Require new judge replies to use one JSON object with ordered criterion votes, an overall verdict, and reasons; parse the first complete object, including fenced replies, and strictly validate its shape and criterion count.
+- Retry one invalid judge reply with the original prompt plus its validation error. If the retry is also invalid, record the repetition as UNGRADED and retain both raw replies.
+
+### Added
+
+- Record `judgeFormat: json` on newly judged repetitions while continuing to load retained prose-format results without migration.
+
 ## 0.22.4 — Incomplete criterion votes are UNGRADED (2026-10-04)
 
 ### Fixed

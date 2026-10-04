@@ -32,4 +32,11 @@ describe("dist/index.js bundle freshness", () => {
     expect(fresh).toBe(committed);
   });
 
+  it("contains only the structured judge implementation used by bundled review rejudge", () => {
+    const committed = readFileSync("packages/pi-extension/dist/index.js", "utf8");
+    expect(committed.match(/Reply with exactly one JSON object and nothing else/g)).toHaveLength(1);
+    expect(committed).toContain('judgeFormat: "json"');
+    expect(committed).not.toContain("Reply in this exact format:");
+  });
+
 });

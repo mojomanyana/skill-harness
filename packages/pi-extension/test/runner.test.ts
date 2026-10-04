@@ -40,7 +40,7 @@ describe("runViaExtension", () => {
     const lines: string[] = [];
     const fakeAdapter = { name: "pi", available: async () => true,
       run: async () => "USER: hi\nASSISTANT: ok",
-      judge: async () => "1. PASS — ok\nVERDICT: PASS\nREASON: fine" } as any;
+      judge: async () => '{"votes":[{"criterion":1,"vote":"PASS","reason":"ok"}],"verdict":"PASS","reason":"fine"}' } as any;
     const card = await runViaExtension({
       skillDir: join(root, "sub"), adapter: fakeAdapter, mode: "green",
       timestamp: "2026-07-05T00:00:00Z", now: () => "t", log: (m) => lines.push(m),

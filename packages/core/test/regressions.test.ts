@@ -33,15 +33,15 @@ describe("gradeTranscript surfaces the judge's real error (bug: cause was invisi
 
   test("an unparseable provider error is echoed into the reason", async () => {
     const adapter = stubAdapter('[judge error: pi exited 1] 400 {"error":"out of extra usage"}');
-    const r = await gradeTranscript(adapter, { provider: "anthropic", model: "claude-opus-4-8" }, "prompt", "/tmp");
+    const r = await gradeTranscript(adapter, { provider: "anthropic", model: "claude-opus-4-8" }, "prompt", "/tmp", 1);
     expect(r.verdict).toBe("ERROR");
     expect(r.reason).toMatch(/out of extra usage/);
     expect(r.reason).not.toBe("judge produced no parseable verdict");
   });
 
   test("a clean verdict still parses normally", async () => {
-    const adapter = stubAdapter("VERDICT: PASS\nREASON: looks right");
-    const r = await gradeTranscript(adapter, { provider: "fireworks", model: "kimi" }, "prompt", "/tmp");
+    const adapter = stubAdapter(JSON.stringify({ votes: [{ criterion: 1, vote: "PASS", reason: "right" }], verdict: "PASS", reason: "looks right" }));
+    const r = await gradeTranscript(adapter, { provider: "fireworks", model: "kimi" }, "prompt", "/tmp", 1);
     expect(r.verdict).toBe("PASS");
     expect(r.reason).toBe("looks right");
   });

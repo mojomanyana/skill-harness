@@ -33,7 +33,7 @@ describe("final assistant output assertions", () => {
       },
       judge: async () => {
         judgeCalls++;
-        return "1. PASS — fixture output is acceptable\nVERDICT: PASS\nREASON: acceptable";
+        return '{"votes":[{"criterion":1,"vote":"PASS","reason":"acceptable"}],"verdict":"PASS","reason":"acceptable"}';
       },
     };
 

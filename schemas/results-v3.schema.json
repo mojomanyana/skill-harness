@@ -245,6 +245,7 @@
         "criteria"
       ],
       "properties": {
+        "judgeFormat": { "enum": ["json", "prose"] },
         "judgeRetries": { "type": "integer", "const": 1 },
         "ordinal": {
           "type": "integer",

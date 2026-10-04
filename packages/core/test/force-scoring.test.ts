@@ -101,7 +101,7 @@ const okJudge: HarnessAdapter = {
   name: "pi",
   available: async () => true,
   run: async () => "USER: hi\nASSISTANT: Hi!",
-  judge: async () => "1. PASS — greets\nVERDICT: PASS\nREASON: says hello",
+  judge: async () => '{"votes":[{"criterion":1,"vote":"PASS","reason":"greets"}],"verdict":"PASS","reason":"says hello"}',
 };
 
 describe("the scoring-mode policy", () => {

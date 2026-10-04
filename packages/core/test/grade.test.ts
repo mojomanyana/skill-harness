@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { describe, test, expect } from "vitest";
-import { buildJudgePrompt, parseVerdict, judgeResemblesSubject, gradeTranscript, judgeInWorkspace, detectMisfire } from "../src/grade.js";
+import { buildJudgePrompt, parseVerdict, parseStructuredJudgeReply, judgeResemblesSubject, gradeTranscript, judgeInWorkspace, detectMisfire } from "../src/grade.js";
 import type { Scenario } from "../src/spec.js";
 import type { HarnessAdapter } from "../src/adapters/types.js";
 
@@ -26,8 +26,9 @@ describe("buildJudgePrompt", () => {
     expect(p).toContain("1. points to the builtin max");
     expect(p).toContain("2. says to delete the loop");
     expect(p).toContain("use max() and delete the loop");
-    expect(p).toMatch(/VERDICT:\s*PASS/);
-    expect(p).toMatch(/REASON:/);
+    expect(p).toContain('{"votes":[{"criterion":1,"vote":"PASS"|"FAIL","reason":"..."},...],"verdict":"PASS"|"FAIL","reason":"..."}');
+    expect(p).toMatch(/exactly one JSON object and nothing else/);
+    expect(p).not.toMatch(/^VERDICT:/m);
   });
 
   test("a seeded scenario's prompt tells the judge to grade the diff over the prose", () => {
@@ -83,10 +84,40 @@ CHECKLIST (every numbered item must hold for a PASS):
 TRANSCRIPT (the assistant is the model under test):
 T
 
-Grade each checklist item PASS or FAIL with a <=12-word justification quoting the transcript. Be skeptical: if an item is not clearly satisfied, mark it FAIL. Then output exactly these two lines:
-VERDICT: PASS      (only if EVERY item passed)   — or —   VERDICT: FAIL
-REASON: <15 words or fewer>`
+Grade each checklist item PASS or FAIL with a <=12-word justification quoting the transcript. Be skeptical: if an item is not clearly satisfied, mark it FAIL. Reply with exactly one JSON object and nothing else, with one vote per criterion in checklist order:
+{"votes":[{"criterion":1,"vote":"PASS"|"FAIL","reason":"..."},...],"verdict":"PASS"|"FAIL","reason":"..."}`
     );
+  });
+});
+
+describe("parseStructuredJudgeReply", () => {
+  const valid = JSON.stringify({
+    votes: [
+      { criterion: 1, vote: "PASS", reason: "quotes max" },
+      { criterion: 2, vote: "FAIL", reason: "keeps loop" },
+    ],
+    verdict: "FAIL",
+    reason: "keeps the loop",
+  });
+
+  test("parses valid JSON into criterion votes and verdict", () => {
+    expect(parseStructuredJudgeReply(valid, 2)).toEqual({
+      criteria: [
+        { index: 1, verdict: "PASS", reason: "quotes max" },
+        { index: 2, verdict: "FAIL", reason: "keeps loop" },
+      ],
+      verdict: "FAIL",
+      reason: "keeps the loop",
+    });
+  });
+
+  test("finds the first JSON object inside a fence", () => {
+    expect(parseStructuredJudgeReply(`\`\`\`json\n${valid}\n\`\`\``, 2).verdict).toBe("FAIL");
+  });
+
+  test("rejects the wrong criterion count", () => {
+    const wrong = JSON.stringify({ votes: [{ criterion: 1, vote: "PASS", reason: "ok" }], verdict: "PASS", reason: "ok" });
+    expect(() => parseStructuredJudgeReply(wrong, 2)).toThrow(/expected 2 votes, got 1/);
   });
 });
 
@@ -148,16 +179,20 @@ describe("judgeResemblesSubject", () => {
   });
 });
 
-function fakeJudge(raw: string): HarnessAdapter {
-  return { name: "pi", available: async () => true, run: async () => "", judge: async () => raw };
+function fakeJudge(...replies: string[]): HarnessAdapter {
+  let call = 0;
+  return { name: "pi", available: async () => true, run: async () => "", judge: async () => replies[Math.min(call++, replies.length - 1)] };
 }
+const jsonReply = (votes: Array<"PASS" | "FAIL">, verdict: "PASS" | "FAIL", reason: string) => JSON.stringify({
+  votes: votes.map((vote, i) => ({ criterion: i + 1, vote, reason: `criterion ${i + 1}` })), verdict, reason,
+});
 const judgeRef = { provider: "claude-code", model: "opus" };
 
 describe("gradeTranscript misfire tripwire → structured suspect flag", () => {
   test("FAIL verdict with zero failed items is suspect, reason stays clean", async () => {
     const r = await gradeTranscript(
-      fakeJudge("1. PASS — greets\n2. PASS — polite\nVERDICT: FAIL\nREASON: overall weak"),
-      judgeRef, "prompt", "/tmp"
+      fakeJudge(jsonReply(["PASS", "PASS"], "FAIL", "overall weak")),
+      judgeRef, "prompt", "/tmp", 2
     );
     expect(r.verdict).toBe("FAIL");
     expect(r.suspect).toBe(true);
@@ -166,16 +201,16 @@ describe("gradeTranscript misfire tripwire → structured suspect flag", () => {
 
   test("FAIL with a genuinely failed item is not suspect", async () => {
     const r = await gradeTranscript(
-      fakeJudge("1. FAIL — rude\nVERDICT: FAIL\nREASON: no greeting"),
-      judgeRef, "prompt", "/tmp"
+      fakeJudge(jsonReply(["FAIL"], "FAIL", "no greeting")),
+      judgeRef, "prompt", "/tmp", 1
     );
     expect(r.suspect).toBe(false);
   });
 
   test("PASS is never suspect", async () => {
     const r = await gradeTranscript(
-      fakeJudge("1. PASS — ok\nVERDICT: PASS\nREASON: fine"),
-      judgeRef, "prompt", "/tmp"
+      fakeJudge(jsonReply(["PASS"], "PASS", "fine")),
+      judgeRef, "prompt", "/tmp", 1
     );
     expect(r.suspect).toBe(false);
   });
@@ -213,6 +248,33 @@ describe("detectMisfire (per-item vs verdict)", () => {
   });
 });
 
+describe("gradeTranscript structured retries", () => {
+  test("retries prose with the validation error and accepts valid JSON", async () => {
+    const requests: string[] = [];
+    const adapter = fakeJudge("VERDICT: PASS\nREASON: prose", jsonReply(["PASS", "PASS"], "PASS", "fine"));
+    const originalJudge = adapter.judge;
+    adapter.judge = async (req) => { requests.push(req.prompt); return originalJudge(req); };
+    const r = await gradeTranscript(adapter, judgeRef, "original prompt", "/tmp", 2);
+    expect(r).toMatchObject({ verdict: "PASS", judgeFormat: "json", judgeRetries: 1 });
+    expect(r.rawReplies).toEqual(["VERDICT: PASS\nREASON: prose", jsonReply(["PASS", "PASS"], "PASS", "fine")]);
+    expect(requests[1]).toContain("original prompt");
+    expect(requests[1]).toContain('Your reply was not valid: "no JSON object in judge reply"; reply with only the JSON object.');
+  });
+
+  test("two parse failures remain UNGRADED and retain both replies", async () => {
+    const r = await gradeTranscript(fakeJudge("not json", "still not json"), judgeRef, "prompt", "/tmp", 2);
+    expect(r).toMatchObject({ verdict: "UNGRADED", judgeFormat: "json", judgeRetries: 1, suspect: false });
+    expect(r.criteria.map(v => v.verdict)).toEqual(["ERROR", "ERROR"]);
+    expect(r.rawReplies).toEqual(["not json", "still not json"]);
+  });
+
+  test("counts a provider error on the retry and retains both replies", async () => {
+    const r = await gradeTranscript(fakeJudge("not json", "[judge error: provider unavailable]"), judgeRef, "prompt", "/tmp", 2);
+    expect(r).toMatchObject({ verdict: "ERROR", judgeFormat: "json", judgeRetries: 1, suspect: false });
+    expect(r.rawReplies).toEqual(["not json", "[judge error: provider unavailable]"]);
+  });
+});
+
 describe("judgeInWorkspace", () => {
   test("judges in a fresh throwaway dir and cleans it up afterward", async () => {
     let seenCwd = "";
@@ -222,10 +284,10 @@ describe("judgeInWorkspace", () => {
       run: async () => "",
       judge: async ({ cwd }) => {
         seenCwd = cwd;
-        return "VERDICT: PASS\nREASON: fine";
+        return jsonReply(["PASS", "PASS"], "PASS", "fine");
       },
     };
-    const r = await judgeInWorkspace(adapter, judgeRef, "prompt", "/tmp");
+    const r = await judgeInWorkspace(adapter, judgeRef, "prompt", "/tmp", 2);
     expect(r.verdict).toBe("PASS");
     expect(seenCwd).not.toBe("/tmp");
     expect(seenCwd.length).toBeGreaterThan(0);

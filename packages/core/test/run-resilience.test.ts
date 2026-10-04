@@ -82,7 +82,7 @@ describe("one adapter failure does not take the wave down", () => {
         }
         return { transcript: OK, traces: [] };
       },
-      judge: async () => "VERDICT: PASS\n1. PASS",
+      judge: async () => '{"votes":[{"criterion":1,"vote":"PASS","reason":"done"}],"verdict":"PASS","reason":"done"}',
       version: async () => "0.84.2",
     };
 
@@ -195,7 +195,7 @@ describe("a transient provider failure that the retry recovers from", () => {
         if (n === 1) return withProviderFailure(">>> USER:\nx\n\n<<< ASSISTANT:\n\n", "openai-codex: transport blip");
         return OK;
       },
-      judge: async () => "VERDICT: PASS\n1. PASS",
+      judge: async () => '{"votes":[{"criterion":1,"vote":"PASS","reason":"done"}],"verdict":"PASS","reason":"done"}',
       version: async () => "0.84.2",
     };
 

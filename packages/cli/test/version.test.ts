@@ -100,7 +100,7 @@ describe("a metered judge is refused before anything is spent", () => {
       name: "pi",
       available: async () => true,
       run: async () => "USER: do it\nASSISTANT: done",
-      judge: async () => "1. PASS — ok\nVERDICT: PASS\nREASON: fine",
+      judge: async () => '{"votes":[{"criterion":1,"vote":"PASS","reason":"ok"}],"verdict":"PASS","reason":"fine"}',
     };
     // Runs to completion rather than being gated — the point is that the policy
     // does not stand between a subscription judge and its work.

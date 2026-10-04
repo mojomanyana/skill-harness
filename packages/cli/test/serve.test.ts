@@ -156,7 +156,7 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
     run: async () => "",
     judge: async () => {
       judgeCalls++;
-      return "1. PASS — ok\nVERDICT: PASS\nREASON: fine";
+      return '{"votes":[{"criterion":1,"vote":"PASS","reason":"ok"}],"verdict":"PASS","reason":"fine"}';
     },
   };
 
@@ -396,7 +396,7 @@ scenarios:
     run: async () => "",
     judge: async () => {
       judgeCalls3++;
-      return "1. PASS — ok\nVERDICT: PASS\nREASON: fine";
+      return '{"votes":[{"criterion":1,"vote":"PASS","reason":"ok"}],"verdict":"PASS","reason":"fine"}';
     },
   };
 

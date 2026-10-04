@@ -16,7 +16,7 @@ const fakeAdapter = {
   name: "pi",
   available: async () => true,
   run: async () => "USER: hi\nASSISTANT: ok",
-  judge: async () => "1. PASS — ok\nVERDICT: PASS\nREASON: fine",
+  judge: async () => '{"votes":[{"criterion":1,"vote":"PASS","reason":"ok"}],"verdict":"PASS","reason":"fine"}',
 } as any;
 
 describe("skillCheckRunTool", () => {

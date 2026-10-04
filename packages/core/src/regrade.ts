@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Spec, Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
-import { buildJudgePrompt, judgeInWorkspace } from "./grade.js";
+import { buildJudgePrompt, formatJudgeRawReplies, judgeInWorkspace } from "./grade.js";
 import {
   findTranscriptFiles, judgeRawPath, repIndexOf, readResults, writeResults, effectiveThreshold,
   scoreContextFor, rebuildScenarioResult, mergeScenarioMetrics, carryRepObjectives,
@@ -101,10 +101,10 @@ export async function judgeOneRep(opts: {
 
   const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
   const g = await judgeInWorkspace(adapter, judge, prompt, specDir, scenario.checklist.length);
-  writeFileSync(judgeRawPath(runDir, scenario.id, mode, rep), g.raw, "utf8");
+  writeFileSync(judgeRawPath(runDir, scenario.id, mode, rep), formatJudgeRawReplies(g.rawReplies), "utf8");
   const outcome = normalizeRepOutcome({
     verdict: g.verdict, reason: g.reason, suspect: g.suspect, objective: opts.objective,
-    judgment: { ordinal: 1, judge: { ...judge }, verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, scenario.checklist.length), ...(g.judgeRetries ? { judgeRetries: g.judgeRetries } : {}) },
+    judgment: { ordinal: 1, judge: { ...judge }, verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, scenario.checklist.length), judgeFormat: g.judgeFormat, ...(g.judgeRetries ? { judgeRetries: g.judgeRetries } : {}) },
     metrics: {
       wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
       judge_calls: 1 + (g.judgeRetries ?? 0),
