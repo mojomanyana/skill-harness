@@ -10,13 +10,16 @@ import {
 
 const here = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = join(here, "fixtures", "golden-skill");
+const reply = (vote: "PASS" | "FAIL", verdict: "PASS" | "FAIL", reason: string) => JSON.stringify({
+  votes: [{ criterion: 1, vote, reason }], verdict, reason,
+});
 
 const fakeAdapter: HarnessAdapter = {
   name: "pi",
   available: async () => true,
   run: async (req: RunReq) =>
     req.turns.map((t, i) => `>>> USER (turn ${i + 1}/${req.turns.length}):\n${t}\n\n<<< ASSISTANT:\nHello!\n`).join("\n"),
-  judge: async (_req: JudgeReq) => "1. PASS — greets\nVERDICT: PASS\nREASON: greeted politely",
+  judge: async (_req: JudgeReq) => reply("PASS", "PASS", "greeted politely"),
 };
 
 describe("golden pipeline run", () => {
@@ -56,7 +59,7 @@ describe("golden pipeline run", () => {
     expect(t).toContain("Hello!");
 
     // judge-raw persisted next to the transcript
-    expect(readFileSync(join(runDir, "A1.green.judge.txt"), "utf8")).toContain("VERDICT");
+    expect(readFileSync(join(runDir, "A1.green.judge.txt"), "utf8")).toContain('"verdict"');
 
     const events = readJournal(runDir);
     expect(events.map((e) => e.event)).toEqual([
@@ -80,7 +83,7 @@ describe("golden pipeline run", () => {
 
     const failingJudge: HarnessAdapter = {
       ...fakeAdapter,
-      judge: async () => "1. FAIL — rude\nVERDICT: FAIL\nREASON: no greeting",
+      judge: async () => reply("FAIL", "FAIL", "no greeting"),
     };
     const { results } = await runSkillModel({
       spec, skillDir, specPath,
@@ -109,8 +112,8 @@ describe("golden pipeline run", () => {
       ...fakeAdapter,
       judge: async (req: JudgeReq) =>
         req.prompt.includes(criticalScenario.checklist[0])
-          ? "1. FAIL — missed\nVERDICT: FAIL\nREASON: critical miss"
-          : "1. PASS — ok\nVERDICT: PASS\nREASON: fine",
+          ? reply("FAIL", "FAIL", "critical miss")
+          : reply("PASS", "PASS", "fine"),
     };
     const { results } = await runSkillModel({
       spec, skillDir, specPath,
@@ -183,7 +186,7 @@ describe("golden pipeline run", () => {
       },
       judge: async (req: JudgeReq) => {
         seenJudgeCwds.push(req.cwd);
-        return "1. PASS — greets\nVERDICT: PASS\nREASON: greeted politely";
+        return reply("PASS", "PASS", "greeted politely");
       },
     };
 
@@ -219,7 +222,7 @@ describe("golden pipeline run", () => {
       name: "pi",
       available: async () => true,
       run: async (req: RunReq) => req.turns.map((t) => `USER: ${t}\nASSISTANT: hi`).join("\n"),
-      judge: async () => (jc++ % 3 === 2 ? "1. FAIL — off\nVERDICT: FAIL\nREASON: off" : "1. PASS — ok\nVERDICT: PASS\nREASON: ok"),
+      judge: async () => (jc++ % 3 === 2 ? reply("FAIL", "FAIL", "off") : reply("PASS", "PASS", "ok")),
     };
 
     const { runDir, results } = await runSkillModel({
@@ -251,8 +254,8 @@ describe("golden pipeline run", () => {
       name: "pi",
       available: async () => true,
       run: async (req: RunReq) => req.turns.map((t) => `USER: ${t}\nASSISTANT: hi`).join("\n"),
-      // items say a FAIL exists but overall verdict is PASS → detectMisfire → suspect, real verdict PASS
-      judge: async () => "1. PASS — ok\n2. FAIL — missing\nVERDICT: PASS\nREASON: looks ok",
+      // the item FAILs but overall verdict is PASS → structured misfire → suspect, real verdict PASS
+      judge: async () => reply("FAIL", "PASS", "looks ok"),
     };
     const { runDir, results } = await runSkillModel({
       spec, skillDir, specPath, adapter: misfireAdapter,

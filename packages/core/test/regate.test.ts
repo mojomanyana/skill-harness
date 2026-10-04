@@ -8,8 +8,8 @@ import { parseSpec, type Spec } from "../src/spec.js";
 import { sourceHashes, GATES_PREFIX } from "../src/sources.js";
 import type { HarnessAdapter } from "../src/adapters/types.js";
 
-const NEEDLE_PASS = "1. PASS — does it\nVERDICT: PASS\nREASON: the diff implements it";
-const NEEDLE_FAIL = "1. FAIL — missing\nVERDICT: FAIL\nREASON: not implemented";
+const NEEDLE_PASS = '{"votes":[{"criterion":1,"vote":"PASS","reason":"does it"}],"verdict":"PASS","reason":"the diff implements it"}';
+const NEEDLE_FAIL = '{"votes":[{"criterion":1,"vote":"FAIL","reason":"missing"}],"verdict":"FAIL","reason":"not implemented"}';
 
 /** A judge that answers PASS, counting how many times it was asked. */
 function countingJudge(reply = NEEDLE_PASS): { adapter: HarnessAdapter; calls: () => number } {
@@ -178,6 +178,47 @@ describe("regate re-evaluates needle gates from the saved diffs", () => {
     expect(judge.calls()).toBe(0);
     expect(results.scenarios[0].judge_verdict).toBe("FAIL");
     expect(changes[0]).toMatchObject({ id: "A1", from: "PASS", to: "FAIL", gate: "fail", judged: false });
+  });
+
+  test.each([
+    ["ordinary JSON", NEEDLE_PASS, "json"],
+    ["successful retry artifact", `=== JUDGE REPLY 1 ===\nnot json\n\n=== JUDGE REPLY 2 ===\n${NEEDLE_PASS}`, "json"],
+    ["legacy prose", "1. PASS — does it\nVERDICT: PASS\nREASON: retained structured reason", undefined],
+  ] as const)("keeps a retained %s verdict on a pass-to-pass regate without a judge call", async (_label, raw, judgeFormat) => {
+    const { runDir, specDir } = runWithFailedGate({ diff: DIFF, verdict: "PASS", reason: "retained structured reason" });
+    const path = transcriptPath(runDir, "A1", "green");
+    writeFileSync(path, readFileSync(path, "utf8").replace(": MISSING", ": FOUND"), "utf8");
+    writeFileSync(join(runDir, "A1.green.judge.txt"), raw, "utf8");
+    const current = readResults(runDir);
+    current.scenarios[0].rep_judgments = [{
+      repetition: 0,
+      recorded_verdict: "PASS",
+      judgments: [{
+        ordinal: 1,
+        judge: { provider: "claude-code", model: "opus" },
+        verdict: "PASS",
+        reason: "retained structured reason",
+        suspect: false,
+        ...(judgeFormat ? { judgeFormat } : {}),
+        criteria: [{ index: 1, verdict: "PASS", reason: "does it" }],
+      }],
+      objective: {
+        status: "PASS",
+        assertions: [{ kind: "diff_contains", value: "spike", status: "PASS" }],
+      },
+    }];
+    writeResults(runDir, current, { shipBar: { total: 1, min_pass: 1 }, critical: [] });
+    const judge = countingJudge();
+
+    const { results } = await regateRun({
+      runDir, spec: specFor("localhost:8080"), specDir,
+      adapter: judge.adapter, judge: { provider: "claude-code", model: "opus" },
+    });
+
+    expect(judge.calls()).toBe(0);
+    expect(results.scenarios[0]).toMatchObject({ judge_verdict: "PASS", judge_reason: "retained structured reason" });
+    expect(results.scenarios[0].rep_judgments?.[0].judgments[0]).toMatchObject({ verdict: "PASS" });
+    expect(results.scenarios[0].rep_judgments?.[0].judgments[0].judgeFormat).toBe(judgeFormat);
   });
 
   test("a retained judge PASS flips to objective FAIL through output_excludes without a judge call", async () => {

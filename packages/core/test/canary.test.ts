@@ -71,7 +71,7 @@ function scripted(replies: string[], version: string | null = "0.83.0"): {
         reqs.push(req);
         return `>>> USER:\n${req.turns[0]}\n\n<<< ASSISTANT:\n${replies[Math.min(i++, replies.length - 1)]}\n`;
       },
-      judge: async () => "1. PASS — greets\nVERDICT: PASS\nREASON: says hello",
+      judge: async () => '{"votes":[{"criterion":1,"vote":"PASS","reason":"greets"}],"verdict":"PASS","reason":"says hello"}',
     },
   };
 }
@@ -235,7 +235,7 @@ describe("the harness CLI version is on the record", () => {
     const bare: HarnessAdapter = {
       name: "pi", available: async () => true,
       run: async () => ">>> USER:\nhi\n\n<<< ASSISTANT:\nHi!\n",
-      judge: async () => "1. PASS — greets\nVERDICT: PASS\nREASON: ok",
+      judge: async () => '{"votes":[{"criterion":1,"vote":"PASS","reason":"greets"}],"verdict":"PASS","reason":"ok"}',
     };
     const { results } = await runSkillModel({
       spec: spec(), skillDir, specPath, adapter: bare, model, modelToken: "fireworks:fake",

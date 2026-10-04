@@ -139,7 +139,9 @@ export interface Judgment {
   suspect: boolean;
   /** Every numbered rubric-item vote parsed from this exact judge response. Required in schema v3. */
   criteria?: CriterionVote[];
-  /** One retry with identical judge input after unparseable criterion votes. */
+  /** Structured format for new judgments; prose is retained compatibility evidence. */
+  judgeFormat?: "json" | "prose";
+  /** One validation-guided retry after an invalid structured reply. */
   judgeRetries?: 1;
 }
 

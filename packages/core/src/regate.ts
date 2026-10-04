@@ -12,7 +12,7 @@ import {
   findDiffFiles, findTranscriptFiles, findTraceFiles, tracePath,
   type ObjectiveResult, effectiveThreshold, scoreContextFor,
   rebuildScenarioResult, mergeScenarioMetrics, deliveryStatusForObservations,
-  type ResultsFile, type ScenarioResult,
+  type ResultsFile, type ScenarioResult, type Judgment,
 } from "./results.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
 import { appendJournal } from "./journal.js";
@@ -87,10 +87,24 @@ function rewriteTranscript(path: string, gateLines: string[]): void {
   writeFileSync(path, `${head}${TRAILER}\n${gateLines.join("\n")}\n\n${tail}`, "utf8");
 }
 
-/** Recover a rep's judge verdict from its saved judge-raw artifact — free, and exact. */
-function verdictFromSavedJudgement(runDir: string, id: string, mode: string, rep: number | undefined): RepOutcome | null {
+/** Recover a rep's judge verdict from retained structured evidence or its legacy prose artifact. */
+function verdictFromSavedJudgement(
+  runDir: string,
+  id: string,
+  mode: string,
+  rep: number | undefined,
+  retained: Judgment | undefined,
+): RepOutcome | null {
   const path = judgeRawPath(runDir, id, mode, rep);
   if (!existsSync(path)) return null;
+  if (retained?.judgeFormat === "json") {
+    return {
+      verdict: retained.verdict,
+      reason: retained.reason,
+      suspect: retained.suspect,
+      judgment: retained,
+    };
+  }
   const raw = readFileSync(path, "utf8");
   const parsed = parseVerdict(raw);
   return { verdict: parsed.verdict, reason: parsed.reason, suspect: detectMisfire(raw, parsed.verdict) };
@@ -334,7 +348,9 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
       if (!oldGateFailed) {
         // The judge already saw this rep. Its verdict is on disk — re-read it rather
         // than paying to ask the same question again.
-        const saved = verdictFromSavedJudgement(opts.runDir, scenario.id, mode, rep);
+        const panel = rec.rep_judgments?.find(candidate => candidate.repetition === (rep ?? 0));
+        const retained = panel?.judgments.find(judgment => judgment.ordinal === 1) ?? panel?.judgments[0];
+        const saved = verdictFromSavedJudgement(opts.runDir, scenario.id, mode, rep, retained);
         outcomes.push({ ...(saved ?? { verdict: rec.judge_verdict, reason: rec.judge_reason, suspect: rec.suspect }), objective });
         continue;
       }

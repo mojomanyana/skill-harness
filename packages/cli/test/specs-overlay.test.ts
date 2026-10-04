@@ -60,7 +60,7 @@ const fake: HarnessAdapter = {
   available: async () => true,
   version: async () => "test",
   run: async () => "USER: Say hello.\nASSISTANT: Hello!",
-  judge: async () => "1. PASS — greeted\nVERDICT: PASS\nREASON: greeted",
+  judge: async () => '{"votes":[{"criterion":1,"vote":"PASS","reason":"greeted"}],"verdict":"PASS","reason":"greeted"}',
 };
 
 async function capture(fn: () => Promise<void>): Promise<{ logs: string[]; errors: string[] }> {

@@ -70,15 +70,42 @@ describe("incomplete criterion votes are UNGRADED", () => {
     expect(score(verdicts, { ...bar, critical: ["A2"] }).ship).toBe(false);
     expect(score([verdicts[0], { ...verdicts[1], id: "B1" }], bar).ship).toBe(false);
   });
-  it("after one judge retry records UNGRADED but preserves the final raw proposal", async () => {
+  it("after one judge retry records UNGRADED and preserves both invalid replies", async () => {
     const runDir = tmp(); let calls = 0;
+    const replies = ["first invalid reply", "second invalid reply"];
     const outcome = await judgeOneRep({ runDir, spec, scenario: spec.scenarios[0], transcript: "hello",
-      adapter: { name: "pi", available: async () => true, run: async () => "", judge: async () => { calls++; return "1. PASS — first\nVERDICT: PASS\nREASON: incomplete"; } },
+      adapter: { name: "pi", available: async () => true, run: async () => "", judge: async () => replies[calls++] },
       judge, specDir: runDir, mode: "force", rep: undefined, now: () => "now" });
     expect(calls).toBe(2);
-    expect(outcome).toMatchObject({ verdict: "UNGRADED", suspect: false, judgment: { verdict: "PASS", judgeRetries: 1 } });
-    expect(readFileSync(join(runDir, "A1.force.judge.txt"), "utf8")).toContain("VERDICT: PASS");
+    expect(outcome).toMatchObject({ verdict: "UNGRADED", suspect: false, judgment: { verdict: "UNGRADED", judgeFormat: "json", judgeRetries: 1 } });
+    expect(readFileSync(join(runDir, "A1.force.judge.txt"), "utf8")).toBe("=== JUDGE REPLY 1 ===\nfirst invalid reply\n\n=== JUDGE REPLY 2 ===\nsecond invalid reply");
   });
+  it("counts and retains an infrastructure failure on the structured retry", async () => {
+    const runDir = tmp(); let calls = 0;
+    const replies = ["first invalid reply", "[judge error: provider unavailable]"];
+    const outcome = await judgeOneRep({ runDir, spec, scenario: spec.scenarios[0], transcript: "hello",
+      adapter: { name: "pi", available: async () => true, run: async () => "", judge: async () => replies[calls++] },
+      judge, specDir: runDir, mode: "force", rep: undefined, now: () => "now" });
+    expect(calls).toBe(2);
+    expect(outcome).toMatchObject({
+      verdict: "ERROR",
+      judgment: { verdict: "ERROR", judgeFormat: "json", judgeRetries: 1 },
+      metrics: { judge_calls: 2 },
+    });
+    expect(readFileSync(join(runDir, "A1.force.judge.txt"), "utf8")).toBe(
+      "=== JUDGE REPLY 1 ===\nfirst invalid reply\n\n=== JUDGE REPLY 2 ===\n[judge error: provider unavailable]",
+    );
+  });
+
+  it("loads a legacy prose judgment with no judgeFormat unchanged", () => {
+    const runDir = tmp();
+    const legacy = finalizeResults(draft(outcomesToResult("A1", [voted(["PASS", "PASS"])], 1, 0.5)), { shipBar: spec.ship_bar, critical: [] });
+    writeFileSync(join(runDir, "results.yaml"), yaml.dump(legacy));
+    const loaded = readResults(runDir);
+    expect(loaded.scenarios[0].rep_judgments?.[0].judgments[0]).not.toHaveProperty("judgeFormat");
+    expect(loaded.scenarios[0].rep_judgments?.[0].judgments[0].criteria?.map(vote => vote.verdict)).toEqual(["PASS", "PASS"]);
+  });
+
   it("round-trips additive UNGRADED evidence in both result schemas", () => {
     const outcome = voted(["ERROR", "PASS"]);
     const objective = { status: "PASS" as const, assertions: [{ kind: "skill_delivered", status: "PASS" as const, detail: "observed" }] };
@@ -121,7 +148,9 @@ describe("incomplete criterion votes are UNGRADED", () => {
     expect(results.scenarios[0]).toMatchObject({ judge_verdict: "FAIL", objective, rep_judgments: [{ recorded_verdict: "FAIL", objective }] });
     expect(results.scenarios[0]).not.toHaveProperty("ungraded_reps");
     expect(readResults(runDir).scenarios[0].judge_verdict).toBe("FAIL");
-    expect(readFileSync(join(runDir, "A1.force.judge.txt"), "utf8")).toBe(raw);
+    const retainedRaw = readFileSync(join(runDir, "A1.force.judge.txt"), "utf8");
+    expect(retainedRaw.match(/=== JUDGE REPLY [12] ===/g)).toHaveLength(2);
+    expect(retainedRaw.split(raw)).toHaveLength(3);
   });
   it.each([false, true])("shows threshold-passing siblings consistently in trends (partial=%s)", partial => {
     const root = tmp(), runDir = join(root, "tests", "results", "pi-fake", "2026-10-02");

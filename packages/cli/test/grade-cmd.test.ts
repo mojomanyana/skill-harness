@@ -69,6 +69,8 @@ afterEach(() => {
 function args(runDir: string) {
   return { _: [runDir], flags: {}, multi: {} };
 }
+const PASS_REPLY = '{"votes":[{"criterion":1,"vote":"PASS","reason":"ok"}],"verdict":"PASS","reason":"fine"}';
+const FAIL_REPLY = '{"votes":[{"criterion":1,"vote":"FAIL","reason":"no greeting"}],"verdict":"FAIL","reason":"never said hello"}';
 
 describe("regrade --unparsed-only", () => {
   test("registers the regrade alias", async () => {
@@ -86,7 +88,7 @@ describe("regrade --unparsed-only", () => {
     writeFileSync(join(runDir, "A1.green.txt"), "saved response");
     const models: unknown[] = [];
     const fake: HarnessAdapter = { name: "pi", available: async () => true, run: async () => { throw new Error("no subject call"); }, judge: async req => {
-      models.push(req.model); return "1. PASS — hello\nVERDICT: PASS\nREASON: greeted";
+      models.push(req.model); return PASS_REPLY;
     } };
     await cmdGrade({ _: [runDir], flags: { "unparsed-only": true }, multi: {} }, fake);
     expect(models).toEqual([prior.judge]);
@@ -162,7 +164,7 @@ describe("cmdGrade on a --reps run", () => {
       name: "pi",
       available: async () => true,
       run: async () => "",
-      judge: async () => "1. PASS — ok\nVERDICT: PASS\nREASON: fine",
+      judge: async () => PASS_REPLY,
     };
 
     await cmdGrade(args(runDir), fake);
@@ -180,7 +182,7 @@ describe("cmdGrade on a --reps run", () => {
     const { runDir } = repsRunFixture();
     const fake: HarnessAdapter = {
       name: "pi", available: async () => true, run: async () => "",
-      judge: async () => "1. PASS — ok\nVERDICT: PASS\nREASON: fine",
+      judge: async () => PASS_REPLY,
     };
     process.env.SKILL_HARNESS_JUDGE = "malformed";
     try {
@@ -197,7 +199,7 @@ describe("cmdGrade re-grades a run in the run's OWN mode", () => {
     name: "pi",
     available: async () => true,
     run: async () => "",
-    judge: async () => "1. FAIL — no greeting\nVERDICT: FAIL\nREASON: never said hello",
+    judge: async () => FAIL_REPLY,
   };
 
   function plainRun(mode: string) {

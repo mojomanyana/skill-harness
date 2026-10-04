@@ -19,7 +19,7 @@ function freshSkill(): { skillDir: string; specPath: string } {
 }
 
 function passJudge(): HarnessAdapter["judge"] {
-  return async (_req: JudgeReq) => "1. PASS ok\nVERDICT: PASS\nREASON: fine";
+  return async (_req: JudgeReq) => '{"votes":[{"criterion":1,"vote":"PASS","reason":"ok"}],"verdict":"PASS","reason":"fine"}';
 }
 
 function okRun(): HarnessAdapter["run"] {
@@ -121,7 +121,7 @@ describe("empty-response retry", () => {
     const dead: HarnessAdapter = {
       name: "pi", available: async () => true,
       run: async () => ">>> USER:\nx\n\n<<< ASSISTANT:\n\n",
-      judge: async () => { judged++; return "VERDICT: FAIL\nREASON: nope"; },
+      judge: async () => { judged++; return '{"votes":[{"criterion":1,"vote":"FAIL","reason":"nope"}],"verdict":"FAIL","reason":"nope"}'; },
     };
     const { summary } = await runWith(dead, { only: ["A1"] });
     const s = summary.results.scenarios[0];
@@ -447,8 +447,8 @@ describe("regradeRun onlySuspect", () => {
         judgeCalls++;
         // A1's checklist mentions "greets a person by name" in the golden fixture; key off the transcript turn
         return req.prompt.includes("greets the user") // A1's checklist line, absent from B1's
-          ? "1. PASS ok\nVERDICT: FAIL\nREASON: fine" // verdict disagrees with items -> suspect
-          : "1. PASS ok\nVERDICT: PASS\nREASON: fine";
+          ? '{"votes":[{"criterion":1,"vote":"PASS","reason":"ok"}],"verdict":"FAIL","reason":"fine"}' // verdict disagrees with items -> suspect
+          : '{"votes":[{"criterion":1,"vote":"PASS","reason":"ok"}],"verdict":"PASS","reason":"fine"}';
       },
     };
     const { skillDir, specPath, spec, summary } = await runWith(mixedJudge);
@@ -460,7 +460,7 @@ describe("regradeRun onlySuspect", () => {
     judgeCalls = 0;
     const fixedJudge: HarnessAdapter = {
       name: "pi", available: async () => true, run: okRun(),
-      judge: async () => { judgeCalls++; return "1. PASS ok\nVERDICT: PASS\nREASON: rejudged clean"; },
+      judge: async () => { judgeCalls++; return '{"votes":[{"criterion":1,"vote":"PASS","reason":"ok"}],"verdict":"PASS","reason":"rejudged clean"}'; },
     };
     const after = await regradeRun({
       runDir: summary.runDir, spec, adapter: fixedJudge,

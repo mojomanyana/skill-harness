@@ -62,7 +62,7 @@ function spyAdapter(traces: ExecutionTraceV1[], opts: { structured?: boolean; wr
     },
     async judge() {
       spy.judgeCalls++;
-      return "1. PASS — finished\nVERDICT: PASS\nREASON: fine";
+      return '{"votes":[{"criterion":1,"vote":"PASS","reason":"finished"}],"verdict":"PASS","reason":"fine"}';
     },
   };
   if (opts.structured !== false) {

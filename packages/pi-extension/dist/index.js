@@ -4628,14 +4628,6 @@ function readResults(runDir) {
   const text = readFileSync4(resultsPath(runDir), "utf8");
   return migrateResults(yaml.load(text));
 }
-var CRITERION_RE = /^\s*(\d+)[.)]\s*\**\s*(PASS|FAIL)\b\**\s*(.*)$/gim;
-function parseCriterionVotes(raw) {
-  return [...raw.matchAll(CRITERION_RE)].map((match) => ({
-    index: Number(match[1]),
-    verdict: match[2].toUpperCase(),
-    reason: match[3].trim().replace(/^[-—:]\s*/, "")
-  }));
-}
 function completeCriterionVotes(votes, expected) {
   return Array.from({ length: expected }, (_, offset) => votes.find((vote) => vote.index === offset + 1) ?? {
     index: offset + 1,
@@ -4995,27 +4987,8 @@ ${numbered}
 TRANSCRIPT (the assistant is the model under test):
 ${transcript}
 ${diffGuidance}
-Grade each checklist item PASS or FAIL with a <=12-word justification quoting the transcript. Be skeptical: if an item is not clearly satisfied, mark it FAIL. Then output exactly these two lines:
-VERDICT: PASS      (only if EVERY item passed)   \u2014 or \u2014   VERDICT: FAIL
-REASON: <15 words or fewer>`;
-}
-var VERDICT_RE = /^\s*\**\s*VERDICT\**\s*:\s*\**\s*(PASS|FAIL)/gim;
-var REASON_RE = /^\s*\**\s*REASON\**\s*:\s*\**\s*(.*)$/gim;
-function parseVerdict(out) {
-  const verdicts = [...out.matchAll(VERDICT_RE)].map((m) => m[1].toUpperCase());
-  if (verdicts.length === 0) {
-    return { verdict: "ERROR", reason: "judge produced no parseable verdict" };
-  }
-  const reasons = [...out.matchAll(REASON_RE)].map((m) => m[1].trim());
-  const reason = reasons.length > 0 ? reasons[reasons.length - 1] : "";
-  const unique = [...new Set(verdicts)];
-  if (unique.length > 1) {
-    return {
-      verdict: "JUDGE-AMBIGUOUS",
-      reason: `judge emitted conflicting verdicts (${verdicts.join(", ")}) \u2014 needs rejudge; last reason: ${reason}`
-    };
-  }
-  return { verdict: unique[0], reason };
+Grade each checklist item PASS or FAIL with a <=12-word justification quoting the transcript. Be skeptical: if an item is not clearly satisfied, mark it FAIL. Reply with exactly one JSON object and nothing else, with one vote per criterion in checklist order:
+{"votes":[{"criterion":1,"vote":"PASS"|"FAIL","reason":"..."},...],"verdict":"PASS"|"FAIL","reason":"..."}`;
 }
 function judgeResemblesSubject(judge, subject) {
   if (judge.provider !== subject.provider)
@@ -5024,45 +4997,130 @@ function judgeResemblesSubject(judge, subject) {
   const b = subject.model;
   return a === b || a.includes(b) || b.includes(a);
 }
-var ITEM_RE = /^\s*\d+[.)]\s*\**\s*(PASS|FAIL)\b/gim;
-function detectMisfire(raw, verdict) {
-  if (verdict === "ERROR")
-    return false;
-  if (verdict === "JUDGE-AMBIGUOUS")
-    return true;
-  const items = [...raw.matchAll(ITEM_RE)].map((m) => m[1].toUpperCase() === "PASS");
-  if (items.length === 0) {
-    if (verdict === "FAIL") {
-      const reason = (raw.match(REASON_LINE_RE)?.[1] ?? "").trim();
-      const totalPass = /\b(all|every)\b[^.]*\b(pass(es|ed)?|satisf(y|ies|ied)|hold(s)?|met)\b/i.test(reason);
-      const negated = /\b(not|no|n't|fails?|failed|missing|except|but|however)\b/i.test(reason);
-      return totalPass && !negated;
+function extractFirstJsonObject(raw) {
+  const start = raw.indexOf("{");
+  if (start < 0)
+    throw new Error("no JSON object in judge reply");
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < raw.length; i++) {
+    const ch = raw[i];
+    if (inString) {
+      if (escaped)
+        escaped = false;
+      else if (ch === "\\")
+        escaped = true;
+      else if (ch === '"')
+        inString = false;
+      continue;
     }
-    return false;
+    if (ch === '"')
+      inString = true;
+    else if (ch === "{")
+      depth++;
+    else if (ch === "}" && --depth === 0)
+      return raw.slice(start, i + 1);
   }
-  const andItems = items.every((ok) => ok);
-  const verdictBool = verdict === "PASS";
-  return verdictBool !== andItems;
+  throw new Error("incomplete JSON object in judge reply");
 }
-var REASON_LINE_RE = /^\s*\**\s*REASON\**\s*:\s*\**\s*(.*)$/im;
+function exactKeys(value, expected, context) {
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(wanted)) {
+    throw new Error(`${context} must contain exactly ${wanted.join(", ")}`);
+  }
+}
+function parseStructuredJudgeReply(raw, expectedCriteria) {
+  let value;
+  try {
+    value = JSON.parse(extractFirstJsonObject(raw));
+  } catch (error) {
+    if (error instanceof Error && /JSON object in judge reply/.test(error.message))
+      throw error;
+    throw new Error(`invalid JSON: ${error.message}`);
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("judge reply must be a JSON object");
+  const object = value;
+  exactKeys(object, ["votes", "verdict", "reason"], "judge reply");
+  if (!Array.isArray(object.votes))
+    throw new Error("votes must be an array");
+  if (object.votes.length !== expectedCriteria)
+    throw new Error(`expected ${expectedCriteria} votes, got ${object.votes.length}`);
+  const criteria = object.votes.map((rawVote, offset) => {
+    if (!rawVote || typeof rawVote !== "object" || Array.isArray(rawVote))
+      throw new Error(`vote ${offset + 1} must be an object`);
+    const vote = rawVote;
+    exactKeys(vote, ["criterion", "vote", "reason"], `vote ${offset + 1}`);
+    if (vote.criterion !== offset + 1)
+      throw new Error(`vote ${offset + 1} must have criterion ${offset + 1}`);
+    if (vote.vote !== "PASS" && vote.vote !== "FAIL")
+      throw new Error(`vote ${offset + 1} must be PASS or FAIL`);
+    if (typeof vote.reason !== "string")
+      throw new Error(`vote ${offset + 1} reason must be a string`);
+    return { index: offset + 1, verdict: vote.vote, reason: vote.reason };
+  });
+  if (object.verdict !== "PASS" && object.verdict !== "FAIL")
+    throw new Error("verdict must be PASS or FAIL");
+  if (typeof object.reason !== "string")
+    throw new Error("reason must be a string");
+  return { criteria, verdict: object.verdict, reason: object.reason };
+}
+function formatJudgeRawReplies(replies) {
+  if (replies.length === 1)
+    return replies[0];
+  return replies.map((reply, index) => `=== JUDGE REPLY ${index + 1} ===
+${reply}`).join("\n\n");
+}
 async function gradeTranscript(adapter, judge, prompt, cwd, expectedCriteria) {
-  const request = { model: judge, prompt, cwd };
-  let raw = await adapter.judge(request);
-  let criteria = parseCriterionVotes(raw);
-  let judgeRetries;
-  if (expectedCriteria !== void 0 && completeCriterionVotes(criteria, expectedCriteria).some((vote) => vote.verdict === "ERROR")) {
-    raw = await adapter.judge(request);
-    criteria = parseCriterionVotes(raw);
-    judgeRetries = 1;
+  const rawReplies = [];
+  let validationError = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const retry = attempt === 0 ? "" : `
+
+Your reply was not valid: ${JSON.stringify(validationError)}; reply with only the JSON object.`;
+    const raw2 = await adapter.judge({ model: judge, prompt: prompt + retry, cwd });
+    rawReplies.push(raw2);
+    if (/^\[judge error:/i.test(raw2.trim())) {
+      const snippet2 = raw2.trim().replace(/\s+/g, " ").slice(0, 160);
+      return {
+        verdict: "ERROR",
+        reason: `judge unparseable: ${snippet2}`,
+        suspect: false,
+        raw: raw2,
+        rawReplies,
+        criteria: completeCriterionVotes([], expectedCriteria),
+        judgeFormat: "json",
+        ...attempt === 1 ? { judgeRetries: 1 } : {}
+      };
+    }
+    try {
+      const parsed = parseStructuredJudgeReply(raw2, expectedCriteria);
+      const suspect = parsed.verdict === "FAIL" ? parsed.criteria.every((vote) => vote.verdict === "PASS") : parsed.criteria.some((vote) => vote.verdict === "FAIL");
+      return {
+        ...parsed,
+        raw: raw2,
+        rawReplies,
+        suspect,
+        judgeFormat: "json",
+        ...attempt === 1 ? { judgeRetries: 1 } : {}
+      };
+    } catch (error) {
+      validationError = error.message;
+    }
   }
-  const parsed = parseVerdict(raw);
-  if (parsed.verdict === "ERROR") {
-    const snippet2 = raw.trim().replace(/\s+/g, " ").slice(0, 160);
-    if (snippet2)
-      parsed.reason = `judge unparseable: ${snippet2}`;
-  }
-  const suspect = detectMisfire(raw, parsed.verdict);
-  return { ...parsed, raw, suspect, criteria, ...judgeRetries ? { judgeRetries } : {} };
+  const raw = rawReplies[rawReplies.length - 1];
+  return {
+    verdict: "UNGRADED",
+    reason: `judge structured reply invalid after retry: ${validationError}`,
+    suspect: false,
+    raw,
+    rawReplies,
+    criteria: completeCriterionVotes([], expectedCriteria),
+    judgeFormat: "json",
+    judgeRetries: 1
+  };
 }
 async function judgeInWorkspace(adapter, judge, prompt, specDir, expectedCriteria) {
   const ws = createWorkspace("none", { specDir });
@@ -6137,13 +6195,13 @@ async function judgeOneRep(opts) {
   }
   const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
   const g = await judgeInWorkspace(adapter, judge, prompt, specDir, scenario.checklist.length);
-  writeFileSync2(judgeRawPath(runDir, scenario.id, mode, rep), g.raw, "utf8");
+  writeFileSync2(judgeRawPath(runDir, scenario.id, mode, rep), formatJudgeRawReplies(g.rawReplies), "utf8");
   const outcome = normalizeRepOutcome({
     verdict: g.verdict,
     reason: g.reason,
     suspect: g.suspect,
     objective: opts.objective,
-    judgment: { ordinal: 1, judge: { ...judge }, verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, scenario.checklist.length), ...g.judgeRetries ? { judgeRetries: g.judgeRetries } : {} },
+    judgment: { ordinal: 1, judge: { ...judge }, verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, scenario.checklist.length), judgeFormat: g.judgeFormat, ...g.judgeRetries ? { judgeRetries: g.judgeRetries } : {} },
     metrics: {
       wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
       judge_calls: 1 + (g.judgeRetries ?? 0),

@@ -63,7 +63,7 @@ function structuredSpyAdapter(preferStructured = false): { adapter: HarnessAdapt
       structuredCalls += 1;
       return { transcript: ">>> USER:\nx\n\n<<< ASSISTANT:\ndone\n", traces: [traceWithTokens()] };
     },
-    judge: async () => "VERDICT: PASS\n1. PASS",
+    judge: async () => '{"votes":[{"criterion":1,"vote":"PASS","reason":"done"}],"verdict":"PASS","reason":"done"}',
     version: async () => "0.84.2",
   };
   return { adapter, structuredCalls: () => structuredCalls, plainCalls: () => plainCalls };
@@ -236,7 +236,7 @@ describe("--structured on a mode: seeded scenario with no trace assert (I3)", ()
       name: "fake",
       available: async () => true,
       run: async () => { plainCalls += 1; return ">>> USER:\nx\n\n<<< ASSISTANT:\ndone\n"; },
-      judge: async () => "VERDICT: PASS\n1. PASS",
+      judge: async () => '{"votes":[{"criterion":1,"vote":"PASS","reason":"done"}],"verdict":"PASS","reason":"done"}',
       version: async () => "0.84.2",
     };
     const summary = await runSkillModel({

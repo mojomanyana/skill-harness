@@ -89,7 +89,7 @@ function recordingAdapter(): {
       piDirAtCallTime.push(existsSync(join(req.cwd, ".pi")));
       return ">>> USER:\nhi\n\n<<< ASSISTANT:\nhello\n";
     },
-    judge: async () => "VERDICT: PASS\n1. PASS",
+    judge: async () => '{"votes":[{"criterion":1,"vote":"PASS","reason":"ok"}],"verdict":"PASS","reason":"ok"}',
     version: async () => "0.84.2",
   };
   return { adapter, reqs, seededAtCallTime, piDirAtCallTime };
@@ -245,7 +245,7 @@ describe("the arm's ledger is counted into the record (I4)", () => {
         );
         return ">>> USER:\nhi\n\n<<< ASSISTANT:\nhello\n";
       },
-      judge: async () => "VERDICT: PASS\n1. PASS",
+      judge: async () => '{"votes":[{"criterion":1,"vote":"PASS","reason":"ok"}],"verdict":"PASS","reason":"ok"}',
       version: async () => "0.84.2",
     };
     const summary = await runSkillModel({
@@ -295,7 +295,7 @@ describe("the empty-response retry re-seeds the fresh workspace (T1)", () => {
         // triggers the retry. Attempt 2: an ordinary answer.
         return calls === 1 ? ">>> USER:\nhi\n\n<<< ASSISTANT:\n" : ">>> USER:\nhi\n\n<<< ASSISTANT:\nhello\n";
       },
-      judge: async () => "VERDICT: PASS\n1. PASS",
+      judge: async () => '{"votes":[{"criterion":1,"vote":"PASS","reason":"ok"}],"verdict":"PASS","reason":"ok"}',
       version: async () => "0.84.2",
     };
     const summary = await runSkillModel({

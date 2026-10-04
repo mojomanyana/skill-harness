@@ -2,7 +2,7 @@ import type { Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
 import type { Verdict } from "./score.js";
 import { createWorkspace } from "./workspace.js";
-import { parseCriterionVotes, completeCriterionVotes, type CriterionVote } from "./results.js";
+import { completeCriterionVotes, type CriterionVote } from "./results.js";
 
 export interface JudgePromptInput {
   skill: string;
@@ -51,9 +51,8 @@ ${numbered}
 TRANSCRIPT (the assistant is the model under test):
 ${transcript}
 ${diffGuidance}
-Grade each checklist item PASS or FAIL with a <=12-word justification quoting the transcript. Be skeptical: if an item is not clearly satisfied, mark it FAIL. Then output exactly these two lines:
-VERDICT: PASS      (only if EVERY item passed)   — or —   VERDICT: FAIL
-REASON: <15 words or fewer>`;
+Grade each checklist item PASS or FAIL with a <=12-word justification quoting the transcript. Be skeptical: if an item is not clearly satisfied, mark it FAIL. Reply with exactly one JSON object and nothing else, with one vote per criterion in checklist order:
+{"votes":[{"criterion":1,"vote":"PASS"|"FAIL","reason":"..."},...],"verdict":"PASS"|"FAIL","reason":"..."}`;
 }
 
 export interface ParsedVerdict {
@@ -111,12 +110,80 @@ export function judgeResemblesSubject(judge: ModelRef, subject: ModelRef): boole
 }
 
 export interface GradeResult extends ParsedVerdict {
+  /** The final judge reply, retained for callers that predate structured judging. */
   raw: string;
+  /** Every attempt in call order; two entries mean the structured retry also ran. */
+  rawReplies: string[];
   criteria: CriterionVote[];
-  /** One identical-input retry after missing criterion votes. Absent on the first attempt. */
+  judgeFormat: "json";
+  /** One validation-guided retry after an invalid structured reply. Absent on the first attempt. */
   judgeRetries?: 1;
   /** Judge misfire: the overall verdict disagrees with AND(per-item grades). Recorded, never auto-passed; blocks SHIP until re-judged or overridden. */
   suspect: boolean;
+}
+
+/** Extract the first complete top-level JSON object, tolerating prose or fences around it. */
+function extractFirstJsonObject(raw: string): string {
+  const start = raw.indexOf("{");
+  if (start < 0) throw new Error("no JSON object in judge reply");
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < raw.length; i++) {
+    const ch = raw[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{") depth++;
+    else if (ch === "}" && --depth === 0) return raw.slice(start, i + 1);
+  }
+  throw new Error("incomplete JSON object in judge reply");
+}
+
+function exactKeys(value: Record<string, unknown>, expected: string[], context: string): void {
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(wanted)) {
+    throw new Error(`${context} must contain exactly ${wanted.join(", ")}`);
+  }
+}
+
+/** Parse and validate the JSON-only contract used for new judge calls. */
+export function parseStructuredJudgeReply(raw: string, expectedCriteria: number): ParsedVerdict & { criteria: CriterionVote[] } {
+  let value: unknown;
+  try {
+    value = JSON.parse(extractFirstJsonObject(raw));
+  } catch (error) {
+    if (error instanceof Error && /JSON object in judge reply/.test(error.message)) throw error;
+    throw new Error(`invalid JSON: ${(error as Error).message}`);
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("judge reply must be a JSON object");
+  const object = value as Record<string, unknown>;
+  exactKeys(object, ["votes", "verdict", "reason"], "judge reply");
+  if (!Array.isArray(object.votes)) throw new Error("votes must be an array");
+  if (object.votes.length !== expectedCriteria) throw new Error(`expected ${expectedCriteria} votes, got ${object.votes.length}`);
+  const criteria = object.votes.map((rawVote, offset): CriterionVote => {
+    if (!rawVote || typeof rawVote !== "object" || Array.isArray(rawVote)) throw new Error(`vote ${offset + 1} must be an object`);
+    const vote = rawVote as Record<string, unknown>;
+    exactKeys(vote, ["criterion", "vote", "reason"], `vote ${offset + 1}`);
+    if (vote.criterion !== offset + 1) throw new Error(`vote ${offset + 1} must have criterion ${offset + 1}`);
+    if (vote.vote !== "PASS" && vote.vote !== "FAIL") throw new Error(`vote ${offset + 1} must be PASS or FAIL`);
+    if (typeof vote.reason !== "string") throw new Error(`vote ${offset + 1} reason must be a string`);
+    return { index: offset + 1, verdict: vote.vote, reason: vote.reason };
+  });
+  if (object.verdict !== "PASS" && object.verdict !== "FAIL") throw new Error("verdict must be PASS or FAIL");
+  if (typeof object.reason !== "string") throw new Error("reason must be a string");
+  return { criteria, verdict: object.verdict, reason: object.reason };
+}
+
+/** Preserve one raw reply byte-for-byte, or both retry attempts with explicit boundaries. */
+export function formatJudgeRawReplies(replies: string[]): string {
+  if (replies.length === 1) return replies[0];
+  return replies.map((reply, index) => `=== JUDGE REPLY ${index + 1} ===\n${reply}`).join("\n\n");
 }
 
 const ITEM_RE = /^\s*\d+[.)]\s*\**\s*(PASS|FAIL)\b/gim;
@@ -155,32 +222,56 @@ export function detectMisfire(raw: string, verdict: Verdict): boolean {
 // Non-global twin of REASON_RE: matchAll needs /g, a single .match() must not have it.
 const REASON_LINE_RE = /^\s*\**\s*REASON\**\s*:\s*\**\s*(.*)$/im;
 
-/** Drive the judge for one transcript and parse the result. */
+/** Drive the judge for one transcript and parse the JSON-only result. */
 export async function gradeTranscript(
   adapter: HarnessAdapter,
   judge: ModelRef,
   prompt: string,
   cwd: string,
-  expectedCriteria?: number,
+  expectedCriteria: number,
 ): Promise<GradeResult> {
-  const request = { model: judge, prompt, cwd };
-  let raw = await adapter.judge(request);
-  let criteria = parseCriterionVotes(raw);
-  let judgeRetries: 1 | undefined;
-  if (expectedCriteria !== undefined && completeCriterionVotes(criteria, expectedCriteria).some(vote => vote.verdict === "ERROR")) {
-    raw = await adapter.judge(request);
-    criteria = parseCriterionVotes(raw);
-    judgeRetries = 1;
+  const rawReplies: string[] = [];
+  let validationError = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const retry = attempt === 0 ? "" : `\n\nYour reply was not valid: ${JSON.stringify(validationError)}; reply with only the JSON object.`;
+    const raw = await adapter.judge({ model: judge, prompt: prompt + retry, cwd });
+    rawReplies.push(raw);
+
+    // Pi adapter failures are infrastructure errors, not malformed model votes.
+    if (/^\[judge error:/i.test(raw.trim())) {
+      const snippet = raw.trim().replace(/\s+/g, " ").slice(0, 160);
+      return {
+        verdict: "ERROR", reason: `judge unparseable: ${snippet}`, suspect: false,
+        raw, rawReplies, criteria: completeCriterionVotes([], expectedCriteria), judgeFormat: "json",
+        ...(attempt === 1 ? { judgeRetries: 1 as const } : {}),
+      };
+    }
+
+    try {
+      const parsed = parseStructuredJudgeReply(raw, expectedCriteria);
+      const suspect = parsed.verdict === "FAIL"
+        ? parsed.criteria.every(vote => vote.verdict === "PASS")
+        : parsed.criteria.some(vote => vote.verdict === "FAIL");
+      return {
+        ...parsed, raw, rawReplies, suspect, judgeFormat: "json",
+        ...(attempt === 1 ? { judgeRetries: 1 as const } : {}),
+      };
+    } catch (error) {
+      validationError = (error as Error).message;
+    }
   }
-  const parsed = parseVerdict(raw);
-  // On a parse failure, surface what the judge actually emitted (e.g. a provider
-  // error) rather than a generic message — otherwise the cause is invisible.
-  if (parsed.verdict === "ERROR") {
-    const snippet = raw.trim().replace(/\s+/g, " ").slice(0, 160);
-    if (snippet) parsed.reason = `judge unparseable: ${snippet}`;
-  }
-  const suspect = detectMisfire(raw, parsed.verdict);
-  return { ...parsed, raw, suspect, criteria, ...(judgeRetries ? { judgeRetries } : {}) };
+
+  const raw = rawReplies[rawReplies.length - 1];
+  return {
+    verdict: "UNGRADED",
+    reason: `judge structured reply invalid after retry: ${validationError}`,
+    suspect: false,
+    raw,
+    rawReplies,
+    criteria: completeCriterionVotes([], expectedCriteria),
+    judgeFormat: "json",
+    judgeRetries: 1,
+  };
 }
 
 /**
@@ -193,7 +284,7 @@ export async function judgeInWorkspace(
   judge: ModelRef,
   prompt: string,
   specDir: string,
-  expectedCriteria?: number,
+  expectedCriteria: number,
 ): Promise<GradeResult> {
   const ws = createWorkspace("none", { specDir });
   try {
