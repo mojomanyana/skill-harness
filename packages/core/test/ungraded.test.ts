@@ -9,7 +9,8 @@ import { parseSpec } from "../src/spec.js";
 import { rescoreRun } from "../src/rescore.js";
 import { collectReport } from "../src/report.js";
 import { formatScorecard } from "../src/run.js";
-import { judgeOneRep } from "../src/regrade.js";
+import { judgeOneRep, regradeRun } from "../src/regrade.js";
+import { collectTrends } from "../src/trends.js";
 import yaml from "js-yaml";
 import Ajv2020 from "ajv/dist/2020.js";
 
@@ -95,6 +96,44 @@ describe("incomplete criterion votes are UNGRADED", () => {
       expect(validateResults(results).scenarios[0]).toMatchObject({ judge_verdict: "UNGRADED", ungraded_reps: 1 });
     }
   });
+  it.each([[2, false, "FAIL"], [2, true, "FAIL"], [3, false, "FAIL"], [3, true, "FAIL"], [2, false, "PASS"], [2, true, "PASS"], [3, false, "PASS"], [3, true, "PASS"]] as const)("keeps objective FAIL through schema %s regrade (onlyUnparsed=%s, raw=%s)", async (schema, onlyUnparsed, rawVerdict) => {
+    const runDir = tmp();
+    const objective = { status: "FAIL" as const, assertions: [
+      { kind: "skill_delivered", status: "PASS" as const, detail: "observed" },
+      { kind: "output_excludes", status: "FAIL" as const, detail: "blocked" },
+    ] };
+    const pending = voted(["ERROR", "PASS"]);
+    const scenario = outcomesToResult("A1", [{ ...pending, verdict: "FAIL", judgment: { ...pending.judgment!, verdict: "FAIL" }, objective }], 1, 0.5);
+    scenario.criterion_count = 2;
+    const h = "a".repeat(64);
+    const prior = finalizeResults({ ...draft(scenario), schema, ...(schema === 3 ? { subject_invocations: [{ scenario_id: "A1", repetition: 0, prompt: {
+      capture_version: "prompt-provenance-v1" as const, request_index: 0, raw_sha256: h, normalized_sha256: h,
+      normalization_rule: "cwd-line-v1" as const, bytes: 1, contract_sha256: h, contract_bytes: 1,
+      contract_occurrences: 1, mechanism: "append-system-prompt" as const, status: "PASS" as const,
+    } }] } : {}) }, { shipBar: spec.ship_bar, critical: [] });
+    writeFileSync(join(runDir, "results.yaml"), yaml.dump(prior));
+    writeFileSync(join(runDir, "A1.force.txt"), "saved response");
+    let calls = 0;
+    const raw = `${rawVerdict === "PASS" ? "1. FAIL — contradicted proposal\n" : ""}VERDICT: ${rawVerdict}\nREASON: missing votes`;
+    const results = await regradeRun({ runDir, spec, specDir: runDir, judge, onlyUnparsed,
+      adapter: { name: "pi", available: async () => true, run: async () => { throw new Error("no subject calls"); }, judge: async () => { calls++; return raw; } } });
+    expect(calls).toBe(2);
+    expect(results.scenarios[0]).toMatchObject({ judge_verdict: "FAIL", objective, rep_judgments: [{ recorded_verdict: "FAIL", objective }] });
+    expect(results.scenarios[0]).not.toHaveProperty("ungraded_reps");
+    expect(readResults(runDir).scenarios[0].judge_verdict).toBe("FAIL");
+    expect(readFileSync(join(runDir, "A1.force.judge.txt"), "utf8")).toBe(raw);
+  });
+  it.each([false, true])("shows threshold-passing siblings consistently in trends (partial=%s)", partial => {
+    const root = tmp(), runDir = join(root, "tests", "results", "pi-fake", "2026-10-02");
+    mkdirSync(runDir, { recursive: true }); writeFileSync(join(root, "tests", "specification.yaml"), yaml.dump(spec));
+    const scenario = outcomesToResult("A1", [voted(["PASS", "PASS"]), voted(["PASS", "PASS"]), voted(["ERROR", "PASS"])], 3, 0.5);
+    const old = { ...draft(scenario), schema: 2, ...(partial ? { partial: true } : {}), effective_grade: { passed: 1, total: 1, pct: 100, letter: "A", ship: true, note: "" } };
+    writeFileSync(join(runDir, "results.yaml"), yaml.dump(old));
+    const trend = collectTrends(root).models[0].runs[0];
+    expect(trend.cells.A1.verdict).toBe("PASS");
+    expect(trend.grade).toMatchObject(partial ? { pct: 0, ship: false } : { pct: 100, ship: true });
+    expect(trend.grade).toEqual(collectReport(root).columns[0].grade);
+  });
   it("surfaces the ungraded count in the terminal scorecard", () => {
     const results = finalizeResults(draft(), { shipBar: spec.ship_bar, critical: [] });
     const text = formatScorecard({ runDir: "unused", results });
@@ -113,6 +152,10 @@ describe("incomplete criterion votes are UNGRADED", () => {
     const report = collectReport(root);
     expect(report.columns[0].cells.A1.judge_verdict).toBe("UNGRADED");
     expect(report.columns[0].cells.A1).toHaveProperty("ungraded_reps", 1);
+    const trend = collectTrends(root).models[0].runs[0];
+    expect(trend.cells.A1.verdict).toBe("UNGRADED");
+    expect(trend.grade).toMatchObject({ pct: 0, ship: false });
+    expect(trend.grade).toEqual(report.columns[0].grade);
     const rescored = rescoreRun({ runDir, spec });
     expect(rescored.results.scenarios[0].judge_verdict).toBe("UNGRADED");
     expect(rescored.changes).toMatchObject([{ id: "A1", from: "PASS", to: "UNGRADED" }]);

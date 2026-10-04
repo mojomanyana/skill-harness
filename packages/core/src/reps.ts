@@ -20,8 +20,11 @@ export interface RepOutcome {
 
 /** Missing criterion evidence is a non-pass, not a judge misfire or a judged FAIL. */
 export function normalizeRepOutcome(outcome: RepOutcome): RepOutcome {
-  if (outcome.objective && outcome.objective.status !== "PASS") return outcome;
-  if (outcome.verdict === "ERROR" || outcome.verdict === "NOT-MEASURED") return outcome;
+  if (outcome.verdict === "ERROR") return outcome;
+  if (outcome.objective && outcome.objective.status !== "PASS") {
+    return { ...outcome, verdict: outcome.objective.status, suspect: false };
+  }
+  if (outcome.verdict === "NOT-MEASURED") return outcome;
   if (outcome.verdict === "UNGRADED" || outcome.judgment?.criteria?.some(vote => vote.verdict === "ERROR")) {
     return { ...outcome, verdict: "UNGRADED", reason: "UNGRADED: incomplete criterion votes after judge retry", suspect: false };
   }

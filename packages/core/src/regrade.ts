@@ -75,6 +75,8 @@ export async function judgeOneRep(opts: {
   mode: string; rep: number | undefined; now: () => string;
   /** True when this call revisits a saved subject transcript. */
   rejudge?: boolean;
+  /** Retained objective evidence must precede missing-vote normalization. */
+  objective?: RepOutcome["objective"];
 }): Promise<RepOutcome> {
   const { runDir, spec, scenario, transcript, adapter, judge, specDir, mode, rep, now } = opts;
   const startedAt = performance.now();
@@ -101,7 +103,7 @@ export async function judgeOneRep(opts: {
   const g = await judgeInWorkspace(adapter, judge, prompt, specDir, scenario.checklist.length);
   writeFileSync(judgeRawPath(runDir, scenario.id, mode, rep), g.raw, "utf8");
   const outcome = normalizeRepOutcome({
-    verdict: g.verdict, reason: g.reason, suspect: g.suspect,
+    verdict: g.verdict, reason: g.reason, suspect: g.suspect, objective: opts.objective,
     judgment: { ordinal: 1, judge: { ...judge }, verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, scenario.checklist.length), ...(g.judgeRetries ? { judgeRetries: g.judgeRetries } : {}) },
     metrics: {
       wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
@@ -150,6 +152,7 @@ export async function regradeScenario(opts: RegradeOptions): Promise<ScenarioRes
     outcomes.push(await judgeOneRep({
       runDir: opts.runDir, spec: opts.spec, scenario: opts.scenario, transcript,
       adapter: opts.adapter, judge: opts.judge, specDir: opts.specDir, mode, rep, now, rejudge: true,
+      objective: panel?.objective ?? (expected === 1 ? opts.prior?.objective : undefined),
     }));
   }
   const result = outcomesToResult(opts.scenario.id, outcomes, repCount, opts.threshold);

@@ -4310,9 +4310,12 @@ function collapseVotePanel(votes) {
 
 // packages/core/dist/reps.js
 function normalizeRepOutcome(outcome) {
-  if (outcome.objective && outcome.objective.status !== "PASS")
+  if (outcome.verdict === "ERROR")
     return outcome;
-  if (outcome.verdict === "ERROR" || outcome.verdict === "NOT-MEASURED")
+  if (outcome.objective && outcome.objective.status !== "PASS") {
+    return { ...outcome, verdict: outcome.objective.status, suspect: false };
+  }
+  if (outcome.verdict === "NOT-MEASURED")
     return outcome;
   if (outcome.verdict === "UNGRADED" || outcome.judgment?.criteria?.some((vote) => vote.verdict === "ERROR")) {
     return { ...outcome, verdict: "UNGRADED", reason: "UNGRADED: incomplete criterion votes after judge retry", suspect: false };
@@ -4665,7 +4668,9 @@ function recomputeRecordedPanels(results) {
     for (const panel of scenario.rep_judgments ?? []) {
       const clean = panel.judgments.filter((j) => !j.suspect && (j.verdict === "PASS" || j.verdict === "FAIL"));
       let verdict = panel.recorded_verdict;
-      if (panel.recorded_verdict === "UNGRADED" && panel.judgments.some((judgment) => judgment.criteria?.some((vote) => vote.verdict === "ERROR")))
+      if (panel.objective && panel.objective.status !== "PASS")
+        verdict = panel.objective.status;
+      else if (panel.recorded_verdict === "UNGRADED" && panel.judgments.some((judgment) => judgment.criteria?.some((vote) => vote.verdict === "ERROR")))
         verdict = "UNGRADED";
       else if (clean.length === 1)
         verdict = clean[0].verdict;
@@ -4786,14 +4791,14 @@ function validateResults(raw) {
     const panels = scenario.rep_judgments;
     const errorCount = panels.filter((panel) => panel.recorded_verdict === "ERROR").length;
     const notMeasuredCount = panels.filter((panel) => panel.recorded_verdict === "NOT-MEASURED").length;
-    const cleanPanels = panels.filter((panel) => panel.recorded_verdict === "UNGRADED" || !(panel.judgments[0]?.suspect ?? false));
+    const cleanPanels = panels.filter((panel) => panel.objective && panel.objective.status !== "PASS" || panel.recorded_verdict === "UNGRADED" || !(panel.judgments[0]?.suspect ?? false));
     const ungradedCount = panels.filter((panel) => panel.recorded_verdict === "UNGRADED").length;
     const passes = cleanPanels.filter((panel) => panel.recorded_verdict === "PASS").length;
     let aggregateVerdict;
     let aggregateSuspect = false;
     if (panels.length === 1) {
       aggregateVerdict = panels[0].recorded_verdict;
-      aggregateSuspect = panels[0].recorded_verdict === "UNGRADED" ? false : panels[0].judgments[0]?.suspect ?? false;
+      aggregateSuspect = panels[0].objective && panels[0].objective.status !== "PASS" || panels[0].recorded_verdict === "UNGRADED" ? false : panels[0].judgments[0]?.suspect ?? false;
     } else if (errorCount > 0)
       aggregateVerdict = "ERROR";
     else if (notMeasuredCount > 0)
@@ -6137,6 +6142,7 @@ async function judgeOneRep(opts) {
     verdict: g.verdict,
     reason: g.reason,
     suspect: g.suspect,
+    objective: opts.objective,
     judgment: { ordinal: 1, judge: { ...judge }, verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, scenario.checklist.length), ...g.judgeRetries ? { judgeRetries: g.judgeRetries } : {} },
     metrics: {
       wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
@@ -6187,7 +6193,8 @@ async function regradeScenario(opts) {
       mode,
       rep,
       now,
-      rejudge: true
+      rejudge: true,
+      objective: panel?.objective ?? (expected === 1 ? opts.prior?.objective : void 0)
     }));
   }
   const result = outcomesToResult(opts.scenario.id, outcomes, repCount, opts.threshold);
@@ -6456,12 +6463,14 @@ function collectTrends(skillDir, limit = 20) {
     const kept = group.runs.slice(-limit);
     const runs = [];
     for (const r of kept) {
-      const verdicts = effectiveVerdicts(r.scenarios);
+      const normalized = r.scenarios.map(normalizeScenarioResult);
+      const grade = normalized.some((s, i) => s !== r.scenarios[i]) ? finalizeResults({ ...r, scenarios: normalized }, scoreContextFor(r, spec)).effective_grade : r.effective_grade;
+      const verdicts = effectiveVerdicts(normalized);
       const cells = {};
-      r.scenarios.forEach((s, i) => {
+      normalized.forEach((s, i) => {
         cells[s.id] = { verdict: verdicts[i].verdict, suspect: verdicts[i].suspect ?? false, flakiness: s.flakiness };
       });
-      runs.push({ timestamp: r.timestamp, label: r.label, grade: r.effective_grade, cells });
+      runs.push({ timestamp: r.timestamp, label: r.label, grade, cells });
     }
     models.push({ model: group.model, tag: group.tag, mode: group.mode, runs, truncated, skipped: group.skipped });
   }

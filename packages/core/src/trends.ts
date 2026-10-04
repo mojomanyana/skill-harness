@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { loadSpec } from "./spec.js";
-import { readResults, effectiveVerdicts, isScoredMode, type ResultsFile } from "./results.js";
+import { readResults, effectiveVerdicts, isScoredMode, normalizeScenarioResult, finalizeResults, scoreContextFor, type ResultsFile } from "./results.js";
 import type { Verdict } from "./score.js";
 
 export interface TrendCell { verdict: Verdict; suspect: boolean; flakiness?: number; }
@@ -154,12 +154,16 @@ export function collectTrends(skillDir: string, limit = 20): TrendData {
       // effectiveVerdicts is the single source of truth for the override-aware
       // verdict/suspect rule (suspect = s.suspect && s.override == null — an override
       // resolves the misfire); zip in flakiness from the matching ScenarioResult.
-      const verdicts = effectiveVerdicts(r.scenarios);
+      const normalized = r.scenarios.map(normalizeScenarioResult);
+      const grade = normalized.some((s, i) => s !== r.scenarios[i])
+        ? finalizeResults({ ...r, scenarios: normalized }, scoreContextFor(r, spec)).effective_grade
+        : r.effective_grade;
+      const verdicts = effectiveVerdicts(normalized);
       const cells: Record<string, TrendCell> = {};
-      r.scenarios.forEach((s, i) => {
+      normalized.forEach((s, i) => {
         cells[s.id] = { verdict: verdicts[i].verdict, suspect: verdicts[i].suspect ?? false, flakiness: s.flakiness };
       });
-      runs.push({ timestamp: r.timestamp, label: r.label, grade: r.effective_grade, cells });
+      runs.push({ timestamp: r.timestamp, label: r.label, grade, cells });
     }
     models.push({ model: group.model, tag: group.tag, mode: group.mode, runs, truncated, skipped: group.skipped });
   }

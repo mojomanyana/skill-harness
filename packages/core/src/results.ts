@@ -599,7 +599,8 @@ export function recomputeRecordedPanels(results: ResultsFile): Array<{ scenario_
   for (const scenario of results.scenarios) for (const panel of scenario.rep_judgments ?? []) {
     const clean = panel.judgments.filter(j => !j.suspect && (j.verdict === "PASS" || j.verdict === "FAIL"));
     let verdict: Verdict = panel.recorded_verdict;
-    if (panel.recorded_verdict === "UNGRADED" && panel.judgments.some(judgment => judgment.criteria?.some(vote => vote.verdict === "ERROR"))) verdict = "UNGRADED";
+    if (panel.objective && panel.objective.status !== "PASS") verdict = panel.objective.status;
+    else if (panel.recorded_verdict === "UNGRADED" && panel.judgments.some(judgment => judgment.criteria?.some(vote => vote.verdict === "ERROR"))) verdict = "UNGRADED";
     else if (clean.length === 1) verdict = clean[0].verdict;
     else if (clean.length >= 2) verdict = collapseVotePanel(panel.judgments).verdict ?? "JUDGE-AMBIGUOUS";
     out.push({ scenario_id: scenario.id, repetition: panel.repetition, verdict });
@@ -688,14 +689,14 @@ export function validateResults(raw: unknown): ResultsFile {
     const panels = scenario.rep_judgments;
     const errorCount = panels.filter(panel => panel.recorded_verdict === "ERROR").length;
     const notMeasuredCount = panels.filter(panel => panel.recorded_verdict === "NOT-MEASURED").length;
-    const cleanPanels = panels.filter(panel => panel.recorded_verdict === "UNGRADED" || !(panel.judgments[0]?.suspect ?? false));
+    const cleanPanels = panels.filter(panel => panel.objective && panel.objective.status !== "PASS" || panel.recorded_verdict === "UNGRADED" || !(panel.judgments[0]?.suspect ?? false));
     const ungradedCount = panels.filter(panel => panel.recorded_verdict === "UNGRADED").length;
     const passes = cleanPanels.filter(panel => panel.recorded_verdict === "PASS").length;
     let aggregateVerdict: Verdict;
     let aggregateSuspect = false;
     if (panels.length === 1) {
       aggregateVerdict = panels[0].recorded_verdict;
-      aggregateSuspect = panels[0].recorded_verdict === "UNGRADED" ? false : panels[0].judgments[0]?.suspect ?? false;
+      aggregateSuspect = panels[0].objective && panels[0].objective.status !== "PASS" || panels[0].recorded_verdict === "UNGRADED" ? false : panels[0].judgments[0]?.suspect ?? false;
     } else if (errorCount > 0) aggregateVerdict = "ERROR";
     else if (notMeasuredCount > 0) aggregateVerdict = "NOT-MEASURED";
     else if (cleanPanels.length * 2 < panels.length) { aggregateVerdict = "FAIL"; aggregateSuspect = true; }
