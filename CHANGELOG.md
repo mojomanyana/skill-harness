@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.24.0-rc.2 — Pi qualification and final conformance (2026-10-07)
+## 0.24.0 — stable Pi qualification and final conformance (2026-10-07)
 
 ### Fixed
 

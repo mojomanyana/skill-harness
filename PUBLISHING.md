@@ -2,8 +2,8 @@
 
 ## Current candidate
 
-- Prepared repository prerelease: `0.24.0-rc.2`
-- Candidate tag name: `v0.24.0-rc.2` (creation is a separately authorized action)
+- Stable release: `0.24.0`
+- Stable tag: `v0.24.0`
 - This preparation does not publish to npm or move `latest`; no current registry state is asserted.
 - Release-pack toolchain: Node `v20.20.2`, npm `10.8.2`
 
