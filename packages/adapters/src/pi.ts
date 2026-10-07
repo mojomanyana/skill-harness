@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import type { HarnessAdapter, RunReq, JudgeReq, RunMode, StructuredRun, ExecutionTraceV1 } from "@skill-harness/core";
 import { runPiJson } from "./pi-json.js";
 import { priceSubjectUsage } from "./model-pricing.js";
-import { exec, onPath, envNum, traceSha256, withProviderFailure } from "@skill-harness/core";
+import { exec, onPath, envNum, traceSha256, withProviderFailure, withExecutionFailure } from "@skill-harness/core";
 
 const PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 300_000);
 
@@ -230,6 +230,7 @@ export const piAdapter: HarnessAdapter = {
     const parts: string[] = [];
     const session = total === 1 ? null : mkdtempSync(join(tmpdir(), "sc-pi-session-"));
     let providerFailure: string | null = null;
+    let executionFailure: string | null = null;
     // Same merge as `run()`: undefined when the arm carries no env, so `spawn`
     // (which treats `undefined` as "inherit") leaves the control arm untouched.
     const env = req.armEnv ? { ...process.env, ...req.armEnv } : undefined;
@@ -261,7 +262,15 @@ export const piAdapter: HarnessAdapter = {
       // Fail loudly here rather than let an empty trace satisfy a `forbid_calls`
       // gate — "the model called nothing" and "we recorded nothing" must not
       // reach the scorer looking the same.
-      if (!r.isComplete) {
+      // A settled stream can still end in error/abort, and exit zero is not
+      // terminal success. Preserve the trace and a durable preamble so an
+      // ungated run or later grade cannot turn unavailable delivery into PASS.
+      if (r.trace.final_status !== undefined &&
+          (r.trace.final_status !== "complete" || r.trace.capture_errors?.length || r.code !== 0)) {
+        executionFailure = `Pi ${piVersion} turn ${i + 1}/${total}: final delivery ${r.trace.final_status}` +
+          ` (exit ${r.code}); ${r.trace.capture_errors?.join("; ") || "successful process completion was not established"}`;
+      }
+      if (!r.isComplete && !executionFailure) {
         throw new Error(
           `pi --mode json produced no terminal events for turn ${i + 1}/${total}` +
             ` (exit ${r.code}${r.malformedLines ? `, ${r.malformedLines} malformed line(s)` : ""})` +
@@ -279,18 +288,24 @@ export const piAdapter: HarnessAdapter = {
       // reads (see `judgeOneRep` in core/regrade.ts), and the structured path
       // exits 0 while carrying the evidence, so a field a re-judge never sees
       // leaves it unrecoverable from the saved transcript.
-      if (providerFailure === null && r.providerFailure) providerFailure = r.providerFailure;
+      // The qualified settlement contract can prove a successful retry. An
+      // earlier transport diagnostic alone must not override that final result.
+      if (providerFailure === null && r.providerFailure && r.trace.final_status !== "complete") {
+        providerFailure = r.providerFailure;
+      }
       const pricedTrace = priceSubjectUsage(r.trace);
       traces.push(pricedTrace);
       parts.push(header(i + 1, total, req.turns[i]));
-      parts.push(`<<< ASSISTANT:\n${pricedTrace.final_text.trim()}\n`);
+      parts.push(`<<< ASSISTANT:\n${pricedTrace.final_status === undefined ? pricedTrace.final_text.trim() : pricedTrace.final_text}\n`);
       if (r.code !== 0) parts.push(`[pi exited ${r.code} on turn ${i + 1}]\n${r.stderr.trim()}\n`);
+      if (executionFailure || providerFailure) break;
     }
 
     return {
-      transcript: withProviderFailure(parts.join("\n"), providerFailure),
+      transcript: withProviderFailure(withExecutionFailure(parts.join("\n"), executionFailure), providerFailure),
       traces,
       ...(providerFailure ? { providerFailure } : {}),
+      ...(executionFailure ? { executionFailure } : {}),
     };
   },
 

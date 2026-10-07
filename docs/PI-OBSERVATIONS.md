@@ -15,6 +15,7 @@ For Pi 1.0.4, a message ending is insufficient to establish completion. The pars
 | `changed_paths` | Workspace observations captured independently of messages. Null means unavailable. |
 | Usage | Subject usage only where reported; judge usage remains unavailable. Cost coverage is partial. |
 
+Failed or unproven Pi 1.0.4 delivery is recorded as an execution failure independently of provider transport diagnostics. A settled error/abort, missing settlement, malformed capture or nonzero process exit produces ERROR before judging, including ungated scenarios. Its harness-owned transcript preamble preserves that status for later grading. Failed dependent turns stop. The existing one-retry policy for empty responses remains unchanged. A successful settled retry supersedes earlier transient transport diagnostics. Legacy version handling remains separate.
 No child receipt adapter is added until a concrete assertion has a qualified producer with execution identity. The removed generic trajectory assertion language stays removed. Raw private sessions are not uploaded or retained by this adapter. Normalized traces and redacted transcripts use the existing per-run retention rules; reports must distinguish these from raw execution and artifact evidence.
 
 Use the existing saved-evidence operations: stimulus changes need `run`, rubric changes `grade`, policy changes `rescore`, gates changes `regate`. The latter can spend judge tokens on a fail-to-pass transition. Original evidence and human overrides remain intact.

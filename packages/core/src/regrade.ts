@@ -11,7 +11,7 @@ import {
 import { outcomesToResult, normalizeRepOutcome, type RepOutcome } from "./reps.js";
 import { appendJournal } from "./journal.js";
 import { rubricDigest, personaDigest, RUBRIC_PREFIX, PERSONA_KEY } from "./sources.js";
-import { providerFailureFromTranscript } from "./provider-failure.js";
+import { providerFailureFromTranscript, executionFailureFromTranscript } from "./provider-failure.js";
 
 /**
  * Carry a run's recorded hashes forward, refreshing only the `rubric:` keys this
@@ -90,8 +90,9 @@ export async function judgeOneRep(opts: {
   // into a model verdict, spending a judge call to turn infrastructure noise into
   // a false FAIL.
   const providerFailure = providerFailureFromTranscript(transcript);
-  if (providerFailure) {
-    const reason = `provider failure — ${providerFailure}`;
+  const executionFailure = executionFailureFromTranscript(transcript);
+  if (providerFailure || executionFailure) {
+    const reason = providerFailure ? `provider failure — ${providerFailure}` : `execution failure — ${executionFailure}`;
     appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict: "ERROR", reason, suspect: false, ...repField });
     return {
       verdict: "ERROR", reason, suspect: false,

@@ -32,7 +32,7 @@ import { judgeOneRep } from "./regrade.js";
 import { runDeliveryCanary, canaryFailure, type CanaryResult } from "./canary.js";
 import { boundaryCells, stabilityNote, type ScenarioStability } from "./stability.js";
 import { aggregateMetrics } from "./metrics.js";
-import { providerFailureFromTranscript } from "./provider-failure.js";
+import { providerFailureFromTranscript, executionFailureFromTranscript } from "./provider-failure.js";
 
 export interface RunOptions {
   spec: Spec;
@@ -449,6 +449,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
               transcript = structured.transcript;
               traces = structured.traces;
               if (structured.providerFailure) infrastructureFailure = `provider failure — ${structured.providerFailure}`;
+              else if (structured.executionFailure) infrastructureFailure = `execution failure — ${structured.executionFailure}`;
             } else {
               transcript = await ctx.adapter.run(req);
             }
@@ -481,6 +482,10 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
         if (!infrastructureFailure) {
           const provider = providerFailureFromTranscript(transcript);
           if (provider) infrastructureFailure = `provider failure — ${provider}`;
+          else {
+            const execution = executionFailureFromTranscript(transcript);
+            if (execution) infrastructureFailure = `execution failure — ${execution}`;
+          }
         }
         noResponse = hasEmptyAssistantTurn(transcript);
         if (!noResponse && !adapterFailure) break;

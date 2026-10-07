@@ -62,3 +62,9 @@ describe("Pi 1.0.4 settlement and malformed-evidence regressions", () => {
     expect(trace.metrics?.delegated_children).toBe(0); // legacy Agent-only argument counter
   });
 });
+
+it("does not accept settlement before an outstanding tool completes", () => {
+  const result = parse(start("pending"), message("done"), settled, end("pending"));
+  expect(result.isComplete).toBe(false);
+  expect(result.trace.final_status).toBe("incomplete");
+});

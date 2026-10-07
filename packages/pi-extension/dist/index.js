@@ -5875,7 +5875,7 @@ function parseTrace(lines, meta) {
       continue;
     }
     const type2 = ev.type;
-    if (settledContract && ["agent_start", "message_start", "message_end", "tool_execution_start"].includes(type2 ?? "")) {
+    if (settledContract && ["agent_start", "message_start", "message_end", "tool_execution_start", "tool_execution_end"].includes(type2 ?? "")) {
       sawSettled = false;
     }
     if (type2 === "agent_start" && settledContract) {
@@ -5886,8 +5886,10 @@ function parseTrace(lines, meta) {
       continue;
     if (type2 === "tool_execution_start") {
       const id = str2(ev.toolCallId);
-      if (!id)
+      if (!id) {
+        captureErrors.push("tool start without an identity");
         continue;
+      }
       if (calls.has(id)) {
         captureErrors.push("duplicate tool start identity");
         continue;
@@ -5909,8 +5911,10 @@ function parseTrace(lines, meta) {
     }
     if (type2 === "tool_execution_end") {
       const id = str2(ev.toolCallId);
-      if (!id)
+      if (!id) {
+        captureErrors.push("tool end without an identity");
         continue;
+      }
       const call = calls.get(id);
       if (!call) {
         captureErrors.push("tool end without a matching start");
@@ -6169,6 +6173,15 @@ import { join as join10 } from "node:path";
 
 // packages/core/dist/provider-failure.js
 var PROVIDER_FAILURE_MARKER = "[skill-harness] provider failure:";
+var EXECUTION_FAILURE_MARKER = "[skill-harness] execution failure:";
+function withExecutionFailure(transcript, failure) {
+  return failure ? `${EXECUTION_FAILURE_MARKER} ${failure}
+
+${transcript}` : transcript;
+}
+function executionFailureFromTranscript(transcript) {
+  return failureFromPreamble(transcript, EXECUTION_FAILURE_MARKER);
+}
 var TURN_HEADER_PREFIX = ">>> ";
 function withProviderFailure(transcript, failure) {
   return failure ? `${PROVIDER_FAILURE_MARKER} ${failure}
@@ -6199,11 +6212,14 @@ function providerFailureFromJsonLine(line) {
   return null;
 }
 function providerFailureFromTranscript(transcript) {
+  return failureFromPreamble(transcript, PROVIDER_FAILURE_MARKER);
+}
+function failureFromPreamble(transcript, marker) {
   for (const line of transcript.split("\n")) {
     if (line.startsWith(TURN_HEADER_PREFIX))
       return null;
-    if (line.startsWith(PROVIDER_FAILURE_MARKER))
-      return line.slice(PROVIDER_FAILURE_MARKER.length).trim();
+    if (line.startsWith(marker))
+      return line.slice(marker.length).trim();
   }
   return null;
 }
@@ -6228,8 +6244,9 @@ async function judgeOneRep(opts) {
   const startedAt = performance.now();
   const repField = rep === void 0 ? {} : { rep };
   const providerFailure = providerFailureFromTranscript(transcript);
-  if (providerFailure) {
-    const reason = `provider failure \u2014 ${providerFailure}`;
+  const executionFailure = executionFailureFromTranscript(transcript);
+  if (providerFailure || executionFailure) {
+    const reason = providerFailure ? `provider failure \u2014 ${providerFailure}` : `execution failure \u2014 ${executionFailure}`;
     appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict: "ERROR", reason, suspect: false, ...repField });
     return {
       verdict: "ERROR",
@@ -7043,6 +7060,8 @@ async function runRep(scenario, rep, repCount, ctx) {
               traces = structured.traces;
               if (structured.providerFailure)
                 infrastructureFailure = `provider failure \u2014 ${structured.providerFailure}`;
+              else if (structured.executionFailure)
+                infrastructureFailure = `execution failure \u2014 ${structured.executionFailure}`;
             } else {
               transcript = await ctx.adapter.run(req);
             }
@@ -7058,6 +7077,11 @@ async function runRep(scenario, rep, repCount, ctx) {
           const provider = providerFailureFromTranscript(transcript);
           if (provider)
             infrastructureFailure = `provider failure \u2014 ${provider}`;
+          else {
+            const execution = executionFailureFromTranscript(transcript);
+            if (execution)
+              infrastructureFailure = `execution failure \u2014 ${execution}`;
+          }
         }
         noResponse = hasEmptyAssistantTurn(transcript);
         if (!noResponse && !adapterFailure)
@@ -7893,6 +7917,7 @@ ${r.stderr.trim()}
     const parts = [];
     const session = total === 1 ? null : mkdtempSync2(join22(tmpdir2(), "sc-pi-session-"));
     let providerFailure = null;
+    let executionFailure = null;
     const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
     for (let i = 0; i < total; i++) {
       const turnFlags = session === null ? ["--no-session"] : i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
@@ -7910,30 +7935,37 @@ ${r.stderr.trim()}
         homeDir: homedir2(),
         env
       });
-      if (!r.isComplete) {
+      if (r.trace.final_status !== void 0 && (r.trace.final_status !== "complete" || r.trace.capture_errors?.length || r.code !== 0)) {
+        executionFailure = `Pi ${piVersion} turn ${i + 1}/${total}: final delivery ${r.trace.final_status} (exit ${r.code}); ${r.trace.capture_errors?.join("; ") || "successful process completion was not established"}`;
+      }
+      if (!r.isComplete && !executionFailure) {
         throw new Error(`pi --mode json produced no terminal events for turn ${i + 1}/${total} (exit ${r.code}${r.malformedLines ? `, ${r.malformedLines} malformed line(s)` : ""})` + (r.stderr.trim() ? `: ${r.stderr.trim()}` : ""));
       }
       if (r.malformedLines > 0) {
         r.trace.capture_errors = [.../* @__PURE__ */ new Set([...r.trace.capture_errors ?? [], `pi JSONL contained ${r.malformedLines} malformed line(s); absence-based trace assertions are unsafe`])];
         r.trace.trace_sha256 = traceSha256(r.trace);
       }
-      if (providerFailure === null && r.providerFailure)
+      if (providerFailure === null && r.providerFailure && r.trace.final_status !== "complete") {
         providerFailure = r.providerFailure;
+      }
       const pricedTrace = priceSubjectUsage(r.trace);
       traces.push(pricedTrace);
       parts.push(header(i + 1, total, req.turns[i]));
       parts.push(`<<< ASSISTANT:
-${pricedTrace.final_text.trim()}
+${pricedTrace.final_status === void 0 ? pricedTrace.final_text.trim() : pricedTrace.final_text}
 `);
       if (r.code !== 0)
         parts.push(`[pi exited ${r.code} on turn ${i + 1}]
 ${r.stderr.trim()}
 `);
+      if (executionFailure || providerFailure)
+        break;
     }
     return {
-      transcript: withProviderFailure(parts.join("\n"), providerFailure),
+      transcript: withProviderFailure(withExecutionFailure(parts.join("\n"), executionFailure), providerFailure),
       traces,
-      ...providerFailure ? { providerFailure } : {}
+      ...providerFailure ? { providerFailure } : {},
+      ...executionFailure ? { executionFailure } : {}
     };
   },
   /** Run the judge through Pi: no skills, context files, extensions or session. */

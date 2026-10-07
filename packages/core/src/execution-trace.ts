@@ -114,7 +114,7 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
       continue;
     }
     const type = ev.type;
-    if (settledContract && ["agent_start", "message_start", "message_end", "tool_execution_start"].includes(type ?? "")) {
+    if (settledContract && ["agent_start", "message_start", "message_end", "tool_execution_start", "tool_execution_end"].includes(type ?? "")) {
       sawSettled = false;
     }
     if (type === "agent_start" && settledContract) {
@@ -125,7 +125,10 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
 
     if (type === "tool_execution_start") {
       const id = str(ev.toolCallId);
-      if (!id) continue;
+      if (!id) {
+        captureErrors.push("tool start without an identity");
+        continue;
+      }
       if (calls.has(id)) {
         captureErrors.push("duplicate tool start identity");
         continue;
@@ -147,7 +150,10 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
 
     if (type === "tool_execution_end") {
       const id = str(ev.toolCallId);
-      if (!id) continue;
+      if (!id) {
+        captureErrors.push("tool end without an identity");
+        continue;
+      }
       const call = calls.get(id);
       if (!call) {
         captureErrors.push("tool end without a matching start");

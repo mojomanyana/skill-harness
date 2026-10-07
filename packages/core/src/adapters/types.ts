@@ -99,6 +99,8 @@ export interface StructuredRun {
    * answering badly. `run.ts` turns this into ERROR — never a model verdict.
    */
   providerFailure?: string;
+  /** Terminal error/abort or missing settlement: unavailable outcome, never a judgeable success. */
+  executionFailure?: string;
 }
 
 export interface HarnessAdapter {
