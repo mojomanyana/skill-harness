@@ -18,7 +18,7 @@ npm install && npm run build      # Node ≥ 20; build produces packages/*/dist
 
 Invoke the CLI as `node bin/skill-harness.js <cmd>`, `npm run dev -- <cmd>`, or (after `npm link`) `skill-harness <cmd>`. The launcher runs the built `dist` if present, else falls back to `npx tsx`.
 
-**Requirements for model calls:** `pi` on `PATH` with providers configured for the subject and judge models. Pi is the only supported model-call executable. The default judge is `openai-codex:gpt-5.6-sol` through a ChatGPT subscription; direct API providers require the metered-judge opt-in. Offline commands need no model credentials.
+**Requirements for model calls:** `pi` on `PATH` with providers configured for the subject and judge models. Pi is the only supported model-call executable. The default judge is `openai-codex:gpt-5.6-sol` through a ChatGPT subscription; direct API providers require the metered-judge opt-in. Offline commands need no model credentials. Fresh subject execution requires exact Pi **1.0.4**; an unavailable or different version records execution ERROR before subject spawn. Retained results and the fixture-backed Pi 0.83.0 raw parser remain readable without claiming current qualification.
 
 ## Commands
 

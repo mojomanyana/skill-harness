@@ -5836,6 +5836,11 @@ function redactValue(value, homeDir, depth) {
 }
 
 // packages/core/dist/execution-trace.js
+var QUALIFIED_PI_VERSION = "1.0.4";
+var LEGACY_PI_TRACE_VERSION = "0.83.0";
+function piQualificationFailure(version) {
+  return version === QUALIFIED_PI_VERSION ? null : `Pi ${version ?? "(version unavailable)"} is unqualified; execution requires exact Pi ${QUALIFIED_PI_VERSION}`;
+}
 var SKIPPED = /* @__PURE__ */ new Set(["message_update", "tool_execution_update"]);
 var MAX_DETAILS_CHARS = 2e3;
 function parseTrace(lines, meta) {
@@ -5846,6 +5851,13 @@ function parseTrace(lines, meta) {
   let completionCounter = 0;
   let malformedLines = 0;
   let sawTerminal = false;
+  const settledContract = meta.piVersion !== LEGACY_PI_TRACE_VERSION;
+  const qualificationFailure = settledContract ? piQualificationFailure(meta.piVersion) : null;
+  let sawSettled = false;
+  let lastStopReason;
+  let currentAssistantText = "";
+  let eligibleFinal = false;
+  const captureErrors = [];
   let finalText = "";
   let lastAssistantText = "";
   let inputTokens = null;
@@ -5865,13 +5877,35 @@ function parseTrace(lines, meta) {
       malformedLines++;
       continue;
     }
+    if (!ev || typeof ev !== "object" || Array.isArray(ev)) {
+      malformedLines++;
+      continue;
+    }
     const type2 = ev.type;
-    if (typeof type2 !== "string" || SKIPPED.has(type2))
+    if (typeof type2 !== "string") {
+      malformedLines++;
+      continue;
+    }
+    if (settledContract && ["agent_start", "turn_start", "message_start", "message_update", "message_end", "tool_execution_start", "tool_execution_end"].includes(type2)) {
+      sawSettled = false;
+      if (type2 !== "tool_execution_end") {
+        currentAssistantText = "";
+        lastStopReason = void 0;
+        eligibleFinal = false;
+      }
+    }
+    if (SKIPPED.has(type2))
       continue;
     if (type2 === "tool_execution_start") {
       const id = str2(ev.toolCallId);
-      if (!id)
+      if (!id) {
+        captureErrors.push("tool start without an identity");
         continue;
+      }
+      if (calls.has(id)) {
+        captureErrors.push("duplicate tool start identity");
+        continue;
+      }
       calls.set(id, {
         id,
         name: str2(ev.toolName) ?? "(unknown)",
@@ -5889,11 +5923,19 @@ function parseTrace(lines, meta) {
     }
     if (type2 === "tool_execution_end") {
       const id = str2(ev.toolCallId);
-      if (!id)
+      if (!id) {
+        captureErrors.push("tool end without an identity");
         continue;
+      }
       const call = calls.get(id);
-      if (!call)
+      if (!call) {
+        captureErrors.push("tool end without a matching start");
         continue;
+      }
+      if (call.completionIndex >= 0) {
+        captureErrors.push("duplicate tool completion identity");
+        continue;
+      }
       if (call.completionIndex < 0)
         activeCalls = Math.max(0, activeCalls - 1);
       call.completionIndex = completionCounter++;
@@ -5906,7 +5948,17 @@ function parseTrace(lines, meta) {
     if (type2 === "message_end") {
       sawTerminal = true;
       const msg = ev.message;
-      const at = isoTime(msg?.timestamp);
+      if (!msg || typeof msg !== "object" || Array.isArray(msg) || typeof msg.role !== "string") {
+        captureErrors.push("malformed message_end message");
+        continue;
+      }
+      if (msg.role !== "assistant" && msg.role !== "toolResult")
+        continue;
+      if (!Array.isArray(msg.content) || msg.content.some((block) => !block || typeof block !== "object" || Array.isArray(block) || typeof block.type !== "string" || block.type === "text" && typeof block.text !== "string")) {
+        captureErrors.push("malformed message_end content");
+        continue;
+      }
+      const at = isoTime(msg.timestamp);
       if (msg?.role === "assistant" && at) {
         for (const block of msg.content ?? []) {
           if (block.type !== "toolCall" || typeof block.id !== "string")
@@ -5926,6 +5978,9 @@ function parseTrace(lines, meta) {
       if (msg?.role !== "assistant")
         continue;
       const text = assistantText(msg);
+      eligibleFinal = msg.content.every((block) => block.type === "text" || block.type === "thinking");
+      currentAssistantText = text;
+      lastStopReason = msg.stopReason;
       if (text) {
         lastAssistantText = text;
         if (msg.stopReason === "stop")
@@ -5939,10 +5994,19 @@ function parseTrace(lines, meta) {
     }
     if (type2 === "turn_end" || type2 === "agent_end" || type2 === "agent_settled") {
       sawTerminal = true;
+      if (type2 === "agent_settled")
+        sawSettled = true;
       continue;
     }
   }
   const toolCalls = [...calls.values()].sort((a, b) => a.issueIndex - b.issueIndex);
+  if (malformedLines > 0)
+    captureErrors.push(`pi JSONL contained ${malformedLines} malformed line(s); trace evidence is incomplete`);
+  const finalStatus = qualificationFailure ? "unqualified" : !sawSettled || activeCalls > 0 ? "incomplete" : captureErrors.length > 0 ? "unavailable" : lastStopReason === "error" ? "error" : lastStopReason === "aborted" ? "aborted" : lastStopReason === "length" ? "truncated" : lastStopReason === "stop" && eligibleFinal && currentAssistantText.length > 0 ? "complete" : "unavailable";
+  if (settledContract && finalStatus !== "complete") {
+    const reason = qualificationFailure ?? (finalStatus === "incomplete" ? "current settlement is missing or tool calls remain outstanding" : finalStatus === "truncated" ? "settled assistant reached its output length limit" : finalStatus === "error" || finalStatus === "aborted" ? `settled assistant stop reason is ${lastStopReason}` : "current terminal assistant content is empty, ineligible, or captured evidence is malformed");
+    captureErrors.push(`Pi ${meta.piVersion ?? "(version unavailable)"} final delivery is ${finalStatus}; ${reason}`);
+  }
   const metrics = {
     input_tokens: inputTokens,
     output_tokens: outputTokens,
@@ -5970,7 +6034,9 @@ function parseTrace(lines, meta) {
     // and `smoke-real-pi.sh` asserts no `/home/` survives into a persisted trace
     // — an assertion that used to pass only because the smoke model happened not
     // to echo one.
-    final_text: redactText(finalText || lastAssistantText, meta.homeDir),
+    final_text: redactText(settledContract ? currentAssistantText : finalText || lastAssistantText, meta.homeDir),
+    ...settledContract ? { final_status: finalStatus } : {},
+    ...captureErrors.length ? { capture_errors: [...new Set(captureErrors)] } : {},
     tool_calls: toolCalls,
     // `null`, not `[]`: the stream says nothing about the filesystem. The runner
     // overwrites this after observing the workspace. Defaulting to `[]` claimed
@@ -5982,13 +6048,13 @@ function parseTrace(lines, meta) {
     metrics
   };
   trace.trace_sha256 = traceSha256(trace);
-  return { trace, isComplete: sawTerminal, malformedLines };
+  return { trace, isComplete: settledContract ? !qualificationFailure && sawSettled && activeCalls === 0 : sawTerminal, malformedLines };
 }
 function addReported(current, value) {
   return typeof value === "number" && value > 0 ? (current ?? 0) + value : current;
 }
 function assistantText(msg) {
-  return (msg.content ?? []).filter((b) => b.type === "text" && typeof b.text === "string").map((b) => b.text).join("\n").trim();
+  return (msg.content ?? []).filter((b) => b.type === "text" && typeof b.text === "string").map((b) => b.text).join("");
 }
 function resultMeta(result, homeDir) {
   const body = JSON.stringify(result?.content ?? result ?? null);
@@ -6124,6 +6190,15 @@ import { join as join10 } from "node:path";
 
 // packages/core/dist/provider-failure.js
 var PROVIDER_FAILURE_MARKER = "[skill-harness] provider failure:";
+var EXECUTION_FAILURE_MARKER = "[skill-harness] execution failure:";
+function withExecutionFailure(transcript, failure) {
+  return failure ? `${EXECUTION_FAILURE_MARKER} ${failure}
+
+${transcript}` : transcript;
+}
+function executionFailureFromTranscript(transcript) {
+  return failureFromPreamble(transcript, EXECUTION_FAILURE_MARKER);
+}
 var TURN_HEADER_PREFIX = ">>> ";
 function withProviderFailure(transcript, failure) {
   return failure ? `${PROVIDER_FAILURE_MARKER} ${failure}
@@ -6154,11 +6229,14 @@ function providerFailureFromJsonLine(line) {
   return null;
 }
 function providerFailureFromTranscript(transcript) {
+  return failureFromPreamble(transcript, PROVIDER_FAILURE_MARKER);
+}
+function failureFromPreamble(transcript, marker) {
   for (const line of transcript.split("\n")) {
     if (line.startsWith(TURN_HEADER_PREFIX))
       return null;
-    if (line.startsWith(PROVIDER_FAILURE_MARKER))
-      return line.slice(PROVIDER_FAILURE_MARKER.length).trim();
+    if (line.startsWith(marker))
+      return line.slice(marker.length).trim();
   }
   return null;
 }
@@ -6183,8 +6261,9 @@ async function judgeOneRep(opts) {
   const startedAt = performance.now();
   const repField = rep === void 0 ? {} : { rep };
   const providerFailure = providerFailureFromTranscript(transcript);
-  if (providerFailure) {
-    const reason = `provider failure \u2014 ${providerFailure}`;
+  const executionFailure = executionFailureFromTranscript(transcript);
+  if (providerFailure || executionFailure) {
+    const reason = providerFailure ? `provider failure \u2014 ${providerFailure}` : `execution failure \u2014 ${executionFailure}`;
     appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict: "ERROR", reason, suspect: false, ...repField });
     return {
       verdict: "ERROR",
@@ -6945,6 +7024,7 @@ async function runRep(scenario, rep, repCount, ctx) {
         }
         infrastructureFailure = null;
         adapterFailure = null;
+        let executionUnavailable = false;
         try {
           if (scenario.mode === "seeded") {
             const r = await runSeeded(scenario, {
@@ -6996,8 +7076,11 @@ async function runRep(scenario, rep, repCount, ctx) {
               const structured = await ctx.adapter.runStructured({ ...req, scenarioId: scenario.id, rep });
               transcript = structured.transcript;
               traces = structured.traces;
+              executionUnavailable = Boolean(structured.executionFailure);
               if (structured.providerFailure)
                 infrastructureFailure = `provider failure \u2014 ${structured.providerFailure}`;
+              else if (structured.executionFailure)
+                infrastructureFailure = `execution failure \u2014 ${structured.executionFailure}`;
             } else {
               transcript = await ctx.adapter.run(req);
             }
@@ -7013,9 +7096,16 @@ async function runRep(scenario, rep, repCount, ctx) {
           const provider = providerFailureFromTranscript(transcript);
           if (provider)
             infrastructureFailure = `provider failure \u2014 ${provider}`;
+          else {
+            const execution = executionFailureFromTranscript(transcript);
+            if (execution)
+              infrastructureFailure = `execution failure \u2014 ${execution}`;
+          }
         }
-        noResponse = hasEmptyAssistantTurn(transcript);
-        if (!noResponse && !adapterFailure)
+        executionUnavailable ||= executionFailureFromTranscript(transcript) !== null;
+        const deliveredText = traces.length > 0 && traces.every((trace) => trace.final_status === "complete" && trace.final_text.length > 0 && !trace.capture_errors?.length);
+        noResponse = !deliveredText && hasEmptyAssistantTurn(transcript);
+        if (executionUnavailable || !noResponse && !adapterFailure)
           break;
       }
       if (adapterFailure && !infrastructureFailure) {
@@ -7574,8 +7664,17 @@ function runPiJson(opts) {
     rl.on("line", (line) => {
       if (!line.trim())
         return;
-      if (SKIPPED_TYPE_RE.test(line))
+      if (SKIPPED_TYPE_RE.test(line)) {
+        try {
+          const event = JSON.parse(line);
+          if (event.type === "message_update" && kept.at(-1) !== '{"type":"message_update"}') {
+            kept.push('{"type":"message_update"}');
+          }
+        } catch {
+          kept.push("null");
+        }
         return;
+      }
       kept.push(line);
       if (providerFailure === null)
         providerFailure = providerFailureFromJsonLine(line);
@@ -7749,12 +7848,12 @@ var piAdapter = {
    * results.yaml as `harness_cli_version`.
    *
    * Null on any failure — a non-zero exit, empty output, or pi missing entirely.
-   * A run must not abort because provenance was unavailable, and a fabricated
-   * version would be worse than an absent one.
+   * The probe never fabricates a version. Fresh subject execution refuses an
+   * unavailable or unqualified result before starting the model.
    */
-  async version() {
+  async version(options) {
     try {
-      const r = await exec("pi", ["--version"], { timeoutMs: 3e4 });
+      const r = await exec("pi", ["--version"], { timeoutMs: 3e4, ...options });
       const line = r.stdout.split("\n")[0]?.trim() ?? "";
       if (r.code !== 0 || line === "")
         return null;
@@ -7779,9 +7878,12 @@ var piAdapter = {
       req.model.model
     ];
     const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync15(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
+    const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
+    const qualificationFailure = piQualificationFailure(await this.version({ cwd: req.cwd, env }));
+    if (qualificationFailure)
+      return withExecutionFailure("", qualificationFailure);
     const total = req.turns.length;
     const parts = [];
-    const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
     let providerFailure = null;
     if (total === 1) {
       const args = [...flags, ...common2, "--no-session", "-p", req.turns[0]];
@@ -7842,13 +7944,21 @@ ${r.stderr.trim()}
       req.model.model
     ];
     const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync15(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
-    const piVersion = await this.version();
+    const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
+    const piVersion = await this.version({ cwd: req.cwd, env });
+    const qualificationFailure = piQualificationFailure(piVersion);
+    if (qualificationFailure)
+      return {
+        transcript: withExecutionFailure("", qualificationFailure),
+        traces: [],
+        executionFailure: qualificationFailure
+      };
     const total = req.turns.length;
     const traces = [];
     const parts = [];
     const session = total === 1 ? null : mkdtempSync2(join22(tmpdir2(), "sc-pi-session-"));
     let providerFailure = null;
-    const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
+    let executionFailure = null;
     for (let i = 0; i < total; i++) {
       const turnFlags = session === null ? ["--no-session"] : i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common2, "--mode", "json", ...turnFlags, "-p", req.turns[i]];
@@ -7865,30 +7975,33 @@ ${r.stderr.trim()}
         homeDir: homedir2(),
         env
       });
-      if (!r.isComplete) {
+      if (r.trace.final_status !== void 0 && (r.trace.final_status !== "complete" || r.trace.capture_errors?.length || r.code !== 0)) {
+        executionFailure = `Pi ${piVersion} turn ${i + 1}/${total}: final delivery ${r.trace.final_status} (exit ${r.code}); ${r.trace.capture_errors?.join("; ") || "successful process completion was not established"}`;
+      }
+      if (!r.isComplete && !executionFailure) {
         throw new Error(`pi --mode json produced no terminal events for turn ${i + 1}/${total} (exit ${r.code}${r.malformedLines ? `, ${r.malformedLines} malformed line(s)` : ""})` + (r.stderr.trim() ? `: ${r.stderr.trim()}` : ""));
       }
-      if (r.malformedLines > 0) {
-        r.trace.capture_errors = [`pi JSONL contained ${r.malformedLines} malformed line(s); absence-based trace assertions are unsafe`];
-        r.trace.trace_sha256 = traceSha256(r.trace);
-      }
-      if (providerFailure === null && r.providerFailure)
+      if (providerFailure === null && r.providerFailure && r.trace.final_status !== "complete") {
         providerFailure = r.providerFailure;
+      }
       const pricedTrace = priceSubjectUsage(r.trace);
       traces.push(pricedTrace);
       parts.push(header(i + 1, total, req.turns[i]));
       parts.push(`<<< ASSISTANT:
-${pricedTrace.final_text.trim()}
+${pricedTrace.final_text}
 `);
       if (r.code !== 0)
         parts.push(`[pi exited ${r.code} on turn ${i + 1}]
 ${r.stderr.trim()}
 `);
+      if (executionFailure || providerFailure)
+        break;
     }
     return {
-      transcript: withProviderFailure(parts.join("\n"), providerFailure),
+      transcript: withProviderFailure(withExecutionFailure(parts.join("\n"), executionFailure), providerFailure),
       traces,
-      ...providerFailure ? { providerFailure } : {}
+      ...providerFailure ? { providerFailure } : {},
+      ...executionFailure ? { executionFailure } : {}
     };
   },
   /** Run the judge through Pi: no skills, context files, extensions or session. */

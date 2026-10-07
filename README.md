@@ -11,6 +11,23 @@ watch the gate catch it, then re-score two committed runs 93% → 100%](assets/d
 grade movement is two runs already committed to a public repo. Re-record it with
 `assets/demo/record.sh`.</sub>
 
+## Pi qualification
+
+Fresh subject execution requires **exactly Pi 1.0.4**. An unknown, unavailable,
+prerelease, older or newer version records execution ERROR before starting the
+subject; regrading that saved failure does not call the judge. Qualification must
+be renewed explicitly for a Pi upgrade.
+
+Retained results remain readable. The raw-trace parser keeps the original Pi
+0.83.0 capture format for historical inspection, without claiming current
+settlement qualification. Structural capture errors apply to all parsed versions.
+Current structured runs require a settled eligible final, stop on provider or
+execution failure, and preserve exact concatenated visible text (with existing
+redaction). Empty finals are unavailable; a settled output limit is `truncated`.
+The [shared final conformance table](packages/adapters/test/fixtures/pi-1.0.4/final-conformance.json)
+and [producer pin](packages/adapters/test/fixtures/pi-1.0.4/vendor-source.json)
+make the evidence and its limits inspectable.
+
 ## Quickstart
 
 ```bash

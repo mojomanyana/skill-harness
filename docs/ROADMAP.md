@@ -1,13 +1,13 @@
 # Roadmap
 
-Last updated: 2026-10-01
+Last updated: 2026-10-07
 
 `skill-harness` is a Pi-only, multi-model test and optimization loop for agent
 skills. The run → grade → review loop stays free of product paywalls.
 
 ## Current state
 
-- Published release: `0.20.0`.
+- Repository prerelease candidate: `0.24.0-rc.2` (see package manifests); no npm publication or `latest` promotion is claimed.
 - Fresh runs write results schema 2.
 - Historical schema 1–3 results remain readable for compatibility.
 - Pi is the only execution path for subject, judge, and `suggest` model calls.

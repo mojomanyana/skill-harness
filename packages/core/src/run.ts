@@ -32,7 +32,7 @@ import { judgeOneRep } from "./regrade.js";
 import { runDeliveryCanary, canaryFailure, type CanaryResult } from "./canary.js";
 import { boundaryCells, stabilityNote, type ScenarioStability } from "./stability.js";
 import { aggregateMetrics } from "./metrics.js";
-import { providerFailureFromTranscript } from "./provider-failure.js";
+import { providerFailureFromTranscript, executionFailureFromTranscript } from "./provider-failure.js";
 
 export interface RunOptions {
   spec: Spec;
@@ -404,6 +404,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
         // and the artifact disagreeing, and a recovered measurement thrown away.
         infrastructureFailure = null;
         adapterFailure = null;
+        let executionUnavailable = false;
         try {
           if (scenario.mode === "seeded") {
             const r = await runSeeded(scenario, {
@@ -448,7 +449,9 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
               const structured = await ctx.adapter.runStructured!({ ...req, scenarioId: scenario.id, rep });
               transcript = structured.transcript;
               traces = structured.traces;
+              executionUnavailable = Boolean(structured.executionFailure);
               if (structured.providerFailure) infrastructureFailure = `provider failure — ${structured.providerFailure}`;
+              else if (structured.executionFailure) infrastructureFailure = `execution failure — ${structured.executionFailure}`;
             } else {
               transcript = await ctx.adapter.run(req);
             }
@@ -481,9 +484,19 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
         if (!infrastructureFailure) {
           const provider = providerFailureFromTranscript(transcript);
           if (provider) infrastructureFailure = `provider failure — ${provider}`;
+          else {
+            const execution = executionFailureFromTranscript(transcript);
+            if (execution) infrastructureFailure = `execution failure — ${execution}`;
+          }
         }
-        noResponse = hasEmptyAssistantTurn(transcript);
-        if (!noResponse && !adapterFailure) break;
+        executionUnavailable ||= executionFailureFromTranscript(transcript) !== null;
+        // Qualified complete traces prove delivered bytes even if those bytes
+        // are only whitespace; the legacy text-only timeout heuristic cannot erase them.
+        const deliveredText = traces.length > 0 && traces.every((trace) =>
+          trace.final_status === "complete" && trace.final_text.length > 0 && !trace.capture_errors?.length);
+        noResponse = !deliveredText && hasEmptyAssistantTurn(transcript);
+        // Known unavailable execution is not an empty model answer to retry.
+        if (executionUnavailable || (!noResponse && !adapterFailure)) break;
       }
       // Survived the retry: ERROR for this rep, inside a run that still completes
       // and still writes every other scenario's verdict.
@@ -671,7 +684,7 @@ export function formatScorecard(summary: RunSummary, lift?: Lift, stability?: Sc
     const tokens = metrics.input_tokens === null
       ? "subject tokens unavailable"
       : `subject tokens ${metrics.input_tokens} in / ${metrics.output_tokens ?? 0} out / ${metrics.cache_read_tokens ?? 0} cache-read`;
-    const tools = metrics.tool_calls === null ? "tool calls unavailable" : `${metrics.tool_calls} tool call(s), ${metrics.delegated_children ?? 0} delegated, max concurrency ${metrics.max_concurrency ?? 0}`;
+    const tools = metrics.tool_calls === null ? "tool calls unavailable" : `${metrics.tool_calls} tool call(s), ${metrics.delegated_children ?? 0} requested Agent task(s), max outstanding tool calls ${metrics.max_concurrency ?? 0}; child launches/concurrency unobserved`;
     const cost = metrics.cost_source === "subscription"
       ? " · subscription ($0 marginal cost recorded)"
       : metrics.cost_source === "unreported"

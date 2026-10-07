@@ -69,7 +69,7 @@ describe("a provider failure is infrastructure, not a model verdict", () => {
     expect(judgeCalls()).toBe(0);
   });
 
-  it("records ERROR from a structured providerFailure with a success exit", async () => {
+  it.each(["providerFailure", "executionFailure"] as const)("records ERROR from a structured %s with a success exit", async (failureField) => {
     const { dir, specPath } = skillWithOneScenario();
     let judgeCalls = 0;
     const adapter: HarnessAdapter = {
@@ -82,7 +82,7 @@ describe("a provider failure is infrastructure, not a model verdict", () => {
       runStructured: async () => ({
         transcript: ">>> USER:\nhi\n\n<<< ASSISTANT:\nhello\n",
         traces: [],
-        providerFailure: "openai-codex: WebSocket error",
+        [failureField]: "openai-codex: WebSocket error",
       }),
       judge: async () => { judgeCalls += 1; return "VERDICT: PASS\n1. PASS"; },
       version: async () => "0.84.2",

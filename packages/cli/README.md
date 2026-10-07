@@ -9,6 +9,10 @@ through Pi.
 Most users should install the `skill-harness` meta-package (`npm i -g
 skill-harness`) instead of this package directly.
 
+Fresh subject execution requires **exactly Pi 1.0.4**. Different or unavailable
+versions produce execution ERROR before a subject call. Retained results remain
+readable; the historical Pi 0.83.0 raw parser is not current qualification.
+
 ## Install
 
 ```bash

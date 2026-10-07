@@ -103,6 +103,7 @@ export interface TraceMetrics {
   /** Date of the repository price table used for cost_usd; null when unpriced. */
   price_as_of: string | null;
   tool_calls: number;
+  /** Legacy field: requested Agent arguments, not verified child launches. */
   delegated_children: number;
   /** Maximum simultaneously outstanding tool calls observed in the pi stream. */
   max_concurrency: number;
@@ -131,6 +132,9 @@ export interface ExecutionTraceV1 {
    * never contained, changing grades on scenarios nobody edited.
    */
   final_text: string;
+
+  /** Observed terminal state; unknown versions are unqualified, historical Pi 0.83.0 has no settlement field. */
+  final_status?: "complete" | "error" | "aborted" | "incomplete" | "truncated" | "unavailable" | "unqualified";
 
   /** Every tool call in this invocation, in issue order. */
   tool_calls: TraceToolCall[];

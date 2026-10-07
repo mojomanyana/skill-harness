@@ -24,6 +24,15 @@ import type { ModelRef, RunMode } from "./adapters/types.js";
  *    concurrently and their `end` events arrive in completion order.
  */
 
+/** Current execution is qualified only against this exact Pi release. */
+export const QUALIFIED_PI_VERSION = "1.0.4";
+/** Historical raw captures from this version remain readable; this is not fresh-run qualification. */
+const LEGACY_PI_TRACE_VERSION = "0.83.0";
+export function piQualificationFailure(version: string | null): string | null {
+  return version === QUALIFIED_PI_VERSION ? null
+    : `Pi ${version ?? "(version unavailable)"} is unqualified; execution requires exact Pi ${QUALIFIED_PI_VERSION}`;
+}
+
 /** Events that carry no information a trace keeps, and are large. */
 const SKIPPED = new Set(["message_update", "tool_execution_update"]);
 
@@ -83,6 +92,13 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
   let completionCounter = 0;
   let malformedLines = 0;
   let sawTerminal = false;
+  const settledContract = meta.piVersion !== LEGACY_PI_TRACE_VERSION;
+  const qualificationFailure = settledContract ? piQualificationFailure(meta.piVersion) : null;
+  let sawSettled = false;
+  let lastStopReason: string | undefined;
+  let currentAssistantText = "";
+  let eligibleFinal = false;
+  const captureErrors: string[] = [];
 
   let finalText = "";
   let lastAssistantText = "";
@@ -104,12 +120,35 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
       malformedLines++;
       continue;
     }
+    if (!ev || typeof ev !== "object" || Array.isArray(ev)) {
+      malformedLines++;
+      continue;
+    }
     const type = ev.type;
-    if (typeof type !== "string" || SKIPPED.has(type)) continue;
+    if (typeof type !== "string") {
+      malformedLines++;
+      continue;
+    }
+    if (settledContract && ["agent_start", "turn_start", "message_start", "message_update", "message_end", "tool_execution_start", "tool_execution_end"].includes(type)) {
+      sawSettled = false;
+      if (type !== "tool_execution_end") {
+        currentAssistantText = "";
+        lastStopReason = undefined;
+        eligibleFinal = false;
+      }
+    }
+    if (SKIPPED.has(type)) continue;
 
     if (type === "tool_execution_start") {
       const id = str(ev.toolCallId);
-      if (!id) continue;
+      if (!id) {
+        captureErrors.push("tool start without an identity");
+        continue;
+      }
+      if (calls.has(id)) {
+        captureErrors.push("duplicate tool start identity");
+        continue;
+      }
       calls.set(id, {
         id,
         name: str(ev.toolName) ?? "(unknown)",
@@ -127,9 +166,19 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
 
     if (type === "tool_execution_end") {
       const id = str(ev.toolCallId);
-      if (!id) continue;
+      if (!id) {
+        captureErrors.push("tool end without an identity");
+        continue;
+      }
       const call = calls.get(id);
-      if (!call) continue; // an end with no start is not evidence of a call
+      if (!call) {
+        captureErrors.push("tool end without a matching start");
+        continue;
+      }
+      if (call.completionIndex >= 0) {
+        captureErrors.push("duplicate tool completion identity");
+        continue;
+      }
       if (call.completionIndex < 0) activeCalls = Math.max(0, activeCalls - 1);
       call.completionIndex = completionCounter++;
       if (completedAt.get(id)) call.completed_at = completedAt.get(id);
@@ -141,7 +190,19 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
     if (type === "message_end") {
       sawTerminal = true;
       const msg = ev.message as RawMessage | undefined;
-      const at = isoTime(msg?.timestamp);
+      if (!msg || typeof msg !== "object" || Array.isArray(msg) || typeof msg.role !== "string") {
+        captureErrors.push("malformed message_end message");
+        continue;
+      }
+      // Pi also emits system/user messages; a system message has string content.
+      // They invalidate a previous final but are not assistant/tool-result payloads.
+      if (msg.role !== "assistant" && msg.role !== "toolResult") continue;
+      if (!Array.isArray(msg.content) ||
+          msg.content.some((block) => !block || typeof block !== "object" || Array.isArray(block) || typeof block.type !== "string" || (block.type === "text" && typeof block.text !== "string"))) {
+        captureErrors.push("malformed message_end content");
+        continue;
+      }
+      const at = isoTime(msg.timestamp);
       if (msg?.role === "assistant" && at) {
         for (const block of msg.content ?? []) {
           if (block.type !== "toolCall" || typeof block.id !== "string") continue;
@@ -157,6 +218,9 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
       }
       if (msg?.role !== "assistant") continue;
       const text = assistantText(msg);
+      eligibleFinal = msg.content!.every((block) => block.type === "text" || block.type === "thinking");
+      currentAssistantText = text;
+      lastStopReason = msg.stopReason;
       if (text) {
         lastAssistantText = text;
         // `stop` marks the model's closing message; a `toolUse` message is
@@ -172,15 +236,32 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
 
     if (type === "turn_end" || type === "agent_end" || type === "agent_settled") {
       sawTerminal = true;
+      if (type === "agent_settled") sawSettled = true;
       // Deliberately read NOTHING from these. They repeat the same assistant
       // messages `message_end` already carried (`turn_end` and `agent_end` do;
-    // `agent_settled` carries no keys at all beyond `type`), and reading two
+      // `agent_settled` carries no keys at all beyond `type`), and reading two
       // sources would double the transcript and reintroduce thinking.
       continue;
     }
   }
 
   const toolCalls = [...calls.values()].sort((a, b) => a.issueIndex - b.issueIndex);
+  if (malformedLines > 0) captureErrors.push(`pi JSONL contained ${malformedLines} malformed line(s); trace evidence is incomplete`);
+  const finalStatus: NonNullable<ExecutionTraceV1["final_status"]> = qualificationFailure ? "unqualified"
+    : !sawSettled || activeCalls > 0 ? "incomplete"
+    : captureErrors.length > 0 ? "unavailable"
+    : lastStopReason === "error" ? "error"
+    : lastStopReason === "aborted" ? "aborted"
+    : lastStopReason === "length" ? "truncated"
+    : lastStopReason === "stop" && eligibleFinal && currentAssistantText.length > 0 ? "complete" : "unavailable";
+  if (settledContract && finalStatus !== "complete") {
+    const reason = qualificationFailure
+      ?? (finalStatus === "incomplete" ? "current settlement is missing or tool calls remain outstanding"
+        : finalStatus === "truncated" ? "settled assistant reached its output length limit"
+        : finalStatus === "error" || finalStatus === "aborted" ? `settled assistant stop reason is ${lastStopReason}`
+        : "current terminal assistant content is empty, ineligible, or captured evidence is malformed");
+    captureErrors.push(`Pi ${meta.piVersion ?? "(version unavailable)"} final delivery is ${finalStatus}; ${reason}`);
+  }
   const metrics: TraceMetrics = {
     input_tokens: inputTokens,
     output_tokens: outputTokens,
@@ -210,7 +291,9 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
     // and `smoke-real-pi.sh` asserts no `/home/` survives into a persisted trace
     // — an assertion that used to pass only because the smoke model happened not
     // to echo one.
-    final_text: redactText(finalText || lastAssistantText, meta.homeDir),
+    final_text: redactText(settledContract ? currentAssistantText : finalText || lastAssistantText, meta.homeDir),
+    ...(settledContract ? { final_status: finalStatus } : {}),
+    ...(captureErrors.length ? { capture_errors: [...new Set(captureErrors)] } : {}),
     tool_calls: toolCalls,
     // `null`, not `[]`: the stream says nothing about the filesystem. The runner
     // overwrites this after observing the workspace. Defaulting to `[]` claimed
@@ -223,7 +306,7 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
   };
   trace.trace_sha256 = traceSha256(trace);
 
-  return { trace, isComplete: sawTerminal, malformedLines };
+  return { trace, isComplete: settledContract ? !qualificationFailure && sawSettled && activeCalls === 0 : sawTerminal, malformedLines };
 }
 
 function addReported(current: number | null, value: number | undefined): number | null {
@@ -235,8 +318,7 @@ function assistantText(msg: RawMessage): string {
   return (msg.content ?? [])
     .filter((b) => b.type === "text" && typeof b.text === "string")
     .map((b) => b.text as string)
-    .join("\n")
-    .trim();
+    .join("");
 }
 
 /**

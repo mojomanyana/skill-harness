@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import type { HarnessAdapter, RunReq, JudgeReq, RunMode, StructuredRun, ExecutionTraceV1 } from "@skill-harness/core";
 import { runPiJson } from "./pi-json.js";
 import { priceSubjectUsage } from "./model-pricing.js";
-import { exec, onPath, envNum, traceSha256, withProviderFailure } from "@skill-harness/core";
+import { exec, onPath, envNum, piQualificationFailure, withProviderFailure, withExecutionFailure } from "@skill-harness/core";
 
 const PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 300_000);
 
@@ -121,12 +121,12 @@ export const piAdapter: HarnessAdapter = {
    * results.yaml as `harness_cli_version`.
    *
    * Null on any failure — a non-zero exit, empty output, or pi missing entirely.
-   * A run must not abort because provenance was unavailable, and a fabricated
-   * version would be worse than an absent one.
+   * The probe never fabricates a version. Fresh subject execution refuses an
+   * unavailable or unqualified result before starting the model.
    */
-  async version(): Promise<string | null> {
+  async version(options?: { cwd?: string; env?: NodeJS.ProcessEnv }): Promise<string | null> {
     try {
-      const r = await exec("pi", ["--version"], { timeoutMs: 30_000 });
+      const r = await exec("pi", ["--version"], { timeoutMs: 30_000, ...options });
       const line = r.stdout.split("\n")[0]?.trim() ?? "";
       if (r.code !== 0 || line === "") return null;
       // Tolerate a future `pi 1.2.3` / `pi version 1.2.3` shape without losing the
@@ -155,12 +155,14 @@ export const piAdapter: HarnessAdapter = {
     const flags = req.systemPromptFile
       ? ["--no-skills", "--append-system-prompt", readFileSync(req.systemPromptFile, "utf8")]
       : skillFlags(req.mode, req.skillDir);
+    const env = req.armEnv ? { ...process.env, ...req.armEnv } : undefined;
+    const qualificationFailure = piQualificationFailure(await this.version!({ cwd: req.cwd, env }));
+    if (qualificationFailure) return withExecutionFailure("", qualificationFailure);
     const total = req.turns.length;
     const parts: string[] = [];
     // The arm's env, merged over the harness's own — undefined (not `process.env`)
     // when there is none, so `exec`'s `env: opts.env ?? process.env` inherits
     // normally and the control arm is unaffected.
-    const env = req.armEnv ? { ...process.env, ...req.armEnv } : undefined;
 
     // Collected across turns and written by `withProviderFailure` into the
     // transcript PREAMBLE at the end, never inline after an assistant turn: the
@@ -224,15 +226,22 @@ export const piAdapter: HarnessAdapter = {
       ? ["--no-skills", "--append-system-prompt", readFileSync(req.systemPromptFile, "utf8")]
       : skillFlags(req.mode, req.skillDir);
 
-    const piVersion = await this.version!();
+    const env = req.armEnv ? { ...process.env, ...req.armEnv } : undefined;
+    const piVersion = await this.version!({ cwd: req.cwd, env });
+    const qualificationFailure = piQualificationFailure(piVersion);
+    if (qualificationFailure) return {
+      transcript: withExecutionFailure("", qualificationFailure),
+      traces: [],
+      executionFailure: qualificationFailure,
+    };
     const total = req.turns.length;
     const traces: ExecutionTraceV1[] = [];
     const parts: string[] = [];
     const session = total === 1 ? null : mkdtempSync(join(tmpdir(), "sc-pi-session-"));
     let providerFailure: string | null = null;
+    let executionFailure: string | null = null;
     // Same merge as `run()`: undefined when the arm carries no env, so `spawn`
     // (which treats `undefined` as "inherit") leaves the control arm untouched.
-    const env = req.armEnv ? { ...process.env, ...req.armEnv } : undefined;
 
     for (let i = 0; i < total; i++) {
       const turnFlags =
@@ -261,7 +270,15 @@ export const piAdapter: HarnessAdapter = {
       // Fail loudly here rather than let an empty trace satisfy a `forbid_calls`
       // gate — "the model called nothing" and "we recorded nothing" must not
       // reach the scorer looking the same.
-      if (!r.isComplete) {
+      // A settled stream can still end in error/abort, and exit zero is not
+      // terminal success. Preserve the trace and a durable preamble so an
+      // ungated run or later grade cannot turn unavailable delivery into PASS.
+      if (r.trace.final_status !== undefined &&
+          (r.trace.final_status !== "complete" || r.trace.capture_errors?.length || r.code !== 0)) {
+        executionFailure = `Pi ${piVersion} turn ${i + 1}/${total}: final delivery ${r.trace.final_status}` +
+          ` (exit ${r.code}); ${r.trace.capture_errors?.join("; ") || "successful process completion was not established"}`;
+      }
+      if (!r.isComplete && !executionFailure) {
         throw new Error(
           `pi --mode json produced no terminal events for turn ${i + 1}/${total}` +
             ` (exit ${r.code}${r.malformedLines ? `, ${r.malformedLines} malformed line(s)` : ""})` +
@@ -269,28 +286,30 @@ export const piAdapter: HarnessAdapter = {
         );
       }
 
-      if (r.malformedLines > 0) {
-        r.trace.capture_errors = [`pi JSONL contained ${r.malformedLines} malformed line(s); absence-based trace assertions are unsafe`];
-        r.trace.trace_sha256 = traceSha256(r.trace);
-      }
       // Recorded here, written into the transcript preamble by
       // `withProviderFailure` below — not just returned on `providerFailure`: the
       // artifact on disk is the only thing a later `grade`/`regrade` call ever
       // reads (see `judgeOneRep` in core/regrade.ts), and the structured path
       // exits 0 while carrying the evidence, so a field a re-judge never sees
       // leaves it unrecoverable from the saved transcript.
-      if (providerFailure === null && r.providerFailure) providerFailure = r.providerFailure;
+      // The qualified settlement contract can prove a successful retry. An
+      // earlier transport diagnostic alone must not override that final result.
+      if (providerFailure === null && r.providerFailure && r.trace.final_status !== "complete") {
+        providerFailure = r.providerFailure;
+      }
       const pricedTrace = priceSubjectUsage(r.trace);
       traces.push(pricedTrace);
       parts.push(header(i + 1, total, req.turns[i]));
-      parts.push(`<<< ASSISTANT:\n${pricedTrace.final_text.trim()}\n`);
+      parts.push(`<<< ASSISTANT:\n${pricedTrace.final_text}\n`);
       if (r.code !== 0) parts.push(`[pi exited ${r.code} on turn ${i + 1}]\n${r.stderr.trim()}\n`);
+      if (executionFailure || providerFailure) break;
     }
 
     return {
-      transcript: withProviderFailure(parts.join("\n"), providerFailure),
+      transcript: withProviderFailure(withExecutionFailure(parts.join("\n"), executionFailure), providerFailure),
       traces,
       ...(providerFailure ? { providerFailure } : {}),
+      ...(executionFailure ? { executionFailure } : {}),
     };
   },
 

@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "repository": "https://github.com/mojomanyana/pi-daddy",
+  "commit": "6327d0bca1b580b15921a11e184f0199814831bb",
+  "path": "packages/pi-daddy/test-integration/pi-sdk/fixtures/provenance.json",
+  "sha256": "fd55ece9dcd18e61f86057469b23b8d39f44c9ac2329f48ea63d228b787b1337",
+  "note": "Original capture producer provenance copied verbatim. This commit contains the capture program and original fixture bytes; it is not the current runtime release head."
+}

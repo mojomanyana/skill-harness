@@ -34,7 +34,7 @@ vi.mock("@skill-harness/core", async (importOriginal) => {
     onPath: () => true,
     exec: vi.fn(async (_command: string, args: string[]) =>
       args.includes("--version")
-        ? { code: 0, stdout: "0.83.0\n", stderr: "" }
+        ? { code: 0, stdout: "1.0.4\n", stderr: "" }
         : { code: 0, stdout: "77\n", stderr: "" }),
   };
 });
@@ -42,6 +42,11 @@ vi.mock("@skill-harness/core", async (importOriginal) => {
 import { piAdapter } from "../src/pi.js";
 
 const FIXTURES = join(__dirname, "fixtures", "pi-json");
+// Synthetic settled variants of retained 0.83.0 records exercise adapter plumbing;
+// actual 1.0.4 capture qualification lives in pi-1.0.4-contract.test.ts.
+function settledFixture(name: string): string {
+  return readFileSync(join(FIXTURES, name), "utf8") + '{"type":"agent_settled"}\n';
+}
 function skill(): string {
   const dir = mkdtempSync(join(tmpdir(), "sh-structured-skill-"));
   writeFileSync(join(dir, "SKILL.md"), "---\nname: demo\ndescription: demo\n---\n\n## Demo\n", "utf8");
@@ -55,7 +60,7 @@ beforeEach(() => {
 
 describe("piAdapter.runStructured", () => {
   it("spawns pi --mode json with the same delivery flags and --no-session for one turn", async () => {
-    streams.push(readFileSync(join(FIXTURES, "single-turn.jsonl"), "utf8"));
+    streams.push(settledFixture("single-turn.jsonl"));
     const result = await piAdapter.runStructured!({
       skillDir: skill(), model: { provider: "fireworks", model: "x" }, mode: "green",
       turns: ["Remember the number 77, then say it."], cwd: "/tmp", scenarioId: "A1", rep: 0,
@@ -67,8 +72,8 @@ describe("piAdapter.runStructured", () => {
 
   it("uses one session dir and -c on every turn after the first", async () => {
     streams.push(
-      readFileSync(join(FIXTURES, "multi-turn-turn1.jsonl"), "utf8"),
-      readFileSync(join(FIXTURES, "multi-turn-turn2.jsonl"), "utf8"),
+      settledFixture("multi-turn-turn1.jsonl"),
+      settledFixture("multi-turn-turn2.jsonl"),
     );
     await piAdapter.runStructured!({
       skillDir: skill(), model: { provider: "fireworks", model: "x" }, mode: "force",
@@ -82,13 +87,14 @@ describe("piAdapter.runStructured", () => {
   });
 
   it("reconstructs a byte-identical transcript to run() for the same final assistant text", async () => {
-    streams.push(readFileSync(join(FIXTURES, "multi-turn-turn2.jsonl"), "utf8"));
+    streams.push(settledFixture("multi-turn-turn2.jsonl"));
     const req = {
       skillDir: skill(), model: { provider: "fireworks", model: "x" }, mode: "green" as const,
       turns: ["what number?"], cwd: "/tmp", scenarioId: "A1", rep: 0,
     };
     const structured = await piAdapter.runStructured!(req);
     const plain = await piAdapter.run(req);
+    expect(structured.traces[0].final_text).toBe("77");
     expect(structured.transcript).toBe(plain);
   });
 
@@ -98,15 +104,16 @@ describe("piAdapter.runStructured", () => {
       skillDir: skill(), model: { provider: "fireworks", model: "x" }, mode: "green",
       turns: ["hi"], cwd: "/tmp", scenarioId: "A1", rep: 0,
     });
-    expect(result.traces[0].capture_errors?.[0]).toMatch(/malformed line/);
+    expect(result.traces[0].capture_errors?.filter((entry) => /malformed line/.test(entry))).toHaveLength(1);
   });
 
-  it("throws when the stream has no terminal event rather than returning empty evidence", async () => {
+  it("records no terminal event as unavailable execution rather than usable evidence", async () => {
     streams.push('{"type":"session","cwd":"/tmp"}\n');
-    await expect(piAdapter.runStructured!({
+    const result = await piAdapter.runStructured!({
       skillDir: skill(), model: { provider: "fireworks", model: "x" }, mode: "green",
       turns: ["hi"], cwd: "/tmp", scenarioId: "A1", rep: 0,
-    })).rejects.toThrow(/no terminal events/);
+    });
+    expect(result.executionFailure).toContain("incomplete");
   });
 
   it("collects a provider failure that occurs on a turn other than the first", async () => {
@@ -123,8 +130,8 @@ describe("piAdapter.runStructured", () => {
       },
     });
     streams.push(
-      readFileSync(join(FIXTURES, "multi-turn-turn1.jsonl"), "utf8"),
-      `${providerFailureLine}\n${readFileSync(join(FIXTURES, "multi-turn-turn2.jsonl"), "utf8")}`,
+      settledFixture("multi-turn-turn1.jsonl"),
+      `${providerFailureLine}\n${settledFixture("multi-turn-turn2.jsonl").replaceAll('"stopReason":"stop"', '"stopReason":"error"')}`,
     );
     const result = await piAdapter.runStructured!({
       skillDir: skill(), model: { provider: "fireworks", model: "x" }, mode: "force",
@@ -161,8 +168,8 @@ describe("piAdapter.runStructured", () => {
       },
     });
     streams.push(
-      readFileSync(join(FIXTURES, "multi-turn-turn1.jsonl"), "utf8"),
-      `${providerFailureLine}\n${readFileSync(join(FIXTURES, "multi-turn-turn2.jsonl"), "utf8")}`,
+      settledFixture("multi-turn-turn1.jsonl"),
+      `${providerFailureLine}\n${settledFixture("multi-turn-turn2.jsonl").replaceAll('"stopReason":"stop"', '"stopReason":"error"')}`,
     );
     const result = await piAdapter.runStructured!({
       skillDir: skill(), model: { provider: "fireworks", model: "x" }, mode: "force",

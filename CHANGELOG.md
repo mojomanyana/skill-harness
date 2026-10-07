@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.24.0-rc.2 — Pi qualification and final conformance (2026-10-07)
+
+### Fixed
+
+- Refuse fresh subject execution unless `pi --version` reports exactly `1.0.4`; unavailable, prerelease, older and newer versions produce a durable execution ERROR before subject spawn. They cannot silently select historical parsing or become judgeable during saved regrading.
+- Match runtime final eligibility: concatenate visible text blocks without an inserted separator or trimming, reject tool-call or unknown block types as finals, and mark empty/thinking-only finals unavailable. Whitespace-only bytes remain preserved. Existing trace redaction is unchanged.
+- Record settled `length` stops as `truncated` with the precise output-limit reason. Recorded provider or execution failures stop dependent structured turns. Known unavailable execution does not trigger the empty-answer retry; the existing provider-only empty-response retry for text-only compatibility adapters remains unchanged.
+- Keep a bounded state marker when dropping streaming update payloads, so later activity invalidates an earlier final. Malformed update records remain errors, and malformed-line diagnostics are emitted once by the parser.
+- Copy actual capture provenance verbatim from its original producer commit, pin that source separately, and share the runtime/harness final conformance table over the unchanged captures.
+
+### Compatibility
+
+- This corrected prerelease supersedes rc.1 for evaluation. The published rc.1 tag and artifacts remain immutable; this change does not assert npm publication or stable promotion.
+
+- Retained result schemas remain readable. Exact Pi `0.83.0` raw captures retain their fixture-backed historical parser, which does not claim current settlement qualification; all other parser versions are unqualified. Structural capture errors (missing/duplicate tool identities, unmatched completions, malformed messages) apply to every parsed version and make objective trace evidence ERROR. Historical raw final text now uses the same separator-free, untrimmed assembly, which can affect whitespace-sensitive output-gate regexes on newly parsed captures; saved artifacts are not rewritten.
+- Fresh structured runs end at a recorded provider or execution failure, including when no assistant text is available. This restriction is not limited to scenarios with trace gates. No model-quality evaluation or additional Pi version qualification is claimed.
+
+## 0.24.0-rc.1 — Pi 1.0.4 settlement evidence (2026-10-07)
+
+### Fixed
+
+- Require settled Pi 1.0.4 delivery before judging. Terminal errors, aborts, missing settlement, malformed captures and nonzero process exits remain infrastructure ERROR during both new runs and saved regrading.
+- Preserve the latest assistant final and its whitespace; an earlier successful answer cannot replace a later failure. Successful settled retries can supersede transient transport diagnostics without changing the existing empty-response retry policy.
+
+### Changed
+
+- Label requested Agent tasks and outstanding parent tool calls without claiming observed child launches or child concurrency.
+
+### Added
+
+- Add sanitized, hash-pinned actual Pi 1.0.4 CLI captures and parser, adapter, run and regrade regressions. Legacy version handling remains separate.
+- Prepare synchronized prerelease package metadata. This candidate does not claim remote-provider qualification or npm publication, and does not promote a stable version or the npm latest tag.
+
 ## 0.23.0 — Structured judge votes (2026-10-04)
 
 ### Changed

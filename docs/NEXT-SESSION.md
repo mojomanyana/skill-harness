@@ -2,8 +2,14 @@
 
 ## Current state
 
-`v0.20.0` is published to npm and is the current `latest` release. The registry
-serves all four public packages at 0.20.0.
+`0.24.0-rc.2` is the prepared repository prerelease candidate. Package manifests
+identify these candidate bytes; no npm publication or `latest` promotion is claimed.
+Historical released versions remain recorded in the changelog.
+
+Fresh subject execution is qualified only on exact Pi **1.0.4**. Other or unknown
+versions fail closed before subject spawn. Historical Pi 0.83.0 raw captures remain
+readable through their explicit legacy parser; they are not current qualification.
+See the README's Pi qualification section and shared final conformance table.
 
 The current architecture is Pi-only:
 

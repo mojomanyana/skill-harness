@@ -179,6 +179,12 @@ harness CLI it drove — `pi --version`), and the run banner and `--version` bot
 former. `schema` cannot answer either question: 0.2.1 → 0.3.0 kept `schema: 2` while
 changing what a verdict *means*.
 
+Fresh subject execution now requires exact Pi **1.0.4**. The version probe uses the
+same working directory and environment as the subject, including an arm's `PATH`.
+Other versions or a failed probe produce a saved execution ERROR before subject
+spawn; saved regrading preserves that failure. Historical result files remain
+readable without claiming the producing Pi version is currently qualified.
+
 `harness_cli_version` exists because of §4e: a pi upgrade changed what green mode
 measures, and the two waves it invalidated are indistinguishable from valid ones in the
 committed artifacts, because nothing recorded which pi ran. It is written by `run` only —

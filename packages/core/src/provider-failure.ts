@@ -32,6 +32,16 @@
  * convention cannot drift apart.
  */
 export const PROVIDER_FAILURE_MARKER = "[skill-harness] provider failure:";
+/** Failed or unproven terminal delivery, without assuming a provider-side cause. */
+export const EXECUTION_FAILURE_MARKER = "[skill-harness] execution failure:";
+
+export function withExecutionFailure(transcript: string, failure: string | null): string {
+  return failure ? `${EXECUTION_FAILURE_MARKER} ${failure}\n\n${transcript}` : transcript;
+}
+
+export function executionFailureFromTranscript(transcript: string): string | null {
+  return failureFromPreamble(transcript, EXECUTION_FAILURE_MARKER);
+}
 
 /**
  * The adapters' shared turn-header prefix (`>>> USER:` / `>>> USER (turn n/m):`),
@@ -94,9 +104,13 @@ export function providerFailureFromJsonLine(line: string): string | null {
  * provider failed — it is evidence the model typed the words.
  */
 export function providerFailureFromTranscript(transcript: string): string | null {
+  return failureFromPreamble(transcript, PROVIDER_FAILURE_MARKER);
+}
+
+function failureFromPreamble(transcript: string, marker: string): string | null {
   for (const line of transcript.split("\n")) {
     if (line.startsWith(TURN_HEADER_PREFIX)) return null;
-    if (line.startsWith(PROVIDER_FAILURE_MARKER)) return line.slice(PROVIDER_FAILURE_MARKER.length).trim();
+    if (line.startsWith(marker)) return line.slice(marker.length).trim();
   }
   return null;
 }
