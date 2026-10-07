@@ -1,0 +1,56 @@
+{
+  "producer": "pi-daddy",
+  "repository": "mojomanyana/pi-daddy",
+  "commit": "38418793efb785bc582c4a233a18c40364ccd1be",
+  "tree": "f77fa3b1f81705d640d2ffe4f77dedf0961a32bd",
+  "version": "0.44.3",
+  "recordVersion": 1,
+  "ledgerVersion": 3,
+  "artifacts": {
+    "record.schema.json": {
+      "source": "packages/pi-daddy/contracts/ledger-record/v1/record.schema.json",
+      "sha256": "55f39a233db59c98a339aa989c113d6c97a5e8b64642448a205825ba5f1ee113"
+    },
+    "governance-event.schema.json": {
+      "source": "packages/pi-daddy/contracts/ledger-record/v1/governance-event.schema.json",
+      "sha256": "53267eb01ca3da3c3f1dfa4be2fb6903c1a0cbe2094fa4476fc2486fbe9dc259"
+    },
+    "README.md": {
+      "source": "packages/pi-daddy/contracts/ledger-record/v1/README.md",
+      "sha256": "35f7cbc6703ba6c94f6eef59c809c8a251f23a9fd6e585256272eaf5ac49656e"
+    },
+    "fixtures/ledger-record.jsonl": {
+      "source": "packages/pi-daddy/contracts/ledger-record/v1/fixtures/ledger-record.jsonl",
+      "sha256": "ddcfd8928aa873af3729c2a231f3e0b0c77b3fbf8a3802e10a618564bdc9ddc0"
+    },
+    "fixtures/capability-decision.json": {
+      "source": "packages/pi-daddy/contracts/ledger-record/v1/fixtures/capability-decision.json",
+      "sha256": "2d516dad9ee613068ac781efd25164241a7580a71e7f48f5a4d3e3c62a5884e0"
+    },
+    "fixtures/workspace-lease.json": {
+      "source": "packages/pi-daddy/contracts/ledger-record/v1/fixtures/workspace-lease.json",
+      "sha256": "915460b3a184b8ec0c00235ef44da4948b8d6d2eb585db72df56747e7d6bad1d"
+    },
+    "fixtures/child-lifecycle.json": {
+      "source": "packages/pi-daddy/contracts/ledger-record/v1/fixtures/child-lifecycle.json",
+      "sha256": "74c468a75f41319b2f85f3d3d59beaebbdcd925421a4121f4c5d00866d371212"
+    },
+    "fixtures/episode-cost-gate.json": {
+      "source": "packages/pi-daddy/contracts/ledger-record/v1/fixtures/episode-cost-gate.json",
+      "sha256": "5c8db19e1b4be8253ed9750038a95323e9dd75146e7b94e7974f441d4dec76dd"
+    },
+    "fixtures/session-config.json": {
+      "source": "packages/pi-daddy/contracts/ledger-record/v1/fixtures/session-config.json",
+      "sha256": "c08d21360de01a6a344990d92c513798e5fe554e508c95116e56fd3f992ef31e"
+    },
+    "fixtures/episode-outcome.json": {
+      "source": "packages/pi-daddy/contracts/ledger-record/v1/fixtures/episode-outcome.json",
+      "sha256": "2699d814bdb1696248b352e7bfa84144d69ff64e54f201ffe8b26ec20ec09ca8"
+    },
+    "record.ts": {
+      "source": "packages/pi-daddy/src/governance/record.ts",
+      "sha256": "7556b087ad4c678ed77b592b600558e61967af2899bdc7432ef00b654a47ce93"
+    }
+  },
+  "note": "Independent current record pin. Historical ledger v2 and bare-v3 pins remain unchanged. Schemas and producer fixtures are byte exact."
+}

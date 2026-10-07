@@ -3,7 +3,7 @@ export const TRAJECTORY_EVENT_VERSION = "1.1" as const;
 export type TrajectoryEventVersion = typeof LEGACY_TRAJECTORY_EVENT_VERSION | typeof TRAJECTORY_EVENT_VERSION;
 
 export interface TrajectoryEventSource {
-  adapter: "normalized-v1" | "principal-assurance-v1" | "pi-daddy-v1" | "pi-daddy-ledger-v3";
+  adapter: "normalized-v1" | "principal-assurance-v1" | "pi-daddy-v1" | "pi-daddy-ledger-v3" | "pi-daddy-record-v1";
   path: string;
   required: boolean;
 }

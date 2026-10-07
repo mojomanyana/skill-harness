@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.24.3
+
+- Add explicit `pi-daddy-record-v1` ingestion for current native governance ledgers, pinned to the corrected pi-daddy 0.44.3 producer contract. Verify closed envelope/body schemas and the full hash chain before normalizing observations.
+- Preserve historical bare-v3/v2 selectors and retain current model, definition, usage and execution identities without inventing grants or subjective verdicts.
+- Enforce current schema negation, unique-array and exclusive numeric-bound constraints; reject unknown fields and torn or tampered records.
+
 ## 0.24.2 — release-state documentation and verification (2026-10-07)
 
 - Separate source release targets from live npm and GitHub state in release documentation, so candidate preparation cannot be mistaken for a publication claim.
