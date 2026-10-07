@@ -68,3 +68,24 @@ it("does not accept settlement before an outstanding tool completes", () => {
   expect(result.isComplete).toBe(false);
   expect(result.trace.final_status).toBe("incomplete");
 });
+for (const piVersion of ["1.0.5", "1.0.4-rc.1", "0.84.1", "unknown", null]) {
+  it(`never downgrades unqualified ${piVersion} to historical parsing`, () => {
+    const result = parseTrace([JSON.stringify(message("plausible")), JSON.stringify(settled)], { ...meta, piVersion });
+    expect(result.trace.final_status).toBe("unqualified");
+    expect(result.isComplete).toBe(false);
+    expect(result.trace.capture_errors?.join(" ")).toContain("requires exact Pi 1.0.4");
+  });
+}
+it("retains historical 0.83.0 parsing with exact concatenated visible text", () => {
+  const result = parseTrace([JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop",
+    content: [{ type: "text", text: "  first" }, { type: "text", text: "second\n\n" }] } })], { ...meta, piVersion: "0.83.0" });
+  expect(result.trace.final_status).toBeUndefined();
+  expect(result.isComplete).toBe(true);
+  expect(result.trace.final_text).toBe("  firstsecond\n\n");
+});
+it("reports a settled length limit precisely rather than missing settlement", () => {
+  const result = parse(message("partial", "length"), settled);
+  expect(result.trace.final_status).toBe("truncated");
+  expect(result.trace.capture_errors?.join(" ")).toContain("output length limit");
+  expect(result.trace.capture_errors?.join(" ")).not.toContain("settlement is missing");
+});

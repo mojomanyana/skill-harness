@@ -66,7 +66,7 @@ import { runPiJson, SKIPPED_TYPE_RE } from "../src/pi-json.js";
 const META = {
   cwd: "/tmp",
   timeoutMs: 5000,
-  piVersion: "0.84.1",
+  piVersion: "0.83.0",
   subject: { provider: "fireworks", model: "x" },
   scenarioId: "A1",
   mode: "green" as const,
@@ -221,5 +221,23 @@ describe("provider failure detection", () => {
     scripts.push({ stdout: `${BENIGN_DIAGNOSTIC_LINE}\n${TERMINAL}` });
     const r = await run();
     expect(r.providerFailure).toBeNull();
+  });
+});
+
+describe("qualified streaming state markers", () => {
+  const final = JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop",
+    content: [{ type: "text", text: "answer" }] } }) + '\n{"type":"agent_settled"}\n';
+  it("invalidates an earlier final when a discarded update arrives later", async () => {
+    scripts.push({ stdout: final + '{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"later"}}\n{"type":"agent_settled"}\n' });
+    const result = await runPiJson({ args: [], ...META, piVersion: "1.0.4" });
+    expect(result.trace.final_status).toBe("unavailable");
+    expect(result.trace.final_text).toBe("");
+  });
+  it.each(["message_update", "tool_execution_update"])("does not hide malformed %s payloads", async (type) => {
+    scripts.push({ stdout: final + `{"type":"${type}",BROKEN}\n` });
+    const result = await runPiJson({ args: [], ...META, piVersion: "1.0.4" });
+    expect(result.malformedLines).toBe(1);
+    expect(result.trace.final_status).toBe("unavailable");
+    expect(result.trace.capture_errors?.filter((entry) => entry.includes("malformed line"))).toHaveLength(1);
   });
 });

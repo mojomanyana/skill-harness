@@ -97,7 +97,21 @@ export function runPiJson(opts: PiJsonRunOptions): Promise<PiJsonRunResult> {
       // dropped start means the call never enters the trace at all. A
       // `forbid_calls` gate on that tool then passed for want of the evidence.
       if (!line.trim()) return;
-      if (SKIPPED_TYPE_RE.test(line)) return;
+      if (SKIPPED_TYPE_RE.test(line)) {
+        // Validate but never retain the quadratic payload. Otherwise a malformed
+        // update could disappear and make an incomplete capture look successful.
+        try {
+          const event = JSON.parse(line) as { type: string };
+          // A late update invalidates an earlier final/settlement. Consecutive
+          // updates need only one small state marker, not their accumulated text.
+          if (event.type === "message_update" && kept.at(-1) !== '{"type":"message_update"}') {
+            kept.push('{"type":"message_update"}');
+          }
+        } catch {
+          kept.push("null"); // one parser-owned malformed-record error per bad line
+        }
+        return;
+      }
       kept.push(line);
       if (providerFailure === null) providerFailure = providerFailureFromJsonLine(line);
     });

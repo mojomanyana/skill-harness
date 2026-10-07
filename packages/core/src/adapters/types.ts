@@ -128,7 +128,8 @@ export interface HarnessAdapter {
    * field is to identify which CLI produced a transcript.
    *
    * Optional so a test double or a future adapter need not implement it; callers
-   * treat a missing method exactly like a null answer.
+   * treat a missing method exactly like a null answer. A qualification probe must
+   * use the same cwd and environment as the execution it qualifies.
    */
-  version?(): Promise<string | null>;
+  version?(options?: { cwd?: string; env?: NodeJS.ProcessEnv }): Promise<string | null>;
 }

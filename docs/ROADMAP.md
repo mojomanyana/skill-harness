@@ -7,7 +7,7 @@ skills. The run → grade → review loop stays free of product paywalls.
 
 ## Current state
 
-- Repository prerelease candidate: `0.24.0-rc.1` (see package manifests); no npm publication or `latest` promotion is claimed.
+- Repository prerelease candidate: `0.24.0-rc.2` (see package manifests); no npm publication or `latest` promotion is claimed.
 - Fresh runs write results schema 2.
 - Historical schema 1–3 results remain readable for compatibility.
 - Pi is the only execution path for subject, judge, and `suggest` model calls.

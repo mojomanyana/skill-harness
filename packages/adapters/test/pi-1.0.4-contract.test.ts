@@ -14,6 +14,12 @@ function fixture(name: string) {
 describe("actual model-free Pi 1.0.4 CLI captures", () => {
   it("pins fixture identity and the exact real producer version", () => {
     const provenance = JSON.parse(readFileSync(new URL("provenance.json", fixtureRoot), "utf8"));
+    const source = JSON.parse(readFileSync(new URL("vendor-source.json", fixtureRoot), "utf8"));
+    expect(source.repository).toBe("https://github.com/mojomanyana/pi-daddy");
+    expect(source.commit).toBe("6327d0bca1b580b15921a11e184f0199814831bb");
+    expect(source.path).toBe("packages/pi-daddy/test-integration/pi-sdk/fixtures/provenance.json");
+    expect(createHash("sha256").update(readFileSync(new URL("provenance.json", fixtureRoot))).digest("hex")).toBe(source.sha256);
+    expect(provenance.normalization).toContain("FIXTURE_CWD and PI_PACKAGE");
     expect(provenance.scenarios).toHaveLength(5);
     for (const record of provenance.scenarios) {
       expect(record.producer).toBe("@earendil-works/pi-coding-agent@1.0.4");
@@ -28,7 +34,7 @@ describe("actual model-free Pi 1.0.4 CLI captures", () => {
     expect(result.trace.capture_errors).toBeUndefined();
     const final = result.events.filter((event) => event.type === "message_end" && event.message.role === "assistant").at(-1);
     const exact = final.message.content.filter((block: { type: string }) => block.type === "text")
-      .map((block: { text: string }) => block.text).join("\n");
+      .map((block: { text: string }) => block.text).join("");
     expect(result.trace.final_text).toBe(exact);
     expect(result.trace.final_text).not.toBe(result.trace.final_text.trim());
   });
@@ -39,7 +45,7 @@ describe("actual model-free Pi 1.0.4 CLI captures", () => {
     expect(result.trace.capture_errors?.length).toBeGreaterThan(0);
     const assistants = result.events.filter((event) => event.type === "message_end" && event.message.role === "assistant");
     expect(result.trace.final_text).toBe(assistants.at(-1).message.content.filter((block: { type: string }) => block.type === "text")
-      .map((block: { text: string }) => block.text).join("\n"));
+      .map((block: { text: string }) => block.text).join(""));
   });
   it("retains actual nested error propagation without treating tool concurrency as children", () => {
     const { trace } = fixture("nested");
@@ -55,5 +61,28 @@ describe("actual model-free Pi 1.0.4 CLI captures", () => {
     const prefix = parseTrace(events.slice(0, firstEnd + 1).map((event) => JSON.stringify(event)), meta);
     expect(prefix.isComplete).toBe(false);
     expect(prefix.trace.final_status).toBe("incomplete");
+  });
+});
+
+interface ConformanceCase {
+  id: string;
+  input: { fixture?: string; records?: unknown[]; rawSuffix?: string };
+  expected: { available: boolean; finalText: string; status: string };
+}
+const conformance = JSON.parse(readFileSync(new URL("final-conformance.json", fixtureRoot), "utf8")) as {
+  version: number; piVersion: string; cases: ConformanceCase[];
+};
+describe("shared runtime/harness final conformance", () => {
+  it("uses the exact qualified version", () => {
+    expect(conformance.version).toBe(1);
+    expect(conformance.piVersion).toBe(meta.piVersion);
+  });
+  it.each(conformance.cases)("$id", ({ input, expected }) => {
+    const source = input.fixture ? readFileSync(new URL(input.fixture, fixtureRoot), "utf8")
+      : input.records!.map((event) => JSON.stringify(event)).join("\n") + "\n" + (input.rawSuffix ?? "");
+    const { trace } = parseTrace(lines(source), meta);
+    expect(trace.final_status).toBe(expected.status);
+    expect(trace.final_status === "complete" && !trace.capture_errors?.length).toBe(expected.available);
+    expect(trace.final_text).toBe(expected.finalText);
   });
 });

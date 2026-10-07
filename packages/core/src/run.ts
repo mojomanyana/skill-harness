@@ -404,6 +404,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
         // and the artifact disagreeing, and a recovered measurement thrown away.
         infrastructureFailure = null;
         adapterFailure = null;
+        let executionUnavailable = false;
         try {
           if (scenario.mode === "seeded") {
             const r = await runSeeded(scenario, {
@@ -448,6 +449,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
               const structured = await ctx.adapter.runStructured!({ ...req, scenarioId: scenario.id, rep });
               transcript = structured.transcript;
               traces = structured.traces;
+              executionUnavailable = Boolean(structured.executionFailure);
               if (structured.providerFailure) infrastructureFailure = `provider failure — ${structured.providerFailure}`;
               else if (structured.executionFailure) infrastructureFailure = `execution failure — ${structured.executionFailure}`;
             } else {
@@ -487,8 +489,14 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
             if (execution) infrastructureFailure = `execution failure — ${execution}`;
           }
         }
-        noResponse = hasEmptyAssistantTurn(transcript);
-        if (!noResponse && !adapterFailure) break;
+        executionUnavailable ||= executionFailureFromTranscript(transcript) !== null;
+        // Qualified complete traces prove delivered bytes even if those bytes
+        // are only whitespace; the legacy text-only timeout heuristic cannot erase them.
+        const deliveredText = traces.length > 0 && traces.every((trace) =>
+          trace.final_status === "complete" && trace.final_text.length > 0 && !trace.capture_errors?.length);
+        noResponse = !deliveredText && hasEmptyAssistantTurn(transcript);
+        // Known unavailable execution is not an empty model answer to retry.
+        if (executionUnavailable || (!noResponse && !adapterFailure)) break;
       }
       // Survived the retry: ERROR for this rep, inside a run that still completes
       // and still writes every other scenario's verdict.

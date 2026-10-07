@@ -133,8 +133,8 @@ export interface ExecutionTraceV1 {
    */
   final_text: string;
 
-  /** Observed terminal state for the qualified Pi 1.0.4 parser; absent on legacy traces. */
-  final_status?: "complete" | "error" | "aborted" | "incomplete";
+  /** Observed terminal state; unknown versions are unqualified, historical Pi 0.83.0 has no settlement field. */
+  final_status?: "complete" | "error" | "aborted" | "incomplete" | "truncated" | "unavailable" | "unqualified";
 
   /** Every tool call in this invocation, in issue order. */
   tool_calls: TraceToolCall[];

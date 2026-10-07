@@ -1,7 +1,7 @@
 {
   "capturedAt": "2026-10-07T00:15:46.656Z",
   "command": "node capture.ts",
-  "normalization": "Generated cwd and installed package path prefixes replaced with $FIXTURE_CWD; LF records and string content preserved.",
+  "normalization": "Generated cwd prefix and installed package prefix replaced with FIXTURE_CWD and PI_PACKAGE placeholders; LF records and string content preserved.",
   "scenarios": [
     {
       "scenario": "success",

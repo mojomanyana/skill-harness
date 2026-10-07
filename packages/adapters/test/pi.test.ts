@@ -22,6 +22,8 @@ function fakeSkill(body = "---\nname: s\ndescription: d\n---\n\n## Do the thing\
 }
 
 beforeEach(() => {
+  vi.restoreAllMocks();
+  vi.spyOn(piAdapter, "version").mockResolvedValue("1.0.4");
   mockedExec.mockReset();
   mockedExec.mockResolvedValue({ code: 0, stdout: "USER: hi\nASSISTANT: ok\nVERDICT: PASS", stderr: "" });
 });
@@ -179,6 +181,7 @@ describe("skill-delivery tripwire", () => {
 });
 
 describe("harness CLI version", () => {
+  beforeEach(() => vi.mocked(piAdapter.version!).mockRestore());
   it("reports what `pi --version` printed", async () => {
     mockedExec.mockResolvedValueOnce({ code: 0, stdout: "0.83.0\n", stderr: "" });
     expect(await piAdapter.version!()).toBe("0.83.0");
@@ -304,5 +307,15 @@ describe("provider failure in text mode", () => {
     expect(transcript).not.toContain(PROVIDER_FAILURE_MARKER);
     expect(providerFailureFromTranscript(transcript)).toBeNull();
     expect(transcript).toContain("[pi exited 2]");
+  });
+});
+
+describe("plain subject compatibility path qualification", () => {
+  it.each(["1.0.5", "0.83.0", null])("refuses unqualified %s without spending subject calls", async (version) => {
+    vi.mocked(piAdapter.version!).mockResolvedValue(version);
+    const transcript = await piAdapter.run({ skillDir: fakeSkill(), model: { provider: "fixture", model: "subject" },
+      mode: "force", turns: ["hi"], cwd: "/tmp" });
+    expect(transcript).toContain("unqualified");
+    expect(mockedExec).not.toHaveBeenCalled();
   });
 });

@@ -6,6 +6,10 @@ spec it will run each scenario, LLM-judge the transcript, score it against a shi
 bar, and open an interactive review UI so you can measure a `SKILL.md` edit.
 Subject, judge, and spec-drafting model calls all run through Pi.
 
+Fresh subject execution requires **exactly Pi 1.0.4**. Different or unavailable
+versions produce execution ERROR before a subject call. Retained results remain
+readable; the historical Pi 0.83.0 raw parser is not current qualification.
+
 ## Install
 
 ```bash
