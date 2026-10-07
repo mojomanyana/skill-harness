@@ -2,7 +2,7 @@
 
 ## Current state
 
-`0.24.0-rc.2` is the prepared repository prerelease candidate. Package manifests
+`0.24.0` is the stable repository release. Package manifests
 identify these candidate bytes; no npm publication or `latest` promotion is claimed.
 Historical released versions remain recorded in the changelog.
 
