@@ -1,0 +1,1248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mojomanyana/pi-daddy/contracts/ledger-record/v1/governance-event.schema.json",
+  "title": "pi-daddy ledgerVersion 3 event",
+  "description": "One JSON object per JSONL line. Version 3 adds unique execution identity and explicit parent execution identity; legacy and v2 lines are intentionally outside this schema.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/capabilityDecision"
+    },
+    {
+      "$ref": "#/$defs/workspaceLease"
+    },
+    {
+      "$ref": "#/$defs/childLifecycle"
+    },
+    {
+      "$ref": "#/$defs/costGate"
+    },
+    {
+      "$ref": "#/$defs/sessionConfig"
+    },
+    {
+      "$ref": "#/$defs/episodeOutcome"
+    }
+  ],
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": ":[0-5][0-9](?:\\.[0-9]+)?(?:[Zz]|[+-][0-9]{2}:[0-9]{2})$"
+    },
+    "episodeId": {
+      "type": "string",
+      "pattern": "^episode:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "correlation": {
+      "type": "object",
+      "description": "Non-authoritative controller metadata under the pinned 1.0 contract. String and aggregate byte limits are additionally enforced by the runtime and cannot be represented exactly in JSON Schema.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "run_id": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "task_id": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "workspace_id": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "context_id": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "phase": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "assurance": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "assurance_effective": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "policy_label": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "assurance_source": {
+          "$ref": "#/$defs/ledgerCorrelationIdentifier"
+        },
+        "assurance_scope": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "const": "entire-run"
+                },
+                "selectors": {
+                  "type": "array",
+                  "maxItems": 0
+                }
+              },
+              "required": [
+                "type",
+                "selectors"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "const": "selectors"
+                },
+                "selectors": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "required": [
+                "type",
+                "selectors"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "activated_at": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "plan_digest": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "definition_digest": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "task_digest": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "base_sha": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "head_sha": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "tree_sha": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "event_seq": {
+          "type": "number"
+        },
+        "last_change_seq": {
+          "type": "number"
+        },
+        "last_authority_seq": {
+          "type": "number"
+        },
+        "check_receipt_id": {
+          "type": "string",
+          "maxLength": 512
+        }
+      },
+      "additionalProperties": false
+    },
+    "ledgerDisplayIdentifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9@*][A-Za-z0-9@*._:/-]{0,511}$"
+    },
+    "ledgerCorrelationIdentifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9@*][A-Za-z0-9@*._:/-]{0,127}$"
+    },
+    "ledgerCapabilityIdentifier": {
+      "type": "string",
+      "pattern": "^(?:tool:|ext:|skill:|agent:|workspace:|context:)[A-Za-z0-9@*][A-Za-z0-9@*._/-]{0,255}$"
+    },
+    "refusalCode": {
+      "type": "string",
+      "enum": [
+        "CAPABILITY_ESCALATION",
+        "GRANT_ID_MALFORMED",
+        "DEFINITION_NOT_AUTHORIZED",
+        "UNDECLARED_TOOLS",
+        "UNKNOWN_TOOL",
+        "GATED_UNAPPROVED",
+        "APPROVAL_EXPIRED",
+        "APPROVAL_SCOPE_MISMATCH",
+        "APPROVAL_FLOW_FAILED",
+        "DEPTH_EXCEEDED",
+        "FANOUT_EXCEEDED",
+        "EXECUTOR_UNAVAILABLE",
+        "MODEL_UNRESOLVED",
+        "GRANT_STORE_INVALID",
+        "CHILD_TIMED_OUT",
+        "CHILD_CANCELLED",
+        "CHILD_EXIT_NONZERO",
+        "TASK_MISSING",
+        "UNKNOWN_DEFINITION",
+        "CEILING_PATTERNS_UNRESOLVED",
+        "NARROWING_VIOLATED",
+        "DEFINITION_UNREADABLE",
+        "CORRELATION_TOO_LARGE",
+        "CORRELATION_INVALID",
+        "LEDGER_WRITE_FAILED",
+        "FANOUT_FAILED",
+        "WORKSPACE_NOT_REGISTERED",
+        "WORKSPACE_NOT_AUTHORIZED",
+        "WORKSPACE_WRITE_CONFLICT",
+        "WORKSPACE_LEASE_STALE",
+        "LEDGER_DAMAGED",
+        "CONTEXT_REQUEST_INVALID"
+      ]
+    },
+    "refusal": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/refusalCode"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "approvalSource": {
+      "type": "string",
+      "enum": [
+        "prompt",
+        "session",
+        "persisted",
+        "inherited"
+      ]
+    },
+    "approvalScope": {
+      "type": "string",
+      "enum": [
+        "once",
+        "session",
+        "always"
+      ]
+    },
+    "approvalUse": {
+      "type": "object",
+      "properties": {
+        "max": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "remaining": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "max",
+        "remaining"
+      ],
+      "additionalProperties": false
+    },
+    "definitionDigest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        }
+      },
+      "required": [
+        "name",
+        "source",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "capabilityDecision": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 3
+        },
+        "event": {
+          "const": "capability_decision"
+        },
+        "ts": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "episodeId": {
+          "$ref": "#/$defs/episodeId"
+        },
+        "parentId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "childId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "agentType": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "requested": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "parentGrant": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "effective": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "denied": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "clipped": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "gatedBlocked": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "blocked": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "approved": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          }
+        },
+        "approvalSource": {
+          "$ref": "#/$defs/approvalSource"
+        },
+        "approvalSources": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/approvalSource"
+          }
+        },
+        "approvalScopes": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/approvalScope"
+          }
+        },
+        "approvalExpiresAt": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/timestamp"
+          }
+        },
+        "approvalUses": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/ledgerCapabilityIdentifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/approvalUse"
+          }
+        },
+        "approvalScope": {
+          "$ref": "#/$defs/approvalScope"
+        },
+        "humanDenied": {
+          "const": true
+        },
+        "gateOutcome": {
+          "type": "string",
+          "enum": [
+            "declined",
+            "dismissed",
+            "no-ui",
+            "error"
+          ]
+        },
+        "definitionDigest": {
+          "$ref": "#/$defs/definitionDigest"
+        },
+        "definitionHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "definitionPackageVersion": {
+          "type": "string",
+          "pattern": "^[0-9A-Za-z][0-9A-Za-z.+_-]{0,127}$"
+        },
+        "handoff": {
+          "type": "object",
+          "description": "the context handoff this child received (ADR-0078); absent means nothing crossed",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "sections",
+            "bytes",
+            "truncatedBytes"
+          ],
+          "properties": {
+            "mode": {
+              "enum": [
+                "files",
+                "pruned",
+                "summary",
+                "fork"
+              ]
+            },
+            "sections": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "truncatedBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "keptTurns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "droppedTurns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rule": {
+              "type": "string"
+            }
+          }
+        },
+        "executor": {
+          "type": "string",
+          "enum": [
+            "process",
+            "herdr"
+          ]
+        },
+        "taskFrom": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "taskDigest": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "correlation": {
+          "$ref": "#/$defs/correlation"
+        },
+        "refusal": {
+          "$ref": "#/$defs/refusal"
+        },
+        "executionId": {
+          "$ref": "#/$defs/executionId"
+        },
+        "parentExecutionId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/executionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "taskFromExecutionId": {
+          "$ref": "#/$defs/executionId"
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "executionId",
+        "parentExecutionId",
+        "parentId",
+        "childId",
+        "depth",
+        "requested",
+        "parentGrant",
+        "effective",
+        "denied",
+        "clipped",
+        "gatedBlocked",
+        "blocked",
+        "executor",
+        "taskDigest"
+      ],
+      "additionalProperties": false
+    },
+    "workspaceLease": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 3
+        },
+        "event": {
+          "const": "workspace_lease"
+        },
+        "ts": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "episodeId": {
+          "$ref": "#/$defs/episodeId"
+        },
+        "childId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "access": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write"
+          ]
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "acquired",
+            "uncontended",
+            "refused",
+            "released",
+            "released-unrecorded",
+            "lost",
+            "retained",
+            "timeout",
+            "recovered"
+          ]
+        },
+        "recovered": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "const": "unknown"
+            }
+          ]
+        },
+        "releaseReason": {
+          "type": "string"
+        },
+        "refusal": {
+          "$ref": "#/$defs/refusal"
+        },
+        "correlation": {
+          "$ref": "#/$defs/correlation"
+        },
+        "executionId": {
+          "$ref": "#/$defs/executionId"
+        },
+        "parentExecutionId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/executionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "executionId",
+        "parentExecutionId",
+        "childId",
+        "workspaceId",
+        "root",
+        "access",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "childLifecycle": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 3
+        },
+        "event": {
+          "const": "child_lifecycle"
+        },
+        "ts": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "episodeId": {
+          "$ref": "#/$defs/episodeId"
+        },
+        "childId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "starting",
+            "running",
+            "completed",
+            "failed"
+          ]
+        },
+        "executor": {
+          "type": "string",
+          "enum": [
+            "process",
+            "herdr"
+          ]
+        },
+        "exitCode": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "signal": {
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "SIGABRT",
+                "SIGALRM",
+                "SIGBUS",
+                "SIGCHLD",
+                "SIGCONT",
+                "SIGFPE",
+                "SIGHUP",
+                "SIGILL",
+                "SIGINT",
+                "SIGIO",
+                "SIGIOT",
+                "SIGKILL",
+                "SIGPIPE",
+                "SIGPOLL",
+                "SIGPROF",
+                "SIGPWR",
+                "SIGQUIT",
+                "SIGSEGV",
+                "SIGSTKFLT",
+                "SIGSTOP",
+                "SIGSYS",
+                "SIGTERM",
+                "SIGTRAP",
+                "SIGTSTP",
+                "SIGTTIN",
+                "SIGTTOU",
+                "SIGUNUSED",
+                "SIGURG",
+                "SIGUSR1",
+                "SIGUSR2",
+                "SIGVTALRM",
+                "SIGWINCH",
+                "SIGXCPU",
+                "SIGXFSZ",
+                "SIGBREAK",
+                "SIGLOST",
+                "SIGINFO"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timedOut": {
+          "const": true
+        },
+        "aborted": {
+          "const": true
+        },
+        "truncated": {
+          "const": true
+        },
+        "reason": {
+          "type": "string"
+        },
+        "correlation": {
+          "$ref": "#/$defs/correlation"
+        },
+        "executionId": {
+          "$ref": "#/$defs/executionId"
+        },
+        "parentExecutionId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/executionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deadlineAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "idleTimeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "the inactivity bound in milliseconds that governed this child beside the deadlineAt ceiling"
+        },
+        "resolvedModel": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/resolvedModel"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "modelSource": {
+          "$ref": "#/$defs/modelSource"
+        },
+        "thinkingLevel": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/thinkingLevel"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "thinkingSource": {
+          "$ref": "#/$defs/thinkingSource"
+        },
+        "tokenDetail": {
+          "$ref": "#/$defs/tokenDetail"
+        },
+        "usage": {
+          "$ref": "#/$defs/childUsage"
+        },
+        "compactionCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "usageUnavailable": {
+          "enum": [
+            "session-missing",
+            "session-invalid",
+            "usage-missing"
+          ]
+        },
+        "exportedEnvironment": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "PI_DADDY_EPISODE",
+              "PI_DADDY_DEFINITION",
+              "PI_DADDY_EXECUTION"
+            ]
+          }
+        },
+        "definitionHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "definitionPackageVersion": {
+          "type": "string",
+          "pattern": "^[0-9A-Za-z][0-9A-Za-z.+_-]{0,127}$"
+        },
+        "herdrPaneId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "herdrAgentName": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "executionId",
+        "parentExecutionId",
+        "childId",
+        "state",
+        "executor"
+      ],
+      "additionalProperties": false,
+      "not": {
+        "required": [
+          "usage",
+          "usageUnavailable"
+        ]
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "starting",
+                  "running"
+                ]
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "required": [
+              "deadlineAt"
+            ]
+          }
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "required": [
+                  "herdrPaneId"
+                ]
+              },
+              {
+                "required": [
+                  "herdrAgentName"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "required": [
+              "herdrPaneId",
+              "herdrAgentName"
+            ],
+            "properties": {
+              "executor": {
+                "const": "herdr"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "resolvedModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "modelId"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "modelId": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "thinkingLevel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "source"
+      ],
+      "properties": {
+        "level": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "enum": [
+            "explicit",
+            "session",
+            "advisor",
+            "definition",
+            "global",
+            "pi"
+          ]
+        }
+      }
+    },
+    "modelSource": {
+      "enum": [
+        "explicit",
+        "session",
+        "definition",
+        "global",
+        "pi"
+      ]
+    },
+    "thinkingSource": {
+      "enum": [
+        "explicit",
+        "session",
+        "advisor",
+        "definition",
+        "global",
+        "pi"
+      ]
+    },
+    "tokenDetail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inputTokens",
+        "outputTokens",
+        "cacheReadTokens",
+        "cacheWriteTokens",
+        "reasoningTokens"
+      ],
+      "properties": {
+        "inputTokens": {
+          "$ref": "#/$defs/reportedTokenCount"
+        },
+        "outputTokens": {
+          "$ref": "#/$defs/reportedTokenCount"
+        },
+        "cacheReadTokens": {
+          "$ref": "#/$defs/reportedTokenCount"
+        },
+        "cacheWriteTokens": {
+          "$ref": "#/$defs/reportedTokenCount"
+        },
+        "reasoningTokens": {
+          "$ref": "#/$defs/reportedTokenCount"
+        }
+      }
+    },
+    "reportedTokenCount": {
+      "oneOf": [
+        {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "childUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input",
+        "output",
+        "cacheRead",
+        "cacheWrite",
+        "totalTokens",
+        "cost"
+      ],
+      "properties": {
+        "input": {
+          "type": "number",
+          "minimum": 0
+        },
+        "output": {
+          "type": "number",
+          "minimum": 0
+        },
+        "cacheRead": {
+          "type": "number",
+          "minimum": 0
+        },
+        "cacheWrite": {
+          "type": "number",
+          "minimum": 0
+        },
+        "reasoning": {
+          "type": "number",
+          "minimum": 0
+        },
+        "totalTokens": {
+          "type": "number",
+          "minimum": 0
+        },
+        "cost": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "input",
+            "output",
+            "cacheRead",
+            "cacheWrite",
+            "total"
+          ],
+          "properties": {
+            "input": {
+              "type": "number",
+              "minimum": 0
+            },
+            "output": {
+              "type": "number",
+              "minimum": 0
+            },
+            "cacheRead": {
+              "type": "number",
+              "minimum": 0
+            },
+            "cacheWrite": {
+              "type": "number",
+              "minimum": 0
+            },
+            "total": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "executionId": {
+      "type": "string",
+      "pattern": "^exec:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "costGate": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 3
+        },
+        "event": {
+          "const": "cost_gate"
+        },
+        "ts": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "episodeId": {
+          "$ref": "#/$defs/episodeId"
+        },
+        "executionId": {
+          "$ref": "#/$defs/executionId"
+        },
+        "parentExecutionId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/executionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "childId": {
+          "$ref": "#/$defs/ledgerDisplayIdentifier"
+        },
+        "gate": {
+          "const": "episode_cost"
+        },
+        "cost": {
+          "type": "number",
+          "minimum": 0
+        },
+        "ceiling": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "outcome": {
+          "enum": [
+            "continued",
+            "stopped"
+          ]
+        },
+        "newCeiling": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "episodeId",
+        "executionId",
+        "parentExecutionId",
+        "childId",
+        "gate",
+        "cost",
+        "ceiling",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "sessionConfig": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 3
+        },
+        "event": {
+          "const": "session_config"
+        },
+        "ts": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "episodeId": {
+          "$ref": "#/$defs/episodeId"
+        },
+        "outcome": {
+          "enum": [
+            "kept",
+            "changed"
+          ]
+        },
+        "trigger": {
+          "enum": [
+            "first-delegation",
+            "grants-models"
+          ]
+        },
+        "overrides": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "string",
+                "minLength": 1
+              },
+              "thinking": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "model",
+              "thinking"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "episodeId",
+        "outcome",
+        "trigger",
+        "overrides"
+      ],
+      "additionalProperties": false
+    },
+    "episodeOutcome": {
+      "type": "object",
+      "properties": {
+        "ledgerVersion": {
+          "const": 3
+        },
+        "event": {
+          "const": "episode_outcome"
+        },
+        "ts": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "episodeId": {
+          "$ref": "#/$defs/episodeId"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "survived": {
+          "type": "boolean"
+        },
+        "ci": {
+          "enum": [
+            "green",
+            "red",
+            "none"
+          ]
+        },
+        "amended": {
+          "type": "boolean"
+        },
+        "corrected": {
+          "type": "boolean"
+        },
+        "label": {
+          "enum": [
+            "positive",
+            "negative",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "ledgerVersion",
+        "event",
+        "ts",
+        "episodeId",
+        "commit",
+        "survived",
+        "ci",
+        "amended",
+        "corrected",
+        "label"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -2,7 +2,7 @@
 
 ## Current state
 
-`0.24.2` is the current source release target. Package manifests identify these
+`0.24.3` is the current source release target. Package manifests identify these
 candidate bytes; verify npm and GitHub directly before asserting publication or
 `latest` promotion.
 Historical released versions remain recorded in the changelog.
@@ -76,3 +76,10 @@ remain unmeasured.
 
 OpenAI Decisions has been removed from this plan and experiment. Do not
 reintroduce it or use it as a fallback.
+
+## Current record ingestion candidate
+
+The source candidate adds explicit `pi-daddy-record-v1` ingestion for current native
+pi-daddy ledger envelopes. See [the compatibility contract](PI-DADDY-RECORD-COMPATIBILITY.md).
+Historical bare-v3 and v2 inputs retain their separate pins. Published 0.24.2 does
+not include this new adapter. A source pin alone is not evidence of publication.

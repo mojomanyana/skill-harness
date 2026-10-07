@@ -10,6 +10,8 @@ import {
   validateClosedSchema,
   validateClosedSchemaV3,
 } from "./closed-schema.js";
+import { normalizePiDaddyRecordLedgerV1 } from "./pi-daddy-record-v1.js";
+export { normalizePiDaddyRecordLedgerV1 } from "./pi-daddy-record-v1.js";
 import { PI_DADDY_CONTRACT_COMMIT, PI_DADDY_LEDGER_V2_SCHEMA } from "./pi-daddy-ledger-v2.js";
 import { PI_DADDY_LEDGER_V3_CONTRACT_COMMIT, PI_DADDY_LEDGER_V3_SCHEMA } from "./pi-daddy-ledger-v3.js";
 
@@ -45,13 +47,15 @@ export function collectTrajectorySources(cwd: string, sources: TrajectoryEventSo
             ? normalizePiDaddyLegacyLedger(text)
             : source.adapter === "pi-daddy-ledger-v3"
               ? normalizePiDaddyLedgerV3(text)
-              : deserializeTrajectoryEvents(text);
+              : source.adapter === "pi-daddy-record-v1"
+                ? normalizePiDaddyRecordLedgerV1(text)
+                : deserializeTrajectoryEvents(text);
         if (!normalized) throw new Error("normalized-v1 source is empty, malformed, or unsupported");
         const times = normalized.map((event) => validTime(event.at) ? Date.parse(event.at!) : null);
         if (times.every((time) => time !== null)) {
           const highWaterByStream = new Map<string, number>();
           for (let index = 0; index < times.length; index += 1) {
-            const stream = source.adapter === "pi-daddy-v1" || source.adapter === "pi-daddy-ledger-v3"
+            const stream = source.adapter === "pi-daddy-v1" || source.adapter === "pi-daddy-ledger-v3" || source.adapter === "pi-daddy-record-v1"
               ? normalizedPiDaddyStreamKey(normalized[index], index)
               : "source";
             const highWater = highWaterByStream.get(stream);
@@ -450,7 +454,7 @@ function piDaddyStreamKey(record: Record<string, unknown>, index: number): strin
 
 function normalizedPiDaddyStreamKey(event: TrajectoryEventV1, index: number): string {
   if (event.source === "pi-daddy-0.17") return JSON.stringify(["legacy", event.child_id ?? `missing-child:${index}`]);
-  if (event.source === "pi-daddy-v3") {
+  if (event.source === "pi-daddy-v3" || event.source === "pi-daddy-record-v1") {
     return event.workflow_fact_id
       ? JSON.stringify(["v3-fact", event.workflow_fact_id])
       : JSON.stringify(["v3-execution", event.execution_id ?? `missing-execution:${index}`]);

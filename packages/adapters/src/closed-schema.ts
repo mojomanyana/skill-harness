@@ -34,10 +34,10 @@ const SUPPORTED_KEYWORDS = new Set([
   // value constraints
   "enum", "const", "minLength", "maxLength", "minimum", "pattern", "format",
 ]);
-/** Ledger v3 adds only closed composition/conditionals and property-name schemas. */
+/** Ledger v3/current record contracts add closed composition, conditionals, arrays and numeric bounds. */
 const V3_SUPPORTED_KEYWORDS = new Set([
   ...SUPPORTED_KEYWORDS,
-  "allOf", "anyOf", "if", "then", "propertyNames", "minItems", "maxItems",
+  "allOf", "anyOf", "if", "then", "not", "propertyNames", "minItems", "maxItems", "uniqueItems", "exclusiveMinimum",
 ]);
 
 /**
@@ -53,6 +53,7 @@ const KEYWORD_SHAPES: Record<string, { check: (value: unknown) => boolean; expec
   anyOf: { check: (value) => Array.isArray(value) && value.length > 0, expected: "a non-empty array" },
   if: { check: (value) => isSchemaObject(value), expected: "a schema object" },
   then: { check: (value) => isSchemaObject(value), expected: "a schema object" },
+  not: { check: (value) => isSchemaObject(value), expected: "a schema object" },
   propertyNames: { check: (value) => isSchemaObject(value), expected: "a schema object" },
   type: { check: (value) => typeof value === "string" || (Array.isArray(value) && value.length > 0 && value.every((entry) => typeof entry === "string")), expected: "a string or array of strings" },
   properties: { check: (value) => isSchemaObject(value), expected: "an object" },
@@ -62,7 +63,9 @@ const KEYWORD_SHAPES: Record<string, { check: (value: unknown) => boolean; expec
   enum: { check: (value) => Array.isArray(value) && value.length > 0, expected: "a non-empty array" },
   minLength: { check: (value) => typeof value === "number", expected: "a number" },
   maxLength: { check: (value) => typeof value === "number", expected: "a number" },
+  exclusiveMinimum: { check: (value) => typeof value === "number" && Number.isFinite(value), expected: "a finite number" },
   minimum: { check: (value) => typeof value === "number", expected: "a number" },
+  uniqueItems: { check: (value) => typeof value === "boolean", expected: "a boolean" },
   minItems: { check: (value) => Number.isInteger(value) && Number(value) >= 0, expected: "a non-negative integer" },
   maxItems: { check: (value) => Number.isInteger(value) && Number(value) >= 0, expected: "a non-negative integer" },
   pattern: { check: (value) => typeof value === "string", expected: "a string" },
@@ -136,7 +139,7 @@ function assertSchemaSupported(schema: unknown, label: string, path: string, v3:
     }
   }
   for (const [name, entry] of Object.entries(object(node.properties) ?? {})) assertSchemaSupported(entry, label, `${path}/properties/${name}`, v3);
-  for (const keyword of ["items", "propertyNames", "if", "then"] as const) {
+  for (const keyword of ["items", "propertyNames", "if", "then", "not"] as const) {
     if (node[keyword] !== undefined) assertSchemaSupported(node[keyword], label, `${path}/${keyword}`, v3);
   }
   if (node.additionalProperties !== undefined && node.additionalProperties !== false && node.additionalProperties !== true) {
@@ -184,7 +187,7 @@ export function declaredPropertyNames(schema: unknown): Set<string> {
     for (const keyword of ["oneOf", "allOf", "anyOf"] as const) {
       for (const entry of Array.isArray(current[keyword]) ? current[keyword] as unknown[] : []) walk(entry);
     }
-    for (const keyword of ["items", "propertyNames", "if", "then"] as const) if (current[keyword] !== undefined) walk(current[keyword]);
+    for (const keyword of ["items", "propertyNames", "if", "then", "not"] as const) if (current[keyword] !== undefined) walk(current[keyword]);
     if (current.additionalProperties && typeof current.additionalProperties === "object") walk(current.additionalProperties);
   };
   walk(schema);
@@ -197,6 +200,9 @@ function validate(root: Schema, schema: Schema, value: unknown, path: string, kn
     return validate(root, resolved, value, path, known);
   }
   const violations: SchemaViolation[] = [];
+  if (schema.not !== undefined && validate(root, schema.not as Schema, value, path, known).length === 0) {
+    violations.push({ path, message: "matches a forbidden schema shape" });
+  }
   if (Array.isArray(schema.allOf)) {
     for (const branch of schema.allOf as Schema[]) violations.push(...validate(root, branch, value, path, known));
   }
@@ -232,6 +238,9 @@ function validate(root: Schema, schema: Schema, value: unknown, path: string, kn
     }
     if (typeof schema.maxItems === "number" && value.length > schema.maxItems) {
       violations.push({ path, message: `must contain at most ${schema.maxItems} item(s)` });
+    }
+    if (schema.uniqueItems === true && new Set(value.map(canonicalItem)).size !== value.length) {
+      violations.push({ path, message: "must contain unique items" });
     }
     if (schema.items !== undefined) {
       value.forEach((entry, index) => violations.push(...validate(root, schema.items as Schema, entry, `${path}[${index}]`, known)));
@@ -291,6 +300,9 @@ function validateString(schema: Schema, value: string, path: string): SchemaViol
 }
 
 function validateNumber(schema: Schema, value: number, path: string): SchemaViolation[] {
+  if (typeof schema.exclusiveMinimum === "number" && value <= schema.exclusiveMinimum) {
+    return [{ path, message: `must be > ${schema.exclusiveMinimum}` }];
+  }
   if (typeof schema.minimum === "number" && value < schema.minimum) {
     return [{ path, message: `must be >= ${schema.minimum}` }];
   }
@@ -416,4 +428,11 @@ function object(value: unknown): Record<string, unknown> | undefined {
 
 function isSchemaObject(value: unknown): boolean {
   return object(value) !== undefined;
+}
+
+/** JSON structural identity for uniqueItems, independent of object key order. */
+function canonicalItem(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalItem).join(",")}]`;
+  return `{${Object.entries(value).sort(([a],[b]) => a < b ? -1 : a > b ? 1 : 0).map(([key,item]) => `${JSON.stringify(key)}:${canonicalItem(item)}`).join(",")}}`;
 }

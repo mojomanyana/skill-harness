@@ -8030,7 +8030,7 @@ ${r.stderr.trim()}
 };
 
 // packages/adapters/dist/trajectory.js
-import { createHash as createHash8 } from "node:crypto";
+import { createHash as createHash9 } from "node:crypto";
 import { readFileSync as readFileSync16, readdirSync as readdirSync11 } from "node:fs";
 import { join as join23 } from "node:path";
 
@@ -8061,10 +8061,16 @@ var V3_SUPPORTED_KEYWORDS = /* @__PURE__ */ new Set([
   "anyOf",
   "if",
   "then",
+  "not",
   "propertyNames",
   "minItems",
-  "maxItems"
+  "maxItems",
+  "uniqueItems",
+  "exclusiveMinimum"
 ]);
+
+// packages/adapters/dist/pi-daddy-record-v1.js
+import { createHash as createHash8 } from "node:crypto";
 
 // packages/adapters/dist/pi-daddy-ledger-v2.js
 var PI_DADDY_LEDGER_V2_SCHEMA = {
