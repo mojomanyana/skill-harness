@@ -1,5 +1,5 @@
 import { assert, test } from "vitest";
-import { callProvider, makeRequest } from "./providers.mjs";
+import { callProvider, isSupportedResolvedModel, makeRequest } from "./providers.mjs";
 
 const json = (value, init = {}) => new Response(JSON.stringify(value), { status: 200, ...init });
 const example = { input: "state", question: "Ship?" };
@@ -43,6 +43,34 @@ test("normalizes a JEV answer, snapshot, and usage", async () => {
   assert.equal(result.resolvedModel, model + "-20261001");
   assert.deepEqual(result.usage, { inputTokens: 4, outputTokens: 1, costUsd: 0.003 });
   assert.equal(JSON.stringify(result).includes("secret"), false);
+});
+
+test("resolved model identity accepts only the exact alias or a valid dated snapshot", () => {
+  for (const value of [model, ...["20260917", "20240229", "20000229", "20260430"].map(date => `${model}-${date}`)]) {
+    assert.equal(isSupportedResolvedModel(value), true, value);
+  }
+  const invalid = [
+    undefined, null, 1, {}, "", "typesafe/jev-1.14", `${model}-`, `${model}-other-model`,
+    ...["20260229", "19000229", "21000229", "20260431", "20260001", "20261301",
+      "20261000", "20261032", "00000101", "2026101", "202610001", "2026-10-01",
+      "20261001\n", "20261001\r", "20261001\u0000", "\nRAW_PROVIDER_SENTINEL"].map(date => `${model}-${date}`),
+  ];
+  for (const value of invalid) assert.equal(isSupportedResolvedModel(value), false, JSON.stringify(value));
+});
+
+test("malformed snapshot identities fail closed without retaining provider metadata", async () => {
+  for (const suffix of ["", "other-model", "20260229", "20261399", "20261001\n", "\nRAW_PROVIDER_SENTINEL"]) {
+    const result = await callProvider("jev", model, example, {
+      apiKey: "key",
+      fetchImpl: async () => json(payload({ model: `${model}-${suffix}` })),
+    });
+    assert.equal(result.status, "error");
+    assert.equal(result.error, "invalid provider response");
+    assert.equal(result.probability, null);
+    assert.equal(result.resolvedModel, null);
+    assert.deepEqual(result.usage, { inputTokens: null, outputTokens: null, costUsd: null });
+    assert.equal(JSON.stringify(result).includes("RAW_PROVIDER_SENTINEL"), false);
+  }
 });
 
 test("preserves an absent JEV cost as unknown", async () => {

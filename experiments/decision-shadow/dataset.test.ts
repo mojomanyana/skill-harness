@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { localCorpus, parseCases, parseLabels, scorePredictions } from "./dataset.mjs";
 
 const digest = (character: string) => character.repeat(64);
+const readinessRule = "synthetic-readiness-rule-v2";
+const sha256 = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
+
+function syntheticReadinessRuleV2(evidence: Record<string, unknown>) {
+  return evidence.tests === "pass" && evidence.review === "approve" &&
+    evidence.reviewIndependent === true &&
+    typeof evidence.integrationCandidate === "string" && evidence.integrationCandidate.trim().length > 0 &&
+    evidence.testedCandidate === evidence.integrationCandidate &&
+    evidence.reviewedCandidate === evidence.integrationCandidate && evidence.cleanup === "settled";
+}
 
 function caseDocument() {
   return {
@@ -217,4 +229,56 @@ describe("decision shadow datasets", () => {
     expect(() => scorePredictions(cases, [], [{ ...base, probability: -0.01 }])).toThrow(/0..1/);
   });
 
+});
+
+describe("synthetic readiness fixture evidence", () => {
+  it("binds all eight labels to the named rule, exact input, and case hashes", async () => {
+    const cases = parseCases(JSON.parse(await readFile(new URL("./examples/cases.json", import.meta.url), "utf8")));
+    const labels = parseLabels(JSON.parse(await readFile(new URL("./examples/labels.json", import.meta.url), "utf8")), cases);
+    expect(cases).toHaveLength(8);
+    expect(labels).toHaveLength(cases.length);
+    expect(cases.map(item => item.id)).toContain("review-not-independent");
+    expect(cases.map(item => item.id)).toContain("review-independence-missing");
+    const labelById = new Map(labels.map(label => [label.caseId, label]));
+    for (const item of cases) {
+      const value = syntheticReadinessRuleV2(JSON.parse(item.input));
+      expect(item.provenance).toBe("synthetic");
+      expect(item.source).toEqual({ sha256: sha256(item.input), recordId: "synthetic-evidence/" + item.id });
+      // Label evidence is the UTF-8 JSON record below, in this field order.
+      // It records an offline rule evaluation; it contains no provider output.
+      expect(labelById.get(item.id), item.id).toEqual({
+        caseId: item.id,
+        caseHash: item.hash,
+        value,
+        kind: "test",
+        actor: readinessRule,
+        evidenceSha256: sha256(JSON.stringify({
+          rule: readinessRule, caseHash: item.hash, sourceSha256: item.source.sha256, value,
+        })),
+        independent: true,
+      });
+    }
+    expect(labels.filter(label => label.value).map(label => label.caseId)).toEqual(["complete"]);
+  });
+
+  it("requires every recorded readiness condition, including explicit independence", () => {
+    const complete = {
+      tests: "pass", review: "approve", reviewIndependent: true, cleanup: "settled",
+      integrationCandidate: "candidate-a", testedCandidate: "candidate-a", reviewedCandidate: "candidate-a",
+    };
+    expect(syntheticReadinessRuleV2(complete)).toBe(true);
+    for (const key of Object.keys(complete)) {
+      const missing: Record<string, unknown> = { ...complete };
+      delete missing[key];
+      expect(syntheticReadinessRuleV2(missing), "missing " + key).toBe(false);
+    }
+    for (const changes of [
+      { tests: "fail" }, { review: "changes-requested" }, { cleanup: "unknown" },
+      { reviewIndependent: false }, { reviewIndependent: null }, { reviewIndependent: "true" },
+      { testedCandidate: "old" }, { reviewedCandidate: "old" },
+      { integrationCandidate: "", testedCandidate: "", reviewedCandidate: "" },
+    ]) {
+      expect(syntheticReadinessRuleV2({ ...complete, ...changes }), JSON.stringify(changes)).toBe(false);
+    }
+  });
 });

@@ -1,7 +1,6 @@
 const MAX_RESPONSE_BYTES = 64 * 1024;
 const MAX_INPUT_LENGTH = 64 * 1024;
 const MAX_QUESTION_LENGTH = 8 * 1024;
-const MAX_MODEL_LENGTH = 256;
 const PROVIDER = Object.freeze({
   name: "jev",
   model: "typesafe/jev-1.13",
@@ -60,18 +59,26 @@ function cost(value) {
   }
   return value;
 }
-function resolvedModel(value, requested) {
-  if (
-    typeof value !== "string" ||
-    value.length === 0 ||
-    value.length > MAX_MODEL_LENGTH ||
-    (value !== requested && !value.startsWith(`${requested}-`))
-  ) {
+export function isSupportedResolvedModel(value) {
+  if (value === PROVIDER.model) return true;
+  const prefix = `${PROVIDER.model}-`;
+  if (typeof value !== "string" || !value.startsWith(prefix)) return false;
+  const snapshot = value.slice(prefix.length);
+  if (snapshot.length !== 8 || !/^\d{8}$/.test(snapshot)) return false;
+  const year = Number(snapshot.slice(0, 4));
+  const month = Number(snapshot.slice(4, 6));
+  const day = Number(snapshot.slice(6, 8));
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const monthLengths = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return year > 0 && month >= 1 && month <= 12 && day >= 1 && day <= monthLengths[month - 1];
+}
+function resolvedModel(value) {
+  if (!isSupportedResolvedModel(value)) {
     throw new Error("invalid provider response");
   }
   return value;
 }
-function normalize(payload, requestedModel) {
+function normalize(payload) {
   if (
     !isRecord(payload) ||
     !isRecord(payload.answers) ||
@@ -87,7 +94,7 @@ function normalize(payload, requestedModel) {
   return {
     status: "answered",
     probability: probability(answer.noul),
-    resolvedModel: resolvedModel(payload.model, requestedModel),
+    resolvedModel: resolvedModel(payload.model),
     usage: {
       inputTokens: tokenCount(payload.usage.input_tokens),
       outputTokens: tokenCount(payload.usage.output_tokens),
@@ -169,7 +176,7 @@ export async function callProvider(provider, model, example, options = {}) {
     let payload;
     try { payload = JSON.parse(text); }
     catch { throw new Error("invalid provider response"); }
-    return { ...normalize(payload, model), latencyMs: Math.max(0, performance.now() - startedAt) };
+    return { ...normalize(payload), latencyMs: Math.max(0, performance.now() - startedAt) };
   } catch (error) {
     return failure(startedAt, error);
   } finally {

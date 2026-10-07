@@ -5,9 +5,13 @@ import { open, readFile, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseCases, parseLabels, scorePredictions, localCorpus } from './dataset.mjs';
-import { makeRequest, callProvider } from './providers.mjs';
+import { makeRequest, callProvider, isSupportedResolvedModel } from './providers.mjs';
 
 const terms = { jev: 'https://typesafe.ai/legal/mca' };
+const providerErrors = new Set([
+  'invalid provider response', 'provider request timed out', 'provider response exceeded limit',
+  'provider request failed', 'Provider call failed.',
+]);
 const help = `Source-only decision shadow pilot (Node >=20)
   preview --cases FILE --provider jev --model MODEL
   run --cases FILE --provider jev --model MODEL --out NEW.jsonl --allow-remote
@@ -87,18 +91,17 @@ async function readRun(path, cases) {
     throw new Error('Run header does not match this case set.');
   makeRequest(header.provider, header.requestedModel, cases[0]);
   if (records.length > cases.length) throw new Error('Too many prediction records.');
-  for (const r of records) {
-    const resolvedMatches = typeof r?.resolvedModel === 'string' &&
-      r.resolvedModel.length > 0 && r.resolvedModel.length <= 256 &&
-      (r.resolvedModel === header.requestedModel ||
-        r.resolvedModel.startsWith(header.requestedModel + '-'));
-    const validResolved = r?.status === 'error'
-      ? r.resolvedModel === null || resolvedMatches
-      : resolvedMatches;
+  for (const [index, r] of records.entries()) {
+    const validState = r?.status === 'answered'
+      ? isSupportedResolvedModel(r.resolvedModel) && r.error === null
+      : r?.status === 'error' && r.probability === null && providerErrors.has(r.error) &&
+        (r.resolvedModel === null || isSupportedResolvedModel(r.resolvedModel)) &&
+        index === records.length - 1;
     if (!r || r.kind !== 'prediction' || r.trainingEligible !== false ||
-        !validResolved || !nullableMetric(r.latencyMs) || !r.usage ||
-        !['inputTokens', 'outputTokens', 'costUsd'].every(key => nullableMetric(r.usage[key])) ||
-        !(r.error === null || (typeof r.error === 'string' && r.error.length <= 512)))
+        r.caseId !== cases[index].id || r.caseHash !== cases[index].hash ||
+        !validState || !nullableMetric(r.latencyMs) || !r.usage ||
+        !['inputTokens', 'outputTokens'].every(key => nullableTokenCount(r.usage[key])) ||
+        !nullableMetric(r.usage.costUsd))
       throw new Error('Invalid prediction record.');
   }
   return { header, records, runSha256: sha256(text) };
@@ -106,18 +109,29 @@ async function readRun(path, cases) {
 function nullableMetric(value) {
   return value === null || (typeof value === 'number' && Number.isFinite(value) && value >= 0);
 }
+function nullableTokenCount(value) {
+  return value === null || (Number.isSafeInteger(value) && value >= 0);
+}
 function measurements(records) {
-  const summarize = values => {
+  const summarize = (values, integer = false) => {
     const reported = values.filter(value => value !== null);
+    let total = 0;
+    for (const value of reported) {
+      total += value;
+      if (!Number.isFinite(total) || (integer && !Number.isSafeInteger(total))) {
+        throw new Error('Measurement totals exceed supported numeric bounds.');
+      }
+    }
     return { reported: reported.length, attempted: records.length,
-      total: reported.length ? reported.reduce((a, b) => a + b, 0) : null };
+      total: reported.length ? total : null };
   };
-  const latency = summarize(records.map(r => r.latencyMs));
+  const latency = records.map(r => r.latencyMs).filter(value => value !== null);
+  const meanLatency = latency.reduce((mean, value, index) => mean + (value - mean) / (index + 1), 0);
   return {
-    latencyMs: { reported: latency.reported, attempted: latency.attempted,
-      mean: latency.reported ? latency.total / latency.reported : null },
-    inputTokens: summarize(records.map(r => r.usage.inputTokens)),
-    outputTokens: summarize(records.map(r => r.usage.outputTokens)),
+    latencyMs: { reported: latency.length, attempted: records.length,
+      mean: latency.length ? meanLatency : null },
+    inputTokens: summarize(records.map(r => r.usage.inputTokens), true),
+    outputTokens: summarize(records.map(r => r.usage.outputTokens), true),
     costUsd: summarize(records.map(r => r.usage.costUsd)),
   };
 }
