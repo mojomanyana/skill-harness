@@ -1,6 +1,6 @@
 {
     "name": "@skill-harness/adapters",
-    "version": "0.23.0",
+    "version": "0.24.0-rc.1",
     "description": "skill-harness Pi runner and judge adapter (internal API)",
     "type": "module",
     "license": "MIT",
@@ -42,6 +42,6 @@
         "prepack": "node ../../scripts/release-pack.mjs --guard"
     },
     "dependencies": {
-        "@skill-harness/core": "0.23.0"
+        "@skill-harness/core": "0.24.0-rc.1"
     }
 }

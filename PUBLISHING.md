@@ -1,9 +1,10 @@
 # Publishing skill-harness
 
-## Current release
+## Current candidate
 
-- npm version and `latest`: `0.20.0`
-- Git tag: `v0.20.0`
+- Prepared repository prerelease: `0.24.0-rc.1`
+- Candidate tag name: `v0.24.0-rc.1` (creation is a separately authorized action)
+- This preparation does not publish to npm or move `latest`; no current registry state is asserted.
 - Release-pack toolchain: Node `v20.20.2`, npm `10.8.2`
 
 ## Public packages
@@ -104,14 +105,18 @@ separate authorization.
 
 ## Publish
 
+For a prerelease, obtain explicit approval for a non-`latest` dist-tag (for example `rc`).
+Do not use the default `latest` tag for a prerelease. Set `DIST_TAG` to the approved
+tag before the commands below; stable promotion is a separate decision.
+
 Immediately before each mutation, confirm that the exact version is absent from npm.
 Publish only the canonical archives:
 
 ```bash
-npm publish "$RELEASE_EVIDENCE/artifacts/skill-harness-core-VERSION.tgz" --access public
-npm publish "$RELEASE_EVIDENCE/artifacts/skill-harness-adapters-VERSION.tgz" --access public
-npm publish "$RELEASE_EVIDENCE/artifacts/skill-harness-cli-VERSION.tgz" --access public
-npm publish "$RELEASE_EVIDENCE/artifacts/skill-harness-VERSION.tgz"
+npm publish "$RELEASE_EVIDENCE/artifacts/skill-harness-core-VERSION.tgz" --access public --tag "$DIST_TAG"
+npm publish "$RELEASE_EVIDENCE/artifacts/skill-harness-adapters-VERSION.tgz" --access public --tag "$DIST_TAG"
+npm publish "$RELEASE_EVIDENCE/artifacts/skill-harness-cli-VERSION.tgz" --access public --tag "$DIST_TAG"
+npm publish "$RELEASE_EVIDENCE/artifacts/skill-harness-VERSION.tgz" --tag "$DIST_TAG"
 ```
 
 After registry propagation:

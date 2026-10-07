@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.24.0-rc.1 — Pi 1.0.4 settlement evidence (2026-10-07)
+
+### Fixed
+
+- Require settled Pi 1.0.4 delivery before judging. Terminal errors, aborts, missing settlement, malformed captures and nonzero process exits remain infrastructure ERROR during both new runs and saved regrading.
+- Preserve the latest assistant final and its whitespace; an earlier successful answer cannot replace a later failure. Successful settled retries can supersede transient transport diagnostics without changing the existing empty-response retry policy.
+
+### Changed
+
+- Label requested Agent tasks and outstanding parent tool calls without claiming observed child launches or child concurrency.
+
+### Added
+
+- Add sanitized, hash-pinned actual Pi 1.0.4 CLI captures and parser, adapter, run and regrade regressions. Legacy version handling remains separate.
+- Prepare synchronized prerelease package metadata. This candidate does not claim remote-provider qualification or npm publication, and does not promote a stable version or the npm latest tag.
+
 ## 0.23.0 — Structured judge votes (2026-10-04)
 
 ### Changed

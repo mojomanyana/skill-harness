@@ -2,8 +2,9 @@
 
 ## Current state
 
-`v0.23.0` is the repository baseline. Package manifests and release tags are the
-authority for version identity; this document does not qualify the current npm registry.
+`0.24.0-rc.1` is the prepared repository prerelease candidate. Package manifests
+identify these candidate bytes; no npm publication or `latest` promotion is claimed.
+Historical released versions remain recorded in the changelog.
 
 The current architecture is Pi-only:
 
