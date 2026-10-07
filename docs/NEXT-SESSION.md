@@ -67,8 +67,12 @@ generated adapter modules; use the vendoring/check scripts named in `AGENTS.md`.
 ## Optional decision research
 
 A source-only [decision shadow pilot](https://github.com/mojomanyana/skill-harness/tree/main/experiments/decision-shadow)
-compares explicitly curated cases through OpenAI Decisions and JEV. It is separate
+evaluates explicitly curated cases through optional JEV calls. Subscription-backed
+Pi judging remains the ordinary workflow and comparison baseline. It is separate
 from the Pi-only subject/judge loop, does not write harness verdicts, and gives
 provider outputs no runtime authority or training eligibility. Offline fixtures
 qualify plumbing only; live quality/latency and a rights-cleared learning corpus
 remain unmeasured.
+
+OpenAI Decisions has been removed from this plan and experiment. Do not
+reintroduce it or use it as a fallback.

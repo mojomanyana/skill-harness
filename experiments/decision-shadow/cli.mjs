@@ -7,16 +7,16 @@ import { pathToFileURL } from 'node:url';
 import { parseCases, parseLabels, scorePredictions, localCorpus } from './dataset.mjs';
 import { makeRequest, callProvider } from './providers.mjs';
 
-const terms = { openai: 'https://openai.com/policies/services-agreement/', jev: 'https://typesafe.ai/legal/mca' };
+const terms = { jev: 'https://typesafe.ai/legal/mca' };
 const help = `Source-only decision shadow pilot (Node >=20)
-  preview --cases FILE --provider openai|jev --model MODEL
-  run --cases FILE --provider openai|jev --model MODEL --out NEW.jsonl --allow-remote
+  preview --cases FILE --provider jev --model MODEL
+  run --cases FILE --provider jev --model MODEL --out NEW.jsonl --allow-remote
   score --cases FILE --labels FILE --run RESULT.jsonl [--run RESULT2.jsonl]
   corpus --cases FILE --labels FILE --out NEW.json
 
 preview, score and corpus are offline. run sends only the curated input and
 question to the selected provider, bills its API, and requires its API key in
-OPENAI_API_KEY or OPENROUTER_API_KEY. No retries. Output must be new.
+OPENROUTER_API_KEY. No retries. Output must be new.
 Labels/predictions are research records, never runtime authority.
 Corpus excludes predictions and is NOT approved for training.`;
 
@@ -139,7 +139,7 @@ export async function main(argv, { emit = console.log, env = process.env, provid
           ({ caseId: cases[i].id, caseHash: cases[i].hash, ...request })) }, null, 2));
       return;
     }
-    const apiKey = env[flags.provider === 'openai' ? 'OPENAI_API_KEY' : 'OPENROUTER_API_KEY'];
+    const apiKey = env.OPENROUTER_API_KEY;
     if (!apiKey?.trim()) throw new Error('Selected provider API key is not configured.');
     const file = await open(flags.out, 'wx', 0o600);
     const append = async row => { await file.writeFile(JSON.stringify(row) + '\n'); await file.sync(); };
