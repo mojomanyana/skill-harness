@@ -5846,6 +5846,11 @@ function parseTrace(lines, meta) {
   let completionCounter = 0;
   let malformedLines = 0;
   let sawTerminal = false;
+  const settledContract = meta.piVersion === "1.0.4";
+  let sawSettled = false;
+  let lastStopReason;
+  let currentAssistantText = "";
+  const captureErrors = [];
   let finalText = "";
   let lastAssistantText = "";
   let inputTokens = null;
@@ -5865,13 +5870,28 @@ function parseTrace(lines, meta) {
       malformedLines++;
       continue;
     }
+    if (!ev || typeof ev !== "object" || Array.isArray(ev)) {
+      malformedLines++;
+      continue;
+    }
     const type2 = ev.type;
+    if (settledContract && ["agent_start", "message_start", "message_end", "tool_execution_start"].includes(type2 ?? "")) {
+      sawSettled = false;
+    }
+    if (type2 === "agent_start" && settledContract) {
+      currentAssistantText = "";
+      lastStopReason = void 0;
+    }
     if (typeof type2 !== "string" || SKIPPED.has(type2))
       continue;
     if (type2 === "tool_execution_start") {
       const id = str2(ev.toolCallId);
       if (!id)
         continue;
+      if (calls.has(id)) {
+        captureErrors.push("duplicate tool start identity");
+        continue;
+      }
       calls.set(id, {
         id,
         name: str2(ev.toolName) ?? "(unknown)",
@@ -5892,8 +5912,14 @@ function parseTrace(lines, meta) {
       if (!id)
         continue;
       const call = calls.get(id);
-      if (!call)
+      if (!call) {
+        captureErrors.push("tool end without a matching start");
         continue;
+      }
+      if (call.completionIndex >= 0) {
+        captureErrors.push("duplicate tool completion identity");
+        continue;
+      }
       if (call.completionIndex < 0)
         activeCalls = Math.max(0, activeCalls - 1);
       call.completionIndex = completionCounter++;
@@ -5906,7 +5932,13 @@ function parseTrace(lines, meta) {
     if (type2 === "message_end") {
       sawTerminal = true;
       const msg = ev.message;
-      const at = isoTime(msg?.timestamp);
+      if (msg?.role !== "assistant" && msg?.role !== "toolResult")
+        continue;
+      if (!msg || typeof msg !== "object" || !Array.isArray(msg.content) || msg.content.some((block) => !block || typeof block !== "object" || typeof block.type !== "string")) {
+        captureErrors.push("malformed message_end content");
+        continue;
+      }
+      const at = isoTime(msg.timestamp);
       if (msg?.role === "assistant" && at) {
         for (const block of msg.content ?? []) {
           if (block.type !== "toolCall" || typeof block.id !== "string")
@@ -5925,7 +5957,9 @@ function parseTrace(lines, meta) {
       }
       if (msg?.role !== "assistant")
         continue;
-      const text = assistantText(msg);
+      const text = assistantText(msg, !settledContract);
+      currentAssistantText = text;
+      lastStopReason = msg.stopReason;
       if (text) {
         lastAssistantText = text;
         if (msg.stopReason === "stop")
@@ -5939,10 +5973,18 @@ function parseTrace(lines, meta) {
     }
     if (type2 === "turn_end" || type2 === "agent_end" || type2 === "agent_settled") {
       sawTerminal = true;
+      if (type2 === "agent_settled")
+        sawSettled = true;
       continue;
     }
   }
   const toolCalls = [...calls.values()].sort((a, b) => a.issueIndex - b.issueIndex);
+  const finalStatus = !sawSettled || activeCalls > 0 ? "incomplete" : lastStopReason === "error" ? "error" : lastStopReason === "aborted" ? "aborted" : lastStopReason === "stop" ? "complete" : "incomplete";
+  if (settledContract && finalStatus !== "complete") {
+    captureErrors.push(`Pi 1.0.4 final delivery is ${finalStatus}; settled completion was not established`);
+  }
+  if (malformedLines > 0)
+    captureErrors.push(`pi JSONL contained ${malformedLines} malformed line(s); trace evidence is incomplete`);
   const metrics = {
     input_tokens: inputTokens,
     output_tokens: outputTokens,
@@ -5970,7 +6012,9 @@ function parseTrace(lines, meta) {
     // and `smoke-real-pi.sh` asserts no `/home/` survives into a persisted trace
     // — an assertion that used to pass only because the smoke model happened not
     // to echo one.
-    final_text: redactText(finalText || lastAssistantText, meta.homeDir),
+    final_text: redactText(settledContract ? currentAssistantText : finalText || lastAssistantText, meta.homeDir),
+    ...settledContract ? { final_status: finalStatus } : {},
+    ...captureErrors.length ? { capture_errors: [...new Set(captureErrors)] } : {},
     tool_calls: toolCalls,
     // `null`, not `[]`: the stream says nothing about the filesystem. The runner
     // overwrites this after observing the workspace. Defaulting to `[]` claimed
@@ -5982,13 +6026,14 @@ function parseTrace(lines, meta) {
     metrics
   };
   trace.trace_sha256 = traceSha256(trace);
-  return { trace, isComplete: sawTerminal, malformedLines };
+  return { trace, isComplete: settledContract ? sawSettled && activeCalls === 0 : sawTerminal, malformedLines };
 }
 function addReported(current, value) {
   return typeof value === "number" && value > 0 ? (current ?? 0) + value : current;
 }
-function assistantText(msg) {
-  return (msg.content ?? []).filter((b) => b.type === "text" && typeof b.text === "string").map((b) => b.text).join("\n").trim();
+function assistantText(msg, trim = true) {
+  const text = (msg.content ?? []).filter((b) => b.type === "text" && typeof b.text === "string").map((b) => b.text).join("\n");
+  return trim ? text.trim() : text;
 }
 function resultMeta(result, homeDir) {
   const body = JSON.stringify(result?.content ?? result ?? null);
@@ -7869,7 +7914,7 @@ ${r.stderr.trim()}
         throw new Error(`pi --mode json produced no terminal events for turn ${i + 1}/${total} (exit ${r.code}${r.malformedLines ? `, ${r.malformedLines} malformed line(s)` : ""})` + (r.stderr.trim() ? `: ${r.stderr.trim()}` : ""));
       }
       if (r.malformedLines > 0) {
-        r.trace.capture_errors = [`pi JSONL contained ${r.malformedLines} malformed line(s); absence-based trace assertions are unsafe`];
+        r.trace.capture_errors = [.../* @__PURE__ */ new Set([...r.trace.capture_errors ?? [], `pi JSONL contained ${r.malformedLines} malformed line(s); absence-based trace assertions are unsafe`])];
         r.trace.trace_sha256 = traceSha256(r.trace);
       }
       if (providerFailure === null && r.providerFailure)

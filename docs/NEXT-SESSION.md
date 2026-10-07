@@ -2,8 +2,8 @@
 
 ## Current state
 
-`v0.20.0` is published to npm and is the current `latest` release. The registry
-serves all four public packages at 0.20.0.
+`v0.23.0` is the repository baseline. Package manifests and release tags are the
+authority for version identity; this document does not qualify the current npm registry.
 
 The current architecture is Pi-only:
 

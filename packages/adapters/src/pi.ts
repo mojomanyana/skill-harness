@@ -270,7 +270,7 @@ export const piAdapter: HarnessAdapter = {
       }
 
       if (r.malformedLines > 0) {
-        r.trace.capture_errors = [`pi JSONL contained ${r.malformedLines} malformed line(s); absence-based trace assertions are unsafe`];
+        r.trace.capture_errors = [...new Set([...(r.trace.capture_errors ?? []), `pi JSONL contained ${r.malformedLines} malformed line(s); absence-based trace assertions are unsafe`])];
         r.trace.trace_sha256 = traceSha256(r.trace);
       }
       // Recorded here, written into the transcript preamble by

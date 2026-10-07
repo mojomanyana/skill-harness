@@ -83,6 +83,11 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
   let completionCounter = 0;
   let malformedLines = 0;
   let sawTerminal = false;
+  const settledContract = meta.piVersion === "1.0.4";
+  let sawSettled = false;
+  let lastStopReason: string | undefined;
+  let currentAssistantText = "";
+  const captureErrors: string[] = [];
 
   let finalText = "";
   let lastAssistantText = "";
@@ -104,12 +109,27 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
       malformedLines++;
       continue;
     }
+    if (!ev || typeof ev !== "object" || Array.isArray(ev)) {
+      malformedLines++;
+      continue;
+    }
     const type = ev.type;
+    if (settledContract && ["agent_start", "message_start", "message_end", "tool_execution_start"].includes(type ?? "")) {
+      sawSettled = false;
+    }
+    if (type === "agent_start" && settledContract) {
+      currentAssistantText = "";
+      lastStopReason = undefined;
+    }
     if (typeof type !== "string" || SKIPPED.has(type)) continue;
 
     if (type === "tool_execution_start") {
       const id = str(ev.toolCallId);
       if (!id) continue;
+      if (calls.has(id)) {
+        captureErrors.push("duplicate tool start identity");
+        continue;
+      }
       calls.set(id, {
         id,
         name: str(ev.toolName) ?? "(unknown)",
@@ -129,7 +149,14 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
       const id = str(ev.toolCallId);
       if (!id) continue;
       const call = calls.get(id);
-      if (!call) continue; // an end with no start is not evidence of a call
+      if (!call) {
+        captureErrors.push("tool end without a matching start");
+        continue;
+      }
+      if (call.completionIndex >= 0) {
+        captureErrors.push("duplicate tool completion identity");
+        continue;
+      }
       if (call.completionIndex < 0) activeCalls = Math.max(0, activeCalls - 1);
       call.completionIndex = completionCounter++;
       if (completedAt.get(id)) call.completed_at = completedAt.get(id);
@@ -141,7 +168,13 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
     if (type === "message_end") {
       sawTerminal = true;
       const msg = ev.message as RawMessage | undefined;
-      const at = isoTime(msg?.timestamp);
+      if (msg?.role !== "assistant" && msg?.role !== "toolResult") continue;
+      if (!msg || typeof msg !== "object" || !Array.isArray(msg.content) ||
+          msg.content.some((block) => !block || typeof block !== "object" || typeof block.type !== "string")) {
+        captureErrors.push("malformed message_end content");
+        continue;
+      }
+      const at = isoTime(msg.timestamp);
       if (msg?.role === "assistant" && at) {
         for (const block of msg.content ?? []) {
           if (block.type !== "toolCall" || typeof block.id !== "string") continue;
@@ -156,7 +189,9 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
         if (call) call.completed_at = at;
       }
       if (msg?.role !== "assistant") continue;
-      const text = assistantText(msg);
+      const text = assistantText(msg, !settledContract);
+      currentAssistantText = text;
+      lastStopReason = msg.stopReason;
       if (text) {
         lastAssistantText = text;
         // `stop` marks the model's closing message; a `toolUse` message is
@@ -172,15 +207,24 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
 
     if (type === "turn_end" || type === "agent_end" || type === "agent_settled") {
       sawTerminal = true;
+      if (type === "agent_settled") sawSettled = true;
       // Deliberately read NOTHING from these. They repeat the same assistant
       // messages `message_end` already carried (`turn_end` and `agent_end` do;
-    // `agent_settled` carries no keys at all beyond `type`), and reading two
+      // `agent_settled` carries no keys at all beyond `type`), and reading two
       // sources would double the transcript and reintroduce thinking.
       continue;
     }
   }
 
   const toolCalls = [...calls.values()].sort((a, b) => a.issueIndex - b.issueIndex);
+  const finalStatus = !sawSettled || activeCalls > 0 ? "incomplete"
+    : lastStopReason === "error" ? "error"
+    : lastStopReason === "aborted" ? "aborted"
+    : lastStopReason === "stop" ? "complete" : "incomplete";
+  if (settledContract && finalStatus !== "complete") {
+    captureErrors.push(`Pi 1.0.4 final delivery is ${finalStatus}; settled completion was not established`);
+  }
+  if (malformedLines > 0) captureErrors.push(`pi JSONL contained ${malformedLines} malformed line(s); trace evidence is incomplete`);
   const metrics: TraceMetrics = {
     input_tokens: inputTokens,
     output_tokens: outputTokens,
@@ -210,7 +254,9 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
     // and `smoke-real-pi.sh` asserts no `/home/` survives into a persisted trace
     // — an assertion that used to pass only because the smoke model happened not
     // to echo one.
-    final_text: redactText(finalText || lastAssistantText, meta.homeDir),
+    final_text: redactText(settledContract ? currentAssistantText : finalText || lastAssistantText, meta.homeDir),
+    ...(settledContract ? { final_status: finalStatus } : {}),
+    ...(captureErrors.length ? { capture_errors: [...new Set(captureErrors)] } : {}),
     tool_calls: toolCalls,
     // `null`, not `[]`: the stream says nothing about the filesystem. The runner
     // overwrites this after observing the workspace. Defaulting to `[]` claimed
@@ -223,7 +269,7 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
   };
   trace.trace_sha256 = traceSha256(trace);
 
-  return { trace, isComplete: sawTerminal, malformedLines };
+  return { trace, isComplete: settledContract ? sawSettled && activeCalls === 0 : sawTerminal, malformedLines };
 }
 
 function addReported(current: number | null, value: number | undefined): number | null {
@@ -231,12 +277,12 @@ function addReported(current: number | null, value: number | undefined): number 
 }
 
 /** Visible assistant text. Thinking is dropped here, and at every other reader. */
-function assistantText(msg: RawMessage): string {
-  return (msg.content ?? [])
+function assistantText(msg: RawMessage, trim = true): string {
+  const text = (msg.content ?? [])
     .filter((b) => b.type === "text" && typeof b.text === "string")
     .map((b) => b.text as string)
-    .join("\n")
-    .trim();
+    .join("\n");
+  return trim ? text.trim() : text;
 }
 
 /**

@@ -671,7 +671,7 @@ export function formatScorecard(summary: RunSummary, lift?: Lift, stability?: Sc
     const tokens = metrics.input_tokens === null
       ? "subject tokens unavailable"
       : `subject tokens ${metrics.input_tokens} in / ${metrics.output_tokens ?? 0} out / ${metrics.cache_read_tokens ?? 0} cache-read`;
-    const tools = metrics.tool_calls === null ? "tool calls unavailable" : `${metrics.tool_calls} tool call(s), ${metrics.delegated_children ?? 0} delegated, max concurrency ${metrics.max_concurrency ?? 0}`;
+    const tools = metrics.tool_calls === null ? "tool calls unavailable" : `${metrics.tool_calls} tool call(s), ${metrics.delegated_children ?? 0} requested Agent task(s), max outstanding tool calls ${metrics.max_concurrency ?? 0}; child launches/concurrency unobserved`;
     const cost = metrics.cost_source === "subscription"
       ? " · subscription ($0 marginal cost recorded)"
       : metrics.cost_source === "unreported"
