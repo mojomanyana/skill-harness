@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.24.2 — release-state documentation and verification (2026-10-07)
+
+- Separate source release targets from live npm and GitHub state in release documentation, so candidate preparation cannot be mistaken for a publication claim.
+- Re-verify the Pi 1.0.4 extension-loader fix through the canonical pack path and an isolated npm installation without changing runtime behavior.
+
 ## 0.24.1 — Pi 1.0.4 extension-loader compatibility (2026-10-07)
 
 - Declare TypeBox as a wildcard host-provided peer in the published Pi extension package while retaining it as a development dependency for builds and tests. This prevents a duplicate runtime copy and removes Pi 1.0.4's extension-loader warning.

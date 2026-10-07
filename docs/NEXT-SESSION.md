@@ -2,8 +2,9 @@
 
 ## Current state
 
-`0.24.1` is the stable repository release. Package manifests
-identify these candidate bytes; no npm publication or `latest` promotion is claimed.
+`0.24.2` is the current source release target. Package manifests identify these
+candidate bytes; verify npm and GitHub directly before asserting publication or
+`latest` promotion.
 Historical released versions remain recorded in the changelog.
 
 Fresh subject execution is qualified only on exact Pi **1.0.4**. Other or unknown
