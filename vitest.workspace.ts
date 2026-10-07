@@ -17,8 +17,8 @@ const tempCleanup = fileURLToPath(new URL("./scripts/vitest-temp-cleanup.mjs", i
 const packages = readdirSync(packagesDir).filter((name) => statSync(join(packagesDir, name)).isDirectory());
 
 export default defineWorkspace(
-  packages.map((pkg) => ({
+  [...packages.map((pkg) => ({
     test: { name: pkg, root: `packages/${pkg}`, globalSetup: tempCleanup },
     resolve: { alias },
-  }))
+  })), { test: { name: "decision-shadow", root: "experiments/decision-shadow", globalSetup: tempCleanup } }]
 );

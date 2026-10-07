@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "labels": [
+    {
+      "caseId": "complete",
+      "caseHash": "fd53ef64e9bda908f45d4cb973c3957ade8724b961add0b5a5e8aaa5ea1b43d0",
+      "value": true,
+      "kind": "test",
+      "actor": "synthetic-readiness-rule-v1",
+      "evidenceSha256": "bd5bc9a5aa7512f3bd2cef44f0a4462a55eff742d23d373ba325a305f6273a95",
+      "independent": true
+    },
+    {
+      "caseId": "test-failure",
+      "caseHash": "7a710dd3813643c36cb29b52e2057a7b561bd14cec23c66cbf9dc068fa3567fa",
+      "value": false,
+      "kind": "test",
+      "actor": "synthetic-readiness-rule-v1",
+      "evidenceSha256": "2d8524a2a8a4ce576a816944426123cc407eb7c6e34699e1627bca2e4f28f8f9",
+      "independent": true
+    },
+    {
+      "caseId": "review-changes",
+      "caseHash": "c40d813254b8a0862ece11917b99705642726b6f9eb1f8a834668b8a769e4d8a",
+      "value": false,
+      "kind": "test",
+      "actor": "synthetic-readiness-rule-v1",
+      "evidenceSha256": "49cc826e7a354d47ff49b23e003850a2dab4f8849648e4a27fcbf7b5e5085d82",
+      "independent": true
+    },
+    {
+      "caseId": "stale-review",
+      "caseHash": "0b6954bb848fbf7c73c42af0213c435962b06c1b7ea1408f13d22d6cbfc8ac62",
+      "value": false,
+      "kind": "test",
+      "actor": "synthetic-readiness-rule-v1",
+      "evidenceSha256": "18e9564421604079ca29c8c31a45d1ff4d37e8782dc5f64826ca11c5f59f3c79",
+      "independent": true
+    },
+    {
+      "caseId": "cleanup-unknown",
+      "caseHash": "f2f0b3f38529681f428d7b367f7694e3ecabc91760f310888130432ed2014f5f",
+      "value": false,
+      "kind": "test",
+      "actor": "synthetic-readiness-rule-v1",
+      "evidenceSha256": "25ad85d2de74d72abe2f350e288c6df4cce85d46990fe2f58b7cec2c97f954a3",
+      "independent": true
+    },
+    {
+      "caseId": "review-missing",
+      "caseHash": "4dfa34c57cb48ff2a97b1bcd8202d719b45393a20bbd49fc3507af3d05d05f44",
+      "value": false,
+      "kind": "test",
+      "actor": "synthetic-readiness-rule-v1",
+      "evidenceSha256": "3aacbbd83b2e4c91c70695eb10aff086c4f182d30c797366391345cad1e7f7ac",
+      "independent": true
+    }
+  ]
+}
