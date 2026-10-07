@@ -107,3 +107,13 @@ by version X needs version ≥ X to lint (see `PUBLISHING.md`).
 - **`contracts/pi-daddy/ledger/v2/`** — the frozen producer contract the compatibility `pi-daddy-v1` selector validates against, including unversioned 0.17 inputs. Never hand-edit generated `packages/adapters/src/pi-daddy-ledger-v2.ts`.
 - **`contracts/pi-daddy/ledger/v3/`** — the separate production-v3 pin used by `pi-daddy-ledger-v3`: byte-exact schema, refusal source, and real-builder fixtures. Re-pin with `scripts/vendor-pi-daddy-ledger-v3-contract.mjs`; verify with `scripts/check-pi-daddy-v3-contract.mjs` and `npm run verify:pi-daddy-v3-contract -- <clean pinned checkout>`. Never hand-edit generated `packages/adapters/src/pi-daddy-ledger-v3.ts`.
 - Working on the codebase itself: `npm test` (vitest), `npm run typecheck`; the monorepo is `packages/core` (engine), `packages/adapters` (Pi subject + judge adapter), `packages/cli` (commands + review server), `packages/pi-extension` (the pi extension; its `dist/index.js` is a committed esbuild bundle — regenerate with `npm run build:ext` and commit it whenever the bundled core/cli source changes; a `bundle.test.ts` guard fails if it goes stale).
+
+## Source-only decision experiment
+
+An opt-in JEV/OpenAI comparison lives under experiments/decision-shadow/.
+Its offline preview/score/corpus commands are safe without credentials. The
+explicit run --allow-remote experiment uses direct Decisions APIs, separately
+from the Pi-only subject/judge/spec loop. Do not run it without selecting the
+curated cases and exact provider/model call scope with the user. Never import
+its predictions into verdicts, grants, model selection, or a training corpus.
+See its README for the public contracts, independent labels, and terms limits.

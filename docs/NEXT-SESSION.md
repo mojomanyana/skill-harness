@@ -63,3 +63,12 @@ generated adapter modules; use the vendoring/check scripts named in `AGENTS.md`.
 3. Keep `.pi/`, `scratch/`, release artifacts, and provider credentials out of commits.
 4. For release claims, wait for CI `build-test`; it is the authoritative packer run on
    this host.
+
+## Optional decision research
+
+A source-only [decision shadow pilot](https://github.com/mojomanyana/skill-harness/tree/main/experiments/decision-shadow)
+compares explicitly curated cases through OpenAI Decisions and JEV. It is separate
+from the Pi-only subject/judge loop, does not write harness verdicts, and gives
+provider outputs no runtime authority or training eligibility. Offline fixtures
+qualify plumbing only; live quality/latency and a rights-cleared learning corpus
+remain unmeasured.

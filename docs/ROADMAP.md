@@ -75,3 +75,12 @@ skills. The run → grade → review loop stays free of product paywalls.
 - Hosted/team workflows remain deferred until the local loop has sustained external adoption.
 - OS-level sandboxing is not claimed; the current workspace isolation seam is not containment.
 - Judge-panel automation, mutation testing, retained-learning workflows, authenticated delivery observers, and cross-harness execution are not planned.
+
+## Optional decision research
+
+A source-only [decision shadow pilot](https://github.com/mojomanyana/skill-harness/tree/main/experiments/decision-shadow)
+compares explicitly curated cases through OpenAI Decisions and JEV. It is separate
+from the Pi-only subject/judge loop, does not write harness verdicts, and gives
+provider outputs no runtime authority or training eligibility. Offline fixtures
+qualify plumbing only; live quality/latency and a rights-cleared learning corpus
+remain unmeasured.

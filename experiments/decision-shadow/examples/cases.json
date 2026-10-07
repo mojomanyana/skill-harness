@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "complete",
+      "input": "{\"cleanup\":\"settled\",\"integrationCandidate\":\"commit-abc\",\"review\":\"approve\",\"reviewedCandidate\":\"commit-abc\",\"testedCandidate\":\"commit-abc\",\"tests\":\"pass\"}",
+      "question": "Does the recorded evidence support declaring this candidate ready for integration? Answer yes only when tests pass, independent review approves, tested/reviewed/integration candidate identities all match and are present, and child cleanup is settled. Missing or unknown evidence does not support readiness.",
+      "provenance": "synthetic",
+      "source": {
+        "sha256": "039fc29984f8d190251833355797693d6a0328638d0c356e2461b8d9e6c41b53",
+        "recordId": "synthetic-evidence/complete"
+      },
+      "visibility": "public"
+    },
+    {
+      "id": "test-failure",
+      "input": "{\"cleanup\":\"settled\",\"integrationCandidate\":\"commit-abc\",\"review\":\"approve\",\"reviewedCandidate\":\"commit-abc\",\"testedCandidate\":\"commit-abc\",\"tests\":\"fail\"}",
+      "question": "Does the recorded evidence support declaring this candidate ready for integration? Answer yes only when tests pass, independent review approves, tested/reviewed/integration candidate identities all match and are present, and child cleanup is settled. Missing or unknown evidence does not support readiness.",
+      "provenance": "synthetic",
+      "source": {
+        "sha256": "cc3709e0f9587b1c370eb49f3e6cbf94d4bfe22b6b74c35688323ea5a7fac9bf",
+        "recordId": "synthetic-evidence/test-failure"
+      },
+      "visibility": "public"
+    },
+    {
+      "id": "review-changes",
+      "input": "{\"cleanup\":\"settled\",\"integrationCandidate\":\"commit-abc\",\"review\":\"changes-requested\",\"reviewedCandidate\":\"commit-abc\",\"testedCandidate\":\"commit-abc\",\"tests\":\"pass\"}",
+      "question": "Does the recorded evidence support declaring this candidate ready for integration? Answer yes only when tests pass, independent review approves, tested/reviewed/integration candidate identities all match and are present, and child cleanup is settled. Missing or unknown evidence does not support readiness.",
+      "provenance": "synthetic",
+      "source": {
+        "sha256": "675844e6d2c9a1aca702b35aa67698b3861a043caae01ac294265e0bc57d48f5",
+        "recordId": "synthetic-evidence/review-changes"
+      },
+      "visibility": "public"
+    },
+    {
+      "id": "stale-review",
+      "input": "{\"cleanup\":\"settled\",\"integrationCandidate\":\"commit-abc\",\"review\":\"approve\",\"reviewedCandidate\":\"commit-old\",\"testedCandidate\":\"commit-abc\",\"tests\":\"pass\"}",
+      "question": "Does the recorded evidence support declaring this candidate ready for integration? Answer yes only when tests pass, independent review approves, tested/reviewed/integration candidate identities all match and are present, and child cleanup is settled. Missing or unknown evidence does not support readiness.",
+      "provenance": "synthetic",
+      "source": {
+        "sha256": "6bbdd48c81de7960d8ccc67d5ca1c73fda416f498e989615d20be0c50e21ab63",
+        "recordId": "synthetic-evidence/stale-review"
+      },
+      "visibility": "public"
+    },
+    {
+      "id": "cleanup-unknown",
+      "input": "{\"cleanup\":\"unknown\",\"integrationCandidate\":\"commit-abc\",\"review\":\"approve\",\"reviewedCandidate\":\"commit-abc\",\"testedCandidate\":\"commit-abc\",\"tests\":\"pass\"}",
+      "question": "Does the recorded evidence support declaring this candidate ready for integration? Answer yes only when tests pass, independent review approves, tested/reviewed/integration candidate identities all match and are present, and child cleanup is settled. Missing or unknown evidence does not support readiness.",
+      "provenance": "synthetic",
+      "source": {
+        "sha256": "6b1109ac75783b64c8d7b21f153efa1f7ebe21af3022fd4f5b04b28c37a51d66",
+        "recordId": "synthetic-evidence/cleanup-unknown"
+      },
+      "visibility": "public"
+    },
+    {
+      "id": "review-missing",
+      "input": "{\"cleanup\":\"settled\",\"integrationCandidate\":\"commit-abc\",\"review\":null,\"reviewedCandidate\":null,\"testedCandidate\":\"commit-abc\",\"tests\":\"pass\"}",
+      "question": "Does the recorded evidence support declaring this candidate ready for integration? Answer yes only when tests pass, independent review approves, tested/reviewed/integration candidate identities all match and are present, and child cleanup is settled. Missing or unknown evidence does not support readiness.",
+      "provenance": "synthetic",
+      "source": {
+        "sha256": "4a598c71ef714849b08755f15861fc7770edb441fa920176058307fe5211bfe6",
+        "recordId": "synthetic-evidence/review-missing"
+      },
+      "visibility": "public"
+    }
+  ]
+}
