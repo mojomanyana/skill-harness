@@ -21,6 +21,18 @@ async function fixture() {
 }
 const answer={status:'answered',probability:0.75,resolvedModel:'typesafe/jev-1.13',
   usage:{inputTokens:10,outputTokens:0,costUsd:null},latencyMs:5,error:null};
+async function savedRunFixture() {
+  const f = await fixture();
+  const out = join(f.dir, 'run.jsonl');
+  await main(['run','--cases',f.casesPath,'--provider','jev','--model','typesafe/jev-1.13',
+    '--out',out,'--allow-remote'], {
+      providerCall: async () => answer, env:{OPENROUTER_API_KEY:'test'}, emit:()=>{},
+    });
+  const rows = (await readFile(out, 'utf8')).trimEnd().split('\n').map(line => JSON.parse(line));
+  const scoreArgs = ['score','--cases',f.casesPath,'--labels',f.labelsPath,'--run',out];
+  const writeRows = (changedRows: unknown[]) => writeFile(out, changedRows.map(row => JSON.stringify(row)).join('\n') + '\n');
+  return { ...f, out, rows, scoreArgs, writeRows };
+}
 describe('source-only decision pilot CLI',()=>{
   it('previews only input/question without labels, source references or credentials',async()=>{
     const f=await fixture(); const emit=vi.fn(), providerCall=vi.fn();
@@ -175,13 +187,110 @@ describe('score provenance and snapshot validation', () => {
   });
 });
 
-it('checked-in six-case examples parse and join', async () => {
+describe('saved-run producer invariants', () => {
+  it('rejects contradictory states, unsupported refusals, and unsanitized errors', async () => {
+    const f = await savedRunFixture();
+    const mutations = [
+      { name:'answer with error', change:(row: any) => { row.error = 'invalid provider response'; } },
+      { name:'JEV refusal', change:(row: any) => { row.status = 'refused'; row.probability = null; } },
+      { name:'error with probability', change:(row: any) => { row.status = 'error'; row.error = 'provider request failed'; } },
+      { name:'error without diagnostic', change:(row: any) => { row.status = 'error'; row.probability = null; } },
+      { name:'raw provider error', change:(row: any) => {
+        row.status = 'error'; row.probability = null; row.error = 'raw provider response';
+      } },
+      { name:'unsupported resolved snapshot', change:(row: any) => { row.resolvedModel = 'typesafe/jev-1.13-forged'; } },
+    ];
+    for (const {name, change} of mutations) {
+      const rows = structuredClone(f.rows);
+      change(rows[2]);
+      await f.writeRows(rows);
+      const emit = vi.fn();
+      await expect(main(f.scoreArgs, {emit}), name).rejects.toThrow('Invalid prediction');
+      expect(emit, name).not.toHaveBeenCalled();
+    }
+  });
+
+  it('rejects missing interior cases, out-of-order rows, and rows after an error', async () => {
+    const f = await savedRunFixture();
+    const postError = structuredClone(f.rows);
+    postError[1] = {...postError[1], status:'error', probability:null, error:'provider request failed'};
+    for (const rows of [
+      [f.rows[0], f.rows[2]],
+      [f.rows[0], f.rows[2], f.rows[1]],
+      postError,
+    ]) {
+      await f.writeRows(rows);
+      const emit = vi.fn();
+      await expect(main(f.scoreArgs, {emit})).rejects.toThrow('Invalid prediction');
+      expect(emit).not.toHaveBeenCalled();
+    }
+  });
+
+  it('scores header-only runs, interrupted answer prefixes, and a terminal error', async () => {
+    const f = await savedRunFixture();
+    const terminal = structuredClone(f.rows);
+    terminal[2] = {...terminal[2], status:'error', probability:null, resolvedModel:null,
+      usage:{inputTokens:null,outputTokens:null,costUsd:null}, latencyMs:null, error:'Provider call failed.'};
+    const variants = [
+      {rows:f.rows.slice(0, 1), expected:{attempted:0, missing:2, errors:0, scored:0, accuracy:null}},
+      {rows:f.rows.slice(0, 2), expected:{attempted:1, missing:1, errors:0, scored:1, accuracy:1}},
+      {rows:terminal, expected:{attempted:2, missing:0, errors:1, scored:1, accuracy:1}},
+    ];
+    for (const {rows, expected} of variants) {
+      await f.writeRows(rows);
+      const emit = vi.fn();
+      await main(f.scoreArgs, {emit});
+      const report = JSON.parse(emit.mock.calls[0][0]).reports[0];
+      expect(report).toMatchObject(expected);
+      expect(report.runSha256).toBe(createHash('sha256').update(await readFile(f.out)).digest('hex'));
+    }
+  });
+
+  it('rejects fractional, unsafe, and negative token counts in imported records', async () => {
+    const f = await savedRunFixture();
+    for (const key of ['inputTokens', 'outputTokens']) {
+      for (const value of [0.5, Number.MAX_SAFE_INTEGER + 1, -1]) {
+        const rows = structuredClone(f.rows);
+        rows[1].usage[key] = value;
+        await f.writeRows(rows);
+        const emit = vi.fn();
+        await expect(main(f.scoreArgs, {emit})).rejects.toThrow('Invalid prediction');
+        expect(emit).not.toHaveBeenCalled();
+      }
+    }
+  });
+
+  it('refuses unsafe token sums and overflowing costs instead of emitting corrupt totals', async () => {
+    const f = await savedRunFixture();
+    for (const [key, value] of [['inputTokens', Number.MAX_SAFE_INTEGER], ['outputTokens', Number.MAX_SAFE_INTEGER], ['costUsd', 1e308]] as const) {
+      const rows = structuredClone(f.rows);
+      for (const row of rows.slice(1)) row.usage[key] = value;
+      await f.writeRows(rows);
+      const emit = vi.fn();
+      await expect(main(f.scoreArgs, {emit})).rejects.toThrow('Measurement totals');
+      expect(emit).not.toHaveBeenCalled();
+    }
+  });
+
+  it('computes a finite latency mean when summing valid measurements would overflow', async () => {
+    const f = await savedRunFixture();
+    const rows = structuredClone(f.rows);
+    for (const row of rows.slice(1)) row.latencyMs = Number.MAX_VALUE;
+    await f.writeRows(rows);
+    const emit = vi.fn();
+    await main(f.scoreArgs, {emit});
+    expect(JSON.parse(emit.mock.calls[0][0]).reports[0].measurements.latencyMs)
+      .toEqual({reported:2, attempted:2, mean:Number.MAX_VALUE});
+  });
+});
+
+it('checked-in eight-case examples parse and join', async () => {
   const cases = parseCases(JSON.parse(await readFile(new URL('./examples/cases.json', import.meta.url), 'utf8')));
   const labels = parseLabels(
     JSON.parse(await readFile(new URL('./examples/labels.json', import.meta.url), 'utf8')),
     cases,
   );
-  expect(cases).toHaveLength(6);
-  expect(labels).toHaveLength(6);
+  expect(cases).toHaveLength(8);
+  expect(labels).toHaveLength(8);
   expect(labels.map(label => label.caseId).sort()).toEqual(cases.map(item => item.id).sort());
 });

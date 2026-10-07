@@ -3,56 +3,74 @@
   "labels": [
     {
       "caseId": "complete",
-      "caseHash": "fd53ef64e9bda908f45d4cb973c3957ade8724b961add0b5a5e8aaa5ea1b43d0",
+      "caseHash": "36e58265956cdeeb9845b357d6735b5edac03487e65318e5df3842515603e5d7",
       "value": true,
       "kind": "test",
-      "actor": "synthetic-readiness-rule-v1",
-      "evidenceSha256": "bd5bc9a5aa7512f3bd2cef44f0a4462a55eff742d23d373ba325a305f6273a95",
+      "actor": "synthetic-readiness-rule-v2",
+      "evidenceSha256": "ed57d1237cdf8bb21962210e16cc93925d44e85e756a9fca0db1902f8e3c0ee2",
       "independent": true
     },
     {
       "caseId": "test-failure",
-      "caseHash": "7a710dd3813643c36cb29b52e2057a7b561bd14cec23c66cbf9dc068fa3567fa",
+      "caseHash": "dbeaf7fe547ba88fa0d2eadb9ddd5beeea13dfa64481ba6e414b226d7191b83c",
       "value": false,
       "kind": "test",
-      "actor": "synthetic-readiness-rule-v1",
-      "evidenceSha256": "2d8524a2a8a4ce576a816944426123cc407eb7c6e34699e1627bca2e4f28f8f9",
+      "actor": "synthetic-readiness-rule-v2",
+      "evidenceSha256": "8131e518590bee2160ac2a957e5ddf991f6c46b137f489747b262e20006757ca",
       "independent": true
     },
     {
       "caseId": "review-changes",
-      "caseHash": "c40d813254b8a0862ece11917b99705642726b6f9eb1f8a834668b8a769e4d8a",
+      "caseHash": "0776372810c7299ac9ccea55f513425d680acf977632e520bd1337df280fd030",
       "value": false,
       "kind": "test",
-      "actor": "synthetic-readiness-rule-v1",
-      "evidenceSha256": "49cc826e7a354d47ff49b23e003850a2dab4f8849648e4a27fcbf7b5e5085d82",
+      "actor": "synthetic-readiness-rule-v2",
+      "evidenceSha256": "8ec596d77f2e3c3997a34414314d811fac14563a8781ac3844787c9bf0e0f3cb",
       "independent": true
     },
     {
       "caseId": "stale-review",
-      "caseHash": "0b6954bb848fbf7c73c42af0213c435962b06c1b7ea1408f13d22d6cbfc8ac62",
+      "caseHash": "c2fd525ef2d82f3293b0fc2f8189a99153f1786c94062f7aa5e5736209d36f46",
       "value": false,
       "kind": "test",
-      "actor": "synthetic-readiness-rule-v1",
-      "evidenceSha256": "18e9564421604079ca29c8c31a45d1ff4d37e8782dc5f64826ca11c5f59f3c79",
+      "actor": "synthetic-readiness-rule-v2",
+      "evidenceSha256": "6e4dadbda9f699fc32ca0b5ce06a72c8a20664b83198fc974c3e81c31796b44d",
       "independent": true
     },
     {
       "caseId": "cleanup-unknown",
-      "caseHash": "f2f0b3f38529681f428d7b367f7694e3ecabc91760f310888130432ed2014f5f",
+      "caseHash": "009bdd79e07617b5a6976dbcca25a670b24c5e041737fb6733fda7a3bc9fe257",
       "value": false,
       "kind": "test",
-      "actor": "synthetic-readiness-rule-v1",
-      "evidenceSha256": "25ad85d2de74d72abe2f350e288c6df4cce85d46990fe2f58b7cec2c97f954a3",
+      "actor": "synthetic-readiness-rule-v2",
+      "evidenceSha256": "0f6a38d00d258ba7a2436a7b14556417fec904b113ad5ac57372500ff78c472d",
       "independent": true
     },
     {
       "caseId": "review-missing",
-      "caseHash": "4dfa34c57cb48ff2a97b1bcd8202d719b45393a20bbd49fc3507af3d05d05f44",
+      "caseHash": "970229debbae0cc546e174a23b044ee5ec575030437e88b86dd838b7a3df7717",
       "value": false,
       "kind": "test",
-      "actor": "synthetic-readiness-rule-v1",
-      "evidenceSha256": "3aacbbd83b2e4c91c70695eb10aff086c4f182d30c797366391345cad1e7f7ac",
+      "actor": "synthetic-readiness-rule-v2",
+      "evidenceSha256": "1aa0479ff571ed2605b91f3dcc9dbcd70aae8c6fef81f0ddf44d12886e80755a",
+      "independent": true
+    },
+    {
+      "caseId": "review-not-independent",
+      "caseHash": "3309284dcd9037646a422e93eb2b08229574b1811554d49ce855701488ed2d25",
+      "value": false,
+      "kind": "test",
+      "actor": "synthetic-readiness-rule-v2",
+      "evidenceSha256": "6ce0e3d8cf723b36138715eaab54ba9d2a2618d5c564e86046b6e9dead4b662d",
+      "independent": true
+    },
+    {
+      "caseId": "review-independence-missing",
+      "caseHash": "f6a4a1dd7a1f5273753564ca51d3e9c60ce17acc9587e818b023f6720657f055",
+      "value": false,
+      "kind": "test",
+      "actor": "synthetic-readiness-rule-v2",
+      "evidenceSha256": "0f53b2fe53042a145874f975d565262d983ebdf98632c07bd70725b0d20593df",
       "independent": true
     }
   ]

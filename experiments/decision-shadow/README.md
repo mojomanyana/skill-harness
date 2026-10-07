@@ -11,9 +11,12 @@ For a subscription-backed review baseline, use the existing Pi-based
 judge adapter or fallback provider.
 
 The first question is deliberately narrow: does the recorded evidence support
-declaring a candidate ready for integration? The six supplied examples are
+declaring a candidate ready for integration? The eight supplied examples are
 **synthetic plumbing fixtures** with mechanical labels. Results on these examples
 say nothing about real-world quality, speed improvements, or review reliability.
+The positive example records review independence explicitly; separate negative
+examples cover false and missing independence. Fixture labels are checked against
+a deterministic readiness rule.
 
 ## Run the offline demonstration
 
@@ -73,9 +76,12 @@ cases; they are null when none are scored. Coverage must accompany any compariso
 Each saved score report identifies the case-set hash, normalized label-set hash,
 exact run-file hash and run timestamp. Runs with mixed resolved model versions
 are refused for scoring; keep their raw local records and repeat a deliberately
-selected comparison later. The fixed probability threshold is 0.5. False positives/negatives are explicit.
+selected comparison later. Only the selected model alias or a valid dated snapshot is accepted.
+The fixed probability threshold is 0.5. False positives/negatives are explicit.
 Latency includes the HTTP attempt; token and cost totals state reported coverage.
-Unreported cost is null and is not estimated.
+Unreported cost is null and is not estimated. Token counts must be safe
+nonnegative integers; overflowing totals fail explicitly. Latency means are
+computed without an intermediate sum that could overflow.
 
 ## Curating real cases and labels
 
@@ -84,7 +90,10 @@ separate files. `preview` returns each canonical `caseHash` for a label to bind.
 A case hash covers its input, question, source reference, visibility, provenance,
 and ID; changing any field invalidates its labels and predictions. Whole case-set
 identity also prevents scoring a run against a different selection/order.
-Duplicate, foreign, or stale IDs/hashes fail validation.
+Duplicate, foreign, or stale IDs/hashes fail validation. Imported runs must
+follow the selected case order as a sequential prefix, with any error last.
+Contradictory status/error fields and unsupported JEV refusal records are
+rejected; a valid interrupted prefix or header-only run remains inspectable.
 
 Input files must be valid UTF-8 without a BOM. The recorded run-file hash
 identifies the exact accepted JSONL bytes, including whitespace.
