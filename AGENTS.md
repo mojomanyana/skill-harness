@@ -110,10 +110,14 @@ by version X needs version ≥ X to lint (see `PUBLISHING.md`).
 
 ## Source-only decision experiment
 
-An opt-in JEV/OpenAI comparison lives under experiments/decision-shadow/.
+An opt-in JEV evidence-classification experiment lives under experiments/decision-shadow/.
 Its offline preview/score/corpus commands are safe without credentials. The
-explicit run --allow-remote experiment uses direct Decisions APIs, separately
+explicit run --allow-remote experiment uses the JEV API, separately
 from the Pi-only subject/judge/spec loop. Do not run it without selecting the
 curated cases and exact provider/model call scope with the user. Never import
 its predictions into verdicts, grants, model selection, or a training corpus.
 See its README for the public contracts, independent labels, and terms limits.
+
+OpenAI Decisions is excluded from the experiment and follow-up plan; do not
+reintroduce its adapter, key setup, or fallback. Ordinary subscription-backed
+Pi judging remains supported.

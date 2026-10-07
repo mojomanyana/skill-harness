@@ -1,10 +1,14 @@
 # Decision shadow pilot
 
 This source-only experiment compares **advisory evidence classification** by JEV
-and OpenAI against independently supplied labels. It does not participate in
+against independently supplied labels. It does not participate in
 `skill-harness run/grade/review`, alter `results.yaml`, grant capabilities,
 choose execution models, resume work, or approve integration. The supported
 harness subject/judge execution remains Pi-only.
+
+For a subscription-backed review baseline, use the existing Pi-based
+`skill-harness run/grade/review` workflow. This experiment adds no new Pi
+judge adapter or fallback provider.
 
 The first question is deliberately narrow: does the recorded evidence support
 declaring a candidate ready for integration? The six supplied examples are
@@ -16,9 +20,6 @@ say nothing about real-world quality, speed improvements, or review reliability.
 From this repository checkout, with Node >=20 (no installation or API key needed):
 
 ```bash
-node experiments/decision-shadow/cli.mjs preview \
-  --cases experiments/decision-shadow/examples/cases.json \
-  --provider openai --model gpt-6-luna
 node experiments/decision-shadow/cli.mjs preview \
   --cases experiments/decision-shadow/examples/cases.json \
   --provider jev --model typesafe/jev-1.13
@@ -37,23 +38,19 @@ transcripts, credentials, runtime ledgers, or harness results to build cases.
 An output path must be unused. Repeated commands should choose another path;
 previous evidence is never overwritten.
 
-## Optional paid provider comparison
+## Optional paid JEV evaluation
 
-Review the preview first. Then supply the appropriate API keys through the
+Review the preview first. Then supply the OpenRouter API key through the
 process environment using your usual secret manager. Do not put keys in input
 files, command arguments, Git, or this document.
 
-These commands explicitly authorize sending the curated cases to that provider
-and incur provider charges. Each issues at most one request per case, sequentially;
+The `run --allow-remote` command sends the curated cases to JEV and incurs
+provider charges; `score` remains offline. The run issues at most one request per case, sequentially;
 there are at most 100 cases. It stops at the first API/validation error without
 retrying, saves completed attempts, and leaves the remaining cases missing.
-A refusal is a recorded nonanswer and is not counted as correct.
+Unexpected answer types are errors and are not counted as correct.
 
 ```bash
-node experiments/decision-shadow/cli.mjs run \
-  --cases experiments/decision-shadow/examples/cases.json \
-  --provider openai --model gpt-6-luna \
-  --out tmp/decision-shadow/openai.jsonl --allow-remote
 node experiments/decision-shadow/cli.mjs run \
   --cases experiments/decision-shadow/examples/cases.json \
   --provider jev --model typesafe/jev-1.13 \
@@ -61,17 +58,12 @@ node experiments/decision-shadow/cli.mjs run \
 node experiments/decision-shadow/cli.mjs score \
   --cases experiments/decision-shadow/examples/cases.json \
   --labels experiments/decision-shadow/examples/labels.json \
-  --run tmp/decision-shadow/openai.jsonl \
   --run tmp/decision-shadow/jev.jsonl
 ```
 
-The OpenAI Decisions endpoint requires API billing separately from a ChatGPT
-subscription; Pi subscription-backed judging remains available in the ordinary
-harness loop. See [OpenAI billing](https://help.openai.com/en/articles/8156167-invoice-dates-for-chatgpt-and-api-billing).
-
-The environment keys are `OPENAI_API_KEY` and `OPENROUTER_API_KEY`. Only the two
-documented provider/model pairs above are accepted. Requests use fixed HTTPS
-endpoints, prohibit redirects, have a 30-second deadline and a 64 KiB response
+The environment key is `OPENROUTER_API_KEY`. Only the documented
+JEV provider/model pair above is accepted. Requests use a fixed HTTPS
+endpoint, prohibit redirects, have a 30-second deadline and a 64 KiB response
 limit. Error text excludes raw provider responses. These are transport limits,
 not a monetary spending cap.
 
@@ -83,7 +75,7 @@ exact run-file hash and run timestamp. Runs with mixed resolved model versions
 are refused for scoring; keep their raw local records and repeat a deliberately
 selected comparison later. The fixed probability threshold is 0.5. False positives/negatives are explicit.
 Latency includes the HTTP attempt; token and cost totals state reported coverage.
-Unreported cost is null, never zero. This pilot does not estimate OpenAI billing.
+Unreported cost is null and is not estimated.
 
 ## Curating real cases and labels
 
@@ -120,18 +112,15 @@ this corpus. Data files remain local with no automatic upload or retention job.
 ## LoRA boundary
 
 `corpus` creates a local independent-label record with `trainingReady: false`.
-It has no prediction-file argument. Both providers' predictions are always
+It has no prediction-file argument. JEV predictions are always
 marked `trainingEligible: false` and stored separately. This prevents an
 accidental code path from copying teacher outputs into the label corpus; it
 cannot establish the rights of manually supplied content.
 
 TypeSafe's current terms prohibit distillation/imitation uses of its services
 and output. Keep JEV outputs out of training unless TypeSafe grants a written
-exception. OpenAI teacher-output use also needs a review of the applicable
-agreement and target-model use; ownership of output is not blanket permission
-to train any model. Neither API response is independent ground truth.
-See [TypeSafe MCA §2.3](https://typesafe.ai/legal/mca) and the
-[OpenAI Services Agreement](https://openai.com/policies/services-agreement/).
+exception. A provider prediction is not independent ground truth.
+See [TypeSafe MCA §2.3](https://typesafe.ai/legal/mca).
 
 A later learning experiment should use independently obtained human/test labels,
 documented source rights and consent, separate train/validation/test sets split
@@ -144,9 +133,6 @@ of this tool.
 
 Contracts were checked on 2026-10-07:
 
-- [OpenAI Decisions](https://developers.openai.com/api/reference/resources/decisions/methods/create):
-  beta `POST /v1/decisions`; ordered `predicate` question, named answer with
-  `probability`, or a per-question `refusal`.
 - [OpenRouter Decisions](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-request)
   and [JEV tutorial](https://openrouter.ai/docs/guides/community/jev-tutorial):
   `POST /api/alpha/decisions`; keyed `noul` question/answer. No per-question
@@ -154,7 +140,7 @@ Contracts were checked on 2026-10-07:
 - Only normalized answers, reported model identity, usage, latency and sanitized
   errors are retained. Raw responses are not saved.
 - Offline tests use fake transports. They check schema/identity boundaries,
-  request content, errors/refusals/timeouts, partial runs, scoring and corpus
+  request content, errors/timeouts, partial runs, scoring and corpus
   separation. They do not qualify live API access or model quality.
 - This experiment is available from the source checkout only. It adds no npm CLI
   command or extension behavior and does not change the published 0.24.2 packages.
