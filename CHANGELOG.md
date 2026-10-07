@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.24.1 — Pi 1.0.4 extension-loader compatibility (2026-10-07)
+
+- Declare TypeBox as a wildcard host-provided peer in the published Pi extension package while retaining it as a development dependency for builds and tests. This prevents a duplicate runtime copy and removes Pi 1.0.4's extension-loader warning.
+
 ## 0.24.0 — stable Pi qualification and final conformance (2026-10-07)
 
 ### Fixed
