@@ -112,7 +112,9 @@ by version X needs version ≥ X to lint (see `PUBLISHING.md`).
 ## Source-only decision experiment
 
 An opt-in JEV evidence-classification experiment lives under experiments/decision-shadow/.
-Its offline preview/score/corpus commands are safe without credentials. The
+Its offline preview/score/corpus and Linux verify-sources commands need no credentials.
+Source verification checks selected public capture bytes and record identities only;
+it does not establish decision-time availability, approval, redaction or rights. The
 explicit run --allow-remote experiment uses the JEV API, separately
 from the Pi-only subject/judge/spec loop. Do not run it without selecting the
 curated cases and exact provider/model call scope with the user. Never import

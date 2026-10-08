@@ -74,6 +74,14 @@ provider outputs no runtime authority or training eligibility. Offline fixtures
 qualify plumbing only; live quality/latency and a rights-cleared learning corpus
 remain unmeasured.
 
+The source-only `verify-sources` command now verifies explicit pi-daddy 0.45.0
+public capture selections offline on Linux. It checks copied bytes and recorded
+identities, not decision-time availability, approval, redaction or training
+rights. Independent AI audits remain outcome evidence, not human/test labels.
+The experiment README documents the closed selection schema and limits. The next
+quality experiment still needs reviewed decision-time inputs, independently
+valid labels, task-group separation and an explicitly selected provider budget.
+
 OpenAI Decisions has been removed from this plan and experiment. Do not
 reintroduce it or use it as a fallback.
 
