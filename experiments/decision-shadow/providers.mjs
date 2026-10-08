@@ -105,8 +105,9 @@ function normalize(payload) {
 }
 function deadline(signal) {
   return new Promise((_, reject) => {
-    if (signal.aborted) return reject(new Error("provider request timed out"));
-    signal.addEventListener("abort", () => reject(new Error("provider request timed out")), { once: true });
+    const fail = () => reject(signal.reason instanceof Error ? signal.reason : new Error("provider request timed out"));
+    if (signal.aborted) return fail();
+    signal.addEventListener("abort", fail, { once: true });
   });
 }
 async function readBounded(response, timedOut) {
@@ -135,7 +136,7 @@ async function readBounded(response, timedOut) {
   return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 }
 function failure(startedAt, error) {
-  const publicErrors = ["invalid provider response", "provider request timed out", "provider response exceeded limit"];
+  const publicErrors = ["invalid provider response", "provider request timed out", "provider response exceeded limit", "provider request cancelled"];
   const message = error instanceof Error && publicErrors.includes(error.message)
     ? error.message : "provider request failed";
   return {
@@ -148,6 +149,7 @@ export async function callProvider(provider, model, example, options = {}) {
   const startedAt = performance.now();
   let controller;
   let timer;
+  let cancel;
   try {
     const request = makeRequest(provider, model, example);
     requiredString(options.apiKey, "apiKey", 16 * 1024);
@@ -158,8 +160,14 @@ export async function callProvider(provider, model, example, options = {}) {
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 300_000) {
       throw new TypeError("invalid timeout");
     }
+    if (options.signal !== undefined && !(options.signal instanceof AbortSignal)) {
+      throw new TypeError("signal must be an AbortSignal");
+    }
+    if (options.signal?.aborted) throw new Error("provider request cancelled");
     controller = new AbortController();
-    timer = setTimeout(() => controller.abort(), timeoutMs);
+    cancel = () => controller.abort(new Error("provider request cancelled"));
+    options.signal?.addEventListener("abort", cancel, { once: true });
+    timer = setTimeout(() => controller.abort(new Error("provider request timed out")), timeoutMs);
     const timedOut = deadline(controller.signal);
     const response = await Promise.race([
       (options.fetchImpl ?? fetch)(request.url, {
@@ -181,6 +189,7 @@ export async function callProvider(provider, model, example, options = {}) {
     return failure(startedAt, error);
   } finally {
     if (timer !== undefined) clearTimeout(timer);
+    if (cancel) options.signal?.removeEventListener("abort", cancel);
     controller?.abort();
   }
 }

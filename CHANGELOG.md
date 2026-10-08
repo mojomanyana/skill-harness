@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.26.0 — 2026-10-08
+
+- Add a coordinator-owned `jev_advice` tool with status/evaluate actions for selected handoff evidence. `/skill-harness jev enable workflow` requests explicit session-scoped paid-call authorization and a fresh LoRA storage choice; existing manual activation remains manual.
+- Bind selected input receipts to actual Pi session and tool-call identities. Retained records remain unlabeled, distinguish selected claims from verified public captures, and do not authorize export or training.
+- Bound automatic requests, reuse identical packets, propagate cancellation and suppress retries after failures. Return measured model identity, latency and nullable usage/cost even when storage is declined.
+
 ## 0.25.1 — 2026-10-08
 
 - Preserve exhausted adapter exceptions as execution failures when saved transcripts are regraded, including legacy failure headers; recovered retries remain eligible.

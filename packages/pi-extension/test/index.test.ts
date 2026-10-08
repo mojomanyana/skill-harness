@@ -14,6 +14,7 @@ describe("pi-extension factory", () => {
     factory(fakePi);
     expect(commands).toContain("skill-harness");
     expect(tools).toContain("skill_check_run");
+    expect(tools).toContain("jev_advice");
     expect(events).toContain("session_shutdown");
   });
 });

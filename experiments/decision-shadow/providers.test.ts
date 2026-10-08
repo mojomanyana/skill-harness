@@ -182,3 +182,49 @@ test("invalid local configuration never calls fetch", async () => {
   })).status, "error");
   assert.equal(calls, 0);
 });
+
+test("caller cancellation before dispatch makes no request", async () => {
+  const controller = new AbortController();
+  controller.abort(new Error("private cancellation reason"));
+  let calls = 0;
+  const result = await callProvider("jev", model, example, {
+    apiKey: "key", signal: controller.signal,
+    fetchImpl: async () => { calls++; return json(payload()); },
+  });
+  assert.equal(calls, 0);
+  assert.equal(result.error, "provider request cancelled");
+  assert.equal(JSON.stringify(result).includes("private"), false);
+});
+
+test("caller cancellation settles even when fetch ignores its abort signal", async () => {
+  const controller = new AbortController();
+  let sentSignal;
+  const pending = callProvider("jev", model, example, {
+    apiKey: "key", signal: controller.signal,
+    fetchImpl: async (_url, init) => { sentSignal = init.signal; return new Promise(() => {}); },
+  });
+  controller.abort();
+  const result = await pending;
+  assert.equal(sentSignal.aborted, true);
+  assert.equal(result.error, "provider request cancelled");
+});
+
+test("caller cancellation covers streamed response consumption", async () => {
+  const controller = new AbortController();
+  let reading;
+  const ready = new Promise(resolve => { reading = resolve; });
+  let cancelled = false;
+  const stream = new ReadableStream({
+    pull() { reading(); },
+    cancel() { cancelled = true; },
+  });
+  const pending = callProvider("jev", model, example, {
+    apiKey: "key", signal: controller.signal,
+    fetchImpl: async () => new Response(stream),
+  });
+  await ready;
+  controller.abort();
+  const result = await pending;
+  assert.equal(result.error, "provider request cancelled");
+  assert.equal(cancelled, true);
+});
