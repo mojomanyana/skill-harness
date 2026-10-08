@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseCases, parseLabels, scorePredictions, localCorpus } from './dataset.mjs';
 import { makeRequest, callProvider, isSupportedResolvedModel } from './providers.mjs';
+import { verifySources } from './public-evidence.mjs';
 
 const terms = { jev: 'https://typesafe.ai/legal/mca' };
 const providerErrors = new Set([
@@ -17,8 +18,11 @@ const help = `Source-only decision shadow pilot (Node >=20)
   run --cases FILE --provider jev --model MODEL --out NEW.jsonl --allow-remote
   score --cases FILE --labels FILE --run RESULT.jsonl [--run RESULT2.jsonl]
   corpus --cases FILE --labels FILE --out NEW.json
+  verify-sources --cases FILE --sources SELECTION.json --evidence-root DIR --out NEW.json
 
-preview, score and corpus are offline. run sends only the curated input and
+preview, score, corpus and verify-sources are offline. verify-sources reads only
+explicitly selected Linux public captures; it does not assess decision readiness,
+decision-time availability, redaction, rights or labels. run sends only the curated input and
 question to the selected provider, bills its API, and requires its API key in
 OPENROUTER_API_KEY. No retries. Output must be new.
 Labels/predictions are research records, never runtime authority.
@@ -32,6 +36,7 @@ function argumentsFor(argv) {
     run: ['cases', 'provider', 'model', 'out', 'allow-remote'],
     score: ['cases', 'labels', 'run'],
     corpus: ['cases', 'labels', 'out'],
+    'verify-sources': ['cases', 'sources', 'evidence-root', 'out'],
   };
   if (!Object.hasOwn(commands, command)) throw new Error('Unknown command; use --help.');
   const allowed = commands[command];
@@ -145,6 +150,20 @@ export async function main(argv, { emit = console.log, env = process.env, provid
   const { command, flags } = argumentsFor(argv);
   if (command === 'help') { emit(help); return; }
   const cases = parseCases(await jsonFile(flags.cases));
+  if (command === 'verify-sources') {
+    const sourceText = await textFile(flags.sources);
+    let selection;
+    try { selection = JSON.parse(sourceText); }
+    catch { throw new Error('Invalid JSON source selection.'); }
+    const verification = await verifySources(cases, selection, flags['evidence-root']);
+    const receipt = { ...verification, createdAt: new Date().toISOString(),
+      caseSetHash: caseSetHash(cases), selectionFileSha256: sha256(sourceText) };
+    await writeNew(flags.out, receipt);
+    emit(JSON.stringify({ saved: resolve(flags.out), status: receipt.status,
+      caseCount: cases.length, artifactCount: receipt.artifactCount,
+      trainingReady: false, trainingEligible: false }));
+    return;
+  }
   if (command === 'preview' || command === 'run') {
     const requests = cases.map(c => makeRequest(flags.provider, flags.model, c));
     if (command === 'preview') {

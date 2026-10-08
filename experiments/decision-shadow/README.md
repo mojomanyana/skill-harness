@@ -41,6 +41,82 @@ transcripts, credentials, runtime ledgers, or harness results to build cases.
 An output path must be unused. Repeated commands should choose another path;
 previous evidence is never overwritten.
 
+## Verify selected public source captures offline
+
+On **Linux only**, `verify-sources` binds curated cases to explicitly selected
+pi-daddy **0.45.0** public captures. It makes no provider call and does not read
+credentials. Use the original canonical public evidence root; captured absolute
+paths must still refer to that root. This command does not scan for evidence or
+support relocated archive mappings.
+
+```bash
+node experiments/decision-shadow/cli.mjs verify-sources \
+  --cases /absolute/path/cases.json \
+  --sources /absolute/path/sources.json \
+  --evidence-root /absolute/path/public-evidence \
+  --out /absolute/path/new-verification.json
+```
+
+The source selection is a closed schema with one row per case in the same order:
+
+```json
+{
+  "schema": 1,
+  "kind": "decision-public-sources",
+  "selections": [{
+    "caseId": "your-case-id",
+    "caseHash": "<canonical case SHA-256 from preview>",
+    "manifest": {
+      "path": "/absolute/path/public-evidence/<capture UUID>/manifest.json",
+      "sha256": "<exact manifest byte SHA-256>"
+    },
+    "captureId": "<capture UUID>",
+    "toolCallId": "<recorded tool-call ID>",
+    "ordinal": 1,
+    "agent": "<recorded agent>",
+    "definitionId": "<observed definition SHA-256>",
+    "executionId": null
+  }]
+}
+```
+
+Replace placeholders with exact recorded values. `executionId` is null for
+`delegate_describe`; execution captures require the recorded value. Use observed
+nullable identities as recorded, never inferred replacements. Each case's
+`source.sha256` must equal its selected manifest hash and `source.recordId` must
+be the manifest's `toolCallId`. Changing case text invalidates its selection.
+
+The verifier supports `delegate_describe`, `delegate`, `delegate_all` and
+`delegate_chain`. It checks every copied response, definition body, source
+resource and available final referenced by each selected manifest, including
+byte counts and SHA-256 hashes. It binds requested row identities, compares the
+public runtime projection with the manifest, and binds complete final copies to
+their recorded native final identities. Identity checks compare recorded fields;
+they do not rerun the definition loader or derive definition IDs from copied
+resources. A stopped chain or unavailable final
+stays unavailable in the receipt. A successful source check does not make that
+execution successful or approved.
+
+Reads use held directory descriptors, no-follow traversal, ordinary-file checks,
+bounded reads and end-of-read/path stability checks. Symlinks, path traversal,
+special files, foreign/reused copy paths and missing/tampered copies fail.
+Limits per invocation are 256 unique files, 128 MiB total, 64 MiB per file, and
+1 MiB per manifest. Repeated selections share the same verified closure. Original
+resource paths are metadata only: they are never opened. Raw source bytes,
+including a BOM when present, are hashed without conversion; structured JSON
+must be valid UTF-8 without a BOM. These checks do not authenticate evidence
+against a hostile process running as the same user.
+
+The new, exclusive output receipt contains identities, copied references,
+observed availability, limits and exact selection/case-set hashes, without
+copying case questions, inputs or source text. It explicitly leaves approval,
+task acceptance, decision-time availability, redaction and rights **not assessed**.
+Both `trainingReady` and `trainingEligible` remain false. Input fidelity and
+whether excerpts were available at the decision point need separate review;
+source hashes cannot establish either. The receipt is not a runtime gate,
+provider request, label or training grant, and it does not change `preview`,
+`run`, `score` or `corpus` behavior.
+
 ## Optional paid JEV evaluation
 
 Review the preview first. Then supply the OpenRouter API key through the
@@ -115,6 +191,11 @@ and an explicit independence assertion. The program validates structure and
 identity, **not** the truth, independence, existence, or legal rights of those
 sources. Do not relabel a provider prediction as a human/test finding. Keep
 changed labels in a new versioned file with the previous version retained.
+An independent AI audit remains outcome evidence, not a `human` or `test`
+label. Keep cases unlabeled until appropriate independent labels exist. Keep
+related attempts and repairs in the same task group for any later split, and
+record task-group and decision-boundary metadata in a separate local experiment
+manifest; the current case parser does not validate that metadata.
 No private reasoning, unrecorded alternatives, or inferred approvals belong in
 this corpus. Data files remain local with no automatic upload or retention job.
 
@@ -152,7 +233,7 @@ Contracts were checked on 2026-10-07:
   request content, errors/timeouts, partial runs, scoring and corpus
   separation. They do not qualify live API access or model quality.
 - This experiment is available from the source checkout only. It adds no npm CLI
-  command or extension behavior and does not change the published 0.24.2 packages.
+  command or extension behavior and does not change published runtime packages.
 
 Next live pilot: curate a small held-out set of real, independently reviewed
 decisions, select the exact cases and provider call envelope, then measure
