@@ -1,4 +1,4 @@
-import { defineWorkspace } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -16,9 +16,18 @@ const packagesDir = fileURLToPath(new URL("./packages", import.meta.url));
 const tempCleanup = fileURLToPath(new URL("./scripts/vitest-temp-cleanup.mjs", import.meta.url));
 const packages = readdirSync(packagesDir).filter((name) => statSync(join(packagesDir, name)).isDirectory());
 
-export default defineWorkspace(
-  [...packages.map((pkg) => ({
-    test: { name: pkg, root: `packages/${pkg}`, globalSetup: tempCleanup },
-    resolve: { alias },
-  })), { test: { name: "decision-shadow", root: "experiments/decision-shadow", globalSetup: tempCleanup } }]
-);
+// Vitest 4 no longer discovers vitest.workspace.ts and reduced default excludes.
+// Preserve project boundaries, source aliases, and generated-output exclusions.
+const exclude = [...configDefaults.exclude, "**/dist/**", "**/coverage/**"];
+
+export default defineConfig({
+  test: {
+    projects: [
+      ...packages.map((pkg) => ({
+        test: { name: pkg, root: `packages/${pkg}`, globalSetup: tempCleanup, exclude },
+        resolve: { alias },
+      })),
+      { test: { name: "decision-shadow", root: "experiments/decision-shadow", globalSetup: tempCleanup, exclude } },
+    ],
+  },
+});

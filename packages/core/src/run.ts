@@ -32,7 +32,7 @@ import { judgeOneRep } from "./regrade.js";
 import { runDeliveryCanary, canaryFailure, type CanaryResult } from "./canary.js";
 import { boundaryCells, stabilityNote, type ScenarioStability } from "./stability.js";
 import { aggregateMetrics } from "./metrics.js";
-import { providerFailureFromTranscript, executionFailureFromTranscript } from "./provider-failure.js";
+import { providerFailureFromTranscript, executionFailureFromTranscript, withExecutionFailure } from "./provider-failure.js";
 
 export interface RunOptions {
   spec: Spec;
@@ -468,7 +468,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
           // Configuration errors do not arrive here: the two that used to be
           // thrown from inside this block (adapter cannot produce traces for a
           // gated scenario) are decided above, before the loop.
-          adapterFailure = e instanceof Error ? e.message : String(e);
+          adapterFailure = (e instanceof Error ? e.message : String(e)) || "adapter threw without a message";
           transcript = `[adapter failure] ${adapterFailure}`;
           // Nothing partial from the failed attempt may be read as evidence: an
           // empty trace list satisfies a `forbid_calls` gate, and a stale diff
@@ -481,7 +481,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
         // A provider outage is infrastructure, never a model verdict. Checked on
         // every path: the text path carries the marker in the transcript, the
         // structured path sets `providerFailure` above and exits 0 while doing it.
-        if (!infrastructureFailure) {
+        if (!infrastructureFailure && adapterFailure === null) {
           const provider = providerFailureFromTranscript(transcript);
           if (provider) infrastructureFailure = `provider failure — ${provider}`;
           else {
@@ -489,7 +489,8 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
             if (execution) infrastructureFailure = `execution failure — ${execution}`;
           }
         }
-        executionUnavailable ||= executionFailureFromTranscript(transcript) !== null;
+        // Thrown errors keep their one fresh retry, unlike a returned unavailable final.
+        executionUnavailable ||= adapterFailure === null && executionFailureFromTranscript(transcript) !== null;
         // Qualified complete traces prove delivered bytes even if those bytes
         // are only whitespace; the legacy text-only timeout heuristic cannot erase them.
         const deliveredText = traces.length > 0 && traces.every((trace) =>
@@ -500,8 +501,11 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
       }
       // Survived the retry: ERROR for this rep, inside a run that still completes
       // and still writes every other scenario's verdict.
-      if (adapterFailure && !infrastructureFailure) {
-        infrastructureFailure = `adapter failure — ${adapterFailure}`;
+      if (adapterFailure) {
+        infrastructureFailure ??= `adapter failure — ${adapterFailure}`;
+        // Persist only the exhausted failure. A recovered retry must retain its
+        // clean transcript; later grade/regate must never judge an unavailable run.
+        transcript = withExecutionFailure(transcript, `adapter failure — ${adapterFailure}`);
       }
     }
 

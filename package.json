@@ -1,6 +1,6 @@
 {
     "name": "skill-harness-monorepo",
-    "version": "0.25.0",
+    "version": "0.25.1",
     "description": "Portable test/optimize framework for agent skills: spec'd scenarios, LLM judge, review UI. Monorepo: core, adapters, cli.",
     "license": "MIT",
     "type": "module",
@@ -36,7 +36,8 @@
         "esbuild": "^0.28.0",
         "tsx": "^4.19.0",
         "typescript": "^5.6.0",
-        "vitest": "^2.1.0"
+        "vite": "^6.4.4",
+        "vitest": "^4.1.11"
     },
     "pi": {
         "extensions": [

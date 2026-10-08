@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.25.1 — 2026-10-08
+
+- Preserve exhausted adapter exceptions as execution failures when saved transcripts are regraded, including legacy failure headers; recovered retries remain eligible.
+- Export schema 2 binds producer-computed duplicate-input receipts and Node/Unicode version metadata into hashed rows. Python validates the exact receipt instead of recomputing with different Unicode tables; older packets require re-export and a new exact-manifest training review.
+
+- Preserve legal Unicode line separators inside JSONL examples in both generated Python export validation and training-data loading. Re-export an existing affected packet with this version; do not edit its hash-bound script or manifest.
+- Update development tooling to patched Vitest 4.1.11 and Vite 6.4.4, retaining Node 20 support. Refresh affected development dependencies and preserve project source aliases, temporary-file cleanup and generated-output exclusions in the supported Vitest project configuration. Production dependencies are unchanged.
+
 ## 0.25.0 — 2026-10-08
 
 Package the opt-in decision workflow as `skill-harness decision`. Add exact Pi 1.0.4 subscription comparisons, independent-label reports, grouped dataset export and a reproducible local LoRA preparation workflow. Every interactive JEV enable asks for current-session storage consent; noninteractive runs require an explicit choice. Retained selected inputs stay unlabeled and cannot grant training permission. Preserve OpenAI Decisions exclusion and all existing runtime authority boundaries.

@@ -39,6 +39,12 @@ function consentFor(consents, sessionId) {
   check(matches.length===1,'one explicit current-session storage consent required');
   const c=parseStorageConsent(matches[0],sessionId); check(c.decision==='granted','session storage declined; advice remains allowed'); return c;
 }
+const INPUT_NORMALIZATION_ALGORITHM='ecmascript-nfkc-whitespace-trim-lower-sha256-v1';
+function inputIdentity(input) {
+  // A single producer owns both split validation and the exported duplicate identity.
+  check(!/[\uD800-\uDFFF]/u.test(input),'learning input must contain valid Unicode scalar values');
+  return {algorithm:INPUT_NORMALIZATION_ALGORITHM,inputSha256:learningDigest(input),normalizedSha256:learningDigest(input.normalize('NFKC').replace(/\s+/gu,' ').trim().toLowerCase())};
+}
 const ENTRY_KEYS=['caseId','caseHash','taskGroup','lineageGroup','split','sessionId','fixtureOnly','decisionTimeReviewed','redactionReviewed','rights','exportApproved','trainingApproved','reviewer'];
 function parseEntry(c,e) {
   keys(e,ENTRY_KEYS,'experiment entry');check(e.caseId===c.id && e.caseHash===c.hash,'experiment case identity mismatch');
@@ -61,7 +67,7 @@ export function parseExperiment(cases,manifest) {
     bind(groups,'task:'+e.taskGroup,e.split,'task group');bind(groups,'lineage:'+e.lineageGroup,e.split,'lineage group');
     if(e.sessionId!==null)bind(groups,'session:'+e.sessionId,e.split,'session');
     // Conservative whitespace/case normalization catches formatting-only duplicates, even if their questions differ.
-    bind(duplicates,learningDigest(cases[i].input.normalize('NFKC').replace(/\s+/gu,' ').trim().toLowerCase()),e.split,'duplicate input');
+    bind(duplicates,inputIdentity(cases[i].input).normalizedSha256,e.split,'duplicate input');
     bind(duplicates,'source:'+cases[i].source.sha256+':'+cases[i].source.recordId,e.split,'source record');
   });
   return {...structuredClone(manifest),entries};
@@ -142,19 +148,19 @@ export async function prepareExport({cases,labels,manifest,consents,labelEvidenc
     if(mode==='reviewed-data' && e.fixtureOnly)reasons.push('synthetic fixture excluded from reviewed training data');
     if(!e.fixtureOnly){try{consentFor(consents,e.sessionId);}catch(error){reasons.push(error.message);}}
     if(reasons.length){excluded.push({caseId:c.id,reasons});continue;}
-    const row={caseId:c.id,caseHash:c.hash,taskGroup:e.taskGroup,lineageGroup:e.lineageGroup,sessionId:e.sessionId,fixtureOnly:e.fixtureOnly,input:c.input,question:c.question,answer:label.label.value,label:{...label.label},source:{...c.source}};
+    const row={caseId:c.id,caseHash:c.hash,taskGroup:e.taskGroup,lineageGroup:e.lineageGroup,sessionId:e.sessionId,fixtureOnly:e.fixtureOnly,input:c.input,inputIdentity:inputIdentity(c.input),question:c.question,answer:label.label.value,label:{...label.label},source:{...c.source}};
     splitRows[e.split].push(row);included.push(e);
   }
   check(included.length>0,'no export-eligible cases');
   const trainingEligible=mode==='reviewed-data'&&excluded.length===0&&Object.values(splitRows).every(rows=>rows.length>0)&&included.every(e=>!e.fixtureOnly&&e.trainingApproved&&e.rights==='local-training');
   const files={...trainingAssets()};
   for(const [split,rows] of Object.entries(splitRows))files[`${split}.jsonl`]=rows.map(r=>JSON.stringify(r)+'\n').join('');
-  const metadata={schema:1,kind:'decision-learning-export',mode,experimentId:manifest.id,experimentHash:learningDigest(manifest),trainingEligible,trainingExecuted:false,providerPredictionsIncluded:false,counts:Object.fromEntries(Object.entries(splitRows).map(([s,r])=>[s,r.length])),excluded,review:{frozenAt:manifest.frozenAt,eligibilityRecords:included,independentLabelReceipts:reviewed.reviewed.map(r=>({...r.reference,recordedAt:r.recordedAt})),sessionConsents:[...new Set(included.filter(e=>e.sessionId!==null).map(e=>e.sessionId))].map(sessionId=>{const c=consentFor(consents,sessionId);return {sessionId,sha256:learningDigest(c),decision:c.decision,interactionId:c.interactionId,recordedAt:c.recordedAt};})},files:Object.fromEntries(Object.entries(files).map(([name,s])=>[name,{sha256:learningDigest(s),bytes:Buffer.byteLength(s)}]))};
+  const metadata={schema:2,kind:'decision-learning-export',inputNormalization:{algorithm:INPUT_NORMALIZATION_ALGORITHM,runtime:'node',nodeVersion:process.versions.node,unicodeVersion:process.versions.unicode},mode,experimentId:manifest.id,experimentHash:learningDigest(manifest),trainingEligible,trainingExecuted:false,providerPredictionsIncluded:false,counts:Object.fromEntries(Object.entries(splitRows).map(([s,r])=>[s,r.length])),excluded,review:{frozenAt:manifest.frozenAt,eligibilityRecords:included,independentLabelReceipts:reviewed.reviewed.map(r=>({...r.reference,recordedAt:r.recordedAt})),sessionConsents:[...new Set(included.filter(e=>e.sessionId!==null).map(e=>e.sessionId))].map(sessionId=>{const c=consentFor(consents,sessionId);return {sessionId,sha256:learningDigest(c),decision:c.decision,interactionId:c.interactionId,recordedAt:c.recordedAt};})},files:Object.fromEntries(Object.entries(files).map(([name,s])=>[name,{sha256:learningDigest(s),bytes:Buffer.byteLength(s)}]))};
   files['export-manifest.json']=JSON.stringify(metadata,null,2)+'\n';
-  return {schema:1,kind:'prepared-decision-learning-export',metadata,files};
+  return {schema:2,kind:'prepared-decision-learning-export',metadata,files};
 }
 export async function writePreparedExport({prepared,directory}) {
-  keys(prepared,['schema','kind','metadata','files'],'prepared export');check(prepared.schema===1&&prepared.kind==='prepared-decision-learning-export','unsupported prepared export');text(directory,'output directory',4096);check(isAbsolute(directory),'output directory must be absolute');
+  keys(prepared,['schema','kind','metadata','files'],'prepared export');check(prepared.schema===2&&prepared.metadata?.schema===2&&prepared.kind==='prepared-decision-learning-export','unsupported prepared export');text(directory,'output directory',4096);check(isAbsolute(directory),'output directory must be absolute');
   const allowed=['train.jsonl','validation.jsonl','test.jsonl','export-manifest.json','train-lora.py','training-config.example.json','requirements-training.txt','TRAINING.md'];
   check(Object.keys(prepared.files).sort().join('|')===[...allowed].sort().join('|'),'unexpected export files');
   check(prepared.files['export-manifest.json']===JSON.stringify(prepared.metadata,null,2)+'\n','export metadata mismatch');

@@ -149,9 +149,11 @@ function tarEntry(archive: string, wantedPath: string): { mode: number; content:
   throw new Error(`${archive} is missing ${wantedPath}`);
 }
 
+// This suite creates many complete packaging fixtures; deleting them on a shared
+// CI runner can exceed Vitest's default 10-second hook budget. Keep cleanup bounded.
 afterAll(() => {
   if (TMP) rmSync(TMP, { recursive: true, force: true });
-});
+}, 120_000);
 
 describe.skipIf(!pinnedToolchain)("authoritative release packaging", () => {
   it("builds absent outputs, records digests, and packs cli.js as canonical 0644", () => {
