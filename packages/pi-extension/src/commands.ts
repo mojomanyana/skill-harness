@@ -19,10 +19,12 @@ import { resolveSkillDir, runViaExtension } from "./runner.js";
 export interface ExtensionAPI {
   registerCommand(name: string, def: { description: string; handler: (args: string, ctx: CmdCtx) => Promise<void> }): void;
   registerTool(tool: unknown): void;
-  on(event: "session_shutdown", handler: () => Promise<void> | void): void;
+  on(event: "session_shutdown" | "session_start", handler: () => Promise<void> | void): void;
+  appendEntry?(type:string,data:unknown):void;
 }
 
 export interface CmdCtx {
+  sessionManager?: { getSessionId():string };
   cwd: string;
   hasUI: boolean;
   ui: {
@@ -32,11 +34,11 @@ export interface CmdCtx {
     select?(prompt: string, choices: string[]): Promise<number | null>;
     input?(prompt: string, initial?: string): Promise<string | null>;
     editor?(prompt: string, initial: string): Promise<string | null>;
-    confirm?(prompt: string): Promise<boolean>;
+    confirm?(title: string, message?: string): Promise<boolean>;
   };
 }
 
-const USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] | review [skill] | coverage [skill]";
+const USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] | review [skill] | coverage [skill] | jev enable|run|status|disable";
 
 /** Minimal arg tokenizer: subcommand + positional args + `--key value` flags. A flag with no following value (or one followed by another `--flag`) is left unset, so callers' `?? default` fallbacks apply. */
 function parse(argstr: string): { sub: string; positional: string[]; flags: Record<string, string> } {
@@ -171,10 +173,14 @@ export function closeReview(): void {
   reviewHandle = null;
 }
 
-export function registerCommand(pi: ExtensionAPI, assetsDir?: string): void {
+export function registerCommand(pi: ExtensionAPI, assetsDir?: string, jevHandler?: (args:string,ctx:CmdCtx)=>Promise<void>): void {
   pi.registerCommand("skill-harness", {
     description: "Run, judge, and review skill scenarios",
     handler: async (args, ctx) => {
+      if (/^jev(?:\s|$)/.test(args.trim())) {
+        if (!jevHandler) throw new Error("JEV session handler unavailable");
+        return jevHandler(args.trim().slice(3).trim(), ctx);
+      }
       const h = await handleSkillCheck(args, ctx, { assetsDir });
       if (h) { reviewHandle?.close(); reviewHandle = h; } // keep the latest review server for shutdown cleanup
     },

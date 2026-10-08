@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.25.0 — 2026-10-08
+
+Package the opt-in decision workflow as `skill-harness decision`. Add exact Pi 1.0.4 subscription comparisons, independent-label reports, grouped dataset export and a reproducible local LoRA preparation workflow. Every interactive JEV enable asks for current-session storage consent; noninteractive runs require an explicit choice. Retained selected inputs stay unlabeled and cannot grant training permission. Preserve OpenAI Decisions exclusion and all existing runtime authority boundaries.
+
 ## 0.24.3
 
 - Add explicit `pi-daddy-record-v1` ingestion for current native governance ledgers, pinned to the corrected pi-daddy 0.44.3 producer contract. Verify closed envelope/body schemas and the full hash chain before normalizing observations.

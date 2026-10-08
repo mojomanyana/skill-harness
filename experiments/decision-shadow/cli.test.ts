@@ -25,7 +25,7 @@ async function savedRunFixture() {
   const f = await fixture();
   const out = join(f.dir, 'run.jsonl');
   await main(['run','--cases',f.casesPath,'--provider','jev','--model','typesafe/jev-1.13',
-    '--out',out,'--allow-remote'], {
+    '--out',out,'--allow-remote','--storage','no'], {
       providerCall: async () => answer, env:{OPENROUTER_API_KEY:'test'}, emit:()=>{},
     });
   const rows = (await readFile(out, 'utf8')).trimEnd().split('\n').map(line => JSON.parse(line));
@@ -33,7 +33,7 @@ async function savedRunFixture() {
   const writeRows = (changedRows: unknown[]) => writeFile(out, changedRows.map(row => JSON.stringify(row)).join('\n') + '\n');
   return { ...f, out, rows, scoreArgs, writeRows };
 }
-describe('source-only decision pilot CLI',()=>{
+describe('decision pilot CLI',()=>{
   it('previews only input/question without labels, source references or credentials',async()=>{
     const f=await fixture(); const emit=vi.fn(), providerCall=vi.fn();
     await main(['preview','--cases',f.casesPath,'--provider','jev','--model','typesafe/jev-1.13'],{emit,providerCall,env:{}});
@@ -50,7 +50,7 @@ describe('source-only decision pilot CLI',()=>{
     const out = join(f.dir, 'must-not-exist.jsonl');
     const providerCall = vi.fn();
     await expect(main(['run','--cases',f.casesPath,'--provider','openai','--model','gpt-6-luna',
-      '--out',out,'--allow-remote'], {
+      '--out',out,'--allow-remote','--storage','no'], {
         providerCall,
         env:{OPENAI_API_KEY:'configured-but-unused'},
         emit:()=>{},
@@ -63,12 +63,12 @@ describe('source-only decision pilot CLI',()=>{
     const args=['run','--cases',f.casesPath,'--provider','jev','--model','typesafe/jev-1.13','--out',out];
     await expect(main(args,{providerCall})).rejects.toThrow('Required --allow-remote');
     await writeFile(out,'retained');
-    await expect(main([...args,'--allow-remote'],{providerCall,env:{OPENROUTER_API_KEY:'test'}})).rejects.toThrow();
+    await expect(main([...args,'--allow-remote','--storage','no'],{providerCall,env:{OPENROUTER_API_KEY:'test'}})).rejects.toThrow();
     expect(providerCall).not.toHaveBeenCalled(); expect(await readFile(out,'utf8')).toBe('retained');
   });
   it('scores a saved fake run by exact case hashes and exports a label-only corpus',async()=>{
     const f=await fixture(); const out=join(f.dir,'run.jsonl'); const providerCall=vi.fn().mockResolvedValue(answer);
-    await main(['run','--cases',f.casesPath,'--provider','jev','--model','typesafe/jev-1.13','--out',out,'--allow-remote'],
+    await main(['run','--cases',f.casesPath,'--provider','jev','--model','typesafe/jev-1.13','--out',out,'--allow-remote','--storage','no'],
       {providerCall,emit:()=>{},env:{OPENROUTER_API_KEY:'test-secret'}});
     const emit=vi.fn();
     await main(['score','--cases',f.casesPath,'--labels',f.labelsPath,'--run',out],{emit});
@@ -87,7 +87,7 @@ describe('source-only decision pilot CLI',()=>{
   it('stops on first error, retains partial evidence and reports missing cases',async()=>{
     const f=await fixture(), out=join(f.dir,'partial.jsonl');
     const providerCall=vi.fn().mockRejectedValue(new Error('secret raw body'));
-    await expect(main(['run','--cases',f.casesPath,'--provider','jev','--model','typesafe/jev-1.13','--out',out,'--allow-remote'],
+    await expect(main(['run','--cases',f.casesPath,'--provider','jev','--model','typesafe/jev-1.13','--out',out,'--allow-remote','--storage','no'],
       {providerCall,env:{OPENROUTER_API_KEY:'test'},emit:()=>{}})).rejects.toThrow('stopped');
     expect(providerCall).toHaveBeenCalledTimes(1);
     expect(await readFile(out,'utf8')).not.toContain('secret raw body');
@@ -104,7 +104,7 @@ describe('score provenance and snapshot validation', () => {
     const second = join(f.dir, 'second.jsonl');
     const providerCall = vi.fn().mockResolvedValue(answer);
     const runArgs = (out: string) => ['run','--cases',f.casesPath,'--provider','jev',
-      '--model','typesafe/jev-1.13','--out',out,'--allow-remote'];
+      '--model','typesafe/jev-1.13','--out',out,'--allow-remote','--storage','no'];
     await main(runArgs(first), {providerCall,emit:()=>{},env:{OPENROUTER_API_KEY:'test'}});
     const firstText = await readFile(first, 'utf8');
     const rows = firstText.trimEnd().split('\n');
@@ -140,7 +140,7 @@ describe('score provenance and snapshot validation', () => {
     const out = join(f.dir, 'bom.jsonl');
     const providerCall = vi.fn().mockResolvedValue(answer);
     await main(['run','--cases',f.casesPath,'--provider','jev','--model','typesafe/jev-1.13',
-      '--out',out,'--allow-remote'], {providerCall,emit:()=>{},env:{OPENROUTER_API_KEY:'test'}});
+      '--out',out,'--allow-remote','--storage','no'], {providerCall,emit:()=>{},env:{OPENROUTER_API_KEY:'test'}});
     const bytes = await readFile(out);
     await writeFile(out, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), bytes]));
     await expect(main(['score','--cases',f.casesPath,'--labels',f.labelsPath,'--run',out]))
@@ -154,7 +154,7 @@ describe('score provenance and snapshot validation', () => {
       .mockResolvedValueOnce(answer)
       .mockResolvedValueOnce({...answer, resolvedModel:'typesafe/jev-1.13-20261002'});
     await main(['run','--cases',f.casesPath,'--provider','jev','--model','typesafe/jev-1.13',
-      '--out',out,'--allow-remote'], {providerCall,emit:()=>{},env:{OPENROUTER_API_KEY:'test'}});
+      '--out',out,'--allow-remote','--storage','no'], {providerCall,emit:()=>{},env:{OPENROUTER_API_KEY:'test'}});
     await expect(main(['score','--cases',f.casesPath,'--labels',f.labelsPath,'--run',out]))
       .rejects.toThrow('multiple resolved models');
     expect(await readFile(out, 'utf8')).toContain('typesafe/jev-1.13-20261002');
@@ -165,7 +165,7 @@ describe('score provenance and snapshot validation', () => {
     const out = join(f.dir, 'bad.jsonl');
     const providerCall = vi.fn().mockResolvedValue(answer);
     await main(['run','--cases',f.casesPath,'--provider','jev','--model','typesafe/jev-1.13',
-      '--out',out,'--allow-remote'], {providerCall,emit:()=>{},env:{OPENROUTER_API_KEY:'test'}});
+      '--out',out,'--allow-remote','--storage','no'], {providerCall,emit:()=>{},env:{OPENROUTER_API_KEY:'test'}});
     const rows = (await readFile(out, 'utf8')).trimEnd().split('\n');
     const header = JSON.parse(rows[0]);
     header.createdAt = 'yesterday';

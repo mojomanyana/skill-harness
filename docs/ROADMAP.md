@@ -7,7 +7,7 @@ skills. The run → grade → review loop stays free of product paywalls.
 
 ## Current state
 
-- Current source release target: `0.24.3` (see package manifests).
+- Current source release target: `0.25.0` (see package manifests).
 - Fresh runs write results schema 2.
 - Historical schema 1–3 results remain readable for compatibility.
 - Pi is the only execution path for subject, judge, and `suggest` model calls.
@@ -74,25 +74,10 @@ skills. The run → grade → review loop stays free of product paywalls.
 
 - Hosted/team workflows remain deferred until the local loop has sustained external adoption.
 - OS-level sandboxing is not claimed; the current workspace isolation seam is not containment.
-- Judge-panel automation, mutation testing, retained-learning workflows, authenticated delivery observers, and cross-harness execution are not planned.
+- Judge-panel automation, mutation testing, authenticated delivery observers, and cross-harness execution remain deferred. Reviewed local learning-data preparation is available as an explicit decision workflow; automatic learning or deployment remains deferred.
 
-## Optional decision research
+## Optional decision evaluation and learning data
 
-A source-only [decision shadow pilot](https://github.com/mojomanyana/skill-harness/tree/main/experiments/decision-shadow)
-evaluates explicitly curated cases through optional JEV calls. Subscription-backed
-Pi judging remains the ordinary workflow and comparison baseline. It is separate
-from the Pi-only subject/judge loop, does not write harness verdicts, and gives
-provider outputs no runtime authority or training eligibility. Offline fixtures
-qualify plumbing only; live quality/latency and a rights-cleared learning corpus
-remain unmeasured.
+`skill-harness decision --help` exposes the npm-installed offline fixture, comparison, selected-session import and reviewed LoRA export workflow. `/skill-harness jev enable` asks for a fresh per-session storage choice every time; declining still permits explicitly confirmed JEV calls. Storage retains selected unlabeled inputs only and never authorizes training.
 
-The source-only `verify-sources` command now verifies explicit pi-daddy 0.45.0
-public capture selections offline on Linux. It checks copied bytes and recorded
-identities, not decision-time availability, approval, redaction or training
-rights. Independent AI audits remain outcome evidence, not human/test labels.
-The experiment README documents the closed selection schema and limits. The next
-quality experiment still needs reviewed decision-time inputs, independently
-valid labels, task-group separation and an explicitly selected provider budget.
-
-OpenAI Decisions has been removed from this plan and experiment. Do not
-reintroduce it or use it as a fallback.
+The exact Pi1.0.4 OAuth subscription comparison is separate from optional metered JEV. Reports preserve grouped splits, independent labels, abstention/error coverage and model/prompt identities. Synthetic fixtures qualify plumbing only. OpenAI Decisions remains excluded. See [the npm acceptance walkthrough](https://github.com/mojomanyana/skill-harness/blob/main/docs/DECISION-LEARNING.md) and the [data contracts](https://github.com/mojomanyana/skill-harness/blob/main/experiments/decision-shadow/LEARNING-WORKFLOW.md).

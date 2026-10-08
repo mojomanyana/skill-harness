@@ -109,18 +109,10 @@ by version X needs version ≥ X to lint (see `PUBLISHING.md`).
 - **`contracts/pi-daddy/ledger-record/v1/`** — the separately pinned current native envelope/body contract. See `docs/PI-DADDY-RECORD-COMPATIBILITY.md`; regenerate with `scripts/vendor-pi-daddy-record-v1-contract.mjs`, never edit its generated TypeScript module by hand. Historical selectors remain frozen.
 - Working on the codebase itself: `npm test` (vitest), `npm run typecheck`; the monorepo is `packages/core` (engine), `packages/adapters` (Pi subject + judge adapter), `packages/cli` (commands + review server), `packages/pi-extension` (the pi extension; its `dist/index.js` is a committed esbuild bundle — regenerate with `npm run build:ext` and commit it whenever the bundled core/cli source changes; a `bundle.test.ts` guard fails if it goes stale).
 
-## Source-only decision experiment
+## Optional decision evaluation and learning data
 
-An opt-in JEV evidence-classification experiment lives under experiments/decision-shadow/.
-Its offline preview/score/corpus and Linux verify-sources commands need no credentials.
-Source verification checks selected public capture bytes and record identities only;
-it does not establish decision-time availability, approval, redaction or rights. The
-explicit run --allow-remote experiment uses the JEV API, separately
-from the Pi-only subject/judge/spec loop. Do not run it without selecting the
-curated cases and exact provider/model call scope with the user. Never import
-its predictions into verdicts, grants, model selection, or a training corpus.
-See its README for the public contracts, independent labels, and terms limits.
+`skill-harness decision --help` exposes the npm-installed offline fixture, comparison, selected-session import and reviewed LoRA export workflow. `/skill-harness jev enable` asks for a fresh per-session storage choice every time; declining still permits explicitly confirmed JEV calls. Storage retains selected unlabeled inputs only and never authorizes training.
 
-OpenAI Decisions is excluded from the experiment and follow-up plan; do not
-reintroduce its adapter, key setup, or fallback. Ordinary subscription-backed
-Pi judging remains supported.
+The exact Pi1.0.4 OAuth subscription comparison is separate from optional metered JEV. Reports preserve grouped splits, independent labels, abstention/error coverage and model/prompt identities. Synthetic fixtures qualify plumbing only. OpenAI Decisions remains excluded. See [the npm acceptance walkthrough](https://github.com/mojomanyana/skill-harness/blob/main/docs/DECISION-LEARNING.md) and the [data contracts](https://github.com/mojomanyana/skill-harness/blob/main/experiments/decision-shadow/LEARNING-WORKFLOW.md).
+
+Do not perform optional metered JEV calls without an explicitly selected case/provider/model scope. Do not feed predictions to verdicts, grants, model selection or training labels. Real learning examples require current session storage consent, decision-time/redaction review, source rights, separate export/training approval and independently evidenced human/test labels. Normal subject/judge execution stays Pi-only.

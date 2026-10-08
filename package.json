@@ -1,6 +1,6 @@
 {
     "name": "skill-harness-monorepo",
-    "version": "0.24.3",
+    "version": "0.25.0",
     "description": "Portable test/optimize framework for agent skills: spec'd scenarios, LLM judge, review UI. Monorepo: core, adapters, cli.",
     "license": "MIT",
     "type": "module",
@@ -15,7 +15,7 @@
         "packages/*"
     ],
     "scripts": {
-        "build": "tsc -b packages/core packages/adapters packages/cli",
+        "build": "tsc -b packages/core packages/adapters packages/cli && node scripts/build-decision.mjs",
         "build:ext": "npm run build && node packages/pi-extension/build.mjs",
         "check:ext": "npm run build && vitest run packages/pi-extension/test/bundle.test.ts",
         "release:pack": "node scripts/release-pack.mjs",
