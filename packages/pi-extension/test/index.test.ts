@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import factory from "../src/index.js";
 
@@ -17,4 +18,17 @@ describe("pi-extension factory", () => {
     expect(tools).toContain("jev_advice");
     expect(events).toContain("session_shutdown");
   });
+});
+
+
+it("reports the loaded Harness generation and detaches its native event-bus listener on shutdown", async () => {
+  const listeners = new Map<string, (data: unknown) => void>(), shutdown: Array<() => void | Promise<void>> = [];
+  factory({ registerCommand() {}, registerTool() {}, on(event, fn) { if (event === "session_shutdown") shutdown.push(fn); },
+    events: { on(channel, fn) { listeners.set(channel, fn); return () => { listeners.delete(channel); }; } },
+  });
+  const rows: unknown[] = [];
+  listeners.get("pi-daddy:ecosystem-versions:v1")!({ report: (value: unknown) => rows.push(value) });
+  expect(rows).toEqual([{ id: "skill-harness", version: JSON.parse(readFileSync("package.json", "utf8")).version, root: expect.any(String) }]);
+  for (const close of shutdown) await close();
+  expect(listeners.size).toBe(0);
 });

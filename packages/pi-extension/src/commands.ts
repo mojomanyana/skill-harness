@@ -17,6 +17,7 @@ import { resolveSkillDir, runViaExtension } from "./runner.js";
  * structural type only needs to satisfy `tsc -b` here.
  */
 export interface ExtensionAPI {
+  events?: { on(channel: string, handler: (data: unknown) => void): () => void };
   registerCommand(name: string, def: { description: string; handler: (args: string, ctx: CmdCtx) => Promise<void> }): void;
   registerTool(tool: unknown): void;
   on(event: "session_shutdown" | "session_start", handler: () => Promise<void> | void): void;
