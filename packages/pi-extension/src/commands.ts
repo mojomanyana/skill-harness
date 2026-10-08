@@ -31,14 +31,14 @@ export interface CmdCtx {
     notify(msg: string, level?: "info" | "warning" | "error"): void;
     setStatus?(key: string, msg: string): void;
     /** Interactive primitives, present only in the TUI. */
-    select?(prompt: string, choices: string[]): Promise<number | null>;
+    select?(prompt: string, choices: string[]): Promise<string | number | null | undefined>;
     input?(prompt: string, initial?: string): Promise<string | null>;
     editor?(prompt: string, initial: string): Promise<string | null>;
     confirm?(title: string, message?: string): Promise<boolean>;
   };
 }
 
-const USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] | review [skill] | coverage [skill] | jev enable|run|status|disable";
+const USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] | review [skill] | coverage [skill] | jev enable [workflow]|run|status|disable";
 
 /** Minimal arg tokenizer: subcommand + positional args + `--key value` flags. A flag with no following value (or one followed by another `--flag`) is left unset, so callers' `?? default` fallbacks apply. */
 function parse(argstr: string): { sub: string; positional: string[]; flags: Record<string, string> } {

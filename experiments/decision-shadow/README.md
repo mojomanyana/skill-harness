@@ -225,9 +225,11 @@ Contracts were checked on 2026-10-07:
 - Offline tests use fake transports. They check schema/identity boundaries,
   request content, errors/timeouts, partial runs, scoring and corpus
   separation. They do not qualify live API access or model quality.
-- Commands ship under `skill-harness decision`; `/skill-harness jev enable|run|status|disable` supplies explicit session activation. The source CLI remains a development shim after `npm ci && npm run build`.
+- Commands ship under `skill-harness decision`; `/skill-harness jev enable [workflow]|run|status|disable` supplies explicit session activation. The source CLI remains a development shim after `npm ci && npm run build`.
 
 Next live pilot: curate a small held-out set of real, independently reviewed
 decisions, select the exact cases and provider call envelope, then measure
 coverage, false positives, calibration and latency. Do not place a model in a
 runtime validation gate based on synthetic fixtures or a single small sample.
+
+Workflow handoff selections use the distinct `skill-harness-selected-handoff-v1` receipt described in the [npm walkthrough](../../docs/DECISION-LEARNING.md#optional-workflow-handoff-advice). It binds actual SDK session/tool IDs to selected bytes but does not authenticate original source claims, redaction or rights. `verify-sources` does not accept it as a pi-daddy public capture, and it is not eligible for current reviewed-data import/export.

@@ -2,7 +2,8 @@ import { fileURLToPath } from "node:url";
 import { basename, dirname, join } from "node:path";
 import { registerCommand, closeReview, type ExtensionAPI } from "./commands.js";
 import { registerTool } from "./tool.js";
-import { createJevSessionHandler } from "./jev-session.js";
+import { createJevController } from "./jev-session.js";
+import { registerJevAdvice } from "./jev-advice.js";
 
 /**
  * pi extension entry point. Registers the `/skill-harness` command and the
@@ -21,7 +22,9 @@ export default function (pi: ExtensionAPI): void {
   const assetsDir = basename(dirname(moduleDir)) === "skill-harness"
     ? join(moduleDir, "..", "assets")
     : join(moduleDir, "..", "..", "..", "assets");
-  registerCommand(pi, assetsDir, createJevSessionHandler(pi));
+  const jev = createJevController(pi);
+  registerCommand(pi, assetsDir, jev.command);
+  registerJevAdvice(pi, jev);
   registerTool(pi);
   pi.on("session_shutdown", async () => {
     closeReview();

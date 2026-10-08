@@ -12,6 +12,72 @@ The standalone `skill-harness decision run` command asks the same storage questi
 
 JEV uses its separately metered API and requires explicitly selected cases plus `--allow-remote`. OpenAI Decisions is excluded. The subscription baseline below executes through Pi and cannot switch to a paid provider. Neither model output nor consent grants runtime permissions or approval.
 
+
+## Optional workflow handoff advice
+
+Run `/skill-harness jev enable workflow` once in the coordinating Pi session.
+It first asks permission for up to **three automatic workflow metered JEV calls** through OpenRouter
+(`typesafe/jev-1.13`, `OPENROUTER_API_KEY`), then asks a fresh storage question.
+A ChatGPT/Pi subscription does not cover these calls. Cancelling paid permission
+leaves workflow advice disabled. Cancelling storage means No. Existing manual
+activation and saved consent receipts cannot authorize workflow calls; the legacy
+`enable` and `run` commands keep their per-run confirmation behavior outside the workflow-call limit.
+
+The registered model tool has two closed forms:
+
+```json
+{"action":"status"}
+{"action":"evaluate","candidate":"reported candidate identity","requirements":"explicit acceptance checks","evidence":"selected decision-time handoff evidence"}
+```
+
+Invoke these through `jev_advice`, not a shell command. Status is free and reports
+`enabled`, `mode`, `storage`, `remaining` and `availability`. Evaluate is enabled
+only in workflow mode and asks this fixed question:
+
+> Does this handoff account for every explicitly required acceptance check with successful evidence tied to the reported candidate?
+
+The complete serialized packet must fit within 16,000 Unicode characters. Its
+candidate identity is a selected claim, not an authenticated Git binding. The tool
+does not read files, commands, native sessions or hidden reasoning. The coordinator
+must select relevant public or already-redacted evidence; field names cannot prove
+that redaction, rights or decision-time selection were correct.
+
+Use advice when meaningful uncertainty remains after deterministic checks and
+before independent review. It is optional, not a call required for every feature.
+The extension registers the tool at startup; compatible workflow instructions
+select when to invoke it. There is no automatic `agent_end` or `tool_result` hook.
+Every outcome returns the actual resolved model, reported nullable usage/cost and measured latency when available, including when storage is declined. No-call outcomes keep these measurements null. Keep JEV output out of the independent reviewer's inputs. Its probability grants
+no approval and identifies no independently proven defect.
+
+Calls are serialized. Concurrent requests make no additional call; repeated exact
+packets reuse the earlier result within the same activation. A distinct packet
+uses another slot. Reservations happen before execution; a local failure can
+consume a slot without a paid request. Provider errors, cancellation and storage
+failures suppress further workflow calls until explicit new activation, with no
+retry or fallback. Disable, re-enable, reload and session changes invalidate
+current authorization. Cancellation aborts outstanding transport where possible;
+it cannot undo an already-dispatched charge. Child sessions do not inherit opt-in.
+
+With storage **No**, workflow advice creates no additional harness dataset files.
+Pi's own native session can still record tool inputs/results. With **Yes**, exact
+selected packets are written before dispatch under
+`~/.skill-harness/jev-workflow/selection-*/selection.json`; a settled outcome is
+written separately to `outcome.json`. A failed or interrupted attempt can leave a
+selection without an outcome. Directories are private and files are exclusive;
+existing records are never overwritten. Inspect the returned selection path when
+reviewing or removing retained data.
+
+The selection's distinct `skill-harness-selected-handoff-v1` receipt binds its
+bytes and exact input digest to the **actual SDK Pi session ID and tool-call ID**,
+plus that activation's consent and paid scope. Later predictions do not change its
+hash. Source binding, redaction and rights remain **unassessed**; labels are absent
+and `trainingEligible`/`exportEligible` are false. This is a tool-selected-input
+receipt, **not** a verified pi-daddy public capture. Existing `verify-sources` does
+not cover it. Do not relabel it as a capture or pass it into reviewed-data export:
+a separately reviewed source adapter, independent labels, rights and export/training
+approval are still required. Storage prepares an honest review trail; it does not
+automatically add a qualified example to a LoRA dataset.
+
 ## Concrete offline acceptance example
 
 Choose new output directories for every experiment:
