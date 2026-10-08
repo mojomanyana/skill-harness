@@ -18,9 +18,9 @@ function signed(bodies:Record<string,unknown>[], mutate?:(record:Record<string,u
  let previous:string|null=null;
  return bodies.map((body,index)=>{const record:Record<string,unknown>={v:1,seq:index+1,prev:previous,at:body.ts,kind:body.event==="capability_decision"?"capability":body.event==="child_lifecycle"?"lifecycle":body.event==="workspace_lease"?"lease":"fact",id:"record-"+index,body};mutate?.(record,index);record.digest=hash(stable(record));const line=JSON.stringify(record);previous=hash(line);return line;}).join("\n")+"\n";
 }
-describe("pi-daddy 0.44.3 record-v1 compatibility",()=>{
+describe("pi-daddy 0.46.1 record-v1 compatibility",()=>{
  it("pins all schemas, fixtures and reader source to exact pinned bytes",()=>{
-  const pin=JSON.parse(readFileSync(join(contract,"PINNED.json"),"utf8"));expect(pin.commit).toBe(PI_DADDY_RECORD_V1_COMMIT);expect(pin.version).toBe("0.44.3");
+  const pin=JSON.parse(readFileSync(join(contract,"PINNED.json"),"utf8"));expect(pin.commit).toBe(PI_DADDY_RECORD_V1_COMMIT);expect(pin.version).toBe("0.46.1");
   for(const [path,artifact] of Object.entries(pin.artifacts) as Array<[string,{sha256:string}]>)expect(hash(readFileSync(join(contract,path),"utf8"))).toBe(artifact.sha256);
   expect(PI_DADDY_RECORD_V1_SCHEMA).toEqual(JSON.parse(readFileSync(join(contract,"record.schema.json"),"utf8")));
   expect(PI_DADDY_RECORD_V1_GOVERNANCE_SCHEMA).toEqual(JSON.parse(readFileSync(join(contract,"governance-event.schema.json"),"utf8")));
@@ -41,6 +41,34 @@ describe("pi-daddy 0.44.3 record-v1 compatibility",()=>{
  });
  it("does not turn a blocked capability decision into a synthetic grant",()=>{
   const events=normalizePiDaddyRecordLedgerV1(signed([fixture("capability-decision")]));expect(events.map(e=>e.type)).toEqual(["child_spawn_refused"]);
+ });
+ it.each(["expired", "aborted"])("preserves %s approval as refusal evidence through the declared collector", gateOutcome => {
+  const body = fixture("capability-decision");
+  body.gateOutcome = gateOutcome;
+  body.gatedBlocked = ["tool:bash"];
+  body.approved = [];
+  body.refusal = { code: "GATED_UNAPPROVED", message: "approval did not complete" };
+  const raw = signed([body]);
+  const cwd = mkdtempSync(join(tmpdir(), "record-v1-gate-"));
+  try {
+   writeFileSync(join(cwd, "grants.jsonl"), raw);
+   const result = collectTrajectorySources(cwd, [{ adapter: "pi-daddy-record-v1", path: "grants.jsonl", required: true }]);
+   expect(result.errors).toEqual([]);
+   expect(result.events.map(event => event.type)).toEqual(["child_spawn_refused"]);
+   expect(result.events[0]).toMatchObject({
+    execution_id: body.executionId, refusal_code: "GATED_UNAPPROVED",
+    attributes: { gateOutcome, blocked: true, approved: [], gatedBlocked: ["tool:bash"] },
+   });
+   expect(result.events[0].attributes).not.toHaveProperty("humanDenied");
+   const historical = JSON.parse(readFileSync(join(root, "contracts/pi-daddy/ledger/v3/fixtures/capability-decision.json"), "utf8"));
+   historical.gateOutcome = gateOutcome;
+   expect(() => normalizePiDaddyLedgerV3(JSON.stringify(historical) + "\n")).toThrow(/gateOutcome/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+ });
+ it.each(["granted", "unrecognized-outcome"])("rejects unsupported %s approval evidence despite valid record signatures", gateOutcome => {
+  const body = fixture("capability-decision");
+  body.gateOutcome = gateOutcome;
+  expect(() => normalizePiDaddyRecordLedgerV1(signed([body]))).toThrow(/gateOutcome/);
  });
  it("loads a real declared source through the collector",()=>{
   const cwd=mkdtempSync(join(tmpdir(),"record-v1-"));try{writeFileSync(join(cwd,"grants.jsonl"),signed([fixture("child-lifecycle")]));const result=collectTrajectorySources(cwd,[{adapter:"pi-daddy-record-v1",path:"grants.jsonl",required:true}]);expect(result.errors).toEqual([]);expect(result.events[0].type).toBe("child_failed");}finally{rmSync(cwd,{recursive:true,force:true});}

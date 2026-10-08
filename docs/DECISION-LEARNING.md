@@ -4,7 +4,9 @@ Install the published CLI with `npm install -g skill-harness` and the Pi extensi
 
 ## Session storage choice
 
-In Pi, run `/skill-harness jev enable`. Every enable asks whether to retain this session's explicitly selected decision inputs/questions for future LoRA dataset review. **No** is the default and still enables JEV. A cancelled prompt means No. Enabling again asks again; startup, reload and a different session clear activation. An older unanswered prompt cannot restore permission after disabling or a newer choice.
+In Pi, run `/skill-harness jev enable`. Every enable asks whether to retain this session's explicitly selected decision inputs/questions for future LoRA dataset review. **No** is the default and still permits JEV calls under the selected mode. A cancelled prompt means No. Enabling again asks again; startup, reload and a different session clear activation. An older unanswered prompt cannot restore permission after disabling or a newer choice.
+
+Activation records session permission and the storage choice separately from provider readiness. Its confirmation immediately reports whether `OPENROUTER_API_KEY` is present in the current Pi process. A missing or blank key leaves calls unavailable even after authorization; no paid probe is made. Set the key in the environment that launches Pi, restart Pi, and enable JEV again with fresh consent. Exporting a key in another shell does not update an already running Pi process. Key presence alone does not verify credentials, provider access or billing.
 
 `/skill-harness jev run` asks for a curated cases file and a new output path, shows the outbound requests, and asks before the selected metered JEV call. `/skill-harness jev status` shows this session's choice; `/skill-harness jev disable` stops further calls and retention. Existing local files remain available for deliberate review/removal. There is no background transcript collector, private-reasoning extraction or automatic model training.
 
@@ -31,7 +33,12 @@ The registered model tool has two closed forms:
 ```
 
 Invoke these through `jev_advice`, not a shell command. Status is free and reports
-`enabled`, `mode`, `storage`, `remaining` and `availability`. Evaluate is enabled
+`enabled`, `mode`, `storage`, `remaining`, `availability` and `providerReadiness`
+(`key-present` or `missing-key`). `enabled` means session activation exists; it does
+not establish provider readiness. `manual-only` describes tool authorization, while
+`providerReadiness` exposes key availability in either mode. `ready` means workflow
+evaluation may be attempted, not that a provider call or credential check passed.
+Status rechecks local key presence without calling the provider. Evaluate is enabled
 only in workflow mode and asks this fixed question:
 
 > Does this handoff account for every explicitly required acceptance check with successful evidence tied to the reported candidate?

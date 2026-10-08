@@ -1,4 +1,4 @@
-/** Read the separately pinned pi-daddy 0.44.3 record format. No compatibility guessing. */
+/** Read the separately pinned pi-daddy 0.46.1 record format. No compatibility guessing. */
 import { createHash } from "node:crypto";
 import { TRAJECTORY_EVENT_VERSION, deserializeTrajectoryEvents, redactArgs, redactText, type TrajectoryEventV1 } from "@skill-harness/core";
 import { assertSupportedSchemaV3, declaredPropertyNames, validateClosedSchemaV3 } from "./closed-schema.js";
