@@ -2,7 +2,7 @@
 
 ## Current state
 
-`0.26.0` is the current source release target. Package manifests identify these
+`0.26.1` is the current source release target. Package manifests identify these
 candidate bytes; verify npm and GitHub directly before asserting publication or
 `latest` promotion.
 Historical released versions remain recorded in the changelog.

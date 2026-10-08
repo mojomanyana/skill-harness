@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.26.1 — 2026-10-08
+
+- Separate JEV session authorization from provider readiness at activation. Missing or blank OpenRouter keys receive actionable guidance without a paid probe; key presence alone does not claim provider access.
+- Accept the exact pi-daddy 0.46.1 current-record contract, preserving expired and canceled approval outcomes as refused delegations. Historical ledger pins remain unchanged.
+- Keep consent, storage choice, session binding, cancellation, deduplication and unlabeled training status unchanged. Native Pi classifier transport migration requires a separate evidence contract and is not silently enabled.
+
 ## 0.26.0 — 2026-10-08
 
 - Add a coordinator-owned `jev_advice` tool with status/evaluate actions for selected handoff evidence. `/skill-harness jev enable workflow` requests explicit session-scoped paid-call authorization and a fresh LoRA storage choice; existing manual activation remains manual.

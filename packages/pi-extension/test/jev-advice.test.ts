@@ -50,6 +50,78 @@ describe("session-scoped handoff advice", () => {
     expect(details(await s.execute({ action: "status" })).enabled).toBe(false);
     expect(s.provider).not.toHaveBeenCalled();
   });
+  it.each(["enable", "enable workflow"])("reports missing credentials immediately after %s without probing or losing the storage choice", async (command) => {
+    const s = setup(true);
+    for (const key of [undefined, "", " \t "]) {
+      if (key === undefined) delete s.env.OPENROUTER_API_KEY;
+      else s.env.OPENROUTER_API_KEY = key;
+      await s.controller.command(command, s.ctx);
+      const notification = s.ctx.ui.notify.mock.lastCall?.[0];
+      expect(notification).toContain(command === "enable workflow" ? "workflow calls authorized" : "manual mode activated");
+      expect(notification).toContain("LoRA storage granted for this session only");
+      expect(notification).toContain("Provider unavailable: OPENROUTER_API_KEY is missing or blank in this Pi process");
+      expect(notification).toContain("environment that launches Pi, restart Pi");
+      expect(notification).toContain("fresh session consent");
+      expect(notification).toContain("No provider call was made");
+      expect(details(await s.execute({ action: "status" }))).toMatchObject({
+        enabled: true, storage: "granted", providerReadiness: "missing-key",
+        availability: command === "enable workflow" ? "missing-key" : "manual-only",
+        remaining: command === "enable workflow" ? 3 : 0,
+      });
+    }
+    expect(s.ctx.ui.select).toHaveBeenCalledTimes(3);
+    expect(new Set(s.pi.appendEntry.mock.calls.map((call) => call[1].interactionId)).size).toBe(3);
+    expect(s.provider).not.toHaveBeenCalled();
+    expect(existsSync(s.storageHome)).toBe(false);
+  });
+  it.each(["enable", "enable workflow"])("reports only local key presence after %s, without claiming provider validation or exposing the key", async (command) => {
+    const s = setup();
+    await s.controller.command(command, s.ctx);
+    const notification = s.ctx.ui.notify.mock.lastCall?.[0];
+    expect(notification).toContain("OPENROUTER_API_KEY is present");
+    expect(notification).toContain("credentials and provider access have not been verified");
+    expect(notification).toContain("No provider call was made");
+    expect(details(await s.execute({ action: "status" }))).toMatchObject({
+      providerReadiness: "key-present", availability: command === "enable workflow" ? "ready" : "manual-only",
+    });
+    expect(JSON.stringify(s.ctx.ui.notify.mock.calls)).not.toContain(s.env.OPENROUTER_API_KEY);
+    expect(s.provider).not.toHaveBeenCalled();
+  });
+  it.each([false, true])("observes current credentials when the storage prompt completes (key present: %s)", async (present) => {
+    const s = setup();
+    if (present) delete s.env.OPENROUTER_API_KEY;
+    s.ctx.ui.select.mockImplementationOnce(async () => {
+      if (present) s.env.OPENROUTER_API_KEY = "new-test-key";
+      else delete s.env.OPENROUTER_API_KEY;
+      return "No — use JEV without retaining data for LoRA";
+    });
+    await s.controller.command("enable workflow", s.ctx);
+    expect(s.ctx.ui.notify.mock.lastCall?.[0]).toContain(present ? "OPENROUTER_API_KEY is present" : "Provider unavailable");
+    expect(details(await s.execute({ action: "status" }))).toMatchObject({
+      storage: "declined", remaining: 3, providerReadiness: present ? "key-present" : "missing-key",
+    });
+    expect(s.provider).not.toHaveBeenCalled();
+  });
+  it("updates free readiness status without automatic calls and requires fresh consent after restart", async () => {
+    const s = setup(true);
+    delete s.env.OPENROUTER_API_KEY;
+    await s.controller.command("enable workflow", s.ctx);
+    expect(details(await s.execute())).toMatchObject({ status: "unavailable", remaining: 3, reason: expect.stringContaining("fresh session consent") });
+    expect(existsSync(s.storageHome)).toBe(false);
+    s.env.OPENROUTER_API_KEY = "replacement-test-key";
+    expect(details(await s.execute({ action: "status" }))).toMatchObject({ availability: "ready", providerReadiness: "key-present", remaining: 3 });
+    s.hooks.get("session_start")!();
+    expect(details(await s.execute({ action: "status" }))).toMatchObject({ enabled: false, storage: null, availability: "disabled", providerReadiness: "key-present" });
+    expect(details(await s.execute()).status).toBe("unavailable");
+    await s.controller.command("enable workflow", s.ctx);
+    expect(s.ctx.ui.confirm).toHaveBeenCalledTimes(2);
+    expect(s.ctx.ui.select).toHaveBeenCalledTimes(2);
+    expect(s.pi.appendEntry.mock.calls[1][1].interactionId).not.toBe(s.pi.appendEntry.mock.calls[0][1].interactionId);
+    expect(s.provider).not.toHaveBeenCalled();
+    expect(details(await s.execute())).toMatchObject({ status: "answered", remaining: 2,
+      source: { sessionId: "actual-pi-session", toolCallId: "actual-tool-call" } });
+    expect(s.provider).toHaveBeenCalledTimes(1);
+  });
   it("transmits only the fixed question and selected packet; decline creates no harness files", async () => {
     const s = setup();
     await s.controller.command("enable workflow", s.ctx);

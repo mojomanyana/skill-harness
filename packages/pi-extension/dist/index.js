@@ -8843,7 +8843,7 @@ var PI_DADDY_RECORD_V1_COMMIT2, PI_DADDY_RECORD_V1_SCHEMA2, PI_DADDY_RECORD_V1_G
 var init_pi_daddy_record_v1_contract = __esm({
   "packages/adapters/src/pi-daddy-record-v1-contract.ts"() {
     "use strict";
-    PI_DADDY_RECORD_V1_COMMIT2 = "38418793efb785bc582c4a233a18c40364ccd1be";
+    PI_DADDY_RECORD_V1_COMMIT2 = "fad624ebc465eeb924fe91ba3b063b3851ce30ad";
     PI_DADDY_RECORD_V1_SCHEMA2 = {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "$id": "https://github.com/mojomanyana/pi-daddy/contracts/ledger-record/v1/record.schema.json",
@@ -9348,6 +9348,8 @@ var init_pi_daddy_record_v1_contract = __esm({
               "enum": [
                 "declined",
                 "dismissed",
+                "expired",
+                "aborted",
                 "no-ui",
                 "error"
               ]
@@ -18754,6 +18756,7 @@ var unmeasuredProvider = () => ({
   usage: { inputTokens: null, outputTokens: null, costUsd: null },
   latencyMs: null
 });
+var missingKeyRemedy = "Set OPENROUTER_API_KEY in the environment that launches Pi, restart Pi, then enable JEV again with fresh session consent.";
 function createJevController(pi, options = {}) {
   const run = options.run ?? main;
   let epoch = 0;
@@ -18780,6 +18783,7 @@ function createJevController(pi, options = {}) {
       storage: active?.consent.decision ?? null,
       remaining: active?.mode === "workflow" ? JEV_WORKFLOW_LIMIT - active.used : 0,
       availability,
+      providerReadiness: hasKey() ? "key-present" : "missing-key",
       advisory: true
     };
   };
@@ -18808,7 +18812,7 @@ function createJevController(pi, options = {}) {
     if (bound.blocked) return unavailable("Workflow advice is suppressed after an error; explicit new activation is required.");
     if (bound.busy) return unavailable("An advisory request is already in flight; no additional call was made.");
     if (bound.used >= JEV_WORKFLOW_LIMIT) return unavailable("This activation's advisory call limit is reached.");
-    if (!hasKey()) return unavailable("OPENROUTER_API_KEY is unavailable; no call was made.");
+    if (!hasKey()) return unavailable(`OPENROUTER_API_KEY is unavailable; no call was made. ${missingKeyRemedy}`);
     const abort = new AbortController();
     const cancel = () => abort.abort();
     const signals = [bound.abort.signal, signal].filter((s) => s !== void 0);
@@ -18959,7 +18963,7 @@ function createJevController(pi, options = {}) {
         cache: /* @__PURE__ */ new Map()
       };
       ctx.ui.notify(
-        (workflow ? `JEV workflow advice enabled (up to ${JEV_WORKFLOW_LIMIT} paid calls). LoRA storage ` : "JEV enabled for explicitly selected paid calls. LoRA storage ") + consent.decision + " for this session only."
+        (workflow ? `JEV workflow calls authorized for this session (up to ${JEV_WORKFLOW_LIMIT} paid calls). LoRA storage ` : "JEV manual mode activated; each selected paid call still requires confirmation. LoRA storage ") + consent.decision + " for this session only. " + (hasKey() ? "Provider readiness: OPENROUTER_API_KEY is present; credentials and provider access have not been verified. No provider call was made." : `Provider unavailable: OPENROUTER_API_KEY is missing or blank in this Pi process. No provider call was made. ${missingKeyRemedy}`)
       );
       return;
     }

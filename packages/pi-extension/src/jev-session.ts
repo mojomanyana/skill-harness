@@ -31,6 +31,7 @@ const unmeasuredProvider = () => ({
   provider: JEV_PROVIDER, requestedModel: JEV_MODEL, resolvedModel: null,
   usage: { inputTokens: null, outputTokens: null, costUsd: null }, latencyMs: null,
 });
+const missingKeyRemedy = "Set OPENROUTER_API_KEY in the environment that launches Pi, restart Pi, then enable JEV again with fresh session consent.";
 interface Activation {
   sessionId: string;
   consent: any;
@@ -80,6 +81,7 @@ export function createJevController(
       storage: active?.consent.decision ?? null,
       remaining: active?.mode === "workflow" ? JEV_WORKFLOW_LIMIT - active.used : 0,
       availability,
+      providerReadiness: hasKey() ? "key-present" : "missing-key",
       advisory: true,
     };
   };
@@ -105,7 +107,7 @@ export function createJevController(
     if (bound.blocked) return unavailable("Workflow advice is suppressed after an error; explicit new activation is required.");
     if (bound.busy) return unavailable("An advisory request is already in flight; no additional call was made.");
     if (bound.used >= JEV_WORKFLOW_LIMIT) return unavailable("This activation's advisory call limit is reached.");
-    if (!hasKey()) return unavailable("OPENROUTER_API_KEY is unavailable; no call was made.");
+    if (!hasKey()) return unavailable(`OPENROUTER_API_KEY is unavailable; no call was made. ${missingKeyRemedy}`);
     const abort = new AbortController();
     const cancel = () => abort.abort();
     const signals = [bound.abort.signal, signal].filter((s): s is AbortSignal => s !== undefined);
@@ -236,9 +238,12 @@ export function createJevController(
         abort: new AbortController(), used: 0, busy: false, blocked: null, cache: new Map(),
       };
       ctx.ui.notify(
-        (workflow ? `JEV workflow advice enabled (up to ${JEV_WORKFLOW_LIMIT} paid calls). LoRA storage ` : "JEV enabled for explicitly selected paid calls. LoRA storage ") +
+        (workflow ? `JEV workflow calls authorized for this session (up to ${JEV_WORKFLOW_LIMIT} paid calls). LoRA storage ` : "JEV manual mode activated; each selected paid call still requires confirmation. LoRA storage ") +
           consent.decision +
-          " for this session only.",
+          " for this session only. " +
+          (hasKey()
+            ? "Provider readiness: OPENROUTER_API_KEY is present; credentials and provider access have not been verified. No provider call was made."
+            : `Provider unavailable: OPENROUTER_API_KEY is missing or blank in this Pi process. No provider call was made. ${missingKeyRemedy}`),
       );
       return;
     }
