@@ -32,6 +32,7 @@ import {
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
+import { cmdDecision } from "./decision.js";
 
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 // The judge default lives in core (`defaultJudge()`), which resolves
@@ -798,6 +799,8 @@ export function help(): string {
   Every command with --skills also accepts --specs <root> (default: SKILL_HARNESS_SPECS).
   Skill text comes from --skills; test assets and results come from --specs.
 
+  decision <command>                          decision evaluation, session consent and learning export; decision --help
+
   version  print ${HARNESS_VERSION} and exit (also --version / -v)
 
 defaults: model=${DEFAULT_MODEL}  judge=${defaultJudge()}  mode=green  harness=pi
@@ -810,6 +813,7 @@ defaults: model=${DEFAULT_MODEL}  judge=${defaultJudge()}  mode=green  harness=p
 
 export async function main(argv: string[]): Promise<void> {
   const cmd = argv[0];
+  if (cmd === "decision") return cmdDecision(argv.slice(1));
   const args = parseArgs(argv.slice(1));
   assertNoRetiredFlags(cmd, args);
   switch (cmd) {

@@ -1,14 +1,12 @@
 # Decision shadow pilot
 
-This source-only experiment compares **advisory evidence classification** by JEV
+This explicitly enabled experiment compares **advisory evidence classification** by JEV
 against independently supplied labels. It does not participate in
 `skill-harness run/grade/review`, alter `results.yaml`, grant capabilities,
 choose execution models, resume work, or approve integration. The supported
 harness subject/judge execution remains Pi-only.
 
-For a subscription-backed review baseline, use the existing Pi-based
-`skill-harness run/grade/review` workflow. This experiment adds no new Pi
-judge adapter or fallback provider.
+For a case-matched subscription baseline, use `skill-harness decision run-pi` and `compare`. The ordinary Pi-based `run/grade/review` workflow remains independent. See the [npm walkthrough](../../docs/DECISION-LEARNING.md) for the new 24-case grouped fixture packet, per-session storage choice and local LoRA preparation.
 
 The first question is deliberately narrow: does the recorded evidence support
 declaring a candidate ready for integration? The eight supplied examples are
@@ -20,14 +18,14 @@ a deterministic readiness rule.
 
 ## Run the offline demonstration
 
-From this repository checkout, with Node >=20 (no installation or API key needed):
+After `npm install -g skill-harness`, with Node >=20 and the explicitly selected example files from this repository (no API key needed):
 
 ```bash
-node experiments/decision-shadow/cli.mjs preview \
+skill-harness decision preview \
   --cases experiments/decision-shadow/examples/cases.json \
   --provider jev --model typesafe/jev-1.13
 mkdir -p tmp/decision-shadow
-node experiments/decision-shadow/cli.mjs corpus \
+skill-harness decision corpus \
   --cases experiments/decision-shadow/examples/cases.json \
   --labels experiments/decision-shadow/examples/labels.json \
   --out tmp/decision-shadow/independent-labels.json
@@ -50,7 +48,7 @@ paths must still refer to that root. This command does not scan for evidence or
 support relocated archive mappings.
 
 ```bash
-node experiments/decision-shadow/cli.mjs verify-sources \
+skill-harness decision verify-sources \
   --cases /absolute/path/cases.json \
   --sources /absolute/path/sources.json \
   --evidence-root /absolute/path/public-evidence \
@@ -130,11 +128,11 @@ retrying, saves completed attempts, and leaves the remaining cases missing.
 Unexpected answer types are errors and are not counted as correct.
 
 ```bash
-node experiments/decision-shadow/cli.mjs run \
+skill-harness decision run \
   --cases experiments/decision-shadow/examples/cases.json \
   --provider jev --model typesafe/jev-1.13 \
   --out tmp/decision-shadow/jev.jsonl --allow-remote
-node experiments/decision-shadow/cli.mjs score \
+skill-harness decision score \
   --cases experiments/decision-shadow/examples/cases.json \
   --labels experiments/decision-shadow/examples/labels.json \
   --run tmp/decision-shadow/jev.jsonl
@@ -207,17 +205,12 @@ marked `trainingEligible: false` and stored separately. This prevents an
 accidental code path from copying teacher outputs into the label corpus; it
 cannot establish the rights of manually supplied content.
 
-TypeSafe's current terms prohibit distillation/imitation uses of its services
+The TypeSafe terms reviewed on 2026-10-07 prohibit distillation/imitation uses of its services
 and output. Keep JEV outputs out of training unless TypeSafe grants a written
 exception. A provider prediction is not independent ground truth.
 See [TypeSafe MCA §2.3](https://typesafe.ai/legal/mca).
 
-A later learning experiment should use independently obtained human/test labels,
-documented source rights and consent, separate train/validation/test sets split
-by task/repository (not near-duplicate episodes), and held-out comparisons against
-a deterministic baseline. Select a base model and its license before preparing
-a training format. Training, deployment, and runtime policy changes are not part
-of this tool.
+The packaged `export-learning` workflow now prepares independent-label train/validation/test data and a local training script/configuration. It requires documented rights, current storage consent and separate export/training approvals. The [learning contract](LEARNING-WORKFLOW.md) describes exact schemas and refusal conditions. Export never trains or deploys an adapter or changes runtime policy.
 
 ## Provider contracts and validation status
 
@@ -232,8 +225,7 @@ Contracts were checked on 2026-10-07:
 - Offline tests use fake transports. They check schema/identity boundaries,
   request content, errors/timeouts, partial runs, scoring and corpus
   separation. They do not qualify live API access or model quality.
-- This experiment is available from the source checkout only. It adds no npm CLI
-  command or extension behavior and does not change published runtime packages.
+- Commands ship under `skill-harness decision`; `/skill-harness jev enable|run|status|disable` supplies explicit session activation. The source CLI remains a development shim after `npm ci && npm run build`.
 
 Next live pilot: curate a small held-out set of real, independently reviewed
 decisions, select the exact cases and provider call envelope, then measure
