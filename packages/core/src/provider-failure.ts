@@ -40,7 +40,17 @@ export function withExecutionFailure(transcript: string, failure: string | null)
 }
 
 export function executionFailureFromTranscript(transcript: string): string | null {
-  return failureFromPreamble(transcript, EXECUTION_FAILURE_MARKER);
+  const failure = failureFromPreamble(transcript, EXECUTION_FAILURE_MARKER);
+  if (failure !== null) return failure;
+  // Before 0.25.1, the runner saved thrown errors as this entire transcript,
+  // without a turn header. Match only its exact opening preamble: a model quote
+  // after a USER header (or elsewhere in the transcript) carries no authority.
+  const legacyPrefix = "[adapter failure] ";
+  if (transcript.startsWith(legacyPrefix)) {
+    const detail = transcript.slice(legacyPrefix.length).split("\n", 1)[0].trim();
+    return `adapter failure — ${detail || "adapter threw without a message"}`;
+  }
+  return null;
 }
 
 /**

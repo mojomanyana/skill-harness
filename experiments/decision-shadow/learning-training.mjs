@@ -21,10 +21,20 @@ def ordinary(path):
 def closed(value, fields, name):
     require(isinstance(value, dict) and set(value) == set(fields), name + ' has unsupported or missing fields')
 
+def jsonl_rows(path):
+    # JSONL records end only at LF. Unicode NEL/LS/PS are legal JSON string data.
+    lines = ordinary(path).decode('utf-8').split('\n')
+    if lines[-1] == '': lines.pop()
+    return [json.loads(line) for line in lines]
+
 def export_data(root):
     root = pathlib.Path(root).absolute()
     raw = ordinary(root / 'export-manifest.json'); m = json.loads(raw)
-    require(m.get('schema') == 1 and m.get('kind') == 'decision-learning-export', 'Unsupported export')
+    require(m.get('schema') == 2 and m.get('kind') == 'decision-learning-export', 'Unsupported export schema; re-export with the current skill-harness')
+    normalization = m['inputNormalization']
+    closed(normalization, ['algorithm','runtime','nodeVersion','unicodeVersion'], 'Input normalization producer')
+    require(normalization['algorithm'] == 'ecmascript-nfkc-whitespace-trim-lower-sha256-v1' and normalization['runtime'] == 'node', 'Unsupported input normalization producer')
+    require(all(isinstance(normalization[key], str) and re.fullmatch(r'[0-9]+(?:\.[0-9]+){1,2}', normalization[key]) for key in ['nodeVersion','unicodeVersion']), 'Invalid input normalization producer version')
     require(m.get('trainingExecuted') is False and m.get('providerPredictionsIncluded') is False, 'Unsupported source provenance')
     require(set(m['files']) == {'train.jsonl','validation.jsonl','test.jsonl','train-lora.py','requirements-training.txt','training-config.example.json','TRAINING.md'}, 'Unexpected export files')
     for name, ref in m['files'].items():
@@ -34,10 +44,10 @@ def export_data(root):
     require(digest(ordinary(pathlib.Path(__file__).absolute())) == m['files']['train-lora.py']['sha256'], 'Run the exact exported training script')
     groups, seen_inputs, seen_cases = {}, {}, set()
     for split in ['train','validation','test']:
-        rows = [json.loads(line) for line in ordinary(root / (split+'.jsonl')).decode('utf-8').splitlines()]
+        rows = jsonl_rows(root / (split+'.jsonl'))
         require(len(rows) == m['counts'][split], 'Split count mismatch')
         for row in rows:
-            closed(row, ['caseId','caseHash','taskGroup','lineageGroup','sessionId','fixtureOnly','input','question','answer','label','source'], 'Dataset row')
+            closed(row, ['caseId','caseHash','taskGroup','lineageGroup','sessionId','fixtureOnly','input','inputIdentity','question','answer','label','source'], 'Dataset row')
             require(row['caseId'] not in seen_cases and type(row['answer']) is bool, 'Duplicate case or invalid label')
             seen_cases.add(row['caseId'])
             require(row['label']['caseId'] == row['caseId'] and row['label']['caseHash'] == row['caseHash'] and row['label']['value'] == row['answer'] and row['label']['kind'] in ['human','test'] and row['label']['independent'] is True, 'Label identity mismatch')
@@ -46,7 +56,15 @@ def export_data(root):
                     identity = key + ':' + row[key]
                     require(identity not in groups or groups[identity] == split, 'Related cases cross splits')
                     groups[identity] = split
-            normalized = ' '.join(row['input'].casefold().split())
+            identity = row['inputIdentity']
+            closed(identity, ['algorithm','inputSha256','normalizedSha256'], 'Input identity receipt')
+            require(identity['algorithm'] == normalization['algorithm'], 'Input identity algorithm mismatch')
+            require(all(isinstance(identity[key], str) and re.fullmatch(r'[0-9a-f]{64}', identity[key]) for key in ['inputSha256','normalizedSha256']), 'Invalid input identity digest')
+            require(isinstance(row['input'], str) and digest(row['input'].encode('utf-8')) == identity['inputSha256'], 'Input identity byte mismatch')
+            # This is producer evidence bound by the exact row/file/manifest hashes.
+            # Recomputing with Python Unicode tables can disagree with the Node producer.
+            # The receipt is not an independent proof that normalization was correct.
+            normalized = identity['normalizedSha256']
             require(normalized not in seen_inputs or seen_inputs[normalized] == split, 'Duplicate input crosses splits')
             seen_inputs[normalized] = split
             if m.get('trainingEligible') is True: require(row['fixtureOnly'] is False and row['sessionId'] is not None, 'Fixture/anonymous data cannot be training eligible')
@@ -121,8 +139,7 @@ def main():
     model = get_peft_model(model, LoraConfig(task_type=TaskType.CAUSAL_LM, r=t['loraRank'], lora_alpha=t['loraAlpha'], target_modules=t['targetModules'], lora_dropout=0.0, bias='none'))
     def rows(split):
         data = []
-        for line in ordinary(root / (split + '.jsonl')).decode('utf-8').splitlines():
-            row = json.loads(line)
+        for row in jsonl_rows(root / (split + '.jsonl')):
             require(row['fixtureOnly'] is False and type(row['answer']) is bool and row['label']['kind'] in ['human','test'] and row['label']['independent'] is True, 'Only independently labeled reviewed real data may train')
             prompt = 'Question: ' + row['question'] + '\nEvidence:\n' + row['input'] + '\nAnswer (true or false): '
             prefix = tokenizer.encode(prompt, add_special_tokens=True)
@@ -151,6 +168,8 @@ if __name__ == '__main__':
 export const TRAINING_DOC = `# Local LoRA workflow
 
 This export contains independent labels, never JEV predictions. A fixture demonstration is not training eligible. No training or installation has been performed by exporting these files.
+
+Export schema 2 records the producer's normalized-input SHA-256 receipt in every row, the exact input UTF-8 SHA-256, and the Node/Unicode versions and normalization algorithm in the manifest. One JavaScript normalizer validates the split and writes the receipt. Python checks receipt shape, raw-input binding, duplicate identities and exact file hashes; it does not reinterpret those identities with its own Unicode tables. These are trusted producer receipts, not independent proofs of correct normalization. Separate training approval still pins the exact export manifest. Invalid Unicode scalar input is refused by the producer. Re-export older schema-1 packets with the current CLI; do not modify their bound script, rows or manifest in place.
 
 1. Check the intact export offline: python3 train-lora.py --export /absolute/export --check-export-only.
 2. For reviewed real data only, select a base model, immutable full revision, license and an existing canonical local weight directory. Pin every file by SHA-256 in a separate copy of training-config.example.json. Select architecture-specific LoRA target modules. Record an explicit eligibility review bound to the exact export-manifest.json digest. Storage consent alone is insufficient.
