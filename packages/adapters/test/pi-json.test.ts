@@ -17,6 +17,7 @@ import { Readable } from "node:stream";
 
 interface Script {
   stdout?: string;
+  chunks?: Buffer[];
   stderr?: string;
   /** Exit code passed to `close`. Omit together with `hang` to close cleanly on 0. */
   code?: number | null;
@@ -51,6 +52,7 @@ vi.mock("node:child_process", () => ({
         return;
       }
       if (s.stdout) child.stdout.push(s.stdout);
+      for (const chunk of s.chunks ?? []) child.stdout.push(chunk);
       if (s.stderr) child.stderr.push(s.stderr);
       child.stdout.push(null);
       child.stderr.push(null);
@@ -86,6 +88,16 @@ beforeEach(() => {
 });
 
 describe("runPiJson", () => {
+  it("keeps Unicode separators inside JSON strings across split UTF-8 chunks and an unterminated final line", async () => {
+    const text = "line one\u2028line two\u2029emoji 🙂";
+    const bytes = Buffer.from(JSON.stringify({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text }], stopReason: "stop" } }) + "\n" + JSON.stringify({ type: "agent_settled" }));
+    scripts.push({ chunks: Array.from(bytes, byte => Buffer.from([byte])) });
+    const result = await runPiJson({ args: ["-p", "hi"], ...META, piVersion: "1.0.4" });
+    expect(result.malformedLines).toBe(0);
+    expect(result.isComplete).toBe(true);
+    expect(result.trace.final_text).toBe(text);
+  });
+
   it("gives the child no stdin — pi hangs forever waiting on it otherwise", async () => {
     scripts.push({ stdout: TERMINAL });
     await run();

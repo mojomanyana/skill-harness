@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { createInterface } from "node:readline";
+import { StringDecoder } from "node:string_decoder";
 import type { ExecutionTraceV1, ModelRef, RunMode } from "@skill-harness/core";
 import { parseTrace, providerFailureFromJsonLine } from "@skill-harness/core";
 
@@ -85,8 +85,7 @@ export function runPiJson(opts: PiJsonRunOptions): Promise<PiJsonRunResult> {
       reject(new Error(`pi --mode json timed out after ${opts.timeoutMs}ms`));
     }, opts.timeoutMs);
 
-    const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
-    rl.on("line", (line) => {
+    const acceptLine = (line: string) => {
       // Prefilter before the full parse: the events skipped here are both the
       // overwhelming majority of lines and by far the largest.
       //
@@ -114,6 +113,24 @@ export function runPiJson(opts: PiJsonRunOptions): Promise<PiJsonRunResult> {
       }
       kept.push(line);
       if (providerFailure === null) providerFailure = providerFailureFromJsonLine(line);
+    };
+    // JSONL is LF-framed. readline also splits legal Unicode string separators
+    // on newer Node runtimes, turning valid model text into malformed records.
+    const decoder = new StringDecoder("utf8");
+    let pending = "";
+    child.stdout.on("data", (chunk: Buffer) => {
+      pending += decoder.write(chunk);
+      let start = 0, end: number;
+      while ((end = pending.indexOf("\n", start)) >= 0) {
+        acceptLine(pending.slice(start, end));
+        start = end + 1;
+      }
+      pending = pending.slice(start);
+    });
+    child.stdout.on("end", () => {
+      pending += decoder.end();
+      if (pending) acceptLine(pending);
+      pending = "";
     });
 
     child.stderr.on("data", (chunk: Buffer) => {

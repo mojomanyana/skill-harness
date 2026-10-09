@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.28.0 — 2026-10-09
+
+- Make JEV workflow advice stage-aware: callers supply `stage`, `nextAction` and `uncertainty` alongside requirements/evidence. The question evaluates that next action, not premature final acceptance. Update Principal alongside Harness; retained v1 records remain historical, and new selections use v2.
+- Add an optional dashboard control bridge using the existing parent-session paid-call and LoRA-storage dialogs. Report provider readiness and remaining calls without a paid probe. Session changes and disabling invalidate unanswered activation.
+- Retain exact outbound input bytes and explicitly selected hash-verified local references. `link-outcome` attaches later matching-candidate engineering evidence without a provider call; links remain unlabeled with unassessed independence and no export/training permission. When Principal is available, observe the candidate through its canonical session/workspace API rather than duplicating its fingerprint algorithm.
+- Frame native Pi JSON output on LF only, preserving legal Unicode line separators and split UTF-8 characters instead of misclassifying valid captured records as malformed.
+
 ## 0.27.0 — 2026-10-09
 
 - Expose structured JEV advice to native Pi tool-only Codemode while preserving session consent, per-enable LoRA storage choice, deduplication and cancellation.

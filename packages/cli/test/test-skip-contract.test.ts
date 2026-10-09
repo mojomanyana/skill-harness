@@ -13,14 +13,14 @@ function testFiles(directory: string): string[] {
 }
 
 describe("conditional test skips", () => {
-  it("allows only the documented release-toolchain and optional native-runtime gates", () => {
+  it("allows only the documented release-toolchain, native-runtime and cross-repository gates", () => {
     const conditionals = testFiles(join(root, "packages")).filter((path) => path !== __filename).flatMap((path) => {
       const source = readFileSync(path, "utf8");
       return [...source.matchAll(/\b(?:describe|it|test)\.(?:skip|skipIf|runIf|todo)\b|\b(?:xdescribe|xit|xtest)\b/g)]
         .map((match) => ({ path: relative(root, path).replaceAll("\\", "/"), token: match[0], offset: match.index! }));
     });
 
-    expect(conditionals).toHaveLength(2);
+    expect(conditionals).toHaveLength(3);
     expect(conditionals[0]).toMatchObject({
       path: "packages/cli/test/release-pack.test.ts",
       token: "describe.skipIf",
@@ -33,6 +33,10 @@ describe("conditional test skips", () => {
     const nativeSource = readFileSync(join(root, conditionals[1].path), "utf8");
     expect(nativeSource).toContain('process.env.SKILL_HARNESS_PI_CODEMODE_PACKAGE');
     expect(nativeSource.slice(conditionals[1].offset)).toMatch(/^describe\.skipIf\(!nativePackage\)/);
+
+    expect(conditionals[2]).toMatchObject({ path: "packages/pi-extension/test/jev-advice.test.ts", token: "describe.skipIf" });
+    expect(nativeSource).toContain('process.env.SKILL_HARNESS_PRINCIPAL_WORKFLOW');
+    expect(nativeSource.slice(conditionals[2].offset)).toMatch(/^describe\.skipIf\(!principalWorkflow\)/);
 
     const source = readFileSync(join(root, conditionals[0].path), "utf8");
     const allTests = [...source.matchAll(/\bit\s*\(/g)].length;

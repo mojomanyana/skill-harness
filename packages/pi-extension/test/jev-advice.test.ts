@@ -1,8 +1,9 @@
 import Ajv from 'ajv';
+import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createJevController } from "../src/jev-session.js";
@@ -12,7 +13,7 @@ import { JEV_QUESTION, prepareHandoff } from "../src/jev-packet.js";
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 const answer = { status: "answered", probability: 0.8, resolvedModel: "typesafe/jev-1.13", usage: { inputTokens: 10, outputTokens: 1, costUsd: null }, latencyMs: 2 };
-const packet = { action: "evaluate", candidate: "repo@abc", requirements: "Acceptance: clear queued work; preserve active work.", evidence: "Required queue and active-work checks passed on candidate abc." };
+const packet = { action: "evaluate", stage: "implementation" as const, nextAction: "Proceed to independent review", uncertainty: "Do the cache ownership and queue admission rules interact safely?", candidate: "repo@abc", requirements: "Acceptance: clear queued work; preserve active work.", evidence: "Required queue and active-work checks passed on candidate abc." };
 function setup(storage = false) {
   const root = mkdtempSync(join(tmpdir(), "jev-workflow-test-"));
   roots.push(root);
@@ -135,7 +136,9 @@ describe("session-scoped handoff advice", () => {
     expect(provider).toBe("jev");
     expect(model).toBe("typesafe/jev-1.13");
     expect(request.question).toBe(JEV_QUESTION);
-    expect(JSON.parse(request.input)).toEqual({ candidate: packet.candidate, requirements: packet.requirements, evidence: packet.evidence });
+    expect(JSON.parse(request.input)).toEqual({ candidate: packet.candidate, stage: packet.stage, nextAction: packet.nextAction, uncertainty: packet.uncertainty, requirements: packet.requirements, evidence: packet.evidence });
+    expect(request.question).toContain("proposed next action");
+    expect(request.question).toContain("not final acceptance");
     expect(options.signal).toBeInstanceOf(AbortSignal);
     expect(result).toMatchObject({ provider: "jev", requestedModel: "typesafe/jev-1.13", resolvedModel: "typesafe/jev-1.13", usage: answer.usage, latencyMs: 2 });
     expect(JSON.stringify(result)).not.toContain("test-key");
@@ -156,7 +159,7 @@ describe("session-scoped handoff advice", () => {
     expect(createHash("sha256").update(bytes).digest("hex")).toBe(result.source.sha256);
     const selected = JSON.parse(bytes);
     expect(selected).toMatchObject({
-      kind: "skill-harness-selected-handoff-v1", sessionId: "actual-pi-session", toolCallId: "actual-tool-call",
+      schema: 2, kind: "skill-harness-selected-decision-v2", sessionId: "actual-pi-session", toolCallId: "actual-tool-call",
       provenance: "tool-selected-input", candidateIdentity: "caller-claimed", sourceBinding: "unassessed",
       redaction: "unassessed", rights: "unassessed", labelStatus: "unlabeled",
       trainingEligible: false, exportEligible: false, publicCaptureVerified: false,
@@ -164,6 +167,7 @@ describe("session-scoped handoff advice", () => {
       authorization: { sessionId: "actual-pi-session", maximumCalls: 3 },
     });
     expect(selected).not.toHaveProperty("probability");
+    expect(readFileSync(join(result.source.path, "..", "input.txt"), "utf8")).toBe(selected.input);
     expect(createHash("sha256").update(selected.input).digest("hex")).toBe(selected.inputSha256);
     const outcome = JSON.parse(readFileSync(join(result.source.path, "..", "outcome.json"), "utf8"));
     expect(outcome.source.sha256).toBe(result.source.sha256);
@@ -177,6 +181,8 @@ describe("session-scoped handoff advice", () => {
     { ...packet, consent: "granted" },
     { ...packet, path: "/private" },
     { action: "evaluate", candidate: "c", requirements: "r" },
+    { ...packet, stage: "acceptance" },
+    { ...packet, uncertainty: " " },
     { ...packet, evidence: 1 },
     { ...packet, evidence: " " },
     { ...packet, evidence: "\ud800" },
@@ -188,11 +194,12 @@ describe("session-scoped handoff advice", () => {
     expect(s.provider).not.toHaveBeenCalled();
   });
   it("accepts valid Unicode pairs and enforces the full serialized packet limit", () => {
-    const valid = { candidate: "c", requirements: "r", evidence: "🙂".repeat(5000) };
+    const { action: _action, ...fields } = packet;
+    const valid = { ...fields, candidate: "c", requirements: "r", evidence: "🙂".repeat(5000) };
     expect(prepareHandoff(valid).input).toContain("🙂");
-    const empty = JSON.stringify({ ...valid, evidence: "" });
-    expect(() => prepareHandoff({ ...valid, evidence: "x".repeat(16000 - empty.length) })).not.toThrow();
-    expect(() => prepareHandoff({ ...valid, evidence: "x".repeat(16001 - empty.length) })).toThrow("16000");
+    const overhead = Array.from(prepareHandoff({ ...valid, evidence: "x" }).input).length - 1;
+    expect(() => prepareHandoff({ ...valid, evidence: "x".repeat(16000 - overhead) })).not.toThrow();
+    expect(() => prepareHandoff({ ...valid, evidence: "x".repeat(16001 - overhead) })).toThrow("16000");
   });
   it.each(["", " ", "x".repeat(257)])("requires an actual nonempty tool-call identity", async (id) => {
     const s = setup();
@@ -324,6 +331,155 @@ describe("session-scoped handoff advice", () => {
   });
 });
 
+describe("decision evidence and later outcome linkage", () => {
+  const ref = (s: ReturnType<typeof setup>, name: string, bytes: string) => {
+    const path = join(s.root, name);
+    writeFileSync(path, bytes);
+    return { path, sha256: createHash("sha256").update(bytes).digest("hex") };
+  };
+  it("verifies explicit evidence before spend, freezes its bytes locally and never silently sends file contents", async () => {
+    const s = setup(true);
+    const evidence = ref(s, "verification.txt", "local selected record, not automatic remote input");
+    await s.controller.command("enable workflow", s.ctx);
+    const value = { ...packet, evidenceRefs: [evidence] };
+    const result = details(await s.execute(value));
+    const selection = JSON.parse(readFileSync(result.source.path, "utf8"));
+    expect(selection).toMatchObject({ candidateIdentity: "caller-claimed", sourceBinding: "local-reference-digests-verified", evidenceClaims: "unassessed" });
+    expect(selection.evidenceRefs).toEqual([{ ...evidence, bytes: Buffer.byteLength(readFileSync(evidence.path, "utf8")) }]);
+    const directory = join(result.source.path, "..");
+    expect(readFileSync(join(directory, "decision-evidence-1.bin"), "utf8")).toBe(readFileSync(evidence.path, "utf8"));
+    const request = (s.provider.mock.calls as any)[0][2];
+    expect(request.input).not.toContain(evidence.path);
+    expect(request.input).not.toContain("local selected record");
+    writeFileSync(evidence.path, "changed after selection");
+    await expect(s.execute(value)).rejects.toThrow("sha256");
+    expect(s.provider).toHaveBeenCalledTimes(1);
+    expect(details(await s.execute({ action: "status" })).remaining).toBe(2);
+  });
+  it("links frozen engineering evidence without provider spend, inferred labels or acceptance, and deduplicates repeats", async () => {
+    const s = setup(true);
+    await s.controller.command("enable workflow", s.ctx);
+    const advice = details(await s.execute());
+    const sourceBefore = readFileSync(advice.source.path);
+    const evidence = ref(s, "independent-review.txt", "Independent review: APPROVE; selected candidate observed.");
+    const args = { action: "link-outcome", selectionSha256: advice.source.sha256, candidate: packet.candidate, evidenceRefs: [evidence] };
+    const mappingPath = join(advice.source.path, "..", "evidence.json");
+    const mappingBefore = readFileSync(mappingPath);
+    writeFileSync(mappingPath, JSON.stringify({schema: 1, evidenceRefs: [{path: "invented", sha256: "0".repeat(64)}]}));
+    await expect(s.execute(args)).rejects.toThrow("evidence mapping changed");
+    writeFileSync(mappingPath, mappingBefore);
+    const result = details(await s.execute(args));
+    expect(result).toMatchObject({ status: "linked", inputSha256: advice.inputSha256, labelStatus: "unlabeled", independence: "unassessed", exportEligible: false, trainingEligible: false, reused: false });
+    expect(new Ajv({ strict: false }).compile(s.tool.outputSchema)(result)).toBe(true);
+    expect(details(await s.execute(args))).toMatchObject({ path: result.path, sha256: result.sha256, reused: true });
+    expect(s.provider).toHaveBeenCalledTimes(1);
+    expect(details(await s.execute({ action: "status" })).remaining).toBe(2);
+    const stored = JSON.parse(readFileSync(result.path, "utf8"));
+    expect(stored.source.sha256).toBe(advice.source.sha256);
+    expect(stored.sessionId).toBe("actual-pi-session");
+    expect(readFileSync(join(result.path, "..", stored.evidenceRefs[0].retainedPath), "utf8")).toContain("APPROVE");
+    expect(readFileSync(advice.source.path)).toEqual(sourceBefore);
+    const frozenEvidence = join(result.path, "..", stored.evidenceRefs[0].retainedPath);
+    const frozenBefore = readFileSync(frozenEvidence);
+    writeFileSync(frozenEvidence, "tampered");
+    await expect(s.execute(args)).rejects.toThrow("engineering evidence changed");
+    writeFileSync(frozenEvidence, frozenBefore);
+    await expect(s.execute({ ...args, candidate: "different" })).rejects.toThrow("candidate");
+    await expect(s.execute({ ...args, selectionSha256: "0".repeat(64) })).rejects.toThrow("selection");
+    await s.controller.command("enable workflow", s.ctx);
+    await expect(s.execute(args)).rejects.toThrow("activation");
+  });
+  it("refuses outcome retention without storage consent, after source mutation, or after cancellation", async () => {
+    const s = setup();
+    await s.controller.command("enable workflow", s.ctx);
+    const advice = details(await s.execute());
+    const evidence = ref(s, "tests.txt", "tests passed");
+    const args = { action: "link-outcome", selectionSha256: advice.source.sha256, candidate: packet.candidate, evidenceRefs: [evidence] };
+    await expect(s.execute(args)).rejects.toThrow("storage consent");
+    expect(existsSync(s.storageHome)).toBe(false);
+    const retained = setup(true);
+    await retained.controller.command("enable workflow", retained.ctx);
+    const selected = details(await retained.execute());
+    const request = { ...args, selectionSha256: selected.source.sha256 };
+    const abort = new AbortController(); abort.abort();
+    await expect(retained.execute(request, abort.signal)).rejects.toThrow("changed");
+    writeFileSync(selected.source.path, "changed source");
+    await expect(retained.execute(request)).rejects.toThrow("source changed");
+    expect(retained.provider).toHaveBeenCalledTimes(1);
+  });
+  it("rejects malformed, repeated, missing or mismatched selected evidence without reserving a call", async () => {
+    const s = setup();
+    await s.controller.command("enable workflow", s.ctx);
+    const evidence = ref(s, "evidence.txt", "observed");
+    const link = join(s.root, "link.txt");
+    symlinkSync(evidence.path, link);
+    const oversized = ref(s, "oversized.txt", "x".repeat(2 * 1024 * 1024 + 1));
+    for (const evidenceRefs of [[], [{...evidence, path: link}], [oversized], [{...evidence, path: s.root}], [evidence, evidence], [{...evidence, sha256: "0".repeat(64)}], [{...evidence, path: join(s.root,"missing")}], [{...evidence, extra: true}]]) {
+      await expect(s.execute({ ...packet, evidenceRefs })).rejects.toThrow();
+    }
+    expect(s.provider).not.toHaveBeenCalled();
+    expect(details(await s.execute({ action: "status" })).remaining).toBe(3);
+  });
+});
+
+describe("optional Principal candidate observation", () => {
+  function connect(s: ReturnType<typeof setup>, transform: (response: any, request: any) => any = response => response) {
+    s.pi.events = { emit: (channel: string, request: any) => {
+      expect(channel).toBe("principal:candidate-observe");
+      expect(request).not.toHaveProperty("root");
+      const response = { requestId: request.requestId, sessionId: request.sessionId,
+        candidate: { algorithm: "principal-candidate-v1", root: s.root, id: packet.candidate, head: "base" } };
+      request.reply(transform(response, request));
+    } };
+  }
+  it("records a matching live observation separately from source truth and rechecks it before reuse or outcome linking", async () => {
+    const s = setup(true);
+    connect(s);
+    await s.controller.command("enable workflow", s.ctx);
+    const result = details(await s.execute());
+    expect(result.source.candidateIdentity).toBe("principal-runtime-observed");
+    const selected = JSON.parse(readFileSync(result.source.path, "utf8"));
+    expect(selected.candidateObservation).toMatchObject({ sessionId: "actual-pi-session", candidate: { id: packet.candidate, root: s.root } });
+    expect(selected).toMatchObject({ evidenceClaims: "unassessed", trainingEligible: false });
+    expect((s.provider.mock.calls as any)[0][2].input).not.toContain(s.root);
+    expect(details(await s.execute()).reused).toBe(true);
+    const evidencePath = join(s.root, "result.txt"); writeFileSync(evidencePath, "passed");
+    const evidenceRefs = [{ path: evidencePath, sha256: createHash("sha256").update("passed").digest("hex") }];
+    const link = { action: "link-outcome", selectionSha256: result.source.sha256, candidate: packet.candidate, evidenceRefs };
+    connect(s, response => ({ ...response, candidate: { ...response.candidate, id: "changed" } }));
+    await expect(s.execute()).rejects.toThrow("candidate observation");
+    await expect(s.execute(link)).rejects.toThrow("candidate observation");
+    s.pi.events.emit = () => {};
+    await expect(s.execute(link)).rejects.toThrow("no longer available");
+    expect(s.provider).toHaveBeenCalledTimes(1);
+  });
+  it("refuses stale correlation, other sessions/roots/candidates, reported failures and multiple responses before spend", async () => {
+    const s = setup(true);
+    await s.controller.command("enable workflow", s.ctx);
+    const other = setup();
+    for (const transform of [
+      (r: any) => ({ ...r, requestId: "old" }),
+      (r: any) => ({ ...r, sessionId: "other-session" }),
+      (r: any) => ({ ...r, candidate: { ...r.candidate, root: other.root } }),
+      (r: any) => ({ ...r, candidate: { ...r.candidate, id: "different" } }),
+      (r: any) => ({ ...r, error: "candidate-observation-failed" }),
+      (r: any, request: any) => { request.reply(r); return r; },
+    ]) {
+      connect(s, transform);
+      await expect(s.execute()).rejects.toThrow();
+    }
+    expect(s.provider).not.toHaveBeenCalled();
+    expect(existsSync(s.storageHome)).toBe(false);
+    expect(details(await s.execute({ action: "status" })).remaining).toBe(3);
+  });
+  it("keeps no-response standalone operation honestly caller-claimed", async () => {
+    const s = setup();
+    s.pi.events = { emit: () => {} };
+    await s.controller.command("enable workflow", s.ctx);
+    expect(details(await s.execute()).source.candidateIdentity).toBe("caller-claimed");
+  });
+});
+
 describe("native structured JEV advice", () => {
   it("returns the same validated data to direct and scripted callers for status, refusal, answer and reuse", async () => {
     const s = setup(true);
@@ -447,4 +603,32 @@ describe.skipIf(!nativePackage)("Pi 1.1.0 tool-only Codemode composition", () =>
     expect(output(revoked)).toContain('unavailable');
     expect(s.provider).toHaveBeenCalledTimes(2);
   }, 30000);
+});
+// Optional cross-repository qualification of the actual bridge; ordinary tests need no Principal checkout.
+const principalWorkflow = process.env.SKILL_HARNESS_PRINCIPAL_WORKFLOW;
+describe.skipIf(!principalWorkflow)("Principal live candidate composition", () => {
+  it("uses Principal's canonical algorithm and refuses real worktree drift before provider spend", async () => {
+    const principal = await import(pathToFileURL(principalWorkflow!).href);
+    const s = setup(true);
+    execFileSync("git", ["init", "--quiet", s.root]);
+    writeFileSync(join(s.root, ".gitignore"), "private/\n");
+    writeFileSync(join(s.root, "README.md"), "baseline\n");
+    execFileSync("git", ["-C", s.root, "add", "."]);
+    execFileSync("git", ["-C", s.root, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--quiet", "-m", "fixture"]);
+    const handlers = new Map<string, (request: unknown) => void>();
+    s.pi.events = { on: (channel: string, handler: any) => { handlers.set(channel, handler); return () => handlers.delete(channel); },
+      emit: (channel: string, request: unknown) => handlers.get(channel)?.(request) };
+    principal.registerCandidateObserver(s.pi)(s.ctx);
+    const current = principal.observeCandidate(s.root);
+    await s.controller.command("enable workflow", s.ctx);
+    const selected = { ...packet, candidate: current.id };
+    const result = details(await s.execute(selected));
+    expect(result.source.candidateIdentity).toBe("principal-runtime-observed");
+    const receipt = JSON.parse(readFileSync(result.source.path, "utf8"));
+    expect(receipt.candidateObservation.candidate).toEqual(current);
+    writeFileSync(join(s.root, "README.md"), "changed after decision\n");
+    await expect(s.execute(selected)).rejects.toThrow("candidate observation");
+    expect(s.provider).toHaveBeenCalledTimes(1);
+    expect(details(await s.execute({action:"status"})).remaining).toBe(2);
+  });
 });
