@@ -2,7 +2,7 @@
 
 ## Current state
 
-`0.27.0` is the current source release target. Package manifests identify these
+`0.28.0` is the current source release target. Package manifests identify these
 candidate bytes; verify npm and GitHub directly before asserting publication or
 `latest` promotion.
 Historical released versions remain recorded in the changelog.
@@ -68,7 +68,7 @@ generated adapter modules; use the vendoring/check scripts named in `AGENTS.md`.
 
 `skill-harness decision --help` exposes the npm-installed offline fixture, comparison, selected-session import and reviewed LoRA export workflow. `/skill-harness jev enable` asks for a fresh per-session storage choice every time; declining still permits explicitly confirmed JEV calls. Storage retains selected unlabeled inputs only and never authorizes training.
 
-`/skill-harness jev enable workflow` additionally offers optional handoff advice through `jev_advice` after explicit session-scoped paid-call permission and a fresh storage choice. It sends only selected evidence for a fixed readiness question, with at most three calls per activation; tests and independent review retain authority. Workflow retention binds actual Pi session/tool IDs but remains unlabeled and ineligible for export or training. See the walkthrough for the distinction from verified public captures.
+`/skill-harness jev enable workflow` additionally offers optional handoff advice through `jev_advice` after explicit session-scoped paid-call permission and a fresh storage choice. It asks whether a proposed next action is justified for the selected stage and engineering uncertainty, with at most three calls per activation; tests and independent review retain authority. Workflow retention binds actual Pi session/tool IDs and exact outbound bytes. Optional local references are hash-verified; free later outcome linking preserves selected engineering evidence without inferring independent labels or export/training eligibility. See the walkthrough for the distinction from verified public captures.
 
 The exact Pi1.0.4 OAuth subscription comparison is separate from optional metered JEV. Reports preserve grouped splits, independent labels, abstention/error coverage and model/prompt identities. Synthetic fixtures qualify plumbing only. OpenAI Decisions remains excluded. See [the npm acceptance walkthrough](https://github.com/mojomanyana/skill-harness/blob/main/docs/DECISION-LEARNING.md) and the [data contracts](https://github.com/mojomanyana/skill-harness/blob/main/experiments/decision-shadow/LEARNING-WORKFLOW.md).
 

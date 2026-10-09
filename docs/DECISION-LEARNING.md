@@ -25,11 +25,12 @@ leaves workflow advice disabled. Cancelling storage means No. Existing manual
 activation and saved consent receipts cannot authorize workflow calls; the legacy
 `enable` and `run` commands keep their per-run confirmation behavior outside the workflow-call limit.
 
-The registered model tool has two closed forms:
+The registered model tool has three closed forms. Optional `evidenceRefs` on evaluate and required refs on link-outcome use explicit local `{path,sha256}` pairs:
 
 ```json
 {"action":"status"}
-{"action":"evaluate","candidate":"reported candidate identity","requirements":"explicit acceptance checks","evidence":"selected decision-time handoff evidence"}
+{"action":"evaluate","candidate":"reported candidate identity","stage":"implementation","nextAction":"Proceed to independent review","uncertainty":"Whether stale refresh ownership remains correct during queued invalidation","requirements":"Preserve same-key deduplication and FIFO","evidence":"Targeted race checks passed; review is still pending"}
+{"action":"link-outcome","selectionSha256":"source.sha256 returned by evaluate","candidate":"same reported candidate identity","evidenceRefs":[{"path":".principal/reports/review.md","sha256":"SHA-256 of that selected file"}]}
 ```
 
 Invoke these through `jev_advice`, not a shell command. Status is free and reports
@@ -41,23 +42,22 @@ evaluation may be attempted, not that a provider call or credential check passed
 Status rechecks local key presence without calling the provider. Evaluate is enabled
 only in workflow mode and asks this fixed question:
 
-> Does this handoff account for every explicitly required acceptance check with successful evidence tied to the reported candidate?
+> Given the stated stage, unresolved engineering uncertainty, requirements and selected evidence, is the proposed next action justified? Assess that action only, not final acceptance or whether mandatory later review is complete.
 
 The complete serialized packet must fit within 16,000 Unicode characters. Its
-candidate identity is a selected claim, not an authenticated Git binding. The tool
-does not read files, commands, native sessions or hidden reasoning. The coordinator
+candidate identity is observed through an optional synchronous `principal:candidate-observe` event when Principal is loaded in the same Pi session. The runtime supplies its own workspace; request/session IDs, canonical root and candidate ID must match. Errors or mismatches refuse before spend; no response remains explicitly caller-claimed. Observation establishes current bytes, not task acceptance. The tool
+does not execute commands or inspect native sessions/hidden reasoning. Optional `evidenceRefs` read only explicitly selected regular files (1–8 files, at most 2 MiB each), reject duplicate paths and mismatched hashes before reserving a paid slot, and freeze those bytes locally only with storage consent. File paths and file contents are never automatically added to remote input. The coordinator
 must select relevant public or already-redacted evidence; field names cannot prove
 that redaction, rights or decision-time selection were correct.
 
-Use advice when meaningful uncertainty remains after deterministic checks and
-before independent review. It is optional, not a call required for every feature.
+Use advice when a concrete engineering judgment could change the proposed next action after deterministic checks. `stage` is `design`, `implementation`, or `verification`; `nextAction` and `uncertainty` are required. Do not ask JEV whether files exist, duplicate work exists, or mandatory evidence/review is complete: tools answer those mechanically. Before review, judge whether to proceed to review, not whether the entire feature has already been accepted. It is optional, not a call required for every feature.
 The extension registers the tool at startup; compatible workflow instructions
 select when to invoke it. There is no automatic `agent_end` or `tool_result` hook.
 Every outcome returns the actual resolved model, reported nullable usage/cost and measured latency when available, including when storage is declined. No-call outcomes keep these measurements null. Keep JEV output out of the independent reviewer's inputs. Its probability grants
 no approval and identifies no independently proven defect.
 
 Calls are serialized. Concurrent requests make no additional call; repeated exact
-packets reuse the earlier result within the same activation. A distinct packet
+packets with the same verified reference identities reuse the earlier result within the same activation; changed reference bytes must still pass verification. A distinct packet
 uses another slot. Reservations happen before execution; a local failure can
 consume a slot without a paid request. Provider errors, cancellation and storage
 failures suppress further workflow calls until explicit new activation, with no
@@ -68,22 +68,29 @@ it cannot undo an already-dispatched charge. Child sessions do not inherit opt-i
 With storage **No**, workflow advice creates no additional harness dataset files.
 Pi's own native session can still record tool inputs/results. With **Yes**, exact
 selected packets are written before dispatch under
-`~/.skill-harness/jev-workflow/selection-*/selection.json`; a settled outcome is
-written separately to `outcome.json`. A failed or interrupted attempt can leave a
+`~/.skill-harness/jev-workflow/selection-*/selection.json`. `input.txt` preserves the exact outbound UTF-8 input with no added newline or JSON reformatting. Optional `decision-evidence-*.bin` files and `evidence.json` preserve local reference bytes; these are not remote payloads. The provider response is written separately to `outcome.json`; its name does not mean it is an independently verified engineering outcome. A failed or interrupted attempt can leave a
 selection without an outcome. Directories are private and files are exclusive;
 existing records are never overwritten. Inspect the returned selection path when
 reviewing or removing retained data.
 
-The selection's distinct `skill-harness-selected-handoff-v1` receipt binds its
+The selection's distinct schema-2 `skill-harness-selected-decision-v2` receipt (historical `skill-harness-selected-handoff-v1` files are unchanged) binds its
 bytes and exact input digest to the **actual SDK Pi session ID and tool-call ID**,
 plus that activation's consent and paid scope. Later predictions do not change its
-hash. Source binding, redaction and rights remain **unassessed**; labels are absent
+hash. Optional local refs have `sourceBinding: local-reference-digests-verified`; otherwise source binding remains unassessed. Candidate identity is **principal-runtime-observed** only after that session-bound check; otherwise it remains **caller-claimed**. The snapshot and observation time are retained locally, and reference hashes do not verify the narrative, source independence, redaction or rights. Labels are absent
 and `trainingEligible`/`exportEligible` are false. This is a tool-selected-input
 receipt, **not** a verified pi-daddy public capture. Existing `verify-sources` does
 not cover it. Do not relabel it as a capture or pass it into reviewed-data export:
 a separately reviewed source adapter, independent labels, rights and export/training
 approval are still required. Storage prepares an honest review trail; it does not
 automatically add a qualified example to a LoRA dataset.
+
+`link-outcome` makes no provider call and consumes no paid slot. In the same activation, with current storage consent, select later test/review evidence and the exact `source.sha256` plus matching candidate string from evaluate. It freezes new `engineering-*.json`/`.bin` records linked to the decision-time input/source hashes and actual session/tool IDs. Identical links reuse verified retained records. A different candidate or session, changed retained bytes, missing refs, cancellation or declined storage refuses the link. A Principal-observed selection requires another matching live observation at linking time; losing that bridge refuses rather than downgrades the original provenance. If repairs change the candidate, do not pretend their outcome belongs to the earlier candidate; curate that relationship explicitly later.
+
+This is preparation for human-reviewed learning data, not an automatic learning importer. Reference bytes are verified, while independence remains unassessed. Even a report containing `APPROVE` keeps `labelStatus: unlabeled`, `trainingEligible:false`, `exportEligible:false`. Later curation must establish the candidate/source relationship, independent evidence, rights, redaction, export/training consent and task-separated evaluation splits. No observed session or diagnostic archive is automatically imported or designated for training.
+
+## Optional pi-daddy dashboard controls
+
+The dashboard can read JEV readiness or request enable/disable through the optional same-process `skill-harness:jev-control-v1` bridge. Requests bind version, nonce and actual parent session ID; duplicate clicks do not duplicate consent dialogs. Enabling always invokes the existing **parent Pi** paid-scope confirmation followed by the LoRA storage choice. The dashboard shows pending consent until those dialogs settle. Auto permissions never answer either question, and the bridge accepts no credential/consent override. Disabling revokes pending activation/provider work; an old unanswered dialog cannot restore it. Reload/session changes clear activation and bind controls to the current parent context. Status remains free and distinguishes authorization, missing key and remaining calls.
 
 ## Tool-only Codemode composition
 
@@ -181,3 +188,5 @@ Use `export-learning --mode reviewed-data` with the same explicit file flags sho
 Actual training is a later, separately configured operation: choose locally available safe weights, exact model revision and file hashes, license review, architecture-specific LoRA modules and an approved export digest. The bundled Python script defaults to validation, disables remote loading and refuses fixtures. No adapter is trained, deployed, selected or granted workflow authority by this delivery. Evaluate a future adapter against independent held-out labels and the deterministic baseline before use.
 
 Detailed schemas and boundaries: [learning workflow](../experiments/decision-shadow/LEARNING-WORKFLOW.md), [provider and public-capture contracts](../experiments/decision-shadow/README.md).
+
+For optional offline composition against the actual local Principal candidate observer, set `SKILL_HARNESS_PRINCIPAL_WORKFLOW=/absolute/principal-pi-skills/scripts/workflow-state.mjs` when running `packages/pi-extension/test/jev-advice.test.ts`. The fixture uses a temporary Git repository and fake provider, verifies the canonical runtime snapshot and refuses a subsequent real source edit. It makes no provider or training calls.

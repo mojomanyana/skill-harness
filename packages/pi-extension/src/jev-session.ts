@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { observePrincipalCandidate, type CandidateObservation } from "./jev-candidate.js";
+import { evidenceReferences, sha256, verifyEvidence, type EvidenceRef } from "./jev-evidence.js";
 // @ts-expect-error Shared JavaScript module is checked by dedicated tests and bundled for npm.
 import { main as decisionMain } from "../../../experiments/decision-shadow/main.mjs";
 // @ts-expect-error Shared JavaScript consent contract has dedicated boundary tests.
@@ -11,7 +13,7 @@ import {
   prepareHandoff, createHandoffSource, retainHandoffSource, requireIdentity, type HandoffPacket,
 } from "./jev-packet.js";
 
-export type JevContext = Pick<CmdCtx, "sessionManager">;
+export type JevContext = Pick<CmdCtx, "sessionManager" | "cwd">;
 export interface AdviceResult {
   advisory: true;
   status: "answered" | "unavailable";
@@ -24,7 +26,7 @@ export interface AdviceResult {
   reason?: string;
   remaining: number;
   inputSha256?: string;
-  source?: { kind: string; sha256: string; sessionId: string; toolCallId: string; retained: boolean; path?: string };
+  source?: { kind: string; sha256: string; sessionId: string; toolCallId: string; retained: boolean; path?: string; candidateIdentity: string; sourceBinding: string };
   reused?: boolean;
 }
 const unmeasuredProvider = () => ({
@@ -42,6 +44,8 @@ interface Activation {
   busy: boolean;
   blocked: string | null;
   cache: Map<string, AdviceResult>;
+  selections: Map<string, { candidate: string; inputSha256: string; retained: ReturnType<typeof retainHandoffSource>; observation?: CandidateObservation }>;
+  linked: Map<string, { path: string; sha256: string }>;
 }
 
 /** Permission is live owner-session state, never restored from entries or inherited by children. */
@@ -63,6 +67,7 @@ export function createJevController(
     active = null;
   };
   pi.on("session_start", clearSession);
+  pi.on("session_switch", clearSession);
   pi.on("session_shutdown", clearSession);
   const currentId = (ctx: JevContext) => {
     const id = ctx.sessionManager?.getSessionId();
@@ -102,10 +107,14 @@ export function createJevController(
         throw new Error("Session, authorization or tool execution changed");
     };
     if (signal?.aborted) return unavailable("Tool execution was cancelled.");
-    const cached = bound.cache.get(packet.inputSha256);
-    if (cached) return { ...cached, remaining: JEV_WORKFLOW_LIMIT - bound.used, reused: true };
+
     if (bound.blocked) return unavailable("Workflow advice is suppressed after an error; explicit new activation is required.");
     if (bound.busy) return unavailable("An advisory request is already in flight; no additional call was made.");
+    const candidateObservation = observePrincipalCandidate(pi, ctx, value.candidate);
+    const evidence = verifyEvidence(value.evidenceRefs, ctx.cwd);
+    const cacheKey = sha256(JSON.stringify({ inputSha256: packet.inputSha256, evidenceRefs: evidenceReferences(evidence), candidate: candidateObservation?.candidate ?? null }));
+    const cached = bound.cache.get(cacheKey);
+    if (cached) return { ...cached, remaining: JEV_WORKFLOW_LIMIT - bound.used, reused: true };
     if (bound.used >= JEV_WORKFLOW_LIMIT) return unavailable("This activation's advisory call limit is reached.");
     if (!hasKey()) return unavailable(`OPENROUTER_API_KEY is unavailable; no call was made. ${missingKeyRemedy}`);
     const abort = new AbortController();
@@ -122,14 +131,16 @@ export function createJevController(
       assertCurrent();
       const source = createHandoffSource({
         packet, sessionId: bound.sessionId, toolCallId,
-        consent: bound.consent, authorization: bound.authorization,
+        consent: bound.consent, authorization: bound.authorization, evidence, candidateObservation,
       });
       const retained = bound.consent.decision === "granted"
-        ? retainHandoffSource(source, assertCurrent, options.storageHome)
+        ? retainHandoffSource(source, assertCurrent, options.storageHome, evidence)
         : undefined;
+      if (retained) bound.selections.set(source.sha256, { candidate: value.candidate, inputSha256: packet.inputSha256, retained, observation: candidateObservation });
       receipt = {
         kind: JEV_SOURCE_KIND, sha256: source.sha256,
         sessionId: bound.sessionId, toolCallId, retained: !!retained,
+        candidateIdentity: source.source.candidateIdentity, sourceBinding: source.source.sourceBinding,
         ...(retained ? { path: retained.path } : {}),
       };
       assertCurrent();
@@ -154,7 +165,7 @@ export function createJevController(
         bound.blocked = "storage-error";
         advice.reason = "Provider outcome received, but outcome retention failed; further workflow calls require explicit new activation.";
       }
-      bound.cache.set(packet.inputSha256, Object.freeze(advice));
+      bound.cache.set(cacheKey, Object.freeze(advice));
       return advice;
     } catch {
       // Includes cancellation, transport exceptions and storage failures. Never retry or expose raw errors.
@@ -169,6 +180,34 @@ export function createJevController(
       bound.busy = false;
       for (const s of signals) s.removeEventListener("abort", cancel);
     }
+  };
+
+  const linkOutcome = (selectionSha256: string, candidate: string, evidenceRefs: EvidenceRef[], toolCallId: string, signal: AbortSignal | undefined, ctx: JevContext) => {
+    requireIdentity(toolCallId, "Pi toolCallId");
+    currentId(ctx);
+    const bound = active;
+    if (!bound || bound.mode !== "workflow" || bound.consent.decision !== "granted" || bound.busy)
+      throw new Error("Outcome linking requires idle workflow advice and current-session storage consent");
+    const selection = bound.selections.get(selectionSha256);
+    if (!selection || candidate !== selection.candidate)
+      throw new Error("Outcome selection and candidate must match retained advice from this activation");
+    const assertCurrent = () => {
+      if (active !== bound || ctx.sessionManager?.getSessionId() !== bound.sessionId || signal?.aborted || bound.abort.signal.aborted)
+        throw new Error("Session, authorization or tool execution changed");
+    };
+    assertCurrent();
+    const observation = observePrincipalCandidate(pi, ctx, candidate);
+    if (selection.observation && !observation) throw new Error("Principal observation is no longer available for this selection");
+    const refs = verifyEvidence(evidenceRefs, ctx.cwd);
+    if (!refs.length) throw new Error("Outcome linking requires selected engineering evidence");
+    const key = sha256(JSON.stringify({ selectionSha256, refs: evidenceReferences(refs) }));
+    const prior = bound.linked.get(key);
+    if (prior) selection.retained.verifyRetained(prior);
+    const receipt = prior ?? selection.retained.linkOutcome(candidate, refs, toolCallId, assertCurrent, observation);
+    bound.linked.set(key, receipt);
+    return { advisory: true as const, status: "linked" as const, ...receipt, selectionSha256,
+      inputSha256: selection.inputSha256, reused: !!prior, independence: "unassessed" as const,
+      trainingEligible: false as const, exportEligible: false as const, labelStatus: "unlabeled" as const };
   };
 
   const command = async (args: string, ctx: CmdCtx) => {
@@ -203,7 +242,7 @@ export function createJevController(
         if (!ctx.ui.confirm) throw new Error("Workflow JEV activation requires interactive paid-scope confirmation");
         const confirmed = await ctx.ui.confirm(
           "Enable optional JEV handoff advice for THIS Pi session?",
-          `Allow up to ${JEV_WORKFLOW_LIMIT} automatic workflow paid calls to ${JEV_MODEL} through OpenRouter using OPENROUTER_API_KEY. The coordinator may send selected candidate, acceptance requirements and evidence (at most 16000 characters per packet) for the fixed handoff-readiness question when uncertainty remains after deterministic checks, before independent review. Advice never grants approval. This is separate from your Pi subscription; no retry or fallback. Manual jev run calls remain separately confirmed outside this workflow limit.`,
+          `Allow up to ${JEV_WORKFLOW_LIMIT} automatic workflow paid calls to ${JEV_MODEL} through OpenRouter using OPENROUTER_API_KEY. The coordinator may send selected candidate, stage, proposed next action, engineering uncertainty, requirements and evidence (at most 16000 characters per packet) for a fixed question about whether that next action is justified. Mechanical checks stay local. The question does not certify final acceptance or require later review to be already complete. Advice never grants approval. This is separate from your Pi subscription; no retry or fallback. Manual jev run calls remain separately confirmed outside this workflow limit.`,
         );
         if (activation !== epoch || ctx.sessionManager?.getSessionId() !== sessionId || confirmed !== true) return;
         authorization = {
@@ -235,7 +274,7 @@ export function createJevController(
       pi.appendEntry?.("skill-harness-jev-storage-choice", consent);
       active = {
         sessionId, consent, authorization, mode: workflow ? "workflow" : "manual",
-        abort: new AbortController(), used: 0, busy: false, blocked: null, cache: new Map(),
+        abort: new AbortController(), used: 0, busy: false, blocked: null, cache: new Map(), selections: new Map(), linked: new Map(),
       };
       ctx.ui.notify(
         (workflow ? `JEV workflow calls authorized for this session (up to ${JEV_WORKFLOW_LIMIT} paid calls). LoRA storage ` : "JEV manual mode activated; each selected paid call still requires confirmation. LoRA storage ") +
@@ -344,7 +383,7 @@ export function createJevController(
       },
     );
   };
-  return { command, status, evaluate };
+  return { command, status, evaluate, linkOutcome };
 }
 
 export type JevController = ReturnType<typeof createJevController>;
