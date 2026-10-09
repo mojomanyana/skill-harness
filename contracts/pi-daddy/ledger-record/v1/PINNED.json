@@ -1,9 +1,9 @@
 {
   "producer": "pi-daddy",
   "repository": "mojomanyana/pi-daddy",
-  "commit": "fad624ebc465eeb924fe91ba3b063b3851ce30ad",
-  "tree": "b1d92f3e80376b7828e3ee3a97b6a99d5593b968",
-  "version": "0.46.1",
+  "commit": "ce7ea2e00f371f74fe3119e3f9de7aef672462a1",
+  "tree": "0125749505b26245c91b314419b4e848d93087f8",
+  "version": "0.47.0",
   "recordVersion": 1,
   "ledgerVersion": 3,
   "artifacts": {
@@ -13,7 +13,7 @@
     },
     "governance-event.schema.json": {
       "source": "packages/pi-daddy/contracts/ledger-record/v1/governance-event.schema.json",
-      "sha256": "19a01fee5b9638b29e5ade7e8b13f1e23ba6c2b2d8d0e1a7d9011eb31467b7ed"
+      "sha256": "8e06b73e85f1d201dda32cb5ae3f44b928df2b03ddc07b15a2c20035639f9a5a"
     },
     "README.md": {
       "source": "packages/pi-daddy/contracts/ledger-record/v1/README.md",

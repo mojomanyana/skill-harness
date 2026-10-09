@@ -37,7 +37,7 @@ const SUPPORTED_KEYWORDS = new Set([
 /** Ledger v3/current record contracts add closed composition, conditionals, arrays and numeric bounds. */
 const V3_SUPPORTED_KEYWORDS = new Set([
   ...SUPPORTED_KEYWORDS,
-  "allOf", "anyOf", "if", "then", "not", "propertyNames", "minItems", "maxItems", "uniqueItems", "exclusiveMinimum",
+  "allOf", "anyOf", "if", "then", "not", "propertyNames", "minItems", "maxItems", "uniqueItems", "exclusiveMinimum", "maximum",
 ]);
 
 /**
@@ -65,6 +65,7 @@ const KEYWORD_SHAPES: Record<string, { check: (value: unknown) => boolean; expec
   maxLength: { check: (value) => typeof value === "number", expected: "a number" },
   exclusiveMinimum: { check: (value) => typeof value === "number" && Number.isFinite(value), expected: "a finite number" },
   minimum: { check: (value) => typeof value === "number", expected: "a number" },
+  maximum: { check: (value) => typeof value === "number" && Number.isFinite(value), expected: "a finite number" },
   uniqueItems: { check: (value) => typeof value === "boolean", expected: "a boolean" },
   minItems: { check: (value) => Number.isInteger(value) && Number(value) >= 0, expected: "a non-negative integer" },
   maxItems: { check: (value) => Number.isInteger(value) && Number(value) >= 0, expected: "a non-negative integer" },
@@ -305,6 +306,9 @@ function validateNumber(schema: Schema, value: number, path: string): SchemaViol
   }
   if (typeof schema.minimum === "number" && value < schema.minimum) {
     return [{ path, message: `must be >= ${schema.minimum}` }];
+  }
+  if (typeof schema.maximum === "number" && value > schema.maximum) {
+    return [{ path, message: `must be <= ${schema.maximum}` }];
   }
   return [];
 }

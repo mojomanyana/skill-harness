@@ -8,7 +8,7 @@ import {fileURLToPath} from 'node:url';
 const root=join(dirname(fileURLToPath(import.meta.url)),'..');
 const checkout=process.argv[2],check=process.argv.includes('--check');
 if(!checkout)throw new Error('usage: vendor-pi-daddy-record-v1-contract.mjs <producer-checkout> [--check]');
-const commit='fad624ebc465eeb924fe91ba3b063b3851ce30ad',tree='b1d92f3e80376b7828e3ee3a97b6a99d5593b968',version='0.46.1';
+const commit='ce7ea2e00f371f74fe3119e3f9de7aef672462a1',tree='0125749505b26245c91b314419b4e848d93087f8',version='0.47.0';
 const git=(...args)=>execFileSync('git',['-C',checkout,...args],{encoding:'utf8'});
 if(git('rev-parse',commit+'^{tree}').trim()!==tree)throw new Error('Producer tree mismatch');
 const show=path=>git('show',commit+':'+path);

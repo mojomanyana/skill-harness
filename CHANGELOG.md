@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.26.2 — 2026-10-09
+
+- Import the current pi-daddy Auto permission provenance and session toggle facts without inventing human approval or review verdicts. Historical bare-ledger pins remain unchanged.
+- Report the loaded Harness package generation through Pi's native event bus for the ecosystem Versions view. A later installation does not change that reported loaded version; shutdown detaches the reporter.
+
+
 ## 0.26.1 — 2026-10-08
 
 - Separate JEV session authorization from provider readiness at activation. Missing or blank OpenRouter keys receive actionable guidance without a paid probe; key presence alone does not claim provider access.

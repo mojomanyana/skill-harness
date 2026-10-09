@@ -8684,6 +8684,9 @@ function validateNumber(schema2, value, path) {
   if (typeof schema2.minimum === "number" && value < schema2.minimum) {
     return [{ path, message: `must be >= ${schema2.minimum}` }];
   }
+  if (typeof schema2.maximum === "number" && value > schema2.maximum) {
+    return [{ path, message: `must be <= ${schema2.maximum}` }];
+  }
   return [];
 }
 function bestBranch(root, schemas, branches, value, path) {
@@ -8805,7 +8808,8 @@ var init_closed_schema = __esm({
       "minItems",
       "maxItems",
       "uniqueItems",
-      "exclusiveMinimum"
+      "exclusiveMinimum",
+      "maximum"
     ]);
     KEYWORD_SHAPES = {
       $ref: { check: (value) => typeof value === "string", expected: "a string" },
@@ -8826,6 +8830,7 @@ var init_closed_schema = __esm({
       maxLength: { check: (value) => typeof value === "number", expected: "a number" },
       exclusiveMinimum: { check: (value) => typeof value === "number" && Number.isFinite(value), expected: "a finite number" },
       minimum: { check: (value) => typeof value === "number", expected: "a number" },
+      maximum: { check: (value) => typeof value === "number" && Number.isFinite(value), expected: "a finite number" },
       uniqueItems: { check: (value) => typeof value === "boolean", expected: "a boolean" },
       minItems: { check: (value) => Number.isInteger(value) && Number(value) >= 0, expected: "a non-negative integer" },
       maxItems: { check: (value) => Number.isInteger(value) && Number(value) >= 0, expected: "a non-negative integer" },
@@ -8843,7 +8848,7 @@ var PI_DADDY_RECORD_V1_COMMIT2, PI_DADDY_RECORD_V1_SCHEMA2, PI_DADDY_RECORD_V1_G
 var init_pi_daddy_record_v1_contract = __esm({
   "packages/adapters/src/pi-daddy-record-v1-contract.ts"() {
     "use strict";
-    PI_DADDY_RECORD_V1_COMMIT2 = "fad624ebc465eeb924fe91ba3b063b3851ce30ad";
+    PI_DADDY_RECORD_V1_COMMIT2 = "ce7ea2e00f371f74fe3119e3f9de7aef672462a1";
     PI_DADDY_RECORD_V1_SCHEMA2 = {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "$id": "https://github.com/mojomanyana/pi-daddy/contracts/ledger-record/v1/record.schema.json",
@@ -9172,7 +9177,8 @@ var init_pi_daddy_record_v1_contract = __esm({
             "prompt",
             "session",
             "persisted",
-            "inherited"
+            "inherited",
+            "auto"
           ]
         },
         "approvalScope": {
@@ -10090,7 +10096,8 @@ var init_pi_daddy_record_v1_contract = __esm({
             "trigger": {
               "enum": [
                 "first-delegation",
-                "grants-models"
+                "grants-models",
+                "auto-mode"
               ]
             },
             "overrides": {
@@ -10113,6 +10120,32 @@ var init_pi_daddy_record_v1_contract = __esm({
                 ],
                 "additionalProperties": false
               }
+            },
+            "autoMode": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "source": {
+                  "enum": [
+                    "default",
+                    "environment",
+                    "session"
+                  ]
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "enabled",
+                "source",
+                "revision"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [
@@ -10124,7 +10157,41 @@ var init_pi_daddy_record_v1_contract = __esm({
             "trigger",
             "overrides"
           ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "oneOf": [
+            {
+              "properties": {
+                "trigger": {
+                  "const": "auto-mode"
+                },
+                "outcome": {
+                  "const": "changed"
+                },
+                "overrides": {
+                  "type": "object",
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "autoMode"
+              ]
+            },
+            {
+              "properties": {
+                "trigger": {
+                  "enum": [
+                    "first-delegation",
+                    "grants-models"
+                  ]
+                }
+              },
+              "not": {
+                "required": [
+                  "autoMode"
+                ]
+              }
+            }
+          ]
         },
         "episodeOutcome": {
           "type": "object",
@@ -13571,6 +13638,7 @@ var init_src = __esm({
 });
 
 // packages/pi-extension/src/index.ts
+import { readFileSync as readFileSync20 } from "node:fs";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 import { basename as basename4, dirname as dirname10, join as join35 } from "node:path";
 
@@ -13964,7 +14032,8 @@ var V3_SUPPORTED_KEYWORDS = /* @__PURE__ */ new Set([
   "minItems",
   "maxItems",
   "uniqueItems",
-  "exclusiveMinimum"
+  "exclusiveMinimum",
+  "maximum"
 ]);
 
 // packages/adapters/dist/pi-daddy-record-v1.js
@@ -19108,11 +19177,23 @@ function registerJevAdvice(pi, controller) {
 function index_default(pi) {
   const moduleDir = dirname10(fileURLToPath2(import.meta.url));
   const assetsDir = basename4(dirname10(moduleDir)) === "skill-harness" ? join35(moduleDir, "..", "assets") : join35(moduleDir, "..", "..", "..", "assets");
+  const packageRoot = basename4(dirname10(moduleDir)) === "skill-harness" ? join35(moduleDir, "..") : join35(moduleDir, "..", "..", "..");
+  let loadedVersion;
+  try {
+    const manifest = JSON.parse(readFileSync20(join35(packageRoot, "package.json"), "utf8"));
+    if (["skill-harness", "skill-harness-monorepo"].includes(manifest.name)) loadedVersion = manifest.version;
+  } catch {
+  }
+  const removeVersionReporter = pi.events?.on("pi-daddy:ecosystem-versions:v1", (request) => {
+    const report = request?.report;
+    if (typeof report === "function" && typeof loadedVersion === "string") report({ id: "skill-harness", version: loadedVersion, root: packageRoot });
+  });
   const jev = createJevController(pi);
   registerCommand(pi, assetsDir, jev.command);
   registerJevAdvice(pi, jev);
   registerTool(pi);
   pi.on("session_shutdown", async () => {
+    removeVersionReporter?.();
     closeReview();
   });
 }

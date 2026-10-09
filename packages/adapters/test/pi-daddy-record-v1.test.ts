@@ -18,9 +18,9 @@ function signed(bodies:Record<string,unknown>[], mutate?:(record:Record<string,u
  let previous:string|null=null;
  return bodies.map((body,index)=>{const record:Record<string,unknown>={v:1,seq:index+1,prev:previous,at:body.ts,kind:body.event==="capability_decision"?"capability":body.event==="child_lifecycle"?"lifecycle":body.event==="workspace_lease"?"lease":"fact",id:"record-"+index,body};mutate?.(record,index);record.digest=hash(stable(record));const line=JSON.stringify(record);previous=hash(line);return line;}).join("\n")+"\n";
 }
-describe("pi-daddy 0.46.1 record-v1 compatibility",()=>{
+describe("pi-daddy 0.47.0 record-v1 compatibility",()=>{
  it("pins all schemas, fixtures and reader source to exact pinned bytes",()=>{
-  const pin=JSON.parse(readFileSync(join(contract,"PINNED.json"),"utf8"));expect(pin.commit).toBe(PI_DADDY_RECORD_V1_COMMIT);expect(pin.version).toBe("0.46.1");
+  const pin=JSON.parse(readFileSync(join(contract,"PINNED.json"),"utf8"));expect(pin.commit).toBe(PI_DADDY_RECORD_V1_COMMIT);expect(pin.version).toBe("0.47.0");
   for(const [path,artifact] of Object.entries(pin.artifacts) as Array<[string,{sha256:string}]>)expect(hash(readFileSync(join(contract,path),"utf8"))).toBe(artifact.sha256);
   expect(PI_DADDY_RECORD_V1_SCHEMA).toEqual(JSON.parse(readFileSync(join(contract,"record.schema.json"),"utf8")));
   expect(PI_DADDY_RECORD_V1_GOVERNANCE_SCHEMA).toEqual(JSON.parse(readFileSync(join(contract,"governance-event.schema.json"),"utf8")));
@@ -41,6 +41,49 @@ describe("pi-daddy 0.46.1 record-v1 compatibility",()=>{
  });
  it("does not turn a blocked capability decision into a synthetic grant",()=>{
   const events=normalizePiDaddyRecordLedgerV1(signed([fixture("capability-decision")]));expect(events.map(e=>e.type)).toEqual(["child_spawn_refused"]);
+ });
+ it("retains Auto mode facts through the inclusive revision bound and rejects a larger signed revision", () => {
+  const body = fixture("session-config");
+  body.trigger = "auto-mode";
+  body.overrides = {};
+  body.autoMode = { enabled: true, source: "session", revision: Number.MAX_SAFE_INTEGER };
+  const [event] = normalizePiDaddyRecordLedgerV1(signed([body]));
+  expect(event.type).toBe("session_config");
+  expect(event.attributes?.autoMode).toEqual(body.autoMode);
+  expect(event.attributes).not.toHaveProperty("approvalSource");
+  expect(event.attributes).not.toHaveProperty("verdict");
+  body.autoMode = { enabled: true, source: "session", revision: Number.MAX_SAFE_INTEGER + 1 };
+  expect(() => normalizePiDaddyRecordLedgerV1(signed([body]))).toThrow(/autoMode\.revision.*must be <= 9007199254740991/);
+ });
+ it("preserves automatic permission provenance through the collector without inventing a human approval", () => {
+  const body = fixture("capability-decision");
+  body.blocked = false;
+  delete body.refusal;
+  delete body.reason;
+  delete body.approvalExpiresAt;
+  body.approvalSources = { "tool:bash": "auto", "tool:read": "prompt" };
+  body.approvalScopes = { "tool:bash": "once", "tool:read": "once" };
+  body.approvalUses = { "tool:bash": { max: 1, remaining: 0 }, "tool:read": { max: 1, remaining: 0 } };
+  const cwd = mkdtempSync(join(tmpdir(), "record-v1-auto-"));
+  try {
+   writeFileSync(join(cwd, "grants.jsonl"), signed([body]));
+   const result = collectTrajectorySources(cwd, [{ adapter: "pi-daddy-record-v1", path: "grants.jsonl", required: true }]);
+   expect(result.errors).toEqual([]);
+   expect(result.events).toHaveLength(1);
+   const [event] = result.events;
+   expect(event.type).toBe("capability_decision");
+   expect(event.execution_id).toBe(body.executionId);
+   expect(event.attributes?.approvalSources).toEqual({ "tool:bash": "auto", "tool:read": "prompt" });
+   expect(event.attributes?.approvalScopes).toEqual(body.approvalScopes);
+   expect(event.attributes).not.toHaveProperty("humanDenied");
+   expect(event.attributes).not.toHaveProperty("approvalSource");
+   expect(event.attributes).not.toHaveProperty("approvalExpiresAt");
+   const historical = JSON.parse(readFileSync(join(root, "contracts/pi-daddy/ledger/v3/fixtures/capability-decision.json"), "utf8"));
+   historical.approvalSources = { "tool:bash": "auto" };
+   expect(() => normalizePiDaddyLedgerV3(JSON.stringify(historical) + "\n")).toThrow(/approvalSources/);
+   body.approvalSources = { "tool:bash": "unrecognized-auto-policy" };
+   expect(() => normalizePiDaddyRecordLedgerV1(signed([body]))).toThrow(/approvalSources/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
  });
  it.each(["expired", "aborted"])("preserves %s approval as refusal evidence through the declared collector", gateOutcome => {
   const body = fixture("capability-decision");
@@ -121,7 +164,15 @@ describe("pi-daddy 0.46.1 record-v1 compatibility",()=>{
  });
 });
 describe("current-record schema constructs",()=>{
- it("keeps the frozen v2 keyword profile closed",()=>{expect(()=>assertSupportedSchema({not:{type:"string"}},"v2")).toThrow(/unsupported/);});
+ it("keeps the frozen v2 keyword profile closed", () => {
+  for (const schema of [{ not: { type: "string" } }, { maximum: Number.MAX_SAFE_INTEGER }])
+   expect(() => assertSupportedSchema(schema, "v2")).toThrow(/unsupported/);
+ });
+ it("rejects malformed maximum bounds and unsupported neighboring keywords", () => {
+  for (const maximum of ["1", null, NaN, Infinity, -Infinity])
+   expect(() => assertSupportedSchemaV3({ type: "number", maximum }, "record")).toThrow(/`maximum`.*finite number/);
+  expect(() => assertSupportedSchemaV3({ exclusiveMaximum: 1 }, "record")).toThrow(/unsupported.*`exclusiveMaximum`/);
+ });
  it("checks not and exclusiveMinimum boundary values",()=>{
   const negative={type:"object",not:{required:["usage","usageUnavailable"]}};assertSupportedSchemaV3(negative,"record");expect(validateClosedSchemaV3(negative,{usage:{},usageUnavailable:true})).not.toEqual([]);expect(validateClosedSchemaV3(negative,{usage:{}})).toEqual([]);
   expect(validateClosedSchemaV3({type:"number",exclusiveMinimum:0},0)).not.toEqual([]);expect(validateClosedSchemaV3({type:"number",exclusiveMinimum:0},1)).toEqual([]);
