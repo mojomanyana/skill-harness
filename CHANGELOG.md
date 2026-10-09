@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.27.0 — 2026-10-09
+
+- Expose structured JEV advice to native Pi tool-only Codemode while preserving session consent, per-enable LoRA storage choice, deduplication and cancellation.
+- Add opt-in offline workflow-convergence decision fixtures for workspace/identity mismatches, evidence repair and safe repeated-check reuse; preserve the original corpus and exclude automatic diagnostic ingestion or training.
+
 ## 0.26.2 — 2026-10-09
 
 - Import the current pi-daddy Auto permission provenance and session toggle facts without inventing human approval or review verdicts. Historical bare-ledger pins remain unchanged.

@@ -13,18 +13,26 @@ function testFiles(directory: string): string[] {
 }
 
 describe("conditional test skips", () => {
-  it("derives the skipped count from the sole release-pack describe block", () => {
+  it("allows only the documented release-toolchain and optional native-runtime gates", () => {
     const conditionals = testFiles(join(root, "packages")).filter((path) => path !== __filename).flatMap((path) => {
       const source = readFileSync(path, "utf8");
       return [...source.matchAll(/\b(?:describe|it|test)\.(?:skip|skipIf|runIf|todo)\b|\b(?:xdescribe|xit|xtest)\b/g)]
         .map((match) => ({ path: relative(root, path).replaceAll("\\", "/"), token: match[0], offset: match.index! }));
     });
 
-    expect(conditionals).toHaveLength(1);
+    expect(conditionals).toHaveLength(2);
     expect(conditionals[0]).toMatchObject({
       path: "packages/cli/test/release-pack.test.ts",
       token: "describe.skipIf",
     });
+
+    expect(conditionals[1]).toMatchObject({
+      path: "packages/pi-extension/test/jev-advice.test.ts",
+      token: "describe.skipIf",
+    });
+    const nativeSource = readFileSync(join(root, conditionals[1].path), "utf8");
+    expect(nativeSource).toContain('process.env.SKILL_HARNESS_PI_CODEMODE_PACKAGE');
+    expect(nativeSource.slice(conditionals[1].offset)).toMatch(/^describe\.skipIf\(!nativePackage\)/);
 
     const source = readFileSync(join(root, conditionals[0].path), "utf8");
     const allTests = [...source.matchAll(/\bit\s*\(/g)].length;

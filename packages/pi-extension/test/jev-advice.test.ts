@@ -1,3 +1,5 @@
+import Ajv from 'ajv';
+import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -320,4 +322,129 @@ describe("session-scoped handoff advice", () => {
     expect(JSON.stringify(await noStorage.execute())).not.toContain("private provider");
     expect(JSON.stringify(await noStorage.execute())).not.toContain("test-key");
   });
+});
+
+describe("native structured JEV advice", () => {
+  it("returns the same validated data to direct and scripted callers for status, refusal, answer and reuse", async () => {
+    const s = setup(true);
+    const validate = new Ajv({ strict: false }).compile(s.tool.outputSchema);
+    const inspect = (result: Awaited<ReturnType<typeof s.execute>>) => {
+      expect(validate(result.structuredContent), JSON.stringify(validate.errors)).toBe(true);
+      expect(result.structuredContent).toEqual(result.details);
+      expect(JSON.parse(result.content[0].text)).toEqual(result.structuredContent);
+      return details(result);
+    };
+    expect(inspect(await s.execute({ action: "status" })).enabled).toBe(false);
+    expect(inspect(await s.execute()).status).toBe("unavailable");
+    expect(s.provider).not.toHaveBeenCalled();
+    await s.controller.command("enable workflow", s.ctx);
+    expect(inspect(await s.execute()).status).toBe("answered");
+    expect(inspect(await s.execute(packet, undefined, "second-call")).reused).toBe(true);
+    expect(s.provider).toHaveBeenCalledTimes(1);
+    expect(s.ctx.ui.select).toHaveBeenCalledTimes(1);
+    s.hooks.get("session_start")!();
+    expect(inspect(await s.execute()).status).toBe("unavailable");
+    await s.controller.command("enable workflow", s.ctx);
+    expect(s.ctx.ui.select).toHaveBeenCalledTimes(2);
+    expect(validate({ ...answer, advisory: false })).toBe(false);
+  });
+});
+
+// Explicit local qualification, no credentials/models: the real Pi sandbox calls a fake provider
+// through the actual Harness tool/controller. Ordinary unit tests do not download a Pi runtime.
+const nativePackage = process.env.SKILL_HARNESS_PI_CODEMODE_PACKAGE;
+const principalAdapter = process.env.SKILL_HARNESS_PRINCIPAL_CODEMODE;
+const codemodeVariants = principalAdapter ? ['native', 'principal'] : ['native'];
+describe.skipIf(!nativePackage)("Pi 1.1.0 tool-only Codemode composition", () => {
+  it.each(codemodeVariants)("%s preserves structured results, consent, dedupe, partial failure, cancellation and revocation without model globals", async (variant) => {
+    const manifest = JSON.parse(readFileSync(join(nativePackage!, "package.json"), "utf8"));
+    expect(manifest.version).toBe("1.1.0");
+    const native = await import(pathToFileURL(join(nativePackage!, "dist/index.js")).href);
+    const s = setup(true);
+    let codemode: any;
+    if (variant === "principal") {
+      const loader = await import(pathToFileURL(join(nativePackage!, "dist/core/extensions/loader.js")).href);
+      const runtime = native.createExtensionRuntime();
+      runtime.getAllTools = () => [s.tool];
+      runtime.getSettings = () => ({});
+      runtime.appendEntry = vi.fn();
+      const loaded = await loader.loadExtensions([principalAdapter!], s.root, undefined, runtime);
+      expect(loaded.errors).toEqual([]);
+      codemode = loaded.extensions[0].tools.get("principal_codemode")?.definition;
+      expect(codemode?.name).toBe("principal_codemode");
+    } else {
+      native.createCodemodeExtension({ mode: "on", models: false })({
+        registerTool: (tool: unknown) => { codemode = tool; },
+        appendEntry: vi.fn(), getAllTools: () => [s.tool], getSettings: () => ({}),
+      });
+    }
+    expect(codemode.exposure).toBe("model-only");
+    const loadout = codemode.prepareLoadout({
+      declared: [s.tool, codemode], callable: [s.tool],
+      getExposure: (name: string) => name === "jev_advice" ? "direct" : "model-only",
+      getNamespace: () => undefined, getPromptGuidelines: () => [],
+    });
+    expect(loadout.descriptions[codemode.name]).toContain("Run JavaScript");
+    expect(loadout.descriptions[codemode.name]).not.toContain("models.classify");
+    if (variant === "principal") expect(loadout.descriptions).not.toHaveProperty("codemode");
+    let nestedId = 0;
+    const ctx: any = {
+      tools: [s.tool], sessionManager: { getBranch: () => [] },
+      modelRegistry: new Proxy({}, { get: () => { throw new Error("Raw model access is forbidden by this qualification"); } }),
+      executeTool: async (_name: string, params: unknown, options: { signal: AbortSignal }) => {
+        const id = `native-nested-${++nestedId}`;
+        try {
+          return { result: await s.execute(params, options.signal, id), isError: false, toolCall: { id } };
+        } catch (error) {
+          return { result: { content: [{ type: "text", text: String(error) }] }, isError: true, toolCall: { id } };
+        }
+      },
+    };
+    const run = (code: string, signal?: AbortSignal) => codemode.execute(`outer-${nestedId}`, { code }, signal, undefined, ctx);
+    const output = (result: any) => result.content.filter((item: any) => item.type === "text").map((item: any) => item.text).join("\n");
+    const scriptValue = (result: any) => JSON.parse(result.content.filter((item: any) => item.type === 'text').at(-1).text);
+    const disabled = await run('const s = await tools.jev_advice({action:"status"}); return {enabled:s.enabled, globals:typeof models};');
+    expect(disabled.isError).not.toBe(true);
+    expect(scriptValue(disabled)).toEqual({enabled:false, globals:'undefined'});
+    expect(s.provider).not.toHaveBeenCalled();
+    await s.controller.command("enable workflow", s.ctx);
+    const reused = await run(`const p=${JSON.stringify(packet)}; const first=await tools.jev_advice(p); const again=await tools.jev_advice(p); return {status:first.status,reused:again.reused,source:first.source.toolCallId};`);
+    expect(reused.isError).not.toBe(true);
+    expect(scriptValue(reused)).toMatchObject({status:'answered',reused:true});
+    expect(output(reused)).toContain('native-nested-');
+    expect(s.provider).toHaveBeenCalledTimes(1);
+    expect(s.ctx.ui.confirm).toHaveBeenCalledTimes(1);
+    expect(s.ctx.ui.select).toHaveBeenCalledTimes(1);
+    const partial = await run('const r=await Promise.allSettled([tools.jev_advice({action:"status"}),tools.jev_advice({action:"status",consent:"forged"})]); return r.map(x=>x.status);');
+    expect(partial.isError).not.toBe(true);
+    expect(scriptValue(partial)).toEqual(['fulfilled','rejected']);
+    expect((await run('return await models.classify("anything",{});')).isError).toBe(true);
+    expect(s.provider).toHaveBeenCalledTimes(1);
+    expect((await run('return await tools.codemode({code:"return 1"});')).isError).toBe(true);
+    expect((await run('return await tools.principal_codemode({code:"return 1"});')).isError).toBe(true);
+    let release!: (value: typeof answer) => void;
+    let started!: () => void;
+    let cancelled!: () => void;
+    const providerStarted = new Promise<void>(resolve => { started = resolve; });
+    const providerCancelled = new Promise<void>(resolve => { cancelled = resolve; });
+    s.provider.mockImplementationOnce((_provider: any, _model: any, _packet: any, options: any) => {
+      options.signal.addEventListener("abort", cancelled, {once:true});
+      started();
+      return new Promise(resolve => { release = resolve; });
+    });
+    const abort = new AbortController();
+    const pending = run(`return await tools.jev_advice(${JSON.stringify({...packet,candidate:"cancelled-candidate"})});`, abort.signal);
+    await providerStarted;
+    abort.abort();
+    await providerCancelled;
+    release(answer);
+    expect((await pending).isError).toBe(true);
+    const selections = readdirSync(join(s.storageHome,"jev-workflow"));
+    expect(selections.some(name => !existsSync(join(s.storageHome,"jev-workflow",name,"outcome.json")))).toBe(true);
+    expect(s.provider).toHaveBeenCalledTimes(2);
+    s.hooks.get("session_start")!();
+    const revoked = await run(`return (await tools.jev_advice(${JSON.stringify(packet)})).status;`);
+    expect(output(revoked)).toContain('unavailable');
+    expect(s.provider).toHaveBeenCalledTimes(2);
+  }, 30000);
 });
