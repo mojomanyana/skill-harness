@@ -2,7 +2,7 @@
 
 ## Current state
 
-`0.26.2` is the current source release target. Package manifests identify these
+`0.27.0` is the current source release target. Package manifests identify these
 candidate bytes; verify npm and GitHub directly before asserting publication or
 `latest` promotion.
 Historical released versions remain recorded in the changelog.
@@ -78,3 +78,15 @@ The source candidate adds explicit `pi-daddy-record-v1` ingestion for current na
 pi-daddy ledger envelopes. See [the compatibility contract](PI-DADDY-RECORD-COMPATIBILITY.md).
 Historical bare-v3 and v2 inputs retain their separate pins. Published 0.24.2 does
 not include this new adapter. A source pin alone is not evidence of publication.
+
+## Convergence candidate
+
+`jev_advice` now returns matching text/details/native structuredContent and declares
+its output schema. Pi1.1.0 native tool-only Codemode plus Principal's adapter are
+qualified offline with a fake provider; this does not change the separate fresh
+subject-run Pi1.0.4 pin. See DECISION-LEARNING.md for the explicit local runtime test.
+
+`decision fixtures --set workflow --out NEW_DIR` creates synthetic convergence
+cases and independent fixture labels. The existing default corpus is preserved.
+No diagnostic archive ingestion, automatic labels, provider migration or training
+is part of this change.

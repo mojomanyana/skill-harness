@@ -58,3 +58,26 @@ describe('shared packaged research command implementation (offline fake runners)
   const pi=join(dir,'pi.jsonl');await main(runArgs(f,pi),{emit,piRunner:async(o:any)=>fakeResult(o.caseId)});const refs=JSON.parse(await readFile(join(f.dir,'label-evidence.json'),'utf8'));await writeFile(refs[0].path,'changed label evidence');await expect(main(compareArgs(f,join(dir,'tampered.json'),[pi]),{emit})).rejects.toThrow(/hash/);
  }));
 });
+
+describe('opt-in workflow fixtures through the installed command implementation',()=>{
+ it('writes new local cases/receipts, validates them and exports only a non-training demo without inference',()=>temporary(async dir=>{
+  const out=join(dir,'workflow'), emitted:string[]=[];
+  const options={emit:(value:string)=>emitted.push(value),piRunner:async()=>{throw Error('No model call is authorized');},providerCall:async()=>{throw Error('No provider call is authorized');}};
+  await main(['fixtures','--set','workflow','--out',out],options);
+  const read=async(name:string)=>JSON.parse(await readFile(join(out,name),'utf8'));
+  const cases=parseCases(await read('cases.json'));
+  expect(cases.every(c=>c.provenance==='synthetic')).toBe(true);
+  const refs=await read('label-evidence.json');
+  for(const ref of refs)expect(sha(await readFile(ref.path,'utf8'))).toBe(ref.sha256);
+  await main(['validate-experiment','--cases',join(out,'cases.json'),'--experiment',join(out,'experiment.json')],options);
+  const exported=join(dir,'exported');
+  await main(exportArgs({dir:out},exported),options);
+  const manifest=JSON.parse(await readFile(join(exported,'export-manifest.json'),'utf8'));
+  expect(manifest).toMatchObject({trainingEligible:false,trainingExecuted:false,providerPredictionsIncluded:false,counts:{train:8,validation:4,test:8}});
+  expect(await read('consents.json')).toEqual([]);
+  await expect(main(['fixtures','--set','workflow','--out',out],options)).rejects.toThrow();
+  const invalid=join(dir,'invalid');
+  await expect(main(['fixtures','--set','private-session','--out',invalid],options)).rejects.toThrow(/Fixture set/);
+  expect(emitted.some(line=>JSON.parse(line).valid===true)).toBe(true);
+ }));
+});

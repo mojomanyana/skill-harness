@@ -85,6 +85,36 @@ a separately reviewed source adapter, independent labels, rights and export/trai
 approval are still required. Storage prepares an honest review trail; it does not
 automatically add a qualified example to a LoRA dataset.
 
+## Tool-only Codemode composition
+
+On Pi 1.1.0, `jev_advice` publishes an output schema and native `structuredContent`.
+A script can inspect `result.availability` or `result.status` directly; the regular
+text result and details contain the same data. Calls through Principal's
+`principal_codemode` use the same session consent, storage choice, duplicate cache,
+call reservation and cancellation path as direct `jev_advice` calls.
+
+Principal's adapter uses Pi's native Codemode executor with `models: false`.
+It exposes tool composition, not `models.classify`; invoking the native classifier
+directly would bypass this tool's consent/accounting and is outside this integration.
+Harness does not register another Codemode tool or activate Pi's built-in one.
+The two extensions keep separate responsibilities: Principal composes tools and
+Harness owns JEV activation and selected-data retention. This qualification does
+not upgrade Harness subject/judge execution from its separate exact-Pi1.0.4 pin.
+
+The offline native qualification uses a locally supplied Pi1.1.0 package and a
+fake provider, not a login, API key or model call. From a source checkout:
+
+```bash
+SKILL_HARNESS_PI_CODEMODE_PACKAGE=/absolute/pi-coding-agent \
+SKILL_HARNESS_PRINCIPAL_CODEMODE=/absolute/principal-pi-skills/extensions/codemode.ts \
+npm exec -- vitest run packages/pi-extension/test/jev-advice.test.ts
+```
+
+It exercises the native extension loader/sandbox and real Harness controller;
+its nested-call router is a fixture. pi-daddy permission hooks and child process
+qualification remain separate. Without the environment paths, ordinary tests skip
+native-runtime qualification rather than download or infer compatibility.
+
 ## Concrete offline acceptance example
 
 Choose new output directories for every experiment:
@@ -97,6 +127,34 @@ python3 ./decision-export/train-lora.py --export ./decision-export --check-expor
 ```
 
 Expected: 24 synthetic cases across six separate task families, frozen 12/4/8 train/validation/test splits, independent deterministic label receipts and a validated eight-file export. The export includes local training instructions/configuration/dependency pins. It explicitly refuses training on synthetic fixture data. These checks need no provider key or model call. Evidence/label-file verification and the qualified execution path currently require Linux.
+
+## Workflow convergence evaluation cases
+
+Use this separate opt-in corpus to exercise wrong-workspace observations,
+incompatible candidate identity algorithms, evidence repair, pending finish gates
+and reuse of completed static checks:
+
+```bash
+skill-harness decision fixtures --set workflow --out ./workflow-fixtures
+skill-harness decision validate-experiment --cases ./workflow-fixtures/cases.json --experiment ./workflow-fixtures/experiment.json
+skill-harness decision export-learning --cases ./workflow-fixtures/cases.json --experiment ./workflow-fixtures/experiment.json --labels ./workflow-fixtures/labels.json --label-evidence ./workflow-fixtures/label-evidence.json --consents ./workflow-fixtures/consents.json --mode fixture-demo --out ./workflow-export
+```
+
+This produces 20 synthetic cases across five whole-family groups with 8/4/8
+train/validation/test assignments. Independent deterministic receipts label the
+explicit fixture rules; no filesystem access, review approval or runtime permission
+is inferred. `principal-candidate-v1` refers to a workspace-bound candidate identity,
+not a portable content hash. The original default 24-case mechanical corpus remains
+unchanged. Neither corpus is representative production training data, and fixture
+exports refuse training.
+
+For real diagnostic learning cases, select the decision-time public facts manually
+and use the existing selected-session import below with actual session storage
+consent. Keep later outcomes separate; check labels against independent evidence
+(such as a reproduced digest calculation), not another model's confidence or review
+verdict. A diagnostic archive is never auto-scanned, imported, labeled or approved
+for export/training by these commands. An unavailable public-capture/source binding
+must be reported rather than invented from a filtered transcript.
 
 ## Optional subscription comparison
 

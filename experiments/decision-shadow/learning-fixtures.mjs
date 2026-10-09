@@ -1,3 +1,4 @@
+import { WORKFLOW_ORACLE_VERSION, evaluateWorkflowFixture, workflowFixtureFamilies } from './workflow-fixtures.mjs';
 import { parseCases, parseLabels } from './dataset.mjs';
 import { learningDigest, parseExperiment } from './learning-data.mjs';
 export const FIXTURE_ORACLE_VERSION = 'mechanical-fixture-oracles-v1';
@@ -24,9 +25,10 @@ export function evaluateFixture(family,e) {
     default: throw new TypeError('Unknown fixture oracle family');
   }
 }
-export function createLearningFixtures({recordedAt='2026-10-08T00:00:00.000Z'}={}) {
+export function createLearningFixtures({recordedAt='2026-10-08T00:00:00.000Z', set='mechanical'}={}) {
+  if (!['mechanical', 'workflow'].includes(set)) throw new TypeError('Fixture set must be mechanical or workflow');
   const commit='a'.repeat(40),complete=Object.fromEntries(PHASES.map(p=>[p,'complete']));
-  const families=[
+  const mechanicalFamilies=[
     {family:'candidate',split:'train',question:'Do the records establish one exact full 40-character lowercase Git candidate shared by candidate, tested and reviewed?',facts:[{candidate:commit,tested:commit,reviewed:commit},{candidate:commit,tested:'b'.repeat(40),reviewed:commit},{candidate:commit,tested:commit,reviewed:'c'.repeat(40)},{candidate:'aaaaaaa',tested:'aaaaaaa',reviewed:'aaaaaaa'}]},
     {family:'phases',split:'train',question:'Do the latest snapshots cover exactly every required step with all five named phases complete? Earlier complete phases cannot fill later omissions.',facts:[{required:['step-1'],records:[{step:'step-1',phases:complete}]},{required:['step-1','step-2'],records:[{step:'step-1',phases:complete}]},{required:['step-1'],records:[{step:'step-1',phases:complete},{step:'step-extra',phases:complete}]},{required:['step-1'],records:[{step:'step-1',phases:complete},{step:'step-1',phases:{...complete,verified:'unknown'}}]}]},
     {family:'findings',split:'train',question:'Does the observed finding history establish that every finding identity (step, source, id) has an explicit latest verified disposition? Omission never clears an earlier finding.',facts:[{historyObserved:true,records:[{step:'step-1',findings:[]}]},{historyObserved:true,records:[{step:'step-1',findings:[{id:'f1',source:'report-a',status:'open'}]},{step:'step-1',findings:[{id:'f1',source:'report-a',status:'verified'}]}]},{historyObserved:true,records:[{step:'step-1',findings:[{id:'f1',source:'report-a',status:'open'}]},{step:'step-1',findings:[]}]},{historyObserved:true,records:[{step:'step-1',findings:[{id:'f1',source:'report-a',status:'open'}]},{step:'step-1',findings:[{id:'f1',source:'report-b',status:'verified'}]}]}]},
@@ -34,15 +36,20 @@ export function createLearningFixtures({recordedAt='2026-10-08T00:00:00.000Z'}={
     {family:'report',split:'test',question:'Does this structured requested delivery comply with the selected saved-full-report/five-line-summary protocol, including its explicit unavailable-persistence blocked exception?',facts:[{protocol:'saved-full-report-and-five-line-summary',persistence:'available',requestedDelivery:'saved-full-report-and-five-line-summary',reportReference:'required'},{protocol:'saved-full-report-and-five-line-summary',persistence:'available',requestedDelivery:'complete-report-only-in-final',reportReference:'forbidden'},{protocol:'saved-full-report-and-five-line-summary',persistence:'available',requestedDelivery:'saved-full-report-and-five-line-summary',reportReference:'omitted'},{protocol:'saved-full-report-and-five-line-summary',persistence:'unavailable',requestedDelivery:'blocked-no-invented-report',reportReference:'not-saved'}]},
     {family:'cleanup',split:'test',question:'Do these records establish settled cleanup with a matching execution identity and reapedAll true? This does not establish task success or approval.',facts:[{executionId:'exec:one',state:'settled',receipt:{state:'settled',executionId:'exec:one',reapedAll:true}},{executionId:'exec:one',state:'settled',receipt:null},{executionId:'exec:one',state:'settled',receipt:{state:'settled',executionId:'exec:other',reapedAll:true}},{executionId:'exec:one',state:'settled',receipt:{state:'settled',executionId:'exec:one',reapedAll:false}}]},
   ];
-  const caseDocument={schema:1,cases:families.flatMap(f=>f.facts.map((facts,i)=>{const input=JSON.stringify(facts);return {id:`fixture-${f.family}-${i+1}`,input,question:f.question,provenance:'synthetic',source:{sha256:learningDigest(input),recordId:`${FIXTURE_ORACLE_VERSION}/${f.family}/${i+1}`},visibility:'public'};}))};
+  const families = set === 'workflow' ? workflowFixtureFamilies() : mechanicalFamilies;
+  const evaluate = set === 'workflow' ? evaluateWorkflowFixture : evaluateFixture;
+  const oracleVersion = set === 'workflow' ? WORKFLOW_ORACLE_VERSION : FIXTURE_ORACLE_VERSION;
+  const experimentId = set === 'workflow' ? 'workflow-convergence-20-v1' : 'mechanical-fixtures-24-v1';
+  const scope = set === 'workflow' ? '20 synthetic workflow convergence cases; no observed sessions or model-quality claims.' : '24 synthetic mechanical plumbing cases; no observed examples or model-quality claims.';
+  const caseDocument={schema:1,cases:families.flatMap(f=>f.facts.map((facts,i)=>{const input=JSON.stringify(facts);return {id:`fixture-${f.family}-${i+1}`,input,question:f.question,provenance:'synthetic',source:{sha256:learningDigest(input),recordId:`${oracleVersion}/${f.family}/${i+1}`},visibility:'public'};}))};
   const cases=parseCases(caseDocument),receipts=[],labels=[],entries=[];
-  for(const c of cases){const family=c.id.split('-')[1],f=families.find(f=>f.family===family);const value=evaluateFixture(family,JSON.parse(c.input));
-    const receipt={schema:1,kind:'independent-decision-label',caseId:c.id,caseHash:c.hash,source:c.source,value,labelKind:'test',actor:FIXTURE_ORACLE_VERSION,independent:true,recordedAt,method:{kind:'deterministic-test',id:family,version:FIXTURE_ORACLE_VERSION+':'+learningDigest(evaluateFixture.toString())}};
+  for(const c of cases){const family=c.id.split('-')[1],f=families.find(f=>f.family===family);const value=evaluate(family,JSON.parse(c.input));
+    const receipt={schema:1,kind:'independent-decision-label',caseId:c.id,caseHash:c.hash,source:c.source,value,labelKind:'test',actor:oracleVersion,independent:true,recordedAt,method:{kind:'deterministic-test',id:family,version:oracleVersion+':'+learningDigest(evaluate.toString())}};
     const bytes=JSON.stringify(receipt,null,2)+'\n';receipts.push({caseId:c.id,filename:c.id+'-label.json',bytes,sha256:learningDigest(bytes)});
     labels.push({caseId:c.id,caseHash:c.hash,value,kind:'test',actor:receipt.actor,evidenceSha256:learningDigest(bytes),independent:true});
     entries.push({caseId:c.id,caseHash:c.hash,taskGroup:'fixture-family-'+family,lineageGroup:'fixture-family-'+family,split:f.split,sessionId:null,fixtureOnly:true,decisionTimeReviewed:true,redactionReviewed:true,rights:'local-export',exportApproved:true,trainingApproved:false,reviewer:'prospective-synthetic-fixture-rule'});
   }
   const labelDocument={schema:1,labels};parseLabels(labelDocument,cases);
-  const manifest=parseExperiment(cases,{schema:1,kind:'decision-learning-experiment',id:'mechanical-fixtures-24-v1',frozenAt:recordedAt,entries});
-  return {caseDocument,labelDocument,manifest,labelReceipts:receipts,fixtureOnly:true,trainingEligible:false,scope:'24 synthetic mechanical plumbing cases; no observed examples or model-quality claims.'};
+  const manifest=parseExperiment(cases,{schema:1,kind:'decision-learning-experiment',id:experimentId,frozenAt:recordedAt,entries});
+  return {caseDocument,labelDocument,manifest,labelReceipts:receipts,fixtureOnly:true,trainingEligible:false,scope};
 }

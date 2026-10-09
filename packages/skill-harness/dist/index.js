@@ -16924,6 +16924,88 @@ async function writePreparedExport({ prepared, directory }) {
   return { directory, trainingEligible: prepared.metadata.trainingEligible, files: Object.fromEntries(Object.entries(prepared.files).map(([name, s]) => [name, { sha256: learningDigest(s), bytes: Buffer.byteLength(s) }])) };
 }
 
+// experiments/decision-shadow/workflow-fixtures.mjs
+var WORKFLOW_ORACLE_VERSION = "workflow-convergence-oracles-v1";
+function evaluateWorkflowFixture(family, facts) {
+  if (!facts || typeof facts !== "object" || Array.isArray(facts)) return false;
+  switch (family) {
+    case "workspace":
+      return typeof facts.requestedRoot === "string" && facts.requestedRoot.startsWith("/") && facts.observedRoot === facts.requestedRoot && facts.pathsObserved === true && Array.isArray(facts.requiredPaths) && facts.requiredPaths.length > 0 && Array.isArray(facts.readablePaths) && facts.requiredPaths.every((path) => typeof path === "string" && path.startsWith(facts.requestedRoot + "/") && facts.readablePaths.includes(path));
+    case "identity":
+      return facts.expected?.algorithm === "principal-candidate-v1" && facts.actual?.algorithm === facts.expected.algorithm && typeof facts.expected.id === "string" && /^[a-f0-9]{64}$/.test(facts.expected.id) && facts.actual.id === facts.expected.id;
+    case "evidence":
+      return facts.candidateMatched === true && facts.referencesVerified === true && Array.isArray(facts.obligations) && facts.obligations.some((item) => item?.due === "review") && facts.obligations.every((item) => item && ["review", "finish"].includes(item.due) && typeof item.id === "string" && item.id.length > 0 && (item.due === "review" ? item.state === "verified" : ["pending", "verified"].includes(item.state)));
+    case "routing": {
+      if (facts.observationComplete !== true || !Array.isArray(facts.productFindings) || !Array.isArray(facts.dueEvidenceGaps)) return false;
+      const expected = facts.productFindings.length ? "build" : facts.dueEvidenceGaps.length ? "evidence" : "git-ops";
+      return facts.next === expected;
+    }
+    case "reuse":
+      return facts.operation === "static-inspection" && facts.purpose === "same-check" && facts.previous?.state === "complete" && facts.previous.outputsVerified === true && typeof facts.currentInput === "string" && /^[a-f0-9]{64}$/.test(facts.currentInput) && facts.previous.input === facts.currentInput && facts.previous.environment === facts.currentEnvironment && typeof facts.currentEnvironment === "string" && facts.currentEnvironment.length > 0;
+    default:
+      throw new TypeError("Unknown workflow fixture family");
+  }
+}
+function workflowFixtureFamilies() {
+  const root = "/fixture/pilot", hash4 = "a".repeat(64);
+  const workspace = {
+    requestedRoot: root,
+    observedRoot: root,
+    pathsObserved: true,
+    requiredPaths: [`${root}/report.md`],
+    readablePaths: [`${root}/report.md`]
+  };
+  const identity2 = {
+    expected: { algorithm: "principal-candidate-v1", id: hash4 },
+    actual: { algorithm: "principal-candidate-v1", id: hash4 }
+  };
+  const evidence = {
+    candidateMatched: true,
+    referencesVerified: true,
+    obligations: [{ id: "behavior-check", due: "review", state: "verified" }, { id: "archive", due: "finish", state: "pending" }]
+  };
+  const routing = { observationComplete: true, productFindings: [], dueEvidenceGaps: ["missing-report"], next: "evidence" };
+  const reuse = {
+    operation: "static-inspection",
+    purpose: "same-check",
+    currentInput: hash4,
+    currentEnvironment: "node-fixture-v1",
+    previous: { state: "complete", input: hash4, environment: "node-fixture-v1", outputsVerified: true }
+  };
+  return [
+    {
+      family: "workspace",
+      split: "train",
+      question: "Do these explicitly observed roots and readable absolute paths establish access to the requested fixture workspace? Missing access evidence is not a permission-denial finding.",
+      facts: [workspace, { ...workspace, observedRoot: "/fixture/original" }, { ...workspace, readablePaths: [] }, { ...workspace, pathsObserved: false }]
+    },
+    {
+      family: "identity",
+      split: "train",
+      question: "Do these records contain matching full candidate IDs under the same principal-candidate-v1 algorithm? A diff hash or another algorithm is not an interchangeable candidate ID.",
+      facts: [identity2, { ...identity2, actual: { algorithm: "git-diff-sha256", id: hash4 } }, { ...identity2, actual: { algorithm: "principal-candidate-v1", id: "b".repeat(64) } }, { expected: { algorithm: "principal-candidate-v1", id: "aaaaaaa" }, actual: { algorithm: "principal-candidate-v1", id: "aaaaaaa" } }]
+    },
+    {
+      family: "evidence",
+      split: "validation",
+      question: "Are all review-due obligations verified by matching-candidate, verified references? Finish-due obligations may remain pending; a new runtime replay is not required by this fixture rule.",
+      facts: [evidence, { ...evidence, obligations: [{ id: "behavior-check", due: "review", state: "pending" }] }, { ...evidence, candidateMatched: false }, { ...evidence, referencesVerified: false }]
+    },
+    {
+      family: "routing",
+      split: "test",
+      question: "Does Next follow this explicit routing rule: observed product findings -> build, otherwise due evidence gaps -> evidence, otherwise git-ops? Incomplete observations cannot establish routing.",
+      facts: [routing, { ...routing, next: "build" }, { ...routing, productFindings: ["blocked-api-shutdown"], next: "build" }, { ...routing, observationComplete: false }]
+    },
+    {
+      family: "reuse",
+      split: "test",
+      question: "May this completed static inspection be reused for the same check, unchanged input/environment and verified outputs? A new independent review or live runtime observation requires a distinct operation.",
+      facts: [reuse, { ...reuse, previous: { ...reuse.previous, outputsVerified: false } }, { ...reuse, purpose: "independent-review" }, { ...reuse, operation: "live-database-observation" }]
+    }
+  ];
+}
+
 // experiments/decision-shadow/learning-fixtures.mjs
 var FIXTURE_ORACLE_VERSION = "mechanical-fixture-oracles-v1";
 var COMMIT = /^[a-f0-9]{40}$/;
@@ -16964,9 +17046,10 @@ function evaluateFixture(family, e) {
       throw new TypeError("Unknown fixture oracle family");
   }
 }
-function createLearningFixtures({ recordedAt = "2026-10-08T00:00:00.000Z" } = {}) {
+function createLearningFixtures({ recordedAt = "2026-10-08T00:00:00.000Z", set: set2 = "mechanical" } = {}) {
+  if (!["mechanical", "workflow"].includes(set2)) throw new TypeError("Fixture set must be mechanical or workflow");
   const commit = "a".repeat(40), complete = Object.fromEntries(PHASES.map((p) => [p, "complete"]));
-  const families = [
+  const mechanicalFamilies = [
     { family: "candidate", split: "train", question: "Do the records establish one exact full 40-character lowercase Git candidate shared by candidate, tested and reviewed?", facts: [{ candidate: commit, tested: commit, reviewed: commit }, { candidate: commit, tested: "b".repeat(40), reviewed: commit }, { candidate: commit, tested: commit, reviewed: "c".repeat(40) }, { candidate: "aaaaaaa", tested: "aaaaaaa", reviewed: "aaaaaaa" }] },
     { family: "phases", split: "train", question: "Do the latest snapshots cover exactly every required step with all five named phases complete? Earlier complete phases cannot fill later omissions.", facts: [{ required: ["step-1"], records: [{ step: "step-1", phases: complete }] }, { required: ["step-1", "step-2"], records: [{ step: "step-1", phases: complete }] }, { required: ["step-1"], records: [{ step: "step-1", phases: complete }, { step: "step-extra", phases: complete }] }, { required: ["step-1"], records: [{ step: "step-1", phases: complete }, { step: "step-1", phases: { ...complete, verified: "unknown" } }] }] },
     { family: "findings", split: "train", question: "Does the observed finding history establish that every finding identity (step, source, id) has an explicit latest verified disposition? Omission never clears an earlier finding.", facts: [{ historyObserved: true, records: [{ step: "step-1", findings: [] }] }, { historyObserved: true, records: [{ step: "step-1", findings: [{ id: "f1", source: "report-a", status: "open" }] }, { step: "step-1", findings: [{ id: "f1", source: "report-a", status: "verified" }] }] }, { historyObserved: true, records: [{ step: "step-1", findings: [{ id: "f1", source: "report-a", status: "open" }] }, { step: "step-1", findings: [] }] }, { historyObserved: true, records: [{ step: "step-1", findings: [{ id: "f1", source: "report-a", status: "open" }] }, { step: "step-1", findings: [{ id: "f1", source: "report-b", status: "verified" }] }] }] },
@@ -16974,15 +17057,20 @@ function createLearningFixtures({ recordedAt = "2026-10-08T00:00:00.000Z" } = {}
     { family: "report", split: "test", question: "Does this structured requested delivery comply with the selected saved-full-report/five-line-summary protocol, including its explicit unavailable-persistence blocked exception?", facts: [{ protocol: "saved-full-report-and-five-line-summary", persistence: "available", requestedDelivery: "saved-full-report-and-five-line-summary", reportReference: "required" }, { protocol: "saved-full-report-and-five-line-summary", persistence: "available", requestedDelivery: "complete-report-only-in-final", reportReference: "forbidden" }, { protocol: "saved-full-report-and-five-line-summary", persistence: "available", requestedDelivery: "saved-full-report-and-five-line-summary", reportReference: "omitted" }, { protocol: "saved-full-report-and-five-line-summary", persistence: "unavailable", requestedDelivery: "blocked-no-invented-report", reportReference: "not-saved" }] },
     { family: "cleanup", split: "test", question: "Do these records establish settled cleanup with a matching execution identity and reapedAll true? This does not establish task success or approval.", facts: [{ executionId: "exec:one", state: "settled", receipt: { state: "settled", executionId: "exec:one", reapedAll: true } }, { executionId: "exec:one", state: "settled", receipt: null }, { executionId: "exec:one", state: "settled", receipt: { state: "settled", executionId: "exec:other", reapedAll: true } }, { executionId: "exec:one", state: "settled", receipt: { state: "settled", executionId: "exec:one", reapedAll: false } }] }
   ];
+  const families = set2 === "workflow" ? workflowFixtureFamilies() : mechanicalFamilies;
+  const evaluate = set2 === "workflow" ? evaluateWorkflowFixture : evaluateFixture;
+  const oracleVersion = set2 === "workflow" ? WORKFLOW_ORACLE_VERSION : FIXTURE_ORACLE_VERSION;
+  const experimentId = set2 === "workflow" ? "workflow-convergence-20-v1" : "mechanical-fixtures-24-v1";
+  const scope = set2 === "workflow" ? "20 synthetic workflow convergence cases; no observed sessions or model-quality claims." : "24 synthetic mechanical plumbing cases; no observed examples or model-quality claims.";
   const caseDocument = { schema: 1, cases: families.flatMap((f) => f.facts.map((facts, i) => {
     const input = JSON.stringify(facts);
-    return { id: `fixture-${f.family}-${i + 1}`, input, question: f.question, provenance: "synthetic", source: { sha256: learningDigest(input), recordId: `${FIXTURE_ORACLE_VERSION}/${f.family}/${i + 1}` }, visibility: "public" };
+    return { id: `fixture-${f.family}-${i + 1}`, input, question: f.question, provenance: "synthetic", source: { sha256: learningDigest(input), recordId: `${oracleVersion}/${f.family}/${i + 1}` }, visibility: "public" };
   })) };
   const cases = parseCases(caseDocument), receipts = [], labels = [], entries = [];
   for (const c of cases) {
     const family = c.id.split("-")[1], f = families.find((f2) => f2.family === family);
-    const value = evaluateFixture(family, JSON.parse(c.input));
-    const receipt = { schema: 1, kind: "independent-decision-label", caseId: c.id, caseHash: c.hash, source: c.source, value, labelKind: "test", actor: FIXTURE_ORACLE_VERSION, independent: true, recordedAt, method: { kind: "deterministic-test", id: family, version: FIXTURE_ORACLE_VERSION + ":" + learningDigest(evaluateFixture.toString()) } };
+    const value = evaluate(family, JSON.parse(c.input));
+    const receipt = { schema: 1, kind: "independent-decision-label", caseId: c.id, caseHash: c.hash, source: c.source, value, labelKind: "test", actor: oracleVersion, independent: true, recordedAt, method: { kind: "deterministic-test", id: family, version: oracleVersion + ":" + learningDigest(evaluate.toString()) } };
     const bytes = JSON.stringify(receipt, null, 2) + "\n";
     receipts.push({ caseId: c.id, filename: c.id + "-label.json", bytes, sha256: learningDigest(bytes) });
     labels.push({ caseId: c.id, caseHash: c.hash, value, kind: "test", actor: receipt.actor, evidenceSha256: learningDigest(bytes), independent: true });
@@ -16990,8 +17078,8 @@ function createLearningFixtures({ recordedAt = "2026-10-08T00:00:00.000Z" } = {}
   }
   const labelDocument = { schema: 1, labels };
   parseLabels(labelDocument, cases);
-  const manifest = parseExperiment(cases, { schema: 1, kind: "decision-learning-experiment", id: "mechanical-fixtures-24-v1", frozenAt: recordedAt, entries });
-  return { caseDocument, labelDocument, manifest, labelReceipts: receipts, fixtureOnly: true, trainingEligible: false, scope: "24 synthetic mechanical plumbing cases; no observed examples or model-quality claims." };
+  const manifest = parseExperiment(cases, { schema: 1, kind: "decision-learning-experiment", id: experimentId, frozenAt: recordedAt, entries });
+  return { caseDocument, labelDocument, manifest, labelReceipts: receipts, fixtureOnly: true, trainingEligible: false, scope };
 }
 
 // experiments/decision-shadow/research.mjs
@@ -17436,13 +17524,14 @@ var RESEARCH_OPTIONS = {
   fixtures: ["out"]
 };
 var RESEARCH_OPTIONAL = {
+  fixtures: ["set"],
   "run-pi": ["pi-node", "auth-path", "timeout-ms"]
 };
 async function researchCommand(command, flags, helpers, options) {
   const { cases, jsonFile: jsonFile2, textFile: textFile2, writeNew: writeNew3, readLegacyRun } = helpers;
   const { emit = console.log, piRunner } = options;
   if (command === "fixtures") {
-    const f = createLearningFixtures({});
+    const f = createLearningFixtures({ set: flags.set ?? "mechanical" });
     const dir = resolve15(flags.out);
     await mkdir4(dir, { mode: 448 });
     const refs = [];
@@ -18326,7 +18415,7 @@ var help = `Decision research workflow (Node >=20; qualified Pi execution needs 
   score --cases FILE --labels FILE --run RESULT.jsonl [--run RESULT2.jsonl]
   corpus --cases FILE --labels FILE --out NEW.json
   verify-sources --cases FILE --sources SELECTION.json --evidence-root DIR --out NEW.json
-  fixtures --out NEW_DIR
+  fixtures --out NEW_DIR [--set mechanical|workflow]
   validate-experiment --cases FILE --experiment FILE
   preview-pi --cases FILE --experiment FILE --model openai-codex:MODEL --thinking LEVEL --split test
   run-pi --cases FILE --experiment FILE --model openai-codex:MODEL --thinking LEVEL --split test --pi-package DIR --out NEW.jsonl --allow-subscription [--pi-node PATH] [--auth-path FILE] [--timeout-ms N]
@@ -19132,6 +19221,41 @@ function createJevController(pi, options = {}) {
 
 // packages/pi-extension/src/jev-advice.ts
 import { Type as Type3 } from "typebox";
+var nullableNumber = Type3.Union([Type3.Number(), Type3.Null()]);
+var nullableString = Type3.Union([Type3.String(), Type3.Null()]);
+var adviceOutput = Type3.Union([
+  Type3.Object({
+    enabled: Type3.Boolean(),
+    mode: Type3.Union([Type3.Literal("disabled"), Type3.Literal("manual"), Type3.Literal("workflow")]),
+    storage: Type3.Union([Type3.Literal("granted"), Type3.Literal("declined"), Type3.Null()]),
+    remaining: Type3.Integer({ minimum: 0 }),
+    availability: Type3.String(),
+    providerReadiness: Type3.Union([Type3.Literal("key-present"), Type3.Literal("missing-key")]),
+    advisory: Type3.Literal(true)
+  }, { additionalProperties: false }),
+  Type3.Object({
+    advisory: Type3.Literal(true),
+    status: Type3.Union([Type3.Literal("answered"), Type3.Literal("unavailable")]),
+    probability: Type3.Union([Type3.Number({ minimum: 0, maximum: 1 }), Type3.Null()]),
+    provider: Type3.String(),
+    requestedModel: Type3.String(),
+    resolvedModel: nullableString,
+    usage: Type3.Object({ inputTokens: nullableNumber, outputTokens: nullableNumber, costUsd: nullableNumber }, { additionalProperties: false }),
+    latencyMs: nullableNumber,
+    reason: Type3.Optional(Type3.String()),
+    remaining: Type3.Integer({ minimum: 0 }),
+    inputSha256: Type3.Optional(Type3.String()),
+    reused: Type3.Optional(Type3.Boolean()),
+    source: Type3.Optional(Type3.Object({
+      kind: Type3.String(),
+      sha256: Type3.String(),
+      sessionId: Type3.String(),
+      toolCallId: Type3.String(),
+      retained: Type3.Boolean(),
+      path: Type3.Optional(Type3.String())
+    }, { additionalProperties: false }))
+  }, { additionalProperties: false })
+]);
 function createJevAdviceTool(controller) {
   return {
     name: "jev_advice",
@@ -19148,6 +19272,7 @@ function createJevAdviceTool(controller) {
       requirements: Type3.Optional(Type3.String({ minLength: 1, maxLength: 16e3, description: "Explicit acceptance checks, before seeing independent review or JEV outcomes." })),
       evidence: Type3.Optional(Type3.String({ minLength: 1, maxLength: 16e3, description: "Selected decision-time handoff evidence. Complete JSON packet is limited to 16000 characters." }))
     }, { additionalProperties: false }),
+    outputSchema: adviceOutput,
     async execute(id, params, signal, _onUpdate, ctx) {
       requireIdentity(id, "Pi toolCallId");
       if (!params || typeof params !== "object" || Array.isArray(params)) throw new Error("Invalid jev_advice parameters");
@@ -19165,7 +19290,7 @@ function createJevAdviceTool(controller) {
           ctx
         );
       else throw new Error("jev_advice action must be status or evaluate");
-      return { content: [{ type: "text", text: JSON.stringify(details) }], details };
+      return { content: [{ type: "text", text: JSON.stringify(details) }], details, structuredContent: details };
     }
   };
 }

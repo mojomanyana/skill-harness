@@ -39,7 +39,7 @@ const help = `Decision research workflow (Node >=20; qualified Pi execution need
   score --cases FILE --labels FILE --run RESULT.jsonl [--run RESULT2.jsonl]
   corpus --cases FILE --labels FILE --out NEW.json
   verify-sources --cases FILE --sources SELECTION.json --evidence-root DIR --out NEW.json
-  fixtures --out NEW_DIR
+  fixtures --out NEW_DIR [--set mechanical|workflow]
   validate-experiment --cases FILE --experiment FILE
   preview-pi --cases FILE --experiment FILE --model openai-codex:MODEL --thinking LEVEL --split test
   run-pi --cases FILE --experiment FILE --model openai-codex:MODEL --thinking LEVEL --split test --pi-package DIR --out NEW.jsonl --allow-subscription [--pi-node PATH] [--auth-path FILE] [--timeout-ms N]

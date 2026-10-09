@@ -43,13 +43,14 @@ export const RESEARCH_OPTIONS = {
   fixtures: ["out"],
 };
 export const RESEARCH_OPTIONAL = {
+  fixtures: ['set'],
   "run-pi": ["pi-node", "auth-path", "timeout-ms"],
 };
 export async function researchCommand(command, flags, helpers, options) {
   const { cases, jsonFile, textFile, writeNew, readLegacyRun } = helpers;
   const { emit = console.log, piRunner } = options;
   if (command === "fixtures") {
-    const f = createLearningFixtures({});
+    const f = createLearningFixtures({ set: flags.set ?? "mechanical" });
     const dir = resolve(flags.out);
     await mkdir(dir, { mode: 0o700 });
     const refs = [];
