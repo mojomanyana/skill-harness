@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.29.0 — 2026-10-10
+
+- Add offline `decision import-workflow` for explicitly selected JEV workflow-v2 inputs and retained engineering evidence. Verify source/input hashes, actual recorded session/tool linkage and both collection-time and current supplied storage consent.
+- Reuse the existing reviewed-case, independent-label and grouped-export workflow. Import receipts remain unlabeled and ineligible for training/export; provider predictions and AI review conclusions never become training answers. No automatic collection, provider call, training or runtime authority is added.
+- Preserve caller-claimed versus historically observed candidate provenance, verify retained evidence copies without following original paths, and retain explicit placeholder-redaction provenance without removed values.
+
 ## 0.28.0 — 2026-10-09
 
 - Make JEV workflow advice stage-aware: callers supply `stage`, `nextAction` and `uncertainty` alongside requirements/evidence. The question evaluates that next action, not premature final acceptance. Update Principal alongside Harness; retained v1 records remain historical, and new selections use v2.

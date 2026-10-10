@@ -2,7 +2,7 @@
 
 ## Current state
 
-`0.28.0` is the current source release target. Package manifests identify these
+`0.29.0` is the current source release target. Package manifests identify these
 candidate bytes; verify npm and GitHub directly before asserting publication or
 `latest` promotion.
 Historical released versions remain recorded in the changelog.
@@ -90,3 +90,6 @@ subject-run Pi1.0.4 pin. See DECISION-LEARNING.md for the explicit local runtime
 cases and independent fixture labels. The existing default corpus is preserved.
 No diagnostic archive ingestion, automatic labels, provider migration or training
 is part of this change.
+## Workflow selection import
+
+`decision import-workflow` connects explicitly selected schema-2 workflow decisions to reviewed case curation. It verifies local source/input/evidence bytes and both recorded and current supplied same-session storage consent. It does not read provider outcome files, assign labels or train. Independent human/test label receipts, rights and separate export/training approval still apply. Export does not consume or reverify the import receipt; retain it with the curation evidence. Live JEV quality, representative data and actual LoRA training remain unqualified.

@@ -79,8 +79,8 @@ plus that activation's consent and paid scope. Later predictions do not change i
 hash. Optional local refs have `sourceBinding: local-reference-digests-verified`; otherwise source binding remains unassessed. Candidate identity is **principal-runtime-observed** only after that session-bound check; otherwise it remains **caller-claimed**. The snapshot and observation time are retained locally, and reference hashes do not verify the narrative, source independence, redaction or rights. Labels are absent
 and `trainingEligible`/`exportEligible` are false. This is a tool-selected-input
 receipt, **not** a verified pi-daddy public capture. Existing `verify-sources` does
-not cover it. Do not relabel it as a capture or pass it into reviewed-data export:
-a separately reviewed source adapter, independent labels, rights and export/training
+not cover it. Use the explicit `decision import-workflow` adapter described below
+to verify a selected record. Independent labels, rights and separate export/training
 approval are still required. Storage prepares an honest review trail; it does not
 automatically add a qualified example to a LoRA dataset.
 
@@ -180,6 +180,32 @@ Repeat `--run` in `compare` to compare up to eight immutable runs. Reports show 
 ## Extend with reviewed real-session examples
 
 After opting in for the relevant session, select only public decision-time input fragments. Use `skill-harness decision import-session --cases ONE_CASE.json --selection SELECTION.json --consent CONSENT.json --entry EXPERIMENT_ENTRY.json --out NEW_RECEIPT.json`. The importer binds exact public-capture bytes/tool-call identity and reconstructed excerpts, applies explicit redaction and emits a receipt without retaining the removed values. It never scans private sessions. The curator must establish the session-to-artifact association, decision-time availability, redaction and rights; receipt structure cannot authenticate those assertions.
+
+For a retained JEV workflow decision, use the separate command:
+
+```bash
+skill-harness decision import-workflow --cases ONE_CASE.json --selection WORKFLOW_SELECTION.json --consent CURRENT_CONSENT.json --entry EXPERIMENT_ENTRY.json --out NEW_RECEIPT.json
+```
+
+`WORKFLOW_SELECTION.json` explicitly selects a single schema-2 `selection.json`:
+
+```json
+{
+  "schema": 1,
+  "kind": "decision-selected-workflow-input",
+  "source": {"path": "/absolute/selection-directory/selection.json", "sha256": "EXACT_FILE_SHA256"},
+  "replacements": [],
+  "engineering": []
+}
+```
+
+Prepare one observed case whose `source.sha256` is that selection-file digest and whose `source.recordId` is its actual `toolCallId`. Copy the original question and exact outbound input; any chosen redactions must be listed as `{from,to}` placeholder replacements and the case input must match their result exactly. The experiment entry records the curator's decision-time, redaction and rights review. Both the selection's recorded storage grant and the supplied current same-session grant are required. A current decline refuses import.
+
+The adapter reads only explicitly selected records and their fixed retained sibling files. It verifies `selection.json`, exact `input.txt`, decision-evidence digests and any explicitly selected `engineering-*.json` records supplied as `{path,sha256}` entries in `engineering`. It reads retained evidence copies, never their recorded original paths. A caller-claimed candidate remains caller-claimed; a Principal observation is historical provenance, not a fresh workspace check. Historical selection-v1 records are unsupported. The existing Linux-only, no-symlink reader applies: selection/mapping records are limited to 1 MiB; retained evidence copies may be up to 2 MiB, matching the workflow producer.
+
+The import writes a new receipt with the curated case and entry. It remains unlabeled and ineligible for export/training. It never reads provider `outcome.json`, assigns a label, calls a model or scans session archives. Retained engineering evidence can inform a later independent label review; neither a JEV probability nor an AI `APPROVE` is ground truth.
+
+Keep that receipt with the curation record. The existing export validates curated cases, experiment entries, current supplied consent and independent label receipts; it does not consume or reverify import receipts. Import proves the selected local bytes matched at import time, not their authenticity, truth, reviewer independence or an undisclosed revocation.
 
 Add independently authored human/test labels with exact label receipts, then freeze a new experiment manifest before comparisons or tuning. Keep related task/repository variants, lineage and sessions together; the validator rejects cross-split exact/formatting duplicates and shared sources. Semantic near-duplicates still need review. Supply current session consent for export; duplicate consent states refuse, and a supplied decline excludes that session. A library cannot discover a withheld revocation or recall previously copied files.
 

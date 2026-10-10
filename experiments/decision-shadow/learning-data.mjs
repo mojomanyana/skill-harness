@@ -46,7 +46,7 @@ function inputIdentity(input) {
   return {algorithm:INPUT_NORMALIZATION_ALGORITHM,inputSha256:learningDigest(input),normalizedSha256:learningDigest(input.normalize('NFKC').replace(/\s+/gu,' ').trim().toLowerCase())};
 }
 const ENTRY_KEYS=['caseId','caseHash','taskGroup','lineageGroup','split','sessionId','fixtureOnly','decisionTimeReviewed','redactionReviewed','rights','exportApproved','trainingApproved','reviewer'];
-function parseEntry(c,e) {
+export function parseEntry(c,e) {
   keys(e,ENTRY_KEYS,'experiment entry');check(e.caseId===c.id && e.caseHash===c.hash,'experiment case identity mismatch');
   for(const k of ['taskGroup','lineageGroup','reviewer'])text(e[k],k);
   choice(e.split,['train','validation','test','unassigned'],'split');
@@ -72,9 +72,15 @@ export function parseExperiment(cases,manifest) {
   });
   return {...structuredClone(manifest),entries};
 }
-async function readExplicit(path, expected, limit=1024*1024) {
+export async function readExplicit(path, expected, limit=1024*1024) {
+  sha(expected);
+  const bytes=await readBoundedArtifact(path,limit);
+  check(learningDigest(bytes)===expected,'artifact hash mismatch');return bytes;
+}
+// For schema-bound mapping files without a producer digest; callers must validate their contents.
+export async function readBoundedArtifact(path, limit=1024*1024) {
   text(path,'artifact path',4096);check(process.platform==='linux','Evidence review requires Linux no-follow directory descriptors');
-  check(isAbsolute(path) && normalize(path)===path && !path.endsWith('/'),'artifact path must be canonical and absolute');sha(expected);
+  check(isAbsolute(path) && normalize(path)===path && !path.endsWith('/'),'artifact path must be canonical and absolute');
   const components=path.split('/').filter(Boolean);check(components.length<=128,'artifact path too deep');
   check(!components.some(p=>['sessions','native-sessions','auth.json','.env'].includes(p.toLowerCase())),'private session or credential paths are unsupported');
   const directories=[], flags=constants.O_RDONLY|constants.O_DIRECTORY|constants.O_NOFOLLOW|constants.O_NONBLOCK;
@@ -92,7 +98,7 @@ async function readExplicit(path, expected, limit=1024*1024) {
     const reopened=await open(`/proc/self/fd/${parent.fd}/${name}`,constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);
     try{check(metadata(before)===metadata(await reopened.stat({bigint:true})),'artifact path changed while reading');}finally{await reopened.close();}
     for(const d of directories){const h=await open(d.parent?`/proc/self/fd/${d.parent.fd}/${d.name}`:'/',flags);try{check(identity(await h.stat({bigint:true}))===d.identity,'artifact ancestor changed');}finally{await h.close();}}
-    const bytes=b.subarray(0,n);check(learningDigest(bytes)===expected,'artifact hash mismatch');return bytes;
+    return b.subarray(0,n);
   } finally {if(file)await file.close();await Promise.allSettled(directories.map(d=>d.handle.close()));}
 }
 function json(bytes){return JSON.parse(new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(bytes));}
@@ -114,6 +120,12 @@ export async function reviewLabelEvidence({cases,labels,references}) {
   }
   return {schema:1,kind:'decision-label-evidence-review',reviewed,meaning:'Exact receipt bytes and declared provenance checked; human identity, truth, independence and rights remain explicit reviewer assertions.'};
 }
+export function redactSelectedInput(input,replacements) {
+  check(Array.isArray(replacements) && replacements.length<=32,'invalid redactions');
+  let textValue=input;
+  for(const r of replacements){keys(r,['from','to'],'redaction');text(r.from,'redaction source',4096);check(typeof r.to==='string' && /^<[A-Z0-9_ -]{1,80}>$/.test(r.to),'redaction must use a placeholder');check(textValue.includes(r.from),'redaction source absent');textValue=textValue.replaceAll(r.from,r.to);}
+  return {input:textValue,replacements:replacements.map(r=>({fromSha256:learningDigest(r.from),fromCodepoints:Array.from(r.from).length,to:r.to}))};
+}
 export async function importSelectedCase({caseDocument,selection,sessionConsent,experimentEntry}) {
   const cases=parseCases(caseDocument);check(cases.length===1 && cases[0].provenance==='observed','import requires exactly one observed case');const c=cases[0];
   const e=parseEntry(c,experimentEntry);const consent=parseStorageConsent(sessionConsent,e.sessionId);check(consent.decision==='granted','session storage declined; advice remains allowed');
@@ -129,8 +141,8 @@ export async function importSelectedCase({caseDocument,selection,sessionConsent,
     if(f.jsonlLine!==null){check(Number.isSafeInteger(f.jsonlLine)&&f.jsonlLine>0,'invalid JSONL line');s=s.split('\n')[f.jsonlLine-1];check(s!==undefined,'missing JSONL line');}
     if(f.jsonPointer!==null){check(typeof f.jsonPointer==='string' && f.jsonPointer.startsWith('/'),'invalid JSON pointer');let v=JSON.parse(s);for(const key of f.jsonPointer.slice(1).split('/').map(k=>k.replace(/~1/g,'/').replace(/~0/g,'~'))){check(v && typeof v==='object' && Object.hasOwn(v,key),'missing selected field');v=v[key];}check(typeof v==='string','selected field must be public text');s=v;}
     const points=Array.from(s);check(Number.isSafeInteger(f.start)&&Number.isSafeInteger(f.end)&&f.start>=0&&f.end>f.start&&f.end<=points.length,'invalid excerpt range');let excerpt=points.slice(f.start,f.end).join('');
-    check(Array.isArray(f.replacements) && f.replacements.length<=32,'invalid redactions');for(const r of f.replacements){keys(r,['from','to'],'redaction');text(r.from,'redaction source',4096);check(typeof r.to==='string' && /^<[A-Z0-9_ -]{1,80}>$/.test(r.to),'redaction must use a placeholder');check(excerpt.includes(r.from),'redaction source absent');excerpt=excerpt.replaceAll(r.from,r.to);}
-    parts.push(excerpt);refs.push({...f,replacements:f.replacements.map(r=>({fromSha256:learningDigest(r.from),fromCodepoints:Array.from(r.from).length,to:r.to}))});
+    const redacted=redactSelectedInput(excerpt,f.replacements);
+    parts.push(redacted.input);refs.push({...f,replacements:redacted.replacements});
   }
   check(parts.join('\n\n')===c.input,'case input must equal exact selected redacted fragments joined by two newlines');
   return {caseDocument:structuredClone(caseDocument),experimentEntry:e,receipt:{schema:1,kind:'decision-selected-public-import',caseId:c.id,caseHash:c.hash,sessionId:e.sessionId,consentHash:learningDigest(consent),source:structuredClone(selection.source),fragments:refs,trainingEligible:false,automaticCollection:false}};

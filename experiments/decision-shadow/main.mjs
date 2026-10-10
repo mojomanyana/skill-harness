@@ -45,6 +45,7 @@ const help = `Decision research workflow (Node >=20; qualified Pi execution need
   run-pi --cases FILE --experiment FILE --model openai-codex:MODEL --thinking LEVEL --split test --pi-package DIR --out NEW.jsonl --allow-subscription [--pi-node PATH] [--auth-path FILE] [--timeout-ms N]
   compare --cases FILE --experiment FILE --labels FILE --label-evidence FILE --run FILE [--run FILE] --out NEW.json
   import-session --cases FILE --selection FILE --consent FILE --entry FILE --out NEW.json
+  import-workflow --cases FILE --selection FILE --consent FILE --entry FILE --out NEW.json
   export-learning --cases FILE --experiment FILE --labels FILE --label-evidence FILE --consents FILE --mode fixture-demo|reviewed-data --out NEW_DIR
 
 JEV run asks this session whether to retain selected data for later LoRA review.

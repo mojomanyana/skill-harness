@@ -8,6 +8,7 @@ import {
   importSelectedCase,
   reviewLabelEvidence,
 } from "./learning-data.mjs";
+import { importWorkflowCase } from "./workflow-import.mjs";
 import { createLearningFixtures } from "./learning-fixtures.mjs";
 import {
   previewPi,
@@ -40,6 +41,7 @@ export const RESEARCH_OPTIONS = {
     "out",
   ],
   "import-session": ["cases", "selection", "consent", "entry", "out"],
+  "import-workflow": ["cases", "selection", "consent", "entry", "out"],
   fixtures: ["out"],
 };
 export const RESEARCH_OPTIONAL = {
@@ -77,8 +79,9 @@ export async function researchCommand(command, flags, helpers, options) {
     );
     return;
   }
-  if (command === "import-session") {
-    const result = await importSelectedCase({
+  if (command === "import-session" || command === "import-workflow") {
+    const importCase = command === "import-workflow" ? importWorkflowCase : importSelectedCase;
+    const result = await importCase({
       caseDocument: await jsonFile(flags.cases),
       selection: await jsonFile(flags.selection),
       sessionConsent: await jsonFile(flags.consent),
