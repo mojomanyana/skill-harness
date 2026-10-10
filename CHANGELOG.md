@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.29.0 — 2026-10-10
+
+- Ask for a Pi-native JEV provider/model before paid-call and storage consent. Reuse selected provider authentication, recheck session/candidate/model configuration after auth, and avoid implicit fallback or retries. Version native result provenance separately from legacy OpenRouter records; cost is a catalog estimate and backend-resolved model identity stays unknown.
+- Centralize consented workflow/manual collections under a configurable private data root, partition by session, expose the root in status and provide an offline metadata-only collections inventory. Existing files stay untouched; no data is automatically designated for training.
+- Add offline `decision import-workflow` for explicitly selected legacy-v2 and native-v3 JEV workflow inputs and retained engineering evidence. Verify source/input hashes, actual recorded session/tool linkage and both collection-time and current supplied storage consent.
+- Reuse the existing reviewed-case, independent-label and grouped-export workflow. Import receipts remain unlabeled and ineligible for training/export; provider predictions and AI review conclusions never become training answers. Import remains offline and explicit; no automatic training or runtime authority is added.
+- Preserve caller-claimed versus historically observed candidate provenance, verify retained evidence copies without following original paths, and retain explicit placeholder-redaction provenance without removed values.
+
 ## 0.28.0 — 2026-10-09
 
 - Make JEV workflow advice stage-aware: callers supply `stage`, `nextAction` and `uncertainty` alongside requirements/evidence. The question evaluates that next action, not premature final acceptance. Update Principal alongside Harness; retained v1 records remain historical, and new selections use v2.

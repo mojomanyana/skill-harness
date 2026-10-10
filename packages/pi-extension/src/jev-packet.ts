@@ -1,6 +1,9 @@
-import { closeSync, fsyncSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
+// @ts-expect-error Shared local collection layout has dedicated filesystem tests.
+import { resolveDataRoot, createSessionCollection, writePrivateNew as writeNew } from "../../../experiments/decision-shadow/data-root.mjs";
+// @ts-expect-error Shared native classifier contract has dedicated boundary tests.
+import { validateNativeRoute, nativeRequestSha256 } from "../../../experiments/decision-shadow/native-jev.mjs";
 import type { CandidateObservation } from "./jev-candidate.js";
 import { evidenceReferences, sha256, type EvidenceRef, type VerifiedEvidence } from "./jev-evidence.js";
 
@@ -9,6 +12,8 @@ export const JEV_MODEL = "typesafe/jev-1.13";
 export const JEV_WORKFLOW_LIMIT = 3;
 export const JEV_QUESTION = "Given the stated stage, unresolved engineering uncertainty, requirements and selected evidence, is the proposed next action justified? Assess that action only, not final acceptance or whether mandatory later review is complete.";
 export const JEV_SOURCE_KIND = "skill-harness-selected-decision-v2";
+export const JEV_NATIVE_SOURCE_KIND = "skill-harness-selected-decision-v3";
+export interface NativeJevRoute { transport: "pi-classifier"; provider: string; model: string; api: string; modelSha256: string }
 
 export interface HandoffPacket {
   candidate: string;
@@ -52,20 +57,23 @@ export function createHandoffSource(options: {
   authorization: unknown;
   evidence?: VerifiedEvidence[];
   candidateObservation?: CandidateObservation;
+  route?: NativeJevRoute;
 }) {
   requireIdentity(options.sessionId, "Pi sessionId");
   requireIdentity(options.toolCallId, "Pi toolCallId");
+  const route = options.route === undefined ? undefined : validateNativeRoute(options.route);
   const source = {
-    schema: 2,
-    kind: JEV_SOURCE_KIND,
+    schema: route ? 3 : 2,
+    kind: route ? JEV_NATIVE_SOURCE_KIND : JEV_SOURCE_KIND,
     sessionId: options.sessionId,
     toolCallId: options.toolCallId,
     frozenAt: new Date().toISOString(),
     input: options.packet.input,
     inputSha256: options.packet.inputSha256,
     question: JEV_QUESTION,
-    provider: JEV_PROVIDER,
-    model: JEV_MODEL,
+    provider: route?.provider ?? JEV_PROVIDER,
+    model: route?.model ?? JEV_MODEL,
+    ...(route ? {route, requestSha256:nativeRequestSha256(options.packet)} : {}),
     consent: options.consent,
     authorization: options.authorization,
     provenance: "tool-selected-input",
@@ -86,35 +94,15 @@ export function createHandoffSource(options: {
   return Object.freeze({ source, bytes, sha256: sha256(bytes) });
 }
 
-function privateDirectory(path: string) {
-  try { mkdirSync(path, { mode: 0o700 }); }
-  catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; }
-  const stat = lstatSync(path);
-  if (!stat.isDirectory() || stat.isSymbolicLink())
-    throw new Error("JEV storage must be a private directory, not a link");
-  if (process.platform !== "win32" &&
-      ((stat.mode & 0o077) !== 0 || (process.getuid && stat.uid !== process.getuid())))
-    throw new Error("JEV storage directory must be owned by the current user with mode 0700");
-}
-
-function writeNew(path: string, bytes: string | Buffer) {
-  const fd = openSync(path, "wx", 0o600);
-  try { writeFileSync(fd, bytes); fsyncSync(fd); }
-  finally { closeSync(fd); }
-}
-
 /** No project-relative path, transcript lookup, capture claim or dataset-import side effect. */
 export function retainHandoffSource(
   source: ReturnType<typeof createHandoffSource>,
   assertCurrent: () => void,
-  storageHome = join(homedir(), ".skill-harness"),
+  storageHome = resolveDataRoot(),
   evidence: VerifiedEvidence[] = [],
 ) {
   assertCurrent();
-  privateDirectory(storageHome);
-  const root = join(storageHome, "jev-workflow");
-  privateDirectory(root);
-  const directory = mkdtempSync(join(root, "selection-"));
+  const directory = createSessionCollection(storageHome, "jev-workflow", source.source.sessionId);
   const path = join(directory, "selection.json");
   writeNew(join(directory, "input.txt"), source.source.input);
   const freezeEvidence = (prefix: string, refs: VerifiedEvidence[]) => refs.map((ref, index) => {
@@ -167,7 +155,9 @@ export function retainHandoffSource(
     writeOutcome(outcome: unknown) {
       assertCurrent();
       writeNew(join(directory, "outcome.json"), JSON.stringify({
-        schema: 2, kind: "skill-harness-decision-advice-v2",
+        schema: source.source.schema === 3 ? 3 : 2,
+        kind: source.source.schema === 3 ? "skill-harness-decision-advice-v3" : "skill-harness-decision-advice-v2",
+        ...(source.source.schema === 3 ? {route:source.source.route, requestSha256:source.source.requestSha256} : {}),
         source: { path: "selection.json", sha256: source.sha256 },
         recordedAt: new Date().toISOString(), outcome,
         trainingEligible: false, exportEligible: false, labelStatus: "unlabeled",

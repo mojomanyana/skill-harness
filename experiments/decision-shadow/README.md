@@ -210,6 +210,8 @@ and output. Keep JEV outputs out of training unless TypeSafe grants a written
 exception. A provider prediction is not independent ground truth.
 See [TypeSafe MCA §2.3](https://typesafe.ai/legal/mca).
 
+Use `decision import-workflow` for explicitly selected JEV workflow-v2 records and retained engineering links; `import-session` remains the separate public-capture path. Import verifies local source bytes and current storage consent without assigning labels or enabling training. See the [npm walkthrough](../../docs/DECISION-LEARNING.md#extend-with-reviewed-real-session-examples).
+
 The packaged `export-learning` workflow now prepares independent-label train/validation/test data and a local training script/configuration. It requires documented rights, current storage consent and separate export/training approvals. The [learning contract](LEARNING-WORKFLOW.md) describes exact schemas and refusal conditions. Export never trains or deploys an adapter or changes runtime policy.
 
 ## Provider contracts and validation status

@@ -13,10 +13,12 @@ export async function requestSessionStorage({
   sessionId = randomUUID(),
   storage,
   promptStorage,
+  storageRoot,
 } = {}) {
   let answer = storage;
+  const question = STORAGE_QUESTION + (storageRoot ? ` Local collection root: ${storageRoot}.` : "");
   if (answer === undefined) {
-    if (promptStorage) answer = await promptStorage(STORAGE_QUESTION);
+    if (promptStorage) answer = await promptStorage(question);
     else {
       if (!stdin.isTTY || !stderr.isTTY)
         throw Error(
@@ -25,7 +27,7 @@ export async function requestSessionStorage({
       const rl = createInterface({ input: stdin, output: stderr });
       try {
         answer = /^(y|yes)$/i.test(
-          (await rl.question(STORAGE_QUESTION + " [y/N] ")).trim(),
+          (await rl.question(question + " [y/N] ")).trim(),
         )
           ? "yes"
           : "no";
