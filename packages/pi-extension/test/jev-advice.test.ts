@@ -563,11 +563,18 @@ describe.skipIf(!nativePackage)("Pi 1.1.0 tool-only Codemode composition", () =>
     const run = (code: string, signal?: AbortSignal) => codemode.execute(`outer-${nestedId}`, { code }, signal, undefined, ctx);
     const output = (result: any) => result.content.filter((item: any) => item.type === "text").map((item: any) => item.text).join("\n");
     const scriptValue = (result: any) => JSON.parse(result.content.filter((item: any) => item.type === 'text').at(-1).text);
-    const disabled = await run('const s = await tools.jev_advice({action:"status"}); return {enabled:s.enabled, globals:typeof models};');
+    const statusScript = 'const s = await tools.jev_advice({action:"status"}); return {enabled:s.enabled, selectedProvider:s.selectedProvider, selectedModel:s.selectedModel, transport:s.transport, storageRoot:s.storageRoot, globals:typeof models};';
+    const disabled = await run(statusScript);
     expect(disabled.isError).not.toBe(true);
-    expect(scriptValue(disabled)).toEqual({enabled:false, globals:'undefined'});
+    expect(scriptValue(disabled)).toEqual({enabled:false, selectedProvider:null, selectedModel:null,
+      transport:null, storageRoot:null, globals:'undefined'});
     expect(s.provider).not.toHaveBeenCalled();
     await s.controller.command("enable workflow", s.ctx);
+    const enabled = await run(statusScript);
+    expect(enabled.isError).not.toBe(true);
+    expect(scriptValue(enabled)).toEqual({enabled:true, selectedProvider:'openrouter', selectedModel:'typesafe/jev-1.13',
+      transport:'legacy-openrouter', storageRoot:s.storageHome, globals:'undefined'});
+    expect(s.provider).not.toHaveBeenCalled();
     const reused = await run(`const p=${JSON.stringify(packet)}; const first=await tools.jev_advice(p); const again=await tools.jev_advice(p); return {status:first.status,reused:again.reused,source:first.source.toolCallId};`);
     expect(reused.isError).not.toBe(true);
     expect(scriptValue(reused)).toMatchObject({status:'answered',reused:true});
@@ -599,8 +606,15 @@ describe.skipIf(!nativePackage)("Pi 1.1.0 tool-only Codemode composition", () =>
     await providerCancelled;
     release(answer);
     expect((await pending).isError).toBe(true);
-    const selections = readdirSync(join(s.storageHome,"jev-workflow"));
-    expect(selections.some(name => !existsSync(join(s.storageHome,"jev-workflow",name,"outcome.json")))).toBe(true);
+    const family = join(s.storageHome,"jev-workflow");
+    const selections = readdirSync(family).flatMap(session => readdirSync(join(family,session))
+      .map(selection => join(family,session,selection)));
+    expect(selections).toHaveLength(2);
+    const canceledSelection = selections.find(directory => JSON.parse(JSON.parse(
+      readFileSync(join(directory,"selection.json"),"utf8")).input).candidate === "cancelled-candidate");
+    expect(canceledSelection).toBeDefined();
+    expect(existsSync(join(canceledSelection!,"outcome.json"))).toBe(false);
+    expect(selections.filter(directory => existsSync(join(directory,"outcome.json")))).toHaveLength(1);
     expect(s.provider).toHaveBeenCalledTimes(2);
     s.hooks.get("session_start")!();
     const revoked = await run(`return (await tools.jev_advice(${JSON.stringify(packet)})).status;`);
