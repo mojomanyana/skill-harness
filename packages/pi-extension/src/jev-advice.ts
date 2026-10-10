@@ -19,13 +19,16 @@ const adviceOutput = Type.Union([
     enabled: Type.Boolean(), mode: Type.Union([Type.Literal("disabled"), Type.Literal("manual"), Type.Literal("workflow")]),
     storage: Type.Union([Type.Literal("granted"), Type.Literal("declined"), Type.Null()]),
     remaining: Type.Integer({ minimum: 0 }), availability: Type.String(),
-    providerReadiness: Type.Union([Type.Literal("key-present"), Type.Literal("missing-key")]), advisory: Type.Literal(true),
+    storageRoot: nullableString, selectedProvider: nullableString, selectedModel: nullableString, transport: nullableString,
+    providerReadiness: Type.Union([Type.Literal("key-present"), Type.Literal("pi-configured"), Type.Literal("missing-key")]), advisory: Type.Literal(true),
   }, { additionalProperties: false }),
   Type.Object({
     advisory: Type.Literal(true), status: Type.Union([Type.Literal("answered"), Type.Literal("unavailable")]),
     probability: Type.Union([Type.Number({ minimum: 0, maximum: 1 }), Type.Null()]),
     provider: Type.String(), requestedModel: Type.String(), resolvedModel: nullableString,
     usage: Type.Object({ inputTokens: nullableNumber, outputTokens: nullableNumber, costUsd: nullableNumber }, { additionalProperties: false }),
+    returnedProvider: Type.Optional(nullableString), returnedModel: Type.Optional(nullableString),
+    costSource: Type.Optional(Type.Union([Type.Literal("pi-catalog-estimate"), Type.Null()])),
     latencyMs: nullableNumber, reason: Type.Optional(Type.String()), remaining: Type.Integer({ minimum: 0 }),
     inputSha256: Type.Optional(Type.String()), reused: Type.Optional(Type.Boolean()),
     source: Type.Optional(Type.Object({

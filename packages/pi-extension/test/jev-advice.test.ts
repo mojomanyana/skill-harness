@@ -23,7 +23,7 @@ function setup(storage = false) {
   const pi: any = { on: (event: string, fn: () => void) => hooks.set(event, fn), appendEntry: vi.fn() };
   const ctx: any = {
     sessionManager: { getSessionId: () => sessionId }, hasUI: true, cwd: root,
-    ui: { select: vi.fn(async (_: string, choices: string[]) => choices[storage ? 1 : 0]), confirm: vi.fn(async () => true), notify: vi.fn() },
+    ui: { select: vi.fn(async (_: string, choices: string[]) => choices[choices.length === 1 ? 0 : storage ? 1 : 0]), confirm: vi.fn(async () => true), notify: vi.fn() },
   };
   const provider = vi.fn(async () => ({ ...answer }));
   const env: NodeJS.ProcessEnv = { OPENROUTER_API_KEY: "test-key-never-sent" };
@@ -49,7 +49,7 @@ describe("session-scoped handoff advice", () => {
     expect(details(await s.execute({ action: "status" }))).toMatchObject({ mode: "manual", availability: "manual-only", remaining: 0 });
     s.ctx.ui.confirm.mockResolvedValue(false);
     await s.controller.command("enable workflow", s.ctx);
-    expect(s.ctx.ui.select).toHaveBeenCalledTimes(1);
+    expect(s.ctx.ui.select).toHaveBeenCalledTimes(3);
     expect(details(await s.execute({ action: "status" })).enabled).toBe(false);
     expect(s.provider).not.toHaveBeenCalled();
   });
@@ -72,7 +72,7 @@ describe("session-scoped handoff advice", () => {
         remaining: command === "enable workflow" ? 3 : 0,
       });
     }
-    expect(s.ctx.ui.select).toHaveBeenCalledTimes(3);
+    expect(s.ctx.ui.select).toHaveBeenCalledTimes(6);
     expect(new Set(s.pi.appendEntry.mock.calls.map((call) => call[1].interactionId)).size).toBe(3);
     expect(s.provider).not.toHaveBeenCalled();
     expect(existsSync(s.storageHome)).toBe(false);
@@ -93,7 +93,7 @@ describe("session-scoped handoff advice", () => {
   it.each([false, true])("observes current credentials when the storage prompt completes (key present: %s)", async (present) => {
     const s = setup();
     if (present) delete s.env.OPENROUTER_API_KEY;
-    s.ctx.ui.select.mockImplementationOnce(async () => {
+    s.ctx.ui.select.mockResolvedValueOnce(0).mockImplementationOnce(async () => {
       if (present) s.env.OPENROUTER_API_KEY = "new-test-key";
       else delete s.env.OPENROUTER_API_KEY;
       return "No — use JEV without retaining data for LoRA";
@@ -118,7 +118,7 @@ describe("session-scoped handoff advice", () => {
     expect(details(await s.execute()).status).toBe("unavailable");
     await s.controller.command("enable workflow", s.ctx);
     expect(s.ctx.ui.confirm).toHaveBeenCalledTimes(2);
-    expect(s.ctx.ui.select).toHaveBeenCalledTimes(2);
+    expect(s.ctx.ui.select).toHaveBeenCalledTimes(4);
     expect(s.pi.appendEntry.mock.calls[1][1].interactionId).not.toBe(s.pi.appendEntry.mock.calls[0][1].interactionId);
     expect(s.provider).not.toHaveBeenCalled();
     expect(details(await s.execute())).toMatchObject({ status: "answered", remaining: 2,
@@ -149,8 +149,9 @@ describe("session-scoped handoff advice", () => {
     await s.controller.command("enable workflow", s.ctx);
     let selectionAtCall: string | undefined;
     s.provider.mockImplementation(async () => {
-      const directory = readdirSync(join(s.storageHome, "jev-workflow"))[0];
-      selectionAtCall = readFileSync(join(s.storageHome, "jev-workflow", directory, "selection.json"), "utf8");
+      const session = join(s.storageHome, "jev-workflow", readdirSync(join(s.storageHome, "jev-workflow"))[0]);
+      const directory = join(session, readdirSync(session)[0]);
+      selectionAtCall = readFileSync(join(directory, "selection.json"), "utf8");
       return answer;
     });
     const result = details(await s.execute());
@@ -242,7 +243,7 @@ describe("session-scoped handoff advice", () => {
     expect(details(await s.execute({ action: "status" })).availability).toBe("provider-error");
     await s.controller.command("enable workflow", s.ctx);
     expect(s.ctx.ui.confirm).toHaveBeenCalledTimes(2);
-    expect(s.ctx.ui.select).toHaveBeenCalledTimes(2);
+    expect(s.ctx.ui.select).toHaveBeenCalledTimes(4);
     expect(details(await s.execute()).status).toBe("answered");
     expect(s.provider).toHaveBeenCalledTimes(2);
   });
@@ -277,8 +278,9 @@ describe("session-scoped handoff advice", () => {
       if (change !== "identity-change") expect(providerSignal.aborted).toBe(true);
       finish(answer);
       expect(details(await pending).status).toBe("unavailable");
-      const directory = readdirSync(join(s.storageHome, "jev-workflow"))[0];
-      expect(existsSync(join(s.storageHome, "jev-workflow", directory, "outcome.json"))).toBe(false);
+      const session = join(s.storageHome, "jev-workflow", readdirSync(join(s.storageHome, "jev-workflow"))[0]);
+      const directory = join(session, readdirSync(session)[0]);
+      expect(existsSync(join(directory, "outcome.json"))).toBe(false);
       if (change === "new-activation") expect(details(await s.execute({ action: "status" }))).toMatchObject({ availability: "ready", remaining: 3 });
     },
   );
@@ -287,10 +289,11 @@ describe("session-scoped handoff advice", () => {
     let confirm!: (answer: boolean) => void;
     s.ctx.ui.confirm.mockImplementationOnce(() => new Promise((resolve) => { confirm = resolve; }));
     const old = s.controller.command("enable workflow", s.ctx);
+    await Promise.resolve();
     await s.controller.command("disable", s.ctx);
     confirm(true);
     await old;
-    expect(s.ctx.ui.select).not.toHaveBeenCalled();
+    expect(s.ctx.ui.select).toHaveBeenCalledTimes(1);
     let select!: (answer: string) => void;
     s.ctx.ui.select.mockImplementationOnce(() => new Promise((resolve) => { select = resolve; }));
     const second = s.controller.command("enable workflow", s.ctx);
@@ -306,8 +309,9 @@ describe("session-scoped handoff advice", () => {
     await s.controller.command("enable workflow", s.ctx);
     let outcomePath = "";
     s.provider.mockImplementationOnce(async () => {
-      const directory = readdirSync(join(s.storageHome, "jev-workflow"))[0];
-      outcomePath = join(s.storageHome, "jev-workflow", directory, "outcome.json");
+      const session = join(s.storageHome, "jev-workflow", readdirSync(join(s.storageHome, "jev-workflow"))[0]);
+      const directory = join(session, readdirSync(session)[0]);
+      outcomePath = join(directory, "outcome.json");
       writeFileSync(outcomePath, "existing file");
       return answer;
     });
@@ -497,11 +501,11 @@ describe("native structured JEV advice", () => {
     expect(inspect(await s.execute()).status).toBe("answered");
     expect(inspect(await s.execute(packet, undefined, "second-call")).reused).toBe(true);
     expect(s.provider).toHaveBeenCalledTimes(1);
-    expect(s.ctx.ui.select).toHaveBeenCalledTimes(1);
+    expect(s.ctx.ui.select).toHaveBeenCalledTimes(2);
     s.hooks.get("session_start")!();
     expect(inspect(await s.execute()).status).toBe("unavailable");
     await s.controller.command("enable workflow", s.ctx);
-    expect(s.ctx.ui.select).toHaveBeenCalledTimes(2);
+    expect(s.ctx.ui.select).toHaveBeenCalledTimes(4);
     expect(validate({ ...answer, advisory: false })).toBe(false);
   });
 });
@@ -570,7 +574,7 @@ describe.skipIf(!nativePackage)("Pi 1.1.0 tool-only Codemode composition", () =>
     expect(output(reused)).toContain('native-nested-');
     expect(s.provider).toHaveBeenCalledTimes(1);
     expect(s.ctx.ui.confirm).toHaveBeenCalledTimes(1);
-    expect(s.ctx.ui.select).toHaveBeenCalledTimes(1);
+    expect(s.ctx.ui.select).toHaveBeenCalledTimes(2);
     const partial = await run('const r=await Promise.allSettled([tools.jev_advice({action:"status"}),tools.jev_advice({action:"status",consent:"forged"})]); return r.map(x=>x.status);');
     expect(partial.isError).not.toBe(true);
     expect(scriptValue(partial)).toEqual(['fulfilled','rejected']);
@@ -630,5 +634,215 @@ describe.skipIf(!principalWorkflow)("Principal live candidate composition", () =
     await expect(s.execute(selected)).rejects.toThrow("candidate observation");
     expect(s.provider).toHaveBeenCalledTimes(1);
     expect(details(await s.execute({action:"status"})).remaining).toBe(2);
+  });
+});
+
+
+describe("Pi-configured OpenRouter credentials", () => {
+  it("reports configuration without resolving auth and resolves fresh credentials only for authorized distinct calls", async () => {
+    const s=setup(true);delete s.env.OPENROUTER_API_KEY;
+    const auth={getProviderAuthStatus:vi.fn(()=>({configured:true,label:"private config label"})),getApiKeyForProvider:vi.fn().mockResolvedValueOnce("native-test-key-one").mockResolvedValueOnce("native-test-key-two")};
+    s.ctx.modelRegistry=auth;
+    expect(details(await s.execute({action:"status"}))).toMatchObject({enabled:false,providerReadiness:"pi-configured"});
+    expect(details(await s.execute()).status).toBe("unavailable");
+    await s.controller.command("enable workflow",s.ctx);
+    expect(details(await s.execute({action:"status"}))).toMatchObject({availability:"ready",providerReadiness:"pi-configured",remaining:3});
+    expect(s.ctx.ui.notify.mock.lastCall?.[0]).toContain("credentials have not been resolved");
+    expect(auth.getApiKeyForProvider).not.toHaveBeenCalled();
+    const first=details(await s.execute());
+    expect((s.provider.mock.calls as any)[0][3].apiKey).toBe("native-test-key-one");
+    expect(details(await s.execute()).reused).toBe(true);
+    await s.execute({...packet,candidate:"second"});
+    expect(auth.getApiKeyForProvider.mock.calls).toEqual([["openrouter"],["openrouter"]]);
+    expect((s.provider.mock.calls as any)[1][3].apiKey).toBe("native-test-key-two");
+    expect(JSON.stringify(first)).not.toContain("native-test-key");
+    expect(readFileSync(first.source.path,"utf8")).not.toContain("native-test-key");
+    expect(JSON.stringify(s.ctx.ui.notify.mock.calls)).not.toContain("private config label");
+  });
+
+  it("preserves explicit environment precedence and sanitizes failed or blank native resolution without using a slot", async () => {
+    const s=setup(true);
+    const auth={getProviderAuthStatus:vi.fn(()=>({configured:true})),getApiKeyForProvider:vi.fn().mockRejectedValueOnce(new Error("private-command-output")).mockResolvedValueOnce(" ")};
+    s.ctx.modelRegistry=auth;await s.controller.command("enable workflow",s.ctx);
+    await s.execute();expect((s.provider.mock.calls as any)[0][3].apiKey).toBe(s.env.OPENROUTER_API_KEY);
+    expect(auth.getApiKeyForProvider).not.toHaveBeenCalled();
+    delete s.env.OPENROUTER_API_KEY;
+    for(const candidate of ["second","third"]){
+      const result=details(await s.execute({...packet,candidate}));
+      expect(result).toMatchObject({status:"unavailable",remaining:2});
+      expect(result.reason).toContain("could not be resolved");expect(JSON.stringify(result)).not.toContain("private-command-output");
+    }
+    expect(s.provider).toHaveBeenCalledTimes(1);
+    expect(readdirSync(join(s.storageHome,"jev-workflow"))).toHaveLength(1);
+  });
+
+  it.each(["disable","session-change"])("serializes auth resolution and refuses late credentials after %s", async change => {
+    const s=setup(true);delete s.env.OPENROUTER_API_KEY;
+    let resolve!: (value:string)=>void;
+    const auth={getProviderAuthStatus:()=>({configured:true}),getApiKeyForProvider:vi.fn(()=>new Promise<string>(done=>{resolve=done;}))};
+    s.ctx.modelRegistry=auth;await s.controller.command("enable workflow",s.ctx);
+    const first=s.execute();
+    expect(details(await s.execute({...packet,candidate:"second"}))).toMatchObject({status:"unavailable",remaining:3,reason:expect.stringContaining("in flight")});
+    if(change==="disable")await s.controller.command("disable",s.ctx);else s.setId("new-session");
+    resolve("late-native-test-key");expect(details(await first)).toMatchObject({status:"unavailable",remaining:3});
+    expect(auth.getApiKeyForProvider).toHaveBeenCalledTimes(1);expect(s.provider).not.toHaveBeenCalled();
+    expect(existsSync(s.storageHome)).toBe(false);
+  });
+
+  it("rechecks selected evidence after asynchronous native resolution before retention or a paid slot", async () => {
+    const s=setup(true);delete s.env.OPENROUTER_API_KEY;
+    const path=join(s.root,"evidence.txt");writeFileSync(path,"original");
+    const sha256=createHash("sha256").update("original").digest("hex");
+    let resolve!: (value:string)=>void;
+    s.ctx.modelRegistry={getProviderAuthStatus:()=>({configured:true}),getApiKeyForProvider:()=>new Promise<string>(done=>{resolve=done;})};
+    await s.controller.command("enable workflow",s.ctx);
+    const pending=s.execute({...packet,evidenceRefs:[{path,sha256}]});
+    writeFileSync(path,"changed");resolve("native-test-key");
+    expect(details(await pending)).toMatchObject({status:"unavailable",remaining:3});
+    expect(s.provider).not.toHaveBeenCalled();expect(existsSync(s.storageHome)).toBe(false);
+  });
+});
+
+
+function nativeSetup(storage = false) {
+  const s = setup(storage);
+  const models: any[] = [
+    { type: "classifier", provider: "typesafe", id: "jev-latest", api: "typesafe-system-one",
+      baseUrl: "https://synthetic.invalid/v1", input: ["text"], contextWindow: 64000,
+      cost: { input: 0.1, output: 0, cacheRead: 0, cacheWrite: 0 }, headers: { "x-fixture": "private-fixture-header" } },
+    { type: "classifier", provider: "openrouter", id: "typesafe/jev-1.13", api: "typesafe-system-one",
+      baseUrl: "https://synthetic.invalid/api/v1", input: ["text"], contextWindow: 32000,
+      cost: { input: 0.1, output: 0, cacheRead: 0, cacheWrite: 0 } },
+  ];
+  const sent = vi.fn();
+  let authWait = Promise.resolve();
+  const registry = {
+    getModelsOfType: vi.fn(() => models),
+    getProviderAuthStatus: vi.fn(() => ({ configured: true })),
+    getApiKeyForProvider: vi.fn(async () => { throw new Error("must not extract native credentials"); }),
+    classify: vi.fn(async (model: any, context: any, options: any) => {
+      await authWait;
+      await options.transformHeaders({ authorization: "private-native-auth" });
+      sent(model, context, options);
+      return { api: model.api, provider: model.provider, model: model.id, stopReason: "stop", timestamp: 1,
+        answers: { decision: { type: "bool", probability: 0.75 } },
+        usage: { input: 12, output: 1, cost: { total: 0.00001 } } };
+    }),
+  };
+  s.ctx.modelRegistry = registry;
+  s.ctx.ui.select.mockImplementation(async (title: string, choices: string[]) =>
+    choices[title.startsWith("Choose") ? 0 : storage ? 1 : 0]);
+  return { ...s, models, registry, sent, waitForAuth: (promise: Promise<void>) => { authWait = promise; } };
+}
+
+describe("native JEV provider selection", () => {
+  it("selects the exact configured classifier before consent and retains route-bound unlabeled advice", async () => {
+    const s = nativeSetup(true);
+    s.models.push({ ...s.models[0], provider: "openai", id: "jev-1.13" }, { ...s.models[0], id: "clef" },
+      { ...s.models[0], type: "chat", id: "jev-router" });
+    await s.controller.command("enable workflow", s.ctx);
+    const choices = s.ctx.ui.select.mock.calls[0][1];
+    expect(choices).toHaveLength(2);
+    expect(choices[0]).toBe("typesafe / jev-latest (configured in Pi)");
+    expect(s.ctx.ui.select.mock.invocationCallOrder[0]).toBeLessThan(s.ctx.ui.confirm.mock.invocationCallOrder[0]);
+    expect(s.ctx.ui.confirm.mock.calls[0][1]).toContain("typesafe / jev-latest");
+    const status = details(await s.execute({ action: "status" }));
+    expect(status).toMatchObject({ selectedProvider: "typesafe", selectedModel: "jev-latest", transport: "pi-classifier", providerReadiness: "pi-configured" });
+    expect(s.registry.classify).not.toHaveBeenCalled();
+    expect(s.registry.getApiKeyForProvider).not.toHaveBeenCalled();
+    const result = details(await s.execute());
+    expect(result).toMatchObject({ status: "answered", probability: 0.75, provider: "typesafe", requestedModel: "jev-latest",
+      resolvedModel: null, returnedProvider: "typesafe", returnedModel: "jev-latest", costSource: "pi-catalog-estimate", remaining: 2 });
+    expect(s.sent.mock.calls[0][1]).toMatchObject({ state: { input: prepareHandoff(packet).input }, questions: { decision: { type: "bool", instructions: JEV_QUESTION } } });
+    expect(s.sent.mock.calls[0][2]).toMatchObject({ maxRetries: 0 });
+    expect(s.sent.mock.calls[0][2].apiKey).toBeUndefined();
+    const retained = readFileSync(result.source.path, "utf8");
+    expect(JSON.parse(retained)).toMatchObject({ schema: 3, route: { provider: "typesafe", model: "jev-latest" },
+      authorization: { kind: "jev-workflow-paid-scope-v2" }, labelStatus: "unlabeled", trainingEligible: false });
+    for (const secret of ["private-fixture-header", "private-native-auth", "synthetic.invalid"])
+      expect(retained + JSON.stringify(s.ctx.ui.notify.mock.calls) + JSON.stringify(result)).not.toContain(secret);
+    expect(details(await s.execute())).toMatchObject({ reused: true, remaining: 2 });
+    expect(s.sent).toHaveBeenCalledTimes(1);
+    expect(s.provider).not.toHaveBeenCalled();
+    expect(new Ajv({ strict: false }).compile(s.tool.outputSchema)(result)).toBe(true);
+  });
+  it("cancels reactivation without retaining older consent and refuses native unavailability without legacy fallback", async () => {
+    const s = nativeSetup();
+    await s.controller.command("enable workflow", s.ctx);
+    s.ctx.ui.select.mockResolvedValueOnce(undefined);
+    await s.controller.command("enable workflow", s.ctx);
+    expect(s.controller.status(s.ctx)).toMatchObject({ enabled: false, selectedProvider: null, selectedModel: null, transport: null });
+    expect(s.pi.appendEntry).toHaveBeenCalledTimes(1);
+    expect(s.ctx.ui.confirm).toHaveBeenCalledTimes(1);
+    s.models.length = 0;
+    await expect(s.controller.command("enable workflow", s.ctx)).rejects.toThrow("No supported JEV classifier");
+    expect(s.provider).not.toHaveBeenCalled();
+    expect(s.registry.classify).not.toHaveBeenCalled();
+  });
+  it("asks fresh paid and storage consent for another provider and applies an OpenRouter override only to OpenRouter", async () => {
+    const s = nativeSetup();
+    await s.controller.command("enable workflow", s.ctx);
+    await s.execute();
+    s.ctx.ui.select.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+    await s.controller.command("enable workflow", s.ctx);
+    expect(s.controller.status(s.ctx)).toMatchObject({ selectedProvider: "openrouter", selectedModel: "typesafe/jev-1.13", remaining: 3, providerReadiness: "key-present" });
+    await s.execute();
+    expect(s.sent.mock.calls[1][2].apiKey).toBe(s.env.OPENROUTER_API_KEY);
+    expect(s.ctx.ui.confirm).toHaveBeenCalledTimes(2);
+    expect(new Set(s.pi.appendEntry.mock.calls.map(call => call[1].interactionId)).size).toBe(2);
+  });
+  it.each(["disable", "session-change", "model-change", "evidence-change", "tool-abort"])("serializes native auth and refuses %s before retaining or dispatching", async change => {
+    const s = nativeSetup(true);
+    const path = join(s.root, "evidence.txt"); writeFileSync(path, "original");
+    const sha256 = createHash("sha256").update("original").digest("hex");
+    let resolve!: () => void; s.waitForAuth(new Promise(done => { resolve = done; }));
+    await s.controller.command("enable workflow", s.ctx);
+    const abort = new AbortController();
+    const pending = s.execute({ ...packet, evidenceRefs: [{ path, sha256 }] }, abort.signal);
+    expect(details(await s.execute({ ...packet, candidate: "second" }))).toMatchObject({ status: "unavailable", remaining: 3, reason: expect.stringContaining("in flight") });
+    if (change === "disable") await s.controller.command("disable", s.ctx);
+    else if (change === "session-change") s.setId("another-session");
+    else if (change === "model-change") s.models[0].baseUrl = "https://changed.invalid";
+    else if (change === "evidence-change") writeFileSync(path, "changed");
+    else abort.abort();
+    resolve();
+    expect(details(await pending)).toMatchObject({ status: "unavailable", remaining: 3 });
+    expect(s.sent).not.toHaveBeenCalled();
+    expect(s.provider).not.toHaveBeenCalled();
+    expect(existsSync(s.storageHome)).toBe(false);
+  });
+  it("freezes the configured central root per activation, partitions sessions, and writes nothing when storage is declined", async () => {
+    const s = nativeSetup();
+    const firstRoot = join(s.root, "central-one"), secondRoot = join(s.root, "central-two");
+    s.env.SKILL_HARNESS_DATA_ROOT = firstRoot;
+    const controller = createJevController(s.pi, { env: s.env });
+    const tool = createJevAdviceTool(controller);
+    const evaluate = () => tool.execute("central-tool", packet, undefined, undefined, s.ctx);
+    await controller.command("enable workflow", s.ctx);
+    expect(controller.status(s.ctx)).toMatchObject({ storageRoot: firstRoot, storage: "declined" });
+    expect(s.ctx.ui.select.mock.calls.at(-1)?.[0]).toContain(firstRoot);
+    await evaluate();
+    expect(existsSync(firstRoot)).toBe(false);
+    s.ctx.ui.select.mockImplementation(async (title: string, choices: string[]) => choices[title.startsWith("Choose") ? 0 : 1]);
+    await controller.command("enable workflow", s.ctx);
+    s.env.SKILL_HARNESS_DATA_ROOT = secondRoot;
+    const retained = (await evaluate()).details as any;
+    expect(retained.source.path).toContain(firstRoot + "/jev-workflow/session-");
+    expect(existsSync(secondRoot)).toBe(false);
+    s.setId("second-session");
+    await controller.command("enable workflow", s.ctx);
+    const second = (await evaluate()).details as any;
+    expect(second.source.path).toContain(secondRoot + "/jev-workflow/session-");
+    expect(controller.status(s.ctx).storageRoot).toBe(secondRoot);
+  });
+  it("sanitizes native authentication errors without consuming a call or writing a selection", async () => {
+    const s = nativeSetup(true);
+    s.registry.classify.mockResolvedValueOnce({ stopReason: "error", errorMessage: "private credential command output" } as any);
+    await s.controller.command("enable workflow", s.ctx);
+    const result = details(await s.execute());
+    expect(result).toMatchObject({ status: "unavailable", remaining: 3 });
+    expect(JSON.stringify(result)).not.toContain("private credential");
+    expect(existsSync(s.storageHome)).toBe(false);
+    expect(s.sent).not.toHaveBeenCalled();
   });
 });

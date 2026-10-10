@@ -6,20 +6,43 @@ Install the published CLI with `npm install -g skill-harness` and the Pi extensi
 
 In Pi, run `/skill-harness jev enable`. Every enable asks whether to retain this session's explicitly selected decision inputs/questions for future LoRA dataset review. **No** is the default and still permits JEV calls under the selected mode. A cancelled prompt means No. Enabling again asks again; startup, reload and a different session clear activation. An older unanswered prompt cannot restore permission after disabling or a newer choice.
 
-Activation records session permission and the storage choice separately from provider readiness. Its confirmation immediately reports whether `OPENROUTER_API_KEY` is present in the current Pi process. A missing or blank key leaves calls unavailable even after authorization; no paid probe is made. Set the key in the environment that launches Pi, restart Pi, and enable JEV again with fresh consent. Exporting a key in another shell does not update an already running Pi process. Key presence alone does not verify credentials, provider access or billing.
+Activation first asks you to select a JEV classifier from Pi's model registry. Supported System One routes include TypeSafe, OpenRouter and Cloudflare, plus other configured providers using the same qualified classifier protocol. Chat models and OpenAI Decisions are excluded. Cancelling selection leaves JEV disabled. Changing the route requires enabling again, choosing a model and renewing paid-call/storage consent.
 
-`/skill-harness jev run` asks for a curated cases file and a new output path, shows the outbound requests, and asks before the selected metered JEV call. `/skill-harness jev status` shows this session's choice; `/skill-harness jev disable` stops further calls and retention. Existing local files remain available for deliberate review/removal. There is no background transcript collector, private-reasoning extraction or automatic model training.
+Pi resolves the selected provider's configured credential only for an authorized call. Status and the picker inspect metadata; `pi-configured` means configuration exists, not that credentials or access have been verified. No credential command or paid probe runs just to display status. An explicit `OPENROUTER_API_KEY` can override native OpenRouter authentication; it is never applied to another provider. There is no automatic provider/model fallback. Session, selected model configuration, candidate and evidence are rechecked after authentication and before dispatch. Calls disable native retries.
 
-The standalone `skill-harness decision run` command asks the same storage question on an interactive terminal. Noninteractive invocations require `--storage yes|no`; `--session-id ID` may bind an explicitly known session. A choice is never inherited. Successful activation writes a consent receipt alongside the new result; a Yes also writes a `.learning.json` copy containing only selected case inputs/questions and their public source identifiers, with `labelStatus: unlabeled` and `trainingEligible: false`. Result predictions remain research evidence under either choice; No prevents the extra learning-data copy. Session consent is checked again immediately before retention and each remote call.
+Native results report the requested provider/model, boolean probability and available usage. Pi echoes the requested model identity, so backend-resolved revisions remain unknown. Costs are **Pi catalog estimates**, not invoice amounts. The integration preserves these distinctions in versioned results. Offline checks qualify the native interfaces on Pi 1.0.4 and 1.1.0; they do not establish real provider access or decision quality.
+
+When the host lacks native classifier support, the picker explicitly offers the historical OpenRouter route. The standalone CLI also retains that route and requires `OPENROUTER_API_KEY`; it does not have a Pi model registry. Exporting a key in another shell does not update an already running Pi process.
+
+`/skill-harness jev run` asks for a curated cases file and a new output path, shows the selected classifier inputs (Pi prepares provider wire requests), and asks before the selected metered JEV call. `/skill-harness jev status` shows this session's choice; `/skill-harness jev disable` stops further calls and retention. Existing local files remain available for deliberate review/removal. There is no background transcript collector, private-reasoning extraction or automatic model training.
+
+The standalone `skill-harness decision run` command asks the same storage question on an interactive terminal. Noninteractive invocations require `--storage yes|no`; `--session-id ID` may bind an explicitly known session. A choice is never inherited. Successful activation writes a consent receipt alongside the new result; a Yes also writes a `.learning.json` copy containing only selected case inputs/questions and their public source identifiers, with `labelStatus: unlabeled` and `trainingEligible: false`. Result predictions remain research evidence under either choice; No prevents the extra learning-data copies. With Yes, a private central collection also retains the selected-data record, consent and result file; the adjacent sidecar remains for compatibility. Session consent is checked again immediately before retention and each remote call.
 
 JEV uses its separately metered API and requires explicitly selected cases plus `--allow-remote`. OpenAI Decisions is excluded. The subscription baseline below executes through Pi and cannot switch to a paid provider. Neither model output nor consent grants runtime permissions or approval.
 
 
+## One local collection root
+
+All newly consented sessions collect under `~/.skill-harness` by default, independent of the project directory. Set an absolute `SKILL_HARNESS_DATA_ROOT` before starting Pi or the standalone CLI to choose another private root. Pi freezes that root for the activation, displays it in storage consent and status, and asks the storage question every session. No storage choice is inherited.
+
+```text
+<root>/
+  jev-workflow/session-<session-hash>/selection-*/
+    selection.json, input.txt, evidence.json, outcome.json, ...
+  jev-manual/session-<session-hash>/run-*/
+    consent.json, selected-data.json, results.jsonl
+```
+
+Folders/files are private and newly allocated without overwriting earlier runs. Concurrent sessions have distinct collections. Existing flat workflow selections remain where they were; no migration or transcript scan occurs. Missing or interrupted outcomes remain missing. Manual results may have an incomplete central copy if consent is revoked or storage fails; the command reports its collection status.
+
+Use `skill-harness decision collections` (or `--root /absolute/collection-root`) for a free read-only inventory of known collections, source hashes and gaps. It prints no selected input text and does not validate evidence or approve training. Keep this root private when copying it between machines; automatic synchronization is not provided.
+
+Collected data remains unlabeled. Explicit curation/redaction/rights checks, independent labels and task-separated evaluation splits are still required for `export-learning`. Put reviewed exports in a separate new directory, such as `<root>/exports/reviewed-YYYYMMDD`; gathering data in one root does not authorize training.
+
 ## Optional workflow handoff advice
 
 Run `/skill-harness jev enable workflow` once in the coordinating Pi session.
-It first asks permission for up to **three automatic workflow metered JEV calls** through OpenRouter
-(`typesafe/jev-1.13`, `OPENROUTER_API_KEY`), then asks a fresh storage question.
+It asks you to choose the provider/model, then asks permission for up to **three automatic workflow metered JEV calls** on that route and a fresh storage question.
 A ChatGPT/Pi subscription does not cover these calls. Cancelling paid permission
 leaves workflow advice disabled. Cancelling storage means No. Existing manual
 activation and saved consent receipts cannot authorize workflow calls; the legacy
@@ -34,12 +57,12 @@ The registered model tool has three closed forms. Optional `evidenceRefs` on eva
 ```
 
 Invoke these through `jev_advice`, not a shell command. Status is free and reports
-`enabled`, `mode`, `storage`, `remaining`, `availability` and `providerReadiness`
-(`key-present` or `missing-key`). `enabled` means session activation exists; it does
+`enabled`, `mode`, `storage`, `storageRoot`, `selectedProvider`, `selectedModel`, `transport`, `remaining`, `availability` and `providerReadiness`
+(`key-present`, `pi-configured`, or `missing-key`). `enabled` means session activation exists; it does
 not establish provider readiness. `manual-only` describes tool authorization, while
 `providerReadiness` exposes key availability in either mode. `ready` means workflow
 evaluation may be attempted, not that a provider call or credential check passed.
-Status rechecks local key presence without calling the provider. Evaluate is enabled
+Status rechecks environment/configuration metadata without resolving credentials or calling the provider. Evaluate is enabled
 only in workflow mode and asks this fixed question:
 
 > Given the stated stage, unresolved engineering uncertainty, requirements and selected evidence, is the proposed next action justified? Assess that action only, not final acceptance or whether mandatory later review is complete.
@@ -68,12 +91,12 @@ it cannot undo an already-dispatched charge. Child sessions do not inherit opt-i
 With storage **No**, workflow advice creates no additional harness dataset files.
 Pi's own native session can still record tool inputs/results. With **Yes**, exact
 selected packets are written before dispatch under
-`~/.skill-harness/jev-workflow/selection-*/selection.json`. `input.txt` preserves the exact outbound UTF-8 input with no added newline or JSON reformatting. Optional `decision-evidence-*.bin` files and `evidence.json` preserve local reference bytes; these are not remote payloads. The provider response is written separately to `outcome.json`; its name does not mean it is an independently verified engineering outcome. A failed or interrupted attempt can leave a
+`~/.skill-harness/jev-workflow/session-<session-hash>/selection-*/selection.json`. `input.txt` preserves the exact selected UTF-8 input with no added newline or JSON reformatting. Optional `decision-evidence-*.bin` files and `evidence.json` preserve local reference bytes; these are not remote payloads. The provider response is written separately to `outcome.json`; its name does not mean it is an independently verified engineering outcome. A failed or interrupted attempt can leave a
 selection without an outcome. Directories are private and files are exclusive;
 existing records are never overwritten. Inspect the returned selection path when
 reviewing or removing retained data.
 
-The selection's distinct schema-2 `skill-harness-selected-decision-v2` receipt (historical `skill-harness-selected-handoff-v1` files are unchanged) binds its
+The native selection's schema-3 `skill-harness-selected-decision-v3` receipt additionally binds the chosen route, model configuration digest and exact classifier-context digest. Legacy schema-2 `skill-harness-selected-decision-v2` keeps its historical OpenRouter meaning; neither it nor older `skill-harness-selected-handoff-v1` files are rewritten. Each current selection binds its
 bytes and exact input digest to the **actual SDK Pi session ID and tool-call ID**,
 plus that activation's consent and paid scope. Later predictions do not change its
 hash. Optional local refs have `sourceBinding: local-reference-digests-verified`; otherwise source binding remains unassessed. Candidate identity is **principal-runtime-observed** only after that session-bound check; otherwise it remains **caller-claimed**. The snapshot and observation time are retained locally, and reference hashes do not verify the narrative, source independence, redaction or rights. Labels are absent
@@ -90,7 +113,7 @@ This is preparation for human-reviewed learning data, not an automatic learning 
 
 ## Optional pi-daddy dashboard controls
 
-The dashboard can read JEV readiness or request enable/disable through the optional same-process `skill-harness:jev-control-v1` bridge. Requests bind version, nonce and actual parent session ID; duplicate clicks do not duplicate consent dialogs. Enabling always invokes the existing **parent Pi** paid-scope confirmation followed by the LoRA storage choice. The dashboard shows pending consent until those dialogs settle. Auto permissions never answer either question, and the bridge accepts no credential/consent override. Disabling revokes pending activation/provider work; an old unanswered dialog cannot restore it. Reload/session changes clear activation and bind controls to the current parent context. Status remains free and distinguishes authorization, missing key and remaining calls.
+The dashboard can read JEV readiness or request enable/disable through the optional same-process `skill-harness:jev-control-v1` bridge. Requests bind version, nonce and actual parent session ID; duplicate clicks do not duplicate consent dialogs. Enabling invokes the **parent Pi** provider/model picker, paid-scope confirmation and LoRA storage choice. Current pi-daddy Settings shows the selected model, transport and local data root; it clears the temporary consent notice after the dialogs settle. The dashboard shows pending consent until those dialogs settle. Auto permissions never answer either question, and the bridge accepts no credential/consent override. Disabling revokes pending activation/provider work; an old unanswered dialog cannot restore it. Reload/session changes clear activation and bind controls to the current parent context. Status remains free and distinguishes authorization, missing key and remaining calls.
 
 ## Tool-only Codemode composition
 
@@ -187,7 +210,7 @@ For a retained JEV workflow decision, use the separate command:
 skill-harness decision import-workflow --cases ONE_CASE.json --selection WORKFLOW_SELECTION.json --consent CURRENT_CONSENT.json --entry EXPERIMENT_ENTRY.json --out NEW_RECEIPT.json
 ```
 
-`WORKFLOW_SELECTION.json` explicitly selects a single schema-2 `selection.json`:
+`WORKFLOW_SELECTION.json` explicitly selects a single schema-2 (legacy) or schema-3 (native) `selection.json`:
 
 ```json
 {
@@ -199,7 +222,7 @@ skill-harness decision import-workflow --cases ONE_CASE.json --selection WORKFLO
 }
 ```
 
-Prepare one observed case whose `source.sha256` is that selection-file digest and whose `source.recordId` is its actual `toolCallId`. Copy the original question and exact outbound input; any chosen redactions must be listed as `{from,to}` placeholder replacements and the case input must match their result exactly. The experiment entry records the curator's decision-time, redaction and rights review. Both the selection's recorded storage grant and the supplied current same-session grant are required. A current decline refuses import.
+Prepare one observed case whose `source.sha256` is that selection-file digest and whose `source.recordId` is its actual `toolCallId`. Copy the original question and exact selected input; any chosen redactions must be listed as `{from,to}` placeholder replacements and the case input must match their result exactly. The experiment entry records the curator's decision-time, redaction and rights review. Both the selection's recorded storage grant and the supplied current same-session grant are required. A current decline refuses import.
 
 The adapter reads only explicitly selected records and their fixed retained sibling files. It verifies `selection.json`, exact `input.txt`, decision-evidence digests and any explicitly selected `engineering-*.json` records supplied as `{path,sha256}` entries in `engineering`. It reads retained evidence copies, never their recorded original paths. A caller-claimed candidate remains caller-claimed; a Principal observation is historical provenance, not a fresh workspace check. Historical selection-v1 records are unsupported. The existing Linux-only, no-symlink reader applies: selection/mapping records are limited to 1 MiB; retained evidence copies may be up to 2 MiB, matching the workflow producer.
 

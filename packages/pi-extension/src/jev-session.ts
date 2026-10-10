@@ -7,13 +7,17 @@ import { main as decisionMain } from "../../../experiments/decision-shadow/main.
 import { createStorageConsent } from "../../../experiments/decision-shadow/learning-data.mjs";
 // @ts-expect-error Shared provider validation/transport has dedicated boundary tests.
 import { callProvider } from "../../../experiments/decision-shadow/providers.mjs";
-import type { ExtensionAPI, CmdCtx } from "./commands.js";
+// @ts-expect-error Shared native classifier contract is covered by dedicated behavioral tests.
+import { isNativeJevModel, nativeModelSha256, validateNativeRoute, makeNativeRequest, normalizeNativeResult } from "../../../experiments/decision-shadow/native-jev.mjs";
+// @ts-expect-error Shared local storage resolver is covered by dedicated tests.
+import { resolveDataRoot } from "../../../experiments/decision-shadow/data-root.mjs";
+import type { ExtensionAPI, CmdCtx, NativeClassifierModel } from "./commands.js";
 import {
-  JEV_PROVIDER, JEV_MODEL, JEV_QUESTION, JEV_WORKFLOW_LIMIT, JEV_SOURCE_KIND,
-  prepareHandoff, createHandoffSource, retainHandoffSource, requireIdentity, type HandoffPacket,
+  JEV_PROVIDER, JEV_MODEL, JEV_QUESTION, JEV_WORKFLOW_LIMIT,
+  prepareHandoff, createHandoffSource, retainHandoffSource, requireIdentity, type HandoffPacket, type NativeJevRoute,
 } from "./jev-packet.js";
 
-export type JevContext = Pick<CmdCtx, "sessionManager" | "cwd">;
+export type JevContext = Pick<CmdCtx, "sessionManager" | "cwd" | "modelRegistry">;
 export interface AdviceResult {
   advisory: true;
   status: "answered" | "unavailable";
@@ -23,19 +27,29 @@ export interface AdviceResult {
   resolvedModel: string | null;
   usage: { inputTokens: number | null; outputTokens: number | null; costUsd: number | null };
   latencyMs: number | null;
+  returnedProvider?: string | null;
+  returnedModel?: string | null;
+  costSource?: "pi-catalog-estimate" | null;
   reason?: string;
   remaining: number;
   inputSha256?: string;
   source?: { kind: string; sha256: string; sessionId: string; toolCallId: string; retained: boolean; path?: string; candidateIdentity: string; sourceBinding: string };
   reused?: boolean;
 }
-const unmeasuredProvider = () => ({
-  provider: JEV_PROVIDER, requestedModel: JEV_MODEL, resolvedModel: null,
+interface NativeSelection {
+  route: NativeJevRoute;
+  model: NativeClassifierModel;
+  registry: NonNullable<CmdCtx["modelRegistry"]>;
+}
+const unmeasuredProvider = (selection?: NativeSelection | null) => ({
+  provider: selection?.route.provider ?? JEV_PROVIDER, requestedModel: selection?.route.model ?? JEV_MODEL, resolvedModel: null,
   usage: { inputTokens: null, outputTokens: null, costUsd: null }, latencyMs: null,
 });
-const missingKeyRemedy = "Set OPENROUTER_API_KEY in the environment that launches Pi, restart Pi, then enable JEV again with fresh session consent.";
+const missingKeyRemedy = "Configure OpenRouter in Pi, or set OPENROUTER_API_KEY in the environment that launches Pi, restart Pi, then enable JEV again with fresh session consent.";
 interface Activation {
   sessionId: string;
+  selection: NativeSelection | null;
+  storageRoot: string;
   consent: any;
   mode: "manual" | "workflow";
   authorization: unknown;
@@ -74,19 +88,68 @@ export function createJevController(
     if (active && active.sessionId !== id) clearSession();
     return id;
   };
-  const hasKey = () => !!(options.env ?? process.env).OPENROUTER_API_KEY?.trim();
+  const environmentKey = () => {
+    const key = (options.env ?? process.env).OPENROUTER_API_KEY;
+    return key?.trim() ? key : undefined;
+  };
+  // Free status reads configuration metadata only: never resolve command/OAuth credentials here.
+  const readiness = (ctx: JevContext, selection = active?.selection): "key-present" | "pi-configured" | "missing-key" => {
+    if ((!selection || selection.route.provider === "openrouter") && environmentKey()) return "key-present";
+    try {
+      if (ctx.modelRegistry?.getProviderAuthStatus?.(selection?.route.provider ?? "openrouter").configured === true)
+        return "pi-configured";
+    } catch { /* Status remains conservative without exposing credential-manager errors. */ }
+    return "missing-key";
+  };
+  const nativeKey = async (ctx: JevContext) => {
+    try {
+      const key = await ctx.modelRegistry?.getApiKeyForProvider?.("openrouter");
+      return environmentKey() ?? (typeof key === "string" && key.trim() ? key : undefined);
+    } catch { return undefined; } // Auth errors can include private command output; never return them.
+  };
+  const assertRoute = (selection: NativeSelection, ctx: JevContext) => {
+    const current = selection.registry.getModelsOfType?.("classifier").find(model =>
+      model.provider === selection.route.provider && model.id === selection.route.model);
+    if (ctx.modelRegistry !== selection.registry || !current || !isNativeJevModel(current) || nativeModelSha256(current) !== selection.route.modelSha256)
+      throw new Error("Selected JEV model configuration changed; enable again and choose the model");
+  };
+  const classify = async (selection: NativeSelection, example: { input: string; question: string }, signal: AbortSignal,
+    ctx: JevContext, beforeDispatch: () => void) => {
+    assertRoute(selection, ctx);
+    const started = performance.now();
+    let dispatched = false;
+    const result = await selection.registry.classify!(selection.model, makeNativeRequest(example), {
+      signal, maxRetries: 0,
+      ...(selection.route.provider === "openrouter" && environmentKey() ? { apiKey: environmentKey() } : {}),
+      transformHeaders: async headers => {
+        if (signal.aborted) throw new Error("JEV request cancelled");
+        assertRoute(selection, ctx);
+        if (dispatched) throw new Error("Duplicate JEV dispatch refused");
+        beforeDispatch();
+        dispatched = true;
+        return headers; // Native auth owns the contents; never retain or inspect them.
+      },
+    }).catch(() => { throw new Error("Native JEV request unavailable or cancelled"); });
+    if (!dispatched) throw new Error("Native JEV authentication or dispatch was unavailable");
+    return normalizeNativeResult(selection.route, result, performance.now() - started);
+  };
   const status = (ctx: JevContext) => {
     const id = currentId(ctx);
+    const providerReadiness = readiness(ctx);
     const availability = !id ? "missing-session" : !active ? "disabled"
       : active.mode === "manual" ? "manual-only"
       : active.blocked ?? (active.busy ? "busy" : active.used >= JEV_WORKFLOW_LIMIT ? "limit-reached"
-        : !hasKey() ? "missing-key" : "ready");
+        : providerReadiness === "missing-key" ? "missing-key" : "ready");
     return {
       enabled: active !== null, mode: active?.mode ?? "disabled",
       storage: active?.consent.decision ?? null,
       remaining: active?.mode === "workflow" ? JEV_WORKFLOW_LIMIT - active.used : 0,
       availability,
-      providerReadiness: hasKey() ? "key-present" : "missing-key",
+      providerReadiness,
+      storageRoot: active?.storageRoot ?? null,
+      selectedProvider: active ? active.selection?.route.provider ?? "openrouter" : null,
+      selectedModel: active ? active.selection?.route.model ?? JEV_MODEL : null,
+      transport: active ? active.selection ? "pi-classifier" : "legacy-openrouter" : null,
       advisory: true,
     };
   };
@@ -96,13 +159,14 @@ export function createJevController(
     const packet = prepareHandoff(value);
     const id = currentId(ctx);
     const unavailable = (reason: string): AdviceResult => ({
-      advisory: true, status: "unavailable", probability: null, reason, ...unmeasuredProvider(),
+      advisory: true, status: "unavailable", probability: null, reason, ...unmeasuredProvider(active?.selection),
       remaining: active?.mode === "workflow" ? JEV_WORKFLOW_LIMIT - active.used : 0,
     });
     if (!id || !active || active.mode !== "workflow")
       return unavailable("Explicit /skill-harness jev enable workflow activation is required in this Pi session.");
     const bound = active;
     const assertCurrent = () => {
+      if (bound.selection) assertRoute(bound.selection, ctx);
       if (active !== bound || ctx.sessionManager?.getSessionId() !== bound.sessionId || bound.abort.signal.aborted || signal?.aborted)
         throw new Error("Session, authorization or tool execution changed");
     };
@@ -110,13 +174,13 @@ export function createJevController(
 
     if (bound.blocked) return unavailable("Workflow advice is suppressed after an error; explicit new activation is required.");
     if (bound.busy) return unavailable("An advisory request is already in flight; no additional call was made.");
-    const candidateObservation = observePrincipalCandidate(pi, ctx, value.candidate);
-    const evidence = verifyEvidence(value.evidenceRefs, ctx.cwd);
-    const cacheKey = sha256(JSON.stringify({ inputSha256: packet.inputSha256, evidenceRefs: evidenceReferences(evidence), candidate: candidateObservation?.candidate ?? null }));
+    assertCurrent();
+    let candidateObservation = observePrincipalCandidate(pi, ctx, value.candidate);
+    let evidence = verifyEvidence(value.evidenceRefs, ctx.cwd);
+    const cacheKey = sha256(JSON.stringify({ route: bound.selection?.route ?? null, inputSha256: packet.inputSha256, evidenceRefs: evidenceReferences(evidence), candidate: candidateObservation?.candidate ?? null }));
     const cached = bound.cache.get(cacheKey);
     if (cached) return { ...cached, remaining: JEV_WORKFLOW_LIMIT - bound.used, reused: true };
     if (bound.used >= JEV_WORKFLOW_LIMIT) return unavailable("This activation's advisory call limit is reached.");
-    if (!hasKey()) return unavailable(`OPENROUTER_API_KEY is unavailable; no call was made. ${missingKeyRemedy}`);
     const abort = new AbortController();
     const cancel = () => abort.abort();
     const signals = [bound.abort.signal, signal].filter((s): s is AbortSignal => s !== undefined);
@@ -124,37 +188,51 @@ export function createJevController(
       if (s.aborted) cancel();
       else s.addEventListener("abort", cancel, { once: true });
     }
-    bound.busy = true;
-    bound.used++; // Reserve synchronously, before I/O or any await.
+    bound.busy = true; // Serialize before asynchronous native credential resolution.
     let receipt: AdviceResult["source"];
     try {
       assertCurrent();
-      const source = createHandoffSource({
-        packet, sessionId: bound.sessionId, toolCallId,
-        consent: bound.consent, authorization: bound.authorization, evidence, candidateObservation,
-      });
-      const retained = bound.consent.decision === "granted"
-        ? retainHandoffSource(source, assertCurrent, options.storageHome, evidence)
-        : undefined;
-      if (retained) bound.selections.set(source.sha256, { candidate: value.candidate, inputSha256: packet.inputSha256, retained, observation: candidateObservation });
-      receipt = {
-        kind: JEV_SOURCE_KIND, sha256: source.sha256,
-        sessionId: bound.sessionId, toolCallId, retained: !!retained,
-        candidateIdentity: source.source.candidateIdentity, sourceBinding: source.source.sourceBinding,
-        ...(retained ? { path: retained.path } : {}),
+      let retained: ReturnType<typeof retainHandoffSource> | undefined;
+      const beforeDispatch = () => {
+        assertCurrent();
+        candidateObservation = observePrincipalCandidate(pi, ctx, value.candidate);
+        evidence = verifyEvidence(value.evidenceRefs, ctx.cwd);
+        const currentKey = sha256(JSON.stringify({ route: bound.selection?.route ?? null, inputSha256: packet.inputSha256, evidenceRefs: evidenceReferences(evidence), candidate: candidateObservation?.candidate ?? null }));
+        if (currentKey !== cacheKey) throw new Error("Selected input changed during credential resolution");
+        const source = createHandoffSource({
+          packet, sessionId: bound.sessionId, toolCallId,
+          consent: bound.consent, authorization: bound.authorization, evidence, candidateObservation,
+          ...(bound.selection ? { route: bound.selection.route } : {}),
+        });
+        retained = bound.consent.decision === "granted"
+          ? retainHandoffSource(source, assertCurrent, bound.storageRoot, evidence) : undefined;
+        if (retained) bound.selections.set(source.sha256, { candidate: value.candidate, inputSha256: packet.inputSha256, retained, observation: candidateObservation });
+        receipt = {
+          kind: source.source.kind, sha256: source.sha256, sessionId: bound.sessionId, toolCallId,
+          retained: !!retained, candidateIdentity: source.source.candidateIdentity, sourceBinding: source.source.sourceBinding,
+          ...(retained ? { path: retained.path } : {}),
+        };
+        assertCurrent();
+        bound.used++;
       };
-      assertCurrent();
-      const result = await (options.provider ?? callProvider)(JEV_PROVIDER, JEV_MODEL, packet, {
-        apiKey: (options.env ?? process.env).OPENROUTER_API_KEY,
-        signal: abort.signal,
-      });
+      let result;
+      if (bound.selection) {
+        result = await classify(bound.selection, packet, abort.signal, ctx, beforeDispatch);
+      } else {
+        const apiKey = environmentKey() ?? await nativeKey(ctx);
+        assertCurrent();
+        if (!apiKey) return unavailable(`An OpenRouter API key could not be resolved; no call was made. ${missingKeyRemedy}`);
+        beforeDispatch();
+        result = await (options.provider ?? callProvider)(JEV_PROVIDER, JEV_MODEL, packet, { apiKey, signal: abort.signal });
+      }
       assertCurrent();
       if (result.status !== "answered") bound.blocked = "provider-error";
       const advice: AdviceResult = {
         advisory: true,
         status: result.status === "answered" ? "answered" : "unavailable",
         probability: result.status === "answered" ? result.probability : null,
-        provider: JEV_PROVIDER, requestedModel: JEV_MODEL, resolvedModel: result.resolvedModel,
+        provider: bound.selection?.route.provider ?? JEV_PROVIDER, requestedModel: bound.selection?.route.model ?? JEV_MODEL, resolvedModel: result.resolvedModel,
+        ...(bound.selection ? { returnedProvider: result.returnedProvider, returnedModel: result.returnedModel, costSource: result.costSource } : {}),
         usage: result.usage, latencyMs: result.latencyMs,
         ...(result.status === "answered" ? {} : { reason: "Provider unavailable; further workflow calls require explicit new activation." }),
         remaining: JEV_WORKFLOW_LIMIT - bound.used, inputSha256: packet.inputSha256, source: receipt,
@@ -171,7 +249,7 @@ export function createJevController(
       // Includes cancellation, transport exceptions and storage failures. Never retry or expose raw errors.
       bound.blocked = "execution-error";
       return {
-        advisory: true, status: "unavailable", probability: null, ...unmeasuredProvider(),
+        advisory: true, status: "unavailable", probability: null, ...unmeasuredProvider(bound.selection),
         reason: "Advice unavailable or cancelled; no approval is implied. Explicit new activation is required for further workflow calls.",
         remaining: JEV_WORKFLOW_LIMIT - bound.used, inputSha256: packet.inputSha256,
         ...(receipt ? { source: receipt } : {}),
@@ -237,26 +315,56 @@ export function createJevController(
       clearSession();
       const activation = epoch;
       const workflow = action === "enable workflow";
+      const registry = ctx.modelRegistry;
+      const nativeAvailable = typeof registry?.getModelsOfType === "function" && typeof registry.classify === "function";
+      let models: NativeClassifierModel[] = [];
+      if (nativeAvailable) {
+        try { models = registry.getModelsOfType!("classifier").filter(isNativeJevModel); }
+        catch { throw new Error("Pi classifier catalog is unavailable; no JEV activation was created"); }
+      }
+      if (nativeAvailable && !models.length)
+        throw new Error("No supported JEV classifier is registered in Pi. Configure a JEV System One model, then enable again.");
+      const modelChoices = nativeAvailable
+        ? models.map(model => {
+            let configured = false;
+            try { configured = registry!.getProviderAuthStatus?.(model.provider).configured === true; } catch { /* metadata only */ }
+            return `${model.provider} / ${model.id} (${configured ? "configured in Pi" : "credentials not configured"})`;
+          })
+        : [`openrouter / ${JEV_MODEL} (legacy direct API; native classifiers unavailable)`];
+      const selected = await ctx.ui.select("Choose the JEV provider and model for THIS session", modelChoices);
+      if (activation !== epoch || ctx.sessionManager?.getSessionId() !== sessionId) return;
+      const selectedIndex = typeof selected === "number" ? selected : modelChoices.indexOf(String(selected));
+      if (!Number.isInteger(selectedIndex) || selectedIndex < 0 || selectedIndex >= modelChoices.length) return;
+      let selection: NativeSelection | null = null;
+      if (nativeAvailable) {
+        const model = JSON.parse(JSON.stringify(models[selectedIndex])) as NativeClassifierModel;
+        selection = { model, registry: registry!, route: validateNativeRoute({ transport: "pi-classifier",
+          provider: model.provider, model: model.id, api: model.api, modelSha256: nativeModelSha256(model) }) };
+        assertRoute(selection, ctx);
+      }
+      const routeLabel = selection ? `${selection.route.provider} / ${selection.route.model} using Pi’s configured provider authentication`
+        : `${JEV_MODEL} through OpenRouter using OPENROUTER_API_KEY or Pi’s configured OpenRouter credential (legacy transport)`;
       let authorization: unknown = null;
       if (workflow) {
         if (!ctx.ui.confirm) throw new Error("Workflow JEV activation requires interactive paid-scope confirmation");
         const confirmed = await ctx.ui.confirm(
           "Enable optional JEV handoff advice for THIS Pi session?",
-          `Allow up to ${JEV_WORKFLOW_LIMIT} automatic workflow paid calls to ${JEV_MODEL} through OpenRouter using OPENROUTER_API_KEY. The coordinator may send selected candidate, stage, proposed next action, engineering uncertainty, requirements and evidence (at most 16000 characters per packet) for a fixed question about whether that next action is justified. Mechanical checks stay local. The question does not certify final acceptance or require later review to be already complete. Advice never grants approval. This is separate from your Pi subscription; no retry or fallback. Manual jev run calls remain separately confirmed outside this workflow limit.`,
+          `Allow up to ${JEV_WORKFLOW_LIMIT} automatic workflow paid calls to ${routeLabel}. The coordinator may send selected candidate, stage, proposed next action, engineering uncertainty, requirements and evidence (at most 16000 characters per packet) for a fixed question about whether that next action is justified. Mechanical checks stay local. The question does not certify final acceptance or require later review to be already complete. Advice never grants approval. This is separate from your Pi subscription; no retry or fallback. Manual jev run calls remain separately confirmed outside this workflow limit.`,
         );
         if (activation !== epoch || ctx.sessionManager?.getSessionId() !== sessionId || confirmed !== true) return;
         authorization = {
-          kind: "jev-workflow-paid-scope", interactionId: randomUUID(), sessionId,
-          recordedAt: new Date().toISOString(), provider: JEV_PROVIDER, model: JEV_MODEL,
+          kind: selection ? "jev-workflow-paid-scope-v2" : "jev-workflow-paid-scope", interactionId: randomUUID(), sessionId,
+          recordedAt: new Date().toISOString(), ...(selection ? { route: selection.route } : { provider: JEV_PROVIDER, model: JEV_MODEL }),
           question: JEV_QUESTION, maximumCalls: JEV_WORKFLOW_LIMIT,
         };
       }
+      const storageRoot = resolveDataRoot({ env: options.env ?? process.env, override: options.storageHome });
       const choices = [
         "No — use JEV without retaining data for LoRA",
         "Yes — retain selected decision data for later LoRA review",
       ];
       const answer = await ctx.ui.select(
-        "Store selected data from THIS session for future LoRA dataset review? Workflow selections are saved under ~/.skill-harness/jev-workflow. Storage does not grant training permission; No does not change Pi native session history.",
+        `Store selected data from THIS session for future LoRA dataset review under ${storageRoot}? Each session has its own collection. Storage does not grant training permission; No does not change Pi native session history.`,
         choices,
       );
       if (
@@ -264,6 +372,7 @@ export function createJevController(
         ctx.sessionManager?.getSessionId() !== sessionId
       )
         return;
+      if (selection) assertRoute(selection, ctx);
       const granted = answer === 1 || String(answer) === choices[1];
       const consent = createStorageConsent({
         sessionId,
@@ -273,16 +382,19 @@ export function createJevController(
       });
       pi.appendEntry?.("skill-harness-jev-storage-choice", consent);
       active = {
-        sessionId, consent, authorization, mode: workflow ? "workflow" : "manual",
+        sessionId, selection, storageRoot, consent, authorization, mode: workflow ? "workflow" : "manual",
         abort: new AbortController(), used: 0, busy: false, blocked: null, cache: new Map(), selections: new Map(), linked: new Map(),
       };
       ctx.ui.notify(
         (workflow ? `JEV workflow calls authorized for this session (up to ${JEV_WORKFLOW_LIMIT} paid calls). LoRA storage ` : "JEV manual mode activated; each selected paid call still requires confirmation. LoRA storage ") +
           consent.decision +
-          " for this session only. " +
-          (hasKey()
+          ` for this session only. ${consent.decision === "granted" ? `Data root: ${storageRoot}. ` : ""}Selected: ${selection ? `${selection.route.provider} / ${selection.route.model}` : `openrouter / ${JEV_MODEL} (legacy)`}. ` +
+          (readiness(ctx) === "key-present"
             ? "Provider readiness: OPENROUTER_API_KEY is present; credentials and provider access have not been verified. No provider call was made."
-            : `Provider unavailable: OPENROUTER_API_KEY is missing or blank in this Pi process. No provider call was made. ${missingKeyRemedy}`),
+            : readiness(ctx) === "pi-configured"
+              ? `Provider readiness: ${selection?.route.provider ?? "OpenRouter"} is configured in Pi; credentials have not been resolved and provider access has not been verified. No provider call was made.`
+              : selection ? "Provider credentials are not configured in Pi; no provider call was made. Configure the selected provider, then enable again with fresh session consent."
+              : `Provider unavailable: OPENROUTER_API_KEY is missing or blank in this Pi process and Pi has no configured OpenRouter credential. No provider call was made. ${missingKeyRemedy}`),
       );
       return;
     }
@@ -293,95 +405,58 @@ export function createJevController(
         "Enable JEV in this session first: /skill-harness jev enable",
       );
     const bound = active;
+    if (bound.busy) throw new Error("A JEV request is already in flight");
     const assertCurrent = () => {
-      if (
-        active !== bound ||
-        ctx.sessionManager?.getSessionId() !== bound.sessionId
-      )
+      if (active !== bound || ctx.sessionManager?.getSessionId() !== bound.sessionId || bound.abort.signal.aborted)
         throw Error("Session or consent changed");
+      if (bound.selection) assertRoute(bound.selection, ctx);
     };
-    if (!ctx.ui.input || !ctx.ui.confirm)
-      throw Error("Interactive case selection/confirmation is unavailable");
-    const cases = await ctx.ui.input(
-      "Path to explicitly curated decision cases JSON",
-    );
+    if (!ctx.ui.input || !ctx.ui.confirm) throw Error("Interactive case selection/confirmation is unavailable");
+    const cases = await ctx.ui.input("Path to explicitly curated decision cases JSON");
     if (!cases) return;
-    const out = await ctx.ui.input(
-      "New local result path (existing files are never overwritten)",
-    );
+    const out = await ctx.ui.input("New local result path (existing files are never overwritten)");
     if (!out) return;
-    let preview = "";
-    await run(
-      [
-        "preview",
-        "--cases",
-        cases,
-        "--provider",
-        "jev",
-        "--model",
-        "typesafe/jev-1.13",
-      ],
-      {
-        emit: (text: string) => {
-          preview = text;
-        },
-      },
-    );
-    const summary = JSON.parse(preview);
-    if (ctx.ui.editor)
-      await ctx.ui.editor(
-        "Exact outbound JEV requests (review only; edits here are not submitted)",
-        preview,
-      );
-    else ctx.ui.notify(preview);
-    if (
-      !(await ctx.ui.confirm(
-        "Confirm selected JEV API calls",
-        `Send these ${summary.count} questions to JEV typesafe/jev-1.13 through its metered API?`,
-      ))
-    )
-      return;
-    // Re-read/compare prevents the previewed file changing before submission.
-    let current = "";
-    await run(
-      [
-        "preview",
-        "--cases",
-        cases,
-        "--provider",
-        "jev",
-        "--model",
-        "typesafe/jev-1.13",
-      ],
-      {
-        emit: (text: string) => {
-          current = text;
-        },
-      },
-    );
-    if (current !== preview)
-      throw Error("Cases changed after preview; select and review them again");
     assertCurrent();
-    await run(
-      [
-        "run",
-        "--cases",
-        cases,
-        "--provider",
-        "jev",
-        "--model",
-        "typesafe/jev-1.13",
-        "--out",
-        out,
-        "--allow-remote",
-      ],
-      {
-        sessionConsent: bound.consent,
-        expectedCaseSetHash: summary.caseSetHash,
-        beforeProviderCall: assertCurrent,
-        emit: (text: string) => ctx.ui.notify(text),
-      },
-    );
+    const flags = ["--cases", cases, "--provider", bound.selection?.route.provider ?? JEV_PROVIDER,
+      "--model", bound.selection?.route.model ?? JEV_MODEL];
+    const nativeOptions = bound.selection ? { nativeRoute: bound.selection.route } : {};
+    let preview = "";
+    await run(["preview", ...flags], { ...nativeOptions, emit: (text: string) => { preview = text; } });
+    const summary = JSON.parse(preview);
+    if (ctx.ui.editor) await ctx.ui.editor(bound.selection
+      ? "JEV classifier inputs (Pi prepares provider requests; edits are not submitted)"
+      : "Exact outbound JEV requests (review only; edits here are not submitted)", preview);
+    else ctx.ui.notify(preview);
+    if (!(await ctx.ui.confirm("Confirm selected JEV API calls",
+      `Send these ${summary.count} questions to ${bound.selection?.route.provider ?? "openrouter"} / ${bound.selection?.route.model ?? JEV_MODEL}? This may use a metered API.`))) return;
+    let current = "";
+    await run(["preview", ...flags], { ...nativeOptions, emit: (text: string) => { current = text; } });
+    if (current !== preview) throw Error("Cases changed after preview; select and review them again");
+    assertCurrent();
+    if (bound.busy) throw new Error("A JEV request is already in flight");
+    bound.busy = true;
+    try {
+      let providerOptions;
+      if (bound.selection) {
+        const selection = bound.selection;
+        providerOptions = { nativeRoute: selection.route,
+          nativeProviderCall: async (example: { input: string; question: string }) => {
+            const result = await classify(selection, example, bound.abort.signal, ctx, assertCurrent);
+            assertCurrent();
+            return result;
+          } };
+      } else {
+        const apiKey = environmentKey() ?? await nativeKey(ctx);
+        assertCurrent();
+        if (!apiKey) throw new Error(`An OpenRouter API key could not be resolved; no call was made. ${missingKeyRemedy}`);
+        providerOptions = { env: { OPENROUTER_API_KEY: apiKey } };
+      }
+      await run(["run", ...flags, "--out", out, "--allow-remote"], {
+        ...providerOptions, learningRoot: bound.storageRoot, sessionConsent: bound.consent, expectedCaseSetHash: summary.caseSetHash,
+        beforeProviderCall: assertCurrent, emit: (text: string) => ctx.ui.notify(text),
+      });
+    } finally { bound.busy = false; }
+
   };
   return { command, status, evaluate, linkOutcome };
 }

@@ -427,6 +427,10 @@ export function compareRuns(cases, labels, manifest, runs) {
       runSha256: run.runSha256,
       runId: run.header.runId ?? null,
       model: run.header.requestedModel,
+      ...(run.header.kind === "decision-shadow-native-run" ? {
+        route: run.header.route, requestFormat: run.header.requestFormat, costSource: run.header.costSource,
+        modelResolution: "Pi returns the requested model identity; backend resolution is unknown.",
+      } : {}),
       observedModels,
       createdAt: run.header.createdAt,
       thinking: run.header.thinking ?? null,

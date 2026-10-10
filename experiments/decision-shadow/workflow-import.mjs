@@ -2,9 +2,10 @@
 import { dirname, join, isAbsolute, normalize } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { parseCases } from './dataset.mjs';
+import { validateNativeRoute, nativeRequestSha256 } from './native-jev.mjs';
 import { learningDigest, parseEntry, parseStorageConsent, readExplicit, readBoundedArtifact, redactSelectedInput } from './learning-data.mjs';
 
-// Pinned selection-v2 producer contract in packages/pi-extension/src/jev-packet.ts.
+// Explicit legacy selection-v2 and native selection-v3 producer contracts in packages/pi-extension/src/jev-packet.ts.
 const QUESTION='Given the stated stage, unresolved engineering uncertainty, requirements and selected evidence, is the proposed next action justified? Assess that action only, not final acceptance or whether mandatory later review is complete.';
 const SOURCE_KEYS=['schema','kind','sessionId','toolCallId','frozenAt','input','inputSha256','question','provider','model','consent','authorization','provenance','candidateIdentity','candidateObservation','sourceBinding','evidenceRefs','evidenceClaims','inputArtifact','redaction','rights','labelStatus','trainingEligible','exportEligible','publicCaptureVerified'];
 const ENGINEERING_KEYS=['schema','kind','source','sessionId','toolCallId','candidate','recordedAt','evidenceRefs','candidateIdentity','candidateObservation','sourceBinding','independence','trainingEligible','exportEligible','labelStatus'];
@@ -39,11 +40,15 @@ async function snapshot(directory,ref,expectedName){
   return {sha256:ref.sha256,bytes:ref.bytes};
 }
 function validateSource(source){
-  keys(source,SOURCE_KEYS,'workflow selection');
-  check(source.schema===2 && source.kind==='skill-harness-selected-decision-v2','unsupported workflow selection contract');
+  const native=source?.schema===3 && source.kind==='skill-harness-selected-decision-v3';
+  check(native || (source?.schema===2 && source.kind==='skill-harness-selected-decision-v2'),'unsupported workflow selection contract');
+  keys(source,native?[...SOURCE_KEYS,'route','requestSha256']:SOURCE_KEYS,'workflow selection');
   text(source.sessionId,'session ID');text(source.toolCallId,'tool-call ID');date(source.frozenAt);text(source.input,'decision input',32000);hash(source.inputSha256);
   check(Array.from(source.input).length<=16000 && learningDigest(source.input)===source.inputSha256,'decision input digest or size mismatch');
-  check(source.question===QUESTION && source.provider==='jev' && source.model==='typesafe/jev-1.13','unsupported workflow question or provider');
+  check(source.question===QUESTION,'unsupported workflow question');
+  const route=native?validateNativeRoute(source.route):null;
+  check(route ? source.provider===route.provider && source.model===route.model : source.provider==='jev' && source.model==='typesafe/jev-1.13','unsupported workflow provider');
+  if(native)check(source.requestSha256===nativeRequestSha256(source),'native request digest mismatch');
   const packet=JSON.parse(source.input);keys(packet,['candidate','stage','nextAction','uncertainty','requirements','evidence'],'decision packet');
   for(const key of Object.keys(packet))text(packet[key],key,32000);
   check(['design','implementation','verification'].includes(packet.stage),'unsupported decision stage');
@@ -51,8 +56,9 @@ function validateSource(source){
   check(JSON.stringify({candidate,stage,nextAction,uncertainty,requirements,evidence})===source.input,'decision input is not the exact producer packet');
   const consent=parseStorageConsent(source.consent,source.sessionId);
   check(consent.decision==='granted' && date(consent.recordedAt)<=date(source.frozenAt),'recorded session storage consent is missing or postdates selection');
-  const a=source.authorization;keys(a,['kind','interactionId','sessionId','recordedAt','provider','model','question','maximumCalls'],'workflow authorization');text(a.interactionId,'authorization interaction');
-  check(a.kind==='jev-workflow-paid-scope' && a.sessionId===source.sessionId && a.provider===source.provider && a.model===source.model && a.question===QUESTION && a.maximumCalls===3 && date(a.recordedAt)<=date(source.frozenAt),'workflow authorization mismatch');
+  const a=source.authorization;keys(a,['kind','interactionId','sessionId','recordedAt',...(native?['route']:['provider','model']),'question','maximumCalls'],'workflow authorization');text(a.interactionId,'authorization interaction');
+  const authorizationMatches=native ? a.kind==='jev-workflow-paid-scope-v2' && isDeepStrictEqual(validateNativeRoute(a.route),route) : a.kind==='jev-workflow-paid-scope' && a.provider===source.provider && a.model===source.model;
+  check(authorizationMatches && a.sessionId===source.sessionId && a.question===QUESTION && a.maximumCalls===3 && date(a.recordedAt)<=date(source.frozenAt),'workflow authorization mismatch');
   check(source.provenance==='tool-selected-input' && source.evidenceClaims==='unassessed' && source.redaction==='unassessed' && source.rights==='unassessed' && source.publicCaptureVerified===false,'unsupported workflow provenance claims');unlabeled(source);
   const refs=evidenceRefs(source.evidenceRefs);
   check(source.sourceBinding===(refs.length?'local-reference-digests-verified':'unassessed'),'source binding mismatch');
@@ -105,6 +111,7 @@ export async function importWorkflowCase({caseDocument,selection,sessionConsent,
   return {caseDocument:structuredClone(caseDocument),experimentEntry:entry,receipt:{
     schema:1,kind:'decision-selected-workflow-import',caseId:c.id,caseHash:c.hash,sessionId:source.sessionId,toolCallId:source.toolCallId,
     source:{sha256:selection.source.sha256,recordId:source.toolCallId},inputSha256:source.inputSha256,
+    ...(source.schema===3?{sourceContract:source.kind,nativeRouteSha256:learningDigest(source.route),nativeRequestSha256:source.requestSha256}:{}),
     recordedConsentHash:learningDigest(consent),currentConsentHash:learningDigest(currentConsent),
     candidateIdentity:source.candidateIdentity,candidateObservationSha256:source.candidateObservation?learningDigest(source.candidateObservation):null,
     replacements:redacted.replacements,decisionEvidence:{mappingSha256:learningDigest(mappingBytes),artifacts:decisionEvidence},engineering,

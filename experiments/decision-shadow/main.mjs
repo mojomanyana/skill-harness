@@ -2,7 +2,10 @@
 // Explicit opt-in decision workflow shared by the packaged CLI and Pi session UI.
 import { createHash } from "node:crypto";
 import { open, readFile, stat } from "node:fs/promises";
-import { resolve } from "node:path";
+import { resolve, join } from "node:path";
+import { openSync, writeFileSync, fsyncSync, closeSync } from "node:fs";
+import { resolveDataRoot, createSessionCollection, writePrivateNew } from "./data-root.mjs";
+import { listCollections } from "./collections.mjs";
 import {
   RESEARCH_OPTIONS,
   RESEARCH_OPTIONAL,
@@ -24,6 +27,10 @@ import {
   isSupportedResolvedModel,
 } from "./providers.mjs";
 import { verifySources } from "./public-evidence.mjs";
+import {
+  validateNativeRoute, makeNativeRequest, nativeRequestSha256,
+  normalizeNativeResult, validateNativePrediction,
+} from "./native-jev.mjs";
 
 const terms = { jev: "https://typesafe.ai/legal/mca" };
 const providerErrors = new Set([
@@ -44,6 +51,7 @@ const help = `Decision research workflow (Node >=20; qualified Pi execution need
   preview-pi --cases FILE --experiment FILE --model openai-codex:MODEL --thinking LEVEL --split test
   run-pi --cases FILE --experiment FILE --model openai-codex:MODEL --thinking LEVEL --split test --pi-package DIR --out NEW.jsonl --allow-subscription [--pi-node PATH] [--auth-path FILE] [--timeout-ms N]
   compare --cases FILE --experiment FILE --labels FILE --label-evidence FILE --run FILE [--run FILE] --out NEW.json
+  collections [--root ABSOLUTE_DIR]
   import-session --cases FILE --selection FILE --consent FILE --entry FILE --out NEW.json
   import-workflow --cases FILE --selection FILE --consent FILE --entry FILE --out NEW.json
   export-learning --cases FILE --experiment FILE --labels FILE --label-evidence FILE --consents FILE --mode fixture-demo|reviewed-data --out NEW_DIR
@@ -64,6 +72,7 @@ function argumentsFor(argv) {
   if (!command || command === "--help") return { command: "help", flags: {} };
   const commands = {
     ...RESEARCH_OPTIONS,
+    collections: [],
     preview: ["cases", "provider", "model"],
     run: ["cases", "provider", "model", "out", "allow-remote"],
     score: ["cases", "labels", "run"],
@@ -76,7 +85,7 @@ function argumentsFor(argv) {
   const optional =
     command === "run"
       ? ["storage", "session-id"]
-      : (RESEARCH_OPTIONAL[command] ?? []);
+      : command === "collections" ? ["root"] : (RESEARCH_OPTIONAL[command] ?? []);
   const allowed = [...required, ...optional];
   const flags = {};
   for (let i = 0; i < rest.length; i++) {
@@ -161,21 +170,33 @@ async function readRun(path, cases) {
   }
   const [header, ...records] = rows;
   if (
-    header?.schema !== 1 ||
-    header.kind !== "decision-shadow-run" ||
+    !((header?.schema === 1 && header.kind === "decision-shadow-run") ||
+      (header?.schema === 2 && header.kind === "decision-shadow-native-run")) ||
     header.caseSetHash !== caseSetHash(cases) ||
     header.caseCount !== cases.length ||
     header.trainingEligible !== false ||
-    !validCreatedAt(header.createdAt) ||
-    !Object.hasOwn(terms, header.provider)
+    !validCreatedAt(header.createdAt)
   )
     throw new Error("Run header does not match this case set.");
-  makeRequest(header.provider, header.requestedModel, cases[0]);
+  const native = header.schema === 2;
+  if (native) {
+    validateNativeRoute(header.route);
+    if (header.provider !== header.route.provider || header.requestedModel !== header.route.model ||
+        header.requestFormat !== "pi-classifier-context-v1" || header.costSource !== "pi-catalog-estimate")
+      throw new Error("Native run route does not match its header.");
+  } else {
+    if (!Object.hasOwn(terms, header.provider)) throw new Error("Invalid run provider.");
+    makeRequest(header.provider, header.requestedModel, cases[0]);
+  }
   if (records.length > cases.length)
     throw new Error("Too many prediction records.");
   for (const [index, r] of records.entries()) {
-    const validState =
-      r?.status === "answered"
+    const {kind, caseId, caseHash, requestSha256, trainingEligible, ...prediction} = r ?? {};
+    const validState = native
+      ? validateNativePrediction(header.route, prediction) &&
+        r.requestSha256 === nativeRequestSha256(cases[index]) &&
+        (r.status !== "error" || index === records.length - 1)
+      : r?.status === "answered"
         ? isSupportedResolvedModel(r.resolvedModel) && r.error === null
         : r?.status === "error" &&
           r.probability === null &&
@@ -274,11 +295,18 @@ export async function main(
     sessionConsent,
     expectedCaseSetHash,
     beforeProviderCall,
+    nativeRoute,
+    nativeProviderCall,
+    learningRoot,
   } = {},
 ) {
   const { command, flags } = argumentsFor(argv);
   if (command === "help") {
     emit(help);
+    return;
+  }
+  if (command === "collections") {
+    emit(JSON.stringify(await listCollections(resolveDataRoot({env, override:flags.root})), null, 2));
     return;
   }
   const cases =
@@ -328,14 +356,23 @@ export async function main(
       caseSetHash(cases) !== expectedCaseSetHash
     )
       throw new Error("Cases changed after confirmation.");
-    const requests = cases.map((c) =>
-      makeRequest(flags.provider, flags.model, c),
+    if (nativeRoute !== undefined) {
+      validateNativeRoute(nativeRoute);
+      if (flags.provider !== nativeRoute.provider || flags.model !== nativeRoute.model)
+        throw new Error("Selected native provider/model changed.");
+      if (command === "run" && typeof nativeProviderCall !== "function")
+        throw new Error("Native classifier runner is unavailable.");
+    }
+    const requests = cases.map((c) => nativeRoute
+      ? { route: nativeRoute, context: makeNativeRequest(c), requestSha256: nativeRequestSha256(c) }
+      : makeRequest(flags.provider, flags.model, c),
     );
     if (command === "preview") {
       emit(
         JSON.stringify(
           {
-            schema: 1,
+            schema: nativeRoute ? 2 : 1,
+            ...(nativeRoute ? { requestFormat: "pi-classifier-context-v1" } : {}),
             caseSetHash: caseSetHash(cases),
             count: cases.length,
             trainingEligible: false,
@@ -351,20 +388,33 @@ export async function main(
       );
       return;
     }
+    const dataRoot = resolveDataRoot({env, override:learningRoot});
     const consent =
       sessionConsent ??
       (await requestSessionStorage({
         sessionId: flags["session-id"],
         storage: flags.storage,
         promptStorage,
+        storageRoot: dataRoot,
       }));
     const apiKey = env.OPENROUTER_API_KEY;
-    if (!apiKey?.trim())
+    if (!nativeRoute && !apiKey?.trim())
       throw new Error("Selected provider API key is not configured.");
     const file = await open(flags.out, "wx", 0o600);
+    let collection, collectionFd, collectionStatus = "disabled";
     const append = async (row) => {
-      await file.writeFile(JSON.stringify(row) + "\n");
+      const bytes = JSON.stringify(row) + "\n";
+      await file.writeFile(bytes);
       await file.sync();
+      if (collectionFd !== undefined) {
+        try {
+          beforeProviderCall?.();
+          writeFileSync(collectionFd, bytes); fsyncSync(collectionFd);
+        } catch {
+          closeSync(collectionFd); collectionFd = undefined;
+          collectionStatus = "incomplete";
+        }
+      }
     };
     let failures = 0;
     try {
@@ -376,26 +426,42 @@ export async function main(
         out: flags.out + ".learning.json",
         assertCurrent: beforeProviderCall,
       });
+      if (consent.decision === "granted") {
+        beforeProviderCall?.();
+        collection = createSessionCollection(dataRoot, "jev-manual", consent.sessionId);
+        writePrivateNew(join(collection, "consent.json"), JSON.stringify(consent, null, 2) + "\n");
+        await retainSelectedSessionData({ cases, consent, out:join(collection, "selected-data.json"),
+          assertCurrent:beforeProviderCall });
+        beforeProviderCall?.();
+        collectionFd = openSync(join(collection, "results.jsonl"), "wx", 0o600);
+        collectionStatus = "captured";
+      }
       await append({
-        schema: 1,
-        kind: "decision-shadow-run",
+        schema: nativeRoute ? 2 : 1,
+        kind: nativeRoute ? "decision-shadow-native-run" : "decision-shadow-run",
+        ...(nativeRoute ? {
+          route: nativeRoute, requestFormat: "pi-classifier-context-v1",
+          costSource: "pi-catalog-estimate",
+        } : {}),
         provider: flags.provider,
         requestedModel: flags.model,
         createdAt: new Date().toISOString(),
         caseCount: cases.length,
         caseSetHash: caseSetHash(cases),
         trainingEligible: false,
-        termsUrl: terms[flags.provider],
+        ...(nativeRoute ? {} : { termsUrl: terms[flags.provider] }),
       });
       for (const c of cases) {
         let result;
         try {
           if (beforeProviderCall) beforeProviderCall();
-          result = await providerCall(flags.provider, flags.model, c, {
-            apiKey,
-          });
+          result = nativeRoute
+            ? await nativeProviderCall(c)
+            : await providerCall(flags.provider, flags.model, c, { apiKey });
+          if (nativeRoute && !validateNativePrediction(nativeRoute, result))
+            throw new Error("Invalid native classifier result.");
         } catch {
-          result = {
+          result = nativeRoute ? normalizeNativeResult(nativeRoute, null, null) : {
             status: "error",
             probability: null,
             resolvedModel: null,
@@ -409,6 +475,7 @@ export async function main(
           caseId: c.id,
           caseHash: c.hash,
           ...result,
+          ...(nativeRoute ? { requestSha256: nativeRequestSha256(c) } : {}),
           trainingEligible: false,
         });
         if (result.status === "error") {
@@ -417,11 +484,13 @@ export async function main(
         }
       }
     } finally {
+      if (collectionFd !== undefined) closeSync(collectionFd);
       await file.close();
     }
     emit(
       JSON.stringify({
         saved: resolve(flags.out),
+        learningCollection: {status:collectionStatus, ...(collection ? {path:collection} : {})},
         errors: failures,
         trainingEligible: false,
       }),
@@ -452,6 +521,10 @@ export async function main(
     reports.push({
       provider: header.provider,
       requestedModel: header.requestedModel,
+      ...(header.schema === 2 ? {
+        route: header.route, requestFormat: header.requestFormat, costSource: header.costSource,
+        modelResolution: "Pi returns the requested model identity; backend resolution is unknown.",
+      } : {}),
       resolvedModels,
       runSha256,
       createdAt: header.createdAt,

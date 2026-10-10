@@ -24,7 +24,20 @@ export interface ExtensionAPI {
   appendEntry?(type:string,data:unknown):void;
 }
 
+export interface NativeClassifierModel {
+  type: "classifier"; provider: string; id: string; api: string;
+  [key: string]: unknown;
+}
 export interface CmdCtx {
+  modelRegistry?: {
+    getProviderAuthStatus?(provider: string): { configured: boolean };
+    getApiKeyForProvider?(provider: string): Promise<string | undefined>;
+    getModelsOfType?(type: "classifier"): readonly NativeClassifierModel[];
+    classify?(model: NativeClassifierModel, context: unknown, options: {
+      signal: AbortSignal; maxRetries: number; apiKey?: string;
+      transformHeaders(headers: Record<string, unknown>): Promise<Record<string, unknown>>;
+    }): Promise<unknown>;
+  };
   sessionManager?: { getSessionId():string };
   cwd: string;
   hasUI: boolean;

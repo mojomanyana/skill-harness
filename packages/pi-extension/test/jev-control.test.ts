@@ -34,7 +34,7 @@ describe("optional parent JEV dashboard control", () => {
     expect(s.send("enable", "click-2").error).toBe("consent-pending");
     await flush();
     expect(s.ctx.ui.confirm).toHaveBeenCalledTimes(1);
-    expect(s.ctx.ui.select).toHaveBeenCalledTimes(1);
+    expect(s.ctx.ui.select).toHaveBeenCalledTimes(2);
     expect(s.broadcasts.at(-1)).toMatchObject({ requestId: "click-1", sessionId: "parent-session", pending: false,
       status: { enabled: true, mode: "workflow", storage: "declined", availability: "missing-key", remaining: 3 } });
     s.send("enable", "click-1"); await flush();
@@ -52,7 +52,7 @@ describe("optional parent JEV dashboard control", () => {
     expect(s.ctx.ui.select).not.toHaveBeenCalled();
     s.ctx.hasUI = true; s.ctx.ui.confirm.mockResolvedValue(false);
     s.send("enable", "declined"); await flush();
-    expect(s.ctx.ui.select).not.toHaveBeenCalled();
+    expect(s.ctx.ui.select).toHaveBeenCalledTimes(1);
     expect(s.send("status").status.enabled).toBe(false);
   });
   it("disable or session switch revokes an unanswered confirmation and cannot restore old consent", async () => {
@@ -60,12 +60,14 @@ describe("optional parent JEV dashboard control", () => {
     let answer!: (value: boolean) => void;
     s.ctx.ui.confirm.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
     s.send("enable", "waiting");
+    await flush();
     s.send("disable", "off");
     answer(true); await flush();
-    expect(s.ctx.ui.select).not.toHaveBeenCalled();
+    expect(s.ctx.ui.select).toHaveBeenCalledTimes(1);
     expect(s.send("status")).toMatchObject({ pending: false, status: { enabled: false } });
     s.ctx.ui.confirm.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
     s.send("enable", "old-session");
+    await flush();
     s.setSession("new-parent"); s.lifecycle("session_switch");
     answer(true); await flush();
     expect(s.send("status").status.enabled).toBe(false);
