@@ -38,6 +38,17 @@ const fakeAdapter: HarnessAdapter = {
 };
 
 describe("handleSkillCheck", () => {
+  it("accepts quoted separate-eval paths while keeping results out of the skill repo", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sc-cmd-overlay-"));
+    const skillDir = join(root, "skills", "writer");
+    const testsDir = join(root, "eval repo", "writer", "tests");
+    mkdirSync(skillDir, { recursive: true }); mkdirSync(testsDir, { recursive: true });
+    writeFileSync(join(skillDir, "SKILL.md"), "---\nname: writer\ndescription: Write text\n---\nWrite clearly.\n");
+    writeFileSync(join(testsDir, "specification.yaml"), "skill: writer\njudge_persona: a judge\nship_bar: { total: 1, min_pass: 1 }\nscenarios:\n  - id: A1\n    title: Draft\n    turns: [hi]\n    checklist: [ok]\n");
+    const ctx = fakeCtx(root);
+    await handleSkillCheck('run skills/writer --specs "eval repo" --model local:subject --judge local:judge', ctx, { adapter: fakeAdapter });
+    expect(ctx.notified.some(notification => notification.msg.startsWith("writer "))).toBe(true);
+  });
   it("run streams verdicts and reports the scorecard", async () => {
     const skillDir = skillFixture();
     const ctx = fakeCtx(skillDir);

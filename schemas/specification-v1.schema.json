@@ -102,6 +102,22 @@
           },
           "minItems": 1
         },
+        "judge_context": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "pattern": "\\S",
+          "description": "Explicit author-supplied reference text for the judge only. The runtime also enforces at most 65536 UTF-8 bytes. Not a file path; no files are loaded. Changes stale the rubric only."
+        },
+        "judge_evidence": {
+          "enum": ["response", "code"],
+          "description": "Evidence emphasis, independent of fixture workspace. Response tasks never receive code-diff priority guidance."
+        },
+        "judge_references": {
+          "type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Explicit relative POSIX files below the specification directory, judge-only, collectively at most 65536 UTF-8 bytes. Runtime rejects traversal, escaping symlinks and binary data."
+        },
         "covers": {
           "type": "array",
           "items": {
@@ -133,6 +149,11 @@
               "items": {
                 "type": "string"
               }
+            },
+            "tools": {
+              "type": "array", "uniqueItems": true,
+              "items": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_:/.-]*$" },
+              "description": "Explicit Pi tool filter. Empty list disables all tools. Not an OS sandbox."
             }
           }
         },

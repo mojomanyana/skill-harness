@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseTrace } from "../src/execution-trace.js";
+import { parseTrace, piQualificationFailure } from "../src/execution-trace.js";
 import { evaluateTraceGates } from "../src/trace-gates.js";
 
 const meta = { piVersion: "1.0.4", subject: { provider: "fixture", model: "scripted" },
@@ -68,14 +68,21 @@ it("does not accept settlement before an outstanding tool completes", () => {
   expect(result.isComplete).toBe(false);
   expect(result.trace.final_status).toBe("incomplete");
 });
-for (const piVersion of ["1.0.5", "1.0.4-rc.1", "0.84.1", "unknown", null]) {
+for (const piVersion of ["1.0.5", "1.0.4-rc.1", "1.1.0-rc.1", "1.1.1", "1.2.0", "0.84.1", "unknown", null]) {
   it(`never downgrades unqualified ${piVersion} to historical parsing`, () => {
     const result = parseTrace([JSON.stringify(message("plausible")), JSON.stringify(settled)], { ...meta, piVersion });
     expect(result.trace.final_status).toBe("unqualified");
     expect(result.isComplete).toBe(false);
-    expect(result.trace.capture_errors?.join(" ")).toContain("requires exact Pi 1.0.4");
+    expect(result.trace.capture_errors?.join(" ")).toContain("requires qualified Pi 1.0.4 or 1.1.0");
   });
 }
+it.each(["1.0.4", "1.1.0"])("requires the same settled event contract on qualified Pi %s", piVersion => {
+  expect(piQualificationFailure(piVersion)).toBeNull();
+  expect(parseTrace([JSON.stringify(message("answer"))], { ...meta, piVersion }).isComplete).toBe(false);
+  const result = parseTrace([JSON.stringify(message("answer")), JSON.stringify(settled)], { ...meta, piVersion });
+  expect(result.isComplete).toBe(true);
+  expect(result.trace.final_status).toBe("complete");
+});
 it("retains historical 0.83.0 parsing with exact concatenated visible text", () => {
   const result = parseTrace([JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop",
     content: [{ type: "text", text: "  first" }, { type: "text", text: "second\n\n" }] } })], { ...meta, piVersion: "0.83.0" });

@@ -6,6 +6,8 @@
  */
 export const FREE_OFFLINE_COMMANDS = [
   "coverage",
+  "preflight",
+  "diagnose",
   "init",
   "lint",
   "list",

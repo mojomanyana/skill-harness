@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import {
   loadSpec,
   runSkillModel,
@@ -43,6 +43,25 @@ export function resolveSkillDir(cwd: string, arg?: string): string {
   throw new Error(`no tests/specification.yaml found from ${cwd} upward`);
 }
 
+/** Overlay layout matches the CLI: <specsRoot>/<skill-name>/tests. */
+export function resolveSkillLocation(cwd: string, arg?: string, specsRoot?: string): { skillDir: string; specPath: string } {
+  if (!specsRoot) {
+    const skillDir = resolveSkillDir(cwd, arg);
+    return { skillDir, specPath: join(skillDir, "tests", "specification.yaml") };
+  }
+  let skillDir = resolve(cwd, arg ?? ".");
+  while (!existsSync(join(skillDir, "SKILL.md"))) {
+    const parent = dirname(skillDir);
+    if (arg || parent === skillDir) throw new Error(`no SKILL.md found at ${skillDir}`);
+    skillDir = parent;
+  }
+  const specPath = join(resolve(cwd, specsRoot), basename(skillDir), "tests", "specification.yaml");
+  const localSpec = join(skillDir, "tests", "specification.yaml");
+  if (existsSync(localSpec)) throw new Error("specification.yaml exists in the skill; --specs must not select a second specification");
+  if (!existsSync(specPath)) throw new Error(`no tests/specification.yaml found at ${specPath}`);
+  return { skillDir, specPath };
+}
+
 // Keep in sync with cli.ts DEFAULT_MODEL. The judge default is NOT duplicated here
 // any more — it comes from core's `defaultJudge()`, so this extension and the CLI
 // cannot drift into billing different providers for the same missing flag.
@@ -50,6 +69,7 @@ const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 
 export async function runViaExtension(opts: {
   skillDir: string;
+  specPath?: string;
   model?: string;
   reps?: number;
   mode?: "red" | "green" | "force";
@@ -70,7 +90,7 @@ export async function runViaExtension(opts: {
   timestamp: string;
   log: (msg: string) => void;
 }): Promise<Scorecard> {
-  const specPath = join(opts.skillDir, "tests", "specification.yaml");
+  const specPath = opts.specPath ?? join(opts.skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const modelToken = opts.model ?? DEFAULT_MODEL;
   const model = parseModelRef(modelToken);
@@ -82,6 +102,8 @@ export async function runViaExtension(opts: {
   const mode = opts.mode ?? "green";
   const summary = await runSkillModel({
     spec, skillDir: opts.skillDir, specPath, adapter, model, modelToken, judge, mode,
+    testsDir: dirname(specPath),
+    recordSourceRoots: resolve(dirname(specPath)) !== resolve(opts.skillDir, "tests"),
     timestamp: opts.timestamp, now: opts.now, reps: opts.reps, canary: opts.canary,
     only: opts.only,
     onProgress: opts.log,

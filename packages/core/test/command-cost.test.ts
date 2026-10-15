@@ -12,8 +12,8 @@ function inlineCommands(text: string): string[] {
 describe("free/offline command vocabulary", () => {
   it("has one canonical set and excludes every command that can spend", () => {
     expect([...FREE_OFFLINE_COMMANDS].sort()).toEqual([
-      "coverage", "init", "lint",
-      "list", "rescore", "restamp", "stability",
+      "coverage", "diagnose", "init", "lint",
+      "list", "preflight", "rescore", "restamp", "stability",
     ]);
     expect(FREE_OFFLINE_COMMANDS).not.toContain("regate");
     expect(FREE_OFFLINE_COMMANDS).not.toContain("grade");
@@ -23,7 +23,7 @@ describe("free/offline command vocabulary", () => {
 
   it("keeps the two complete documentation lists equal to the canonical set", () => {
     const skill = readFileSync(join(root, "SKILL.md"), "utf8");
-    const skillSection = skill.match(/Reach for them before anything paid:\n([\s\S]*?)\. In particular/)?.[1] ?? "";
+    const skillSection = skill.match(/Free offline commands:([\s\S]*?)\. `calibrate/)?.[1] ?? "";
     const agents = readFileSync(join(root, "AGENTS.md"), "utf8");
     const agentsList = agents.match(/\*\*Cost split an agent must respect:\*\* ([\s\S]*?) are free static\/offline commands/)?.[1] ?? "";
     const cli = readFileSync(join(root, "packages/cli/src/cli.ts"), "utf8");

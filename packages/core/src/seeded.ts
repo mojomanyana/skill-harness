@@ -311,6 +311,7 @@ export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<S
     model: opts.model,
     mode: opts.mode,
     turns: scenario.turns,
+    tools: scenario.tools,
     cwd: repo,
     // Resolved against the spec dir, exactly like fixtures and post-tests —
     // the arm's extensions (already absolute) join alongside, same as the

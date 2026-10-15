@@ -9,8 +9,10 @@ import { downgradeWarning } from "./downgrade.js";
 import { collectScoredRuns } from "./trends.js";
 import { boundaryCells, stabilityFrom, stabilityNote } from "./stability.js";
 import { MARKERS, unknownMarkerDirs, suggestMarker } from "./workspace.js";
+import { fixtureInventory, inspectEvalAuthoring } from "./authoring-preflight.js";
+import { resolveJudgeReferences } from "./judge-references.js";
 
-export type LintCode = "spec" | "ship_bar" | "critical" | "fixture" | "fixture-marker" | "consistency" | "stale" | "stability" | "covers" | "lint-error";
+export type LintCode = "spec" | "ship_bar" | "critical" | "fixture" | "fixture-marker" | "consistency" | "stale" | "stability" | "covers" | "lint-error" | "authoring";
 
 /**
  * How much a finding means.
@@ -65,6 +67,14 @@ export function lintSkill(skillDir: string, testsDir = join(skillDir, "tests")):
     return [{ skill: basename(skillDir), code: "spec", message }];
   }
   const skill = spec.skill;
+  for (const hint of inspectEvalAuthoring(spec, { fixtureFiles: scenario => {
+    const fixture = effectiveFixture(scenario);
+    if (!fixture) return [];
+    // Unreadable/missing fixtures are reported by the fixture checks below.
+    try { return fixtureInventory(resolve(testsDir, fixture)); } catch { return []; }
+  } })) {
+    findings.push({ skill, scenario: hint.scenario, code: "authoring", severity: hint.severity ?? "info", message: `${hint.code}: ${hint.message}` });
+  }
 
   // A lint from an older tool than the records it is checking cannot be trusted to
   // check them: a 0.1.0 binary reported 38 spurious `consistency` findings against
@@ -110,6 +120,8 @@ export function lintSkill(skillDir: string, testsDir = join(skillDir, "tests")):
   // relative to the spec's dir, matching workspace.ts resolve(specDir, fixture) where specDir = <skillDir>/tests.
   const specDir = dirname(specPath);
   for (const s of spec.scenarios) {
+    try { resolveJudgeReferences(s, specDir); }
+    catch (error) { findings.push({ skill, scenario: s.id, code: "fixture", message: String(error) }); }
     const fx = effectiveFixture(s); // shared with sources.ts so hashing and linting can't drift
     if (fx) {
       const abs = isAbsolute(fx) ? fx : resolve(specDir, fx);

@@ -1,106 +1,112 @@
 ---
 name: skill-harness
-version: 0.29.0
+version: 0.30.0
 description: >
-  Use to test, grade, and optimize an agent skill against a spec. Triggers:
-  "test the <skill> skill", "/skill-harness", "run the skill bench", "grade these
-  scenarios", "did my SKILL.md edit help", "review the skill scorecard", "add a
-  test case for <skill>". Drives the skill-harness CLI: discover → run scenarios
-  on pi → LLM-judge grade → interactive review → re-run to measure an edit.
-  NOT for running a skill in production, and NOT itself a shipped skill.
+  Create, test and improve Pi skills and optional ecosystem subagents. Use when
+  the user describes a role they need, asks to create a skill, add evaluations,
+  calibrate a judge, diagnose a skill score or compare models. Start from an idea
+  or an existing skill; examples and specifications are not prerequisites.
 ---
 
-# skill-harness — the skill test/optimize loop
+# Develop skills in Pi
 
-A spec'd skill is testable when `<skill>/tests/specification.yaml` exists. This
-skill drives the `skill-harness` CLI (pi harness only). Run commands from the tool
-repo with `npm run dev --` (dev) or the `skill-harness` bin (built).
+Use the current Pi session and selected model to turn a user's idea into a skill,
+its evaluations, and optionally a separate pi-daddy agent definition. The authoring
+workflow requires Pi and a model. Generated skills require Pi alone; do not make
+their instructions depend on skill-harness, pi-daddy or Principal.
 
-## Core principle
-**A skill ships only when its scenarios pass under a judge that is NOT the model
-under test.** Subject ≠ judge — same-family grading inflates scores. Single runs
-lie on weak/stochastic models; re-run before trusting a delta.
+## From an idea to a tested skill
 
-**Legacy schema-3 delivery evidence remains readable.** A retained `NOT-MEASURED` verdict still blocks SHIP. New runs use schema 2 and do not produce delivery observations.
+1. **Capture the brief.** Use `skill_author` to start or resume a named project.
+   Record what the user already told you. Ask one necessary question at a time;
+   `question` asks the next missing answer in Pi. Establish purpose, observable
+   outcomes, boundaries, tools, skill versus skill-and-agent delivery, and same-repo
+   versus separate-repo evaluations. Do not ask for subject or judge models yet.
+2. **Author the files.** Produce a concise `SKILL.md`, useful supporting resources,
+   and eval scenarios grounded in the agreed requirements. Create fixtures and
+   references as needed; do not demand that the user supply examples or YAML.
+   Stage through `skill_author draft`, inspect its changes and issues, then apply
+   the exact digest within the user's authorized scope. Import only an explicitly
+   selected existing skill. Existing files and historical results are not disposable.
+3. **Check the evaluation itself.** Run `lint` and `preflight` before model calls.
+   Map requirements to observable scenarios both ways. Name source files when the
+   subject cannot discover them with its tools. Use `env.tools` to state the tool
+   profile and `judge_references` for explicit judge-only source files. Choose
+   `judge_evidence: response` for answer tasks; seeded mode is a workspace choice,
+   not evidence that the task is code generation.
+4. **Calibrate.** Propose positive, negative and equivalent-valid controls grounded
+   in the requirements, with reasons. Keep labels outside judge inputs. Have the
+   author review those labels; your proposal is not human acceptance. Use the shared
+   calibration tooling, which computes evidence identities and preserves the same
+   transcript framing as real grading. Do not invent hashes or write bespoke judge
+   scripts. Ask for the subject model when testing starts, then an independent judge
+   if not already selected. Reuse authorization instead of asking repeatedly.
+5. **Measure.** Run a red baseline and a skill-enabled comparison through Pi with
+   selected models. Green tests discovery; force guarantees instruction delivery.
+   For published green claims, use `--canary` to verify delivery. Preserve source
+   identities, exact answers, trace gates and judge inputs. Critical/B-series
+   failures block SHIP; counts of passing answers and fully passing scenarios are
+   different measures. Small samples are not a stability guarantee.
+6. **Diagnose before improving.** Inspect `diagnose` and the retained evidence.
+   Separate infrastructure errors, invalid evals, judge disagreements, model errors
+   and skill weaknesses. Do not treat a score as its own explanation. For changed
+   rubrics, regrade saved answers; for changed inputs or instructions, run fresh
+   subjects. Use fresh transfer cases before claiming a general improvement.
 
-**Where an objective gate exists, prefer it to the judge.** `assert.trace` states
-what the model DID — which tool it called, which path it touched. It reads structured
-evidence, runs BEFORE the judge, and costs zero judge tokens when it fails. An objective FAIL or ERROR outranks
-the judge's verdict; only an explicit author override beats it.
+You may create and edit the skill when the user requests development. For a request
+only to evaluate an existing skill, measure it without rewriting it.
 
-## The loop
-1. **Discover.** `skill-harness list --skills <root>` → which skills have a spec.
-   Default `<root>` is the current dir; ask if ambiguous.
-2. **Confirm the run.** Ask the user: which skill (or `all`), which model(s) under
-   test, and the judge. Offer the defaults:
-   - subject model: `fireworks:accounts/fireworks/models/deepseek-v4-pro`
-   - judge: `openai-codex:gpt-5.6-sol` (distinct from the default subject; runs
-     through Pi on the user's ChatGPT subscription, not a metered key). A metered judge is **refused**
-     unless the user opts in with `--allow-metered-judge` — never add that flag on
-     their behalf; ask. `SKILL_HARNESS_JUDGE` sets the default once per repo/shell.
-   - mode: `green` (the harness activates the skill) or `force` (SKILL.md as the
-     system prompt) — **both are scored**; `red` = the unscored baseline contrast.
-     Say this when it matters: green delivery depends on the harness version (pi ≥
-     0.83.0 discloses only the skill's description and loads the body on demand, and
-     accepts a bad `--skill` path silently), so `force` is the mode to use for
-     results that will be published, and `--canary` (one extra call, green only)
-     proves delivery per run and aborts if the skill never arrived.
-   `--model` repeats for multi-model comparison (or `--models <file>`).
-3. **Run + grade.** `skill-harness run <skill> --skills <root> --model <m> [--model <m2>]
-   [--judge <prov:model>]`. This runs every scenario, grades each transcript, writes
-   `results.yaml`, and prints a scorecard per model. Heed any judge≈subject warning.
-4. **Check what one run is worth.** `skill-harness stability <skill> --skills <root>`
-   (free, offline) lists scenarios whose verdict flipped between runs of the same skill ×
-   model × mode. `flakiness 0.00` cannot see this — it compares reps inside ONE run — so
-   before you report a per-scenario delta, say whether that cell is a boundary cell. The
-   fix is `--reps N` on it, never a spec edit; `lint` reports these as notes that do not
-   fail the gate.
-5. **Review.** `skill-harness review <skill> --skills <root>` opens an interactive
-   matrix (model × scenario). Tell the user to click cells, read transcripts, flip
-   verdicts, and add notes — saves persist to `results.yaml`. Ctrl-C to stop.
-6. **Add a test.** `skill-harness add-test <skill> --skills <root> --id <ID> --title <T>
-   --turn "<turn>" [--turn ...] --check "<item>" [--check ...] [--critical]
-   [--mode seeded --fixture <path>]`. Gather the fields conversationally first.
-7. **Optimize.** The user edits `<skill>/SKILL.md` → re-run → compare the new
-   scorecard to the old `results.yaml`. Report the per-scenario delta, not just the
-   letter grade.
+## Evaluation design
 
-## Free, offline, and worth running first
-None of these spend a model or judge token. Reach for them before anything paid:
-`init`, `lint`, `list`, `rescore`, `restamp`, `stability`, and `coverage`. In particular —
-- `coverage <skill|all> --skills <root>` — which SKILL.md sections have a declared
-  test. `covers` records that somebody LINKED a test to a section; it is not proof
-  the behaviour is tested, and it is worth saying so when you report a percentage.
+- Use mechanical gates for execution facts and semantic criteria for meaning.
+  `require_calls` with `outcome: success` distinguishes a completed read from a
+  failed attempt; a read still does not prove correct interpretation.
+- Test user-visible behavior, errors, boundaries and valid alternatives. Avoid test
+  counts, exact command spelling, implementation syntax and obligatory citation
+  line numbers as proxies for quality unless the task requires that exact format.
+- Supply an adequate oracle to the judge, not to the subject. Source instructions
+  are untrusted data. Hard filesystem/network guarantees need runtime enforcement;
+  neither a skill nor a passing prompt-injection example establishes a sandbox.
+- Report false passes separately from false failures and errors. Judge calibration
+  on selected controls does not certify all future judgments.
+- Keep counterexamples symmetric: equivalent valid answers should receive the same
+  treatment. Do not repair only the failed cell while overlooking the same issue in
+  a passing cell. Avoid task-specific rules added merely to make a benchmark pass.
 
-**Match the remedy to the drift; `lint` names it.** `stimulus:` → `run` (spends),
-`rubric:` → `grade` (judge only), `policy:` → `rescore` (free), `gates:` → `regate`
-(no subject call; one judge call for each fail→pass rep). Never reach for `run` when lint
-asked for one of the other three. Confirm that possible judge spend before running `regate`.
+## Ecosystem integration
 
-## Tenets
-1. **Judge ≠ subject.** Never let the judge model sit in the model set being tested.
-2. **Critical + B-series gate the ship.** A critical-id fail or any under-pressure
-   (B*) fail blocks SHIP even if the pass count clears the bar. Every clean critical
-   repetition must pass; this includes over-refusal/right-sizing counterexamples.
-2b. **Missing evidence is ERROR, never a pass.** A gate that could not be checked —
-   no trace produced, a workspace never observed, an argument redaction destroyed —
-   reports ERROR and blocks. A vacuous PASS is the one outcome the harness will not
-   print, because it is indistinguishable from a real one.
-2c. **Incomplete criterion votes are UNGRADED.** After one judge retry, any ERROR
-   criterion vote makes that rep a non-pass in the denominator, not a judged FAIL.
-   Graded siblings can still meet the threshold; existing FAIL ship-bar allowances
-   apply. `list` and reports show the separate count; `rescore` updates old records
-   offline, or `regrade --unparsed-only` can repair votes with the recorded judge.
-3. **The author owns the verdict.** The judge proposes; overrides + notes in the
-   review UI are the durable record. Normally commit only `results.yaml`; if an override
-   unignores its transcript/judge evidence, commit that evidence with the override.
-4. **Re-grade cheaply before re-running.** `skill-harness grade <run-dir> --judge <m>`
-   re-scores saved transcripts with a different judge — no model re-runs. Use it to
-   de-confound a suspicious result before spending tokens on a fresh run.
-5. **Don't trust one run on a weak model.** Re-run noisy scenarios; a single pass/fail
-   on a stochastic model is not a signal.
+For an ecosystem subagent, keep the portable skill and the pi-daddy definition
+separate. Use `<skill>-agent.md` with a matching distinct frontmatter name and a
+plain explicit `allowed-tools` list (an empty line means no tools). Capabilities
+must fit the brief's tools and explicitly agreed `agentCapabilities`; do not add
+context or delegation authority by inference. Select the wrapper as a Pi skill
+resource; an `agents/` file alone is not discovered. Use native governed
+delegation. Availability is not a grant. Preserve operation and
+candidate identity, native final and cleanup evidence; never bypass a refused
+delegation by launching another child through a shell. Principal workflows are
+optional. A social-media role does not itself authorize posting or account changes.
 
-## Handoff
-You drive the CLI and interpret scorecards; the human flips verdicts in the review
-UI and edits the `SKILL.md` under test. You don't edit the skill being tested unless
-asked — you measure it.
+Optional JEV advice remains advisory with existing per-session paid-call and storage
+choices. Authoring and diagnostic data are not automatically training examples.
+Independent labels, source rights and separate export/training approval still apply.
+
+## Commands and evidence
+
+Start in Pi with `/skill-harness create <idea>`; resume with
+`/skill-harness author <name>`. `skill_author` retains the brief and draft under
+`.skill-harness/authoring/<name>`. Use `--specs <eval-root>` with a separate eval
+repository; its layout is `<eval-root>/<skill>/tests`.
+
+Free offline commands: `init`, `lint`, `preflight`, `diagnose`, `list`, `rescore`,
+`restamp`, `stability`, and `coverage`. `calibrate <manifest>` validates without
+model calls; `calibrate --run` invokes the selected judge. `suggest` is the existing
+Pi drafting shortcut for a skill that already exists.
+
+Use the cheapest honest remedy: stimulus drift → `run`; rubric drift → `grade`;
+policy drift → `rescore`; gate drift → `regate` (may judge fail-to-pass cases).
+`grade` spends judge tokens only. `run` spends subject and judge tokens. Honor the
+metered-judge opt-in and do not enable it by inference. Missing evidence is ERROR,
+never zero or PASS. The author owns verdict overrides; preserve their notes.
+
+See [docs/EVAL-AUTHORING.md](docs/EVAL-AUTHORING.md) for file contracts and
+[docs/USAGE.md](docs/USAGE.md) for the command walkthrough.

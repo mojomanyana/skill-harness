@@ -247,6 +247,16 @@
       "properties": {
         "judgeFormat": { "enum": ["json", "prose"] },
         "judgeRetries": { "type": "integer", "const": 1 },
+        "input": {
+          "type": "object", "additionalProperties": false,
+          "required": ["artifact", "sha256", "execution"],
+          "properties": {
+            "artifact": { "type": "string", "pattern": "^judge-input\\.[a-f0-9]{64}\\.txt$" },
+            "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "execution": { "enum": ["verified", "unknown"] },
+            "trace_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+          }
+        },
         "ordinal": {
           "type": "integer",
           "minimum": 1,

@@ -1,12 +1,12 @@
 # skill-harness
 
-A portable **test / optimize loop for agent skills**, driven from [pi](https://pi.dev).
-Point it at a repo of skills, and for any skill with a `tests/specification.yaml`
-spec it will run each scenario, LLM-judge the transcript, score it against a ship
-bar, and open an interactive review UI so you can measure a `SKILL.md` edit.
-Subject, judge, and spec-drafting model calls all run through Pi.
+Create and evaluate agent skills through [Pi](https://pi.dev). Start with an
+idea or an existing skill; the guided workflow helps define its behavior,
+draft the skill and evaluation cases, review judge controls, and inspect results.
+Authoring requires Pi with a selected model. All subject and judge calls also
+run through Pi.
 
-Fresh subject execution requires **exactly Pi 1.0.4**. Different or unavailable
+Fresh subject execution supports **Pi 1.0.4 and 1.1.0**. Other or unavailable
 versions produce execution ERROR before a subject call. Retained results remain
 readable; the historical Pi 0.83.0 raw parser is not current qualification.
 
@@ -17,7 +17,33 @@ npm i -g skill-harness          # CLI
 pi install npm:skill-harness     # CLI plus /skill-harness extension in Pi
 ```
 
-The Pi package declares its bundled extension directly. After install/update, `/reload` makes it available in an existing supported Pi session; verify the loaded resource rather than treating the package version as proof.
+The Pi package includes its extension and authoring skill. After install/update,
+`/reload` makes them available in an existing supported Pi session; verify the
+loaded resources rather than treating the package version as proof.
+
+## Start with an idea
+
+In Pi, select your model and enter:
+
+```text
+/skill-harness create I need a social media manager skill for drafting campaign proposals.
+```
+
+The installed authoring skill also lets Pi discover this workflow from a
+natural-language request such as “Help me create and evaluate a social media
+manager skill.” The command above starts it explicitly.
+
+It asks one necessary question at a time, including scope, permitted tools,
+and whether evals belong beside the skill or in a separate repository. It
+previews proposed files before applying them and asks you to review expected
+calibration labels. Generated skills can run with Pi alone; an optional
+pi-daddy agent wrapper provides ecosystem delegation without making the skill
+depend on pi-daddy or principal-pi-skills.
+
+Use preflight before model runs, calibration to check the judge against
+reviewed controls, and diagnosis to separate missing evidence from observed
+failures. These checks do not themselves establish model quality. See
+[the authoring workflow](https://github.com/mojomanyana/skill-harness/blob/main/docs/EVAL-AUTHORING.md).
 
 ## The loop
 
@@ -35,6 +61,10 @@ The Pi package declares its bundled extension directly. After install/update, `/
 |---|---|
 | `skill-harness list --skills <root>` | discovered skills + spec status |
 | `skill-harness lint <skill\|all> --skills <root>` | validate specs/fixtures; CI gate, exits non-zero on findings |
+| `skill-harness preflight <skill\|all> --skills <root> [--specs <root>]` | inspect eval configuration and discoverability without model calls |
+| `skill-harness calibrate <manifest.json>` | validate selected calibration evidence offline |
+| `skill-harness calibrate <manifest.json> --run --judge p:m --out NEW_DIR` | judge reviewed positive, negative and equivalent controls through Pi |
+| `skill-harness diagnose <run-dir> --skills <root> [--specs <root>]` | inspect saved evidence and identify blockers without changing scores |
 | `skill-harness run <skill\|all> --skills <root> [--model p:m ...] [--judge p:m]` | run scenarios, grade, score |
 | `skill-harness grade <run-dir> [--judge p:m]` | re-grade saved transcripts — no subject re-run |
 | `skill-harness rescore <run-dir>...` | re-apply current score thresholds offline |

@@ -48,7 +48,7 @@ scenarios:
 const OBJECTIVE: ObjectiveResult = {
   status: "PASS",
   trace_version: EXECUTION_TRACE_VERSION,
-  trace_sha256: "a".repeat(64),
+  trace_sha256: traceSha256(fixtureTrace()),
   assertions: [
     { kind: "skill_delivered", status: "PASS", detail: "one provider request: PASS" },
     { kind: "forbid_call", status: "PASS", detail: "`write` not called" },
@@ -94,16 +94,20 @@ const judge: HarnessAdapter = {
 };
 
 /** A trace artifact matching the spec's `forbid_calls: [write]` gate. */
-function writeTrace() {
-  const trace = {
+function fixtureTrace() {
+  return {
     trace_version: EXECUTION_TRACE_VERSION, pi_version: "0.83.0", subject: { provider: "fireworks", model: "x" },
     scenario_id: "A1", mode: "green" as const, rep: 0, turn: 0,
     final_text: "done", tool_calls: [], changed_paths: [], cost_usd: 0,
   };
+}
+function writeTrace() {
+  const trace = fixtureTrace();
   const hash = traceSha256(trace);
   writeFileSync(join(runDir, "A1.green.trace.jsonl"), `${JSON.stringify({ ...trace, trace_sha256: hash })}\n`, "utf8");
   const recorded = readResults(runDir);
   recorded.scenarios[0].objective = { ...recorded.scenarios[0].objective!, trace_sha256: hash };
+  recorded.scenarios[0].rep_judgments![0].objective = { ...recorded.scenarios[0].rep_judgments![0].objective!, trace_sha256: hash };
   writeResults(runDir, recorded, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: [] });
   return hash;
 }
@@ -130,6 +134,7 @@ beforeEach(() => {
       rep_judgments: [{ repetition: 0, recorded_verdict: "PASS", objective: OBJECTIVE, judgments: [{ ordinal: 1, judge: { provider: "claude-code", model: "j1" }, verdict: "PASS", reason: "ok", suspect: false, criteria: [{ index: 1, verdict: "PASS", reason: "ok" }] }] }],
     }],
   }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: [] });
+  writeTrace();
 });
 
 const cell = () => readResults(runDir).scenarios[0];

@@ -24,13 +24,14 @@ import type { ModelRef, RunMode } from "./adapters/types.js";
  *    concurrently and their `end` events arrive in completion order.
  */
 
-/** Current execution is qualified only against this exact Pi release. */
+/** Preferred historical pin; fresh execution accepts only the explicit fixture-qualified releases below. */
 export const QUALIFIED_PI_VERSION = "1.0.4";
+export const QUALIFIED_PI_VERSIONS = ["1.0.4", "1.1.0"] as const;
 /** Historical raw captures from this version remain readable; this is not fresh-run qualification. */
 const LEGACY_PI_TRACE_VERSION = "0.83.0";
 export function piQualificationFailure(version: string | null): string | null {
-  return version === QUALIFIED_PI_VERSION ? null
-    : `Pi ${version ?? "(version unavailable)"} is unqualified; execution requires exact Pi ${QUALIFIED_PI_VERSION}`;
+  return QUALIFIED_PI_VERSIONS.some(qualified => version === qualified) ? null
+    : `Pi ${version ?? "(version unavailable)"} is unqualified; execution requires qualified Pi ${QUALIFIED_PI_VERSIONS.join(" or ")}`;
 }
 
 /** Events that carry no information a trace keeps, and are large. */

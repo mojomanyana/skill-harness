@@ -2,12 +2,20 @@
 
 ## Current state
 
-`0.29.0` is the current source release target. Package manifests identify these
+The authoring source candidate adds `/skill-harness create <idea>` and `author`,
+with `skill_author` for persisted briefs, one-question UI, exact draft previews,
+safe apply, generic control preparation and explicit label review. Authoring runs
+in the current Pi model; generated skills are Pi-only with optional separate
+pi-daddy wrappers. Separate eval repos work through the extension's `--specs` path.
+Shared `preflight`, `calibrate` and `diagnose` replace Scout-specific setup scripts.
+This is source behavior until a release and live acceptance are verified.
+
+`0.30.0` is the current source release target. Package manifests identify these
 candidate bytes; verify npm and GitHub directly before asserting publication or
 `latest` promotion.
 Historical released versions remain recorded in the changelog.
 
-Fresh subject execution is qualified only on exact Pi **1.0.4**. Other or unknown
+Fresh subject execution is qualified on exact Pi **1.0.4 and 1.1.0**. Other or unknown
 versions fail closed before subject spawn. Historical Pi 0.83.0 raw captures remain
 readable through their explicit legacy parser; they are not current qualification.
 See the README's Pi qualification section and shared final conformance table.
@@ -20,6 +28,12 @@ The current architecture is Pi-only:
 - Active documentation describes only the current command surface.
 
 ## What the product currently retains
+
+The judge-evidence source candidate adds bounded tool completion facts and exact
+private judge-input artifacts to run/grade/regate. Saved evidence must match the
+original digest, identity and assistant turns; unbound historical evidence stays
+unknown. See [JUDGE-EVIDENCE.md](JUDGE-EVIDENCE.md). This changes judge prompts,
+not historical subject results. Fresh execution uses the qualified version set above.
 
 The run→grade→review loop remains the center of the project:
 
@@ -48,6 +62,8 @@ trajectory assertions, and confidence/automatic rejudging.
   behavior changes.
 - Judge usage is not persisted. Only subject usage is recorded and priced.
 - No OS sandbox is claimed.
+- Authored control labels stay proposed until the operator accepts them. A saved
+  authoring linkage is not calibration, product approval or training authorization.
 
 ## Pi-daddy contracts
 
@@ -83,8 +99,8 @@ not include this new adapter. A source pin alone is not evidence of publication.
 
 `jev_advice` now returns matching text/details/native structuredContent and declares
 its output schema. Pi1.1.0 native tool-only Codemode plus Principal's adapter are
-qualified offline with a fake provider; this does not change the separate fresh
-subject-run Pi1.0.4 pin. See DECISION-LEARNING.md for the explicit local runtime test.
+qualified offline with a fake provider; the separate decision-comparison profile
+remains pinned to Pi1.0.4. See DECISION-LEARNING.md for the explicit local runtime test.
 
 `decision fixtures --set workflow --out NEW_DIR` creates synthetic convergence
 cases and independent fixture labels. The existing default corpus is preserved.

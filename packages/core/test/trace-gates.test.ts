@@ -34,6 +34,21 @@ function trace(calls: TraceToolCall[], changed: string[] = []): ExecutionTraceV1
 
 // --------------------------------------------------------------- predicates
 
+it("distinguishes invocation from a completed tool-reported outcome without changing old gates", () => {
+  const args = { path: "source.txt" };
+  const success = parseTraceAssert({ require_calls: [{ tool: "read", args, outcome: "success" }] }, "A");
+  const failure = parseTraceAssert({ require_calls: [{ tool: "read", args, outcome: "error" }] }, "A");
+  const invoked = parseTraceAssert({ require_calls: [{ tool: "read", args }] }, "A");
+  const failedRead = trace([call("read", args, { isError: true })]);
+  expect(evaluateTraceGates(invoked, failedRead).status).toBe("PASS");
+  expect(evaluateTraceGates(success, failedRead).status).toBe("FAIL");
+  expect(evaluateTraceGates(failure, failedRead).status).toBe("PASS");
+  expect(evaluateTraceGates(success, trace([call("read", args)])).status).toBe("PASS");
+  expect(evaluateTraceGates(success, trace([call("read", args, { completionIndex: -1 })])).status).toBe("ERROR");
+  expect(evaluateTraceGates(success, trace([call("read", args, { isError: undefined as unknown as boolean })])).status).toBe("ERROR");
+  expect(() => parseTraceAssert({ require_calls: [{ tool: "read", outcome: "probably" }] }, "A")).toThrow(/outcome/);
+});
+
 describe("testPredicate", () => {
   it.each([
     ["equals string", "plan", { equals: "plan" }, true],

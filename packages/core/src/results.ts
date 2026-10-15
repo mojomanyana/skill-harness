@@ -143,6 +143,8 @@ export interface Judgment {
   judgeFormat?: "json" | "prose";
   /** One validation-guided retry after an invalid structured reply. */
   judgeRetries?: 1;
+  /** Content-addressed private input artifact; preserves exact prompts and execution coverage. */
+  input?: { artifact: string; sha256: string; execution: "verified" | "unknown"; trace_sha256?: string };
 }
 
 export interface AdjudicationResult {
@@ -1026,6 +1028,11 @@ export function findTranscriptFile(runDir: string, scenarioId: string): string |
  * for that claim is the code the model wrote.
  */
 export function preserveTranscript(resultsRoot: string, runDir: string, scenarioId: string): void {
+  const record = existsSync(resultsPath(runDir)) ? readResults(runDir).scenarios.find(scenario => scenario.id === scenarioId) : undefined;
+  const judgeInputs = (record?.rep_judgments ?? []).flatMap(panel => panel.judgments.flatMap(judgment => {
+    const input = judgment.input;
+    return input && input.artifact === `judge-input.${input.sha256}.txt` && /^[a-f0-9]{64}$/.test(input.sha256) && existsSync(join(runDir, input.artifact)) ? [input.artifact] : [];
+  }));
   const files = [
     ...findTranscriptFiles(runDir, scenarioId),
     ...findJudgeRawFiles(runDir, scenarioId),
@@ -1035,6 +1042,7 @@ export function preserveTranscript(resultsRoot: string, runDir: string, scenario
     // override whose justification was gitignored, and left `regate` with nothing
     // to re-evaluate on the one cell a human had disputed.
     ...findTraceFiles(runDir, scenarioId),
+    ...judgeInputs,
   ];
   if (files.length === 0) return;
   ensureResultsGitignore(resultsRoot);

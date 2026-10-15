@@ -19,7 +19,11 @@ if (isMain) {
   await build(buildOptions);
   mkdirSync("packages/skill-harness/assets", { recursive: true });
   mkdirSync("packages/skill-harness/dist", { recursive: true });
+  mkdirSync("packages/skill-harness/docs", { recursive: true });
   for (const [source, destination] of [
+    ["SKILL.md", "packages/skill-harness/SKILL.md"],
+    ["docs/EVAL-AUTHORING.md", "packages/skill-harness/docs/EVAL-AUTHORING.md"],
+    ["docs/USAGE.md", "packages/skill-harness/docs/USAGE.md"],
     ["packages/pi-extension/dist/index.js", "packages/skill-harness/dist/index.js"],
     ["assets/report.template.html", "packages/skill-harness/assets/report.template.html"],
     ["assets/report.grade.js", "packages/skill-harness/assets/report.grade.js"],

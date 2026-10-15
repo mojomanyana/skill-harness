@@ -2,11 +2,19 @@
 
 A verified walkthrough of setting up and using `skill-harness` locally. `skill-harness` runs a spec'd agent skill's scenarios on the `pi` harness, LLM-judges each transcript, scores it against a ship bar, and lets you review + re-run to measure a `SKILL.md` edit.
 
-> Agents: see [`AGENTS.md`](../AGENTS.md) for the condensed, rules-first version. pi users: `pi install` the repo and drive it conversationally via [`SKILL.md`](../SKILL.md).
+For a new skill, start in Pi with `/skill-harness create <your idea>`. The current
+model helps create the skill and its evaluations, asking one necessary question at
+a time. No examples or YAML are required from you. Resume with
+`/skill-harness author <saved-name>`. Generated skills require Pi only; a separate
+pi-daddy wrapper is optional. See [the complete authoring flow](EVAL-AUTHORING.md).
+
+> Agents: see [`AGENTS.md`](https://github.com/mojomanyana/skill-harness/blob/main/AGENTS.md) for repository guidance. Pi users: install `npm:skill-harness` and drive it conversationally via [`SKILL.md`](../SKILL.md).
 
 ## 0. Requirements
 
 - **Node ≥ 20.**
+- **Authoring needs a selected model in Pi.** It uses the current session rather
+  than a separate provider client. Test subject and judge selection happens later.
 - **`pi` on your `PATH`** (`pi --version`) with providers configured for each model you call. `run` uses Pi for subject and judge; `grade` uses it for the judge; `suggest` uses it for drafting.
 - **`init`, `lint`, `list`, `rescore`, `restamp`, `stability`, and `coverage` need neither Pi nor an API key** — they are offline.
 
@@ -28,12 +36,23 @@ Examples below use `node bin/skill-harness.js` against the bundled fixture skill
 
 ## Scaffolding a spec
 
-New skill with no spec? Two ways to get a `tests/specification.yaml`:
+For an existing skill where only a spec scaffold is wanted, the older shortcuts remain:
 
 - `skill-harness init <skill> --skills <root>` — writes a commented template to fill in. Free, offline.
 - `skill-harness suggest <skill> --skills <root>` — reads the skill's `SKILL.md` and LLM-drafts scenarios, a checklist, and a *proposed* critical set for you to review. Spends model tokens through Pi; defaults to `openai-codex:gpt-5.6-sol` on a ChatGPT subscription. Override with `--model prov:model`.
 
 `suggest` never marks scenarios critical for you and never auto-runs — review the draft (especially the proposed critical set commented at the top), then `run`.
+
+For a separate evaluation repo, pass `--specs <eval-root>` alongside `--skills`.
+The eval layout is `<eval-root>/<skill>/tests/`; runtime `SKILL.md` and resources stay
+in the skill repo. The Pi `run`, `coverage` and `review` commands also accept
+`--specs`, and `skill_check_run` accepts `specs`. Duplicate local/overlay specs refuse.
+
+After authoring, run `preflight` before spending model tokens. Use the Pi
+`skill_author controls` and `review-controls` actions for proposed examples and human
+label review. `calibrate <manifest>` validates offline; adding `--run --judge p:m
+--out NEW_DIR` invokes Pi's selected judge. `diagnose <run-dir> --skills <root>`
+uses saved evidence to identify the next check without another subject run.
 
 ## 2. Discover testable skills
 
@@ -179,7 +198,7 @@ harness CLI it drove — `pi --version`), and the run banner and `--version` bot
 former. `schema` cannot answer either question: 0.2.1 → 0.3.0 kept `schema: 2` while
 changing what a verdict *means*.
 
-Fresh subject execution now requires exact Pi **1.0.4**. The version probe uses the
+Fresh subject execution supports exact Pi **1.0.4 or 1.1.0**. The version probe uses the
 same working directory and environment as the subject, including an arm's `PATH`.
 Other versions or a failed probe produce a saved execution ERROR before subject
 spawn; saved regrading preserves that failure. Historical result files remain

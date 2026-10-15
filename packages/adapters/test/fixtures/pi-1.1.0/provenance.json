@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "capturedAt": "2026-10-15T14:30:39.426Z",
+  "producer": "@earendil-works/pi-coding-agent@1.1.0",
+  "fixture": "success.jsonl",
+  "sha256": "18a7df6a1ad0f65eaf3bf1b93d2bc4c24ab48e6d678a39547a23f38fae3a9996",
+  "normalization": "None; original scripted provider event stream, including fixed MCP response and session timestamps.",
+  "transport": "Pi CLI --mode json",
+  "provider": "scripted local HTTP fixture; no real model calls",
+  "isolation": {
+    "dockerImage": "sha256:b2957a4a4414871cabdd54dd7d5fbe7f7f2be8097f0108ae7101db0cac1dfce0",
+    "network": "none",
+    "readOnly": true,
+    "home": "/workspace",
+    "hostCredentialsMounted": false
+  },
+  "captureScript": {
+    "file": "capture.mjs",
+    "sha256": "63c4a1e4e3c552fb4d541969260f26138f1322b5d7cd524330c70c3dbb49ca56",
+    "origin": "Adapted local pi-scout-research-evals/scripts/harness-smoke.mjs; current core/adapters/CLI dist mounted over image packages."
+  },
+  "sourceSnapshots": [
+    {
+      "file": "packages/core/src/execution-trace.ts",
+      "sha256": "417b70955458dcde53b74053d9361bbd072049e7105a9d08c3cf448b83eb794e"
+    },
+    {
+      "file": "packages/core/src/grade.ts",
+      "sha256": "4be11423dc943d8a9960c8ab3e250fcde4d1138b3486af90ed09297ad05753cd"
+    },
+    {
+      "file": "packages/adapters/src/pi.ts",
+      "sha256": "9b1a242ca3e3817d464427b6c76f68ff1ca07f9d6078aabaddcb78e4716c0540"
+    },
+    {
+      "file": "packages/core/src/run.ts",
+      "sha256": "82690ec0d7c8e3bf4a038508ff90627509aabb90314ee1d92e5dc2713e488b15"
+    }
+  ],
+  "runs": [
+    {
+      "file": "pi104-current-qualification.json",
+      "sha256": "27a3e5253f575c44c8bd22e641c74c34f289efdffcad02c25bb915975e138c9f"
+    },
+    {
+      "file": "pi110-current-qualification.json",
+      "sha256": "2662ec8b8be5d010f962d97d18c41b796ae2917540a16739e3091f0172287f25"
+    }
+  ],
+  "limitations": [
+    "Retained report qualificationCandidate and published-harness wording comes from the original Scout script. Both actual invocations used the current skill-harness candidate via read-only package dist mounts, not the old image package implementation.",
+    "The success fixture uses a synthetic MCP tool response. Provider failure, error and settlement negative cases remain regression controls, not claimed as new real Pi 1.1.0 error captures.",
+    "No subscription authentication, real model quality, governed Daddy child execution, or other Pi versions qualified."
+  ]
+}

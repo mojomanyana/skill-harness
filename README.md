@@ -1,8 +1,8 @@
 # skill-harness
 
-**The TDD loop for Agent Skills.** For developers shipping `SKILL.md`-powered
-agents who want proof a skill works — and keeps working — without trusting a raw
-LLM judge or standing up an eval platform.
+**Develop, evaluate and improve skills in Pi.** Start with a role you need or an
+existing skill. Pi's current model helps author the skill, its tests and judge
+controls; skill-harness checks the artifacts and measures behavior.
 
 ![skill-harness demo: discover 7 skills, lint them offline, break one fixture marker and
 watch the gate catch it, then re-score two committed runs 93% → 100%](assets/demo.gif)
@@ -13,8 +13,8 @@ grade movement is two runs already committed to a public repo. Re-record it with
 
 ## Pi qualification
 
-Fresh subject execution requires **exactly Pi 1.0.4**. An unknown, unavailable,
-prerelease, older or newer version records execution ERROR before starting the
+Fresh subject execution supports **exactly Pi 1.0.4 or 1.1.0**. An unknown, unavailable,
+prerelease or other version records execution ERROR before starting the
 subject; regrading that saved failure does not call the judge. Qualification must
 be renewed explicitly for a Pi upgrade.
 
@@ -31,19 +31,33 @@ make the evidence and its limits inspectable.
 ## Quickstart
 
 ```bash
-npm i -g skill-harness
-skill-harness suggest my-skill --skills ./skills   # LLM-drafts a spec from the skill's own SKILL.md
-skill-harness run     my-skill --skills ./skills   # run every scenario, judge it, score it
-skill-harness review  my-skill --skills ./skills   # flip verdicts in a local UI; saves to results.yaml
+pi install npm:skill-harness
+pi
 ```
 
-No spec yet and don't want to spend tokens? `skill-harness init my-skill` writes a
-commented template instead — free and offline. Already have runs? `lint` and
-`list` need no models and no API keys at all.
+In Pi, select your model and describe the skill:
+
+```text
+/skill-harness create I need a social media manager skill and subagent for our ecosystem.
+```
+
+The workflow asks one necessary question at a time, remembers answers, drafts the
+skill and evaluations, and supports the same repo or a separate eval repo. It does
+not expect existing examples. Models for testing and judging are chosen when testing
+begins. Resume with `/skill-harness author <saved-name>`.
+
+Authoring uses Pi and its selected model. Generated skills need only Pi; an optional
+pi-daddy wrapper is separate, with no Principal dependency or automatic grants.
+Saving a draft does not authorize publication, account access or training.
+
+The CLI remains available for CI and repeatable runs. `init` creates an offline
+spec template; `suggest` is the existing shortcut for a skill that already exists.
+See [the authoring workflow](docs/EVAL-AUTHORING.md) and [usage](docs/USAGE.md).
 
 ## What it does
 
-Point it at a repo of skills, and for any skill with a spec it will:
+From an idea, skill-harness helps create the skill, requirement mapping, scenarios,
+fixtures and proposed judge controls. From a skill with a spec it can:
 
 1. **run** each scenario against pi (a model of your choice, skill active),
 2. **grade** every transcript with an LLM judge,

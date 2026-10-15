@@ -29,6 +29,9 @@ import {
   isScoredMode,
   resolveArm,
   isFreeOfflineCommand,
+  diagnoseRun,
+  loadCalibration,
+  runCalibration,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
@@ -791,6 +794,10 @@ export function help(): string {
   review <skill>     --skills <root> [--port N] serve the interactive review UI
   add-test <skill>   --skills <root> --id ID --title T --turn ... --check ... [--critical] [--mode seeded --fixture path]
   init   <skill>     --skills <root> [--force]     scaffold a commented template spec (${free("init")})
+  preflight <skill|all> --skills <root> [--specs <root>] eval checks (${free("preflight")})
+  calibrate <manifest.json> [--run --judge p:m --out NEW_DIR] validate or judge reviewed controls
+  diagnose <run-dir> --skills <root> [--specs <root>] inspect saved evidence (${free("diagnose")})
+  In Pi: /skill-harness create <idea>             guided skill + optional agent + eval creation
   suggest <skill>    --skills <root> [--model prov:model] [--force]  LLM-draft a spec from SKILL.md (spends tokens)
   list   --skills <root>                        discovered skills + spec status (${free("list")})
   lint   <skill|all> --skills <root>           validate specs/fixtures + results-consistency (${free("lint")}; CI gate; exits non-zero on findings)
@@ -811,12 +818,56 @@ defaults: model=${DEFAULT_MODEL}  judge=${defaultJudge()}  mode=green  harness=p
   API key. Set SKILL_HARNESS_JUDGE to change it for a repo or a shell; --judge wins over both.`;
 }
 
+export async function cmdPreflight(args: Args): Promise<void> {
+  const { skills, specs } = roots(args);
+  const target = args._[0];
+  if (!target) throw new Error("usage: skill-harness preflight <skill|all> --skills <root> [--specs <root>]");
+  const selected = target === "all" ? discoverUsable(skills, specs).filter(s => s.hasSpec) : [resolveSkill(skills, target, specs)];
+  if (!selected.length) throw new Error("No specifications found; in Pi use /skill-harness create to author a skill and its evals.");
+  const findings = selected.flatMap(s => lintSkill(s.dir, s.testsDir));
+  const errors = findings.filter(failsGate);
+  console.log(JSON.stringify({ status: errors.length ? "blocked" : "checked", providerCalls: 0, semanticValidity: "requires-reviewed-controls", findings }, null, 2));
+  if (errors.length) process.exitCode = 1;
+}
+
+export async function cmdDiagnose(args: Args): Promise<void> {
+  if (!args._[0]) throw new Error("usage: skill-harness diagnose <run-dir> --skills <root> [--specs <root>]");
+  const runDir = resolve(args._[0]);
+  const recorded = readResults(runDir);
+  const { skills, specs } = roots(args);
+  const selected = resolveSkill(skills, recorded.skill, specs);
+  console.log(JSON.stringify(diagnoseRun(runDir, selected.dir, selected.specPath), null, 2));
+}
+
+export async function cmdCalibrate(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
+  if (!args._[0]) throw new Error("usage: skill-harness calibrate <manifest.json> [--run --judge provider:model --out NEW_DIR]");
+  const calibration = loadCalibration(resolve(args._[0]));
+  if (!flagBool(args, "run")) {
+    console.log(JSON.stringify({ status: calibration.ready ? "validated" : "needs-review", purpose: "judge-calibration-only", providerCalls: 0, cases: calibration.controls.length, issues: calibration.issues }));
+    if (!calibration.ready) process.exitCode = 1;
+    return;
+  }
+  const judgeToken = flagStr(args, "judge");
+  const output = flagStr(args, "out");
+  if (!judgeToken || !output) throw new Error("Calibration --run needs an explicitly selected --judge and a new --out directory.");
+  const adapter = adapterOverride ?? getAdapter("pi");
+  if (!await adapter.available()) throw new Error("Pi is required for judge calibration. Configure the selected model in Pi first.");
+  const result = await runCalibration(calibration, { adapter, judge: parseModelRef(judgeToken), output: resolve(output), allowMeteredJudge: flagBool(args, "allow-metered-judge"), onProgress: p => console.log(`Judging control ${p.index + 1}/${p.total}: ${p.id}`) });
+  console.log(JSON.stringify(result, null, 2));
+  if (result.status !== "matched") process.exitCode = 1;
+}
+
 export async function main(argv: string[]): Promise<void> {
   const cmd = argv[0];
   if (cmd === "decision") return cmdDecision(argv.slice(1));
   const args = parseArgs(argv.slice(1));
   assertNoRetiredFlags(cmd, args);
   switch (cmd) {
+    case "create":
+    case "author": throw new Error("Skill creation uses your current Pi model. Start Pi with skill-harness installed, then use /skill-harness create followed by your idea; it asks one necessary question at a time.");
+    case "preflight": return cmdPreflight(args);
+    case "diagnose": return cmdDiagnose(args);
+    case "calibrate": return cmdCalibrate(args);
     case "run": return cmdRun(args);
     case "grade":
     case "regrade": return cmdGrade(args);
