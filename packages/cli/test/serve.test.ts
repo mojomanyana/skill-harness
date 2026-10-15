@@ -3,7 +3,11 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "nod
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeResults, readResults, readJournal, type HarnessAdapter } from "@skill-harness/core";
+import { createHash } from "node:crypto";
+import {
+  writeResults, readResults, readJournal, runSkillModel, loadSpec, rubricDigest, traceSha256, tracePath,
+  EXECUTION_TRACE_VERSION, type ExecutionTraceV1, type HarnessAdapter,
+} from "@skill-harness/core";
 import { serveReview } from "../src/serve.js";
 
 // packages/cli/test -> packages/cli -> packages -> repo root
@@ -435,4 +439,83 @@ scenarios:
     expect(r.status).toBe(404);
     expect(judgeCalls3).toBe(before); // no judge call spent on a scenario not in this run
   });
+});
+
+test("HTTP rejudge preserves bound execution and snapshots selected references through result persistence", async () => {
+  const root = mkdtempSync(join(tmpdir(), "sc-serve-bound-reference-"));
+  let server: Awaited<ReturnType<typeof serveReview>> | undefined;
+  try {
+    const specDir = join(root, "tests");
+    mkdirSync(specDir);
+    writeFileSync(join(root, "SKILL.md"), "# Greeting\nUse the supplied source.\n");
+    const refPath = join(specDir, "reference.txt");
+    const reference = "ORIGINAL_REFERENCE: Hello.";
+    writeFileSync(refPath, reference);
+    const specPath = join(specDir, "specification.yaml");
+    writeFileSync(specPath, SPEC.replace('    checklist: ["greets the user"]', '    checklist: ["greets the user"]\n    judge_references: [reference.txt]\n    judge_evidence: response'));
+    const spec = loadSpec(specPath);
+    const subject = { provider: "fixture", model: "subject" };
+    const prompts: string[] = [];
+    let mutateReference = false;
+    const adapter: HarnessAdapter = {
+      name: "pi", preferStructured: true, available: async () => true, version: async () => "1.1.0",
+      run: async () => { throw new Error("Use the structured fixture"); },
+      runStructured: async req => {
+        const trace: ExecutionTraceV1 = {
+          trace_version: EXECUTION_TRACE_VERSION, pi_version: "1.1.0", subject,
+          scenario_id: req.scenarioId!, mode: req.mode, rep: req.rep ?? 0, turn: 0,
+          final_text: "Hello.", final_status: "complete", changed_paths: null, cost_usd: null,
+          tool_calls: [{ id: "read-1", name: "read", args: { path: "reference.txt" }, issueIndex: 0, completionIndex: 0, isError: false,
+            result: { bytes: Buffer.byteLength(reference), sha256: createHash("sha256").update(reference).digest("hex") } }],
+        };
+        trace.trace_sha256 = traceSha256(trace);
+        return { transcript: ">>> USER:\nSay hello.\n\n<<< ASSISTANT:\nHello.\n", traces: [trace] };
+      },
+      judge: async req => {
+        prompts.push(req.prompt);
+        if (mutateReference) writeFileSync(refPath, "CHANGED_REFERENCE: Goodbye.");
+        return '{"votes":[{"criterion":1,"vote":"PASS","reason":"Supported greeting"}],"verdict":"PASS","reason":"Supported greeting"}';
+      },
+    };
+    const first = await runSkillModel({
+      skillDir: root, specPath, spec, adapter, model: subject, modelToken: "fixture:subject",
+      judge: { provider: "local", model: "judge" }, reps: 2, mode: "force", timestamp: "2026-10-15T00-00-00-000Z",
+    });
+    const expectedRubric = rubricDigest(spec.scenarios[0], specDir);
+    expect(prompts).toHaveLength(2);
+    server = await serveReview({ skillDir: root, skillName: "golden", adapter, port: 0, open: false });
+    const rejudge = () => fetch(`http://127.0.0.1:${server!.port}/rejudge`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ col: 0, scenarioId: "A1" }),
+    });
+    mutateReference = true;
+    const response = await rejudge();
+    expect(response.status, JSON.stringify(await response.clone().json())).toBe(200);
+    expect(prompts).toHaveLength(4);
+    for (const prompt of prompts.slice(2)) {
+      expect(prompt).toContain("ORIGINAL_REFERENCE");
+      expect(prompt).not.toContain("CHANGED_REFERENCE");
+      expect(prompt).toContain('"status":"verified"');
+    }
+    const saved = readResults(first.runDir);
+    expect(saved.source_hashes!["rubric:A1"]).toBe(expectedRubric);
+    expect(rubricDigest(spec.scenarios[0], specDir)).not.toBe(expectedRubric);
+    expect(saved.scenarios[0].rep_judgments!.every(panel => panel.judgments[0].input?.execution === "verified")).toBe(true);
+
+    // Hash a replacement trace consistently: refusal must use the original
+    // recorded binding, not merely accept the replacement's self-digest.
+    const selectedTracePath = tracePath(first.runDir, "A1", "force", 0);
+    const changed = JSON.parse(readFileSync(selectedTracePath, "utf8")) as ExecutionTraceV1;
+    changed.subject = { provider: "fixture", model: "different-subject" };
+    changed.trace_sha256 = traceSha256(changed);
+    writeFileSync(selectedTracePath, JSON.stringify(changed) + "\n");
+    const before = readFileSync(join(first.runDir, "results.yaml"), "utf8");
+    const refused = await rejudge();
+    expect(refused.status).toBe(400);
+    expect((await refused.json()).error).toMatch(/identity|digest|subject/i);
+    expect(prompts).toHaveLength(4);
+    expect(readFileSync(join(first.runDir, "results.yaml"), "utf8")).toBe(before);
+  } finally {
+    server?.close();
+    rmSync(root, { recursive: true, force: true });
+  }
 });

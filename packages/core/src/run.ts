@@ -3,7 +3,8 @@ import { dirname, join, resolve } from "node:path";
 import type { Spec, Scenario } from "./spec.js";
 import { sourceHashes, sourceHashRoots } from "./sources.js";
 import type { HarnessAdapter, ModelRef, RunMode } from "./adapters/types.js";
-import { judgeResemblesSubject } from "./grade.js";
+import { judgeResemblesSubject, resolveJudgeReferences, type JudgeReference } from "./grade.js";
+import { inspectEvalAuthoring } from "./authoring-preflight.js";
 import { NONE_ARM, seedArmDefinitions, type Arm } from "./arms.js";
 import {
   runDirFor,
@@ -23,6 +24,7 @@ import { appendJournal } from "./journal.js";
 import { liftHeadline, type Lift } from "./lift.js";
 import { evaluateOutputGates, hasOutputGates, runSeeded } from "./seeded.js";
 import { serializeTrace, mergeTraces, traceSha256 } from "./execution-trace.js";
+import { executionFacts, transcriptResponses } from "./judge-evidence.js";
 import { evaluateTraceGates } from "./trace-gates.js";
 import type { ExecutionTraceV1 } from "./capture-trace-types.js";
 import { snapshotPaths, diffSnapshots, createWorkspace, type Workspace, type PathSnapshot } from "./workspace.js";
@@ -138,6 +140,11 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     log(`  --only ${opts.only!.join(",")} — partial run, will not be ship-graded`);
   }
 
+  const authoringErrors = inspectEvalAuthoring({ ...spec, scenarios }).filter(f => f.severity === "error");
+  if (authoringErrors.length) throw new Error(authoringErrors.map(f => `${f.scenario}: ${f.message}`).join("\n"));
+  const judgeReferences = Object.fromEntries(scenarios.map(s => [s.id, resolveJudgeReferences(s, dirname(opts.specPath))]));
+  const hashes = sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios, judgePersona: spec.judge_persona, judgeReferences });
+
   if (judgeResemblesSubject(judge, model)) {
     log(
       `  ⚠ judge (${judge.provider}:${judge.model}) resembles the model under test ` +
@@ -212,7 +219,7 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
       const rep = k;
       const total = repCounts[si];
       owners.push(si);
-      tasks.push(() => runRep(scenario, rep, total, { ...opts, runDir, now, log, armDefinitions }));
+      tasks.push(() => runRep(scenario, rep, total, { ...opts, runDir, now, log, armDefinitions, judgeReferences }));
     }
   });
   const flat = await runPool(tasks, opts.concurrency ?? 1);
@@ -228,7 +235,6 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   });
 
   const ctx = scoreContextFor({ mode, partial }, spec);
-  const hashes = sourceHashes({ skillDir, specDir: dirname(opts.specPath), scenarios, judgePersona: spec.judge_persona });
   const results = writeResults(runDir, {
     skill: spec.skill,
     harness: adapter.name,
@@ -270,6 +276,7 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
 }
 
 interface ScenarioCtx {
+  judgeReferences: Record<string, JudgeReference[]>;
   runDir: string;
   now: () => string;
   log: (msg: string) => void;
@@ -432,6 +439,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
           } else {
             const req = {
               skillDir: ctx.skillDir, model: ctx.model, mode, turns: scenario.turns, cwd: ws.cwd,
+              tools: scenario.tools,
               // resolved like fixtures: relative to the spec's dir
               systemPromptFile: scenario.systemPromptFile
                 ? resolve(dirname(ctx.specPath), scenario.systemPromptFile)
@@ -558,6 +566,11 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
     // timeout that caused it, and it is that text, not the real reason, that would
     // reach the results record. The verdict is ERROR either way.
     let objective: ObjectiveResult | undefined;
+    if (traces.length > 0) writeFileSync(tracePath(runDir, scenario.id, mode, repSuffix), traces.map(serializeTrace).join(""), "utf8");
+    const execution = executionFacts(traces, {
+      scenarioId: scenario.id, mode, repetition: rep, turns: scenario.turns.length,
+      subject: ctx.model, responses: transcriptResponses(transcript, scenario),
+    }, { source: "live" });
     if ((scenario.traceAssert || hasOutputGates(scenario)) && !adapterFailure && !noResponse && !infrastructureFailure) {
       const assertionResults: ObjectiveResult["assertions"] = [...outputGate.assertions];
       let status: ObjectiveResult["status"] = outputGate.status;
@@ -565,20 +578,13 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
       const outputMeta = outputGate.outputSha256 ? { output_sha256: outputGate.outputSha256 } : {};
 
       if (scenario.traceAssert) {
-        if (traces.length > 0) {
-          writeFileSync(
-            tracePath(runDir, scenario.id, mode, repSuffix),
-            traces.map(serializeTrace).join(""),
-            "utf8",
-          );
-        }
-        const merged = mergeTraces(traces);
+        const merged = execution.status === "invalid" ? null : mergeTraces(traces);
         if (unobservablePaths) {
           status = "ERROR";
           assertionResults.push({ kind: "unchanged_path", status: "ERROR", detail: "workspace changes could not be observed" });
         } else if (merged === null) {
           status = "ERROR";
-          assertionResults.push({ kind: "trace_evidence", status: "ERROR", detail: "no execution trace was produced" });
+          assertionResults.push({ kind: "trace_evidence", status: "ERROR", detail: execution.status === "invalid" ? execution.reason : "no execution trace was produced" });
         } else {
           const gate = evaluateTraceGates(scenario.traceAssert, merged);
           if (gate.status === "ERROR" || status === "ERROR") status = "ERROR";
@@ -629,12 +635,13 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
       const o = await judgeOneRep({
         runDir, spec, scenario, transcript, adapter: ctx.adapter, judge,
         specDir: dirname(ctx.specPath), mode, rep: repCount > 1 ? rep : undefined, now,
+        execution, objective, references: ctx.judgeReferences[scenario.id],
       });
       verdict = o.verdict; reason = o.reason; suspect = o.suspect; judgment = o.judgment; // judgeOneRep already journaled (verdict + misfire)
       judgeCalls = o.metrics?.judge_calls ?? 0;
     }
     log(`  → ${scenario.id}${repCount > 1 ? `#${rep}` : ""} ${verdict}${reason ? `: ${reason}` : ""}${suspect ? "  ⚠ suspect" : ""}`);
-    const subject = mergeTraces(traces)?.metrics;
+    const subject = execution.status === "invalid" ? undefined : mergeTraces(traces)?.metrics;
     return {
       verdict, reason, suspect, objective, judgment,
       metrics: {

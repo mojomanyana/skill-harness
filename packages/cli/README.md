@@ -9,7 +9,7 @@ through Pi.
 Most users should install the `skill-harness` meta-package (`npm i -g
 skill-harness`) instead of this package directly.
 
-Fresh subject execution requires **exactly Pi 1.0.4**. Different or unavailable
+Fresh subject execution supports **Pi 1.0.4 and 1.1.0**. Other or unavailable
 versions produce execution ERROR before a subject call. Retained results remain
 readable; the historical Pi 0.83.0 raw parser is not current qualification.
 
@@ -19,12 +19,30 @@ readable; the historical Pi 0.83.0 raw parser is not current qualification.
 npm i -g @skill-harness/cli
 ```
 
+## Create a skill in Pi
+
+Install the `skill-harness` Pi package, select a model, then use
+`/skill-harness create <your idea>`. Authoring runs in Pi and asks one necessary
+question at a time; the standalone CLI does not substitute a direct model API.
+The workflow previews a skill, optional pi-daddy wrapper, and evals in the same
+or a separate repository before applying files. Generated skills need only Pi;
+the wrapper is optional and principal-pi-skills is not required.
+
+The CLI supports the subsequent offline preflight, reviewed judge calibration,
+scenario execution and saved-result diagnosis. See
+[EVAL-AUTHORING.md](https://github.com/mojomanyana/skill-harness/blob/main/docs/EVAL-AUTHORING.md)
+for the complete workflow and its evidence limits.
+
 ## Commands
 
 | command | does |
 |---|---|
 | `skill-harness list --skills <root>` | discovered skills + spec status |
 | `skill-harness lint <skill\|all> --skills <root>` | validate specs/fixtures; CI gate |
+| `skill-harness preflight <skill\|all> --skills <root> [--specs <root>]` | inspect eval configuration and discoverability offline |
+| `skill-harness calibrate <manifest.json>` | validate selected calibration evidence offline |
+| `skill-harness calibrate <manifest.json> --run --judge p:m --out NEW_DIR` | judge reviewed controls through Pi; preserve a new result directory |
+| `skill-harness diagnose <run-dir> --skills <root> [--specs <root>]` | inspect saved evidence without changing historical scores |
 | `skill-harness run <skill\|all> --skills <root> [--model p:m ...] [--judge p:m]` | run scenarios, grade, score |
 | `skill-harness grade <run-dir> [--judge p:m]` | re-grade saved transcripts |
 | `skill-harness rescore <run-dir>...` | re-apply current score thresholds offline |

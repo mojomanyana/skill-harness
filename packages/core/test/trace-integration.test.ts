@@ -73,7 +73,7 @@ function spyAdapter(traces: ExecutionTraceV1[], opts: { structured?: boolean; wr
       if (opts.writes) writeFileSync(join(req.cwd, opts.writes), "touched", "utf8");
       return {
         transcript: `>>> USER:\n${req.turns[0]}\n\n<<< ASSISTANT:\nI have finished the task.\n`,
-        traces,
+        traces: traces.map(trace => ({ ...trace, subject: req.model, scenario_id: req.scenarioId!, mode: req.mode, rep: req.rep ?? 0 })),
       };
     };
   }

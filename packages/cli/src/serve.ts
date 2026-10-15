@@ -13,6 +13,7 @@ import {
   regradeScenario, refreshRubricHashes, findJudgeRawFiles,
   effectiveThreshold, scoreContextFor, isScoredMode, rebuildScenarioResult, mergeScenarioMetrics, carryRepObjectives,
   envFlag, recordedJudgeOrDefault, assertJudgeAllowed,
+  parseModelRef, resolveJudgeReferences,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 
@@ -165,10 +166,16 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
         }
         const threshold = effectiveThreshold(prev, scenario);
         try {
+          // The prompt and refreshed rubric must name the same selected bytes,
+          // even when a reference is edited while a multi-repetition judge runs.
+          const specDir = dirname(specPath);
+          const references = resolveJudgeReferences(scenario, specDir);
           const rr = await regradeScenario({
             runDir: column.runDir, spec, scenario, adapter, judge: resolvedRecordedJudge.judge,
-            specDir: dirname(specPath), threshold, mode: results.mode,
+            specDir, threshold, mode: results.mode, references,
             expectedReps: prev.reps ?? 1,
+            prior: prev, piVersion: results.harness_cli_version,
+            ...(results.model.includes(":") ? { subject: parseModelRef(results.model) } : {}),
           });
           const merged = results.scenarios.map((s) => {
             if (s.id !== body.scenarioId) return s;
@@ -197,7 +204,7 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
             // retired the staleness gate for any run re-judged from the UI. Carried,
             // with the one `rubric:` key this re-judge actually applied refreshed —
             // the same doctrine `grade` follows (see refreshRubricHashes).
-            source_hashes: refreshRubricHashes(results.source_hashes, spec, [body.scenarioId]),
+            source_hashes: refreshRubricHashes(results.source_hashes, spec, [body.scenarioId], specDir, { [body.scenarioId]: references }),
             source_hash_roots: results.source_hash_roots,
           }, scoreContextFor(results, spec));
           ensureResultsGitignore(join(opts.skillDir, "tests", "results"));

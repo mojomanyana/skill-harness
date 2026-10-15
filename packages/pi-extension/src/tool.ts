@@ -1,7 +1,7 @@
 import { Type } from "typebox";
 import type { HarnessAdapter } from "@skill-harness/core";
 import type { ExtensionAPI } from "./commands.js";
-import { resolveSkillDir, runViaExtension, type Scorecard } from "./runner.js";
+import { resolveSkillLocation, runViaExtension, type Scorecard } from "./runner.js";
 
 // NOTE: the export name, the tool's model-facing `name`, and `handleSkillCheck`
 // in commands.ts are intentionally NOT rebranded (only the `label` was). A tool
@@ -15,22 +15,25 @@ export const skillCheckRunTool = {
   promptGuidelines: ["Use skill_check_run after editing a skill to validate it against its scenarios."],
   parameters: Type.Object({
     skill: Type.Optional(Type.String({ description: "skill dir/name; defaults to the current project" })),
+    specs: Type.Optional(Type.String({ description: "Separate evaluation repository root; spec is <root>/<skill-name>/tests/specification.yaml" })),
     model: Type.Optional(Type.String({ description: "provider:model token under test" })),
+    judge: Type.Optional(Type.String({ description: "Independent Pi provider:model judge, chosen when testing starts" })),
     reps: Type.Optional(Type.Number({ description: "run each scenario N times", minimum: 1, maximum: 20 })),
     mode: Type.Optional(Type.String({ description: "red | green | force (green and force are scored; red is the baseline)" })),
     canary: Type.Optional(Type.Boolean({ description: "green only: spend one probe proving the skill reached the model, and abort if it did not" })),
   }),
   async execute(
     _id: string,
-    params: { skill?: string; model?: string; reps?: number; mode?: string; canary?: boolean },
+    params: { skill?: string; specs?: string; model?: string; judge?: string; reps?: number; mode?: string; canary?: boolean },
     _signal: AbortSignal,
     onUpdate: ((update: { content: { type: "text"; text: string }[] }) => void) | undefined,
     ctx: { cwd: string; __adapter?: HarnessAdapter }
   ): Promise<{ content: { type: "text"; text: string }[]; details: Scorecard }> {
-    const skillDir = resolveSkillDir(ctx.cwd, params.skill);
+    const { skillDir, specPath } = resolveSkillLocation(ctx.cwd, params.skill, params.specs ?? process.env.SKILL_HARNESS_SPECS);
     const card: Scorecard = await runViaExtension({
-      skillDir,
+      skillDir, specPath,
       model: params.model,
+      judge: params.judge,
       reps: params.reps,
       mode: params.mode as "red" | "green" | "force" | undefined,
       canary: params.canary,

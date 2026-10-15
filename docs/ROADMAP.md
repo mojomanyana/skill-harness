@@ -1,13 +1,30 @@
 # Roadmap
 
-Last updated: 2026-10-10
+Last updated: 2026-10-15
 
-`skill-harness` is a Pi-only, multi-model test and optimization loop for agent
-skills. The run → grade → review loop stays free of product paywalls.
+`skill-harness` develops, evaluates and improves skills through Pi and a selected
+model. It starts from a user's idea or imports a selected skill. Generated skills
+need Pi only; optional ecosystem wrappers remain separate. The creation and
+run → grade → review loop stays free of product paywalls.
+
+## Current implementation batch
+
+- Guided skill and evaluation authoring through the current Pi model, with persisted
+  answers, one necessary question at a time, exact previews and same/separate repos.
+- Explicit tool profiles, discoverable fixtures, requirement mappings and judge-only
+  references, with response/code evidence chosen independently of workspace mode.
+- Generic proposed controls, operator label review, shared judge preparation and
+  calibration, including equivalent valid answers and separate error reporting.
+- Saved-evidence diagnosis and fresh transfer cases before claiming an improvement.
+- Optional pi-daddy agent definitions preserve native grants/delegation; Principal
+  remains optional, and JEV/LoRA retain separate consent and label requirements.
+
+Live acceptance and published artifacts must be verified separately from source
+implementation. The existing Pi subject-runtime qualification pin remains explicit.
 
 ## Current state
 
-- Current source release target: `0.29.0` (see package manifests).
+- Current source release target: `0.30.0` (see package manifests).
 - Fresh runs write results schema 2.
 - Historical schema 1–3 results remain readable for compatibility.
 - Pi is the only execution path for subject, judge, and `suggest` model calls.

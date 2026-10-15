@@ -1,10 +1,12 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
 import type { Spec, Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
-import { buildJudgePrompt, formatJudgeRawReplies, judgeInWorkspace } from "./grade.js";
+import { parseModelRef } from "./adapters/types.js";
+import { prepareJudgePrompt, resolveJudgeReferences, type JudgeReference, formatJudgeRawReplies, judgeInWorkspace } from "./grade.js";
 import {
-  findTranscriptFiles, judgeRawPath, repIndexOf, readResults, writeResults, effectiveThreshold,
+  findTranscriptFiles, judgeRawPath, repIndexOf, readResults, writeResults, effectiveThreshold, tracePath,
   scoreContextFor, rebuildScenarioResult, mergeScenarioMetrics, carryRepObjectives,
   type ScenarioResult, type ResultsFile, type RepJudgmentPanel, completeCriterionVotes,
 } from "./results.js";
@@ -12,6 +14,7 @@ import { outcomesToResult, normalizeRepOutcome, type RepOutcome } from "./reps.j
 import { appendJournal } from "./journal.js";
 import { rubricDigest, personaDigest, RUBRIC_PREFIX, PERSONA_KEY } from "./sources.js";
 import { providerFailureFromTranscript, executionFailureFromTranscript } from "./provider-failure.js";
+import { loadExecutionFacts, transcriptResponses, type JudgeExecutionFacts } from "./judge-evidence.js";
 
 /**
  * Carry a run's recorded hashes forward, refreshing only the `rubric:` keys this
@@ -29,6 +32,8 @@ export function refreshRubricHashes(
   recorded: Record<string, string> | undefined,
   spec: Spec,
   judgedIds: string[],
+  specDir?: string,
+  references?: Record<string, JudgeReference[]>,
 ): Record<string, string> | undefined {
   if (!recorded) return undefined;
   const next = { ...recorded };
@@ -37,13 +42,14 @@ export function refreshRubricHashes(
     const s = specById.get(id);
     // Only refresh a key the run already carried: adding one for a scenario whose
     // rubric was never hashed would fabricate coverage.
-    if (s && RUBRIC_PREFIX + id in next) next[RUBRIC_PREFIX + id] = rubricDigest(s);
+    if (s && RUBRIC_PREFIX + id in next) next[RUBRIC_PREFIX + id] = rubricDigest(s, specDir, references?.[id]);
   }
   if (PERSONA_KEY in next) next[PERSONA_KEY] = personaDigest(spec.judge_persona);
   return next;
 }
 
 export interface RegradeOptions {
+  references?: JudgeReference[];
   runDir: string;
   spec: Spec;
   scenario: Scenario;
@@ -65,7 +71,23 @@ export interface RegradeOptions {
   /** Select only repetitions with retained ERROR criterion votes. */
   onlyUnparsed?: boolean;
   prior?: ScenarioResult;
+  subject?: ModelRef;
+  piVersion?: string;
   now?: () => string;
+}
+
+function savedExecution(opts: Pick<RegradeOptions, "runDir" | "scenario" | "prior" | "subject" | "piVersion">, mode: string, rep: number | undefined, transcript: string): JudgeExecutionFacts {
+  const repetition = rep ?? 0;
+  const panel = opts.prior?.rep_judgments?.find(panel => panel.repetition === repetition);
+  const hashes = [panel?.judgments[0]?.input?.trace_sha256, panel?.objective?.trace_sha256, opts.prior?.objective?.rep_trace_sha256?.[repetition],
+    (opts.prior?.reps ?? 1) === 1 ? opts.prior?.objective?.trace_sha256 : undefined].filter((value): value is string => value !== undefined);
+  if (new Set(hashes).size > 1) throw new Error(`${opts.scenario.id}#${repetition}: conflicting recorded trace digests; regrade refused.`);
+  const execution = loadExecutionFacts(tracePath(opts.runDir, opts.scenario.id, mode, rep), {
+    scenarioId: opts.scenario.id, mode, repetition, turns: opts.scenario.turns.length,
+    subject: opts.subject, piVersion: opts.piVersion, responses: transcriptResponses(transcript, opts.scenario),
+  }, hashes[0]);
+  if (execution.status === "invalid") throw new Error(`${opts.scenario.id}#${repetition}: ${execution.reason} Regrade refused; retained results were not replaced.`);
+  return execution;
 }
 
 /** Judge one saved transcript: writes the judge-raw artifact, emits a `judge-verdict` journal event (plus `misfire-flag` when the verdict is suspect), and returns the outcome. */
@@ -77,6 +99,8 @@ export async function judgeOneRep(opts: {
   rejudge?: boolean;
   /** Retained objective evidence must precede missing-vote normalization. */
   objective?: RepOutcome["objective"];
+  execution?: JudgeExecutionFacts;
+  references?: JudgeReference[];
 }): Promise<RepOutcome> {
   const { runDir, spec, scenario, transcript, adapter, judge, specDir, mode, rep, now } = opts;
   const startedAt = performance.now();
@@ -100,12 +124,27 @@ export async function judgeOneRep(opts: {
     };
   }
 
-  const prompt = buildJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript });
+  if (opts.execution?.status === "invalid") {
+    const reason = `execution evidence: ${opts.execution.reason}`;
+    appendJournal(runDir, { event: "judge-verdict", ts: now(), id: scenario.id, verdict: "ERROR", reason, suspect: false, ...repField });
+    return { verdict: "ERROR", reason, suspect: false, objective: opts.objective,
+      metrics: { wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)), judge_calls: 0, judge_rejudge_calls: 0 } };
+  }
+  const prompt = prepareJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript, execution: opts.execution, references: opts.references }, specDir);
   const g = await judgeInWorkspace(adapter, judge, prompt, specDir, scenario.checklist.length);
+  const inputBytes = JSON.stringify({ schema: 1, judge, execution: opts.execution ?? null, prompts: g.prompts }) + "\n";
+  const inputHash = createHash("sha256").update(inputBytes).digest("hex");
+  const artifact = `judge-input.${inputHash}.txt`;
+  const inputPath = join(runDir, artifact);
+  if (existsSync(inputPath)) {
+    if (readFileSync(inputPath, "utf8") !== inputBytes) throw new Error("judge input artifact has conflicting bytes");
+  } else writeFileSync(inputPath, inputBytes, { encoding: "utf8", flag: "wx", mode: 0o600 });
+  const input = { artifact, sha256: inputHash, execution: opts.execution?.status === "verified" ? "verified" as const : "unknown" as const,
+    ...(opts.execution?.traceSha256 ? { trace_sha256: opts.execution.traceSha256 } : {}) };
   writeFileSync(judgeRawPath(runDir, scenario.id, mode, rep), formatJudgeRawReplies(g.rawReplies), "utf8");
   const outcome = normalizeRepOutcome({
     verdict: g.verdict, reason: g.reason, suspect: g.suspect, objective: opts.objective,
-    judgment: { ordinal: 1, judge: { ...judge }, verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, scenario.checklist.length), judgeFormat: g.judgeFormat, ...(g.judgeRetries ? { judgeRetries: g.judgeRetries } : {}) },
+    judgment: { ordinal: 1, judge: { ...judge }, verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, scenario.checklist.length), judgeFormat: g.judgeFormat, input, ...(g.judgeRetries ? { judgeRetries: g.judgeRetries } : {}) },
     metrics: {
       wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
       judge_calls: 1 + (g.judgeRetries ?? 0),
@@ -125,6 +164,7 @@ export async function judgeOneRep(opts: {
  * persists).
  */
 export async function regradeScenario(opts: RegradeOptions): Promise<ScenarioResult> {
+  const references = opts.references ?? resolveJudgeReferences(opts.scenario, opts.specDir);
   const now = opts.now ?? (() => new Date().toISOString());
   const mode = opts.mode ?? "green";
   let files = findTranscriptFiles(opts.runDir, opts.scenario.id, mode);
@@ -150,10 +190,12 @@ export async function regradeScenario(opts: RegradeOptions): Promise<ScenarioRes
     const file = files.find(file => (repIndexOf(file) ?? 0) === repetition)!;
     const rep = repIndexOf(file) ?? undefined;
     const transcript = readFileSync(join(opts.runDir, file), "utf8");
+    const execution = savedExecution(opts, mode, rep, transcript);
     outcomes.push(await judgeOneRep({
       runDir: opts.runDir, spec: opts.spec, scenario: opts.scenario, transcript,
       adapter: opts.adapter, judge: opts.judge, specDir: opts.specDir, mode, rep, now, rejudge: true,
       objective: panel?.objective ?? (expected === 1 ? opts.prior?.objective : undefined),
+      execution, references,
     }));
   }
   const result = outcomesToResult(opts.scenario.id, outcomes, repCount, opts.threshold);
@@ -277,6 +319,20 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     if (drifted.length) throw new Error(`criterion count changed for ${drifted.join(", ")} — use full grade instead of --unparsed-only`);
   }
 
+  // Refuse the whole selected batch before spending on any earlier cell. Recheck
+  // again immediately before each call so a later filesystem edit is not trusted.
+  for (const id of targets) {
+    const prior = recordedById.get(id)!;
+    for (const file of findTranscriptFiles(runDir, id, mode)) {
+      const rep = repIndexOf(file) ?? undefined;
+      if (opts.onlyUnparsed && !hasUnparsedVotes(prior.rep_judgments?.find(panel => panel.repetition === (rep ?? 0)))) continue;
+      savedExecution({ runDir, scenario: specById.get(id)!, prior,
+        ...(prev?.model.includes(":") ? { subject: parseModelRef(prev.model) } : {}), piVersion: prev?.harness_cli_version,
+      }, mode, rep, readFileSync(join(runDir, file), "utf8"));
+    }
+  }
+
+  const references = Object.fromEntries(targets.map(id => [id, resolveJudgeReferences(specById.get(id)!, specDir)]));
   const targetSet = new Set(targets);
   const scenarioResults: ScenarioResult[] = [];
   for (const rec of recorded) {
@@ -290,7 +346,9 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     const threshold = effectiveThreshold(prevScenario, scenario);
     const rr = await regradeScenario({
       runDir, spec, scenario, adapter, judge, specDir, threshold, mode, now,
+      references: references[id],
       expectedReps: prevScenario?.reps ?? 1, onlyUnparsed: opts.onlyUnparsed, prior: prevScenario,
+      ...(prev?.model.includes(":") ? { subject: parseModelRef(prev.model) } : {}), piVersion: prev?.harness_cli_version,
     });
     const carry = overrides.get(id);
     if (prev?.schema === 3) rr.criterion_count = scenario.checklist.length;
@@ -335,7 +393,7 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     // say so. Doctrine narrowed 0.4.0, from "recorded hashes stay" to "recorded
     // *stimulus* hashes stay" — see refreshRubricHashes.
     partial: prev?.partial,
-    source_hashes: opts.onlyUnparsed ? prev?.source_hashes : refreshRubricHashes(prev?.source_hashes, spec, targets),
+    source_hashes: opts.onlyUnparsed ? prev?.source_hashes : refreshRubricHashes(prev?.source_hashes, spec, targets, opts.specDir, references),
     source_hash_roots: prev?.source_hash_roots,
     scenarios: scenarioResults,
   }, ctx);

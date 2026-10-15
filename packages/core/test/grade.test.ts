@@ -67,26 +67,15 @@ describe("buildJudgePrompt", () => {
     expect(p).not.toMatch(/do not establish that the required behavior exists/);
   });
 
-  test("an inline prompt is byte-identical to before the diff guidance existed", () => {
-    // Inline scenarios have no diff, so their prompt must not move: every inline
-    // verdict already published stays comparable with new ones.
+  test("an inline prompt keeps the rubric and labels absent execution evidence unknown", () => {
     const p = buildJudgePrompt({
       skill: "ponytail", persona: "p", scenario, transcript: "T",
     });
     expect(p).not.toContain("STAGED DIFF");
-    expect(p).toBe(
-      `You are grading ONE response from an AI assistant using a "ponytail" skill — p Judge it ONLY against the checklist below — do not add requirements beyond it.
-
-CHECKLIST (every numbered item must hold for a PASS):
-1. points to the builtin max
-2. says to delete the loop
-
-TRANSCRIPT (the assistant is the model under test):
-T
-
-Grade each checklist item PASS or FAIL with a <=12-word justification quoting the transcript. Be skeptical: if an item is not clearly satisfied, mark it FAIL. Reply with exactly one JSON object and nothing else, with one vote per criterion in checklist order:
-{"votes":[{"criterion":1,"vote":"PASS"|"FAIL","reason":"..."},...],"verdict":"PASS"|"FAIL","reason":"..."}`
-    );
+    expect(p).toContain("1. points to the builtin max\n2. says to delete the loop");
+    expect(p).toContain('"status":"unknown"');
+    expect(p).toContain('"observedCalls":null');
+    expect(p).toContain("absence from the prose is not evidence that a call did not occur");
   });
 });
 

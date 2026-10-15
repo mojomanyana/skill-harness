@@ -36,6 +36,12 @@ export interface Scenario {
   mode: ScenarioMode;
   turns: string[];
   checklist: string[];
+  /** Explicit author-supplied reference text for the judge only; never a subject prompt or file path. */
+  judgeContext?: string;
+  /** Judge evidence is independent of whether a fixture workspace is used. */
+  judgeEvidence?: "response" | "code";
+  /** Explicit judge-only files, relative to the specification directory. */
+  judgeReferences?: string[];
   fixture?: string;
   assert?: ScenarioAssert;
   /**
@@ -59,6 +65,8 @@ export interface Scenario {
    * silently become part of the test.
    */
   extensions?: string[];
+  /** Explicit Pi tool filter; an empty list disables tools. */
+  tools?: string[];
   /**
    * `covers`: instruction sections this scenario is declared to exercise, e.g.
    * `SKILL.md#core-principle`.
@@ -308,6 +316,34 @@ export function parseSpec(text: string, file: string): Spec {
       workspace: "none",
       remote: false,
     };
+    const envTools = s.env && typeof s.env === "object" ? (s.env as Record<string, unknown>).tools : undefined;
+    if (envTools !== undefined) {
+      if (!Array.isArray(envTools) || envTools.some(tool => typeof tool !== "string" || !/^[A-Za-z][A-Za-z0-9_:/.-]*$/.test(tool)) || new Set(envTools).size !== envTools.length) {
+        throw new SpecError(`scenario \`${id}\` env.tools must be a list of unique Pi tool names`, file);
+      }
+      scenario.tools = envTools as string[];
+    }
+
+    if (s.judge_context !== undefined) {
+      if (typeof s.judge_context !== "string" || s.judge_context.trim() === "" || Buffer.byteLength(s.judge_context, "utf8") > 65_536) {
+        throw new SpecError(`scenario \`${id}\` \`judge_context\` must be a non-empty string of at most 65536 UTF-8 bytes`, file);
+      }
+      scenario.judgeContext = s.judge_context;
+    }
+    if (s.judge_evidence !== undefined) {
+      if (s.judge_evidence !== "response" && s.judge_evidence !== "code") {
+        throw new SpecError(`scenario \`${id}\` \`judge_evidence\` must be response or code`, file);
+      }
+      scenario.judgeEvidence = s.judge_evidence;
+    }
+    if (s.judge_references !== undefined) {
+      assertStringList(s.judge_references, id, "judge_references", file);
+      if (s.judge_references.length > 16 || new Set(s.judge_references).size !== s.judge_references.length ||
+          s.judge_references.some(path => !path || /[\\\\:\x00-\x1f]/.test(path) || path.startsWith("/") || path.split("/").some(part => !part || part === "." || part === ".."))) {
+        throw new SpecError(`scenario \`${id}\` \`judge_references\` requires at most 16 unique relative POSIX file paths without traversal`, file);
+      }
+      scenario.judgeReferences = s.judge_references;
+    }
 
     // Output and trace assertions are legal for inline AND seeded scenarios.
     if (s.assert !== undefined && (s.assert === null || typeof s.assert !== "object" || Array.isArray(s.assert))) {

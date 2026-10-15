@@ -20,14 +20,14 @@ import type { ExecutionTraceV1 } from "../src/capture-trace-types.js";
  * of its own (only a CLI help-text assertion existed).
  */
 
-function traceWithTokens(): ExecutionTraceV1 {
+function traceWithTokens(req: RunReq): ExecutionTraceV1 {
   return {
     trace_version: EXECUTION_TRACE_VERSION,
     pi_version: "0.83.0",
-    subject: { provider: "fireworks", model: "x" },
-    scenario_id: "S1",
-    mode: "green",
-    rep: 0,
+    subject: req.model,
+    scenario_id: req.scenarioId!,
+    mode: req.mode,
+    rep: req.rep ?? 0,
     turn: 0,
     final_text: "done",
     tool_calls: [],
@@ -59,12 +59,12 @@ function structuredSpyAdapter(preferStructured = false): { adapter: HarnessAdapt
       plainCalls += 1;
       return ">>> USER:\nx\n\n<<< ASSISTANT:\ndone\n";
     },
-    runStructured: async (_req: RunReq): Promise<StructuredRun> => {
+    runStructured: async (req: RunReq): Promise<StructuredRun> => {
       structuredCalls += 1;
-      return { transcript: ">>> USER:\nx\n\n<<< ASSISTANT:\ndone\n", traces: [traceWithTokens()] };
+      return { transcript: ">>> USER:\nx\n\n<<< ASSISTANT:\ndone\n", traces: [traceWithTokens(req)] };
     },
     judge: async () => '{"votes":[{"criterion":1,"vote":"PASS","reason":"done"}],"verdict":"PASS","reason":"done"}',
-    version: async () => "0.84.2",
+    version: async () => "0.83.0",
   };
   return { adapter, structuredCalls: () => structuredCalls, plainCalls: () => plainCalls };
 }
@@ -116,6 +116,7 @@ describe("--structured on an ungated plain scenario (T2)", () => {
     expect(structuredCalls()).toBe(1);
     expect(plainCalls()).toBe(0);
     expect(summary.results.scenarios[0].metrics?.input_tokens).toBe(321);
+    expect(summary.results.scenarios[0].judge_verdict).toBe("PASS");
     // No trace assertion was declared — `--structured` alone must not
     // manufacture an objective gate that was never asked for.
     expect(summary.results.scenarios[0].objective).toBeUndefined();

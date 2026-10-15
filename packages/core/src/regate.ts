@@ -2,11 +2,13 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { Spec, Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
-import { parseVerdict, detectMisfire } from "./grade.js";
+import { parseModelRef } from "./adapters/types.js";
+import { parseVerdict, detectMisfire, resolveJudgeReferences } from "./grade.js";
 import { evaluateNeedleGates, evaluateOutputGates, hasNeedleGates, hasOutputGates } from "./seeded.js";
 import { evaluateTraceGates } from "./trace-gates.js";
 import { mergeTraces, deserializeTrace } from "./execution-trace.js";
 import { judgeOneRep } from "./regrade.js";
+import { loadExecutionFacts, transcriptResponses, unavailableExecution } from "./judge-evidence.js";
 import {
   readResults, writeResults, diffPath, transcriptPath, judgeRawPath,
   findDiffFiles, findTranscriptFiles, findTraceFiles, tracePath,
@@ -203,6 +205,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
     );
   }
 
+  const references = Object.fromEntries(targets.map(s => [s.id, resolveJudgeReferences(s, opts.specDir)]));
   const changes: RegateChange[] = [];
   let judgeCalls = 0;
   const scenarios: ScenarioResult[] = [];
@@ -231,6 +234,16 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
       const tPath = transcriptPath(opts.runDir, scenario.id, mode, rep);
       const before = existsSync(tPath) ? readFileSync(tPath, "utf8") : "";
       const outputGate = evaluateOutputGates(scenario, before);
+      const retainedPanel = rec.rep_judgments?.find(panel => panel.repetition === (rep ?? 0));
+      const recordedTraceHashes = [retainedPanel?.judgments[0]?.input?.trace_sha256, retainedPanel?.objective?.trace_sha256,
+        rec.objective?.rep_trace_sha256?.[rep ?? 0], rec.reps === undefined ? rec.objective?.trace_sha256 : undefined].filter((hash): hash is string => hash !== undefined);
+      const execution = new Set(recordedTraceHashes).size > 1
+        ? unavailableExecution("Conflicting recorded trace digests.", "invalid")
+        : loadExecutionFacts(tracePath(opts.runDir, scenario.id, mode, rep), {
+        scenarioId: scenario.id, mode, repetition: rep ?? 0, turns: scenario.turns.length,
+        ...(prev.model.includes(":") ? { subject: parseModelRef(prev.model) } : {}), piVersion: prev.harness_cli_version,
+        responses: transcriptResponses(before, scenario),
+      }, recordedTraceHashes[0]);
 
       // Output and trace gates are re-decided from saved artifacts. Free: no model, no judge.
       let traceFailure: string | null = null;
@@ -247,7 +260,10 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
             assertions: [...outputIntegrityAssertion, ...outputGate.assertions],
           }
         : undefined;
-      if (scenario.traceAssert) {
+      if (execution.status === "invalid") {
+        traceFailure = `objective: ${execution.reason}`;
+        objective = { ...(objective ?? {}), status: "ERROR", assertions: [...(objective?.assertions ?? []), { kind: "trace_evidence", status: "ERROR", detail: execution.reason }] };
+      } else if (scenario.traceAssert) {
         const tp = tracePath(opts.runDir, scenario.id, mode, rep);
         // A PARTIAL read is refused, not graded. `deserializeTrace` returns null
         // for a malformed line and for a version it declines, and dropping those
@@ -359,7 +375,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
       const judged = await judgeOneRep({
         runDir: opts.runDir, spec: opts.spec, scenario, transcript,
         adapter: opts.adapter, judge: opts.judge, specDir: opts.specDir,
-        mode, rep, now, rejudge: true,
+        mode, rep, now, rejudge: true, execution, objective, references: references[scenario.id],
       });
       outcomes.push({ ...judged, objective });
       judgeCalls += judged.metrics?.judge_calls ?? 0;

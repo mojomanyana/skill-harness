@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import yaml from "js-yaml";
 import type { Scenario } from "./spec.js";
+import { resolveJudgeReferences, type JudgeReference } from "./judge-references.js";
 import { PROMPT_NORMALIZATION_SOURCE_DIGEST, PROMPT_NORMALIZATION_SOURCE_KEY } from "./prompt-normalization.js";
 export { PROMPT_NORMALIZATION_SOURCE_DIGEST, PROMPT_NORMALIZATION_SOURCE_KEY } from "./prompt-normalization.js";
 
@@ -176,8 +177,8 @@ function walk(dir: string, prefix = ""): string[] {
  */
 function facets(s: Scenario): { stimulus: string; rubric: string; policy: string; gates: string | null } {
   const {
-    id, title, critical, mode, turns, checklist, fixture, assert, traceAssert,
-    workspace, remote, systemPromptFile, extensions, reps, passThreshold,
+    id, title, critical, mode, turns, checklist, judgeContext, judgeEvidence, judgeReferences, fixture, assert, traceAssert,
+    workspace, remote, systemPromptFile, extensions, tools, reps, passThreshold,
     covers: _coversIsMetadata,
     ...restScenario
   } = s;
@@ -218,8 +219,15 @@ function facets(s: Scenario): { stimulus: string; rubric: string; policy: string
       id, mode, turns, workspace, remote, systemPromptFile ?? null,
       fixture ?? null, vitest ?? null, post_test ?? null,
       ...(extensions ? [extensions] : []),
+      ...(tools !== undefined ? [["tools", tools]] : []),
     ]),
-    rubric: JSON.stringify([id, title, checklist]),
+    // Judge-only reference text changes grading, not what the subject received.
+    // Preserve historical hashes when the optional field is absent.
+    rubric: JSON.stringify([id, title, checklist,
+      ...(judgeContext !== undefined ? [["judge_context", judgeContext]] : []),
+      ...(judgeEvidence !== undefined ? [["judge_evidence", judgeEvidence]] : []),
+      ...(judgeReferences !== undefined ? [["judge_references", judgeReferences]] : []),
+    ]),
     policy: JSON.stringify([id, critical, reps ?? null, passThreshold ?? null]),
     // Same rule as `stimulus` above: conditional, so a needle-gated scenario that
     // declares no trace assertions keeps the digest it was published with.
@@ -242,8 +250,12 @@ export function stimulusDigest(s: Scenario): string {
   return sha(facets(s).stimulus);
 }
 
-export function rubricDigest(s: Scenario): string {
-  return sha(facets(s).rubric);
+export function rubricDigest(s: Scenario, specDir?: string, references?: JudgeReference[]): string {
+  if (!s.judgeReferences?.length) return sha(facets(s).rubric);
+  if (!references && !specDir) throw new Error("A specification directory is required to digest selected judge references");
+  const selected = references ?? resolveJudgeReferences(s, specDir!);
+  if (selected.length !== s.judgeReferences.length || selected.some((ref, index) => ref.file !== s.judgeReferences![index])) throw new Error("Resolved judge references do not match the scenario selection");
+  return sha(JSON.stringify([facets(s).rubric, selected.map(({ file, sha256 }) => ({ file, sha256 }))]));
 }
 
 export function policyDigest(s: Scenario): string {
@@ -323,6 +335,8 @@ export interface SourceContext {
    * caller instead of leaving one quietly un-checked.
    */
   judgePersona: string;
+  /** Snapshot resolved before execution, shared by prompt construction and recorded rubric hashes. */
+  judgeReferences?: Record<string, JudgeReference[]>;
 }
 
 /**
@@ -350,7 +364,8 @@ export function sourceHashes(ctx: SourceContext): Record<string, string> {
     // single key could only ever name the most expensive one. The legacy
     // `scenario:<id>` key is deliberately NOT written any more — see scenarioDigest.
     hashes[STIMULUS_PREFIX + s.id] = stimulusDigest(s);
-    hashes[RUBRIC_PREFIX + s.id] = rubricDigest(s);
+    try { hashes[RUBRIC_PREFIX + s.id] = rubricDigest(s, ctx.specDir, ctx.judgeReferences?.[s.id]); }
+    catch { hashes[RUBRIC_PREFIX + s.id] = UNREADABLE; }
     hashes[POLICY_PREFIX + s.id] = policyDigest(s);
     const gates = gatesDigest(s);
     if (gates !== null) hashes[GATES_PREFIX + s.id] = gates;
@@ -427,7 +442,7 @@ export function currentHashFor(key: string, ctx: SourceContext): string | null |
   // scenario is a reshape, not staleness, on every kind.
   const facetResolvers: Array<[string, (s: Scenario) => string | null]> = [
     [STIMULUS_PREFIX, stimulusDigest],
-    [RUBRIC_PREFIX, rubricDigest],
+    [RUBRIC_PREFIX, s => { try { return rubricDigest(s, ctx.specDir); } catch { return null; } }],
     [POLICY_PREFIX, policyDigest],
     [GATES_PREFIX, gatesDigest],
     [SCENARIO_PREFIX, scenarioDigest],

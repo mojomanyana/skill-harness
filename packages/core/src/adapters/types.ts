@@ -74,6 +74,8 @@ export interface RunReq {
    * extension the developer happens to have installed cannot join the test.
    */
   extensions?: string[];
+  /** Explicit Pi tool filter; an empty list disables tools. Not OS isolation. */
+  tools?: string[];
   /**
    * Extra env for the subject process, from the arm. Merged over `process.env` by
    * the adapter — an arm must be able to add `PI_GRANTS_*` without the harness

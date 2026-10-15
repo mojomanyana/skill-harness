@@ -42,6 +42,8 @@ export interface RequireCall {
   tool: string;
   count?: CountConstraint;
   args?: Record<string, ArgPredicate>;
+  /** Optional tool-reported result; omission preserves invocation-only matching. */
+  outcome?: "success" | "error";
 }
 
 export interface ForbidCall {
@@ -158,10 +160,15 @@ export function evaluateTraceGates(assert: TraceAssert, trace: ExecutionTraceV1)
   }
 
   for (const req of assert.require_calls ?? []) {
-    const matched = trace.tool_calls.filter((c) => c.name === req.tool && argsMatch(c, req.args));
+    const candidates = trace.tool_calls.filter((c) => c.name === req.tool && argsMatch(c, req.args));
+    if (req.outcome && candidates.some(c => !Number.isInteger(c.completionIndex) || c.completionIndex < 0 || typeof c.isError !== "boolean")) {
+      assertions.push({ kind: "require_call", status: "ERROR", detail: `cannot establish ${req.outcome} outcome for \`${req.tool}\`: completion evidence is missing` });
+      continue;
+    }
+    const matched = req.outcome ? candidates.filter(c => c.isError === (req.outcome === "error")) : candidates;
     const min = req.count?.min ?? 1;
     const max = req.count?.max;
-    const described = describeArgs(req.args);
+    const described = describeArgs(req.args) + (req.outcome ? ` with tool-reported ${req.outcome}` : "");
 
     if (matched.length < min) {
       assertions.push({
@@ -470,8 +477,12 @@ export function parseTraceAssert(raw: unknown, ctx: string): TraceAssert {
       const req: RequireCall = { tool };
       if (entry.count !== undefined) req.count = parseCount(entry.count, `${ctx}: \`require_calls[${i}].count\``);
       if (entry.args !== undefined) req.args = parseArgs(entry.args, `${ctx}: \`require_calls[${i}].args\``);
+      if (entry.outcome !== undefined) {
+        if (entry.outcome !== "success" && entry.outcome !== "error") throw new Error(`${ctx}: \`require_calls[${i}].outcome\` must be success or error`);
+        req.outcome = entry.outcome;
+      }
       for (const key of Object.keys(entry)) {
-        if (!["tool", "count", "args"].includes(key)) {
+        if (!["tool", "count", "args", "outcome"].includes(key)) {
           throw new Error(`${ctx}: unknown key \`${key}\` in \`require_calls[${i}]\``);
         }
       }

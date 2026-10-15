@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { resolveSkillDir, runViaExtension } from "../src/runner.js";
+import { resolveSkillDir, resolveSkillLocation, runViaExtension } from "../src/runner.js";
 
 function skillFixture(): string {
   const d = mkdtempSync(join(tmpdir(), "sc-ext-"));
@@ -35,6 +35,28 @@ describe("resolveSkillDir", () => {
 });
 
 describe("runViaExtension", () => {
+  it("runs a separate eval repository against the actual portable skill and refuses duplicate specs", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sc-overlay-"));
+    const skillDir = join(root, "skills", "writer");
+    const specsRoot = join(root, "evals");
+    const testsDir = join(specsRoot, "writer", "tests");
+    mkdirSync(skillDir, { recursive: true }); mkdirSync(testsDir, { recursive: true });
+    writeFileSync(join(skillDir, "SKILL.md"), "---\nname: writer\ndescription: Write text\n---\nWrite clear text.\n");
+    writeFileSync(join(testsDir, "specification.yaml"), "skill: writer\njudge_persona: Check writing\nship_bar: { total: 1, min_pass: 1 }\nscenarios:\n  - id: A1\n    title: Draft\n    turns: [hi]\n    checklist: [ok]\n");
+    const location = resolveSkillLocation(root, "skills/writer", "evals");
+    expect(location).toEqual({ skillDir, specPath: join(testsDir, "specification.yaml") });
+    const runs: any[] = [];
+    const adapter = { name: "pi", available: async () => true,
+      run: async (request: unknown) => { runs.push(request); return "USER: hi\nASSISTANT: ok"; },
+      judge: async () => '{"votes":[{"criterion":1,"vote":"PASS","reason":"ok"}],"verdict":"PASS","reason":"fine"}' } as any;
+    const card = await runViaExtension({ ...location, adapter, model: "local:subject", judge: "local:judge", timestamp: "2026-10-15T00:00:00Z", log: () => {} });
+    expect(card.skill).toBe("writer");
+    expect(runs.length).toBe(1);
+    expect(existsSync(join(testsDir, "results"))).toBe(true);
+    expect(existsSync(join(skillDir, "tests"))).toBe(false);
+    mkdirSync(join(skillDir, "tests")); writeFileSync(join(skillDir, "tests", "specification.yaml"), "duplicate");
+    expect(() => resolveSkillLocation(root, "skills/writer", "evals")).toThrow("second specification");
+  });
   it("runs via an injected fake adapter and returns a Scorecard (streams log lines)", async () => {
     const root = skillFixture();
     const lines: string[] = [];

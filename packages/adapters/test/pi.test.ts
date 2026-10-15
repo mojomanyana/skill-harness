@@ -29,6 +29,16 @@ beforeEach(() => {
 });
 
 describe("pi adapter nested-run safety", () => {
+  it("passes an explicit Pi tool profile while preserving the default when unspecified", async () => {
+    const req = { skillDir: fakeSkill(), model: { provider: "fireworks", model: "x" }, mode: "green" as const, turns: ["hi"], cwd: "/tmp" };
+    await piAdapter.run({ ...req, tools: ["read", "grep"] });
+    expect(mockedExec.mock.calls[0][1]).toEqual(expect.arrayContaining(["--tools", "read,grep"]));
+    await piAdapter.run({ ...req, tools: [] });
+    expect(mockedExec.mock.calls[1][1]).toContain("--no-tools");
+    await piAdapter.run(req);
+    expect(mockedExec.mock.calls[2][1]).not.toContain("--tools");
+    expect(mockedExec.mock.calls[2][1]).not.toContain("--no-tools");
+  });
   it("green-mode subject run passes --no-extensions and still --skill", async () => {
     await piAdapter.run({
       skillDir: fakeSkill(),
@@ -53,6 +63,8 @@ describe("pi adapter nested-run safety", () => {
     expect(cmd).toBe("pi");
     expect(args).toContain("--no-extensions");
     expect(args).toContain("openai-codex");
+    expect(args).toContain("--no-tools");
+    expect(args).toContain("--no-mcp");
   });
 
   it("refuses the removed direct Claude judge provider", async () => {
@@ -65,7 +77,7 @@ describe("pi adapter nested-run safety", () => {
   });
 
   it("surfaces Pi judge failure as a tagged string", async () => {
-    mockedExec.mockResolvedValueOnce({ code: 1, stdout: "", stderr: "boom" });
+    mockedExec.mockResolvedValueOnce({ code: 1, stdout: "VERDICT: PASS", stderr: "boom" });
     const out = await piAdapter.judge({
       model: { provider: "openai-codex", model: "gpt-5.6-sol" },
       prompt: "p",
@@ -112,6 +124,8 @@ describe("pi adapter nested-run safety", () => {
       "--no-context-files",
       "--no-extensions",
       "--no-session",
+      "--no-tools",
+      "--no-mcp",
       "--provider",
       "ollama",
       "--model",
@@ -148,7 +162,7 @@ describe("skill-delivery tripwire", () => {
     await expect(piAdapter.run({
       skillDir: dir, model: { provider: "fireworks", model: "x" }, mode: "green",
       turns: ["hi"], cwd: "/tmp",
-    })).rejects.toThrow(new RegExp(`${dir} has none`));
+    })).rejects.toThrow(`${dir} has none`);
   });
 
   it("resolves a relative skill dir before handing it to pi (the child runs in another cwd)", async () => {

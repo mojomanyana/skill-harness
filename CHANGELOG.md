@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.30.0 — 2026-10-15
+
+- Develop skills from an idea inside the current Pi session. Persist the brief, ask one necessary question at a time, preview exact changes, and create portable Pi skills with evaluations in the same or a separate repository. Optional pi-daddy agent definitions remain separate from the skill and its runtime dependencies.
+- Add shared evaluation authoring checks, explicit scenario tool profiles, requirement mappings, judge-only source references, and response-versus-code evidence selection independent of seeded workspace mode.
+- Prepare and review calibration controls using complete transcripts and the same judge prompt as real runs. Preserve positive, negative and equivalent valid controls, exact inputs, mismatches and infrastructure failures without changing historical scores or assigning training labels.
+- Retain verified execution evidence and exact private judge inputs across run, grade, regate and browser rejudging. Snapshot selected references consistently with recorded rubric hashes; disable tools and MCP for judges.
+- Add offline preflight and saved-result diagnosis, keeping semantic model failures separate from missing evidence, infrastructure errors and stale configuration. Fresh transfer cases remain distinct from calibration.
+- Qualify exact Pi 1.1.0 alongside 1.0.4 through local scripted transport tests. This does not qualify other Pi versions, subscription authentication, model quality or online process isolation.
+
 ## 0.29.0 — 2026-10-10
 
 - Ask for a Pi-native JEV provider/model before paid-call and storage consent. Reuse selected provider authentication, recheck session/candidate/model configuration after auth, and avoid implicit fallback or retries. Version native result provenance separately from legacy OpenRouter records; cost is a catalog estimate and backend-resolved model identity stays unknown.

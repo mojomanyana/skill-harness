@@ -5,18 +5,22 @@ const manifest = JSON.parse(readFileSync("packages/skill-harness/package.json", 
 
 describe("published meta-package Pi extension", () => {
   it("declares the bundled extension and all runtime siblings", () => {
-    expect(manifest.pi).toEqual({ extensions: ["./dist/index.js"] });
+    expect(manifest.pi).toEqual({ extensions: ["./dist/index.js"], skills: ["./SKILL.md"] });
     expect(manifest.dependencies.typebox).toBeUndefined();
     expect(manifest.peerDependencies.typebox).toBe("*");
     expect(manifest.peerDependenciesMeta.typebox).toEqual({ optional: true });
     expect(manifest.files).toEqual(expect.arrayContaining([
       "dist/index.js",
+      "SKILL.md",
+      "docs/EVAL-AUTHORING.md",
+      "docs/USAGE.md",
       "assets/report.template.html",
       "assets/report.grade.js",
     ]));
   });
 
   it("ships byte-identical committed bundles and review assets", () => {
+    expect(readFileSync("packages/skill-harness/SKILL.md")).toEqual(readFileSync("SKILL.md"));
     expect(readFileSync("packages/skill-harness/dist/index.js")).toEqual(readFileSync("packages/pi-extension/dist/index.js"));
     for (const file of ["report.template.html", "report.grade.js"]) {
       expect(readFileSync(`packages/skill-harness/assets/${file}`)).toEqual(readFileSync(`assets/${file}`));

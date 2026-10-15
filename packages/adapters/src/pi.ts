@@ -147,6 +147,7 @@ export const piAdapter: HarnessAdapter = {
       "--no-context-files",
       "--no-extensions",
       ...extensionFlags(req.extensions),
+      ...(req.tools === undefined ? [] : req.tools.length ? ["--tools", req.tools.join(",")] : ["--no-tools"]),
       "--provider",
       req.model.provider,
       "--model",
@@ -217,6 +218,7 @@ export const piAdapter: HarnessAdapter = {
       "--no-context-files",
       "--no-extensions",
       ...extensionFlags(req.extensions),
+      ...(req.tools === undefined ? [] : req.tools.length ? ["--tools", req.tools.join(",")] : ["--no-tools"]),
       "--provider",
       req.model.provider,
       "--model",
@@ -313,7 +315,7 @@ export const piAdapter: HarnessAdapter = {
     };
   },
 
-  /** Run the judge through Pi: no skills, context files, extensions or session. */
+  /** Judge only the supplied evidence: no tools, MCP, skills, context files, extensions or session. */
   async judge(req: JudgeReq): Promise<string> {
     if (req.model.provider === "claude-code") {
       throw new Error("judge provider `claude-code` was removed; configure a Pi provider such as `openai-codex`");
@@ -323,6 +325,8 @@ export const piAdapter: HarnessAdapter = {
       "--no-context-files",
       "--no-extensions",
       "--no-session",
+      "--no-tools",
+      "--no-mcp",
       "--provider",
       req.model.provider,
       "--model",
@@ -333,7 +337,7 @@ export const piAdapter: HarnessAdapter = {
     const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS });
     // Surface failures: pi writes provider errors (auth, out-of-credits) to stderr
     // and exits non-zero with empty stdout. Pass them through so grading can report.
-    if (r.stdout.trim().length === 0 && (r.code !== 0 || r.stderr.trim())) {
+    if (r.code !== 0 || (r.stdout.trim().length === 0 && r.stderr.trim())) {
       return `[judge error: pi exited ${r.code}] ${r.stderr.trim()}`;
     }
     return r.stdout;

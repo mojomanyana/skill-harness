@@ -3,7 +3,8 @@ import { dirname, join, resolve, relative } from "node:path";
 import { loadSpec, regradeRun, readResults, parseModelRef, recordedJudgeOrDefault, assertJudgeAllowed, type HarnessAdapter, computeCoverage, formatCoverage } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview, type ServeHandle } from "@skill-harness/cli/serve";
-import { resolveSkillDir, runViaExtension } from "./runner.js";
+import { resolveSkillLocation, runViaExtension } from "./runner.js";
+import { handleAuthoringCommand } from "./authoring.js";
 
 /**
  * Minimal structural stand-in for `@earendil-works/pi-coding-agent`'s
@@ -22,6 +23,8 @@ export interface ExtensionAPI {
   registerTool(tool: unknown): void;
   on(event: "session_shutdown" | "session_start" | "session_switch", handler: (event?: unknown, ctx?: CmdCtx) => Promise<void> | void): void;
   appendEntry?(type:string,data:unknown):void;
+  sendUserMessage?(content: string, options?: { deliverAs?: "steer" | "followUp"; expandPromptTemplates?: boolean }): void;
+  getActiveTools?(): string[];
 }
 
 export interface NativeClassifierModel {
@@ -29,6 +32,7 @@ export interface NativeClassifierModel {
   [key: string]: unknown;
 }
 export interface CmdCtx {
+  model?: { provider: string; id: string };
   modelRegistry?: {
     getProviderAuthStatus?(provider: string): { configured: boolean };
     getApiKeyForProvider?(provider: string): Promise<string | undefined>;
@@ -52,11 +56,21 @@ export interface CmdCtx {
   };
 }
 
-const USAGE = "usage: /skill-harness run [skill] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] | review [skill] | coverage [skill] | jev enable [workflow]|run|status|disable";
+const USAGE = "usage: /skill-harness create <idea> | author [name] | run [skill] [--specs root] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] | review [skill] | coverage [skill] | jev enable [workflow]|run|status|disable";
 
 /** Minimal arg tokenizer: subcommand + positional args + `--key value` flags. A flag with no following value (or one followed by another `--flag`) is left unset, so callers' `?? default` fallbacks apply. */
 function parse(argstr: string): { sub: string; positional: string[]; flags: Record<string, string> } {
-  const tokens = argstr.trim().length ? argstr.trim().split(/\s+/) : [];
+  // Commands receive one raw string, unlike CLI argv. Preserve quoted repo paths.
+  const tokens: string[] = [];
+  let token = "", quote: string | undefined, started = false;
+  for (const char of argstr) {
+    if (quote) { if (char === quote) quote = undefined; else token += char; }
+    else if (char === '"' || char === "'") { quote = char; started = true; }
+    else if (/\s/.test(char)) { if (started) { tokens.push(token); token = ""; started = false; } }
+    else { token += char; started = true; }
+  }
+  if (quote) throw new Error("Unclosed quote in /skill-harness command");
+  if (started) tokens.push(token);
   const [sub = "", ...rest] = tokens;
   const positional: string[] = [];
   const flags: Record<string, string> = {};
@@ -104,9 +118,9 @@ export async function handleSkillCheck(
   const nowIso = () => new Date().toISOString();
 
   if (sub === "run") {
-    const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
+    const { skillDir, specPath } = resolveSkillLocation(ctx.cwd, positional[0], flags.specs || process.env.SKILL_HARNESS_SPECS);
     const card = await runViaExtension({
-      skillDir,
+      skillDir, specPath,
       // `|| undefined`: a valueless `--model` / `--mode` must fall back to the
       // default rather than pass "" down as if it were a token.
       model: flags.model || undefined,
@@ -152,8 +166,7 @@ export async function handleSkillCheck(
   }
 
   if (sub === "coverage") {
-    const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const specPath = join(skillDir, "tests", "specification.yaml");
+    const { skillDir, specPath } = resolveSkillLocation(ctx.cwd, positional[0], flags.specs || process.env.SKILL_HARNESS_SPECS);
     const spec = loadSpec(specPath);
     const specDir = dirname(specPath);
     const report = computeCoverage({
@@ -166,10 +179,10 @@ export async function handleSkillCheck(
   }
 
   if (sub === "review") {
-    const skillDir = resolveSkillDir(ctx.cwd, positional[0]);
-    const spec = loadSpec(join(skillDir, "tests", "specification.yaml"));
+    const { specPath } = resolveSkillLocation(ctx.cwd, positional[0], flags.specs || process.env.SKILL_HARNESS_SPECS);
+    const spec = loadSpec(specPath);
     const handle = await serveReview({
-      skillDir, skillName: spec.skill, port: 0, open: false, adapter,
+      skillDir: dirname(dirname(specPath)), skillName: spec.skill, port: 0, open: false, adapter,
       assetsDir: opts?.assetsDir, // threaded from index.ts via the closure, never off ctx
     });
     say(ctx, `review server: http://127.0.0.1:${handle.port}/`);
@@ -189,8 +202,9 @@ export function closeReview(): void {
 
 export function registerCommand(pi: ExtensionAPI, assetsDir?: string, jevHandler?: (args:string,ctx:CmdCtx)=>Promise<void>): void {
   pi.registerCommand("skill-harness", {
-    description: "Run, judge, and review skill scenarios",
+    description: "Create a skill with Pi, author evaluations, run, judge, and review",
     handler: async (args, ctx) => {
+      if (/^(?:create|author)(?:\s|$)/.test(args.trim())) return handleAuthoringCommand(pi, args, ctx);
       if (/^jev(?:\s|$)/.test(args.trim())) {
         if (!jevHandler) throw new Error("JEV session handler unavailable");
         return jevHandler(args.trim().slice(3).trim(), ctx);
