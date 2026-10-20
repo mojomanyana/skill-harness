@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import type { HarnessAdapter } from "@skill-harness/core";
+import { withProcessScope, type HarnessAdapter } from "@skill-harness/core";
 import type { ExtensionAPI } from "./commands.js";
 import { resolveSkillLocation, runViaExtension, type Scorecard } from "./runner.js";
 
@@ -20,17 +20,17 @@ export const skillCheckRunTool = {
     judge: Type.Optional(Type.String({ description: "Independent Pi provider:model judge, chosen when testing starts" })),
     reps: Type.Optional(Type.Number({ description: "run each scenario N times", minimum: 1, maximum: 20 })),
     mode: Type.Optional(Type.String({ description: "red | green | force (green and force are scored; red is the baseline)" })),
-    canary: Type.Optional(Type.Boolean({ description: "green only: spend one probe proving the skill reached the model, and abort if it did not" })),
+    canary: Type.Optional(Type.Boolean({ description: "green only: spend one instructed skill-loading/quote probe and stop if inconclusive; does not test autonomous selection" })),
   }),
   async execute(
     _id: string,
     params: { skill?: string; specs?: string; model?: string; judge?: string; reps?: number; mode?: string; canary?: boolean },
-    _signal: AbortSignal,
+    signal: AbortSignal,
     onUpdate: ((update: { content: { type: "text"; text: string }[] }) => void) | undefined,
     ctx: { cwd: string; __adapter?: HarnessAdapter }
   ): Promise<{ content: { type: "text"; text: string }[]; details: Scorecard }> {
     const { skillDir, specPath } = resolveSkillLocation(ctx.cwd, params.skill, params.specs ?? process.env.SKILL_HARNESS_SPECS);
-    const card: Scorecard = await runViaExtension({
+    const card: Scorecard = await withProcessScope({ signal }, () => runViaExtension({
       skillDir, specPath,
       model: params.model,
       judge: params.judge,
@@ -40,7 +40,7 @@ export const skillCheckRunTool = {
       adapter: ctx.__adapter,
       timestamp: new Date().toISOString(),
       log: (m) => onUpdate?.({ content: [{ type: "text", text: m }] }),
-    });
+    }));
     const summary = `${card.skill} ${card.grade.letter} (${card.grade.pct}%) — ${card.grade.ship ? "SHIP" : "NOT READY"}\n`
       + card.scenarios.map((s) => `  ${s.id}: ${s.suspect ? "? (suspect)" : s.verdict}`).join("\n")
       + (card.failedTranscripts.length ? `\nfailed transcripts:\n${card.failedTranscripts.join("\n")}` : "");

@@ -128,7 +128,8 @@ describe("cmdLint with a boundary cell", () => {
     const { logs } = await capture(() => cmdLint(lintArgs(root)));
     expect(logs).toMatch(/ℹ .*A5: stability —/);
     expect(logs).toMatch(/^✓ /m); // the gate still passes
-    expect(logs).toMatch(/0 finding\(s\), 1 note\(s\) \(do not fail the gate\)/);
+    expect(logs).toMatch(/0 finding\(s\), 2 note\(s\) \(do not fail the gate\)/);
+    expect(logs).toMatch(/MISSING_COVERAGE_MAP/);
     expect(process.exitCode).toBe(0);
   });
 

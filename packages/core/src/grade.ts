@@ -6,6 +6,7 @@ import { completeCriterionVotes, type CriterionVote } from "./results.js";
 import { unavailableExecution, type JudgeExecutionFacts } from "./judge-evidence.js";
 import { resolveJudgeReferences, type JudgeReference } from "./judge-references.js";
 export { resolveJudgeReferences, type JudgeReference } from "./judge-references.js";
+import { throwIfProcessAborted } from "./util/process.js";
 
 export interface JudgePromptInput {
   skill: string;
@@ -260,9 +261,11 @@ export async function gradeTranscript(
   const prompts: string[] = [];
   let validationError = "";
   for (let attempt = 0; attempt < 2; attempt++) {
+    throwIfProcessAborted();
     const retry = attempt === 0 ? "" : `\n\nYour reply was not valid: ${JSON.stringify(validationError)}; reply with only the JSON object.`;
     prompts.push(prompt + retry);
     const raw = await adapter.judge({ model: judge, prompt: prompts[prompts.length - 1], cwd });
+    throwIfProcessAborted();
     rawReplies.push(raw);
 
     // Pi adapter failures are infrastructure errors, not malformed model votes.

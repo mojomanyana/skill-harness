@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.31.0 — 2026-10-20
+
+- Check response-evaluation reference completeness and instruction mappings during authoring/preflight. Missing reference warnings require review; they do not automatically disclose fixtures or judge semantics.
+- Separate answer-judge calibration from execution-gate qualification, retaining assertions and neutral label disagreements. Select controls and reuse exactly matching, immutable historical judge records with an offline call plan.
+- Diagnose the cheapest evidence-preserving next step per scenario. Selectively regrade saved answers into a new directory, preserving original judgments and honestly stale input/persona identities.
+- Distinguish instructed skill loading, observed source reads, returned answers and untested autonomous selection. Prompt/tool echoes cannot satisfy the loading probe.
+- Bound subprocess output and process telemetry, propagate cancellation, stop dispatch after failure, and settle owned Linux process groups. Retain active snapshots and final private summaries; optional sampled RSS/write thresholds are process controls, not model budgets or OS isolation.
+
 ## 0.30.0 — 2026-10-15
 
 - Develop skills from an idea inside the current Pi session. Persist the brief, ask one necessary question at a time, preview exact changes, and create portable Pi skills with evaluations in the same or a separate repository. Optional pi-daddy agent definitions remain separate from the skill and its runtime dependencies.

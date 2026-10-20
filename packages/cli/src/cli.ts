@@ -32,6 +32,9 @@ import {
   diagnoseRun,
   loadCalibration,
   runCalibration,
+  planCalibration,
+  forkSavedRun,
+  withProcessScope,
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
@@ -49,7 +52,7 @@ export interface Args {
   multi: Record<string, string[]>; // repeatable flags
 }
 
-const REPEATABLE = new Set(["model", "turn", "check"]);
+const REPEATABLE = new Set(["model", "turn", "check", "reuse"]);
 
 function parseArgs(argv: string[]): Args {
   const _: string[] = [];
@@ -100,6 +103,14 @@ export function flagStr(args: Args, key: string, fallback?: string): string | un
 export function flagBool(args: Args, key: string): boolean {
   const v = args.flags[key];
   return v === true || v === "true" || v === "1";
+}
+
+function selectedIds(args: Args): string[] | undefined {
+  const raw = flagStr(args, "only");
+  if (raw === undefined) return undefined;
+  const ids = raw.split(",").map(s => s.trim());
+  if (ids.some(id => !id) || new Set(ids).size !== ids.length) throw new Error("--only requires a nonempty, unique comma-separated ID list");
+  return ids;
 }
 
 function resolveModels(args: Args): string[] {
@@ -218,8 +229,7 @@ export async function cmdRun(args: Args, adapterOverride?: HarnessAdapter): Prom
   // not on PATH" for a plain flag typo, sending the reader off to fix an install
   // that was never the problem. Free, offline validation first — it is also why
   // CI, which has no `pi`, could not test this refusal at all.
-  const onlyRaw = flagStr(args, "only");
-  const only = onlyRaw ? onlyRaw.split(",").map((x) => x.trim()).filter(Boolean) : undefined;
+  const only = selectedIds(args);
 
   const harnessName = flagStr(args, "harness", "pi")!;
   const adapter = adapterOverride ?? getAdapter(harnessName);
@@ -304,15 +314,16 @@ export async function cmdRun(args: Args, adapterOverride?: HarnessAdapter): Prom
 }
 
 export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
-  const runDir = args._[0];
+  const only = selectedIds(args);
+  let runDir = args._[0];
   if (!runDir) throw new Error("usage: skill-harness grade <run-dir> [--judge prov:model] [--suspect-only | --unparsed-only]");
   if (!existsSync(runDir)) {
     throw new Error(`run dir not found: ${resolve(runDir)} (relative paths resolve against the cwd)`);
   }
 
   // spec lives at <runDir>/../../../specification.yaml  (results/<tag>/<ts> -> tests/)
-  const testsDir = dirname(dirname(dirname(runDir)));
-  const specPath = join(testsDir, "specification.yaml");
+  const specPath = flagStr(args, "spec") ? resolve(flagStr(args, "spec")!) : join(dirname(dirname(dirname(runDir))), "specification.yaml");
+  const testsDir = dirname(specPath);
   const spec = loadSpec(specPath);
 
   const prev = existsSync(join(runDir, "results.yaml")) ? readResults(runDir) : null;
@@ -342,10 +353,17 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
   // place. Blocking the diagnosis would be the wrong trade.
   const stale = downgradeWarning(dirname(testsDir));
   if (stale) console.error(stale);
+  const output = flagStr(args, "out");
+  if (output !== undefined) {
+    if (!output.trim()) throw new Error("--out requires a new directory");
+    runDir = forkSavedRun(runDir, output);
+    console.log(`Reusing saved answers in ${runDir}; original run preserved.`);
+  }
 
   const results = await regradeRun({
     runDir, spec, adapter, judge, specDir: testsDir, now: nowIso,
     onlySuspect: flagBool(args, "suspect-only"), onlyUnparsed,
+    only,
   });
   for (const s of results.scenarios) {
     console.log(`  ${s.id} → ${s.judge_verdict}: ${s.judge_reason}`);
@@ -781,11 +799,12 @@ export function help(): string {
 
   run    <skill|all> --skills <root> [--model prov:model ...] [--models file] [--only A1,D2]
                      [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
-                     [--canary]  green only: spend ONE probe proving the skill reached the model, and abort the run if it did not
+                     [--canary]  green only: one instructed-loading probe; autonomous selection stays untested
                      [--structured]  request structured capture (Pi uses it by default for subject usage)
                      [--arm <name>]  measure under a named arm from <skills-root>/tests/arms.yaml
                                      (loads its extensions, seeds pi-daddy definitions, tags the run dir)
   grade  <run-dir>   [--judge prov:model] [--suspect-only]   re-grade saved transcripts (neutral judge)
+                     [--only A1,A2] [--out NEW_DIR] [--spec path] preserve originals and judge selected saved answers
   regrade <run-dir>  --unparsed-only                      re-judge ERROR criterion reps with recorded judge
   rescore <run-dir>...                          re-score saved reps vs current spec thresholds (${free("rescore")})
   regate <run-dir>...  [--judge prov:model]     re-evaluate saved gates (no subject call; judges fail→pass reps)
@@ -796,7 +815,10 @@ export function help(): string {
   init   <skill>     --skills <root> [--force]     scaffold a commented template spec (${free("init")})
   preflight <skill|all> --skills <root> [--specs <root>] eval checks (${free("preflight")})
   calibrate <manifest.json> [--run --judge p:m --out NEW_DIR] validate or judge reviewed controls
+                     [--plan --judge p:m] [--only c1,c2] [--reuse PRIOR_DIR ...] exact historical reuse, no new subject calls
   diagnose <run-dir> --skills <root> [--specs <root>] inspect saved evidence (${free("diagnose")})
+  Paid commands accept --max-memory-mb N / --max-write-mb N for sampled Linux process limits.
+  run/grade/calibrate save bounded private resources-*.json; unsupported host metrics stay unknown.
   In Pi: /skill-harness create <idea>             guided skill + optional agent + eval creation
   suggest <skill>    --skills <root> [--model prov:model] [--force]  LLM-draft a spec from SKILL.md (spends tokens)
   list   --skills <root>                        discovered skills + spec status (${free("list")})
@@ -813,7 +835,7 @@ export function help(): string {
 defaults: model=${DEFAULT_MODEL}  judge=${defaultJudge()}  mode=green  harness=pi
   green and force are both scored; red is the unscored baseline. green delivery depends on the
   harness version (pi >= 0.83.0 discloses only the skill's description and loads the body on demand),
-  so --mode force is the delivery that cannot silently degrade — and --canary proves green per run.
+  --mode force supplies the skill body; --canary checks instructed loading separately from autonomous selection.
   the judge default runs through Pi on your ChatGPT subscription (\`openai-codex\`), not a metered
   API key. Set SKILL_HARNESS_JUDGE to change it for a repo or a shell; --judge wins over both.`;
 }
@@ -842,22 +864,50 @@ export async function cmdDiagnose(args: Args): Promise<void> {
 export async function cmdCalibrate(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {
   if (!args._[0]) throw new Error("usage: skill-harness calibrate <manifest.json> [--run --judge provider:model --out NEW_DIR]");
   const calibration = loadCalibration(resolve(args._[0]));
+  const judgeToken = flagStr(args, "judge");
+  const only = selectedIds(args);
+  const reuse = (args.multi.reuse ?? []).map(p => { if (!p.trim()) throw new Error("--reuse requires a prior calibration directory"); return resolve(p); });
+  if (flagBool(args, "plan")) {
+    if (!judgeToken) throw new Error("Calibration --plan needs an explicit --judge; it makes zero provider calls.");
+    const plan = planCalibration(calibration, { judge: parseModelRef(judgeToken), only, reuse });
+    console.log(JSON.stringify({ ...plan, providerCalls: 0 }, null, 2));
+    if (!plan.ready) process.exitCode = 1;
+    return;
+  }
   if (!flagBool(args, "run")) {
-    console.log(JSON.stringify({ status: calibration.ready ? "validated" : "needs-review", purpose: "judge-calibration-only", providerCalls: 0, cases: calibration.controls.length, issues: calibration.issues }));
+    console.log(JSON.stringify({ status: calibration.ready ? "validated" : "needs-review", purpose: "judge-calibration-only", executionGates: "not-evaluated", providerCalls: 0, cases: calibration.controls.length, issues: calibration.issues }));
     if (!calibration.ready) process.exitCode = 1;
     return;
   }
-  const judgeToken = flagStr(args, "judge");
   const output = flagStr(args, "out");
   if (!judgeToken || !output) throw new Error("Calibration --run needs an explicitly selected --judge and a new --out directory.");
   const adapter = adapterOverride ?? getAdapter("pi");
   if (!await adapter.available()) throw new Error("Pi is required for judge calibration. Configure the selected model in Pi first.");
-  const result = await runCalibration(calibration, { adapter, judge: parseModelRef(judgeToken), output: resolve(output), allowMeteredJudge: flagBool(args, "allow-metered-judge"), onProgress: p => console.log(`Judging control ${p.index + 1}/${p.total}: ${p.id}`) });
+  const result = await runCalibration(calibration, { adapter, judge: parseModelRef(judgeToken), only, reuse, output: resolve(output), allowMeteredJudge: flagBool(args, "allow-metered-judge"), onProgress: p => console.log(`Judging control ${p.index + 1}/${p.total}: ${p.id}`) });
   console.log(JSON.stringify(result, null, 2));
   if (result.status !== "matched") process.exitCode = 1;
 }
 
 export async function main(argv: string[]): Promise<void> {
+  if (!["run", "grade", "regrade", "calibrate", "regate", "suggest"].includes(argv[0])) return dispatch(argv);
+  const args = parseArgs(argv.slice(1));
+  const limit = (name: string) => {
+    const raw = flagStr(args, name);
+    if (raw === undefined) return undefined;
+    const number = Number(raw);
+    if (!Number.isFinite(number) || number <= 0 || !Number.isSafeInteger(number * 1048576)) throw new Error(`--${name} requires a positive MiB value`);
+    return number * 1048576;
+  };
+  const controller = new AbortController();
+  const interrupt = () => { process.exitCode = 130; controller.abort(new Error("SIGINT")); };
+  const terminate = () => { process.exitCode = 143; controller.abort(new Error("SIGTERM")); };
+  process.once("SIGINT", interrupt); process.once("SIGTERM", terminate);
+  try {
+    await withProcessScope({ signal: controller.signal, maxRssBytes: limit("max-memory-mb"), maxWriteBytes: limit("max-write-mb") }, () => dispatch(argv));
+  } finally { process.removeListener("SIGINT", interrupt); process.removeListener("SIGTERM", terminate); }
+}
+
+async function dispatch(argv: string[]): Promise<void> {
   const cmd = argv[0];
   if (cmd === "decision") return cmdDecision(argv.slice(1));
   const args = parseArgs(argv.slice(1));
@@ -909,6 +959,6 @@ export async function main(argv: string[]): Promise<void> {
 if (!process.env.VITEST) {
   main(process.argv.slice(2)).catch((e) => {
     console.error(`error: ${e instanceof Error ? e.message : e}`);
-    process.exitCode = 1;
+    process.exitCode ||= 1;
   });
 }

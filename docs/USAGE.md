@@ -96,7 +96,7 @@ node bin/skill-harness.js run golden-skill --skills packages/core/test/fixtures 
 
 - `--model prov:model` repeats for multi-model comparison (or `--models <file>`).
 - `--mode green` (default; the harness activates the skill) · `force` (SKILL.md as the system prompt) · `red` (baseline, skill off). **Green and force are both scored**; red is the control and never gets a grade. See §4e for which one to publish.
-- `--canary` (green only) spends one extra call proving the skill reached the model, and aborts the run if it didn't.
+- `--canary` (green only) requests one read-only skill-loading/quote probe and stops the wave if inconclusive. It does not test autonomous selection or prove unavailability on failure.
 - After the run, the scorecard flags any scenario that flipped its verdict since the last comparable run (§4f) — one run of such a cell is one draw, whatever its flakiness said.
 - `--reps N` runs each scenario N times (flakiness); `--pass-threshold T` sets the ordinary pass-rate bar. Critical scenarios always require every clean repetition to pass. Judge/API/tooling ERROR remains ERROR and cannot be voted into a behavioral pass or failure.
 - **Judge ≠ subject** — never put the judge model in the set under test; heed any judge≈subject warning.
@@ -239,10 +239,11 @@ failure mix — over-ceremony and capitulation at once — that no single skill 
   the flag, and resolves the path first (a relative `--skills .` used to hand a child
   process a path that meant nothing in its cwd);
 - every run records `harness_cli_version`;
-- `--canary` spends one probe before the wave — "list the `## ` headings of your
-  instructions" — and aborts if the reply doesn't contain them. It proves the body is
-  *reachable*; under progressive disclosure nothing can prove the model read it on every
-  later turn, which is exactly why the next bullet exists;
+- `--canary` requests one load through the advertised skill location and a final
+  heading quote. Structured Pi evidence must show a successful read of the selected
+  file and a matching final response; tool output and guesses cannot satisfy both.
+  An inconclusive result stops the wave, without claiming the skill is unavailable.
+  The explicit request does not measure autonomous selection in later scenarios;
 - `--mode force` is delivery that no pi version has made conditional. If a scorecard is
   going to be published, this is the mode to publish.
 

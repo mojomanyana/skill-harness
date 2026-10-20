@@ -316,9 +316,11 @@ address it:
 
 - the adapter **refuses** a skill dir with no `SKILL.md` instead of letting pi swallow it;
 - every run records `harness_cli_version` (`pi --version`) beside its verdicts;
-- `--canary` spends **one** probe up front — the model is asked to quote a heading from
-  its own instructions — and aborts the run if the skill isn't reaching it. A run that
-  isn't measuring anything then costs one rep instead of a wave.
+- `--canary` makes at most **one** read-only probe up front, asking the model to load
+  the advertised skill and return its headings. It records local readability,
+  successful selected-file read and matching final response separately. An
+  inconclusive probe stops the wave; it does not prove the skill is unavailable.
+  This explicit request never measures autonomous selection in later scenarios.
 
 `--mode force` is the delivery that has never been conditional, which is why it is
 what a published corpus should measure.
@@ -605,10 +607,12 @@ Result fields include:
   green mode measures, and that incident was invisible in the artifacts because
   nothing recorded which pi ran. Written by `run` only, and carried verbatim by
   `grade`/`rescore`/`regate` — they re-decide verdicts, they do not re-deliver a skill.
-- `delivery_canary: pass` appears on a green run started with `--canary`: before the
-  wave, the model quoted a heading from its own skill instructions back. Absent means
-  the probe wasn't asked for — never that it failed, because a failed canary aborts
-  the run before any results file exists.
+- `delivery_canary: pass` is the compatibility status of an instructed green-mode
+  loading/quote probe. `delivery_observations` records local availability, observed
+  successful skill-file read, returned heading, probe call count and untested
+  autonomous selection. Historical quote-only passes lack those observations and
+  must not be promoted to verified loading. A failed probe stops the wave before a
+  results file exists; its journal preserves the observations.
 - each scenario carries `suspect`: the judge-misfire tripwire fired (its per-item grades
   disagree with its overall verdict) — marked `suspect`, excluded from the grade, and blocks
   SHIP until you re-judge it or set an override in the review UI.

@@ -15,6 +15,8 @@ import { appendJournal } from "./journal.js";
 import { rubricDigest, personaDigest, RUBRIC_PREFIX, PERSONA_KEY } from "./sources.js";
 import { providerFailureFromTranscript, executionFailureFromTranscript } from "./provider-failure.js";
 import { loadExecutionFacts, transcriptResponses, type JudgeExecutionFacts } from "./judge-evidence.js";
+import { withResourceMonitoring } from "./resource-monitor.js";
+import { throwIfProcessAborted } from "./util/process.js";
 
 /**
  * Carry a run's recorded hashes forward, refreshing only the `rubric:` keys this
@@ -34,6 +36,7 @@ export function refreshRubricHashes(
   judgedIds: string[],
   specDir?: string,
   references?: Record<string, JudgeReference[]>,
+  refreshPersona = true,
 ): Record<string, string> | undefined {
   if (!recorded) return undefined;
   const next = { ...recorded };
@@ -44,7 +47,7 @@ export function refreshRubricHashes(
     // rubric was never hashed would fabricate coverage.
     if (s && RUBRIC_PREFIX + id in next) next[RUBRIC_PREFIX + id] = rubricDigest(s, specDir, references?.[id]);
   }
-  if (PERSONA_KEY in next) next[PERSONA_KEY] = personaDigest(spec.judge_persona);
+  if (refreshPersona && PERSONA_KEY in next) next[PERSONA_KEY] = personaDigest(spec.judge_persona);
   return next;
 }
 
@@ -223,6 +226,8 @@ export interface RegradeRunOptions {
    * cleanly, so spending judge calls on them buys nothing.
    */
   onlySuspect?: boolean;
+  /** Rejudge only these recorded scenarios; untouched verdicts remain historical. */
+  only?: string[];
   /** Rejudge only retained repetitions containing ERROR criterion votes, with the recorded judge. */
   onlyUnparsed?: boolean;
 }
@@ -239,6 +244,7 @@ export interface RegradeRunOptions {
  * ResultsFile. Shared by `cmdGrade` and the pi-extension's `judge` command.
  */
 export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> {
+  throwIfProcessAborted();
   const { runDir, spec, adapter, specDir } = opts;
   const now = opts.now ?? (() => new Date().toISOString());
 
@@ -270,13 +276,19 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
   const specById = new Map(spec.scenarios.map((s) => [s.id, s]));
   const recorded = prev?.scenarios ?? spec.scenarios.map((s) => ({ id: s.id } as ScenarioResult));
   let targets = recorded.map((s) => s.id);
+  if (opts.only !== undefined) {
+    if (!opts.only.length || opts.only.some(id => !id.trim()) || new Set(opts.only).size !== opts.only.length) throw new Error("Selected scenarios must be a nonempty unique ID list");
+    const unknown = opts.only.filter(id => !targets.includes(id));
+    if (unknown.length) throw new Error(`Unknown recorded scenario(s): ${unknown.join(", ")}`);
+    targets = targets.filter(id => opts.only!.includes(id));
+  }
   if (opts.onlySuspect) {
     if (!prev) throw new Error(`--suspect-only needs a prior results.yaml in ${runDir}`);
-    targets = prev.scenarios
+    targets = prev.scenarios.filter(s => targets.includes(s.id))
       .filter((s) => s.suspect || s.judge_verdict === "JUDGE-AMBIGUOUS")
       .map((s) => s.id);
   }
-  if (opts.onlyUnparsed) targets = recorded.filter(s => s.rep_judgments?.some(hasUnparsedVotes)).map(s => s.id);
+  if (opts.onlyUnparsed) targets = recorded.filter(s => targets.includes(s.id) && s.rep_judgments?.some(hasUnparsedVotes)).map(s => s.id);
   // Schema-3 delivery is a prerequisite for behavioral judging. A later `grade`
   // cannot turn an undelivered or unauthenticated transcript into product evidence.
   if (prev?.schema === 3) {
@@ -287,6 +299,7 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     // Nothing judgeable — a no-op, preserving both evidence and judge identity.
     return prev;
   }
+  if (prev && targets.length !== recorded.length && (judge.provider !== prev.judge.provider || judge.model !== prev.judge.model)) throw new Error("Selective regrade must use the recorded judge; regrade the whole run to change judge");
 
   const completeTranscripts = (record: ScenarioResult): boolean => {
     const expected = record.reps ?? 1;
@@ -333,9 +346,11 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
   }
 
   const references = Object.fromEntries(targets.map(id => [id, resolveJudgeReferences(specById.get(id)!, specDir)]));
+  return withResourceMonitoring(runDir, async () => {
   const targetSet = new Set(targets);
   const scenarioResults: ScenarioResult[] = [];
   for (const rec of recorded) {
+    throwIfProcessAborted();
     const id = rec.id;
     if (!targetSet.has(id)) {
       scenarioResults.push(rec); // clean verdict, carried verbatim (onlySuspect)
@@ -373,6 +388,7 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     // here would credit the old transcripts to a version that never ran them.
     harness_cli_version: prev?.harness_cli_version,
     delivery_canary: prev?.delivery_canary,
+    delivery_observations: prev?.delivery_observations,
     // The arm is provenance of the MEASUREMENT, not of this rewrite, and it is the
     // only record that a `+<arm>` run actually delegated: rebuilding the draft
     // field-by-field without it silently deleted `definitions`/`ledger_events`
@@ -393,7 +409,7 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     // say so. Doctrine narrowed 0.4.0, from "recorded hashes stay" to "recorded
     // *stimulus* hashes stay" — see refreshRubricHashes.
     partial: prev?.partial,
-    source_hashes: opts.onlyUnparsed ? prev?.source_hashes : refreshRubricHashes(prev?.source_hashes, spec, targets, opts.specDir, references),
+    source_hashes: opts.onlyUnparsed ? prev?.source_hashes : refreshRubricHashes(prev?.source_hashes, spec, targets, opts.specDir, references, targets.length === recorded.length),
     source_hash_roots: prev?.source_hash_roots,
     scenarios: scenarioResults,
   }, ctx);
@@ -405,4 +421,5 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     });
   }
   return results;
+  });
 }

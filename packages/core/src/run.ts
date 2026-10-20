@@ -35,6 +35,8 @@ import { runDeliveryCanary, canaryFailure, type CanaryResult } from "./canary.js
 import { boundaryCells, stabilityNote, type ScenarioStability } from "./stability.js";
 import { aggregateMetrics } from "./metrics.js";
 import { providerFailureFromTranscript, executionFailureFromTranscript, withExecutionFailure } from "./provider-failure.js";
+import { withResourceMonitoring } from "./resource-monitor.js";
+import { throwIfProcessAborted, isProcessControlError } from "./util/process.js";
 
 export interface RunOptions {
   spec: Spec;
@@ -63,8 +65,8 @@ export interface RunOptions {
    */
   only?: string[];
   /**
-   * Green mode only: spend ONE probe up front proving the skill reaches the model,
-   * and abort the run if it doesn't (see canary.ts). Off by default — it costs a
+   * Green mode only: spend ONE instructed loading/read/quote probe up front,
+   * and stop the wave if inconclusive (see canary.ts). Off by default — it costs a
    * rep, and the deterministic half of this failure class (a skill dir that isn't
    * there) is already refused by the adapter for free.
    */
@@ -126,7 +128,10 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   // --only: validate against the spec BEFORE spending anything — a typo'd id must not
   // silently run zero scenarios and report success.
   let scenarios = spec.scenarios;
-  const partial = Boolean(opts.only && opts.only.length > 0);
+  const partial = opts.only !== undefined;
+  if (partial && (!opts.only!.length || opts.only!.some(id => !id.trim() || id !== id.trim()) || new Set(opts.only).size !== opts.only!.length)) {
+    throw new Error("--only requires a nonempty, unique scenario ID list");
+  }
   if (partial) {
     const known = new Set(spec.scenarios.map((s) => s.id));
     const unknown = opts.only!.filter((id) => !known.has(id));
@@ -157,6 +162,9 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   mkdirSync(runDir, { recursive: true });
   ensureResultsGitignore(dirname(dirname(runDir))); // .../tests/results/.gitignore
 
+  return withResourceMonitoring(runDir, async () => {
+  throwIfProcessAborted();
+
   // Which harness CLI delivered the skill, asked once per run and recorded with the
   // numbers. A pi upgrade (0.80.x → 0.83.0) silently changed what green mode
   // measures, and the incident was invisible in the artifacts because nothing wrote
@@ -171,11 +179,12 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     mode, label: opts.label ?? null,
   });
 
-  // The canary spends one probe before the wave, so a run that isn't measuring the
-  // skill dies for the price of a rep instead of producing a plausible scorecard.
+  // One optional instructed loading probe can stop a wave whose delivery check
+  // is inconclusive. It does not measure autonomous selection in later scenarios.
   // Green only: red delivers nothing by design, and force delivers through the
   // system prompt, which needs no probe.
   let canaryStatus: "pass" | "skipped" | null = null;
+  let canaryObservations: ResultsFile["delivery_observations"];
   if (opts.canary && mode !== "green") {
     // Ignoring a flag silently is a small version of the bug this whole feature is
     // about. Say it, and say why it isn't needed.
@@ -194,18 +203,19 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     appendJournal(runDir, {
       event: "delivery-canary", ts: now(),
       status: canary.status, anchor: canary.anchor, detail: canary.detail,
+      observations: canary.observations, probeCalls: canary.probeCalls,
     });
+    canaryObservations = { ...canary.observations, probeCalls: canary.probeCalls };
     if (canary.status === "fail") throw new Error(canaryFailure(spec.skill, canary, harnessCliVersion));
     if (canary.status === "skipped") {
       // Recorded, not just logged: `journal.jsonl` is gitignored, and the claim
-      // "this run's delivery was verified" has to survive a commit — including
-      // when it is the claim that it wasn't.
+      // requested delivery observation has to survive a commit, including a skip.
       canaryStatus = "skipped";
       log(`  ⚠ delivery canary skipped — ${canary.detail}`);
     }
     else {
       canaryStatus = "pass";
-      log(`  ✓ delivery canary — the model quoted its skill instructions back (\`${canary.anchor}\`)`);
+      log(`  ✓ delivery canary — ${canary.detail}`);
     }
   }
 
@@ -240,6 +250,7 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     harness: adapter.name,
     harness_cli_version: harnessCliVersion ?? undefined,
     delivery_canary: canaryStatus ?? undefined,
+    delivery_observations: canaryObservations,
     model: opts.modelToken,
     judge: { provider: judge.provider, model: judge.model },
     timestamp,
@@ -273,6 +284,7 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     appendJournal(runDir, { event: "score", ts: now(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
   }
   return { runDir, results };
+  });
 }
 
 interface ScenarioCtx {
@@ -390,6 +402,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
       // it happens again the verdict is ERROR — never a judged FAIL on an empty reply.
       // An adapter that THREW is the same class of event and takes the same retry.
       for (let attempt = 0; attempt < 2; attempt++) {
+        throwIfProcessAborted();
         if (attempt > 0) {
           const why = adapterFailure ? `adapter failed (${adapterFailure})` : "empty response";
           appendJournal(runDir, { event: "empty-response-retry", ts: now(), id: scenario.id, attempt, reason: why, ...repField });
@@ -465,6 +478,8 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
             }
           }
         } catch (e) {
+          if (isProcessControlError(e)) throw e;
+          throwIfProcessAborted();
           // An adapter that THREW is one rep's infrastructure failure, not the
           // wave's. `runPool` is fail-fast and `runRep` had only a `finally`, so
           // a single pi crash or `PI_TIMEOUT_MS` timeout unwound the whole run:
@@ -731,8 +746,13 @@ export function formatScorecard(summary: RunSummary, lift?: Lift, stability?: Sc
       `  NOTE:  green delivery is harness-version-dependent` +
         (results.harness_cli_version ? ` (${results.harness} ${results.harness_cli_version})` : "") +
         ` — on pi ≥ 0.83.0 \`--skill\` only discloses the description and the body loads on demand.` +
-        ` Use --mode force for delivery that cannot silently degrade, or --canary to prove it per run.`,
+        ` Use --mode force for explicit instruction delivery, or --canary for one instructed loading check; autonomous selection remains untested.`,
     );
+  }
+  if (results.mode === "green" && results.delivery_canary === "pass") {
+    const observation = results.delivery_observations;
+    lines.push(`  DELIVERY: instructed probe read ${observation?.successfulSkillRead ?? "unobserved"}; ` +
+      `autonomous skill selection in scenarios was not measured by the probe.`);
   }
   // Boundary cells last, because they qualify the verdicts above: a ✓ on a cell that
   // flipped between the last two runs is one draw, whatever its rep count said.

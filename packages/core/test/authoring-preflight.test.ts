@@ -22,11 +22,61 @@ function withSpec(check: (dir: string) => void) {
 
 it("surfaces brittle authoring contracts through lint without making them CI errors", () => withSpec(dir => {
   const findings = lintSkill(dir);
-  expect(findings.filter(f => f.code === "authoring")).toHaveLength(3);
+  expect(findings.filter(f => f.code === "authoring")).toHaveLength(4);
   expect(findings.some(failsGate)).toBe(false);
   // Genuine schema errors must still fail the same gate.
   writeFileSync(join(dir, "tests/specification.yaml"), "skill: demo\n");
   expect(lintSkill(dir).some(failsGate)).toBe(true);
+}));
+
+it("flags omitted supporting text, accepts renamed exact copies, and does not trust matching filenames", () => withSpec(dir => {
+  const path = join(dir, "tests/specification.yaml");
+  const raw = JSON.parse(readFileSync(path, "utf8"));
+  mkdirSync(join(dir, "tests/fixture"));
+  mkdirSync(join(dir, "tests/judge"));
+  writeFileSync(join(dir, "tests/fixture/release.txt"), "Current capacity is 42.\n");
+  writeFileSync(join(dir, "tests/fixture/campaign-brief.md"), "Use the phrase: calm workdays.\n");
+  writeFileSync(join(dir, "tests/judge/copied-facts.txt"), "Current capacity is 42.\r\n");
+  raw.scenarios[0].env = { tools: ["read"], workspace: "fixture:fixture" };
+  raw.scenarios[0].judge_evidence = "response";
+  raw.scenarios[0].judge_references = ["judge/copied-facts.txt"];
+  const gaps = () => {
+    writeFileSync(path, JSON.stringify(raw));
+    return lintSkill(dir).filter(f => f.message.startsWith("JUDGE_REFERENCE_GAP"));
+  };
+  let findings = gaps();
+  expect(findings).toHaveLength(1);
+  expect(findings[0].message).toContain("campaign-brief.md");
+  expect(findings.some(failsGate)).toBe(false);
+
+  // Different names and line endings are fine when the selected evidence contains
+  // the same source content; no inference depends on a filename convention.
+  writeFileSync(join(dir, "tests/judge/voice-reference.txt"), "Use the phrase: calm workdays.\r\n");
+  raw.scenarios[0].judge_references.push("judge/voice-reference.txt");
+  expect(gaps()).toEqual([]);
+
+  // A matching name is not sufficient when its contents do not support the source.
+  writeFileSync(join(dir, "tests/judge/campaign-brief.md"), "Unrelated wording.\n");
+  raw.scenarios[0].judge_references = ["judge/copied-facts.txt", "judge/campaign-brief.md"];
+  expect(gaps()).toHaveLength(1);
+  raw.scenarios[0].judge_context = "Use the phrase: calm workdays.\n";
+  expect(gaps()).toEqual([]);
+}));
+
+it("reference inventory warnings do not claim semantic completeness or fail code-evidence scenarios", () => withSpec(dir => {
+  const spec = loadSpec(join(dir, "tests/specification.yaml"));
+  spec.scenarios[0].judgeEvidence = "response";
+  const profile = {
+    fixtureFiles: () => ["source.txt", "binary.png"],
+    fixtureText: () => "Public source text.",
+    referenceText: () => null,
+  };
+  const gaps = () => inspectEvalAuthoring(spec, profile).filter(f => f.code === "JUDGE_REFERENCE_GAP");
+  expect(gaps()).toHaveLength(1);
+  expect(gaps()[0].message).toMatch(/inventory warning, not a semantic verdict/);
+  expect(gaps()[0].severity).toBeUndefined();
+  spec.scenarios[0].judgeEvidence = "code";
+  expect(gaps()).toEqual([]);
 }));
 
 it("only makes capability-dependent claims for an explicitly supplied profile", () => withSpec(dir => {

@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import yaml from "js-yaml";
 import type { Scenario } from "./spec.js";
 import { resolveJudgeReferences, type JudgeReference } from "./judge-references.js";
 import { PROMPT_NORMALIZATION_SOURCE_DIGEST, PROMPT_NORMALIZATION_SOURCE_KEY } from "./prompt-normalization.js";
+import { fixtureInventory, hashFixtureFile } from "./util/fixture-inventory.js";
 export { PROMPT_NORMALIZATION_SOURCE_DIGEST, PROMPT_NORMALIZATION_SOURCE_KEY } from "./prompt-normalization.js";
 
 /**
@@ -120,40 +121,19 @@ export function fileSha256(path: string): string | null {
  * normalised so a Linux-recorded hash still matches on Windows.
  */
 export function dirSha256(dir: string): string | null {
-  let files: string[];
   try {
-    files = walk(dir).sort();
+    const files = fixtureInventory(dir);
+    const h = createHash("sha256");
+    for (const file of files) {
+      h.update(file.relative);
+      h.update("\0");
+      hashFixtureFile(h, file);
+      h.update("\0");
+    }
+    return h.digest("hex");
   } catch {
-    return null;
+    return null; // Missing, oversized or changing input is unavailable evidence.
   }
-  const h = createHash("sha256");
-  for (const rel of files) {
-    h.update(rel);
-    h.update("\0");
-    try {
-      h.update(readFileSync(join(dir, rel)));
-    } catch {
-      return null; // a file that vanished mid-walk makes the whole digest untrustworthy
-    }
-    h.update("\0");
-  }
-  return h.digest("hex");
-}
-
-/** Relative POSIX paths of every file under `dir`, recursively. Throws if `dir` is unreadable. */
-function walk(dir: string, prefix = ""): string[] {
-  const out: string[] = [];
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    const rel = prefix ? `${prefix}/${e.name}` : e.name;
-    if (e.isDirectory()) {
-      out.push(...walk(join(dir, e.name), rel));
-    } else if (e.isFile()) {
-      out.push(rel);
-    }
-    // symlinks/sockets/etc. are deliberately skipped: a fixture is plain files,
-    // and following links could hash something outside the fixture entirely.
-  }
-  return out;
 }
 
 /**

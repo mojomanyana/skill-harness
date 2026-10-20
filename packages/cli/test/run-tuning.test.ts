@@ -1,5 +1,6 @@
 import { describe, test, expect } from "vitest";
-import { parseRunTuning, releaseExitCode, help, type Args } from "../src/cli.js";
+import { cmdRun, parseRunTuning, releaseExitCode, help, type Args } from "../src/cli.js";
+import type { HarnessAdapter } from "@skill-harness/core";
 
 /**
  * `--reps` / `--pass-threshold` must reject invalid provided values rather
@@ -12,6 +13,17 @@ import { parseRunTuning, releaseExitCode, help, type Args } from "../src/cli.js"
 function argsFor(flags: Record<string, string>): Args {
   return { _: [], flags, multi: {} };
 }
+
+test("an invalid explicit run selection cannot expand into a full wave", async () => {
+  let probes = 0, calls = 0;
+  const adapter: HarnessAdapter = { name: "pi", available: async () => { probes++; return true; },
+    run: async () => { calls++; return ""; }, judge: async () => { calls++; return ""; } };
+  for (const only of ["", ",", true, "A1,A1", "A1,"]) {
+    await expect(cmdRun({ _: ["demo"], flags: { only, judge: "openai-codex:judge", skills: "/missing" }, multi: {} }, adapter)).rejects.toThrow(/only/);
+  }
+  expect(probes).toBe(0);
+  expect(calls).toBe(0);
+});
 
 describe("release exit policy", () => {
   const summary = (mode: string, ship: boolean, partial = false) => ({ results: { mode, partial, effective_grade: { ship } } });

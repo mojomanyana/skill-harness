@@ -3,7 +3,7 @@ import { dirname, join, resolve, relative } from "node:path";
 import { loadSpec, regradeRun, readResults, parseModelRef, recordedJudgeOrDefault, assertJudgeAllowed, type HarnessAdapter, computeCoverage, formatCoverage } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview, type ServeHandle } from "@skill-harness/cli/serve";
-import { resolveSkillLocation, runViaExtension } from "./runner.js";
+import { resolveSkillLocation, runViaExtension, withEvaluationGuard } from "./runner.js";
 import { handleAuthoringCommand } from "./authoring.js";
 
 /**
@@ -56,7 +56,7 @@ export interface CmdCtx {
   };
 }
 
-const USAGE = "usage: /skill-harness create <idea> | author [name] | run [skill] [--specs root] [--model p:m] [--reps N] [--mode red|green|force] [--canary] [--judge p:m] | judge [run-dir] | review [skill] | coverage [skill] | jev enable [workflow]|run|status|disable";
+const USAGE = "usage: /skill-harness create <idea> | author [name] | run [skill] [--specs root] [--model p:m] [--reps N] [--mode red|green|force] [--only A1,A2] [--canary] [--judge p:m] | judge [run-dir] [--judge p:m] | review [skill] | coverage [skill] | jev enable [workflow]|run|status|disable";
 
 /** Minimal arg tokenizer: subcommand + positional args + `--key value` flags. A flag with no following value (or one followed by another `--flag`) is left unset, so callers' `?? default` fallbacks apply. */
 function parse(argstr: string): { sub: string; positional: string[]; flags: Record<string, string> } {
@@ -114,10 +114,26 @@ export async function handleSkillCheck(
       : [];
   const retiredFlag = retired.find((flag) => Object.hasOwn(flags, flag));
   if (retiredFlag) throw new Error(`--${retiredFlag} was removed; this command refuses to silently run with different behavior`);
+  if (sub === "run" || sub === "judge") {
+    const supported = sub === "run"
+      ? ["specs", "model", "reps", "mode", "only", "canary", "judge"]
+      : ["judge"];
+    const unsupported = Object.keys(flags).find(flag => !supported.includes(flag));
+    if (unsupported !== undefined) {
+      const guidance = sub === "judge"
+        ? "Use the CLI: skill-harness grade <run-dir> [--only A1,A2] [--out NEW_DIR] [--spec path]."
+        : "Use skill-harness run --help for CLI options.";
+      throw new Error(`Unsupported flag --${unsupported} for /skill-harness ${sub}; no evaluation started. ${guidance}`);
+    }
+  }
   const adapter = opts?.adapter;
   const nowIso = () => new Date().toISOString();
 
   if (sub === "run") {
+    const only = Object.hasOwn(flags, "only") ? flags.only.split(",").map(id => id.trim()) : undefined;
+    if (only && (only.some(id => !id) || new Set(only).size !== only.length)) {
+      throw new Error("--only requires a nonempty, unique comma-separated scenario ID list");
+    }
     const { skillDir, specPath } = resolveSkillLocation(ctx.cwd, positional[0], flags.specs || process.env.SKILL_HARNESS_SPECS);
     const card = await runViaExtension({
       skillDir, specPath,
@@ -126,6 +142,7 @@ export async function handleSkillCheck(
       model: flags.model || undefined,
       reps: flags.reps ? Number(flags.reps) : undefined,
       mode: (flags.mode || undefined) as "red" | "green" | "force" | undefined,
+      only,
       canary: flags.canary !== undefined && flags.canary !== "false",
       adapter,
       judge: flags.judge || undefined,
@@ -157,10 +174,10 @@ export async function handleSkillCheck(
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge",
     });
     const resolvedAdapter = adapter ?? getAdapter(prev?.harness ?? "pi");
-    const results = await regradeRun({
+    const results = await withEvaluationGuard(() => regradeRun({
       runDir, spec, adapter: resolvedAdapter,
       judge, specDir: testsDir, now: nowIso,
-    });
+    }));
     say(ctx, `re-judged ${runDir}: ${results.effective_grade.letter} (${results.effective_grade.pct}%)`);
     return;
   }
