@@ -1,9 +1,10 @@
 import { exec } from "./util/exec.js";
-import { appendFileSync, cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, type Dirent } from "node:fs";
+import { appendFileSync, cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
+import { fixtureInventory, hashFixtureFile } from "./util/fixture-inventory.js";
 
 const GIT_TIMEOUT_MS = 30_000;
 
@@ -211,6 +212,7 @@ export function createWorkspace(kind: WorkspaceKind, opts: { specDir: string; re
     } else {
       const src = isAbsolute(kind.fixture) ? kind.fixture : resolve(opts.specDir, kind.fixture);
       if (!existsSync(src)) throw new Error(`fixture not found: ${src}`);
+      fixtureInventory(src); // Refuse broad fixtures before copying or starting Git.
       assertKnownMarkers(src);
       const pending = [STAGED_DIR, UNCOMMITTED_DIR].map((d) => join(src, d));
       cpSync(src, cwd, {
@@ -276,31 +278,15 @@ const SNAPSHOT_SKIP_RELS = new Set([".pi/skills"]);
 export function snapshotPaths(cwd: string | undefined, kind: WorkspaceKind): PathSnapshot | null {
   if (kind === "none" || !cwd || !existsSync(cwd)) return null;
   const out: PathSnapshot = new Map();
-  const walk = (dir: string, prefix: string): void => {
-    let entries: Dirent[];
-    try {
-      entries = readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return; // an unreadable subtree is not evidence about the model
+  try {
+    const files = fixtureInventory(cwd, (name, relative) => SNAPSHOT_SKIP.has(name) || SNAPSHOT_SKIP_RELS.has(relative));
+    for (const file of files) {
+      const hash = createHash("sha256");
+      hashFixtureFile(hash, file);
+      out.set(file.relative, hash.digest("hex"));
     }
-    for (const e of entries) {
-      if (SNAPSHOT_SKIP.has(e.name)) continue;
-      const rel = prefix ? `${prefix}/${e.name}` : e.name;
-      if (SNAPSHOT_SKIP_RELS.has(rel)) continue;
-      const abs = join(dir, e.name);
-      if (e.isDirectory()) {
-        walk(abs, rel);
-      } else if (e.isFile()) {
-        try {
-          out.set(rel, createHash("sha256").update(readFileSync(abs)).digest("hex"));
-        } catch {
-          out.set(rel, "<unreadable>");
-        }
-      }
-    }
-  };
-  walk(cwd, "");
-  return out;
+    return out;
+  } catch { return null; } // A partial walk cannot establish unchanged paths.
 }
 
 /**

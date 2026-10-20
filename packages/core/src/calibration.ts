@@ -3,11 +3,13 @@ import { mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
 import { loadSpec, type Spec } from "./spec.js";
-import { prepareJudgePrompt, judgeInWorkspace, type GradeResult } from "./grade.js";
+import { prepareJudgePrompt, judgeInWorkspace, parseStructuredJudgeReply, type GradeResult } from "./grade.js";
 import { loadExecutionFacts, transcriptResponses, unavailableExecution, type TraceIdentity } from "./judge-evidence.js";
 import { assertJudgeAllowed } from "./judge-policy.js";
 import { rubricDigest } from "./sources.js";
 import { resolveJudgeReferences } from "./judge-references.js";
+import { withResourceMonitoring } from "./resource-monitor.js";
+import { isProcessControlError, throwIfProcessAborted } from "./util/process.js";
 
 export interface CalibrationControl {
   id: string;
@@ -39,7 +41,10 @@ export interface LoadedCalibration {
   manifestSha256: string;
   specDir: string;
   spec: Spec;
-  controls: Array<BoundControl & { prompt: string }>;
+  controls: Array<BoundControl & { prompt: string; executionEvidence: "verified" | "unknown" }>;
+  /** Calibration judges supplied answers; even a verified trace is not a gate evaluation. */
+  calibrationScope: "answer-judge";
+  executionGates: "not-evaluated";
   ready: boolean;
   issues: string[];
 }
@@ -108,11 +113,13 @@ function validateManifest(manifest: CalibrationManifest, manifestPath: string, m
       if (hash(readFileSync(path)) !== trace.fileSha256) throw new Error(`${control.id}: trace bytes changed`);
       execution = loadExecutionFacts(path, { ...trace.identity, scenarioId: scenario.id, turns: scenario.turns.length, responses }, trace.sha256);
       if (execution.status !== "verified" || execution.coverage !== "complete") throw new Error(`${control.id}: execution evidence ERROR: ${execution.reason}`);
-    } else if (scenario.traceAssert) {
-      issues.push(`${control.id}: execution assertions need bound trace evidence`);
     }
-    const prompt = prepareJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript: control.transcript, execution, references }, specDir);
-    return { ...control, prompt };
+    const scope = control.kind === "saved"
+      ? "This is a selected saved answer. Only the separately verified execution facts establish observed execution."
+      : "This is an authored answer control. Any supplied code, staged diff, test output or gate trailer is synthetic control material, not evidence that the subject executed it.";
+    const prompt = prepareJudgePrompt({ skill: spec.skill, persona: spec.judge_persona, scenario, transcript: control.transcript, execution, references }, specDir) +
+      `\nCALIBRATION SCOPE (trusted harness metadata):\n${scope} Assess the supplied response/code against the semantic checklist and references. Tool use, execution and unchanged-file claims remain unverified unless supported by the separate execution facts. This run does not evaluate objective execution gates, even when a trace is verified. Keep the required JSON response format.\n`;
+    return { ...control, prompt, executionEvidence: execution.status === "verified" ? "verified" as const : "unknown" as const };
   });
   for (const control of controls.filter(c => c.kind === "equivalent")) {
     const original = controls.find(c => c.id === control.equivalentTo);
@@ -121,7 +128,8 @@ function validateManifest(manifest: CalibrationManifest, manifestPath: string, m
   if (!controls.some(c => c.expected === "PASS")) issues.push("Add a supported positive control");
   if (!controls.some(c => c.expected === "FAIL")) issues.push("Add a deliberately incorrect negative control");
   if (!controls.some(c => c.expected === "PASS" && c.kind === "equivalent")) issues.push("Add an equivalent correct answer to detect wording overfit");
-  return { manifestPath: resolve(manifestPath), manifestSha256, specDir, spec, controls, ready: !issues.length, issues };
+  return { manifestPath: resolve(manifestPath), manifestSha256, specDir, spec, controls,
+    calibrationScope: "answer-judge", executionGates: "not-evaluated", ready: !issues.length, issues };
 }
 
 /** Deterministic authoring helper. Hashes are produced by code, never requested from a model. */
@@ -158,70 +166,208 @@ export function loadCalibration(manifestPath: string): LoadedCalibration {
   return validateManifest(JSON.parse(bytes.toString("utf8")), manifestPath, hash(bytes));
 }
 
+export interface CalibrationReuseSource {
+  directory: string;
+  manifestSha256: string;
+  artifacts: { path: string; sha256: string }[];
+}
+export interface CalibrationSelection { only?: string[]; reuse?: string[] }
+export interface CalibrationPlan {
+  schema: 1; purpose: "judge-calibration-plan"; manifestSha256: string; judge: ModelRef;
+  calibrationScope: "answer-judge"; executionGates: "not-evaluated";
+  availableCases: number; cases: number; partial: boolean; ready: boolean; issues: string[]; notes: string[];
+  judgeCallsPlanned: number; reused: number;
+  controls: { id: string; action: "judge" | "reuse"; source?: CalibrationReuseSource }[];
+}
+
+/** Explicitly selected prior evidence only: no directory discovery and no model calls. */
+function calibrationPlan(loaded: LoadedCalibration, options: CalibrationSelection & { judge: ModelRef }) {
+  const current = loadCalibration(loaded.manifestPath);
+  if (current.manifestSha256 !== loaded.manifestSha256) throw new Error("Calibration changed after validation");
+  if (options.only && (!options.only.length || new Set(options.only).size !== options.only.length ||
+      options.only.some(id => !current.controls.some(control => control.id === id)))) throw new Error("Select distinct existing calibration control IDs");
+  if ((options.reuse?.length ?? 0) > 20) throw new Error("Select at most 20 prior calibration directories");
+  const selected = current.controls.filter(control => !options.only || options.only.includes(control.id));
+  const plan: CalibrationPlan = {
+    schema: 1, purpose: "judge-calibration-plan", manifestSha256: current.manifestSha256, judge: options.judge,
+    calibrationScope: "answer-judge", executionGates: "not-evaluated", availableCases: current.controls.length,
+    cases: selected.length, partial: selected.length !== current.controls.length, ready: current.ready,
+    issues: [...current.issues], notes: [], judgeCallsPlanned: selected.length, reused: 0,
+    controls: selected.map(control => ({ id: control.id, action: "judge" })),
+  };
+  const retained = new Map<string, { result: GradeResult; files: Map<string, Buffer> }>();
+  // ModelRef currently has no sampling/settings fields. Unknown future settings must not silently reuse.
+  const sameJudge = (value: ModelRef) => value?.provider === options.judge.provider && value?.model === options.judge.model &&
+    Object.keys(value).sort().join(",") === "model,provider" && Object.keys(options.judge).sort().join(",") === "model,provider";
+  for (const directory of [...new Set(options.reuse ?? [])].map(path => resolve(path))) {
+    const evidence: CalibrationReuseSource["artifacts"] = [];
+    const files = new Map<string, Buffer>();
+    const read = (path: string, limit = 2_097_152): any => {
+      const bytes = readFileSync(selectedFile(directory, path, limit));
+      evidence.push({ path, sha256: hash(bytes) });
+      files.set(path, bytes);
+      return JSON.parse(bytes.toString("utf8"));
+    };
+    const inputs = read("inputs.json", 33_554_432), summary = read("summary.json");
+    if (summary.schema !== 1 || summary.purpose !== "judge-calibration" || !HASH.test(summary.manifestSha256) ||
+        summary.manifestSha256 !== inputs.manifestSha256 || !Array.isArray(inputs.controls) || inputs.controls.length > 100 ||
+        !["matched", "mismatch", "error"].includes(summary.status) ||
+        !Array.isArray(summary.errors) || !Array.isArray(summary.unrun)) throw new Error(`Invalid prior calibration evidence: ${directory}`);
+    if (!sameJudge(inputs.judge) || !sameJudge(summary.judge)) {
+      plan.notes.push(`${directory}: different judge; no results reused`); continue;
+    }
+    const common = evidence.slice();
+    for (const control of selected) {
+      const prior = inputs.controls.find((candidate: BoundControl) => candidate.id === control.id);
+      if (!prior || summary.errors.includes(control.id) || summary.unrun.includes(control.id)) continue;
+      if (prior.scenarioId !== control.scenarioId || prior.expected !== control.expected || prior.prompt !== control.prompt ||
+          prior.transcript !== control.transcript || prior.transcriptSha256 !== control.transcriptSha256 ||
+          prior.rubricSha256 !== control.rubricSha256 || prior.review?.status !== "accepted" || !prior.review.by?.trim()) continue;
+      evidence.length = 0; evidence.push(...common);
+      files.clear();
+      const request = read(`${control.id}.request.json`), result = read(`${control.id}.result.json`);
+      if (request.prompt !== control.prompt || request.sha256 !== hash(control.prompt) || result.expected !== control.expected ||
+          result.judgeFormat !== "json" || typeof result.raw !== "string" || !Array.isArray(result.rawReplies) ||
+          result.rawReplies.length < 1 || result.rawReplies.length > 2 || !Array.isArray(result.prompts) ||
+          result.prompts.length !== result.rawReplies.length || result.prompts[0] !== control.prompt ||
+          result.raw !== result.rawReplies.at(-1)) throw new Error(`Invalid prior control evidence: ${control.id} in ${directory}`);
+      for (let index = 0; index < result.rawReplies.length; index++) {
+        const sent = read(`${control.id}.attempt-${index + 1}.request.json`);
+        const reply = read(`${control.id}.attempt-${index + 1}.reply.json`);
+        if (typeof result.rawReplies[index] !== "string" || typeof result.prompts[index] !== "string" ||
+            sent.prompt !== result.prompts[index] || sent.sha256 !== hash(sent.prompt) ||
+            reply.reply !== result.rawReplies[index] || reply.sha256 !== hash(reply.reply)) throw new Error(`Prior request/reply changed: ${control.id} in ${directory}`);
+      }
+      const scenario = current.spec.scenarios.find(scenario => scenario.id === control.scenarioId)!;
+      if (result.prompts.length === 2) {
+        let validationError: string | undefined;
+        try { parseStructuredJudgeReply(result.rawReplies[0], scenario.checklist.length); }
+        catch (error) { validationError = (error as Error).message; }
+        // Bind the validation-guided retry as well as the initial request; arbitrary follow-ups are not equivalent.
+        const retry = `${control.prompt}\n\nYour reply was not valid: ${JSON.stringify(validationError)}; reply with only the JSON object.`;
+        if (validationError === undefined || /^\[judge error:/i.test(result.rawReplies[0].trim()) || result.prompts[1] !== retry) {
+          throw new Error(`Prior retry prompt is not equivalent: ${control.id} in ${directory}`);
+        }
+      }
+      const parsed = parseStructuredJudgeReply(result.raw, scenario.checklist.length);
+      const consistent = parsed.verdict === "PASS" ? parsed.criteria.every(vote => vote.verdict === "PASS") : parsed.criteria.some(vote => vote.verdict === "FAIL");
+      if (result.suspect || !consistent || parsed.verdict !== result.verdict || parsed.reason !== result.reason ||
+          JSON.stringify(parsed.criteria) !== JSON.stringify(result.criteria)) throw new Error(`Invalid prior judgment: ${control.id} in ${directory}`);
+      if (retained.has(control.id) && retained.get(control.id)!.result.verdict !== result.verdict) {
+        plan.issues.push(`${control.id}: prior judgments disagree; inspect them or select a fresh run explicitly`);
+        continue;
+      }
+      if (!retained.has(control.id)) {
+        // Freeze the exact selected records now; later writes cannot substitute changed source bytes.
+        retained.set(control.id, { result, files: new Map(files) });
+        const row = plan.controls.find(row => row.id === control.id)!;
+        row.action = "reuse"; row.source = { directory, manifestSha256: summary.manifestSha256, artifacts: evidence.slice() };
+      }
+    }
+  }
+  plan.reused = retained.size;
+  plan.judgeCallsPlanned -= retained.size;
+  plan.ready = plan.issues.length === 0;
+  return { current, selected, plan, retained };
+}
+
+/** Preview eligible historical judgments. Reuse is not a fresh stability measurement. */
+export function planCalibration(loaded: LoadedCalibration, options: CalibrationSelection & { judge: ModelRef }): CalibrationPlan {
+  return calibrationPlan(loaded, options).plan;
+}
+
 export interface CalibrationSummary {
   schema: 1; purpose: "judge-calibration"; modelQualityScore: false;
   manifestSha256: string; judge: ModelRef; cases: number; completed: number; matched: number; judgeCalls: number;
   status: "matched" | "mismatch" | "error";
+  calibrationScope: "answer-judge"; executionGates: "not-evaluated"; availableCases: number; partial: boolean;
+  disagreements: { id: string; expected: "PASS" | "FAIL"; observed: "PASS" | "FAIL" }[];
+  reused: { id: string; source: CalibrationReuseSource }[];
+  /** Legacy direction aliases for label disagreements, not adjudicated judge errors. */
   falsePasses: string[]; falseFailures: string[]; errors: string[]; unrun: string[]; output: string;
 }
 
 /** Explicit Pi-backed judging; semantic mismatches continue, infrastructure errors stop the remaining calls. */
 export async function runCalibration(loaded: LoadedCalibration, options: {
   adapter: HarnessAdapter; judge: ModelRef; output: string; allowMeteredJudge?: boolean;
+  only?: string[]; reuse?: string[];
   onProgress?: (progress: { id: string; index: number; total: number }) => void;
 }): Promise<CalibrationSummary> {
-  const current = loadCalibration(loaded.manifestPath);
-  if (current.manifestSha256 !== loaded.manifestSha256) throw new Error("Calibration changed after validation");
-  if (!current.ready) throw new Error(`Calibration is not ready: ${current.issues.join("; ")}`);
+  const { current, selected, plan, retained } = calibrationPlan(loaded, options);
+  if (!plan.ready) throw new Error(`Calibration is not ready: ${plan.issues.join("; ")}`);
   if (options.adapter.name !== "pi") throw new Error("Calibration requires Pi; direct provider adapters are unsupported");
   assertJudgeAllowed(options.judge, { source: "calibration judge", allowMetered: options.allowMeteredJudge });
-  if (!await options.adapter.available()) throw new Error("Pi is unavailable; no judge calls made");
+  if (plan.judgeCallsPlanned && !await options.adapter.available()) throw new Error("Pi is unavailable; no judge calls made");
   const output = resolve(options.output);
   mkdirSync(output, { mode: 0o700 }); // exclusive new directory, including when a previous run was interrupted
+  return withResourceMonitoring(output, async () => {
+  throwIfProcessAborted();
   const save = (name: string, value: unknown) => writeFileSync(join(output, name), JSON.stringify(value, null, 2) + "\n", { flag: "wx", mode: 0o600 });
-  save("inputs.json", { manifestSha256: current.manifestSha256, judge: options.judge, controls: current.controls });
+  save("inputs.json", { manifestSha256: current.manifestSha256, judge: options.judge, controls: selected });
+  save("plan.json", plan);
   const summary: CalibrationSummary = {
     schema: 1, purpose: "judge-calibration", modelQualityScore: false, manifestSha256: current.manifestSha256,
-    judge: options.judge, cases: current.controls.length, completed: 0, matched: 0, judgeCalls: 0,
+    judge: options.judge, cases: selected.length, completed: 0, matched: 0, judgeCalls: 0,
+    calibrationScope: "answer-judge", executionGates: "not-evaluated", availableCases: current.controls.length,
+    partial: plan.partial, disagreements: [], reused: [],
     status: "matched", falsePasses: [], falseFailures: [], errors: [], unrun: [], output,
   };
-  for (const [index, control] of current.controls.entries()) {
-    options.onProgress?.({ id: control.id, index, total: current.controls.length });
+  for (const [index, control] of selected.entries()) {
+    throwIfProcessAborted();
     const scenario = current.spec.scenarios.find(s => s.id === control.scenarioId)!;
-    save(`${control.id}.request.json`, { prompt: control.prompt, sha256: hash(control.prompt) });
     let attempt = 0;
     const observedAdapter: HarnessAdapter = {
       name: "pi", available: () => options.adapter.available(), run: request => options.adapter.run(request),
       judge: async request => {
+        throwIfProcessAborted();
         const number = ++attempt;
         save(`${control.id}.attempt-${number}.request.json`, { prompt: request.prompt, sha256: hash(request.prompt) });
         summary.judgeCalls++;
         const reply = await options.adapter.judge(request);
         save(`${control.id}.attempt-${number}.reply.json`, { reply, sha256: hash(reply) });
+        throwIfProcessAborted();
         return reply;
       },
     };
     let result: GradeResult;
     try {
-      result = await judgeInWorkspace(observedAdapter, options.judge, control.prompt, current.specDir, scenario.checklist.length);
+      const prior = retained.get(control.id);
+      if (prior) {
+        const source = plan.controls.find(row => row.id === control.id)!.source!;
+        result = prior.result;
+        // Historical records remain byte-identical and self-contained, never counted as fresh calls.
+        for (const [name, bytes] of prior.files) writeFileSync(join(output, name), bytes, { flag: "wx", mode: 0o600 });
+        save(`${control.id}.reuse.json`, source);
+        summary.reused.push({ id: control.id, source });
+      } else {
+        save(`${control.id}.request.json`, { prompt: control.prompt, sha256: hash(control.prompt) });
+        options.onProgress?.({ id: control.id, index, total: selected.length });
+        result = await judgeInWorkspace(observedAdapter, options.judge, control.prompt, current.specDir, scenario.checklist.length);
+      }
     } catch (error) {
+      if (isProcessControlError(error)) throw error;
+      throwIfProcessAborted();
       save(`${control.id}.error.json`, { status: "ERROR", message: String(error) });
       summary.errors.push(control.id);
-      summary.unrun = current.controls.slice(index + 1).map(c => c.id);
+      summary.unrun = selected.slice(index + 1).map(c => c.id);
       break;
     }
-    save(`${control.id}.result.json`, { expected: control.expected, ...result });
+    if (!retained.has(control.id)) save(`${control.id}.result.json`, { expected: control.expected, ...result });
     if ((result.verdict !== "PASS" && result.verdict !== "FAIL") || result.suspect) {
       summary.errors.push(control.id);
-      summary.unrun = current.controls.slice(index + 1).map(c => c.id);
+      summary.unrun = selected.slice(index + 1).map(c => c.id);
       break;
     }
     summary.completed++;
     if (result.verdict === control.expected) summary.matched++;
-    else if (result.verdict === "PASS") summary.falsePasses.push(control.id);
-    else summary.falseFailures.push(control.id);
+    else {
+      summary.disagreements.push({ id: control.id, expected: control.expected, observed: result.verdict });
+      if (result.verdict === "PASS") summary.falsePasses.push(control.id);
+      else summary.falseFailures.push(control.id);
+    }
   }
   summary.status = summary.errors.length ? "error" : summary.matched === summary.cases ? "matched" : "mismatch";
   save("summary.json", summary);
   return summary;
+  });
 }

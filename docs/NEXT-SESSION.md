@@ -2,6 +2,21 @@
 
 ## Current state
 
+The unreleased reliability batch generalizes the recovered acceptance lessons:
+authoring preflight checks source discoverability and missing judge references;
+authored calibration controls test answer judging without inventing execution;
+delivery probes distinguish requested loading, observed reads and returned content.
+Saved-run diagnosis selects reuse, regrade, regate, rescore or a necessary rerun.
+Selective grading and calibration reuse preserve original evidence and exact identities.
+
+Run, grade and calibration retain bounded resource summaries. Linux owned-process
+groups are sampled and settled after interruption; optional memory/write limits
+are sampled controls, not OS quotas. Output capture and selected fixture copying
+are bounded. These changes do not establish the cause of the reported host freeze.
+The next acceptance should use a selected skill and model on the operator's Linux
+machine, inspect monitoring, and reuse saved answers before scheduling fresh calls.
+No provider calls or new remote acceptance are implied by local tests.
+
 The authoring source candidate adds `/skill-harness create <idea>` and `author`,
 with `skill_author` for persisted briefs, one-question UI, exact draft previews,
 safe apply, generic control preparation and explicit label review. Authoring runs
@@ -10,7 +25,7 @@ pi-daddy wrappers. Separate eval repos work through the extension's `--specs` pa
 Shared `preflight`, `calibrate` and `diagnose` replace Scout-specific setup scripts.
 This is source behavior until a release and live acceptance are verified.
 
-`0.30.0` is the current source release target. Package manifests identify these
+`0.31.0` is the current source release target. Package manifests identify these
 candidate bytes; verify npm and GitHub directly before asserting publication or
 `latest` promotion.
 Historical released versions remain recorded in the changelog.
@@ -62,6 +77,8 @@ trajectory assertions, and confidence/automatic rejudging.
   behavior changes.
 - Judge usage is not persisted. Only subject usage is recorded and priced.
 - No OS sandbox is claimed.
+- Resource monitoring covers harness-owned subprocesses, not overall Windows/WSL
+  health. Unsupported metrics stay unknown; Linux process tests are platform-gated.
 - Authored control labels stay proposed until the operator accepts them. A saved
   authoring linkage is not calibration, product approval or training authorization.
 

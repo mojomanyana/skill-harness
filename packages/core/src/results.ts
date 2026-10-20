@@ -9,6 +9,7 @@ import type { ShipBar, Scenario } from "./spec.js";
 import type { CostSource } from "./capture-trace-types.js";
 import { collapseVotePanel } from "./vote-panel.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
+import type { CanaryObservations } from "./canary.js";
 
 export interface SubjectUsage {
   repetition: number;
@@ -214,10 +215,10 @@ export interface ResultsFile {
    */
   harness_cli_version?: string;
   /**
-   * `pass` when this run proved, before spending the wave, that the skill body was
-   * reachable in the model's context (see canary.ts). `skipped` when the probe was
-   * asked for but could not be performed — SKILL.md has no `## ` heading to quote
-   * back, so no reply could prove anything. Absent means the probe was not asked
+   * Compatibility status for the optional instructed loading/quote probe.
+   * See delivery_observations for what was actually observed; a quote by itself
+   * does not establish loading, and the probe never tests autonomous selection.
+   * `skipped` means the skill has no `## ` heading. Absent means the probe was not asked
    * for — never that it failed, because a failed canary aborts the run and no
    * results.yaml is written.
    *
@@ -232,6 +233,8 @@ export interface ResultsFile {
    * gitignored, and this claim has to survive a commit.
    */
   delivery_canary?: "pass" | "skipped";
+  /** Optional for historical records; never inferred from a legacy pass alone. */
+  delivery_observations?: CanaryObservations & { probeCalls: 0 | 1 };
   skill: string;
   harness: string;
   model: string; // provider:model token under test
@@ -492,6 +495,7 @@ export function finalizeResults(draft: ResultsDraft, ctx: ScoreContext | null): 
     // not report a version must not look like one that reported "nothing".
     ...(draft.harness_cli_version ? { harness_cli_version: draft.harness_cli_version } : {}),
     ...(draft.delivery_canary ? { delivery_canary: draft.delivery_canary } : {}),
+    ...(draft.delivery_observations ? { delivery_observations: draft.delivery_observations } : {}),
     skill: draft.skill,
     harness: draft.harness,
     model: draft.model,
@@ -737,6 +741,9 @@ export function applyOverride(
 const GITIGNORE_BODY = `# skill-harness: commit verdicts (results.yaml), ignore generated artifacts.
 *.txt
 *.jsonl
+resources-*.json
+resources-*.json.tmp
+reuse-source-*.json
 report.html
 !results.yaml
 `;

@@ -295,7 +295,14 @@ function draftIssues(state: AuthoringState, draft: AuthoringDraft): { issues: st
         if (lookup("evals", path) === null) issues.push(`${scenario.id} support file is missing: ${path}`);
       }
     }
-    for (const finding of inspectEvalAuthoring(spec, { fixtureFiles: scenario => {
+    for (const finding of inspectEvalAuthoring(spec, {
+      referenceText: path => lookup("evals", path),
+      fixtureText: (scenario, path) => {
+        const fixture = typeof scenario.workspace === "object" ? scenario.workspace.fixture : scenario.fixture;
+        if (!fixture) return null;
+        const prefix = fixture.replace(/\/$/, "");
+        return lookup("evals", `${prefix}/_uncommitted/${path}`) ?? lookup("evals", `${prefix}/_staged/${path}`) ?? lookup("evals", `${prefix}/${path}`);
+      }, fixtureFiles: scenario => {
       const fixture = typeof scenario.workspace === "object" ? scenario.workspace.fixture : scenario.fixture;
       if (!fixture) return [];
       safeRelative(fixture);

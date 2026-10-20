@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { readResults, writeResults, type HarnessAdapter } from "@skill-harness/core";
@@ -58,6 +58,63 @@ describe("handleSkillCheck", () => {
     expect(summary).toBeTruthy();
     expect(summary!.msg).toMatch(/SHIP|NOT READY/);
     expect(ctx.notified.some((n) => /A1/.test(n.msg))).toBe(true);
+  });
+
+  it("run --only executes the selected scenario without changing its source specification", async () => {
+    const skillDir = skillFixture();
+    const specPath = join(skillDir, "tests", "specification.yaml");
+    const spec = readFileSync(specPath, "utf8") + "  - id: A2\n    title: other\n    turns: [\"other\"]\n    checklist: [\"ok\"]\n";
+    writeFileSync(specPath, spec.replace("total: 1, min_pass: 1", "total: 2, min_pass: 2"));
+    const before = readFileSync(specPath);
+    const subjects: string[][] = [];
+    let judges = 0;
+    const adapter: HarnessAdapter = {
+      ...fakeAdapter,
+      run: async req => { subjects.push(req.turns); return fakeAdapter.run(req); },
+      judge: async req => { judges++; return fakeAdapter.judge(req); },
+    };
+    await handleSkillCheck("run --only A2 --reps 1", fakeCtx(skillDir), { adapter });
+    expect(subjects).toEqual([["other"]]);
+    expect(judges).toBe(1);
+    expect(readFileSync(specPath)).toEqual(before);
+  });
+
+  it.each([
+    ["run", "--out another-run"],
+    ["run", "--spec alternate.yaml"],
+    ["run", "--unknown-option"],
+    ["judge", "--only A1"],
+    ["judge", "--out another-run"],
+    ["judge", "--spec alternate.yaml"],
+    ["judge", "--unparsed-only"],
+    ["judge", "--model local:subject"],
+  ])("refuses unsupported %s flags before calls or mutations: %s", async (command, flags) => {
+    const skillDir = skillFixture();
+    const runDir = join(skillDir, "tests", "results", "pi-fake", "saved");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "A1.green.txt"), "USER: hi\nASSISTANT: ok");
+    const snapshot = () => readdirSync(skillDir, { recursive: true, withFileTypes: true })
+      .filter(entry => entry.isFile())
+      .map(entry => [join(entry.parentPath, entry.name), readFileSync(join(entry.parentPath, entry.name)).toString("base64")])
+      .sort(([a], [b]) => a.localeCompare(b));
+    const before = snapshot();
+    let calls = 0;
+    const adapter: HarnessAdapter = {
+      ...fakeAdapter,
+      available: async () => { calls++; return true; },
+      run: async () => { calls++; throw new Error("Unexpected subject call"); },
+      judge: async () => { calls++; throw new Error("Unexpected judge call"); },
+    };
+    const target = command === "judge" ? ` "${runDir}"` : "";
+    await expect(handleSkillCheck(`${command}${target} ${flags}`, fakeCtx(skillDir), { adapter }))
+      .rejects.toThrow(/Unsupported flag.*no evaluation started/);
+    expect(calls).toBe(0);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it.each(["--only", "--only A1,", "--only A1,A1"])("rejects malformed selection before starting: %s", async flags => {
+    await expect(handleSkillCheck(`run ${flags}`, fakeCtx("missing-skill"), { adapter: fakeAdapter }))
+      .rejects.toThrow(/--only requires/);
   });
 
   // The flag parser dropped valueless flags entirely, so `--canary` was accepted

@@ -89,14 +89,22 @@ skill-harness calibrate ./skills/social-media-manager/tests/calibration-reviewed
 The reviewed manifest's actual path is returned by the tool. Add `--specs <eval-root>`
 to preflight, run, review and diagnosis commands when evaluations are in another repo.
 Calibration uses the same judge-prompt preparation as actual grading, including full
-seeded trailers and reference bytes. It separates false passes, false failures and
-infrastructure errors, and never turns an unrun control into a failure.
+seeded trailers and reference bytes. Authored material is explicitly identified as a
+synthetic control. A disagreement means the proposed label, control, rubric or judge
+needs review; it is not automatically a judge error. Legacy `falsePasses` and
+`falseFailures` fields are direction aliases for these disagreements.
+
+Answer calibration does not qualify execution gates. An authored answer can be
+calibrated without inventing tool history; `executionGates: not-evaluated` remains
+explicit. Keep the scenario's assertions intact. Verify real execution with bound
+saved traces, positive/negative gate controls and actual test results separately.
 
 ## Validate contracts before judging a model
 
 `lint` now emits non-blocking `authoring` notices for common brittle contracts:
 read-count proxies, POSIX-only path matching, exact `npm test` spelling,
-`expect(` diff needles, and mandatory line-citation formats. These are review
+`expect(` diff needles, mandatory line-citation formats and missing `covers` maps. Response
+tasks also flag fixture text absent from the selected judge references/context. These are review
 hints, not a model verdict or proof that a specification is correct. Some tasks
 legitimately require an exact format.
 
@@ -135,3 +143,72 @@ equivalent answers before accepting a judge failure. Regrade saved evidence when
 the rubric changes; use new subject runs for changed skill/input behavior and fresh
 transfer cases for generalization. JEV advice, session storage and LoRA export keep
 their existing consent and independent-label requirements.
+
+## Reuse before rerunning
+
+`diagnose` includes a per-scenario `reusePlan`: keep matching historical results,
+regrade corrected rubrics/references, regate supported saved execution evidence,
+rescore policy changes, or rerun changed subject inputs. Missing evidence means
+inspect/recover first. A matching failed result stays a failure; reuse never creates
+a fresh stability observation or a new approval.
+
+```bash
+# Offline calibration plan; repeat --reuse for explicitly selected prior outputs.
+skill-harness calibrate ./tests/calibration-reviewed.json --plan \
+  --judge provider:model --reuse ./prior-calibration
+# Same selection, only necessary new judge calls, in a new directory.
+skill-harness calibrate ./tests/calibration-reviewed.json --run \
+  --judge provider:model --reuse ./prior-calibration --out ./next-calibration
+# Correct one rubric using saved answers, retaining the original run byte-for-byte.
+skill-harness grade ./tests/results/pi-model/original --only A2 \
+  --out ./regraded-copy
+# A copied run outside tests/results needs an explicit specification on later grades.
+skill-harness grade ./regraded-copy --spec ./tests/specification.yaml --only A2
+```
+
+Reuse validates exact judge identity, actual initial/retry prompts, answer/rubric
+hashes, expected labels, requests and replies. Conflicting historical verdicts stop
+automatic reuse rather than selecting a favorable answer. A partial calibration is
+reported as partial. Selective regrades keep the recorded judge and preserve untouched
+results; changing the judge requires regrading the entire recorded set. Changed
+subject inputs remain stale even if their saved answers are rejudged.
+
+Before accepting controls, check all fixture facts against all criteria: relevant
+goals/voice documents, conflicting values and version/date applicability belong in
+the judge's explicit references. Do not silently send private fixtures to the judge
+to satisfy an inventory warning. Document deliberate exclusions. Clarify whether
+counts and formatting apply to each output or the entire plan. Positive controls
+must satisfy the complete contract, including reasonable alternative wording and
+internal preparation steps when allowed. Static checks cannot decide these semantics.
+
+## Resource observations and stopping
+
+Selected fixture trees are checked before copying: at most 4,096 entries, depth
+32, 64 MiB per regular file and 256 MiB total. Hashing streams bounded blocks.
+An unreadable or oversized post-run snapshot is unavailable evidence, not an empty
+workspace. These limits constrain harness preparation and capture; they are not
+disk quotas on a model's tools or a sandbox.
+
+`run`, `grade` and `calibrate` save private `resources-<id>.json` summaries. They
+retain at most 256 settled and 256 active process observations, with explicit drop
+counts. Active snapshots are written at most every five seconds; no model text,
+credentials, command arguments or environment are recorded. Linux samples only the
+harness-owned process tree once per second with bounded traversal. RSS, CPU ticks,
+process I/O counters and cleanup status have explicit gaps; short-lived processes
+can be missed and parent I/O counters can include reaped children. These are not
+physical-disk measurements or a diagnosis of whole-PC health. Unsupported metrics
+remain null, never zero.
+
+CLI cancellation and Pi tool cancellation stop new work and settle active children.
+Linux cleanup targets the process group owned by the harness; it is not containment
+of processes that deliberately escape that group. Other platforms report their
+descendant-cleanup limitations. The Pi extension shares one evaluation slot between
+its tool, run command and judge command; this does not serialize separate CLI processes.
+Over-limit output is an infrastructure interruption, never truncated successful evidence.
+
+Optional CLI flags `--max-memory-mb N` and `--max-write-mb N` stop a process group
+after an observed Linux RSS or write-counter threshold. They default to unset and
+are refused where sampling is unsupported. They are sampled per-process-tree controls,
+not hard host quotas, and add no model time/token budget. Keep the default sequential
+comparison until a larger concurrency has been deliberately selected. After an
+interruption, inspect retained answers and these summaries before restarting a wave.

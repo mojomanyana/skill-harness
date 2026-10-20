@@ -67,13 +67,22 @@ export function resolveSkillLocation(cwd: string, arg?: string, specsRoot?: stri
 // cannot drift into billing different providers for the same missing flag.
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 
+let evaluationRunning = false;
+
+/** Share one evaluation slot across Pi's tool and slash-command entry points. */
+export async function withEvaluationGuard<T>(work: () => Promise<T>): Promise<T> {
+  if (evaluationRunning) throw new Error("A skill-harness evaluation is already running in this Pi process. Wait for settlement or cancel it before starting another.");
+  evaluationRunning = true;
+  try { return await work(); } finally { evaluationRunning = false; }
+}
+
 export async function runViaExtension(opts: {
   skillDir: string;
   specPath?: string;
   model?: string;
   reps?: number;
   mode?: "red" | "green" | "force";
-  /** Green only: prove the skill reached the model with one probe before the wave. */
+  /** Green only: one instructed loading/quote check; autonomous selection remains untested. */
   canary?: boolean;
   adapter?: HarnessAdapter;
   judge?: string;
@@ -90,6 +99,7 @@ export async function runViaExtension(opts: {
   timestamp: string;
   log: (msg: string) => void;
 }): Promise<Scorecard> {
+  return withEvaluationGuard(async () => {
   const specPath = opts.specPath ?? join(opts.skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const modelToken = opts.model ?? DEFAULT_MODEL;
@@ -120,4 +130,5 @@ export async function runViaExtension(opts: {
     scenarios: verdicts.map((v) => ({ id: v.id, verdict: v.verdict, suspect: v.suspect ?? false })),
     failedTranscripts,
   };
+  });
 }

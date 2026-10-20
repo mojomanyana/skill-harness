@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-10-15
+Last updated: 2026-10-17
 
 `skill-harness` develops, evaluates and improves skills through Pi and a selected
 model. It starts from a user's idea or imports a selected skill. Generated skills
@@ -18,13 +18,17 @@ run → grade → review loop stays free of product paywalls.
 - Saved-evidence diagnosis and fresh transfer cases before claiming an improvement.
 - Optional pi-daddy agent definitions preserve native grants/delegation; Principal
   remains optional, and JEV/LoRA retain separate consent and label requirements.
+- Recovered-run reliability: separate answer calibration from execution gates,
+  audit judge references, report loading observations precisely, reuse saved answers
+  selectively, and monitor bounded subprocess/capture activity. Fixture preparation
+  has explicit size limits; interruption stops new work and settles owned children.
 
 Live acceptance and published artifacts must be verified separately from source
 implementation. The existing Pi subject-runtime qualification pin remains explicit.
 
 ## Current state
 
-- Current source release target: `0.30.0` (see package manifests).
+- Current source release target: `0.31.0` (see package manifests).
 - Fresh runs write results schema 2.
 - Historical schema 1–3 results remain readable for compatibility.
 - Pi is the only execution path for subject, judge, and `suggest` model calls.

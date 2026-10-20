@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Verdict } from "./score.js";
+import type { CanaryObservations } from "./canary.js";
 
 /**
  * Machine-facing event stream for one run: one JSON object per line in
@@ -29,7 +30,8 @@ export type JournalEvent =
    * body-only heading of its own skill back? `fail` aborts the run, so a journal
    * carrying a failed canary is the record of a wave that was NOT spent.
    */
-  | { event: "delivery-canary"; ts: string; status: "pass" | "fail" | "skipped"; anchor: string | null; detail: string }
+  | { event: "delivery-canary"; ts: string; status: "pass" | "fail" | "skipped"; anchor: string | null; detail: string;
+      observations?: CanaryObservations; probeCalls?: 0 | 1 }
   | { event: "scenario-started"; ts: string; id: string; title: string }
   | { event: "gate-result"; ts: string; id: string; ok: boolean; detail: string; rep?: number }
   /** Trace-gate outcome. Separate from `gate-result`, which is the seeded diff/vitest gates. */

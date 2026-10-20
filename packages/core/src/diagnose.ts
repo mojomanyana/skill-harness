@@ -4,7 +4,8 @@ import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { readResults, findTranscriptFiles } from "./results.js";
 import { loadSpec } from "./spec.js";
 import { currentHashFor, isSupersededKey, remedyForKey, scenarioIdForKey } from "./sources.js";
-import { inspectEvalAuthoring } from "./authoring-preflight.js";
+import { inspectEvalAuthoring, authoringEvidenceProfile, fixtureInventory } from "./authoring-preflight.js";
+import { planSavedAnswers, type SavedAnswerPlan } from "./saved-run.js";
 
 export interface Diagnosis {
   schema: 1;
@@ -12,6 +13,7 @@ export interface Diagnosis {
   providerCalls: 0;
   resultsChanged: false;
   causalConclusion: "not-established";
+  reusePlan: SavedAnswerPlan;
   issues: { category: "evidence" | "configuration" | "judge" | "behavior" | "authoring"; scenario?: string; evidence: string; next: string }[];
 }
 
@@ -19,7 +21,7 @@ export interface Diagnosis {
 export function diagnoseRun(runDir: string, skillDir: string, specPath: string): Diagnosis {
   const results = readResults(runDir);
   const spec = loadSpec(specPath);
-  const report: Diagnosis = { schema: 1, runDir: resolve(runDir), providerCalls: 0, resultsChanged: false, causalConclusion: "not-established", issues: [] };
+  const report: Diagnosis = { schema: 1, runDir: resolve(runDir), providerCalls: 0, resultsChanged: false, causalConclusion: "not-established", reusePlan: planSavedAnswers(runDir, spec, skillDir, dirname(specPath)), issues: [] };
   const add = (issue: Diagnosis["issues"][number]) => report.issues.push(issue);
   const context = { skillDir, specDir: dirname(specPath), scenarios: spec.scenarios, judgePersona: spec.judge_persona };
   if (!results.source_hashes) add({ category: "evidence", evidence: "This run has no source identity hashes.", next: "Inspect retained inputs; do not claim comparability to current inputs." });
@@ -28,7 +30,10 @@ export function diagnoseRun(runDir: string, skillDir: string, specPath: string):
     const current = currentHashFor(key, context);
     if (current === undefined || current !== previous) add({ category: "configuration", scenario: scenarioIdForKey(key, spec.scenarios), evidence: `${key}: ${current === undefined ? "not comparable" : "changed or unavailable"}`, next: remedyForKey(key) });
   }
-  for (const hint of inspectEvalAuthoring(spec)) add({ category: "authoring", scenario: hint.scenario, evidence: `${hint.code}: ${hint.message}`, next: "Review this contract using positive, negative and equivalent-answer controls; a heuristic is not proof the eval is wrong." });
+  for (const hint of inspectEvalAuthoring(spec, { ...authoringEvidenceProfile(dirname(specPath)), fixtureFiles: scenario => {
+    const fixture = typeof scenario.workspace === "object" ? scenario.workspace.fixture : scenario.fixture;
+    try { return fixture ? fixtureInventory(resolve(dirname(specPath), fixture)) : []; } catch { return []; }
+  } })) add({ category: "authoring", scenario: hint.scenario, evidence: `${hint.code}: ${hint.message}`, next: "Review this contract using positive, negative and equivalent-answer controls; a heuristic is not proof the eval is wrong." });
   for (const scenario of results.scenarios) {
     const transcripts = findTranscriptFiles(runDir, scenario.id, results.mode);
     if (transcripts.length < (scenario.reps ?? 1)) add({ category: "evidence", scenario: scenario.id, evidence: "Some subject transcripts are unavailable.", next: "Recover original evidence if possible; missing output is not a model failure." });

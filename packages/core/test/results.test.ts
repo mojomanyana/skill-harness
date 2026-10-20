@@ -514,6 +514,7 @@ describe("ensureResultsGitignore", () => {
     const gi = readFileSync(join(dir, ".gitignore"), "utf8");
     expect(gi).toMatch(/\*\.txt/);
     expect(gi).toMatch(/\*\.jsonl/);
+    expect(gi).toContain("resources-*.json\nresources-*.json.tmp\nreuse-source-*.json\n");
     expect(gi).toMatch(/report\.html/);
     expect(gi).toMatch(/!.*results\.yaml/);
   });

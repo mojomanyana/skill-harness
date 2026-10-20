@@ -69,6 +69,17 @@ describe("--only scenario filter", () => {
     expect(ran).toBe(0);
   });
 
+  it("explicit empty or duplicate selections stop before invoking a model", async () => {
+    let calls = 0;
+    const counting: HarnessAdapter = { ...adapter,
+      run: async req => { calls++; return okRun()(req); },
+      judge: async req => { calls++; return passJudge()(req); } };
+    for (const only of [[], [""], ["A1", "A1"], [" A1"]]) {
+      await expect(runWith(counting, { only })).rejects.toThrow(/nonempty, unique/);
+    }
+    expect(calls).toBe(0);
+  });
+
   it("a partial run does not false-flag lint's consistency recompute", async () => {
     const { skillDir } = await (async () => {
       const r = await runWith(adapter, { only: ["A1"] });

@@ -423,6 +423,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
     skill: prev.skill, harness: prev.harness, model: prev.model,
     // Carried verbatim: a regate re-reads saved diffs, it never re-runs the harness.
     harness_cli_version: prev.harness_cli_version, delivery_canary: prev.delivery_canary,
+    delivery_observations: prev.delivery_observations,
     // The arm is provenance of the MEASUREMENT, not of this rewrite, and it is the
     // only record that a `+<arm>` run actually delegated: rebuilding the draft
     // field-by-field without it silently deleted `definitions`/`ledger_events`

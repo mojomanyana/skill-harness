@@ -23,7 +23,7 @@ const GOOD = `skill: demo\njudge_persona: a judge.\nship_bar: { total: 1, min_pa
 
 describe("lintSkill static checks", () => {
   it("clean spec → no findings", () => {
-    expect(lintSkill(skill(GOOD))).toEqual([]);
+    expect(lintSkill(skill(GOOD)).filter(f => f.severity !== "info")).toEqual([]);
   });
   it("invalid spec → one code:spec finding (does not throw)", () => {
     const f = lintSkill(skill(`skill: demo\n`)); // missing judge_persona/ship_bar/scenarios
@@ -168,7 +168,7 @@ describe("lintSkill static checks", () => {
       symlinkSync("/nonexistent", join(resultsRoot, "badlink"));
     });
     expect(() => lintSkill(d)).not.toThrow();
-    expect(lintSkill(d)).toEqual([]);
+    expect(lintSkill(d).filter(f => f.severity !== "info")).toEqual([]);
   });
 });
 

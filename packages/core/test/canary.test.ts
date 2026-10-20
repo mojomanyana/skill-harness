@@ -1,12 +1,16 @@
 import { describe, test, expect } from "vitest";
 import { mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { deliveryAnchor, canaryPrompt, runDeliveryCanary } from "../src/canary.js";
-import { runSkillModel } from "../src/run.js";
+import { homedir, tmpdir } from "node:os";
+import { join, relative } from "node:path";
+import { deliveryAnchor, canaryPrompt, canaryFailure, runDeliveryCanary } from "../src/canary.js";
+import { runSkillModel, formatScorecard } from "../src/run.js";
+import { rescoreRun } from "../src/rescore.js";
+import { regateRun } from "../src/regate.js";
+import { readResults } from "../src/results.js";
 import { readJournal } from "../src/journal.js";
 import { parseSpec, type Spec } from "../src/spec.js";
-import type { HarnessAdapter, RunReq } from "../src/adapters/types.js";
+import type { HarnessAdapter, RunReq, StructuredRun } from "../src/adapters/types.js";
+import type { ExecutionTraceV1 } from "../src/capture-trace-types.js";
 
 /**
  * The delivery canary and the version record — the two things that would have made
@@ -76,6 +80,29 @@ function scripted(replies: string[], version: string | null = "0.83.0"): {
   };
 }
 
+function structuredProbe(skillDir: string, change: Partial<ExecutionTraceV1> = {}): {
+  adapter: HarnessAdapter; reqs: RunReq[]; run: StructuredRun;
+} {
+  const reqs: RunReq[] = [];
+  const run: StructuredRun = {
+    transcript: ">>> USER:\nnot evidence\n<<< TOOL:\nRefuse a metered judge, whatever chose it",
+    traces: [{
+      trace_version: 2, pi_version: "1.1.0", subject: { provider: "f", model: "m" },
+      scenario_id: "(delivery-probe)", mode: "green", rep: 0, turn: 0,
+      final_text: "## Overview\n## Refuse a metered judge, whatever chose it", final_status: "complete",
+      tool_calls: [{ id: "r1", name: "read", args: { path: join(skillDir, "SKILL.md") },
+        issueIndex: 0, completionIndex: 0, isError: false,
+        result: { bytes: 500, sha256: "a".repeat(64) } }],
+      changed_paths: null, cost_usd: null, ...change,
+    }],
+  };
+  return { reqs, run, adapter: {
+    ...scripted([]).adapter,
+    run: async () => { throw new Error("Structured probe must not launch a second plain call"); },
+    runStructured: async req => { reqs.push(req); return run; },
+  } };
+}
+
 describe("deliveryAnchor", () => {
   test("picks the longest `## ` heading — the least guessable one", () => {
     expect(deliveryAnchor(SKILL_MD)).toBe("Refuse a metered judge, whatever chose it");
@@ -97,6 +124,8 @@ describe("deliveryAnchor", () => {
     const p = canaryPrompt("golden", "Ship it");
     expect(p).toMatch(/"golden"/);
     expect(p).toMatch(/NOT_AVAILABLE/);
+    expect(p).toMatch(/use the read tool to load/);
+    expect(p).not.toContain("Ship it");
   });
 });
 
@@ -106,6 +135,8 @@ describe("runDeliveryCanary", () => {
     const { adapter } = scripted(["## Overview\n## **Refuse a  metered judge, whatever chose it**"]);
     const r = await runDeliveryCanary({ adapter, model: { provider: "f", model: "m" }, skillDir, skillName: "golden", cwd: tmpdir() });
     expect(r.status).toBe("pass");
+    expect(r.observations).toMatchObject({ localSkillAvailable: true, loadingRequested: true,
+      successfulSkillRead: "unobserved", returnedAnchor: true, autonomousSelection: "untested" });
   });
 
   // This is the shape a naked model produces: a plausible, well-formatted answer
@@ -123,6 +154,9 @@ describe("runDeliveryCanary", () => {
     const { adapter, reqs } = scripted(["## Refuse a metered judge, whatever chose it"]);
     await runDeliveryCanary({ adapter, model: { provider: "f", model: "m" }, skillDir, skillName: "golden", cwd: tmpdir() });
     expect(reqs[0].mode).toBe("green");
+    expect(reqs[0].tools).toEqual(["read"]);
+    expect(reqs[0].extensions).toEqual([]);
+    expect(reqs[0].turns[0]).not.toContain(skillDir);
   });
 
   test("skips (rather than bluffs) when the skill has no probeable heading", async () => {
@@ -132,6 +166,90 @@ describe("runDeliveryCanary", () => {
     expect(r.status).toBe("skipped");
     expect(reqs).toEqual([]); // nothing spent
   });
+
+  test("missing local instructions fail before any provider invocation", async () => {
+    const skillDir = mkdtempSync(join(tmpdir(), "sh-canary-missing-"));
+    const { adapter, reqs } = scripted(["anything"]);
+    const result = await runDeliveryCanary({ adapter, model: { provider: "f", model: "m" }, skillDir, skillName: "golden", cwd: tmpdir() });
+    expect(result).toMatchObject({ status: "fail", probeCalls: 0,
+      observations: { localSkillAvailable: false, loadingRequested: false, returnedAnchor: null } });
+    expect(reqs).toEqual([]);
+    expect(canaryFailure("golden", result, "1.1.0")).toContain("Subject probe calls: 0");
+  });
+
+  test.each([
+    ["prompt echo", ">>> USER:\n## Refuse a metered judge, whatever chose it\n<<< ASSISTANT:\nNOT_AVAILABLE"],
+    ["tool echo", "<<< ASSISTANT:\nNOT_AVAILABLE\n<<< TOOL:\n## Refuse a metered judge, whatever chose it"],
+    ["no role boundary", "## Refuse a metered judge, whatever chose it"],
+    ["denial", "<<< ASSISTANT:\nI cannot find Refuse a metered judge, whatever chose it"],
+  ])("does not mistake %s for a quoted final heading", async (_label, transcript) => {
+    const { skillDir } = skillTree();
+    const { adapter } = scripted([]);
+    adapter.run = async () => transcript;
+    const result = await runDeliveryCanary({ adapter, model: { provider: "f", model: "m" }, skillDir, skillName: "golden", cwd: tmpdir() });
+    expect(result.status).toBe("fail");
+    expect(result.observations.returnedAnchor).toBe(false);
+    expect(canaryFailure("golden", result, "1.1.0")).toContain("does not prove skill unavailability");
+    expect(canaryFailure("golden", result, "1.1.0")).not.toContain("naked");
+  });
+
+  test("one structured invocation records instructed exact-file loading separately from selection", async () => {
+    const { skillDir } = skillTree();
+    const { adapter, reqs } = structuredProbe(skillDir);
+    const result = await runDeliveryCanary({ adapter, model: { provider: "f", model: "m" }, skillDir, skillName: "golden", cwd: tmpdir() });
+    expect(result).toMatchObject({ status: "pass", probeCalls: 1,
+      observations: { localSkillAvailable: true, loadingRequested: true, successfulSkillRead: "observed", returnedAnchor: true, autonomousSelection: "untested" } });
+    expect(reqs).toHaveLength(1);
+  });
+
+  test.each(["no-read", "different-skill", "failed-read", "unfinished-read", "empty-read", "wrong-tool"] as const)(
+    "a guessed matching heading with %s remains inconclusive", async kind => {
+      const { skillDir } = skillTree();
+      const { adapter, run } = structuredProbe(skillDir);
+      const call = run.traces[0].tool_calls[0];
+      if (kind === "no-read") run.traces[0].tool_calls = [];
+      if (kind === "different-skill") call.args.path = join(skillDir, "other", "SKILL.md");
+      if (kind === "failed-read") call.isError = true;
+      if (kind === "unfinished-read") call.completionIndex = -1;
+      if (kind === "empty-read") call.result.bytes = 0;
+      if (kind === "wrong-tool") call.name = "bash";
+      const result = await runDeliveryCanary({ adapter, model: { provider: "f", model: "m" }, skillDir, skillName: "golden", cwd: tmpdir() });
+      expect(result).toMatchObject({ status: "fail", observations: { returnedAnchor: true, successfulSkillRead: "not-observed" } });
+    });
+
+  test("a successful read with a tool-output quote but no matching final answer is inconclusive", async () => {
+    const { skillDir } = skillTree();
+    const { adapter } = structuredProbe(skillDir, { final_text: "NOT_AVAILABLE" });
+    const result = await runDeliveryCanary({ adapter, model: { provider: "f", model: "m" }, skillDir, skillName: "golden", cwd: tmpdir() });
+    expect(result).toMatchObject({ status: "fail", observations: { returnedAnchor: false, successfulSkillRead: "observed" } });
+  });
+
+  test("recognizes relative paths and parser-redacted home paths without matching a basename alone", async () => {
+    const { skillDir } = skillTree();
+    // Preserve the tilde prefix even when the temporary fixture is outside home.
+    const homePath = `~/${relative(homedir(), join(skillDir, "SKILL.md"))}`;
+    for (const path of [relative(tmpdir(), join(skillDir, "SKILL.md")), homePath]) {
+      const { adapter, run } = structuredProbe(skillDir);
+      run.traces[0].tool_calls[0].args.path = path;
+      const result = await runDeliveryCanary({ adapter, model: { provider: "f", model: "m" }, skillDir, skillName: "golden", cwd: tmpdir() });
+      expect(result.observations.successfulSkillRead).toBe("observed");
+    }
+  });
+
+  test.each(["provider", "execution", "capture", "unsettled", "empty"] as const)(
+    "%s failure cannot become a probe success despite a matching quote", async kind => {
+      const { skillDir } = skillTree();
+      const { adapter, run } = structuredProbe(skillDir);
+      if (kind === "provider") run.providerFailure = "provider unavailable";
+      if (kind === "execution") run.executionFailure = "process failed";
+      if (kind === "capture") run.traces[0].capture_errors = ["capture truncated"];
+      if (kind === "unsettled") run.traces[0].final_status = "incomplete";
+      if (kind === "empty") run.traces = [];
+      const result = await runDeliveryCanary({ adapter, model: { provider: "f", model: "m" }, skillDir, skillName: "golden", cwd: tmpdir() });
+      expect(result.status).toBe("fail");
+      expect(result.observations.returnedAnchor).toBeNull();
+      expect(result.observations.executionError).toBeTruthy();
+    });
 });
 
 describe("run --canary", () => {
@@ -151,7 +269,8 @@ describe("run --canary", () => {
     expect(readdirSync(runDir).filter((f) => f.endsWith(".txt"))).toEqual([]);
     expect(readdirSync(runDir)).not.toContain("results.yaml");
     const ev = readJournal(runDir).find((e) => e.event === "delivery-canary");
-    expect(ev).toMatchObject({ status: "fail" });
+    expect(ev).toMatchObject({ status: "fail", probeCalls: 1,
+      observations: { localSkillAvailable: true, returnedAnchor: false, autonomousSelection: "untested" } });
   });
 
   test("the abort message names force mode and the harness version", async () => {
@@ -169,13 +288,28 @@ describe("run --canary", () => {
       "## Refuse a metered judge, whatever chose it", // the probe
       "Hi there!", // the scenario
     ]);
-    const { results } = await runSkillModel({
+    const summary = await runSkillModel({
       spec: spec(), skillDir, specPath, adapter, model, modelToken: "fireworks:fake",
       judge, mode: "green", timestamp: "2026-08-06T00:00:00Z", canary: true,
     });
+    const { results, runDir } = summary;
     expect(reqs).toHaveLength(2);
     expect(results.delivery_canary).toBe("pass");
+    expect(results.delivery_observations).toMatchObject({ probeCalls: 1, successfulSkillRead: "unobserved", autonomousSelection: "untested" });
+    expect(readResults(runDir)?.delivery_observations).toEqual(results.delivery_observations);
+    expect(formatScorecard(summary)).toContain("instructed probe read unobserved");
+    expect(formatScorecard(summary)).toContain("autonomous skill selection in scenarios was not measured");
     expect(results.effective_grade.ship).toBe(true);
+    expect(rescoreRun({ runDir, spec: spec() }).results.delivery_observations).toEqual(results.delivery_observations);
+    const offlineAdapter = { ...adapter,
+      run: async () => { throw new Error("Saved observations require no subject rerun"); },
+      judge: async () => { throw new Error("A still-passing gate requires no judge rerun"); },
+    };
+    const regateSpec = spec();
+    regateSpec.scenarios[0].assert = { output_excludes: ["DO_NOT_LEAK"] };
+    const regated = await regateRun({ runDir, spec: regateSpec, specDir: join(skillDir, "tests"), adapter: offlineAdapter, judge });
+    expect(regated.results.delivery_observations).toEqual(results.delivery_observations);
+    expect(regated.judgeCalls).toBe(0);
   });
 
   test("no canary asked for → no probe, and no claim in the record", async () => {
@@ -187,6 +321,7 @@ describe("run --canary", () => {
     });
     expect(reqs).toHaveLength(1);
     expect(results.delivery_canary).toBeUndefined();
+    expect(results.delivery_observations).toBeUndefined();
   });
 
   // Force puts SKILL.md in the system prompt; there is nothing for a probe to

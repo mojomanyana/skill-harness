@@ -9,7 +9,7 @@ import { downgradeWarning } from "./downgrade.js";
 import { collectScoredRuns } from "./trends.js";
 import { boundaryCells, stabilityFrom, stabilityNote } from "./stability.js";
 import { MARKERS, unknownMarkerDirs, suggestMarker } from "./workspace.js";
-import { fixtureInventory, inspectEvalAuthoring } from "./authoring-preflight.js";
+import { fixtureInventory, inspectEvalAuthoring, authoringEvidenceProfile } from "./authoring-preflight.js";
 import { resolveJudgeReferences } from "./judge-references.js";
 
 export type LintCode = "spec" | "ship_bar" | "critical" | "fixture" | "fixture-marker" | "consistency" | "stale" | "stability" | "covers" | "lint-error" | "authoring";
@@ -67,7 +67,7 @@ export function lintSkill(skillDir: string, testsDir = join(skillDir, "tests")):
     return [{ skill: basename(skillDir), code: "spec", message }];
   }
   const skill = spec.skill;
-  for (const hint of inspectEvalAuthoring(spec, { fixtureFiles: scenario => {
+  for (const hint of inspectEvalAuthoring(spec, { ...authoringEvidenceProfile(testsDir), fixtureFiles: scenario => {
     const fixture = effectiveFixture(scenario);
     if (!fixture) return [];
     // Unreadable/missing fixtures are reported by the fixture checks below.

@@ -41,6 +41,26 @@ describe("runPool", () => {
     await expect(runPool(tasks, 2)).rejects.toThrow("boom");
   });
 
+  test("failure stops queued work and waits for active work to settle", async () => {
+    let release!: () => void;
+    const barrier = new Promise<void>(resolve => { release = resolve; });
+    const started: number[] = [];
+    let settled = false;
+    const pool = runPool([
+      async () => { started.push(0); throw new Error("stop"); },
+      async () => { started.push(1); await barrier; return 1; },
+      async () => { started.push(2); return 2; },
+    ], 2);
+    const outcome = pool.then(() => { settled = true; return null; }, error => { settled = true; return error; });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(started).toEqual([0, 1]);
+    expect(settled).toBe(false);
+    release();
+    expect(await outcome).toMatchObject({ message: "stop" });
+    expect(started).toEqual([0, 1]);
+  });
+
   test("concurrency <= 0 is normalised to sequential (>= 1)", async () => {
     const order: number[] = [];
     const tasks = [0, 1, 2].map((i) => async () => { order.push(i); await sleep(1); return i; });

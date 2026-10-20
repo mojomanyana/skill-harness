@@ -1,6 +1,6 @@
 {
     "name": "@skill-harness/core",
-    "version": "0.30.0",
+    "version": "0.31.0",
     "description": "skill-harness engine — spec, discover, run, LLM-judge grade, score, results (internal API)",
     "type": "module",
     "license": "MIT",

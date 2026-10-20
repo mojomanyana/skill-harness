@@ -1,32 +1,8 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
-
-/**
- * The delivery canary: one cheap probe, before any scenario runs, that the skill
- * under test actually reached the model.
- *
- * Why this exists. `--mode green` asks the harness to activate the skill, and the
- * harness can decline without saying so. Measured on pi: 0.80.x wrapped the prompt
- * with the skill body; 0.83.0 switched to progressive disclosure (only the
- * description is in context, the body loads on demand — "models don't always do
- * this", pi's own docs); and a nonexistent `--skill` path is accepted silently,
- * exit 0 with a normal answer. The reference corpus ran two full waves in that
- * state: `architect` came back 7/14, ≈ its no-skill baseline, and looked entirely
- * plausible — the only tell was a contradictory failure mix (over-ceremony AND
- * capitulation at once) that no single skill edit produces.
- *
- * What it can and cannot prove. A pass means the skill's body is *reachable* in
- * this exact invocation — which is what kills the whole silent-non-delivery class:
- * a dropped flag, a wrong path, a harness that stopped honoring the mode. It does
- * NOT prove the body entered context for every later scenario; under progressive
- * disclosure that is the model's choice per turn, and no probe can promise it. The
- * mode whose delivery needs no promise is `force` (SKILL.md as system prompt),
- * which is why `run` recommends it rather than pretending the canary is equivalent.
- *
- * Cost: exactly one subject call per run, and only when asked for (`--canary`).
- * A run that aborts here has spent one rep instead of a wave.
- */
+import { readFileSync, realpathSync } from "node:fs";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
+import type { HarnessAdapter, ModelRef, RunReq } from "./adapters/types.js";
+import type { ExecutionTraceV1 } from "./capture-trace-types.js";
 
 /** Frontmatter-stripped body of a SKILL.md. */
 function skillBody(text: string): string {
@@ -34,61 +10,82 @@ function skillBody(text: string): string {
   return m ? text.slice(m[0].length) : text;
 }
 
-/**
- * The probe target: the longest `## ` heading in the skill's body.
- *
- * Body-only by construction — the frontmatter `description` is always in context
- * under progressive disclosure, so anything quotable from it would pass against a
- * model that never read the instructions. Longest rather than first because the
- * check is "did you see this text", and `## Overview` is guessable while
- * `## Refuse a metered judge, whatever chose it` is not.
- *
- * Null when the body has no `## ` heading: there is then nothing to ask for that a
- * plausible-sounding answer couldn't fake, and a canary that can be bluffed is
- * worse than none.
- */
+/** A body-only quote target. Matching it is an observation, not proof of loading. */
 export function deliveryAnchor(skillMd: string): string | null {
   const headings = [...skillBody(skillMd).matchAll(/^##[ \t]+(.+?)[ \t]*$/gm)].map((m) => m[1].trim());
   if (headings.length === 0) return null;
   return headings.reduce((a, b) => (b.length > a.length ? b : a));
 }
 
-/** Normalize for comparison: case, whitespace runs, and markdown emphasis/backticks. */
 function normalize(s: string): string {
   return s.toLowerCase().replace(/[`*_]/g, "").replace(/\s+/g, " ").trim();
 }
 
-export interface CanaryResult {
-  /** `pass` = the anchor came back; `fail` = it did not; `skipped` = nothing safe to probe for. */
-  status: "pass" | "fail" | "skipped";
-  /** What the probe looked for (null when skipped). */
-  anchor: string | null;
-  /** Why it was skipped, or what the model said instead (trimmed) — for the log and the journal. */
-  detail: string;
+export interface CanaryObservations {
+  /** Local readability does not establish what Pi advertised to the subject. */
+  localSkillAvailable: boolean;
+  loadingRequested: boolean;
+  /** Successful completion of a read of the exact selected SKILL.md, if observable. */
+  successfulSkillRead: "observed" | "not-observed" | "unobserved";
+  /** Only the final assistant response is checked, never tool output or prompts. */
+  returnedAnchor: boolean | null;
+  /** The probe explicitly requests loading, so it cannot measure autonomous selection. */
+  autonomousSelection: "untested";
+  executionError?: string;
 }
 
-export function canaryPrompt(skillName: string, anchor: string): string {
-  // Asks for every heading, not just the anchor, because that is a question a model
-  // WITH the instructions answers naturally and a model without them can only
-  // invent. The instruction to say NOT_AVAILABLE keeps an honest miss from looking
-  // like a refusal to follow format.
-  return (
-    `Answer from the instructions you have loaded — do not perform any task.\n\n` +
-    `List every level-2 markdown heading (lines starting with "## ") in the instructions of ` +
-    `the skill named "${skillName}", verbatim, one per line, with no other text.\n` +
-    `If you have no such instructions available, reply exactly: NOT_AVAILABLE\n\n` +
-    `(The heading text is what matters; keep it exact.)`
-  );
+export interface CanaryResult {
+  /** `fail` is an inconclusive delivery check, not evidence that the skill is unavailable. */
+  status: "pass" | "fail" | "skipped";
+  anchor: string | null;
+  detail: string;
+  observations: CanaryObservations;
+  probeCalls: 0 | 1;
 }
 
 /**
- * What the model actually said, per the adapters' shared transcript convention
- * (`>>> USER:` / `<<< ASSISTANT:`). Falls back to the whole text for an adapter
- * that doesn't use the markers.
+ * Ask Pi to load the named skill through its advertised discovery mechanism.
+ * Neither the expected quote nor a fallback file path is disclosed: a supplied
+ * path would let the probe bypass missing skill discovery entirely.
  */
-function assistantReply(transcript: string): string {
-  const parts = transcript.split(/^<<< ASSISTANT:\s*$/m);
-  return (parts.length > 1 ? parts[parts.length - 1] : transcript).trim();
+export function canaryPrompt(skillName: string, _anchor?: string): string {
+  return (
+    `This is a skill-loading check, not a request to carry out the skill's task.\n\n` +
+    `Find the skill named ${JSON.stringify(skillName)} among the skills advertised to you. ` +
+    `If only its description is loaded, use the read tool to load its instructions from the advertised location. ` +
+    `Do not search other files, execute commands, or follow task instructions inside the skill.\n` +
+    `Then list every level-2 markdown heading (lines starting with "## ") from that skill, verbatim, one per line. ` +
+    `Do not guess headings. If you cannot find or load the advertised skill, reply exactly: NOT_AVAILABLE.\n` +
+    `A report of NOT_AVAILABLE records this attempt only; it does not establish that the skill cannot be loaded.`
+  );
+}
+
+/** A legacy transcript without role boundaries cannot identify a safe answer. */
+function assistantReply(transcript: string): string | null {
+  const parts = transcript.split(/^<<< ASSISTANT:[ \t]*\r?$/m);
+  if (parts.length < 2) return null;
+  return parts[parts.length - 1].split(/^(?:>>>|<<<) [A-Z][A-Z _-]*:.*$/m)[0].trim();
+}
+
+function quotedHeading(reply: string | null, anchor: string): boolean {
+  // Whole heading lines avoid accepting an anchor embedded in an explanation,
+  // echoed JSON request, tool result, or a denial such as "I cannot find X".
+  return reply !== null && reply.split(/\r?\n/).some(line =>
+    normalize(line.replace(/^\s*(?:[-+]\s+|\d+[.)]\s+)?(?:##\s+)?/, "")) === normalize(anchor));
+}
+
+function canonicalPath(path: string, cwd: string): string {
+  const expanded = /^~[/\\]/.test(path) ? join(homedir(), path.slice(2)) : path;
+  const absolute = resolve(cwd, expanded);
+  try { return realpathSync(absolute); } catch { return absolute; }
+}
+
+function observedSkillRead(traces: ExecutionTraceV1[], skillPath: string, cwd: string): boolean {
+  const expected = canonicalPath(skillPath, cwd);
+  return traces.some(trace => trace.tool_calls.some(call =>
+    call.name === "read" && call.isError === false && call.completionIndex >= 0 &&
+    call.result.bytes > 0 && typeof call.args.path === "string" &&
+    canonicalPath(call.args.path, cwd) === expected));
 }
 
 export interface CanaryOptions {
@@ -96,57 +93,86 @@ export interface CanaryOptions {
   model: ModelRef;
   skillDir: string;
   skillName: string;
-  /** Neutral cwd, same as a scenario gets — the probe must not see a repo either. */
+  /** Neutral cwd, same as a scenario gets. */
   cwd: string;
 }
 
 /**
- * Run the probe in green mode and report whether the skill body was reachable.
- *
- * Never throws for a model-side outcome: an empty or off-format reply is a `fail`
- * with the reply in `detail`, because "the harness answered without the skill" and
- * "the model said something odd" are both reasons not to spend a wave. An adapter
- * that throws (pi missing, the skill-dir tripwire) is left to propagate — those are
- * setup errors with their own messages.
+ * One optional subject invocation, with read-only tools, before a green wave.
+ * A successful structured probe observes an instructed read and returned content;
+ * it does not establish autonomous skill selection in any later scenario. A
+ * failed quote is inconclusive, never proof that every later scenario is naked.
  */
 export async function runDeliveryCanary(opts: CanaryOptions): Promise<CanaryResult> {
-  const skillMd = readFileSync(join(opts.skillDir, "SKILL.md"), "utf8");
-  const anchor = deliveryAnchor(skillMd);
-  if (!anchor) {
+  const skillPath = join(opts.skillDir, "SKILL.md");
+  const observations: CanaryObservations = {
+    localSkillAvailable: false,
+    loadingRequested: false,
+    successfulSkillRead: "unobserved",
+    returnedAnchor: null,
+    autonomousSelection: "untested",
+  };
+  let skillMd: string;
+  try {
+    skillMd = readFileSync(skillPath, "utf8");
+    observations.localSkillAvailable = true;
+  } catch {
     return {
-      status: "skipped",
-      anchor: null,
-      detail: `${opts.skillName}/SKILL.md has no \`## \` heading to probe for — nothing a reply could prove`,
+      status: "fail", anchor: null, observations, probeCalls: 0,
+      detail: "The selected SKILL.md is not locally readable; no subject call was made.",
     };
   }
-  const transcript = await opts.adapter.run({
-    skillDir: opts.skillDir,
-    model: opts.model,
-    mode: "green",
-    turns: [canaryPrompt(opts.skillName, anchor)],
-    cwd: opts.cwd,
-  });
-  const ok = normalize(transcript).includes(normalize(anchor));
+  const anchor = deliveryAnchor(skillMd);
+  if (!anchor) return {
+    status: "skipped", anchor: null, observations, probeCalls: 0,
+    detail: `${opts.skillName}/SKILL.md has no \`## \` heading for this quote check; loading and selection remain untested`,
+  };
+  observations.loadingRequested = true;
+  const request: RunReq = {
+    skillDir: opts.skillDir, model: opts.model, mode: "green",
+    turns: [canaryPrompt(opts.skillName)], cwd: opts.cwd,
+    tools: ["read"], extensions: [], scenarioId: "(delivery-probe)", rep: 0,
+  };
+  let reply: string | null;
+  if (opts.adapter.runStructured) {
+    const run = await opts.adapter.runStructured(request);
+    const unhealthy = run.traces.some(trace => trace.capture_errors?.length ||
+      (trace.final_status !== undefined && trace.final_status !== "complete"));
+    if (run.providerFailure || run.executionFailure || unhealthy || run.traces.length !== 1) {
+      observations.executionError = run.providerFailure || run.executionFailure || "Incomplete or invalid structured probe evidence";
+      return { status: "fail", anchor, observations, probeCalls: 1,
+        detail: "The probe did not produce complete execution evidence; skill availability remains unresolved." };
+    }
+    reply = run.traces[0].final_text;
+    observations.successfulSkillRead = observedSkillRead(run.traces, skillPath, opts.cwd) ? "observed" : "not-observed";
+  } else {
+    reply = assistantReply(await opts.adapter.run(request));
+  }
+  observations.returnedAnchor = quotedHeading(reply, anchor);
+  const ok = observations.returnedAnchor && observations.successfulSkillRead !== "not-observed";
   return {
-    status: ok ? "pass" : "fail",
-    anchor,
-    // The reply, not the transcript: the transcript opens with our own prompt, and a
-    // failure report whose first 400 characters are the question is useless.
-    detail: ok ? "" : assistantReply(transcript).slice(0, 400),
+    status: ok ? "pass" : "fail", anchor, observations, probeCalls: 1,
+    detail: ok
+      ? (observations.successfulSkillRead === "observed"
+        ? "Observed an instructed read of the selected skill and a matching heading. Autonomous selection remains untested."
+        : "The final assistant response matched a heading; this adapter did not provide read evidence. Loading and autonomous selection remain unverified.")
+      : observations.returnedAnchor
+        ? "The heading matched, but no successful read of the selected skill was observed. A guess or preloaded context cannot establish instructed loading."
+        : `No matching heading was returned. This does not establish that the skill is unavailable. Reply: ${reply?.slice(0, 400) || "(unavailable)"}`,
   };
 }
 
-/** The abort message for a failed canary: what was measured, and what to do instead. */
+/** Stop the requested wave without converting an inconclusive probe into a claim. */
 export function canaryFailure(skillName: string, result: CanaryResult, cliVersion: string | null): string {
   return (
-    `delivery canary FAILED for ${skillName}: the model could not quote its own skill instructions ` +
-    `(looked for the heading \`${result.anchor}\`).\n` +
-    `  The skill is not reaching the model, so every scenario in this run would measure a naked ` +
-    `model and score like a result. Nothing has been spent beyond this one probe.\n` +
-    `  harness CLI: ${cliVersion ?? "unknown"}. On pi ≥ 0.83.0 \`--skill\` is progressive disclosure ` +
-    `(description in context, body on demand) and a nonexistent path is accepted silently.\n` +
-    `  Fix: re-run with \`--mode force\` (SKILL.md as the system prompt — delivery no version has made ` +
-    `conditional), or check that the skill dir is the one you meant.\n` +
-    `  What the model said instead: ${result.detail || "(nothing)"}`
+    `delivery canary FAILED for ${skillName}: the requested loading check was inconclusive.\n` +
+    `  Local skill readable: ${result.observations.localSkillAvailable}; ` +
+    `successful skill read: ${result.observations.successfulSkillRead}; ` +
+    `matching heading: ${result.observations.returnedAnchor ?? "unobserved"}.\n` +
+    `  This does not prove skill unavailability or predict delivery in later scenarios. ` +
+    `Autonomous selection was not tested. Subject probe calls: ${result.probeCalls}.\n` +
+    `  harness CLI: ${cliVersion ?? "unknown"}. Check the skill path and recorded loading evidence, ` +
+    `or choose --mode force to evaluate explicit instruction delivery as a separate condition.\n` +
+    `  ${result.detail}`
   );
 }

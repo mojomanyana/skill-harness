@@ -125,7 +125,7 @@ describe("runPiJson", () => {
     children[0].stdout.push(null);
     children[0].emit("close", 0);
     await new Promise((r) => setTimeout(r, 30));
-    expect(children[0].kill).toHaveBeenCalledTimes(1);
+    expect(children[0].kill).toHaveBeenCalledTimes(2); // bounded TERM → KILL cleanup
   });
 
   it("rejects with the spawn error rather than reporting an empty trace", async () => {
@@ -162,6 +162,22 @@ describe("runPiJson", () => {
     scripts.push({ stdout: TERMINAL, stderr: "x".repeat(50_000) });
     const r = await run();
     expect(r.stderr.length).toBeLessThanOrEqual(8000 + 1024);
+  });
+
+  it("rejects an unterminated oversized JSON line before parsing or accepting its earlier final", async () => {
+    scripts.push({ chunks: [Buffer.from(TERMINAL), Buffer.alloc(1024, 120)], hang: true });
+    await expect(runPiJson({ args: [], ...META, maxLineBytes: 256 })).rejects.toThrow(/JSON line byte limit/);
+    expect(children[0].kill).toHaveBeenCalledWith("SIGKILL");
+  });
+
+  it("rejects excessive retained records instead of silently dropping tool evidence", async () => {
+    scripts.push({ stdout: '{"type":"session"}\n'.repeat(20) + TERMINAL });
+    await expect(runPiJson({ args: [], ...META, maxRecords: 5 })).rejects.toThrow(/retained JSON evidence limit/);
+  });
+
+  it("bounds retained bytes even when every individual line is small", async () => {
+    scripts.push({ stdout: '{"type":"session","data":"payload"}\n'.repeat(20) });
+    await expect(runPiJson({ args: [], ...META, maxRetainedBytes: 100 })).rejects.toThrow(/retained JSON evidence limit/);
   });
 
   it("drops the quadratic events but keeps a tool call whose ARGS mention them", async () => {
