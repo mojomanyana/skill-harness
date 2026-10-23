@@ -76,7 +76,7 @@ describe("Pi authoring front door", () => {
     expect(manifest).toMatchObject({ labelStatus: "proposed", modelQualityEvaluated: false, calibrated: false, agent: null });
     const transcript = (answer: string) => `>>> USER:\nDraft an announcement\n\n<<< ASSISTANT:\n${answer}\n`;
     const prepared = await execute({ action: "controls", name, controls: [
-      { id: "good", scenarioId: "A1", expected: "PASS", kind: "authored", transcript: transcript("Here is a draft announcement."), rationale: "Provides requested copy" },
+      { id: "good", scenarioId: "A1", expected: "PASS", expectedCriteria: ["PASS"], kind: "authored", transcript: transcript("Here is a draft announcement."), rationale: "Provides requested copy" },
       { id: "bad", scenarioId: "A1", expected: "FAIL", kind: "authored", transcript: transcript("I cannot provide a draft."), rationale: "Omits requested copy" },
       { id: "alternative", scenarioId: "A1", expected: "PASS", kind: "equivalent", equivalentTo: "good", transcript: transcript("Draft: We are announcing our event."), rationale: "Another valid draft" },
     ] }, ctx);
@@ -87,6 +87,9 @@ describe("Pi authoring front door", () => {
     const accepted = await execute({ action: "review-controls", name }, ctx);
     expect(accepted.details).toMatchObject({ accepted: true, ready: true, providerCalls: 0 });
     expect(vi.mocked(ctx.ui.editor).mock.calls[0][1]).toContain('"checklist"');
+    const reviewedContent = JSON.parse(vi.mocked(ctx.ui.editor).mock.calls[0][1]!);
+    expect(reviewedContent.controls.find((control: any) => control.id === "good").expectedCriteria).toEqual(["PASS"]);
+    expect(JSON.parse(readFileSync((accepted.details as any).manifestPath, "utf8")).controls[0]).toMatchObject({ expectedCriteria: ["PASS"], review: { status: "accepted" } });
     const proposal = JSON.parse(readFileSync((prepared.details as any).manifestPath, "utf8"));
     expect(proposal.controls.every((control: any) => control.review.status === "proposed")).toBe(true);
   });
