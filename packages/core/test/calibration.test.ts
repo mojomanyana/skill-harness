@@ -14,13 +14,13 @@ import { ProcessControlError, withProcessScope } from "../src/util/process.js";
 const dirs: string[] = [];
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 const transcript = (answer: string) => `>>> USER:\nWhat is the capacity?\n\n<<< ASSISTANT:\n${answer}\n\n=== SEEDED GATES ===\n\n=== STAGED DIFF ===\n  (empty — the model left no staged changes)`;
-function setup() {
+function setup(checklist = ["Gives the capacity supported by release.txt."]) {
   const dir = mkdtempSync(join(tmpdir(), "harness-calibration-")); dirs.push(dir);
   const specPath = join(dir, "specification.yaml");
   writeFileSync(join(dir, "release.txt"), "Capacity: 12\n");
   writeFileSync(specPath, JSON.stringify({ skill: "lookup", judge_persona: "Check the cited evidence", ship_bar: { total: 1, min_pass: 1 }, scenarios: [{
     id: "A1", title: "Capacity", mode: "seeded", fixture: "fixture", judge_evidence: "response", judge_references: ["release.txt"],
-    turns: ["What is the capacity?"], checklist: ["Gives the capacity supported by release.txt."],
+    turns: ["What is the capacity?"], checklist,
   }] }));
   const controls: CalibrationControl[] = [
     { id: "supported", scenarioId: "A1", expected: "PASS", kind: "authored", transcript: transcript("12 (release.txt)."), rationale: "Matches the selected source." },
@@ -34,7 +34,9 @@ function adapter(replies: string[], prompts: string[] = []): HarnessAdapter {
   let next = 0;
   return { name: "pi", available: async () => true, run: async () => { throw new Error("No subject call allowed"); }, judge: async req => { prompts.push(req.prompt); return replies[next++]; } };
 }
-const reply = (verdict: "PASS" | "FAIL") => JSON.stringify({ verdict, reason: "control", votes: [{ criterion: 1, vote: verdict, reason: "control" }] });
+const reply = (verdict: "PASS" | "FAIL", votes: ("PASS" | "FAIL")[] = [verdict]) => JSON.stringify({
+  verdict, reason: "control", votes: votes.map((vote, offset) => ({ criterion: offset + 1, vote, reason: "control" })),
+});
 
 test("authoring computes bindings and calibration preserves production prompt framing with explicit authored scope", async () => {
   const { dir, specPath, controls } = setup();
@@ -48,11 +50,84 @@ test("authoring computes bindings and calibration preserves production prompt fr
   expect(loaded.controls[0].prompt).not.toContain("Grade what the diff shows the code DOES");
   const prompts: string[] = [];
   const result = await runCalibration(loaded, { adapter: adapter([reply("PASS"), reply("FAIL"), reply("PASS")], prompts), judge, output: join(dir, "results") });
-  expect(result).toMatchObject({ status: "matched", matched: 3, judgeCalls: 3, completed: 3, falsePasses: [], falseFailures: [], modelQualityScore: false });
+  expect(result).toMatchObject({ status: "matched", matched: 3, judgeCalls: 3, completed: 3, falsePasses: [], falseFailures: [], criterionDisagreements: [], modelQualityScore: false });
   expect(prompts).toEqual(loaded.controls.map(control => control.prompt));
   const request = JSON.parse(readFileSync(join(dir, "results", "supported.request.json"), "utf8"));
   expect(request.sha256).toBe(createHash("sha256").update(request.prompt).digest("hex"));
   await expect(runCalibration(loaded, { adapter: adapter([]), judge, output: join(dir, "results") })).rejects.toThrow(/EEXIST/);
+});
+
+test("reviewed criterion expectations stay out of judge prompts and distinguish a FAIL for the wrong reason", async () => {
+  const { dir, specPath, controls } = setup(["Gives the supported capacity.", "Cites release.txt."]);
+  const legacy = prepareCalibration({ specPath, controls });
+  controls[0].expectedCriteria = ["PASS", "PASS"];
+  controls[1].expectedCriteria = ["FAIL", "PASS"];
+  controls[2].expectedCriteria = ["PASS", "PASS"];
+  const loaded = prepareCalibration({ specPath, manifestPath: join(dir, "criteria.json"), controls });
+  expect(loaded.controls.map(control => control.prompt)).toEqual(legacy.controls.map(control => control.prompt));
+  expect(loaded.manifestSha256).not.toBe(legacy.manifestSha256);
+  const manifest = JSON.parse(readFileSync(loaded.manifestPath, "utf8"));
+  expect(manifest.controls.map((control: CalibrationControl) => control.expectedCriteria)).toEqual(controls.map(control => control.expectedCriteria));
+  expect(loadCalibration(loaded.manifestPath).controls[1].expectedCriteria).toEqual(["FAIL", "PASS"]);
+
+  const output = join(dir, "wrong-reason");
+  const mismatch = await runCalibration(loaded, { adapter: adapter([
+    reply("PASS", ["PASS", "PASS"]), reply("FAIL", ["PASS", "FAIL"]), reply("PASS", ["PASS", "PASS"]),
+  ]), judge, output });
+  expect(mismatch).toMatchObject({ status: "mismatch", matched: 2, completed: 3, errors: [], disagreements: [], falsePasses: [], falseFailures: [],
+    criterionDisagreements: [
+      { id: "invented", index: 1, expected: "FAIL", observed: "PASS" },
+      { id: "invented", index: 2, expected: "PASS", observed: "FAIL" },
+    ] });
+  expect(JSON.parse(readFileSync(join(output, "invented.result.json"), "utf8")).expectedCriteria).toEqual(["FAIL", "PASS"]);
+  const match = await runCalibration(loaded, { adapter: adapter([
+    reply("PASS", ["PASS", "PASS"]), reply("FAIL", ["FAIL", "PASS"]), reply("PASS", ["PASS", "PASS"]),
+  ]), judge, output: join(dir, "matched") });
+  expect(match).toMatchObject({ status: "matched", matched: 3, completed: 3, criterionDisagreements: [] });
+
+  const both = await runCalibration(loaded, { adapter: adapter([reply("FAIL", ["PASS", "FAIL"])]),
+    judge, only: ["supported"], output: join(dir, "both-mismatched") });
+  expect(both).toMatchObject({ status: "mismatch", matched: 0, falseFailures: ["supported"], falsePasses: [],
+    disagreements: [{ id: "supported", expected: "PASS", observed: "FAIL" }],
+    criterionDisagreements: [{ id: "supported", index: 2, expected: "PASS", observed: "FAIL" }] });
+});
+
+test.each([
+  { name: "empty", expected: "PASS", criteria: [] },
+  { name: "short", expected: "PASS", criteria: ["PASS"] },
+  { name: "long", expected: "PASS", criteria: ["PASS", "PASS", "PASS"] },
+  { name: "invalid vote", expected: "PASS", criteria: ["PASS", "UNKNOWN"] },
+  { name: "null vote", expected: "PASS", criteria: ["PASS", null] },
+  { name: "sparse", expected: "PASS", criteria: Array(2) },
+  { name: "string", expected: "PASS", criteria: "PASS" },
+  { name: "null", expected: "PASS", criteria: null },
+  { name: "object", expected: "PASS", criteria: { 0: "PASS", 1: "PASS", length: 2 } },
+  { name: "inconsistent PASS", expected: "PASS", criteria: ["PASS", "FAIL"] },
+  { name: "inconsistent FAIL", expected: "FAIL", criteria: ["PASS", "PASS"] },
+])("$name criterion expectations fail before creating a manifest, output or making calls", async ({ expected, criteria }) => {
+  const { dir, specPath, controls } = setup(["Gives the supported capacity.", "Cites release.txt."]);
+  const invalidControls = structuredClone(controls);
+  invalidControls[0].expected = expected as CalibrationControl["expected"];
+  invalidControls[0].expectedCriteria = criteria as CalibrationControl["expectedCriteria"];
+  const invalidManifest = join(dir, "invalid.json");
+  expect(() => prepareCalibration({ specPath, manifestPath: invalidManifest, controls: invalidControls })).toThrow(/expectedCriteria/);
+  expect(existsSync(invalidManifest)).toBe(false);
+
+  // Reload validation also protects a previously prepared manifest changed before a run.
+  const loaded = prepareCalibration({ specPath, controls });
+  const changed = JSON.parse(readFileSync(loaded.manifestPath, "utf8"));
+  changed.controls[0].expected = expected;
+  changed.controls[0].expectedCriteria = criteria;
+  writeFileSync(loaded.manifestPath, JSON.stringify(changed));
+  const prompts: string[] = [];
+  const fixture = adapter([], prompts);
+  let availabilityCalls = 0;
+  fixture.available = async () => { availabilityCalls++; return true; };
+  const output = join(dir, "blocked");
+  await expect(runCalibration(loaded, { adapter: fixture, judge, output })).rejects.toThrow(/expectedCriteria/);
+  expect(existsSync(output)).toBe(false);
+  expect(prompts).toEqual([]);
+  expect(availabilityCalls).toBe(0);
 });
 
 test("proposed labels and missing contrast types validate offline but cannot trigger judging", async () => {
@@ -201,6 +276,67 @@ test("changed judge, labels or reference prompts do not reuse, and inconsistent 
   const changed = join(original, "supported.attempt-1.reply.json");
   writeFileSync(changed, JSON.stringify({ reply: reply("FAIL"), sha256: createHash("sha256").update(reply("FAIL")).digest("hex") }));
   expect(() => planCalibration(loaded, { judge, reuse: [original] })).toThrow(/Prior request\/reply changed/);
+});
+
+test("legacy judgments can be reused against added and changed criterion expectations without inheriting prior matches", async () => {
+  const { dir, specPath, controls } = setup(["Gives the supported capacity.", "Cites release.txt."]);
+  const legacy = prepareCalibration({ specPath, controls });
+  const original = join(dir, "legacy");
+  const initial = await runCalibration(legacy, { adapter: adapter([
+    reply("PASS", ["PASS", "PASS"]), reply("FAIL", ["PASS", "FAIL"]), reply("PASS", ["PASS", "PASS"]),
+  ]), judge, output: original });
+  expect(initial).toMatchObject({ status: "matched", matched: 3, criterionDisagreements: [] });
+  const originalSummary = readFileSync(join(original, "summary.json"));
+  const originalResult = readFileSync(join(original, "invented.result.json"));
+
+  controls[1].expectedCriteria = ["FAIL", "PASS"];
+  const added = prepareCalibration({ specPath, manifestPath: join(dir, "added.json"), controls });
+  expect(added.controls[1].prompt).toBe(legacy.controls[1].prompt);
+  expect(planCalibration(added, { judge, only: ["invented"], reuse: [original] })).toMatchObject({
+    ready: true, reused: 1, judgeCallsPlanned: 0,
+  });
+  const unavailable = adapter([]);
+  unavailable.available = async () => { throw new Error("No availability probe needed for verified historical votes"); };
+  const mismatchOutput = join(dir, "added-expectations");
+  const mismatch = await runCalibration(added, { adapter: unavailable, judge, only: ["invented"], reuse: [original], output: mismatchOutput });
+  expect(mismatch).toMatchObject({ status: "mismatch", matched: 0, completed: 1, judgeCalls: 0, disagreements: [],
+    criterionDisagreements: [
+      { id: "invented", index: 1, expected: "FAIL", observed: "PASS" },
+      { id: "invented", index: 2, expected: "PASS", observed: "FAIL" },
+    ] });
+  expect(readFileSync(join(mismatchOutput, "invented.result.json"))).toEqual(originalResult);
+
+  controls[1].expectedCriteria = ["PASS", "FAIL"];
+  const changed = prepareCalibration({ specPath, manifestPath: join(dir, "changed.json"), controls });
+  expect(changed.controls[1].prompt).toBe(added.controls[1].prompt);
+  expect(planCalibration(changed, { judge, only: ["invented"], reuse: [mismatchOutput] })).toMatchObject({ ready: true, reused: 1, judgeCallsPlanned: 0 });
+  const matchedOutput = join(dir, "changed-expectations");
+  const matched = await runCalibration(changed, { adapter: unavailable, judge, only: ["invented"], reuse: [mismatchOutput], output: matchedOutput });
+  expect(matched).toMatchObject({ status: "matched", matched: 1, completed: 1, judgeCalls: 0, criterionDisagreements: [] });
+  expect(readFileSync(join(matchedOutput, "invented.result.json"))).toEqual(originalResult);
+  expect(readFileSync(join(original, "summary.json"))).toEqual(originalSummary);
+});
+
+test("prior criterion-vote conflicts block reuse even with the same overall verdict, but wording differences do not", async () => {
+  const { dir, specPath, controls } = setup(["Gives the supported capacity.", "Cites release.txt."]);
+  const loaded = prepareCalibration({ specPath, controls });
+  const original = join(dir, "original"), conflict = join(dir, "conflict"), paraphrase = join(dir, "paraphrase");
+  for (const [output, raw] of [
+    [original, reply("FAIL", ["FAIL", "PASS"])],
+    [conflict, reply("FAIL", ["PASS", "FAIL"])],
+    [paraphrase, reply("FAIL", ["FAIL", "PASS"]).replaceAll("control", "different explanation")],
+  ]) {
+    await runCalibration(loaded, { adapter: adapter([raw]), judge, only: ["invented"], output });
+  }
+  expect(planCalibration(loaded, { judge, only: ["invented"], reuse: [original, paraphrase] })).toMatchObject({ ready: true, reused: 1, judgeCallsPlanned: 0 });
+  expect(planCalibration(loaded, { judge, only: ["invented"], reuse: [original, conflict] })).toMatchObject({
+    ready: false, issues: [expect.stringContaining("prior judgments disagree")],
+  });
+  const prompts: string[] = [];
+  const output = join(dir, "blocked");
+  await expect(runCalibration(loaded, { adapter: adapter([], prompts), judge, only: ["invented"], reuse: [original, conflict], output })).rejects.toThrow(/not ready/);
+  expect(existsSync(output)).toBe(false);
+  expect(prompts).toEqual([]);
 });
 
 test("reuse binds a successful retry to the exact validation-guided prompt", async () => {

@@ -9418,6 +9418,14 @@ function validateManifest(manifest, manifestPath, manifestSha256) {
     const scenario = spec.scenarios.find((s) => s.id === control.scenarioId);
     if (!scenario)
       throw new Error(`Unknown calibration scenario: ${control.scenarioId}`);
+    if (control.expectedCriteria !== void 0) {
+      if (!Array.isArray(control.expectedCriteria) || control.expectedCriteria.length !== scenario.checklist.length || !control.expectedCriteria.length || [...control.expectedCriteria].some((vote) => vote !== "PASS" && vote !== "FAIL")) {
+        throw new Error(`${control.id}: expectedCriteria must contain one PASS or FAIL per checklist item in order`);
+      }
+      const expected = control.expectedCriteria.every((vote) => vote === "PASS") ? "PASS" : "FAIL";
+      if (expected !== control.expected)
+        throw new Error(`${control.id}: expectedCriteria must agree with the overall expected label`);
+    }
     const references = resolveJudgeReferences(scenario, specDir);
     if (rubricDigest(scenario, specDir, references) !== control.rubricSha256)
       throw new Error(`Calibration reference/rubric changed: ${control.id}`);
@@ -9501,11 +9509,12 @@ function prepareCalibration(options) {
       const scenario = spec.scenarios.find((s) => s.id === control.scenarioId);
       if (!scenario)
         throw new Error(`Unknown calibration scenario: ${control.scenarioId}`);
-      const { id, scenarioId, expected, kind, transcript, rationale, equivalentTo, review, provenance, sourceTranscript, trace } = control;
+      const { id, scenarioId, expected, expectedCriteria, kind, transcript, rationale, equivalentTo, review, provenance, sourceTranscript, trace } = control;
       return {
         id,
         scenarioId,
         expected,
+        expectedCriteria,
         kind,
         transcript,
         rationale,
@@ -17889,6 +17898,8 @@ Use mechanical assertions for observable execution facts and semantic criteria f
 
 Before spending calls, check the entire authored contract together: prompts, fixtures, checklists, expected controls and judge references. Every criterion must be decidable from what the judge receives. Include relevant goals, voice constraints, version/timing facts and all conflicting claims, not just the primary fact sheet. Choose references explicitly; never copy private canaries, credentials or unrelated files into a judge prompt. Preflight flags omitted fixture text as an inventory warning; justify deliberate exclusions rather than blindly adding everything. Distinguish missing facts from present-but-unconfirmed facts. State the scope of counts and format rules (per draft, per channel, or across a plan), and allow valid internal preparation and equivalent phrasing when the requirement permits them. Map scenarios to SKILL.md sections with covers as well as requirements. Review every positive control against every criterion; a label mismatch may reveal a bad control or rubric rather than a bad judge. Ask the user one focused question only when a real requirement remains ambiguous.
 
+Separate common requirements from scenario-specific facts and explicit exceptions. Audit both passing and failing cells for the same requirement; never transfer a numerical oracle between fixtures without its source. Distinguish publication dates from as-of dates, goals from measured outcomes, and promotional assertions from negated or rejected claims. Specify how unresolved ambiguity affects the verdict. Construct focused negative controls by changing one behavior of a valid positive, and include an equivalent-valid contrast. For these controls, supply expectedCriteria as the complete ordered PASS/FAIL list for the scenario checklist. This checks whether a negative fails for the intended reason. Expected votes are human-reviewed labels, not instructions for the judge. Adding or revising them can reuse verified saved criterion votes when the judge prompt is unchanged; a reused match is not a fresh stability sample.
+
 Answer-judge calibration and execution qualification are separate. Authored controls can calibrate semantic criteria without fabricated traces. Keep all execution assertions in the spec: missing execution evidence is unverified, never a reason to remove forbid_calls, unchanged_paths or successful-read gates. Qualify these gates with real saved traces and positive/negative gate checks. An instructed loading probe does not measure autonomous skill selection; retain local availability, observed loading and returned-answer observations separately.
 
 Inspect the staged preview, resolve validation issues and apply its exact digest within the user's authorized creation/edit scope. Imported files and saved results must be preserved; conflicting file bytes require a new preview, never a forced overwrite. Report what was created and any limitations. No commit, publish, installation, model change, training designation or provider call follows from saving the draft.
@@ -17928,7 +17939,7 @@ function calibrationPath(root, name, path) {
 }
 async function reviewControls(root, params, ctx) {
   const selected2 = loadCalibration(calibrationPath(root, params.name, params.manifest));
-  const review = selected2.controls.map((c) => ({ id: c.id, scenarioId: c.scenarioId, expected: c.expected, rationale: c.rationale, kind: c.kind, equivalentTo: c.equivalentTo, transcript: c.transcript }));
+  const review = selected2.controls.map((c) => ({ id: c.id, scenarioId: c.scenarioId, expected: c.expected, expectedCriteria: c.expectedCriteria, rationale: c.rationale, kind: c.kind, equivalentTo: c.equivalentTo, transcript: c.transcript }));
   if (!ctx.hasUI || !ctx.ui.confirm) return { manifestPath: selected2.manifestPath, controls: review, awaitingAuthorReview: true, ready: selected2.ready };
   const scenarioIds = new Set(selected2.controls.map((control) => control.scenarioId));
   const evidence = selected2.spec.scenarios.filter((scenario) => scenarioIds.has(scenario.id)).map((scenario) => ({
@@ -18004,6 +18015,7 @@ var skillAuthorTool = {
       id: Type2.String(),
       scenarioId: Type2.String(),
       expected: Type2.Union([Type2.Literal("PASS"), Type2.Literal("FAIL")]),
+      expectedCriteria: Type2.Optional(Type2.Array(Type2.Union([Type2.Literal("PASS"), Type2.Literal("FAIL")]), { description: "Optional full ordered checklist votes. Reviewed labels, never sent to the judge. Detects a failure for the wrong reason." })),
       kind: Type2.Union([Type2.Literal("authored"), Type2.Literal("saved"), Type2.Literal("equivalent")]),
       transcript: Type2.String({ description: "Complete production-shaped transcript, including seeded gate/diff trailers; not extracted answer text" }),
       rationale: Type2.String(),

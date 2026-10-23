@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.32.0 — 2026-10-23
+
+- Add optional reviewed checklist votes to calibration controls. A matching overall failure no longer counts as calibrated when it fails different criteria; report criterion disagreements separately from overall verdict disagreements. Existing controls remain compatible.
+- Reuse verified saved judgments when only the reviewed criterion expectations change, recomputing matches against current labels without sending those labels to the judge or spending new calls. Refuse contradictory saved criterion votes.
+- Guide Pi-native authors through common requirements, scenario-specific facts, complete positive controls, focused negative controls and explicit ambiguity rules before evaluation. Skills remain portable to Pi, with optional pi-daddy wrappers kept separate.
+
 ## 0.31.0 — 2026-10-20
 
 - Check response-evaluation reference completeness and instruction mappings during authoring/preflight. Missing reference warnings require review; they do not automatically disclose fixtures or judge semantics.

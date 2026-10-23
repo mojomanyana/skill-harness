@@ -68,16 +68,26 @@ files with `judge_references`, relative to the specification directory; the load
 checks their identity and bounds. They are not appended to subject requests.
 
 The Pi model proposes controls with an expected PASS/FAIL, a rationale and complete
-transcript framing. `skill_author controls` calls the shared preparation code to
-bind specification, reference and transcript bytes; the model does not supply those
-hashes. At least one positive, one negative and an equivalent valid answer are needed
-for calibration. Saved trace evidence must be bound for execution-dependent claims.
+transcript framing. For new controls, also propose `expectedCriteria`: an ordered
+array with one PASS/FAIL for every checklist item. All PASS requires an overall PASS;
+any FAIL requires an overall FAIL. Review positives against the complete contract,
+not just the scenario's headline. Prefer negative contrasts with
+one deliberate defect, so the criterion votes reveal a failure for the wrong reason.
+Equivalent valid answers must satisfy the same contract. Older controls may omit
+`expectedCriteria`; their overall match alone does not establish criterion agreement.
+
+`skill_author controls` calls the shared preparation code to bind specification,
+reference and transcript bytes; the model does not supply those hashes. At least
+one positive, one negative and an equivalent valid answer are needed for calibration.
+Saved trace evidence must be bound for execution-dependent claims.
 
 `skill_author review-controls` shows the scenario questions, checklist, selected
-reference text, proposed answers and rationales in Pi. One explicit acceptance writes
-a separate reviewed manifest, preserving the proposal. Cancellation leaves labels
-unaccepted. Changed controls or source references invalidate the review. This accepts
-labels only; it neither approves the skill nor calls a model.
+reference text, proposed answers, rationales and criterion expectations in Pi. One
+explicit acceptance writes a separate reviewed manifest, preserving the proposal.
+Cancellation leaves expectations unaccepted. Changed controls, expectations or source
+references require a new review. Neither overall labels nor `expectedCriteria` enter
+the judge prompt. Acceptance covers expectations only; it neither approves the skill
+nor calls a model.
 
 ```bash
 skill-harness preflight social-media-manager --skills ./skills
@@ -100,6 +110,20 @@ explicit. Keep the scenario's assertions intact. Verify real execution with boun
 saved traces, positive/negative gate controls and actual test results separately.
 
 ## Validate contracts before judging a model
+
+Apply shared requirements to every relevant scenario and state exceptions for
+narrower requests. Each positive control must satisfy that complete contract.
+Keep facts specific to its supplied sources: do not import numbers, qualifications
+or dates from another fixture. Distinguish version applicability, document as-of
+dates and release dates. Include relevant source material in the judge's explicit
+references; do not silently send private fixtures to satisfy an inventory warning.
+
+Define the unit for counts, names and disclosures: each standalone output, a section,
+or the complete response. A word in a negated claim or editorial note is different
+from a promotional assertion; a proposed objective is different from an achieved
+result. Decide how ambiguous wording is graded before running the judge, and apply
+that PASS/FAIL rule to valid alternatives and near-miss controls consistently.
+Static checks cannot resolve these semantic choices for the author.
 
 `lint` now emits non-blocking `authoring` notices for common brittle contracts:
 read-count proxies, POSIX-only path matching, exact `npm test` spelling,
@@ -167,19 +191,18 @@ skill-harness grade ./regraded-copy --spec ./tests/specification.yaml --only A2
 ```
 
 Reuse validates exact judge identity, actual initial/retry prompts, answer/rubric
-hashes, expected labels, requests and replies. Conflicting historical verdicts stop
-automatic reuse rather than selecting a favorable answer. A partial calibration is
-reported as partial. Selective regrades keep the recorded judge and preserve untouched
-results; changing the judge requires regrading the entire recorded set. Changed
-subject inputs remain stale even if their saved answers are rejudged.
+hashes, requests and replies. When only `expectedCriteria` changes, review the new
+manifest, then reuse the saved raw criterion votes if those prompt bindings match.
+No fresh judge call is needed to compare unchanged votes with new expectations.
+An overall FAIL with unexpected criterion votes is a calibration disagreement, not
+evidence that the intended defect was detected. Reuse does not transfer the old
+human acceptance to changed expectations or invent missing criterion evidence.
 
-Before accepting controls, check all fixture facts against all criteria: relevant
-goals/voice documents, conflicting values and version/date applicability belong in
-the judge's explicit references. Do not silently send private fixtures to the judge
-to satisfy an inventory warning. Document deliberate exclusions. Clarify whether
-counts and formatting apply to each output or the entire plan. Positive controls
-must satisfy the complete contract, including reasonable alternative wording and
-internal preparation steps when allowed. Static checks cannot decide these semantics.
+Conflicting historical verdicts stop automatic reuse rather than selecting a
+favorable answer. A partial calibration is reported as partial. Selective regrades
+keep the recorded judge and preserve untouched results; changing the judge requires
+regrading the entire recorded set. Changed subject inputs remain stale even if their
+saved answers are rejudged.
 
 ## Resource observations and stopping
 

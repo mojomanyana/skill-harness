@@ -2,33 +2,32 @@
 
 ## Current state
 
-The unreleased reliability batch generalizes the recovered acceptance lessons:
-authoring preflight checks source discoverability and missing judge references;
-authored calibration controls test answer judging without inventing execution;
-delivery probes distinguish requested loading, observed reads and returned content.
-Saved-run diagnosis selects reuse, regrade, regate, rescore or a necessary rerun.
-Selective grading and calibration reuse preserve original evidence and exact identities.
+`0.31.0` is published and tagged, with package/install checks verified. It retains
+guided authoring, source/reference preflight, answer calibration separated from
+execution gates, saved-evidence diagnosis and selective reuse. Run, grade and
+calibration save bounded resource summaries. Linux process groups are sampled and
+settled after interruption; optional memory/write limits are sampled controls, not
+OS quotas or an explanation of the reported host freeze.
 
-Run, grade and calibration retain bounded resource summaries. Linux owned-process
-groups are sampled and settled after interruption; optional memory/write limits
-are sampled controls, not OS quotas. Output capture and selected fixture copying
-are bounded. These changes do not establish the cause of the reported host freeze.
-The next acceptance should use a selected skill and model on the operator's Linux
-machine, inspect monitoring, and reuse saved answers before scheduling fresh calls.
-No provider calls or new remote acceptance are implied by local tests.
+The current `0.32.0` candidate adds optional ordered `expectedCriteria` to authored
+controls, so an overall verdict match cannot hide a failure for the wrong reason.
+Expectations remain human-reviewed and excluded from judge inputs. When only those
+expectations change, exact prompt-bound raw votes can be reused without fresh model
+calls; the changed expectations still need review. Authoring guidance applies common
+requirements consistently, keeps facts local to each fixture and defines count and
+disclosure units before judging.
 
-The authoring source candidate adds `/skill-harness create <idea>` and `author`,
-with `skill_author` for persisted briefs, one-question UI, exact draft previews,
-safe apply, generic control preparation and explicit label review. Authoring runs
-in the current Pi model; generated skills are Pi-only with optional separate
-pi-daddy wrappers. Separate eval repos work through the extension's `--specs` path.
-Shared `preflight`, `calibrate` and `diagnose` replace Scout-specific setup scripts.
-This is source behavior until a release and live acceptance are verified.
+`/skill-harness create <idea>`, `author` and `skill_author` are released authoring
+entry points. They retain briefs, ask one necessary question at a time, preview and
+apply exact drafts, prepare controls and collect explicit label review. Authoring
+runs in the current Pi model; generated skills need Pi alone, with optional separate
+pi-daddy wrappers. Separate eval repos use `--specs`. Shared `preflight`, `calibrate`
+and `diagnose` replace skill-specific setup scripts.
 
-`0.31.0` is the current source release target. Package manifests identify these
-candidate bytes; verify npm and GitHub directly before asserting publication or
-`latest` promotion.
-Historical released versions remain recorded in the changelog.
+The `0.32.0` candidate is not yet a publication or a new remote quality acceptance.
+Verify release artifacts separately, then reuse saved answers in the next Linux
+acceptance before scheduling fresh subject calls. Local tests imply no provider
+calls or new model qualification. Historical releases remain in the changelog.
 
 Fresh subject execution is qualified on exact Pi **1.0.4 and 1.1.0**. Other or unknown
 versions fail closed before subject spawn. Historical Pi 0.83.0 raw captures remain
@@ -44,7 +43,7 @@ The current architecture is Pi-only:
 
 ## What the product currently retains
 
-The judge-evidence source candidate adds bounded tool completion facts and exact
+The current release retains bounded tool completion facts and exact
 private judge-input artifacts to run/grade/regate. Saved evidence must match the
 original digest, identity and assistant turns; unbound historical evidence stays
 unknown. See [JUDGE-EVIDENCE.md](JUDGE-EVIDENCE.md). This changes judge prompts,
@@ -105,14 +104,13 @@ generated adapter modules; use the vendoring/check scripts named in `AGENTS.md`.
 
 The exact Pi1.0.4 OAuth subscription comparison is separate from optional metered JEV. Reports preserve grouped splits, independent labels, abstention/error coverage and model/prompt identities. Synthetic fixtures qualify plumbing only. OpenAI Decisions remains excluded. See [the npm acceptance walkthrough](https://github.com/mojomanyana/skill-harness/blob/main/docs/DECISION-LEARNING.md) and the [data contracts](https://github.com/mojomanyana/skill-harness/blob/main/experiments/decision-shadow/LEARNING-WORKFLOW.md).
 
-## Current record ingestion candidate
+## Current record ingestion
 
-The source candidate adds explicit `pi-daddy-record-v1` ingestion for current native
+The current release includes explicit `pi-daddy-record-v1` ingestion for current native
 pi-daddy ledger envelopes. See [the compatibility contract](PI-DADDY-RECORD-COMPATIBILITY.md).
-Historical bare-v3 and v2 inputs retain their separate pins. Published 0.24.2 does
-not include this new adapter. A source pin alone is not evidence of publication.
+Historical bare-v3 and v2 inputs retain their separate pins.
 
-## Convergence candidate
+## Workflow integration
 
 `jev_advice` now returns matching text/details/native structuredContent and declares
 its output schema. Pi1.1.0 native tool-only Codemode plus Principal's adapter are

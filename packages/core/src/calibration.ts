@@ -15,6 +15,8 @@ export interface CalibrationControl {
   id: string;
   scenarioId: string;
   expected: "PASS" | "FAIL";
+  /** Optional reviewed votes in checklist order. Labels are never included in the judge prompt. */
+  expectedCriteria?: ("PASS" | "FAIL")[];
   kind: "authored" | "saved" | "equivalent";
   /** Complete production-shaped transcript, including any seeded trailers. Never just its extracted answer. */
   transcript: string;
@@ -86,6 +88,14 @@ function validateManifest(manifest: CalibrationManifest, manifestPath: string, m
     ids.add(control.id);
     const scenario = spec.scenarios.find(s => s.id === control.scenarioId);
     if (!scenario) throw new Error(`Unknown calibration scenario: ${control.scenarioId}`);
+    if (control.expectedCriteria !== undefined) {
+      if (!Array.isArray(control.expectedCriteria) || control.expectedCriteria.length !== scenario.checklist.length ||
+          !control.expectedCriteria.length || [...control.expectedCriteria].some(vote => vote !== "PASS" && vote !== "FAIL")) {
+        throw new Error(`${control.id}: expectedCriteria must contain one PASS or FAIL per checklist item in order`);
+      }
+      const expected = control.expectedCriteria.every(vote => vote === "PASS") ? "PASS" : "FAIL";
+      if (expected !== control.expected) throw new Error(`${control.id}: expectedCriteria must agree with the overall expected label`);
+    }
     const references = resolveJudgeReferences(scenario, specDir);
     if (rubricDigest(scenario, specDir, references) !== control.rubricSha256) throw new Error(`Calibration reference/rubric changed: ${control.id}`);
     if (control.review.status !== "accepted" || typeof control.review.by !== "string" || !control.review.by.trim()) issues.push(`${control.id}: expected label needs author review`);
@@ -144,8 +154,8 @@ export function prepareCalibration(options: { specPath: string; manifestPath?: s
     controls: options.controls.map(control => {
       const scenario = spec.scenarios.find(s => s.id === control.scenarioId);
       if (!scenario) throw new Error(`Unknown calibration scenario: ${control.scenarioId}`);
-      const { id, scenarioId, expected, kind, transcript, rationale, equivalentTo, review, provenance, sourceTranscript, trace } = control;
-      return { id, scenarioId, expected, kind, transcript, rationale, equivalentTo, review, provenance, sourceTranscript, trace,
+      const { id, scenarioId, expected, expectedCriteria, kind, transcript, rationale, equivalentTo, review, provenance, sourceTranscript, trace } = control;
+      return { id, scenarioId, expected, expectedCriteria, kind, transcript, rationale, equivalentTo, review, provenance, sourceTranscript, trace,
         ...(sourceTranscript ? { sourceTranscriptSha256: hash(readFileSync(selectedFile(specDir, sourceTranscript))) } : {}),
         transcriptSha256: hash(transcript), rubricSha256: rubricDigest(scenario, specDir) };
     }),
@@ -220,6 +230,7 @@ function calibrationPlan(loaded: LoadedCalibration, options: CalibrationSelectio
     for (const control of selected) {
       const prior = inputs.controls.find((candidate: BoundControl) => candidate.id === control.id);
       if (!prior || summary.errors.includes(control.id) || summary.unrun.includes(control.id)) continue;
+      // Criterion expectations are review metadata: replay verified votes against the current expectations.
       if (prior.scenarioId !== control.scenarioId || prior.expected !== control.expected || prior.prompt !== control.prompt ||
           prior.transcript !== control.transcript || prior.transcriptSha256 !== control.transcriptSha256 ||
           prior.rubricSha256 !== control.rubricSha256 || prior.review?.status !== "accepted" || !prior.review.by?.trim()) continue;
@@ -253,7 +264,9 @@ function calibrationPlan(loaded: LoadedCalibration, options: CalibrationSelectio
       const consistent = parsed.verdict === "PASS" ? parsed.criteria.every(vote => vote.verdict === "PASS") : parsed.criteria.some(vote => vote.verdict === "FAIL");
       if (result.suspect || !consistent || parsed.verdict !== result.verdict || parsed.reason !== result.reason ||
           JSON.stringify(parsed.criteria) !== JSON.stringify(result.criteria)) throw new Error(`Invalid prior judgment: ${control.id} in ${directory}`);
-      if (retained.has(control.id) && retained.get(control.id)!.result.verdict !== result.verdict) {
+      const previous = retained.get(control.id)?.result;
+      if (previous && (previous.verdict !== result.verdict ||
+          previous.criteria.some((vote, index) => vote.verdict !== result.criteria[index]?.verdict))) {
         plan.issues.push(`${control.id}: prior judgments disagree; inspect them or select a fresh run explicitly`);
         continue;
       }
@@ -282,6 +295,8 @@ export interface CalibrationSummary {
   status: "matched" | "mismatch" | "error";
   calibrationScope: "answer-judge"; executionGates: "not-evaluated"; availableCases: number; partial: boolean;
   disagreements: { id: string; expected: "PASS" | "FAIL"; observed: "PASS" | "FAIL" }[];
+  /** Reviewed per-criterion mismatches, including matching overall FAIL verdicts for different reasons. */
+  criterionDisagreements: { id: string; index: number; expected: "PASS" | "FAIL"; observed: "PASS" | "FAIL" }[];
   reused: { id: string; source: CalibrationReuseSource }[];
   /** Legacy direction aliases for label disagreements, not adjudicated judge errors. */
   falsePasses: string[]; falseFailures: string[]; errors: string[]; unrun: string[]; output: string;
@@ -309,7 +324,7 @@ export async function runCalibration(loaded: LoadedCalibration, options: {
     schema: 1, purpose: "judge-calibration", modelQualityScore: false, manifestSha256: current.manifestSha256,
     judge: options.judge, cases: selected.length, completed: 0, matched: 0, judgeCalls: 0,
     calibrationScope: "answer-judge", executionGates: "not-evaluated", availableCases: current.controls.length,
-    partial: plan.partial, disagreements: [], reused: [],
+    partial: plan.partial, disagreements: [], criterionDisagreements: [], reused: [],
     status: "matched", falsePasses: [], falseFailures: [], errors: [], unrun: [], output,
   };
   for (const [index, control] of selected.entries()) {
@@ -352,15 +367,21 @@ export async function runCalibration(loaded: LoadedCalibration, options: {
       summary.unrun = selected.slice(index + 1).map(c => c.id);
       break;
     }
-    if (!retained.has(control.id)) save(`${control.id}.result.json`, { expected: control.expected, ...result });
-    if ((result.verdict !== "PASS" && result.verdict !== "FAIL") || result.suspect) {
+    if (!retained.has(control.id)) save(`${control.id}.result.json`, { expected: control.expected, expectedCriteria: control.expectedCriteria, ...result });
+    if ((result.verdict !== "PASS" && result.verdict !== "FAIL") || result.suspect ||
+        result.criteria.length !== scenario.checklist.length || result.criteria.some(vote => vote.verdict !== "PASS" && vote.verdict !== "FAIL")) {
       summary.errors.push(control.id);
       summary.unrun = selected.slice(index + 1).map(c => c.id);
       break;
     }
     summary.completed++;
-    if (result.verdict === control.expected) summary.matched++;
-    else {
+    const criterionDisagreements = (control.expectedCriteria ?? []).flatMap((expected, offset) => {
+      const observed = result.criteria[offset].verdict;
+      return observed !== "ERROR" && observed !== expected ? [{ id: control.id, index: offset + 1, expected, observed }] : [];
+    });
+    summary.criterionDisagreements.push(...criterionDisagreements);
+    if (result.verdict === control.expected && !criterionDisagreements.length) summary.matched++;
+    if (result.verdict !== control.expected) {
       summary.disagreements.push({ id: control.id, expected: control.expected, observed: result.verdict });
       if (result.verdict === "PASS") summary.falsePasses.push(control.id);
       else summary.falseFailures.push(control.id);
