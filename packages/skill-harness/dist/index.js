@@ -6723,6 +6723,20 @@ function inspectEvalAuthoring(spec, profile = {}) {
     }
     for (const call of s.traceAssert?.require_calls ?? []) {
       const pattern = call.args?.path?.matches;
+      const literal = call.args?.path?.equals;
+      if (call.tool === "read" && typeof literal === "string" && ["^", "$", "(", "[", ".*", ".+", "\\d", "\\s", "\\w"].some((token) => literal.includes(token))) {
+        const files = profile.fixtureFiles?.(s) ?? [];
+        const normalize6 = (file) => file.replaceAll("\\", "/").replace(/^\.\//, "");
+        if (!files.some((file) => normalize6(file) === normalize6(literal))) {
+          try {
+            const expression = new RegExp(literal);
+            if (files.some((file) => expression.test(file))) {
+              add("LITERAL_PATH_PATTERN", `Required read path ${JSON.stringify(literal)} uses literal equality, but matches fixture names as a regular expression. If a pattern was intended, use args.path.matches; retain literal equality for an intended filename. This is an authoring hint, not an execution failure.`);
+            }
+          } catch {
+          }
+        }
+      }
       if (tools && !tools.includes(call.tool)) {
         findings.push({ scenario: s.id, code: "UNAVAILABLE_REQUIRED_TOOL", severity: "error", message: `Required tool ${call.tool} is excluded by the explicit Pi tool filter.` });
       }

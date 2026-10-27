@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.32.1 — 2026-10-27
+
+- Warn during evaluation preflight when a required read-path string looks like a regular expression and matches a supplied fixture only as a pattern. Recommend explicit `matches` syntax before spending model calls; literal equality and existing evaluation gates remain unchanged.
+- Preserve legitimate pattern-like filenames and avoid speculative warnings when no supplied fixture supports the diagnosis.
+
 ## 0.32.0 — 2026-10-23
 
 - Add optional reviewed checklist votes to calibration controls. A matching overall failure no longer counts as calibrated when it fails different criteria; report criterion disagreements separately from overall verdict disagreements. Existing controls remain compatible.

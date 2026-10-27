@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { inspectEvalAuthoring } from "../src/authoring-preflight.js";
 import { loadSpec } from "../src/spec.js";
 import { lintSkill, failsGate } from "../src/lint.js";
+import { evaluateTraceGates } from "../src/trace-gates.js";
 
 function withSpec(check: (dir: string) => void) {
   const dir = mkdtempSync(join(tmpdir(), "authoring-"));
@@ -106,4 +107,56 @@ it("uses the actual declared tool filter and fixture names in ordinary lint", ()
   writeFileSync(path, JSON.stringify(raw));
   findings = lintSkill(dir);
   expect(findings.some(f => f.message.startsWith("UNAVAILABLE_REQUIRED_TOOL") && failsGate(f))).toBe(true);
+}));
+
+it("warns about a regex-looking literal read gate while leaving explicit matching and real literals valid", () => withSpec(dir => {
+  const path = join(dir, "tests/specification.yaml");
+  const raw = JSON.parse(readFileSync(path, "utf8"));
+  mkdirSync(join(dir, "tests/fixture"));
+  writeFileSync(join(dir, "tests/fixture/release.txt"), "Current release facts.\n");
+  raw.scenarios[0].env = { tools: ["read"], workspace: "fixture:fixture" };
+  const pattern = String.raw`(^|[/\\])release[.]txt$`;
+  const required = { tool: "read", args: { path: pattern }, outcome: "success" };
+  raw.scenarios[0].assert.trace.require_calls = [required];
+  const inspect = () => {
+    writeFileSync(path, JSON.stringify(raw));
+    const spec = loadSpec(path);
+    const findings = lintSkill(dir);
+    return { spec, findings, hints: findings.filter(f => f.message.startsWith("LITERAL_PATH_PATTERN")) };
+  };
+  const trace = {
+    tool_calls: [{ id: "read", name: "read", args: { path: "release.txt" }, issueIndex: 0, completionIndex: 0, isError: false }],
+    changed_paths: [],
+  } as unknown as Parameters<typeof evaluateTraceGates>[1];
+  let result = inspect();
+  expect(result.spec.scenarios[0].traceAssert?.require_calls?.[0].args?.path).toEqual({ equals: pattern });
+  expect(evaluateTraceGates(result.spec.scenarios[0].traceAssert!, trace).status).toBe("FAIL");
+  expect(result.hints).toHaveLength(1);
+  expect(result.hints[0].message).toContain("args.path.matches");
+  expect(result.findings.some(failsGate)).toBe(false);
+
+  raw.scenarios[0].assert.trace.require_calls[0].args.path = { matches: pattern };
+  result = inspect();
+  expect(result.hints).toEqual([]);
+  expect(evaluateTraceGates(result.spec.scenarios[0].traceAssert!, trace).status).toBe("PASS");
+
+  raw.scenarios[0].assert.trace.require_calls[0].args.path = "release.txt";
+  result = inspect();
+  expect(result.hints).toEqual([]);
+  expect(evaluateTraceGates(result.spec.scenarios[0].traceAssert!, trace).status).toBe("PASS");
+}));
+
+it("does not mistake a real metacharacter filename for a broken pattern or invent missing inventory", () => withSpec(dir => {
+  const spec = loadSpec(join(dir, "tests/specification.yaml"));
+  const rule = spec.scenarios[0].traceAssert!.require_calls![0];
+  rule.args = { path: { equals: "release[1].txt" } };
+  const hints = (files?: string[]) => inspectEvalAuthoring(spec, files ? { fixtureFiles: () => files } : {})
+    .filter(f => f.code === "LITERAL_PATH_PATTERN");
+  expect(hints(["release[1].txt", "release1.txt"])).toEqual([]);
+  expect(hints(["release1.txt"])).toHaveLength(1);
+  expect(hints(["unrelated.md"])).toEqual([]);
+  expect(hints()).toEqual([]);
+  rule.args.path.equals = "[not-a-pattern";
+  expect(() => hints(["release1.txt"])).not.toThrow();
+  expect(hints(["release1.txt"])).toEqual([]);
 }));
