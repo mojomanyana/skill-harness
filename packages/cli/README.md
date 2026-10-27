@@ -9,7 +9,7 @@ through Pi.
 Most users should install the `skill-harness` meta-package (`npm i -g
 skill-harness`) instead of this package directly.
 
-Fresh subject execution supports **Pi 1.0.4 and 1.1.0**. Other or unavailable
+Fresh subject execution supports **Pi 1.0.4, 1.1.0 and 1.4.0**. Other or unavailable
 versions produce execution ERROR before a subject call. Retained results remain
 readable; the historical Pi 0.83.0 raw parser is not current qualification.
 

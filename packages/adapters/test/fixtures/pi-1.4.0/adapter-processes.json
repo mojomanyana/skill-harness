@@ -1,0 +1,26 @@
+[
+  {
+    "pid": 20026,
+    "code": 0,
+    "signal": null,
+    "groupGone": true,
+    "bytes": 6,
+    "elapsedMs": 1043
+  },
+  {
+    "pid": 21780,
+    "code": 0,
+    "signal": null,
+    "groupGone": true,
+    "bytes": 1172,
+    "elapsedMs": 4322
+  },
+  {
+    "pid": 21942,
+    "code": 1,
+    "signal": null,
+    "groupGone": true,
+    "bytes": 1722,
+    "elapsedMs": 9788
+  }
+]

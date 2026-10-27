@@ -1,0 +1,82 @@
+{
+  "transcript": ">>> USER (turn 1/2):\nRead release.txt and answer whether Acorn Cache 2.0 supports offline reads.\n\n<<< ASSISTANT:\nAcorn Cache 2.0 supports offline reads. Source: release.txt:1.\n\n>>> USER (turn 2/2):\nSECOND_TURN: acknowledge this second turn.\n\n<<< ASSISTANT:\nSECOND_TURN_RECEIPT\n",
+  "traces": [
+    {
+      "trace_version": 2,
+      "pi_version": "1.4.0",
+      "subject": {
+        "provider": "local",
+        "model": "multi-turn"
+      },
+      "scenario_id": "multi-turn",
+      "mode": "red",
+      "rep": 0,
+      "turn": 0,
+      "final_text": "Acorn Cache 2.0 supports offline reads. Source: release.txt:1.",
+      "final_status": "complete",
+      "tool_calls": [
+        {
+          "id": "fixture-19",
+          "name": "read",
+          "args": {
+            "path": "release.txt"
+          },
+          "issueIndex": 0,
+          "started_at": "2026-10-27T15:55:19.288Z",
+          "completionIndex": 0,
+          "isError": false,
+          "result": {
+            "bytes": 68,
+            "sha256": "29a93d9f9b2da27c417d1f32d56ce54dab891df3fc5709af7629c307b549f757"
+          },
+          "completed_at": "2026-10-27T15:55:19.342Z"
+        }
+      ],
+      "changed_paths": null,
+      "cost_usd": null,
+      "metrics": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_write_tokens": null,
+        "cost_usd": null,
+        "cost_source": "unreported",
+        "price_as_of": "2026-10-01",
+        "tool_calls": 1,
+        "delegated_children": 0,
+        "max_concurrency": 1
+      },
+      "trace_sha256": "beaf3ecb2cb0b084d50307e06466904a0f5922667982b979bffca2d794c2f912"
+    },
+    {
+      "trace_version": 2,
+      "pi_version": "1.4.0",
+      "subject": {
+        "provider": "local",
+        "model": "multi-turn"
+      },
+      "scenario_id": "multi-turn",
+      "mode": "red",
+      "rep": 0,
+      "turn": 1,
+      "final_text": "SECOND_TURN_RECEIPT",
+      "final_status": "complete",
+      "tool_calls": [],
+      "changed_paths": null,
+      "cost_usd": null,
+      "metrics": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_write_tokens": null,
+        "cost_usd": null,
+        "cost_source": "unreported",
+        "price_as_of": "2026-10-01",
+        "tool_calls": 0,
+        "delegated_children": 0,
+        "max_concurrency": 0
+      },
+      "trace_sha256": "60e4358658db96c08c981dc50c12173e366a600f11a72d0487f43477e641311d"
+    }
+  ]
+}

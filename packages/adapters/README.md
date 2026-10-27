@@ -4,7 +4,7 @@ Harness adapters for [skill-harness](https://github.com/mojomanyana/skill-harnes
 the Pi subject/judge runner, the frozen pi-daddy 0.17/v2
 normalizer, and the separately pinned production ledger-v3 normalizer.
 
-Fresh subject execution supports **Pi 1.0.4 and 1.1.0**. Other or unavailable
+Fresh subject execution supports **Pi 1.0.4, 1.1.0 and 1.4.0**. Other or unavailable
 versions produce execution ERROR before a subject call. Retained results remain
 readable; the historical Pi 0.83.0 raw parser is not current qualification.
 

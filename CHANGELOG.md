@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.32.2 — 2026-10-27
+
+- Qualify exact Pi 1.4.0 for fresh subject execution using native scripted transport captures and the supported adapter and scoring pipeline. Other unqualified versions still fail before subject execution. Real model quality, subscription authentication and OS containment remain separate qualifications.
+
 ## 0.32.1 — 2026-10-27
 
 - Warn during evaluation preflight when a required read-path string looks like a regular expression and matches a supplied fixture only as a pattern. Recommend explicit `matches` syntax before spending model calls; literal equality and existing evaluation gates remain unchanged.
