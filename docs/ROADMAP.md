@@ -40,7 +40,12 @@ implementation. The existing Pi subject-runtime qualification pin remains explic
 
 ## Current state
 
-- Published release: `0.32.0` (2026-10-23, PR117); fresh end-to-end acceptance remains outstanding.
+- Published baseline: `0.32.0` (2026-10-23, PR117). Source candidate `0.32.1`
+  adds a fixture-aware warning for regex-like literal read paths without changing gates.
+- Local Pi 1.1.0 authoring, calibration, exact judgment reuse, red/force evaluation,
+  diagnosis and native readonly-child acceptance completed on 2026-10-27. The
+  generated skill remains NOT READY (3/4 scenarios); autonomous selection and UI
+  acceptance remain untested. Publication is verified separately.
 - Fresh runs write results schema 2.
 - Historical schema 1–3 results remain readable for compatibility.
 - Pi is the only execution path for subject, judge, and `suggest` model calls.

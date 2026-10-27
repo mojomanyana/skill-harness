@@ -2,6 +2,10 @@
 
 ## Current state
 
+`0.32.1` is the current source candidate: a fixture-aware authoring warning for
+regex-like literal read paths. Gate semantics are unchanged. Verify the registry
+and release tag before treating the candidate as published.
+
 `0.32.0` is published and tagged (2026-10-23, PR117, merge `6a3dcc3`), with
 package/install checks verified. It retains
 guided authoring, source/reference preflight, answer calibration separated from
@@ -26,10 +30,14 @@ pi-daddy wrappers. Separate eval repos use `--specs`. Shared `preflight`, `calib
 and `diagnose` replace skill-specific setup scripts.
 
 Published artifacts and clean installed resource loading were verified separately
-from model quality. A fresh end-to-end acceptance remains outstanding; publication
-does not establish it. Reuse matching saved answers before scheduling fresh subject
-calls. Local tests imply no provider calls or new model qualification. Historical
-releases remain in the changelog.
+from model quality. Local Pi 1.1.0 acceptance on 2026-10-27 exercised Sol authoring,
+Astra calibration (12/12 accepted controls and 60/60 criterion votes), exact saved
+judgment reuse without new calls, red/force evaluation, diagnosis and one native
+governed readonly child. The generated skill passed 6/8 force answers and 3/4
+scenarios; its remaining critical editorial failure still blocks readiness.
+This does not qualify autonomous selection, the Herdr UI or whole-host health.
+Reuse matching saved answers before scheduling fresh subject calls. Historical
+releases and scores remain unchanged.
 
 Fresh subject execution is qualified on exact Pi **1.0.4 and 1.1.0**. Other or unknown
 versions fail closed before subject spawn. Historical Pi 0.83.0 raw captures remain
