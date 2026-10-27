@@ -2,14 +2,15 @@
 
 ## Current state
 
-`0.31.0` is published and tagged, with package/install checks verified. It retains
+`0.32.0` is published and tagged (2026-10-23, PR117, merge `6a3dcc3`), with
+package/install checks verified. It retains
 guided authoring, source/reference preflight, answer calibration separated from
 execution gates, saved-evidence diagnosis and selective reuse. Run, grade and
 calibration save bounded resource summaries. Linux process groups are sampled and
 settled after interruption; optional memory/write limits are sampled controls, not
 OS quotas or an explanation of the reported host freeze.
 
-The current `0.32.0` candidate adds optional ordered `expectedCriteria` to authored
+The `0.32.0` release adds optional ordered `expectedCriteria` to authored
 controls, so an overall verdict match cannot hide a failure for the wrong reason.
 Expectations remain human-reviewed and excluded from judge inputs. When only those
 expectations change, exact prompt-bound raw votes can be reused without fresh model
@@ -24,10 +25,11 @@ runs in the current Pi model; generated skills need Pi alone, with optional sepa
 pi-daddy wrappers. Separate eval repos use `--specs`. Shared `preflight`, `calibrate`
 and `diagnose` replace skill-specific setup scripts.
 
-The `0.32.0` candidate is not yet a publication or a new remote quality acceptance.
-Verify release artifacts separately, then reuse saved answers in the next Linux
-acceptance before scheduling fresh subject calls. Local tests imply no provider
-calls or new model qualification. Historical releases remain in the changelog.
+Published artifacts and clean installed resource loading were verified separately
+from model quality. A fresh end-to-end acceptance remains outstanding; publication
+does not establish it. Reuse matching saved answers before scheduling fresh subject
+calls. Local tests imply no provider calls or new model qualification. Historical
+releases remain in the changelog.
 
 Fresh subject execution is qualified on exact Pi **1.0.4 and 1.1.0**. Other or unknown
 versions fail closed before subject spawn. Historical Pi 0.83.0 raw captures remain

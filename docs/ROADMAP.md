@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-10-23
+Last updated: 2026-10-27
 
 `skill-harness` develops, evaluates and improves skills through Pi and a selected
 model. It starts from a user's idea or imports a selected skill. Generated skills
@@ -26,7 +26,7 @@ run → grade → review loop stays free of product paywalls.
 Live acceptance and published artifacts must be verified separately from source
 implementation. The existing Pi subject-runtime qualification pin remains explicit.
 
-## Current implementation batch — 0.32.0 candidate
+## Released — 0.32.0
 
 - Review every positive control against common requirements and its scenario's
   complete contract. Keep source facts local to each fixture, define count/disclosure
@@ -40,7 +40,7 @@ implementation. The existing Pi subject-runtime qualification pin remains explic
 
 ## Current state
 
-- Published release: `0.31.0`; current source candidate: `0.32.0`.
+- Published release: `0.32.0` (2026-10-23, PR117); fresh end-to-end acceptance remains outstanding.
 - Fresh runs write results schema 2.
 - Historical schema 1–3 results remain readable for compatibility.
 - Pi is the only execution path for subject, judge, and `suggest` model calls.

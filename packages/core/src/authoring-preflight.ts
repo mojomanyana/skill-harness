@@ -5,7 +5,7 @@ import { MARKERS } from "./workspace.js";
 
 export interface AuthoringFinding {
   scenario: string;
-  code: "INPUT_DISCOVERY" | "READ_COUNT" | "PATH_PORTABILITY" | "COMMAND_SPELLING" | "TEST_SYNTAX" | "CITATION_FORMAT" | "UNAVAILABLE_FORBIDDEN_TOOL" | "UNAVAILABLE_REQUIRED_TOOL" | "JUDGE_REFERENCE_GAP" | "MISSING_COVERAGE_MAP";
+  code: "INPUT_DISCOVERY" | "READ_COUNT" | "PATH_PORTABILITY" | "LITERAL_PATH_PATTERN" | "COMMAND_SPELLING" | "TEST_SYNTAX" | "CITATION_FORMAT" | "UNAVAILABLE_FORBIDDEN_TOOL" | "UNAVAILABLE_REQUIRED_TOOL" | "JUDGE_REFERENCE_GAP" | "MISSING_COVERAGE_MAP";
   severity?: "error";
   message: string;
 }
@@ -37,6 +37,21 @@ export function inspectEvalAuthoring(spec: Spec, profile: {
     }
     for (const call of s.traceAssert?.require_calls ?? []) {
       const pattern = call.args?.path?.matches;
+      const literal = call.args?.path?.equals;
+      if (call.tool === "read" && typeof literal === "string" && ["^", "$", "(", "[", ".*", ".+", "\\d", "\\s", "\\w"].some(token => literal.includes(token))) {
+        const files = profile.fixtureFiles?.(s) ?? [];
+        const normalize = (file: string) => file.replaceAll("\\", "/").replace(/^\.\//, "");
+        // A metacharacter can belong to a real filename. Warn only when the supplied
+        // fixture inventory supports the regex interpretation but not the literal.
+        if (!files.some(file => normalize(file) === normalize(literal))) {
+          try {
+            const expression = new RegExp(literal);
+            if (files.some(file => expression.test(file))) {
+              add("LITERAL_PATH_PATTERN", `Required read path ${JSON.stringify(literal)} uses literal equality, but matches fixture names as a regular expression. If a pattern was intended, use args.path.matches; retain literal equality for an intended filename. This is an authoring hint, not an execution failure.`);
+            }
+          } catch { /* Invalid regex syntax can still be an intentional literal filename. */ }
+        }
+      }
       if (tools && !tools.includes(call.tool)) {
         findings.push({ scenario: s.id, code: "UNAVAILABLE_REQUIRED_TOOL", severity: "error", message: `Required tool ${call.tool} is excluded by the explicit Pi tool filter.` });
       }
