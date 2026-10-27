@@ -1,0 +1,151 @@
+[
+  {
+    "pid": 19422,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 19430,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 46093,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 19443,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 46093,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 19456,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 46093,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 19468,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 46093,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 19485,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 46093,
+        "allowed": true
+      },
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 46093,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 19498,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 46093,
+        "allowed": true
+      },
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 46093,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 19510,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 46093,
+        "allowed": true
+      },
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 46093,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 19523,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 46093,
+        "allowed": true
+      },
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 46093,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 19536,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 46093,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 19548,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 46093,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  }
+]

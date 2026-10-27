@@ -1,0 +1,158 @@
+{
+  "schema": 1,
+  "producer": "@earendil-works/pi-coding-agent@1.4.0",
+  "recordedAt": "2026-10-27",
+  "harnessBase": "8e2c8af27746987d96e1ceacc7fb58d61d3bc8f4",
+  "harnessCandidateChange": "Exact Pi1.4.0 allowlist entry; behavior otherwise unchanged",
+  "node": "24.19.0",
+  "platform": "Linux x86_64 in WSL",
+  "transport": "scripted loopback OpenAI-compatible provider",
+  "realProviderCalls": 0,
+  "packages": [
+    {
+      "package": "@earendil-works/pi-coding-agent",
+      "version": "1.4.0",
+      "resolved": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.4.0.tgz",
+      "integrity": "sha512-Z41LpZ3yYHSC/UUps6Mr39UMFPwH8elhJBG9DY1P7kuzsE5qSK/6eMj2EHzO5evJRQWLbKSqUMw+4nCNtIyiQg=="
+    },
+    {
+      "package": "@earendil-works/pi-ai",
+      "version": "1.4.0",
+      "resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.4.0.tgz",
+      "integrity": "sha512-hQM/C4+1w8rHYACzDDf+0vQMnEnpzIop1tptIERVgR3ZeT/hHSzBNG8PaWPgxWQjqSeKCyBZSyp8uTT6eKK1pQ=="
+    },
+    {
+      "package": "@earendil-works/pi-agent-core",
+      "version": "1.4.0",
+      "resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.4.0.tgz",
+      "integrity": "sha512-PoKY84SKUwnt7S5QBZaGUqfNO1kjP3KHpHUA9QpFTj4cOjaVWMYIcBPJ6FDRCdE8Zen9OSECQUd0uUfVgtSmgA=="
+    },
+    {
+      "package": "@earendil-works/pi-codemode",
+      "version": "1.4.0",
+      "resolved": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.4.0.tgz",
+      "integrity": "sha512-23CNAXpS9DuLzPMyYuvrXVVio46x4YhffCgCqaWmF7F5H8PooqjrQvX4ucF6M0BhUd+x2tV6r1J0dv8cCME4Cg=="
+    },
+    {
+      "package": "@earendil-works/pi-mcp",
+      "version": "1.4.0",
+      "resolved": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.4.0.tgz",
+      "integrity": "sha512-92aZmmGsUpHHknYuKXZHRINQfahntw5hU9If0I0ZM49GojOaFHpkl5/GF3/aatqpt7v7GjZbBfpfSygGKW+pnw=="
+    },
+    {
+      "package": "@earendil-works/pi-tui",
+      "version": "1.4.0",
+      "resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.4.0.tgz",
+      "integrity": "sha512-4obPOjgOD7g4mGSlngIvxyujC1UPdmyI9zdVthbr8GufacFEX+Ce0+scPgHg++k2xj5+QjESM2d5TxvIuzCVmg=="
+    }
+  ],
+  "files": [
+    {
+      "file": "native-qualification.json",
+      "sha256": "f314f3811620b831bd622b0a3dd2e9d5629797372f52ec84b43c12cefd330295",
+      "bytes": 6229
+    },
+    {
+      "file": "native-network.json",
+      "sha256": "b81366ceef6a849830396b0d75398d6b93b1b5e77c995148928e6c3b41fee8d7",
+      "bytes": 2413
+    },
+    {
+      "file": "native-processes.json",
+      "sha256": "16949a9ca70a22de5dbea60b1fd80e273d0476bc8495dac8b52c43e5e3802517",
+      "bytes": 1393
+    },
+    {
+      "file": "force-transport.jsonl",
+      "sha256": "c77d97815b4c6b8770a930c9c995643aa00980eb2853acb72a097f59865169e1",
+      "bytes": 17101
+    },
+    {
+      "file": "green-transport.jsonl",
+      "sha256": "5393987a346109c8c5b7331e6feff0c887fa11e840860fde0c0f357a6067a8e1",
+      "bytes": 18442
+    },
+    {
+      "file": "red-denied-tool.jsonl",
+      "sha256": "b99536ca80a4f7dab080868e81eac75deb73e5fbb06c216c3041180b142b97ef",
+      "bytes": 16595
+    },
+    {
+      "file": "red-extension-filtered.jsonl",
+      "sha256": "953c7abe6c662a04730aabe6f6d613271c772c35de3e1eb74c42753ab9172924",
+      "bytes": 16334
+    },
+    {
+      "file": "red-extension-ok.jsonl",
+      "sha256": "0616b816ae64a13f6d5bfe6a1d71a76c3316f0bc54a62617a03a617331a3c79a",
+      "bytes": 16720
+    },
+    {
+      "file": "red-length.jsonl",
+      "sha256": "36361dd2be16f28ee5a9e8772bae18fa40d6743b681e27c89aa6a8c8f0f725f4",
+      "bytes": 12377
+    },
+    {
+      "file": "red-mcp-denied.jsonl",
+      "sha256": "e1f860dfcba8835da0a7c900b0574ed37687193f480172d79ee5031dbe9094f2",
+      "bytes": 16338
+    },
+    {
+      "file": "red-provider-error.jsonl",
+      "sha256": "0158ac3944dd3bda8a8d86aa143ee883380e1345a19796568bcbf150c1d38178",
+      "bytes": 11658
+    },
+    {
+      "file": "red-tool-error.jsonl",
+      "sha256": "40cf7e595b99586f36aaeb88836c287891696c9d71b79487f0668435a22fc0d1",
+      "bytes": 16960
+    },
+    {
+      "file": "red-transport.jsonl",
+      "sha256": "ebd9541492942b8186f5e1be2b319c0fb265208a07b11b0fe563b3ec6207d3a1",
+      "bytes": 16471
+    },
+    {
+      "file": "adapter-qualification.json",
+      "sha256": "502d1d07fd0a011070e6e422718308ce815d145daa74d35d28c78e39117db657",
+      "bytes": 2903
+    },
+    {
+      "file": "adapter-network.json",
+      "sha256": "d8fe62f63a509a09b416ed743356d95849a86f7301b908c87c8e8db004341c8b",
+      "bytes": 5312
+    },
+    {
+      "file": "adapter-processes.json",
+      "sha256": "0dae395b0519c2dfa5bfd77c3353e148f6ece0468304733117cd27df86b98a91",
+      "bytes": 378
+    },
+    {
+      "file": "adapter-pipeline.json",
+      "sha256": "33cceb701b4c3469d2e0fa12aa342094e685bbe116f9061114e8bace329a2754",
+      "bytes": 358
+    },
+    {
+      "file": "adapter-multi-turn.result.json",
+      "sha256": "51c69bd346b865e8cc2d33ed6ab11f2be80911d74612d6a5ec4b50c304c84055",
+      "bytes": 2531
+    }
+  ],
+  "captureSources": [
+    {
+      "file": "capture.mjs",
+      "sha256": "0f6879b110f4e47205012b0a1a7079cb917994cacd75c2def7e07853272f5c8c"
+    },
+    {
+      "file": "network-guard.mjs",
+      "sha256": "350296f1718b7f6a1ca62acbcb63b78ce110adb7f74b8d42c182d1f2720706ed"
+    }
+  ],
+  "negativeEvidence": "Provider-error, length, failed read and filtered tools are native captures. Missing settlement mutations are synthetic regression controls only.",
+  "limits": [
+    "No real model, subscription authentication, provider pricing or performance qualification.",
+    "Application-level network hooks permit one scripted loopback endpoint; not an OS sandbox.",
+    "Green verifies discovery, not autonomous skill selection.",
+    "No real MCP server or governed Daddy child qualification in these Harness fixtures."
+  ]
+}

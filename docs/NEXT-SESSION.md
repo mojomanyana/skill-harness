@@ -2,9 +2,10 @@
 
 ## Current state
 
-`0.32.1` is the current source candidate: a fixture-aware authoring warning for
-regex-like literal read paths. Gate semantics are unchanged. Verify the registry
-and release tag before treating the candidate as published.
+`0.32.1` is published and tagged (2026-10-27, PR118, merge `8e2c8af`): a
+fixture-aware authoring warning for regex-like literal read paths. Gate semantics
+are unchanged. The current unreleased change qualifies exact Pi 1.4.0 transport;
+see `packages/adapters/test/fixtures/pi-1.4.0/README.md` for evidence and scope.
 
 `0.32.0` is published and tagged (2026-10-23, PR117, merge `6a3dcc3`), with
 package/install checks verified. It retains
@@ -39,7 +40,7 @@ This does not qualify autonomous selection, the Herdr UI or whole-host health.
 Reuse matching saved answers before scheduling fresh subject calls. Historical
 releases and scores remain unchanged.
 
-Fresh subject execution is qualified on exact Pi **1.0.4 and 1.1.0**. Other or unknown
+Fresh subject execution is qualified on exact Pi **1.0.4, 1.1.0 and 1.4.0**. Other or unknown
 versions fail closed before subject spawn. Historical Pi 0.83.0 raw captures remain
 readable through their explicit legacy parser; they are not current qualification.
 See the README's Pi qualification section and shared final conformance table.

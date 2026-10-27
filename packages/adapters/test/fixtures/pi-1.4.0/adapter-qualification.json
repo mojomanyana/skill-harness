@@ -1,0 +1,111 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "stage": "adapter",
+  "producer": "@earendil-works/pi-coding-agent@1.4.0",
+  "versions": {
+    "pi-coding-agent": "1.4.0",
+    "pi-ai": "1.4.0",
+    "pi-agent-core": "1.4.0",
+    "pi-codemode": "1.4.0",
+    "pi-mcp": "1.4.0",
+    "pi-tui": "1.4.0"
+  },
+  "node": "v24.19.0",
+  "harnessVersion": "0.32.1",
+  "runs": [
+    {
+      "mode": "red",
+      "model": "transport",
+      "finalStatus": "complete",
+      "executionFailure": null
+    },
+    {
+      "mode": "green",
+      "model": "transport",
+      "finalStatus": "complete",
+      "executionFailure": null
+    },
+    {
+      "mode": "force",
+      "model": "transport",
+      "finalStatus": "complete",
+      "executionFailure": null
+    },
+    {
+      "mode": "red",
+      "model": "tool-error",
+      "finalStatus": "complete",
+      "executionFailure": null
+    },
+    {
+      "mode": "red",
+      "model": "denied-tool",
+      "finalStatus": "complete",
+      "executionFailure": null
+    },
+    {
+      "mode": "red",
+      "model": "mcp-denied",
+      "finalStatus": "complete",
+      "executionFailure": null
+    },
+    {
+      "mode": "red",
+      "model": "extension-ok",
+      "finalStatus": "complete",
+      "executionFailure": null
+    },
+    {
+      "mode": "red",
+      "model": "extension-filtered",
+      "finalStatus": "complete",
+      "executionFailure": null
+    },
+    {
+      "mode": "red",
+      "model": "length",
+      "finalStatus": "truncated",
+      "executionFailure": "Pi 1.4.0 turn 1/1: final delivery truncated (exit 0); Pi 1.4.0 final delivery is truncated; settled assistant reached its output length limit"
+    },
+    {
+      "mode": "red",
+      "model": "provider-error",
+      "finalStatus": "error",
+      "executionFailure": "Pi 1.4.0 turn 1/1: final delivery error (exit 0); Pi 1.4.0 final delivery is error; settled assistant stop reason is error"
+    },
+    {
+      "mode": "red",
+      "model": "multi-turn",
+      "turns": 2,
+      "finalStatuses": [
+        "complete",
+        "complete"
+      ]
+    }
+  ],
+  "files": [],
+  "scriptedRequests": 32,
+  "realProviderCalls": 0,
+  "unchangedSource": true,
+  "allDirectProcessGroupsGone": true,
+  "allObservedProcessesGone": true,
+  "networkGuard": "application-level single-loopback-endpoint",
+  "blockedNetworkAttempts": 0,
+  "isolatedHome": true,
+  "limits": [
+    "Scripted answers and grades do not qualify model quality or authentication.",
+    "Green checks description discovery, not autonomous skill selection.",
+    "No OS network containment, governed Daddy child, real MCP server or provider performance claim."
+  ],
+  "captureSources": [
+    {
+      "file": "capture.mjs",
+      "sha256": "0f6879b110f4e47205012b0a1a7079cb917994cacd75c2def7e07853272f5c8c"
+    },
+    {
+      "file": "network-guard.mjs",
+      "sha256": "350296f1718b7f6a1ca62acbcb63b78ce110adb7f74b8d42c182d1f2720706ed"
+    }
+  ]
+}

@@ -6,7 +6,7 @@ draft the skill and evaluation cases, review judge controls, and inspect results
 Authoring requires Pi with a selected model. All subject and judge calls also
 run through Pi.
 
-Fresh subject execution supports **Pi 1.0.4 and 1.1.0**. Other or unavailable
+Fresh subject execution supports **Pi 1.0.4, 1.1.0 and 1.4.0**. Other or unavailable
 versions produce execution ERROR before a subject call. Retained results remain
 readable; the historical Pi 0.83.0 raw parser is not current qualification.
 

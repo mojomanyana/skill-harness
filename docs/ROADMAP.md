@@ -40,8 +40,10 @@ implementation. The existing Pi subject-runtime qualification pin remains explic
 
 ## Current state
 
-- Published baseline: `0.32.0` (2026-10-23, PR117). Source candidate `0.32.1`
-  adds a fixture-aware warning for regex-like literal read paths without changing gates.
+- Published baseline: `0.32.1` (2026-10-27, PR118), adding a fixture-aware warning
+  for regex-like literal read paths without changing gates. The current unreleased
+  change qualifies exact Pi 1.4.0 transport through scripted native fixtures;
+  real provider authentication and model quality remain separately measured.
 - Local Pi 1.1.0 authoring, calibration, exact judgment reuse, red/force evaluation,
   diagnosis and native readonly-child acceptance completed on 2026-10-27. The
   generated skill remains NOT READY (3/4 scenarios); autonomous selection and UI

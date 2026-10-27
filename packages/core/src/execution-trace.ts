@@ -26,7 +26,7 @@ import type { ModelRef, RunMode } from "./adapters/types.js";
 
 /** Preferred historical pin; fresh execution accepts only the explicit fixture-qualified releases below. */
 export const QUALIFIED_PI_VERSION = "1.0.4";
-export const QUALIFIED_PI_VERSIONS = ["1.0.4", "1.1.0"] as const;
+export const QUALIFIED_PI_VERSIONS = ["1.0.4", "1.1.0", "1.4.0"] as const;
 /** Historical raw captures from this version remain readable; this is not fresh-run qualification. */
 const LEGACY_PI_TRACE_VERSION = "0.83.0";
 export function piQualificationFailure(version: string | null): string | null {

@@ -198,7 +198,7 @@ harness CLI it drove — `pi --version`), and the run banner and `--version` bot
 former. `schema` cannot answer either question: 0.2.1 → 0.3.0 kept `schema: 2` while
 changing what a verdict *means*.
 
-Fresh subject execution supports exact Pi **1.0.4 or 1.1.0**. The version probe uses the
+Fresh subject execution supports exact Pi **1.0.4, 1.1.0 or 1.4.0**. The version probe uses the
 same working directory and environment as the subject, including an arm's `PATH`.
 Other versions or a failed probe produce a saved execution ERROR before subject
 spawn; saved regrading preserves that failure. Historical result files remain

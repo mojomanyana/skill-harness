@@ -5573,7 +5573,7 @@ var init_execution_trace = __esm({
     init_trace_gates();
     init_capture_trace_types();
     init_redaction();
-    QUALIFIED_PI_VERSIONS = ["1.0.4", "1.1.0"];
+    QUALIFIED_PI_VERSIONS = ["1.0.4", "1.1.0", "1.4.0"];
     LEGACY_PI_TRACE_VERSION = "0.83.0";
     SKIPPED = /* @__PURE__ */ new Set(["message_update", "tool_execution_update"]);
     MAX_DETAILS_CHARS = 2e3;

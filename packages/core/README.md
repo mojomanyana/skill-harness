@@ -16,7 +16,7 @@ model-quality score. See
 [EVAL-AUTHORING.md](https://github.com/mojomanyana/skill-harness/blob/main/docs/EVAL-AUTHORING.md)
 and [JUDGE-EVIDENCE.md](https://github.com/mojomanyana/skill-harness/blob/main/docs/JUDGE-EVIDENCE.md).
 
-Fresh Pi execution is qualified for exact versions **1.0.4 and 1.1.0**.
+Fresh Pi execution is qualified for exact versions **1.0.4, 1.1.0 and 1.4.0**.
 Other versions require separate transport qualification.
 
 ESM, Node ≥ 20.
