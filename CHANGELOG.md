@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.32.4 — 2026-10-28
+
+- Add optional author-declared criterion dimensions and offline saved-evidence reporting in `diagnose`, with a readable `--format text` view. Separate task correctness, additional method completeness and mixed criteria without changing recorded votes, grades or acceptance gates.
+- Verify saved rubric and judge-input bindings before grouping votes. Missing or damaged evidence stays unavailable; mixed criteria remain indivisible. No model calls or result mutations are needed.
+- Guide authors to keep independently decidable requirements separate where useful. Dimension metadata does not bypass calibration manifest identity checks or human label review.
+
 ## 0.32.3 — 2026-10-28
 
 - Guide skill and evaluation authors to distinguish required behavior, optional improvements and issues that justify blocking acceptance. Separate factual support from severity, allow supported alternatives under the same contract, and challenge positive controls with plausible contract-breaking behavior.

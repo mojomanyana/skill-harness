@@ -2,7 +2,7 @@
 
 ## Current state
 
-Unreleased reporting change: optional ordered `criterion_dimensions` supports
+`0.32.4` source release candidate (PR121): optional ordered `criterion_dimensions` supports
 offline saved-vote grouping in `diagnose`. Task correctness, additional method
 completeness and mixed criteria remain distinct. This metadata changes no judge
 prompt, source freshness, accepted label, result or ship gate. Missing evidence

@@ -40,7 +40,7 @@ implementation. The existing Pi subject-runtime qualification pin remains explic
 
 ## Current state
 
-- Unreleased: optional criterion dimensions and offline saved-vote reporting
+- `0.32.4` source release candidate (PR121): optional criterion dimensions and offline saved-vote reporting
   distinguish task correctness, additional method completeness and mixed criteria.
   Grouping preserves all original votes and acceptance rules; unsupported evidence
   is unavailable. No fresh model evaluation is implied.
