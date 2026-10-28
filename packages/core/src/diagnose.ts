@@ -6,6 +6,7 @@ import { loadSpec } from "./spec.js";
 import { currentHashFor, isSupersededKey, remedyForKey, scenarioIdForKey } from "./sources.js";
 import { inspectEvalAuthoring, authoringEvidenceProfile, fixtureInventory } from "./authoring-preflight.js";
 import { planSavedAnswers, type SavedAnswerPlan } from "./saved-run.js";
+import { reportCriterionDimensions, type CriterionDimensionReport } from "./criterion-dimensions.js";
 
 export interface Diagnosis {
   schema: 1;
@@ -14,6 +15,7 @@ export interface Diagnosis {
   resultsChanged: false;
   causalConclusion: "not-established";
   reusePlan: SavedAnswerPlan;
+  criterionDimensions: CriterionDimensionReport;
   issues: { category: "evidence" | "configuration" | "judge" | "behavior" | "authoring"; scenario?: string; evidence: string; next: string }[];
 }
 
@@ -21,7 +23,7 @@ export interface Diagnosis {
 export function diagnoseRun(runDir: string, skillDir: string, specPath: string): Diagnosis {
   const results = readResults(runDir);
   const spec = loadSpec(specPath);
-  const report: Diagnosis = { schema: 1, runDir: resolve(runDir), providerCalls: 0, resultsChanged: false, causalConclusion: "not-established", reusePlan: planSavedAnswers(runDir, spec, skillDir, dirname(specPath)), issues: [] };
+  const report: Diagnosis = { schema: 1, runDir: resolve(runDir), providerCalls: 0, resultsChanged: false, causalConclusion: "not-established", reusePlan: planSavedAnswers(runDir, spec, skillDir, dirname(specPath)), criterionDimensions: reportCriterionDimensions(runDir, spec, dirname(specPath), results), issues: [] };
   const add = (issue: Diagnosis["issues"][number]) => report.issues.push(issue);
   const context = { skillDir, specDir: dirname(specPath), scenarios: spec.scenarios, judgePersona: spec.judge_persona };
   if (!results.source_hashes) add({ category: "evidence", evidence: "This run has no source identity hashes.", next: "Inspect retained inputs; do not claim comparability to current inputs." });

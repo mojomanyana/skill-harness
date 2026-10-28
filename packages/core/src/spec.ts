@@ -29,6 +29,8 @@ export interface ScenarioAssert {
   post_test?: string;
 }
 
+export type CriterionDimension = "task-correctness" | "method-completeness" | "mixed";
+
 export interface Scenario {
   id: string;
   title: string;
@@ -36,6 +38,8 @@ export interface Scenario {
   mode: ScenarioMode;
   turns: string[];
   checklist: string[];
+  /** Author-declared report metadata, aligned with checklist order; never sent to a model or included in grading hashes. */
+  criterionDimensions?: CriterionDimension[];
   /** Explicit author-supplied reference text for the judge only; never a subject prompt or file path. */
   judgeContext?: string;
   /** Judge evidence is independent of whether a fixture workspace is used. */
@@ -303,6 +307,11 @@ export function parseSpec(text: string, file: string): Spec {
 
     assertStringList(s.turns, id, "turns", file);
     assertStringList(s.checklist, id, "checklist", file);
+    if (s.criterion_dimensions !== undefined && (!Array.isArray(s.criterion_dimensions) ||
+        s.criterion_dimensions.length !== s.checklist.length ||
+        s.criterion_dimensions.some(value => !["task-correctness", "method-completeness", "mixed"].includes(value as string)))) {
+      throw new SpecError(`scenario \`${id}\` \`criterion_dimensions\` must have one task-correctness, method-completeness or mixed entry per checklist item`, file);
+    }
 
     const critFlag = s.critical === true || critical.includes(id);
 
@@ -313,6 +322,7 @@ export function parseSpec(text: string, file: string): Spec {
       mode,
       turns: s.turns,
       checklist: s.checklist,
+      ...(s.criterion_dimensions === undefined ? {} : { criterionDimensions: s.criterion_dimensions as CriterionDimension[] }),
       workspace: "none",
       remote: false,
     };

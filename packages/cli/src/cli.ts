@@ -39,6 +39,7 @@ import {
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
 import { cmdDecision } from "./decision.js";
+import { formatDiagnosis } from "./diagnose-format.js";
 
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
 // The judge default lives in core (`defaultJudge()`), which resolves
@@ -816,7 +817,7 @@ export function help(): string {
   preflight <skill|all> --skills <root> [--specs <root>] eval checks (${free("preflight")})
   calibrate <manifest.json> [--run --judge p:m --out NEW_DIR] validate or judge reviewed controls
                      [--plan --judge p:m] [--only c1,c2] [--reuse PRIOR_DIR ...] exact historical reuse, no new subject calls
-  diagnose <run-dir> --skills <root> [--specs <root>] inspect saved evidence (${free("diagnose")})
+  diagnose <run-dir> --skills <root> [--specs <root>] [--format json|text] inspect saved evidence (${free("diagnose")})
   Paid commands accept --max-memory-mb N / --max-write-mb N for sampled Linux process limits.
   run/grade/calibrate save bounded private resources-*.json; unsupported host metrics stay unknown.
   In Pi: /skill-harness create <idea>             guided skill + optional agent + eval creation
@@ -853,12 +854,15 @@ export async function cmdPreflight(args: Args): Promise<void> {
 }
 
 export async function cmdDiagnose(args: Args): Promise<void> {
-  if (!args._[0]) throw new Error("usage: skill-harness diagnose <run-dir> --skills <root> [--specs <root>]");
+  if (!args._[0]) throw new Error("usage: skill-harness diagnose <run-dir> --skills <root> [--specs <root>] [--format json|text]");
+  const format = flagStr(args, "format") ?? "json";
+  if (format !== "json" && format !== "text") throw new Error("diagnose --format must be json or text");
   const runDir = resolve(args._[0]);
   const recorded = readResults(runDir);
   const { skills, specs } = roots(args);
   const selected = resolveSkill(skills, recorded.skill, specs);
-  console.log(JSON.stringify(diagnoseRun(runDir, selected.dir, selected.specPath), null, 2));
+  const report = diagnoseRun(runDir, selected.dir, selected.specPath);
+  console.log(format === "text" ? formatDiagnosis(report) : JSON.stringify(report, null, 2));
 }
 
 export async function cmdCalibrate(args: Args, adapterOverride?: HarnessAdapter): Promise<void> {

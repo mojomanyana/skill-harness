@@ -109,6 +109,12 @@
           "pattern": "\\S",
           "description": "Explicit author-supplied reference text for the judge only. The runtime also enforces at most 65536 UTF-8 bytes. Not a file path; no files are loaded. Changes stale the rubric only."
         },
+        "criterion_dimensions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "enum": ["task-correctness", "method-completeness", "mixed"] },
+          "description": "Optional author-declared report metadata in checklist order. Runtime requires the same length as checklist. Omission is unclassified; mixed items are not split. Excluded from model prompts and all grading hashes."
+        },
         "judge_evidence": {
           "enum": ["response", "code"],
           "description": "Evidence emphasis, independent of fixture workspace. Response tasks never receive code-diff priority guidance."

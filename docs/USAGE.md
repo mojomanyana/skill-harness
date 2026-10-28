@@ -54,6 +54,15 @@ label review. `calibrate <manifest>` validates offline; adding `--run --judge p:
 --out NEW_DIR` invokes Pi's selected judge. `diagnose <run-dir> --skills <root>`
 uses saved evidence to identify the next check without another subject run.
 
+Optional `criterion_dimensions` in a scenario separates task-correctness,
+method-completeness and mixed checklist items in `diagnose`'s saved-vote report.
+Missing or mismatched evidence is unavailable; criteria are never classified by
+guessing from judge reasons. A grouped vote count is not a new answer grade and
+does not change SHIP. See [the reporting example](EVAL-AUTHORING.md#report-what-failed-without-changing-the-grade).
+
+Use `diagnose <run-dir> --skills <root> --format text` for a compact readable view.
+The default `--format json` retains the full mapping, provenance and coverage.
+
 ## 2. Discover testable skills
 
 A skill is testable when `<skill>/tests/specification.yaml` exists next to its `SKILL.md`. Discovery scans `<root>/*/tests/specification.yaml`.

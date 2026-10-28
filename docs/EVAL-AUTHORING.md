@@ -125,6 +125,48 @@ result. Decide how ambiguous wording is graded before running the judge, and app
 that PASS/FAIL rule to valid alternatives and near-miss controls consistently.
 Static checks cannot resolve these semantic choices for the author.
 
+## Report what failed without changing the grade
+
+An accurate answer can omit a required validation plan or explanation. A single
+overall FAIL cannot tell the reader which happened. A scenario may declare
+`criterion_dimensions`, one entry per checklist item, in the same order:
+
+```yaml
+checklist:
+  - Reports the supplied installed version and leaves the current registry tag unknown.
+  - Names a dated registry observation that would resolve the uncertainty.
+criterion_dimensions: [task-correctness, method-completeness]
+```
+
+Use `task-correctness` for the requested outcome and its constraints, including
+factual support. Use `method-completeness` for additional steps or explanations
+required by the skill's method. Use `mixed` when an item combines them. A method
+explicitly requested by the task belongs to task correctness. These labels are
+author-declared descriptions, not machine-verified truth or severity levels.
+Omitting the field leaves criteria unclassified.
+
+`diagnose` groups supported saved criterion votes under these labels. Counts are
+criterion observations, not passing answers, skill lift or new acceptance scores.
+Original scenario verdicts, human overrides and objective gates remain separate.
+The report identifies the current mapping and matched rubric; unavailable or
+inconsistent evidence remains unavailable. It does not extract votes from reason
+text or choose between multiple judges. The command makes no model calls and
+does not modify saved results.
+
+A mixed FAIL cannot reveal which part failed. Keep an existing mixed criterion
+intact and cite any independent semantic audit separately. Split it only when
+authoring a future reviewed rubric, then calibrate and regrade applicable saved
+answers. Do not retroactively manufacture factual PASS votes from a combined FAIL.
+Metadata-only categorization changes no stimulus, judge prompt, grade, ship bar
+or calibration expectation. All required checklist items still gate acceptance;
+method completeness is not automatically optional.
+
+Calibration manifests also bind the exact specification file bytes. Editing this
+metadata in a bound file does not exempt it from that check: prepare the current
+manifest through the normal workflow. If the judge prompt is unchanged, existing
+judgments can be reused under the normal exact-reuse checks. Retrospective reporting
+does not turn a proposed or changed manifest into accepted labels.
+
 Separate required behavior from optional improvements before choosing expected
 verdicts. Put the acceptance threshold in the checklist or judge context and any
 task-relevant severity policy in the subject request. A finding can be true without
