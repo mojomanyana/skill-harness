@@ -1,6 +1,6 @@
 ---
 name: skill-harness
-version: 0.32.3
+version: 0.32.4
 description: >
   Create, test and improve Pi skills and optional ecosystem subagents. Use when
   the user describes a role they need, asks to create a skill, add evaluations,
@@ -60,6 +60,13 @@ their instructions depend on skill-harness, pi-daddy or Principal.
    are historical evidence, not new stability samples. Use fresh transfer cases
    before claiming a general improvement.
 
+   Keep task correctness separate from additional method completeness. Optional
+   `criterion_dimensions` classifies each checklist item as `task-correctness`,
+   `method-completeness`, or `mixed` for offline reporting. A combined item stays
+   mixed: never invent separate votes from its reason text. The declared grouping
+   changes no grade or acceptance rule; unmapped or unsupported evidence stays
+   explicit. Report semantic audit observations separately from saved judge votes.
+
 Keep evaluation launches sequential unless parallel work was deliberately selected.
 After an interruption, inspect the bounded `resources-*.json` summaries before
 restarting. They describe harness-owned processes and cleanup, not whole-PC health.
@@ -83,6 +90,11 @@ only to evaluate an existing skill, measure it without rewriting it.
   plausible contract-breaking counterexample; do not predetermine approval from
   their intended label. Ask one focused question only when an outcome-changing
   ambiguity cannot be resolved from the agreed requirements.
+- When authoring new checklists, keep task correctness and additional method
+  requirements independently decidable where useful. Add ordered
+  `criterion_dimensions` for reporting; omit it when the distinction is not useful.
+  Method requirements can still block acceptance. Changing a criterion or its
+  expected vote needs review; assigning reporting metadata alone does not.
 - Apply shared requirements to every relevant scenario, stating exceptions for
   narrower tasks. Check every positive against the full contract. Keep facts local
   to the supplied sources; never carry a number or date from a different fixture,

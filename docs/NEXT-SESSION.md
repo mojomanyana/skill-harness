@@ -2,11 +2,16 @@
 
 ## Current state
 
-`0.32.3` is the current source candidate (2026-10-28): shared authoring guidance
+`0.32.4` source release candidate (PR121): optional ordered `criterion_dimensions` supports
+offline saved-vote grouping in `diagnose`. Task correctness, additional method
+completeness and mixed criteria remain distinct. This metadata changes no judge
+prompt, source freshness, accepted label, result or ship gate. Missing evidence
+stays unavailable; a mixed failure is not decomposed into invented sub-votes.
+
+`0.32.3` is published (2026-10-28, PR120, merge `48e379d`): shared authoring guidance
 separates factual support, severity and acceptance materiality, permits supported
 alternatives and challenges positive controls against the complete contract. This
-adds no schema, mandatory stage or execution gate; human label review stays required.
-Verify npm and GitHub before reporting this candidate as published.
+added no schema, mandatory stage or execution gate; human label review stays required.
 
 `0.32.2` is published and tagged (2026-10-27, merge `9ec4570`), qualifying exact
 Pi 1.4.0 transport. See `packages/adapters/test/fixtures/pi-1.4.0/README.md` for

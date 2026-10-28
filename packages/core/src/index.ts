@@ -19,6 +19,7 @@ export * from "./authoring-preflight.js";
 export * from "./authoring.js";
 export * from "./calibration.js";
 export * from "./diagnose.js";
+export * from "./criterion-dimensions.js";
 export * from "./restamp.js";
 export * from "./sources.js";
 export * from "./lift.js";

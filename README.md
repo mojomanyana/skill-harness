@@ -181,6 +181,15 @@ scenarios:
       - writes a covering test that passes
 ```
 
+### Criterion reporting
+
+For optional offline reporting, each scenario can declare `criterion_dimensions`
+with one `task-correctness`, `method-completeness` or `mixed` entry per checklist
+item. `diagnose` groups saved criterion votes without changing the grade or making
+model calls. Mixed criteria remain indivisible; missing evidence stays unknown.
+These are author-declared reporting labels, excluded from model prompts and input
+freshness hashes. See [evaluation reporting](docs/EVAL-AUTHORING.md#report-what-failed-without-changing-the-grade).
+
 ### Seeded gates (`assert`)
 
 All four seeded gates are optional. Each one that fails makes the scenario a FAIL without

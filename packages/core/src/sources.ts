@@ -160,6 +160,7 @@ function facets(s: Scenario): { stimulus: string; rubric: string; policy: string
     id, title, critical, mode, turns, checklist, judgeContext, judgeEvidence, judgeReferences, fixture, assert, traceAssert,
     workspace, remote, systemPromptFile, extensions, tools, reps, passThreshold,
     covers: _coversIsMetadata,
+    criterionDimensions: _dimensionsAreReportMetadata,
     ...restScenario
   } = s;
   const _scenarioExhaustive: Record<string, never> = restScenario;
@@ -171,6 +172,8 @@ function facets(s: Scenario): { stimulus: string; rubric: string; policy: string
   // anywhere would charge a re-run (or at best a re-score) for editing a label,
   // which is the exact trap the facet split was built to remove.
   void _coversIsMetadata;
+  // Author-declared retrospective grouping never changes what a model saw or how it was graded.
+  void _dimensionsAreReportMetadata;
 
   const { vitest, diff_contains, diff_excludes, output_matches, output_excludes, post_test, ...restAssert } = assert ?? {};
   const _assertExhaustive: Record<string, never> = restAssert;

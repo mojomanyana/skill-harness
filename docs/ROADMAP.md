@@ -40,12 +40,17 @@ implementation. The existing Pi subject-runtime qualification pin remains explic
 
 ## Current state
 
-- Published baseline: `0.32.2` (2026-10-27, merge `9ec4570`), qualifying exact
+- `0.32.4` source release candidate (PR121): optional criterion dimensions and offline saved-vote reporting
+  distinguish task correctness, additional method completeness and mixed criteria.
+  Grouping preserves all original votes and acceptance rules; unsupported evidence
+  is unavailable. No fresh model evaluation is implied.
+
+- Runtime qualification from `0.32.2` (2026-10-27, merge `9ec4570`) covers exact
   Pi 1.4.0 transport through scripted native fixtures. Real provider authentication
   and model quality remain separately measured.
-- Source candidate `0.32.3` strengthens shared authoring guidance for acceptance
+- Published `0.32.3` (2026-10-28, PR120, merge `48e379d`) strengthens shared authoring guidance for acceptance
   materiality and valid alternatives without new schemas or execution gates.
-  Publication must be verified separately.
+  Publication was verified separately from model quality.
 - Local Pi 1.1.0 authoring, calibration, exact judgment reuse, red/force evaluation,
   diagnosis and native readonly-child acceptance completed on 2026-10-27. The
   generated skill remains NOT READY (3/4 scenarios); autonomous selection and UI
