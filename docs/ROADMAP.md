@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-10-27
+Last updated: 2026-10-28
 
 `skill-harness` develops, evaluates and improves skills through Pi and a selected
 model. It starts from a user's idea or imports a selected skill. Generated skills
@@ -40,10 +40,12 @@ implementation. The existing Pi subject-runtime qualification pin remains explic
 
 ## Current state
 
-- Published baseline: `0.32.1` (2026-10-27, PR118), adding a fixture-aware warning
-  for regex-like literal read paths without changing gates. The current unreleased
-  change qualifies exact Pi 1.4.0 transport through scripted native fixtures;
-  real provider authentication and model quality remain separately measured.
+- Published baseline: `0.32.2` (2026-10-27, merge `9ec4570`), qualifying exact
+  Pi 1.4.0 transport through scripted native fixtures. Real provider authentication
+  and model quality remain separately measured.
+- Source candidate `0.32.3` strengthens shared authoring guidance for acceptance
+  materiality and valid alternatives without new schemas or execution gates.
+  Publication must be verified separately.
 - Local Pi 1.1.0 authoring, calibration, exact judgment reuse, red/force evaluation,
   diagnosis and native readonly-child acceptance completed on 2026-10-27. The
   generated skill remains NOT READY (3/4 scenarios); autonomous selection and UI

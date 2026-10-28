@@ -2,10 +2,16 @@
 
 ## Current state
 
-`0.32.1` is published and tagged (2026-10-27, PR118, merge `8e2c8af`): a
-fixture-aware authoring warning for regex-like literal read paths. Gate semantics
-are unchanged. The current unreleased change qualifies exact Pi 1.4.0 transport;
-see `packages/adapters/test/fixtures/pi-1.4.0/README.md` for evidence and scope.
+`0.32.3` is the current source candidate (2026-10-28): shared authoring guidance
+separates factual support, severity and acceptance materiality, permits supported
+alternatives and challenges positive controls against the complete contract. This
+adds no schema, mandatory stage or execution gate; human label review stays required.
+Verify npm and GitHub before reporting this candidate as published.
+
+`0.32.2` is published and tagged (2026-10-27, merge `9ec4570`), qualifying exact
+Pi 1.4.0 transport. See `packages/adapters/test/fixtures/pi-1.4.0/README.md` for
+evidence and scope. `0.32.1` added the fixture-aware warning for regex-like literal
+read paths; gate semantics are unchanged.
 
 `0.32.0` is published and tagged (2026-10-23, PR117, merge `6a3dcc3`), with
 package/install checks verified. It retains

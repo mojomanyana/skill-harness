@@ -125,6 +125,21 @@ result. Decide how ambiguous wording is graded before running the judge, and app
 that PASS/FAIL rule to valid alternatives and near-miss controls consistently.
 Static checks cannot resolve these semantic choices for the author.
 
+Separate required behavior from optional improvements before choosing expected
+verdicts. Put the acceptance threshold in the checklist or judge context and any
+task-relevant severity policy in the subject request. A finding can be true without
+justifying a blocking verdict; a different recommendation can be valid when its
+evidence, reasoning and severity satisfy the same contract. Do not award or reject
+an answer merely for matching a preferred verdict word.
+
+Challenge a proposed positive fixture or control with a plausible contract-breaking
+counterexample. For example, a test suite may miss a valid empty string. Establish
+whether that uncovered boundary is required for acceptance or an optional
+improvement; do not label the suite sound and then require reviewers to suppress
+the real gap. Ask one focused question only if this outcome-changing distinction
+cannot be resolved from the agreed requirements. Apply the resulting rule to both
+passing and failing answers without weakening the underlying requirements.
+
 `lint` now emits non-blocking `authoring` notices for common brittle contracts:
 read-count proxies, POSIX-only path matching, exact `npm test` spelling,
 `expect(` diff needles, mandatory line-citation formats and missing `covers` maps. Response
