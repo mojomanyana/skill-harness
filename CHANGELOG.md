@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.32.3 — 2026-10-28
+
+- Guide skill and evaluation authors to distinguish required behavior, optional improvements and issues that justify blocking acceptance. Separate factual support from severity, allow supported alternatives under the same contract, and challenge positive controls with plausible contract-breaking behavior.
+- Ask the operator only about unresolved distinctions that would change an acceptance decision. Existing schemas, execution gates, human calibration-label review and historical results remain unchanged.
+
 ## 0.32.2 — 2026-10-27
 
 - Qualify exact Pi 1.4.0 for fresh subject execution using native scripted transport captures and the supported adapter and scoring pipeline. Other unqualified versions still fail before subject execution. Real model quality, subscription authentication and OS containment remain separate qualifications.

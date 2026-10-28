@@ -1,6 +1,6 @@
 ---
 name: skill-harness
-version: 0.32.2
+version: 0.32.3
 description: >
   Create, test and improve Pi skills and optional ecosystem subagents. Use when
   the user describes a role they need, asks to create a skill, add evaluations,
@@ -76,6 +76,13 @@ only to evaluate an existing skill, measure it without rewriting it.
 - Test user-visible behavior, errors, boundaries and valid alternatives. Avoid test
   counts, exact command spelling, implementation syntax and obligatory citation
   line numbers as proxies for quality unless the task requires that exact format.
+- Define required behavior, optional improvements and what warrants blocking
+  acceptance. Judge whether a finding is true separately from whether its severity
+  is justified. Alternate recommendations or review verdicts must satisfy the same
+  evidence and acceptance rules. Challenge positive fixtures and controls with a
+  plausible contract-breaking counterexample; do not predetermine approval from
+  their intended label. Ask one focused question only when an outcome-changing
+  ambiguity cannot be resolved from the agreed requirements.
 - Apply shared requirements to every relevant scenario, stating exceptions for
   narrower tasks. Check every positive against the full contract. Keep facts local
   to the supplied sources; never carry a number or date from a different fixture,
