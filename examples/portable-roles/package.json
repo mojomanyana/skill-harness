@@ -1,0 +1,18 @@
+{
+  "name": "pi-portable-role-examples",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Synthetic ecosystem acceptance roles; no live connector installation.",
+  "files": [
+    "skills/",
+    "agents/",
+    "README.md"
+  ],
+  "pi": {
+    "skills": [
+      "./skills",
+      "./agents"
+    ]
+  }
+}

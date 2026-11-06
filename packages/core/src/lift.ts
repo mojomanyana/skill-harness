@@ -1,3 +1,4 @@
+import { comparisonProfile } from "./run-summary.js";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { readResults, effectiveVerdicts, isScoredMode, type ResultsFile, type ScenarioResult } from "./results.js";
@@ -26,6 +27,7 @@ export interface LiftCell {
 }
 
 export interface Lift {
+  profileMismatch?: boolean;
   tag: string; // <harness>-<modelslug> dir name
   model: string;
   redTimestamp: string;
@@ -156,6 +158,7 @@ export interface LiftOptions {
  * modes (`opts.modeInsensitive`).
  */
 export function computeLift(red: ResultsFile, green: ResultsFile, opts: LiftOptions = {}): Lift {
+  const profileMismatch = comparisonProfile(red) !== comparisonProfile(green);
   const insensitive = new Set(opts.modeInsensitive ?? []);
   const redV = new Map(effectiveVerdicts(red.scenarios).map((v) => [v.id, { verdict: v.verdict, suspect: v.suspect ?? false }]));
   const greenV = new Map(effectiveVerdicts(green.scenarios).map((v) => [v.id, { verdict: v.verdict, suspect: v.suspect ?? false }]));
@@ -173,7 +176,7 @@ export function computeLift(red: ResultsFile, green: ResultsFile, opts: LiftOpti
   const aggregationMismatch: LiftAggregationMismatch[] = [];
   for (const [id, g] of greenV) {
     const r = redV.get(id);
-    if (!r) continue;
+    if (!r || profileMismatch) continue;
     if (insensitive.has(id)) {
       modeInsensitive.push(id);
       continue;
@@ -198,6 +201,7 @@ export function computeLift(red: ResultsFile, green: ResultsFile, opts: LiftOpti
 
   return {
     tag: "",
+    ...(profileMismatch ? { profileMismatch: true } : {}),
     model: green.model,
     mode: green.mode,
     redTimestamp: red.timestamp,
@@ -247,6 +251,7 @@ function mismatchRemedy(ms: LiftAggregationMismatch[]): string {
 
 /** One line for a human: what the skill did, and what it cost. */
 export function liftHeadline(lift: Lift): string {
+  if (lift.profileMismatch) return "not comparable: subject or judge model/thinking profiles differ; no lift calculated";
   if (lift.compared === 0) {
     // Excluded-but-shared is not the same as never-shared. Claiming the runs had
     // no scenario in common would hide the reason the lift is empty.

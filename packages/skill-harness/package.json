@@ -1,64 +1,65 @@
 {
-    "name": "skill-harness",
-    "version": "0.32.4",
-    "description": "Create and improve Pi skills — guided authoring, evaluations, judge calibration and evidence review",
-    "type": "module",
-    "keywords": [
-        "agent-skills",
-        "skill",
-        "llm",
-        "testing",
-        "eval",
-        "grading",
-        "pi",
-        "ci",
-        "harness"
+  "name": "skill-harness",
+  "version": "0.33.0",
+  "description": "Create and improve Pi skills \u2014 guided authoring, evaluations, judge calibration and evidence review",
+  "type": "module",
+  "keywords": [
+    "agent-skills",
+    "skill",
+    "llm",
+    "testing",
+    "eval",
+    "grading",
+    "pi",
+    "ci",
+    "harness"
+  ],
+  "bin": {
+    "skill-harness": "bin.js"
+  },
+  "pi": {
+    "extensions": [
+      "./dist/index.js"
     ],
-    "bin": {
-        "skill-harness": "bin.js"
-    },
-    "pi": {
-        "extensions": [
-            "./dist/index.js"
-        ],
-        "skills": [
-            "./SKILL.md"
-        ]
-    },
-    "files": [
-        "bin.js",
-        "dist/index.js",
-        "SKILL.md",
-        "docs/EVAL-AUTHORING.md",
-        "docs/USAGE.md",
-        "assets/report.template.html",
-        "assets/report.grade.js",
-        "LICENSE",
-        "README.md"
-    ],
-    "dependencies": {
-        "@skill-harness/cli": "0.32.4"
-    },
-    "peerDependencies": {
-        "typebox": "*"
-    },
-    "peerDependenciesMeta": {
-        "typebox": {
-            "optional": true
-        }
-    },
-    "devDependencies": {
-        "typebox": "^1.1.38"
-    },
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/mojomanyana/skill-harness.git"
-    },
-    "license": "MIT",
-    "engines": {
-        "node": ">=20"
-    },
-    "scripts": {
-        "prepack": "node ../../scripts/release-pack.mjs --guard"
+    "skills": [
+      "./SKILL.md"
+    ]
+  },
+  "files": [
+    "bin.js",
+    "dist/index.js",
+    "SKILL.md",
+    "docs/EVAL-AUTHORING.md",
+    "docs/USAGE.md",
+    "docs/MODEL-PROFILES.md",
+    "assets/report.template.html",
+    "assets/report.grade.js",
+    "LICENSE",
+    "README.md"
+  ],
+  "dependencies": {
+    "@skill-harness/cli": "0.33.0"
+  },
+  "peerDependencies": {
+    "typebox": "*"
+  },
+  "peerDependenciesMeta": {
+    "typebox": {
+      "optional": true
     }
+  },
+  "devDependencies": {
+    "typebox": "^1.1.38"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mojomanyana/skill-harness.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/release-pack.mjs --guard"
+  }
 }

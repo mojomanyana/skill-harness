@@ -1,0 +1,22 @@
+[
+  {
+    "mixed": false,
+    "exitCode": 0,
+    "fixtureShip": true,
+    "verdicts": {
+      "good": "PASS"
+    },
+    "scriptedJudgeRequests": 1
+  },
+  {
+    "mixed": true,
+    "exitCode": 1,
+    "fixtureShip": false,
+    "verdicts": {
+      "good": "PASS",
+      "judge-fail": "FAIL",
+      "gate-fail": "FAIL"
+    },
+    "scriptedJudgeRequests": 2
+  }
+]

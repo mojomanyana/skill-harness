@@ -90,6 +90,7 @@ export interface SubjectInvocationObservation {
 }
 
 export interface ScenarioResult {
+  subject_calls?: { repetition: number; turn: number; observation: import("./adapters/types.js").ModelCallObservation }[];
   id: string;
   /** Numbered rubric items expected on every schema-3 judgment. */
   criterion_count?: number;
@@ -131,9 +132,10 @@ export interface ScenarioResult {
 
 /** One judge's answer for a cell, kept verbatim however the collapse turned out. */
 export interface Judgment {
+  calls?: import("./adapters/types.js").ModelCallObservation[];
   /** 1-based: judgment 1 is the first-wave judge, 2 the secondary, 3 the tie-break. */
   ordinal: number;
-  judge: { provider: string; model: string };
+  judge: ModelRef;
   verdict: Verdict;
   reason: string;
   /** The judge misfired — recorded, never counted as a clean vote. */
@@ -237,8 +239,9 @@ export interface ResultsFile {
   delivery_observations?: CanaryObservations & { probeCalls: 0 | 1 };
   skill: string;
   harness: string;
+  subject_profile?: ModelRef;
   model: string; // provider:model token under test
-  judge: { provider: string; model: string };
+  judge: ModelRef;
   timestamp: string;
   label: string | null; // run label, e.g. "round-3" — ends timestamp-dir archaeology
   mode: string; // red | green | force — green and force are scored (see SCORED_MODES); red is the control
@@ -499,6 +502,7 @@ export function finalizeResults(draft: ResultsDraft, ctx: ScoreContext | null): 
     skill: draft.skill,
     harness: draft.harness,
     model: draft.model,
+    ...(draft.subject_profile ? { subject_profile: draft.subject_profile } : {}),
     judge: draft.judge,
     timestamp: draft.timestamp,
     label: draft.label,
@@ -533,7 +537,7 @@ export function migrateResults(raw: unknown): ResultsFile {
   if (o.schema === 2 || o.schema === 3) return validateResults(raw);
   const v1 = raw as {
     skill: string; harness: string; model: string;
-    judge: { provider: string; model: string };
+    judge: ModelRef;
     timestamp: string;
     grade: GradeSummary;
     scenarios: Array<Omit<ScenarioResult, "suspect">>;
@@ -904,6 +908,7 @@ export function rebuildScenarioResult(
     reps, passes, clean, flakiness, pass_threshold, ungraded_reps,
     metrics: freshMetrics,
     usage: freshUsage,
+    subject_calls: freshSubjectCalls,
     objective: freshObjective,
     adjudication: freshAdjudication,
     rep_judgments: freshRepJudgments,
@@ -971,6 +976,7 @@ export function rebuildScenarioResult(
     ...(ungraded_reps === undefined ? {} : { ungraded_reps }),
     ...((freshMetrics ?? prior?.metrics) ? { metrics: freshMetrics ?? prior!.metrics } : {}),
     ...((freshUsage ?? prior?.usage) ? { usage: freshUsage ?? prior!.usage } : {}),
+    ...((freshSubjectCalls ?? prior?.subject_calls) ? { subject_calls: freshSubjectCalls ?? prior!.subject_calls } : {}),
     // The author owns the verdict; a re-measurement never discards their call.
     override: prior?.override ?? null,
     note: prior?.note ?? "",

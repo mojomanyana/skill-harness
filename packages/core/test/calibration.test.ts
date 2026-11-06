@@ -38,6 +38,33 @@ const reply = (verdict: "PASS" | "FAIL", votes: ("PASS" | "FAIL")[] = [verdict])
   verdict, reason: "control", votes: votes.map((vote, offset) => ({ criterion: offset + 1, vote, reason: "control" })),
 });
 
+test("calibration reuse preserves exact thinking selection and refuses changed or unspecified effort", async () => {
+  const { dir, specPath, controls } = setup();
+  const loaded = prepareCalibration({ specPath, controls });
+  const high = { ...judge, thinking: "high" as const };
+  const output = join(dir, "high-profile");
+  await runCalibration(loaded, { adapter: adapter([reply("PASS"), reply("FAIL"), reply("PASS")]), judge: high, output });
+  expect(planCalibration(loaded, { judge: high, reuse: [output] })).toMatchObject({ reused: 3, judgeCallsPlanned: 0 });
+  expect(planCalibration(loaded, { judge: { ...judge, thinking: "low" }, reuse: [output] })).toMatchObject({ reused: 0, judgeCallsPlanned: 3 });
+  expect(planCalibration(loaded, { judge, reuse: [output] })).toMatchObject({ reused: 0, judgeCallsPlanned: 3 });
+});
+
+test("calibration retains reported usage on an errored judge attempt without counting a completed control", async () => {
+  const { dir, specPath, controls } = setup();
+  const loaded = prepareCalibration({ specPath, controls });
+  const fake = adapter([]);
+  fake.judgeStructured = async () => ({ raw: "[judge error: stopped]", observation: {
+    requested: judge, observedModels: [], effectiveThinking: null, status: "error",
+    usage: { inputTokens: 9, outputTokens: 0, cacheReadTokens: null, cacheWriteTokens: null },
+    usageCoverage: { assistantMessages: 1, inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 },
+  } });
+  const output = join(dir, "usage-error");
+  const summary = await runCalibration(loaded, { adapter: fake, judge, output });
+  expect(summary).toMatchObject({ judgeCalls: 1, completed: 0, errors: ["supported"] });
+  const retained = JSON.parse(readFileSync(join(output, "supported.result.json"), "utf8"));
+  expect(retained.calls[0].usage).toMatchObject({ inputTokens: 9, outputTokens: 0 });
+});
+
 test("authoring computes bindings and calibration preserves production prompt framing with explicit authored scope", async () => {
   const { dir, specPath, controls } = setup();
   const loaded = prepareCalibration({ specPath, controls });

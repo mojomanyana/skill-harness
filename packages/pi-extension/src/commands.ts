@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { dirname, join, resolve, relative } from "node:path";
-import { loadSpec, regradeRun, readResults, parseModelRef, recordedJudgeOrDefault, assertJudgeAllowed, type HarnessAdapter, computeCoverage, formatCoverage } from "@skill-harness/core";
+import { loadSpec, regradeRun, readResults, parseModelRef, withThinking, recordedJudgeOrDefault, assertJudgeAllowed, type HarnessAdapter, computeCoverage, formatCoverage, summarizeRun, runSummaryLines } from "@skill-harness/core";
+import type { HarnessDashboard } from "./dashboard.js";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview, type ServeHandle } from "@skill-harness/cli/serve";
 import { resolveSkillLocation, runViaExtension, withEvaluationGuard } from "./runner.js";
@@ -21,7 +22,7 @@ export interface ExtensionAPI {
   events?: { on(channel: string, handler: (data: unknown) => void): () => void; emit?(channel: string, data: unknown): void };
   registerCommand(name: string, def: { description: string; handler: (args: string, ctx: CmdCtx) => Promise<void> }): void;
   registerTool(tool: unknown): void;
-  on(event: "session_shutdown" | "session_start" | "session_switch", handler: (event?: unknown, ctx?: CmdCtx) => Promise<void> | void): void;
+  on(event: "session_shutdown" | "session_start" | "session_switch" | "session_tree" | "session_fork" | "model_select", handler: (event?: unknown, ctx?: CmdCtx) => Promise<void> | void): void;
   appendEntry?(type:string,data:unknown):void;
   sendUserMessage?(content: string, options?: { deliverAs?: "steer" | "followUp"; expandPromptTemplates?: boolean }): void;
   getActiveTools?(): string[];
@@ -56,7 +57,7 @@ export interface CmdCtx {
   };
 }
 
-const USAGE = "usage: /skill-harness create <idea> | author [name] | run [skill] [--specs root] [--model p:m] [--reps N] [--mode red|green|force] [--only A1,A2] [--canary] [--judge p:m] | judge [run-dir] [--judge p:m] | review [skill] | coverage [skill] | jev enable [workflow]|run|status|disable";
+const USAGE = "usage: /skill-harness create <idea> | author [name] | run [skill] [--specs root] [--model p:m] [--thinking LEVEL] [--judge-thinking LEVEL] [--reps N] [--mode red|green|force] [--only A1,A2] [--canary] [--judge p:m] | judge [run-dir] [--judge p:m] | review [skill] | coverage [skill] | jev enable [workflow]|run|status|disable";
 
 /** Minimal arg tokenizer: subcommand + positional args + `--key value` flags. A flag with no following value (or one followed by another `--flag`) is left unset, so callers' `?? default` fallbacks apply. */
 function parse(argstr: string): { sub: string; positional: string[]; flags: Record<string, string> } {
@@ -104,7 +105,7 @@ function say(ctx: CmdCtx, msg: string, level: "info" | "warning" | "error" = "in
 export async function handleSkillCheck(
   argstr: string,
   ctx: CmdCtx,
-  opts?: { adapter?: HarnessAdapter; assetsDir?: string }
+  opts?: { adapter?: HarnessAdapter; assetsDir?: string; dashboard?: HarnessDashboard }
 ): Promise<ServeHandle | void> {
   const { sub, positional, flags } = parse(argstr);
   const retired = sub === "run"
@@ -116,8 +117,8 @@ export async function handleSkillCheck(
   if (retiredFlag) throw new Error(`--${retiredFlag} was removed; this command refuses to silently run with different behavior`);
   if (sub === "run" || sub === "judge") {
     const supported = sub === "run"
-      ? ["specs", "model", "reps", "mode", "only", "canary", "judge"]
-      : ["judge"];
+      ? ["specs", "model", "thinking", "judge-thinking", "reps", "mode", "only", "canary", "judge"]
+      : ["judge", "judge-thinking"];
     const unsupported = Object.keys(flags).find(flag => !supported.includes(flag));
     if (unsupported !== undefined) {
       const guidance = sub === "judge"
@@ -135,11 +136,12 @@ export async function handleSkillCheck(
       throw new Error("--only requires a nonempty, unique comma-separated scenario ID list");
     }
     const { skillDir, specPath } = resolveSkillLocation(ctx.cwd, positional[0], flags.specs || process.env.SKILL_HARNESS_SPECS);
-    const card = await runViaExtension({
+    const execute = () => runViaExtension({
       skillDir, specPath,
       // `|| undefined`: a valueless `--model` / `--mode` must fall back to the
       // default rather than pass "" down as if it were a token.
       model: flags.model || undefined,
+      thinking: flags.thinking, judgeThinking: flags["judge-thinking"],
       reps: flags.reps ? Number(flags.reps) : undefined,
       mode: (flags.mode || undefined) as "red" | "green" | "force" | undefined,
       only,
@@ -149,7 +151,9 @@ export async function handleSkillCheck(
       timestamp: nowIso(),
       log: (m) => { if (ctx.hasUI) ctx.ui.setStatus?.("skill-harness", m); }, // live footer only in TUI
     });
+    const card = opts?.dashboard ? await opts.dashboard.run(ctx, execute, card => card.summary) : await execute();
     say(ctx, `${card.skill} ${card.grade.letter} (${card.grade.pct}%) ${card.grade.ship ? "SHIP" : "NOT READY"}`, card.grade.ship ? "info" : "warning");
+    for (const line of card.summaryLines ?? []) say(ctx, line);
     for (const s of card.scenarios) say(ctx, `  ${s.id}: ${s.suspect ? "?" : s.verdict}`);
     if (card.failedTranscripts.length) say(ctx, `failed transcripts:\n${card.failedTranscripts.join("\n")}`);
     return;
@@ -166,7 +170,7 @@ export async function handleSkillCheck(
     // An explicit --judge flag wins; absent or retired recorded judges use the Pi default.
     const prev = existsSync(join(runDir, "results.yaml")) ? readResults(runDir) : null;
     const resolvedRecordedJudge = flags.judge ? undefined : recordedJudgeOrDefault(prev?.judge);
-    const judge = flags.judge ? parseModelRef(flags.judge) : resolvedRecordedJudge!.judge;
+    const judge = withThinking(flags.judge ? parseModelRef(flags.judge) : resolvedRecordedJudge!.judge, flags["judge-thinking"]);
     if (resolvedRecordedJudge?.migratedFrom) {
       say(ctx, `recorded judge ${resolvedRecordedJudge.migratedFrom.provider}:${resolvedRecordedJudge.migratedFrom.model} was removed; re-judging through Pi with ${judge.provider}:${judge.model}`, "warning");
     }
@@ -174,11 +178,13 @@ export async function handleSkillCheck(
       source: flags.judge ? "--judge" : prev?.judge ? "the run's recorded judge" : "the default judge",
     });
     const resolvedAdapter = adapter ?? getAdapter(prev?.harness ?? "pi");
-    const results = await withEvaluationGuard(() => regradeRun({
+    const execute = () => withEvaluationGuard(() => regradeRun({
       runDir, spec, adapter: resolvedAdapter,
       judge, specDir: testsDir, now: nowIso,
     }));
+    const results = opts?.dashboard ? await opts.dashboard.run(ctx, execute, summarizeRun) : await execute();
     say(ctx, `re-judged ${runDir}: ${results.effective_grade.letter} (${results.effective_grade.pct}%)`);
+    for (const line of runSummaryLines(results)) say(ctx, line);
     return;
   }
 
@@ -217,7 +223,7 @@ export function closeReview(): void {
   reviewHandle = null;
 }
 
-export function registerCommand(pi: ExtensionAPI, assetsDir?: string, jevHandler?: (args:string,ctx:CmdCtx)=>Promise<void>): void {
+export function registerCommand(pi: ExtensionAPI, assetsDir?: string, jevHandler?: (args:string,ctx:CmdCtx)=>Promise<void>, dashboard?: HarnessDashboard): void {
   pi.registerCommand("skill-harness", {
     description: "Create a skill with Pi, author evaluations, run, judge, and review",
     handler: async (args, ctx) => {
@@ -226,7 +232,7 @@ export function registerCommand(pi: ExtensionAPI, assetsDir?: string, jevHandler
         if (!jevHandler) throw new Error("JEV session handler unavailable");
         return jevHandler(args.trim().slice(3).trim(), ctx);
       }
-      const h = await handleSkillCheck(args, ctx, { assetsDir });
+      const h = await handleSkillCheck(args, ctx, { assetsDir, dashboard });
       if (h) { reviewHandle?.close(); reviewHandle = h; } // keep the latest review server for shutdown cleanup
     },
   });

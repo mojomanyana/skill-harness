@@ -43,6 +43,24 @@ function fixture(): { root: string; skillDir: string; specDir: string; runDir: s
 }
 
 describe("saved-answer planning", () => {
+  it("combined judge and policy/gate changes never promise free policy-only reuse", () => {
+    const f = fixture();
+    f.spec.scenarios[0].passThreshold = 0.75;
+    f.spec.scenarios[1].assert = { output_excludes: ["DO_NOT_PUBLISH"] };
+    const judge = { provider: "other", model: "judge", thinking: "high" as const };
+    const rows = planSavedAnswers(f.runDir, f.spec, f.skillDir, f.specDir, { judge }).scenarios;
+    expect(rows[0].action).toBe("regrade");
+    expect(rows[1]).toMatchObject({ action: "regate", note: expect.stringMatching(/recorded judge profile.*complete saved-answer regrade/) });
+  });
+  it("changing subject effort requires new answers while changing judge effort reuses only answers", () => {
+    const f = fixture();
+    const before = readFileSync(join(f.runDir, "results.yaml"));
+    const subject = { provider: "provider", model: "subject", thinking: "high" as const };
+    expect(planSavedAnswers(f.runDir, f.spec, f.skillDir, f.specDir, { subject }).scenarios.every(row => row.action === "rerun")).toBe(true);
+    const judge = { provider: "other", model: "judge", thinking: "high" as const };
+    expect(planSavedAnswers(f.runDir, f.spec, f.skillDir, f.specDir, { judge }).scenarios.every(row => row.action === "regrade")).toBe(true);
+    expect(readFileSync(join(f.runDir, "results.yaml"))).toEqual(before);
+  });
   it("reuses matching inputs even when the saved answer failed, without rewriting scores or calling providers", () => {
     const f = fixture();
     const before = readFileSync(join(f.runDir, "results.yaml"));

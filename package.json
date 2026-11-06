@@ -1,50 +1,50 @@
 {
-    "name": "skill-harness-monorepo",
-    "version": "0.32.4",
-    "description": "Portable test/optimize framework for agent skills: spec'd scenarios, LLM judge, review UI. Monorepo: core, adapters, cli.",
-    "license": "MIT",
-    "type": "module",
-    "private": true,
-    "keywords": [
-        "pi-package"
+  "name": "skill-harness-monorepo",
+  "version": "0.33.0",
+  "description": "Portable test/optimize framework for agent skills: spec'd scenarios, LLM judge, review UI. Monorepo: core, adapters, cli.",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "keywords": [
+    "pi-package"
+  ],
+  "bin": {
+    "skill-harness": "./bin/skill-harness.js"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "tsc -b packages/core packages/adapters packages/cli && node scripts/build-decision.mjs",
+    "build:ext": "npm run build && node packages/pi-extension/build.mjs",
+    "check:ext": "npm run build && vitest run packages/pi-extension/test/bundle.test.ts",
+    "release:pack": "node scripts/release-pack.mjs",
+    "smoke:packed": "bash scripts/smoke-packed-artifacts.sh",
+    "dev": "tsx packages/cli/src/cli.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -b packages/core packages/adapters packages/cli && tsc --noEmit -p packages/pi-extension/tsconfig.json",
+    "verify:pi-daddy-contract": "node scripts/verify-pi-daddy-builders.mjs",
+    "verify:pi-daddy-v3-contract": "node scripts/verify-pi-daddy-v3-builders.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "ajv": "8.20.0",
+    "esbuild": "^0.28.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.4.4",
+    "vitest": "^4.1.11"
+  },
+  "pi": {
+    "extensions": [
+      "packages/pi-extension/dist/index.js"
     ],
-    "bin": {
-        "skill-harness": "./bin/skill-harness.js"
-    },
-    "workspaces": [
-        "packages/*"
-    ],
-    "scripts": {
-        "build": "tsc -b packages/core packages/adapters packages/cli && node scripts/build-decision.mjs",
-        "build:ext": "npm run build && node packages/pi-extension/build.mjs",
-        "check:ext": "npm run build && vitest run packages/pi-extension/test/bundle.test.ts",
-        "release:pack": "node scripts/release-pack.mjs",
-        "smoke:packed": "bash scripts/smoke-packed-artifacts.sh",
-        "dev": "tsx packages/cli/src/cli.ts",
-        "test": "vitest run",
-        "typecheck": "tsc -b packages/core packages/adapters packages/cli && tsc --noEmit -p packages/pi-extension/tsconfig.json",
-        "verify:pi-daddy-contract": "node scripts/verify-pi-daddy-builders.mjs",
-        "verify:pi-daddy-v3-contract": "node scripts/verify-pi-daddy-v3-builders.mjs"
-    },
-    "engines": {
-        "node": ">=20"
-    },
-    "devDependencies": {
-        "@types/js-yaml": "^4.0.9",
-        "@types/node": "^22.0.0",
-        "ajv": "8.20.0",
-        "esbuild": "^0.28.0",
-        "tsx": "^4.19.0",
-        "typescript": "^5.6.0",
-        "vite": "^6.4.4",
-        "vitest": "^4.1.11"
-    },
-    "pi": {
-        "extensions": [
-            "packages/pi-extension/dist/index.js"
-        ],
-        "skills": [
-            "./SKILL.md"
-        ]
-    }
+    "skills": [
+      "./SKILL.md"
+    ]
+  }
 }

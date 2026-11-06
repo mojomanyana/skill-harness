@@ -1,6 +1,7 @@
 import { Type } from "typebox";
 import { withProcessScope, type HarnessAdapter } from "@skill-harness/core";
 import type { ExtensionAPI } from "./commands.js";
+import type { HarnessDashboard } from "./dashboard.js";
 import { resolveSkillLocation, runViaExtension, type Scorecard } from "./runner.js";
 
 // NOTE: the export name, the tool's model-facing `name`, and `handleSkillCheck`
@@ -16,6 +17,8 @@ export const skillCheckRunTool = {
   parameters: Type.Object({
     skill: Type.Optional(Type.String({ description: "skill dir/name; defaults to the current project" })),
     specs: Type.Optional(Type.String({ description: "Separate evaluation repository root; spec is <root>/<skill-name>/tests/specification.yaml" })),
+    thinking: Type.Optional(Type.String({ description: "Explicit requested Pi effort: off, minimal, low, medium, high, xhigh or max; effective effort may be unavailable" })),
+    judgeThinking: Type.Optional(Type.String({ description: "Explicit requested judge effort; changes calibration/reuse identity" })),
     model: Type.Optional(Type.String({ description: "provider:model token under test" })),
     judge: Type.Optional(Type.String({ description: "Independent Pi provider:model judge, chosen when testing starts" })),
     reps: Type.Optional(Type.Number({ description: "run each scenario N times", minimum: 1, maximum: 20 })),
@@ -24,15 +27,16 @@ export const skillCheckRunTool = {
   }),
   async execute(
     _id: string,
-    params: { skill?: string; specs?: string; model?: string; judge?: string; reps?: number; mode?: string; canary?: boolean },
+    params: { skill?: string; specs?: string; model?: string; judge?: string; thinking?: string; judgeThinking?: string; reps?: number; mode?: string; canary?: boolean },
     signal: AbortSignal,
     onUpdate: ((update: { content: { type: "text"; text: string }[] }) => void) | undefined,
-    ctx: { cwd: string; __adapter?: HarnessAdapter }
+    ctx: { cwd: string; __adapter?: HarnessAdapter; sessionManager?: { getSessionId(): string } }
   ): Promise<{ content: { type: "text"; text: string }[]; details: Scorecard }> {
     const { skillDir, specPath } = resolveSkillLocation(ctx.cwd, params.skill, params.specs ?? process.env.SKILL_HARNESS_SPECS);
     const card: Scorecard = await withProcessScope({ signal }, () => runViaExtension({
       skillDir, specPath,
       model: params.model,
+      thinking: params.thinking, judgeThinking: params.judgeThinking,
       judge: params.judge,
       reps: params.reps,
       mode: params.mode as "red" | "green" | "force" | undefined,
@@ -42,12 +46,14 @@ export const skillCheckRunTool = {
       log: (m) => onUpdate?.({ content: [{ type: "text", text: m }] }),
     }));
     const summary = `${card.skill} ${card.grade.letter} (${card.grade.pct}%) — ${card.grade.ship ? "SHIP" : "NOT READY"}\n`
+      + (card.summaryLines?.length ? card.summaryLines.join("\n") + "\n" : "")
       + card.scenarios.map((s) => `  ${s.id}: ${s.suspect ? "? (suspect)" : s.verdict}`).join("\n")
       + (card.failedTranscripts.length ? `\nfailed transcripts:\n${card.failedTranscripts.join("\n")}` : "");
     return { content: [{ type: "text", text: summary }], details: card };
   },
 };
 
-export function registerTool(pi: ExtensionAPI): void {
-  pi.registerTool(skillCheckRunTool);
+export function registerTool(pi: ExtensionAPI, dashboard?: HarnessDashboard): void {
+  pi.registerTool(dashboard ? { ...skillCheckRunTool, execute: (...args: Parameters<typeof skillCheckRunTool.execute>) =>
+    dashboard.run(args[4], () => skillCheckRunTool.execute(...args), result => result.details.summary) } : skillCheckRunTool);
 }

@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-10-28
+Last updated: 2026-11-05 (local candidate; release state unchanged)
 
 `skill-harness` develops, evaluates and improves skills through Pi and a selected
 model. It starts from a user's idea or imports a selected skill. Generated skills
@@ -40,7 +40,12 @@ implementation. The existing Pi subject-runtime qualification pin remains explic
 
 ## Current state
 
-- `0.32.4` source release candidate (PR121): optional criterion dimensions and offline saved-vote reporting
+- Local workflow-quality candidate: explicit subject/judge effort, requested versus
+  observed provenance, profile-safe reuse/comparison, retained token coverage and an
+  optional bounded contribution through Daddy's existing dashboard protocol. This
+  is not a live model qualification or release. See [MODEL-PROFILES.md](MODEL-PROFILES.md).
+
+- `0.32.4` is published (2026-10-28, PR121, merge `2f3cc27`): optional criterion dimensions and offline saved-vote reporting
   distinguish task correctness, additional method completeness and mixed criteria.
   Grouping preserves all original votes and acceptance rules; unsupported evidence
   is unavailable. No fresh model evaluation is implied.
@@ -61,7 +66,8 @@ implementation. The existing Pi subject-runtime qualification pin remains explic
 - Direct Claude CLI judging is removed; judging and drafting default to
   `openai-codex:gpt-5.6-sol` through Pi.
 - Subject usage is retained per repetition when Pi reports it; repository pricing
-  can derive subject cost. Judge usage is not yet retained.
+  can derive subject cost. The local candidate also retains reported judge tokens;
+  judge cost and whole-bill coverage remain unavailable.
 
 ## Product rules
 
@@ -94,8 +100,8 @@ implementation. The existing Pi subject-runtime qualification pin remains explic
 
 - [x] Capture nullable per-repetition subject input, output, and cache-read tokens. (0.19.0)
 - [x] Derive subject cost from one dated repository price table. (0.19.0)
-- [ ] Record judge token usage without inventing values providers do not report.
-- [ ] Show subject and judge coverage separately in CLI and review reports.
+- [x] Record judge token usage without inventing values providers do not report. (2026-11-05 local uncommitted candidate; no release claim)
+- [x] Show subject and judge token coverage separately in CLI and review reports. (2026-11-05 local uncommitted candidate; cost completeness remains open)
 - [ ] Add supported models to the price table only with a dated source and tests.
 
 ### Exit criteria

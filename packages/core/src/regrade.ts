@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import type { Spec, Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
-import { parseModelRef } from "./adapters/types.js";
+import { parseModelRef, sameModelProfile } from "./adapters/types.js";
 import { prepareJudgePrompt, resolveJudgeReferences, type JudgeReference, formatJudgeRawReplies, judgeInWorkspace } from "./grade.js";
 import {
   findTranscriptFiles, judgeRawPath, repIndexOf, readResults, writeResults, effectiveThreshold, tracePath,
@@ -147,7 +147,7 @@ export async function judgeOneRep(opts: {
   writeFileSync(judgeRawPath(runDir, scenario.id, mode, rep), formatJudgeRawReplies(g.rawReplies), "utf8");
   const outcome = normalizeRepOutcome({
     verdict: g.verdict, reason: g.reason, suspect: g.suspect, objective: opts.objective,
-    judgment: { ordinal: 1, judge: { ...judge }, verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, scenario.checklist.length), judgeFormat: g.judgeFormat, input, ...(g.judgeRetries ? { judgeRetries: g.judgeRetries } : {}) },
+    judgment: { ordinal: 1, judge: { ...judge }, ...(g.calls?.length ? { calls: g.calls } : {}), verdict: g.verdict, reason: g.reason, suspect: g.suspect, criteria: completeCriterionVotes(g.criteria, scenario.checklist.length), judgeFormat: g.judgeFormat, input, ...(g.judgeRetries ? { judgeRetries: g.judgeRetries } : {}) },
     metrics: {
       wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
       judge_calls: 1 + (g.judgeRetries ?? 0),
@@ -299,7 +299,7 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     // Nothing judgeable — a no-op, preserving both evidence and judge identity.
     return prev;
   }
-  if (prev && targets.length !== recorded.length && (judge.provider !== prev.judge.provider || judge.model !== prev.judge.model)) throw new Error("Selective regrade must use the recorded judge; regrade the whole run to change judge");
+  if (prev && targets.length !== recorded.length && !sameModelProfile(judge, prev.judge)) throw new Error("Selective regrade must use the recorded judge; regrade the whole run to change judge");
 
   const completeTranscripts = (record: ScenarioResult): boolean => {
     const expected = record.reps ?? 1;
@@ -340,7 +340,7 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
       const rep = repIndexOf(file) ?? undefined;
       if (opts.onlyUnparsed && !hasUnparsedVotes(prior.rep_judgments?.find(panel => panel.repetition === (rep ?? 0)))) continue;
       savedExecution({ runDir, scenario: specById.get(id)!, prior,
-        ...(prev?.model.includes(":") ? { subject: parseModelRef(prev.model) } : {}), piVersion: prev?.harness_cli_version,
+        ...(prev?.model.includes(":") ? { subject: prev.subject_profile ?? parseModelRef(prev.model) } : {}), piVersion: prev?.harness_cli_version,
       }, mode, rep, readFileSync(join(runDir, file), "utf8"));
     }
   }
@@ -363,7 +363,7 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
       runDir, spec, scenario, adapter, judge, specDir, threshold, mode, now,
       references: references[id],
       expectedReps: prevScenario?.reps ?? 1, onlyUnparsed: opts.onlyUnparsed, prior: prevScenario,
-      ...(prev?.model.includes(":") ? { subject: parseModelRef(prev.model) } : {}), piVersion: prev?.harness_cli_version,
+      ...(prev?.model.includes(":") ? { subject: prev.subject_profile ?? parseModelRef(prev.model) } : {}), piVersion: prev?.harness_cli_version,
     });
     const carry = overrides.get(id);
     if (prev?.schema === 3) rr.criterion_count = scenario.checklist.length;
@@ -397,7 +397,8 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     // `delivery_canary` and `source_hashes` are carried here.
     arm: prev?.arm,
     model: prev?.model ?? "unknown",
-    judge: { provider: judge.provider, model: judge.model },
+    subject_profile: prev?.subject_profile,
+    judge: { ...judge },
     timestamp: prev?.timestamp ?? now(),
     label: prev?.label ?? null,
     mode,

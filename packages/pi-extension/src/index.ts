@@ -3,10 +3,12 @@ import { fileURLToPath } from "node:url";
 import { basename, dirname, join } from "node:path";
 import { registerCommand, closeReview, type ExtensionAPI } from "./commands.js";
 import { registerTool } from "./tool.js";
+import { createHarnessDashboard } from "./dashboard.js";
 import { createJevController } from "./jev-session.js";
 import { registerJevAdvice } from "./jev-advice.js";
 import { registerJevControl } from "./jev-control.js";
 import { registerAuthoring } from "./authoring.js";
+import { registerImprovement } from "./improvement.js";
 
 /**
  * pi extension entry point. Registers the `/skill-harness` command and the
@@ -36,11 +38,13 @@ export default function (pi: ExtensionAPI): void {
     if (typeof report === "function" && typeof loadedVersion === "string") report({ id: "skill-harness", version: loadedVersion, root: packageRoot });
   });
   const jev = createJevController(pi);
-  registerCommand(pi, assetsDir, jev.command);
+  const dashboard = createHarnessDashboard(pi, loadedVersion ?? "unknown");
+  registerCommand(pi, assetsDir, jev.command, dashboard);
   registerAuthoring(pi);
+  registerImprovement(pi);
   registerJevAdvice(pi, jev);
   registerJevControl(pi, jev);
-  registerTool(pi);
+  registerTool(pi, dashboard);
   pi.on("session_shutdown", async () => {
     removeVersionReporter?.();
     closeReview();

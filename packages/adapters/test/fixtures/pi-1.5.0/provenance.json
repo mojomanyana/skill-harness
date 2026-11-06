@@ -1,0 +1,167 @@
+{
+  "schema": 1,
+  "producer": "@earendil-works/pi-coding-agent@1.5.0",
+  "recordedAt": "2026-11-04T14:28:31.643744+00:00",
+  "harnessBase": "2f3cc273ae73e5de7808123fc6ff2189cf866308",
+  "harnessCandidateChange": "Exact Pi1.5.0 allowlist, native tool schema coercion and failure captures",
+  "node": "24.19.0",
+  "platform": "Linux x86_64 in WSL",
+  "transport": "scripted loopback OpenAI-compatible provider",
+  "realProviderCalls": 0,
+  "packages": [
+    {
+      "package": "@earendil-works/pi-coding-agent",
+      "version": "1.5.0",
+      "resolved": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.5.0.tgz",
+      "integrity": "sha512-xNDZ5kqowO6Z03FS2gwAkPEGk1ssxVcYKQ6qZId84mFEvwACvvyc2l0vAMOS+c5zvxLRMLBE9r4y44IGYkMJaQ=="
+    },
+    {
+      "package": "@earendil-works/pi-ai",
+      "version": "1.5.0",
+      "resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.5.0.tgz",
+      "integrity": "sha512-VeWxNqTHSqRCf8AcY/6kvNwh+neRL6MPxZPePVztIQy6qqK9MR/YoCSN/ZgDnIyCD3pqEXgRyQbzk4KV4uvjbg=="
+    },
+    {
+      "package": "@earendil-works/pi-agent-core",
+      "version": "1.5.0",
+      "resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.5.0.tgz",
+      "integrity": "sha512-FOj+jXj48DbzMycR/ghNa2KcsqWmvOln24e0FnQOVgnd8vn5H79g335WdHaZUVdRo+zCeogb40/qPPlCWFuvmA=="
+    },
+    {
+      "package": "@earendil-works/pi-codemode",
+      "version": "1.5.0",
+      "resolved": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.5.0.tgz",
+      "integrity": "sha512-PLBJZ17AEWGzOlAAcFuOkw3PxkOti0JlFuZQyeF2GRTqbpuYo4k9t8YqUV2uOQVzrUnKdxahwaFUqc1eNS1WAg=="
+    },
+    {
+      "package": "@earendil-works/pi-mcp",
+      "version": "1.5.0",
+      "resolved": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.5.0.tgz",
+      "integrity": "sha512-DURw3IwHCTMHV8CzUJWVp9css27NowsCWfXt4xg2r09IZ+P1O/Uq58hp0hb9WJO0dbkaKGXKBIkV4LVXcu2nlg=="
+    },
+    {
+      "package": "@earendil-works/pi-tui",
+      "version": "1.5.0",
+      "resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.5.0.tgz",
+      "integrity": "sha512-56KqrDVeLF18k+syppVbT35Ai1opbM44ot+sL7O3K40CaWwXCiwOpqEFugDBAILtAhseZh6uYIuYxPPOJHLFAA=="
+    }
+  ],
+  "files": [
+    {
+      "file": "native-qualification.json",
+      "sha256": "89f360a48965624e93bcd1add93ac5263a5757496fe20a045c383a7223d46d83",
+      "bytes": 7290
+    },
+    {
+      "file": "native-network.json",
+      "sha256": "06bbe5c445c48116a1a85940e34c1039a436cbb5d7bf599c484403bddba58227",
+      "bytes": 3051
+    },
+    {
+      "file": "native-processes.json",
+      "sha256": "d0ce6c62fbfd7c6fa7c623ddadc5bcaef720e18638b14ff360dcfd8a21243057",
+      "bytes": 1663
+    },
+    {
+      "file": "force-transport.jsonl",
+      "sha256": "7d4691f0c998e7f2cf441fdc4d3e66ead42437a5fb374a89dccd4c174fe01a8e",
+      "bytes": 16566
+    },
+    {
+      "file": "green-transport.jsonl",
+      "sha256": "f646e440427b4d49315bfff3a6dce601dfe1b964f055b1c9668222620c7676b6",
+      "bytes": 17736
+    },
+    {
+      "file": "red-denied-tool.jsonl",
+      "sha256": "75cb0ea612f9446220bcd05fd9e3aa9f41f3988b7252034e438e87640ebe006c",
+      "bytes": 16022
+    },
+    {
+      "file": "red-extension-filtered.jsonl",
+      "sha256": "c45800b6f9882cba85c8e6afabde290bbdc9742927b58e9719cb0278ea238546",
+      "bytes": 15823
+    },
+    {
+      "file": "red-extension-ok.jsonl",
+      "sha256": "ed8a7d46288437c6dae6cd4f74f7ee171f9eaa33ee2e4e3bb5f8074125309078",
+      "bytes": 16209
+    },
+    {
+      "file": "red-length.jsonl",
+      "sha256": "75858d115c0eab5a03363d4cc603bf16eac08d6d5a5c81dfc2ccff4adfc07dee",
+      "bytes": 11901
+    },
+    {
+      "file": "red-mcp-denied.jsonl",
+      "sha256": "689372188c9c5a720cdb2013beb98ca2e97fabb5adf42c12991077d4f2c077e8",
+      "bytes": 15827
+    },
+    {
+      "file": "red-provider-error.jsonl",
+      "sha256": "3308cb34fd76d5ac60705abfdd852d4bbf51634aa9e56c9f18eb735485240485",
+      "bytes": 11182
+    },
+    {
+      "file": "red-schema-invalid.jsonl",
+      "sha256": "4d22d65de6e378678710ad64c017462c63e9b6b39f16e0ba6c6c8c352e9fc374",
+      "bytes": 17552
+    },
+    {
+      "file": "red-schema-valid.jsonl",
+      "sha256": "bc9b528163c7532ab7b3f223171f0c84ded7ae0f6fedc624980b683707db91c6",
+      "bytes": 16699
+    },
+    {
+      "file": "red-tool-error.jsonl",
+      "sha256": "3ab95ba60005fe81be0fadc3b73f590915288273f520b0a68b3544a12300c069",
+      "bytes": 16460
+    },
+    {
+      "file": "red-transport.jsonl",
+      "sha256": "4969d705de34b8db2fdac6cf55421fa1df7d4a31aeabb44e33fbb5813cf9c953",
+      "bytes": 15936
+    },
+    {
+      "file": "adapter-qualification.json",
+      "sha256": "ff149bc5b91985cc4bd759a3b4cc0c9193ba7a0e43e44b2b3ffd035315185292",
+      "bytes": 3163
+    },
+    {
+      "file": "adapter-network.json",
+      "sha256": "51f152b6621b0bb7074c38ade2963c520433d16c5584877b6d25f267f595a121",
+      "bytes": 6138
+    },
+    {
+      "file": "adapter-processes.json",
+      "sha256": "54b2ef9423e6f2911b7b637807aa923885348fe500873ecf81bbb66f1ddf6e55",
+      "bytes": 383
+    },
+    {
+      "file": "adapter-pipeline.json",
+      "sha256": "33cceb701b4c3469d2e0fa12aa342094e685bbe116f9061114e8bace329a2754",
+      "bytes": 358
+    },
+    {
+      "file": "adapter-multi-turn.result.json",
+      "sha256": "1a8764f6c0fbff76f5fbc705b1637c2b146f4716bfb7f817e2c0ec540d203621",
+      "bytes": 2531
+    }
+  ],
+  "captureSources": [
+    {
+      "file": "capture.mjs",
+      "sha256": "f47089e02f4aac78a8aa287ea8a8a45f8dc64e01b67b834ae1e7ca6e7e919e32"
+    },
+    {
+      "file": "network-guard.mjs",
+      "sha256": "350296f1718b7f6a1ca62acbcb63b78ce110adb7f74b8d42c182d1f2720706ed"
+    }
+  ],
+  "limits": [
+    "No real model, subscription authentication, price or performance qualification.",
+    "Application-level network hooks permit one scripted loopback endpoint; not OS containment.",
+    "Green checks discovery, not autonomous selection.",
+    "Governed child and actual web engine are separately tested."
+  ]
+}

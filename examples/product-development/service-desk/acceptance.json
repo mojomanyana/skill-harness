@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "kind": "product-observation-inventory",
+  "notHarnessSpecification": true,
+  "verdict": "not-run",
+  "providerCalls": 0,
+  "baseline": [
+    {"id":"P1","outcome":"Create, find, assign, comment, resolve and reopen one request in the real browser","evidence":"Browser observations linked to API/database state"},
+    {"id":"P2","outcome":"Blank title/comment and invalid status/assignee do not corrupt stored data","evidence":"Actual negative API checks and user-visible validation"},
+    {"id":"P3","outcome":"Combined status/assignee/text filters and restart persistence work","evidence":"Browser/API results before and after a project-scoped restart"},
+    {"id":"P4","outcome":"All three repositories participate through a coherent shared contract","evidence":"Exact roots/revisions, consumer checks and assembled-product review"},
+    {"id":"P5","outcome":"Local startup, loopback binding and scoped stop are repeatable","evidence":"Actual resource identities, command results and retained-volume check"}
+  ],
+  "followup": [
+    {"id":"F1","outcome":"Priority works across UI, shared client and API with old read/create compatibility","evidence":"Current and old-client behavioral checks"},
+    {"id":"F2","outcome":"Existing requests/comments survive a repeatable migration","evidence":"Before/after selected records and migration replay"},
+    {"id":"F3","outcome":"A stale edit cannot overwrite a newer edit; UI offers useful recovery","evidence":"Competing writes, conflict response, unchanged winning row and browser feedback"},
+    {"id":"F4","outcome":"Settled work continues across a restart and correct repository switches","evidence":"Native continuation/selection records and unchanged completed effects"}
+  ],
+  "reportSeparately": ["product defects","evaluation defects","infrastructure errors","unverified evidence","optional improvements"],
+  "metrics": ["time to independently accepted outcome","first-pass acceptance","repairs","unnecessary interventions","new and reused evidence","reported subject and judge usage coverage","owned and available host resource observations"],
+  "rules": ["No undisclosed requirement in a withheld test","No automatic approval from preparation or test count","Equivalent correct designs are valid","Historical failures remain preserved","No private reasoning or credentials in exported evidence"]
+}

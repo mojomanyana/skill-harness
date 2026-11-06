@@ -92,6 +92,27 @@ describe("regradeScenario", () => {
 });
 
 describe("regradeRun", () => {
+  it("retains subject profile/observations and records new judge effort across a full saved-answer regrade", async () => {
+    const runDir = tmp(), spec = scenarioOf(SPEC);
+    writeFileSync(join(runDir, "A1.green.txt"), "USER: hi\nASSISTANT: hello");
+    const subject = { provider: "local", model: "subject", thinking: "high" as const };
+    const observation = { requested: subject, observedModels: [{ provider: "local", model: "resolved" }], effectiveThinking: null,
+      status: "complete" as const, usage: { inputTokens: 3, outputTokens: 0, cacheReadTokens: null, cacheWriteTokens: null },
+      usageCoverage: { assistantMessages: 1, inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 } };
+    const subjectCalls = [{ repetition: 0, turn: 0, observation }];
+    writeResults(runDir, { skill: "demo", harness: "pi", model: "local:subject", subject_profile: subject,
+      judge: { provider: "local", model: "judge", thinking: "low" }, timestamp: "2026-11-05", label: null, mode: "green",
+      scenarios: [{ id: "A1", judge_verdict: "FAIL", judge_reason: "old", suspect: false, override: null, note: "", subject_calls: subjectCalls }] }, null);
+    const judge = { provider: "local", model: "judge", thinking: "high" as const };
+    const adapter = judgeAdapter(reply(["PASS"], "PASS", "ok"));
+    adapter.judgeStructured = async req => { expect(req.model).toEqual(judge); return { raw: reply(["PASS"], "PASS", "ok"), observation: { ...observation, requested: judge } }; };
+    const out = await regradeRun({ runDir, spec, adapter, judge, specDir: runDir });
+    const persisted = readResults(runDir);
+    expect(out.subject_profile).toEqual(subject);
+    expect(persisted.scenarios[0].subject_calls).toEqual(subjectCalls);
+    expect(persisted.scenarios[0].rep_judgments?.[0].judgments[0].calls?.[0].requested).toEqual(judge);
+    expect(persisted.judge).toEqual(judge);
+  });
   it("regradeRun re-judges a run dir's green transcripts and rewrites results.yaml", async () => {
     const runDir = tmp();
     writeFileSync(join(runDir, "A1.green.txt"), "USER: hi\nASSISTANT: hello", "utf8");

@@ -1,3 +1,5 @@
+import { requestedSubject } from "./run-summary.js";
+import { sameModelProfile, type ModelRef } from "./adapters/types.js";
 import { createHash } from "node:crypto";
 import { lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
@@ -12,7 +14,7 @@ export interface SavedAnswerPlan {
 }
 
 /** This is an input-identity plan, never an approval or a claim that a failed answer improved. */
-export function planSavedAnswers(runDir: string, spec: Spec, skillDir: string, specDir: string): SavedAnswerPlan {
+export function planSavedAnswers(runDir: string, spec: Spec, skillDir: string, specDir: string, profiles?: { subject?: ModelRef; judge?: ModelRef }): SavedAnswerPlan {
   const previous = readResults(runDir);
   const context = { skillDir, specDir, scenarios: spec.scenarios, judgePersona: spec.judge_persona };
   const recorded = previous.source_hashes;
@@ -31,6 +33,7 @@ export function planSavedAnswers(runDir: string, spec: Spec, skillDir: string, s
       return true;
     });
     const base = { id: s.id, changed: relevant };
+    if (profiles?.subject && !sameModelProfile(profiles.subject, requestedSubject(previous))) return { ...base, action: "rerun" as const, note: "Requested subject model/thinking changed; saved answers cannot measure the new profile." };
     if (!prior) return { ...base, action: "rerun" as const, note: "No saved answer exists for this scenario." };
     const files = findTranscriptFiles(runDir, s.id, previous.mode);
     const reps = prior.reps ?? 1;
@@ -47,8 +50,12 @@ export function planSavedAnswers(runDir: string, spec: Spec, skillDir: string, s
     if (prior.judge_verdict === "ERROR") return { ...base, action: "inspect" as const, note: "Resolve transport/capture errors first; recover saved answers before considering another subject run." };
     const stimulusChanged = relevant.some(key => !/^(rubric|gates|policy):/.test(key));
     if (stimulusChanged) return { ...base, action: "rerun" as const, note: "Subject inputs or skill changed. Old answers remain historical and cannot establish current behavior." };
-    if (relevant.some(k => k.startsWith("gates:"))) return { ...base, action: "regate" as const, note: "Replay supported assertions on saved evidence; missing execution evidence remains unknown. Regrade too if the rubric changed." };
+    const judgeChanged = profiles?.judge && !sameModelProfile(profiles.judge, previous.judge);
+    if (relevant.some(k => k.startsWith("gates:"))) return { ...base, action: "regate" as const, note: judgeChanged
+      ? "Regate with the recorded judge profile, then perform a complete saved-answer regrade with the requested judge model/thinking. No subject call is needed."
+      : "Replay supported assertions on saved evidence; missing execution evidence remains unknown. Regrade too if the rubric changed." };
     if (relevant.some(k => k.startsWith("rubric:"))) return { ...base, action: "regrade" as const, note: "Judge the saved answers against corrected references/rubric; no subject call is needed." };
+    if (judgeChanged) return { ...base, action: "regrade" as const, note: "Judge model/thinking changed; retain the subject answers and obtain separate judgments. Apply any policy changes to those judgments." };
     if (relevant.some(k => k.startsWith("policy:"))) return { ...base, action: "rescore" as const, note: "Recompute policy using retained verdicts; no provider calls." };
     return { ...base, action: "reuse" as const, note: "Inputs match. Retain the existing verdict, including failures; this is not a new stability sample." };
   }) };

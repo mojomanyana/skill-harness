@@ -136,6 +136,7 @@ export function judgeResemblesSubject(judge: ModelRef, subject: ModelRef): boole
 }
 
 export interface GradeResult extends ParsedVerdict {
+  calls?: import("./adapters/types.js").ModelCallObservation[];
   /** The final judge reply, retained for callers that predate structured judging. */
   raw: string;
   /** Every attempt in call order; two entries mean the structured retry also ran. */
@@ -257,6 +258,7 @@ export async function gradeTranscript(
   cwd: string,
   expectedCriteria: number,
 ): Promise<GradeResult> {
+  const calls: import("./adapters/types.js").ModelCallObservation[] = [];
   const rawReplies: string[] = [];
   const prompts: string[] = [];
   let validationError = "";
@@ -264,7 +266,10 @@ export async function gradeTranscript(
     throwIfProcessAborted();
     const retry = attempt === 0 ? "" : `\n\nYour reply was not valid: ${JSON.stringify(validationError)}; reply with only the JSON object.`;
     prompts.push(prompt + retry);
-    const raw = await adapter.judge({ model: judge, prompt: prompts[prompts.length - 1], cwd });
+    const request = { model: judge, prompt: prompts[prompts.length - 1], cwd };
+    const reply = adapter.judgeStructured ? await adapter.judgeStructured(request) : { raw: await adapter.judge(request) };
+    if (reply.observation) calls.push(reply.observation);
+    const raw = reply.raw;
     throwIfProcessAborted();
     rawReplies.push(raw);
 
@@ -273,7 +278,7 @@ export async function gradeTranscript(
       const snippet = raw.trim().replace(/\s+/g, " ").slice(0, 160);
       return {
         verdict: "ERROR", reason: `judge unparseable: ${snippet}`, suspect: false,
-        raw, rawReplies, prompts, criteria: completeCriterionVotes([], expectedCriteria), judgeFormat: "json",
+        raw, rawReplies, prompts, calls, criteria: completeCriterionVotes([], expectedCriteria), judgeFormat: "json",
         ...(attempt === 1 ? { judgeRetries: 1 as const } : {}),
       };
     }
@@ -284,7 +289,7 @@ export async function gradeTranscript(
         ? parsed.criteria.every(vote => vote.verdict === "PASS")
         : parsed.criteria.some(vote => vote.verdict === "FAIL");
       return {
-        ...parsed, raw, rawReplies, prompts, suspect, judgeFormat: "json",
+        ...parsed, raw, rawReplies, prompts, calls, suspect, judgeFormat: "json",
         ...(attempt === 1 ? { judgeRetries: 1 as const } : {}),
       };
     } catch (error) {
@@ -300,6 +305,7 @@ export async function gradeTranscript(
     raw,
     rawReplies,
     prompts,
+    calls,
     criteria: completeCriterionVotes([], expectedCriteria),
     judgeFormat: "json",
     judgeRetries: 1,

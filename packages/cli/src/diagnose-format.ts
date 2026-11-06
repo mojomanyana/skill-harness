@@ -1,4 +1,5 @@
 import type { Diagnosis } from "@skill-harness/core";
+import { modelProfileLabel } from "@skill-harness/core";
 
 /** Human view of the same offline report; never a second scoring policy. */
 export function formatDiagnosis(report: Diagnosis): string {
@@ -11,6 +12,13 @@ export function formatDiagnosis(report: Diagnosis): string {
     `Coverage: ${grouped.coverage.availableVotes}/${grouped.coverage.expectedVotes} known-size votes available; ${grouped.coverage.unknownScenarioSizes} scenario sizes unknown.`,
     `Mapping: ${grouped.metadataSha256}`,
   ];
+  if (report.summary) {
+    const summary = report.summary;
+    lines.push(`Subject requested: ${modelProfileLabel(summary.subject.requested)}; effective thinking: unknown.`,
+      `Judge requested: ${modelProfileLabel(summary.judge.requested)}; effective thinking: unknown.`,
+      `Retained token observations: ${summary.usage.subject.recordedInvocations} subject invocations (total unknown); ${summary.usage.judge.recordedInvocations}/${summary.usage.judge.expectedInvocations ?? "unknown"} judge attempts. Full per-counter coverage: --format json. Costs are separate.`,
+      summary.limits);
+  }
   for (const scenario of grouped.scenarios) {
     lines.push("", `${scenario.id}: recorded ${scenario.original.judge_verdict}; override ${scenario.original.override ?? "none"}; objective ${scenario.original.objective?.status ?? "not recorded"}`);
     for (const [dimension, counts] of Object.entries(scenario.counts)) {

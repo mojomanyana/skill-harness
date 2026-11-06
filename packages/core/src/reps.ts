@@ -4,6 +4,7 @@ import type { TraceMetrics } from "./capture-trace-types.js";
 
 /** One rep's outcome (subject run + judge). */
 export interface RepOutcome {
+  subjectCalls?: { turn: number; observation: import("./adapters/types.js").ModelCallObservation }[];
   verdict: Verdict;
   reason: string;
   suspect: boolean;
@@ -134,7 +135,8 @@ export function outcomesToResult(id: string, outcomes: RepOutcome[], repCount: n
       priceAsOf: subject.price_as_of,
     }];
   });
-  const usageField = usage.length ? { usage } : {};
+  const calls = outcomes.flatMap((outcome, repetition) => (outcome.subjectCalls ?? []).map(call => ({ ...call, repetition })));
+  const usageField = { ...(usage.length ? { usage } : {}), ...(calls.length ? { subject_calls: calls } : {}) };
   const repJudgments = outcomes.map((outcome, repetition) => ({ repetition, judgments: outcome.judgment ? [outcome.judgment] : [], recorded_verdict: outcome.verdict, ...(outcome.objective ? { objective: outcome.objective } : {}) }));
   const repJudgmentField = outcomes.some(outcome => outcome.judgment) ? { rep_judgments: repJudgments } : {};
   if (repCount === 1) {

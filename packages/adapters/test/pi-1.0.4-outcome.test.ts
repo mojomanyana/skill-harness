@@ -90,7 +90,7 @@ describe("Pi 1.0.4 outcomes through ungated execution and saved regrade", () => 
     expect(judge).not.toHaveBeenCalled();
   });
 
-  it.each(["1.0.5", "1.0.4-rc.1", "1.2.0", "1.3.0", "1.4.0-rc.1", "1.4.1", "1.5.0", "0.83.0", "unknown", null])("refuses fresh unqualified Pi %s before a subject call and saved regrade", async (version) => {
+  it.each(["1.0.5", "1.0.4-rc.1", "1.2.0", "1.3.0", "1.4.0-rc.1", "1.4.1", "1.5.0-rc.1", "1.5.1", "0.83.0", "unknown", null])("refuses fresh unqualified Pi %s before a subject call and saved regrade", async (version) => {
     replay.version = version;
     replay.text = jsonl(message("plausible answer"), settled);
     const { root, specPath, spec } = fixture();
@@ -166,7 +166,9 @@ it("delivered whitespace is available to the judge rather than retried as a miss
   const judge = vi.fn(async () => JSON.stringify({ verdict: "FAIL", reason: "No greeting", votes: [
     { criterion: 1, vote: "FAIL", reason: "No greeting" },
   ] }));
-  const summary = await runSkillModel({ spec, specPath, skillDir: root, adapter: { ...piAdapter, judge },
+  // This control isolates subject delivery and deliberately uses the legacy
+  // judge double; do not inherit Pi's separate structured judge execution.
+  const summary = await runSkillModel({ spec, specPath, skillDir: root, adapter: { ...piAdapter, judgeStructured: undefined, judge },
     model: subject, modelToken: "fixture:subject", judge: judgeModel, mode: "force", timestamp: "2026-10-07T00:00:00.000Z" });
   expect(replay.calls).toBe(1);
   expect(judge).toHaveBeenCalledTimes(1);

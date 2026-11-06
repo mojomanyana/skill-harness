@@ -5,7 +5,7 @@ import {
   runSkillModel,
   effectiveVerdicts,
   findTranscriptFiles,
-  parseModelRef,
+  parseModelRef, withThinking, summarizeRun, runSummaryLines,
   defaultJudge,
   assertJudgeAllowed,
   type HarnessAdapter,
@@ -14,6 +14,8 @@ import {
 import { getAdapter } from "@skill-harness/adapters";
 
 export interface Scorecard {
+  summary: ReturnType<typeof summarizeRun>;
+  summaryLines: string[];
   skill: string;
   model: string;
   grade: { pct: number; letter: string; ship: boolean };
@@ -80,6 +82,8 @@ export async function runViaExtension(opts: {
   skillDir: string;
   specPath?: string;
   model?: string;
+  thinking?: string;
+  judgeThinking?: string;
   reps?: number;
   mode?: "red" | "green" | "force";
   /** Green only: one instructed loading/quote check; autonomous selection remains untested. */
@@ -103,8 +107,8 @@ export async function runViaExtension(opts: {
   const specPath = opts.specPath ?? join(opts.skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
   const modelToken = opts.model ?? DEFAULT_MODEL;
-  const model = parseModelRef(modelToken);
-  const judge = parseModelRef(opts.judge ?? defaultJudge());
+  const model = withThinking(parseModelRef(modelToken), opts.thinking);
+  const judge = withThinking(parseModelRef(opts.judge ?? defaultJudge()), opts.judgeThinking);
   assertJudgeAllowed(judge, {
     source: opts.judge ? "the judge argument" : "the default judge (SKILL_HARNESS_JUDGE or the baked value)",
   });
@@ -126,6 +130,7 @@ export async function runViaExtension(opts: {
       .map((f) => join(summary.runDir, f)));
   return {
     skill: summary.results.skill, model: summary.results.model,
+    summary: summarizeRun(summary.results), summaryLines: runSummaryLines(summary.results),
     grade: { pct: g.pct, letter: g.letter, ship: g.ship },
     scenarios: verdicts.map((v) => ({ id: v.id, verdict: v.verdict, suspect: v.suspect ?? false })),
     failedTranscripts,

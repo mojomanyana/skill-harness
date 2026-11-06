@@ -1,3 +1,4 @@
+import { comparisonProfile } from "./run-summary.js";
 import { join } from "node:path";
 import { loadSpec, type Scenario, type Spec } from "./spec.js";
 import { effectiveVerdicts, type ResultsFile, type ScenarioResult } from "./results.js";
@@ -228,6 +229,10 @@ function stabilityForScenario(group: ScoredRunGroup, scenario: Scenario, window:
     const skillChanged = skillTextChanged(prev.r.source_hashes, cur.r.source_hashes);
     const base = { from, to, flipped: false, skillChanged, changedSources: [] as string[], unanimousFlip: false };
 
+    if (comparisonProfile(prev.r) !== comparisonProfile(cur.r)) {
+      pairs.push({ ...base, status: "sources", changedSources: ["subject/judge model or thinking profile"] });
+      continue;
+    }
     if (!prev.ok || !cur.ok) {
       pairs.push({ ...base, status: "inconclusive" });
       continue;

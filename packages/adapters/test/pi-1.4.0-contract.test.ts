@@ -88,5 +88,5 @@ test("supported adapter resumes exact turns and synthetic scoring respects objec
   expect(clean).toMatchObject({ exitCode: 0, fixtureShip: true, scriptedJudgeRequests: 1, verdicts: { good: "PASS" } });
   expect(mixed).toMatchObject({ exitCode: 1, fixtureShip: false, scriptedJudgeRequests: 2, verdicts: { good: "PASS", "judge-fail": "FAIL", "gate-fail": "FAIL" } });
   expect(piQualificationFailure("1.4.0")).toBeNull();
-  for (const version of ["1.4.0-rc.1", "1.4.1", "1.5.0", "9.9.9", null]) expect(piQualificationFailure(version)).not.toBeNull();
+  for (const version of ["1.4.0-rc.1", "1.4.1", "1.5.0-rc.1", "1.5.1", "9.9.9", null]) expect(piQualificationFailure(version)).not.toBeNull();
 });

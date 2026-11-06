@@ -1,0 +1,25 @@
+Extend the accepted service desk with request priority and safe concurrent edits.
+
+Add low, normal and high priority, defaulting to normal for existing requests and
+for old clients that omit the field. The UI should display and edit priority and
+combine priority filtering with its existing filters. Unknown priority values
+must be rejected without creating or modifying a request.
+
+Add a request revision that increments on each successful request edit. Updated
+clients must submit the revision when editing; stale revisions must receive a
+conflict response without losing the newer data. Show useful conflict feedback
+in the UI and allow a refresh before retrying. Do not silently overwrite edits.
+Existing clients' read and create operations must remain compatible; they are not
+required to support update after this change. State the update compatibility
+change clearly in the shared client and release notes.
+
+Migrate an existing database with requests and comments, preserving them. Repeating
+the migration must be safe. Verify the actual shared client, API, UI and database,
+including two conflicting edits and reopening a request. Preserve previous user
+work and refresh only evidence made stale by these changes.
+
+At a safely settled boundary, the operator may restart the session and continue.
+Carry forward the goal, exact roots, decisions, unfinished work and relevant
+evidence without repeating completed database changes or rediscovering known
+repositories. Use the established lab scope and closeout rules. Keep changes
+uncommitted and do not publish.

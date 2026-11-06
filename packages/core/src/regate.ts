@@ -2,7 +2,7 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { Spec, Scenario } from "./spec.js";
 import type { HarnessAdapter, ModelRef } from "./adapters/types.js";
-import { parseModelRef } from "./adapters/types.js";
+import { parseModelRef, sameModelProfile } from "./adapters/types.js";
 import { parseVerdict, detectMisfire, resolveJudgeReferences } from "./grade.js";
 import { evaluateNeedleGates, evaluateOutputGates, hasNeedleGates, hasOutputGates } from "./seeded.js";
 import { evaluateTraceGates } from "./trace-gates.js";
@@ -149,6 +149,9 @@ function verdictFromSavedJudgement(
 export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
   const now = opts.now ?? (() => new Date().toISOString());
   const prev = readResults(opts.runDir);
+  if (!sameModelProfile(prev.judge, opts.judge)) {
+    throw new Error("Regate requires the recorded judge model/thinking profile. Regate with that profile, then perform a complete saved-answer regrade to change the judge.");
+  }
   // The run's own mode names its artifacts (`<id>.<mode>[.rep<k>].diff.txt`). Read
   // from the record rather than assumed green: force runs are scored measurements
   // too, and looking for green artifacts under a force run finds nothing at all.
@@ -241,7 +244,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
         ? unavailableExecution("Conflicting recorded trace digests.", "invalid")
         : loadExecutionFacts(tracePath(opts.runDir, scenario.id, mode, rep), {
         scenarioId: scenario.id, mode, repetition: rep ?? 0, turns: scenario.turns.length,
-        ...(prev.model.includes(":") ? { subject: parseModelRef(prev.model) } : {}), piVersion: prev.harness_cli_version,
+        ...(prev.model.includes(":") ? { subject: prev.subject_profile ?? parseModelRef(prev.model) } : {}), piVersion: prev.harness_cli_version,
         responses: transcriptResponses(before, scenario),
       }, recordedTraceHashes[0]);
 
@@ -420,7 +423,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
 
   const results = writeResults(opts.runDir, {
     schema: prev.schema, subject_invocations: prev.subject_invocations,
-    skill: prev.skill, harness: prev.harness, model: prev.model,
+    skill: prev.skill, harness: prev.harness, model: prev.model, subject_profile: prev.subject_profile,
     // Carried verbatim: a regate re-reads saved diffs, it never re-runs the harness.
     harness_cli_version: prev.harness_cli_version, delivery_canary: prev.delivery_canary,
     delivery_observations: prev.delivery_observations,
@@ -431,7 +434,7 @@ export async function regateRun(opts: RegateOptions): Promise<RegateResult> {
     // indistinguishable from a vacuous arm. Same reason `harness_cli_version`,
     // `delivery_canary` and `source_hashes` are carried here.
     arm: prev.arm,
-    judge: { provider: opts.judge.provider, model: opts.judge.model },
+    judge: { ...opts.judge },
     timestamp: prev.timestamp, label: prev.label, mode: prev.mode, partial: prev.partial,
     // Only the `gates:` keys of the scenarios actually re-evaluated. Stimulus, rubric
     // and policy were not re-decided here, so their hashes stay exactly as recorded.
