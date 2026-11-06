@@ -78,6 +78,11 @@ test("diagnose text and JSON expose the same mixed failure without regrading or 
   expect(text).toContain("mixed: 0 PASS, 1 FAIL, 0 unavailable");
   expect(text).toContain("not passing answers");
   expect(text).not.toContain("method-completeness: 1");
+  await cmdDiagnose({ ...args, flags: { ...args.flags, "judge-thinking": "high" } });
+  expect(JSON.parse(String(log.mock.calls.at(-1)![0])).reusePlan.scenarios[0].action).toBe("regrade");
+  await cmdDiagnose({ ...args, multi: { model: ["local:other"] } });
+  expect(JSON.parse(String(log.mock.calls.at(-1)![0])).reusePlan.scenarios[0].action).toBe("rerun");
+  await expect(cmdDiagnose({ ...args, flags: { ...args.flags, thinking: true } })).rejects.toThrow(/Unsupported Pi thinking/);
   expect(readFileSync(join(result.runDir, "results.yaml"))).toEqual(before);
   expect(calls).toBe(2); // Only the scripted setup, never diagnosis.
   await expect(cmdDiagnose({ ...args, flags: { ...args.flags, format: "invalid" } })).rejects.toThrow(/json or text/);

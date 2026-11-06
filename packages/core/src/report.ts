@@ -1,3 +1,5 @@
+import { runSummaryLines, summarizeRun, requestedSubject } from "./run-summary.js";
+import { modelProfileLabel } from "./adapters/types.js";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { loadSpec, type ShipBar } from "./spec.js";
@@ -7,6 +9,8 @@ import { boundaryCells, collectStability, stabilityNote } from "./stability.js";
 import { aggregateMetrics, type AggregateMetrics } from "./metrics.js";
 
 export interface RunColumn {
+  summary?: ReturnType<typeof summarizeRun>;
+  summaryLines?: string[];
   index: number;
   label: string; // model token
   tag: string; // harness-modelslug dir name
@@ -147,7 +151,9 @@ export function collectReport(skillDir: string): ReportData {
       const lift = tagLift && tagLift.greenTimestamp === r.timestamp ? tagLift : undefined;
       columns.push({
         index: columns.length,
-        label: r.model,
+        label: r.subject_profile?.thinking ? modelProfileLabel(requestedSubject(r)) : r.model,
+        summary: summarizeRun(r),
+        summaryLines: runSummaryLines(r),
         tag,
         runDir,
         timestamp: r.timestamp,
@@ -175,6 +181,8 @@ export function publicView(data: ReportData) {
     columns: data.columns.map((c) => ({
       index: c.index,
       label: c.label,
+      summary: c.summary,
+      summaryLines: c.summaryLines,
       tag: c.tag,
       timestamp: c.timestamp,
       mode: c.mode,

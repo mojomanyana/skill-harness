@@ -177,6 +177,7 @@ function render() {
       const errorNote = g.errors > 0 ? ` — ${g.errors} infrastructure error${g.errors === 1 ? "" : "s"}` : "";
       gradeHtml = `${g.letter} (${g.pct}%) · ${g.passed}/${g.total}${suspectNote}${errorNote} ${badge}`;
     }
+    const summaryHtml = col.summaryLines ? `<details><summary>Evidence, profiles and usage</summary><div class="meta">${col.summaryLines.map(line => escapeHtml(line)).join("<br>")}</div></details>` : "";
     const m = col.metrics;
     const metricHtml = m && m.total_reps > 0
       ? `<div class='grade' title='subject metrics reported by ${m.subject_metrics_reps}/${m.total_reps} reps'>` +
@@ -200,7 +201,7 @@ function render() {
           : `lift 0 · no effect`;
       const inc = ls.inconclusive > 0 ? ` · ${ls.inconclusive} inconclusive` : "";
       const part = col.lift.partial ? " · partial" : "";
-      html += `<th><div>${escapeHtml(col.label)}</div><div class='grade'>${gradeHtml}</div>${metricHtml}` +
+      html += `<th><div>${escapeHtml(col.label)}</div><div class='grade'>${gradeHtml}</div>${metricHtml}${summaryHtml}` +
         `<div class='lift ${cls}' title='vs red baseline ${escapeHtml(col.lift.redTimestamp)} — ${ls.kept} passed without the skill too'>${body}${inc}${part}</div></th>`;
       return;
     }
@@ -210,7 +211,7 @@ function render() {
     if (none) {
       liftHtml = `<div class='lift none' title='${escapeHtml(none.title)}'>${escapeHtml(none.text)}</div>`;
     }
-    html += `<th><div>${escapeHtml(col.label)}</div><div class='grade'>${gradeHtml}</div>${metricHtml}${liftHtml}</th>`;
+    html += `<th><div>${escapeHtml(col.label)}</div><div class='grade'>${gradeHtml}</div>${metricHtml}${summaryHtml}${liftHtml}</th>`;
   });
   html += "</tr></thead><tbody>";
   for (const scn of DATA.scenarios) {

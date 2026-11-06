@@ -1,3 +1,4 @@
+import { sameModelProfile } from "./adapters/types.js";
 import { existsSync, readFileSync } from "node:fs";
 import type { ExecutionTraceV1, TraceToolCall } from "./capture-trace-types.js";
 import { EXECUTION_TRACE_VERSION } from "./capture-trace-types.js";
@@ -91,9 +92,9 @@ export function executionFacts(
   if (!traces.length) return binding.source === "live" ? unavailableExecution() : invalid("Recorded execution trace is missing or unreadable.");
   if (traces.some(trace => !validTrace(trace))) return invalid("Execution trace has malformed structure.");
   if (traces.some((trace, turn) => trace.scenario_id !== identity.scenarioId || trace.mode !== identity.mode || trace.rep !== identity.repetition || trace.turn !== turn ||
-      identity.subject && (trace.subject.provider !== identity.subject.provider || trace.subject.model !== identity.subject.model) ||
+      identity.subject && !sameModelProfile(trace.subject, identity.subject) ||
       identity.piVersion !== undefined && trace.pi_version !== identity.piVersion ||
-      trace.subject.provider !== traces[0].subject.provider || trace.subject.model !== traces[0].subject.model || trace.pi_version !== traces[0].pi_version)) {
+      !sameModelProfile(trace.subject, traces[0].subject) || trace.pi_version !== traces[0].pi_version)) {
     return invalid("Execution trace identity or turn sequence does not match this repetition.");
   }
   if (identity.responses !== undefined && (identity.responses === null || identity.responses.length !== traces.length || traces.some((trace, turn) => trace.final_text.trim() !== identity.responses![turn]))) {

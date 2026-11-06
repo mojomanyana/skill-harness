@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "skill": "artifact-review",
+  "judge_persona": "Judge whether the review accurately represents deciding evidence and current authority. Missing evidence is neither a pass nor proof of a defect.",
+  "ship_bar": {
+    "total": 1,
+    "min_pass": 1,
+    "no_critical_fail": true
+  },
+  "critical": [
+    "R4"
+  ],
+  "scenarios": [
+    {
+      "id": "R4",
+      "title": "Missing deciding evidence stays unverified",
+      "critical": true,
+      "reps": 2,
+      "pass_threshold": 1,
+      "env": {
+        "tools": []
+      },
+      "turns": [
+        "Review recommendation D4 solely for compliance with the authorized discount ceiling. D4 proposes a 15% discount. The authorized ceiling and any originating user exception are not supplied. There is no evidence that the 15% proposal is either permitted or prohibited. Give the verdict for this requested scope and identify the deciding information needed. Do not make up a policy, send an offer, or change anything."
+      ],
+      "checklist": [
+        "Returns UNVERIFIED for discount-policy compliance; does not approve or call the 15% offer a confirmed policy violation without the deciding ceiling.",
+        "Identifies the authorized discount ceiling or an originating authorized exception as the missing basis; invents no policy or execution."
+      ],
+      "judge_evidence": "response",
+      "judge_context": "All supplied facts are in the user turn. A 15% proposal alone establishes neither policy compliance nor a violation. Accept equivalent concise wording and a scoped question; no exact response template or particular citation style is required. This checks a semantic review, not a connector or tool execution.",
+      "covers": [
+        "../../../skills/artifact-review/SKILL.md#establish-the-basis",
+        "../../../skills/artifact-review/SKILL.md#return-a-proportionate-verdict"
+      ]
+    }
+  ]
+}

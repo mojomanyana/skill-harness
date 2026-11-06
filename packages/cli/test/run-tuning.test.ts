@@ -14,6 +14,14 @@ function argsFor(flags: Record<string, string>): Args {
   return { _: [], flags, multi: {} };
 }
 
+test("all explicit thinking selections are validated before any environment probe or evaluation", async () => {
+  let probes = 0, calls = 0;
+  const adapter: HarnessAdapter = { name: "pi", available: async () => { probes++; return true; },
+    run: async () => { calls++; return ""; }, judge: async () => { calls++; return ""; } };
+  await expect(cmdRun({ _: ["demo"], flags: { thinking: "high", judge: "local:judge", skills: "/missing" }, multi: { model: ["local:subject", "local:other:low"] } }, adapter)).rejects.toThrow(/either/);
+  expect(probes).toBe(0); expect(calls).toBe(0);
+});
+
 test("an invalid explicit run selection cannot expand into a full wave", async () => {
   let probes = 0, calls = 0;
   const adapter: HarnessAdapter = { name: "pi", available: async () => { probes++; return true; },

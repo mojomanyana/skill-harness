@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.33.0 — Unreleased
+
+- Qualify exact Pi 1.5.0 through scripted native and supported-adapter controls; retain earlier version qualification without claiming model quality or universal host compatibility.
+- Add explicit subject/judge thinking requests and requested versus observed model/effort provenance. Preserve unknown effective settings, profile-bound calibration/reuse and scenario/repetition comparison identity.
+- Report retained versus fresh judge evidence, runtime versus product outcomes and nullable reported token coverage, including malformed/error attempts. Missing judge billing remains unavailable.
+- Add an optional bounded current-session summary to the existing Daddy dashboard. Display errors cannot fail completed evaluation work.
+- Turn an exact optional Bookie lesson reference into an existing authoring project proposal without accepting labels, changing a skill or authorizing training/adoption. Add portable role and product-development examples without changing runtime dependencies.
+
 ## 0.32.4 — 2026-10-28
 
 - Add optional author-declared criterion dimensions and offline saved-evidence reporting in `diagnose`, with a readable `--format text` view. Separate task correctness, additional method completeness and mixed criteria without changing recorded votes, grades or acceptance gates.

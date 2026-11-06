@@ -1,3 +1,4 @@
+import { sameModelProfile } from "./adapters/types.js";
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync, statSync } from "node:fs";
 import { basename, isAbsolute, relative, resolve, sep } from "node:path";
@@ -82,7 +83,7 @@ function observedJudgment(runDir: string, results: ResultsFile, spec: Spec, scen
   const inputBytes = artifact(runDir, input.artifact);
   if (digest(inputBytes) !== input.sha256) throw new Error("bound judge input was changed");
   const saved = JSON.parse(text(inputBytes));
-  if (saved.schema !== 1 || saved.judge?.provider !== judgment.judge.provider || saved.judge?.model !== judgment.judge.model ||
+  if (saved.schema !== 1 || !saved.judge || !sameModelProfile(saved.judge, judgment.judge) ||
       !Array.isArray(saved.prompts) || saved.prompts.length !== (judgment.judgeRetries === 1 ? 2 : 1) || saved.prompts.some((p: unknown) => typeof p !== "string")) throw new Error("judge input identity is inconsistent");
   const transcripts = findTranscriptFiles(runDir, scenario.id, results.mode).filter(file => (repIndexOf(file) ?? 0) === repetition);
   if (transcripts.length !== 1) throw new Error("subject transcript identity is missing or ambiguous");

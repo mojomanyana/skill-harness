@@ -1,3 +1,4 @@
+import { runSummaryLines } from "./run-summary.js";
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { Spec, Scenario } from "./spec.js";
@@ -175,7 +176,7 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     event: "run-started", ts: now(),
     skill: spec.skill, harness: adapter.name, model: opts.modelToken,
     harness_cli_version: harnessCliVersion,
-    judge: { provider: judge.provider, model: judge.model },
+    judge: { ...judge },
     mode, label: opts.label ?? null,
   });
 
@@ -252,7 +253,8 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     delivery_canary: canaryStatus ?? undefined,
     delivery_observations: canaryObservations,
     model: opts.modelToken,
-    judge: { provider: judge.provider, model: judge.model },
+    subject_profile: { ...model },
+    judge: { ...judge },
     timestamp,
     label: opts.label ?? null,
     mode,
@@ -659,6 +661,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
     const subject = execution.status === "invalid" ? undefined : mergeTraces(traces)?.metrics;
     return {
       verdict, reason, suspect, objective, judgment,
+      subjectCalls: traces.flatMap((trace, turn) => trace.call ? [{ turn, observation: trace.call }] : []),
       metrics: {
         wall_time_ms: Math.max(0, Math.round(performance.now() - startedAt)),
         judge_calls: judgeCalls,
@@ -692,6 +695,7 @@ export function formatScorecard(summary: RunSummary, lift?: Lift, stability?: Sc
   const g = results.effective_grade;
   const lines: string[] = [];
   lines.push(`── ${results.skill} · ${results.harness} · ${results.model} ──`);
+  lines.push(...runSummaryLines(results));
   for (const s of results.scenarios) {
     const v = s.override ?? (s.objective?.status === "ERROR" ? "ERROR" : s.objective?.status === "NOT-MEASURED" ? "NOT-MEASURED" : s.objective?.status === "FAIL" ? "FAIL" : s.judge_verdict);
     const mark = v === "PASS" ? "✓" : v === "FAIL" ? "✗" : v === "NOT-MEASURED" ? "∅" : "?";

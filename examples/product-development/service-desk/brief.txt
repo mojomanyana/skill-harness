@@ -1,0 +1,36 @@
+Build a small, useful local service desk for a support team.
+
+Staff should be able to submit a request, find it in a list, assign it to one of
+two seeded staff members, discuss it through comments, and move it from open to
+in progress to resolved. They must be able to reopen a resolved request. A request
+has a title, description, status, optional assignee, and creation/update times.
+Titles must be nonblank after trimming; an invalid request must not create a row.
+Comments must be nonblank. Changing an assignee or status must survive a restart.
+Filtering by status and assignee and searching title text should work together.
+
+Use the three selected repositories: web application, API/background-processing
+home, and shared API contracts/client. They live in different parent folders.
+Keep the shared contract authoritative and usable by both API and web. Choose
+the simplest adequate implementation and explain consequential choices briefly.
+Do not add a background service unless a delivered requirement needs one.
+
+PostgreSQL is the source of truth. Run the local product with Docker using the
+lab's unique Compose project name from manifest.json. Bind published application
+and database ports to loopback; select available ports and record them. Do not
+alter other Compose projects, containers, volumes, Docker settings or host settings.
+Use synthetic data only. The pilot is for a single trusted local operator with
+two simulated staff identities; authentication, public deployment, outbound email,
+CRM integration and a production security claim are outside this delivery.
+
+The web app should make the complete workflow understandable: clear empty/loading
+states, readable validation errors, keyboard-operable controls and a visible result
+after each action. Verify actual browser behavior against the API and database.
+Check meaningful happy paths, failure paths and regression risks. Accept equivalent
+correct designs; documentation volume, test count and coverage percentage are not
+goals. Provide concise start/stop instructions and limitations.
+
+Existing user work must remain intact. Keep the new product changes uncommitted
+after the synthetic seed commits; do not publish, send messages or train anything.
+When the product is complete, stop its services and retain its named database
+volume and evidence. Completion includes independent review of the assembled
+product, not merely separate approval of each repository.

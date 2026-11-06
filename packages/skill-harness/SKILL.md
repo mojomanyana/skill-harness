@@ -1,6 +1,6 @@
 ---
 name: skill-harness
-version: 0.32.4
+version: 0.33.0
 description: >
   Create, test and improve Pi skills and optional ecosystem subagents. Use when
   the user describes a role they need, asks to create a skill, add evaluations,
@@ -129,6 +129,26 @@ optional. A social-media role does not itself authorize posting or account chang
 Optional JEV advice remains advisory with existing per-session paid-call and storage
 choices. Authoring and diagnostic data are not automatically training examples.
 Independent labels, source rights and separate export/training approval still apply.
+
+## Selected lessons and improvement proposals
+
+When Bookie is loaded, `skill_improvement` can turn one explicitly selected lesson
+into a proposal for an existing `skill_author` project. Supply its exact context or
+producer reference, the proposed change, when it applies, when it does not apply,
+and when it should be reconsidered. Bookie checks the current project and destination
+before returning a bounded excerpt. Harness stores its digest and reference, not the
+raw excerpt. No background memory search or automatic skill installation occurs.
+
+Proposals stay under `.skill-harness/authoring/<name>/improvements/`. Identical input
+is reused; inspection returns metadata and target-currentness, not protected lesson
+text. Re-resolve the selected source before using a stored proposal. A source digest
+is evidence identity, not acceptance. Continue the existing draft, calibration,
+comparison and explicit adoption workflow. Reuse saved answers or judgments only
+when their exact dependencies still match. Nothing is designated for training.
+
+If Bookie is missing or refuses the source, this tool records nothing. Ordinary
+authoring from the user's supplied idea continues without Bookie, Daddy or Principal.
+Generated skills still need only Pi and their declared tools.
 
 ## Commands and evidence
 

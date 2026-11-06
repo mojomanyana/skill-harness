@@ -26,7 +26,7 @@ import type { ModelRef, RunMode } from "./adapters/types.js";
 
 /** Preferred historical pin; fresh execution accepts only the explicit fixture-qualified releases below. */
 export const QUALIFIED_PI_VERSION = "1.0.4";
-export const QUALIFIED_PI_VERSIONS = ["1.0.4", "1.1.0", "1.4.0"] as const;
+export const QUALIFIED_PI_VERSIONS = ["1.0.4", "1.1.0", "1.4.0", "1.5.0"] as const;
 /** Historical raw captures from this version remain readable; this is not fresh-run qualification. */
 const LEGACY_PI_TRACE_VERSION = "0.83.0";
 export function piQualificationFailure(version: string | null): string | null {
@@ -47,6 +47,8 @@ interface ContentBlock {
 }
 
 interface RawMessage {
+  provider?: string;
+  model?: string;
   role?: string;
   content?: ContentBlock[];
   stopReason?: string;
@@ -101,6 +103,11 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
   let eligibleFinal = false;
   const captureErrors: string[] = [];
 
+  const call: NonNullable<ExecutionTraceV1["call"]> = {
+    requested: { ...meta.subject }, observedModels: [], effectiveThinking: null, status: "unknown",
+    usage: { inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheWriteTokens: null },
+    usageCoverage: { assistantMessages: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+  };
   let finalText = "";
   let lastAssistantText = "";
   let inputTokens: number | null = null;
@@ -218,6 +225,16 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
         if (call) call.completed_at = at;
       }
       if (msg?.role !== "assistant") continue;
+      const identity = { provider: str(msg.provider) ?? null, model: str(msg.model) ?? null };
+      if ((identity.provider || identity.model) && !call.observedModels.some(item => item.provider === identity.provider && item.model === identity.model)) call.observedModels.push(identity);
+      call.usageCoverage.assistantMessages++;
+      for (const [target, source] of [["inputTokens", "input"], ["outputTokens", "output"], ["cacheReadTokens", "cacheRead"], ["cacheWriteTokens", "cacheWrite"]] as const) {
+        const value = msg.usage?.[source];
+        if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+          call.usage[target] = (call.usage[target] ?? 0) + value;
+          call.usageCoverage[target]++;
+        }
+      }
       const text = assistantText(msg);
       eligibleFinal = msg.content!.every((block) => block.type === "text" || block.type === "thinking");
       currentAssistantText = text;
@@ -281,6 +298,7 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
     trace_version: EXECUTION_TRACE_VERSION,
     pi_version: meta.piVersion,
     subject: meta.subject,
+    call: { ...call, status: finalStatus === "complete" ? "complete" : "error" },
     scenario_id: meta.scenarioId,
     mode: meta.mode,
     rep: meta.rep,

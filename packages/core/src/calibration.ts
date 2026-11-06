@@ -1,3 +1,4 @@
+import { sameModelProfile } from "./adapters/types.js";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
@@ -206,9 +207,7 @@ function calibrationPlan(loaded: LoadedCalibration, options: CalibrationSelectio
     controls: selected.map(control => ({ id: control.id, action: "judge" })),
   };
   const retained = new Map<string, { result: GradeResult; files: Map<string, Buffer> }>();
-  // ModelRef currently has no sampling/settings fields. Unknown future settings must not silently reuse.
-  const sameJudge = (value: ModelRef) => value?.provider === options.judge.provider && value?.model === options.judge.model &&
-    Object.keys(value).sort().join(",") === "model,provider" && Object.keys(options.judge).sort().join(",") === "model,provider";
+  const sameJudge = (value: ModelRef) => Boolean(value) && sameModelProfile(value, options.judge);
   for (const directory of [...new Set(options.reuse ?? [])].map(path => resolve(path))) {
     const evidence: CalibrationReuseSource["artifacts"] = [];
     const files = new Map<string, Buffer>();
@@ -331,18 +330,20 @@ export async function runCalibration(loaded: LoadedCalibration, options: {
     throwIfProcessAborted();
     const scenario = current.spec.scenarios.find(s => s.id === control.scenarioId)!;
     let attempt = 0;
+    const observe = async (request: import("./adapters/types.js").JudgeReq) => {
+      throwIfProcessAborted();
+      const number = ++attempt;
+      save(`${control.id}.attempt-${number}.request.json`, { prompt: request.prompt, sha256: hash(request.prompt), model: request.model });
+      summary.judgeCalls++;
+      const result = options.adapter.judgeStructured ? await options.adapter.judgeStructured(request) : { raw: await options.adapter.judge(request) };
+      save(`${control.id}.attempt-${number}.reply.json`, { reply: result.raw, sha256: hash(result.raw), ...(result.observation ? { observation: result.observation } : {}) });
+      throwIfProcessAborted();
+      return result;
+    };
     const observedAdapter: HarnessAdapter = {
       name: "pi", available: () => options.adapter.available(), run: request => options.adapter.run(request),
-      judge: async request => {
-        throwIfProcessAborted();
-        const number = ++attempt;
-        save(`${control.id}.attempt-${number}.request.json`, { prompt: request.prompt, sha256: hash(request.prompt) });
-        summary.judgeCalls++;
-        const reply = await options.adapter.judge(request);
-        save(`${control.id}.attempt-${number}.reply.json`, { reply, sha256: hash(reply) });
-        throwIfProcessAborted();
-        return reply;
-      },
+      judge: async request => (await observe(request)).raw,
+      judgeStructured: observe,
     };
     let result: GradeResult;
     try {

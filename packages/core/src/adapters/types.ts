@@ -6,7 +6,44 @@ export type RunMode = "red" | "green" | "force";
 export interface ModelRef {
   provider: string;
   model: string;
+  /** Explicit requested Pi effort. Missing means unspecified, never an observed default. */
+  thinking?: ThinkingLevel;
 }
+
+export const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+export type ThinkingLevel = typeof THINKING_LEVELS[number];
+
+/** Keep legacy model suffixes opaque; Pi owns exact model resolution. */
+export function withThinking(model: ModelRef, value?: string): ModelRef {
+  if (value === undefined) return model;
+  if (!THINKING_LEVELS.includes(value as ThinkingLevel)) throw new Error(`Unsupported Pi thinking level: ${value}; choose ${THINKING_LEVELS.join(", ")}`);
+  if (THINKING_LEVELS.some(level => model.model.endsWith(`:${level}`)))
+    throw new Error("Choose either a legacy model thinking suffix or --thinking/--judge-thinking, not both");
+  return { ...model, thinking: value as ThinkingLevel };
+}
+
+/** Exact requested conditions, including unknown fields: never silently pool settings. */
+export function modelProfileKey(model: ModelRef): string {
+  return JSON.stringify(Object.fromEntries(Object.entries(model).filter(([, v]) => v !== undefined).sort(([a], [b]) => a.localeCompare(b))));
+}
+export function sameModelProfile(a: ModelRef, b: ModelRef): boolean {
+  return modelProfileKey(a) === modelProfileKey(b);
+}
+export function modelProfileLabel(model: ModelRef): string {
+  return `${model.provider}:${model.model}${model.thinking ? ` [thinking=${model.thinking}]` : " [thinking unspecified]"}`;
+}
+
+export interface ModelCallObservation {
+  requested: ModelRef;
+  /** Distinct assistant-message identities, never copied from the request. */
+  observedModels: { provider: string | null; model: string | null }[];
+  /** Pi JSON assistant metadata does not report the effective effort. */
+  effectiveThinking: null;
+  status: "complete" | "error" | "unknown";
+  usage: { inputTokens: number | null; outputTokens: number | null; cacheReadTokens: number | null; cacheWriteTokens: number | null };
+  usageCoverage: { assistantMessages: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number };
+}
+export interface StructuredJudge { raw: string; observation?: ModelCallObservation }
 
 /** Parse a `provider:model` token (model may contain further colons/slashes). */
 export function parseModelRef(token: string): ModelRef {
@@ -24,7 +61,7 @@ export function parseModelRef(token: string): ModelRef {
 
 /** Stable, filesystem-safe slug for a model ref (used in run-dir names). */
 export function modelSlug(ref: ModelRef): string {
-  return `${ref.provider}-${ref.model}`.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+  return `${ref.provider}-${ref.model}${ref.thinking ? `--thinking-${ref.thinking}` : ""}`.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
 export type PromptMechanism = "none" | "pi-skill" | "append-system-prompt" | "system-prompt-file";
@@ -122,6 +159,7 @@ export interface HarnessAdapter {
    * reconstruction should not be applied to a whole published corpus silently.
    */
   runStructured?(req: RunReq): Promise<StructuredRun>;
+  judgeStructured?(req: JudgeReq): Promise<StructuredJudge>;
   judge(req: JudgeReq): Promise<string>; // returns the judge's raw output
   /**
    * The harness CLI's own version, recorded in `results.yaml` as

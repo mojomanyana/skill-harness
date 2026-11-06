@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { withThinking, modelProfileLabel } from "@skill-harness/core";
 import { readFileSync, existsSync, mkdirSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -30,6 +31,7 @@ import {
   resolveArm,
   isFreeOfflineCommand,
   diagnoseRun,
+  requestedSubject,
   loadCalibration,
   runCalibration,
   planCalibration,
@@ -218,7 +220,7 @@ export async function cmdRun(args: Args, adapterOverride?: HarnessAdapter): Prom
   // any subject tokens are spent: a refusal that arrives after the model has been
   // paid for is a worse version of the problem it exists to prevent.
   const judgeFlagRun = flagStr(args, "judge");
-  const judge = parseModelRef(judgeFlagRun ?? defaultJudge());
+  const judge = withThinking(parseModelRef(judgeFlagRun ?? defaultJudge()), flagStr(args, "judge-thinking"));
   assertJudgeAllowed(judge, {
     source: judgeFlagRun ? "--judge" : "the default judge (SKILL_HARNESS_JUDGE or the baked value)",
     allowMetered: flagBool(args, "allow-metered-judge"),
@@ -232,6 +234,7 @@ export async function cmdRun(args: Args, adapterOverride?: HarnessAdapter): Prom
   // CI, which has no `pi`, could not test this refusal at all.
   const only = selectedIds(args);
 
+  const models = resolveModels(args).map(token => ({ token, model: withThinking(parseModelRef(token), flagStr(args, "thinking")) }));
   const harnessName = flagStr(args, "harness", "pi")!;
   const adapter = adapterOverride ?? getAdapter(harnessName);
   if (!(await adapter.available())) throw new Error(`harness \`${harnessName}\` is not on PATH`);
@@ -242,7 +245,6 @@ export async function cmdRun(args: Args, adapterOverride?: HarnessAdapter): Prom
   const label = flagStr(args, "label") || null;
   const parallel = Math.max(1, Number(flagStr(args, "parallel", "1")) || 1);
   const { reps, passThreshold } = parseRunTuning(args);
-  const modelTokens = resolveModels(args);
 
   // Resolved ONCE, before the skill loop: a typo'd arm name fails before any
   // token is spent on any skill.
@@ -264,12 +266,11 @@ export async function cmdRun(args: Args, adapterOverride?: HarnessAdapter): Prom
     // that look comparable and are not. Checked per skill, before its first token.
     assertNotDowngraded(dirname(skill.testsDir), "run");
     const spec = loadSpec(skill.specPath);
-    for (const token of modelTokens) {
-      const model = parseModelRef(token);
+    for (const { token, model } of models) {
       // The version is on the banner because a stale global install is otherwise
       // invisible: a 0.1.0 binary grades a 0.3.x corpus, produces plausible
       // numbers, and nothing on screen says which tool made them.
-      console.log(`\n▶ ${spec.skill} · ${harnessName}:${token} · mode=${mode} · judge=${judge.provider}:${judge.model} · skill-harness ${HARNESS_VERSION}`);
+      console.log(`\n▶ ${spec.skill} · ${harnessName}:${token} · mode=${mode} · subject=${modelProfileLabel(model)} · judge=${modelProfileLabel(judge)} · skill-harness ${HARNESS_VERSION}`);
       const summary = await runSkillModel({
         spec,
         skillDir: skill.dir,
@@ -333,9 +334,9 @@ export async function cmdGrade(args: Args, adapterOverride?: HarnessAdapter): Pr
   // the current Pi default.
   const judgeFlag = flagStr(args, "judge");
   const onlyUnparsed = flagBool(args, "unparsed-only");
-  if (onlyUnparsed && judgeFlag !== undefined) throw new Error("--unparsed-only uses the recorded judge; --judge cannot be combined with it");
+  if (onlyUnparsed && (judgeFlag !== undefined || flagStr(args, "judge-thinking") !== undefined)) throw new Error("--unparsed-only uses the recorded judge; --judge cannot be combined with it");
   const resolvedRecordedJudge = judgeFlag ? undefined : recordedJudgeOrDefault(prev?.judge);
-  const judge = judgeFlag ? parseModelRef(judgeFlag) : resolvedRecordedJudge!.judge;
+  const judge = withThinking(judgeFlag ? parseModelRef(judgeFlag) : resolvedRecordedJudge!.judge, flagStr(args, "judge-thinking"));
   if (onlyUnparsed && resolvedRecordedJudge?.migratedFrom) throw new Error("--unparsed-only cannot use this retired recorded judge; use grade to migrate it explicitly");
   if (resolvedRecordedJudge?.migratedFrom) {
     console.error(`skill-harness: recorded judge ${resolvedRecordedJudge.migratedFrom.provider}:${resolvedRecordedJudge.migratedFrom.model} was removed; re-judging through Pi with ${judge.provider}:${judge.model}`);
@@ -418,7 +419,7 @@ export async function cmdRegate(args: Args, adapterOverride?: HarnessAdapter): P
     const spec = loadSpec(specPath);
     const prev = readResults(runDir);
     const resolvedRecordedJudge = judgeFlag ? undefined : recordedJudgeOrDefault(prev.judge);
-    const judge = judgeFlag ? parseModelRef(judgeFlag) : resolvedRecordedJudge!.judge;
+    const judge = withThinking(judgeFlag ? parseModelRef(judgeFlag) : resolvedRecordedJudge!.judge, flagStr(args, "judge-thinking"));
     if (resolvedRecordedJudge?.migratedFrom) {
       console.error(`skill-harness: recorded judge ${resolvedRecordedJudge.migratedFrom.provider}:${resolvedRecordedJudge.migratedFrom.model} was removed; re-judging through Pi with ${judge.provider}:${judge.model}`);
     }
@@ -799,6 +800,7 @@ export function help(): string {
   return `skill-harness ${HARNESS_VERSION} — test/optimize loop for agent skills (pi harness)
 
   run    <skill|all> --skills <root> [--model prov:model ...] [--models file] [--only A1,D2]
+                     [--thinking LEVEL] [--judge-thinking LEVEL]
                      [--mode red|green|force] [--judge prov:model] [--harness pi] [--label name] [--parallel N] [--reps N] [--pass-threshold T]
                      [--canary]  green only: one instructed-loading probe; autonomous selection stays untested
                      [--structured]  request structured capture (Pi uses it by default for subject usage)
@@ -861,7 +863,14 @@ export async function cmdDiagnose(args: Args): Promise<void> {
   const recorded = readResults(runDir);
   const { skills, specs } = roots(args);
   const selected = resolveSkill(skills, recorded.skill, specs);
-  const report = diagnoseRun(runDir, selected.dir, selected.specPath);
+  if ((args.multi.model?.length ?? 0) > 1) throw new Error("diagnose previews one subject profile at a time");
+  const modelToken = args.multi.model?.[0] ?? flagStr(args, "model"), judgeToken = flagStr(args, "judge");
+  if (modelToken?.includes(",")) throw new Error("diagnose previews one subject profile at a time");
+  const profiles = {
+    subject: modelToken !== undefined || Object.hasOwn(args.flags, "thinking") ? withThinking(modelToken !== undefined ? parseModelRef(modelToken) : requestedSubject(recorded), flagStr(args, "thinking")) : undefined,
+    judge: judgeToken !== undefined || Object.hasOwn(args.flags, "judge-thinking") ? withThinking(judgeToken !== undefined ? parseModelRef(judgeToken) : recorded.judge, flagStr(args, "judge-thinking")) : undefined,
+  };
+  const report = diagnoseRun(runDir, selected.dir, selected.specPath, profiles);
   console.log(format === "text" ? formatDiagnosis(report) : JSON.stringify(report, null, 2));
 }
 
@@ -873,7 +882,7 @@ export async function cmdCalibrate(args: Args, adapterOverride?: HarnessAdapter)
   const reuse = (args.multi.reuse ?? []).map(p => { if (!p.trim()) throw new Error("--reuse requires a prior calibration directory"); return resolve(p); });
   if (flagBool(args, "plan")) {
     if (!judgeToken) throw new Error("Calibration --plan needs an explicit --judge; it makes zero provider calls.");
-    const plan = planCalibration(calibration, { judge: parseModelRef(judgeToken), only, reuse });
+    const plan = planCalibration(calibration, { judge: withThinking(parseModelRef(judgeToken), flagStr(args, "judge-thinking")), only, reuse });
     console.log(JSON.stringify({ ...plan, providerCalls: 0 }, null, 2));
     if (!plan.ready) process.exitCode = 1;
     return;
@@ -887,7 +896,7 @@ export async function cmdCalibrate(args: Args, adapterOverride?: HarnessAdapter)
   if (!judgeToken || !output) throw new Error("Calibration --run needs an explicitly selected --judge and a new --out directory.");
   const adapter = adapterOverride ?? getAdapter("pi");
   if (!await adapter.available()) throw new Error("Pi is required for judge calibration. Configure the selected model in Pi first.");
-  const result = await runCalibration(calibration, { adapter, judge: parseModelRef(judgeToken), only, reuse, output: resolve(output), allowMeteredJudge: flagBool(args, "allow-metered-judge"), onProgress: p => console.log(`Judging control ${p.index + 1}/${p.total}: ${p.id}`) });
+  const result = await runCalibration(calibration, { adapter, judge: withThinking(parseModelRef(judgeToken), flagStr(args, "judge-thinking")), only, reuse, output: resolve(output), allowMeteredJudge: flagBool(args, "allow-metered-judge"), onProgress: p => console.log(`Judging control ${p.index + 1}/${p.total}: ${p.id}`) });
   console.log(JSON.stringify(result, null, 2));
   if (result.status !== "matched") process.exitCode = 1;
 }

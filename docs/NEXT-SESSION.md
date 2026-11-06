@@ -2,7 +2,31 @@
 
 ## Current state
 
-`0.32.4` source release candidate (PR121): optional ordered `criterion_dimensions` supports
+Release preparation targets `0.33.0` in the isolated release worktree. It is not
+published; earlier private source checks and model results retain their exact
+identities. Final clean-commit package/CI qualification remains required.
+
+Local workflow-quality candidate (2026-11-05, uncommitted/unpublished): explicit
+subject/judge thinking, requested/observed provenance, profile-aware reuse and
+comparisons, retained token coverage and the optional existing Daddy dashboard
+contribution are implemented. See [MODEL-PROFILES.md](MODEL-PROFILES.md) for exact
+behavior, compatibility and unknowns. Checks use scripted/offline evidence only;
+no new provider/model/effort quality or effective-effort qualification is claimed.
+
+Local ecosystem candidate (2026-11-04, uncommitted/unpublished): exact Pi 1.5.0
+native and supported-adapter qualification passed with scripted loopback replies,
+including JSON Schema coercion and invalid argument rejection. The retained
+fixtures bind both stages, package identities and source hashes. No real model,
+subscription authentication or role quality was evaluated. Shared Pi remains
+unchanged. See `packages/adapters/test/fixtures/pi-1.5.0/README.md`.
+
+The local candidate also adds `skill_improvement`: an optional, exact Bookie
+lesson reference can become a bounded proposal for an existing authoring project.
+It does not change a skill, accept labels or authorize adoption/training. Portable
+role examples and their evaluation controls are prepared; their live quality
+acceptance remains separate from the passing local composition and unit checks.
+
+`0.32.4` is published (2026-10-28, PR121, merge `2f3cc27`): optional ordered `criterion_dimensions` supports
 offline saved-vote grouping in `diagnose`. Task correctness, additional method
 completeness and mixed criteria remain distinct. This metadata changes no judge
 prompt, source freshness, accepted label, result or ship gate. Missing evidence
@@ -51,7 +75,7 @@ This does not qualify autonomous selection, the Herdr UI or whole-host health.
 Reuse matching saved answers before scheduling fresh subject calls. Historical
 releases and scores remain unchanged.
 
-Fresh subject execution is qualified on exact Pi **1.0.4, 1.1.0 and 1.4.0**. Other or unknown
+Fresh subject execution is qualified on exact Pi **1.0.4, 1.1.0, 1.4.0 and 1.5.0**. Other or unknown
 versions fail closed before subject spawn. Historical Pi 0.83.0 raw captures remain
 readable through their explicit legacy parser; they are not current qualification.
 See the README's Pi qualification section and shared final conformance table.
@@ -96,7 +120,9 @@ trajectory assertions, and confidence/automatic rejudging.
 - `packages/pi-extension/dist/index.js` and `packages/skill-harness/dist/index.js`
   are committed bundles. Run `npm run build:ext` whenever bundled core/adapter/CLI
   behavior changes.
-- Judge usage is not persisted. Only subject usage is recorded and priced.
+- The local candidate retains nullable reported judge token observations, including
+  malformed/error calls; retained versus cumulative coverage stays separate. Judge
+  billing/cost coverage remains unavailable; subject price estimates are unchanged.
 - No OS sandbox is claimed.
 - Resource monitoring covers harness-owned subprocesses, not overall Windows/WSL
   health. Unsupported metrics stay unknown; Linux process tests are platform-gated.

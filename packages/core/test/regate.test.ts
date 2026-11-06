@@ -11,6 +11,19 @@ import type { HarnessAdapter } from "../src/adapters/types.js";
 const NEEDLE_PASS = '{"votes":[{"criterion":1,"vote":"PASS","reason":"does it"}],"verdict":"PASS","reason":"the diff implements it"}';
 const NEEDLE_FAIL = '{"votes":[{"criterion":1,"vote":"FAIL","reason":"missing"}],"verdict":"FAIL","reason":"not implemented"}';
 
+test("regate refuses changed judge effort before any call or evidence mutation", async () => {
+  const f = runWithFailedGate({ diff: "+ fixed" });
+  try {
+    const before = Object.fromEntries(readdirSync(f.runDir).map(name => [name, readFileSync(join(f.runDir, name))]));
+    const judge = countingJudge();
+    await expect(regateRun({ ...f, spec: specFor("fixed"), adapter: judge.adapter,
+      judge: { provider: "claude-code", model: "opus", thinking: "high" } })).rejects.toThrow(/recorded judge model\/thinking/);
+    expect(judge.calls()).toBe(0);
+    expect(readdirSync(f.runDir).sort()).toEqual(Object.keys(before).sort());
+    for (const [name, bytes] of Object.entries(before)) expect(readFileSync(join(f.runDir, name))).toEqual(bytes);
+  } finally { rmSync(join(f.specDir, ".."), { recursive: true, force: true }); }
+});
+
 /** A judge that answers PASS, counting how many times it was asked. */
 function countingJudge(reply = NEEDLE_PASS): { adapter: HarnessAdapter; calls: () => number } {
   let calls = 0;

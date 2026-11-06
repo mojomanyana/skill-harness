@@ -1,3 +1,5 @@
+import { summarizeRun } from "./run-summary.js";
+import type { ModelRef } from "./adapters/types.js";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
@@ -10,6 +12,7 @@ import { reportCriterionDimensions, type CriterionDimensionReport } from "./crit
 
 export interface Diagnosis {
   schema: 1;
+  summary: ReturnType<typeof summarizeRun>;
   runDir: string;
   providerCalls: 0;
   resultsChanged: false;
@@ -20,10 +23,10 @@ export interface Diagnosis {
 }
 
 /** Explain the cheapest next investigation using saved records, never invent a root cause. */
-export function diagnoseRun(runDir: string, skillDir: string, specPath: string): Diagnosis {
+export function diagnoseRun(runDir: string, skillDir: string, specPath: string, profiles?: { subject?: ModelRef; judge?: ModelRef }): Diagnosis {
   const results = readResults(runDir);
   const spec = loadSpec(specPath);
-  const report: Diagnosis = { schema: 1, runDir: resolve(runDir), providerCalls: 0, resultsChanged: false, causalConclusion: "not-established", reusePlan: planSavedAnswers(runDir, spec, skillDir, dirname(specPath)), criterionDimensions: reportCriterionDimensions(runDir, spec, dirname(specPath), results), issues: [] };
+  const report: Diagnosis = { schema: 1, summary: summarizeRun(results), runDir: resolve(runDir), providerCalls: 0, resultsChanged: false, causalConclusion: "not-established", reusePlan: planSavedAnswers(runDir, spec, skillDir, dirname(specPath), profiles), criterionDimensions: reportCriterionDimensions(runDir, spec, dirname(specPath), results), issues: [] };
   const add = (issue: Diagnosis["issues"][number]) => report.issues.push(issue);
   const context = { skillDir, specDir: dirname(specPath), scenarios: spec.scenarios, judgePersona: spec.judge_persona };
   if (!results.source_hashes) add({ category: "evidence", evidence: "This run has no source identity hashes.", next: "Inspect retained inputs; do not claim comparability to current inputs." });

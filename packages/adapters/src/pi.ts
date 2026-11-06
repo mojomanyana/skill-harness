@@ -152,6 +152,7 @@ export const piAdapter: HarnessAdapter = {
       req.model.provider,
       "--model",
       req.model.model,
+      ...(req.model.thinking ? ["--thinking", req.model.thinking] : []),
     ];
     const flags = req.systemPromptFile
       ? ["--no-skills", "--append-system-prompt", readFileSync(req.systemPromptFile, "utf8")]
@@ -223,6 +224,7 @@ export const piAdapter: HarnessAdapter = {
       req.model.provider,
       "--model",
       req.model.model,
+      ...(req.model.thinking ? ["--thinking", req.model.thinking] : []),
     ];
     const flags = req.systemPromptFile
       ? ["--no-skills", "--append-system-prompt", readFileSync(req.systemPromptFile, "utf8")]
@@ -315,6 +317,21 @@ export const piAdapter: HarnessAdapter = {
     };
   },
 
+  async judgeStructured(req: JudgeReq) {
+    if (req.model.provider === "claude-code") throw new Error("judge provider `claude-code` was removed");
+    const version = await this.version!({ cwd: req.cwd });
+    const unqualified = piQualificationFailure(version);
+    if (unqualified) return { raw: `[judge error: ${unqualified}]` };
+    const args = ["--no-skills", "--no-context-files", "--no-extensions", "--no-session", "--no-tools", "--no-mcp",
+      "--provider", req.model.provider, "--model", req.model.model,
+      ...(req.model.thinking ? ["--thinking", req.model.thinking] : []), "--mode", "json", "-p", req.prompt];
+    const result = await runPiJson({ args, cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, piVersion: version,
+      subject: req.model, scenarioId: "(judge)", mode: "red", rep: 0, turn: 0, homeDir: homedir() });
+    const complete = result.code === 0 && result.isComplete && result.trace.final_status === "complete";
+    return { raw: complete ? result.trace.final_text : `[judge error: Pi final delivery ${result.trace.final_status}; exit ${result.code}] ${result.stderr.trim()}`,
+      observation: result.trace.call ? { ...result.trace.call, status: complete ? "complete" as const : "error" as const } : undefined };
+  },
+
   /** Judge only the supplied evidence: no tools, MCP, skills, context files, extensions or session. */
   async judge(req: JudgeReq): Promise<string> {
     if (req.model.provider === "claude-code") {
@@ -331,6 +348,7 @@ export const piAdapter: HarnessAdapter = {
       req.model.provider,
       "--model",
       req.model.model,
+      ...(req.model.thinking ? ["--thinking", req.model.thinking] : []),
       "-p",
       req.prompt,
     ];

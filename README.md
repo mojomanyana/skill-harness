@@ -13,7 +13,7 @@ grade movement is two runs already committed to a public repo. Re-record it with
 
 ## Pi qualification
 
-Fresh subject execution supports **exactly Pi 1.0.4, 1.1.0 or 1.4.0**. An unknown, unavailable,
+Fresh subject execution supports **exactly Pi 1.0.4, 1.1.0, 1.4.0 or 1.5.0**. An unknown, unavailable,
 prerelease or other version records execution ERROR before starting the
 subject; regrading that saved failure does not call the judge. Qualification must
 be renewed explicitly for a Pi upgrade.
@@ -27,6 +27,10 @@ redaction). Empty finals are unavailable; a settled output limit is `truncated`.
 The [shared final conformance table](packages/adapters/test/fixtures/pi-1.0.4/final-conformance.json)
 and [producer pin](packages/adapters/test/fixtures/pi-1.0.4/vendor-source.json)
 make the evidence and its limits inspectable.
+
+The [Pi 1.5.0 transport fixtures](packages/adapters/test/fixtures/pi-1.5.0/README.md)
+add native schema-coercion and invalid-argument controls, plus the same settled
+adapter/CLI matrix. These are scripted transport controls, not live model scores.
 
 The [Pi 1.4.0 transport fixtures](packages/adapters/test/fixtures/pi-1.4.0/README.md)
 exercise native red/green/force delivery, explicit extension and tool selection,
@@ -777,3 +781,23 @@ Adding another harness is the one extension point: implement `HarnessAdapter`
 `/skill-harness jev enable workflow` additionally offers optional handoff advice through `jev_advice` after explicit session-scoped paid-call permission and a fresh storage choice. It asks whether a proposed next action is justified for the selected stage and engineering uncertainty, with at most three calls per activation; tests and independent review retain authority. Workflow retention binds actual Pi session/tool IDs and exact selected input bytes and native classifier-context digests. Optional local references are hash-verified; free later outcome linking preserves selected engineering evidence without inferring independent labels or export/training eligibility. JEV activation offers a Pi-native provider/model picker, reuses that provider's configured authentication and shows the private shared collection root. The offline `decision import-workflow` command connects explicitly reviewed selections to the existing learning-data workflow while preserving source provenance, current consent and separate independent labels. See the walkthrough for the distinction from verified public captures.
 
 The exact Pi1.0.4 OAuth subscription comparison is separate from optional metered JEV. Reports preserve grouped splits, independent labels, abstention/error coverage and model/prompt identities. Synthetic fixtures qualify plumbing only. OpenAI Decisions remains excluded. See [the npm acceptance walkthrough](https://github.com/mojomanyana/skill-harness/blob/main/docs/DECISION-LEARNING.md) and the [data contracts](https://github.com/mojomanyana/skill-harness/blob/main/experiments/decision-shadow/LEARNING-WORKFLOW.md).
+
+## Selected lessons and improvement proposals
+
+When Bookie is loaded, `skill_improvement` can turn one explicitly selected lesson
+into a proposal for an existing `skill_author` project. Supply its exact context or
+producer reference, the proposed change, when it applies, when it does not apply,
+and when it should be reconsidered. Bookie checks the current project and destination
+before returning a bounded excerpt. Harness stores its digest and reference, not the
+raw excerpt. No background memory search or automatic skill installation occurs.
+
+Proposals stay under `.skill-harness/authoring/<name>/improvements/`. Identical input
+is reused; inspection returns metadata and target-currentness, not protected lesson
+text. Re-resolve the selected source before using a stored proposal. A source digest
+is evidence identity, not acceptance. Continue the existing draft, calibration,
+comparison and explicit adoption workflow. Reuse saved answers or judgments only
+when their exact dependencies still match. Nothing is designated for training.
+
+If Bookie is missing or refuses the source, this tool records nothing. Ordinary
+authoring from the user's supplied idea continues without Bookie, Daddy or Principal.
+Generated skills still need only Pi and their declared tools.

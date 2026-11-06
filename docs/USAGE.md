@@ -8,6 +8,10 @@ a time. No examples or YAML are required from you. Resume with
 `/skill-harness author <saved-name>`. Generated skills require Pi only; a separate
 pi-daddy wrapper is optional. See [the complete authoring flow](EVAL-AUTHORING.md).
 
+The local workflow-quality candidate adds explicit subject/judge thinking, profile-aware
+reuse previews, retained token coverage and optional Daddy display. See
+[model profiles and retained evidence](MODEL-PROFILES.md) for flags and limits.
+
 > Agents: see [`AGENTS.md`](https://github.com/mojomanyana/skill-harness/blob/main/AGENTS.md) for repository guidance. Pi users: install `npm:skill-harness` and drive it conversationally via [`SKILL.md`](../SKILL.md).
 
 ## 0. Requirements
@@ -207,7 +211,7 @@ harness CLI it drove — `pi --version`), and the run banner and `--version` bot
 former. `schema` cannot answer either question: 0.2.1 → 0.3.0 kept `schema: 2` while
 changing what a verdict *means*.
 
-Fresh subject execution supports exact Pi **1.0.4, 1.1.0 or 1.4.0**. The version probe uses the
+Fresh subject execution supports exact Pi **1.0.4, 1.1.0, 1.4.0 or 1.5.0**. The version probe uses the
 same working directory and environment as the subject, including an arm's `PATH`.
 Other versions or a failed probe produce a saved execution ERROR before subject
 spawn; saved regrading preserves that failure. Historical result files remain
@@ -513,3 +517,23 @@ would claim a stability a linter can't offer, while `@latest` claims only to be
 the newest release.
 
 Their `tests/` folders are unchanged; the check is free/static (no `pi`, no secrets). Metered model runs in CI (manual trigger) are a separate, later tier.
+
+## Selected lessons and improvement proposals
+
+When Bookie is loaded, `skill_improvement` can turn one explicitly selected lesson
+into a proposal for an existing `skill_author` project. Supply its exact context or
+producer reference, the proposed change, when it applies, when it does not apply,
+and when it should be reconsidered. Bookie checks the current project and destination
+before returning a bounded excerpt. Harness stores its digest and reference, not the
+raw excerpt. No background memory search or automatic skill installation occurs.
+
+Proposals stay under `.skill-harness/authoring/<name>/improvements/`. Identical input
+is reused; inspection returns metadata and target-currentness, not protected lesson
+text. Re-resolve the selected source before using a stored proposal. A source digest
+is evidence identity, not acceptance. Continue the existing draft, calibration,
+comparison and explicit adoption workflow. Reuse saved answers or judgments only
+when their exact dependencies still match. Nothing is designated for training.
+
+If Bookie is missing or refuses the source, this tool records nothing. Ordinary
+authoring from the user's supplied idea continues without Bookie, Daddy or Principal.
+Generated skills still need only Pi and their declared tools.

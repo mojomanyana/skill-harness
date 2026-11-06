@@ -14,6 +14,7 @@ describe("published meta-package Pi extension", () => {
       "SKILL.md",
       "docs/EVAL-AUTHORING.md",
       "docs/USAGE.md",
+      "docs/MODEL-PROFILES.md",
       "assets/report.template.html",
       "assets/report.grade.js",
     ]));

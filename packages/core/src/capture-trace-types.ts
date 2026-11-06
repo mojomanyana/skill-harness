@@ -115,6 +115,8 @@ export interface ExecutionTraceV1 {
   pi_version: string | null;
   /** The model under test. */
   subject: ModelRef;
+  /** Bounded observed runtime identity and usage, independent of the request. */
+  call?: import("./adapters/types.js").ModelCallObservation;
   scenario_id: string;
   mode: RunMode;
   /** 0-based repetition index within a run. */
