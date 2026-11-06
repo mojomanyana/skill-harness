@@ -159,6 +159,7 @@ describe.skipIf(!pinnedToolchain)("authoritative release packaging", () => {
   it("builds absent outputs, records digests, and packs cli.js as canonical 0644", () => {
     const root = cloneRepo("clean");
     expect(existsSync(join(root, CLI_OUTPUT))).toBe(false);
+    expect(existsSync(join(root, "packages", "skill-harness", "docs"))).toBe(false);
     const result = runReleasePack(root);
     requireSuccess(result);
 
@@ -179,6 +180,12 @@ describe.skipIf(!pinnedToolchain)("authoritative release packaging", () => {
     const archivedCli = tarEntry(join(root, "release-artifacts", cli.filename), "package/dist/cli.js");
     expect(archivedCli.mode).toBe(CANONICAL_MODE);
     expect(archivedCli.content).toEqual(readFileSync(join(root, CLI_OUTPUT)));
+    // These documents are generated package inputs, unlike the committed bundle/assets.
+    const meta = manifest.artifacts.find((artifact) => artifact.package === "skill-harness")!;
+    for (const file of ["EVAL-AUTHORING.md", "USAGE.md", "MODEL-PROFILES.md"]) {
+      const archivedDoc = tarEntry(join(root, "release-artifacts", meta.filename), `package/docs/${file}`);
+      expect(archivedDoc.content).toEqual(readFileSync(join(root, "docs", file)));
+    }
   }, 60_000);
 
   it("rejects a real tracked Git gitlink", () => {

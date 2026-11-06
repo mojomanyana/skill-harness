@@ -26,8 +26,5 @@ describe("published meta-package Pi extension", () => {
     for (const file of ["report.template.html", "report.grade.js"]) {
       expect(readFileSync(`packages/skill-harness/assets/${file}`)).toEqual(readFileSync(`assets/${file}`));
     }
-    for (const file of ["EVAL-AUTHORING.md", "USAGE.md", "MODEL-PROFILES.md"]) {
-      expect(readFileSync(`packages/skill-harness/docs/${file}`)).toEqual(readFileSync(`docs/${file}`));
-    }
   });
 });
