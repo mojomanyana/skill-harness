@@ -87,14 +87,14 @@ const packages = [
     archivePrefix: "skill-harness",
     staticFiles: ["package.json", "README.md", "SKILL.md", "LICENSE", "bin.js", "dist/index.js", "assets/report.template.html", "assets/report.grade.js"],
     internalDependencies: ["@skill-harness/cli"],
-    inventoryRoots: [{ path: "docs", exact: ["EVAL-AUTHORING.md", "USAGE.md", "MODEL-PROFILES.md"] }],
+    inventoryRoots: [{ path: "docs", exact: ["EVAL-AUTHORING.md", "USAGE.md", "MODEL-PROFILES.md", "DECISION-LEARNING.md"] }],
     modes: { "bin.js": 0o755 },
   },
 ];
 const stagingDirectories = [
   { source: "schemas", destination: "packages/core/schemas", files: null },
   { source: "assets", destination: "packages/cli/assets", files: ["report.template.html", "report.grade.js"] },
-  { source: "docs", destination: "packages/skill-harness/docs", files: ["EVAL-AUTHORING.md", "USAGE.md", "MODEL-PROFILES.md"] },
+  { source: "docs", destination: "packages/skill-harness/docs", files: ["EVAL-AUTHORING.md", "USAGE.md", "MODEL-PROFILES.md", "DECISION-LEARNING.md"] },
 ];
 const stagingFiles = [
   "packages/core/LICENSE",

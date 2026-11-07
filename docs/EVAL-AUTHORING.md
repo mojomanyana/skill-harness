@@ -81,13 +81,43 @@ reference and transcript bytes; the model does not supply those hashes. At least
 one positive, one negative and an equivalent valid answer are needed for calibration.
 Saved trace evidence must be bound for execution-dependent claims.
 
-`skill_author review-controls` shows the scenario questions, checklist, selected
-reference text, proposed answers, rationales and criterion expectations in Pi. One
-explicit acceptance writes a separate reviewed manifest, preserving the proposal.
-Cancellation leaves expectations unaccepted. Changed controls, expectations or source
-references require a new review. Neither overall labels nor `expectedCriteria` enter
-the judge prompt. Acceptance covers expectations only; it neither approves the skill
-nor calls a model.
+Before reviewing labels, the authoring agent prepares a task contract:
+
+1. Use `skill_author task-contract` to inspect the saved brief, scenario requests
+   and explicitly selected method files without displaying preferred answers,
+   expected labels or checklist items. Record the requested outcomes and boundaries,
+   with source quotes. A necessary implication needs a rationale explaining why it
+   matters; an optional suggestion must not become a hidden obligation.
+2. Prepare `skill_author contract-review` against the proposed controls. Connect
+   every checklist item to those obligations and explain why omission would fail
+   the task. Use an existing positive or equivalent control as a minimally
+   sufficient answer; explain which optional ceremony it omits. When there is no
+   optional step to remove, explain that instead of inventing one. One contrast may
+   cover several criteria; there is no additional control quota.
+3. Use `skill_author review-controls` for the existing operator acceptance. Pi shows
+   a concise summary of the requirements, proposed labels and review notes, with
+   full source, criterion and answer evidence available on request. The agent
+   resolves ordinary authoring issues before this step. Ask the user only about a
+   genuinely unresolved preference or authority decision, not to fill technical
+   mappings. One acceptance writes a separate reviewed manifest. An exact current
+   accepted review can be reused; cancellation accepts nothing.
+
+The review records live under the existing authoring project. Code checks selected
+input identities, matching quotes, criterion coverage and control references; it
+does not prove that an implication is necessary or that a source has authority.
+Source documents and judge-only context cannot independently impose requirements
+on the subject. A selected method needs a basis in the task or agreed brief; being
+present in a skill does not override an explicit narrower request. The task-only
+view separates preparation from answer review, but cannot prove what the model
+previously saw or how it reasoned.
+
+Changed relevant brief, specification, selected method, reference or control bytes
+invalidate reuse. Review freshness is checked again before acceptance is saved.
+Old records remain intact. Existing calibration files and CLI workflows remain
+readable; missing task-review evidence in the guided Pi workflow returns a concrete
+preparation step to the agent, not an automatic provider call or a new human form.
+Neither expected labels nor `expectedCriteria` enter the judge prompt. Acceptance
+covers expectations only; it neither approves the skill nor runs a model.
 
 ```bash
 skill-harness preflight social-media-manager --skills ./skills
@@ -124,6 +154,51 @@ from a promotional assertion; a proposed objective is different from an achieved
 result. Decide how ambiguous wording is graded before running the judge, and apply
 that PASS/FAIL rule to valid alternatives and near-miss controls consistently.
 Static checks cannot resolve these semantic choices for the author.
+
+## Test the operator experience and the resulting product
+
+For a workflow skill, correctness includes carrying the agreed outcome through a
+pause, refusal or handoff without making the operator reconstruct the process.
+Use the existing scenario `turns`, discoverable fixtures, checklist and selected
+judge references. A fixture may describe a prior decision and a recovery state;
+that tests the next response to supplied facts, not whether a real process resumed.
+Use actual bound traces or a separate integration check for execution claims.
+Do not invent trajectory assertions that the schema cannot express.
+
+Select relevant contrasts for the role, rather than making every skill run this list:
+
+| Situation supplied in the fixture | Behavior to distinguish |
+|---|---|
+| An explicit standing decision still applies | Continue within its scope; do not ask for the same decision again. Memory is context: establish the original decision and current scope rather than treating a summary as a new grant. |
+| A settled operation has a retained applicable result | Retrieve and use it; do not launch another operation just because the previous chat view is gone. |
+| Admission or cleanup is uncertain | Inspect authoritative status or report the uncertainty; do not invent a no-start result and retry. |
+| A known refusal has an already-authorized recovery route | Use the supported route without broadening scope; a new workspace or external action without authority still needs the operator. |
+| Verification already covers unchanged inputs | Reuse matching evidence; rerun the affected behavior when its dependencies changed. A recorded failure never becomes a pass through reuse. |
+| A real producer artifact crosses a consumer boundary | Check its relevant shape, size and consumer behavior; do not substitute a convenient toy that hides a known compatibility problem. |
+
+The observable outcome matters more than ceremony. Assess whether each question
+would change authorization, scope or an unresolved product choice. Pair an
+unnecessary repeated question with a necessary new-access case so fewer questions
+does not reward unauthorized action. Avoid hard question/tool/test/token quotas,
+mandatory full-suite reruns and prescribed wording unless the user's contract
+requires them. A truthful limitation with a useful authorized next step can be
+correct; stopping all work over unrelated tooling can still miss the task.
+
+For a baseline failure, give the judge the observed baseline and candidate evidence
+and the acceptance rule. Matching failure names alone do not prove identical causes
+or authorize ignoring the failure. Keep product completion, independent review,
+workflow settlement and optional advice as separate facts.
+
+When evaluating optional JEV use, include off/unavailable behavior and a case where
+a cheap deterministic check resolves the question. Judge whether the chosen next
+action addresses the actual uncertainty; JEV probability is not the expected label
+or evidence of permission. Bookie and Scout should be optional in portable-skill
+fixtures, with ordinary authorized alternatives when their capabilities are absent.
+
+Propose controls and review expectations through the same authoring and calibration
+workflow. Do not infer acceptance of new labels from these examples. Reuse compatible
+saved answers/judgments before requesting a fresh comparison, and distinguish an
+authored recovery story from a live restart test in the report.
 
 ## Report what failed without changing the grade
 

@@ -2,25 +2,34 @@
 
 ## Current state
 
-Release preparation targets `0.33.0` in the isolated release worktree. It is not
-published; earlier private source checks and model results retain their exact
-identities. Final clean-commit package/CI qualification remains required.
+Local authoring follow-up (2026-11-07; unpublished): guided Pi control review now
+retains task-first obligations and criterion/materiality mappings, then offers one
+concise label review with optional full evidence. Exact input changes invalidate
+reuse. Mechanical validity is not semantic approval; existing calibration/CLI
+formats and historical results are unchanged. See EVAL-AUTHORING.md. This follow-up
+uses the 0.33.0 source base and preserves the existing operator-flow candidate;
+older release-preparation notes below describe their original snapshots.
 
-Local workflow-quality candidate (2026-11-05, uncommitted/unpublished): explicit
+Release preparation targets `0.34.0` on the dedicated operator-flow branch. It is
+not published. Public npm and Git observations on 2026-11-07 confirm the existing
+`0.33.0` release; prior measurements retain their exact source identities. Final
+clean-commit packaging, installation checks and CI remain required for `0.34.0`.
+
+Published `0.33.0` workflow-quality foundation (2026-11-05): explicit
 subject/judge thinking, requested/observed provenance, profile-aware reuse and
 comparisons, retained token coverage and the optional existing Daddy dashboard
 contribution are implemented. See [MODEL-PROFILES.md](MODEL-PROFILES.md) for exact
 behavior, compatibility and unknowns. Checks use scripted/offline evidence only;
 no new provider/model/effort quality or effective-effort qualification is claimed.
 
-Local ecosystem candidate (2026-11-04, uncommitted/unpublished): exact Pi 1.5.0
+Published `0.33.0` ecosystem foundation (prepared 2026-11-04): exact Pi 1.5.0
 native and supported-adapter qualification passed with scripted loopback replies,
 including JSON Schema coercion and invalid argument rejection. The retained
 fixtures bind both stages, package identities and source hashes. No real model,
 subscription authentication or role quality was evaluated. Shared Pi remains
 unchanged. See `packages/adapters/test/fixtures/pi-1.5.0/README.md`.
 
-The local candidate also adds `skill_improvement`: an optional, exact Bookie
+The `0.33.0` release also adds `skill_improvement`: an optional, exact Bookie
 lesson reference can become a bounded proposal for an existing authoring project.
 It does not change a skill, accept labels or authorize adoption/training. Portable
 role examples and their evaluation controls are prepared; their live quality
@@ -120,7 +129,7 @@ trajectory assertions, and confidence/automatic rejudging.
 - `packages/pi-extension/dist/index.js` and `packages/skill-harness/dist/index.js`
   are committed bundles. Run `npm run build:ext` whenever bundled core/adapter/CLI
   behavior changes.
-- The local candidate retains nullable reported judge token observations, including
+- The `0.33.0` release retains nullable reported judge token observations, including
   malformed/error calls; retained versus cumulative coverage stays separate. Judge
   billing/cost coverage remains unavailable; subject price estimates are unchanged.
 - No OS sandbox is claimed.

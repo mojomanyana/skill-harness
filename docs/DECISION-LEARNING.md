@@ -111,6 +111,52 @@ automatically add a qualified example to a LoRA dataset.
 
 This is preparation for human-reviewed learning data, not an automatic learning importer. Reference bytes are verified, while independence remains unassessed. Even a report containing `APPROVE` keeps `labelStatus: unlabeled`, `trainingEligible:false`, `exportEligible:false`. Later curation must establish the candidate/source relationship, independent evidence, rights, redaction, export/training consent and task-separated evaluation splits. No observed session or diagnostic archive is automatically imported or designated for training.
 
+### Choosing a useful next action
+
+The existing `evaluate` form can advise on a consequential evidence choice. The
+coordinator first checks the current task, available tools, authority and retained
+evidence through their ordinary interfaces. It proposes one reasonable action and
+uses JEV only if an unresolved judgment could change that choice. No new router,
+required phase or call per tool/turn is introduced.
+
+| Proposed action | Useful uncertainty | Check locally first |
+|---|---|---|
+| Reuse retained evidence | Does the still-applicable evidence address this specific engineering concern? | Candidate/input dependencies match; retention and approval remain distinct. |
+| Retrieve selected project context with Bookie | Is a prior decision or lesson likely to resolve the present design tradeoff? | Project/destination access and the original scope of any standing decision. |
+| Research a public gap with Scout | Would current external evidence resolve a material compatibility or design uncertainty? | Scout availability, public-data scope and the actual network policy. |
+| Run targeted verification | Would this check distinguish the plausible causes or cover the changed contract? | Existing results, affected inputs and permission to perform the check. |
+
+For example, after the coordinator checks that Scout is available and the request
+is public, an already-enabled session could evaluate this proposal:
+
+```json
+{"action":"evaluate","candidate":"current candidate identity","stage":"design","nextAction":"Use Scout to compare the public migration notes for the two library versions","uncertainty":"Whether the documented callback change explains the integration mismatch","requirements":"Preserve callback behavior without adding a compatibility layer unless needed","evidence":"The local consumer expects one callback argument; the installed producer returns two. Existing project evidence does not explain the version change."}
+```
+
+Use the actual candidate identity and selected facts. The example is not a command
+to call Scout or evidence that a particular library changed. Equivalent proposals
+for Bookie retrieval, evidence reuse or targeted verification use the same API.
+Choose the proposal with ordinary reasoning; evaluating every option wastes calls
+and the returned boolean probability does not rank tools or establish a best action.
+A high probability cannot grant access, approve a candidate, establish safe retries
+or waive required verification. A low probability is a reason to reconsider the
+proposal, not proof of a defect or an automatic instruction to ask the user.
+
+Status is free; consult it when activation is unknown. When advice is off, unavailable
+or exhausted, continue the ordinary authorized workflow without enabling it,
+retrying it or asking the user merely to obtain a score. Exact repeat packets reuse
+the existing activation cache; changed facts need a newly selected packet and count
+against the same limit. The three-call limit and fixed classifier question do not
+change. Existing source/consent records are preserved as originally recorded.
+
+Do not attach raw Bookie records, private repository contents or whole handoffs to
+remote advice automatically. Permission to save or retrieve project memory is not
+permission to send that memory to a provider. Select only relevant public or
+already-redacted facts; `evidenceRefs` remain local references, not automatic remote
+attachments. JEV off and optional integrations absent must remain usable paths.
+Later independent verification can be linked through `link-outcome`; it never turns
+the earlier probability into a training label or approval.
+
 ## Optional pi-daddy dashboard controls
 
 The dashboard can read JEV readiness or request enable/disable through the optional same-process `skill-harness:jev-control-v1` bridge. Requests bind version, nonce and actual parent session ID; duplicate clicks do not duplicate consent dialogs. Enabling invokes the **parent Pi** provider/model picker, paid-scope confirmation and LoRA storage choice. Current pi-daddy Settings shows the selected model, transport and local data root; it clears the temporary consent notice after the dialogs settle. The dashboard shows pending consent until those dialogs settle. Auto permissions never answer either question, and the bridge accepts no credential/consent override. Disabling revokes pending activation/provider work; an old unanswered dialog cannot restore it. Reload/session changes clear activation and bind controls to the current parent context. Status remains free and distinguishes authorization, missing key and remaining calls.
@@ -236,6 +282,6 @@ Use `export-learning --mode reviewed-data` with the same explicit file flags sho
 
 Actual training is a later, separately configured operation: choose locally available safe weights, exact model revision and file hashes, license review, architecture-specific LoRA modules and an approved export digest. The bundled Python script defaults to validation, disables remote loading and refuses fixtures. No adapter is trained, deployed, selected or granted workflow authority by this delivery. Evaluate a future adapter against independent held-out labels and the deterministic baseline before use.
 
-Detailed schemas and boundaries: [learning workflow](../experiments/decision-shadow/LEARNING-WORKFLOW.md), [provider and public-capture contracts](../experiments/decision-shadow/README.md).
+Detailed schemas and boundaries: [learning workflow](https://github.com/mojomanyana/skill-harness/blob/main/experiments/decision-shadow/LEARNING-WORKFLOW.md), [provider and public-capture contracts](https://github.com/mojomanyana/skill-harness/blob/main/experiments/decision-shadow/README.md).
 
 For optional offline composition against the actual local Principal candidate observer, set `SKILL_HARNESS_PRINCIPAL_WORKFLOW=/absolute/principal-pi-skills/scripts/workflow-state.mjs` when running `packages/pi-extension/test/jev-advice.test.ts`. The fixture uses a temporary Git repository and fake provider, verifies the canonical runtime snapshot and refuses a subsequent real source edit. It makes no provider or training calls.
