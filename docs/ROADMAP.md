@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-11-07 (0.34.0 published; PR123, release commit c847864)
+Last updated: 2026-11-07 (0.34.1 patch candidate; 0.34.0 remains published)
 
 `skill-harness` develops, evaluates and improves skills through Pi and a selected
 model. It starts from a user's idea or imports a selected skill. Generated skills
@@ -39,6 +39,17 @@ implementation. The existing Pi subject-runtime qualification pin remains explic
   remain intact. Verify published artifacts and clean remote acceptance separately.
 
 ## Current state
+
+- Patch candidate `0.34.1`: expose the embedded canonical evaluation schema and
+  generic example at `skill_author reference` before project setup; make draft/apply
+  precede task review. Installed reference/reload, separate-root, stale-input and
+  acceptance-reuse checks passed on the retained local candidate. Escape and Cancel
+  also passed through an actual Pi selector/handler terminal bridge; this does not
+  claim a full session or human cancellation. Adopted case MV-20261107-001 links to
+  reference/recovery and existing concise-review tests. Release identity and human
+  usability evidence remain separate; adoption does not authorize model calls.
+- Follow-up, outside this patch: reduce repeated control-transcript-format discovery
+  and self-corrections using the retained authoring evidence before proposing changes.
 
 - Published `0.34.0` ([PR123](https://github.com/mojomanyana/skill-harness/pull/123),
   2026-11-07): task-first obligation and criterion review inside the existing Pi
