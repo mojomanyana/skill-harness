@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-11-05 (local candidate; release state unchanged)
+Last updated: 2026-11-07 (0.34.0 local release candidate; public release remains 0.33.0)
 
 `skill-harness` develops, evaluates and improves skills through Pi and a selected
 model. It starts from a user's idea or imports a selected skill. Generated skills
@@ -40,10 +40,16 @@ implementation. The existing Pi subject-runtime qualification pin remains explic
 
 ## Current state
 
-- Local workflow-quality candidate: explicit subject/judge effort, requested versus
+- Local 2026-11-07 authoring follow-up: task-first obligation and criterion review
+  inside the existing Pi authoring flow, with minimal valid alternatives, concise
+  label acceptance and exact-input reuse. No new model-call stage or automatic
+  semantic approval. Source implementation, offline checks and live model quality
+  remain separate; publication is not implied.
+
+- Published `0.33.0`: explicit subject/judge effort, requested versus
   observed provenance, profile-safe reuse/comparison, retained token coverage and an
   optional bounded contribution through Daddy's existing dashboard protocol. This
-  is not a live model qualification or release. See [MODEL-PROFILES.md](MODEL-PROFILES.md).
+  is not a live model qualification. See [MODEL-PROFILES.md](MODEL-PROFILES.md).
 
 - `0.32.4` is published (2026-10-28, PR121, merge `2f3cc27`): optional criterion dimensions and offline saved-vote reporting
   distinguish task correctness, additional method completeness and mixed criteria.
@@ -66,7 +72,7 @@ implementation. The existing Pi subject-runtime qualification pin remains explic
 - Direct Claude CLI judging is removed; judging and drafting default to
   `openai-codex:gpt-5.6-sol` through Pi.
 - Subject usage is retained per repetition when Pi reports it; repository pricing
-  can derive subject cost. The local candidate also retains reported judge tokens;
+  can derive subject cost. The `0.33.0` release also retains reported judge tokens;
   judge cost and whole-bill coverage remain unavailable.
 
 ## Product rules
@@ -100,8 +106,8 @@ implementation. The existing Pi subject-runtime qualification pin remains explic
 
 - [x] Capture nullable per-repetition subject input, output, and cache-read tokens. (0.19.0)
 - [x] Derive subject cost from one dated repository price table. (0.19.0)
-- [x] Record judge token usage without inventing values providers do not report. (2026-11-05 local uncommitted candidate; no release claim)
-- [x] Show subject and judge token coverage separately in CLI and review reports. (2026-11-05 local uncommitted candidate; cost completeness remains open)
+- [x] Record judge token usage without inventing values providers do not report. (0.33.0; effective runtime settings remain separately observed)
+- [x] Show subject and judge token coverage separately in CLI and review reports. (0.33.0; cost completeness remains open)
 - [ ] Add supported models to the price table only with a dated source and tests.
 
 ### Exit criteria

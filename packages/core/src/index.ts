@@ -17,6 +17,7 @@ export * from "./trends.js";
 export * from "./lint.js";
 export * from "./authoring-preflight.js";
 export * from "./authoring.js";
+export * from "./authoring-contract-review.js";
 export * from "./improvement.js";
 export * from "./calibration.js";
 export * from "./diagnose.js";

@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.33.0 — Unreleased
+## 0.34.0 — Unreleased
+
+- Add task-first authoring review: retain the selected brief and tasks before preferred controls, map blocking criteria to obligations and materiality, and examine a minimal valid alternative without imposing an extra example quota. Mechanical checks verify selected source identity, exact quotes, coverage and freshness; semantic judgment remains with the author/reviewer.
+- Present one concise operator control-label review with full evidence on demand. Reuse exact accepted reviews while inputs match; recover a manifest saved before an interrupted receipt write without overwriting conflicting evidence. Existing CLI calibration formats and historical results remain compatible.
+- Guide optional JEV advice toward one consequential evidence choice after deterministic checks, including selected Bookie retrieval or public Scout research. No automatic calls, routing, permissions, model changes or training follow from advice.
+- Include the linked decision-learning guide in installed packages and verify shipped guide bytes in canonical archives. Keep generated skills usable with Pi alone and optional ecosystem integrations separate.
+
+## 0.33.0 — Published
 
 - Qualify exact Pi 1.5.0 through scripted native and supported-adapter controls; retain earlier version qualification without claiming model quality or universal host compatibility.
 - Add explicit subject/judge thinking requests and requested versus observed model/effort provenance. Preserve unknown effective settings, profile-bound calibration/reuse and scenario/repetition comparison identity.
