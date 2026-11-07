@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-11-07 (0.34.0 local release candidate; public release remains 0.33.0)
+Last updated: 2026-11-07 (0.34.0 published; PR123, release commit c847864)
 
 `skill-harness` develops, evaluates and improves skills through Pi and a selected
 model. It starts from a user's idea or imports a selected skill. Generated skills
@@ -40,11 +40,12 @@ implementation. The existing Pi subject-runtime qualification pin remains explic
 
 ## Current state
 
-- Local 2026-11-07 authoring follow-up: task-first obligation and criterion review
-  inside the existing Pi authoring flow, with minimal valid alternatives, concise
-  label acceptance and exact-input reuse. No new model-call stage or automatic
-  semantic approval. Source implementation, offline checks and live model quality
-  remain separate; publication is not implied.
+- Published `0.34.0` ([PR123](https://github.com/mojomanyana/skill-harness/pull/123),
+  2026-11-07): task-first obligation and criterion review inside the existing Pi
+  authoring flow, with minimal valid alternatives, concise label acceptance and
+  exact-input reuse. Canonical/public package identity, CI and fresh Pi 1.5.0
+  loading/reload were verified. No new model-call stage or automatic semantic
+  approval; live model quality remains separate.
 
 - Published `0.33.0`: explicit subject/judge effort, requested versus
   observed provenance, profile-safe reuse/comparison, retained token coverage and an
