@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.34.0 — Unreleased
+## 0.34.1 — Unreleased
+
+- Expose the installed evaluation schema, a parser-valid generic example and area-relative file guidance through read-only `skill_author reference`, before project or model selection. Embed the canonical schema with the extension so another package's core version cannot change the reference.
+- Direct invalid drafts back to the reference and explain that a valid draft must be applied before task-contract review. `judge_persona` is instruction text; preparing it neither selects nor calls a judge.
+- Turn meaningful manual validation into proposed reusable regressions, with explicit adoption and unchanged-decision reuse. Keep ordinary implementation tests, expected-label review, model-call authorization and human usability evidence distinct.
+
+## 0.34.0 — 2026-11-07
 
 - Add task-first authoring review: retain the selected brief and tasks before preferred controls, map blocking criteria to obligations and materiality, and examine a minimal valid alternative without imposing an extra example quota. Mechanical checks verify selected source identity, exact quotes, coverage and freshness; semantic judgment remains with the author/reviewer.
 - Present one concise operator control-label review with full evidence on demand. Reuse exact accepted reviews while inputs match; recover a manifest saved before an interrupted receipt write without overwriting conflicting evidence. Existing CLI calibration formats and historical results remain compatible.

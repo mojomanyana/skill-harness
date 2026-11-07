@@ -2,19 +2,30 @@
 
 ## Current state
 
-Local authoring-discoverability candidate (2026-11-07; package version intentionally
-unchanged at 0.34.0): `skill_author reference` exposes the canonical schema embedded
-with the extension and a generic example before any project/model is selected.
-Guidance now saves the valid draft before task-contract and directs invalid drafts
-back to the reference. This addresses the fresh-session format discovery failure;
-installed mechanical checks and a new human trial must qualify the candidate
-separately. No new release or live usability success is implied.
+Patch candidate `0.34.1` (2026-11-07; not yet published) promotes the verified
+authoring-discoverability fix from local candidate `7b19dfd`. `skill_author reference`
+exposes the canonical schema embedded with the extension and a generic example
+before project/model selection. Draft/apply precedes task-contract, and invalid
+drafts point back to the reference. Existing calibration formats remain unchanged.
+
+The retained 0.34.0 local candidate archives and their measurements are preserved;
+the patch version has separate source and archive identities. Installed Pi 1.5.0
+checks verified reference discovery, reload, separate evaluation roots, no-UI
+refusal, exact acceptance reuse and stale-input rejection. A real Pi selector and
+registered-handler terminal bridge also returned cancellation for both Escape and
+the Cancel option without acceptance receipts or file changes. That bridge is
+terminal integration evidence, not a full Pi-session or human cancellation claim.
+Human authoring trials are retained separately; no general model-quality or
+usability qualification is inferred from these checks.
+
 Manual-derived eval proposals require explicit adoption (reused when unchanged),
 separate from labels and model calls; routine implementation tests are unaffected.
-MV-20261107-001 is adopted: deterministic reference/draft recovery is covered in
-`packages/pi-extension/test/authoring-reference.test.ts`; existing authoring tests
-cover concise review, cancellation and unchanged acceptance reuse. Real model
-discovery and human experience remain a separate pending manual validation.
+Adopted case MV-20261107-001 links to reference/draft recovery in
+`packages/pi-extension/test/authoring-reference.test.ts` and existing concise-review,
+cancellation and unchanged-acceptance tests. Repeated control-transcript-format
+self-corrections remain a follow-up discovery/usability item, outside this patch.
+Release CI, canonical patch archives and fresh installed verification must bind
+the final 0.34.1 candidate before any public delivery claim.
 
 Published `0.34.0` (2026-11-07; [PR123](https://github.com/mojomanyana/skill-harness/pull/123),
 release commit `c847864fc3c7dac6479d8ae68abe990f95988a58`): guided Pi control review now
