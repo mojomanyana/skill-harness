@@ -2,18 +2,20 @@
 
 ## Current state
 
-Local authoring follow-up (2026-11-07; unpublished): guided Pi control review now
+Published `0.34.0` (2026-11-07; [PR123](https://github.com/mojomanyana/skill-harness/pull/123),
+release commit `c847864fc3c7dac6479d8ae68abe990f95988a58`): guided Pi control review now
 retains task-first obligations and criterion/materiality mappings, then offers one
 concise label review with optional full evidence. Exact input changes invalidate
 reuse. Mechanical validity is not semantic approval; existing calibration/CLI
-formats and historical results are unchanged. See EVAL-AUTHORING.md. This follow-up
-uses the 0.33.0 source base and preserves the existing operator-flow candidate;
-older release-preparation notes below describe their original snapshots.
+formats and historical results are unchanged. See EVAL-AUTHORING.md. This builds on
+the 0.33.0 source base; older release-preparation notes retain their original scope.
 
-Release preparation targets `0.34.0` on the dedicated operator-flow branch. It is
-not published. Public npm and Git observations on 2026-11-07 confirm the existing
-`0.33.0` release; prior measurements retain their exact source identities. Final
-clean-commit packaging, installation checks and CI remain required for `0.34.0`.
+All four public packages and exact internal pins are `0.34.0`. Canonical archives,
+required CI and fresh public-package installation were verified. Actual Pi 1.5.0
+resource loading/reload and the synthetic registered authoring-handler check
+passed; these do not qualify interactive UI, model quality or provider access.
+The immutable [v0.34.0 release](https://github.com/mojomanyana/skill-harness/releases/tag/v0.34.0)
+identifies the released source. Prior measurements retain their exact identities.
 
 Published `0.33.0` workflow-quality foundation (2026-11-05): explicit
 subject/judge thinking, requested/observed provenance, profile-aware reuse and
