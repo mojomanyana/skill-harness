@@ -40,6 +40,12 @@ implementation. The existing Pi subject-runtime qualification pin remains explic
 
 ## Current state
 
+- Local candidate: expose the canonical evaluation schema and generic example at
+  `skill_author reference` before project setup; make draft/apply precede task review.
+  Fresh human authoring validation remains pending, distinct from deterministic
+  checks. Adopted manual regression MV-20261107-001 links to reference/recovery and
+  existing concise-review tests; no new model evaluation is authorized by adoption.
+
 - Published `0.34.0` ([PR123](https://github.com/mojomanyana/skill-harness/pull/123),
   2026-11-07): task-first obligation and criterion review inside the existing Pi
   authoring flow, with minimal valid alternatives, concise label acceptance and

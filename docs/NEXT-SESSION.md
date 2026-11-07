@@ -2,6 +2,20 @@
 
 ## Current state
 
+Local authoring-discoverability candidate (2026-11-07; package version intentionally
+unchanged at 0.34.0): `skill_author reference` exposes the canonical schema embedded
+with the extension and a generic example before any project/model is selected.
+Guidance now saves the valid draft before task-contract and directs invalid drafts
+back to the reference. This addresses the fresh-session format discovery failure;
+installed mechanical checks and a new human trial must qualify the candidate
+separately. No new release or live usability success is implied.
+Manual-derived eval proposals require explicit adoption (reused when unchanged),
+separate from labels and model calls; routine implementation tests are unaffected.
+MV-20261107-001 is adopted: deterministic reference/draft recovery is covered in
+`packages/pi-extension/test/authoring-reference.test.ts`; existing authoring tests
+cover concise review, cancellation and unchanged acceptance reuse. Real model
+discovery and human experience remain a separate pending manual validation.
+
 Published `0.34.0` (2026-11-07; [PR123](https://github.com/mojomanyana/skill-harness/pull/123),
 release commit `c847864fc3c7dac6479d8ae68abe990f95988a58`): guided Pi control review now
 retains task-first obligations and criterion/materiality mappings, then offers one

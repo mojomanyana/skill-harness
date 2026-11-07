@@ -20,6 +20,35 @@ preview, validation issues and a digest. `apply` requires that digest and refuse
 conflicting file changes. Existing files have local backups. Nothing is installed,
 granted, committed, published or designated as training data by applying the draft.
 
+## Read the format before drafting
+
+Call `skill_author` with `{ "action": "reference" }`. This read-only action works
+before a project or model is selected and returns the exact installed JSON Schema,
+a small parser-valid example and file-path guidance. It does not scan other projects,
+write files, select a judge, accept labels or call a provider. The example illustrates
+the format only; derive the actual tasks and criteria from the agreed brief.
+
+The specification requires root `skill`, `judge_persona`, `ship_bar` and `scenarios`.
+Each scenario requires `id`, `title`, `turns` (an array, not `prompt`) and `checklist`.
+`judge_evidence` belongs inside a scenario. `judge_persona` is ordinary instruction
+text for future judging, not a model choice or authorization to run one. The runtime
+and draft preview also validate relationships, references and the agreed tool ceiling;
+the JSON Schema alone does not establish readiness or quality.
+
+Draft file paths are relative to their area: `area: skill, path: SKILL.md` and
+`area: evals, path: specification.yaml`. The evals area already points to the tests
+directory: `<skill-dir>/tests/` in the same repo, or `<eval-root>/<name>/tests/`
+in separate-repo placement. Do not prepend the skill name or `tests/` again.
+Fixture and judge-reference paths are relative to the specification. The tool creates
+`authoring.json`; provide requirement/scenario mappings, not that generated file.
+
+The order is **reference → brief → draft → fix preview issues → apply → task-contract
+→ controls → contract-review → review-controls**. Apply the valid exact draft digest
+within the user's authorized scope before inspecting the task contract: that inspection
+reads the saved specification. Applying needs no controls, accepted labels, selected
+judge or evaluation calls. If a draft is invalid, fix its listed errors using the
+reference; do not ask the user to invent technical schema fields.
+
 Generated files have three separate roles:
 
 | Area | Default location | Dependency |
@@ -81,14 +110,16 @@ reference and transcript bytes; the model does not supply those hashes. At least
 one positive, one negative and an equivalent valid answer are needed for calibration.
 Saved trace evidence must be bound for execution-dependent claims.
 
-Before reviewing labels, the authoring agent prepares a task contract:
+After applying the valid draft, and before choosing preferred answers or expected
+labels, the authoring agent prepares a task contract:
 
 1. Use `skill_author task-contract` to inspect the saved brief, scenario requests
    and explicitly selected method files without displaying preferred answers,
    expected labels or checklist items. Record the requested outcomes and boundaries,
    with source quotes. A necessary implication needs a rationale explaining why it
    matters; an optional suggestion must not become a hidden obligation.
-2. Prepare `skill_author contract-review` against the proposed controls. Connect
+2. Prepare proposed controls with `skill_author controls`, then prepare
+   `skill_author contract-review` against them. Connect
    every checklist item to those obligations and explain why omission would fail
    the task. Use an existing positive or equivalent control as a minimally
    sufficient answer; explain which optional ceremony it omits. When there is no
@@ -154,6 +185,23 @@ from a promotional assertion; a proposed objective is different from an achieved
 result. Decide how ambiguous wording is graded before running the judge, and apply
 that PASS/FAIL rule to valid alternatives and near-miss controls consistently.
 Static checks cannot resolve these semantic choices for the author.
+
+## Turn a manual check into a proposed regression
+
+A manual validation is one meaningful case, not every form, click or control review.
+If it is already covered and adopted, attach the outcome to that case without a new
+authoring task or adoption question. For manual validation of any ecosystem package,
+retain the selected evidence and
+identify the actual requirement and component that owns it. First look for an
+existing regression to extend rather than adding duplicate cases. Propose the
+smallest reproducible setup, observable outcome and useful positive, negative or
+transfer contrast, then ask the user whether to adopt that evaluation contract.
+Reuse explicit adoption of an unchanged proposal on rerun or resume; ask again only
+for new or materially changed outcomes. Link the proposal to actual test/eval IDs and
+results, keeping declined or uncovered cases visible. Acceptance of new expected labels and authorization for model calls remain separate.
+This proposal step does not require extra approval for ordinary implementation unit
+tests. Preserve human usability feedback as a human procedure and do not replace it
+with a synthetic claim about how a person experienced the interface.
 
 ## Test the operator experience and the resulting product
 

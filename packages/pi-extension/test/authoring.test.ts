@@ -27,6 +27,9 @@ describe("Pi authoring front door", () => {
     expect(message).toContain("Availability is not permission");
     expect(message).toContain("Keep the generated SKILL.md usable with Pi alone");
     expect(message).toContain("ask for the subject model when testing begins");
+    expect(message).toContain("call skill_author with action reference");
+    expect(message).toContain("specification must be saved before task-contract");
+    expect(message).toContain("Routine implementation regression tests do not need this adoption step");
   });
 
   it("the registered command routes create/author before the legacy run parser and refuses absent Pi model", async () => {

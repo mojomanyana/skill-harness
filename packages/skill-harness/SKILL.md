@@ -22,7 +22,9 @@ their instructions depend on skill-harness, pi-daddy or Principal.
    `question` asks the next missing answer in Pi. Establish purpose, observable
    outcomes, boundaries, tools, skill versus skill-and-agent delivery, and same-repo
    versus separate-repo evaluations. Do not ask for subject or judge models yet.
-2. **Author the files.** Produce a concise `SKILL.md`, useful supporting resources,
+2. **Author the files.** First call `skill_author` with `{ "action": "reference" }`
+   for the installed schema, generic example and file paths; no saved project is
+   required. Do not guess the format or search other projects for it. Produce a concise `SKILL.md`, useful supporting resources,
    and eval scenarios grounded in the agreed requirements. Create fixtures and
    references as needed; do not demand that the user supply examples or YAML.
    Stage through `skill_author draft`, inspect its changes and issues, then apply
@@ -34,10 +36,10 @@ their instructions depend on skill-harness, pi-daddy or Principal.
    profile and `judge_references` for explicit judge-only source files. Choose
    `judge_evidence: response` for answer tasks; seeded mode is a workspace choice,
    not evidence that the task is code generation.
-4. **Calibrate.** First use `skill_author task-contract` to read the saved brief,
+4. **Calibrate.** After the valid draft is applied (the specification must exist), use `skill_author task-contract` to read the saved brief,
    subject tasks and explicitly selected methods without preferred answers or labels.
    Record the actual obligations, distinguishing necessary implications from optional
-   improvements. Then use `contract-review` to justify each blocking criterion and
+   improvements. Prepare proposed controls with `controls`, then use `contract-review` to justify each blocking criterion and
    select a minimally sufficient valid alternative. A source instruction or judge-only
    fact cannot silently add a user requirement. These are agent preparation steps:
    code checks identity and coverage, while semantic review checks authority and
@@ -83,6 +85,22 @@ Do not rerun a complete comparison just because one control or rubric changed.
 
 You may create and edit the skill when the user requests development. For a request
 only to evaluate an existing skill, measure it without rewriting it.
+
+## Learn from manual validation
+
+Treat the whole meaningful manual check as one case, not each click or label review.
+For an already covered/adopted case, attach the outcome without another authoring
+task or adoption question. For a manual check of any ecosystem package, retain the
+selected evidence, identify
+the actual contract and owning component, and propose a small reproducible regression.
+Extend existing coverage instead of duplicating it; include useful positive, negative
+or transfer contrasts. Ask the user whether to adopt this evaluation contract; reuse
+explicit acceptance on unchanged reruns/resumes. Ask again only for new or materially
+changed outcomes. Link actual test/eval IDs and results; keep declined or uncovered
+items visible. Label
+acceptance and model-call authorization remain separate. This does not add approval
+requirements to routine implementation regression tests. Human usability stays a
+human procedure, not a claim that an automated test reproduced the experience.
 
 ## Evaluation design
 
