@@ -3,6 +3,14 @@ import { createJevController } from "../src/jev-session.js";
 import { registerJevPromptHints } from "../src/jev-prompt-hints.js";
 
 const operatorText = "Please find the latest official documentation for private-project-123.";
+const bookieAndScout = [
+  "Search Bookie in the selected project for a saved decision about serving stale cache entries while a refresh is running.",
+  "Then use Scout to look up RFC 5861 on the RFC Editor site and check when an HTTP cache may serve a stale response during revalidation.",
+  "Give Scout just the public RFC question.",
+  "Reply in three bullets: what Bookie found, what the RFC says with a link to the section, and how the two compare.",
+  "If the Bookie search is empty, say so.",
+  "If either tool is unavailable, name it and finish the other check.",
+].join(" ");
 const activeTools = ["read", "find", "scout_research", "skill_author", "bookie_search", "edit"];
 function setup(probability = 0.94) {
   const handlers = new Map<string, Function[]>();
@@ -99,6 +107,51 @@ describe("operator prompt hints", () => {
     s.setActive(["read", "unknown-PRIVATE-extension-name"]);
     expect(await s.prompt(operatorText)).toBeUndefined();
     expect(s.provider).not.toHaveBeenCalled();
+  });
+
+  it("assesses the explicit first Bookie search once when a later reporting instruction refers to the unavailable tool", async () => {
+    const s = setup();
+    await s.enable();
+    const result = await s.prompt(bookieAndScout);
+    expect(result?.messages.at(-1).content).toContain("bookie_search");
+    expect(s.provider).toHaveBeenCalledTimes(1);
+    const { input } = s.provider.mock.calls[0][2] as { input: string };
+    expect(input).toContain("search saved work records");
+    expect(input).not.toMatch(/RFC|stale|selected project|unavailable, name|scout|comparison requested/i);
+    expect(s.controller.status(s.ctx)).toMatchObject({ used: 1, remaining: 299 });
+    expect((await s.prompt(bookieAndScout)).messages.at(-1).content).toContain("reused assessment");
+    expect(s.provider).toHaveBeenCalledTimes(1);
+  });
+
+  it("scopes the fit to the first request when later instructions refer to its output", async () => {
+    const s = setup();
+    await s.enable();
+    const prompt = "Inspect src/package.config.json for the current build target. Explain what it controls and compare with official examples.";
+    expect((await s.prompt(prompt)).messages.at(-1).content).toContain("read can read a selected file");
+    const { input } = s.provider.mock.calls[0][2] as { input: string };
+    expect(input).toContain("current information requested");
+    expect(input).not.toMatch(/package\.config|published source requested|comparison requested/);
+  });
+
+  it("abstains for an inactive first tool, ambiguous references and restricted requests even with an unavailability note", async () => {
+    const s = setup();
+    await s.enable();
+    s.setActive(["scout_research"]);
+    expect(await s.prompt(bookieAndScout)).toBeUndefined();
+    s.setActive(activeTools);
+    const unavailableNote = "If either tool is unavailable, name it and finish the other check.";
+    for (const request of [
+      "Search Bookie for it.",
+      "Search for the answer. A Bookie record mentions that.",
+      "Search for the answer. A Bookie record may help.",
+      "Read it. The README file might help.",
+      "Find the latest official Bookie decisions.",
+      "Search Bookie for a saved decision. Do not contact any external service.",
+      "Search Bookie for a saved decision. Read https://example.test/private.",
+      "Search Bookie for a saved decision. Never send it to Scout.",
+    ]) expect(await s.prompt(request + " " + unavailableNote)).toBeUndefined();
+    expect(s.provider).not.toHaveBeenCalled();
+    expect(s.controller.status(s.ctx)).toMatchObject({ used: 0, remaining: 300 });
   });
 
   it("scores queued input only when delivered, drops superseded prompts, rechecks live tools and reuses identical packets", async () => {

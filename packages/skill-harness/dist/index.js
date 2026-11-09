@@ -24031,7 +24031,8 @@ var candidates = [
 function candidateFor(text6, active, previous) {
   if (!text6 || text6.length > MAX_PROMPT_LENGTH || /[\x00-\x1f\x7f"“”<>\x60]|^\s*[!/#>@]|https?:\/\/|\b(?:not|never|without|avoid|instead|except|no|don't|don’t|unless|only if)\b/i.test(text6)) return;
   const direct = text6.trim().replace(/^(?:(?:can|could|would) you (?:please )?|please |I'd like you to |I want you to )/i, "");
-  if (/\b(?:that|those|it|them)\b/i.test(direct)) {
+  const [firstRequest] = direct.split(/(?<=[.!?])\s+/, 1);
+  if (/\b(?:that|those|it|them)\b/i.test(firstRequest)) {
     if (!previous) return;
     let tool;
     if (/^(?:check|find|look up) (?:the )?(?:official )?(?:docs|documentation) for (?:that|it)[.!?]?$/i.test(direct) && ["skill_author", "skill_check_run", "edit", "scout_research"].includes(previous.tool)) tool = "scout_research";
@@ -24040,7 +24041,7 @@ function candidateFor(text6, active, previous) {
     if (fit) return { fit, previousIntent: previous.intent, cues: [] };
     return;
   }
-  const matches = candidates.filter((row) => row.request.test(direct));
+  const matches = candidates.filter((row) => row.request.test(firstRequest));
   if (matches.length !== 1 || !active.includes(matches[0].tool)) return;
   const cues = [
     [/\b(?:current|latest)\b/i, "current information requested"],
@@ -24048,7 +24049,7 @@ function candidateFor(text6, active, previous) {
     [/\bcompar(?:e|ison)\b/i, "comparison requested"],
     [/\bread[ -]only\b/i, "read-only inspection requested"]
   ];
-  return { fit: matches[0], cues: cues.filter(([pattern]) => pattern.test(direct)).map(([, label]) => label) };
+  return { fit: matches[0], cues: cues.filter(([pattern]) => pattern.test(firstRequest)).map(([, label]) => label) };
 }
 function packetFor(selection) {
   const row = selection.fit;
