@@ -23,6 +23,8 @@ export interface ExtensionAPI {
   registerCommand(name: string, def: { description: string; handler: (args: string, ctx: CmdCtx) => Promise<void> }): void;
   registerTool(tool: unknown): void;
   on(event: "session_shutdown" | "session_start" | "session_switch" | "session_tree" | "session_fork" | "model_select", handler: (event?: unknown, ctx?: CmdCtx) => Promise<void> | void): void;
+  on(event: "input", handler: (event: { source: string; text: string; images?: unknown[] }, ctx: CmdCtx) => void): void;
+  on(event: "context", handler: (event: { messages: unknown[] }, ctx: CmdCtx) => Promise<{ messages: unknown[] } | void>): void;
   appendEntry?(type:string,data:unknown):void;
   sendUserMessage?(content: string, options?: { deliverAs?: "steer" | "followUp"; expandPromptTemplates?: boolean }): void;
   getActiveTools?(): string[];
@@ -33,6 +35,7 @@ export interface NativeClassifierModel {
   [key: string]: unknown;
 }
 export interface CmdCtx {
+  signal?: AbortSignal;
   model?: { provider: string; id: string };
   modelRegistry?: {
     getProviderAuthStatus?(provider: string): { configured: boolean };
@@ -43,7 +46,7 @@ export interface CmdCtx {
       transformHeaders(headers: Record<string, unknown>): Promise<Record<string, unknown>>;
     }): Promise<unknown>;
   };
-  sessionManager?: { getSessionId():string };
+  sessionManager?: { getSessionId():string; getEntries?(): readonly { type: string; customType?: string; data?: unknown }[] };
   cwd: string;
   hasUI: boolean;
   ui: {
@@ -57,7 +60,7 @@ export interface CmdCtx {
   };
 }
 
-const USAGE = "usage: /skill-harness create <idea> | author [name] | run [skill] [--specs root] [--model p:m] [--thinking LEVEL] [--judge-thinking LEVEL] [--reps N] [--mode red|green|force] [--only A1,A2] [--canary] [--judge p:m] | judge [run-dir] [--judge p:m] | review [skill] | coverage [skill] | jev enable [workflow]|run|status|disable";
+const USAGE = "usage: /skill-harness create <idea> | author [name] | run [skill] [--specs root] [--model p:m] [--thinking LEVEL] [--judge-thinking LEVEL] [--reps N] [--mode red|green|force] [--only A1,A2] [--canary] [--judge p:m] | judge [run-dir] [--judge p:m] | review [skill] | coverage [skill] | jev enable [workflow]|configure|limit [N]|hints|run|status|disable";
 
 /** Minimal arg tokenizer: subcommand + positional args + `--key value` flags. A flag with no following value (or one followed by another `--flag`) is left unset, so callers' `?? default` fallbacks apply. */
 function parse(argstr: string): { sub: string; positional: string[]; flags: Record<string, string> } {

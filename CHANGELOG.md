@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.0 — 2026-11-09
+
+- Set a per-session JEV call limit in Pi or the Pi Daddy dashboard. The default allowance is 300; JEV remains off until enabled. Paid manual calls, workflow advice and optional tool hints draw from the same allowance.
+- Opt in to tool suggestions separately. Eligible prompts can receive a short advisory for both the operator and the acting agent when a supported, available tool scores above 90%. A hint does not invoke or authorize that tool.
+- Changing the limit preserves calls already used. Session budget bookkeeping does not restore permission, a provider credential or storage consent.
+
 ## 0.34.2 — 2026-11-09
 
 - Optional JEV workflow advice returns YES only when the raw probability is strictly greater than 90%. A valid score of 90% or less returns insufficient confidence; a missing or failed answer is unavailable. The tool preserves raw probabilities and does not approve actions or change historical research scores.

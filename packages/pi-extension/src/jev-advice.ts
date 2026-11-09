@@ -18,7 +18,8 @@ const adviceOutput = Type.Union([
   Type.Object({
     enabled: Type.Boolean(), mode: Type.Union([Type.Literal("disabled"), Type.Literal("manual"), Type.Literal("workflow")]),
     storage: Type.Union([Type.Literal("granted"), Type.Literal("declined"), Type.Null()]),
-    remaining: Type.Integer({ minimum: 0 }), availability: Type.String(),
+    limit: Type.Integer({ minimum: 0 }), used: Type.Integer({ minimum: 0 }), hintsEnabled: Type.Boolean(),
+    controls: Type.Array(Type.String()), remaining: Type.Integer({ minimum: 0 }), availability: Type.String(),
     storageRoot: nullableString, selectedProvider: nullableString, selectedModel: nullableString, transport: nullableString,
     providerReadiness: Type.Union([Type.Literal("key-present"), Type.Literal("pi-configured"), Type.Literal("missing-key")]), advisory: Type.Literal(true),
   }, { additionalProperties: false }),

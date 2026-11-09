@@ -7,6 +7,7 @@ import { createHarnessDashboard } from "./dashboard.js";
 import { createJevController } from "./jev-session.js";
 import { registerJevAdvice } from "./jev-advice.js";
 import { registerJevControl } from "./jev-control.js";
+import { registerJevPromptHints } from "./jev-prompt-hints.js";
 import { registerAuthoring } from "./authoring.js";
 import { registerImprovement } from "./improvement.js";
 
@@ -44,6 +45,7 @@ export default function (pi: ExtensionAPI): void {
   registerImprovement(pi);
   registerJevAdvice(pi, jev);
   registerJevControl(pi, jev);
+  registerJevPromptHints(pi, jev);
   registerTool(pi, dashboard);
   pi.on("session_shutdown", async () => {
     removeVersionReporter?.();

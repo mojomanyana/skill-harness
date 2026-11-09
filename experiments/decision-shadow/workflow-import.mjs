@@ -57,8 +57,11 @@ function validateSource(source){
   const consent=parseStorageConsent(source.consent,source.sessionId);
   check(consent.decision==='granted' && date(consent.recordedAt)<=date(source.frozenAt),'recorded session storage consent is missing or postdates selection');
   const a=source.authorization;keys(a,['kind','interactionId','sessionId','recordedAt',...(native?['route']:['provider','model']),'question','maximumCalls'],'workflow authorization');text(a.interactionId,'authorization interaction');
-  const authorizationMatches=native ? a.kind==='jev-workflow-paid-scope-v2' && isDeepStrictEqual(validateNativeRoute(a.route),route) : a.kind==='jev-workflow-paid-scope' && a.provider===source.provider && a.model===source.model;
-  check(authorizationMatches && a.sessionId===source.sessionId && a.question===QUESTION && a.maximumCalls===3 && date(a.recordedAt)<=date(source.frozenAt),'workflow authorization mismatch');
+  const sessionScope=a.kind==='jev-session-paid-scope-v1';
+  const validLimit=sessionScope ? Number.isSafeInteger(a.maximumCalls) && a.maximumCalls>0 : a.maximumCalls===3;
+  const validKind=sessionScope || a.kind===(native?'jev-workflow-paid-scope-v2':'jev-workflow-paid-scope');
+  const validRoute=native ? isDeepStrictEqual(validateNativeRoute(a.route),route) : a.provider===source.provider && a.model===source.model;
+  check(validKind && validLimit && validRoute && a.sessionId===source.sessionId && a.question===QUESTION && date(a.recordedAt)<=date(source.frozenAt),'workflow authorization mismatch');
   check(source.provenance==='tool-selected-input' && source.evidenceClaims==='unassessed' && source.redaction==='unassessed' && source.rights==='unassessed' && source.publicCaptureVerified===false,'unsupported workflow provenance claims');unlabeled(source);
   const refs=evidenceRefs(source.evidenceRefs);
   check(source.sourceBinding===(refs.length?'local-reference-digests-verified':'unassessed'),'source binding mismatch');
