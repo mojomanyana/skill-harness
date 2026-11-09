@@ -18,10 +18,21 @@ import {
 } from "./jev-packet.js";
 
 export type JevContext = Pick<CmdCtx, "sessionManager" | "cwd" | "modelRegistry">;
+export const JEV_YES_THRESHOLD = 0.9;
+/** A positive advisory recommendation is not approval; lower scores abstain. */
+export function interpretJevAdvice(status: string, probability: number | null) {
+  const available = status === "answered" && typeof probability === "number" &&
+    Number.isFinite(probability) && probability >= 0 && probability <= 1;
+  const recommendation: "yes" | "insufficient-confidence" | "unavailable" = !available
+    ? "unavailable" : probability! > JEV_YES_THRESHOLD ? "yes" : "insufficient-confidence";
+  return { recommendation, yesThreshold: JEV_YES_THRESHOLD } as const;
+}
 export interface AdviceResult {
   advisory: true;
   status: "answered" | "unavailable";
   probability: number | null;
+  recommendation: "yes" | "insufficient-confidence" | "unavailable";
+  yesThreshold: typeof JEV_YES_THRESHOLD;
   provider: string;
   requestedModel: string;
   resolvedModel: string | null;
@@ -160,6 +171,7 @@ export function createJevController(
     const id = currentId(ctx);
     const unavailable = (reason: string): AdviceResult => ({
       advisory: true, status: "unavailable", probability: null, reason, ...unmeasuredProvider(active?.selection),
+      ...interpretJevAdvice("unavailable", null),
       remaining: active?.mode === "workflow" ? JEV_WORKFLOW_LIMIT - active.used : 0,
     });
     if (!id || !active || active.mode !== "workflow")
@@ -231,6 +243,7 @@ export function createJevController(
         advisory: true,
         status: result.status === "answered" ? "answered" : "unavailable",
         probability: result.status === "answered" ? result.probability : null,
+        ...interpretJevAdvice(result.status, result.probability),
         provider: bound.selection?.route.provider ?? JEV_PROVIDER, requestedModel: bound.selection?.route.model ?? JEV_MODEL, resolvedModel: result.resolvedModel,
         ...(bound.selection ? { returnedProvider: result.returnedProvider, returnedModel: result.returnedModel, costSource: result.costSource } : {}),
         usage: result.usage, latencyMs: result.latencyMs,
@@ -250,6 +263,7 @@ export function createJevController(
       bound.blocked = "execution-error";
       return {
         advisory: true, status: "unavailable", probability: null, ...unmeasuredProvider(bound.selection),
+        ...interpretJevAdvice("unavailable", null),
         reason: "Advice unavailable or cancelled; no approval is implied. Explicit new activation is required for further workflow calls.",
         remaining: JEV_WORKFLOW_LIMIT - bound.used, inputSha256: packet.inputSha256,
         ...(receipt ? { source: receipt } : {}),

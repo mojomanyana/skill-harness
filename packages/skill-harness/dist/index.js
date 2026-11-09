@@ -23088,6 +23088,12 @@ function retainHandoffSource(source, assertCurrent, storageHome = resolveDataRoo
 }
 
 // packages/pi-extension/src/jev-session.ts
+var JEV_YES_THRESHOLD = 0.9;
+function interpretJevAdvice(status, probability2) {
+  const available = status === "answered" && typeof probability2 === "number" && Number.isFinite(probability2) && probability2 >= 0 && probability2 <= 1;
+  const recommendation = !available ? "unavailable" : probability2 > JEV_YES_THRESHOLD ? "yes" : "insufficient-confidence";
+  return { recommendation, yesThreshold: JEV_YES_THRESHOLD };
+}
 var unmeasuredProvider = (selection) => ({
   provider: selection?.route.provider ?? JEV_PROVIDER,
   requestedModel: selection?.route.model ?? JEV_MODEL,
@@ -23189,6 +23195,7 @@ function createJevController(pi, options = {}) {
       probability: null,
       reason,
       ...unmeasuredProvider(active?.selection),
+      ...interpretJevAdvice("unavailable", null),
       remaining: active?.mode === "workflow" ? JEV_WORKFLOW_LIMIT - active.used : 0
     });
     if (!id || !active || active.mode !== "workflow")
@@ -23268,6 +23275,7 @@ function createJevController(pi, options = {}) {
         advisory: true,
         status: result.status === "answered" ? "answered" : "unavailable",
         probability: result.status === "answered" ? result.probability : null,
+        ...interpretJevAdvice(result.status, result.probability),
         provider: bound.selection?.route.provider ?? JEV_PROVIDER,
         requestedModel: bound.selection?.route.model ?? JEV_MODEL,
         resolvedModel: result.resolvedModel,
@@ -23295,6 +23303,7 @@ function createJevController(pi, options = {}) {
         status: "unavailable",
         probability: null,
         ...unmeasuredProvider(bound.selection),
+        ...interpretJevAdvice("unavailable", null),
         reason: "Advice unavailable or cancelled; no approval is implied. Explicit new activation is required for further workflow calls.",
         remaining: JEV_WORKFLOW_LIMIT - bound.used,
         inputSha256: packet.inputSha256,
@@ -23581,6 +23590,8 @@ var adviceOutput = Type4.Union([
     advisory: Type4.Literal(true),
     status: Type4.Union([Type4.Literal("answered"), Type4.Literal("unavailable")]),
     probability: Type4.Union([Type4.Number({ minimum: 0, maximum: 1 }), Type4.Null()]),
+    recommendation: Type4.Union([Type4.Literal("yes"), Type4.Literal("insufficient-confidence"), Type4.Literal("unavailable")]),
+    yesThreshold: Type4.Literal(JEV_YES_THRESHOLD, { description: "YES requires the raw probability to be strictly greater than this threshold; equality does not qualify." }),
     provider: Type4.String(),
     requestedModel: Type4.String(),
     resolvedModel: nullableString,
@@ -23609,11 +23620,12 @@ function createJevAdviceTool(controller) {
   return {
     name: "jev_advice",
     label: "JEV decision advice",
-    description: "Check free session-local JEV status, evaluate a selected engineering next action for its current stage, or link later local engineering evidence without a provider call. Evaluation requires explicit /skill-harness jev enable workflow activation. Probability never grants approval or replaces tests/review. Select only relevant public or already-redacted evidence; never send secrets, transcripts, reviewer verdicts or hidden reasoning.",
+    description: "Check free session-local JEV status, evaluate a selected engineering next action for its current stage, or link later local engineering evidence without a provider call. Evaluation requires explicit /skill-harness jev enable workflow activation. YES requires probability strictly above 90%; lower scores are insufficient confidence, not a factual NO. Advice never grants approval or replaces tests/review. Select only relevant public or already-redacted evidence; never send secrets, transcripts, reviewer verdicts or hidden reasoning.",
     promptGuidelines: [
       "Use action=status when current activation is unknown. Evaluate only an enabled, concrete unresolved engineering judgment after deterministic checks; name stage, nextAction and uncertainty. Tool availability, access, candidate identity, duplicate work and required checks are code decisions, not JEV questions.",
       "For a consequential evidence choice, propose one action: reuse applicable evidence, retrieve selected project context through Bookie, research a public gap with Scout, or run targeted verification. State the gap and why this action could resolve it. Do not score every alternative or call per tool/turn; cheap obvious next steps need no advice.",
       "JEV evaluates that proposal, not final acceptance or the best tool overall. It never executes a tool, grants access, proves safe retries or waives required tests/review. Off, unavailable or exhausted advice leaves the ordinary authorized workflow available; do not retry unavailable advice or enable it automatically.",
+      "Use recommendation for the advisory interpretation: yes only when raw probability is strictly greater than 0.90. Exactly 0.90 or below is insufficient-confidence, not a negative fact. Do not round a score across the boundary, apply a 50% cutoff, or retry to obtain a YES. Continue ordinary authorized reasoning and required checks when advice does not endorse the proposal.",
       "Send only selected public or already-redacted evidence; Bookie save/retrieval permission does not authorize sending private memory to JEV. Keep probabilities out of independent review inputs. Optional link-outcome freezes later local test/review evidence; hashes and candidate identities are not independent labels or export permission."
     ],
     parameters: Type4.Object({
