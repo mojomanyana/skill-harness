@@ -1,6 +1,6 @@
 import { Type } from "typebox";
 import type { ExtensionAPI } from "./commands.js";
-import type { JevContext, JevController } from "./jev-session.js";
+import { JEV_YES_THRESHOLD, type JevContext, type JevController } from "./jev-session.js";
 import { requireIdentity, type HandoffPacket } from "./jev-packet.js";
 import type { EvidenceRef } from "./jev-evidence.js";
 
@@ -25,6 +25,8 @@ const adviceOutput = Type.Union([
   Type.Object({
     advisory: Type.Literal(true), status: Type.Union([Type.Literal("answered"), Type.Literal("unavailable")]),
     probability: Type.Union([Type.Number({ minimum: 0, maximum: 1 }), Type.Null()]),
+    recommendation: Type.Union([Type.Literal("yes"), Type.Literal("insufficient-confidence"), Type.Literal("unavailable")]),
+    yesThreshold: Type.Literal(JEV_YES_THRESHOLD, { description: "YES requires the raw probability to be strictly greater than this threshold; equality does not qualify." }),
     provider: Type.String(), requestedModel: Type.String(), resolvedModel: nullableString,
     usage: Type.Object({ inputTokens: nullableNumber, outputTokens: nullableNumber, costUsd: nullableNumber }, { additionalProperties: false }),
     returnedProvider: Type.Optional(nullableString), returnedModel: Type.Optional(nullableString),
@@ -42,11 +44,12 @@ export function createJevAdviceTool(controller: JevController) {
   return {
     name: "jev_advice",
     label: "JEV decision advice",
-    description: "Check free session-local JEV status, evaluate a selected engineering next action for its current stage, or link later local engineering evidence without a provider call. Evaluation requires explicit /skill-harness jev enable workflow activation. Probability never grants approval or replaces tests/review. Select only relevant public or already-redacted evidence; never send secrets, transcripts, reviewer verdicts or hidden reasoning.",
+    description: "Check free session-local JEV status, evaluate a selected engineering next action for its current stage, or link later local engineering evidence without a provider call. Evaluation requires explicit /skill-harness jev enable workflow activation. YES requires probability strictly above 90%; lower scores are insufficient confidence, not a factual NO. Advice never grants approval or replaces tests/review. Select only relevant public or already-redacted evidence; never send secrets, transcripts, reviewer verdicts or hidden reasoning.",
     promptGuidelines: [
       "Use action=status when current activation is unknown. Evaluate only an enabled, concrete unresolved engineering judgment after deterministic checks; name stage, nextAction and uncertainty. Tool availability, access, candidate identity, duplicate work and required checks are code decisions, not JEV questions.",
       "For a consequential evidence choice, propose one action: reuse applicable evidence, retrieve selected project context through Bookie, research a public gap with Scout, or run targeted verification. State the gap and why this action could resolve it. Do not score every alternative or call per tool/turn; cheap obvious next steps need no advice.",
       "JEV evaluates that proposal, not final acceptance or the best tool overall. It never executes a tool, grants access, proves safe retries or waives required tests/review. Off, unavailable or exhausted advice leaves the ordinary authorized workflow available; do not retry unavailable advice or enable it automatically.",
+      "Use recommendation for the advisory interpretation: yes only when raw probability is strictly greater than 0.90. Exactly 0.90 or below is insufficient-confidence, not a negative fact. Do not round a score across the boundary, apply a 50% cutoff, or retry to obtain a YES. Continue ordinary authorized reasoning and required checks when advice does not endorse the proposal.",
       "Send only selected public or already-redacted evidence; Bookie save/retrieval permission does not authorize sending private memory to JEV. Keep probabilities out of independent review inputs. Optional link-outcome freezes later local test/review evidence; hashes and candidate identities are not independent labels or export permission.",
     ],
     parameters: Type.Object({

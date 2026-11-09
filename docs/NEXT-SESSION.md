@@ -2,7 +2,11 @@
 
 ## Current state
 
-Patch candidate `0.34.1` (2026-11-07; not yet published) promotes the verified
+The 0.34.2 patch adds explicit positive advice only above 90% for `jev_advice`.
+At exactly 90% or below, the tool withholds endorsement. Unavailable advice
+remains distinct. See DECISION-LEARNING.md for examples and score provenance.
+
+Published patch `0.34.1` (2026-11-07) promotes the verified
 authoring-discoverability fix from local candidate `7b19dfd`. `skill_author reference`
 exposes the canonical schema embedded with the extension and a generic example
 before project/model selection. Draft/apply precedes task-contract, and invalid

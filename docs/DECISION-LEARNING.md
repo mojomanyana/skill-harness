@@ -79,6 +79,22 @@ select when to invoke it. There is no automatic `agent_end` or `tool_result` hoo
 Every outcome returns the actual resolved model, reported nullable usage/cost and measured latency when available, including when storage is declined. No-call outcomes keep these measurements null. Keep JEV output out of the independent reviewer's inputs. Its probability grants
 no approval and identifies no independently proven defect.
 
+Workflow advice interprets the raw probability using `yesThreshold: 0.9`:
+`recommendation: "yes"` requires a probability **strictly greater than 90%**.
+Exactly 90%, 58%, and every lower valid probability return
+`recommendation: "insufficient-confidence"`; this withholds positive advice and
+is not a factual **No** or proof that the action is wrong. These are still
+`status: "answered"` results, and their original probabilities remain unchanged.
+Missing, cancelled or failed responses return `recommendation: "unavailable"`
+with a null probability. Text, structured output and cached responses carry the
+same interpretation. Advice remains optional and never grants approval.
+
+This runtime advice policy does not change the generic decision-comparison
+scorer's fixed 0.5 binary threshold, accepted labels or historical results.
+Applying a new policy to saved probabilities is a separate, explicitly named
+analysis; it cannot turn withheld advice into a correct negative answer or
+retroactively improve the original accuracy claim.
+
 Calls are serialized. Concurrent requests make no additional call; repeated exact
 packets with the same verified reference identities reuse the earlier result within the same activation; changed reference bytes must still pass verification. A distinct packet
 uses another slot. Reservations happen before execution; a local failure can

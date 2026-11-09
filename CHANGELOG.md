@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.34.1 — Unreleased
+## 0.34.2 — 2026-11-09
+
+- Optional JEV workflow advice returns YES only when the raw probability is strictly greater than 90%. A valid score of 90% or less returns insufficient confidence; a missing or failed answer is unavailable. The tool preserves raw probabilities and does not approve actions or change historical research scores.
+
+## 0.34.1 — 2026-11-07
 
 - Expose the installed evaluation schema, a parser-valid generic example and area-relative file guidance through read-only `skill_author reference`, before project or model selection. Embed the canonical schema with the extension so another package's core version cannot change the reference.
 - Direct invalid drafts back to the reference and explain that a valid draft must be applied before task-contract review. `judge_persona` is instruction text; preparing it neither selects nor calls a judge.

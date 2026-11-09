@@ -1,6 +1,6 @@
 {
   "name": "skill-harness",
-  "version": "0.34.1",
+  "version": "0.34.2",
   "description": "Create and improve Pi skills \u2014 guided authoring, evaluations, judge calibration and evidence review",
   "type": "module",
   "keywords": [
@@ -39,7 +39,7 @@
     "README.md"
   ],
   "dependencies": {
-    "@skill-harness/cli": "0.34.1"
+    "@skill-harness/cli": "0.34.2"
   },
   "peerDependencies": {
     "typebox": "*"
