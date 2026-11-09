@@ -296,6 +296,20 @@ describe("session-scoped handoff advice", () => {
     await s.controller.command("configure", s.ctx);
     expect(s.controller.status(s.ctx)).toMatchObject({ mode: "disabled", hintsEnabled: false });
   });
+  it.each(["error", "exception"])("pauses only prompt hints on provider %s until the operator opts in again", async failure => {
+    const s = setup();
+    await s.controller.command("enable workflow", s.ctx);
+    await s.controller.command("hints", s.ctx);
+    if (failure === "error") s.provider.mockResolvedValueOnce({ ...answer, status: "error" });
+    else s.provider.mockRejectedValueOnce(new Error("private provider failure"));
+    expect(await s.controller.evaluateHint(packet, undefined, s.ctx)).toMatchObject({ status: "unavailable" });
+    expect(s.controller.status(s.ctx)).toMatchObject({ hintsEnabled: false, used: 1, availability: "ready" });
+    await s.controller.evaluateHint(packet, undefined, s.ctx);
+    expect(s.provider).toHaveBeenCalledTimes(1);
+    expect(details(await s.execute())).toMatchObject({ status: "answered", remaining: 298 });
+    await s.controller.command("hints", s.ctx);
+    expect(await s.controller.evaluateHint(packet, undefined, s.ctx)).toMatchObject({ status: "answered", remaining: 297 });
+  });
   it("does not apply an old budget increase or hint confirmation after revocation", async () => {
     const s = setup();
     for (const command of ["limit 1000", "hints"]) {
@@ -893,6 +907,24 @@ describe("native JEV provider selection", () => {
     expect(s.sent).toHaveBeenCalledTimes(1);
     expect(s.registry.classify).toHaveBeenCalledTimes(1);
     expect(s.provider).not.toHaveBeenCalled();
+  });
+  it("releases the shared call slot after a hint is cancelled during native authentication, and refuses late dispatch", async () => {
+    const s = nativeSetup();
+    await s.controller.command("enable workflow", s.ctx);
+    await s.controller.command("hints", s.ctx);
+    let release!: () => void;
+    s.waitForAuth(new Promise(resolve => { release = resolve; }));
+    const timeout = new AbortController();
+    const hint = s.controller.evaluateHint(packet, timeout.signal, s.ctx);
+    timeout.abort();
+    expect(await hint).toMatchObject({ status: "unavailable" });
+    expect(s.controller.status(s.ctx)).toMatchObject({ hintsEnabled: false, availability: "ready", used: 0 });
+    s.waitForAuth(Promise.resolve());
+    expect(details(await s.execute())).toMatchObject({ status: "answered", remaining: 299 });
+    release();
+    await new Promise(resolve => setImmediate(resolve));
+    expect(s.sent).toHaveBeenCalledTimes(1);
+    expect(s.controller.status(s.ctx).used).toBe(1);
   });
   it("sends the fixed tool-relevance question for a prompt hint and the handoff question only for selected advice", async () => {
     const s = nativeSetup();

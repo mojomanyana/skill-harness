@@ -18,6 +18,8 @@ import {
 } from "./jev-packet.js";
 
 export type JevContext = Pick<CmdCtx, "sessionManager" | "cwd" | "modelRegistry">;
+export const JEV_HINT_FAILURE = "jev-hint-unavailable";
+export const JEV_HINT_TIMEOUT_MS = 2500;
 export const JEV_YES_THRESHOLD = 0.9;
 /** A positive advisory recommendation is not approval; lower scores abstain. */
 export function interpretJevAdvice(status: string, probability: number | null) {
@@ -78,6 +80,19 @@ interface SessionBudget { sessionId: string; limit: number; used: number }
 const BUDGET_ENTRY = "skill-harness-jev-session-budget-v1";
 const validCount = (n: unknown): n is number => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
 const remainingCalls = (budget: SessionBudget) => Math.max(0, budget.limit - budget.used);
+
+// Some SDK/credential promises ignore cancellation. Stop waiting and let the owning
+// workflow proceed. Late native callbacks still have to pass the live dispatch guard.
+async function waitForHint<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
+  let cancel!: () => void;
+  const cancelled = new Promise<never>((_, reject) => {
+    cancel = () => reject(new Error("Prompt hint cancelled"));
+    if (signal.aborted) cancel();
+    else signal.addEventListener("abort", cancel, { once: true });
+  });
+  try { return await Promise.race([operation, cancelled]); }
+  finally { signal.removeEventListener("abort", cancel); }
+}
 
 function paidScope(sessionId: string, selection: NativeSelection | null, limit: number) {
   return {
@@ -222,6 +237,14 @@ export function createJevController(
     const bound = active;
     const hintSignal = hint ? bound.hintConsent?.signal : undefined;
     if (hint && !hintSignal) return unavailable("Prompt hints require separate session consent.");
+    const pauseHints = () => {
+      const consent = bound.hintConsent;
+      if (consent && consent.signal === hintSignal) {
+        bound.hintConsent = undefined;
+        consent.abort(JEV_HINT_FAILURE);
+      }
+      return unavailable("Prompt hints paused after an unavailable assessment. Enable hints to try again.");
+    };
     const assertCurrent = () => {
       if (bound.selection) assertRoute(bound.selection, ctx);
       if (active !== bound || ctx.sessionManager?.getSessionId() !== bound.sessionId || bound.abort.signal.aborted || hintSignal?.aborted || signal?.aborted)
@@ -231,7 +254,9 @@ export function createJevController(
 
     if (bound.blocked) return unavailable("Workflow advice is suppressed after an error; explicit new activation is required.");
     if (bound.busy) return unavailable("An advisory request is already in flight; no additional call was made.");
-    assertCurrent();
+    if (hint) {
+      try { assertCurrent(); } catch { return pauseHints(); }
+    } else assertCurrent();
     const observe = () => hint ? undefined : observePrincipalCandidate(pi, ctx, value.candidate);
     let candidateObservation = observe();
     let evidence = verifyEvidence(value.evidenceRefs, ctx.cwd);
@@ -240,13 +265,17 @@ export function createJevController(
     if (cached) return { ...cached, remaining: remainingCalls(bound.budget), reused: true };
     if (!remainingCalls(bound.budget)) return unavailable("This session's advisory call limit is reached.");
     const abort = new AbortController();
-    const cancel = () => abort.abort();
+    const cancel = () => {
+      abort.abort();
+      if (hint && !hintSignal?.aborted && !bound.abort.signal.aborted) pauseHints();
+    };
     const signals = [bound.abort.signal, hintSignal, signal].filter((s): s is AbortSignal => s !== undefined);
     for (const s of signals) {
       if (s.aborted) cancel();
       else s.addEventListener("abort", cancel, { once: true });
     }
     bound.busy = true; // Serialize before asynchronous native credential resolution.
+    const wait = <T>(operation: Promise<T>) => hint ? waitForHint(operation, abort.signal) : operation;
     let dispatched = false;
     let receipt: AdviceResult["source"];
     try {
@@ -280,16 +309,20 @@ export function createJevController(
       };
       let result;
       if (bound.selection) {
-        result = await classify(bound.selection, packet, abort.signal, ctx, beforeDispatch);
+        result = await wait(classify(bound.selection, packet, abort.signal, ctx, beforeDispatch));
       } else {
-        const apiKey = environmentKey() ?? await nativeKey(ctx);
+        const apiKey = environmentKey() ?? await wait(nativeKey(ctx));
         assertCurrent();
+        if (!apiKey && hint) return pauseHints();
         if (!apiKey) return unavailable(`An OpenRouter API key could not be resolved; no call was made. ${missingKeyRemedy}`);
         beforeDispatch();
-        result = await (options.provider ?? callProvider)(JEV_PROVIDER, JEV_MODEL, packet, { apiKey, signal: abort.signal });
+        result = await wait<Awaited<ReturnType<typeof callProvider>>>((options.provider ?? callProvider)(JEV_PROVIDER, JEV_MODEL, packet, { apiKey, signal: abort.signal }));
       }
       assertCurrent();
-      if (result.status !== "answered") bound.blocked = "provider-error";
+      if (result.status !== "answered") {
+        if (hint) return pauseHints();
+        bound.blocked = "provider-error";
+      }
       const advice: AdviceResult = {
         advisory: true,
         status: result.status === "answered" ? "answered" : "unavailable",
@@ -311,8 +344,10 @@ export function createJevController(
       return advice;
     } catch {
       // Includes cancellation, transport exceptions and storage failures. Never retry or expose raw errors.
-      if (hintSignal?.aborted) return unavailable("Prompt hints were disabled.");
+      if (hintSignal?.aborted) return unavailable(hintSignal.reason === JEV_HINT_FAILURE
+        ? "Prompt hints paused after an unavailable assessment." : "Prompt hints were disabled.");
       if (!dispatched && !remainingCalls(bound.budget)) return unavailable("This session's advisory call limit is reached.");
+      if (hint) return pauseHints();
       bound.blocked = "execution-error";
       return {
         advisory: true, status: "unavailable", probability: null, ...unmeasuredProvider(bound.selection),
@@ -600,7 +635,8 @@ export function createJevController(
     return evaluateSelected(value, toolCallId, signal, ctx);
   };
   const evaluateHint = (value: HandoffPacket, signal: AbortSignal | undefined, ctx: JevContext) =>
-    evaluateSelected(value, undefined, signal, ctx);
+    evaluateSelected(value, undefined, signal ? AbortSignal.any([signal, AbortSignal.timeout(JEV_HINT_TIMEOUT_MS)])
+      : AbortSignal.timeout(JEV_HINT_TIMEOUT_MS), ctx);
   const hintSignal = (ctx: JevContext) => {
     currentId(ctx);
     return active?.hintConsent?.signal;

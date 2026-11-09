@@ -23092,6 +23092,8 @@ function retainHandoffSource(source, assertCurrent, storageHome = resolveDataRoo
 }
 
 // packages/pi-extension/src/jev-session.ts
+var JEV_HINT_FAILURE = "jev-hint-unavailable";
+var JEV_HINT_TIMEOUT_MS = 2500;
 var JEV_YES_THRESHOLD = 0.9;
 function interpretJevAdvice(status, probability2) {
   const available = status === "answered" && typeof probability2 === "number" && Number.isFinite(probability2) && probability2 >= 0 && probability2 <= 1;
@@ -23109,6 +23111,19 @@ var missingKeyRemedy = "Configure OpenRouter in Pi, or set OPENROUTER_API_KEY in
 var BUDGET_ENTRY = "skill-harness-jev-session-budget-v1";
 var validCount = (n) => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
 var remainingCalls = (budget) => Math.max(0, budget.limit - budget.used);
+async function waitForHint(operation, signal) {
+  let cancel;
+  const cancelled = new Promise((_, reject) => {
+    cancel = () => reject(new Error("Prompt hint cancelled"));
+    if (signal.aborted) cancel();
+    else signal.addEventListener("abort", cancel, { once: true });
+  });
+  try {
+    return await Promise.race([operation, cancelled]);
+  } finally {
+    signal.removeEventListener("abort", cancel);
+  }
+}
 function paidScope(sessionId, selection, limit) {
   return {
     kind: "jev-session-paid-scope-v1",
@@ -23254,6 +23269,14 @@ function createJevController(pi, options = {}) {
     const bound = active;
     const hintSignal2 = hint ? bound.hintConsent?.signal : void 0;
     if (hint && !hintSignal2) return unavailable("Prompt hints require separate session consent.");
+    const pauseHints = () => {
+      const consent = bound.hintConsent;
+      if (consent && consent.signal === hintSignal2) {
+        bound.hintConsent = void 0;
+        consent.abort(JEV_HINT_FAILURE);
+      }
+      return unavailable("Prompt hints paused after an unavailable assessment. Enable hints to try again.");
+    };
     const assertCurrent = () => {
       if (bound.selection) assertRoute(bound.selection, ctx);
       if (active !== bound || ctx.sessionManager?.getSessionId() !== bound.sessionId || bound.abort.signal.aborted || hintSignal2?.aborted || signal?.aborted)
@@ -23262,7 +23285,13 @@ function createJevController(pi, options = {}) {
     if (signal?.aborted) return unavailable("Tool execution was cancelled.");
     if (bound.blocked) return unavailable("Workflow advice is suppressed after an error; explicit new activation is required.");
     if (bound.busy) return unavailable("An advisory request is already in flight; no additional call was made.");
-    assertCurrent();
+    if (hint) {
+      try {
+        assertCurrent();
+      } catch {
+        return pauseHints();
+      }
+    } else assertCurrent();
     const observe = () => hint ? void 0 : observePrincipalCandidate(pi, ctx, value.candidate);
     let candidateObservation = observe();
     let evidence = verifyEvidence(value.evidenceRefs, ctx.cwd);
@@ -23271,13 +23300,17 @@ function createJevController(pi, options = {}) {
     if (cached) return { ...cached, remaining: remainingCalls(bound.budget), reused: true };
     if (!remainingCalls(bound.budget)) return unavailable("This session's advisory call limit is reached.");
     const abort = new AbortController();
-    const cancel = () => abort.abort();
+    const cancel = () => {
+      abort.abort();
+      if (hint && !hintSignal2?.aborted && !bound.abort.signal.aborted) pauseHints();
+    };
     const signals = [bound.abort.signal, hintSignal2, signal].filter((s) => s !== void 0);
     for (const s of signals) {
       if (s.aborted) cancel();
       else s.addEventListener("abort", cancel, { once: true });
     }
     bound.busy = true;
+    const wait = (operation) => hint ? waitForHint(operation, abort.signal) : operation;
     let dispatched = false;
     let receipt;
     try {
@@ -23320,16 +23353,20 @@ function createJevController(pi, options = {}) {
       };
       let result;
       if (bound.selection) {
-        result = await classify2(bound.selection, packet, abort.signal, ctx, beforeDispatch);
+        result = await wait(classify2(bound.selection, packet, abort.signal, ctx, beforeDispatch));
       } else {
-        const apiKey = environmentKey() ?? await nativeKey(ctx);
+        const apiKey = environmentKey() ?? await wait(nativeKey(ctx));
         assertCurrent();
+        if (!apiKey && hint) return pauseHints();
         if (!apiKey) return unavailable(`An OpenRouter API key could not be resolved; no call was made. ${missingKeyRemedy}`);
         beforeDispatch();
-        result = await (options.provider ?? callProvider)(JEV_PROVIDER, JEV_MODEL, packet, { apiKey, signal: abort.signal });
+        result = await wait((options.provider ?? callProvider)(JEV_PROVIDER, JEV_MODEL, packet, { apiKey, signal: abort.signal }));
       }
       assertCurrent();
-      if (result.status !== "answered") bound.blocked = "provider-error";
+      if (result.status !== "answered") {
+        if (hint) return pauseHints();
+        bound.blocked = "provider-error";
+      }
       const advice = {
         advisory: true,
         status: result.status === "answered" ? "answered" : "unavailable",
@@ -23356,8 +23393,9 @@ function createJevController(pi, options = {}) {
       bound.cache.set(cacheKey, Object.freeze(advice));
       return advice;
     } catch {
-      if (hintSignal2?.aborted) return unavailable("Prompt hints were disabled.");
+      if (hintSignal2?.aborted) return unavailable(hintSignal2.reason === JEV_HINT_FAILURE ? "Prompt hints paused after an unavailable assessment." : "Prompt hints were disabled.");
       if (!dispatched && !remainingCalls(bound.budget)) return unavailable("This session's advisory call limit is reached.");
+      if (hint) return pauseHints();
       bound.blocked = "execution-error";
       return {
         advisory: true,
@@ -23691,7 +23729,7 @@ function createJevController(pi, options = {}) {
     requireIdentity(toolCallId, "Pi toolCallId");
     return evaluateSelected(value, toolCallId, signal, ctx);
   };
-  const evaluateHint = (value, signal, ctx) => evaluateSelected(value, void 0, signal, ctx);
+  const evaluateHint = (value, signal, ctx) => evaluateSelected(value, void 0, signal ? AbortSignal.any([signal, AbortSignal.timeout(JEV_HINT_TIMEOUT_MS)]) : AbortSignal.timeout(JEV_HINT_TIMEOUT_MS), ctx);
   const hintSignal = (ctx) => {
     currentId(ctx);
     return active?.hintConsent?.signal;
@@ -23911,7 +23949,6 @@ function registerJevControl(pi, controller) {
 // packages/pi-extension/src/jev-prompt-hints.ts
 import { createHash as createHash32 } from "node:crypto";
 var MAX_PROMPT_LENGTH = 1200;
-var HINT_WAIT_MS = 2500;
 var candidates = [
   {
     tool: "scout_research",
@@ -24047,25 +24084,6 @@ function scoreLabel(probability2) {
   if (probability2 > 0.9 && percent === 90) return ">90%";
   return String(percent) + "%";
 }
-async function boundedEvaluation(controller, pending, ctx) {
-  const timeout = new AbortController();
-  const signal = AbortSignal.any([pending.consent, timeout.signal, ...ctx.signal ? [ctx.signal] : []]);
-  if (signal.aborted) return;
-  let cancel;
-  const aborted = new Promise((resolve31) => {
-    cancel = () => resolve31(void 0);
-  });
-  signal.addEventListener("abort", cancel, { once: true });
-  const timer = setTimeout(() => timeout.abort(), HINT_WAIT_MS);
-  try {
-    return await Promise.race([aborted, controller.evaluateHint(packetFor(pending), signal, ctx)]);
-  } catch {
-    return void 0;
-  } finally {
-    clearTimeout(timer);
-    signal.removeEventListener("abort", cancel);
-  }
-}
 function registerJevPromptHints(pi, controller) {
   let pending;
   let previous;
@@ -24095,18 +24113,16 @@ function registerJevPromptHints(pi, controller) {
     const toolActive = () => pi.getActiveTools?.().includes(current.fit.tool) === true;
     if (!stillEnabled() || !toolActive()) return;
     previous = { fit: current.fit, consent: current.consent };
-    const answer = await boundedEvaluation(controller, current, ctx);
+    const owner = ctx.sessionManager?.getSessionId();
+    const answer = await controller.evaluateHint(packetFor(current), ctx.signal, ctx);
+    if (current.consent.reason === JEV_HINT_FAILURE && owner === ctx.sessionManager?.getSessionId() && !ctx.signal?.aborted && !controller.hintSignal(ctx)) {
+      ctx.ui.notify("JEV tool hint unavailable. Prompt hints are paused. Continuing with the normal tool choice.", "info");
+      return;
+    }
     if (!stillEnabled() || !toolActive()) return;
     const recommendation = interpretJevAdvice(answer?.status ?? "unavailable", answer?.probability ?? null).recommendation;
-    if (!answer || recommendation === "unavailable") {
-      ctx.ui.notify("JEV tool hint unavailable. Continuing with the normal tool choice.", "info");
-      return;
-    }
+    if (!answer || recommendation !== "yes") return;
     const score2 = scoreLabel(answer.probability);
-    if (recommendation !== "yes") {
-      ctx.ui.notify("JEV withheld the tool hint for " + current.fit.tool + " (" + score2 + " estimated fit).", "info");
-      return;
-    }
     const content = "Optional JEV tool hint: " + current.fit.tool + " can " + current.fit.capability + " (" + score2 + " estimated fit" + (answer.reused ? ", reused assessment" : "") + "). Use your own judgment and the existing tool permissions.";
     ctx.ui.notify(content, "info");
     return { messages: [...event.messages, {

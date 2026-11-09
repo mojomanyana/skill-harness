@@ -1,10 +1,9 @@
 import { createHash } from "node:crypto";
-import type { CmdCtx, ExtensionAPI } from "./commands.js";
+import type { ExtensionAPI } from "./commands.js";
 import type { HandoffPacket } from "./jev-packet.js";
-import { interpretJevAdvice, type AdviceResult, type JevController } from "./jev-session.js";
+import { interpretJevAdvice, JEV_HINT_FAILURE, type JevController } from "./jev-session.js";
 
 const MAX_PROMPT_LENGTH = 1200;
-export const HINT_WAIT_MS = 2500;
 
 interface ToolFit {
   tool: string;
@@ -120,24 +119,6 @@ function scoreLabel(probability: number) {
 
 type HintController = Pick<JevController, "hintSignal" | "evaluateHint">;
 
-async function boundedEvaluation(controller: HintController, pending: PendingHint, ctx: CmdCtx) {
-  const timeout = new AbortController();
-  const signal = AbortSignal.any([pending.consent, timeout.signal, ...(ctx.signal ? [ctx.signal] : [])]);
-  if (signal.aborted) return;
-  let cancel!: () => void;
-  const aborted = new Promise<undefined>(resolve => { cancel = () => resolve(undefined); });
-  signal.addEventListener("abort", cancel, { once: true });
-  const timer = setTimeout(() => timeout.abort(), HINT_WAIT_MS);
-  try {
-    return await Promise.race([aborted, controller.evaluateHint(packetFor(pending), signal, ctx)]);
-  } catch {
-    return undefined;
-  } finally {
-    clearTimeout(timer);
-    signal.removeEventListener("abort", cancel);
-  }
-}
-
 export function registerJevPromptHints(pi: ExtensionAPI, controller: HintController) {
   // A newer submission supersedes an undelivered suggestion. A repeated model
   // request or tool round cannot spend again because the match is consumed first.
@@ -166,18 +147,19 @@ export function registerJevPromptHints(pi: ExtensionAPI, controller: HintControl
     const toolActive = () => pi.getActiveTools?.().includes(current.fit.tool) === true;
     if (!stillEnabled() || !toolActive()) return;
     previous = { fit: current.fit, consent: current.consent };
-    const answer: AdviceResult | undefined = await boundedEvaluation(controller, current, ctx);
+    const owner = ctx.sessionManager?.getSessionId();
+    // The owner enforces the deadline, releases its shared dispatch slot, and
+    // marks a failed hint opt-in before reporting its result to the UI.
+    const answer = await controller.evaluateHint(packetFor(current), ctx.signal, ctx);
+    if (current.consent.reason === JEV_HINT_FAILURE && owner === ctx.sessionManager?.getSessionId() &&
+        !ctx.signal?.aborted && !controller.hintSignal(ctx)) {
+      ctx.ui.notify("JEV tool hint unavailable. Prompt hints are paused. Continuing with the normal tool choice.", "info");
+      return;
+    }
     if (!stillEnabled() || !toolActive()) return;
     const recommendation = interpretJevAdvice(answer?.status ?? "unavailable", answer?.probability ?? null).recommendation;
-    if (!answer || recommendation === "unavailable") {
-      ctx.ui.notify("JEV tool hint unavailable. Continuing with the normal tool choice.", "info");
-      return;
-    }
+    if (!answer || recommendation !== "yes") return;
     const score = scoreLabel(answer.probability!);
-    if (recommendation !== "yes") {
-      ctx.ui.notify("JEV withheld the tool hint for " + current.fit.tool + " (" + score + " estimated fit).", "info");
-      return;
-    }
     const content = "Optional JEV tool hint: " + current.fit.tool + " can " + current.fit.capability +
       " (" + score + " estimated fit" + (answer.reused ? ", reused assessment" : "") +
       "). Use your own judgment and the existing tool permissions.";

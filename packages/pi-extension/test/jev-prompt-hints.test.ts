@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createJevController } from "../src/jev-session.js";
-import { HINT_WAIT_MS, registerJevPromptHints } from "../src/jev-prompt-hints.js";
+import { registerJevPromptHints } from "../src/jev-prompt-hints.js";
 
 const operatorText = "Please find the latest official documentation for private-project-123.";
 const activeTools = ["read", "find", "scout_research", "skill_author", "bookie_search", "edit"];
@@ -38,7 +38,6 @@ function setup(probability = 0.94) {
   return { pi, ctx, controller, provider, enable, submit, user, context, prompt, emit,
     setActive(tools: string[]) { active = tools; }, switchSession(id: string) { session = id; } };
 }
-afterEach(() => vi.useRealTimers());
 
 describe("operator prompt hints", () => {
   it("keeps the original message, shows one voluntary suggestion to both audiences, and sends only fixed labels", async () => {
@@ -81,8 +80,8 @@ describe("operator prompt hints", () => {
       await s.enable();
       const result = await s.prompt(operatorText);
       expect(!!result).toBe(yes);
-      expect(s.ctx.ui.notify.mock.lastCall?.[0]).toContain(score);
-      if (!yes) expect(s.ctx.ui.notify.mock.lastCall?.[0]).toContain("withheld");
+      if (yes) expect(s.ctx.ui.notify.mock.lastCall?.[0]).toContain(score);
+      else expect(s.ctx.ui.notify).not.toHaveBeenCalled();
     });
 
   it("skips unknown, negative, source-like, expanded, non-operator and inactive-tool inputs", async () => {
@@ -161,26 +160,50 @@ describe("operator prompt hints", () => {
     await s.enable();
     await s.controller.command("limit 1", s.ctx);
     expect(await s.prompt(operatorText)).toBeDefined();
+    s.ctx.ui.notify.mockClear();
     expect(await s.prompt("Read the README file")).toBeUndefined();
-    expect(s.ctx.ui.notify.mock.lastCall?.[0]).toContain("unavailable");
+    expect(s.ctx.ui.notify).not.toHaveBeenCalled();
     expect(s.provider).toHaveBeenCalledTimes(1);
   });
 
+  it("suppresses a withdrawn tool while its assessment is in flight", async () => {
+    const s = setup();
+    await s.enable();
+    let finish!: (value: Awaited<ReturnType<typeof s.provider>>) => void;
+    s.provider.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    await s.submit(operatorText);
+    const result = s.context([s.user(operatorText)]);
+    expect(s.provider).toHaveBeenCalledTimes(1);
+    s.setActive(["read"]);
+    finish({ status: "answered", probability: 0.99, resolvedModel: "fixture", usage: { inputTokens: 1, outputTokens: 1, costUsd: null }, latencyMs: 1 });
+    expect(await result).toBeUndefined();
+    expect(s.ctx.ui.notify).not.toHaveBeenCalled();
+  });
+
   it("releases the prompt on timeout even when the provider ignores abort, and ignores a delayed YES", async () => {
-    vi.useFakeTimers();
     const s = setup();
     await s.enable();
     let finish!: (result: Awaited<ReturnType<typeof s.provider>>) => void;
     s.provider.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
     await s.submit(operatorText);
     const result = s.context([s.user(operatorText)]);
-    await vi.advanceTimersByTimeAsync(HINT_WAIT_MS + 1);
     expect(await result).toBeUndefined();
     expect((s.provider.mock.calls[0][3] as { signal: AbortSignal }).signal.aborted).toBe(true);
     expect(s.ctx.ui.notify.mock.lastCall?.[0]).toContain("unavailable");
-    finish({ status: "answered", probability: 1, resolvedModel: "fixture", usage: { inputTokens: 1, outputTokens: 1, costUsd: null }, latencyMs: 3000 });
-    await vi.advanceTimersByTimeAsync(1);
-    expect(s.ctx.ui.notify.mock.calls.filter(([text]: string[]) => text.includes("estimated fit"))).toHaveLength(0);
+    expect(s.ctx.ui.notify.mock.lastCall?.[0]).not.toContain("scout_research");
+    expect(s.controller.status(s.ctx)).toMatchObject({ hintsEnabled: false, used: 1, availability: "ready" });
+    expect(await s.prompt("Read the README file")).toBeUndefined();
     expect(s.provider).toHaveBeenCalledTimes(1);
+    const handoff = await s.controller.evaluate({
+      candidate: "fixture", stage: "verification", nextAction: "Request independent review",
+      requirements: "Check the changed component", uncertainty: "Do the tests cover this transition?",
+      evidence: "The changed component passed its selected tests",
+    }, "real-pi-tool-call", undefined, s.ctx);
+    expect(handoff).toMatchObject({ status: "answered", probability: 0.94 });
+    finish({ status: "answered", probability: 1, resolvedModel: "fixture", usage: { inputTokens: 1, outputTokens: 1, costUsd: null }, latencyMs: 3000 });
+    await new Promise(resolve => setImmediate(resolve));
+    expect(s.ctx.ui.notify.mock.calls.filter(([text]: string[]) => text.includes("estimated fit"))).toHaveLength(0);
+    expect(s.controller.status(s.ctx)).toMatchObject({ hintsEnabled: false, used: 2, availability: "ready" });
+    expect(s.provider).toHaveBeenCalledTimes(2);
   });
 });

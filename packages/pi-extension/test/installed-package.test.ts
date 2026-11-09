@@ -37,10 +37,12 @@ describe("published meta-package Pi extension", () => {
   });
 
   it("ships byte-identical committed bundles and review assets", () => {
-    expect(readFileSync("packages/skill-harness/SKILL.md")).toEqual(readFileSync("SKILL.md"));
-    expect(readFileSync("packages/skill-harness/dist/index.js")).toEqual(readFileSync("packages/pi-extension/dist/index.js"));
+    const sameBytes = (left: string, right: string) =>
+      expect(readFileSync(left).equals(readFileSync(right)), `${left} differs from ${right}`).toBe(true);
+    sameBytes("packages/skill-harness/SKILL.md", "SKILL.md");
+    sameBytes("packages/skill-harness/dist/index.js", "packages/pi-extension/dist/index.js");
     for (const file of ["report.template.html", "report.grade.js"]) {
-      expect(readFileSync(`packages/skill-harness/assets/${file}`)).toEqual(readFileSync(`assets/${file}`));
+      sameBytes(`packages/skill-harness/assets/${file}`, `assets/${file}`);
     }
   });
 });
