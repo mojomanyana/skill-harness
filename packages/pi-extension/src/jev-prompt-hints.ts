@@ -51,7 +51,10 @@ function candidateFor(text: string, active: readonly string[], previous?: ToolFi
   // requests abstain instead of silently losing the operator's constraints.
   if (!text || text.length > MAX_PROMPT_LENGTH || /[\x00-\x1f\x7f"“”<>\x60]|^\s*[!/#>@]|https?:\/\/|\b(?:not|never|without|avoid|instead|except|no|don't|don’t|unless|only if)\b/i.test(text)) return;
   const direct = text.trim().replace(/^(?:(?:can|could|would) you (?:please )?|please |I'd like you to |I want you to )/i, "");
-  if (/\b(?:that|those|it|them)\b/i.test(direct)) {
+  // A hint concerns the first requested action. Later sentences may describe
+  // another tool, an output format, or what to do when a check is unavailable.
+  const [firstRequest] = direct.split(/(?<=[.!?])\s+/, 1);
+  if (/\b(?:that|those|it|them)\b/i.test(firstRequest)) {
     if (!previous) return;
     let tool: string | undefined;
     if (/^(?:check|find|look up) (?:the )?(?:official )?(?:docs|documentation) for (?:that|it)[.!?]?$/i.test(direct) &&
@@ -61,7 +64,7 @@ function candidateFor(text: string, active: readonly string[], previous?: ToolFi
     if (fit) return { fit, previousIntent: previous.intent, cues: [] };
     return;
   }
-  const matches = candidates.filter(row => row.request.test(direct));
+  const matches = candidates.filter(row => row.request.test(firstRequest));
   if (matches.length !== 1 || !active.includes(matches[0].tool)) return;
   const cues = [
     [/\b(?:current|latest)\b/i, "current information requested"],
@@ -69,7 +72,7 @@ function candidateFor(text: string, active: readonly string[], previous?: ToolFi
     [/\bcompar(?:e|ison)\b/i, "comparison requested"],
     [/\bread[ -]only\b/i, "read-only inspection requested"],
   ] as const;
-  return { fit: matches[0], cues: cues.filter(([pattern]) => pattern.test(direct)).map(([, label]) => label) };
+  return { fit: matches[0], cues: cues.filter(([pattern]) => pattern.test(firstRequest)).map(([, label]) => label) };
 }
 
 function packetFor(selection: Selection): HandoffPacket {

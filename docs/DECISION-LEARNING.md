@@ -69,7 +69,9 @@ tool. It sends the classifier fixed intent and capability descriptions. It does
 not send the operator's raw prompt or conversation history. If the estimated
 fit is strictly greater than 90%, the operator and the acting agent see the same
 short suggestion. For example, a public documentation question may suggest Scout
-when its research tool is available. A hint does not run Scout, grant access,
+when its research tool is available. A request that starts with a Bookie search,
+continues with a Scout lookup, and ends by asking to name an unavailable tool
+can produce one hint for the first search. A hint does not run Scout, grant access,
 or claim it is the best of every tool. Unknown fits, unsupported prompts and
 timeouts leave the ordinary Pi turn alone. Hints and manual/workflow advice share
 the same calls; turning hints off does not switch off ordinary workflow advice.
