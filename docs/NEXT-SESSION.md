@@ -2,6 +2,8 @@
 
 ## Current state
 
+The 0.35.1 patch scopes prompt-hint matching to the first requested action. See the 0.35.1 changelog and the regression in `packages/pi-extension/test/jev-prompt-hints.test.ts`.
+
 The 0.35.0 candidate adds owner-edited JEV session budgets and optional prompt hints. See DECISION-LEARNING.md for consent, accounting and scope.
 
 The 0.34.2 patch adds explicit positive advice only above 90% for `jev_advice`.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.35.1 — 2026-11-09
+
+- Tool hints assess the first direct request in a multi-sentence prompt. Later references such as “name it” can accompany an explicit Bookie search or file read. Only the first tool is assessed. The whole prompt still passes the existing checks for exclusions before a call.
+
 ## 0.35.0 — 2026-11-09
 
 - Set a per-session JEV call limit in Pi or the Pi Daddy dashboard. The default allowance is 300; JEV remains off until enabled. Paid manual calls, workflow advice and optional tool hints draw from the same allowance.
