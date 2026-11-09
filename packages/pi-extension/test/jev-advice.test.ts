@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createJevController } from "../src/jev-session.js";
 import { createJevAdviceTool } from "../src/jev-advice.js";
-import { JEV_QUESTION, prepareHandoff } from "../src/jev-packet.js";
+import { JEV_HINT_QUESTION, JEV_QUESTION, prepareHandoff } from "../src/jev-packet.js";
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -46,7 +46,7 @@ describe("session-scoped handoff advice", () => {
     const s = setup();
     await s.controller.command("enable", s.ctx);
     expect(details(await s.execute())).toMatchObject({ status: "unavailable", probability: null, recommendation: "unavailable", yesThreshold: 0.9 });
-    expect(details(await s.execute({ action: "status" }))).toMatchObject({ mode: "manual", availability: "manual-only", remaining: 0 });
+    expect(details(await s.execute({ action: "status" }))).toMatchObject({ mode: "manual", availability: "manual-only", remaining: 300 });
     s.ctx.ui.confirm.mockResolvedValue(false);
     await s.controller.command("enable workflow", s.ctx);
     expect(s.ctx.ui.select).toHaveBeenCalledTimes(3);
@@ -69,7 +69,7 @@ describe("session-scoped handoff advice", () => {
       expect(details(await s.execute({ action: "status" }))).toMatchObject({
         enabled: true, storage: "granted", providerReadiness: "missing-key",
         availability: command === "enable workflow" ? "missing-key" : "manual-only",
-        remaining: command === "enable workflow" ? 3 : 0,
+        remaining: 300,
       });
     }
     expect(s.ctx.ui.select).toHaveBeenCalledTimes(6);
@@ -101,7 +101,7 @@ describe("session-scoped handoff advice", () => {
     await s.controller.command("enable workflow", s.ctx);
     expect(s.ctx.ui.notify.mock.lastCall?.[0]).toContain(present ? "OPENROUTER_API_KEY is present" : "Provider unavailable");
     expect(details(await s.execute({ action: "status" }))).toMatchObject({
-      storage: "declined", remaining: 3, providerReadiness: present ? "key-present" : "missing-key",
+      storage: "declined", remaining: 300, providerReadiness: present ? "key-present" : "missing-key",
     });
     expect(s.provider).not.toHaveBeenCalled();
   });
@@ -109,10 +109,10 @@ describe("session-scoped handoff advice", () => {
     const s = setup(true);
     delete s.env.OPENROUTER_API_KEY;
     await s.controller.command("enable workflow", s.ctx);
-    expect(details(await s.execute())).toMatchObject({ status: "unavailable", remaining: 3, reason: expect.stringContaining("fresh session consent") });
+    expect(details(await s.execute())).toMatchObject({ status: "unavailable", remaining: 300, reason: expect.stringContaining("fresh session consent") });
     expect(existsSync(s.storageHome)).toBe(false);
     s.env.OPENROUTER_API_KEY = "replacement-test-key";
-    expect(details(await s.execute({ action: "status" }))).toMatchObject({ availability: "ready", providerReadiness: "key-present", remaining: 3 });
+    expect(details(await s.execute({ action: "status" }))).toMatchObject({ availability: "ready", providerReadiness: "key-present", remaining: 300 });
     s.hooks.get("session_start")!();
     expect(details(await s.execute({ action: "status" }))).toMatchObject({ enabled: false, storage: null, availability: "disabled", providerReadiness: "key-present" });
     expect(details(await s.execute())).toMatchObject({ status: "unavailable", probability: null, recommendation: "unavailable", yesThreshold: 0.9 });
@@ -121,16 +121,16 @@ describe("session-scoped handoff advice", () => {
     expect(s.ctx.ui.select).toHaveBeenCalledTimes(4);
     expect(s.pi.appendEntry.mock.calls[1][1].interactionId).not.toBe(s.pi.appendEntry.mock.calls[0][1].interactionId);
     expect(s.provider).not.toHaveBeenCalled();
-    expect(details(await s.execute())).toMatchObject({ status: "answered", remaining: 2,
+    expect(details(await s.execute())).toMatchObject({ status: "answered", remaining: 299,
       source: { sessionId: "actual-pi-session", toolCallId: "actual-tool-call" } });
     expect(s.provider).toHaveBeenCalledTimes(1);
   });
   it("transmits only the fixed question and selected packet; decline creates no harness files", async () => {
     const s = setup();
     await s.controller.command("enable workflow", s.ctx);
-    expect(s.ctx.ui.confirm.mock.calls[0][1]).toMatch(/3 automatic workflow paid calls.*typesafe\/jev-1\.13/);
+    expect(s.ctx.ui.confirm.mock.calls[0][1]).toMatch(/300 paid workflow calls.*typesafe\/jev-1\.13/);
     const result = details(await s.execute());
-    expect(result).toMatchObject({ status: "answered", probability: 0.8, remaining: 2, advisory: true,
+    expect(result).toMatchObject({ status: "answered", probability: 0.8, remaining: 299, advisory: true,
       source: { sessionId: "actual-pi-session", toolCallId: "actual-tool-call", retained: false } });
     const [provider, model, request, options] = (s.provider.mock.calls as any)[0];
     expect(provider).toBe("jev");
@@ -159,13 +159,13 @@ describe("session-scoped handoff advice", () => {
     await s.controller.command("enable workflow", s.ctx);
     const first = await s.execute();
     const validate = new Ajv({ strict: false }).compile(s.tool.outputSchema);
-    expect(details(first)).toMatchObject({ status: "answered", probability, recommendation, yesThreshold: 0.9, advisory: true, remaining: 2 });
+    expect(details(first)).toMatchObject({ status: "answered", probability, recommendation, yesThreshold: 0.9, advisory: true, remaining: 299 });
     expect(details(first)).not.toHaveProperty("approval");
     expect(validate(first.structuredContent)).toBe(true);
     expect(first.structuredContent).toEqual(first.details);
     expect(JSON.parse(first.content[0].text)).toEqual(first.details);
     const cached = await s.execute();
-    expect(details(cached)).toMatchObject({ probability, recommendation, yesThreshold: 0.9, reused: true, remaining: 2 });
+    expect(details(cached)).toMatchObject({ probability, recommendation, yesThreshold: 0.9, reused: true, remaining: 299 });
     expect(cached.structuredContent).toEqual(cached.details);
     expect(JSON.parse(cached.content[0].text)).toEqual(cached.details);
     expect(validate(cached.details)).toBe(true);
@@ -193,7 +193,7 @@ describe("session-scoped handoff advice", () => {
       redaction: "unassessed", rights: "unassessed", labelStatus: "unlabeled",
       trainingEligible: false, exportEligible: false, publicCaptureVerified: false,
       consent: { sessionId: "actual-pi-session", decision: "granted" },
-      authorization: { sessionId: "actual-pi-session", maximumCalls: 3 },
+      authorization: { sessionId: "actual-pi-session", maximumCalls: 300 },
     });
     expect(selected).not.toHaveProperty("probability");
     expect(readFileSync(join(result.source.path, "..", "input.txt"), "utf8")).toBe(selected.input);
@@ -238,6 +238,7 @@ describe("session-scoped handoff advice", () => {
   });
   it("deduplicates completed inputs and caps distinct calls without charging status", async () => {
     const s = setup();
+    await s.controller.command("limit 3", s.ctx);
     await s.controller.command("enable workflow", s.ctx);
     const first = details(await s.execute());
     expect(details(await s.execute())).toMatchObject({ reused: true, source: first.source });
@@ -246,6 +247,118 @@ describe("session-scoped handoff advice", () => {
     expect(details(await s.execute({ ...packet, candidate: "fourth" })).status).toBe("unavailable");
     expect(details(await s.execute({ action: "status" }))).toMatchObject({ availability: "limit-reached", remaining: 0 });
     expect(details(await s.execute()).reused).toBe(true);
+    expect(s.provider).toHaveBeenCalledTimes(3);
+  });
+  it("shares spent calls across prompt hints, workflow edits, disable and a restored Pi session", async () => {
+    const s = setup(true);
+    const entries: { type: string; customType: string; data: unknown }[] = [];
+    s.pi.appendEntry.mockImplementation((customType: string, data: unknown) => entries.push({ type: "custom", customType, data }));
+    s.ctx.sessionManager.getEntries = () => entries;
+    await s.controller.command("limit 2", s.ctx);
+    expect(s.controller.status(s.ctx)).toMatchObject({ limit: 2, used: 0, enabled: false, hintsEnabled: false });
+    await s.controller.command("enable workflow", s.ctx);
+    expect((await s.controller.evaluateHint(packet, undefined, s.ctx)).status).toBe("unavailable");
+    await s.controller.command("hints", s.ctx);
+    const hintScope = s.controller.hintSignal(s.ctx);
+    expect(await s.controller.evaluateHint(packet, undefined, s.ctx)).toMatchObject({ status: "answered", remaining: 1 });
+    expect(s.provider.mock.calls[0][2].question).toBe(JEV_HINT_QUESTION);
+    expect(existsSync(s.storageHome)).toBe(false);
+    expect(details(await s.execute())).toMatchObject({ status: "answered", remaining: 0, source: { retained: true } });
+    await s.controller.command("limit 0", s.ctx);
+    expect(s.controller.status(s.ctx)).toMatchObject({ limit: 0, used: 2, remaining: 0, availability: "limit-reached" });
+    expect(details(await s.execute())).toMatchObject({ reused: true, remaining: 0 });
+    s.ctx.ui.confirm.mockResolvedValueOnce(false);
+    await s.controller.command("limit 4500", s.ctx);
+    expect(s.controller.status(s.ctx).limit).toBe(0);
+    expect(s.ctx.ui.confirm.mock.lastCall?.[1]).toContain("2 calls already dispatched");
+    await s.controller.command("limit 4500", s.ctx);
+    expect(s.controller.status(s.ctx)).toMatchObject({ limit: 4500, used: 2, remaining: 4498, storage: "granted" });
+    await s.controller.command("disable", s.ctx);
+    expect(hintScope?.aborted).toBe(true);
+    const restored = createJevController(s.pi, { provider: s.provider, env: s.env });
+    expect(restored.status(s.ctx)).toMatchObject({ limit: 4500, used: 2, enabled: false, hintsEnabled: false });
+    await restored.command("enable workflow", s.ctx);
+    expect(restored.status(s.ctx)).toMatchObject({ remaining: 4498, hintsEnabled: false });
+    s.setId("fork-session");
+    expect(restored.status(s.ctx)).toMatchObject({ limit: 300, used: 0, enabled: false });
+    s.setId("actual-pi-session");
+    expect(restored.status(s.ctx)).toMatchObject({ limit: 4500, used: 2, enabled: false });
+    expect(s.provider).toHaveBeenCalledTimes(2);
+  });
+  it("keeps the current workflow on Escape at the mode chooser, and revokes it after selecting a replacement", async () => {
+    const s = setup();
+    await s.controller.command("enable workflow", s.ctx);
+    await s.controller.command("hints", s.ctx);
+    s.ctx.ui.select.mockResolvedValueOnce(undefined);
+    await s.controller.command("configure", s.ctx);
+    expect(s.controller.status(s.ctx)).toMatchObject({ mode: "workflow", hintsEnabled: true });
+    s.ctx.ui.select.mockResolvedValueOnce(0).mockResolvedValueOnce(undefined);
+    await s.controller.command("configure", s.ctx);
+    expect(s.controller.status(s.ctx)).toMatchObject({ mode: "disabled", hintsEnabled: false });
+  });
+  it.each(["error", "exception"])("pauses only prompt hints on provider %s until the operator opts in again", async failure => {
+    const s = setup();
+    await s.controller.command("enable workflow", s.ctx);
+    await s.controller.command("hints", s.ctx);
+    if (failure === "error") s.provider.mockResolvedValueOnce({ ...answer, status: "error" });
+    else s.provider.mockRejectedValueOnce(new Error("private provider failure"));
+    expect(await s.controller.evaluateHint(packet, undefined, s.ctx)).toMatchObject({ status: "unavailable" });
+    expect(s.controller.status(s.ctx)).toMatchObject({ hintsEnabled: false, used: 1, availability: "ready" });
+    await s.controller.evaluateHint(packet, undefined, s.ctx);
+    expect(s.provider).toHaveBeenCalledTimes(1);
+    expect(details(await s.execute())).toMatchObject({ status: "answered", remaining: 298 });
+    await s.controller.command("hints", s.ctx);
+    expect(await s.controller.evaluateHint(packet, undefined, s.ctx)).toMatchObject({ status: "answered", remaining: 297 });
+  });
+  it("does not apply an old budget increase or hint confirmation after revocation", async () => {
+    const s = setup();
+    for (const command of ["limit 1000", "hints"]) {
+      await s.controller.command("enable workflow", s.ctx);
+      let answer!: (yes: boolean) => void;
+      s.ctx.ui.confirm.mockImplementationOnce(() => new Promise<boolean>(resolve => { answer = resolve; }));
+      const editing = s.controller.command(command, s.ctx);
+      await s.controller.command("disable", s.ctx);
+      answer(true);
+      await editing;
+      expect(s.controller.status(s.ctx)).toMatchObject({ limit: 300, enabled: false, hintsEnabled: false });
+    }
+    expect(s.provider).not.toHaveBeenCalled();
+  });
+  it("accepts the full safe integer range and rejects ambiguous budgets without changing the current choice", async () => {
+    const s = setup();
+    await s.controller.command("limit " + Number.MAX_SAFE_INTEGER, s.ctx);
+    for (const invalid of ["-1", "1.2", "2e3", "abc", "9007199254740992"]) {
+      await expect(s.controller.command("limit " + invalid, s.ctx)).rejects.toThrow("whole number");
+    }
+    expect(s.controller.status(s.ctx)).toMatchObject({ limit: Number.MAX_SAFE_INTEGER, used: 0, enabled: false });
+    expect(s.provider).not.toHaveBeenCalled();
+  });
+  it("charges real manual batches per dispatch, rejects an oversized batch before consent, and shares the total with workflow advice", async () => {
+    const s = setup();
+    const cases = join(s.root, "manual-cases.json");
+    writeFileSync(cases, JSON.stringify({ schema: 1, cases: ["one", "two"].map(id => ({
+      id, input: "Selected " + id, question: "Is the input ready?", provenance: "synthetic",
+      source: { sha256: "b".repeat(64), recordId: id }, visibility: "public"
+    })) }));
+    const output = join(s.root, "result.jsonl");
+    s.ctx.ui.input = vi.fn(async (title: string) => title.startsWith("Path") ? cases : output);
+    await s.controller.command("limit 3", s.ctx);
+    await s.controller.command("enable workflow", s.ctx);
+    await s.execute();
+    await s.controller.command("enable", s.ctx);
+    s.ctx.ui.confirm.mockResolvedValueOnce(false);
+    await s.controller.command("run", s.ctx);
+    expect(s.provider).toHaveBeenCalledTimes(1);
+    expect(existsSync(output)).toBe(false);
+    await s.controller.command("limit 2", s.ctx);
+    await expect(s.controller.command("run", s.ctx)).rejects.toThrow("batch needs 2 JEV calls; 1 remain");
+    await s.controller.command("limit 3", s.ctx);
+    await s.controller.command("run", s.ctx);
+    expect(s.provider).toHaveBeenCalledTimes(3);
+    expect(readFileSync(output, "utf8").trim().split("\n")).toHaveLength(3);
+    expect(s.controller.status(s.ctx)).toMatchObject({ used: 3, remaining: 0 });
+    await s.controller.command("enable workflow", s.ctx);
+    expect(details(await s.execute())).toMatchObject({ status: "unavailable", remaining: 0 });
     expect(s.provider).toHaveBeenCalledTimes(3);
   });
   it("reserves one slot before awaiting and suppresses simultaneous same or different inputs", async () => {
@@ -285,7 +398,7 @@ describe("session-scoped handoff advice", () => {
     const abort = new AbortController();
     abort.abort();
     await s.execute(packet, abort.signal);
-    expect(details(await s.execute({ action: "status" })).remaining).toBe(3);
+    expect(details(await s.execute({ action: "status" })).remaining).toBe(300);
     expect(s.provider).not.toHaveBeenCalled();
     expect(existsSync(s.storageHome)).toBe(false);
   });
@@ -309,7 +422,7 @@ describe("session-scoped handoff advice", () => {
       const session = join(s.storageHome, "jev-workflow", readdirSync(join(s.storageHome, "jev-workflow"))[0]);
       const directory = join(session, readdirSync(session)[0]);
       expect(existsSync(join(directory, "outcome.json"))).toBe(false);
-      if (change === "new-activation") expect(details(await s.execute({ action: "status" }))).toMatchObject({ availability: "ready", remaining: 3 });
+      if (change === "new-activation") expect(details(await s.execute({ action: "status" }))).toMatchObject({ availability: "ready", remaining: 299 });
     },
   );
   it("never resurrects an old paid confirmation or storage grant", async () => {
@@ -386,7 +499,7 @@ describe("decision evidence and later outcome linkage", () => {
     writeFileSync(evidence.path, "changed after selection");
     await expect(s.execute(value)).rejects.toThrow("sha256");
     expect(s.provider).toHaveBeenCalledTimes(1);
-    expect(details(await s.execute({ action: "status" })).remaining).toBe(2);
+    expect(details(await s.execute({ action: "status" })).remaining).toBe(299);
   });
   it("links frozen engineering evidence without provider spend, inferred labels or acceptance, and deduplicates repeats", async () => {
     const s = setup(true);
@@ -405,7 +518,7 @@ describe("decision evidence and later outcome linkage", () => {
     expect(new Ajv({ strict: false }).compile(s.tool.outputSchema)(result)).toBe(true);
     expect(details(await s.execute(args))).toMatchObject({ path: result.path, sha256: result.sha256, reused: true });
     expect(s.provider).toHaveBeenCalledTimes(1);
-    expect(details(await s.execute({ action: "status" })).remaining).toBe(2);
+    expect(details(await s.execute({ action: "status" })).remaining).toBe(299);
     const stored = JSON.parse(readFileSync(result.path, "utf8"));
     expect(stored.source.sha256).toBe(advice.source.sha256);
     expect(stored.sessionId).toBe("actual-pi-session");
@@ -450,7 +563,7 @@ describe("decision evidence and later outcome linkage", () => {
       await expect(s.execute({ ...packet, evidenceRefs })).rejects.toThrow();
     }
     expect(s.provider).not.toHaveBeenCalled();
-    expect(details(await s.execute({ action: "status" })).remaining).toBe(3);
+    expect(details(await s.execute({ action: "status" })).remaining).toBe(300);
   });
 });
 
@@ -502,7 +615,7 @@ describe("optional Principal candidate observation", () => {
     }
     expect(s.provider).not.toHaveBeenCalled();
     expect(existsSync(s.storageHome)).toBe(false);
-    expect(details(await s.execute({ action: "status" })).remaining).toBe(3);
+    expect(details(await s.execute({ action: "status" })).remaining).toBe(300);
   });
   it("keeps no-response standalone operation honestly caller-claimed", async () => {
     const s = setup();
@@ -675,7 +788,7 @@ describe.skipIf(!principalWorkflow)("Principal live candidate composition", () =
     writeFileSync(join(s.root, "README.md"), "changed after decision\n");
     await expect(s.execute(selected)).rejects.toThrow("candidate observation");
     expect(s.provider).toHaveBeenCalledTimes(1);
-    expect(details(await s.execute({action:"status"})).remaining).toBe(2);
+    expect(details(await s.execute({action:"status"})).remaining).toBe(299);
   });
 });
 
@@ -688,7 +801,7 @@ describe("Pi-configured OpenRouter credentials", () => {
     expect(details(await s.execute({action:"status"}))).toMatchObject({enabled:false,providerReadiness:"pi-configured"});
     expect(details(await s.execute())).toMatchObject({ status: "unavailable", probability: null, recommendation: "unavailable", yesThreshold: 0.9 });
     await s.controller.command("enable workflow",s.ctx);
-    expect(details(await s.execute({action:"status"}))).toMatchObject({availability:"ready",providerReadiness:"pi-configured",remaining:3});
+    expect(details(await s.execute({action:"status"}))).toMatchObject({availability:"ready",providerReadiness:"pi-configured",remaining:300});
     expect(s.ctx.ui.notify.mock.lastCall?.[0]).toContain("credentials have not been resolved");
     expect(auth.getApiKeyForProvider).not.toHaveBeenCalled();
     const first=details(await s.execute());
@@ -711,7 +824,7 @@ describe("Pi-configured OpenRouter credentials", () => {
     delete s.env.OPENROUTER_API_KEY;
     for(const candidate of ["second","third"]){
       const result=details(await s.execute({...packet,candidate}));
-      expect(result).toMatchObject({status:"unavailable",remaining:2});
+      expect(result).toMatchObject({status:"unavailable",remaining:299});
       expect(result.reason).toContain("could not be resolved");expect(JSON.stringify(result)).not.toContain("private-command-output");
     }
     expect(s.provider).toHaveBeenCalledTimes(1);
@@ -724,9 +837,9 @@ describe("Pi-configured OpenRouter credentials", () => {
     const auth={getProviderAuthStatus:()=>({configured:true}),getApiKeyForProvider:vi.fn(()=>new Promise<string>(done=>{resolve=done;}))};
     s.ctx.modelRegistry=auth;await s.controller.command("enable workflow",s.ctx);
     const first=s.execute();
-    expect(details(await s.execute({...packet,candidate:"second"}))).toMatchObject({status:"unavailable",remaining:3,reason:expect.stringContaining("in flight")});
+    expect(details(await s.execute({...packet,candidate:"second"}))).toMatchObject({status:"unavailable",remaining:300,reason:expect.stringContaining("in flight")});
     if(change==="disable")await s.controller.command("disable",s.ctx);else s.setId("new-session");
-    resolve("late-native-test-key");expect(details(await first)).toMatchObject({status:"unavailable",remaining:3});
+    resolve("late-native-test-key");expect(details(await first)).toMatchObject({status:"unavailable",remaining:300});
     expect(auth.getApiKeyForProvider).toHaveBeenCalledTimes(1);expect(s.provider).not.toHaveBeenCalled();
     expect(existsSync(s.storageHome)).toBe(false);
   });
@@ -740,7 +853,7 @@ describe("Pi-configured OpenRouter credentials", () => {
     await s.controller.command("enable workflow",s.ctx);
     const pending=s.execute({...packet,evidenceRefs:[{path,sha256}]});
     writeFileSync(path,"changed");resolve("native-test-key");
-    expect(details(await pending)).toMatchObject({status:"unavailable",remaining:3});
+    expect(details(await pending)).toMatchObject({status:"unavailable",remaining:300});
     expect(s.provider).not.toHaveBeenCalled();expect(existsSync(s.storageHome)).toBe(false);
   });
 });
@@ -790,10 +903,37 @@ describe("native JEV provider selection", () => {
     expect(new Ajv({ strict: false }).compile(s.tool.outputSchema)(first.structuredContent)).toBe(true);
     expect(first.structuredContent).toEqual(first.details);
     expect(JSON.parse(first.content[0].text)).toEqual(first.details);
-    expect(details(await s.execute())).toMatchObject({ probability, recommendation, yesThreshold: 0.9, reused: true, remaining: 2 });
+    expect(details(await s.execute())).toMatchObject({ probability, recommendation, yesThreshold: 0.9, reused: true, remaining: 299 });
     expect(s.sent).toHaveBeenCalledTimes(1);
     expect(s.registry.classify).toHaveBeenCalledTimes(1);
     expect(s.provider).not.toHaveBeenCalled();
+  });
+  it("releases the shared call slot after a hint is cancelled during native authentication, and refuses late dispatch", async () => {
+    const s = nativeSetup();
+    await s.controller.command("enable workflow", s.ctx);
+    await s.controller.command("hints", s.ctx);
+    let release!: () => void;
+    s.waitForAuth(new Promise(resolve => { release = resolve; }));
+    const timeout = new AbortController();
+    const hint = s.controller.evaluateHint(packet, timeout.signal, s.ctx);
+    timeout.abort();
+    expect(await hint).toMatchObject({ status: "unavailable" });
+    expect(s.controller.status(s.ctx)).toMatchObject({ hintsEnabled: false, availability: "ready", used: 0 });
+    s.waitForAuth(Promise.resolve());
+    expect(details(await s.execute())).toMatchObject({ status: "answered", remaining: 299 });
+    release();
+    await new Promise(resolve => setImmediate(resolve));
+    expect(s.sent).toHaveBeenCalledTimes(1);
+    expect(s.controller.status(s.ctx).used).toBe(1);
+  });
+  it("sends the fixed tool-relevance question for a prompt hint and the handoff question only for selected advice", async () => {
+    const s = nativeSetup();
+    await s.controller.command("enable workflow", s.ctx);
+    await s.controller.command("hints", s.ctx);
+    await s.controller.evaluateHint(packet, undefined, s.ctx);
+    await s.execute();
+    expect(s.sent.mock.calls.map(call => call[1].questions.decision.instructions)).toEqual([JEV_HINT_QUESTION, JEV_QUESTION]);
+    expect(JEV_HINT_QUESTION).toContain("is the proposed tool suitable");
   });
   it("selects the exact configured classifier before consent and retains route-bound unlabeled advice", async () => {
     const s = nativeSetup(true);
@@ -811,16 +951,16 @@ describe("native JEV provider selection", () => {
     expect(s.registry.getApiKeyForProvider).not.toHaveBeenCalled();
     const result = details(await s.execute());
     expect(result).toMatchObject({ status: "answered", probability: 0.75, provider: "typesafe", requestedModel: "jev-latest",
-      resolvedModel: null, returnedProvider: "typesafe", returnedModel: "jev-latest", costSource: "pi-catalog-estimate", remaining: 2 });
+      resolvedModel: null, returnedProvider: "typesafe", returnedModel: "jev-latest", costSource: "pi-catalog-estimate", remaining: 299 });
     expect(s.sent.mock.calls[0][1]).toMatchObject({ state: { input: prepareHandoff(packet).input }, questions: { decision: { type: "bool", instructions: JEV_QUESTION } } });
     expect(s.sent.mock.calls[0][2]).toMatchObject({ maxRetries: 0 });
     expect(s.sent.mock.calls[0][2].apiKey).toBeUndefined();
     const retained = readFileSync(result.source.path, "utf8");
     expect(JSON.parse(retained)).toMatchObject({ schema: 3, route: { provider: "typesafe", model: "jev-latest" },
-      authorization: { kind: "jev-workflow-paid-scope-v2" }, labelStatus: "unlabeled", trainingEligible: false });
+      authorization: { kind: "jev-session-paid-scope-v1" }, labelStatus: "unlabeled", trainingEligible: false });
     for (const secret of ["private-fixture-header", "private-native-auth", "synthetic.invalid"])
       expect(retained + JSON.stringify(s.ctx.ui.notify.mock.calls) + JSON.stringify(result)).not.toContain(secret);
-    expect(details(await s.execute())).toMatchObject({ reused: true, remaining: 2 });
+    expect(details(await s.execute())).toMatchObject({ reused: true, remaining: 299 });
     expect(s.sent).toHaveBeenCalledTimes(1);
     expect(s.provider).not.toHaveBeenCalled();
     expect(new Ajv({ strict: false }).compile(s.tool.outputSchema)(result)).toBe(true);
@@ -844,11 +984,11 @@ describe("native JEV provider selection", () => {
     await s.execute();
     s.ctx.ui.select.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
     await s.controller.command("enable workflow", s.ctx);
-    expect(s.controller.status(s.ctx)).toMatchObject({ selectedProvider: "openrouter", selectedModel: "typesafe/jev-1.13", remaining: 3, providerReadiness: "key-present" });
+    expect(s.controller.status(s.ctx)).toMatchObject({ selectedProvider: "openrouter", selectedModel: "typesafe/jev-1.13", remaining: 299, providerReadiness: "key-present" });
     await s.execute();
     expect(s.sent.mock.calls[1][2].apiKey).toBe(s.env.OPENROUTER_API_KEY);
     expect(s.ctx.ui.confirm).toHaveBeenCalledTimes(2);
-    expect(new Set(s.pi.appendEntry.mock.calls.map(call => call[1].interactionId)).size).toBe(2);
+    expect(new Set(s.pi.appendEntry.mock.calls.filter(call => call[0] === "skill-harness-jev-storage-choice").map(call => call[1].interactionId)).size).toBe(2);
   });
   it.each(["disable", "session-change", "model-change", "evidence-change", "tool-abort"])("serializes native auth and refuses %s before retaining or dispatching", async change => {
     const s = nativeSetup(true);
@@ -858,14 +998,14 @@ describe("native JEV provider selection", () => {
     await s.controller.command("enable workflow", s.ctx);
     const abort = new AbortController();
     const pending = s.execute({ ...packet, evidenceRefs: [{ path, sha256 }] }, abort.signal);
-    expect(details(await s.execute({ ...packet, candidate: "second" }))).toMatchObject({ status: "unavailable", remaining: 3, reason: expect.stringContaining("in flight") });
+    expect(details(await s.execute({ ...packet, candidate: "second" }))).toMatchObject({ status: "unavailable", remaining: 300, reason: expect.stringContaining("in flight") });
     if (change === "disable") await s.controller.command("disable", s.ctx);
     else if (change === "session-change") s.setId("another-session");
     else if (change === "model-change") s.models[0].baseUrl = "https://changed.invalid";
     else if (change === "evidence-change") writeFileSync(path, "changed");
     else abort.abort();
     resolve();
-    expect(details(await pending)).toMatchObject({ status: "unavailable", remaining: 3 });
+    expect(details(await pending)).toMatchObject({ status: "unavailable", remaining: 300 });
     expect(s.sent).not.toHaveBeenCalled();
     expect(s.provider).not.toHaveBeenCalled();
     expect(existsSync(s.storageHome)).toBe(false);
@@ -899,7 +1039,7 @@ describe("native JEV provider selection", () => {
     s.registry.classify.mockResolvedValueOnce({ stopReason: "error", errorMessage: "private credential command output" } as any);
     await s.controller.command("enable workflow", s.ctx);
     const result = details(await s.execute());
-    expect(result).toMatchObject({ status: "unavailable", probability: null, recommendation: "unavailable", yesThreshold: 0.9, remaining: 3 });
+    expect(result).toMatchObject({ status: "unavailable", probability: null, recommendation: "unavailable", yesThreshold: 0.9, remaining: 300 });
     expect(JSON.stringify(result)).not.toContain("private credential");
     expect(existsSync(s.storageHome)).toBe(false);
     expect(s.sent).not.toHaveBeenCalled();

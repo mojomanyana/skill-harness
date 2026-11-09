@@ -55,6 +55,17 @@ describe('retained workflow decision import',()=>{
     expect(result.receipt.replacements[0].fromSha256).toBe(learningDigest('private-note'));
   }));
 
+  it.each([true,false])('imports an adjusted budget only under the new session consent kind (native=%s)', native => usingFixture(async f => {
+    rewriteSource(f, source => { source.authorization.maximumCalls = 4500; });
+    await expect(importWorkflowCase(f.args)).rejects.toThrow('workflow authorization mismatch');
+    rewriteSource(f, source => { source.authorization.kind = 'jev-session-paid-scope-v1'; });
+    await expect(importWorkflowCase(f.args)).resolves.toHaveProperty('receipt');
+    for (const invalid of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      rewriteSource(f, source => { source.authorization.maximumCalls = invalid; });
+      await expect(importWorkflowCase(f.args)).rejects.toThrow('workflow authorization mismatch');
+    }
+  }, false, native));
+
   it('requires current and collection-time grants for the same session',()=>usingFixture(async f=>{
     await expect(importWorkflowCase({...f.args,sessionConsent:{...f.args.sessionConsent,decision:'declined'}})).rejects.toThrow(/declined/);
     await expect(importWorkflowCase({...f.args,sessionConsent:{...f.args.sessionConsent,sessionId:'other'}})).rejects.toThrow(/another session/);

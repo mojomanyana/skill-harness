@@ -34,23 +34,26 @@ export function registerJevControl(pi: ExtensionAPI, controller: JevController) 
       reply("invalid-request"); return;
     }
     if (request.action === "status") { reply(); return; }
-    if (request.action !== "enable" && request.action !== "disable") { reply("invalid-action"); return; }
+    if (!["enable", "disable", "limit", "configure", "hints"].includes(request.action)) { reply("invalid-action"); return; }
     if (handled.has(request.requestId)) {
       reply(handled.get(request.requestId) === request.action ? undefined : "request-id-reused"); return;
     }
-    if (request.action === "enable" && pending) { reply("consent-pending"); return; }
-    if (request.action === "enable" && (!owner.ctx.hasUI || !owner.ctx.ui.confirm || !owner.ctx.ui.select)) {
+    const interactive = request.action !== "disable";
+    if (interactive && pending) { reply("consent-pending"); return; }
+    if (interactive && (!owner.ctx.hasUI || !owner.ctx.ui.confirm ||
+        (request.action === "limit" ? !owner.ctx.ui.input : !owner.ctx.ui.select))) {
       reply("native-consent-unavailable"); return;
     }
     // Disable can revoke an in-flight activation; its unanswered UI cannot restore permission.
     handled.set(request.requestId, request.action);
     if (handled.size > 32) handled.delete(handled.keys().next().value!);
     const token = { requestId: request.requestId, sessionId: owner.sessionId };
-    if (request.action === "enable") pending = token;
-    const operation = controller.command(request.action === "enable" ? "enable workflow" : "disable", owner.ctx);
+    pending = interactive ? token : undefined;
+    const operation = controller.command(request.action === "enable" ? "enable workflow" : request.action, owner.ctx);
     reply();
     void operation.then(() => finish(), () => finish("control-failed"));
     function finish(error?: string) {
+      if (interactive && pending !== token) return;
       if (pending === token) pending = undefined;
       if (!owner || bound !== owner || owner.ctx.sessionManager?.getSessionId() !== owner.sessionId) return;
       try { pi.events?.emit?.(JEV_STATE_CHANNEL, { ...envelope,

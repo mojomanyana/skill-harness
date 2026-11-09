@@ -36,10 +36,30 @@ describe("optional parent JEV dashboard control", () => {
     expect(s.ctx.ui.confirm).toHaveBeenCalledTimes(1);
     expect(s.ctx.ui.select).toHaveBeenCalledTimes(2);
     expect(s.broadcasts.at(-1)).toMatchObject({ requestId: "click-1", sessionId: "parent-session", pending: false,
-      status: { enabled: true, mode: "workflow", storage: "declined", availability: "missing-key", remaining: 3 } });
+      status: { enabled: true, mode: "workflow", storage: "declined", availability: "missing-key", remaining: 300 } });
     s.send("enable", "click-1"); await flush();
     expect(s.ctx.ui.confirm).toHaveBeenCalledTimes(1);
     expect(s.send("disable", "off")).toMatchObject({ status: { enabled: false, storage: null, remaining: 0 } });
+    expect(s.provider).not.toHaveBeenCalled();
+  });
+  it("edits the session total, reconfigures providers and modes, and gates prompt hints in parent dialogs", async () => {
+    const s = setup();
+    s.ctx.ui.input = vi.fn(async () => "1200");
+    expect(s.send("limit", "set").pending).toBe(true);
+    await flush();
+    expect(s.ctx.ui.input).toHaveBeenCalledWith(expect.stringContaining("Total"), "300");
+    expect(s.broadcasts.at(-1)).toMatchObject({ pending: false, status: { enabled: false, limit: 1200, hintsEnabled: false } });
+    expect(s.send("limit", "forged", { limit: 9000 }).error).toBe("invalid-request");
+    s.send("configure", "on");
+    await flush();
+    expect(s.ctx.ui.confirm.mock.calls[0][1]).toContain("1200");
+    s.send("hints", "show");
+    await flush();
+    expect(s.send("status").status).toMatchObject({ limit: 1200, used: 0, hintsEnabled: true, controls: ["limit", "configure", "hints"] });
+    s.ctx.ui.select.mockResolvedValueOnce(1);
+    s.send("configure", "manual");
+    await flush();
+    expect(s.send("status").status).toMatchObject({ mode: "manual", hintsEnabled: false, limit: 1200, remaining: 1200 });
     expect(s.provider).not.toHaveBeenCalled();
   });
   it("cannot inherit Auto consent or enable another session, and handles missing native UI", async () => {

@@ -3063,12 +3063,12 @@ function evaluateTraceGates(assert, trace) {
     assertions.push({ kind: "trace_evidence", status: "ERROR", detail: error });
   }
   for (const req of assert.require_calls ?? []) {
-    const candidates = trace.tool_calls.filter((c) => c.name === req.tool && argsMatch(c, req.args));
-    if (req.outcome && candidates.some((c) => !Number.isInteger(c.completionIndex) || c.completionIndex < 0 || typeof c.isError !== "boolean")) {
+    const candidates2 = trace.tool_calls.filter((c) => c.name === req.tool && argsMatch(c, req.args));
+    if (req.outcome && candidates2.some((c) => !Number.isInteger(c.completionIndex) || c.completionIndex < 0 || typeof c.isError !== "boolean")) {
       assertions.push({ kind: "require_call", status: "ERROR", detail: `cannot establish ${req.outcome} outcome for \`${req.tool}\`: completion evidence is missing` });
       continue;
     }
-    const matched = req.outcome ? candidates.filter((c) => c.isError === (req.outcome === "error")) : candidates;
+    const matched = req.outcome ? candidates2.filter((c) => c.isError === (req.outcome === "error")) : candidates2;
     const min = req.count?.min ?? 1;
     const max = req.count?.max;
     const described = describeArgs(req.args) + (req.outcome ? ` with tool-reported ${req.outcome}` : "");
@@ -8983,8 +8983,8 @@ function computeCoverage(opts) {
     pct: sections.length === 0 ? 0 : Math.round(covered.length / sections.length * 100)
   };
 }
-function nearest(target, candidates, limit = 3) {
-  return candidates.map((c) => ({ c, d: distance(target, c) })).filter(({ c, d }) => d <= Math.max(3, Math.floor(c.length / 2))).sort((a, b) => a.d - b.d).slice(0, limit).map(({ c }) => c);
+function nearest(target, candidates2, limit = 3) {
+  return candidates2.map((c) => ({ c, d: distance(target, c) })).filter(({ c, d }) => d <= Math.max(3, Math.floor(c.length / 2))).sort((a, b) => a.d - b.d).slice(0, limit).map(({ c }) => c);
 }
 function distance(a, b) {
   const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
@@ -11251,9 +11251,9 @@ function validateNumber(schema2, value, path) {
 }
 function bestBranch(root, schemas, branches, value, path) {
   const discriminated = schemas.map((schema2, index2) => ({ schema: schema2, violations: branches[index2] })).filter(({ schema: schema2 }) => matchesDiscriminator(root, schema2, value));
-  const candidates = discriminated.length === 1 ? [discriminated[0].violations] : branches;
-  let best = candidates[0] ?? [];
-  for (const branch of candidates) if (branch.length < best.length) best = branch;
+  const candidates2 = discriminated.length === 1 ? [discriminated[0].violations] : branches;
+  let best = candidates2[0] ?? [];
+  for (const branch of candidates2) if (branch.length < best.length) best = branch;
   return best.length ? best : [{ path, message: "does not match any allowed shape" }];
 }
 function matchesDiscriminator(root, schema2, value) {
@@ -18343,13 +18343,13 @@ var __dirname = dirname12(fileURLToPath(import.meta.url));
 function templatePath(assetsDir) {
   if (assetsDir)
     return join32(assetsDir, "report.template.html");
-  const candidates = [
+  const candidates2 = [
     join32(__dirname, "..", "..", "..", "assets", "report.template.html"),
     // packages/cli/{dist,src} -> ../../../assets
     join32(__dirname, "..", "assets", "report.template.html"),
     join32(__dirname, "..", "..", "assets", "report.template.html")
   ];
-  for (const c of candidates)
+  for (const c of candidates2)
     if (existsSync21(c))
       return c;
   throw new Error("cannot find assets/report.template.html");
@@ -19333,7 +19333,7 @@ function registerAuthoring(pi) {
 }
 
 // packages/pi-extension/src/commands.ts
-var USAGE = "usage: /skill-harness create <idea> | author [name] | run [skill] [--specs root] [--model p:m] [--thinking LEVEL] [--judge-thinking LEVEL] [--reps N] [--mode red|green|force] [--only A1,A2] [--canary] [--judge p:m] | judge [run-dir] [--judge p:m] | review [skill] | coverage [skill] | jev enable [workflow]|run|status|disable";
+var USAGE = "usage: /skill-harness create <idea> | author [name] | run [skill] [--specs root] [--model p:m] [--thinking LEVEL] [--judge-thinking LEVEL] [--reps N] [--mode red|green|force] [--only A1,A2] [--canary] [--judge p:m] | judge [run-dir] [--judge p:m] | review [skill] | coverage [skill] | jev enable [workflow]|configure|limit [N]|hints|run|status|disable";
 function parse(argstr) {
   const tokens = [];
   let token = "", quote, started = false;
@@ -20901,8 +20901,11 @@ function validateSource(source) {
   const a = source.authorization;
   keys3(a, ["kind", "interactionId", "sessionId", "recordedAt", ...native ? ["route"] : ["provider", "model"], "question", "maximumCalls"], "workflow authorization");
   text4(a.interactionId, "authorization interaction");
-  const authorizationMatches = native ? a.kind === "jev-workflow-paid-scope-v2" && isDeepStrictEqual(validateNativeRoute(a.route), route) : a.kind === "jev-workflow-paid-scope" && a.provider === source.provider && a.model === source.model;
-  check3(authorizationMatches && a.sessionId === source.sessionId && a.question === QUESTION && a.maximumCalls === 3 && date2(a.recordedAt) <= date2(source.frozenAt), "workflow authorization mismatch");
+  const sessionScope = a.kind === "jev-session-paid-scope-v1";
+  const validLimit = sessionScope ? Number.isSafeInteger(a.maximumCalls) && a.maximumCalls > 0 : a.maximumCalls === 3;
+  const validKind = sessionScope || a.kind === (native ? "jev-workflow-paid-scope-v2" : "jev-workflow-paid-scope");
+  const validRoute = native ? isDeepStrictEqual(validateNativeRoute(a.route), route) : a.provider === source.provider && a.model === source.model;
+  check3(validKind && validLimit && validRoute && a.sessionId === source.sessionId && a.question === QUESTION && date2(a.recordedAt) <= date2(source.frozenAt), "workflow authorization mismatch");
   check3(source.provenance === "tool-selected-input" && source.evidenceClaims === "unassessed" && source.redaction === "unassessed" && source.rights === "unassessed" && source.publicCaptureVerified === false, "unsupported workflow provenance claims");
   unlabeled(source);
   const refs = evidenceRefs(source.evidenceRefs);
@@ -22949,15 +22952,16 @@ import { readFileSync as readFileSync29 } from "node:fs";
 import { join as join46 } from "node:path";
 var JEV_PROVIDER = "jev";
 var JEV_MODEL = "typesafe/jev-1.13";
-var JEV_WORKFLOW_LIMIT = 3;
+var DEFAULT_WORKFLOW_LIMIT = 300;
 var JEV_QUESTION = "Given the stated stage, unresolved engineering uncertainty, requirements and selected evidence, is the proposed next action justified? Assess that action only, not final acceptance or whether mandatory later review is complete.";
+var JEV_HINT_QUESTION = "Given the stated intent and available tool function, is the proposed tool suitable for helping with this request? Assess relevance only. The answer does not authorize an invocation.";
 var JEV_SOURCE_KIND = "skill-harness-selected-decision-v2";
 var JEV_NATIVE_SOURCE_KIND = "skill-harness-selected-decision-v3";
 function requireIdentity(value, name) {
   if (typeof value !== "string" || !value.trim() || value.length > 256)
     throw new Error(`${name} must be a nonempty runtime identity of at most 256 characters`);
 }
-function prepareHandoff(value) {
+function prepareHandoff(value, purpose = "handoff") {
   for (const field of ["candidate", "requirements", "evidence", "stage", "nextAction", "uncertainty"]) {
     if (typeof value[field] !== "string" || !value[field].trim() || value[field].length > 32e3)
       throw new Error(`${field} must be a nonempty bounded string`);
@@ -22975,7 +22979,7 @@ function prepareHandoff(value) {
   });
   if (Array.from(input).length > 16e3)
     throw new Error("The complete selected handoff packet must not exceed 16000 characters");
-  return Object.freeze({ input, question: JEV_QUESTION, inputSha256: sha2562(input) });
+  return Object.freeze({ input, question: purpose === "tool-hint" ? JEV_HINT_QUESTION : JEV_QUESTION, inputSha256: sha2562(input) });
 }
 function createHandoffSource(options) {
   requireIdentity(options.sessionId, "Pi sessionId");
@@ -23088,6 +23092,8 @@ function retainHandoffSource(source, assertCurrent, storageHome = resolveDataRoo
 }
 
 // packages/pi-extension/src/jev-session.ts
+var JEV_HINT_FAILURE = "jev-hint-unavailable";
+var JEV_HINT_TIMEOUT_MS = 2500;
 var JEV_YES_THRESHOLD = 0.9;
 function interpretJevAdvice(status, probability2) {
   const available = status === "answered" && typeof probability2 === "number" && Number.isFinite(probability2) && probability2 >= 0 && probability2 <= 1;
@@ -23102,22 +23108,77 @@ var unmeasuredProvider = (selection) => ({
   latencyMs: null
 });
 var missingKeyRemedy = "Configure OpenRouter in Pi, or set OPENROUTER_API_KEY in the environment that launches Pi, restart Pi, then enable JEV again with fresh session consent.";
+var BUDGET_ENTRY = "skill-harness-jev-session-budget-v1";
+var validCount = (n) => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
+var remainingCalls = (budget) => Math.max(0, budget.limit - budget.used);
+async function waitForHint(operation, signal) {
+  let cancel;
+  const cancelled = new Promise((_, reject) => {
+    cancel = () => reject(new Error("Prompt hint cancelled"));
+    if (signal.aborted) cancel();
+    else signal.addEventListener("abort", cancel, { once: true });
+  });
+  try {
+    return await Promise.race([operation, cancelled]);
+  } finally {
+    signal.removeEventListener("abort", cancel);
+  }
+}
+function paidScope(sessionId, selection, limit) {
+  return {
+    kind: "jev-session-paid-scope-v1",
+    interactionId: randomUUID6(),
+    sessionId,
+    recordedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    ...selection ? { route: selection.route } : { provider: JEV_PROVIDER, model: JEV_MODEL },
+    question: JEV_QUESTION,
+    maximumCalls: limit
+  };
+}
 function createJevController(pi, options = {}) {
   const run = options.run ?? main;
   let epoch = 0;
   let active = null;
   const clearSession = () => {
     epoch++;
+    active?.hintConsent?.abort();
     active?.abort.abort();
     active = null;
   };
-  pi.on("session_start", clearSession);
-  pi.on("session_switch", clearSession);
-  pi.on("session_shutdown", clearSession);
+  let budget;
+  const reset = () => {
+    clearSession();
+    budget = void 0;
+  };
+  pi.on("session_start", reset);
+  pi.on("session_switch", reset);
+  pi.on("session_shutdown", reset);
   const currentId = (ctx) => {
     const id = ctx.sessionManager?.getSessionId();
-    if (active && active.sessionId !== id) clearSession();
+    if (budget && budget.sessionId !== id || active && active.sessionId !== id) reset();
     return id;
+  };
+  const sessionBudget = (sessionId, ctx) => {
+    if (budget?.sessionId === sessionId) return budget;
+    const restored = { sessionId, limit: DEFAULT_WORKFLOW_LIMIT, used: 0 };
+    for (const entry of ctx.sessionManager?.getEntries?.() ?? []) {
+      if (entry.type !== "custom" || entry.customType !== BUDGET_ENTRY) continue;
+      const data = entry.data;
+      if (data?.sessionId === sessionId && validCount(data.limit) && validCount(data.used)) {
+        restored.limit = data.limit;
+        restored.used = Math.max(restored.used, data.used);
+      }
+    }
+    budget = restored;
+    return restored;
+  };
+  const updateBudget = (owner, next) => {
+    pi.appendEntry?.(BUDGET_ENTRY, { sessionId: owner.sessionId, ...next });
+    Object.assign(owner, next);
+  };
+  const debit = (owner) => {
+    if (!remainingCalls(owner)) throw new Error("JEV session call limit reached");
+    updateBudget(owner, { limit: owner.limit, used: owner.used + 1 });
   };
   const environmentKey = () => {
     const key = (options.env ?? process.env).OPENROUTER_API_KEY;
@@ -23169,13 +23230,18 @@ function createJevController(pi, options = {}) {
   };
   const status = (ctx) => {
     const id = currentId(ctx);
+    const owner = id ? sessionBudget(id, ctx) : void 0;
     const providerReadiness = readiness(ctx);
-    const availability = !id ? "missing-session" : !active ? "disabled" : active.mode === "manual" ? "manual-only" : active.blocked ?? (active.busy ? "busy" : active.used >= JEV_WORKFLOW_LIMIT ? "limit-reached" : providerReadiness === "missing-key" ? "missing-key" : "ready");
+    const availability = !id ? "missing-session" : !active ? "disabled" : active.mode === "manual" ? "manual-only" : active.blocked ?? (active.busy ? "busy" : !remainingCalls(active.budget) ? "limit-reached" : providerReadiness === "missing-key" ? "missing-key" : "ready");
     return {
       enabled: active !== null,
       mode: active?.mode ?? "disabled",
       storage: active?.consent.decision ?? null,
-      remaining: active?.mode === "workflow" ? JEV_WORKFLOW_LIMIT - active.used : 0,
+      remaining: active ? remainingCalls(active.budget) : 0,
+      limit: owner?.limit ?? DEFAULT_WORKFLOW_LIMIT,
+      used: owner?.used ?? 0,
+      controls: ["limit", "configure", "hints"],
+      hintsEnabled: !!active?.hintConsent,
       availability,
       providerReadiness,
       storageRoot: active?.storageRoot ?? null,
@@ -23185,9 +23251,9 @@ function createJevController(pi, options = {}) {
       advisory: true
     };
   };
-  const evaluate = async (value, toolCallId, signal, ctx) => {
-    requireIdentity(toolCallId, "Pi toolCallId");
-    const packet = prepareHandoff(value);
+  const evaluateSelected = async (value, toolCallId, signal, ctx) => {
+    const hint = toolCallId === void 0;
+    const packet = prepareHandoff(value, hint ? "tool-hint" : "handoff");
     const id = currentId(ctx);
     const unavailable = (reason) => ({
       advisory: true,
@@ -23196,81 +23262,111 @@ function createJevController(pi, options = {}) {
       reason,
       ...unmeasuredProvider(active?.selection),
       ...interpretJevAdvice("unavailable", null),
-      remaining: active?.mode === "workflow" ? JEV_WORKFLOW_LIMIT - active.used : 0
+      remaining: active?.mode === "workflow" ? remainingCalls(active.budget) : 0
     });
     if (!id || !active || active.mode !== "workflow")
       return unavailable("Explicit /skill-harness jev enable workflow activation is required in this Pi session.");
     const bound = active;
+    const hintSignal2 = hint ? bound.hintConsent?.signal : void 0;
+    if (hint && !hintSignal2) return unavailable("Prompt hints require separate session consent.");
+    const pauseHints = () => {
+      const consent = bound.hintConsent;
+      if (consent && consent.signal === hintSignal2) {
+        bound.hintConsent = void 0;
+        consent.abort(JEV_HINT_FAILURE);
+      }
+      return unavailable("Prompt hints paused after an unavailable assessment. Enable hints to try again.");
+    };
     const assertCurrent = () => {
       if (bound.selection) assertRoute(bound.selection, ctx);
-      if (active !== bound || ctx.sessionManager?.getSessionId() !== bound.sessionId || bound.abort.signal.aborted || signal?.aborted)
+      if (active !== bound || ctx.sessionManager?.getSessionId() !== bound.sessionId || bound.abort.signal.aborted || hintSignal2?.aborted || signal?.aborted)
         throw new Error("Session, authorization or tool execution changed");
     };
     if (signal?.aborted) return unavailable("Tool execution was cancelled.");
     if (bound.blocked) return unavailable("Workflow advice is suppressed after an error; explicit new activation is required.");
     if (bound.busy) return unavailable("An advisory request is already in flight; no additional call was made.");
-    assertCurrent();
-    let candidateObservation = observePrincipalCandidate(pi, ctx, value.candidate);
+    if (hint) {
+      try {
+        assertCurrent();
+      } catch {
+        return pauseHints();
+      }
+    } else assertCurrent();
+    const observe = () => hint ? void 0 : observePrincipalCandidate(pi, ctx, value.candidate);
+    let candidateObservation = observe();
     let evidence = verifyEvidence(value.evidenceRefs, ctx.cwd);
-    const cacheKey = sha2562(JSON.stringify({ route: bound.selection?.route ?? null, inputSha256: packet.inputSha256, evidenceRefs: evidenceReferences(evidence), candidate: candidateObservation?.candidate ?? null }));
+    const cacheKey = sha2562(JSON.stringify({ hint, route: bound.selection?.route ?? null, inputSha256: packet.inputSha256, evidenceRefs: evidenceReferences(evidence), candidate: candidateObservation?.candidate ?? null }));
     const cached = bound.cache.get(cacheKey);
-    if (cached) return { ...cached, remaining: JEV_WORKFLOW_LIMIT - bound.used, reused: true };
-    if (bound.used >= JEV_WORKFLOW_LIMIT) return unavailable("This activation's advisory call limit is reached.");
+    if (cached) return { ...cached, remaining: remainingCalls(bound.budget), reused: true };
+    if (!remainingCalls(bound.budget)) return unavailable("This session's advisory call limit is reached.");
     const abort = new AbortController();
-    const cancel = () => abort.abort();
-    const signals = [bound.abort.signal, signal].filter((s) => s !== void 0);
+    const cancel = () => {
+      abort.abort();
+      if (hint && !hintSignal2?.aborted && !bound.abort.signal.aborted) pauseHints();
+    };
+    const signals = [bound.abort.signal, hintSignal2, signal].filter((s) => s !== void 0);
     for (const s of signals) {
       if (s.aborted) cancel();
       else s.addEventListener("abort", cancel, { once: true });
     }
     bound.busy = true;
+    const wait = (operation) => hint ? waitForHint(operation, abort.signal) : operation;
+    let dispatched = false;
     let receipt;
     try {
       assertCurrent();
       let retained;
       const beforeDispatch = () => {
         assertCurrent();
-        candidateObservation = observePrincipalCandidate(pi, ctx, value.candidate);
+        candidateObservation = observe();
         evidence = verifyEvidence(value.evidenceRefs, ctx.cwd);
-        const currentKey = sha2562(JSON.stringify({ route: bound.selection?.route ?? null, inputSha256: packet.inputSha256, evidenceRefs: evidenceReferences(evidence), candidate: candidateObservation?.candidate ?? null }));
+        const currentKey = sha2562(JSON.stringify({ hint, route: bound.selection?.route ?? null, inputSha256: packet.inputSha256, evidenceRefs: evidenceReferences(evidence), candidate: candidateObservation?.candidate ?? null }));
         if (currentKey !== cacheKey) throw new Error("Selected input changed during credential resolution");
-        const source = createHandoffSource({
-          packet,
-          sessionId: bound.sessionId,
-          toolCallId,
-          consent: bound.consent,
-          authorization: bound.authorization,
-          evidence,
-          candidateObservation,
-          ...bound.selection ? { route: bound.selection.route } : {}
-        });
-        retained = bound.consent.decision === "granted" ? retainHandoffSource(source, assertCurrent, bound.storageRoot, evidence) : void 0;
-        if (retained) bound.selections.set(source.sha256, { candidate: value.candidate, inputSha256: packet.inputSha256, retained, observation: candidateObservation });
-        receipt = {
-          kind: source.source.kind,
-          sha256: source.sha256,
-          sessionId: bound.sessionId,
-          toolCallId,
-          retained: !!retained,
-          candidateIdentity: source.source.candidateIdentity,
-          sourceBinding: source.source.sourceBinding,
-          ...retained ? { path: retained.path } : {}
-        };
+        if (!remainingCalls(bound.budget)) throw new Error("Session budget exhausted");
+        if (toolCallId !== void 0) {
+          const source = createHandoffSource({
+            packet,
+            sessionId: bound.sessionId,
+            toolCallId,
+            consent: bound.consent,
+            authorization: bound.authorization,
+            evidence,
+            candidateObservation,
+            ...bound.selection ? { route: bound.selection.route } : {}
+          });
+          retained = bound.consent.decision === "granted" ? retainHandoffSource(source, assertCurrent, bound.storageRoot, evidence) : void 0;
+          if (retained) bound.selections.set(source.sha256, { candidate: value.candidate, inputSha256: packet.inputSha256, retained, observation: candidateObservation });
+          receipt = {
+            kind: source.source.kind,
+            sha256: source.sha256,
+            sessionId: bound.sessionId,
+            toolCallId,
+            retained: !!retained,
+            candidateIdentity: source.source.candidateIdentity,
+            sourceBinding: source.source.sourceBinding,
+            ...retained ? { path: retained.path } : {}
+          };
+        }
         assertCurrent();
-        bound.used++;
+        debit(bound.budget);
+        dispatched = true;
       };
       let result;
       if (bound.selection) {
-        result = await classify2(bound.selection, packet, abort.signal, ctx, beforeDispatch);
+        result = await wait(classify2(bound.selection, packet, abort.signal, ctx, beforeDispatch));
       } else {
-        const apiKey = environmentKey() ?? await nativeKey(ctx);
+        const apiKey = environmentKey() ?? await wait(nativeKey(ctx));
         assertCurrent();
+        if (!apiKey && hint) return pauseHints();
         if (!apiKey) return unavailable(`An OpenRouter API key could not be resolved; no call was made. ${missingKeyRemedy}`);
         beforeDispatch();
-        result = await (options.provider ?? callProvider)(JEV_PROVIDER, JEV_MODEL, packet, { apiKey, signal: abort.signal });
+        result = await wait((options.provider ?? callProvider)(JEV_PROVIDER, JEV_MODEL, packet, { apiKey, signal: abort.signal }));
       }
       assertCurrent();
-      if (result.status !== "answered") bound.blocked = "provider-error";
+      if (result.status !== "answered") {
+        if (hint) return pauseHints();
+        bound.blocked = "provider-error";
+      }
       const advice = {
         advisory: true,
         status: result.status === "answered" ? "answered" : "unavailable",
@@ -23283,7 +23379,7 @@ function createJevController(pi, options = {}) {
         usage: result.usage,
         latencyMs: result.latencyMs,
         ...result.status === "answered" ? {} : { reason: "Provider unavailable; further workflow calls require explicit new activation." },
-        remaining: JEV_WORKFLOW_LIMIT - bound.used,
+        remaining: remainingCalls(bound.budget),
         inputSha256: packet.inputSha256,
         source: receipt
       };
@@ -23297,6 +23393,9 @@ function createJevController(pi, options = {}) {
       bound.cache.set(cacheKey, Object.freeze(advice));
       return advice;
     } catch {
+      if (hintSignal2?.aborted) return unavailable(hintSignal2.reason === JEV_HINT_FAILURE ? "Prompt hints paused after an unavailable assessment." : "Prompt hints were disabled.");
+      if (!dispatched && !remainingCalls(bound.budget)) return unavailable("This session's advisory call limit is reached.");
+      if (hint) return pauseHints();
       bound.blocked = "execution-error";
       return {
         advisory: true,
@@ -23305,7 +23404,7 @@ function createJevController(pi, options = {}) {
         ...unmeasuredProvider(bound.selection),
         ...interpretJevAdvice("unavailable", null),
         reason: "Advice unavailable or cancelled; no approval is implied. Explicit new activation is required for further workflow calls.",
-        remaining: JEV_WORKFLOW_LIMIT - bound.used,
+        remaining: remainingCalls(bound.budget),
         inputSha256: packet.inputSha256,
         ...receipt ? { source: receipt } : {}
       };
@@ -23351,7 +23450,7 @@ function createJevController(pi, options = {}) {
     };
   };
   const command = async (args, ctx) => {
-    const action = args.trim() || "status";
+    let action = args.trim() || "status";
     const sessionId = currentId(ctx);
     if (!sessionId) throw Error("JEV requires the current Pi session identity");
     requireIdentity(sessionId, "Pi sessionId");
@@ -23368,10 +23467,77 @@ function createJevController(pi, options = {}) {
       );
       return;
     }
+    const owner = sessionBudget(sessionId, ctx);
+    if (/^limit(?:\s|$)/.test(action)) {
+      if (!ctx.hasUI) throw new Error("Editing the JEV limit requires the parent Pi UI");
+      const edit = ++epoch;
+      const bound2 = active;
+      const current2 = () => edit === epoch && ctx.sessionManager?.getSessionId() === sessionId && active === bound2;
+      let input = action.slice(5).trim();
+      if (!input) {
+        if (!ctx.ui.input) throw new Error("Interactive JEV limit editing is unavailable");
+        const answer = await ctx.ui.input("Total paid JEV calls for this session (0 pauses new calls)", String(owner.limit));
+        if (answer == null || !current2()) return;
+        input = answer.trim();
+      }
+      const limit = Number(input);
+      if (!/^\d+$/.test(input) || !validCount(limit)) {
+        const message = "Enter a whole number from 0 to " + Number.MAX_SAFE_INTEGER;
+        if (action === "limit") {
+          ctx.ui.notify(message, "error");
+          return;
+        }
+        throw new Error(message);
+      }
+      if (limit === owner.limit) return;
+      if (bound2?.mode === "workflow" && limit > owner.limit) {
+        const route = bound2.selection?.route;
+        if (!ctx.ui.confirm) throw new Error("Raising the paid JEV limit requires interactive confirmation");
+        const yes = await ctx.ui.confirm(
+          "Increase the paid JEV budget for THIS session?",
+          `Change the session total from ${owner.limit} to ${limit} for ${route?.provider ?? "openrouter"} / ${route?.model ?? JEV_MODEL}. ${owner.used} calls already dispatched; up to ${Math.max(0, limit - owner.used)} remain. Manual runs, workflow advice and opted-in prompt hints share this limit.`
+        );
+        if (yes !== true || !current2()) return;
+      }
+      updateBudget(owner, { limit, used: owner.used });
+      if (bound2?.mode === "workflow") bound2.authorization = paidScope(sessionId, bound2.selection, limit);
+      ctx.ui.notify(`JEV session budget: ${owner.used} used of ${limit} total for this session.`);
+      return;
+    }
+    if (action === "hints") {
+      const bound2 = active;
+      if (!bound2 || bound2.mode !== "workflow") throw new Error("Enable workflow advice before enabling prompt hints.");
+      const edit = ++epoch;
+      if (bound2.hintConsent) {
+        bound2.hintConsent.abort();
+        bound2.hintConsent = void 0;
+        ctx.ui.notify("JEV prompt hints disabled.");
+        return;
+      }
+      if (!ctx.hasUI || !ctx.ui.confirm) throw new Error("Prompt hints require native session consent");
+      const yes = await ctx.ui.confirm(
+        "Enable optional JEV tool hints for THIS Pi session?",
+        `For an eligible operator prompt, allow up to one metered assessment of a locally selected tool using ${bound2.selection?.route.provider ?? "openrouter"} / ${bound2.selection?.route.model ?? JEV_MODEL}. It shares the session budget (${owner.used} used of ${owner.limit}). Only a fixed-vocabulary intent and supported active tool name or function are sent. Raw prompts, arguments and transcripts stay out of the request. Prompt hints are advisory and create no retained tool-selection records.`
+      );
+      if (yes === true && edit === epoch && active === bound2 && ctx.sessionManager?.getSessionId() === sessionId) {
+        bound2.hintConsent = new AbortController();
+        ctx.ui.notify("JEV prompt hints enabled for this workflow activation.");
+      }
+      return;
+    }
     if (!ctx.hasUI || !ctx.ui.select)
       throw Error(
         "Interactive JEV activation requires a per-session storage answer. Use the explicit CLI storage option in noninteractive mode."
       );
+    if (action === "configure") {
+      const change = ++epoch;
+      const modes = ["Workflow advice \u2014 authorize a metered session budget", "Manual only \u2014 confirm each selected run"];
+      const mode = await ctx.ui.select("Choose a new JEV mode for THIS Pi session. Selecting a mode revokes the current activation and prompts for fresh consent. Escape keeps it.", modes);
+      if (change !== epoch || ctx.sessionManager?.getSessionId() !== sessionId) return;
+      if (mode === 0 || mode === modes[0]) action = "enable workflow";
+      else if (mode === 1 || mode === modes[1]) action = "enable";
+      else return;
+    }
     if (action === "enable" || action === "enable workflow") {
       clearSession();
       const activation = epoch;
@@ -23418,18 +23584,10 @@ function createJevController(pi, options = {}) {
         if (!ctx.ui.confirm) throw new Error("Workflow JEV activation requires interactive paid-scope confirmation");
         const confirmed = await ctx.ui.confirm(
           "Enable optional JEV handoff advice for THIS Pi session?",
-          `Allow up to ${JEV_WORKFLOW_LIMIT} automatic workflow paid calls to ${routeLabel}. The coordinator may send selected candidate, stage, proposed next action, engineering uncertainty, requirements and evidence (at most 16000 characters per packet) for a fixed question about whether that next action is justified. Mechanical checks stay local. The question does not certify final acceptance or require later review to be already complete. Advice never grants approval. This is separate from your Pi subscription; no retry or fallback. Manual jev run calls remain separately confirmed outside this workflow limit.`
+          `Allow a session total of ${owner.limit} paid workflow calls (${owner.used} used, up to ${remainingCalls(owner)} available) on the selected route: ${routeLabel}. The coordinator may send selected candidate, stage, proposed next action, engineering uncertainty, requirements and evidence (at most 16000 characters per packet) for a fixed question about whether that next action is justified. Mechanical checks stay local. The question does not certify final acceptance or require later review to be already complete. Advice never grants approval. This is separate from your Pi subscription; no retry or fallback. Manual runs also count toward this total and require separate confirmation.`
         );
         if (activation !== epoch || ctx.sessionManager?.getSessionId() !== sessionId || confirmed !== true) return;
-        authorization = {
-          kind: selection ? "jev-workflow-paid-scope-v2" : "jev-workflow-paid-scope",
-          interactionId: randomUUID6(),
-          sessionId,
-          recordedAt: (/* @__PURE__ */ new Date()).toISOString(),
-          ...selection ? { route: selection.route } : { provider: JEV_PROVIDER, model: JEV_MODEL },
-          question: JEV_QUESTION,
-          maximumCalls: JEV_WORKFLOW_LIMIT
-        };
+        authorization = paidScope(sessionId, selection, owner.limit);
       }
       const storageRoot = resolveDataRoot({ env: options.env ?? process.env, override: options.storageHome });
       const choices = [
@@ -23459,7 +23617,7 @@ function createJevController(pi, options = {}) {
         authorization,
         mode: workflow ? "workflow" : "manual",
         abort: new AbortController(),
-        used: 0,
+        budget: owner,
         busy: false,
         blocked: null,
         cache: /* @__PURE__ */ new Map(),
@@ -23467,12 +23625,12 @@ function createJevController(pi, options = {}) {
         linked: /* @__PURE__ */ new Map()
       };
       ctx.ui.notify(
-        (workflow ? `JEV workflow calls authorized for this session (up to ${JEV_WORKFLOW_LIMIT} paid calls). LoRA storage ` : "JEV manual mode activated; each selected paid call still requires confirmation. LoRA storage ") + consent.decision + ` for this session only. ${consent.decision === "granted" ? `Data root: ${storageRoot}. ` : ""}Selected: ${selection ? `${selection.route.provider} / ${selection.route.model}` : `openrouter / ${JEV_MODEL} (legacy)`}. ` + (readiness(ctx) === "key-present" ? "Provider readiness: OPENROUTER_API_KEY is present; credentials and provider access have not been verified. No provider call was made." : readiness(ctx) === "pi-configured" ? `Provider readiness: ${selection?.route.provider ?? "OpenRouter"} is configured in Pi; credentials have not been resolved and provider access has not been verified. No provider call was made.` : selection ? "Provider credentials are not configured in Pi; no provider call was made. Configure the selected provider, then enable again with fresh session consent." : `Provider unavailable: OPENROUTER_API_KEY is missing or blank in this Pi process and Pi has no configured OpenRouter credential. No provider call was made. ${missingKeyRemedy}`)
+        (workflow ? `JEV workflow calls authorized for this session (${owner.used} used of ${owner.limit} total paid calls). LoRA storage ` : "JEV manual mode activated; each selected paid call still requires confirmation. LoRA storage ") + consent.decision + ` for this session only. ${consent.decision === "granted" ? `Data root: ${storageRoot}. ` : ""}Selected: ${selection ? `${selection.route.provider} / ${selection.route.model}` : `openrouter / ${JEV_MODEL} (legacy)`}. ` + (readiness(ctx) === "key-present" ? "Provider readiness: OPENROUTER_API_KEY is present; credentials and provider access have not been verified. No provider call was made." : readiness(ctx) === "pi-configured" ? `Provider readiness: ${selection?.route.provider ?? "OpenRouter"} is configured in Pi; credentials have not been resolved and provider access has not been verified. No provider call was made.` : selection ? "Provider credentials are not configured in Pi; no provider call was made. Configure the selected provider, then enable again with fresh session consent." : `Provider unavailable: OPENROUTER_API_KEY is missing or blank in this Pi process and Pi has no configured OpenRouter credential. No provider call was made. ${missingKeyRemedy}`)
       );
       return;
     }
     if (action !== "run")
-      throw Error("usage: /skill-harness jev enable [workflow] | status | disable | run");
+      throw Error("usage: /skill-harness jev enable [workflow] | configure | limit [N] | hints | status | disable | run");
     if (!active)
       throw Error(
         "Enable JEV in this session first: /skill-harness jev enable"
@@ -23504,11 +23662,17 @@ function createJevController(pi, options = {}) {
       preview = text6;
     } });
     const summary = JSON.parse(preview);
+    assertCurrent();
+    const checkBatch = () => {
+      if (!validCount(summary.count) || summary.count > remainingCalls(owner))
+        throw new Error(`This batch needs ${summary.count} JEV calls; ${remainingCalls(owner)} remain in the session budget.`);
+    };
+    checkBatch();
     if (ctx.ui.editor) await ctx.ui.editor(bound.selection ? "JEV classifier inputs (Pi prepares provider requests; edits are not submitted)" : "Exact outbound JEV requests (review only; edits here are not submitted)", preview);
     else ctx.ui.notify(preview);
     if (!await ctx.ui.confirm(
       "Confirm selected JEV API calls",
-      `Send these ${summary.count} questions to ${bound.selection?.route.provider ?? "openrouter"} / ${bound.selection?.route.model ?? JEV_MODEL}? This may use a metered API.`
+      `Send these ${summary.count} questions to ${bound.selection?.route.provider ?? "openrouter"} / ${bound.selection?.route.model ?? JEV_MODEL}? This may use a metered API and counts toward the session budget (${remainingCalls(owner)} remaining).`
     )) return;
     let current = "";
     await run(["preview", ...flags], { ...nativeOptions, emit: (text6) => {
@@ -23516,16 +23680,21 @@ function createJevController(pi, options = {}) {
     } });
     if (current !== preview) throw Error("Cases changed after preview; select and review them again");
     assertCurrent();
+    checkBatch();
     if (bound.busy) throw new Error("A JEV request is already in flight");
     bound.busy = true;
     try {
+      const beforeDispatch = () => {
+        assertCurrent();
+        debit(owner);
+      };
       let providerOptions;
       if (bound.selection) {
         const selection = bound.selection;
         providerOptions = {
           nativeRoute: selection.route,
           nativeProviderCall: async (example) => {
-            const result = await classify2(selection, example, bound.abort.signal, ctx, assertCurrent);
+            const result = await classify2(selection, example, bound.abort.signal, ctx, beforeDispatch);
             assertCurrent();
             return result;
           }
@@ -23534,7 +23703,15 @@ function createJevController(pi, options = {}) {
         const apiKey = environmentKey() ?? await nativeKey(ctx);
         assertCurrent();
         if (!apiKey) throw new Error(`An OpenRouter API key could not be resolved; no call was made. ${missingKeyRemedy}`);
-        providerOptions = { env: { OPENROUTER_API_KEY: apiKey } };
+        providerOptions = {
+          env: { OPENROUTER_API_KEY: apiKey },
+          providerCall: async (provider, model, example) => {
+            beforeDispatch();
+            const result = await (options.provider ?? callProvider)(provider, model, example, { apiKey, signal: bound.abort.signal });
+            assertCurrent();
+            return result;
+          }
+        };
       }
       await run(["run", ...flags, "--out", out, "--allow-remote"], {
         ...providerOptions,
@@ -23548,7 +23725,16 @@ function createJevController(pi, options = {}) {
       bound.busy = false;
     }
   };
-  return { command, status, evaluate, linkOutcome };
+  const evaluate = (value, toolCallId, signal, ctx) => {
+    requireIdentity(toolCallId, "Pi toolCallId");
+    return evaluateSelected(value, toolCallId, signal, ctx);
+  };
+  const evaluateHint = (value, signal, ctx) => evaluateSelected(value, void 0, signal ? AbortSignal.any([signal, AbortSignal.timeout(JEV_HINT_TIMEOUT_MS)]) : AbortSignal.timeout(JEV_HINT_TIMEOUT_MS), ctx);
+  const hintSignal = (ctx) => {
+    currentId(ctx);
+    return active?.hintConsent?.signal;
+  };
+  return { command, status, evaluate, evaluateHint, hintSignal, linkOutcome };
 }
 
 // packages/pi-extension/src/jev-advice.ts
@@ -23577,6 +23763,10 @@ var adviceOutput = Type4.Union([
     enabled: Type4.Boolean(),
     mode: Type4.Union([Type4.Literal("disabled"), Type4.Literal("manual"), Type4.Literal("workflow")]),
     storage: Type4.Union([Type4.Literal("granted"), Type4.Literal("declined"), Type4.Null()]),
+    limit: Type4.Integer({ minimum: 0 }),
+    used: Type4.Integer({ minimum: 0 }),
+    hintsEnabled: Type4.Boolean(),
+    controls: Type4.Array(Type4.String()),
     remaining: Type4.Integer({ minimum: 0 }),
     availability: Type4.String(),
     storageRoot: nullableString,
@@ -23709,7 +23899,7 @@ function registerJevControl(pi, controller) {
       reply();
       return;
     }
-    if (request.action !== "enable" && request.action !== "disable") {
+    if (!["enable", "disable", "limit", "configure", "hints"].includes(request.action)) {
       reply("invalid-action");
       return;
     }
@@ -23717,22 +23907,24 @@ function registerJevControl(pi, controller) {
       reply(handled.get(request.requestId) === request.action ? void 0 : "request-id-reused");
       return;
     }
-    if (request.action === "enable" && pending) {
+    const interactive = request.action !== "disable";
+    if (interactive && pending) {
       reply("consent-pending");
       return;
     }
-    if (request.action === "enable" && (!owner.ctx.hasUI || !owner.ctx.ui.confirm || !owner.ctx.ui.select)) {
+    if (interactive && (!owner.ctx.hasUI || !owner.ctx.ui.confirm || (request.action === "limit" ? !owner.ctx.ui.input : !owner.ctx.ui.select))) {
       reply("native-consent-unavailable");
       return;
     }
     handled.set(request.requestId, request.action);
     if (handled.size > 32) handled.delete(handled.keys().next().value);
     const token = { requestId: request.requestId, sessionId: owner.sessionId };
-    if (request.action === "enable") pending = token;
-    const operation = controller.command(request.action === "enable" ? "enable workflow" : "disable", owner.ctx);
+    pending = interactive ? token : void 0;
+    const operation = controller.command(request.action === "enable" ? "enable workflow" : request.action, owner.ctx);
     reply();
     void operation.then(() => finish2(), () => finish2("control-failed"));
     function finish2(error) {
+      if (interactive && pending !== token) return;
       if (pending === token) pending = void 0;
       if (!owner || bound !== owner || owner.ctx.sessionManager?.getSessionId() !== owner.sessionId) return;
       try {
@@ -23754,13 +23946,202 @@ function registerJevControl(pi, controller) {
   });
 }
 
+// packages/pi-extension/src/jev-prompt-hints.ts
+import { createHash as createHash32 } from "node:crypto";
+var MAX_PROMPT_LENGTH = 1200;
+var candidates = [
+  {
+    tool: "scout_research",
+    request: /^(?:research|compare|investigate|look up|find|check)\b.*\b(?:public|online|published|official|latest|current|documentation)\b/i,
+    intent: "research public information",
+    capability: "research a public question and return a sourced brief",
+    stage: "design"
+  },
+  {
+    tool: "research_sources",
+    request: /^(?:list|show|check|find)\b.*\b(?:approved|configured|available) (?:research )?sources\b/i,
+    intent: "list approved research sources",
+    capability: "list operator-approved research sources",
+    stage: "design"
+  },
+  {
+    tool: "bookie_search",
+    request: /^(?:find|search|look up|locate)\b.*\b(?:bookie|saved (?:notes?|records?|decisions?)|work history)\b/i,
+    intent: "search saved work records",
+    capability: "search permitted Bookie records",
+    stage: "design"
+  },
+  {
+    tool: "bookie_work",
+    request: /^(?:show|read|inspect|check|review)\b.*\bwork[ -]map\b/i,
+    intent: "inspect a work map",
+    capability: "read the selected work map and its dependencies",
+    stage: "design"
+  },
+  {
+    tool: "principal_handoff",
+    request: /^(?:prepare|assemble|create)\b.*\bhandoff\b/i,
+    intent: "prepare a task or review handoff",
+    capability: "assemble a compact handoff from exact references",
+    stage: "design"
+  },
+  {
+    tool: "skill_author",
+    request: /^(?:create|author|draft|build|design)\b.*\bskill\b/i,
+    intent: "author a skill",
+    capability: "prepare a skill and its evaluations for review",
+    stage: "design"
+  },
+  {
+    tool: "skill_check_run",
+    request: /^(?:test|evaluate|run|check)\b.*\bskill(?:'s|s)?\b/i,
+    intent: "evaluate a skill",
+    capability: "run a skill's evaluation scenarios and return its scorecard",
+    stage: "verification"
+  },
+  {
+    tool: "grep",
+    request: /^(?:search|find|locate)\b.*\b(?:occurrences?|matches|references|usages|where .+ is used)\b/i,
+    intent: "find matching text in a workspace",
+    capability: "search file contents for a pattern",
+    stage: "design"
+  },
+  {
+    tool: "find",
+    request: /^(?:find|locate|list)\b.*\bfiles?\b/i,
+    intent: "locate workspace files",
+    capability: "find files by name or pattern",
+    stage: "design"
+  },
+  {
+    tool: "read",
+    request: /^(?:open|read|inspect|summarize|show)\b.*(?:\b(?:file|readme|changelog)\b|\.[a-z0-9]{1,6}\b)/i,
+    intent: "inspect a local file",
+    capability: "read a selected file",
+    stage: "design"
+  },
+  {
+    tool: "edit",
+    request: /^(?:edit|update|change|fix|replace|rename)\b.*\b(?:file|function|method|variable|readme|changelog)\b/i,
+    intent: "make a targeted source edit",
+    capability: "apply a selected change to an existing file",
+    stage: "implementation"
+  }
+];
+function candidateFor(text6, active, previous) {
+  if (!text6 || text6.length > MAX_PROMPT_LENGTH || /[\x00-\x1f\x7f"“”<>\x60]|^\s*[!/#>@]|https?:\/\/|\b(?:not|never|without|avoid|instead|except|no|don't|don’t|unless|only if)\b/i.test(text6)) return;
+  const direct = text6.trim().replace(/^(?:(?:can|could|would) you (?:please )?|please |I'd like you to |I want you to )/i, "");
+  if (/\b(?:that|those|it|them)\b/i.test(direct)) {
+    if (!previous) return;
+    let tool;
+    if (/^(?:check|find|look up) (?:the )?(?:official )?(?:docs|documentation) for (?:that|it)[.!?]?$/i.test(direct) && ["skill_author", "skill_check_run", "edit", "scout_research"].includes(previous.tool)) tool = "scout_research";
+    if (/^(?:open|read|inspect) that file[.!?]?$/i.test(direct) && previous.tool === "find") tool = "read";
+    const fit = candidates.find((row) => row.tool === tool && active.includes(row.tool));
+    if (fit) return { fit, previousIntent: previous.intent, cues: [] };
+    return;
+  }
+  const matches = candidates.filter((row) => row.request.test(direct));
+  if (matches.length !== 1 || !active.includes(matches[0].tool)) return;
+  const cues = [
+    [/\b(?:current|latest)\b/i, "current information requested"],
+    [/\b(?:official|published)\b/i, "published source requested"],
+    [/\bcompar(?:e|ison)\b/i, "comparison requested"],
+    [/\bread[ -]only\b/i, "read-only inspection requested"]
+  ];
+  return { fit: matches[0], cues: cues.filter(([pattern]) => pattern.test(direct)).map(([, label]) => label) };
+}
+function packetFor(selection) {
+  const row = selection.fit;
+  return {
+    candidate: row.tool,
+    stage: row.stage,
+    requirements: [
+      "Operator request category: " + row.intent + ".",
+      selection.previousIntent && "The request refers to the immediately preceding task category: " + selection.previousIntent + ".",
+      ...selection.cues
+    ].filter(Boolean).join(" "),
+    evidence: "Pi currently exposes " + row.tool + " to the acting agent. Its supported capability is to " + row.capability + ".",
+    nextAction: "Consider " + row.tool + " to " + row.capability + ".",
+    uncertainty: "Given only this request category and capability, would this tool help with the requested task? Its availability alone does not establish task fit or permission."
+  };
+}
+function promptDigest(text6) {
+  return createHash32("sha256").update(text6).digest("hex");
+}
+function matchesDeliveredPrompt(messages, pending) {
+  for (let i = messages.length - 1; i >= Math.max(0, messages.length - 8); i--) {
+    const message = messages[i];
+    if (message?.role === "custom") continue;
+    if (message?.role !== "user" || typeof message.timestamp !== "number" || message.timestamp < pending.receivedAt) return false;
+    const blocks = message.content;
+    const text6 = typeof blocks === "string" ? blocks : Array.isArray(blocks) && blocks.length === 1 && blocks[0]?.type === "text" ? blocks[0].text : void 0;
+    return typeof text6 === "string" && text6.length <= MAX_PROMPT_LENGTH && promptDigest(text6) === pending.digest;
+  }
+  return false;
+}
+function scoreLabel(probability2) {
+  const percent = Math.floor(probability2 * 1e3) / 10;
+  if (probability2 > 0.9 && percent === 90) return ">90%";
+  return String(percent) + "%";
+}
+function registerJevPromptHints(pi, controller) {
+  let pending;
+  let previous;
+  const reset = () => {
+    pending = void 0;
+    previous = void 0;
+  };
+  pi.on("session_start", reset);
+  pi.on("session_switch", reset);
+  pi.on("session_shutdown", reset);
+  pi.on("session_tree", reset);
+  pi.on("session_fork", reset);
+  pi.on("input", (event, ctx) => {
+    const preceding = previous;
+    reset();
+    if (event.source !== "interactive" || !ctx.hasUI || event.images?.length || typeof event.text !== "string") return;
+    const consent = controller.hintSignal(ctx);
+    if (!consent || consent.aborted) return;
+    const selection = candidateFor(event.text, pi.getActiveTools?.() ?? [], preceding?.consent === consent ? preceding.fit : void 0);
+    if (selection) pending = { digest: promptDigest(event.text), ...selection, consent, receivedAt: Date.now() };
+  });
+  pi.on("context", async (event, ctx) => {
+    const current = pending;
+    if (!current || !matchesDeliveredPrompt(event.messages, current)) return;
+    reset();
+    const stillEnabled = () => !current.consent.aborted && controller.hintSignal(ctx) === current.consent && !ctx.signal?.aborted;
+    const toolActive = () => pi.getActiveTools?.().includes(current.fit.tool) === true;
+    if (!stillEnabled() || !toolActive()) return;
+    previous = { fit: current.fit, consent: current.consent };
+    const owner = ctx.sessionManager?.getSessionId();
+    const answer = await controller.evaluateHint(packetFor(current), ctx.signal, ctx);
+    if (current.consent.reason === JEV_HINT_FAILURE && owner === ctx.sessionManager?.getSessionId() && !ctx.signal?.aborted && !controller.hintSignal(ctx)) {
+      ctx.ui.notify("JEV tool hint unavailable. Prompt hints are paused. Continuing with the normal tool choice.", "info");
+      return;
+    }
+    if (!stillEnabled() || !toolActive()) return;
+    const recommendation = interpretJevAdvice(answer?.status ?? "unavailable", answer?.probability ?? null).recommendation;
+    if (!answer || recommendation !== "yes") return;
+    const score2 = scoreLabel(answer.probability);
+    const content = "Optional JEV tool hint: " + current.fit.tool + " can " + current.fit.capability + " (" + score2 + " estimated fit" + (answer.reused ? ", reused assessment" : "") + "). Use your own judgment and the existing tool permissions.";
+    ctx.ui.notify(content, "info");
+    return { messages: [...event.messages, {
+      role: "custom",
+      customType: "skill-harness-jev-hint",
+      content,
+      display: false,
+      timestamp: Date.now()
+    }] };
+  });
+}
+
 // packages/pi-extension/src/improvement.ts
 init_dist();
-import { createHash as createHash32, randomUUID as randomUUID7 } from "node:crypto";
+import { createHash as createHash33, randomUUID as randomUUID7 } from "node:crypto";
 import { realpathSync as realpathSync11 } from "node:fs";
 import { resolve as resolve30 } from "node:path";
 import { Type as Type5 } from "typebox";
-var sha7 = (text6) => createHash32("sha256").update(text6).digest("hex");
+var sha7 = (text6) => createHash33("sha256").update(text6).digest("hex");
 var reference2 = Type5.Union([
   Type5.Object(
     {
@@ -23901,6 +24282,7 @@ function index_default(pi) {
   registerImprovement(pi);
   registerJevAdvice(pi, jev);
   registerJevControl(pi, jev);
+  registerJevPromptHints(pi, jev);
   registerTool(pi, dashboard);
   pi.on("session_shutdown", async () => {
     removeVersionReporter?.();

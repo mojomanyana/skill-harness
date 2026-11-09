@@ -42,11 +42,37 @@ Collected data remains unlabeled. Explicit curation/redaction/rights checks, ind
 ## Optional workflow handoff advice
 
 Run `/skill-harness jev enable workflow` once in the coordinating Pi session.
-It asks you to choose the provider/model, then asks permission for up to **three automatic workflow metered JEV calls** on that route and a fresh storage question.
+It asks you to choose the provider/model, then shows the selected session budget (default **300 metered calls**), requests permission for workflow calls on that route, and asks a fresh storage question.
 A ChatGPT/Pi subscription does not cover these calls. Cancelling paid permission
 leaves workflow advice disabled. Cancelling storage means No. Existing manual
-activation and saved consent receipts cannot authorize workflow calls; the legacy
-`enable` and `run` commands keep their per-run confirmation behavior outside the workflow-call limit.
+activation and saved consent receipts cannot authorize workflow calls; manual
+`run` asks for per-batch confirmation and uses the same budget.
+
+Use `/skill-harness jev limit` to edit the total in Pi, or supply the exact
+number with `/skill-harness jev limit N`. Any nonnegative safe integer is valid.
+Zero pauses new paid calls. Lowering the total below spending leaves zero available.
+Increasing it during workflow activation asks for fresh paid-scope confirmation.
+Editing the limit while disabled grants no permission. Numeric accounting survives
+disable, re-enable, mode changes, and reload/resume of the same saved Pi session.
+A different session starts with its own budget. Status, cached advice and
+cancelled previews consume no calls. A dispatched request counts even on failure.
+
+Use `/skill-harness jev configure` to select manual or workflow mode, provider,
+model and storage again. Cancelling the first mode picker keeps the previous settings.
+Once you select a mode, the old activation and hint consent are revoked. Cancelling
+the subsequent activation leaves JEV disabled.
+
+In workflow mode, use **Settings → Tool hints** in Pi Daddy or
+`/skill-harness jev hints` in Pi to opt in for this activation. For a supported
+short operator request, Harness locally selects at most one currently available
+tool. It sends the classifier fixed intent and capability descriptions. It does
+not send the operator's raw prompt or conversation history. If the estimated
+fit is strictly greater than 90%, the operator and the acting agent see the same
+short suggestion. For example, a public documentation question may suggest Scout
+when its research tool is available. A hint does not run Scout, grant access,
+or claim it is the best of every tool. Unknown fits, unsupported prompts and
+timeouts leave the ordinary Pi turn alone. Hints and manual/workflow advice share
+the same calls; turning hints off does not switch off ordinary workflow advice.
 
 The registered model tool has three closed forms. Optional `evidenceRefs` on evaluate and required refs on link-outcome use explicit local `{path,sha256}` pairs:
 
@@ -57,7 +83,7 @@ The registered model tool has three closed forms. Optional `evidenceRefs` on eva
 ```
 
 Invoke these through `jev_advice`, not a shell command. Status is free and reports
-`enabled`, `mode`, `storage`, `storageRoot`, `selectedProvider`, `selectedModel`, `transport`, `remaining`, `availability` and `providerReadiness`
+`enabled`, `mode`, `storage`, `storageRoot`, `selectedProvider`, `selectedModel`, `transport`, `limit`, `used`, `remaining`, `hintsEnabled`, `controls`, `availability` and `providerReadiness`
 (`key-present`, `pi-configured`, or `missing-key`). `enabled` means session activation exists; it does
 not establish provider readiness. `manual-only` describes tool authorization, while
 `providerReadiness` exposes key availability in either mode. `ready` means workflow
@@ -162,8 +188,7 @@ Status is free; consult it when activation is unknown. When advice is off, unava
 or exhausted, continue the ordinary authorized workflow without enabling it,
 retrying it or asking the user merely to obtain a score. Exact repeat packets reuse
 the existing activation cache; changed facts need a newly selected packet and count
-against the same limit. The three-call limit and fixed classifier question do not
-change. Existing source/consent records are preserved as originally recorded.
+against the same session budget. The classifier question is fixed. Existing source/consent records are preserved as originally recorded.
 
 Do not attach raw Bookie records, private repository contents or whole handoffs to
 remote advice automatically. Permission to save or retrieve project memory is not
@@ -175,7 +200,7 @@ the earlier probability into a training label or approval.
 
 ## Optional pi-daddy dashboard controls
 
-The dashboard can read JEV readiness or request enable/disable through the optional same-process `skill-harness:jev-control-v1` bridge. Requests bind version, nonce and actual parent session ID; duplicate clicks do not duplicate consent dialogs. Enabling invokes the **parent Pi** provider/model picker, paid-scope confirmation and LoRA storage choice. Current pi-daddy Settings shows the selected model, transport and local data root; it clears the temporary consent notice after the dialogs settle. The dashboard shows pending consent until those dialogs settle. Auto permissions never answer either question, and the bridge accepts no credential/consent override. Disabling revokes pending activation/provider work; an old unanswered dialog cannot restore it. Reload/session changes clear activation and bind controls to the current parent context. Status remains free and distinguishes authorization, missing key and remaining calls.
+The dashboard can read JEV readiness or request enable, disable, limit, configure or prompt hints through the optional same-process `skill-harness:jev-control-v1` bridge. Requests bind version, nonce and actual parent session ID; duplicate clicks do not duplicate consent dialogs. Enabling invokes the **parent Pi** provider/model picker, paid-scope confirmation and LoRA storage choice. When supported, pi-daddy Settings shows the selected model, transport and local data root; it clears the temporary consent notice after the dialogs settle. The dashboard shows pending consent until those dialogs settle. Auto permissions never answer either question, and the bridge accepts no credential/consent override. Disabling revokes pending activation/provider work; an old unanswered dialog cannot restore it. Reload/session changes clear activation and bind controls to the current parent context. Status remains free and distinguishes authorization, missing key and remaining calls.
 
 ## Tool-only Codemode composition
 

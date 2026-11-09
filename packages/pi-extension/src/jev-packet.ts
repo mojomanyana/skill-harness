@@ -9,8 +9,9 @@ import { evidenceReferences, sha256, type EvidenceRef, type VerifiedEvidence } f
 
 export const JEV_PROVIDER = "jev";
 export const JEV_MODEL = "typesafe/jev-1.13";
-export const JEV_WORKFLOW_LIMIT = 3;
+export const DEFAULT_WORKFLOW_LIMIT = 300;
 export const JEV_QUESTION = "Given the stated stage, unresolved engineering uncertainty, requirements and selected evidence, is the proposed next action justified? Assess that action only, not final acceptance or whether mandatory later review is complete.";
+export const JEV_HINT_QUESTION = "Given the stated intent and available tool function, is the proposed tool suitable for helping with this request? Assess relevance only. The answer does not authorize an invocation.";
 export const JEV_SOURCE_KIND = "skill-harness-selected-decision-v2";
 export const JEV_NATIVE_SOURCE_KIND = "skill-harness-selected-decision-v3";
 export interface NativeJevRoute { transport: "pi-classifier"; provider: string; model: string; api: string; modelSha256: string }
@@ -31,7 +32,7 @@ export function requireIdentity(value: unknown, name: string): asserts value is 
 }
 
 /** Construct the exact outbound input, with stable field order and no caller-selected question. */
-export function prepareHandoff(value: HandoffPacket) {
+export function prepareHandoff(value: HandoffPacket, purpose: "handoff" | "tool-hint" = "handoff") {
   for (const field of ["candidate", "requirements", "evidence", "stage", "nextAction", "uncertainty"] as const) {
     if (typeof value[field] !== "string" || !value[field].trim() || value[field].length > 32000)
       throw new Error(`${field} must be a nonempty bounded string`);
@@ -46,7 +47,7 @@ export function prepareHandoff(value: HandoffPacket) {
   });
   if (Array.from(input).length > 16000)
     throw new Error("The complete selected handoff packet must not exceed 16000 characters");
-  return Object.freeze({ input, question: JEV_QUESTION, inputSha256: sha256(input) });
+  return Object.freeze({ input, question: purpose === "tool-hint" ? JEV_HINT_QUESTION : JEV_QUESTION, inputSha256: sha256(input) });
 }
 
 export function createHandoffSource(options: {
