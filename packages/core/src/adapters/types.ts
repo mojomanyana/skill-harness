@@ -35,7 +35,7 @@ export function modelProfileLabel(model: ModelRef): string {
 
 export interface ModelCallObservation {
   requested: ModelRef;
-  /** Distinct assistant-message identities, never copied from the request. */
+  /** Distinct assistant-message identities, including reported responseModel differences and unknowns; never copied from the request. */
   observedModels: { provider: string | null; model: string | null }[];
   /** Pi JSON assistant metadata does not report the effective effort. */
   effectiveThinking: null;

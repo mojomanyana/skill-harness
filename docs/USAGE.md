@@ -14,6 +14,26 @@ reuse previews, retained token coverage and optional Daddy display. See
 
 > Agents: see [`AGENTS.md`](https://github.com/mojomanyana/skill-harness/blob/main/AGENTS.md) for repository guidance. Pi users: install `npm:skill-harness` and drive it conversationally via [`SKILL.md`](../SKILL.md).
 
+## Reading usage and cost
+
+Subject tokens, subject cost and judge-call counts describe different things.
+The cost label says which evidence is available:
+
+- **Provider-reported:** Pi explicitly marked every captured assistant completion's total as reported by the provider. A reported zero is retained. A bare Pi `cost.total` is insufficient because Pi also uses it for catalogue estimates.
+- **Price-table estimate:** Harness used its dated repository table and complete priced counters. New traces must have one consistent observed model/provider and reported zero cache-write usage, since the table has no cache-write rate. A differing `responseModel`, missing identity or missing usage prevents that estimate. This is not an invoice.
+- **Subscription usage:** an explicit subscription classification is preserved; it does not establish a zero marginal bill. Harness does not infer subscription billing merely from a provider name.
+- **Unavailable:** cost coverage is missing, mixed or incomplete. Known token counters and individual records remain available; Harness does not present a partial dollar sum as the whole run's cost.
+
+Judge billing and optional JEV costs are not included in subject totals. Older
+saved results are not rewritten; a historical aggregate without coverage evidence
+cannot be retroactively verified by its total alone. Legacy traces without model
+observations retain requested-model table estimates when their priced counters
+are present. Table estimates are historical rates, not current price quotations.
+
+Stopping an evaluation shows **Harness evaluation cancelled** in the optional
+dashboard, with an incomplete outcome. It remains a settled historical event, not
+a request for your approval. Process and resource-limit errors still show failure.
+
 ## 0. Requirements
 
 - **Node ≥ 20.**
