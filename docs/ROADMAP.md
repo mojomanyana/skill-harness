@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-11-09 (0.34.2 JEV advice patch; 0.34.1 previously published)
+Last updated: 2026-11-10 (0.35.2 release candidate: Pi 1.5.2 qualification and packaged changelog)
 
 `skill-harness` develops, evaluates and improves skills through Pi and a selected
 model. It starts from a user's idea or imports a selected skill. Generated skills

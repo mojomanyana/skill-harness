@@ -81,6 +81,7 @@ function cloneRepo(label: string): string {
       if (/^packages\/cli\/assets(?:\/|$)/.test(rel)) return false;
       if (/^packages\/(cli|skill-harness)\/docs(?:\/|$)/.test(rel)) return false;
       if (/^packages\/(core|adapters|cli|skill-harness)\/LICENSE$/.test(rel)) return false;
+      if (rel === "packages/skill-harness/CHANGELOG.md") return false;
       return true;
     },
   });
@@ -186,6 +187,9 @@ describe.skipIf(!pinnedToolchain)("authoritative release packaging", () => {
       const archivedDoc = tarEntry(join(root, "release-artifacts", meta.filename), `package/docs/${file}`);
       expect(archivedDoc.content).toEqual(readFileSync(join(root, "docs", file)));
     }
+    expect(meta.files.some((file) => file.path === "CHANGELOG.md")).toBe(true);
+    expect(tarEntry(join(root, "release-artifacts", meta.filename), "package/CHANGELOG.md").content)
+      .toEqual(readFileSync(join(root, "CHANGELOG.md")));
     const archivedSkill = tarEntry(join(root, "release-artifacts", meta.filename), "package/SKILL.md").content.toString("utf8");
     for (const match of archivedSkill.matchAll(/\[[^\]]*\]\(([^\s)]+)\)/g)) {
       const target = match[1].split("#")[0];
@@ -374,6 +378,8 @@ describe.skipIf(!pinnedToolchain)("authoritative release packaging", () => {
       { label: "package-json-link", path: join("packages", "core", "package.json"), kind: "link" },
       { label: "readme-link", path: join("packages", "core", "README.md"), kind: "link" },
       { label: "readme-missing", path: join("packages", "core", "README.md"), kind: "missing" },
+      { label: "changelog-link", path: "CHANGELOG.md", kind: "link" },
+      { label: "changelog-missing", path: "CHANGELOG.md", kind: "missing" },
     ] as const;
     for (const probe of cases) {
       const root = cloneRepo(probe.label);
@@ -386,7 +392,7 @@ describe.skipIf(!pinnedToolchain)("authoritative release packaging", () => {
 
       const result = runReleasePack(root);
       expect(result.status, `${probe.label}: ${result.combined}`).not.toBe(0);
-      expect(result.combined, probe.label).toMatch(/package\.json|README\.md/i);
+      expect(result.combined, probe.label).toMatch(/package\.json|README\.md|CHANGELOG\.md/i);
       expect(readFileSync(external), probe.label).toEqual(original);
       expect(existsSync(join(result.output, MANIFEST)), probe.label).toBe(false);
       expect(existsSync(join(result.output, "skill-harness-core-0.11.0.tgz")), probe.label).toBe(false);

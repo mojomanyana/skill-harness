@@ -2,8 +2,8 @@
 
 ## Current candidate
 
-- Source release target: `0.35.1`
-- Intended stable tag: `v0.35.1`
+- Source release target: `0.35.2`
+- Intended stable tag: `v0.35.2`
 - These fields describe the source candidate only. Verify npm dist-tags and GitHub
   releases directly before making or reporting any live registry claim.
 - Release-pack toolchain: Node `v20.20.2`, npm `10.8.2`
@@ -98,7 +98,7 @@ Verify:
 - package versions and internal dependency pins,
 - CLI `--version` and `--help`,
 - public exports and review assets,
-- byte identity of committed extension/meta-package bundles,
+- byte identity of committed extension/meta-package bundles and the root changelog,
 - Pi command registration in an isolated HOME/config without provider requests.
 
 Do not run a paid real-model smoke solely for a metadata release. A paid smoke needs

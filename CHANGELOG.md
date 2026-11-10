@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.2 — 2026-11-10
+
+- Qualify exact Pi 1.5.2 for fresh evaluations through native and Harness transport controls, including multi-turn resume and CLI grading. Earlier qualified versions remain supported. Scripted compatibility checks do not establish model quality.
+- Include this changelog in the installed Pi package, so Pi can show changes on subsequent updates. Adding the changelog establishes the first version baseline without a retrospective notification. Canonical release archives verify its bytes against the source.
+
 ## 0.35.1 — 2026-11-09
 
 - Tool hints assess the first direct request in a multi-sentence prompt. Later references such as “name it” can accompany an explicit Bookie search or file read. Only the first tool is assessed. The whole prompt still passes the existing checks for exclusions before a call.

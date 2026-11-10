@@ -22,6 +22,7 @@ if (isMain) {
   mkdirSync("packages/skill-harness/docs", { recursive: true });
   for (const [source, destination] of [
     ["SKILL.md", "packages/skill-harness/SKILL.md"],
+    ["CHANGELOG.md", "packages/skill-harness/CHANGELOG.md"],
     ["docs/EVAL-AUTHORING.md", "packages/skill-harness/docs/EVAL-AUTHORING.md"],
     ["docs/USAGE.md", "packages/skill-harness/docs/USAGE.md"],
     ["docs/MODEL-PROFILES.md", "packages/skill-harness/docs/MODEL-PROFILES.md"],
