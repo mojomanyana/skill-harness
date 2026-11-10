@@ -13,7 +13,7 @@ grade movement is two runs already committed to a public repo. Re-record it with
 
 ## Pi qualification
 
-Fresh subject execution supports **exactly Pi 1.0.4, 1.1.0, 1.4.0 or 1.5.0**. An unknown, unavailable,
+Fresh subject execution supports **exactly Pi 1.0.4, 1.1.0, 1.4.0, 1.5.0 or 1.5.2**. An unknown, unavailable,
 prerelease or other version records execution ERROR before starting the
 subject; regrading that saved failure does not call the judge. Qualification must
 be renewed explicitly for a Pi upgrade.
@@ -27,6 +27,8 @@ redaction). Empty finals are unavailable; a settled output limit is `truncated`.
 The [shared final conformance table](packages/adapters/test/fixtures/pi-1.0.4/final-conformance.json)
 and [producer pin](packages/adapters/test/fixtures/pi-1.0.4/vendor-source.json)
 make the evidence and its limits inspectable.
+
+The [Pi 1.5.2 qualification](packages/adapters/test/fixtures/pi-1.5.2/README.md) repeats the native and Harness transport checks with the official 1.5.2 runtime. Session resumption, successful and failed tools, and grading all have retained examples.
 
 The [Pi 1.5.0 transport fixtures](packages/adapters/test/fixtures/pi-1.5.0/README.md)
 add native schema-coercion and invalid-argument controls, plus the same settled

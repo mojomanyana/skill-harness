@@ -1,0 +1,136 @@
+{
+  "transcript": ">>> USER (turn 1/2):\nRead release.txt and answer whether Acorn Cache 2.0 supports offline reads.\n\n<<< ASSISTANT:\nAcorn Cache 2.0 supports offline reads. Source: release.txt:1.\n\n>>> USER (turn 2/2):\nSECOND_TURN: acknowledge this second turn.\n\n<<< ASSISTANT:\nSECOND_TURN_RECEIPT\n",
+  "traces": [
+    {
+      "trace_version": 2,
+      "pi_version": "1.5.2",
+      "subject": {
+        "provider": "local",
+        "model": "multi-turn"
+      },
+      "call": {
+        "requested": {
+          "provider": "local",
+          "model": "multi-turn"
+        },
+        "observedModels": [
+          {
+            "provider": "local",
+            "model": "multi-turn"
+          }
+        ],
+        "effectiveThinking": null,
+        "status": "complete",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0
+        },
+        "usageCoverage": {
+          "assistantMessages": 2,
+          "inputTokens": 2,
+          "outputTokens": 2,
+          "cacheReadTokens": 2,
+          "cacheWriteTokens": 2
+        }
+      },
+      "scenario_id": "multi-turn",
+      "mode": "red",
+      "rep": 0,
+      "turn": 0,
+      "final_text": "Acorn Cache 2.0 supports offline reads. Source: release.txt:1.",
+      "final_status": "complete",
+      "tool_calls": [
+        {
+          "id": "fixture-23",
+          "name": "read",
+          "args": {
+            "path": "release.txt"
+          },
+          "issueIndex": 0,
+          "started_at": "2026-11-10T16:27:35.105Z",
+          "completionIndex": 0,
+          "isError": false,
+          "result": {
+            "bytes": 68,
+            "sha256": "29a93d9f9b2da27c417d1f32d56ce54dab891df3fc5709af7629c307b549f757"
+          },
+          "completed_at": "2026-11-10T16:27:35.153Z"
+        }
+      ],
+      "changed_paths": null,
+      "cost_usd": null,
+      "metrics": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_write_tokens": null,
+        "cost_usd": null,
+        "cost_source": "unreported",
+        "price_as_of": "2026-10-01",
+        "tool_calls": 1,
+        "delegated_children": 0,
+        "max_concurrency": 1
+      },
+      "trace_sha256": "f408de29fbf5302b44a582aa680717f1ee453dc6eb24b3adbbb588a74f209290"
+    },
+    {
+      "trace_version": 2,
+      "pi_version": "1.5.2",
+      "subject": {
+        "provider": "local",
+        "model": "multi-turn"
+      },
+      "call": {
+        "requested": {
+          "provider": "local",
+          "model": "multi-turn"
+        },
+        "observedModels": [
+          {
+            "provider": "local",
+            "model": "multi-turn"
+          }
+        ],
+        "effectiveThinking": null,
+        "status": "complete",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0
+        },
+        "usageCoverage": {
+          "assistantMessages": 1,
+          "inputTokens": 1,
+          "outputTokens": 1,
+          "cacheReadTokens": 1,
+          "cacheWriteTokens": 1
+        }
+      },
+      "scenario_id": "multi-turn",
+      "mode": "red",
+      "rep": 0,
+      "turn": 1,
+      "final_text": "SECOND_TURN_RECEIPT",
+      "final_status": "complete",
+      "tool_calls": [],
+      "changed_paths": null,
+      "cost_usd": null,
+      "metrics": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_write_tokens": null,
+        "cost_usd": null,
+        "cost_source": "unreported",
+        "price_as_of": "2026-10-01",
+        "tool_calls": 0,
+        "delegated_children": 0,
+        "max_concurrency": 0
+      },
+      "trace_sha256": "ea10d6074430e190164643e2d95b7e01c639e6fe36ab99e3b0ac97ac24994edf"
+    }
+  ]
+}

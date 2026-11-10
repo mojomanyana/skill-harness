@@ -1,0 +1,262 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "stage": "native",
+  "producer": "@earendil-works/pi-coding-agent@1.5.2",
+  "versions": {
+    "pi-coding-agent": "1.5.2",
+    "pi-ai": "1.5.2",
+    "pi-agent-core": "1.5.2",
+    "pi-codemode": "1.5.2",
+    "pi-mcp": "1.5.2",
+    "pi-tui": "1.5.2"
+  },
+  "node": "v24.19.0",
+  "harnessVersion": "0.35.1",
+  "runs": [
+    {
+      "mode": "red",
+      "model": "transport",
+      "file": "red-transport.jsonl",
+      "sha256": "e928996d61b2b1819782e86cc5067dd6350b1672f3931faa8c47203f5e9cc01a",
+      "exitCode": 0,
+      "stopReason": "stop",
+      "settled": true,
+      "toolError": false,
+      "advertisedTools": [
+        "read"
+      ],
+      "scriptedRequests": 2
+    },
+    {
+      "mode": "green",
+      "model": "transport",
+      "file": "green-transport.jsonl",
+      "sha256": "c665712225f495fe588ec676f539de3121def5b4a5d6e29c8fc42d0d0f56c4a5",
+      "exitCode": 0,
+      "stopReason": "stop",
+      "settled": true,
+      "toolError": false,
+      "advertisedTools": [
+        "read"
+      ],
+      "scriptedRequests": 2
+    },
+    {
+      "mode": "force",
+      "model": "transport",
+      "file": "force-transport.jsonl",
+      "sha256": "6cdf787d114a263be6aad3d2922d06367647037657b210e6241d22dbcb190806",
+      "exitCode": 0,
+      "stopReason": "stop",
+      "settled": true,
+      "toolError": false,
+      "advertisedTools": [
+        "read"
+      ],
+      "scriptedRequests": 2
+    },
+    {
+      "mode": "red",
+      "model": "tool-error",
+      "file": "red-tool-error.jsonl",
+      "sha256": "690ac7b0b0f91e7d1da603a5c8603b777c257726dd73a4e7a3a28ab2b7ca2f7e",
+      "exitCode": 0,
+      "stopReason": "stop",
+      "settled": true,
+      "toolError": true,
+      "advertisedTools": [
+        "read"
+      ],
+      "scriptedRequests": 2
+    },
+    {
+      "mode": "red",
+      "model": "denied-tool",
+      "file": "red-denied-tool.jsonl",
+      "sha256": "8a398233c99d6619a4a59ceb5774f34e325d211956d5ce96e761f63b7c986b46",
+      "exitCode": 0,
+      "stopReason": "stop",
+      "settled": true,
+      "toolError": true,
+      "advertisedTools": [
+        "read"
+      ],
+      "scriptedRequests": 2
+    },
+    {
+      "mode": "red",
+      "model": "mcp-denied",
+      "file": "red-mcp-denied.jsonl",
+      "sha256": "2bac2ec4ba0d27211c4c67c96119c4ed09442c10f33a2c74c7c7f32574f5799a",
+      "exitCode": 0,
+      "stopReason": "stop",
+      "settled": true,
+      "toolError": true,
+      "advertisedTools": [
+        "read"
+      ],
+      "scriptedRequests": 2
+    },
+    {
+      "mode": "red",
+      "model": "extension-ok",
+      "file": "red-extension-ok.jsonl",
+      "sha256": "012d3d1fcd2358e866e214e865b67eed7fb5a6f9ae10a666e0e55a5768d5cf66",
+      "exitCode": 0,
+      "stopReason": "stop",
+      "settled": true,
+      "toolError": false,
+      "advertisedTools": [
+        "read",
+        "fixture_echo"
+      ],
+      "scriptedRequests": 2
+    },
+    {
+      "mode": "red",
+      "model": "extension-filtered",
+      "file": "red-extension-filtered.jsonl",
+      "sha256": "39210c43814dba8b22d8fb546a006ae1c54eca128099c53501767061aacc3f73",
+      "exitCode": 0,
+      "stopReason": "stop",
+      "settled": true,
+      "toolError": true,
+      "advertisedTools": [
+        "read"
+      ],
+      "scriptedRequests": 2
+    },
+    {
+      "mode": "red",
+      "model": "schema-valid",
+      "file": "red-schema-valid.jsonl",
+      "sha256": "e82dbf852ad882f69a65b04a945d6348633c75efbd041d79bf9c46950c6968d4",
+      "exitCode": 0,
+      "stopReason": "stop",
+      "settled": true,
+      "toolError": false,
+      "advertisedTools": [
+        "read",
+        "fixture_schema"
+      ],
+      "scriptedRequests": 2
+    },
+    {
+      "mode": "red",
+      "model": "schema-invalid",
+      "file": "red-schema-invalid.jsonl",
+      "sha256": "78f87c7b412e092c98112fe43e77345f83d19cdf521ff68e8cc12353e9ac5a90",
+      "exitCode": 0,
+      "stopReason": "stop",
+      "settled": true,
+      "toolError": true,
+      "advertisedTools": [
+        "read",
+        "fixture_schema"
+      ],
+      "scriptedRequests": 2
+    },
+    {
+      "mode": "red",
+      "model": "length",
+      "file": "red-length.jsonl",
+      "sha256": "6dbcbbdb399dfb824a3783f24f55d9c80aa673f7630314a8f415cca44aa40206",
+      "exitCode": 0,
+      "stopReason": "length",
+      "settled": true,
+      "toolError": null,
+      "advertisedTools": [
+        "read"
+      ],
+      "scriptedRequests": 1
+    },
+    {
+      "mode": "red",
+      "model": "provider-error",
+      "file": "red-provider-error.jsonl",
+      "sha256": "280a31f593cdb91cd4b3bd3968803b23ed71fff0d40caae15dfa9b20fee0e5ff",
+      "exitCode": 0,
+      "stopReason": "error",
+      "settled": true,
+      "toolError": null,
+      "advertisedTools": [
+        "read"
+      ],
+      "scriptedRequests": 1
+    }
+  ],
+  "files": [
+    {
+      "file": "force-transport.jsonl",
+      "sha256": "6cdf787d114a263be6aad3d2922d06367647037657b210e6241d22dbcb190806"
+    },
+    {
+      "file": "green-transport.jsonl",
+      "sha256": "c665712225f495fe588ec676f539de3121def5b4a5d6e29c8fc42d0d0f56c4a5"
+    },
+    {
+      "file": "red-denied-tool.jsonl",
+      "sha256": "8a398233c99d6619a4a59ceb5774f34e325d211956d5ce96e761f63b7c986b46"
+    },
+    {
+      "file": "red-extension-filtered.jsonl",
+      "sha256": "39210c43814dba8b22d8fb546a006ae1c54eca128099c53501767061aacc3f73"
+    },
+    {
+      "file": "red-extension-ok.jsonl",
+      "sha256": "012d3d1fcd2358e866e214e865b67eed7fb5a6f9ae10a666e0e55a5768d5cf66"
+    },
+    {
+      "file": "red-length.jsonl",
+      "sha256": "6dbcbbdb399dfb824a3783f24f55d9c80aa673f7630314a8f415cca44aa40206"
+    },
+    {
+      "file": "red-mcp-denied.jsonl",
+      "sha256": "2bac2ec4ba0d27211c4c67c96119c4ed09442c10f33a2c74c7c7f32574f5799a"
+    },
+    {
+      "file": "red-provider-error.jsonl",
+      "sha256": "280a31f593cdb91cd4b3bd3968803b23ed71fff0d40caae15dfa9b20fee0e5ff"
+    },
+    {
+      "file": "red-schema-invalid.jsonl",
+      "sha256": "78f87c7b412e092c98112fe43e77345f83d19cdf521ff68e8cc12353e9ac5a90"
+    },
+    {
+      "file": "red-schema-valid.jsonl",
+      "sha256": "e82dbf852ad882f69a65b04a945d6348633c75efbd041d79bf9c46950c6968d4"
+    },
+    {
+      "file": "red-tool-error.jsonl",
+      "sha256": "690ac7b0b0f91e7d1da603a5c8603b777c257726dd73a4e7a3a28ab2b7ca2f7e"
+    },
+    {
+      "file": "red-transport.jsonl",
+      "sha256": "e928996d61b2b1819782e86cc5067dd6350b1672f3931faa8c47203f5e9cc01a"
+    }
+  ],
+  "scriptedRequests": 22,
+  "realProviderCalls": 0,
+  "unchangedSource": true,
+  "allDirectProcessGroupsGone": true,
+  "allObservedProcessesGone": true,
+  "networkGuard": "application-level single-loopback-endpoint",
+  "blockedNetworkAttempts": 0,
+  "isolatedHome": true,
+  "limits": [
+    "Scripted answers and grades do not qualify model quality or authentication.",
+    "Green checks description discovery, not autonomous skill selection.",
+    "No OS network containment, governed Daddy child, real MCP server or provider performance claim."
+  ],
+  "captureSources": [
+    {
+      "file": "../../../../../scripts/pi-qualification/capture.mjs",
+      "sha256": "ce084cdbdf07c8ca161cf85dcfa2349d8f0469334bc5d34e93364e328a5e7405"
+    },
+    {
+      "file": "../pi-1.5.0/network-guard.mjs",
+      "sha256": "350296f1718b7f6a1ca62acbcb63b78ce110adb7f74b8d42c182d1f2720706ed"
+    }
+  ]
+}

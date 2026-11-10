@@ -2,6 +2,8 @@
 
 ## Current state
 
+Pi 1.5.2 passed the isolated native and supported adapter matrix. The [retained controls](../packages/adapters/test/fixtures/pi-1.5.2/README.md) cover CLI grading and multi-turn resume through a local scripted provider.
+
 The 0.35.1 patch scopes prompt-hint matching to the first requested action. See the 0.35.1 changelog and the regression in `packages/pi-extension/test/jev-prompt-hints.test.ts`.
 
 The 0.35.0 candidate adds owner-edited JEV session budgets and optional prompt hints. See DECISION-LEARNING.md for consent, accounting and scope.
@@ -119,7 +121,7 @@ This does not qualify autonomous selection, the Herdr UI or whole-host health.
 Reuse matching saved answers before scheduling fresh subject calls. Historical
 releases and scores remain unchanged.
 
-Fresh subject execution is qualified on exact Pi **1.0.4, 1.1.0, 1.4.0 and 1.5.0**. Other or unknown
+Fresh subject execution is qualified on exact Pi **1.0.4, 1.1.0, 1.4.0, 1.5.0 and 1.5.2**. Other or unknown
 versions fail closed before subject spawn. Historical Pi 0.83.0 raw captures remain
 readable through their explicit legacy parser; they are not current qualification.
 See the README's Pi qualification section and shared final conformance table.

@@ -1,0 +1,165 @@
+{
+  "schema": 1,
+  "producer": "@earendil-works/pi-coding-agent@1.5.2",
+  "recordedAt": "2026-11-10T16:29:10.766287+00:00",
+  "harnessBase": "53e3b5322b11fe0692a7744e5cbccf0c6e5a0106",
+  "node": "v24.19.0",
+  "platform": "Linux x86_64 in WSL",
+  "transport": "scripted loopback OpenAI-compatible provider",
+  "realProviderCalls": 0,
+  "packages": [
+    {
+      "package": "@earendil-works/pi-coding-agent",
+      "version": "1.5.2",
+      "resolved": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-1.5.2.tgz",
+      "integrity": "sha512-mUWI04rqF1Vd/m1q+Ps1XeWsTXEVvRUnsmRa83I3Dzua0Tx5bYS93imeqtIfrXf7PkkaR6ERz+AuQhIJlom5yA=="
+    },
+    {
+      "package": "@earendil-works/pi-ai",
+      "version": "1.5.2",
+      "resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-1.5.2.tgz",
+      "integrity": "sha512-2tWPSnV3qzfiDIY3aWluBag3vC++Vs+VsXt/UquSU5onPMohPih72FUhIhaqmDdMYubOgB3Byl9uF4Vk40JLvQ=="
+    },
+    {
+      "package": "@earendil-works/pi-agent-core",
+      "version": "1.5.2",
+      "resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-1.5.2.tgz",
+      "integrity": "sha512-ie5mejS7mGfXt//9As7i3LfxVXdktZvF1JP4EQsUXTp4mU437h23MNGx7wXZ5VYs3YiG/Qnj3e7OZ2HC069OMw=="
+    },
+    {
+      "package": "@earendil-works/pi-codemode",
+      "version": "1.5.2",
+      "resolved": "https://registry.npmjs.org/@earendil-works/pi-codemode/-/pi-codemode-1.5.2.tgz",
+      "integrity": "sha512-HoZQ40a9RgdZ1VgmrX6x8887cNXedaRJT1l+Ie5YRIMK4gY7v0EpsiNqf6dmixrKylZlTgUSyR+vE8xhjfkr+w=="
+    },
+    {
+      "package": "@earendil-works/pi-mcp",
+      "version": "1.5.2",
+      "resolved": "https://registry.npmjs.org/@earendil-works/pi-mcp/-/pi-mcp-1.5.2.tgz",
+      "integrity": "sha512-zU1UgeXDlbixPqGEWD7Ql0brEMIpYr7aEWjoEE5h5enJbM/kQ2jIr7lN8JoR80oUnq1fJSU7SC8kLx2Fx/IZYg=="
+    },
+    {
+      "package": "@earendil-works/pi-tui",
+      "version": "1.5.2",
+      "resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-1.5.2.tgz",
+      "integrity": "sha512-WK8ih+c88GWizaB79y7Pq3PV7ySf5VI1pZ1i/6aBBjDOAiG2EE3ojKjl+pxQqLfyQGnzHYu4VfakOBJgumuoyw=="
+    }
+  ],
+  "files": [
+    {
+      "file": "native-qualification.json",
+      "sha256": "291b8ab4567db218ef3ba6e167ee0010f6c8c63a3802e73487c310b3f813d3f9",
+      "bytes": 7342
+    },
+    {
+      "file": "native-network.json",
+      "sha256": "1e35002aea5dceab1424469a2360f2d3fe05a281c2d35f94b9ebcc2bdea0adcb",
+      "bytes": 3038
+    },
+    {
+      "file": "native-processes.json",
+      "sha256": "4ba864c531900744bc865b6e170a726ef3005ce832a9127bedf57b51691a6688",
+      "bytes": 1650
+    },
+    {
+      "file": "adapter-qualification.json",
+      "sha256": "f760dd65ae0b0316e889923e01058eb15681024245bd01cbb9a172cbbef32b8b",
+      "bytes": 3215
+    },
+    {
+      "file": "adapter-network.json",
+      "sha256": "e43fc82ca1998e9d44ba213c653c03d44cbcbfeab698d49647fb6c7462677f2d",
+      "bytes": 6290
+    },
+    {
+      "file": "adapter-processes.json",
+      "sha256": "7c634187d03ac4505323f76aa63ae6eba44ce49461f4bcb23e3f8d2eb7dd3fc5",
+      "bytes": 380
+    },
+    {
+      "file": "adapter-pipeline.json",
+      "sha256": "33cceb701b4c3469d2e0fa12aa342094e685bbe116f9061114e8bace329a2754",
+      "bytes": 358
+    },
+    {
+      "file": "adapter-multi-turn.result.json",
+      "sha256": "e2504f112ea88f68bbab03e16e4a3473c136ef4028b1e33a345a03327e387f11",
+      "bytes": 3851
+    },
+    {
+      "file": "force-transport.jsonl",
+      "sha256": "6cdf787d114a263be6aad3d2922d06367647037657b210e6241d22dbcb190806",
+      "bytes": 16142
+    },
+    {
+      "file": "green-transport.jsonl",
+      "sha256": "c665712225f495fe588ec676f539de3121def5b4a5d6e29c8fc42d0d0f56c4a5",
+      "bytes": 17210
+    },
+    {
+      "file": "red-denied-tool.jsonl",
+      "sha256": "8a398233c99d6619a4a59ceb5774f34e325d211956d5ce96e761f63b7c986b46",
+      "bytes": 15598
+    },
+    {
+      "file": "red-extension-filtered.jsonl",
+      "sha256": "39210c43814dba8b22d8fb546a006ae1c54eca128099c53501767061aacc3f73",
+      "bytes": 15399
+    },
+    {
+      "file": "red-extension-ok.jsonl",
+      "sha256": "012d3d1fcd2358e866e214e865b67eed7fb5a6f9ae10a666e0e55a5768d5cf66",
+      "bytes": 15785
+    },
+    {
+      "file": "red-length.jsonl",
+      "sha256": "6dbcbbdb399dfb824a3783f24f55d9c80aa673f7630314a8f415cca44aa40206",
+      "bytes": 11477
+    },
+    {
+      "file": "red-mcp-denied.jsonl",
+      "sha256": "2bac2ec4ba0d27211c4c67c96119c4ed09442c10f33a2c74c7c7f32574f5799a",
+      "bytes": 15403
+    },
+    {
+      "file": "red-provider-error.jsonl",
+      "sha256": "280a31f593cdb91cd4b3bd3968803b23ed71fff0d40caae15dfa9b20fee0e5ff",
+      "bytes": 10758
+    },
+    {
+      "file": "red-schema-invalid.jsonl",
+      "sha256": "78f87c7b412e092c98112fe43e77345f83d19cdf521ff68e8cc12353e9ac5a90",
+      "bytes": 17128
+    },
+    {
+      "file": "red-schema-valid.jsonl",
+      "sha256": "e82dbf852ad882f69a65b04a945d6348633c75efbd041d79bf9c46950c6968d4",
+      "bytes": 16278
+    },
+    {
+      "file": "red-tool-error.jsonl",
+      "sha256": "690ac7b0b0f91e7d1da603a5c8603b777c257726dd73a4e7a3a28ab2b7ca2f7e",
+      "bytes": 15866
+    },
+    {
+      "file": "red-transport.jsonl",
+      "sha256": "e928996d61b2b1819782e86cc5067dd6350b1672f3931faa8c47203f5e9cc01a",
+      "bytes": 15512
+    }
+  ],
+  "captureSources": [
+    {
+      "file": "../../../../../scripts/pi-qualification/capture.mjs",
+      "sha256": "ce084cdbdf07c8ca161cf85dcfa2349d8f0469334bc5d34e93364e328a5e7405"
+    },
+    {
+      "file": "../pi-1.5.0/network-guard.mjs",
+      "sha256": "350296f1718b7f6a1ca62acbcb63b78ce110adb7f74b8d42c182d1f2720706ed"
+    }
+  ],
+  "limits": [
+    "Scripted answers and grades do not qualify model quality or authentication.",
+    "Green checks description discovery, not autonomous skill selection.",
+    "No OS network containment, governed Daddy child, real MCP server or provider performance claim."
+  ]
+}
