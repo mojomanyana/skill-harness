@@ -75,7 +75,7 @@ export function summarizeRun(results: ResultsFile) {
     accounting: { scope: "retained judgment attempts; report performs no calls",
       cumulativeJudgeCallsRecorded: results.scenarios.every(scenario => scenario.metrics)
         ? results.scenarios.reduce((sum, scenario) => sum + scenario.metrics!.judge_calls, 0) : null,
-      costs: "separate subject price-table estimates only; judge billing/cost coverage unavailable" },
+      costs: "Subject provider-reported totals and price-table estimates stay distinct; missing or mixed cost observations leave the total unavailable. Subscription usage is not a billed amount. Judge and JEV costs remain separate and unavailable here." },
     evidence: { traceBoundJudgments: results.scenarios.flatMap(scenario => scenario.rep_judgments ?? []).flatMap(panel => panel.judgments).filter(judgment => judgment.input?.execution === "verified").length,
       subjectObservationScope: "retained invocations; earlier retries may be unavailable", providerRequests: null },
     reuse: "Saved answers and judgments are historical evidence; diagnose gives the per-scenario reuse plan. Reuse is not a fresh trial.",

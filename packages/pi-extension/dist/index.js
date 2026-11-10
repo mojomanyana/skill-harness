@@ -4019,7 +4019,7 @@ function outcomesToResult(id, outcomes, repCount, threshold) {
     const subject = outcome.metrics?.subject;
     if (!subject)
       return [];
-    const reported = (value) => value !== null && value > 0 ? value : null;
+    const reported = (value) => value !== null && Number.isFinite(value) && value >= 0 ? value : null;
     return [{
       repetition,
       inputTokens: reported(subject.input_tokens),
@@ -4073,14 +4073,17 @@ function aggregateMetrics(outcomes) {
   if (subjects.length === 0)
     return base;
   const sumReported = (field) => {
-    const values = subjects.map((metrics2) => metrics2[field]).filter((value) => value !== null && value > 0);
+    const values = subjects.map((metrics2) => metrics2[field]).filter((value) => value !== null && Number.isFinite(value) && value >= 0);
     return values.length ? values.reduce((sum, value) => sum + value, 0) : void 0;
   };
   const inputTokens = sumReported("input_tokens");
   const outputTokens = sumReported("output_tokens");
   const cacheReadTokens = sumReported("cache_read_tokens");
   const cacheWriteTokens = sumReported("cache_write_tokens");
-  const subjectCost = sumReported("cost_usd");
+  const sameCostSource = subjects.length === outcomes.length && subjects.every((metrics2) => metrics2.cost_source === subjects[0].cost_source);
+  const completeCost = sameCostSource && ["provider-reported", "price-table"].includes(subjects[0].cost_source) && subjects.every((metrics2) => metrics2.cost_usd !== null && Number.isFinite(metrics2.cost_usd) && metrics2.cost_usd >= 0);
+  const costSum = completeCost ? subjects.reduce((sum, metrics2) => sum + metrics2.cost_usd, 0) : void 0;
+  const subjectCost = costSum !== void 0 && Number.isFinite(costSum) ? costSum : void 0;
   return {
     ...base,
     ...inputTokens === void 0 ? {} : { input_tokens: inputTokens },
@@ -4088,7 +4091,7 @@ function aggregateMetrics(outcomes) {
     ...cacheReadTokens === void 0 ? {} : { cache_read_tokens: cacheReadTokens },
     ...cacheWriteTokens === void 0 ? {} : { cache_write_tokens: cacheWriteTokens },
     ...subjectCost === void 0 ? {} : { subject_cost_usd: subjectCost },
-    cost_source: subjects.every((metrics2) => metrics2.cost_source === subjects[0].cost_source) ? subjects[0].cost_source : "unreported",
+    cost_source: subjectCost !== void 0 || sameCostSource && subjects[0].cost_source === "subscription" ? subjects[0].cost_source : "unreported",
     tool_calls: subjects.reduce((sum, metrics2) => sum + metrics2.tool_calls, 0),
     delegated_children: subjects.reduce((sum, metrics2) => sum + metrics2.delegated_children, 0),
     max_concurrency: Math.max(...subjects.map((metrics2) => metrics2.max_concurrency))
@@ -4721,7 +4724,7 @@ function summarizeRun(results) {
     accounting: {
       scope: "retained judgment attempts; report performs no calls",
       cumulativeJudgeCallsRecorded: results.scenarios.every((scenario) => scenario.metrics) ? results.scenarios.reduce((sum, scenario) => sum + scenario.metrics.judge_calls, 0) : null,
-      costs: "separate subject price-table estimates only; judge billing/cost coverage unavailable"
+      costs: "Subject provider-reported totals and price-table estimates stay distinct; missing or mixed cost observations leave the total unavailable. Subscription usage is not a billed amount. Judge and JEV costs remain separate and unavailable here."
     },
     evidence: {
       traceBoundJudgments: results.scenarios.flatMap((scenario) => scenario.rep_judgments ?? []).flatMap((panel) => panel.judgments).filter((judgment) => judgment.input?.execution === "verified").length,
@@ -8194,10 +8197,15 @@ var init_stability = __esm({
 function aggregateMetrics2(scenarios) {
   const metrics2 = scenarios.map((scenario) => scenario.metrics).filter((value) => value !== void 0);
   const sumOptional = (field) => {
-    const values = metrics2.map((value) => value[field]).filter((value) => typeof value === "number");
+    const values = metrics2.map((value) => value[field]).filter((value) => typeof value === "number" && Number.isFinite(value) && value >= 0);
     return values.length ? values.reduce((sum, value) => sum + value, 0) : null;
   };
   const maxValues = metrics2.map((value) => value.max_concurrency).filter((value) => typeof value === "number");
+  const source = metrics2[0]?.cost_source;
+  const sameCostSource = metrics2.length > 0 && metrics2.length === scenarios.length && source !== void 0 && metrics2.every((value) => value.cost_source === source);
+  const completeCost = sameCostSource && (source === "provider-reported" || source === "price-table") && metrics2.every((value) => value.subject_cost_usd !== void 0 && Number.isFinite(value.subject_cost_usd) && value.subject_cost_usd >= 0);
+  const costSum = completeCost ? metrics2.reduce((sum, value) => sum + value.subject_cost_usd, 0) : null;
+  const subjectCost = costSum !== null && Number.isFinite(costSum) ? costSum : null;
   return {
     wall_time_ms: metrics2.reduce((sum, value) => sum + value.wall_time_ms, 0),
     judge_calls: metrics2.reduce((sum, value) => sum + value.judge_calls, 0),
@@ -8208,11 +8216,8 @@ function aggregateMetrics2(scenarios) {
     output_tokens: sumOptional("output_tokens"),
     cache_read_tokens: sumOptional("cache_read_tokens"),
     cache_write_tokens: sumOptional("cache_write_tokens"),
-    subject_cost_usd: sumOptional("subject_cost_usd"),
-    cost_source: (() => {
-      const sources = scenarios.map((scenario) => scenario.metrics?.cost_source).filter((source) => source !== void 0);
-      return sources.length === 0 ? null : sources.every((source) => source === sources[0]) ? sources[0] : "unreported";
-    })(),
+    subject_cost_usd: subjectCost,
+    cost_source: subjectCost !== null || sameCostSource && source === "subscription" ? source : metrics2.length ? "unreported" : null,
     tool_calls: sumOptional("tool_calls"),
     delegated_children: sumOptional("delegated_children"),
     max_concurrency: maxValues.length ? Math.max(...maxValues) : null

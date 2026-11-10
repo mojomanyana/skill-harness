@@ -713,21 +713,15 @@ export function formatScorecard(summary: RunSummary, lift?: Lift, stability?: Sc
   if (metrics.total_reps > 0) {
     const tokens = metrics.input_tokens === null
       ? "subject tokens unavailable"
-      : `subject tokens ${metrics.input_tokens} in / ${metrics.output_tokens ?? 0} out / ${metrics.cache_read_tokens ?? 0} cache-read`;
+      : `subject tokens ${metrics.input_tokens} in / ${metrics.output_tokens ?? "unknown"} out / ${metrics.cache_read_tokens ?? "unknown"} cache-read`;
     const tools = metrics.tool_calls === null ? "tool calls unavailable" : `${metrics.tool_calls} tool call(s), ${metrics.delegated_children ?? 0} requested Agent task(s), max outstanding tool calls ${metrics.max_concurrency ?? 0}; child launches/concurrency unobserved`;
     const cost = metrics.cost_source === "subscription"
-      ? " · subscription ($0 marginal cost recorded)"
-      : metrics.cost_source === "unreported"
-        ? metrics.input_tokens !== null && metrics.input_tokens > 0
-          ? " · WARNING: subject tokens were used but subject cost was not reported"
-          : " · subject cost unavailable"
-        : metrics.input_tokens !== null && metrics.input_tokens > 0 && metrics.subject_cost_usd === 0
-          ? " · WARNING: subject tokens were used but the provider reported $0 cost"
-          : metrics.subject_cost_usd === null
-            ? " · subject cost unavailable"
-            : metrics.cost_source === "price-table"
-              ? ` · $${metrics.subject_cost_usd.toFixed(6)} price table`
-              : ` · $${metrics.subject_cost_usd.toFixed(6)} provider-reported`;
+      ? " · subscription usage; billed cost unavailable"
+      : metrics.subject_cost_usd === null
+        ? " · subject cost unavailable (missing or mixed cost observations)"
+        : metrics.cost_source === "price-table"
+          ? ` · $${metrics.subject_cost_usd.toFixed(6)} price-table estimate`
+          : ` · $${metrics.subject_cost_usd.toFixed(6)} provider-reported`;
     lines.push(`  COST:   ${tokens} (${metrics.subject_metrics_reps}/${metrics.total_reps} reps reported)${cost} · ${metrics.judge_calls} judge + ${metrics.judge_rejudge_calls} re-judge call(s) · ${metrics.wall_time_ms}ms · ${tools}`);
   }
   // Lift is a statement about a skill-delivered run (green or force). On a red run

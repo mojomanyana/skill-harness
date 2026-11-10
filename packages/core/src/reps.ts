@@ -125,7 +125,7 @@ export function outcomesToResult(id: string, outcomes: RepOutcome[], repCount: n
   const usage = outcomes.flatMap((outcome, repetition) => {
     const subject = outcome.metrics?.subject;
     if (!subject) return [];
-    const reported = (value: number | null): number | null => value !== null && value > 0 ? value : null;
+    const reported = (value: number | null): number | null => value !== null && Number.isFinite(value) && value >= 0 ? value : null;
     return [{
       repetition,
       inputTokens: reported(subject.input_tokens),
@@ -166,15 +166,20 @@ function aggregateMetrics(outcomes: RepOutcome[]): ScenarioMetrics | undefined {
     total_reps: outcomes.length,
   };
   if (subjects.length === 0) return base;
-  const sumReported = (field: "input_tokens" | "output_tokens" | "cache_read_tokens" | "cache_write_tokens" | "cost_usd"): number | undefined => {
-    const values = subjects.map(metrics => metrics[field]).filter((value): value is number => value !== null && value > 0);
+  const sumReported = (field: "input_tokens" | "output_tokens" | "cache_read_tokens" | "cache_write_tokens"): number | undefined => {
+    const values = subjects.map(metrics => metrics[field]).filter((value): value is number => value !== null && Number.isFinite(value) && value >= 0);
     return values.length ? values.reduce((sum, value) => sum + value, 0) : undefined;
   };
   const inputTokens = sumReported("input_tokens");
   const outputTokens = sumReported("output_tokens");
   const cacheReadTokens = sumReported("cache_read_tokens");
   const cacheWriteTokens = sumReported("cache_write_tokens");
-  const subjectCost = sumReported("cost_usd");
+  // Token subtotals retain their coverage count; a monetary total must cover every rep.
+  const sameCostSource = subjects.length === outcomes.length && subjects.every(metrics => metrics.cost_source === subjects[0].cost_source);
+  const completeCost = sameCostSource && ["provider-reported", "price-table"].includes(subjects[0].cost_source)
+    && subjects.every(metrics => metrics.cost_usd !== null && Number.isFinite(metrics.cost_usd) && metrics.cost_usd >= 0);
+  const costSum = completeCost ? subjects.reduce((sum, metrics) => sum + metrics.cost_usd!, 0) : undefined;
+  const subjectCost = costSum !== undefined && Number.isFinite(costSum) ? costSum : undefined;
   return {
     ...base,
     ...(inputTokens === undefined ? {} : { input_tokens: inputTokens }),
@@ -182,9 +187,8 @@ function aggregateMetrics(outcomes: RepOutcome[]): ScenarioMetrics | undefined {
     ...(cacheReadTokens === undefined ? {} : { cache_read_tokens: cacheReadTokens }),
     ...(cacheWriteTokens === undefined ? {} : { cache_write_tokens: cacheWriteTokens }),
     ...(subjectCost === undefined ? {} : { subject_cost_usd: subjectCost }),
-    cost_source: subjects.every((metrics) => metrics.cost_source === subjects[0].cost_source)
-      ? subjects[0].cost_source
-      : "unreported",
+    cost_source: subjectCost !== undefined || (sameCostSource && subjects[0].cost_source === "subscription")
+      ? subjects[0].cost_source : "unreported",
     tool_calls: subjects.reduce((sum, metrics) => sum + metrics.tool_calls, 0),
     delegated_children: subjects.reduce((sum, metrics) => sum + metrics.delegated_children, 0),
     max_concurrency: Math.max(...subjects.map((metrics) => metrics.max_concurrency)),
