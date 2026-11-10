@@ -1,0 +1,415 @@
+[
+  {
+    "pid": 154134,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154142,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154150,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154162,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154170,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154209,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154217,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154229,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154237,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154249,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154257,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      },
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154269,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154277,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      },
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154289,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154297,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      },
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154309,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154317,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      },
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154329,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154337,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      },
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154349,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154357,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      },
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154369,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154377,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154389,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154397,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154413,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154421,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154433,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154445,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154463,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154506,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154514,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154528,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154536,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154548,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154556,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154573,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154581,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154595,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154603,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154620,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154640,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154683,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154693,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  },
+  {
+    "pid": 154710,
+    "attempts": [],
+    "blocked": 0
+  },
+  {
+    "pid": 154718,
+    "attempts": [
+      {
+        "kind": "socket",
+        "host": "127.0.0.1",
+        "port": 44789,
+        "allowed": true
+      }
+    ],
+    "blocked": 0
+  }
+]
