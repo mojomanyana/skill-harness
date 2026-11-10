@@ -19,6 +19,7 @@ packages/core/LICENSE
 packages/adapters/LICENSE
 packages/cli/LICENSE
 packages/skill-harness/LICENSE
+packages/skill-harness/CHANGELOG.md
 release-artifacts/
 
 # Scratch / local

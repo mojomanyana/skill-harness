@@ -2,6 +2,8 @@
 
 ## Current state
 
+Release candidate **0.35.2** includes the merged Pi 1.5.2 qualification and the canonical root changelog in the public Pi package. Verify the registry and release before calling it published. JEV remains optional; this patch changes no consent, thresholds or model-selection policy.
+
 Pi 1.5.2 passed the isolated native and supported adapter matrix. The [retained controls](../packages/adapters/test/fixtures/pi-1.5.2/README.md) cover CLI grading and multi-turn resume through a local scripted provider.
 
 The 0.35.1 patch scopes prompt-hint matching to the first requested action. See the 0.35.1 changelog and the regression in `packages/pi-extension/test/jev-prompt-hints.test.ts`.

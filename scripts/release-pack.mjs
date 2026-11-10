@@ -85,7 +85,7 @@ const packages = [
     workspace: "skill-harness",
     directory: "packages/skill-harness",
     archivePrefix: "skill-harness",
-    staticFiles: ["package.json", "README.md", "SKILL.md", "LICENSE", "bin.js", "dist/index.js", "assets/report.template.html", "assets/report.grade.js"],
+    staticFiles: ["package.json", "README.md", "CHANGELOG.md", "SKILL.md", "LICENSE", "bin.js", "dist/index.js", "assets/report.template.html", "assets/report.grade.js"],
     internalDependencies: ["@skill-harness/cli"],
     inventoryRoots: [{ path: "docs", exact: ["EVAL-AUTHORING.md", "USAGE.md", "MODEL-PROFILES.md", "DECISION-LEARNING.md"] }],
     modes: { "bin.js": 0o755 },
@@ -97,10 +97,11 @@ const stagingDirectories = [
   { source: "docs", destination: "packages/skill-harness/docs", files: ["EVAL-AUTHORING.md", "USAGE.md", "MODEL-PROFILES.md", "DECISION-LEARNING.md"] },
 ];
 const stagingFiles = [
-  "packages/core/LICENSE",
-  "packages/adapters/LICENSE",
-  "packages/cli/LICENSE",
-  "packages/skill-harness/LICENSE",
+  { source: "LICENSE", destination: "packages/core/LICENSE" },
+  { source: "LICENSE", destination: "packages/adapters/LICENSE" },
+  { source: "LICENSE", destination: "packages/cli/LICENSE" },
+  { source: "LICENSE", destination: "packages/skill-harness/LICENSE" },
+  { source: "CHANGELOG.md", destination: "packages/skill-harness/CHANGELOG.md" },
 ];
 const markerPathEnv = "SKILL_HARNESS_RELEASE_PACK_MARKER";
 const markerNonceEnv = "SKILL_HARNESS_RELEASE_PACK_NONCE";
@@ -424,7 +425,7 @@ function assertStaticPackageInputs() {
   for (const pkg of packages) {
     const packageRoot = join(repoRoot, pkg.directory);
     assertManagedPathComponents(packageRoot, { finalType: "directory" });
-    for (const file of pkg.staticFiles.filter((name) => name !== "LICENSE")) {
+    for (const file of pkg.staticFiles.filter((name) => !stagingFiles.some(({ destination }) => destination === `${pkg.directory}/${name}`))) {
       const path = join(packageRoot, file);
       assertManagedPathComponents(path, { finalType: "file" });
       assertRegularFile(path, `${pkg.directory}/${file}`);
@@ -444,18 +445,18 @@ async function prepareCanonicalBuildOutputs(root) {
     assertSafeDirectoryTree(join(root, destination));
     if (files) for (const file of files) assertRegularFile(join(root, source, file));
   }
-  assertManagedPathComponents(join(root, "LICENSE"), { finalType: "file" });
-  assertRegularFile(join(root, "LICENSE"));
-  for (const relativeFile of stagingFiles) {
-    assertManagedPathComponents(join(root, relativeFile), { finalType: "file", allowMissing: true });
-    assertRegularFileIfPresent(join(root, relativeFile));
+  for (const { source, destination } of stagingFiles) {
+    assertManagedPathComponents(join(root, source), { finalType: "file" });
+    assertRegularFile(join(root, source));
+    assertManagedPathComponents(join(root, destination), { finalType: "file", allowMissing: true });
+    assertRegularFileIfPresent(join(root, destination));
   }
 
   for (const relativeRoot of [...buildOutputRoots, ...stagingDirectories.map(({ destination }) => destination)]) {
     rmSync(join(root, relativeRoot), { recursive: true, force: true });
   }
-  for (const relativeFile of stagingFiles) {
-    const path = join(root, relativeFile);
+  for (const { destination } of stagingFiles) {
+    const path = join(root, destination);
     if (lstatIfPresent(path)) unlinkSync(path);
   }
 
@@ -471,7 +472,7 @@ async function prepareCanonicalBuildOutputs(root) {
       cpSync(sourcePath, destinationPath, { recursive: true });
     }
   }
-  for (const relativeFile of stagingFiles) copyFileSync(join(root, "LICENSE"), join(root, relativeFile));
+  for (const { source, destination } of stagingFiles) copyFileSync(join(root, source), join(root, destination));
 
   const cli = join(root, canonicalCliRelative);
   assertRegularFile(cli, canonicalCliRelative);

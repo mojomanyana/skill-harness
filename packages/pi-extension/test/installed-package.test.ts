@@ -11,6 +11,7 @@ describe("published meta-package Pi extension", () => {
     expect(manifest.peerDependencies.typebox).toBe("*");
     expect(manifest.peerDependenciesMeta.typebox).toEqual({ optional: true });
     expect(manifest.files).toEqual(expect.arrayContaining([
+      "CHANGELOG.md",
       "dist/index.js",
       "SKILL.md",
       "docs/EVAL-AUTHORING.md",
