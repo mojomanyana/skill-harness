@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { finalizeResults, summarizeRun } from "@skill-harness/core";
+import { finalizeResults, ProcessControlError, summarizeRun } from "@skill-harness/core";
 import { createHarnessDashboard } from "../src/dashboard.js";
 import type { ExtensionAPI } from "../src/commands.js";
 
@@ -59,4 +59,26 @@ test("failed operations publish generic diagnostics without disclosing errors; a
   expect(await f.dashboard.run(f.ctx, async () => 42, () => { throw new Error("broken optional view"); })).toBe(42);
   expect(f.updates.at(-1)).toMatchObject({ items: [{ state: "settled", details: [expect.stringContaining("summary unavailable")] }] });
   expect(await dashboard.run({ cwd: "/repo" }, async () => 42, () => { throw new Error("broken optional view"); })).toBe(42);
+});
+
+test("known cancellation remains incomplete without a failure, summary, next action or approval", async () => {
+  const f = fixture();
+  const error = new ProcessControlError("aborted", "private cancellation diagnostic");
+  const summarize = vi.fn(summary);
+  await expect(f.dashboard.run(f.ctx, async () => { throw error; }, summarize)).rejects.toBe(error);
+  expect(summarize).not.toHaveBeenCalled();
+  expect(f.updates).toHaveLength(2);
+  expect(f.updates[1]).toEqual({ sequence: 2, items: [{
+    id: "activity", kind: "status", label: "Harness evaluation cancelled", state: "settled",
+    details: [expect.stringContaining("Evaluation incomplete. Cancellation does not establish a result or approval.")],
+  }] });
+  expect(JSON.stringify(f.updates)).not.toContain("private cancellation diagnostic");
+});
+
+test.each(["output-limit", "resource-limit"] as const)("%s remains a failure rather than cancellation", async reason => {
+  const f = fixture();
+  const error = new ProcessControlError(reason, "private failure diagnostic");
+  await expect(f.dashboard.run(f.ctx, async () => { throw error; }, summary)).rejects.toBe(error);
+  expect(f.updates[1]).toMatchObject({ items: [{ label: "Harness operation failed", state: "failed" }] });
+  expect(JSON.stringify(f.updates)).not.toContain("private failure diagnostic");
 });
