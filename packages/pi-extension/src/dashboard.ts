@@ -1,4 +1,4 @@
-import { modelProfileLabel, type summarizeRun } from "@skill-harness/core";
+import { isProcessControlError, modelProfileLabel, type summarizeRun } from "@skill-harness/core";
 import type { ExtensionAPI } from "./commands.js";
 
 type Summary = ReturnType<typeof summarizeRun>;
@@ -69,7 +69,17 @@ export function createHarnessDashboard(pi: ExtensionAPI, version: string): Harne
         }
         return result;
       } catch (error) {
-        if (ticket === operation && ownGeneration === generation) publish([{ id: "activity", kind: "status", label: "Harness operation failed", state: "failed", details: ["Operation did not complete. Inspect Harness diagnostics; no product-failure conclusion is established."] }]);
+        if (ticket === operation && ownGeneration === generation) {
+          const cancelled = isProcessControlError(error) && error.reason === "aborted";
+          publish([{ id: "activity", kind: "status",
+            label: cancelled ? "Harness evaluation cancelled" : "Harness operation failed",
+            // The source protocol's settled state means the operation ended, not that it succeeded.
+            state: cancelled ? "settled" : "failed",
+            details: [cancelled
+              ? "Evaluation incomplete. Cancellation does not establish a result or approval. Inspect retained Harness diagnostics before deciding what to run next."
+              : "Operation did not complete. Inspect Harness diagnostics; no product-failure conclusion is established."],
+          }]);
+        }
         throw error;
       }
     },

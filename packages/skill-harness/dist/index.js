@@ -4019,7 +4019,7 @@ function outcomesToResult(id, outcomes, repCount, threshold) {
     const subject = outcome.metrics?.subject;
     if (!subject)
       return [];
-    const reported = (value) => value !== null && value > 0 ? value : null;
+    const reported = (value) => value !== null && Number.isFinite(value) && value >= 0 ? value : null;
     return [{
       repetition,
       inputTokens: reported(subject.input_tokens),
@@ -4073,14 +4073,17 @@ function aggregateMetrics(outcomes) {
   if (subjects.length === 0)
     return base;
   const sumReported = (field) => {
-    const values = subjects.map((metrics2) => metrics2[field]).filter((value) => value !== null && value > 0);
+    const values = subjects.map((metrics2) => metrics2[field]).filter((value) => value !== null && Number.isFinite(value) && value >= 0);
     return values.length ? values.reduce((sum, value) => sum + value, 0) : void 0;
   };
   const inputTokens = sumReported("input_tokens");
   const outputTokens = sumReported("output_tokens");
   const cacheReadTokens = sumReported("cache_read_tokens");
   const cacheWriteTokens = sumReported("cache_write_tokens");
-  const subjectCost = sumReported("cost_usd");
+  const sameCostSource = subjects.length === outcomes.length && subjects.every((metrics2) => metrics2.cost_source === subjects[0].cost_source);
+  const completeCost = sameCostSource && ["provider-reported", "price-table"].includes(subjects[0].cost_source) && subjects.every((metrics2) => metrics2.cost_usd !== null && Number.isFinite(metrics2.cost_usd) && metrics2.cost_usd >= 0);
+  const costSum = completeCost ? subjects.reduce((sum, metrics2) => sum + metrics2.cost_usd, 0) : void 0;
+  const subjectCost = costSum !== void 0 && Number.isFinite(costSum) ? costSum : void 0;
   return {
     ...base,
     ...inputTokens === void 0 ? {} : { input_tokens: inputTokens },
@@ -4088,7 +4091,7 @@ function aggregateMetrics(outcomes) {
     ...cacheReadTokens === void 0 ? {} : { cache_read_tokens: cacheReadTokens },
     ...cacheWriteTokens === void 0 ? {} : { cache_write_tokens: cacheWriteTokens },
     ...subjectCost === void 0 ? {} : { subject_cost_usd: subjectCost },
-    cost_source: subjects.every((metrics2) => metrics2.cost_source === subjects[0].cost_source) ? subjects[0].cost_source : "unreported",
+    cost_source: subjectCost !== void 0 || sameCostSource && subjects[0].cost_source === "subscription" ? subjects[0].cost_source : "unreported",
     tool_calls: subjects.reduce((sum, metrics2) => sum + metrics2.tool_calls, 0),
     delegated_children: subjects.reduce((sum, metrics2) => sum + metrics2.delegated_children, 0),
     max_concurrency: Math.max(...subjects.map((metrics2) => metrics2.max_concurrency))
@@ -4721,7 +4724,7 @@ function summarizeRun(results) {
     accounting: {
       scope: "retained judgment attempts; report performs no calls",
       cumulativeJudgeCallsRecorded: results.scenarios.every((scenario) => scenario.metrics) ? results.scenarios.reduce((sum, scenario) => sum + scenario.metrics.judge_calls, 0) : null,
-      costs: "separate subject price-table estimates only; judge billing/cost coverage unavailable"
+      costs: "Subject provider-reported totals and price-table estimates stay distinct; missing or mixed cost observations leave the total unavailable. Subscription usage is not a billed amount. Judge and JEV costs remain separate and unavailable here."
     },
     evidence: {
       traceBoundJudgments: results.scenarios.flatMap((scenario) => scenario.rep_judgments ?? []).flatMap((panel) => panel.judgments).filter((judgment) => judgment.input?.execution === "verified").length,
@@ -5390,6 +5393,8 @@ function parseTrace(lines, meta) {
   let outputTokens = null;
   let cacheReadTokens = null;
   let cacheWriteTokens = null;
+  let providerCost = 0;
+  let providerCostMessages = 0;
   let activeCalls = 0;
   let maxConcurrency = 0;
   for (const line of lines) {
@@ -5504,9 +5509,19 @@ function parseTrace(lines, meta) {
       if (msg?.role !== "assistant")
         continue;
       const identity2 = { provider: str2(msg.provider) ?? null, model: str2(msg.model) ?? null };
-      if ((identity2.provider || identity2.model) && !call.observedModels.some((item) => item.provider === identity2.provider && item.model === identity2.model))
-        call.observedModels.push(identity2);
+      const identities = [identity2];
+      if (str2(msg.responseModel))
+        identities.push({ provider: identity2.provider, model: msg.responseModel });
+      for (const observed2 of identities) {
+        if (!call.observedModels.some((item) => item.provider === observed2.provider && item.model === observed2.model))
+          call.observedModels.push(observed2);
+      }
       call.usageCoverage.assistantMessages++;
+      const reportedCost = msg.usage?.cost;
+      if (reportedCost?.totalFromProvider === true && validCost(reportedCost.total)) {
+        providerCost += reportedCost.total;
+        providerCostMessages++;
+      }
       for (const [target, source] of [["inputTokens", "input"], ["outputTokens", "output"], ["cacheReadTokens", "cacheRead"], ["cacheWriteTokens", "cacheWrite"]]) {
         const value = msg.usage?.[source];
         if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
@@ -5544,13 +5559,14 @@ function parseTrace(lines, meta) {
     const reason = qualificationFailure ?? (finalStatus === "incomplete" ? "current settlement is missing or tool calls remain outstanding" : finalStatus === "truncated" ? "settled assistant reached its output length limit" : finalStatus === "error" || finalStatus === "aborted" ? `settled assistant stop reason is ${lastStopReason}` : "current terminal assistant content is empty, ineligible, or captured evidence is malformed");
     captureErrors.push(`Pi ${meta.piVersion ?? "(version unavailable)"} final delivery is ${finalStatus}; ${reason}`);
   }
+  const completeProviderCost = finalStatus === "complete" && providerCostMessages > 0 && providerCostMessages === call.usageCoverage.assistantMessages && Number.isFinite(providerCost);
   const metrics2 = {
     input_tokens: inputTokens,
     output_tokens: outputTokens,
     cache_read_tokens: cacheReadTokens,
     cache_write_tokens: cacheWriteTokens,
-    cost_usd: null,
-    cost_source: "unreported",
+    cost_usd: completeProviderCost ? providerCost : null,
+    cost_source: completeProviderCost ? "provider-reported" : "unreported",
     price_as_of: null,
     tool_calls: toolCalls.length,
     delegated_children: toolCalls.filter((call2) => call2.name === "Agent").reduce((count, call2) => count + normalizeSubagentCall(call2.args).length, 0),
@@ -5580,7 +5596,7 @@ function parseTrace(lines, meta) {
     // overwrites this after observing the workspace. Defaulting to `[]` claimed
     // "observed, nothing changed" for every trace ever parsed.
     changed_paths: meta.changedPaths ? [...meta.changedPaths].sort() : null,
-    cost_usd: null,
+    cost_usd: metrics2.cost_usd,
     // Tool metrics are observed directly. Token and cost fields stay null when
     // Pi does not report them; zero would falsely mean "free".
     metrics: metrics2
@@ -5659,7 +5675,6 @@ function mergeTraces(traces) {
   const calls = [];
   const changed = /* @__PURE__ */ new Set();
   let anyUnobserved = false;
-  let cost2 = null;
   let completed = 0;
   for (const t of traces) {
     const mergedCompletion = new Map([...t.tool_calls].filter((c) => c.completionIndex >= 0).sort((a, b) => a.completionIndex - b.completionIndex).map((c) => [c.id, completed++]));
@@ -5671,18 +5686,22 @@ function mergeTraces(traces) {
     else
       for (const p of t.changed_paths)
         changed.add(p);
-    if (t.cost_usd !== null)
-      cost2 = (cost2 ?? 0) + t.cost_usd;
   }
   const completeMetrics = traces.every((trace) => trace.metrics !== void 0);
+  const firstMetrics = traces[0].metrics;
+  const sameCostSource = completeMetrics && traces.every((trace) => trace.metrics.cost_source === firstMetrics.cost_source);
+  const samePriceDate = completeMetrics && traces.every((trace) => trace.metrics.price_as_of === firstMetrics.price_as_of);
+  const completeCost = sameCostSource && samePriceDate && (firstMetrics.cost_source === "provider-reported" || firstMetrics.cost_source === "price-table") && traces.every((trace) => validCost(trace.metrics.cost_usd));
+  const summedCost = completeCost ? traces.reduce((sum, trace) => sum + trace.metrics.cost_usd, 0) : null;
+  const cost2 = summedCost !== null && Number.isFinite(summedCost) ? summedCost : null;
   const metrics2 = completeMetrics ? traces.reduce((sum, trace) => ({
     input_tokens: sumNullable(sum.input_tokens, trace.metrics.input_tokens),
     output_tokens: sumNullable(sum.output_tokens, trace.metrics.output_tokens),
     cache_read_tokens: sumNullable(sum.cache_read_tokens, trace.metrics.cache_read_tokens),
     cache_write_tokens: sumNullable(sum.cache_write_tokens, trace.metrics.cache_write_tokens),
-    cost_usd: sumNullable(sum.cost_usd, trace.metrics.cost_usd),
-    cost_source: sum.cost_source === trace.metrics.cost_source ? sum.cost_source : "unreported",
-    price_as_of: sum.price_as_of === trace.metrics.price_as_of ? sum.price_as_of : null,
+    cost_usd: cost2,
+    cost_source: cost2 !== null ? firstMetrics.cost_source : sameCostSource && firstMetrics.cost_source === "subscription" ? "subscription" : "unreported",
+    price_as_of: cost2 !== null && firstMetrics.cost_source === "price-table" ? firstMetrics.price_as_of : null,
     tool_calls: sum.tool_calls + trace.metrics.tool_calls,
     delegated_children: sum.delegated_children + trace.metrics.delegated_children,
     max_concurrency: Math.max(sum.max_concurrency, trace.metrics.max_concurrency)
@@ -5700,8 +5719,9 @@ function mergeTraces(traces) {
   }) : void 0;
   const last = traces[traces.length - 1];
   const captureErrors = traces.flatMap((trace) => trace.capture_errors ?? []);
-  const { capture_errors: _lastCaptureErrors, ...lastWithoutCaptureErrors } = last;
+  const { capture_errors: _lastCaptureErrors, metrics: _lastMetrics, ...lastWithoutCaptureErrors } = last;
   void _lastCaptureErrors;
+  void _lastMetrics;
   const merged = {
     ...lastWithoutCaptureErrors,
     // The scenario's answer is its LAST turn's answer, matching how the
@@ -5715,6 +5735,9 @@ function mergeTraces(traces) {
   };
   merged.trace_sha256 = traceSha256(merged);
   return merged;
+}
+function validCost(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 var QUALIFIED_PI_VERSIONS, LEGACY_PI_TRACE_VERSION, SKIPPED, MAX_DETAILS_CHARS;
 var init_execution_trace = __esm({
@@ -8194,10 +8217,15 @@ var init_stability = __esm({
 function aggregateMetrics2(scenarios) {
   const metrics2 = scenarios.map((scenario) => scenario.metrics).filter((value) => value !== void 0);
   const sumOptional = (field) => {
-    const values = metrics2.map((value) => value[field]).filter((value) => typeof value === "number");
+    const values = metrics2.map((value) => value[field]).filter((value) => typeof value === "number" && Number.isFinite(value) && value >= 0);
     return values.length ? values.reduce((sum, value) => sum + value, 0) : null;
   };
   const maxValues = metrics2.map((value) => value.max_concurrency).filter((value) => typeof value === "number");
+  const source = metrics2[0]?.cost_source;
+  const sameCostSource = metrics2.length > 0 && metrics2.length === scenarios.length && source !== void 0 && metrics2.every((value) => value.cost_source === source);
+  const completeCost = sameCostSource && (source === "provider-reported" || source === "price-table") && metrics2.every((value) => value.subject_cost_usd !== void 0 && Number.isFinite(value.subject_cost_usd) && value.subject_cost_usd >= 0);
+  const costSum = completeCost ? metrics2.reduce((sum, value) => sum + value.subject_cost_usd, 0) : null;
+  const subjectCost = costSum !== null && Number.isFinite(costSum) ? costSum : null;
   return {
     wall_time_ms: metrics2.reduce((sum, value) => sum + value.wall_time_ms, 0),
     judge_calls: metrics2.reduce((sum, value) => sum + value.judge_calls, 0),
@@ -8208,11 +8236,8 @@ function aggregateMetrics2(scenarios) {
     output_tokens: sumOptional("output_tokens"),
     cache_read_tokens: sumOptional("cache_read_tokens"),
     cache_write_tokens: sumOptional("cache_write_tokens"),
-    subject_cost_usd: sumOptional("subject_cost_usd"),
-    cost_source: (() => {
-      const sources = scenarios.map((scenario) => scenario.metrics?.cost_source).filter((source) => source !== void 0);
-      return sources.length === 0 ? null : sources.every((source) => source === sources[0]) ? sources[0] : "unreported";
-    })(),
+    subject_cost_usd: subjectCost,
+    cost_source: subjectCost !== null || sameCostSource && source === "subscription" ? source : metrics2.length ? "unreported" : null,
     tool_calls: sumOptional("tool_calls"),
     delegated_children: sumOptional("delegated_children"),
     max_concurrency: maxValues.length ? Math.max(...maxValues) : null
@@ -10740,20 +10765,29 @@ var init_pi_json = __esm({
 // packages/adapters/src/model-pricing.ts
 function priceSubjectUsage2(trace) {
   if (!trace.metrics) return trace;
-  const price = prices2[trace.subject.model];
+  if (trace.metrics.cost_source === "subscription" || trace.metrics.cost_source === "provider-reported" && finiteAmount2(trace.metrics.cost_usd)) {
+    const metrics3 = { ...trace.metrics, cost_usd: trace.metrics.cost_source === "subscription" ? null : trace.metrics.cost_usd, price_as_of: null };
+    const priced2 = { ...trace, cost_usd: metrics3.cost_usd, metrics: metrics3 };
+    return { ...priced2, trace_sha256: traceSha256(priced2) };
+  }
+  const observed2 = trace.call?.observedModels;
+  const model = observed2 === void 0 ? trace.subject.model : observed2.length === 1 && observed2[0].provider === trace.subject.provider ? observed2[0].model : null;
+  const price = trace.subject.provider === "fireworks" && model && Object.hasOwn(prices2, model) ? prices2[model] : void 0;
   const { input_tokens, output_tokens, cache_read_tokens } = trace.metrics;
-  const hasUsage = input_tokens !== null || output_tokens !== null || cache_read_tokens !== null;
-  const cost2 = price && hasUsage ? ((input_tokens ?? 0) * price.input + (cache_read_tokens ?? 0) * price.cachedInput + (output_tokens ?? 0) * price.output) / MILLION2 : null;
+  const coverage = trace.call?.usageCoverage;
+  const completeCoverage = !trace.call || trace.call.status === "complete" && coverage.assistantMessages > 0 && [coverage.inputTokens, coverage.outputTokens, coverage.cacheReadTokens, coverage.cacheWriteTokens].every((count) => count === coverage.assistantMessages) && trace.metrics.cache_write_tokens === 0;
+  const cost2 = price && completeCoverage && !trace.capture_errors?.length && finiteAmount2(input_tokens) && finiteAmount2(output_tokens) && finiteAmount2(cache_read_tokens) && (trace.metrics.cache_write_tokens === null || trace.metrics.cache_write_tokens === 0) ? (input_tokens * price.input + cache_read_tokens * price.cachedInput + output_tokens * price.output) / MILLION2 : null;
+  const estimated = finiteAmount2(cost2);
   const metrics2 = {
     ...trace.metrics,
-    cost_usd: cost2 !== null && cost2 > 0 ? cost2 : null,
-    cost_source: cost2 !== null && cost2 > 0 ? "price-table" : "unreported",
-    price_as_of: model_prices_default.asOf
+    cost_usd: estimated ? cost2 : null,
+    cost_source: estimated ? "price-table" : "unreported",
+    price_as_of: estimated ? model_prices_default.asOf : null
   };
   const priced = { ...trace, cost_usd: metrics2.cost_usd, metrics: metrics2 };
   return { ...priced, trace_sha256: traceSha256(priced) };
 }
-var prices2, MILLION2;
+var prices2, MILLION2, finiteAmount2;
 var init_model_pricing = __esm({
   "packages/adapters/src/model-pricing.ts"() {
     "use strict";
@@ -10761,6 +10795,7 @@ var init_model_pricing = __esm({
     init_model_prices();
     prices2 = model_prices_default.models;
     MILLION2 = 1e6;
+    finiteAmount2 = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0;
   }
 });
 
@@ -16308,18 +16343,28 @@ init_dist();
 init_model_prices();
 var prices = model_prices_default.models;
 var MILLION = 1e6;
+var finiteAmount = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0;
 function priceSubjectUsage(trace) {
   if (!trace.metrics)
     return trace;
-  const price = prices[trace.subject.model];
+  if (trace.metrics.cost_source === "subscription" || trace.metrics.cost_source === "provider-reported" && finiteAmount(trace.metrics.cost_usd)) {
+    const metrics3 = { ...trace.metrics, cost_usd: trace.metrics.cost_source === "subscription" ? null : trace.metrics.cost_usd, price_as_of: null };
+    const priced2 = { ...trace, cost_usd: metrics3.cost_usd, metrics: metrics3 };
+    return { ...priced2, trace_sha256: traceSha256(priced2) };
+  }
+  const observed2 = trace.call?.observedModels;
+  const model = observed2 === void 0 ? trace.subject.model : observed2.length === 1 && observed2[0].provider === trace.subject.provider ? observed2[0].model : null;
+  const price = trace.subject.provider === "fireworks" && model && Object.hasOwn(prices, model) ? prices[model] : void 0;
   const { input_tokens, output_tokens, cache_read_tokens } = trace.metrics;
-  const hasUsage = input_tokens !== null || output_tokens !== null || cache_read_tokens !== null;
-  const cost2 = price && hasUsage ? ((input_tokens ?? 0) * price.input + (cache_read_tokens ?? 0) * price.cachedInput + (output_tokens ?? 0) * price.output) / MILLION : null;
+  const coverage = trace.call?.usageCoverage;
+  const completeCoverage = !trace.call || trace.call.status === "complete" && coverage.assistantMessages > 0 && [coverage.inputTokens, coverage.outputTokens, coverage.cacheReadTokens, coverage.cacheWriteTokens].every((count) => count === coverage.assistantMessages) && trace.metrics.cache_write_tokens === 0;
+  const cost2 = price && completeCoverage && !trace.capture_errors?.length && finiteAmount(input_tokens) && finiteAmount(output_tokens) && finiteAmount(cache_read_tokens) && (trace.metrics.cache_write_tokens === null || trace.metrics.cache_write_tokens === 0) ? (input_tokens * price.input + cache_read_tokens * price.cachedInput + output_tokens * price.output) / MILLION : null;
+  const estimated = finiteAmount(cost2);
   const metrics2 = {
     ...trace.metrics,
-    cost_usd: cost2 !== null && cost2 > 0 ? cost2 : null,
-    cost_source: cost2 !== null && cost2 > 0 ? "price-table" : "unreported",
-    price_as_of: model_prices_default.asOf
+    cost_usd: estimated ? cost2 : null,
+    cost_source: estimated ? "price-table" : "unreported",
+    price_as_of: estimated ? model_prices_default.asOf : null
   };
   const priced = { ...trace, cost_usd: metrics2.cost_usd, metrics: metrics2 };
   return { ...priced, trace_sha256: traceSha256(priced) };
@@ -19635,7 +19680,17 @@ function createHarnessDashboard(pi, version) {
         }
         return result;
       } catch (error) {
-        if (ticket === operation && ownGeneration === generation) publish([{ id: "activity", kind: "status", label: "Harness operation failed", state: "failed", details: ["Operation did not complete. Inspect Harness diagnostics; no product-failure conclusion is established."] }]);
+        if (ticket === operation && ownGeneration === generation) {
+          const cancelled = isProcessControlError(error) && error.reason === "aborted";
+          publish([{
+            id: "activity",
+            kind: "status",
+            label: cancelled ? "Harness evaluation cancelled" : "Harness operation failed",
+            // The source protocol's settled state means the operation ended, not that it succeeded.
+            state: cancelled ? "settled" : "failed",
+            details: [cancelled ? "Evaluation incomplete. Cancellation does not establish a result or approval. Inspect retained Harness diagnostics before deciding what to run next." : "Operation did not complete. Inspect Harness diagnostics; no product-failure conclusion is established."]
+          }]);
+        }
         throw error;
       }
     }

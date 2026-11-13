@@ -142,11 +142,11 @@ describe("--structured on an ungated plain scenario (T2)", () => {
       repetition: 0,
       inputTokens: 321,
       outputTokens: 45,
-      cacheReadTokens: null,
+      cacheReadTokens: 0,
       costUsd: 0.02,
       priceAsOf: "2026-09-29",
     }]);
-    expect(formatScorecard(summary)).toContain("$0.020000 price table");
+    expect(formatScorecard(summary)).toContain("$0.020000 price-table estimate");
   });
 });
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Show an intentionally cancelled evaluation as a settled, incomplete run in the optional dashboard. Cancellation still stops new work and preserves the original abort; resource limits and execution errors remain failures.
+- Preserve Pi's explicitly provider-reported subject costs, including zero. Estimates require known model identity and complete priced usage; mixed or partial accounting stays unavailable. Subscription usage does not imply a zero bill. Judge and JEV costs remain separate.
+
 ## 0.35.2 — 2026-11-10
 
 - Qualify exact Pi 1.5.2 for fresh evaluations through native and Harness transport controls, including multi-turn resume and CLI grading. Earlier qualified versions remain supported. Scripted compatibility checks do not establish model quality.

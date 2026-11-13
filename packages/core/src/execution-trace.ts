@@ -49,6 +49,7 @@ interface ContentBlock {
 interface RawMessage {
   provider?: string;
   model?: string;
+  responseModel?: string;
   role?: string;
   content?: ContentBlock[];
   stopReason?: string;
@@ -59,7 +60,7 @@ interface RawMessage {
     output?: number;
     cacheRead?: number;
     cacheWrite?: number;
-    cost?: { total?: number };
+    cost?: { total?: number; totalFromProvider?: boolean };
   };
 }
 
@@ -114,6 +115,8 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
   let outputTokens: number | null = null;
   let cacheReadTokens: number | null = null;
   let cacheWriteTokens: number | null = null;
+  let providerCost = 0;
+  let providerCostMessages = 0;
   let activeCalls = 0;
   let maxConcurrency = 0;
 
@@ -226,8 +229,22 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
       }
       if (msg?.role !== "assistant") continue;
       const identity = { provider: str(msg.provider) ?? null, model: str(msg.model) ?? null };
-      if ((identity.provider || identity.model) && !call.observedModels.some(item => item.provider === identity.provider && item.model === identity.model)) call.observedModels.push(identity);
+      // Preserve unknown completions rather than borrowing another completion's
+      // identity. Pi may also report a response model distinct from its selected
+      // model; retaining both prevents a single-model price assumption.
+      const identities = [identity];
+      if (str(msg.responseModel)) identities.push({ provider: identity.provider, model: msg.responseModel! });
+      for (const observed of identities) {
+        if (!call.observedModels.some(item => item.provider === observed.provider && item.model === observed.model)) call.observedModels.push(observed);
+      }
       call.usageCoverage.assistantMessages++;
+      const reportedCost = msg.usage?.cost;
+      // Pi also fills cost.total from its model catalogue. Only its explicit
+      // provider discriminator can promote that number to reported accounting.
+      if (reportedCost?.totalFromProvider === true && validCost(reportedCost.total)) {
+        providerCost += reportedCost.total;
+        providerCostMessages++;
+      }
       for (const [target, source] of [["inputTokens", "input"], ["outputTokens", "output"], ["cacheReadTokens", "cacheRead"], ["cacheWriteTokens", "cacheWrite"]] as const) {
         const value = msg.usage?.[source];
         if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
@@ -280,13 +297,15 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
         : "current terminal assistant content is empty, ineligible, or captured evidence is malformed");
     captureErrors.push(`Pi ${meta.piVersion ?? "(version unavailable)"} final delivery is ${finalStatus}; ${reason}`);
   }
+  const completeProviderCost = finalStatus === "complete" && providerCostMessages > 0
+    && providerCostMessages === call.usageCoverage.assistantMessages && Number.isFinite(providerCost);
   const metrics: TraceMetrics = {
     input_tokens: inputTokens,
     output_tokens: outputTokens,
     cache_read_tokens: cacheReadTokens,
     cache_write_tokens: cacheWriteTokens,
-    cost_usd: null,
-    cost_source: "unreported",
+    cost_usd: completeProviderCost ? providerCost : null,
+    cost_source: completeProviderCost ? "provider-reported" : "unreported",
     price_as_of: null,
     tool_calls: toolCalls.length,
     delegated_children: toolCalls
@@ -318,7 +337,7 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
     // overwrites this after observing the workspace. Defaulting to `[]` claimed
     // "observed, nothing changed" for every trace ever parsed.
     changed_paths: meta.changedPaths ? [...meta.changedPaths].sort() : null,
-    cost_usd: null,
+    cost_usd: metrics.cost_usd,
     // Tool metrics are observed directly. Token and cost fields stay null when
     // Pi does not report them; zero would falsely mean "free".
     metrics,
@@ -454,7 +473,6 @@ export function mergeTraces(traces: ExecutionTraceV1[]): ExecutionTraceV1 | null
   const calls: TraceToolCall[] = [];
   const changed = new Set<string>();
   let anyUnobserved = false;
-  let cost: number | null = null;
 
   let completed = 0;
   for (const t of traces) {
@@ -476,19 +494,26 @@ export function mergeTraces(traces: ExecutionTraceV1[]): ExecutionTraceV1 | null
     // cannot claim "nothing changed" from turns it never looked at.
     if (t.changed_paths === null) anyUnobserved = true;
     else for (const p of t.changed_paths) changed.add(p);
-    if (t.cost_usd !== null) cost = (cost ?? 0) + t.cost_usd;
   }
 
   const completeMetrics = traces.every((trace) => trace.metrics !== undefined);
+  const firstMetrics = traces[0].metrics;
+  const sameCostSource = completeMetrics && traces.every(trace => trace.metrics!.cost_source === firstMetrics!.cost_source);
+  const samePriceDate = completeMetrics && traces.every(trace => trace.metrics!.price_as_of === firstMetrics!.price_as_of);
+  const completeCost = sameCostSource && samePriceDate
+    && (firstMetrics!.cost_source === "provider-reported" || firstMetrics!.cost_source === "price-table")
+    && traces.every(trace => validCost(trace.metrics!.cost_usd));
+  const summedCost = completeCost ? traces.reduce((sum, trace) => sum + trace.metrics!.cost_usd!, 0) : null;
+  const cost = summedCost !== null && Number.isFinite(summedCost) ? summedCost : null;
   const metrics = completeMetrics
     ? traces.reduce<TraceMetrics>((sum, trace) => ({
         input_tokens: sumNullable(sum.input_tokens, trace.metrics!.input_tokens),
         output_tokens: sumNullable(sum.output_tokens, trace.metrics!.output_tokens),
         cache_read_tokens: sumNullable(sum.cache_read_tokens, trace.metrics!.cache_read_tokens),
         cache_write_tokens: sumNullable(sum.cache_write_tokens, trace.metrics!.cache_write_tokens),
-        cost_usd: sumNullable(sum.cost_usd, trace.metrics!.cost_usd),
-        cost_source: sum.cost_source === trace.metrics!.cost_source ? sum.cost_source : "unreported",
-        price_as_of: sum.price_as_of === trace.metrics!.price_as_of ? sum.price_as_of : null,
+        cost_usd: cost,
+        cost_source: cost !== null ? firstMetrics!.cost_source : sameCostSource && firstMetrics!.cost_source === "subscription" ? "subscription" : "unreported",
+        price_as_of: cost !== null && firstMetrics!.cost_source === "price-table" ? firstMetrics!.price_as_of : null,
         tool_calls: sum.tool_calls + trace.metrics!.tool_calls,
         delegated_children: sum.delegated_children + trace.metrics!.delegated_children,
         max_concurrency: Math.max(sum.max_concurrency, trace.metrics!.max_concurrency),
@@ -500,8 +525,9 @@ export function mergeTraces(traces: ExecutionTraceV1[]): ExecutionTraceV1 | null
     : undefined;
   const last = traces[traces.length - 1];
   const captureErrors = traces.flatMap((trace) => trace.capture_errors ?? []);
-  const { capture_errors: _lastCaptureErrors, ...lastWithoutCaptureErrors } = last;
+  const { capture_errors: _lastCaptureErrors, metrics: _lastMetrics, ...lastWithoutCaptureErrors } = last;
   void _lastCaptureErrors;
+  void _lastMetrics;
   const merged: ExecutionTraceV1 = {
     ...lastWithoutCaptureErrors,
     // The scenario's answer is its LAST turn's answer, matching how the
@@ -515,6 +541,10 @@ export function mergeTraces(traces: ExecutionTraceV1[]): ExecutionTraceV1 | null
   };
   merged.trace_sha256 = traceSha256(merged);
   return merged;
+}
+
+function validCost(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
 /** Split a raw stdout blob into lines. Prefer streaming; this is for saved blobs. */

@@ -21,10 +21,17 @@ export interface AggregateMetrics {
 export function aggregateMetrics(scenarios: ScenarioResult[]): AggregateMetrics {
   const metrics = scenarios.map((scenario) => scenario.metrics).filter((value): value is ScenarioMetrics => value !== undefined);
   const sumOptional = (field: keyof ScenarioMetrics): number | null => {
-    const values = metrics.map((value) => value[field]).filter((value): value is number => typeof value === "number");
+    const values = metrics.map((value) => value[field]).filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0);
     return values.length ? values.reduce((sum, value) => sum + value, 0) : null;
   };
   const maxValues = metrics.map((value) => value.max_concurrency).filter((value): value is number => typeof value === "number");
+  const source = metrics[0]?.cost_source;
+  const sameCostSource = metrics.length > 0 && metrics.length === scenarios.length
+    && source !== undefined && metrics.every(value => value.cost_source === source);
+  const completeCost = sameCostSource && (source === "provider-reported" || source === "price-table")
+    && metrics.every(value => value.subject_cost_usd !== undefined && Number.isFinite(value.subject_cost_usd) && value.subject_cost_usd >= 0);
+  const costSum = completeCost ? metrics.reduce((sum, value) => sum + value.subject_cost_usd!, 0) : null;
+  const subjectCost = costSum !== null && Number.isFinite(costSum) ? costSum : null;
   return {
     wall_time_ms: metrics.reduce((sum, value) => sum + value.wall_time_ms, 0),
     judge_calls: metrics.reduce((sum, value) => sum + value.judge_calls, 0),
@@ -35,11 +42,9 @@ export function aggregateMetrics(scenarios: ScenarioResult[]): AggregateMetrics 
     output_tokens: sumOptional("output_tokens"),
     cache_read_tokens: sumOptional("cache_read_tokens"),
     cache_write_tokens: sumOptional("cache_write_tokens"),
-    subject_cost_usd: sumOptional("subject_cost_usd"),
-    cost_source: (() => {
-      const sources = scenarios.map((scenario) => scenario.metrics?.cost_source).filter((source): source is NonNullable<typeof source> => source !== undefined);
-      return sources.length === 0 ? null : sources.every((source) => source === sources[0]) ? sources[0] : "unreported";
-    })(),
+    subject_cost_usd: subjectCost,
+    cost_source: subjectCost !== null || (sameCostSource && source === "subscription")
+      ? source! : metrics.length ? "unreported" : null,
     tool_calls: sumOptional("tool_calls"),
     delegated_children: sumOptional("delegated_children"),
     max_concurrency: maxValues.length ? Math.max(...maxValues) : null,

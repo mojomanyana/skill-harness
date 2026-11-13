@@ -35,7 +35,7 @@ test("runtime observations preserve unknown effort, resolved identity, zeros and
   const call = trace().call!;
   expect(call.requested.thinking).toBe("high");
   expect(call.effectiveThinking).toBeNull();
-  expect(call.observedModels).toEqual([{ provider: "observed-provider", model: "resolved-model" }]);
+  expect(call.observedModels).toEqual([{ provider: "observed-provider", model: "resolved-model" }, { provider: null, model: null }]);
   expect(call.usage).toEqual({ inputTokens: 7, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: null });
   expect(call.usageCoverage).toEqual({ assistantMessages: 2, inputTokens: 2, outputTokens: 1, cacheReadTokens: 1, cacheWriteTokens: 0 });
 });
