@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.5 — 2026-11-13
+
+- Recheck the supported Pi 1.5.2 runtime in an isolated CI lane using scripted local answers, with native and Harness-adapter coverage and retained failure diagnostics. Older version fixtures and contract pins remain unchanged.
+- Add a validation index separating reproducible transport and release checks from historical model results and privately retained acceptance. This CI/documentation patch changes no runtime behavior or model-quality claim.
+
 ## 0.35.4 — 2026-11-13
 
 - Offer an optional evidence-review authoring pattern through `skill_author reference` with `pattern: "evidence-review"`. Its synthetic packets cover meaningful endpoints, reconstructible baselines, comparable conditions, normal-path coverage and scoped acceptance.

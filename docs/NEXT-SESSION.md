@@ -2,11 +2,13 @@
 
 ## Current state
 
-Published **0.35.3** includes dashboard cancellation status and subject-cost provenance, on top of the Pi 1.5.2 qualification and packaged changelog from 0.35.2. Exact registry archives, clean installation and native Pi 1.5.2 extension loading/reload were verified during delivery.
+Release candidate **0.35.5** adds continuous scripted Pi 1.5.2 transport checks and a validation index. Runtime behavior is unchanged from 0.35.4. Existing source validation and the daily-use transport/diagnostic checks are retained; release CI, canonical package and installed registry verification remain separate release steps. No model or JEV calls are part of this release.
 
-Release candidate **0.35.4** adds the optional evidence-review authoring reference at `skill_author reference` with `pattern: "evidence-review"`. It supplies eight synthetic scenarios and 26 proposed calibration controls, separating supported conclusions, acceptance scope and claims of personally executing checks. Future authors must review their own expected labels; selecting the reference makes no model calls and grants no acceptance. See [authoring guidance](EVAL-AUTHORING.md).
+Published **0.35.4** includes the optional evidence-review authoring reference, on top of dashboard cancellation status, subject-cost provenance and Pi 1.5.2 qualification. The [immutable release](https://github.com/mojomanyana/skill-harness/releases/tag/v0.35.4) and its [release CI](https://github.com/mojomanyana/skill-harness/actions/runs/43425029949) identify the delivered source. Exact registry archives, clean installation and native Pi 1.5.2 extension loading/reload were verified during delivery.
 
-The optional reference's source tests and independent review passed. Canonical package, registry and installed verification for 0.35.4 remain separate release steps; the release evidence must establish publication before it is reported.
+Published **0.35.4** adds the optional evidence-review authoring reference at `skill_author reference` with `pattern: "evidence-review"`. It supplies eight synthetic scenarios and 26 proposed calibration controls, separating supported conclusions, acceptance scope and claims of personally executing checks. Future authors must review their own expected labels; selecting the reference makes no model calls and grants no acceptance. See [authoring guidance](EVAL-AUTHORING.md).
+
+The [validation index](VALIDATION-INDEX.md) distinguishes released-source checks, retained transport fixtures, historical model results and privately retained acceptance. The new daily-use batch is not qualified by those historical records. Its seven regression groups require their own checks; JEV stays off and no fresh model campaign is part of that batch.
 
 Provider totals require Pi's explicit `totalFromProvider` discriminator and complete captured assistant accounting. Table estimates require known identity and complete priced counters; partial or mixed totals remain unknown. Older saved scenario totals may lack cost-coverage evidence: do not reinterpret them as newly verified billing. No historical results are rewritten. See [usage accounting](USAGE.md#reading-usage-and-cost).
 
