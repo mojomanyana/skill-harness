@@ -279,12 +279,22 @@ test("scoped calibration reuses exact historical judgments without Pi calls and 
   expect(() => planCalibration(loaded, { judge, only: ["missing"] })).toThrow(/existing calibration control IDs/);
 });
 
-test("changed judge, labels or reference prompts do not reuse, and inconsistent prior evidence blocks before calls", async () => {
+test("changed judge, labels, rubric or reference prompts do not reuse, and inconsistent prior evidence blocks before calls", async () => {
   const { dir, specPath, controls } = setup();
   const loaded = prepareCalibration({ specPath, controls });
   const original = join(dir, "original");
   await runCalibration(loaded, { adapter: adapter([reply("PASS"), reply("FAIL"), reply("PASS")]), judge, output: original });
   expect(planCalibration(loaded, { judge: { ...judge, model: "other" }, reuse: [original] })).toMatchObject({ ready: true, reused: 0, judgeCallsPlanned: 3 });
+  const originalSpec = readFileSync(specPath, "utf8");
+  const changedRubric = JSON.parse(originalSpec);
+  changedRubric.scenarios[0].checklist[0] += " A wrong conclusion alone is not a claim of newly performed work.";
+  writeFileSync(specPath, JSON.stringify(changedRubric));
+  const clarified = prepareCalibration({ specPath, manifestPath: join(dir, "clarified.json"), controls });
+  expect(clarified.controls.map(c => c.transcript)).toEqual(loaded.controls.map(c => c.transcript));
+  expect(clarified.controls.map(c => c.prompt)).not.toEqual(loaded.controls.map(c => c.prompt));
+  expect(planCalibration(clarified, { judge, reuse: [original] })).toMatchObject({ ready: true, reused: 0, judgeCallsPlanned: 3 });
+  writeFileSync(specPath, originalSpec);
+  expect(planCalibration(loaded, { judge, reuse: [original] })).toMatchObject({ ready: true, reused: 3, judgeCallsPlanned: 0 });
   controls[1].expected = "PASS";
   controls.push({ ...controls[1], id: "negative", expected: "FAIL", transcript: transcript("500."), rationale: "Still incorrect" });
   const relabeled = prepareCalibration({ specPath, manifestPath: join(dir, "relabeled.json"), controls });

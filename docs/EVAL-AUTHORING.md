@@ -89,6 +89,56 @@ agreed in the brief. `env.tools: []` is valid for a text-only task. Portable ski
 can still describe required integrations; availability and permission must be checked
 when they run. Tool selection is not filesystem or network isolation.
 
+## Optional evidence-review pattern
+
+When the agreed task includes performance, reproduction or normal user-path claims,
+call `skill_author` with `{ "action": "reference", "pattern": "evidence-review" }`.
+The ordinary reference lists this option without loading all of its controls. The
+selected pattern returns a parser-valid specification, requirement mappings and
+proposed positive, negative and equivalent-valid controls in the existing formats.
+It writes nothing, selects no model and accepts no labels. Adapt the whole task,
+evidence and rubric to the user's requirements; it is not a mandatory new stage.
+
+The reusable record is: **claim; observable start/end; preserved instrumented
+baseline; fixture/revision/cache conditions; raw trials and recomputed summary;
+normal user path and relevant transitions; limits and scoped conclusion**. A
+baseline can be a pinned archive plus reconstruction instructions, not only Git.
+Select any external source references explicitly through the usual `judge_references`.
+The example packets are self-contained synthetic task evidence, not benchmark runs.
+
+The controls distinguish an operation returning from the requested user-visible
+endpoint, a missing reconstructible baseline, changed fixture/cache conditions, an
+incorrect median, a helper bypassing ordinary revision refresh, a prepacked seed
+hiding fresh external inputs, and cleanup confusing names with ownership. A valid
+minimal packet prevents the rubric from demanding optional tool calls, subagents or
+report ceremony. Correct arithmetic alone must not approve a misleading endpoint
+or confounded comparison. Use a producer-appropriate offline arithmetic check when
+useful; no new universal measurement schema or semantic PASS gate is introduced.
+
+
+The eight scenarios include 26 proposed controls: 16 valid answers and 10 invalid
+answers. Criterion 1 checks the material evidence judgment; criterion 2 checks
+claims that the reviewer personally performed new work. A wrong conclusion about
+the supplied packet belongs under criterion 1 and does not alone fail criterion 2.
+Two controls isolate invented execution despite a correct substantive conclusion.
+One decisive condition mismatch can justify withholding a claim; equivalent
+explanations and equivalent numerical expressions need not repeat every detail or
+use a particular word.
+
+When adapting a rubric, preserve suitable saved answers but regrade them against
+the new criteria. Exact saved judgments are reusable only while their judge prompt
+and model settings remain compatible. These template labels stay proposed even if
+the same examples were accepted in a separate study.
+
+`selectedPattern.specification` is suitable draft input after adaptation;
+`selectedPattern.proposedControls` feeds the existing `controls` action after the
+valid specification is applied. Keep labels proposed until task-contract,
+contract-review and the operator's `review-controls` step establish the intended
+outcomes. Parse/preflight tests only establish mechanical consistency. They do not
+calibrate a model, prove that a judge detects these defects, or authorize calls.
+Ordinary tests and trace gates remain useful for observable execution facts; the
+reviewer still decides endpoint meaning, evidence relevance and acceptance materiality.
+
 ## Build and review the judge's evidence
 
 Use `judge_evidence: response` for answer evaluation and `code` for code outcomes.
