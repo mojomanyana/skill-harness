@@ -4,9 +4,9 @@
 
 Published **0.35.2** includes the merged Pi 1.5.2 qualification and the canonical root changelog in the public Pi package. Registry artifacts and a clean Pi 1.5.2 composition were verified during delivery.
 
-The next unreleased batch groups dashboard cancellation status with subject-cost provenance. Provider totals require Pi's explicit `totalFromProvider` discriminator and complete captured assistant accounting. Table estimates require known identity and complete priced counters; partial or mixed totals remain unknown. Older saved scenario totals may lack cost-coverage evidence: do not reinterpret them as newly verified billing. No historical results are rewritten. See [usage accounting](USAGE.md#reading-usage-and-cost).
+Release candidate **0.35.3** groups dashboard cancellation status with subject-cost provenance. Provider totals require Pi's explicit `totalFromProvider` discriminator and complete captured assistant accounting. Table estimates require known identity and complete priced counters; partial or mixed totals remain unknown. Older saved scenario totals may lack cost-coverage evidence: do not reinterpret them as newly verified billing. No historical results are rewritten. See [usage accounting](USAGE.md#reading-usage-and-cost).
 
-The combined human regression is proposed separately; preparing these code changes does not authorize new model calls. JEV remains optional with its existing consent, threshold and model-selection policy.
+The grouped Pi 1.5.2 acceptance verified the exact source candidate, saved-result reuse, customer-draft continuity and cancellation reporting. Those bounded results do not establish general model quality or host health. Publication and installed-package verification remain separate release steps. JEV remains optional with its existing consent, threshold and model-selection policy.
 
 Pi 1.5.2 passed the isolated native and supported adapter matrix. The [retained controls](../packages/adapters/test/fixtures/pi-1.5.2/README.md) cover CLI grading and multi-turn resume through a local scripted provider.
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.35.3 — 2026-11-13
 
 - Show an intentionally cancelled evaluation as a settled, incomplete run in the optional dashboard. Cancellation still stops new work and preserves the original abort; resource limits and execution errors remain failures.
 - Preserve Pi's explicitly provider-reported subject costs, including zero. Estimates require known model identity and complete priced usage; mixed or partial accounting stays unavailable. Subscription usage does not imply a zero bill. Judge and JEV costs remain separate.
