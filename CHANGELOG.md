@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.35.4 — 2026-11-13
 
 - Offer an optional evidence-review authoring pattern through `skill_author reference` with `pattern: "evidence-review"`. Its synthetic packets cover meaningful endpoints, reconstructible baselines, comparable conditions, normal-path coverage and scoped acceptance.
 - Separate incorrect conclusions from invented claims of personally running checks. The reusable pattern includes valid alternatives and focused negative contrasts; every new author's expected labels remain proposed until reviewed. Existing judgments and saved answers are not rewritten or automatically accepted.
