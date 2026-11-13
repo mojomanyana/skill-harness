@@ -2,6 +2,8 @@
 
 ## Current state
 
+Release candidate **0.35.5** adds continuous scripted Pi 1.5.2 transport checks and a validation index. Runtime behavior is unchanged from 0.35.4. Existing source validation and the daily-use transport/diagnostic checks are retained; release CI, canonical package and installed registry verification remain separate release steps. No model or JEV calls are part of this release.
+
 Published **0.35.4** includes the optional evidence-review authoring reference, on top of dashboard cancellation status, subject-cost provenance and Pi 1.5.2 qualification. The [immutable release](https://github.com/mojomanyana/skill-harness/releases/tag/v0.35.4) and its [release CI](https://github.com/mojomanyana/skill-harness/actions/runs/43425029949) identify the delivered source. Exact registry archives, clean installation and native Pi 1.5.2 extension loading/reload were verified during delivery.
 
 Published **0.35.4** adds the optional evidence-review authoring reference at `skill_author reference` with `pattern: "evidence-review"`. It supplies eight synthetic scenarios and 26 proposed calibration controls, separating supported conclusions, acceptance scope and claims of personally executing checks. Future authors must review their own expected labels; selecting the reference makes no model calls and grants no acceptance. See [authoring guidance](EVAL-AUTHORING.md).
