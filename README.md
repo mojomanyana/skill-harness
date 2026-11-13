@@ -30,6 +30,10 @@ make the evidence and its limits inspectable.
 
 The [Pi 1.5.2 qualification](packages/adapters/test/fixtures/pi-1.5.2/README.md) repeats the native and Harness transport checks with the official 1.5.2 runtime. Session resumption, successful and failed tools, and grading all have retained examples.
 
+The [validation index](docs/VALIDATION-INDEX.md) separates public reproducible checks,
+historical model results and privately retained acceptance evidence. The current-Pi CI
+lane exercises 1.5.2 with scripted local answers; existing older-version fixtures remain.
+
 The [Pi 1.5.0 transport fixtures](packages/adapters/test/fixtures/pi-1.5.0/README.md)
 add native schema-coercion and invalid-argument controls, plus the same settled
 adapter/CLI matrix. These are scripted transport controls, not live model scores.

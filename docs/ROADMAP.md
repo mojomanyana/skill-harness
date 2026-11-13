@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-11-13 (0.35.4 release preparation; 0.35.3 published)
+Last updated: 2026-11-13 (0.35.4 published; daily-use integration checks in preparation)
 
 `skill-harness` develops, evaluates and improves skills through Pi and a selected
 model. It starts from a user's idea or imports a selected skill. Generated skills
@@ -40,10 +40,11 @@ implementation. The existing Pi subject-runtime qualification pin remains explic
 
 ## Current state
 
-- Release candidate `0.35.4`: optional evidence-review reference with eight synthetic
+- Published `0.35.4`: optional evidence-review reference with eight synthetic
   scenarios and 26 proposed controls. Authors review labels themselves; no automatic
-  acceptance or model invocation. Source tests and independent review passed;
-  canonical package, registry and installed verification remain release steps.
+  acceptance or model invocation. Source checks, release CI, canonical package,
+  registry and installed verification passed at the retained release identity.
+  See the [validation index](VALIDATION-INDEX.md) for scope and evidence availability.
 - Published `0.35.3`: settled cancellation status and explicit subject-cost provenance,
   with canonical archives, fresh registry install and Pi 1.5.2 loading/reload verified.
   JEV stays optional. Earlier dated preparation and acceptance records follow.
