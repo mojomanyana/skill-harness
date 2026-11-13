@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { evidenceReviewPattern } from "./evidence-review-pattern.js";
 import specificationSchema from "../../../schemas/specification-v1.schema.json" with { type: "json" };
 
 // esbuild embeds this canonical schema with the parser from the same source tree.
@@ -7,7 +8,8 @@ const schemaJson = JSON.stringify(specificationSchema);
 const schemaSha256 = createHash("sha256").update(schemaJson).digest("hex");
 
 /** Return format information only; never inspect or create an authoring project. */
-export function authoringReference() {
+export function authoringReference(pattern?: "evidence-review") {
+  if (pattern !== undefined && pattern !== "evidence-review") throw new Error("Unknown authoring reference pattern; use evidence-review or omit pattern");
   return {
     status: "reference" as const, readOnly: true, providerCalls: 0,
     schema: JSON.parse(schemaJson) as Record<string, unknown>,
@@ -23,6 +25,8 @@ export function authoringReference() {
         checklist: ["Acknowledges receipt of the request in one sentence."],
       }],
     },
+    patterns: [{ id: "evidence-review", description: "Optional performance/reproduction and normal-path review controls; request reference with pattern: evidence-review." }],
+    ...(pattern === "evidence-review" ? { selectedPattern: evidenceReviewPattern() } : {}),
     draftPaths: {
       skill: { area: "skill", path: "SKILL.md", root: "the selected skill directory (default skills/<name>)" },
       specification: { area: "evals", path: "specification.yaml", root: "<skill directory>/tests, or <evalRoot>/<name>/tests for separate-repo placement" },

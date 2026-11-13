@@ -71,7 +71,7 @@ const Answers = Type.Object({
   agentCapabilities: Type.Optional(Type.Array(Type.String({ description: "Additional explicitly agreed context:, agent:, skill:, workspace: or ext: capability IDs for the wrapper; default none" }))),
 });
 
-interface ReferenceParams { action: "reference" }
+interface ReferenceParams { action: "reference"; pattern?: "evidence-review" }
 
 interface AuthorParams {
   action: "start" | "status" | "answer" | "question" | "draft" | "apply" | "controls" | "task-contract" | "contract-review" | "review-controls";
@@ -209,12 +209,14 @@ export const skillAuthorTool = {
     "Start from the user's idea, use known answers, and ask only the next necessary question. Current Pi model authors the content; this tool persists and validates it.",
     "Keep authored skills portable to Pi alone; optional pi-daddy wrapper <skill>-agent.md needs a matching distinct name and explicit plain allowed-tools. Its capabilities may not exceed agreed tools plus explicit agentCapabilities. Select wrappers as Pi skills; native grants and settlement remain authoritative.",
     "Before draft, call reference for the exact schema, generic example and area-relative paths. Use turns, not prompt; judge_evidence is scenario-level. judge_persona is text, not a provider call.",
+    "For tasks with performance, reproducibility or normal-path claims, reference with pattern evidence-review supplies optional existing-format controls. Numerical consistency never grants semantic approval.",
     "Draft evaluations from agreed requirements; controls are proposed until review-controls records the operator's acceptance. Model choice and paid test calls wait until testing begins.",
     "Draft, fix preview issues and apply the specification before task-contract. Then record obligations from the selected trusted brief/task before preferred answers; contract-review maps criteria and minimal valid controls. Prepare missing evidence yourself rather than asking the operator to fill technical forms.",
     "Use controls for calibration evidence, then review-controls with the current reviewPath for one concise label acceptance. Full evidence is optional; exact accepted evidence is reused until its inputs change. Never invent hashes, overwrite evidence, or infer training/publishing consent.",
   ],
   parameters: Type.Object({
     action: Type.Union(["reference", "start", "status", "answer", "question", "draft", "apply", "controls", "task-contract", "contract-review", "review-controls"].map(value => Type.Literal(value))),
+    pattern: Type.Optional(Type.Literal("evidence-review", { description: "Optional reference-only pattern for performance/reproducibility and normal user-path evidence; returns proposed controls, not accepted labels" })),
     name: Type.Optional(Type.String({ description: "Stable saved project name; required except for reference" })),
     root: Type.Optional(Type.String({ description: "Authoring project directory; defaults to current working directory" })),
     idea: Type.Optional(Type.String({ description: "Original user idea; required to start" })),
@@ -272,7 +274,7 @@ export const skillAuthorTool = {
   }),
   async execute(_id: string, params: AuthorParams | ReferenceParams, _signal: AbortSignal, _onUpdate: unknown, ctx: CmdCtx) {
     if (params.action === "reference") {
-      const result = authoringReference();
+      const result = authoringReference(params.pattern);
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }], details: result };
     }
     if (!params.name?.trim()) throw new Error("This authoring action requires a saved project name; reference needs no name or project.");

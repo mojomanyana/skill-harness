@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Offer an optional evidence-review authoring pattern through `skill_author reference` with `pattern: "evidence-review"`. Its synthetic packets cover meaningful endpoints, reconstructible baselines, comparable conditions, normal-path coverage and scoped acceptance.
+- Separate incorrect conclusions from invented claims of personally running checks. The reusable pattern includes valid alternatives and focused negative contrasts; every new author's expected labels remain proposed until reviewed. Existing judgments and saved answers are not rewritten or automatically accepted.
+
 ## 0.35.3 — 2026-11-13
 
 - Show an intentionally cancelled evaluation as a settled, incomplete run in the optional dashboard. Cancellation still stops new work and preserves the original abort; resource limits and execution errors remain failures.

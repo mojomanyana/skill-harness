@@ -30,6 +30,9 @@ their instructions depend on skill-harness, pi-daddy or Principal.
    Stage through `skill_author draft`, inspect its changes and issues, then apply
    the exact digest within the user's authorized scope. Import only an explicitly
    selected existing skill. Existing files and historical results are not disposable.
+   For performance/reproduction or normal-path evidence tasks, the optional
+   `reference` pattern `evidence-review` supplies existing-format proposed controls;
+   use it only when relevant. Correct arithmetic is not semantic approval.
 3. **Check the evaluation itself.** Run `lint` and `preflight` before model calls.
    Map requirements to observable scenarios both ways. Name source files when the
    subject cannot discover them with its tools. Use `env.tools` to state the tool
