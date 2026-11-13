@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-11-11 (0.35.2 published; grouped cancellation and usage-clarity candidate)
+Last updated: 2026-11-11 (0.35.2 published; grouped cancellation and 0.35.3 release preparation)
 
 `skill-harness` develops, evaluates and improves skills through Pi and a selected
 model. It starts from a user's idea or imports a selected skill. Generated skills
