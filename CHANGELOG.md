@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.35.6 — 2026-11-14
+
+- Show configured base workspace, Git preparation, tool filters and session boundaries during task-contract authoring. This is not a live resource inventory or permission grant; run modes and arms may add resources, and ordinary multi-turn evaluation does not verify recall after `/new`.
+- Preserve retained task identities, accepted reviews and exact judge inputs; no expected answers are exposed by the setup display.
+
 ## 0.35.5 — 2026-11-13
 
 - Recheck the supported Pi 1.5.2 runtime in an isolated CI lane using scripted local answers, with native and Harness-adapter coverage and retained failure diagnostics. Older version fixtures and contract pins remain unchanged.

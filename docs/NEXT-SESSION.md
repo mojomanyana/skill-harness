@@ -2,7 +2,9 @@
 
 ## Current state
 
-Release candidate **0.35.5** adds continuous scripted Pi 1.5.2 transport checks and a validation index. Runtime behavior is unchanged from 0.35.4. Existing source validation and the daily-use transport/diagnostic checks are retained; release CI, canonical package and installed registry verification remain separate release steps. No model or JEV calls are part of this release.
+Source target **0.35.6** adds computed authoring setup context: base workspace and Git preparation, configured tool filters, scenario extensions and same-session versus fresh-session limits. It is descriptive only; retained task identities, accepted reviews and judge inputs are unchanged. Focused checks and the full 2,016-test suite passed with two optional skips; release CI, registry delivery and fresh installed verification remain pending. No model or JEV calls are part of this release.
+
+Published **0.35.5** adds continuous scripted Pi 1.5.2 transport checks and a validation index. Runtime behavior is unchanged from 0.35.4. All five release CI checks passed; canonical and registry archives, a fresh installation and native Pi 1.5.2 loading/reload were verified. The [immutable release](https://github.com/mojomanyana/skill-harness/releases/tag/v0.35.5) identifies delivered commit `9d4062b78e77710f88a1aec266514acc1a383df9`. No model or JEV calls were part of that release.
 
 Published **0.35.4** includes the optional evidence-review authoring reference, on top of dashboard cancellation status, subject-cost provenance and Pi 1.5.2 qualification. The [immutable release](https://github.com/mojomanyana/skill-harness/releases/tag/v0.35.4) and its [release CI](https://github.com/mojomanyana/skill-harness/actions/runs/43425029949) identify the delivered source. Exact registry archives, clean installation and native Pi 1.5.2 extension loading/reload were verified during delivery.
 

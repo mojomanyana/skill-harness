@@ -2,8 +2,8 @@
 
 ## Current candidate
 
-- Source release target: `0.35.5`
-- Intended stable tag: `v0.35.5`
+- Source release target: `0.35.6`
+- Intended stable tag: `v0.35.6`
 - These fields describe the source candidate only. Verify npm dist-tags and GitHub
   releases directly before making or reporting any live registry claim.
 - Release-pack toolchain: Node `v20.20.2`, npm `10.8.2`

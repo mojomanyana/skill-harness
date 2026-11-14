@@ -139,6 +139,35 @@ calibrate a model, prove that a judge detects these defects, or authorize calls.
 Ordinary tests and trace gates remain useful for observable execution facts; the
 reviewer still decides endpoint meaning, evidence relevance and acceptance materiality.
 
+## Check setup and session boundaries
+
+The task-contract response includes a computed `executionContext` alongside the
+existing task record. It reports the configured base workspace, Harness-owned Git
+baseline, optional local bare remote, tool filter, scenario extensions and session
+continuation. This
+is preparation information, not an observed run, an obligation source or a grant
+to the subject. It includes no checklist, preferred answer or judge-only content.
+Existing task identities, accepted controls and judge inputs remain unchanged.
+
+The base workspace factory creates an empty non-Git folder for
+`env.workspace: none`; `empty-git` and fixture workspaces receive a Harness-created
+baseline commit. This describes base setup, not everything present at subject
+launch: run modes and selected arms may add skill instructions, seed definitions
+or load extensions. The context lists only scenario extensions; no run arm is
+selected or inspected here. The configured tool filter is not a complete tool
+inventory: extension registration and actual runtime availability remain unobserved. Distinguish those setup effects from actions permitted to the
+subject. If a selected workflow requires a committed repository but the manual
+exercise forbids the setup needed to create one, resolve that contradiction before
+running the exercise; do not silently widen permission or blame the model.
+
+Ordinary multiple `turns` resume the same Pi session. They do not execute `/new`
+and cannot alone demonstrate cross-session memory. Keep manual checks in two
+self-contained requests: **Create and verify**, then **Recall after /new**. The
+second asks only for the saved delivery, historical verification and open choices;
+it must not repeat setup, edits, tests, research or saves. Missing or inaccessible
+history is reported, not recreated. Retain the actual session-transition evidence
+separately from ordinary multi-turn results.
+
 ## Build and review the judge's evidence
 
 Use `judge_evidence: response` for answer evaluation and `code` for code outcomes.
