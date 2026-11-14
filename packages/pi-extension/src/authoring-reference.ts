@@ -27,6 +27,17 @@ export function authoringReference(pattern?: "evidence-review") {
     },
     patterns: [{ id: "evidence-review", description: "Optional performance/reproduction and normal-path review controls; request reference with pattern: evidence-review." }],
     ...(pattern === "evidence-review" ? { selectedPattern: evidenceReviewPattern() } : {}),
+    execution: {
+      workspaces: [
+        { value: "none", preparation: "Base workspace is an empty non-Git folder; no baseline commit." },
+        { value: "empty-git", preparation: "Empty Git repository with a Harness-owned baseline commit before the subject starts." },
+        { value: "fixture:<path>", preparation: "Selected fixture copied into a Git baseline; staged/uncommitted overlays follow it." },
+      ],
+      scope: "Base workspace preparation only, before run-mode and arm resources. A selected arm may seed skills or add extensions; the configured tool filter is not an observed final tool inventory.",
+      sessions: "Multiple turns resume the same Pi session; a second turn is not /new.",
+      authority: "Runner preparation does not grant the subject permission to initialize Git, commit or take other actions.",
+      manualRecall: "Use separate Create and verify and Recall after /new requests. The recall-only request reports saved history without repeating setup, work, tests, research or writes.",
+    },
     draftPaths: {
       skill: { area: "skill", path: "SKILL.md", root: "the selected skill directory (default skills/<name>)" },
       specification: { area: "evals", path: "specification.yaml", root: "<skill directory>/tests, or <evalRoot>/<name>/tests for separate-repo placement" },

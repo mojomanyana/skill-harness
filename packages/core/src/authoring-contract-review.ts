@@ -175,6 +175,59 @@ export function inspectAuthoringTaskContract(options: AuthoringTaskContractSelec
   return { schema: 1, purpose: "authoring-task-contract", ...projection, inputSha256: hash(encode(projection)) };
 }
 
+/**
+ * Display-only preparation facts from the already-bound specification. Kept outside
+ * the retained task projection, obligation sources and judge/calibration inputs.
+ * This describes the configured runner; it does not inspect or prepare a workspace.
+ */
+export function describeAuthoringExecutionContext(task: AuthoringTaskContract) {
+  const specification = selectedText(task.selection.specPath);
+  const specificationSha256 = hash(specification);
+  if (!task.bindings.some(binding => binding.path === task.selection.specPath && binding.sha256 === specificationSha256)) {
+    throw new Error("Specification changed; inspect task-contract again before displaying execution context");
+  }
+  const spec = parseSpec(specification, task.selection.specPath);
+  return {
+    purpose: "authoring-execution-context" as const,
+    state: "configured-not-executed" as const,
+    taskInputSha256: task.inputSha256,
+    specificationSha256,
+    descriptiveOnly: true,
+    scope: "specification-base-setup" as const,
+    runtimeInventoryObserved: false,
+    runArm: "not-selected-by-task-contract" as const,
+    providerCalls: 0,
+    scenarios: spec.scenarios.map(scenario => ({
+      scenarioId: scenario.id,
+      mode: scenario.mode,
+      baseWorkspace: {
+        kind: typeof scenario.workspace === "object" ? "fixture" as const : scenario.workspace,
+        ...(typeof scenario.workspace === "object" ? { fixture: scenario.workspace.fixture } : {}),
+        gitRepository: scenario.workspace !== "none",
+        baselineCommit: scenario.workspace === "none" ? "none" as const : "prepared-by-harness" as const,
+        remote: scenario.remote ? "local-bare-origin" as const : "none" as const,
+      },
+      toolFilter: scenario.tools === undefined
+        ? { selection: "pi-default" as const }
+        : { selection: "explicit" as const, names: [...scenario.tools] },
+      scenarioExtensions: [...(scenario.extensions ?? [])],
+      session: {
+        turns: scenario.turns.length,
+        continuation: scenario.turns.length > 1 ? "same-session-resume" as const : "single-turn-no-session" as const,
+        verifiesFreshSessionRecall: false,
+      },
+    })),
+    notes: [
+      "These are configured preparation facts, not permission for the subject to initialize Git, commit, install, publish or take other actions.",
+      "The base workspace factory creates an empty non-Git folder for none, or a Git baseline for empty-git and fixture; staged/uncommitted fixture overlays follow that baseline. This is not a complete subject-launch filesystem inventory.",
+      "The selected run mode and arm can add skill instructions, seeded skill definitions and extensions after base workspace preparation. Arms are selected at execution time and are not inspected here.",
+      "toolFilter reports the configured Pi filter, not the final available tool inventory. Scenario extensions and selected arm extensions can contribute tools; their loading and registration have not been observed.",
+      "Multiple turns resume the same Pi session. They do not execute /new or independently verify fresh-session memory.",
+      "For a manual fresh-session check, keep Create and verify separate from Recall after /new. The recall-only request must not repeat setup, edits, tests, research or saves; unavailable history must be reported rather than recreated.",
+    ],
+  };
+}
+
 function validateObligations(task: AuthoringTaskContract, obligations: AuthoringContractObligation[]): void {
   if (!Array.isArray(obligations) || !obligations.length || obligations.length > 1000) throw new Error("Record bounded task obligations before reviewing controls");
   const ids = new Set<string>();

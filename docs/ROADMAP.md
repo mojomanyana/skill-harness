@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-11-13 (0.35.5 release preparation; 0.35.4 published)
+Last updated: 2026-11-14 (0.35.6 source target; 0.35.5 publication verified)
 
 `skill-harness` develops, evaluates and improves skills through Pi and a selected
 model. It starts from a user's idea or imports a selected skill. Generated skills
@@ -40,9 +40,13 @@ implementation. The existing Pi subject-runtime qualification pin remains explic
 
 ## Current state
 
-- Release candidate `0.35.5`: current-Pi scripted transport CI and a validation
-  index with explicit evidence boundaries. Runtime behavior stays unchanged;
-  release CI, package and registry checks remain separate from source validation.
+- Source target `0.35.6`: show configured base setup and session boundaries during authoring without exposing answers or changing review/judge identity. The context does not claim a live tool inventory or authorize setup. Source checks passed; release delivery remains pending.
+
+- Published `0.35.5`: current-Pi scripted transport CI and a validation
+  index with explicit evidence boundaries. Runtime behavior stays unchanged.
+  Five release CI checks, canonical/registry archive identity, fresh installation
+  and native Pi 1.5.2 loading/reload passed; no model or JEV calls were made.
+  See the [immutable release](https://github.com/mojomanyana/skill-harness/releases/tag/v0.35.5).
 
 - Published `0.35.4`: optional evidence-review reference with eight synthetic
   scenarios and 26 proposed controls. Authors review labels themselves; no automatic

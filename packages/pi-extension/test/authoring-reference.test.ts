@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseSpec } from "@skill-harness/core";
+import { inspectAuthoringTaskContract, parseSpec } from "@skill-harness/core";
 import { skillAuthorTool } from "../src/authoring.js";
 import type { CmdCtx } from "../src/commands.js";
 
@@ -35,6 +35,9 @@ it("reads the exact reference before any project/name/model without files, provi
   const fresh = (await execute({ action: "reference" }, ctx)).details as any;
   expect(fresh.schema.required).not.toContain("invented");
   expect(fresh.schemaIdentity).toEqual(reference.schemaIdentity);
+  expect(reference.execution.workspaces.map((workspace: any) => workspace.value)).toEqual(["none", "empty-git", "fixture:<path>"]);
+  expect(reference.execution.sessions).toContain("not /new");
+  expect(reference.execution.authority).toContain("does not grant");
   expect(reference).not.toHaveProperty("accepted");
   expect(reference).not.toHaveProperty("controls");
   expect(readdirSync(root)).toEqual([]);
@@ -78,6 +81,23 @@ it.each(["same-repo", "separate-repo"] as const)("recovers a malformed fresh dra
   const contract = (await execute({ action: "task-contract", name }, ctx)).details as any;
   expect(contract.sources.find((source: any) => source.id === "task:A1:0").text).toBe(reference.minimalSpecification.scenarios[0].turns[0]);
   expect(contract).not.toHaveProperty("controls");
+  expect(contract.executionContext).toMatchObject({
+    state: "configured-not-executed", descriptiveOnly: true, providerCalls: 0,
+    scenarios: [{ scenarioId: "A1", baseWorkspace: { kind: "none", gitRepository: false, baselineCommit: "none" },
+      toolFilter: { selection: "explicit", names: [] },
+      session: { turns: 1, continuation: "single-turn-no-session", verifiesFreshSessionRecall: false } }],
+  });
+  const { executionContext, ...retainedProjection } = contract;
+  const specPath = join(evalDir, "specification.yaml");
+  expect(retainedProjection).toEqual(inspectAuthoringTaskContract({ root, name, specPath }));
+  const prepared = (await execute({ action: "task-contract", name, expectedInputSha256: contract.inputSha256, obligations: [{
+    id: "acknowledge", scenarioId: "A1", kind: "task",
+    anchors: [{ sourceId: "task:A1:0", quote: reference.minimalSpecification.scenarios[0].turns[0] }],
+    rationale: "The requested outcome is a one-sentence acknowledgement.",
+  }] }, ctx)).details as any;
+  expect(prepared.executionContext).toEqual(executionContext);
+  expect(prepared.task).not.toHaveProperty("executionContext");
+  expect(JSON.parse(readFileSync(prepared.taskPath, "utf8"))).not.toHaveProperty("executionContext");
   expect(readdirSync(evalDir).sort()).toEqual(["authoring.json", "specification.yaml"]);
   expect(JSON.parse(readFileSync(join(evalDir, "authoring.json"), "utf8"))).toMatchObject({ labelStatus: "proposed", calibrated: false, modelQualityEvaluated: false });
   expect(fetch).not.toHaveBeenCalled();
