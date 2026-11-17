@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ExecutionTraceV1, TraceToolCall, TraceResultMeta, TraceMetrics } from "./capture-trace-types.js";
+import type { ExecutionTraceV1, PiPatchQualification, TraceToolCall, TraceResultMeta, TraceMetrics } from "./capture-trace-types.js";
 import { normalizeSubagentCall } from "./trace-gates.js";
 import { EXECUTION_TRACE_VERSION } from "./capture-trace-types.js";
 import { redactArgs, redactText } from "./redaction.js";
@@ -24,14 +24,55 @@ import type { ModelRef, RunMode } from "./adapters/types.js";
  *    concurrently and their `end` events arrive in completion order.
  */
 
-/** Preferred historical pin; fresh execution accepts only the explicit fixture-qualified releases below. */
+/**
+ * Preferred historical pin. Fresh execution accepts the explicit fixture-qualified
+ * releases below exactly, and a later patch of the newest listed release in a minor
+ * as a flagged patch (see `piQualification`). A new minor needs its own entry.
+ */
 export const QUALIFIED_PI_VERSION = "1.0.4";
 export const QUALIFIED_PI_VERSIONS = ["1.0.4", "1.1.0", "1.4.0", "1.5.0", "1.5.2"] as const;
 /** Historical raw captures from this version remain readable; this is not fresh-run qualification. */
 const LEGACY_PI_TRACE_VERSION = "0.83.0";
+
+/** Plain `major.minor.patch` only: a prerelease, build metadata, prefix or leading zero is not a release. */
+function releaseParts(version: unknown): [number, number, number] | null {
+  const match = typeof version === "string" ? /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(version) : null;
+  const parts = match ? [Number(match[1]), Number(match[2]), Number(match[3])] as [number, number, number] : null;
+  return parts && parts.every(Number.isSafeInteger) ? parts : null;
+}
+
+/**
+ * A listed version is exact. An unlisted release passes, flagged, only when its
+ * patch is above the highest listed patch of the same major.minor: a lower patch
+ * predates a qualified fix, and a new minor or major needs its own entry.
+ */
+export function piQualification(version: string | null): { status: "exact" } | PiPatchQualification | { status: "unqualified"; reason: string } {
+  if (QUALIFIED_PI_VERSIONS.some(qualified => version === qualified)) return { status: "exact" };
+  const ran = releaseParts(version);
+  const base = ran ? QUALIFIED_PI_VERSIONS
+    .map(qualified => ({ version: qualified, parts: releaseParts(qualified)! }))
+    .filter(({ parts }) => parts[0] === ran[0] && parts[1] === ran[1])
+    .sort((a, b) => b.parts[2] - a.parts[2])[0] : undefined;
+  if (ran && base && ran[2] > base.parts[2]) return { status: "patch", qualified_version: base.version };
+  return { status: "unqualified", reason: `Pi ${version ?? "(version unavailable)"} is unqualified; execution requires qualified Pi ${QUALIFIED_PI_VERSIONS.join(" or ")}, or a later patch of the newest listed release in its minor` };
+}
+
 export function piQualificationFailure(version: string | null): string | null {
-  return QUALIFIED_PI_VERSIONS.some(qualified => version === qualified) ? null
-    : `Pi ${version ?? "(version unavailable)"} is unqualified; execution requires qualified Pi ${QUALIFIED_PI_VERSIONS.join(" or ")}`;
+  const qualification = piQualification(version);
+  return qualification.status === "unqualified" ? qualification.reason : null;
+}
+
+/**
+ * Whether a STORED patch flag is well formed and consistent with the version it
+ * sits beside. Structural only: it is never re-derived from today's list, which
+ * moves between harness releases.
+ */
+export function validPiPatchFlag(version: unknown, flag: unknown): flag is PiPatchQualification {
+  if (flag === null || typeof flag !== "object" || Array.isArray(flag)) return false;
+  const { status, qualified_version, ...rest } = flag as Record<string, unknown>;
+  const ran = releaseParts(version), base = releaseParts(qualified_version);
+  return status === "patch" && Object.keys(rest).length === 0 && ran !== null && base !== null
+    && ran[0] === base[0] && ran[1] === base[1] && ran[2] > base[2];
 }
 
 /** Events that carry no information a trace keeps, and are large. */
@@ -97,7 +138,8 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
   let malformedLines = 0;
   let sawTerminal = false;
   const settledContract = meta.piVersion !== LEGACY_PI_TRACE_VERSION;
-  const qualificationFailure = settledContract ? piQualificationFailure(meta.piVersion) : null;
+  const qualification = settledContract ? piQualification(meta.piVersion) : null;
+  const qualificationFailure = qualification?.status === "unqualified" ? qualification.reason : null;
   let sawSettled = false;
   let lastStopReason: string | undefined;
   let currentAssistantText = "";
@@ -316,6 +358,8 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
   const trace: ExecutionTraceV1 = {
     trace_version: EXECUTION_TRACE_VERSION,
     pi_version: meta.piVersion,
+    // Inside the digest below, so it cannot be dropped from a saved trace unnoticed.
+    ...(qualification?.status === "patch" ? { pi_qualification: qualification } : {}),
     subject: meta.subject,
     call: { ...call, status: finalStatus === "complete" ? "complete" : "error" },
     scenario_id: meta.scenarioId,

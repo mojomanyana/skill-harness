@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
-import { evaluateTraceGates, lines, parseTrace, piQualificationFailure } from "@skill-harness/core";
+import { evaluateTraceGates, lines, parseTrace, piQualification, piQualificationFailure } from "@skill-harness/core";
 
 const root = new URL("./fixtures/pi-1.4.0/", import.meta.url);
 const read = (file: string) => readFileSync(new URL(file, root), "utf8");
@@ -88,5 +88,7 @@ test("supported adapter resumes exact turns and synthetic scoring respects objec
   expect(clean).toMatchObject({ exitCode: 0, fixtureShip: true, scriptedJudgeRequests: 1, verdicts: { good: "PASS" } });
   expect(mixed).toMatchObject({ exitCode: 1, fixtureShip: false, scriptedJudgeRequests: 2, verdicts: { good: "PASS", "judge-fail": "FAIL", "gate-fail": "FAIL" } });
   expect(piQualificationFailure("1.4.0")).toBeNull();
-  for (const version of ["1.4.0-rc.1", "1.4.1", "1.5.0-rc.1", "1.5.1", "9.9.9", null]) expect(piQualificationFailure(version)).not.toBeNull();
+  for (const version of ["1.4.0-rc.1", "1.5.0-rc.1", "1.5.1", "9.9.9", null]) expect(piQualificationFailure(version)).not.toBeNull();
+  // 1.4.1 was refused until later patches of a qualified minor became accepted, flagged.
+  expect(piQualification("1.4.1")).toEqual({ status: "patch", qualified_version: "1.4.0" });
 });

@@ -3921,6 +3921,495 @@ var init_version = __esm({
   }
 });
 
+// packages/core/dist/capture-trace-types.js
+var EXECUTION_TRACE_VERSION;
+var init_capture_trace_types = __esm({
+  "packages/core/dist/capture-trace-types.js"() {
+    "use strict";
+    EXECUTION_TRACE_VERSION = 2;
+  }
+});
+
+// packages/core/dist/redaction.js
+function redactText(input, homeDir) {
+  let out = input;
+  out = out.replace(SECRET_VALUE[SECRET_VALUE.length - 1], `$1${REDACTED}@`);
+  for (const re of SECRET_VALUE.slice(0, -1))
+    out = out.replace(re, REDACTED);
+  if (homeDir && homeDir.length > 1)
+    out = out.split(homeDir).join("~");
+  return out;
+}
+function truncate(input, max = MAX_VALUE_CHARS) {
+  if (input.length <= max)
+    return input;
+  return `${input.slice(0, max)}\u2026 [truncated ${input.length - max} chars]`;
+}
+function redactArgs(args, homeDir, depth = 0) {
+  if (args === null || typeof args !== "object" || Array.isArray(args))
+    return {};
+  const out = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (SECRET_KEY.test(key)) {
+      out[key] = REDACTED;
+      continue;
+    }
+    out[key] = redactValue(value, homeDir, depth);
+  }
+  return out;
+}
+function redactValue(value, homeDir, depth) {
+  if (typeof value === "string")
+    return truncate(redactText(value, homeDir));
+  if (typeof value === "number" || typeof value === "boolean" || value === null)
+    return value;
+  if (depth >= 3)
+    return "[nested]";
+  if (Array.isArray(value))
+    return value.slice(0, 20).map((v) => redactValue(v, homeDir, depth + 1));
+  if (typeof value === "object")
+    return redactArgs(value, homeDir, depth + 1);
+  return String(value);
+}
+var MAX_VALUE_CHARS, REDACTED, SECRET_KEY, SECRET_VALUE;
+var init_redaction = __esm({
+  "packages/core/dist/redaction.js"() {
+    "use strict";
+    MAX_VALUE_CHARS = 2e3;
+    REDACTED = "[redacted]";
+    SECRET_KEY = /^(.*[-_])?(password|passwd|secret|token|api[-_]?key|apikey|auth|authorization|credential|private[-_]?key|access[-_]?key|session[-_]?key)([-_].*)?$/i;
+    SECRET_VALUE = [
+      /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
+      /\bBearer\s+[A-Za-z0-9._~+/-]{16,}=*/g,
+      /\bsk-[A-Za-z0-9]{16,}\b/g,
+      /\bgh[pousr]_[A-Za-z0-9]{16,}\b/g,
+      /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/g,
+      /\bAKIA[0-9A-Z]{16}\b/g,
+      /\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
+      /\b([a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^/\s@]+@/gi
+    ];
+  }
+});
+
+// packages/core/dist/execution-trace.js
+import { createHash } from "node:crypto";
+function releaseParts(version) {
+  const match = typeof version === "string" ? /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(version) : null;
+  const parts = match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+  return parts && parts.every(Number.isSafeInteger) ? parts : null;
+}
+function piQualification(version) {
+  if (QUALIFIED_PI_VERSIONS.some((qualified) => version === qualified))
+    return { status: "exact" };
+  const ran = releaseParts(version);
+  const base = ran ? QUALIFIED_PI_VERSIONS.map((qualified) => ({ version: qualified, parts: releaseParts(qualified) })).filter(({ parts }) => parts[0] === ran[0] && parts[1] === ran[1]).sort((a, b) => b.parts[2] - a.parts[2])[0] : void 0;
+  if (ran && base && ran[2] > base.parts[2])
+    return { status: "patch", qualified_version: base.version };
+  return { status: "unqualified", reason: `Pi ${version ?? "(version unavailable)"} is unqualified; execution requires qualified Pi ${QUALIFIED_PI_VERSIONS.join(" or ")}, or a later patch of the newest listed release in its minor` };
+}
+function piQualificationFailure(version) {
+  const qualification = piQualification(version);
+  return qualification.status === "unqualified" ? qualification.reason : null;
+}
+function validPiPatchFlag(version, flag) {
+  if (flag === null || typeof flag !== "object" || Array.isArray(flag))
+    return false;
+  const { status, qualified_version, ...rest } = flag;
+  const ran = releaseParts(version), base = releaseParts(qualified_version);
+  return status === "patch" && Object.keys(rest).length === 0 && ran !== null && base !== null && ran[0] === base[0] && ran[1] === base[1] && ran[2] > base[2];
+}
+function parseTrace(lines, meta) {
+  const calls = /* @__PURE__ */ new Map();
+  const issuedAt = /* @__PURE__ */ new Map();
+  const completedAt = /* @__PURE__ */ new Map();
+  let issueCounter = 0;
+  let completionCounter = 0;
+  let malformedLines = 0;
+  let sawTerminal = false;
+  const settledContract = meta.piVersion !== LEGACY_PI_TRACE_VERSION;
+  const qualification = settledContract ? piQualification(meta.piVersion) : null;
+  const qualificationFailure = qualification?.status === "unqualified" ? qualification.reason : null;
+  let sawSettled = false;
+  let lastStopReason;
+  let currentAssistantText = "";
+  let eligibleFinal = false;
+  const captureErrors = [];
+  const call = {
+    requested: { ...meta.subject },
+    observedModels: [],
+    effectiveThinking: null,
+    status: "unknown",
+    usage: { inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheWriteTokens: null },
+    usageCoverage: { assistantMessages: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }
+  };
+  let finalText = "";
+  let lastAssistantText = "";
+  let inputTokens = null;
+  let outputTokens = null;
+  let cacheReadTokens = null;
+  let cacheWriteTokens = null;
+  let providerCost = 0;
+  let providerCostMessages = 0;
+  let activeCalls = 0;
+  let maxConcurrency = 0;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed)
+      continue;
+    let ev;
+    try {
+      ev = JSON.parse(trimmed);
+    } catch {
+      malformedLines++;
+      continue;
+    }
+    if (!ev || typeof ev !== "object" || Array.isArray(ev)) {
+      malformedLines++;
+      continue;
+    }
+    const type2 = ev.type;
+    if (typeof type2 !== "string") {
+      malformedLines++;
+      continue;
+    }
+    if (settledContract && ["agent_start", "turn_start", "message_start", "message_update", "message_end", "tool_execution_start", "tool_execution_end"].includes(type2)) {
+      sawSettled = false;
+      if (type2 !== "tool_execution_end") {
+        currentAssistantText = "";
+        lastStopReason = void 0;
+        eligibleFinal = false;
+      }
+    }
+    if (SKIPPED.has(type2))
+      continue;
+    if (type2 === "tool_execution_start") {
+      const id = str2(ev.toolCallId);
+      if (!id) {
+        captureErrors.push("tool start without an identity");
+        continue;
+      }
+      if (calls.has(id)) {
+        captureErrors.push("duplicate tool start identity");
+        continue;
+      }
+      calls.set(id, {
+        id,
+        name: str2(ev.toolName) ?? "(unknown)",
+        args: redactArgs(ev.args, meta.homeDir),
+        issueIndex: issueCounter++,
+        ...issuedAt.get(id) ? { started_at: issuedAt.get(id) } : {},
+        completionIndex: -1,
+        // filled in on `end`; -1 means it never completed
+        isError: false,
+        result: { bytes: 0, sha256: sha256("") }
+      });
+      activeCalls++;
+      maxConcurrency = Math.max(maxConcurrency, activeCalls);
+      continue;
+    }
+    if (type2 === "tool_execution_end") {
+      const id = str2(ev.toolCallId);
+      if (!id) {
+        captureErrors.push("tool end without an identity");
+        continue;
+      }
+      const call2 = calls.get(id);
+      if (!call2) {
+        captureErrors.push("tool end without a matching start");
+        continue;
+      }
+      if (call2.completionIndex >= 0) {
+        captureErrors.push("duplicate tool completion identity");
+        continue;
+      }
+      if (call2.completionIndex < 0)
+        activeCalls = Math.max(0, activeCalls - 1);
+      call2.completionIndex = completionCounter++;
+      if (completedAt.get(id))
+        call2.completed_at = completedAt.get(id);
+      call2.isError = ev.isError === true;
+      call2.result = resultMeta(ev.result, meta.homeDir);
+      continue;
+    }
+    if (type2 === "message_end") {
+      sawTerminal = true;
+      const msg = ev.message;
+      if (!msg || typeof msg !== "object" || Array.isArray(msg) || typeof msg.role !== "string") {
+        captureErrors.push("malformed message_end message");
+        continue;
+      }
+      if (msg.role !== "assistant" && msg.role !== "toolResult")
+        continue;
+      if (!Array.isArray(msg.content) || msg.content.some((block) => !block || typeof block !== "object" || Array.isArray(block) || typeof block.type !== "string" || block.type === "text" && typeof block.text !== "string")) {
+        captureErrors.push("malformed message_end content");
+        continue;
+      }
+      const at = isoTime(msg.timestamp);
+      if (msg?.role === "assistant" && at) {
+        for (const block of msg.content ?? []) {
+          if (block.type !== "toolCall" || typeof block.id !== "string")
+            continue;
+          issuedAt.set(block.id, at);
+          const call2 = calls.get(block.id);
+          if (call2)
+            call2.started_at = at;
+        }
+      }
+      if (msg?.role === "toolResult" && typeof msg.toolCallId === "string" && at) {
+        completedAt.set(msg.toolCallId, at);
+        const call2 = calls.get(msg.toolCallId);
+        if (call2)
+          call2.completed_at = at;
+      }
+      if (msg?.role !== "assistant")
+        continue;
+      const identity2 = { provider: str2(msg.provider) ?? null, model: str2(msg.model) ?? null };
+      const identities = [identity2];
+      if (str2(msg.responseModel))
+        identities.push({ provider: identity2.provider, model: msg.responseModel });
+      for (const observed2 of identities) {
+        if (!call.observedModels.some((item) => item.provider === observed2.provider && item.model === observed2.model))
+          call.observedModels.push(observed2);
+      }
+      call.usageCoverage.assistantMessages++;
+      const reportedCost = msg.usage?.cost;
+      if (reportedCost?.totalFromProvider === true && validCost(reportedCost.total)) {
+        providerCost += reportedCost.total;
+        providerCostMessages++;
+      }
+      for (const [target, source] of [["inputTokens", "input"], ["outputTokens", "output"], ["cacheReadTokens", "cacheRead"], ["cacheWriteTokens", "cacheWrite"]]) {
+        const value = msg.usage?.[source];
+        if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+          call.usage[target] = (call.usage[target] ?? 0) + value;
+          call.usageCoverage[target]++;
+        }
+      }
+      const text6 = assistantText(msg);
+      eligibleFinal = msg.content.every((block) => block.type === "text" || block.type === "thinking");
+      currentAssistantText = text6;
+      lastStopReason = msg.stopReason;
+      if (text6) {
+        lastAssistantText = text6;
+        if (msg.stopReason === "stop")
+          finalText = text6;
+      }
+      inputTokens = addReported(inputTokens, msg.usage?.input);
+      outputTokens = addReported(outputTokens, msg.usage?.output);
+      cacheReadTokens = addReported(cacheReadTokens, msg.usage?.cacheRead);
+      cacheWriteTokens = addReported(cacheWriteTokens, msg.usage?.cacheWrite);
+      continue;
+    }
+    if (type2 === "turn_end" || type2 === "agent_end" || type2 === "agent_settled") {
+      sawTerminal = true;
+      if (type2 === "agent_settled")
+        sawSettled = true;
+      continue;
+    }
+  }
+  const toolCalls = [...calls.values()].sort((a, b) => a.issueIndex - b.issueIndex);
+  if (malformedLines > 0)
+    captureErrors.push(`pi JSONL contained ${malformedLines} malformed line(s); trace evidence is incomplete`);
+  const finalStatus = qualificationFailure ? "unqualified" : !sawSettled || activeCalls > 0 ? "incomplete" : captureErrors.length > 0 ? "unavailable" : lastStopReason === "error" ? "error" : lastStopReason === "aborted" ? "aborted" : lastStopReason === "length" ? "truncated" : lastStopReason === "stop" && eligibleFinal && currentAssistantText.length > 0 ? "complete" : "unavailable";
+  if (settledContract && finalStatus !== "complete") {
+    const reason = qualificationFailure ?? (finalStatus === "incomplete" ? "current settlement is missing or tool calls remain outstanding" : finalStatus === "truncated" ? "settled assistant reached its output length limit" : finalStatus === "error" || finalStatus === "aborted" ? `settled assistant stop reason is ${lastStopReason}` : "current terminal assistant content is empty, ineligible, or captured evidence is malformed");
+    captureErrors.push(`Pi ${meta.piVersion ?? "(version unavailable)"} final delivery is ${finalStatus}; ${reason}`);
+  }
+  const completeProviderCost = finalStatus === "complete" && providerCostMessages > 0 && providerCostMessages === call.usageCoverage.assistantMessages && Number.isFinite(providerCost);
+  const metrics2 = {
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+    cache_read_tokens: cacheReadTokens,
+    cache_write_tokens: cacheWriteTokens,
+    cost_usd: completeProviderCost ? providerCost : null,
+    cost_source: completeProviderCost ? "provider-reported" : "unreported",
+    price_as_of: null,
+    tool_calls: toolCalls.length,
+    delegated_children: toolCalls.filter((call2) => call2.name === "Agent").reduce((count, call2) => count + normalizeSubagentCall(call2.args).length, 0),
+    max_concurrency: maxConcurrency
+  };
+  const trace = {
+    trace_version: EXECUTION_TRACE_VERSION,
+    pi_version: meta.piVersion,
+    // Inside the digest below, so it cannot be dropped from a saved trace unnoticed.
+    ...qualification?.status === "patch" ? { pi_qualification: qualification } : {},
+    subject: meta.subject,
+    call: { ...call, status: finalStatus === "complete" ? "complete" : "error" },
+    scenario_id: meta.scenarioId,
+    mode: meta.mode,
+    rep: meta.rep,
+    turn: meta.turn,
+    // Fall back to the last assistant text when no message carried `stop` — a
+    // truncated or length-capped run still produced an answer, and losing it
+    // would silently turn a real reply into an empty transcript.
+    // Redacted: the model's own answer routinely quotes the paths it just read,
+    // and `smoke-real-pi.sh` asserts no `/home/` survives into a persisted trace
+    // — an assertion that used to pass only because the smoke model happened not
+    // to echo one.
+    final_text: redactText(settledContract ? currentAssistantText : finalText || lastAssistantText, meta.homeDir),
+    ...settledContract ? { final_status: finalStatus } : {},
+    ...captureErrors.length ? { capture_errors: [...new Set(captureErrors)] } : {},
+    tool_calls: toolCalls,
+    // `null`, not `[]`: the stream says nothing about the filesystem. The runner
+    // overwrites this after observing the workspace. Defaulting to `[]` claimed
+    // "observed, nothing changed" for every trace ever parsed.
+    changed_paths: meta.changedPaths ? [...meta.changedPaths].sort() : null,
+    cost_usd: metrics2.cost_usd,
+    // Tool metrics are observed directly. Token and cost fields stay null when
+    // Pi does not report them; zero would falsely mean "free".
+    metrics: metrics2
+  };
+  trace.trace_sha256 = traceSha256(trace);
+  return { trace, isComplete: settledContract ? !qualificationFailure && sawSettled && activeCalls === 0 : sawTerminal, malformedLines };
+}
+function addReported(current, value) {
+  return typeof value === "number" && value > 0 ? (current ?? 0) + value : current;
+}
+function assistantText(msg) {
+  return (msg.content ?? []).filter((b) => b.type === "text" && typeof b.text === "string").map((b) => b.text).join("");
+}
+function resultMeta(result, homeDir) {
+  const body = JSON.stringify(result?.content ?? result ?? null);
+  const meta = { bytes: Buffer.byteLength(body, "utf8"), sha256: sha256(body) };
+  const details = result?.details;
+  if (details && typeof details === "object" && !Array.isArray(details)) {
+    const encoded = JSON.stringify(details);
+    if (encoded.length <= MAX_DETAILS_CHARS)
+      meta.details = redactArgs(details, homeDir);
+  }
+  return meta;
+}
+function str2(v) {
+  return typeof v === "string" && v.length > 0 ? v : void 0;
+}
+function isoTime(value) {
+  if (typeof value !== "number" && typeof value !== "string")
+    return void 0;
+  const date3 = new Date(value);
+  return Number.isNaN(date3.getTime()) ? void 0 : date3.toISOString();
+}
+function sha256(text6) {
+  return createHash("sha256").update(text6, "utf8").digest("hex");
+}
+function traceSha256(trace) {
+  const { trace_sha256: _omit, ...rest } = trace;
+  return sha256(stableStringify(rest));
+}
+function stableStringify(value) {
+  if (value === null || typeof value !== "object")
+    return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value))
+    return `[${value.map(stableStringify).join(",")}]`;
+  const entries = Object.entries(value).filter(([, v]) => v !== void 0).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(",")}}`;
+}
+function serializeTrace(trace) {
+  return `${JSON.stringify(trace)}
+`;
+}
+function deserializeTrace(text6) {
+  const line = text6.split("\n").find((l) => l.trim());
+  if (!line)
+    return null;
+  try {
+    const parsed = JSON.parse(line);
+    if (parsed.trace_version !== EXECUTION_TRACE_VERSION)
+      return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+function sumNullable(left, right) {
+  return left === null ? right : right === null ? left : left + right;
+}
+function mergeTraces(traces) {
+  if (traces.length === 0)
+    return null;
+  if (traces.length === 1) {
+    const only = traces[0];
+    return { ...only, trace_sha256: traceSha256(only) };
+  }
+  const calls = [];
+  const changed = /* @__PURE__ */ new Set();
+  let anyUnobserved = false;
+  let completed = 0;
+  for (const t of traces) {
+    const mergedCompletion = new Map([...t.tool_calls].filter((c) => c.completionIndex >= 0).sort((a, b) => a.completionIndex - b.completionIndex).map((c) => [c.id, completed++]));
+    for (const c of [...t.tool_calls].sort((a, b) => a.issueIndex - b.issueIndex)) {
+      calls.push({ ...c, issueIndex: calls.length, completionIndex: mergedCompletion.get(c.id) ?? -1 });
+    }
+    if (t.changed_paths === null)
+      anyUnobserved = true;
+    else
+      for (const p of t.changed_paths)
+        changed.add(p);
+  }
+  const completeMetrics = traces.every((trace) => trace.metrics !== void 0);
+  const firstMetrics = traces[0].metrics;
+  const sameCostSource = completeMetrics && traces.every((trace) => trace.metrics.cost_source === firstMetrics.cost_source);
+  const samePriceDate = completeMetrics && traces.every((trace) => trace.metrics.price_as_of === firstMetrics.price_as_of);
+  const completeCost = sameCostSource && samePriceDate && (firstMetrics.cost_source === "provider-reported" || firstMetrics.cost_source === "price-table") && traces.every((trace) => validCost(trace.metrics.cost_usd));
+  const summedCost = completeCost ? traces.reduce((sum, trace) => sum + trace.metrics.cost_usd, 0) : null;
+  const cost2 = summedCost !== null && Number.isFinite(summedCost) ? summedCost : null;
+  const metrics2 = completeMetrics ? traces.reduce((sum, trace) => ({
+    input_tokens: sumNullable(sum.input_tokens, trace.metrics.input_tokens),
+    output_tokens: sumNullable(sum.output_tokens, trace.metrics.output_tokens),
+    cache_read_tokens: sumNullable(sum.cache_read_tokens, trace.metrics.cache_read_tokens),
+    cache_write_tokens: sumNullable(sum.cache_write_tokens, trace.metrics.cache_write_tokens),
+    cost_usd: cost2,
+    cost_source: cost2 !== null ? firstMetrics.cost_source : sameCostSource && firstMetrics.cost_source === "subscription" ? "subscription" : "unreported",
+    price_as_of: cost2 !== null && firstMetrics.cost_source === "price-table" ? firstMetrics.price_as_of : null,
+    tool_calls: sum.tool_calls + trace.metrics.tool_calls,
+    delegated_children: sum.delegated_children + trace.metrics.delegated_children,
+    max_concurrency: Math.max(sum.max_concurrency, trace.metrics.max_concurrency)
+  }), {
+    input_tokens: null,
+    output_tokens: null,
+    cache_read_tokens: null,
+    cache_write_tokens: null,
+    cost_usd: null,
+    cost_source: traces[0].metrics.cost_source,
+    price_as_of: traces[0].metrics.price_as_of,
+    tool_calls: 0,
+    delegated_children: 0,
+    max_concurrency: 0
+  }) : void 0;
+  const last = traces[traces.length - 1];
+  const captureErrors = traces.flatMap((trace) => trace.capture_errors ?? []);
+  const { capture_errors: _lastCaptureErrors, metrics: _lastMetrics, ...lastWithoutCaptureErrors } = last;
+  void _lastCaptureErrors;
+  void _lastMetrics;
+  const merged = {
+    ...lastWithoutCaptureErrors,
+    // The scenario's answer is its LAST turn's answer, matching how the
+    // transcript reads and how the judge is asked to grade it.
+    final_text: last.final_text,
+    tool_calls: calls,
+    changed_paths: anyUnobserved ? null : [...changed].sort(),
+    cost_usd: cost2,
+    ...captureErrors.length ? { capture_errors: captureErrors } : {},
+    ...metrics2 ? { metrics: metrics2 } : {}
+  };
+  merged.trace_sha256 = traceSha256(merged);
+  return merged;
+}
+function validCost(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+var QUALIFIED_PI_VERSIONS, LEGACY_PI_TRACE_VERSION, SKIPPED, MAX_DETAILS_CHARS;
+var init_execution_trace = __esm({
+  "packages/core/dist/execution-trace.js"() {
+    "use strict";
+    init_trace_gates();
+    init_capture_trace_types();
+    init_redaction();
+    QUALIFIED_PI_VERSIONS = ["1.0.4", "1.1.0", "1.4.0", "1.5.0", "1.5.2"];
+    LEGACY_PI_TRACE_VERSION = "0.83.0";
+    SKIPPED = /* @__PURE__ */ new Set(["message_update", "tool_execution_update"]);
+    MAX_DETAILS_CHARS = 2e3;
+  }
+});
+
 // packages/core/dist/vote-panel.js
 function isCleanPanelVote(vote) {
   return !vote.suspect && (vote.verdict === "PASS" || vote.verdict === "FAIL");
@@ -4223,6 +4712,8 @@ function finalizeResults(draft, ctx) {
     // Omitted rather than written as null when absent: a run whose adapter could
     // not report a version must not look like one that reported "nothing".
     ...draft.harness_cli_version ? { harness_cli_version: draft.harness_cli_version } : {},
+    // Kept whenever present, so validation refuses a malformed flag instead of dropping it.
+    ...draft.harness_cli_qualification !== void 0 ? { harness_cli_qualification: draft.harness_cli_qualification } : {},
     ...draft.delivery_canary ? { delivery_canary: draft.delivery_canary } : {},
     ...draft.delivery_observations ? { delivery_observations: draft.delivery_observations } : {},
     skill: draft.skill,
@@ -4338,6 +4829,9 @@ function validateResults(raw) {
     throw new Error(`unsupported results schema ${String(raw.schema)}`);
   if (!Array.isArray(result.scenarios))
     throw new Error("results scenarios missing");
+  if (result.harness_cli_qualification !== void 0 && !validPiPatchFlag(result.harness_cli_version, result.harness_cli_qualification)) {
+    throw new Error("invalid harness_cli_qualification: expected status patch and a qualified_version below harness_cli_version in the same minor");
+  }
   if (result.schema === 2)
     return result;
   if (!Array.isArray(result.subject_invocations))
@@ -4635,6 +5129,7 @@ var init_results = __esm({
     init_types();
     init_score();
     init_version();
+    init_execution_trace();
     init_vote_panel();
     init_reps();
     SCORED_MODES = ["green", "force"];
@@ -4738,7 +5233,10 @@ function summarizeRun(results) {
 function runSummaryLines(results) {
   const summary = summarizeRun(results);
   const observed2 = (items) => items.length ? items.map((item) => `${item.provider ?? "unknown"}:${item.model ?? "unknown"}`).join(", ") : "unknown";
+  const patch = results.harness_cli_qualification;
   return [
+    // Only a flagged patch adds a line; a record without the flag reads exactly as before.
+    ...patch ? [`Pi ${results.harness_cli_version}: patch of qualified ${patch.qualified_version.split(".").slice(0, 2).join(".")}.x (qualified: ${patch.qualified_version})`] : [],
     `Subject requested: ${modelProfileLabel(summary.subject.requested)}; observed: ${observed2(summary.subject.observedModels)}; effective thinking: unknown`,
     `Judge requested: ${modelProfileLabel(summary.judge.requested)}; observed: ${observed2(summary.judge.observedModels)}; effective thinking: unknown`,
     `Effective outcomes: ${summary.outcomes.passed} PASS, ${summary.outcomes.recordedFailures} FAIL, ${summary.outcomes.executionOrEvidenceErrors} ERROR, ${summary.outcomes.ungraded} UNGRADED, ${summary.outcomes.notMeasured} NOT-MEASURED, ${summary.outcomes.ambiguous} JUDGE-AMBIGUOUS. Additional flags: ${summary.outcomes.suspect} suspect, ${summary.outcomes.overrides} overrides; ${summary.outcomes.recordedExecutionOrEvidenceErrors} recorded execution/evidence errors.`,
@@ -4755,7 +5253,7 @@ var init_run_summary = __esm({
 });
 
 // packages/core/dist/judge-references.js
-import { createHash } from "node:crypto";
+import { createHash as createHash2 } from "node:crypto";
 import { readFileSync as readFileSync3, realpathSync, statSync as statSync2 } from "node:fs";
 import { isAbsolute, relative as relative2, resolve as resolve2 } from "node:path";
 function resolveJudgeReferences(scenario, specDir) {
@@ -4783,7 +5281,7 @@ function resolveJudgeReferences(scenario, specDir) {
     const text6 = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     if (text6.includes("\0"))
       throw new Error(`Judge reference contains binary content: ${file}`);
-    return { file, sha256: createHash("sha256").update(bytes).digest("hex"), text: text6 };
+    return { file, sha256: createHash2("sha256").update(bytes).digest("hex"), text: text6 };
   });
 }
 var LIMIT;
@@ -4795,7 +5293,7 @@ var init_judge_references = __esm({
 });
 
 // packages/core/dist/prompt-normalization.js
-import { createHash as createHash2 } from "node:crypto";
+import { createHash as createHash3 } from "node:crypto";
 var PROMPT_NORMALIZATION_RULE, PROMPT_NORMALIZATION_PATTERN, PROMPT_NORMALIZATION_FLAGS, PROMPT_NORMALIZATION_REPLACEMENT, PROMPT_NORMALIZATION_SOURCE_KEY, PROMPT_NORMALIZATION_SOURCE_DIGEST;
 var init_prompt_normalization = __esm({
   "packages/core/dist/prompt-normalization.js"() {
@@ -4805,7 +5303,7 @@ var init_prompt_normalization = __esm({
     PROMPT_NORMALIZATION_FLAGS = "gm";
     PROMPT_NORMALIZATION_REPLACEMENT = "$1<normalized>$2";
     PROMPT_NORMALIZATION_SOURCE_KEY = "observation:prompt-normalization";
-    PROMPT_NORMALIZATION_SOURCE_DIGEST = createHash2("sha256").update(JSON.stringify([
+    PROMPT_NORMALIZATION_SOURCE_DIGEST = createHash3("sha256").update(JSON.stringify([
       "prompt-normalization-registry",
       PROMPT_NORMALIZATION_RULE,
       PROMPT_NORMALIZATION_PATTERN,
@@ -4890,12 +5388,12 @@ var init_fixture_inventory = __esm({
 });
 
 // packages/core/dist/sources.js
-import { createHash as createHash3 } from "node:crypto";
+import { createHash as createHash4 } from "node:crypto";
 import { readFileSync as readFileSync4 } from "node:fs";
 import { isAbsolute as isAbsolute2, resolve as resolve3 } from "node:path";
 function fileSha256(path) {
   try {
-    return createHash3("sha256").update(readFileSync4(path)).digest("hex");
+    return createHash4("sha256").update(readFileSync4(path)).digest("hex");
   } catch {
     return null;
   }
@@ -4903,7 +5401,7 @@ function fileSha256(path) {
 function dirSha256(dir) {
   try {
     const files = fixtureInventory(dir);
-    const h = createHash3("sha256");
+    const h = createHash4("sha256");
     for (const file of files) {
       h.update(file.relative);
       h.update("\0");
@@ -4976,7 +5474,7 @@ function facets(s) {
   };
 }
 function sha(canonical5) {
-  return createHash3("sha256").update(canonical5).digest("hex");
+  return createHash4("sha256").update(canonical5).digest("hex");
 }
 function stimulusDigest(s) {
   return sha(facets(s).stimulus);
@@ -5170,7 +5668,7 @@ var init_sources = __esm({
 // packages/core/dist/workspace.js
 import { appendFileSync as appendFileSync2, cpSync, existsSync as existsSync3, mkdtempSync, readFileSync as readFileSync5, readdirSync as readdirSync3, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { createHash as createHash4 } from "node:crypto";
+import { createHash as createHash5 } from "node:crypto";
 import { tmpdir } from "node:os";
 import { isAbsolute as isAbsolute3, join as join4, resolve as resolve4 } from "node:path";
 function unknownMarkerDirs(src) {
@@ -5253,7 +5751,7 @@ function snapshotPaths(cwd, kind) {
   try {
     const files = fixtureInventory(cwd, (name, relative14) => SNAPSHOT_SKIP.has(name) || SNAPSHOT_SKIP_RELS.has(relative14));
     for (const file of files) {
-      const hash8 = createHash4("sha256");
+      const hash8 = createHash5("sha256");
       hashFixtureFile(hash8, file);
       out.set(file.relative, hash8.digest("hex"));
     }
@@ -5286,470 +5784,6 @@ var init_workspace = __esm({
     TOOL_ARTIFACTS = ["node_modules/", "coverage/", ".vitest/", ".pi/skills/"];
     SNAPSHOT_SKIP = /* @__PURE__ */ new Set([".git", "node_modules", "coverage", ".vitest"]);
     SNAPSHOT_SKIP_RELS = /* @__PURE__ */ new Set([".pi/skills"]);
-  }
-});
-
-// packages/core/dist/capture-trace-types.js
-var EXECUTION_TRACE_VERSION;
-var init_capture_trace_types = __esm({
-  "packages/core/dist/capture-trace-types.js"() {
-    "use strict";
-    EXECUTION_TRACE_VERSION = 2;
-  }
-});
-
-// packages/core/dist/redaction.js
-function redactText(input, homeDir) {
-  let out = input;
-  out = out.replace(SECRET_VALUE[SECRET_VALUE.length - 1], `$1${REDACTED}@`);
-  for (const re of SECRET_VALUE.slice(0, -1))
-    out = out.replace(re, REDACTED);
-  if (homeDir && homeDir.length > 1)
-    out = out.split(homeDir).join("~");
-  return out;
-}
-function truncate(input, max = MAX_VALUE_CHARS) {
-  if (input.length <= max)
-    return input;
-  return `${input.slice(0, max)}\u2026 [truncated ${input.length - max} chars]`;
-}
-function redactArgs(args, homeDir, depth = 0) {
-  if (args === null || typeof args !== "object" || Array.isArray(args))
-    return {};
-  const out = {};
-  for (const [key, value] of Object.entries(args)) {
-    if (SECRET_KEY.test(key)) {
-      out[key] = REDACTED;
-      continue;
-    }
-    out[key] = redactValue(value, homeDir, depth);
-  }
-  return out;
-}
-function redactValue(value, homeDir, depth) {
-  if (typeof value === "string")
-    return truncate(redactText(value, homeDir));
-  if (typeof value === "number" || typeof value === "boolean" || value === null)
-    return value;
-  if (depth >= 3)
-    return "[nested]";
-  if (Array.isArray(value))
-    return value.slice(0, 20).map((v) => redactValue(v, homeDir, depth + 1));
-  if (typeof value === "object")
-    return redactArgs(value, homeDir, depth + 1);
-  return String(value);
-}
-var MAX_VALUE_CHARS, REDACTED, SECRET_KEY, SECRET_VALUE;
-var init_redaction = __esm({
-  "packages/core/dist/redaction.js"() {
-    "use strict";
-    MAX_VALUE_CHARS = 2e3;
-    REDACTED = "[redacted]";
-    SECRET_KEY = /^(.*[-_])?(password|passwd|secret|token|api[-_]?key|apikey|auth|authorization|credential|private[-_]?key|access[-_]?key|session[-_]?key)([-_].*)?$/i;
-    SECRET_VALUE = [
-      /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
-      /\bBearer\s+[A-Za-z0-9._~+/-]{16,}=*/g,
-      /\bsk-[A-Za-z0-9]{16,}\b/g,
-      /\bgh[pousr]_[A-Za-z0-9]{16,}\b/g,
-      /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/g,
-      /\bAKIA[0-9A-Z]{16}\b/g,
-      /\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
-      /\b([a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^/\s@]+@/gi
-    ];
-  }
-});
-
-// packages/core/dist/execution-trace.js
-import { createHash as createHash5 } from "node:crypto";
-function piQualificationFailure(version) {
-  return QUALIFIED_PI_VERSIONS.some((qualified) => version === qualified) ? null : `Pi ${version ?? "(version unavailable)"} is unqualified; execution requires qualified Pi ${QUALIFIED_PI_VERSIONS.join(" or ")}`;
-}
-function parseTrace(lines, meta) {
-  const calls = /* @__PURE__ */ new Map();
-  const issuedAt = /* @__PURE__ */ new Map();
-  const completedAt = /* @__PURE__ */ new Map();
-  let issueCounter = 0;
-  let completionCounter = 0;
-  let malformedLines = 0;
-  let sawTerminal = false;
-  const settledContract = meta.piVersion !== LEGACY_PI_TRACE_VERSION;
-  const qualificationFailure = settledContract ? piQualificationFailure(meta.piVersion) : null;
-  let sawSettled = false;
-  let lastStopReason;
-  let currentAssistantText = "";
-  let eligibleFinal = false;
-  const captureErrors = [];
-  const call = {
-    requested: { ...meta.subject },
-    observedModels: [],
-    effectiveThinking: null,
-    status: "unknown",
-    usage: { inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheWriteTokens: null },
-    usageCoverage: { assistantMessages: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }
-  };
-  let finalText = "";
-  let lastAssistantText = "";
-  let inputTokens = null;
-  let outputTokens = null;
-  let cacheReadTokens = null;
-  let cacheWriteTokens = null;
-  let providerCost = 0;
-  let providerCostMessages = 0;
-  let activeCalls = 0;
-  let maxConcurrency = 0;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed)
-      continue;
-    let ev;
-    try {
-      ev = JSON.parse(trimmed);
-    } catch {
-      malformedLines++;
-      continue;
-    }
-    if (!ev || typeof ev !== "object" || Array.isArray(ev)) {
-      malformedLines++;
-      continue;
-    }
-    const type2 = ev.type;
-    if (typeof type2 !== "string") {
-      malformedLines++;
-      continue;
-    }
-    if (settledContract && ["agent_start", "turn_start", "message_start", "message_update", "message_end", "tool_execution_start", "tool_execution_end"].includes(type2)) {
-      sawSettled = false;
-      if (type2 !== "tool_execution_end") {
-        currentAssistantText = "";
-        lastStopReason = void 0;
-        eligibleFinal = false;
-      }
-    }
-    if (SKIPPED.has(type2))
-      continue;
-    if (type2 === "tool_execution_start") {
-      const id = str2(ev.toolCallId);
-      if (!id) {
-        captureErrors.push("tool start without an identity");
-        continue;
-      }
-      if (calls.has(id)) {
-        captureErrors.push("duplicate tool start identity");
-        continue;
-      }
-      calls.set(id, {
-        id,
-        name: str2(ev.toolName) ?? "(unknown)",
-        args: redactArgs(ev.args, meta.homeDir),
-        issueIndex: issueCounter++,
-        ...issuedAt.get(id) ? { started_at: issuedAt.get(id) } : {},
-        completionIndex: -1,
-        // filled in on `end`; -1 means it never completed
-        isError: false,
-        result: { bytes: 0, sha256: sha256("") }
-      });
-      activeCalls++;
-      maxConcurrency = Math.max(maxConcurrency, activeCalls);
-      continue;
-    }
-    if (type2 === "tool_execution_end") {
-      const id = str2(ev.toolCallId);
-      if (!id) {
-        captureErrors.push("tool end without an identity");
-        continue;
-      }
-      const call2 = calls.get(id);
-      if (!call2) {
-        captureErrors.push("tool end without a matching start");
-        continue;
-      }
-      if (call2.completionIndex >= 0) {
-        captureErrors.push("duplicate tool completion identity");
-        continue;
-      }
-      if (call2.completionIndex < 0)
-        activeCalls = Math.max(0, activeCalls - 1);
-      call2.completionIndex = completionCounter++;
-      if (completedAt.get(id))
-        call2.completed_at = completedAt.get(id);
-      call2.isError = ev.isError === true;
-      call2.result = resultMeta(ev.result, meta.homeDir);
-      continue;
-    }
-    if (type2 === "message_end") {
-      sawTerminal = true;
-      const msg = ev.message;
-      if (!msg || typeof msg !== "object" || Array.isArray(msg) || typeof msg.role !== "string") {
-        captureErrors.push("malformed message_end message");
-        continue;
-      }
-      if (msg.role !== "assistant" && msg.role !== "toolResult")
-        continue;
-      if (!Array.isArray(msg.content) || msg.content.some((block) => !block || typeof block !== "object" || Array.isArray(block) || typeof block.type !== "string" || block.type === "text" && typeof block.text !== "string")) {
-        captureErrors.push("malformed message_end content");
-        continue;
-      }
-      const at = isoTime(msg.timestamp);
-      if (msg?.role === "assistant" && at) {
-        for (const block of msg.content ?? []) {
-          if (block.type !== "toolCall" || typeof block.id !== "string")
-            continue;
-          issuedAt.set(block.id, at);
-          const call2 = calls.get(block.id);
-          if (call2)
-            call2.started_at = at;
-        }
-      }
-      if (msg?.role === "toolResult" && typeof msg.toolCallId === "string" && at) {
-        completedAt.set(msg.toolCallId, at);
-        const call2 = calls.get(msg.toolCallId);
-        if (call2)
-          call2.completed_at = at;
-      }
-      if (msg?.role !== "assistant")
-        continue;
-      const identity2 = { provider: str2(msg.provider) ?? null, model: str2(msg.model) ?? null };
-      const identities = [identity2];
-      if (str2(msg.responseModel))
-        identities.push({ provider: identity2.provider, model: msg.responseModel });
-      for (const observed2 of identities) {
-        if (!call.observedModels.some((item) => item.provider === observed2.provider && item.model === observed2.model))
-          call.observedModels.push(observed2);
-      }
-      call.usageCoverage.assistantMessages++;
-      const reportedCost = msg.usage?.cost;
-      if (reportedCost?.totalFromProvider === true && validCost(reportedCost.total)) {
-        providerCost += reportedCost.total;
-        providerCostMessages++;
-      }
-      for (const [target, source] of [["inputTokens", "input"], ["outputTokens", "output"], ["cacheReadTokens", "cacheRead"], ["cacheWriteTokens", "cacheWrite"]]) {
-        const value = msg.usage?.[source];
-        if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
-          call.usage[target] = (call.usage[target] ?? 0) + value;
-          call.usageCoverage[target]++;
-        }
-      }
-      const text6 = assistantText(msg);
-      eligibleFinal = msg.content.every((block) => block.type === "text" || block.type === "thinking");
-      currentAssistantText = text6;
-      lastStopReason = msg.stopReason;
-      if (text6) {
-        lastAssistantText = text6;
-        if (msg.stopReason === "stop")
-          finalText = text6;
-      }
-      inputTokens = addReported(inputTokens, msg.usage?.input);
-      outputTokens = addReported(outputTokens, msg.usage?.output);
-      cacheReadTokens = addReported(cacheReadTokens, msg.usage?.cacheRead);
-      cacheWriteTokens = addReported(cacheWriteTokens, msg.usage?.cacheWrite);
-      continue;
-    }
-    if (type2 === "turn_end" || type2 === "agent_end" || type2 === "agent_settled") {
-      sawTerminal = true;
-      if (type2 === "agent_settled")
-        sawSettled = true;
-      continue;
-    }
-  }
-  const toolCalls = [...calls.values()].sort((a, b) => a.issueIndex - b.issueIndex);
-  if (malformedLines > 0)
-    captureErrors.push(`pi JSONL contained ${malformedLines} malformed line(s); trace evidence is incomplete`);
-  const finalStatus = qualificationFailure ? "unqualified" : !sawSettled || activeCalls > 0 ? "incomplete" : captureErrors.length > 0 ? "unavailable" : lastStopReason === "error" ? "error" : lastStopReason === "aborted" ? "aborted" : lastStopReason === "length" ? "truncated" : lastStopReason === "stop" && eligibleFinal && currentAssistantText.length > 0 ? "complete" : "unavailable";
-  if (settledContract && finalStatus !== "complete") {
-    const reason = qualificationFailure ?? (finalStatus === "incomplete" ? "current settlement is missing or tool calls remain outstanding" : finalStatus === "truncated" ? "settled assistant reached its output length limit" : finalStatus === "error" || finalStatus === "aborted" ? `settled assistant stop reason is ${lastStopReason}` : "current terminal assistant content is empty, ineligible, or captured evidence is malformed");
-    captureErrors.push(`Pi ${meta.piVersion ?? "(version unavailable)"} final delivery is ${finalStatus}; ${reason}`);
-  }
-  const completeProviderCost = finalStatus === "complete" && providerCostMessages > 0 && providerCostMessages === call.usageCoverage.assistantMessages && Number.isFinite(providerCost);
-  const metrics2 = {
-    input_tokens: inputTokens,
-    output_tokens: outputTokens,
-    cache_read_tokens: cacheReadTokens,
-    cache_write_tokens: cacheWriteTokens,
-    cost_usd: completeProviderCost ? providerCost : null,
-    cost_source: completeProviderCost ? "provider-reported" : "unreported",
-    price_as_of: null,
-    tool_calls: toolCalls.length,
-    delegated_children: toolCalls.filter((call2) => call2.name === "Agent").reduce((count, call2) => count + normalizeSubagentCall(call2.args).length, 0),
-    max_concurrency: maxConcurrency
-  };
-  const trace = {
-    trace_version: EXECUTION_TRACE_VERSION,
-    pi_version: meta.piVersion,
-    subject: meta.subject,
-    call: { ...call, status: finalStatus === "complete" ? "complete" : "error" },
-    scenario_id: meta.scenarioId,
-    mode: meta.mode,
-    rep: meta.rep,
-    turn: meta.turn,
-    // Fall back to the last assistant text when no message carried `stop` — a
-    // truncated or length-capped run still produced an answer, and losing it
-    // would silently turn a real reply into an empty transcript.
-    // Redacted: the model's own answer routinely quotes the paths it just read,
-    // and `smoke-real-pi.sh` asserts no `/home/` survives into a persisted trace
-    // — an assertion that used to pass only because the smoke model happened not
-    // to echo one.
-    final_text: redactText(settledContract ? currentAssistantText : finalText || lastAssistantText, meta.homeDir),
-    ...settledContract ? { final_status: finalStatus } : {},
-    ...captureErrors.length ? { capture_errors: [...new Set(captureErrors)] } : {},
-    tool_calls: toolCalls,
-    // `null`, not `[]`: the stream says nothing about the filesystem. The runner
-    // overwrites this after observing the workspace. Defaulting to `[]` claimed
-    // "observed, nothing changed" for every trace ever parsed.
-    changed_paths: meta.changedPaths ? [...meta.changedPaths].sort() : null,
-    cost_usd: metrics2.cost_usd,
-    // Tool metrics are observed directly. Token and cost fields stay null when
-    // Pi does not report them; zero would falsely mean "free".
-    metrics: metrics2
-  };
-  trace.trace_sha256 = traceSha256(trace);
-  return { trace, isComplete: settledContract ? !qualificationFailure && sawSettled && activeCalls === 0 : sawTerminal, malformedLines };
-}
-function addReported(current, value) {
-  return typeof value === "number" && value > 0 ? (current ?? 0) + value : current;
-}
-function assistantText(msg) {
-  return (msg.content ?? []).filter((b) => b.type === "text" && typeof b.text === "string").map((b) => b.text).join("");
-}
-function resultMeta(result, homeDir) {
-  const body = JSON.stringify(result?.content ?? result ?? null);
-  const meta = { bytes: Buffer.byteLength(body, "utf8"), sha256: sha256(body) };
-  const details = result?.details;
-  if (details && typeof details === "object" && !Array.isArray(details)) {
-    const encoded = JSON.stringify(details);
-    if (encoded.length <= MAX_DETAILS_CHARS)
-      meta.details = redactArgs(details, homeDir);
-  }
-  return meta;
-}
-function str2(v) {
-  return typeof v === "string" && v.length > 0 ? v : void 0;
-}
-function isoTime(value) {
-  if (typeof value !== "number" && typeof value !== "string")
-    return void 0;
-  const date3 = new Date(value);
-  return Number.isNaN(date3.getTime()) ? void 0 : date3.toISOString();
-}
-function sha256(text6) {
-  return createHash5("sha256").update(text6, "utf8").digest("hex");
-}
-function traceSha256(trace) {
-  const { trace_sha256: _omit, ...rest } = trace;
-  return sha256(stableStringify(rest));
-}
-function stableStringify(value) {
-  if (value === null || typeof value !== "object")
-    return JSON.stringify(value) ?? "null";
-  if (Array.isArray(value))
-    return `[${value.map(stableStringify).join(",")}]`;
-  const entries = Object.entries(value).filter(([, v]) => v !== void 0).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
-  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(",")}}`;
-}
-function serializeTrace(trace) {
-  return `${JSON.stringify(trace)}
-`;
-}
-function deserializeTrace(text6) {
-  const line = text6.split("\n").find((l) => l.trim());
-  if (!line)
-    return null;
-  try {
-    const parsed = JSON.parse(line);
-    if (parsed.trace_version !== EXECUTION_TRACE_VERSION)
-      return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-function sumNullable(left, right) {
-  return left === null ? right : right === null ? left : left + right;
-}
-function mergeTraces(traces) {
-  if (traces.length === 0)
-    return null;
-  if (traces.length === 1) {
-    const only = traces[0];
-    return { ...only, trace_sha256: traceSha256(only) };
-  }
-  const calls = [];
-  const changed = /* @__PURE__ */ new Set();
-  let anyUnobserved = false;
-  let completed = 0;
-  for (const t of traces) {
-    const mergedCompletion = new Map([...t.tool_calls].filter((c) => c.completionIndex >= 0).sort((a, b) => a.completionIndex - b.completionIndex).map((c) => [c.id, completed++]));
-    for (const c of [...t.tool_calls].sort((a, b) => a.issueIndex - b.issueIndex)) {
-      calls.push({ ...c, issueIndex: calls.length, completionIndex: mergedCompletion.get(c.id) ?? -1 });
-    }
-    if (t.changed_paths === null)
-      anyUnobserved = true;
-    else
-      for (const p of t.changed_paths)
-        changed.add(p);
-  }
-  const completeMetrics = traces.every((trace) => trace.metrics !== void 0);
-  const firstMetrics = traces[0].metrics;
-  const sameCostSource = completeMetrics && traces.every((trace) => trace.metrics.cost_source === firstMetrics.cost_source);
-  const samePriceDate = completeMetrics && traces.every((trace) => trace.metrics.price_as_of === firstMetrics.price_as_of);
-  const completeCost = sameCostSource && samePriceDate && (firstMetrics.cost_source === "provider-reported" || firstMetrics.cost_source === "price-table") && traces.every((trace) => validCost(trace.metrics.cost_usd));
-  const summedCost = completeCost ? traces.reduce((sum, trace) => sum + trace.metrics.cost_usd, 0) : null;
-  const cost2 = summedCost !== null && Number.isFinite(summedCost) ? summedCost : null;
-  const metrics2 = completeMetrics ? traces.reduce((sum, trace) => ({
-    input_tokens: sumNullable(sum.input_tokens, trace.metrics.input_tokens),
-    output_tokens: sumNullable(sum.output_tokens, trace.metrics.output_tokens),
-    cache_read_tokens: sumNullable(sum.cache_read_tokens, trace.metrics.cache_read_tokens),
-    cache_write_tokens: sumNullable(sum.cache_write_tokens, trace.metrics.cache_write_tokens),
-    cost_usd: cost2,
-    cost_source: cost2 !== null ? firstMetrics.cost_source : sameCostSource && firstMetrics.cost_source === "subscription" ? "subscription" : "unreported",
-    price_as_of: cost2 !== null && firstMetrics.cost_source === "price-table" ? firstMetrics.price_as_of : null,
-    tool_calls: sum.tool_calls + trace.metrics.tool_calls,
-    delegated_children: sum.delegated_children + trace.metrics.delegated_children,
-    max_concurrency: Math.max(sum.max_concurrency, trace.metrics.max_concurrency)
-  }), {
-    input_tokens: null,
-    output_tokens: null,
-    cache_read_tokens: null,
-    cache_write_tokens: null,
-    cost_usd: null,
-    cost_source: traces[0].metrics.cost_source,
-    price_as_of: traces[0].metrics.price_as_of,
-    tool_calls: 0,
-    delegated_children: 0,
-    max_concurrency: 0
-  }) : void 0;
-  const last = traces[traces.length - 1];
-  const captureErrors = traces.flatMap((trace) => trace.capture_errors ?? []);
-  const { capture_errors: _lastCaptureErrors, metrics: _lastMetrics, ...lastWithoutCaptureErrors } = last;
-  void _lastCaptureErrors;
-  void _lastMetrics;
-  const merged = {
-    ...lastWithoutCaptureErrors,
-    // The scenario's answer is its LAST turn's answer, matching how the
-    // transcript reads and how the judge is asked to grade it.
-    final_text: last.final_text,
-    tool_calls: calls,
-    changed_paths: anyUnobserved ? null : [...changed].sort(),
-    cost_usd: cost2,
-    ...captureErrors.length ? { capture_errors: captureErrors } : {},
-    ...metrics2 ? { metrics: metrics2 } : {}
-  };
-  merged.trace_sha256 = traceSha256(merged);
-  return merged;
-}
-function validCost(value) {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0;
-}
-var QUALIFIED_PI_VERSIONS, LEGACY_PI_TRACE_VERSION, SKIPPED, MAX_DETAILS_CHARS;
-var init_execution_trace = __esm({
-  "packages/core/dist/execution-trace.js"() {
-    "use strict";
-    init_trace_gates();
-    init_capture_trace_types();
-    init_redaction();
-    QUALIFIED_PI_VERSIONS = ["1.0.4", "1.1.0", "1.4.0", "1.5.0", "1.5.2"];
-    LEGACY_PI_TRACE_VERSION = "0.83.0";
-    SKIPPED = /* @__PURE__ */ new Set(["message_update", "tool_execution_update"]);
-    MAX_DETAILS_CHARS = 2e3;
   }
 });
 
@@ -7754,6 +7788,7 @@ async function regradeRun(opts) {
       // re-asks the judge, it does not re-deliver the skill, so stamping today's pi
       // here would credit the old transcripts to a version that never ran them.
       harness_cli_version: prev?.harness_cli_version,
+      harness_cli_qualification: prev?.harness_cli_qualification,
       delivery_canary: prev?.delivery_canary,
       delivery_observations: prev?.delivery_observations,
       // The arm is provenance of the MEASUREMENT, not of this rewrite, and it is the
@@ -8296,6 +8331,8 @@ async function runSkillModel(opts) {
   return withResourceMonitoring(runDir, async () => {
     throwIfProcessAborted();
     const harnessCliVersion = await adapter.version?.() ?? null;
+    const qualification = adapter.name === "pi" ? piQualification(harnessCliVersion) : null;
+    const harnessCliQualification = qualification?.status === "patch" ? qualification : void 0;
     appendJournal(runDir, {
       event: "run-started",
       ts: now(),
@@ -8303,6 +8340,7 @@ async function runSkillModel(opts) {
       harness: adapter.name,
       model: opts.modelToken,
       harness_cli_version: harnessCliVersion,
+      ...harnessCliQualification ? { harness_cli_qualification: harnessCliQualification } : {},
       judge: { ...judge },
       mode,
       label: opts.label ?? null
@@ -8370,6 +8408,7 @@ async function runSkillModel(opts) {
       skill: spec.skill,
       harness: adapter.name,
       harness_cli_version: harnessCliVersion ?? void 0,
+      harness_cli_qualification: harnessCliQualification,
       delivery_canary: canaryStatus ?? void 0,
       delivery_observations: canaryObservations,
       model: opts.modelToken,
@@ -18596,6 +18635,7 @@ async function serveReview(opts) {
             partial: results.partial,
             // Provenance survives a UI re-judge, same as it does through `grade`.
             harness_cli_version: results.harness_cli_version,
+            harness_cli_qualification: results.harness_cli_qualification,
             delivery_canary: results.delivery_canary,
             // The arm is provenance of the MEASUREMENT, not of this rewrite, and it is the
             // only record that a `+<arm>` run actually delegated: rebuilding the draft

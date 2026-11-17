@@ -13,10 +13,13 @@ grade movement is two runs already committed to a public repo. Re-record it with
 
 ## Pi qualification
 
-Fresh subject execution supports **exactly Pi 1.0.4, 1.1.0, 1.4.0, 1.5.0 or 1.5.2**. An unknown, unavailable,
-prerelease or other version records execution ERROR before starting the
+Fresh subject execution supports **exactly Pi 1.0.4, 1.1.0, 1.4.0, 1.5.0 or 1.5.2**. A later patch
+of the newest listed release in its minor also runs, flagged as a patch: Pi 1.5.3 is recorded with
+`harness_cli_qualification` (and `pi_qualification` in each trace) and summarized as *patch of
+qualified 1.5.x (qualified: 1.5.2)*. An unknown, unavailable, prerelease, build-metadata, earlier-patch
+or other version records execution ERROR before starting the
 subject; regrading that saved failure does not call the judge. Qualification must
-be renewed explicitly for a Pi upgrade.
+be renewed explicitly for a new Pi minor or major.
 
 Retained results remain readable. The raw-trace parser keeps the original Pi
 0.83.0 capture format for historical inspection, without claiming current

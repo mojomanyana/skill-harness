@@ -325,11 +325,20 @@ describe("provider failure in text mode", () => {
 });
 
 describe("plain subject compatibility path qualification", () => {
-  it.each(["1.0.5", "0.83.0", null])("refuses unqualified %s without spending subject calls", async (version) => {
+  // 1.0.5 left this list: a later patch of a qualified minor now runs (next test).
+  it.each(["1.0.3", "0.83.0", null])("refuses unqualified %s without spending subject calls", async (version) => {
     vi.mocked(piAdapter.version!).mockResolvedValue(version);
     const transcript = await piAdapter.run({ skillDir: fakeSkill(), model: { provider: "fixture", model: "subject" },
       mode: "force", turns: ["hi"], cwd: "/tmp" });
     expect(transcript).toContain("unqualified");
     expect(mockedExec).not.toHaveBeenCalled();
+  });
+
+  it("runs a later patch of a qualified minor", async () => {
+    vi.mocked(piAdapter.version!).mockResolvedValue("1.0.5");
+    const transcript = await piAdapter.run({ skillDir: fakeSkill(), model: { provider: "fixture", model: "subject" },
+      mode: "force", turns: ["hi"], cwd: "/tmp" });
+    expect(transcript).not.toContain("unqualified");
+    expect(mockedExec).toHaveBeenCalledTimes(1);
   });
 });

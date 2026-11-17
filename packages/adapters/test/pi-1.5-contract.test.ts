@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
-import { evaluateTraceGates, lines, parseTrace, piQualificationFailure } from "@skill-harness/core";
+import { evaluateTraceGates, lines, parseTrace, piQualification, piQualificationFailure } from "@skill-harness/core";
 
 describe.each(["1.5.0", "1.5.2"])("Pi %s recorded transport", (version) => {
   const root = new URL(`./fixtures/pi-${version}/`, import.meta.url);
@@ -91,7 +91,9 @@ describe.each(["1.5.0", "1.5.2"])("Pi %s recorded transport", (version) => {
     expect(clean).toMatchObject({ exitCode: 0, fixtureShip: true, scriptedJudgeRequests: 1, verdicts: { good: "PASS" } });
     expect(mixed).toMatchObject({ exitCode: 1, fixtureShip: false, scriptedJudgeRequests: 2, verdicts: { good: "PASS", "judge-fail": "FAIL", "gate-fail": "FAIL" } });
     expect(piQualificationFailure(version)).toBeNull();
-    for (const other of [version + "-rc.1", "1.5.1", "1.5.3", "9.9.9", null]) expect(piQualificationFailure(other)).not.toBeNull();
+    for (const other of [version + "-rc.1", "1.5.1", "9.9.9", null]) expect(piQualificationFailure(other)).not.toBeNull();
+    // 1.5.3 was refused until later patches of a qualified minor became accepted, flagged.
+    expect(piQualification("1.5.3")).toEqual({ status: "patch", qualified_version: "1.5.2" });
   });
 
   test("native Pi1.5 schema coercion succeeds and invalid arguments do not execute", () => {

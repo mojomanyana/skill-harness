@@ -122,6 +122,7 @@ export function rescoreRun(opts: RescoreOptions): RescoreResult {
     // Provenance of the measurement, not of this rewrite: a rescore re-applies a
     // threshold to reps the recorded harness already produced.
     harness_cli_version: prev.harness_cli_version,
+    harness_cli_qualification: prev.harness_cli_qualification,
     delivery_canary: prev.delivery_canary,
     delivery_observations: prev.delivery_observations,
     // The arm is provenance of the MEASUREMENT, not of this rewrite, and it is the

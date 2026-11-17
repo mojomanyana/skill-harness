@@ -387,6 +387,7 @@ export async function regradeRun(opts: RegradeRunOptions): Promise<ResultsFile> 
     // re-asks the judge, it does not re-deliver the skill, so stamping today's pi
     // here would credit the old transcripts to a version that never ran them.
     harness_cli_version: prev?.harness_cli_version,
+    harness_cli_qualification: prev?.harness_cli_qualification,
     delivery_canary: prev?.delivery_canary,
     delivery_observations: prev?.delivery_observations,
     // The arm is provenance of the MEASUREMENT, not of this rewrite, and it is the

@@ -135,7 +135,8 @@ This does not qualify autonomous selection, the Herdr UI or whole-host health.
 Reuse matching saved answers before scheduling fresh subject calls. Historical
 releases and scores remain unchanged.
 
-Fresh subject execution is qualified on exact Pi **1.0.4, 1.1.0, 1.4.0, 1.5.0 and 1.5.2**. Other or unknown
+Fresh subject execution is qualified on exact Pi **1.0.4, 1.1.0, 1.4.0, 1.5.0 and 1.5.2**; a later patch of the
+newest listed release in its minor runs as a flagged patch. Other or unknown
 versions fail closed before subject spawn. Historical Pi 0.83.0 raw captures remain
 readable through their explicit legacy parser; they are not current qualification.
 See the README's Pi qualification section and shared final conformance table.

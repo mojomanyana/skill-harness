@@ -224,6 +224,41 @@ describe("rescore (rescoreRun)", () => {
   });
 });
 
+// Like the Pi version beside it, the patch flag is provenance of the measurement:
+// a rewriter that drops it makes a flagged run read as exactly qualified, and one
+// that re-derived it from today's list would flag a run it never produced.
+describe("the Pi patch flag through every rewriter", () => {
+  const PATCH = { status: "patch" as const, qualified_version: "1.5.2" };
+  function recordPi153(flag?: typeof PATCH) {
+    const trace = { ...fixtureTrace(), pi_version: "1.5.3", ...(flag ? { pi_qualification: flag } : {}) };
+    const hash = traceSha256(trace);
+    writeFileSync(join(runDir, "A1.green.trace.jsonl"), `${JSON.stringify({ ...trace, trace_sha256: hash })}\n`, "utf8");
+    const recorded = readResults(runDir);
+    recorded.scenarios[0].objective = { ...recorded.scenarios[0].objective!, trace_sha256: hash };
+    recorded.scenarios[0].rep_judgments![0].objective = { ...recorded.scenarios[0].rep_judgments![0].objective!, trace_sha256: hash };
+    writeResults(runDir, { ...recorded, harness_cli_version: "1.5.3", harness_cli_qualification: flag }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: [] });
+  }
+  const rewriters: [string, () => unknown][] = [
+    ["grade", () => regradeRun({ runDir, spec: loadSpec(specPath), adapter: judge, judge: { provider: "claude-code", model: "j1" }, specDir: join(skillDir, "tests") })],
+    ["regate", () => regateRun({ runDir, spec: loadSpec(specPath), adapter: judge, judge: { provider: "claude-code", model: "j1" }, specDir: join(skillDir, "tests") })],
+    ["rescore", () => rescoreRun({ runDir, spec: loadSpec(specPath) })],
+  ];
+
+  it.each(rewriters)("%s carries the flag verbatim", async (_name, rewrite) => {
+    recordPi153(PATCH);
+    await rewrite();
+    expect(readResults(runDir)).toMatchObject({ harness_cli_version: "1.5.3", harness_cli_qualification: PATCH });
+  });
+
+  it.each(rewriters)("%s adds no flag to a record without one", async (_name, rewrite) => {
+    recordPi153();
+    await rewrite();
+    const after = readResults(runDir);
+    expect(after.harness_cli_version).toBe("1.5.3");
+    expect(after).not.toHaveProperty("harness_cli_qualification");
+  });
+});
+
 describe("the dangerous direction", () => {
   it("an unresolved adjudication that survives a rewrite still blocks SHIP", () => {
     // If a rewriter drops `adjudication` AND `suspect`, a blocked run silently
