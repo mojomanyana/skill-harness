@@ -11008,30 +11008,18 @@ var init_pi = __esm({
         ];
         const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync27(req.systemPromptFile, "utf8")] : skillFlags2(req.mode, req.skillDir);
         const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
-        const qualificationFailure = subjectVersionFailure2(await this.version({ cwd: req.cwd, env }), req.expectedPiVersion);
-        if (qualificationFailure) return withExecutionFailure("", qualificationFailure);
+        let expectedPiVersion = req.expectedPiVersion;
         const total = req.turns.length;
         const parts = [];
         let providerFailure = null;
-        if (total === 1) {
-          const args = [...flags, ...common2, "--no-session", "-p", req.turns[0]];
-          const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS2, env });
-          parts.push(header2(1, 1, req.turns[0]));
-          parts.push(`<<< ASSISTANT:
-${r.stdout.trim()}
-`);
-          if (r.code !== 0) {
-            providerFailure = providerStderr2(r.stderr);
-            if (!providerFailure) parts.push(`[pi exited ${r.code}]
-${r.stderr.trim()}
-`);
-          }
-          return withProviderFailure(parts.join("\n"), providerFailure);
-        }
-        const session = mkdtempSync4(join40(tmpdir4(), "sc-pi-session-"));
+        const session = total === 1 ? null : mkdtempSync4(join40(tmpdir4(), "sc-pi-session-"));
         for (let i = 0; i < total; i++) {
-          const turnFlags = i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
+          const turnFlags = session === null ? ["--no-session"] : i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
           const args = [...flags, ...common2, ...turnFlags, "-p", req.turns[i]];
+          const piVersion = await this.version({ cwd: req.cwd, env });
+          const failure2 = subjectVersionFailure2(piVersion, expectedPiVersion);
+          if (failure2) return withProviderFailure(withExecutionFailure(parts.join("\n"), failure2), providerFailure);
+          if (expectedPiVersion === void 0) expectedPiVersion = piVersion;
           const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS2, env });
           parts.push(header2(i + 1, total, req.turns[i]));
           parts.push(`<<< ASSISTANT:
@@ -11040,7 +11028,7 @@ ${r.stdout.trim()}
           if (r.code !== 0) {
             const provider = providerStderr2(r.stderr);
             if (provider && providerFailure === null) providerFailure = provider;
-            if (!provider) parts.push(`[pi exited ${r.code} on turn ${i + 1}]
+            if (!provider) parts.push(`[pi exited ${r.code}${total === 1 ? "" : ` on turn ${i + 1}`}]
 ${r.stderr.trim()}
 `);
           }
@@ -11072,13 +11060,7 @@ ${r.stderr.trim()}
         ];
         const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync27(req.systemPromptFile, "utf8")] : skillFlags2(req.mode, req.skillDir);
         const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
-        const piVersion = await this.version({ cwd: req.cwd, env });
-        const qualificationFailure = subjectVersionFailure2(piVersion, req.expectedPiVersion);
-        if (qualificationFailure) return {
-          transcript: withExecutionFailure("", qualificationFailure),
-          traces: [],
-          executionFailure: qualificationFailure
-        };
+        let expectedPiVersion = req.expectedPiVersion;
         const total = req.turns.length;
         const traces = [];
         const parts = [];
@@ -11088,6 +11070,10 @@ ${r.stderr.trim()}
         for (let i = 0; i < total; i++) {
           const turnFlags = session === null ? ["--no-session"] : i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
           const args = [...flags, ...common2, "--mode", "json", ...turnFlags, "-p", req.turns[i]];
+          const piVersion = await this.version({ cwd: req.cwd, env });
+          executionFailure = subjectVersionFailure2(piVersion, expectedPiVersion);
+          if (executionFailure) break;
+          if (expectedPiVersion === void 0) expectedPiVersion = piVersion;
           const r = await runPiJson2({
             args,
             cwd: req.cwd,
@@ -16576,32 +16562,20 @@ var piAdapter = {
     ];
     const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync24(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
     const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
-    const qualificationFailure = subjectVersionFailure(await this.version({ cwd: req.cwd, env }), req.expectedPiVersion);
-    if (qualificationFailure)
-      return withExecutionFailure("", qualificationFailure);
+    let expectedPiVersion = req.expectedPiVersion;
     const total = req.turns.length;
     const parts = [];
     let providerFailure = null;
-    if (total === 1) {
-      const args = [...flags, ...common2, "--no-session", "-p", req.turns[0]];
-      const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env });
-      parts.push(header(1, 1, req.turns[0]));
-      parts.push(`<<< ASSISTANT:
-${r.stdout.trim()}
-`);
-      if (r.code !== 0) {
-        providerFailure = providerStderr(r.stderr);
-        if (!providerFailure)
-          parts.push(`[pi exited ${r.code}]
-${r.stderr.trim()}
-`);
-      }
-      return withProviderFailure(parts.join("\n"), providerFailure);
-    }
-    const session = mkdtempSync2(join29(tmpdir2(), "sc-pi-session-"));
+    const session = total === 1 ? null : mkdtempSync2(join29(tmpdir2(), "sc-pi-session-"));
     for (let i = 0; i < total; i++) {
-      const turnFlags = i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
+      const turnFlags = session === null ? ["--no-session"] : i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common2, ...turnFlags, "-p", req.turns[i]];
+      const piVersion = await this.version({ cwd: req.cwd, env });
+      const failure2 = subjectVersionFailure(piVersion, expectedPiVersion);
+      if (failure2)
+        return withProviderFailure(withExecutionFailure(parts.join("\n"), failure2), providerFailure);
+      if (expectedPiVersion === void 0)
+        expectedPiVersion = piVersion;
       const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env });
       parts.push(header(i + 1, total, req.turns[i]));
       parts.push(`<<< ASSISTANT:
@@ -16612,7 +16586,7 @@ ${r.stdout.trim()}
         if (provider && providerFailure === null)
           providerFailure = provider;
         if (!provider)
-          parts.push(`[pi exited ${r.code} on turn ${i + 1}]
+          parts.push(`[pi exited ${r.code}${total === 1 ? "" : ` on turn ${i + 1}`}]
 ${r.stderr.trim()}
 `);
       }
@@ -16644,14 +16618,7 @@ ${r.stderr.trim()}
     ];
     const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync24(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
     const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
-    const piVersion = await this.version({ cwd: req.cwd, env });
-    const qualificationFailure = subjectVersionFailure(piVersion, req.expectedPiVersion);
-    if (qualificationFailure)
-      return {
-        transcript: withExecutionFailure("", qualificationFailure),
-        traces: [],
-        executionFailure: qualificationFailure
-      };
+    let expectedPiVersion = req.expectedPiVersion;
     const total = req.turns.length;
     const traces = [];
     const parts = [];
@@ -16661,6 +16628,12 @@ ${r.stderr.trim()}
     for (let i = 0; i < total; i++) {
       const turnFlags = session === null ? ["--no-session"] : i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common2, "--mode", "json", ...turnFlags, "-p", req.turns[i]];
+      const piVersion = await this.version({ cwd: req.cwd, env });
+      executionFailure = subjectVersionFailure(piVersion, expectedPiVersion);
+      if (executionFailure)
+        break;
+      if (expectedPiVersion === void 0)
+        expectedPiVersion = piVersion;
       const r = await runPiJson({
         args,
         cwd: req.cwd,

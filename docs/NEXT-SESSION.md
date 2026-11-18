@@ -2,9 +2,13 @@
 
 ## Current state
 
-Source target **0.36.1** binds each subject execution to the run's recorded Pi identity, including seeded scenarios and loading probes. Actual cwd/PATH-selected Pi must match before spawn. Subject patches remain accepted and flagged; plain and structured judges require exactly qualified releases until separate judge patch provenance is retained. The four package READMEs describe this qualification split. Retained results are unchanged.
+Source target **0.36.2** rechecks the actual cwd/arm-environment-selected Pi before every plain and structured subject turn. Changed, unavailable or unqualified selections stop before the next spawn, preserve completed transcript/trace evidence and remain ERROR on saved regrade without retry or judge calls. Omitted direct-adapter identity binds to the first qualified selection; explicit null stays unavailable. Top-level seeded regressions cover the existing caller forwarding. Subject patches remain accepted and flagged; judges remain exact-only.
 
-Published **0.36.0** introduced flagged subject patch qualification. This patch reuses the reviewed implementation and successful exact-head CI from PR138; final release-head CI and canonical/public archive verification remain required before claiming 0.36.1 delivery. No new model campaign is part of release preparation. JEV stays off.
+Published **0.36.1** ([release](https://github.com/mojomanyana/skill-harness/releases/tag/v0.36.1), commit `3b8e805595271ef7ac37d5f8fcf1890375d3326b`) introduced first-turn recorded-version binding and exact-only judge qualification. It does not contain the per-turn repair from PR139. Its canonical/registry archives, release CI and isolated installation were verified; that published history is unchanged.
+
+The 0.36.2 candidate reuses PR139's independent review, 2,113 passing tests with two optional skips, 175 focused checks, 18 actual scripted-executable cases and two scripted ecosystem composition lanes. These checks cover mechanics, not live model quality or executable-byte authentication. Final release-head CI and canonical/public archive verification remain required before claiming 0.36.2 delivery. The original native workspace-bookkeeping limitation remains separate and unresolved. JEV stays off.
+
+Published **0.36.0** introduced flagged subject patch qualification.
 
 Published **0.35.5** adds continuous scripted Pi 1.5.2 transport checks and a validation index. Runtime behavior is unchanged from 0.35.4. All five release CI checks passed; canonical and registry archives, a fresh installation and native Pi 1.5.2 loading/reload were verified. The [immutable release](https://github.com/mojomanyana/skill-harness/releases/tag/v0.35.5) identifies delivered commit `9d4062b78e77710f88a1aec266514acc1a383df9`. No model or JEV calls were part of that release.
 
