@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.36.0 — 2026-11-18
+
+- Run a later patch of the newest qualified Pi release in its minor, flagged: Pi 1.5.3 is accepted and recorded as a patch of qualified 1.5.x (qualified: 1.5.2) in `results.yaml` (`harness_cli_qualification`), the run journal, each trace (`pi_qualification`) and the run summary. Earlier unlisted patches, new minors or majors, prereleases, build metadata and malformed or unavailable versions are still refused before the subject starts.
+- Records without the flag read as before; a malformed flag is refused. Saved traces must still come from the exact Pi version the run recorded. A flagged patch has no transport qualification of its own.
+
 ## 0.35.6 — 2026-11-14
 
 - Show configured base workspace, Git preparation, tool filters and session boundaries during task-contract authoring. This is not a live resource inventory or permission grant; run modes and arms may add resources, and ordinary multi-turn evaluation does not verify recall after `/new`.

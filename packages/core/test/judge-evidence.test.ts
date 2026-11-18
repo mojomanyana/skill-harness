@@ -130,3 +130,31 @@ describe("judge execution evidence", () => {
     expect(readFileSync(join(result.runDir, "results.yaml"), "utf8")).toBe(before);
   });
 });
+
+// The only rule that pairs Pi versions: saved turns must share one Pi version, the
+// one the run recorded. A patch rides on a qualified release; it does not equal it.
+describe("a flagged Pi patch does not loosen trace pairing", () => {
+  const PATCH = { status: "patch" as const, qualified_version: "1.5.2" };
+  const flagged = (over: Partial<ExecutionTraceV1> = {}) => trace({ pi_version: "1.5.3", pi_qualification: PATCH, ...over });
+  const MISMATCH = "Execution trace identity or turn sequence does not match this repetition.";
+
+  it("verifies a flagged trace only against the same recorded Pi version", () => {
+    const t = flagged(), exact = trace({ pi_version: "1.5.2" });
+    expect(executionFacts([t], { ...identity, piVersion: "1.5.3" }, { source: "saved", expectedSha256: t.trace_sha256 }).status).toBe("verified");
+    expect(executionFacts([t], { ...identity, piVersion: "1.5.2" }, { source: "saved", expectedSha256: t.trace_sha256 })).toMatchObject({ status: "invalid", reason: MISMATCH });
+    expect(executionFacts([exact], { ...identity, piVersion: "1.5.3" }, { source: "saved", expectedSha256: exact.trace_sha256 })).toMatchObject({ status: "invalid", reason: MISMATCH });
+  });
+
+  it("refuses one repetition whose turns mix a qualified release with its patch", () => {
+    const two = { ...identity, turns: 2 };
+    expect(executionFacts([trace({ pi_version: "1.5.2" }), flagged({ turn: 1 })], two, { source: "live" })).toMatchObject({ status: "invalid", reason: MISMATCH });
+    expect(executionFacts([flagged(), flagged({ turn: 1 })], two, { source: "live" }).status).toBe("verified");
+  });
+
+  it("refuses a saved trace whose flag was removed after the run", () => {
+    const t = flagged();
+    const { pi_qualification: _flag, trace_sha256: _digest, ...stripped } = t;
+    expect(executionFacts([{ ...stripped, trace_sha256: traceSha256(stripped) }], { ...identity, piVersion: "1.5.3" }, { source: "saved", expectedSha256: t.trace_sha256 }))
+      .toMatchObject({ status: "invalid", reason: "Saved trace no longer matches the digest recorded by the run." });
+  });
+});

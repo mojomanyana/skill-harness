@@ -24,7 +24,7 @@ import {
 import { appendJournal } from "./journal.js";
 import { liftHeadline, type Lift } from "./lift.js";
 import { evaluateOutputGates, hasOutputGates, runSeeded } from "./seeded.js";
-import { serializeTrace, mergeTraces, traceSha256 } from "./execution-trace.js";
+import { serializeTrace, mergeTraces, traceSha256, piQualification } from "./execution-trace.js";
 import { executionFacts, transcriptResponses } from "./judge-evidence.js";
 import { evaluateTraceGates } from "./trace-gates.js";
 import type { ExecutionTraceV1 } from "./capture-trace-types.js";
@@ -171,11 +171,16 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
   // measures, and the incident was invisible in the artifacts because nothing wrote
   // this down. Never fatal: `null` means the adapter couldn't say.
   const harnessCliVersion = (await adapter.version?.()) ?? null;
+  // The qualified list is Pi's. A later patch of a qualified minor runs, and every
+  // record of it says so, so it never reads as an exactly qualified release.
+  const qualification = adapter.name === "pi" ? piQualification(harnessCliVersion) : null;
+  const harnessCliQualification = qualification?.status === "patch" ? qualification : undefined;
 
   appendJournal(runDir, {
     event: "run-started", ts: now(),
     skill: spec.skill, harness: adapter.name, model: opts.modelToken,
     harness_cli_version: harnessCliVersion,
+    ...(harnessCliQualification ? { harness_cli_qualification: harnessCliQualification } : {}),
     judge: { ...judge },
     mode, label: opts.label ?? null,
   });
@@ -250,6 +255,7 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     skill: spec.skill,
     harness: adapter.name,
     harness_cli_version: harnessCliVersion ?? undefined,
+    harness_cli_qualification: harnessCliQualification,
     delivery_canary: canaryStatus ?? undefined,
     delivery_observations: canaryObservations,
     model: opts.modelToken,

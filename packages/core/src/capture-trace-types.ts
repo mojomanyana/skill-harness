@@ -109,10 +109,22 @@ export interface TraceMetrics {
   max_concurrency: number;
 }
 
+/**
+ * A Pi version that is not itself listed as qualified but was accepted as a later
+ * patch of a qualified minor. `qualified_version` is the listed release it rides on.
+ * Records carry it only for such patches; absent means the exact list applied.
+ */
+export interface PiPatchQualification {
+  status: "patch";
+  qualified_version: string;
+}
+
 export interface ExecutionTraceV1 {
   trace_version: typeof EXECUTION_TRACE_VERSION;
   /** `pi --version` at capture time. Null when it could not be determined. */
   pi_version: string | null;
+  /** Present only when `pi_version` was accepted as a patch of a qualified minor. */
+  pi_qualification?: PiPatchQualification;
   /** The model under test. */
   subject: ModelRef;
   /** Bounded observed runtime identity and usage, independent of the request. */

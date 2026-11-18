@@ -2,6 +2,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Verdict } from "./score.js";
 import type { CanaryObservations } from "./canary.js";
+import type { PiPatchQualification } from "./capture-trace-types.js";
 
 /**
  * Machine-facing event stream for one run: one JSON object per line in
@@ -24,6 +25,8 @@ export type JournalEvent =
   | { event: "run-started"; ts: string; skill: string; harness: string; model: string;
       /** The harness CLI's own version (`pi --version`), or null when it could not be asked. */
       harness_cli_version?: string | null;
+      /** Present only when that version is a flagged patch of a qualified Pi minor. */
+      harness_cli_qualification?: PiPatchQualification;
       judge: { provider: string; model: string }; mode: string; label: string | null }
   /**
    * The pre-flight delivery probe (green mode, `--canary`): did the model quote a

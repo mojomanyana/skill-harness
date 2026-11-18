@@ -1,6 +1,6 @@
 ---
 name: skill-harness
-version: 0.35.6
+version: 0.36.0
 description: >
   Create, test and improve Pi skills and optional ecosystem subagents. Use when
   the user describes a role they need, asks to create a skill, add evaluations,

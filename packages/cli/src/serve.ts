@@ -192,7 +192,8 @@ export async function serveReview(opts: ServeOptions): Promise<ServeHandle> {
             timestamp: results.timestamp, label: results.label, mode: results.mode, scenarios: merged,
             partial: results.partial,
             // Provenance survives a UI re-judge, same as it does through `grade`.
-            harness_cli_version: results.harness_cli_version, delivery_canary: results.delivery_canary,
+            harness_cli_version: results.harness_cli_version, harness_cli_qualification: results.harness_cli_qualification,
+            delivery_canary: results.delivery_canary,
             // The arm is provenance of the MEASUREMENT, not of this rewrite, and it is the
             // only record that a `+<arm>` run actually delegated: rebuilding the draft
             // field-by-field without it silently deleted `definitions`/`ledger_events`

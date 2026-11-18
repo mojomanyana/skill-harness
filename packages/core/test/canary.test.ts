@@ -355,6 +355,31 @@ describe("the harness CLI version is on the record", () => {
       .toMatchObject({ harness_cli_version: "0.83.0" });
   });
 
+  test("a later patch of a qualified Pi minor is flagged in results.yaml and the journal", async () => {
+    const { skillDir, specPath } = skillTree();
+    const { adapter } = scripted(["Hi!"], "1.5.3");
+    const { results, runDir } = await runSkillModel({
+      spec: spec(), skillDir, specPath, adapter, model, modelToken: "fireworks:fake",
+      judge, mode: "force", timestamp: "2026-08-06T00:00:00Z",
+    });
+    const flag = { status: "patch", qualified_version: "1.5.2" };
+    expect(readResults(runDir)).toMatchObject({ harness_cli_version: "1.5.3", harness_cli_qualification: flag });
+    expect(readJournal(runDir).find((e) => e.event === "run-started"))
+      .toMatchObject({ harness_cli_version: "1.5.3", harness_cli_qualification: flag });
+    expect(formatScorecard({ results, runDir })).toContain("\nPi 1.5.3: patch of qualified 1.5.x (qualified: 1.5.2)\n");
+  });
+
+  test.each([["pi", "1.5.2"], ["pi", "1.5.1"], ["pi", "1.6.0"], ["pi", null], ["other", "1.5.3"]])("%s %s records no patch flag", async (name, version) => {
+    const { skillDir, specPath } = skillTree();
+    const { adapter } = scripted(["Hi!"], version);
+    const { results, runDir } = await runSkillModel({
+      spec: spec(), skillDir, specPath, adapter: { ...adapter, name }, model, modelToken: "fireworks:fake",
+      judge, mode: "force", timestamp: "2026-08-06T00:00:00Z",
+    });
+    expect(results).not.toHaveProperty("harness_cli_qualification");
+    expect(readJournal(runDir).find((e) => e.event === "run-started")).not.toHaveProperty("harness_cli_qualification");
+  });
+
   test("an adapter that cannot report a version writes no field rather than a guess", async () => {
     const { skillDir, specPath } = skillTree();
     const { adapter } = scripted(["Hi!"], null);

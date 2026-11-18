@@ -149,6 +149,7 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
   let greenRunDir: string;
   let redRunDir: string;
   let forceRunDir: string;
+  let patchRunDir: string;
   let base2: string;
   let close2: () => void;
   let judgeCalls = 0;
@@ -227,6 +228,18 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
       schema: 3, skill: "golden", harness: "pi", model: "fireworks:fake", judge: { provider: "claude-code", model: "opus" }, timestamp: "2026-07-03T00:00:00Z", label: null, mode: "force",
       subject_invocations: [{ scenario_id: "A1", repetition: 0, prompt: { capture_version: "prompt-provenance-v1", request_index: 0, raw_sha256: h, normalized_sha256: h, normalization_rule: "cwd-line-v1", bytes: 1, contract_sha256: h, contract_bytes: 1, contract_occurrences: 0, mechanism: "append-system-prompt", status: "NOT-MEASURED" } }],
       scenarios: [{ id: "A1", criterion_count: 1, judge_verdict: "NOT-MEASURED", judge_reason: "delivery absent", suspect: false, override: null, note: "", objective: { status: "NOT-MEASURED", assertions: [{ kind: "skill_delivered", status: "NOT-MEASURED", detail: "zero" }] }, rep_judgments: [{ repetition: 0, recorded_verdict: "NOT-MEASURED", judgments: [], objective: { status: "NOT-MEASURED", assertions: [{ kind: "skill_delivered", status: "NOT-MEASURED", detail: "zero" }] } }] }],
+    }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
+
+    // Column 4 ("pi-v153" sorts last): a force run on a flagged Pi patch.
+    patchRunDir = join(skillDir2, "tests", "results", "pi-v153", "2026-07-03T00-00-00Z");
+    mkdirSync(patchRunDir, { recursive: true });
+    writeFileSync(join(patchRunDir, "A1.force.txt"), "USER: Say hello.\nASSISTANT: Hi there!", "utf8");
+    writeResults(patchRunDir, {
+      skill: "golden", harness: "pi", model: "fireworks:fake",
+      harness_cli_version: "1.5.3", harness_cli_qualification: { status: "patch", qualified_version: "1.5.2" },
+      judge: { provider: "claude-code", model: "opus" },
+      timestamp: "2026-07-03T00:00:00Z", label: null, mode: "force",
+      scenarios: [{ id: "A1", judge_verdict: "FAIL", judge_reason: "old", suspect: false, override: null, note: "" }],
     }, { shipBar: { total: 1, min_pass: 1, no_critical_fail: true }, critical: ["A1"] });
 
     const s = await serveReview({ skillDir: skillDir2, skillName: "golden", port: 0, open: false, adapter: fakeAdapter });
@@ -331,6 +344,19 @@ describe("review server /rejudge (hermetic, fake adapter)", () => {
       name: "pi-daddy", extensions: ["/opt/pi-daddy/ext/grants.ts"],
       definitions: 6, ledger_events: 12, env: { PI_GRANTS_MAX_DEPTH: "1" },
     });
+  });
+
+  test("the review page shows a Pi patch flag and a UI re-judge keeps it", async () => {
+    expect(await (await fetch(`${base2}/`)).text()).toContain(JSON.stringify("Pi 1.5.3: patch of qualified 1.5.x (qualified: 1.5.2)"));
+    const r = await fetch(`${base2}/rejudge`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ col: 4, scenarioId: "A1" }),
+    });
+    expect(r.status).toBe(200);
+    const after = readResults(patchRunDir);
+    expect(after.scenarios[0].judge_verdict).toBe("PASS");
+    expect(after.harness_cli_version).toBe("1.5.3");
+    expect(after.harness_cli_qualification).toEqual({ status: "patch", qualified_version: "1.5.2" });
   });
 });
 

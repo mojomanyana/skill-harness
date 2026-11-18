@@ -6,7 +6,8 @@ import { score, type ScenarioVerdict } from "./score.js";
 import { HARNESS_VERSION } from "./version.js";
 import type { Verdict } from "./score.js";
 import type { ShipBar, Scenario } from "./spec.js";
-import type { CostSource } from "./capture-trace-types.js";
+import type { CostSource, PiPatchQualification } from "./capture-trace-types.js";
+import { validPiPatchFlag } from "./execution-trace.js";
 import { collapseVotePanel } from "./vote-panel.js";
 import { outcomesToResult, type RepOutcome } from "./reps.js";
 import type { CanaryObservations } from "./canary.js";
@@ -216,6 +217,13 @@ export interface ResultsFile {
    * an adapter that cannot report a version writes none rather than guessing.
    */
   harness_cli_version?: string;
+  /**
+   * Present only when `harness_cli_version` is an unlisted Pi patch accepted as a
+   * later patch of a qualified minor; names the listed release it rides on.
+   * Absent means the exact list applied, as for every record written before the
+   * field existed. Written by `run` and carried verbatim like the version.
+   */
+  harness_cli_qualification?: PiPatchQualification;
   /**
    * Compatibility status for the optional instructed loading/quote probe.
    * See delivery_observations for what was actually observed; a quote by itself
@@ -497,6 +505,8 @@ export function finalizeResults(draft: ResultsDraft, ctx: ScoreContext | null): 
     // Omitted rather than written as null when absent: a run whose adapter could
     // not report a version must not look like one that reported "nothing".
     ...(draft.harness_cli_version ? { harness_cli_version: draft.harness_cli_version } : {}),
+    // Kept whenever present, so validation refuses a malformed flag instead of dropping it.
+    ...(draft.harness_cli_qualification !== undefined ? { harness_cli_qualification: draft.harness_cli_qualification } : {}),
     ...(draft.delivery_canary ? { delivery_canary: draft.delivery_canary } : {}),
     ...(draft.delivery_observations ? { delivery_observations: draft.delivery_observations } : {}),
     skill: draft.skill,
@@ -626,6 +636,10 @@ export function validateResults(raw: unknown): ResultsFile {
   const result = raw as ResultsFile;
   if (result.schema !== 2 && result.schema !== 3) throw new Error(`unsupported results schema ${String((raw as { schema?: unknown }).schema)}`);
   if (!Array.isArray(result.scenarios)) throw new Error("results scenarios missing");
+  // A malformed or contradictory flag is refused, never read as an exactly qualified Pi.
+  if (result.harness_cli_qualification !== undefined && !validPiPatchFlag(result.harness_cli_version, result.harness_cli_qualification)) {
+    throw new Error("invalid harness_cli_qualification: expected status patch and a qualified_version below harness_cli_version in the same minor");
+  }
   if (result.schema === 2) return result;
   if (!Array.isArray(result.subject_invocations)) throw new Error("schema v3 delivery observations missing");
   for (const observation of result.subject_invocations) {

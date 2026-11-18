@@ -86,7 +86,10 @@ export function summarizeRun(results: ResultsFile) {
 export function runSummaryLines(results: ResultsFile): string[] {
   const summary = summarizeRun(results);
   const observed = (items: { provider: string | null; model: string | null }[]) => items.length ? items.map(item => `${item.provider ?? "unknown"}:${item.model ?? "unknown"}`).join(", ") : "unknown";
+  const patch = results.harness_cli_qualification;
   return [
+    // Only a flagged patch adds a line; a record without the flag reads exactly as before.
+    ...(patch ? [`Pi ${results.harness_cli_version}: patch of qualified ${patch.qualified_version.split(".").slice(0, 2).join(".")}.x (qualified: ${patch.qualified_version})`] : []),
     `Subject requested: ${modelProfileLabel(summary.subject.requested)}; observed: ${observed(summary.subject.observedModels)}; effective thinking: unknown`,
     `Judge requested: ${modelProfileLabel(summary.judge.requested)}; observed: ${observed(summary.judge.observedModels)}; effective thinking: unknown`,
     `Effective outcomes: ${summary.outcomes.passed} PASS, ${summary.outcomes.recordedFailures} FAIL, ${summary.outcomes.executionOrEvidenceErrors} ERROR, ${summary.outcomes.ungraded} UNGRADED, ${summary.outcomes.notMeasured} NOT-MEASURED, ${summary.outcomes.ambiguous} JUDGE-AMBIGUOUS. Additional flags: ${summary.outcomes.suspect} suspect, ${summary.outcomes.overrides} overrides; ${summary.outcomes.recordedExecutionOrEvidenceErrors} recorded execution/evidence errors.`,

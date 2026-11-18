@@ -2,7 +2,7 @@
 
 ## Current state
 
-Source target **0.35.6** adds computed authoring setup context: base workspace and Git preparation, configured tool filters, scenario extensions and same-session versus fresh-session limits. It is descriptive only; retained task identities, accepted reviews and judge inputs are unchanged. Focused checks and the full 2,016-test suite passed with two optional skips; release CI, registry delivery and fresh installed verification remain pending. No model or JEV calls are part of this release.
+Source target **0.36.0** accepts later patch releases within the newest qualified Pi minor while retaining a qualification flag in results, journals, traces and summaries. Earlier unlisted releases, new minors/majors and malformed versions remain refused. Flagged patches have no transport qualification of their own. Existing deterministic checks are reused; the release-head CI and exact published archives must pass before delivery is claimed. JEV stays off.
 
 Published **0.35.5** adds continuous scripted Pi 1.5.2 transport checks and a validation index. Runtime behavior is unchanged from 0.35.4. All five release CI checks passed; canonical and registry archives, a fresh installation and native Pi 1.5.2 loading/reload were verified. The [immutable release](https://github.com/mojomanyana/skill-harness/releases/tag/v0.35.5) identifies delivered commit `9d4062b78e77710f88a1aec266514acc1a383df9`. No model or JEV calls were part of that release.
 
@@ -135,7 +135,8 @@ This does not qualify autonomous selection, the Herdr UI or whole-host health.
 Reuse matching saved answers before scheduling fresh subject calls. Historical
 releases and scores remain unchanged.
 
-Fresh subject execution is qualified on exact Pi **1.0.4, 1.1.0, 1.4.0, 1.5.0 and 1.5.2**. Other or unknown
+Fresh subject execution is qualified on exact Pi **1.0.4, 1.1.0, 1.4.0, 1.5.0 and 1.5.2**; a later patch of the
+newest listed release in its minor runs as a flagged patch. Other or unknown
 versions fail closed before subject spawn. Historical Pi 0.83.0 raw captures remain
 readable through their explicit legacy parser; they are not current qualification.
 See the README's Pi qualification section and shared final conformance table.
