@@ -2,9 +2,9 @@
 
 ## Current state
 
-Unreleased repair: subject execution refuses a cwd/PATH-selected Pi that differs from its recorded run identity (including seeded scenarios and loading probes). Plain and structured judges remain exact-only until their separate patch provenance can be recorded. The four package READMEs now describe this qualification split. Release versions and retained results are unchanged.
+Source target **0.36.1** binds each subject execution to the run's recorded Pi identity, including seeded scenarios and loading probes. Actual cwd/PATH-selected Pi must match before spawn. Subject patches remain accepted and flagged; plain and structured judges require exactly qualified releases until separate judge patch provenance is retained. The four package READMEs describe this qualification split. Retained results are unchanged.
 
-Source target **0.36.0** accepts later patch releases within the newest qualified Pi minor while retaining a qualification flag in results, journals, traces and summaries. Earlier unlisted releases, new minors/majors and malformed versions remain refused. Flagged patches have no transport qualification of their own. Existing deterministic checks are reused; the release-head CI and exact published archives must pass before delivery is claimed. JEV stays off.
+Published **0.36.0** introduced flagged subject patch qualification. This patch reuses the reviewed implementation and successful exact-head CI from PR138; final release-head CI and canonical/public archive verification remain required before claiming 0.36.1 delivery. No new model campaign is part of release preparation. JEV stays off.
 
 Published **0.35.5** adds continuous scripted Pi 1.5.2 transport checks and a validation index. Runtime behavior is unchanged from 0.35.4. All five release CI checks passed; canonical and registry archives, a fresh installation and native Pi 1.5.2 loading/reload were verified. The [immutable release](https://github.com/mojomanyana/skill-harness/releases/tag/v0.35.5) identifies delivered commit `9d4062b78e77710f88a1aec266514acc1a383df9`. No model or JEV calls were part of that release.
 
