@@ -1,8 +1,14 @@
 # Changelog
 
+## 0.36.2 — 2026-11-18
+
+- Recheck the actual cwd/arm-environment-selected Pi before every plain and structured subject turn. A changed, unavailable or unqualified selection stops before the next spawn, preserves completed transcript/trace evidence and stays ERROR on saved regrade without retries or judge calls. Published 0.36.1 checked only before the first turn.
+- Bind direct adapter calls that omit a recorded Pi identity to their first qualified selection for later turns; an explicitly unavailable identity remains unavailable. Stable exact and flagged-patch subjects remain supported; the exact-only judge policy is unchanged.
+- Add top-level seeded-scenario regressions for both execution modes and both mismatch directions. The production identity forwarding already existed; the new controls detect its removal and protect saved-failure reporting.
+
 ## 0.36.1 — 2026-11-18
 
-- Refuse subject execution when its cwd/PATH-selected Pi differs from the run's recorded version, before every turn, including seeded scenarios and loading probes; previously an arm could run a patch while results claimed an exact release. A changed or unavailable Pi stops later turns, preserves completed evidence and remains ERROR on saved regrade without judge calls.
+- Refuse subject execution when its cwd/PATH-selected Pi differs from the run's recorded version, including seeded scenarios and loading probes; previously an arm could run a patch while results claimed an exact release.
 - Keep plain and structured judges on exactly qualified Pi releases until judge-specific patch provenance can be recorded; subject patches remain accepted and flagged.
 - Reconcile the four package READMEs with the current qualification and provenance rules. Existing results and recorded subject identities are unchanged.
 
