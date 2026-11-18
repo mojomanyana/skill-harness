@@ -6432,7 +6432,8 @@ async function runSeeded(scenario, opts) {
       ...scenario.extensions?.map((e) => resolve5(opts.specDir, e)) ?? [],
       ...opts.armExtensions ?? []
     ],
-    ...opts.armEnv ? { armEnv: opts.armEnv } : {}
+    ...opts.armEnv ? { armEnv: opts.armEnv } : {},
+    ...opts.expectedPiVersion !== void 0 ? { expectedPiVersion: opts.expectedPiVersion } : {}
   };
   let traces = [];
   let harnessOut;
@@ -7935,7 +7936,8 @@ async function runDeliveryCanary(opts) {
     tools: ["read"],
     extensions: [],
     scenarioId: "(delivery-probe)",
-    rep: 0
+    rep: 0,
+    ...opts.expectedPiVersion !== void 0 ? { expectedPiVersion: opts.expectedPiVersion } : {}
   };
   let reply;
   if (opts.adapter.runStructured) {
@@ -8359,7 +8361,8 @@ async function runSkillModel(opts) {
           model,
           skillDir,
           skillName: spec.skill,
-          cwd: probeCwd.cwd
+          cwd: probeCwd.cwd,
+          ...adapter.name === "pi" ? { expectedPiVersion: harnessCliVersion } : {}
         });
       } finally {
         probeCwd.cleanup();
@@ -8393,7 +8396,15 @@ async function runSkillModel(opts) {
         const rep = k;
         const total = repCounts[si];
         owners.push(si);
-        tasks.push(() => runRep(scenario, rep, total, { ...opts, runDir, now, log, armDefinitions, judgeReferences }));
+        tasks.push(() => runRep(scenario, rep, total, {
+          ...opts,
+          runDir,
+          now,
+          log,
+          armDefinitions,
+          judgeReferences,
+          ...adapter.name === "pi" ? { expectedPiVersion: harnessCliVersion } : {}
+        }));
       }
     });
     const flat = await runPool(tasks, opts.concurrency ?? 1);
@@ -8530,6 +8541,7 @@ async function runRep(scenario, rep, repCount, ctx) {
               // builds the RunReq — the arm's extensions and env (with `<run-dir>`
               // already substituted) both must reach pi.
               armExtensions: arm.extensions,
+              ...ctx.expectedPiVersion !== void 0 ? { expectedPiVersion: ctx.expectedPiVersion } : {},
               ...armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {}
             });
             transcript = r.transcript;
@@ -8544,6 +8556,7 @@ async function runRep(scenario, rep, repCount, ctx) {
               mode,
               turns: scenario.turns,
               cwd: ws.cwd,
+              ...ctx.expectedPiVersion !== void 0 ? { expectedPiVersion: ctx.expectedPiVersion } : {},
               tools: scenario.tools,
               // resolved like fixtures: relative to the spec's dir
               systemPromptFile: scenario.systemPromptFile ? resolve9(dirname(ctx.specPath), scenario.systemPromptFile) : void 0,
@@ -10887,6 +10900,12 @@ var init_model_pricing = __esm({
 import { existsSync as existsSync25, mkdtempSync as mkdtempSync4, readFileSync as readFileSync27, statSync as statSync14 } from "node:fs";
 import { tmpdir as tmpdir4, homedir as homedir6 } from "node:os";
 import { join as join40, resolve as resolve26 } from "node:path";
+function subjectVersionFailure2(version, expected) {
+  return piQualificationFailure(version) ?? (expected !== void 0 && version !== expected ? `Pi ${version ?? "unknown"} differs from the run's recorded Pi ${expected ?? "unknown"}; execution refused before spawn` : null);
+}
+function judgeVersionFailure2(version) {
+  return piQualificationFailure(version) ?? (piQualification(version)?.status === "patch" ? `Pi ${version}: judge requires an exactly qualified Pi release; patch judge provenance is not recorded` : null);
+}
 function providerStderr2(stderr2) {
   const hay = stderr2.toLowerCase();
   return PROVIDER_STDERR_SIGNATURES2.some((sig) => hay.includes(sig)) ? stderr2.trim() : null;
@@ -10989,7 +11008,7 @@ var init_pi = __esm({
         ];
         const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync27(req.systemPromptFile, "utf8")] : skillFlags2(req.mode, req.skillDir);
         const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
-        const qualificationFailure = piQualificationFailure(await this.version({ cwd: req.cwd, env }));
+        const qualificationFailure = subjectVersionFailure2(await this.version({ cwd: req.cwd, env }), req.expectedPiVersion);
         if (qualificationFailure) return withExecutionFailure("", qualificationFailure);
         const total = req.turns.length;
         const parts = [];
@@ -11054,7 +11073,7 @@ ${r.stderr.trim()}
         const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync27(req.systemPromptFile, "utf8")] : skillFlags2(req.mode, req.skillDir);
         const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
         const piVersion = await this.version({ cwd: req.cwd, env });
-        const qualificationFailure = piQualificationFailure(piVersion);
+        const qualificationFailure = subjectVersionFailure2(piVersion, req.expectedPiVersion);
         if (qualificationFailure) return {
           transcript: withExecutionFailure("", qualificationFailure),
           traces: [],
@@ -11114,7 +11133,7 @@ ${r.stderr.trim()}
       async judgeStructured(req) {
         if (req.model.provider === "claude-code") throw new Error("judge provider `claude-code` was removed");
         const version = await this.version({ cwd: req.cwd });
-        const unqualified = piQualificationFailure(version);
+        const unqualified = judgeVersionFailure2(version);
         if (unqualified) return { raw: `[judge error: ${unqualified}]` };
         const args = [
           "--no-skills",
@@ -11156,6 +11175,8 @@ ${r.stderr.trim()}
         if (req.model.provider === "claude-code") {
           throw new Error("judge provider `claude-code` was removed; configure a Pi provider such as `openai-codex`");
         }
+        const unqualified = judgeVersionFailure2(await this.version({ cwd: req.cwd }));
+        if (unqualified) return `[judge error: ${unqualified}]`;
         const args = [
           "--no-skills",
           "--no-context-files",
@@ -16457,6 +16478,12 @@ function priceSubjectUsage(trace) {
 // packages/adapters/dist/pi.js
 init_dist();
 var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
+function subjectVersionFailure(version, expected) {
+  return piQualificationFailure(version) ?? (expected !== void 0 && version !== expected ? `Pi ${version ?? "unknown"} differs from the run's recorded Pi ${expected ?? "unknown"}; execution refused before spawn` : null);
+}
+function judgeVersionFailure(version) {
+  return piQualificationFailure(version) ?? (piQualification(version)?.status === "patch" ? `Pi ${version}: judge requires an exactly qualified Pi release; patch judge provenance is not recorded` : null);
+}
 var PROVIDER_STDERR_SIGNATURES = [
   "invalidated oauth token",
   "invalid_api_key",
@@ -16549,7 +16576,7 @@ var piAdapter = {
     ];
     const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync24(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
     const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
-    const qualificationFailure = piQualificationFailure(await this.version({ cwd: req.cwd, env }));
+    const qualificationFailure = subjectVersionFailure(await this.version({ cwd: req.cwd, env }), req.expectedPiVersion);
     if (qualificationFailure)
       return withExecutionFailure("", qualificationFailure);
     const total = req.turns.length;
@@ -16618,7 +16645,7 @@ ${r.stderr.trim()}
     const flags = req.systemPromptFile ? ["--no-skills", "--append-system-prompt", readFileSync24(req.systemPromptFile, "utf8")] : skillFlags(req.mode, req.skillDir);
     const env = req.armEnv ? { ...process.env, ...req.armEnv } : void 0;
     const piVersion = await this.version({ cwd: req.cwd, env });
-    const qualificationFailure = piQualificationFailure(piVersion);
+    const qualificationFailure = subjectVersionFailure(piVersion, req.expectedPiVersion);
     if (qualificationFailure)
       return {
         transcript: withExecutionFailure("", qualificationFailure),
@@ -16680,7 +16707,7 @@ ${r.stderr.trim()}
     if (req.model.provider === "claude-code")
       throw new Error("judge provider `claude-code` was removed");
     const version = await this.version({ cwd: req.cwd });
-    const unqualified = piQualificationFailure(version);
+    const unqualified = judgeVersionFailure(version);
     if (unqualified)
       return { raw: `[judge error: ${unqualified}]` };
     const args = [
@@ -16723,6 +16750,9 @@ ${r.stderr.trim()}
     if (req.model.provider === "claude-code") {
       throw new Error("judge provider `claude-code` was removed; configure a Pi provider such as `openai-codex`");
     }
+    const unqualified = judgeVersionFailure(await this.version({ cwd: req.cwd }));
+    if (unqualified)
+      return `[judge error: ${unqualified}]`;
     const args = [
       "--no-skills",
       "--no-context-files",

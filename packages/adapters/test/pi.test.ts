@@ -67,6 +67,13 @@ describe("pi adapter nested-run safety", () => {
     expect(args).toContain("--no-mcp");
   });
 
+  it("refuses a patch judge without spawning or claiming unrecorded qualification", async () => {
+    vi.mocked(piAdapter.version!).mockResolvedValue("1.5.3");
+    const out = await piAdapter.judge({ model: { provider: "local", model: "judge" }, prompt: "p", cwd: "/tmp" });
+    expect(out).toContain("judge requires an exactly qualified Pi release");
+    expect(mockedExec).not.toHaveBeenCalled();
+  });
+
   it("refuses the removed direct Claude judge provider", async () => {
     await expect(piAdapter.judge({
       model: { provider: "claude-code", model: "opus" },

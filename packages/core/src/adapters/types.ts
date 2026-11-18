@@ -119,6 +119,8 @@ export interface RunReq {
    * inheriting a caller's copy of them.
    */
   armEnv?: Record<string, string>;
+  /** Recorded run identity; Pi must refuse a different cwd/PATH-selected version before spawn. */
+  expectedPiVersion?: string | null;
 }
 
 /** A judge request: single prompt, no skills, no session. */

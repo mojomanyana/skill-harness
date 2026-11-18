@@ -19,7 +19,9 @@ of the newest listed release in its minor also runs, flagged as a patch: Pi 1.5.
 qualified 1.5.x (qualified: 1.5.2)*. An unknown, unavailable, prerelease, build-metadata, earlier-patch
 or other version records execution ERROR before starting the
 subject; regrading that saved failure does not call the judge. Qualification must
-be renewed explicitly for a new Pi minor or major.
+be renewed explicitly for a new Pi minor or major. Each subject's actual cwd/PATH-selected
+Pi must equal the recorded run version before spawn. Judges require an exactly qualified
+release until judge-specific patch provenance is retained; patch acceptance is subject-only.
 
 Retained results remain readable. The raw-trace parser keeps the original Pi
 0.83.0 capture format for historical inspection, without claiming current

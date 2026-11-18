@@ -232,8 +232,10 @@ former. `schema` cannot answer either question: 0.2.1 → 0.3.0 kept `schema: 2`
 changing what a verdict *means*.
 
 Fresh subject execution supports exact Pi **1.0.4, 1.1.0, 1.4.0, 1.5.0 or 1.5.2**, plus a later patch of the
-newest listed release in its minor, flagged by `harness_cli_qualification` beside `harness_cli_version`. The version probe uses the
-same working directory and environment as the subject, including an arm's `PATH`.
+newest listed release in its minor, flagged by `harness_cli_qualification` beside `harness_cli_version`. The recorded version is probed once for the run. Each subject probe uses its actual
+working directory and environment, including an arm's `PATH`, and must match that
+recorded version before spawn; an arm cannot silently relabel a patch as an exact release.
+Judges require an exactly qualified Pi release until their own patch provenance is retained.
 Other versions or a failed probe produce a saved execution ERROR before subject
 spawn; saved regrading preserves that failure. Historical result files remain
 readable without claiming the producing Pi version is currently qualified.

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Refuse subject execution when its cwd/PATH-selected Pi differs from the run's recorded version, including seeded scenarios and loading probes; previously an arm could run a patch while results claimed an exact release.
+- Keep plain and structured judges on exactly qualified Pi releases until judge-specific patch provenance can be recorded; subject patches remain accepted and flagged.
+- Reconcile the four package READMEs with the current qualification and provenance rules. Existing results and recorded subject identities are unchanged.
+
 ## 0.36.0 — 2026-11-18
 
 - Run a later patch of the newest qualified Pi release in its minor, flagged: Pi 1.5.3 is accepted and recorded as a patch of qualified 1.5.x (qualified: 1.5.2) in `results.yaml` (`harness_cli_qualification`), the run journal, each trace (`pi_qualification`) and the run summary. Earlier unlisted patches, new minors or majors, prereleases, build metadata and malformed or unavailable versions are still refused before the subject starts.

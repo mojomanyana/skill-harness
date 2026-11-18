@@ -2,6 +2,8 @@
 
 ## Current state
 
+Unreleased repair: subject execution refuses a cwd/PATH-selected Pi that differs from its recorded run identity (including seeded scenarios and loading probes). Plain and structured judges remain exact-only until their separate patch provenance can be recorded. The four package READMEs now describe this qualification split. Release versions and retained results are unchanged.
+
 Source target **0.36.0** accepts later patch releases within the newest qualified Pi minor while retaining a qualification flag in results, journals, traces and summaries. Earlier unlisted releases, new minors/majors and malformed versions remain refused. Flagged patches have no transport qualification of their own. Existing deterministic checks are reused; the release-head CI and exact published archives must pass before delivery is claimed. JEV stays off.
 
 Published **0.35.5** adds continuous scripted Pi 1.5.2 transport checks and a validation index. Runtime behavior is unchanged from 0.35.4. All five release CI checks passed; canonical and registry archives, a fresh installation and native Pi 1.5.2 loading/reload were verified. The [immutable release](https://github.com/mojomanyana/skill-harness/releases/tag/v0.35.5) identifies delivered commit `9d4062b78e77710f88a1aec266514acc1a383df9`. No model or JEV calls were part of that release.

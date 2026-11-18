@@ -38,6 +38,7 @@ interface SeededOpts {
   armExtensions?: string[];
   /** The arm's env for the subject process; `<run-dir>` already substituted by the caller. */
   armEnv?: Record<string, string>;
+  expectedPiVersion?: string | null;
 }
 
 /**
@@ -321,6 +322,7 @@ export async function runSeeded(scenario: Scenario, opts: SeededOpts): Promise<S
       ...(opts.armExtensions ?? []),
     ],
     ...(opts.armEnv ? { armEnv: opts.armEnv } : {}),
+    ...(opts.expectedPiVersion !== undefined ? { expectedPiVersion: opts.expectedPiVersion } : {}),
   };
   // A trace-gated seeded scenario runs through the structured path so the tool
   // calls are recorded; everything downstream (gates, diff, transcript) is

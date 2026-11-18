@@ -31,6 +31,20 @@ const seededScenario = (needle: string): Scenario => ({
 });
 
 describe("runSeeded (workspace prepared by caller)", () => {
+  it.each([false, true])("forwards recorded Pi identity through seeded execution (structured=%s)", async structured => {
+    const ws = createWorkspace("empty-git", { specDir: "/x" }); tmps.push(ws.cwd);
+    const requests: RunReq[] = [];
+    const adapter: HarnessAdapter = { ...editingAdapter("MARKER"),
+      run: async req => { requests.push(req); return "<<< ASSISTANT: hello"; },
+      runStructured: async req => { requests.push(req); return { transcript: "<<< ASSISTANT: hello", traces: [] }; } };
+    await runSeeded({ ...seededScenario("MARKER"), assert: undefined }, {
+      skillDir: "/x", adapter, model: { provider: "fixture", model: "subject" }, mode: "force",
+      cwd: ws.cwd, specDir: "/x", expectedPiVersion: "1.5.2",
+      ...(structured ? { trace: { scenarioId: "S1", rep: 0 } } : {}),
+    });
+    expect(requests).toHaveLength(1);
+    expect(requests[0].expectedPiVersion).toBe("1.5.2");
+  });
   it("passes the diff_contains gate when the harness makes the expected edit", async () => {
     const fixture = mkdtempSync(join(tmpdir(), "sc-seed-src-")); tmps.push(fixture);
     writeFileSync(join(fixture, "seed.txt"), "seed", "utf8");

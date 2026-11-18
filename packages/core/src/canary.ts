@@ -95,6 +95,7 @@ export interface CanaryOptions {
   skillName: string;
   /** Neutral cwd, same as a scenario gets. */
   cwd: string;
+  expectedPiVersion?: string | null;
 }
 
 /**
@@ -132,6 +133,7 @@ export async function runDeliveryCanary(opts: CanaryOptions): Promise<CanaryResu
     skillDir: opts.skillDir, model: opts.model, mode: "green",
     turns: [canaryPrompt(opts.skillName)], cwd: opts.cwd,
     tools: ["read"], extensions: [], scenarioId: "(delivery-probe)", rep: 0,
+    ...(opts.expectedPiVersion !== undefined ? { expectedPiVersion: opts.expectedPiVersion } : {}),
   };
   let reply: string | null;
   if (opts.adapter.runStructured) {
