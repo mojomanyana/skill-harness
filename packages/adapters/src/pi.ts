@@ -171,8 +171,7 @@ export const piAdapter: HarnessAdapter = {
       ? ["--no-skills", "--append-system-prompt", readFileSync(req.systemPromptFile, "utf8")]
       : skillFlags(req.mode, req.skillDir);
     const env = req.armEnv ? { ...process.env, ...req.armEnv } : undefined;
-    const qualificationFailure = subjectVersionFailure(await this.version!({ cwd: req.cwd, env }), req.expectedPiVersion);
-    if (qualificationFailure) return withExecutionFailure("", qualificationFailure);
+    let expectedPiVersion = req.expectedPiVersion;
     const total = req.turns.length;
     const parts: string[] = [];
     // The arm's env, merged over the harness's own — undefined (not `process.env`)
@@ -186,22 +185,17 @@ export const piAdapter: HarnessAdapter = {
     // words (which would convert a FAIL into ERROR and mute the judge forever).
     let providerFailure: string | null = null;
 
-    if (total === 1) {
-      const args = [...flags, ...common, "--no-session", "-p", req.turns[0]];
-      const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env });
-      parts.push(header(1, 1, req.turns[0]));
-      parts.push(`<<< ASSISTANT:\n${r.stdout.trim()}\n`);
-      if (r.code !== 0) {
-        providerFailure = providerStderr(r.stderr);
-        if (!providerFailure) parts.push(`[pi exited ${r.code}]\n${r.stderr.trim()}\n`);
-      }
-      return withProviderFailure(parts.join("\n"), providerFailure);
-    }
-
-    const session = mkdtempSync(join(tmpdir(), "sc-pi-session-"));
+    const session = total === 1 ? null : mkdtempSync(join(tmpdir(), "sc-pi-session-"));
     for (let i = 0; i < total; i++) {
-      const turnFlags = i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
+      const turnFlags = session === null ? ["--no-session"]
+        : i === 0 ? ["--session-dir", session] : ["--session-dir", session, "-c"];
       const args = [...flags, ...common, ...turnFlags, "-p", req.turns[i]];
+      const piVersion = await this.version!({ cwd: req.cwd, env });
+      const failure = subjectVersionFailure(piVersion, expectedPiVersion);
+      if (failure) return withProviderFailure(withExecutionFailure(parts.join("\n"), failure), providerFailure);
+      // Direct adapter callers may omit the recorded identity; bind later turns
+      // to the first qualified selection in that case.
+      if (expectedPiVersion === undefined) expectedPiVersion = piVersion;
       const r = await exec("pi", args, { cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, env });
       parts.push(header(i + 1, total, req.turns[i]));
       parts.push(`<<< ASSISTANT:\n${r.stdout.trim()}\n`);
@@ -210,7 +204,7 @@ export const piAdapter: HarnessAdapter = {
         // First failure wins, same as the structured path: the turns after an
         // outage are downstream of it, not independent evidence.
         if (provider && providerFailure === null) providerFailure = provider;
-        if (!provider) parts.push(`[pi exited ${r.code} on turn ${i + 1}]\n${r.stderr.trim()}\n`);
+        if (!provider) parts.push(`[pi exited ${r.code}${total === 1 ? "" : ` on turn ${i + 1}`}]\n${r.stderr.trim()}\n`);
       }
     }
     return withProviderFailure(parts.join("\n"), providerFailure);
@@ -244,13 +238,7 @@ export const piAdapter: HarnessAdapter = {
       : skillFlags(req.mode, req.skillDir);
 
     const env = req.armEnv ? { ...process.env, ...req.armEnv } : undefined;
-    const piVersion = await this.version!({ cwd: req.cwd, env });
-    const qualificationFailure = subjectVersionFailure(piVersion, req.expectedPiVersion);
-    if (qualificationFailure) return {
-      transcript: withExecutionFailure("", qualificationFailure),
-      traces: [],
-      executionFailure: qualificationFailure,
-    };
+    let expectedPiVersion = req.expectedPiVersion;
     const total = req.turns.length;
     const traces: ExecutionTraceV1[] = [];
     const parts: string[] = [];
@@ -269,6 +257,10 @@ export const piAdapter: HarnessAdapter = {
             : ["--session-dir", session, "-c"];
       const args = [...flags, ...common, "--mode", "json", ...turnFlags, "-p", req.turns[i]];
 
+      const piVersion = await this.version!({ cwd: req.cwd, env });
+      executionFailure = subjectVersionFailure(piVersion, expectedPiVersion);
+      if (executionFailure) break;
+      if (expectedPiVersion === undefined) expectedPiVersion = piVersion;
       const r = await runPiJson({
           args,
           cwd: req.cwd,

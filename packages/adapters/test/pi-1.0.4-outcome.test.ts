@@ -9,9 +9,16 @@ import {
   runSkillModel, regradeScenario, exec, deserializeTrace, runSummaryLines,
 } from "@skill-harness/core";
 
-const replay = vi.hoisted(() => ({ text: "", code: 0, calls: 0, version: "1.0.4" as string | null, armVersion: "1.5.3" }));
-vi.mock("node:child_process", () => ({
-  spawn: vi.fn(() => {
+const replay = vi.hoisted(() => ({ text: "", code: 0, calls: 0, version: "1.0.4" as string | null,
+  armVersion: "1.5.3" as string | null, nextArmVersion: undefined as string | null | undefined }));
+function changeSelectedPiAfterFirstTurn() {
+  if (replay.calls === 1 && replay.nextArmVersion !== undefined) replay.armVersion = replay.nextArmVersion;
+}
+vi.mock("node:child_process", async (original) => {
+  const actual = await original<typeof import("node:child_process")>();
+  return { ...actual,
+  spawn: vi.fn((...args: Parameters<typeof actual.spawn>) => {
+    if (args[0] !== "pi") return actual.spawn(...args);
     replay.calls++;
     const child = new EventEmitter() as EventEmitter & { stdout: Readable; stderr: Readable; kill: ReturnType<typeof vi.fn> };
     child.stdout = new Readable({ read() {} });
@@ -21,20 +28,28 @@ vi.mock("node:child_process", () => ({
       child.stdout.push(replay.text);
       child.stdout.push(null);
       child.stderr.push(null);
-      setImmediate(() => child.emit("close", replay.code));
+      setImmediate(() => { changeSelectedPiAfterFirstTurn(); child.emit("close", replay.code); });
     });
     return child;
   }),
-}));
-vi.mock("@skill-harness/core", async (original) => ({
-  ...await original<typeof import("@skill-harness/core")>(),
+};
+});
+vi.mock("@skill-harness/core", async (original) => {
+  const actual = await original<typeof import("@skill-harness/core")>();
+  return { ...actual,
   onPath: () => true,
-  exec: vi.fn(async (_command, _args, options) => {
+  exec: vi.fn(async (command, args, options) => {
+    if (command !== "pi") return actual.exec(command, args, options);
+    if (args[0] !== "--version") {
+      replay.calls++; changeSelectedPiAfterFirstTurn();
+      return { code: replay.code, stdout: "hello\n", stderr: "" };
+    }
     const version = options?.env?.PATH === "/fixture/unqualified-bin" ? "1.0.3"
       : options?.env?.PATH === "/fixture/arm-bin" ? replay.armVersion : replay.version;
     return { code: version === null ? 1 : 0, stdout: version === null ? "" : version + "\n", stderr: "" };
   }),
-}));
+};
+});
 import { piAdapter } from "../src/pi.js";
 
 const roots: string[] = [];
@@ -44,15 +59,19 @@ const settled = { type: "agent_settled" };
 const jsonl = (...events: unknown[]) => events.map((event) => JSON.stringify(event)).join("\n") + "\n";
 const subject = { provider: "fixture", model: "subject" };
 const judgeModel = { provider: "local", model: "judge" };
-function fixture() {
+function fixture(turns = ["hi"], seeded = false) {
   const root = mkdtempSync(join(tmpdir(), "sh-terminal-outcome-")); roots.push(root);
   mkdirSync(join(root, "tests"));
   writeFileSync(join(root, "SKILL.md"), "---\nname: demo\ndescription: test\n---\nSay hello.\n");
   const specPath = join(root, "tests", "specification.yaml");
-  writeFileSync(specPath, "skill: demo\njudge_persona: strict reviewer\nship_bar:\n  total: 1\n  min_pass: 1\nscenarios:\n  - id: A1\n    title: greeting\n    turns: ['hi']\n    checklist: ['says hello']\n");
+  if (seeded) {
+    mkdirSync(join(root, "tests", "fixture"));
+    writeFileSync(join(root, "tests", "fixture", "seed.txt"), "seed\n");
+  }
+  writeFileSync(specPath, `skill: demo\njudge_persona: strict reviewer\nship_bar:\n  total: 1\n  min_pass: 1\nscenarios:\n  - id: A1\n    title: greeting\n    turns: ${JSON.stringify(turns)}\n    checklist: ['says hello']\n${seeded ? "    mode: seeded\n    fixture: fixture\n" : ""}`);
   return { root, specPath, spec: loadSpec(specPath) };
 }
-beforeEach(() => { replay.text = ""; replay.code = 0; replay.calls = 0; replay.version = "1.0.4"; replay.armVersion = "1.5.3"; });
+beforeEach(() => { replay.text = ""; replay.code = 0; replay.calls = 0; replay.version = "1.0.4"; replay.armVersion = "1.5.3"; replay.nextArmVersion = undefined; });
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 const unavailable = [
@@ -163,13 +182,15 @@ it.each(["run", "runStructured"] as const)("%s probes the subject's actual arm P
 });
 
 it.each([
-  ["1.5.2", "1.5.3", false], ["1.5.2", "1.5.3", true],
-  ["1.5.3", "1.5.2", false], ["1.5.3", "1.5.2", true],
-] as const)("refuses recorded Pi %s versus arm Pi %s before spawn (structured=%s)", async (parent, armVersion, structured) => {
+  ["1.5.2", "1.5.3", false, false], ["1.5.2", "1.5.3", true, false],
+  ["1.5.3", "1.5.2", false, false], ["1.5.3", "1.5.2", true, false],
+  ["1.5.2", "1.5.3", false, true], ["1.5.2", "1.5.3", true, true],
+  ["1.5.3", "1.5.2", false, true], ["1.5.3", "1.5.2", true, true],
+] as const)("refuses recorded Pi %s versus arm Pi %s before spawn (structured=%s, seeded=%s)", async (parent, armVersion, structured, seeded) => {
   replay.version = parent; replay.armVersion = armVersion;
   replay.text = jsonl(message("hello"), settled);
-  const { root, specPath, spec } = fixture();
-  const judge = vi.fn(async () => "VERDICT: PASS\\n1. PASS");
+  const { root, specPath, spec } = fixture(["hi"], seeded);
+  const judge = vi.fn(async () => "VERDICT: PASS\n1. PASS");
   const summary = await runSkillModel({ spec, specPath, skillDir: root,
     adapter: { ...piAdapter, preferStructured: structured, judgeStructured: undefined, judge },
     model: subject, modelToken: "fixture:subject", judge: judgeModel, mode: "force", structured,
@@ -186,6 +207,65 @@ it.each([
     specDir: dirname(specPath), threshold: 1, mode: "force", expectedReps: 1 });
   expect(regraded.judge_verdict).toBe("ERROR");
   expect(judge).not.toHaveBeenCalled();
+});
+
+it.each([
+  ["1.5.2", "1.5.3", false], ["1.5.2", "1.5.3", true],
+  ["1.5.3", "1.5.2", false], ["1.5.3", "1.5.2", true],
+  ["1.5.2", null, false], ["1.5.2", null, true],
+  ["1.5.2", "1.6.0", false], ["1.5.2", "1.6.0", true],
+] as const)("stops before turn two when Pi changes from %s to %s (structured=%s)", async (first, second, structured) => {
+  replay.version = first; replay.armVersion = first; replay.nextArmVersion = second;
+  replay.text = jsonl(message("hello from completed first turn"), settled);
+  const { root, specPath, spec } = fixture(["hi", "later turn"]);
+  const judge = vi.fn(async () => "VERDICT: PASS\n1. PASS");
+  const adapter = { ...piAdapter, preferStructured: structured, judgeStructured: undefined, judge };
+  const summary = await runSkillModel({ spec, specPath, skillDir: root, adapter,
+    model: subject, modelToken: "fixture:subject", judge: judgeModel, mode: "force", structured,
+    timestamp: "2026-11-18T00:00:00.000Z",
+    arm: { name: "changing-pi", extensions: [], seedSkills: [], requireDefinitions: 0, env: { PATH: "/fixture/arm-bin" } } });
+  expect(replay.calls).toBe(1);
+  expect(judge).not.toHaveBeenCalled();
+  expect(summary.results.harness_cli_version).toBe(first);
+  expect(summary.results.scenarios[0].judge_verdict).toBe("ERROR");
+  const transcript = readFileSync(join(summary.runDir, "A1.force.txt"), "utf8");
+  expect(transcript).toContain("<<< ASSISTANT:\nhello"); // completed evidence is not discarded
+  expect(transcript).toContain(">>> USER (turn 1/2):\nhi\n");
+  expect(executionFailureFromTranscript(transcript)).toContain(second === null || second === "1.6.0"
+    ? "unqualified" : `Pi ${second} differs from the run's recorded Pi ${first}`);
+  expect(transcript).not.toContain(">>> USER (turn 2/2):");
+  if (structured) {
+    const trace = deserializeTrace(readFileSync(join(summary.runDir, "A1.force.trace.jsonl"), "utf8"))!;
+    expect(trace.pi_version).toBe(first);
+    expect(trace.final_text).toContain("completed first turn");
+  }
+  const regraded = await regradeScenario({ runDir: summary.runDir, spec, scenario: spec.scenarios[0],
+    adapter, judge: judgeModel, specDir: dirname(specPath), threshold: 1, mode: "force", expectedReps: 1 });
+  expect(regraded.judge_verdict).toBe("ERROR");
+  expect(judge).not.toHaveBeenCalled();
+});
+
+it.each([
+  ["1.5.2", false], ["1.5.2", true], ["1.5.3", false], ["1.5.3", true],
+] as const)("completes both turns with matching Pi %s (structured=%s)", async (version, structured) => {
+  replay.version = version; replay.armVersion = version;
+  replay.text = jsonl(message("hello"), settled);
+  const { root, specPath, spec } = fixture(["hi", "later turn"]);
+  const judge = vi.fn(async () => JSON.stringify({ verdict: "PASS", reason: "greets",
+    votes: [{ criterion: 1, vote: "PASS", reason: "greets" }] }));
+  const summary = await runSkillModel({ spec, specPath, skillDir: root,
+    adapter: { ...piAdapter, preferStructured: structured, judgeStructured: undefined, judge },
+    model: subject, modelToken: "fixture:subject", judge: judgeModel, mode: "force", structured,
+    timestamp: "2026-11-18T00:00:00.000Z",
+    arm: { name: "stable-pi", extensions: [], seedSkills: [], requireDefinitions: 0, env: { PATH: "/fixture/arm-bin" } } });
+  expect(replay.calls).toBe(2);
+  expect(judge).toHaveBeenCalledTimes(1);
+  expect(summary.results.scenarios[0].judge_verdict).toBe("PASS");
+  expect(summary.results.harness_cli_version).toBe(version);
+  const transcript = readFileSync(join(summary.runDir, "A1.force.txt"), "utf8");
+  expect(executionFailureFromTranscript(transcript)).toBeNull();
+  expect(transcript).toContain(">>> USER (turn 2/2):\nlater turn\n");
+  if (version === "1.5.3") expect(summary.results.harness_cli_qualification).toEqual({ status: "patch", qualified_version: "1.5.2" });
 });
 
 it("delivered whitespace is available to the judge rather than retried as a missing answer", async () => {

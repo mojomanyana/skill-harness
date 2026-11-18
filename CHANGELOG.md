@@ -2,7 +2,7 @@
 
 ## 0.36.1 — 2026-11-18
 
-- Refuse subject execution when its cwd/PATH-selected Pi differs from the run's recorded version, including seeded scenarios and loading probes; previously an arm could run a patch while results claimed an exact release.
+- Refuse subject execution when its cwd/PATH-selected Pi differs from the run's recorded version, before every turn, including seeded scenarios and loading probes; previously an arm could run a patch while results claimed an exact release. A changed or unavailable Pi stops later turns, preserves completed evidence and remains ERROR on saved regrade without judge calls.
 - Keep plain and structured judges on exactly qualified Pi releases until judge-specific patch provenance can be recorded; subject patches remain accepted and flagged.
 - Reconcile the four package READMEs with the current qualification and provenance rules. Existing results and recorded subject identities are unchanged.
 

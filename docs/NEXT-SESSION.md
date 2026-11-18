@@ -2,7 +2,7 @@
 
 ## Current state
 
-Source target **0.36.1** binds each subject execution to the run's recorded Pi identity, including seeded scenarios and loading probes. Actual cwd/PATH-selected Pi must match before spawn. Subject patches remain accepted and flagged; plain and structured judges require exactly qualified releases until separate judge patch provenance is retained. The four package READMEs describe this qualification split. Retained results are unchanged.
+Source target **0.36.1** binds each subject execution to the run's recorded Pi identity, including seeded scenarios and loading probes. Actual cwd/arm-environment-selected Pi must match before every turn's spawn, not just the first. A changed, unavailable or unqualified selection stops execution while preserving completed transcripts/traces and a durable ERROR on saved regrade, without retry or judge calls. Subject patches remain accepted and flagged; plain and structured judges require exactly qualified releases until separate judge patch provenance is retained. The four package READMEs describe this qualification split. Retained results are unchanged.
 
 Published **0.36.0** introduced flagged subject patch qualification. This patch reuses the reviewed implementation and successful exact-head CI from PR138; final release-head CI and canonical/public archive verification remain required before claiming 0.36.1 delivery. No new model campaign is part of release preparation. JEV stays off.
 
