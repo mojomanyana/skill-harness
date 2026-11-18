@@ -294,6 +294,7 @@ describe("run --canary", () => {
     });
     const { results, runDir } = summary;
     expect(reqs).toHaveLength(2);
+    expect(reqs.map(req => req.expectedPiVersion)).toEqual(["0.83.0", "0.83.0"]);
     expect(results.delivery_canary).toBe("pass");
     expect(results.delivery_observations).toMatchObject({ probeCalls: 1, successfulSkillRead: "unobserved", autonomousSelection: "untested" });
     expect(readResults(runDir)?.delivery_observations).toEqual(results.delivery_observations);

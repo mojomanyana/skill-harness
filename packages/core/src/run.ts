@@ -202,6 +202,7 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
     try {
       canary = await runDeliveryCanary({
         adapter, model, skillDir, skillName: spec.skill, cwd: probeCwd.cwd,
+        ...(adapter.name === "pi" ? { expectedPiVersion: harnessCliVersion } : {}),
       });
     } finally {
       probeCwd.cleanup();
@@ -235,7 +236,8 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
       const rep = k;
       const total = repCounts[si];
       owners.push(si);
-      tasks.push(() => runRep(scenario, rep, total, { ...opts, runDir, now, log, armDefinitions, judgeReferences }));
+      tasks.push(() => runRep(scenario, rep, total, { ...opts, runDir, now, log, armDefinitions, judgeReferences,
+        ...(adapter.name === "pi" ? { expectedPiVersion: harnessCliVersion } : {}) }));
     }
   });
   const flat = await runPool(tasks, opts.concurrency ?? 1);
@@ -296,6 +298,7 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
 }
 
 interface ScenarioCtx {
+  expectedPiVersion?: string | null;
   judgeReferences: Record<string, JudgeReference[]>;
   runDir: string;
   now: () => string;
@@ -450,6 +453,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
               // builds the RunReq — the arm's extensions and env (with `<run-dir>`
               // already substituted) both must reach pi.
               armExtensions: arm.extensions,
+              ...(ctx.expectedPiVersion !== undefined ? { expectedPiVersion: ctx.expectedPiVersion } : {}),
               ...(armEnvFor(ws.cwd) ? { armEnv: armEnvFor(ws.cwd) } : {}),
             });
             transcript = r.transcript;
@@ -460,6 +464,7 @@ async function runRep(scenario: Scenario, rep: number, repCount: number, ctx: Ru
           } else {
             const req = {
               skillDir: ctx.skillDir, model: ctx.model, mode, turns: scenario.turns, cwd: ws.cwd,
+              ...(ctx.expectedPiVersion !== undefined ? { expectedPiVersion: ctx.expectedPiVersion } : {}),
               tools: scenario.tools,
               // resolved like fixtures: relative to the spec's dir
               systemPromptFile: scenario.systemPromptFile

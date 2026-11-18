@@ -4,9 +4,22 @@ import { join, resolve } from "node:path";
 import type { HarnessAdapter, RunReq, JudgeReq, RunMode, StructuredRun, ExecutionTraceV1 } from "@skill-harness/core";
 import { runPiJson } from "./pi-json.js";
 import { priceSubjectUsage } from "./model-pricing.js";
-import { exec, onPath, envNum, piQualificationFailure, withProviderFailure, withExecutionFailure } from "@skill-harness/core";
+import { exec, onPath, envNum, piQualification, piQualificationFailure, withProviderFailure, withExecutionFailure } from "@skill-harness/core";
 
 const PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 300_000);
+
+function subjectVersionFailure(version: string | null, expected: string | null | undefined): string | null {
+  return piQualificationFailure(version) ?? (expected !== undefined && version !== expected
+    ? `Pi ${version ?? "unknown"} differs from the run's recorded Pi ${expected ?? "unknown"}; execution refused before spawn`
+    : null);
+}
+
+// Until judgments retain their own CLI provenance, patch acceptance is subject-only.
+function judgeVersionFailure(version: string | null): string | null {
+  return piQualificationFailure(version) ?? (piQualification(version)?.status === "patch"
+    ? `Pi ${version}: judge requires an exactly qualified Pi release; patch judge provenance is not recorded`
+    : null);
+}
 
 /**
  * stderr fragments that mean the provider refused the request, so the run measured
@@ -158,7 +171,7 @@ export const piAdapter: HarnessAdapter = {
       ? ["--no-skills", "--append-system-prompt", readFileSync(req.systemPromptFile, "utf8")]
       : skillFlags(req.mode, req.skillDir);
     const env = req.armEnv ? { ...process.env, ...req.armEnv } : undefined;
-    const qualificationFailure = piQualificationFailure(await this.version!({ cwd: req.cwd, env }));
+    const qualificationFailure = subjectVersionFailure(await this.version!({ cwd: req.cwd, env }), req.expectedPiVersion);
     if (qualificationFailure) return withExecutionFailure("", qualificationFailure);
     const total = req.turns.length;
     const parts: string[] = [];
@@ -232,7 +245,7 @@ export const piAdapter: HarnessAdapter = {
 
     const env = req.armEnv ? { ...process.env, ...req.armEnv } : undefined;
     const piVersion = await this.version!({ cwd: req.cwd, env });
-    const qualificationFailure = piQualificationFailure(piVersion);
+    const qualificationFailure = subjectVersionFailure(piVersion, req.expectedPiVersion);
     if (qualificationFailure) return {
       transcript: withExecutionFailure("", qualificationFailure),
       traces: [],
@@ -320,7 +333,7 @@ export const piAdapter: HarnessAdapter = {
   async judgeStructured(req: JudgeReq) {
     if (req.model.provider === "claude-code") throw new Error("judge provider `claude-code` was removed");
     const version = await this.version!({ cwd: req.cwd });
-    const unqualified = piQualificationFailure(version);
+    const unqualified = judgeVersionFailure(version);
     if (unqualified) return { raw: `[judge error: ${unqualified}]` };
     const args = ["--no-skills", "--no-context-files", "--no-extensions", "--no-session", "--no-tools", "--no-mcp",
       "--provider", req.model.provider, "--model", req.model.model,
@@ -337,6 +350,8 @@ export const piAdapter: HarnessAdapter = {
     if (req.model.provider === "claude-code") {
       throw new Error("judge provider `claude-code` was removed; configure a Pi provider such as `openai-codex`");
     }
+    const unqualified = judgeVersionFailure(await this.version!({ cwd: req.cwd }));
+    if (unqualified) return `[judge error: ${unqualified}]`;
     const args = [
       "--no-skills",
       "--no-context-files",
