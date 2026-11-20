@@ -570,7 +570,7 @@ describe("decision evidence and later outcome linkage", () => {
 describe("optional Principal candidate observation", () => {
   function connect(s: ReturnType<typeof setup>, transform: (response: any, request: any) => any = response => response) {
     s.pi.events = { emit: (channel: string, request: any) => {
-      expect(channel).toBe("principal:candidate-observe");
+      if (channel !== "principal:candidate-observe") return;
       expect(request).not.toHaveProperty("root");
       const response = { requestId: request.requestId, sessionId: request.sessionId,
         candidate: { algorithm: "principal-candidate-v1", root: s.root, id: packet.candidate, head: "base" } };

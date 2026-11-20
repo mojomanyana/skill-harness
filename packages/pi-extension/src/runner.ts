@@ -6,11 +6,12 @@ import {
   effectiveVerdicts,
   findTranscriptFiles,
   parseModelRef, withThinking, summarizeRun, runSummaryLines,
-  defaultJudge,
+  defaultJudge, writtenResultsDigest,
   assertJudgeAllowed,
   type HarnessAdapter,
   type Verdict,
 } from "@skill-harness/core";
+import { taskEvaluationAdapter } from "./task-evaluation.js";
 import { getAdapter } from "@skill-harness/adapters";
 
 export interface Scorecard {
@@ -21,6 +22,7 @@ export interface Scorecard {
   grade: { pct: number; letter: string; ship: boolean };
   scenarios: { id: string; verdict: Verdict; suspect: boolean }[];
   failedTranscripts: string[];
+  resultsSha256?: string;
 }
 
 /**
@@ -112,7 +114,7 @@ export async function runViaExtension(opts: {
   assertJudgeAllowed(judge, {
     source: opts.judge ? "the judge argument" : "the default judge (SKILL_HARNESS_JUDGE or the baked value)",
   });
-  const adapter = opts.adapter ?? getAdapter("pi");
+  const adapter = taskEvaluationAdapter(opts.adapter ?? getAdapter("pi"));
   const mode = opts.mode ?? "green";
   const summary = await runSkillModel({
     spec, skillDir: opts.skillDir, specPath, adapter, model, modelToken, judge, mode,
@@ -133,7 +135,7 @@ export async function runViaExtension(opts: {
     summary: summarizeRun(summary.results), summaryLines: runSummaryLines(summary.results),
     grade: { pct: g.pct, letter: g.letter, ship: g.ship },
     scenarios: verdicts.map((v) => ({ id: v.id, verdict: v.verdict, suspect: v.suspect ?? false })),
-    failedTranscripts,
+    failedTranscripts, resultsSha256: writtenResultsDigest(summary.results),
   };
   });
 }

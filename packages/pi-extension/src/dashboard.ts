@@ -1,4 +1,8 @@
 import { isProcessControlError, modelProfileLabel, type summarizeRun } from "@skill-harness/core";
+import { bindTaskDispatch } from "./task-dispatch.js";
+import { TaskAdmissionError, withTaskEvaluation } from "./task-evaluation.js";
+import { randomUUID } from "node:crypto";
+import { bindTaskHistory } from "./task-history.js";
 import type { ExtensionAPI } from "./commands.js";
 
 type Summary = ReturnType<typeof summarizeRun>;
@@ -6,7 +10,7 @@ type Context = { cwd: string; sessionManager?: { getSessionId(): string } };
 type Item = { id: string; kind: "status" | "evidence"; label: string; state: "running" | "settled" | "failed" | "observed"; details?: string[] };
 type Handle = { publish(update: { sequence: number; items: Item[] }): boolean; close(): void };
 export interface HarnessDashboard {
-  run<T>(ctx: Context, work: () => Promise<T>, summary: (result: T) => Summary | undefined): Promise<T>;
+  run<T>(ctx: Context, work: () => Promise<T>, summary: (result: T) => Summary | undefined, observation?: { id?: string; kind?: "evaluation" | "regrade"; digest?: (result: T) => string | undefined }): Promise<T>;
 }
 
 // This is a producer of the existing optional display protocol. It holds no run
@@ -26,7 +30,11 @@ export function createHarnessDashboard(pi: ExtensionAPI, version: string): Harne
   };
   const publish = (items: Item[]) => { try { handle?.publish({ sequence: ++sequence, items }); } catch { /* Display only. */ } };
   return {
-    async run(ctx, work, summary) {
+    async run(ctx, work, summary, observation) {
+      const record = bindTaskHistory(pi.events, "harness", ctx);
+      const operationId = observation?.id ?? randomUUID();
+      const admit = bindTaskDispatch(pi.events, "harness", ctx);
+      const kind = observation?.kind ?? "evaluation";
       const sessionId = ctx.sessionManager?.getSessionId();
       const nextIdentity = sessionId ? JSON.stringify([sessionId, ctx.cwd]) : "";
       if (identity !== nextIdentity) close();
@@ -47,13 +55,30 @@ export function createHarnessDashboard(pi: ExtensionAPI, version: string): Harne
       }
       const ticket = ++operation, ownGeneration = generation;
       publish([{ id: "activity", kind: "status", label: "Harness evaluation active", state: "running", details: ["Run operation started. Waiting reason and provider request count are unknown."] }]);
+      const received = record(operationId, kind, "observed", "Harness received this evaluation request.");
       try {
-        const result = await work();
+        const result = await withTaskEvaluation(admit, operationId, work);
+        await received;
+        let value: Summary | undefined;
+        let summaryFailed = false;
+        try { value = summary(result); } catch { summaryFailed = true; }
+        let digest: string | undefined;
+        try { digest = observation?.digest?.(result); } catch { /* Optional reference unavailable. */ }
+        if (value?.outcomes) {
+          const o = value.outcomes;
+          const incomplete = !o.scenarios || o.executionOrEvidenceErrors || o.ungraded ||
+            o.notMeasured || o.ambiguous || o.suspect || o.recordedExecutionOrEvidenceErrors;
+          record(operationId, kind, incomplete ? "partial" : "recorded",
+            `Harness outcomes: ${o.passed} passed, ${o.recordedFailures} failed, ${o.executionOrEvidenceErrors} errors, ${o.ungraded} ungraded, ${o.notMeasured} unmeasured, ${o.ambiguous} ambiguous, ${o.suspect} suspect, ${o.overrides} overrides.`,
+            digest ? { type: "evaluation", id: digest } : undefined);
+        } else {
+          record(operationId, kind, "unconfirmed", "Harness operation ended. Scenario evidence unavailable.");
+        }
         if (ticket === operation && ownGeneration === generation) {
           try {
-          const value = summary(result);
           const observed = (models: Summary["subject"]["observedModels"]) => models.length ? models.map(model => `${model.provider ?? "unknown"}:${model.model ?? "unknown"}`).join(", ") : "unknown";
-          const items: Item[] = [{ id: "activity", kind: "status", label: "Harness evaluation settled", state: "settled" }];
+          const items: Item[] = [{ id: "activity", kind: "status", label: "Harness evaluation settled", state: "settled",
+            ...(summaryFailed ? { details: ["Evidence summary unavailable; inspect Harness review or diagnose."] } : {}) }];
           if (value) items.push({ id: "run-evidence", kind: "evidence", label: "Harness retained evidence", state: "observed", details: [
             `Subject requested ${modelProfileLabel(value.subject.requested)}; observed ${observed(value.subject.observedModels)}; effective effort unknown.`,
             `Judge requested ${modelProfileLabel(value.judge.requested)}; observed ${observed(value.judge.observedModels)}; effective effort unknown.`,
@@ -69,13 +94,18 @@ export function createHarnessDashboard(pi: ExtensionAPI, version: string): Harne
         }
         return result;
       } catch (error) {
+        await received;
+        const refused = error instanceof TaskAdmissionError;
+        const cancelled = (isProcessControlError(error) && error.reason === "aborted") ||
+          (error instanceof Error && error.name === "AbortError");
+        record(operationId, kind, refused ? "refused" : cancelled ? "cancelled" : "failed",
+          refused ? "Task policy declined this evaluation before dispatch." : cancelled ? "Harness operation cancelled." : "Harness operation failed before returning a scorecard.");
         if (ticket === operation && ownGeneration === generation) {
-          const cancelled = isProcessControlError(error) && error.reason === "aborted";
           publish([{ id: "activity", kind: "status",
-            label: cancelled ? "Harness evaluation cancelled" : "Harness operation failed",
+            label: refused ? "Task declined Harness evaluation" : cancelled ? "Harness evaluation cancelled" : "Harness operation failed",
             // The source protocol's settled state means the operation ended, not that it succeeded.
             state: cancelled ? "settled" : "failed",
-            details: [cancelled
+            details: [refused ? "Check the selected task, pause state and remaining allowance." : cancelled
               ? "Evaluation incomplete. Cancellation does not establish a result or approval. Inspect retained Harness diagnostics before deciding what to run next."
               : "Operation did not complete. Inspect Harness diagnostics; no product-failure conclusion is established."],
           }]);

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.37.0 — 2026-11-20
+
+- Evaluations can share the selected task’s dispatch allowance and record attributable outcomes in project history. Reopening a saved scorecard consumes no extra evaluation slot.
+- The dashboard distinguishes an unavailable evidence summary from a completed result. An optional history observer can no longer delay native execution past a session switch.
+- The Harness remains usable with independently installed peers and with JEV off.
+
 ## 0.36.2 — 2026-11-18
 
 - Recheck the actual cwd/arm-environment-selected Pi before every plain and structured subject turn. A changed, unavailable or unqualified selection stops before the next spawn, preserves completed transcript/trace evidence and stays ERROR on saved regrade without retries or judge calls. Published 0.36.1 checked only before the first turn.

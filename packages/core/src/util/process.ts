@@ -40,6 +40,12 @@ export function withProcessScope<T>(scope: ProcessScope, work: () => T): T {
   return scopeStorage.run({ ...scopeStorage.getStore(), ...scope }, work);
 }
 
+/** Add a cleanup observer without replacing the owner's existing evidence sink. */
+export function withProcessObserver<T>(observe: (record: ProcessObservation) => void, work: () => T): T {
+  const previous = scopeStorage.getStore()?.onObservation;
+  return withProcessScope({ onObservation(record) { try { previous?.(record); } finally { observe(record); } } }, work);
+}
+
 export class ProcessControlError extends Error {
   constructor(readonly reason: "aborted" | "output-limit" | "resource-limit", message: string) {
     super(message); this.name = "ProcessControlError";

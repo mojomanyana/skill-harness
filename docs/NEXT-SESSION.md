@@ -2,6 +2,10 @@
 
 ## Current state
 
+Source target **0.37.0** adds optional task history and shared dispatch accounting for evaluations. The previous release is 0.36.2. Use PUBLISHING.md for archive verification and publication.
+
+### Earlier release record
+
 Source target **0.36.2** rechecks the actual cwd/arm-environment-selected Pi before every plain and structured subject turn. Changed, unavailable or unqualified selections stop before the next spawn, preserve completed transcript/trace evidence and remain ERROR on saved regrade without retry or judge calls. Omitted direct-adapter identity binds to the first qualified selection; explicit null stays unavailable. Top-level seeded regressions cover the existing caller forwarding. Subject patches remain accepted and flagged; judges remain exact-only.
 
 Published **0.36.1** ([release](https://github.com/mojomanyana/skill-harness/releases/tag/v0.36.1), commit `3b8e805595271ef7ac37d5f8fcf1890375d3326b`) introduced first-turn recorded-version binding and exact-only judge qualification. It does not contain the per-turn repair from PR139. Its canonical/registry archives, release CI and isolated installation were verified; that published history is unchanged.

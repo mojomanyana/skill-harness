@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, appendFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import yaml from "js-yaml";
+import { createHash } from "node:crypto";
 import { modelSlug, type ModelRef } from "./adapters/types.js";
 import { score, type ScenarioVerdict } from "./score.js";
 import { HARNESS_VERSION } from "./version.js";
@@ -527,12 +528,21 @@ export function finalizeResults(draft: ResultsDraft, ctx: ScoreContext | null): 
   };
 }
 
+// The digest identifies the exact bytes written by this owner. A synthetic,
+// transformed or historical scorecard cannot acquire this receipt by inference.
+const writtenDigests = new WeakMap<ResultsFile, string>();
+export function writtenResultsDigest(result: ResultsFile): string | undefined {
+  return writtenDigests.get(result);
+}
+
 /** Finalize + persist results.yaml (creating the run dir). Returns what was written. */
 export function writeResults(runDir: string, draft: ResultsDraft, ctx: ScoreContext | null): ResultsFile {
   const results = finalizeResults(draft, ctx);
   validateResults(results);
   mkdirSync(runDir, { recursive: true });
-  writeFileSync(resultsPath(runDir), yaml.dump(results, { lineWidth: 100 }), "utf8");
+  const text = yaml.dump(results, { lineWidth: 100 });
+  writeFileSync(resultsPath(runDir), text, "utf8");
+  writtenDigests.set(results, createHash("sha256").update(text).digest("hex"));
   return results;
 }
 

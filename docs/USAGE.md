@@ -560,3 +560,11 @@ when their exact dependencies still match. Nothing is designated for training.
 If Bookie is missing or refuses the source, this tool records nothing. Ordinary
 authoring from the user's supplied idea continues without Bookie, Daddy or Principal.
 Generated skills still need only Pi and their declared tools.
+
+## Task history and control in Pi
+
+An enrolled Harness evaluation uses one task attempt when its first fresh subject or judge call begins. Reads of saved results, evaluation previews and scorecard display use no attempt. The task allowance counts evaluation operations. Provider requests, token usage and prices have their own coverage. The retained results file and its content digest identify the native evidence when available.
+
+The current task can pause new calls or signal cancellation. Reports distinguish a cancelled run, a partial evaluation and a returned scorecard. An inconclusive cleanup can require reconciliation by the execution owner. Without a participating controller, the existing independent execution path is available.
+
+JEV keeps its separate, explicit session activation and consent. When enabled in an enrolled task, a fresh advice request also needs task admission. Cached advice makes no new provider request. An advice result never settles a product requirement.
