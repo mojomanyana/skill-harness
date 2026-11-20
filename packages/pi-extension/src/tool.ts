@@ -55,5 +55,5 @@ export const skillCheckRunTool = {
 
 export function registerTool(pi: ExtensionAPI, dashboard?: HarnessDashboard): void {
   pi.registerTool(dashboard ? { ...skillCheckRunTool, execute: (...args: Parameters<typeof skillCheckRunTool.execute>) =>
-    dashboard.run(args[4], () => skillCheckRunTool.execute(...args), result => result.details.summary) } : skillCheckRunTool);
+    dashboard.run(args[4], () => skillCheckRunTool.execute(...args), result => result.details.summary, { id: args[0], digest: result => result.details.resultsSha256 }) } : skillCheckRunTool);
 }

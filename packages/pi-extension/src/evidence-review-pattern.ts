@@ -125,6 +125,13 @@ export function evidenceReviewPattern() {
     useWhen: "The agreed task includes performance, reproducibility, state-transition or preservation claims. This is an optional authoring pattern, not a new requirement on every task.",
     recipe: ["Claim and required observable start/end event", "Preserved instrumented baseline and reconstruction reference", "Same fixture/revision, cache and execution conditions", "Raw trials, units, recomputed summary and sample limitations", "Normal user path and relevant state/ownership transition", "Scoped conclusion, missing evidence and smallest decisive follow-up"],
     limits: ["These are proposed semantic controls; parse/preflight or correct arithmetic cannot approve a claim.", "Use existing trace/output assertions only for facts they can observe. Judge endpoint meaning and materiality against the actual task.", "Adapt tasks, requirement mappings, references and controls together. Review proposed labels before any selected judge/model calls; nothing here accepts labels or grants execution.", "Run deterministic arithmetic in the producer's format when appropriate; no universal measurement schema or source-trusting PASS shortcut is implied."],
+    verificationReceipts: {
+      useWhen: "An existing Principal check is supplied as evidence for a task criterion. Equivalent evidence from other owners remains usable.",
+      read: "Use the exact task, step and attempt with principal_workflow verification. Read its result reference and SHA-256, immutable request, process outcome, observations and current applicability. A pending claim or uncertain cleanup cannot establish successful verification.",
+      scope: "A process-exit-only pass supports successful exit within the recorded cleanup scope. For an outcome claim, match the requirement, expected value, operation and applicable observation to the actual user path. Preserve unobserved, conflicting and failed criteria individually.",
+      reuse: "Match source and declared inputs. With declared-inputs scope, only the named criterion and its exhaustive dependency files can survive unrelated edits. Environment, cache, hardware and external services need their own evidence. A fresh-execution requirement needs the receipt bound to that operation.",
+      judgment: "Describe which results were recorded earlier, what the current read confirms, and which missing check would decide a material claim. Principal owns its receipt and independent review. Reading this reference performs no check, grants no approval and requires no provider.",
+    },
     specification, proposedControls,
     requirements: evidenceReviewCases.map(c => ({ id: c.id, description: c.requirement, scenarios: [c.id] })),
   });

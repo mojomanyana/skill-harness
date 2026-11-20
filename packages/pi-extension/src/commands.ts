@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
 import { dirname, join, resolve, relative } from "node:path";
-import { loadSpec, regradeRun, readResults, parseModelRef, withThinking, recordedJudgeOrDefault, assertJudgeAllowed, type HarnessAdapter, computeCoverage, formatCoverage, summarizeRun, runSummaryLines } from "@skill-harness/core";
+import { loadSpec, regradeRun, writtenResultsDigest, readResults, parseModelRef, withThinking, recordedJudgeOrDefault, assertJudgeAllowed, type HarnessAdapter, computeCoverage, formatCoverage, summarizeRun, runSummaryLines } from "@skill-harness/core";
 import type { HarnessDashboard } from "./dashboard.js";
+import { taskEvaluationAdapter } from "./task-evaluation.js";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview, type ServeHandle } from "@skill-harness/cli/serve";
 import { resolveSkillLocation, runViaExtension, withEvaluationGuard } from "./runner.js";
@@ -154,7 +155,7 @@ export async function handleSkillCheck(
       timestamp: nowIso(),
       log: (m) => { if (ctx.hasUI) ctx.ui.setStatus?.("skill-harness", m); }, // live footer only in TUI
     });
-    const card = opts?.dashboard ? await opts.dashboard.run(ctx, execute, card => card.summary) : await execute();
+    const card = opts?.dashboard ? await opts.dashboard.run(ctx, execute, card => card.summary, { digest: card => card.resultsSha256 }) : await execute();
     say(ctx, `${card.skill} ${card.grade.letter} (${card.grade.pct}%) ${card.grade.ship ? "SHIP" : "NOT READY"}`, card.grade.ship ? "info" : "warning");
     for (const line of card.summaryLines ?? []) say(ctx, line);
     for (const s of card.scenarios) say(ctx, `  ${s.id}: ${s.suspect ? "?" : s.verdict}`);
@@ -182,10 +183,10 @@ export async function handleSkillCheck(
     });
     const resolvedAdapter = adapter ?? getAdapter(prev?.harness ?? "pi");
     const execute = () => withEvaluationGuard(() => regradeRun({
-      runDir, spec, adapter: resolvedAdapter,
+      runDir, spec, adapter: taskEvaluationAdapter(resolvedAdapter),
       judge, specDir: testsDir, now: nowIso,
     }));
-    const results = opts?.dashboard ? await opts.dashboard.run(ctx, execute, summarizeRun) : await execute();
+    const results = opts?.dashboard ? await opts.dashboard.run(ctx, execute, summarizeRun, { kind: "regrade", digest: writtenResultsDigest }) : await execute();
     say(ctx, `re-judged ${runDir}: ${results.effective_grade.letter} (${results.effective_grade.pct}%)`);
     for (const line of runSummaryLines(results)) say(ctx, line);
     return;

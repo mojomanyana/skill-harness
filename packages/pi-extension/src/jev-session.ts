@@ -1,3 +1,5 @@
+import { bindTaskDispatch } from "./task-dispatch.js";
+import { withAdviceDispatch } from "./advice-dispatch.js";
 import { randomUUID } from "node:crypto";
 import { observePrincipalCandidate, type CandidateObservation } from "./jev-candidate.js";
 import { evidenceReferences, sha256, verifyEvidence, type EvidenceRef } from "./jev-evidence.js";
@@ -180,7 +182,7 @@ export function createJevController(
       throw new Error("Selected JEV model configuration changed; enable again and choose the model");
   };
   const classify = async (selection: NativeSelection, example: { input: string; question: string }, signal: AbortSignal,
-    ctx: JevContext, beforeDispatch: () => void) => {
+    ctx: JevContext, beforeDispatch: () => Promise<void>) => {
     assertRoute(selection, ctx);
     const started = performance.now();
     let dispatched = false;
@@ -191,8 +193,8 @@ export function createJevController(
         if (signal.aborted) throw new Error("JEV request cancelled");
         assertRoute(selection, ctx);
         if (dispatched) throw new Error("Duplicate JEV dispatch refused");
-        beforeDispatch();
         dispatched = true;
+        await beforeDispatch();
         return headers; // Native auth owns the contents; never retain or inspect them.
       },
     }).catch(() => { throw new Error("Native JEV request unavailable or cancelled"); });
@@ -264,6 +266,8 @@ export function createJevController(
     const cached = bound.cache.get(cacheKey);
     if (cached) return { ...cached, remaining: remainingCalls(bound.budget), reused: true };
     if (!remainingCalls(bound.budget)) return unavailable("This session's advisory call limit is reached.");
+    const admit = bindTaskDispatch(pi.events, "jev", ctx);
+    const operationId = toolCallId ?? randomUUID();
     const abort = new AbortController();
     const cancel = () => {
       abort.abort();
@@ -309,14 +313,18 @@ export function createJevController(
       };
       let result;
       if (bound.selection) {
-        result = await wait(classify(bound.selection, packet, abort.signal, ctx, beforeDispatch));
+        const selection = bound.selection;
+        result = await wait(withAdviceDispatch(admit, operationId, abort.signal, beforeDispatch,
+          (signal, authorize) => classify(selection, packet, signal, ctx, authorize)));
       } else {
         const apiKey = environmentKey() ?? await wait(nativeKey(ctx));
         assertCurrent();
         if (!apiKey && hint) return pauseHints();
         if (!apiKey) return unavailable(`An OpenRouter API key could not be resolved; no call was made. ${missingKeyRemedy}`);
-        beforeDispatch();
-        result = await wait<Awaited<ReturnType<typeof callProvider>>>((options.provider ?? callProvider)(JEV_PROVIDER, JEV_MODEL, packet, { apiKey, signal: abort.signal }));
+        result = await wait(withAdviceDispatch(admit, operationId, abort.signal, beforeDispatch, async (signal, authorize) => {
+          await authorize();
+          return (options.provider ?? callProvider)(JEV_PROVIDER, JEV_MODEL, packet, { apiKey, signal });
+        }));
       }
       assertCurrent();
       if (result.status !== "answered") {
@@ -570,6 +578,7 @@ export function createJevController(
       if (bound.selection) assertRoute(bound.selection, ctx);
     };
     if (!ctx.ui.input || !ctx.ui.confirm) throw Error("Interactive case selection/confirmation is unavailable");
+    const admit = bindTaskDispatch(pi.events, "jev", ctx);
     const cases = await ctx.ui.input("Path to explicitly curated decision cases JSON");
     if (!cases) return;
     const out = await ctx.ui.input("New local result path (existing files are never overwritten)");
@@ -607,7 +616,8 @@ export function createJevController(
         const selection = bound.selection;
         providerOptions = { nativeRoute: selection.route,
           nativeProviderCall: async (example: { input: string; question: string }) => {
-            const result = await classify(selection, example, bound.abort.signal, ctx, beforeDispatch);
+            const result = await withAdviceDispatch(admit, randomUUID(), bound.abort.signal, beforeDispatch,
+              (signal, authorize) => classify(selection, example, signal, ctx, authorize));
             assertCurrent();
             return result;
           } };
@@ -617,8 +627,10 @@ export function createJevController(
         if (!apiKey) throw new Error(`An OpenRouter API key could not be resolved; no call was made. ${missingKeyRemedy}`);
         providerOptions = { env: { OPENROUTER_API_KEY: apiKey },
           providerCall: async (provider: string, model: string, example: { input: string; question: string }) => {
-            beforeDispatch();
-            const result = await (options.provider ?? callProvider)(provider, model, example, { apiKey, signal: bound.abort.signal });
+            const result = await withAdviceDispatch(admit, randomUUID(), bound.abort.signal, beforeDispatch, async (signal, authorize) => {
+              await authorize();
+              return (options.provider ?? callProvider)(provider, model, example, { apiKey, signal });
+            });
             assertCurrent();
             return result;
           } };

@@ -8,7 +8,8 @@ function fixture() {
   const close = vi.fn();
   const pi = { on: (event: string, handler: () => void) => listeners.set(event, handler),
     events: { emit: (channel: string, request: { reply(value: unknown): void }) => {
-      expect(channel).toBe("pi-daddy:dashboard-source:v1"); requests.push(request);
+      if (channel !== "pi-daddy:dashboard-source:v1") return;
+      requests.push(request);
       request.reply({ version: 1, ok: true, generation: "source-1", publish: (update: unknown) => { updates.push(update); return true; }, close });
     } },
   } as unknown as ExtensionAPI;
