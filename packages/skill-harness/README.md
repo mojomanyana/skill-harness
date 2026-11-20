@@ -13,6 +13,8 @@ before spawn. Judges require an exactly qualified release until their own patch 
 is retained. Other or unavailable versions produce execution ERROR. Retained results
 remain readable; the historical Pi 0.83.0 parser is not current qualification.
 
+To use Harness alongside the dashboard and other Pi tools, follow the [Pi ecosystem quickstart](https://github.com/mojomanyana/pi-daddy#start-here).
+
 ## Install
 
 ```bash

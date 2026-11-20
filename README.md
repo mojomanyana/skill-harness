@@ -4,6 +4,8 @@
 existing skill. Pi's current model helps author the skill, its tests and judge
 controls; skill-harness checks the artifacts and measures behavior.
 
+For Harness alone, see the [quickstart](#quickstart). To install it alongside the dashboard, project memory, engineering skills and research, follow the [Pi ecosystem quickstart](https://github.com/mojomanyana/pi-daddy#start-here).
+
 ![skill-harness demo: discover 7 skills, lint them offline, break one fixture marker and
 watch the gate catch it, then re-score two committed runs 93% → 100%](assets/demo.gif)
 
