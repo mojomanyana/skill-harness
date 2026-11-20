@@ -53,13 +53,15 @@ export function createHarnessDashboard(pi: ExtensionAPI, version: string): Harne
           });
         } catch { /* Daddy may be absent; evaluation proceeds. */ }
       }
-      await record(operationId, kind, "observed", "Harness received this evaluation request.");
       const ticket = ++operation, ownGeneration = generation;
       publish([{ id: "activity", kind: "status", label: "Harness evaluation active", state: "running", details: ["Run operation started. Waiting reason and provider request count are unknown."] }]);
+      const received = record(operationId, kind, "observed", "Harness received this evaluation request.");
       try {
         const result = await withTaskEvaluation(admit, operationId, work);
+        await received;
         let value: Summary | undefined;
-        try { value = summary(result); } catch { /* An unavailable summary does not change the result. */ }
+        let summaryFailed = false;
+        try { value = summary(result); } catch { summaryFailed = true; }
         let digest: string | undefined;
         try { digest = observation?.digest?.(result); } catch { /* Optional reference unavailable. */ }
         if (value?.outcomes) {
@@ -75,7 +77,8 @@ export function createHarnessDashboard(pi: ExtensionAPI, version: string): Harne
         if (ticket === operation && ownGeneration === generation) {
           try {
           const observed = (models: Summary["subject"]["observedModels"]) => models.length ? models.map(model => `${model.provider ?? "unknown"}:${model.model ?? "unknown"}`).join(", ") : "unknown";
-          const items: Item[] = [{ id: "activity", kind: "status", label: "Harness evaluation settled", state: "settled" }];
+          const items: Item[] = [{ id: "activity", kind: "status", label: "Harness evaluation settled", state: "settled",
+            ...(summaryFailed ? { details: ["Evidence summary unavailable; inspect Harness review or diagnose."] } : {}) }];
           if (value) items.push({ id: "run-evidence", kind: "evidence", label: "Harness retained evidence", state: "observed", details: [
             `Subject requested ${modelProfileLabel(value.subject.requested)}; observed ${observed(value.subject.observedModels)}; effective effort unknown.`,
             `Judge requested ${modelProfileLabel(value.judge.requested)}; observed ${observed(value.judge.observedModels)}; effective effort unknown.`,
@@ -91,6 +94,7 @@ export function createHarnessDashboard(pi: ExtensionAPI, version: string): Harne
         }
         return result;
       } catch (error) {
+        await received;
         const refused = error instanceof TaskAdmissionError;
         const cancelled = (isProcessControlError(error) && error.reason === "aborted") ||
           (error instanceof Error && error.name === "AbortError");

@@ -20105,15 +20105,18 @@ function createHarnessDashboard(pi, version) {
         } catch {
         }
       }
-      await record(operationId, kind, "observed", "Harness received this evaluation request.");
       const ticket = ++operation, ownGeneration = generation;
       publish([{ id: "activity", kind: "status", label: "Harness evaluation active", state: "running", details: ["Run operation started. Waiting reason and provider request count are unknown."] }]);
+      const received = record(operationId, kind, "observed", "Harness received this evaluation request.");
       try {
         const result = await withTaskEvaluation(admit, operationId, work);
+        await received;
         let value;
+        let summaryFailed = false;
         try {
           value = summary(result);
         } catch {
+          summaryFailed = true;
         }
         let digest2;
         try {
@@ -20136,7 +20139,13 @@ function createHarnessDashboard(pi, version) {
         if (ticket === operation && ownGeneration === generation) {
           try {
             const observed2 = (models) => models.length ? models.map((model) => `${model.provider ?? "unknown"}:${model.model ?? "unknown"}`).join(", ") : "unknown";
-            const items = [{ id: "activity", kind: "status", label: "Harness evaluation settled", state: "settled" }];
+            const items = [{
+              id: "activity",
+              kind: "status",
+              label: "Harness evaluation settled",
+              state: "settled",
+              ...summaryFailed ? { details: ["Evidence summary unavailable; inspect Harness review or diagnose."] } : {}
+            }];
             if (value) items.push({ id: "run-evidence", kind: "evidence", label: "Harness retained evidence", state: "observed", details: [
               `Subject requested ${modelProfileLabel(value.subject.requested)}; observed ${observed2(value.subject.observedModels)}; effective effort unknown.`,
               `Judge requested ${modelProfileLabel(value.judge.requested)}; observed ${observed2(value.judge.observedModels)}; effective effort unknown.`,
@@ -20152,6 +20161,7 @@ function createHarnessDashboard(pi, version) {
         }
         return result;
       } catch (error) {
+        await received;
         const refused = error instanceof TaskAdmissionError;
         const cancelled = isProcessControlError(error) && error.reason === "aborted" || error instanceof Error && error.name === "AbortError";
         record(
@@ -20184,18 +20194,22 @@ async function withAdviceDispatch(admit, operationId, parent, beforeDispatch, wo
   const signal = AbortSignal.any([parent, controller.signal]);
   const abort = () => controller.abort();
   try {
-    const value = await work(signal, async () => {
-      if (attempted) throw new Error("Duplicate advice dispatch refused.");
-      attempted = true;
-      signal.throwIfAborted();
-      if (admit) {
-        receipt = await admit({ operationId });
-        receipt.signal.addEventListener("abort", abort, { once: true });
-        if (receipt.signal.aborted) abort();
-      }
+    const authorizeLocal = () => {
       signal.throwIfAborted();
       beforeDispatch();
       sent = true;
+    };
+    const value = await work(signal, () => {
+      if (attempted) throw new Error("Duplicate advice dispatch refused.");
+      attempted = true;
+      signal.throwIfAborted();
+      if (!admit) return authorizeLocal();
+      return admit({ operationId }).then((granted) => {
+        receipt = granted;
+        receipt.signal.addEventListener("abort", abort, { once: true });
+        if (receipt.signal.aborted) abort();
+        authorizeLocal();
+      });
     });
     completed = true;
     return value;
@@ -23932,7 +23946,9 @@ function createJevController(pi, options = {}) {
         if (!apiKey && hint) return pauseHints();
         if (!apiKey) return unavailable(`An OpenRouter API key could not be resolved; no call was made. ${missingKeyRemedy}`);
         result = await wait(withAdviceDispatch(admit, operationId, abort.signal, beforeDispatch, async (signal2, authorize) => {
-          await authorize();
+          const pending = authorize();
+          if (pending) await pending;
+          signal2.throwIfAborted();
           return (options.provider ?? callProvider)(JEV_PROVIDER, JEV_MODEL, packet, { apiKey, signal: signal2 });
         }));
       }
@@ -24288,7 +24304,9 @@ function createJevController(pi, options = {}) {
           env: { OPENROUTER_API_KEY: apiKey },
           providerCall: async (provider, model, example) => {
             const result = await withAdviceDispatch(admit, randomUUID7(), bound.abort.signal, beforeDispatch, async (signal, authorize) => {
-              await authorize();
+              const pending = authorize();
+              if (pending) await pending;
+              signal.throwIfAborted();
               return (options.provider ?? callProvider)(provider, model, example, { apiKey, signal });
             });
             assertCurrent();

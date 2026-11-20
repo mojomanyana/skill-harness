@@ -182,7 +182,7 @@ export function createJevController(
       throw new Error("Selected JEV model configuration changed; enable again and choose the model");
   };
   const classify = async (selection: NativeSelection, example: { input: string; question: string }, signal: AbortSignal,
-    ctx: JevContext, beforeDispatch: () => Promise<void>) => {
+    ctx: JevContext, beforeDispatch: () => void | Promise<void>) => {
     assertRoute(selection, ctx);
     const started = performance.now();
     let dispatched = false;
@@ -322,7 +322,9 @@ export function createJevController(
         if (!apiKey && hint) return pauseHints();
         if (!apiKey) return unavailable(`An OpenRouter API key could not be resolved; no call was made. ${missingKeyRemedy}`);
         result = await wait(withAdviceDispatch(admit, operationId, abort.signal, beforeDispatch, async (signal, authorize) => {
-          await authorize();
+          const pending = authorize();
+          if (pending) await pending;
+          signal.throwIfAborted();
           return (options.provider ?? callProvider)(JEV_PROVIDER, JEV_MODEL, packet, { apiKey, signal });
         }));
       }
@@ -628,7 +630,9 @@ export function createJevController(
         providerOptions = { env: { OPENROUTER_API_KEY: apiKey },
           providerCall: async (provider: string, model: string, example: { input: string; question: string }) => {
             const result = await withAdviceDispatch(admit, randomUUID(), bound.abort.signal, beforeDispatch, async (signal, authorize) => {
-              await authorize();
+              const pending = authorize();
+              if (pending) await pending;
+              signal.throwIfAborted();
               return (options.provider ?? callProvider)(provider, model, example, { apiKey, signal });
             });
             assertCurrent();
