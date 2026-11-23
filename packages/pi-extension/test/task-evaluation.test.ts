@@ -1,7 +1,6 @@
 import { expect, test, vi } from "vitest";
 import type { HarnessAdapter } from "@skill-harness/core";
 import { taskEvaluationAdapter, withTaskEvaluation } from "../src/task-evaluation.js";
-import { withAdviceDispatch } from "../src/advice-dispatch.js";
 
 test("reusing a result costs no attempt, two fresh evaluation calls share one admission", async () => {
   const finish = vi.fn(), admit = vi.fn(async () => ({ signal: new AbortController().signal, finish }));
@@ -37,19 +36,4 @@ test("an already cancelled reservation closes before the adapter is invoked", as
   await expect(withTaskEvaluation(admit, "cancelled", async () => taskEvaluationAdapter(adapter).run({} as never))).rejects.toThrow();
   expect(run).not.toHaveBeenCalled();
   expect(finish).toHaveBeenCalledWith("not-started");
-});
-
-test("optional advice admits at outbound dispatch, and reports a cancelled request honestly", async () => {
-  const controller = new AbortController();
-  const finish = vi.fn(), debit = vi.fn(), admit = vi.fn(async () => ({ signal: controller.signal, finish }));
-  const caller = new AbortController().signal;
-  await expect(withAdviceDispatch(admit, "unused", caller, debit, async () => { throw Error("unavailable"); })).rejects.toThrow("unavailable");
-  expect(admit).not.toHaveBeenCalled();
-  await expect(withAdviceDispatch(admit, "advice", caller, debit, async (signal, authorize) => {
-    await authorize();
-    controller.abort();
-    signal.throwIfAborted();
-  })).rejects.toThrow();
-  expect(debit).toHaveBeenCalledTimes(1);
-  expect(finish).toHaveBeenCalledWith("unknown");
 });

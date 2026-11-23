@@ -240,8 +240,7 @@ export async function runSkillModel(opts: RunOptions): Promise<RunSummary> {
         ...(adapter.name === "pi" ? { expectedPiVersion: harnessCliVersion } : {}) }));
     }
   });
-  const defaultConcurrency = Math.max(1, Number(process.env.SKILL_HARNESS_CONCURRENCY ?? 4) || 4);
-  const flat = await runPool(tasks, opts.concurrency ?? defaultConcurrency);
+  const flat = await runPool(tasks, opts.concurrency ?? 1);
 
   const grouped: RepOutcome[][] = scenarios.map(() => []);
   flat.forEach((outcome, i) => grouped[owners[i]].push(outcome));

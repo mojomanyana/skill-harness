@@ -29,7 +29,7 @@ import type { ModelRef, RunMode } from "./adapters/types.js";
  * releases below exactly, and a later patch of the newest listed release in a minor
  * as a flagged patch (see `piQualification`). A new minor needs its own entry.
  */
-export const QUALIFIED_PI_VERSION = "1.6.0";
+export const QUALIFIED_PI_VERSION = "1.0.4";
 export const QUALIFIED_PI_VERSIONS = ["1.0.4", "1.1.0", "1.4.0", "1.5.0", "1.5.2", "1.6.0"] as const;
 /** Historical raw captures from this version remain readable; this is not fresh-run qualification. */
 const LEGACY_PI_TRACE_VERSION = "0.83.0";
@@ -54,11 +54,12 @@ export function piQualification(version: string | null): { status: "exact" } | P
     .filter(({ parts }) => parts[0] === ran[0] && parts[1] === ran[1])
     .sort((a, b) => b.parts[2] - a.parts[2])[0] : undefined;
   if (ran && base && ran[2] > base.parts[2]) return { status: "patch", qualified_version: base.version };
-  // Forward-compatible 1.x support (>=1.4.0 <2.0.0) unless strict qualification is requested.
-  if (ran && ran[0] === 1 && ran[1] >= 4 && process.env.SKILL_HARNESS_STRICT_PI !== "1") {
+  // Forward-compatible support ONLY for newer 1.x minors above the newest qualified minor (never older unpatched releases like 1.5.1).
+  const maxMinor = Math.max(...QUALIFIED_PI_VERSIONS.map(v => releaseParts(v)![1]));
+  if (ran && ran[0] === 1 && ran[1] > maxMinor && process.env.SKILL_HARNESS_STRICT_PI !== "1") {
     return { status: "patch", qualified_version: QUALIFIED_PI_VERSIONS[QUALIFIED_PI_VERSIONS.length - 1] };
   }
-  return { status: "unqualified", reason: `Pi ${version ?? "(version unavailable)"} is unqualified; execution requires qualified Pi ${QUALIFIED_PI_VERSIONS.join(" or ")}, or a later 1.x release` };
+  return { status: "unqualified", reason: `Pi ${version ?? "(version unavailable)"} is unqualified; execution requires qualified Pi ${QUALIFIED_PI_VERSIONS.join(" or ")}, or a later patch of the newest listed release in its minor` };
 }
 
 export function piQualificationFailure(version: string | null): string | null {

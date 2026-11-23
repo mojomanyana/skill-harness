@@ -17,7 +17,7 @@ test("structured judge passes effort explicitly and reports observed metadata on
   vi.restoreAllMocks();
 });
 
-test.each([["1.5.2", 1], ["1.5.3", 0], ["1.6.0", 0]])("structured judge on Pi %s makes %i Pi call(s)", async (version, calls) => {
+test.each([["1.5.2", 1], ["1.5.3", 0], ["2.0.0", 0]])("structured judge on Pi %s makes %i Pi call(s)", async (version, calls) => {
   vi.spyOn(piAdapter, "version").mockResolvedValue(version);
   vi.mocked(runPiJson).mockReset();
   const trace = parseTrace([JSON.stringify({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "verdict" }], stopReason: "stop" } }), '{"type":"agent_settled"}'],
@@ -26,6 +26,6 @@ test.each([["1.5.2", 1], ["1.5.3", 0], ["1.6.0", 0]])("structured judge on Pi %s
   const result = await piAdapter.judgeStructured!({ model: { provider: "local", model: "judge" }, prompt: "p", cwd: "/tmp" });
   expect(vi.mocked(runPiJson)).toHaveBeenCalledTimes(calls);
   if (calls) expect(result.raw).toBe("verdict");
-  else expect(result.raw).toContain(version === "1.5.3" ? "judge requires an exactly qualified Pi release" : "Pi 1.6.0 is unqualified");
+  else expect(result.raw).toContain(version === "1.5.3" ? "judge requires an exactly qualified Pi release" : "Pi 2.0.0 is unqualified");
   vi.restoreAllMocks();
 });

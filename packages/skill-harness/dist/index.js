@@ -1,11 +1,11 @@
 // packages/pi-extension/src/index.ts
 import { readFileSync as readFileSync27 } from "node:fs";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
-import { basename as basename9, dirname as dirname16, join as join36 } from "node:path";
+import { basename as basename9, dirname as dirname16, join as join35 } from "node:path";
 
 // packages/pi-extension/src/commands.ts
 import { existsSync as existsSync24 } from "node:fs";
-import { dirname as dirname15, join as join35, resolve as resolve23, relative as relative11 } from "node:path";
+import { dirname as dirname15, join as join34, resolve as resolve23, relative as relative11 } from "node:path";
 
 // packages/core/dist/spec.js
 import { readFileSync } from "node:fs";
@@ -4009,10 +4009,11 @@ function piQualification(version) {
   const base = ran ? QUALIFIED_PI_VERSIONS.map((qualified) => ({ version: qualified, parts: releaseParts(qualified) })).filter(({ parts }) => parts[0] === ran[0] && parts[1] === ran[1]).sort((a, b) => b.parts[2] - a.parts[2])[0] : void 0;
   if (ran && base && ran[2] > base.parts[2])
     return { status: "patch", qualified_version: base.version };
-  if (ran && ran[0] === 1 && ran[1] >= 4 && process.env.SKILL_HARNESS_STRICT_PI !== "1") {
+  const maxMinor = Math.max(...QUALIFIED_PI_VERSIONS.map((v) => releaseParts(v)[1]));
+  if (ran && ran[0] === 1 && ran[1] > maxMinor && process.env.SKILL_HARNESS_STRICT_PI !== "1") {
     return { status: "patch", qualified_version: QUALIFIED_PI_VERSIONS[QUALIFIED_PI_VERSIONS.length - 1] };
   }
-  return { status: "unqualified", reason: `Pi ${version ?? "(version unavailable)"} is unqualified; execution requires qualified Pi ${QUALIFIED_PI_VERSIONS.join(" or ")}, or a later 1.x release` };
+  return { status: "unqualified", reason: `Pi ${version ?? "(version unavailable)"} is unqualified; execution requires qualified Pi ${QUALIFIED_PI_VERSIONS.join(" or ")}, or a later patch of the newest listed release in its minor` };
 }
 function piQualificationFailure(version) {
   const qualification = piQualification(version);
@@ -5308,15 +5309,15 @@ function fixtureInventory(root, skip) {
         if (entry.isDirectory())
           walk(path, relative12, depth + 1);
         else if (entry.isFile()) {
-          const stat2 = lstatSync(path);
-          if (!stat2.isFile())
+          const stat = lstatSync(path);
+          if (!stat.isFile())
             throw new Error(`Selected fixture changed during inventory: ${relative12}`);
-          if (stat2.size > FIXTURE_LIMITS.fileBytes)
+          if (stat.size > FIXTURE_LIMITS.fileBytes)
             throw new FixtureLimitError(`${relative12} exceeds ${FIXTURE_LIMITS.fileBytes} bytes`);
-          total += stat2.size;
+          total += stat.size;
           if (total > FIXTURE_LIMITS.totalBytes)
             throw new FixtureLimitError(`total exceeds ${FIXTURE_LIMITS.totalBytes} bytes`);
-          files.push({ path, relative: relative12, size: stat2.size });
+          files.push({ path, relative: relative12, size: stat.size });
         }
       }
     } finally {
@@ -5329,8 +5330,8 @@ function fixtureInventory(root, skip) {
 function hashFixtureFile(hash4, file) {
   const fd = openSync(file.path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
   try {
-    const stat2 = fstatSync(fd);
-    if (!stat2.isFile() || stat2.size !== file.size || stat2.size > FIXTURE_LIMITS.fileBytes)
+    const stat = fstatSync(fd);
+    if (!stat.isFile() || stat.size !== file.size || stat.size > FIXTURE_LIMITS.fileBytes)
       throw new Error(`Selected fixture changed before hashing: ${file.relative}`);
     const buffer = Buffer.allocUnsafe(64 * 1024);
     let offset = 0;
@@ -5837,8 +5838,8 @@ async function procText(path) {
 async function samplePid(pid, gap) {
   try {
     const dir = `/proc/${pid}`;
-    const stat2 = await procText(`${dir}/stat`);
-    const fields = stat2.slice(stat2.lastIndexOf(")") + 2).trim().split(/\s+/);
+    const stat = await procText(`${dir}/stat`);
+    const fields = stat.slice(stat.lastIndexOf(")") + 2).trim().split(/\s+/);
     if (fields.length < 22)
       return null;
     const value = {
@@ -8231,8 +8232,7 @@ async function runSkillModel(opts) {
         }));
       }
     });
-    const defaultConcurrency = Math.max(1, Number(process.env.SKILL_HARNESS_CONCURRENCY ?? 4) || 4);
-    const flat = await runPool(tasks, opts.concurrency ?? defaultConcurrency);
+    const flat = await runPool(tasks, opts.concurrency ?? 1);
     const grouped = scenarios.map(() => []);
     flat.forEach((outcome, i) => grouped[owners[i]].push(outcome));
     const scenarioResults = scenarios.map((scenario, si) => {
@@ -12339,63 +12339,6 @@ var V3_REFUSAL_CODES = new Set(PI_DADDY_LEDGER_V3_SCHEMA.$defs.refusalCode.enum)
 var V2_CORRELATION_MAX_BYTES = 32 * 1024;
 var V2_CORRELATION_MAX_SCOPE_BYTES = 4 * 1024;
 
-// packages/adapters/dist/pi-decision.js
-import { spawn as spawn2 } from "node:child_process";
-import { createHash as createHash20 } from "node:crypto";
-import { mkdtemp, mkdir, writeFile, rm, realpath, stat } from "node:fs/promises";
-import { tmpdir as tmpdir3, homedir as homedir4 } from "node:os";
-import { join as join31 } from "node:path";
-
-// packages/adapters/dist/pi-decision-worker.js
-var DECISION_WORKER_SOURCE = String.raw`
-import { readFile, realpath } from 'node:fs/promises';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { createHash } from 'node:crypto';
-const emit = value => process.stdout.write(JSON.stringify(value)+'\n');
-let session;
-try {
-  const config = JSON.parse(await readFile(process.argv[2], 'utf8'));
-  const [major,minor] = process.versions.node.split('.').map(Number);
-  if (major < 22 || major === 22 && minor < 19) throw Error('Pi requires Node >=22.19');
-  const host = await realpath(config.piPackage);
-  const pkg = JSON.parse(await readFile(join(host,'package.json'),'utf8'));
-  if (pkg.name !== '@earendil-works/pi-coding-agent' || pkg.version !== '1.0.4') throw Error('Exact Pi 1.0.4 required');
-  const { createAgentSession, DefaultResourceLoader, SettingsManager, SessionManager, ModelRuntime } = await import(pathToFileURL(join(host,'dist/index.js')).href);
-  const settingsManager = SettingsManager.inMemory({retry:{enabled:false},compaction:{enabled:false},packages:[],extensions:[],skills:[],prompts:[],themes:[]});
-  const resourceLoader = new DefaultResourceLoader({cwd:config.cwd,agentDir:config.agentDir,settingsManager,noExtensions:true,noSkills:true,noPromptTemplates:true,noThemes:true,noContextFiles:true,systemPrompt:config.systemPrompt});
-  await resourceLoader.reload();
-  if (resourceLoader.getExtensions().extensions.length || resourceLoader.getSkills().skills.length || resourceLoader.getPrompts().prompts.length || resourceLoader.getAgentsFiles().agentsFiles.length || resourceLoader.getAppendSystemPrompt().length) throw Error('Unexpected inherited resources');
-  const runtime = await ModelRuntime.create({authPath:config.authPath,modelsPath:join(config.agentDir,'models.json'),modelsStorePath:join(config.agentDir,'models-store.json'),allowModelNetwork:false});
-  if (config.provider !== 'openai-codex' || !runtime.isUsingOAuth(config.provider) || !runtime.isUsingSubscription(config.provider)) throw Error('Existing OAuth subscription route required');
-  const model = runtime.getModel(config.provider,config.model);
-  if (!model || !(await runtime.getAvailable(config.provider)).some(m=>m.id===config.model)) throw Error('Exact selected model unavailable');
-  const manager = SessionManager.inMemory(config.cwd);
-  const created = await createAgentSession({cwd:config.cwd,agentDir:config.agentDir,modelRuntime:runtime,model,thinkingLevel:config.thinking,settingsManager,resourceLoader,sessionManager:manager,noTools:'all',tools:[],customTools:[]});
-  session = created.session;
-  if (created.modelFallbackMessage || session.getActiveToolNames().length) throw Error('Unexpected fallback or tools');
-  let updateSent=false;
-  session.subscribe(event=>{
-    if (event.type==='message_update') {if(!updateSent){emit({type:'message_update'});updateSent=true;}return;}
-    if (['agent_start','turn_start','message_start','turn_end','agent_end','agent_settled'].includes(event.type)) {emit({type:event.type});updateSent=false;return;}
-    if (event.type==='tool_execution_start'||event.type==='tool_execution_end') {emit({type:'decision-forbidden-tool'});return;}
-    if(event.type!=='message_end'||event.message?.role!=='assistant')return;
-    const m=event.message;
-    if(m.content.some(b=>b.type!=='text'&&b.type!=='thinking')) {emit({type:'decision-forbidden-tool'});return;}
-    emit({type:'message_end',message:{role:'assistant',content:m.content.filter(b=>b.type==='text').map(b=>({type:'text',text:b.text})),stopReason:m.stopReason,provider:m.provider,model:m.model,usage:m.usage,timestamp:m.timestamp}});updateSent=false;
-  });
-  await session.prompt(config.prompt);
-  await session.waitForIdle();
-  const leaf=manager.getLeafEntry();
-  if(session.isStreaming||leaf?.type!=='message'||leaf.message.role!=='assistant'||leaf.message.stopReason!=='stop')throw Error('Final native leaf unavailable');
-  const text=leaf.message.content.filter(b=>b.type==='text').map(b=>b.text).join('');
-  emit({type:'decision-receipt',piVersion:'1.0.4',provider:leaf.message.provider,model:leaf.message.model,sessionId:manager.getSessionId(),messageId:leaf.id,finalSha256:createHash('sha256').update(text).digest('hex'),oauth:true,subscription:true,tools:0,retry:false,compaction:false});
-} catch {
-  // SDK/provider errors may include raw responses or credentials. Deliberately sanitize.
-  emit({type:'decision-worker-error'});process.exitCode=1;
-} finally {if(session) await session.dispose();}
-`;
-
 // packages/adapters/dist/index.js
 var ADAPTERS = {
   pi: piAdapter
@@ -12411,18 +12354,18 @@ function getAdapter(name) {
 // packages/cli/dist/serve.js
 import { createServer } from "node:http";
 import { readFileSync as readFileSync26, existsSync as existsSync21 } from "node:fs";
-import { join as join32, dirname as dirname12 } from "node:path";
+import { join as join31, dirname as dirname12 } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawn as spawn3 } from "node:child_process";
+import { spawn as spawn2 } from "node:child_process";
 var __dirname = dirname12(fileURLToPath(import.meta.url));
 function templatePath(assetsDir) {
   if (assetsDir)
-    return join32(assetsDir, "report.template.html");
+    return join31(assetsDir, "report.template.html");
   const candidates = [
-    join32(__dirname, "..", "..", "..", "assets", "report.template.html"),
+    join31(__dirname, "..", "..", "..", "assets", "report.template.html"),
     // packages/cli/{dist,src} -> ../../../assets
-    join32(__dirname, "..", "assets", "report.template.html"),
-    join32(__dirname, "..", "..", "assets", "report.template.html")
+    join31(__dirname, "..", "assets", "report.template.html"),
+    join31(__dirname, "..", "..", "assets", "report.template.html")
   ];
   for (const c of candidates)
     if (existsSync21(c))
@@ -12430,7 +12373,7 @@ function templatePath(assetsDir) {
   throw new Error("cannot find assets/report.template.html");
 }
 function gradeScriptPath(assetsDir) {
-  return join32(dirname12(templatePath(assetsDir)), "report.grade.js");
+  return join31(dirname12(templatePath(assetsDir)), "report.grade.js");
 }
 function readBody(req) {
   return new Promise((resolve25) => {
@@ -12444,18 +12387,18 @@ function findTranscript(runDir, id) {
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync26(join32(runDir, files[0]), "utf8");
+    return readFileSync26(join31(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync26(join32(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync26(join31(runDir, f), "utf8")}`).join("\n\n");
 }
 function findJudgeRaw(runDir, id) {
   const files = findJudgeRawFiles(runDir, id);
   if (files.length === 0)
     return null;
   if (files.length === 1)
-    return readFileSync26(join32(runDir, files[0]), "utf8");
+    return readFileSync26(join31(runDir, files[0]), "utf8");
   return files.map((f) => `===== ${f} =====
-${readFileSync26(join32(runDir, f), "utf8")}`).join("\n\n");
+${readFileSync26(join31(runDir, f), "utf8")}`).join("\n\n");
 }
 async function serveReview(opts) {
   const template = readFileSync26(templatePath(opts.assetsDir), "utf8");
@@ -12509,7 +12452,7 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: `only scored runs (green/force) can be re-judged here \u2014 for a ${results.mode} run use \`skill-harness grade\`` }));
           return;
         }
-        const specPath = join32(opts.skillDir, "tests", "specification.yaml");
+        const specPath = join31(opts.skillDir, "tests", "specification.yaml");
         const spec = loadSpec(specPath);
         const scenario = spec.scenarios.find((s) => s.id === body.scenarioId);
         if (!scenario) {
@@ -12597,7 +12540,7 @@ async function serveReview(opts) {
             source_hashes: refreshRubricHashes(results.source_hashes, spec, [body.scenarioId], specDir, { [body.scenarioId]: references }),
             source_hash_roots: results.source_hash_roots
           }, scoreContextFor(results, spec));
-          ensureResultsGitignore(join32(opts.skillDir, "tests", "results"));
+          ensureResultsGitignore(join31(opts.skillDir, "tests", "results"));
           const g = written.effective_grade;
           appendJournal(column.runDir, { event: "score", ts: (/* @__PURE__ */ new Date()).toISOString(), passed: g.passed, total: g.total, pct: g.pct, letter: g.letter, ship: g.ship, note: g.note });
           res.writeHead(200, { "content-type": "application/json" });
@@ -12629,11 +12572,11 @@ async function serveReview(opts) {
           res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
           return;
         }
-        const spec = loadSpec(join32(opts.skillDir, "tests", "specification.yaml"));
+        const spec = loadSpec(join31(opts.skillDir, "tests", "specification.yaml"));
         writeResults(column.runDir, patched, scoreContextFor(patched, spec));
-        ensureResultsGitignore(join32(opts.skillDir, "tests", "results"));
+        ensureResultsGitignore(join31(opts.skillDir, "tests", "results"));
         if (body.override != null) {
-          preserveTranscript(join32(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
+          preserveTranscript(join31(opts.skillDir, "tests", "results"), column.runDir, body.scenarioId);
         }
         appendJournal(column.runDir, {
           event: "override",
@@ -12669,7 +12612,7 @@ async function serveReview(opts) {
 function tryOpen(url, cmd) {
   const opener = cmd ?? (process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open");
   try {
-    const child = spawn3(opener, [url], { stdio: "ignore", detached: true });
+    const child = spawn2(opener, [url], { stdio: "ignore", detached: true });
     child.on("error", () => {
     });
     child.unref();
@@ -12679,16 +12622,16 @@ function tryOpen(url, cmd) {
 
 // packages/pi-extension/src/runner.ts
 import { existsSync as existsSync22 } from "node:fs";
-import { basename as basename8, dirname as dirname13, join as join33, resolve as resolve21 } from "node:path";
+import { basename as basename8, dirname as dirname13, join as join32, resolve as resolve21 } from "node:path";
 function resolveSkillDir(cwd, arg) {
   if (arg) {
     const dir2 = resolve21(cwd, arg);
-    if (existsSync22(join33(dir2, "tests", "specification.yaml"))) return dir2;
+    if (existsSync22(join32(dir2, "tests", "specification.yaml"))) return dir2;
     throw new Error(`no tests/specification.yaml found at ${dir2}`);
   }
   let dir = cwd;
   for (; ; ) {
-    if (existsSync22(join33(dir, "tests", "specification.yaml"))) return dir;
+    if (existsSync22(join32(dir, "tests", "specification.yaml"))) return dir;
     const parent = dirname13(dir);
     if (parent === dir) break;
     dir = parent;
@@ -12698,16 +12641,16 @@ function resolveSkillDir(cwd, arg) {
 function resolveSkillLocation(cwd, arg, specsRoot) {
   if (!specsRoot) {
     const skillDir2 = resolveSkillDir(cwd, arg);
-    return { skillDir: skillDir2, specPath: join33(skillDir2, "tests", "specification.yaml") };
+    return { skillDir: skillDir2, specPath: join32(skillDir2, "tests", "specification.yaml") };
   }
   let skillDir = resolve21(cwd, arg ?? ".");
-  while (!existsSync22(join33(skillDir, "SKILL.md"))) {
+  while (!existsSync22(join32(skillDir, "SKILL.md"))) {
     const parent = dirname13(skillDir);
     if (arg || parent === skillDir) throw new Error(`no SKILL.md found at ${skillDir}`);
     skillDir = parent;
   }
-  const specPath = join33(resolve21(cwd, specsRoot), basename8(skillDir), "tests", "specification.yaml");
-  const localSpec = join33(skillDir, "tests", "specification.yaml");
+  const specPath = join32(resolve21(cwd, specsRoot), basename8(skillDir), "tests", "specification.yaml");
+  const localSpec = join32(skillDir, "tests", "specification.yaml");
   if (existsSync22(localSpec)) throw new Error("specification.yaml exists in the skill; --specs must not select a second specification");
   if (!existsSync22(specPath)) throw new Error(`no tests/specification.yaml found at ${specPath}`);
   return { skillDir, specPath };
@@ -12725,7 +12668,7 @@ async function withEvaluationGuard(work) {
 }
 async function runViaExtension(opts) {
   return withEvaluationGuard(async () => {
-    const specPath = opts.specPath ?? join33(opts.skillDir, "tests", "specification.yaml");
+    const specPath = opts.specPath ?? join32(opts.skillDir, "tests", "specification.yaml");
     const spec = loadSpec(specPath);
     const modelToken = opts.model ?? DEFAULT_MODEL;
     const model = withThinking(parseModelRef(modelToken), opts.thinking);
@@ -12755,7 +12698,7 @@ async function runViaExtension(opts) {
     });
     const g = summary.results.effective_grade;
     const verdicts = effectiveVerdicts(summary.results.scenarios);
-    const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join33(summary.runDir, f)));
+    const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join32(summary.runDir, f)));
     return {
       skill: summary.results.skill,
       model: summary.results.model,
@@ -12773,7 +12716,7 @@ async function runViaExtension(opts) {
 import { existsSync as existsSync23 } from "node:fs";
 
 // packages/pi-extension/src/authoring-reference.ts
-import { createHash as createHash21 } from "node:crypto";
+import { createHash as createHash20 } from "node:crypto";
 
 // packages/pi-extension/src/evidence-review-pattern.ts
 var samples = { before: [110, 120, 130], after: [80, 90, 100] };
@@ -13184,7 +13127,7 @@ var specification_v1_schema_default = {
 
 // packages/pi-extension/src/authoring-reference.ts
 var schemaJson = JSON.stringify(specification_v1_schema_default);
-var schemaSha256 = createHash21("sha256").update(schemaJson).digest("hex");
+var schemaSha256 = createHash20("sha256").update(schemaJson).digest("hex");
 function authoringReference(pattern) {
   if (pattern !== void 0 && pattern !== "evidence-review") throw new Error("Unknown authoring reference pattern; use evidence-review or omit pattern");
   return {
@@ -13245,7 +13188,7 @@ function authoringReference(pattern) {
 }
 
 // packages/pi-extension/src/authoring.ts
-import { dirname as dirname14, join as join34, resolve as resolve22 } from "node:path";
+import { dirname as dirname14, join as join33, resolve as resolve22 } from "node:path";
 import { Type as Type2 } from "typebox";
 var authoringGuide = `Use skill_author to develop the requested skill with this Pi session's current model.
 Start from the user's idea; an existing skill, examples, fixtures or YAML are not prerequisites. Import an existing skill only when selected by the user. Choose a short stable name and record already-known answers rather than asking for them again. Ask only the first necessary unanswered question, using action question when the user interface is available, and wait for its answer. The persisted state is authoritative on resume.
@@ -13308,8 +13251,8 @@ var Answers = Type2.Object({
 function calibrationPath(root, name, path) {
   if (path) return resolve22(root, path);
   const state = readAuthoring(root, name);
-  const skill = state.answers.placement === "separate-repo" ? join34(resolve22(root, state.answers.evalRoot), name) : state.skillDir;
-  return join34(skill, "tests", "calibration.json");
+  const skill = state.answers.placement === "separate-repo" ? join33(resolve22(root, state.answers.evalRoot), name) : state.skillDir;
+  return join33(skill, "tests", "calibration.json");
 }
 function labelSummary(selected, summary, obligations) {
   const pass = selected.controls.filter((control) => control.expected === "PASS").length;
@@ -13557,7 +13500,7 @@ var skillAuthorTool = {
         if (!params.controls?.length) throw new Error("controls requires proposed examples with expected labels and rationales");
         const manifestPath = calibrationPath(root, params.name, params.manifest);
         const prepared = prepareCalibration({
-          specPath: join34(dirname14(manifestPath), "specification.yaml"),
+          specPath: join33(dirname14(manifestPath), "specification.yaml"),
           manifestPath,
           controls: params.controls.map((control) => ({ ...control, review: { status: "proposed" } }))
         });
@@ -13568,7 +13511,7 @@ var skillAuthorTool = {
         const selection = {
           root,
           name: params.name,
-          specPath: resolve22(root, params.specPath ?? join34(dirname14(calibrationPath(root, params.name, params.manifest)), "specification.yaml")),
+          specPath: resolve22(root, params.specPath ?? join33(dirname14(calibrationPath(root, params.name, params.manifest)), "specification.yaml")),
           methodFiles: params.methodFiles,
           sourceFiles: params.sourceFiles
         };
@@ -13717,8 +13660,8 @@ ${card.failedTranscripts.join("\n")}`);
   if (sub === "judge") {
     const runDir = resolve23(ctx.cwd, positional[0] ?? ".");
     const testsDir = dirname15(dirname15(dirname15(runDir)));
-    const spec = loadSpec(join35(testsDir, "specification.yaml"));
-    const prev = existsSync24(join35(runDir, "results.yaml")) ? readResults(runDir) : null;
+    const spec = loadSpec(join34(testsDir, "specification.yaml"));
+    const prev = existsSync24(join34(runDir, "results.yaml")) ? readResults(runDir) : null;
     const resolvedRecordedJudge = flags.judge ? void 0 : recordedJudgeOrDefault(prev?.judge);
     const judge = withThinking(flags.judge ? parseModelRef(flags.judge) : resolvedRecordedJudge.judge, flags["judge-thinking"]);
     if (resolvedRecordedJudge?.migratedFrom) {
@@ -13748,7 +13691,7 @@ ${card.failedTranscripts.join("\n")}`);
     const report = computeCoverage({
       specDir,
       scenarios: spec.scenarios,
-      baseFiles: [relative11(specDir, join35(skillDir, "SKILL.md")).split("\\").join("/")]
+      baseFiles: [relative11(specDir, join34(skillDir, "SKILL.md")).split("\\").join("/")]
     });
     say(ctx, formatCoverage(report, spec.skill), report.broken.length ? "warning" : "info");
     return;
@@ -14016,11 +13959,11 @@ function createHarnessDashboard(pi, version) {
 }
 
 // packages/pi-extension/src/improvement.ts
-import { createHash as createHash22, randomUUID as randomUUID4 } from "node:crypto";
+import { createHash as createHash21, randomUUID as randomUUID4 } from "node:crypto";
 import { realpathSync as realpathSync9 } from "node:fs";
 import { resolve as resolve24 } from "node:path";
 import { Type as Type4 } from "typebox";
-var sha3 = (text2) => createHash22("sha256").update(text2).digest("hex");
+var sha3 = (text2) => createHash21("sha256").update(text2).digest("hex");
 var reference = Type4.Union([
   Type4.Object(
     {
@@ -14144,11 +14087,11 @@ function registerImprovement(pi) {
 // packages/pi-extension/src/index.ts
 function index_default(pi) {
   const moduleDir = dirname16(fileURLToPath2(import.meta.url));
-  const assetsDir = basename9(dirname16(moduleDir)) === "skill-harness" ? join36(moduleDir, "..", "assets") : join36(moduleDir, "..", "..", "..", "assets");
-  const packageRoot = basename9(dirname16(moduleDir)) === "skill-harness" ? join36(moduleDir, "..") : join36(moduleDir, "..", "..", "..");
+  const assetsDir = basename9(dirname16(moduleDir)) === "skill-harness" ? join35(moduleDir, "..", "assets") : join35(moduleDir, "..", "..", "..", "assets");
+  const packageRoot = basename9(dirname16(moduleDir)) === "skill-harness" ? join35(moduleDir, "..") : join35(moduleDir, "..", "..", "..");
   let loadedVersion;
   try {
-    const manifest = JSON.parse(readFileSync27(join36(packageRoot, "package.json"), "utf8"));
+    const manifest = JSON.parse(readFileSync27(join35(packageRoot, "package.json"), "utf8"));
     if (["skill-harness", "skill-harness-monorepo"].includes(manifest.name)) loadedVersion = manifest.version;
   } catch {
   }
