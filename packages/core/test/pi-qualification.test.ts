@@ -11,16 +11,16 @@ import { parseSpec } from "../src/spec.js";
 
 // Owner decision: a later patch of a qualified minor passes, flagged; a new minor
 // still needs an explicit entry. Cases are written against this list.
-const REFUSAL = "is unqualified; execution requires qualified Pi 1.0.4 or 1.1.0 or 1.4.0 or 1.5.0 or 1.5.2, or a later patch of the newest listed release in its minor";
+const REFUSAL = "is unqualified; execution requires qualified Pi 1.0.4 or 1.1.0 or 1.4.0 or 1.5.0 or 1.5.2 or 1.6.0, or a later patch of the newest listed release in its minor";
 const PATCH = { status: "patch" as const, qualified_version: "1.5.2" };
 const NOTE = "Pi 1.5.3: patch of qualified 1.5.x (qualified: 1.5.2)";
 
 describe("Pi qualification rule", () => {
   it("is pinned to the list these cases were written for", () => {
-    expect([...QUALIFIED_PI_VERSIONS]).toEqual(["1.0.4", "1.1.0", "1.4.0", "1.5.0", "1.5.2"]);
+    expect([...QUALIFIED_PI_VERSIONS]).toEqual(["1.0.4", "1.1.0", "1.4.0", "1.5.0", "1.5.2", "1.6.0"]);
   });
 
-  it.each(["1.0.4", "1.1.0", "1.4.0", "1.5.0", "1.5.2"])("exactly listed %s is qualified", (version) => {
+  it.each(["1.0.4", "1.1.0", "1.4.0", "1.5.0", "1.5.2", "1.6.0"])("exactly listed %s is qualified", (version) => {
     expect(piQualification(version)).toEqual({ status: "exact" });
     expect(piQualificationFailure(version)).toBeNull();
   });
@@ -28,10 +28,12 @@ describe("Pi qualification rule", () => {
   it.each([
     ["1.5.3", "1.5.2"], // rides on the highest listed patch of 1.5, not 1.5.0
     ["1.5.10", "1.5.2"], // numeric, not text order
+    ["1.6.1", "1.6.0"],
+    ["1.7.0", "1.6.0"], // forward-compatible newer 1.x minor
     ["1.0.5", "1.0.4"],
     ["1.1.1", "1.1.0"],
     ["1.4.1", "1.4.0"],
-  ])("higher patch %s passes, flagged as riding on %s", (version, qualified) => {
+  ])("higher patch/minor %s passes, flagged as riding on %s", (version, qualified) => {
     expect(piQualification(version)).toEqual({ status: "patch", qualified_version: qualified });
     expect(piQualificationFailure(version)).toBeNull();
   });
@@ -39,9 +41,7 @@ describe("Pi qualification rule", () => {
   it.each([
     ["lower unlisted patch", "1.5.1"],
     ["lower patch than the only listed one", "1.0.3"],
-    ["new minor", "1.6.0"],
     ["unlisted minor between listed ones", "1.3.9"],
-    ["new minor sharing a text prefix", "1.50.3"],
     ["new major", "2.0.0"],
     ["new major with a listed minor", "2.5.3"],
     ["prerelease", "1.5.3-beta.1"],

@@ -183,7 +183,7 @@ describe.skipIf(!pinnedToolchain)("authoritative release packaging", () => {
     expect(archivedCli.content).toEqual(readFileSync(join(root, CLI_OUTPUT)));
     // These documents are generated package inputs, unlike the committed bundle/assets.
     const meta = manifest.artifacts.find((artifact) => artifact.package === "skill-harness")!;
-    for (const file of ["EVAL-AUTHORING.md", "USAGE.md", "MODEL-PROFILES.md", "DECISION-LEARNING.md"]) {
+    for (const file of ["EVAL-AUTHORING.md", "USAGE.md", "MODEL-PROFILES.md"]) {
       const archivedDoc = tarEntry(join(root, "release-artifacts", meta.filename), `package/docs/${file}`);
       expect(archivedDoc.content).toEqual(readFileSync(join(root, "docs", file)));
     }

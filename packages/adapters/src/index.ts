@@ -21,4 +21,3 @@ export { piAdapter };
 export * from "./trajectory.js";
 export * from "./pi-daddy-ledger-v3.js";
 
-export { runPiDecision, DECISION_SYSTEM_PROMPT } from "./pi-decision.js";

@@ -40,7 +40,6 @@ import {
 } from "@skill-harness/core";
 import { getAdapter } from "@skill-harness/adapters";
 import { serveReview } from "./serve.js";
-import { cmdDecision } from "./decision.js";
 import { formatDiagnosis } from "./diagnose-format.js";
 
 const DEFAULT_MODEL = "fireworks:accounts/fireworks/models/deepseek-v4-pro";
@@ -243,7 +242,7 @@ export async function cmdRun(args: Args, adapterOverride?: HarnessAdapter): Prom
   const canary = flagBool(args, "canary");
   const structured = flagBool(args, "structured");
   const label = flagStr(args, "label") || null;
-  const parallel = Math.max(1, Number(flagStr(args, "parallel", "1")) || 1);
+  const parallel = Math.max(1, Number(flagStr(args, "parallel", process.env.SKILL_HARNESS_CONCURRENCY ?? "4")) || 4);
   const { reps, passThreshold } = parseRunTuning(args);
 
   // Resolved ONCE, before the skill loop: a typo'd arm name fails before any
@@ -831,7 +830,6 @@ export function help(): string {
   Every command with --skills also accepts --specs <root> (default: SKILL_HARNESS_SPECS).
   Skill text comes from --skills; test assets and results come from --specs.
 
-  decision <command>                          decision evaluation, session consent and learning export; decision --help
 
   version  print ${HARNESS_VERSION} and exit (also --version / -v)
 
@@ -922,7 +920,6 @@ export async function main(argv: string[]): Promise<void> {
 
 async function dispatch(argv: string[]): Promise<void> {
   const cmd = argv[0];
-  if (cmd === "decision") return cmdDecision(argv.slice(1));
   const args = parseArgs(argv.slice(1));
   assertNoRetiredFlags(cmd, args);
   switch (cmd) {

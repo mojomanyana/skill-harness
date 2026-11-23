@@ -162,20 +162,6 @@ candidate identity, native final and cleanup evidence; never bypass a refused
 delegation by launching another child through a shell. Principal workflows are
 optional. A social-media role does not itself authorize posting or account changes.
 
-Optional `jev_advice` can assess one consequential evidence choice after ordinary
-checks: reuse matching evidence, retrieve selected project context through Bookie,
-research a public gap with Scout, or run a targeted check. State one proposed action
-and the uncertainty it could resolve; do not score every alternative or add a call
-per tool or turn. Skip advice for cheap obvious steps, unavailable tools, permissions,
-identity checks and duplicate detection. Off or unavailable advice does not stop the
-ordinary authorized workflow. A probability grants no authority or acceptance.
-
-Existing session paid-call and storage choices still apply. Bookie save/retrieval
-permission is not permission to send private memory to JEV; select only public or
-already-redacted evidence. Authoring and diagnostic data are not automatically
-training examples. Independent labels, source rights and separate export/training
-approval still apply. See [decision advice](docs/DECISION-LEARNING.md#choosing-a-useful-next-action).
-
 ## Selected lessons and improvement proposals
 
 When Bookie is loaded, `skill_improvement` can turn one explicitly selected lesson

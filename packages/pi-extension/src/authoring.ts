@@ -204,6 +204,8 @@ async function askNext(root: string, name: string, ctx: CmdCtx) {
 export const skillAuthorTool = {
   name: "skill_author",
   label: "Develop skill",
+  exposure: "deferred" as const,
+  defaultActive: false,
   description: "Read the installed evaluation schema and example with action reference (no name/project/model needed). Create or resume a Pi skill project from an idea, collect one necessary answer, validate a complete skill/eval draft, and safely apply it. The current Pi model authors content; this tool makes no model calls. Generated skills require Pi only, with an optional separate pi-daddy wrapper.",
   promptGuidelines: [
     "Start from the user's idea, use known answers, and ask only the next necessary question. Current Pi model authors the content; this tool persists and validates it.",

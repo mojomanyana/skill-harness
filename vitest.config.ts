@@ -27,7 +27,6 @@ export default defineConfig({
         test: { name: pkg, root: `packages/${pkg}`, globalSetup: tempCleanup, exclude },
         resolve: { alias },
       })),
-      { test: { name: "decision-shadow", root: "experiments/decision-shadow", globalSetup: tempCleanup, exclude } },
     ],
   },
 });

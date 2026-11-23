@@ -111,7 +111,7 @@ describe("Pi 1.0.4 outcomes through ungated execution and saved regrade", () => 
   });
 
   // 1.0.5, 1.4.1 and 1.5.3 left this list: later patches of a qualified minor now run, flagged (below).
-  it.each(["1.0.3", "1.0.4-rc.1", "1.2.0", "1.3.0", "1.4.0-rc.1", "1.5.0-rc.1", "1.5.1", "1.5.2-rc.1", "1.5.3-beta.1", "1.5.3+x", "1.6.0", "0.83.0", "unknown", null])("refuses fresh unqualified Pi %s before a subject call and saved regrade", async (version) => {
+  it.each(["1.0.3", "1.0.4-rc.1", "1.2.0", "1.3.0", "1.4.0-rc.1", "1.5.0-rc.1", "1.5.1", "1.5.2-rc.1", "1.5.3-beta.1", "1.5.3+x", "2.0.0", "0.83.0", "unknown", null])("refuses fresh unqualified Pi %s before a subject call and saved regrade", async (version) => {
     replay.version = version;
     replay.text = jsonl(message("plausible answer"), settled);
     const { root, specPath, spec } = fixture();
@@ -213,7 +213,7 @@ it.each([
   ["1.5.2", "1.5.3", false], ["1.5.2", "1.5.3", true],
   ["1.5.3", "1.5.2", false], ["1.5.3", "1.5.2", true],
   ["1.5.2", null, false], ["1.5.2", null, true],
-  ["1.5.2", "1.6.0", false], ["1.5.2", "1.6.0", true],
+  ["1.5.2", "2.0.0", false], ["1.5.2", "2.0.0", true],
 ] as const)("stops before turn two when Pi changes from %s to %s (structured=%s)", async (first, second, structured) => {
   replay.version = first; replay.armVersion = first; replay.nextArmVersion = second;
   replay.text = jsonl(message("hello from completed first turn"), settled);
@@ -231,7 +231,7 @@ it.each([
   const transcript = readFileSync(join(summary.runDir, "A1.force.txt"), "utf8");
   expect(transcript).toContain("<<< ASSISTANT:\nhello"); // completed evidence is not discarded
   expect(transcript).toContain(">>> USER (turn 1/2):\nhi\n");
-  expect(executionFailureFromTranscript(transcript)).toContain(second === null || second === "1.6.0"
+  expect(executionFailureFromTranscript(transcript)).toContain(second === null || second === "2.0.0"
     ? "unqualified" : `Pi ${second} differs from the run's recorded Pi ${first}`);
   expect(transcript).not.toContain(">>> USER (turn 2/2):");
   if (structured) {

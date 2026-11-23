@@ -69,7 +69,7 @@ it("does not accept settlement before an outstanding tool completes", () => {
   expect(result.trace.final_status).toBe("incomplete");
 });
 // 1.0.5, 1.1.1, 1.4.1 and 1.5.3 left this list: later patches of a qualified minor are accepted, flagged.
-for (const piVersion of ["1.0.3", "1.0.4-rc.1", "1.1.0-rc.1", "1.2.0", "1.3.0", "1.4.0-rc.1", "1.5.0-rc.1", "1.5.1", "1.5.2-rc.1", "1.5.3-beta.1", "1.6.0", "0.84.1", "unknown", null]) {
+for (const piVersion of ["1.0.3", "1.0.4-rc.1", "1.1.0-rc.1", "1.2.0", "1.3.0", "1.4.0-rc.1", "1.5.0-rc.1", "1.5.1", "1.5.2-rc.1", "1.5.3-beta.1", "2.0.0", "0.84.1", "unknown", null]) {
   it(`never downgrades unqualified ${piVersion} to historical parsing`, () => {
     const result = parseTrace([JSON.stringify(message("plausible")), JSON.stringify(settled)], { ...meta, piVersion });
     expect(result.trace.final_status).toBe("unqualified");
