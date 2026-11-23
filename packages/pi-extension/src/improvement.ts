@@ -52,6 +52,8 @@ export function registerImprovement(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "skill_improvement",
     label: "Propose skill improvement",
+    exposure: "deferred" as const,
+    defaultActive: false,
     description:
       "Record one selected Bookie lesson as a bounded skill-improvement proposal for an existing skill_author project. Fetches exact currently authorized evidence; no whole-memory scan. Requires current skill, applicability, exclusions and a reconsideration condition. Does not change skill files, labels, grants, models or training; normal Harness calibration/comparison and explicit adoption remain required. If Bookie is absent, use normal skill_author with the user's supplied idea.",
     promptGuidelines: [

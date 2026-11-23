@@ -45,16 +45,20 @@ export interface ModelCallObservation {
 }
 export interface StructuredJudge { raw: string; observation?: ModelCallObservation }
 
-/** Parse a `provider:model` token (model may contain further colons/slashes). */
+/** Parse a `provider:model` or Pi-native `provider/model` token. */
 export function parseModelRef(token: string): ModelRef {
-  const i = token.indexOf(":");
+  const colon = token.indexOf(":");
+  const slash = token.indexOf("/");
+  let i = -1;
+  if (colon >= 0 && (slash < 0 || colon < slash)) i = colon;
+  else if (slash >= 0) i = slash;
   if (i < 0) {
-    throw new Error(`model must be \`provider:model\` (got \`${token}\`)`);
+    throw new Error(`model must be \`provider/model\` or \`provider:model\` (got \`${token}\`)`);
   }
   const provider = token.slice(0, i).trim();
   const model = token.slice(i + 1).trim();
   if (!provider || !model) {
-    throw new Error(`model must be \`provider:model\` (got \`${token}\`)`);
+    throw new Error(`model must be \`provider/model\` or \`provider:model\` (got \`${token}\`)`);
   }
   return { provider, model };
 }

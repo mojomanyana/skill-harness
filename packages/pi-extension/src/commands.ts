@@ -61,7 +61,7 @@ export interface CmdCtx {
   };
 }
 
-const USAGE = "usage: /skill-harness create <idea> | author [name] | run [skill] [--specs root] [--model p:m] [--thinking LEVEL] [--judge-thinking LEVEL] [--reps N] [--mode red|green|force] [--only A1,A2] [--canary] [--judge p:m] | judge [run-dir] [--judge p:m] | review [skill] | coverage [skill] | jev enable [workflow]|configure|limit [N]|hints|run|status|disable";
+const USAGE = "usage: /skill-harness create <idea> | author [name] | run [skill] [--specs root] [--model p/m] [--thinking LEVEL] [--judge-thinking LEVEL] [--reps N] [--mode red|green|force] [--only A1,A2] [--canary] [--judge p/m] | judge [run-dir] [--judge p/m] | review [skill] | coverage [skill]";
 
 /** Minimal arg tokenizer: subcommand + positional args + `--key value` flags. A flag with no following value (or one followed by another `--flag`) is left unset, so callers' `?? default` fallbacks apply. */
 function parse(argstr: string): { sub: string; positional: string[]; flags: Record<string, string> } {
@@ -227,15 +227,11 @@ export function closeReview(): void {
   reviewHandle = null;
 }
 
-export function registerCommand(pi: ExtensionAPI, assetsDir?: string, jevHandler?: (args:string,ctx:CmdCtx)=>Promise<void>, dashboard?: HarnessDashboard): void {
+export function registerCommand(pi: ExtensionAPI, assetsDir?: string, dashboard?: HarnessDashboard): void {
   pi.registerCommand("skill-harness", {
     description: "Create a skill with Pi, author evaluations, run, judge, and review",
     handler: async (args, ctx) => {
       if (/^(?:create|author)(?:\s|$)/.test(args.trim())) return handleAuthoringCommand(pi, args, ctx);
-      if (/^jev(?:\s|$)/.test(args.trim())) {
-        if (!jevHandler) throw new Error("JEV session handler unavailable");
-        return jevHandler(args.trim().slice(3).trim(), ctx);
-      }
       const h = await handleSkillCheck(args, ctx, { assetsDir, dashboard });
       if (h) { reviewHandle?.close(); reviewHandle = h; } // keep the latest review server for shutdown cleanup
     },

@@ -26,7 +26,7 @@ export const BAKED_DEFAULT_JUDGE = "openai-codex:gpt-5.6-sol";
  * extension) must see an env change without a reload.
  */
 export function defaultJudge(): string {
-  return readEnv("JUDGE") ?? BAKED_DEFAULT_JUDGE;
+  return readEnv("JUDGE") ?? readEnv("JUDGE_FAST") ?? process.env.PI_ECO_MODEL_FAST ?? BAKED_DEFAULT_JUDGE;
 }
 
 /**

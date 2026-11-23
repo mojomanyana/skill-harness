@@ -4,25 +4,9 @@ import { basename, dirname, join } from "node:path";
 import { registerCommand, closeReview, type ExtensionAPI } from "./commands.js";
 import { registerTool } from "./tool.js";
 import { createHarnessDashboard } from "./dashboard.js";
-import { createJevController } from "./jev-session.js";
-import { registerJevAdvice } from "./jev-advice.js";
-import { registerJevControl } from "./jev-control.js";
-import { registerJevPromptHints } from "./jev-prompt-hints.js";
 import { registerAuthoring } from "./authoring.js";
 import { registerImprovement } from "./improvement.js";
 
-/**
- * pi extension entry point. Registers the `/skill-harness` command and the
- * `skill_check_run` tool, and wires up review-server cleanup on shutdown.
- *
- * `assetsDir` is computed relative to THIS module's location so it resolves
- * correctly both from source (src/index.ts, run via tsx/ts-node) and from the
- * committed esbuild bundle (dist/index.js). In both layouts the module lives
- * one directory below the package root (`packages/pi-extension/{src,dist}/`),
- * which itself lives two below the repo root (`packages/pi-extension/`) —
- * three levels total — so `../../../assets` from either location lands on
- * the repo-root `assets/`.
- */
 export default function (pi: ExtensionAPI): void {
   const moduleDir = dirname(fileURLToPath(import.meta.url));
   const assetsDir = basename(dirname(moduleDir)) === "skill-harness"
@@ -38,14 +22,10 @@ export default function (pi: ExtensionAPI): void {
     const report = (request as { report?: unknown } | null)?.report;
     if (typeof report === "function" && typeof loadedVersion === "string") report({ id: "skill-harness", version: loadedVersion, root: packageRoot });
   });
-  const jev = createJevController(pi);
   const dashboard = createHarnessDashboard(pi, loadedVersion ?? "unknown");
-  registerCommand(pi, assetsDir, jev.command, dashboard);
+  registerCommand(pi, assetsDir, dashboard);
   registerAuthoring(pi);
   registerImprovement(pi);
-  registerJevAdvice(pi, jev);
-  registerJevControl(pi, jev);
-  registerJevPromptHints(pi, jev);
   registerTool(pi, dashboard);
   pi.on("session_shutdown", async () => {
     removeVersionReporter?.();
