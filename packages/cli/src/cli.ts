@@ -5,6 +5,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import {
   discover, resolveSkill,
+  harvestSessionToSpec,
   loadSpec, parseSpec,
   appendScenario,
   parseModelRef,
@@ -823,6 +824,7 @@ export function help(): string {
   run/grade/calibrate save bounded private resources-*.json; unsupported host metrics stay unknown.
   In Pi: /skill-harness create <idea>             guided skill + optional agent + eval creation
   suggest <skill>    --skills <root> [--model prov:model] [--force]  LLM-draft a spec from SKILL.md (spends tokens)
+  harvest <session.jsonl> [--out dir] [--name skill]  turn a real Pi session into a redacted regression eval
   list   --skills <root>                        discovered skills + spec status (${free("list")})
   lint   <skill|all> --skills <root>           validate specs/fixtures + results-consistency (${free("lint")}; CI gate; exits non-zero on findings)
   coverage <skill|all> --skills <root> [--strict]   which instruction sections have a declared test (${free("coverage")})
@@ -925,6 +927,15 @@ async function dispatch(argv: string[]): Promise<void> {
   switch (cmd) {
     case "create":
     case "author": throw new Error("Skill creation uses your current Pi model. Start Pi with skill-harness installed, then use /skill-harness create followed by your idea; it asks one necessary question at a time.");
+    case "harvest": {
+      const sessionPath = args._[0];
+      if (!sessionPath) throw new Error("usage: skill-harness harvest <session.jsonl> [--out dir] [--name skill]");
+      const outDir = resolve(flagStr(args, "out", ".") ?? ".");
+      const skillName = flagStr(args, "name");
+      const res = harvestSessionToSpec({ sessionPath, outDir, ...(skillName ? { skillName } : {}) });
+      console.log(`Harvested ${res.skillName} -> ${res.specPath} (${res.editedFiles.length} edited file(s), ${res.verifyCommands.length} verify cmd(s))`);
+      return;
+    }
     case "preflight": return cmdPreflight(args);
     case "diagnose": return cmdDiagnose(args);
     case "calibrate": return cmdCalibrate(args);
