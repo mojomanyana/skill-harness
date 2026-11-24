@@ -1,5 +1,22 @@
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { parseModelRef, type ModelRef } from "./adapters/types.js";
 import { readEnv } from "./util/env.js";
+
+function ecosystemFastModel(): string | undefined {
+  try {
+    const dir = process.env.PI_CODING_AGENT_DIR?.trim() || join(homedir(), ".pi", "agent");
+    const file = join(dir, "ecosystem.json");
+    if (!existsSync(file)) return undefined;
+    const parsed = JSON.parse(readFileSync(file, "utf8")) as { models?: { fast?: unknown } };
+    return typeof parsed?.models?.fast === "string" && parsed.models.fast.trim()
+      ? parsed.models.fast.trim()
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * The judge used when nothing else says otherwise: a Pi `openai-codex` model,
@@ -26,7 +43,7 @@ export const BAKED_DEFAULT_JUDGE = "openai-codex:gpt-5.6-sol";
  * extension) must see an env change without a reload.
  */
 export function defaultJudge(): string {
-  return readEnv("JUDGE") ?? readEnv("JUDGE_FAST") ?? process.env.PI_ECO_MODEL_FAST ?? BAKED_DEFAULT_JUDGE;
+  return readEnv("JUDGE") ?? readEnv("JUDGE_FAST") ?? process.env.PI_ECO_MODEL_FAST ?? ecosystemFastModel() ?? BAKED_DEFAULT_JUDGE;
 }
 
 /**

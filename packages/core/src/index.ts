@@ -1,4 +1,5 @@
 export * from "./spec.js";
+export * from "./harvest.js";
 export * from "./discover.js";
 export * from "./run.js";
 export * from "./grade.js";
