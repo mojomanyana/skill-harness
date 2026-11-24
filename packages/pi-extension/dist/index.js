@@ -10398,6 +10398,24 @@ var model_prices_default = {
       output: 0.5,
       source: "https://fireworks.ai/models/fireworks/glm-5p3-flash"
     },
+    "gemini-3.5-flash-lite": {
+      input: 0.1,
+      cachedInput: 0.025,
+      output: 0.4,
+      source: "https://ai.google.dev/gemini-api/docs/pricing"
+    },
+    "gemini-3.5-flash": {
+      input: 0.3,
+      cachedInput: 0.075,
+      output: 2.5,
+      source: "https://ai.google.dev/gemini-api/docs/pricing"
+    },
+    "gemini-3.8-flash": {
+      input: 0.3,
+      cachedInput: 0.075,
+      output: 2.5,
+      source: "https://ai.google.dev/gemini-api/docs/pricing"
+    },
     "accounts/fireworks/models/kimi-k3": {
       input: 3,
       cachedInput: 0.3,
@@ -10694,8 +10712,9 @@ ${r.stderr.trim()}
       homeDir: homedir3()
     });
     const complete = result.code === 0 && result.isComplete && result.trace.final_status === "complete";
+    const errDetail = result.providerFailure ? `[judge error: provider failure \u2014 ${result.providerFailure}]` : `[judge error: Pi final delivery ${result.trace.final_status}; exit ${result.code}] ${result.stderr.trim()}`;
     return {
-      raw: complete ? result.trace.final_text : `[judge error: Pi final delivery ${result.trace.final_status}; exit ${result.code}] ${result.stderr.trim()}`,
+      raw: complete ? result.trace.final_text : errDetail,
       observation: result.trace.call ? { ...result.trace.call, status: complete ? "complete" : "error" } : void 0
     };
   },
@@ -13257,10 +13276,24 @@ Treat a manual validation as one meaningful case, not every form, click or contr
 When an explicitly selected Bookie lesson is relevant to an existing role, skill_improvement can record its exact authorized evidence reference, applicability, exclusions and reconsideration condition. It creates only a proposal: continue normal authoring, calibration, comparison and explicit adoption. No background memory scan, automatic rule installation or training follows. If Bookie is absent, ordinary authoring from the user's supplied idea still works. Recheck exact source and target applicability before reusing a proposal.
 
 When pi-daddy delegation is available and appropriate, use its native governed delegate tool and selected definitions, grants, candidate identity and settlement results. Availability is not permission. Do not implement an alternative launcher or bypass a refusal with a shell child. Creation itself can remain in this Pi session. Principal workflows are optional, not a dependency. JEV advice, LoRA storage, reviewed labels, training and publishing keep their existing separate consent; advice is never approval.`;
+function activateHarnessTools(pi) {
+  const surface = pi;
+  if (!surface.getActiveTools || !surface.setActiveTools) return;
+  const active = new Set(surface.getActiveTools());
+  let changed = false;
+  for (const name of ["skill_author", "skill_improvement", "skill_check_run"]) {
+    if (!active.has(name)) {
+      active.add(name);
+      changed = true;
+    }
+  }
+  if (changed) surface.setActiveTools([...active]);
+}
 async function handleAuthoringCommand(pi, args, ctx) {
   if (!pi.sendUserMessage || !ctx.model) throw new Error("Skill authoring requires a Pi session with a selected model. Select a model in Pi, then retry /skill-harness create <idea>.");
   const match = /^(create|author)(?:\s+([\s\S]*))?$/.exec(args.trim());
   if (!match) throw new Error("usage: /skill-harness create <idea> | author [saved name]");
+  activateHarnessTools(pi);
   const request = match[2]?.trim();
   const message = `${authoringGuide}
 
@@ -14137,6 +14170,12 @@ function index_default(pi) {
   registerAuthoring(pi);
   registerImprovement(pi);
   registerTool(pi, dashboard);
+  const HARNESS_TRIGGER_RE = /\b(skill_author|skill_check_run|skill_improvement|skill-harness)\b/i;
+  pi.on("before_agent_start", (event) => {
+    if (typeof event?.prompt === "string" && HARNESS_TRIGGER_RE.test(event.prompt)) {
+      activateHarnessTools(pi);
+    }
+  });
   pi.on("session_shutdown", async () => {
     removeVersionReporter?.();
     closeReview();

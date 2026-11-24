@@ -333,7 +333,10 @@ export const piAdapter: HarnessAdapter = {
     const result = await runPiJson({ args, cwd: req.cwd, timeoutMs: PI_TIMEOUT_MS, piVersion: version,
       subject: req.model, scenarioId: "(judge)", mode: "red", rep: 0, turn: 0, homeDir: homedir() });
     const complete = result.code === 0 && result.isComplete && result.trace.final_status === "complete";
-    return { raw: complete ? result.trace.final_text : `[judge error: Pi final delivery ${result.trace.final_status}; exit ${result.code}] ${result.stderr.trim()}`,
+    const errDetail = result.providerFailure
+      ? `[judge error: provider failure — ${result.providerFailure}]`
+      : `[judge error: Pi final delivery ${result.trace.final_status}; exit ${result.code}] ${result.stderr.trim()}`;
+    return { raw: complete ? result.trace.final_text : errDetail,
       observation: result.trace.call ? { ...result.trace.call, status: complete ? "complete" as const : "error" as const } : undefined };
   },
 
