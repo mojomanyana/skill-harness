@@ -1,0 +1,38 @@
+name: Publish to npm (OIDC Trusted Publisher)
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.20.2"
+          registry-url: "https://registry.npmjs.org"
+      - run: npm ci
+      - run: npm run build
+      - run: npm run build:ext
+      - run: npm test
+      - name: Pack canonical release tarballs
+        run: |
+          mkdir -p /tmp/release-tarballs
+          node scripts/release-pack.mjs --output /tmp/release-tarballs
+      - name: Publish packages in dependency order
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          for tgz in \
+            "skill-harness-core-${VER}.tgz" \
+            "skill-harness-adapters-${VER}.tgz" \
+            "skill-harness-cli-${VER}.tgz" \
+            "skill-harness-${VER}.tgz"; do
+            npm publish "/tmp/release-tarballs/${tgz}" --provenance --access public
+          done
