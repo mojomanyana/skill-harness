@@ -4,7 +4,7 @@ import { basename, dirname, join } from "node:path";
 import { registerCommand, closeReview, type ExtensionAPI } from "./commands.js";
 import { registerTool } from "./tool.js";
 import { createHarnessDashboard } from "./dashboard.js";
-import { registerAuthoring } from "./authoring.js";
+import { activateHarnessTools, registerAuthoring } from "./authoring.js";
 import { registerImprovement } from "./improvement.js";
 
 export default function (pi: ExtensionAPI): void {
@@ -27,6 +27,13 @@ export default function (pi: ExtensionAPI): void {
   registerAuthoring(pi);
   registerImprovement(pi);
   registerTool(pi, dashboard);
+  // Contextual deferred tool activation when prompt explicitly asks for skill-harness tools.
+  const HARNESS_TRIGGER_RE = /\b(skill_author|skill_check_run|skill_improvement|skill-harness)\b/i;
+  (pi as unknown as { on(ev: string, fn: (e: { prompt?: string }) => void): void }).on("before_agent_start", (event) => {
+    if (typeof event?.prompt === "string" && HARNESS_TRIGGER_RE.test(event.prompt)) {
+      activateHarnessTools(pi);
+    }
+  });
   pi.on("session_shutdown", async () => {
     removeVersionReporter?.();
     closeReview();

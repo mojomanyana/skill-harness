@@ -39,6 +39,24 @@
       "output": 0.5,
       "source": "https://fireworks.ai/models/fireworks/glm-5p3-flash"
     },
+    "gemini-3.5-flash-lite": {
+      "input": 0.1,
+      "cachedInput": 0.025,
+      "output": 0.4,
+      "source": "https://ai.google.dev/gemini-api/docs/pricing"
+    },
+    "gemini-3.5-flash": {
+      "input": 0.3,
+      "cachedInput": 0.075,
+      "output": 2.5,
+      "source": "https://ai.google.dev/gemini-api/docs/pricing"
+    },
+    "gemini-3.8-flash": {
+      "input": 0.3,
+      "cachedInput": 0.075,
+      "output": 2.5,
+      "source": "https://ai.google.dev/gemini-api/docs/pricing"
+    },
     "accounts/fireworks/models/kimi-k3": {
       "input": 3.0,
       "cachedInput": 0.3,

@@ -48,10 +48,22 @@ When an explicitly selected Bookie lesson is relevant to an existing role, skill
 
 When pi-daddy delegation is available and appropriate, use its native governed delegate tool and selected definitions, grants, candidate identity and settlement results. Availability is not permission. Do not implement an alternative launcher or bypass a refusal with a shell child. Creation itself can remain in this Pi session. Principal workflows are optional, not a dependency. JEV advice, LoRA storage, reviewed labels, training and publishing keep their existing separate consent; advice is never approval.`;
 
+export function activateHarnessTools(pi: ExtensionAPI): void {
+  const surface = pi as ExtensionAPI & { setActiveTools?: (names: string[]) => void };
+  if (!surface.getActiveTools || !surface.setActiveTools) return;
+  const active = new Set(surface.getActiveTools());
+  let changed = false;
+  for (const name of ["skill_author", "skill_improvement", "skill_check_run"]) {
+    if (!active.has(name)) { active.add(name); changed = true; }
+  }
+  if (changed) surface.setActiveTools([...active]);
+}
+
 export async function handleAuthoringCommand(pi: ExtensionAPI, args: string, ctx: CmdCtx): Promise<void> {
   if (!pi.sendUserMessage || !ctx.model) throw new Error("Skill authoring requires a Pi session with a selected model. Select a model in Pi, then retry /skill-harness create <idea>.");
   const match = /^(create|author)(?:\s+([\s\S]*))?$/.exec(args.trim());
   if (!match) throw new Error("usage: /skill-harness create <idea> | author [saved name]");
+  activateHarnessTools(pi);
   const request = match[2]?.trim();
   const message = `${authoringGuide}\n\nCurrent Pi model: ${ctx.model.provider}/${ctx.model.id}.
 Available tools (metadata, not a grant): ${JSON.stringify(pi.getActiveTools?.() ?? [])}.
