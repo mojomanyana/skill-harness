@@ -1,6 +1,38 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { open, opendir } from "node:fs/promises";
+import { delimiter, dirname, join, resolve } from "node:path";
+
+/**
+ * On Windows, npm global CLIs (like `pi`) are installed as `.cmd` shims that `spawn(..., { shell: false })`
+ * cannot execute directly. Resolving an npm `.cmd` shim to its underlying Node entrypoint lets us run
+ * `process.execPath` directly with `shell: false` — preserving exact multi-line prompt arguments safely.
+ */
+function resolveSpawnTarget(command: string, args: string[], env: NodeJS.ProcessEnv): { cmd: string; argv: string[]; shell?: boolean } {
+  if (process.platform !== "win32" || /[\\/]/.test(command) || /\.[a-z0-9]+$/i.test(command)) {
+    return { cmd: command, argv: args };
+  }
+  const pathVar = env.PATH ?? env.Path ?? process.env.PATH ?? "";
+  for (const dir of pathVar.split(delimiter)) {
+    if (!dir) continue;
+    const exe = join(dir, `${command}.exe`);
+    if (existsSync(exe)) return { cmd: exe, argv: args };
+    const cmdShim = join(dir, `${command}.cmd`);
+    if (existsSync(cmdShim)) {
+      try {
+        const text = readFileSync(cmdShim, "utf8");
+        const match = /"%dp0%\\([^"]+\.(?:m|c)?js)"/i.exec(text) ?? /"%~dp0\\([^"]+\.(?:m|c)?js)"/i.exec(text);
+        if (match?.[1]) {
+          const script = resolve(dirname(cmdShim), match[1].replace(/\\/g, "/"));
+          if (existsSync(script)) return { cmd: process.execPath, argv: [script, ...args] };
+        }
+      } catch { /* fall back to cmd shim */ }
+      return { cmd: cmdShim, argv: args, shell: true };
+    }
+  }
+  return { cmd: command, argv: args };
+}
 
 export interface ProcessObservation {
   schema: 1;
@@ -191,8 +223,10 @@ export function runProcess(command: string, args: string[], options: ProcessOpti
     const gap = (value: string) => { if (!record.gaps.includes(value)) record.gaps.push(value); };
     let child: ChildProcess;
     try {
-      child = spawn(command, args, { cwd: options.cwd, env: options.env ?? process.env,
-        stdio: ["ignore", "pipe", "pipe"], detached: linux });
+      const targetEnv = options.env ?? process.env;
+      const target = resolveSpawnTarget(command, args, targetEnv);
+      child = spawn(target.cmd, target.argv, { cwd: options.cwd, env: targetEnv,
+        stdio: ["ignore", "pipe", "pipe"], detached: linux, ...(target.shell ? { shell: true } : {}) });
     } catch (error) { reject(error); return; }
     record.pid = child.pid ?? null;
     let done = false, closed = false, terminating = false, rootExited = false;
