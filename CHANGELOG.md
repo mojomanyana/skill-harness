@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.2 - 2026-11-25
+
+- Read saved results from supported newer Pi subject versions and retain exact judge qualification.
+- Display the installed host qualification policy in CLI help.
+- Build synchronized Pi bundles from canonical compiled workspace paths.
+
 ## 1.0.1 — 2026-11-25
 
 - Updated `README.md`, `AGENTS.md`, `packages/cli/README.md`, and `packages/skill-harness/README.md` to document `skill-harness harvest` and `~/.pi/agent/ecosystem.json`, removing stale JEV / `decision-shadow` sections.
