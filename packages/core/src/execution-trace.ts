@@ -26,8 +26,7 @@ import type { ModelRef, RunMode } from "./adapters/types.js";
 
 /**
  * Preferred historical pin. Fresh execution accepts the explicit fixture-qualified
- * releases below exactly, and a later patch of the newest listed release in a minor
- * as a flagged patch (see `piQualification`). A new minor needs its own entry.
+ * releases below exactly. See `piQualification` for compatible subject versions.
  */
 export const QUALIFIED_PI_VERSION = "1.0.4";
 export const QUALIFIED_PI_VERSIONS = ["1.0.4", "1.1.0", "1.4.0", "1.5.0", "1.5.2", "1.6.0"] as const;
@@ -42,9 +41,8 @@ function releaseParts(version: unknown): [number, number, number] | null {
 }
 
 /**
- * A listed version is exact. An unlisted release passes, flagged, only when its
- * patch is above the highest listed patch of the same major.minor: a lower patch
- * predates a qualified fix, and a new minor or major needs its own entry.
+ * Subjects may also run on a higher patch in a qualified minor, or on a newer
+ * 1.x minor unless strict mode is enabled. Both record their exact baseline.
  */
 export function piQualification(version: string | null): { status: "exact" } | PiPatchQualification | { status: "unqualified"; reason: string } {
   if (QUALIFIED_PI_VERSIONS.some(qualified => version === qualified)) return { status: "exact" };
@@ -59,7 +57,7 @@ export function piQualification(version: string | null): { status: "exact" } | P
   if (ran && ran[0] === 1 && ran[1] > maxMinor && process.env.SKILL_HARNESS_STRICT_PI !== "1") {
     return { status: "patch", qualified_version: QUALIFIED_PI_VERSIONS[QUALIFIED_PI_VERSIONS.length - 1] };
   }
-  return { status: "unqualified", reason: `Pi ${version ?? "(version unavailable)"} is unqualified; execution requires qualified Pi ${QUALIFIED_PI_VERSIONS.join(" or ")}, or a later patch of the newest listed release in its minor` };
+  return { status: "unqualified", reason: `Pi ${version ?? "(version unavailable)"} is unqualified; execution requires qualified Pi ${QUALIFIED_PI_VERSIONS.join(" or ")}, or a later patch of the newest listed release in its minor. Subjects also accept newer 1.x minors unless SKILL_HARNESS_STRICT_PI=1` };
 }
 
 export function piQualificationFailure(version: string | null): string | null {
@@ -76,8 +74,10 @@ export function validPiPatchFlag(version: unknown, flag: unknown): flag is PiPat
   if (flag === null || typeof flag !== "object" || Array.isArray(flag)) return false;
   const { status, qualified_version, ...rest } = flag as Record<string, unknown>;
   const ran = releaseParts(version), base = releaseParts(qualified_version);
-  return status === "patch" && Object.keys(rest).length === 0 && ran !== null && base !== null
-    && ran[0] === base[0] && ran[1] === base[1] && ran[2] > base[2];
+  if (status !== "patch" || Object.keys(rest).length || !ran || !base || ran[0] !== base[0]) return false;
+  if (ran[1] === base[1]) return ran[2] > base[2];
+  // Pi 1.6 was the first baseline that could produce records for a newer minor.
+  return base[0] === 1 && base[1] >= 6 && ran[1] > base[1];
 }
 
 /** Events that carry no information a trace keeps, and are large. */

@@ -110,9 +110,8 @@ export interface TraceMetrics {
 }
 
 /**
- * A Pi version that is not itself listed as qualified but was accepted as a later
- * patch of a qualified minor. `qualified_version` is the listed release it rides on.
- * Records carry it only for such patches; absent means the exact list applied.
+ * The subject ran on a compatible version. `qualified_version` records the exact
+ * baseline for its later patch or forward-compatible 1.x minor.
  */
 export interface PiPatchQualification {
   status: "patch";
@@ -123,7 +122,7 @@ export interface ExecutionTraceV1 {
   trace_version: typeof EXECUTION_TRACE_VERSION;
   /** `pi --version` at capture time. Null when it could not be determined. */
   pi_version: string | null;
-  /** Present only when `pi_version` was accepted as a patch of a qualified minor. */
+  /** Present only when `pi_version` was accepted against an earlier qualified release. */
   pi_qualification?: PiPatchQualification;
   /** The model under test. */
   subject: ModelRef;
