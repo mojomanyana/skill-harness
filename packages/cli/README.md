@@ -56,15 +56,11 @@ for the complete workflow and its evidence limits.
 | `skill-harness add-test <skill> --skills <root> --id ID --title T ...` | scaffold a new scenario |
 | `skill-harness init <skill> --skills <root>` | write an offline spec template |
 | `skill-harness suggest <skill> --skills <root>` | draft a spec through Pi |
+| `skill-harness harvest <session.jsonl> --out <dir>` | turn a real Pi session into a redacted regression spec |
 | `skill-harness coverage <skill\|all> --skills <root>` | report declared instruction coverage |
 
 ## More
 
 - Repo + full docs: https://github.com/mojomanyana/skill-harness
 - Step-by-step usage: [`docs/USAGE.md`](https://github.com/mojomanyana/skill-harness/blob/main/docs/USAGE.md)
-
-## Optional decision evaluation and learning data
-
-`skill-harness decision --help` exposes the npm-installed offline fixture, comparison, selected-session import and reviewed LoRA export workflow. `/skill-harness jev enable` asks for a fresh per-session storage choice every time; declining still permits explicitly confirmed JEV calls. Storage retains selected unlabeled inputs only and never authorizes training.
-
-The exact Pi1.0.4 OAuth subscription comparison is separate from optional metered JEV. Reports preserve grouped splits, independent labels, abstention/error coverage and model/prompt identities. Synthetic fixtures qualify plumbing only. OpenAI Decisions remains excluded. See [the npm acceptance walkthrough](https://github.com/mojomanyana/skill-harness/blob/main/docs/DECISION-LEARNING.md) and the [data contracts](https://github.com/mojomanyana/skill-harness/blob/main/experiments/decision-shadow/LEARNING-WORKFLOW.md).
+- Default judge resolution reads `models.fast` from `~/.pi/agent/ecosystem.json` when `--judge` is not specified.

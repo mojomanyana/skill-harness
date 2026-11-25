@@ -42,8 +42,14 @@ export function harvestSessionToSpec(options: HarvestOptions): HarvestResult {
     try { row = JSON.parse(line); } catch { continue; }
     const msg = row.message ?? (row.type === "message" ? row.message : undefined);
     if (!firstUserPrompt && msg?.role === "user") {
-      const blocks = Array.isArray(msg.content) ? msg.content : [];
-      const text = blocks.filter((b: any) => b?.type === "text" && typeof b.text === "string").map((b: any) => b.text).join("\n").trim();
+      const text =
+        typeof msg.content === "string"
+          ? msg.content.trim()
+          : (Array.isArray(msg.content) ? msg.content : [])
+              .filter((b: any) => b?.type === "text" && typeof b.text === "string")
+              .map((b: any) => b.text)
+              .join("\n")
+              .trim();
       if (text && !text.startsWith("/")) firstUserPrompt = text;
     }
     if (msg?.role === "assistant" && Array.isArray(msg.content)) {

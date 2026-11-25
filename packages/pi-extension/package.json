@@ -1,6 +1,6 @@
 {
   "name": "@skill-harness/pi-extension",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "private": true,
   "peerDependencies": {
@@ -16,9 +16,9 @@
     }
   },
   "devDependencies": {
-    "@skill-harness/core": "1.0.0",
-    "@skill-harness/adapters": "1.0.0",
-    "@skill-harness/cli": "1.0.0",
+    "@skill-harness/core": "1.0.1",
+    "@skill-harness/adapters": "1.0.1",
+    "@skill-harness/cli": "1.0.1",
     "typebox": "^1.1.38"
   }
 }
