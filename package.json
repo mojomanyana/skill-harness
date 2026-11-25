@@ -1,6 +1,6 @@
 {
   "name": "skill-harness-monorepo",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Portable test/optimize framework for agent skills: spec'd scenarios, LLM judge, review UI. Monorepo: core, adapters, cli.",
   "license": "MIT",
   "type": "module",
@@ -9,7 +9,7 @@
     "pi-package"
   ],
   "bin": {
-    "skill-harness": "./bin/skill-harness.js"
+    "skill-harness": "1.0.2"
   },
   "workspaces": [
     "packages/*"
