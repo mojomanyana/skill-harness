@@ -46,7 +46,7 @@ Treat a manual validation as one meaningful case, not every form, click or contr
 
 When an explicitly selected Bookie lesson is relevant to an existing role, skill_improvement can record its exact authorized evidence reference, applicability, exclusions and reconsideration condition. It creates only a proposal: continue normal authoring, calibration, comparison and explicit adoption. No background memory scan, automatic rule installation or training follows. If Bookie is absent, ordinary authoring from the user's supplied idea still works. Recheck exact source and target applicability before reusing a proposal.
 
-When pi-daddy delegation is available and appropriate, use its native governed delegate tool and selected definitions, grants, candidate identity and settlement results. Availability is not permission. Do not implement an alternative launcher or bypass a refusal with a shell child. Creation itself can remain in this Pi session. Principal workflows are optional, not a dependency. JEV advice, LoRA storage, reviewed labels, training and publishing keep their existing separate consent; advice is never approval.`;
+When pi-daddy delegation is available and appropriate, use its native governed delegate tool and selected definitions, grants, candidate identity and settlement results. Availability is not permission. Do not implement an alternative launcher or bypass a refusal with a shell child. Creation itself can remain in this Pi session. Principal workflows are optional, not a dependency.`;
 
 export function activateHarnessTools(pi: ExtensionAPI): void {
   const surface = pi as ExtensionAPI & { setActiveTools?: (names: string[]) => void };
