@@ -787,13 +787,13 @@ Adding another harness is the one extension point: implement `HarnessAdapter`
 (`packages/core/src/adapters/types.ts`) and register it in
 `packages/adapters/src/index.ts`.
 
-## Optional decision evaluation and learning data
+## Session harvesting & ecosystem defaults (v1.0)
 
-`skill-harness decision --help` exposes the npm-installed offline fixture, comparison, selected-session import and reviewed LoRA export workflow. `/skill-harness jev enable` asks for a fresh per-session storage choice every time; declining still permits explicitly confirmed JEV calls. Storage retains selected unlabeled inputs only and never authorizes training.
+`skill-harness harvest <session.jsonl> --out <dir> [--id <scenario-id>]` converts a real Pi session JSONL (such as a failed or rescued coding turn) into a secret-redacted `specification.yaml` regression scenario ready for `skill-harness run`.
 
-`/skill-harness jev enable workflow` additionally offers optional handoff advice through `jev_advice` after explicit session-scoped paid-call permission and a fresh storage choice. It asks whether a proposed next action is justified for the selected stage and engineering uncertainty, using a shared session budget of 300 metered calls by default. Use `/skill-harness jev limit [N]` to change it. Tests and independent review retain authority. Workflow retention binds actual Pi session/tool IDs and exact selected input bytes and native classifier-context digests. Optional local references are hash-verified; free later outcome linking preserves selected engineering evidence without inferring independent labels or export/training eligibility. JEV activation offers a Pi-native provider/model picker, reuses that provider's configured authentication and shows the private shared collection root. The offline `decision import-workflow` command connects explicitly reviewed selections to the existing learning-data workflow while preserving source provenance, current consent and separate independent labels. See the walkthrough for the distinction from verified public captures.
-
-The exact Pi1.0.4 OAuth subscription comparison is separate from optional metered JEV. Reports preserve grouped splits, independent labels, abstention/error coverage and model/prompt identities. Synthetic fixtures qualify plumbing only. OpenAI Decisions remains excluded. See [the npm acceptance walkthrough](https://github.com/mojomanyana/skill-harness/blob/main/docs/DECISION-LEARNING.md) and the [data contracts](https://github.com/mojomanyana/skill-harness/blob/main/experiments/decision-shadow/LEARNING-WORKFLOW.md).
+- **Default fast judge via `~/.pi/agent/ecosystem.json`:** `defaultJudge()` automatically resolves `models.fast` from `~/.pi/agent/ecosystem.json` when no explicit `--judge` is supplied.
+- **Parallel-by-default & cross-OS:** CLI defaults to `--parallel 4`, resolves Windows `pi.cmd` shims natively, qualifies Pi `1.6.0` with `provider/model`, and uses contextual deferred tool activation inside Pi (zero extra Turn-1 tools).
+- **No JEV:** The experimental JEV / `decision-shadow` stack was permanently removed in `0.38` / `1.0`.
 
 ## Selected lessons and improvement proposals
 

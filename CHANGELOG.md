@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.1 — 2026-11-25
+
+- Updated `README.md`, `AGENTS.md`, `packages/cli/README.md`, and `packages/skill-harness/README.md` to document `skill-harness harvest` and `~/.pi/agent/ecosystem.json`, removing stale JEV / `decision-shadow` sections.
+- Support both string and block-array `message.content` formats in `skill-harness harvest`.
+
+## 1.0.0 — 2026-11-24
+
+- Added `skill-harness harvest <session.jsonl> --out <dir>` CLI command (`harvestSessionToSpec`) with secret redaction.
+- Resolved default fast judge from `~/.pi/agent/ecosystem.json` (`models.fast`) when `--judge` is omitted.
+
+## 0.38.2 — 2026-11-24
+
+- Permanently removed JEV and `experiments/decision-shadow/`, added contextual deferred Pi extension tool activation, qualified Pi `1.6.0` with `provider/model`, defaulted CLI `--parallel 4`, added Windows `pi.cmd` shim resolver, sanitized judge provider-failure diagnostics, added Gemini 3.5/3.8 Flash pricing, and added OIDC `publish.yml`.
+
 ## 0.37.0 — 2026-11-20
 
 - Evaluations can share the selected task’s dispatch allowance and record attributable outcomes in project history. Reopening a saved scorecard consumes no extra evaluation slot.
