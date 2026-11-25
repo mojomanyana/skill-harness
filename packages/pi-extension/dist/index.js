@@ -7,7 +7,7 @@ import { basename as basename10, dirname as dirname17, join as join38 } from "no
 import { existsSync as existsSync27 } from "node:fs";
 import { dirname as dirname16, join as join37, resolve as resolve25, relative as relative11 } from "node:path";
 
-// node_modules/@skill-harness/core/dist/spec.js
+// packages/core/dist/spec.js
 import { readFileSync } from "node:fs";
 
 // node_modules/js-yaml/dist/js-yaml.mjs
@@ -3076,7 +3076,7 @@ var {
   safeDump
 } = yaml;
 
-// node_modules/@skill-harness/core/dist/trace-gates.js
+// packages/core/dist/trace-gates.js
 var PREDICATE_KEYS = ["equals", "contains", "starts_with", "ends_with", "matches", "exists", "any"];
 function normalizeSubagentCall(args) {
   const one = (v) => {
@@ -3489,7 +3489,7 @@ function parsePredicate(raw, ctx) {
   return out;
 }
 
-// node_modules/@skill-harness/core/dist/spec.js
+// packages/core/dist/spec.js
 var SpecError = class extends Error {
   constructor(message, file) {
     super(`${file}: ${message}`);
@@ -3807,11 +3807,11 @@ function loadSpec(file) {
   return parseSpec(text2, file);
 }
 
-// node_modules/@skill-harness/core/dist/harvest.js
+// packages/core/dist/harvest.js
 import { existsSync, mkdirSync, readFileSync as readFileSync2, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 
-// node_modules/@skill-harness/core/dist/redaction.js
+// packages/core/dist/redaction.js
 var MAX_VALUE_CHARS = 2e3;
 var REDACTED = "[redacted]";
 var SECRET_KEY = /^(.*[-_])?(password|passwd|secret|token|api[-_]?key|apikey|auth|authorization|credential|private[-_]?key|access[-_]?key|session[-_]?key)([-_].*)?$/i;
@@ -3866,11 +3866,11 @@ function redactValue(value, homeDir, depth) {
   return String(value);
 }
 
-// node_modules/@skill-harness/core/dist/discover.js
+// packages/core/dist/discover.js
 import { existsSync as existsSync2, readdirSync, statSync } from "node:fs";
 import { join as join2, resolve as resolve2 } from "node:path";
 
-// node_modules/@skill-harness/core/dist/adapters/types.js
+// packages/core/dist/adapters/types.js
 var THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 function withThinking(model, value) {
   if (value === void 0)
@@ -3912,12 +3912,12 @@ function modelSlug(ref) {
   return `${ref.provider}-${ref.model}${ref.thinking ? `--thinking-${ref.thinking}` : ""}`.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
-// node_modules/@skill-harness/core/dist/results.js
+// packages/core/dist/results.js
 import { mkdirSync as mkdirSync2, readFileSync as readFileSync3, writeFileSync as writeFileSync2, existsSync as existsSync3, readdirSync as readdirSync2, appendFileSync } from "node:fs";
 import { join as join3, relative, sep } from "node:path";
 import { createHash as createHash2 } from "node:crypto";
 
-// node_modules/@skill-harness/core/dist/score.js
+// packages/core/dist/score.js
 function letterFor(pct) {
   if (pct >= 90)
     return "A";
@@ -3987,18 +3987,18 @@ function score(verdicts, input) {
   return { passed, total, pct, letter, ship, criticalFails, bSeriesFails, suspectCount, errorCount, notMeasuredCount, ungradedCount, note };
 }
 
-// node_modules/@skill-harness/core/dist/version.js
+// packages/core/dist/version.js
 import { createRequire } from "node:module";
 var require2 = createRequire(import.meta.url);
 var HARNESS_VERSION = require2("../package.json").version;
 
-// node_modules/@skill-harness/core/dist/execution-trace.js
+// packages/core/dist/execution-trace.js
 import { createHash } from "node:crypto";
 
-// node_modules/@skill-harness/core/dist/capture-trace-types.js
+// packages/core/dist/capture-trace-types.js
 var EXECUTION_TRACE_VERSION = 2;
 
-// node_modules/@skill-harness/core/dist/execution-trace.js
+// packages/core/dist/execution-trace.js
 var QUALIFIED_PI_VERSIONS = ["1.0.4", "1.1.0", "1.4.0", "1.5.0", "1.5.2", "1.6.0"];
 var LEGACY_PI_TRACE_VERSION = "0.83.0";
 function releaseParts(version) {
@@ -4415,7 +4415,7 @@ function validCost(value) {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
-// node_modules/@skill-harness/core/dist/vote-panel.js
+// packages/core/dist/vote-panel.js
 function isCleanPanelVote(vote) {
   return !vote.suspect && (vote.verdict === "PASS" || vote.verdict === "FAIL");
 }
@@ -4444,7 +4444,7 @@ function collapseVotePanel(votes) {
   return { ...base, state: "unresolved" };
 }
 
-// node_modules/@skill-harness/core/dist/reps.js
+// packages/core/dist/reps.js
 function normalizeRepOutcome(outcome) {
   if (outcome.verdict === "ERROR")
     return outcome;
@@ -4587,7 +4587,7 @@ function aggregateMetrics(outcomes) {
   };
 }
 
-// node_modules/@skill-harness/core/dist/results.js
+// packages/core/dist/results.js
 function mergeScenarioMetrics(prior, fresh) {
   if (!prior)
     return fresh;
@@ -5133,7 +5133,7 @@ function preserveTranscript(resultsRoot, runDir, scenarioId) {
   }
 }
 
-// node_modules/@skill-harness/core/dist/run-summary.js
+// packages/core/dist/run-summary.js
 function requestedSubject(results) {
   return results.subject_profile ?? (results.model.includes(":") ? parseModelRef(results.model) : { provider: "unknown", model: results.model });
 }
@@ -5236,16 +5236,16 @@ function runSummaryLines(results) {
   ];
 }
 
-// node_modules/@skill-harness/core/dist/run.js
+// packages/core/dist/run.js
 import { mkdirSync as mkdirSync6, writeFileSync as writeFileSync5, readFileSync as readFileSync14 } from "node:fs";
 import { dirname as dirname2, join as join18, resolve as resolve11 } from "node:path";
 
-// node_modules/@skill-harness/core/dist/sources.js
+// packages/core/dist/sources.js
 import { createHash as createHash5 } from "node:crypto";
 import { readFileSync as readFileSync5 } from "node:fs";
 import { isAbsolute as isAbsolute2, resolve as resolve4 } from "node:path";
 
-// node_modules/@skill-harness/core/dist/judge-references.js
+// packages/core/dist/judge-references.js
 import { createHash as createHash3 } from "node:crypto";
 import { readFileSync as readFileSync4, realpathSync, statSync as statSync2 } from "node:fs";
 import { isAbsolute, relative as relative2, resolve as resolve3 } from "node:path";
@@ -5279,7 +5279,7 @@ function resolveJudgeReferences(scenario, specDir) {
   });
 }
 
-// node_modules/@skill-harness/core/dist/prompt-normalization.js
+// packages/core/dist/prompt-normalization.js
 import { createHash as createHash4 } from "node:crypto";
 var PROMPT_NORMALIZATION_RULE = "cwd-line-v1";
 var PROMPT_NORMALIZATION_PATTERN = "^(Current working directory:)[^\\r\\n]*(\\r?)$";
@@ -5294,7 +5294,7 @@ var PROMPT_NORMALIZATION_SOURCE_DIGEST = createHash4("sha256").update(JSON.strin
   PROMPT_NORMALIZATION_REPLACEMENT
 ])).digest("hex");
 
-// node_modules/@skill-harness/core/dist/util/fixture-inventory.js
+// packages/core/dist/util/fixture-inventory.js
 import { closeSync, constants, fstatSync, lstatSync, openSync, opendirSync, readSync } from "node:fs";
 import { join as join4 } from "node:path";
 var FIXTURE_LIMITS = Object.freeze({ entries: 4096, depth: 32, fileBytes: 64 * 1024 * 1024, totalBytes: 256 * 1024 * 1024 });
@@ -5362,7 +5362,7 @@ function hashFixtureFile(hash4, file) {
   }
 }
 
-// node_modules/@skill-harness/core/dist/sources.js
+// packages/core/dist/sources.js
 var SCENARIO_PREFIX = "scenario:";
 var FIXTURE_PREFIX = "fixture:";
 var STIMULUS_PREFIX = "stimulus:";
@@ -5626,7 +5626,7 @@ function scenarioSourceKeys(s) {
   return keys;
 }
 
-// node_modules/@skill-harness/core/dist/workspace.js
+// packages/core/dist/workspace.js
 import { appendFileSync as appendFileSync2, cpSync, existsSync as existsSync4, mkdtempSync, readFileSync as readFileSync6, readdirSync as readdirSync3, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { createHash as createHash6 } from "node:crypto";
@@ -5741,19 +5741,19 @@ function diffSnapshots(before, after) {
   return [...changed].sort();
 }
 
-// node_modules/@skill-harness/core/dist/judge-evidence.js
+// packages/core/dist/judge-evidence.js
 import { existsSync as existsSync7, readFileSync as readFileSync8 } from "node:fs";
 
-// node_modules/@skill-harness/core/dist/seeded.js
+// packages/core/dist/seeded.js
 import { createHash as createHash7 } from "node:crypto";
 import { copyFileSync, statSync as statSync3 } from "node:fs";
 import { extname, isAbsolute as isAbsolute4, join as join8, resolve as resolve7 } from "node:path";
 
-// node_modules/@skill-harness/core/dist/util/exec.js
+// packages/core/dist/util/exec.js
 import { existsSync as existsSync6 } from "node:fs";
 import { join as join7, delimiter as delimiter2 } from "node:path";
 
-// node_modules/@skill-harness/core/dist/util/process.js
+// packages/core/dist/util/process.js
 import { AsyncLocalStorage } from "node:async_hooks";
 import { spawn } from "node:child_process";
 import { existsSync as existsSync5, readFileSync as readFileSync7 } from "node:fs";
@@ -6221,7 +6221,7 @@ function runProcess(command, args, options = {}) {
   });
 }
 
-// node_modules/@skill-harness/core/dist/util/exec.js
+// packages/core/dist/util/exec.js
 async function exec(cmd, args, opts = {}) {
   const stdout = new BoundedCapture(opts.maxStdoutBytes ?? 8 * 1024 * 1024);
   const stderr = new BoundedCapture(opts.maxStderrBytes ?? 128 * 1024);
@@ -6245,7 +6245,7 @@ function onPath(bin) {
   return dirs.some((d) => d && exts.some((ext) => existsSync6(join7(d, bin + ext))));
 }
 
-// node_modules/@skill-harness/core/dist/util/env.js
+// packages/core/dist/util/env.js
 var NEW_PREFIX = "SKILL_HARNESS_";
 var LEGACY_PREFIX = "SKILL_CHECK_";
 var warned = /* @__PURE__ */ new Set();
@@ -6282,7 +6282,7 @@ function envFlag(suffix) {
   return readEnv(suffix) !== void 0;
 }
 
-// node_modules/@skill-harness/core/dist/seeded.js
+// packages/core/dist/seeded.js
 var POST_TEST_BASE = "skill-harness.post";
 var VITEST_TIMEOUT_MS = envNum("VITEST_TIMEOUT_MS", 12e4);
 function changedLines(diff) {
@@ -6569,7 +6569,7 @@ function vitestTally(out) {
   return { passed: read("passed"), failed: read("failed"), skipped: read("skipped"), todo: read("todo") };
 }
 
-// node_modules/@skill-harness/core/dist/judge-evidence.js
+// packages/core/dist/judge-evidence.js
 var HASH = /^[a-f0-9]{64}$/;
 var MAX_CALLS = 32;
 var object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -6671,7 +6671,7 @@ function loadExecutionFacts(path, identity, expectedSha256) {
   }
 }
 
-// node_modules/@skill-harness/core/dist/grade.js
+// packages/core/dist/grade.js
 var STAGED_DIFF_HEADING = "=== STAGED DIFF ===";
 var SEEDED_DIFF_GUIDANCE = `
 This transcript ends with a "=== STAGED DIFF ===" section: the actual code the assistant wrote, as \`git diff --cached\`. It is the primary evidence. Grade what the diff shows the code DOES, not what the assistant's prose claims it does \u2014 a confident description of behavior the diff does not implement is a FAIL, and behavior the diff plainly implements passes even if the assistant described it poorly or not at all. The "=== SEEDED GATES ===" lines above it are keyword and test-run checks only; they do not establish that the required behavior exists. If the diff is marked truncated, judge only what you can see and never infer that cut-off code is missing.
@@ -6869,7 +6869,7 @@ async function judgeInWorkspace(adapter, judge, prompt, specDir, expectedCriteri
   }
 }
 
-// node_modules/@skill-harness/core/dist/authoring-preflight.js
+// packages/core/dist/authoring-preflight.js
 import { readdirSync as readdirSync4, readFileSync as readFileSync9, realpathSync as realpathSync2, statSync as statSync4 } from "node:fs";
 import { join as join9, relative as relative3, isAbsolute as isAbsolute5, resolve as resolve8 } from "node:path";
 function inspectEvalAuthoring(spec, profile = {}) {
@@ -6959,7 +6959,7 @@ function fixtureInventory2(root) {
   return [...new Set(files)].sort();
 }
 
-// node_modules/@skill-harness/core/dist/arms.js
+// packages/core/dist/arms.js
 import { copyFileSync as copyFileSync2, existsSync as existsSync8, mkdirSync as mkdirSync3, readdirSync as readdirSync5, readFileSync as readFileSync10, realpathSync as realpathSync3, statSync as statSync5 } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute as isAbsolute6, join as join10, resolve as resolve9, sep as sep2 } from "node:path";
@@ -7038,7 +7038,7 @@ function seedArmDefinitions(arm, skillsRoot, workspaceCwd, opts = {}) {
   return count;
 }
 
-// node_modules/@skill-harness/core/dist/journal.js
+// packages/core/dist/journal.js
 import { appendFileSync as appendFileSync3, existsSync as existsSync9, mkdirSync as mkdirSync4, readFileSync as readFileSync11 } from "node:fs";
 import { join as join11 } from "node:path";
 function journalPath(runDir) {
@@ -7049,7 +7049,7 @@ function appendJournal(runDir, e) {
   appendFileSync3(journalPath(runDir), JSON.stringify(e) + "\n", "utf8");
 }
 
-// node_modules/@skill-harness/core/dist/lift.js
+// packages/core/dist/lift.js
 import { existsSync as existsSync10, readdirSync as readdirSync6, statSync as statSync6 } from "node:fs";
 import { join as join12 } from "node:path";
 function aggregationShape(s) {
@@ -7238,7 +7238,7 @@ function collectLift(skillDir) {
   return lifts;
 }
 
-// node_modules/@skill-harness/core/dist/scheduler.js
+// packages/core/dist/scheduler.js
 async function runPool(tasks, concurrency) {
   const limit = Math.max(1, Math.floor(concurrency));
   const results = new Array(tasks.length);
@@ -7269,12 +7269,12 @@ async function runPool(tasks, concurrency) {
   return results;
 }
 
-// node_modules/@skill-harness/core/dist/regrade.js
+// packages/core/dist/regrade.js
 import { readFileSync as readFileSync12, writeFileSync as writeFileSync4, existsSync as existsSync11 } from "node:fs";
 import { join as join14 } from "node:path";
 import { createHash as createHash8 } from "node:crypto";
 
-// node_modules/@skill-harness/core/dist/provider-failure.js
+// packages/core/dist/provider-failure.js
 var PROVIDER_FAILURE_MARKER = "[skill-harness] provider failure:";
 var EXECUTION_FAILURE_MARKER = "[skill-harness] execution failure:";
 function withExecutionFailure(transcript, failure) {
@@ -7335,7 +7335,7 @@ function failureFromPreamble(transcript, marker) {
   return null;
 }
 
-// node_modules/@skill-harness/core/dist/resource-monitor.js
+// packages/core/dist/resource-monitor.js
 import { mkdirSync as mkdirSync5, writeFileSync as writeFileSync3, renameSync } from "node:fs";
 import { join as join13 } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -7415,7 +7415,7 @@ async function withResourceMonitoring(directory, work, options = {}) {
   }
 }
 
-// node_modules/@skill-harness/core/dist/regrade.js
+// packages/core/dist/regrade.js
 function refreshRubricHashes(recorded, spec, judgedIds, specDir, references, refreshPersona = true) {
   if (!recorded)
     return void 0;
@@ -7747,7 +7747,7 @@ async function regradeRun(opts) {
   });
 }
 
-// node_modules/@skill-harness/core/dist/canary.js
+// packages/core/dist/canary.js
 import { readFileSync as readFileSync13, realpathSync as realpathSync4 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { join as join15, resolve as resolve10 } from "node:path";
@@ -7874,10 +7874,10 @@ function canaryFailure(skillName, result, cliVersion) {
   ${result.detail}`;
 }
 
-// node_modules/@skill-harness/core/dist/stability.js
+// packages/core/dist/stability.js
 import { join as join17 } from "node:path";
 
-// node_modules/@skill-harness/core/dist/trends.js
+// packages/core/dist/trends.js
 import { existsSync as existsSync12, readdirSync as readdirSync7, statSync as statSync7 } from "node:fs";
 import { join as join16 } from "node:path";
 function isDir2(p) {
@@ -7943,7 +7943,7 @@ function collectTrends(skillDir, limit = 20) {
   return { skill: spec.skill, scenarios, models };
 }
 
-// node_modules/@skill-harness/core/dist/stability.js
+// packages/core/dist/stability.js
 var DEFAULT_WINDOW = 5;
 function conclusive2(v) {
   return !v.suspect && v.verdict !== "ERROR" && v.verdict !== "NOT-MEASURED" && v.verdict !== "JUDGE-AMBIGUOUS" && v.verdict !== "UNGRADED";
@@ -8127,7 +8127,7 @@ var REJECTION = {
   unverified: "step(s) whose recorded hashes cannot be compared"
 };
 
-// node_modules/@skill-harness/core/dist/metrics.js
+// packages/core/dist/metrics.js
 function aggregateMetrics2(scenarios) {
   const metrics = scenarios.map((scenario) => scenario.metrics).filter((value) => value !== void 0);
   const sumOptional = (field) => {
@@ -8158,7 +8158,7 @@ function aggregateMetrics2(scenarios) {
   };
 }
 
-// node_modules/@skill-harness/core/dist/run.js
+// packages/core/dist/run.js
 var LEDGER_FILENAME = "pi-daddy.ledger.jsonl";
 function countLedgerEvents(runDir) {
   let text2;
@@ -8620,11 +8620,11 @@ async function runRep(scenario, rep, repCount, ctx) {
   }
 }
 
-// node_modules/@skill-harness/core/dist/rescore.js
+// packages/core/dist/rescore.js
 import { existsSync as existsSync13 } from "node:fs";
 import { join as join19 } from "node:path";
 
-// node_modules/@skill-harness/core/dist/report.js
+// packages/core/dist/report.js
 import { existsSync as existsSync14, readdirSync as readdirSync8, statSync as statSync8 } from "node:fs";
 import { join as join20 } from "node:path";
 function latestRunDir(tagDir) {
@@ -8739,11 +8739,11 @@ function renderReport(template, data, gradeScript) {
   return template.replace("/*__DATA__*/null", json2).replace("/*__GRADE__*/", stripExports(gradeScript)).replace("__SKILL__", data.skill);
 }
 
-// node_modules/@skill-harness/core/dist/lint.js
+// packages/core/dist/lint.js
 import { existsSync as existsSync17, statSync as statSync10, readdirSync as readdirSync10, readFileSync as readFileSync16 } from "node:fs";
 import { basename as basename2, dirname as dirname4, isAbsolute as isAbsolute8, join as join22, resolve as resolve13 } from "node:path";
 
-// node_modules/@skill-harness/core/dist/instruction-coverage.js
+// packages/core/dist/instruction-coverage.js
 import { existsSync as existsSync15, readFileSync as readFileSync15 } from "node:fs";
 import { resolve as resolve12, dirname as dirname3, relative as relative4, isAbsolute as isAbsolute7 } from "node:path";
 var FENCE = /^\s{0,3}(`{3,}|~{3,})/;
@@ -8932,11 +8932,11 @@ function formatCoverage(report, skill) {
   return out.join("\n");
 }
 
-// node_modules/@skill-harness/core/dist/downgrade.js
+// packages/core/dist/downgrade.js
 import { existsSync as existsSync16, readdirSync as readdirSync9, statSync as statSync9 } from "node:fs";
 import { join as join21 } from "node:path";
 
-// node_modules/@skill-harness/core/dist/authoring.js
+// packages/core/dist/authoring.js
 import { createHash as createHash9, randomUUID as randomUUID2 } from "node:crypto";
 import { existsSync as existsSync18, lstatSync as lstatSync2, mkdirSync as mkdirSync7, readFileSync as readFileSync17, renameSync as renameSync2, rmSync as rmSync2, writeFileSync as writeFileSync6 } from "node:fs";
 import { basename as basename3, dirname as dirname5, isAbsolute as isAbsolute9, join as join23, relative as relative5, resolve as resolve14, sep as sep3 } from "node:path";
@@ -9385,17 +9385,17 @@ function applyAuthoring(root, name, options) {
   }
 }
 
-// node_modules/@skill-harness/core/dist/authoring-contract-review.js
+// packages/core/dist/authoring-contract-review.js
 import { createHash as createHash11 } from "node:crypto";
 import { existsSync as existsSync20, lstatSync as lstatSync3, mkdirSync as mkdirSync9, readFileSync as readFileSync20, writeFileSync as writeFileSync8 } from "node:fs";
 import { basename as basename5, dirname as dirname7, join as join26, resolve as resolve16 } from "node:path";
 
-// node_modules/@skill-harness/core/dist/calibration.js
+// packages/core/dist/calibration.js
 import { createHash as createHash10 } from "node:crypto";
 import { mkdirSync as mkdirSync8, readFileSync as readFileSync19, realpathSync as realpathSync5, statSync as statSync11, writeFileSync as writeFileSync7 } from "node:fs";
 import { basename as basename4, dirname as dirname6, isAbsolute as isAbsolute10, join as join25, relative as relative6, resolve as resolve15 } from "node:path";
 
-// node_modules/@skill-harness/core/dist/defaults.js
+// packages/core/dist/defaults.js
 import { existsSync as existsSync19, readFileSync as readFileSync18 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
 import { join as join24 } from "node:path";
@@ -9423,7 +9423,7 @@ function recordedJudgeOrDefault(recorded) {
   return { judge: parseModelRef(defaultJudge()), migratedFrom: recorded };
 }
 
-// node_modules/@skill-harness/core/dist/judge-policy.js
+// packages/core/dist/judge-policy.js
 var FREE_JUDGE_PROVIDERS = /* @__PURE__ */ new Set(["openai-codex", "ollama", "lmstudio", "llamacpp", "local"]);
 function isMeteredJudge(judge) {
   return !FREE_JUDGE_PROVIDERS.has(judge.provider);
@@ -9447,7 +9447,7 @@ function assertJudgeAllowed(judge, opts) {
   \u2022 allow it for this repo or shell:            export SKILL_HARNESS_ALLOW_METERED_JUDGE=1`);
 }
 
-// node_modules/@skill-harness/core/dist/calibration.js
+// packages/core/dist/calibration.js
 var hash2 = (bytes) => createHash10("sha256").update(bytes).digest("hex");
 var HASH2 = /^[a-f0-9]{64}$/;
 var ID = /^[A-Za-z][A-Za-z0-9_-]{0,79}$/;
@@ -9610,7 +9610,7 @@ function loadCalibration(manifestPath) {
   return validateManifest(JSON.parse(bytes.toString("utf8")), manifestPath, hash2(bytes));
 }
 
-// node_modules/@skill-harness/core/dist/authoring-contract-review.js
+// packages/core/dist/authoring-contract-review.js
 var hash3 = (value) => createHash11("sha256").update(value).digest("hex");
 var encode = (value) => JSON.stringify(value, null, 2) + "\n";
 var nonempty = (value) => typeof value === "string" && value.trim().length > 0;
@@ -9968,7 +9968,7 @@ function acceptAuthoringContractReview(options) {
   return { accepted: true, reused, manifestPath: accepted.manifestPath, ready: accepted.ready, issues: accepted.issues, providerCalls: 0 };
 }
 
-// node_modules/@skill-harness/core/dist/improvement.js
+// packages/core/dist/improvement.js
 import { createHash as createHash12 } from "node:crypto";
 import { closeSync as closeSync2, constants as constants2, fstatSync as fstatSync2, lstatSync as lstatSync4, mkdirSync as mkdirSync10, openSync as openSync2, readSync as readSync2, writeFileSync as writeFileSync9 } from "node:fs";
 import { dirname as dirname8, join as join27, resolve as resolve17 } from "node:path";
@@ -10138,37 +10138,37 @@ function inspectImprovementProposal(root, name, id) {
   };
 }
 
-// node_modules/@skill-harness/core/dist/diagnose.js
+// packages/core/dist/diagnose.js
 import { createHash as createHash15 } from "node:crypto";
 import { existsSync as existsSync21, readFileSync as readFileSync23, realpathSync as realpathSync8 } from "node:fs";
 import { dirname as dirname10, isAbsolute as isAbsolute13, relative as relative9, resolve as resolve20 } from "node:path";
 
-// node_modules/@skill-harness/core/dist/saved-run.js
+// packages/core/dist/saved-run.js
 import { createHash as createHash13 } from "node:crypto";
 import { lstatSync as lstatSync5, mkdirSync as mkdirSync11, readFileSync as readFileSync21, readdirSync as readdirSync11, realpathSync as realpathSync6, writeFileSync as writeFileSync10 } from "node:fs";
 import { basename as basename6, dirname as dirname9, isAbsolute as isAbsolute11, join as join28, relative as relative7, resolve as resolve18 } from "node:path";
 
-// node_modules/@skill-harness/core/dist/criterion-dimensions.js
+// packages/core/dist/criterion-dimensions.js
 import { createHash as createHash14 } from "node:crypto";
 import { readFileSync as readFileSync22, realpathSync as realpathSync7, statSync as statSync12 } from "node:fs";
 import { basename as basename7, isAbsolute as isAbsolute12, relative as relative8, resolve as resolve19, sep as sep4 } from "node:path";
 
-// node_modules/@skill-harness/core/dist/restamp.js
+// packages/core/dist/restamp.js
 import { createHash as createHash16 } from "node:crypto";
 import { execFileSync as execFileSync2 } from "node:child_process";
 import { readFileSync as readFileSync24, renameSync as renameSync3, rmSync as rmSync3, writeFileSync as writeFileSync11 } from "node:fs";
 import { dirname as dirname11, join as join29, relative as relative10, resolve as resolve21 } from "node:path";
 
-// node_modules/@skill-harness/core/dist/regate.js
+// packages/core/dist/regate.js
 import { existsSync as existsSync22, readFileSync as readFileSync25, renameSync as renameSync4, writeFileSync as writeFileSync12 } from "node:fs";
 import { basename as basename8, join as join30 } from "node:path";
 
-// node_modules/@skill-harness/core/dist/spec-write.js
+// packages/core/dist/spec-write.js
 import { createHash as createHash17 } from "node:crypto";
 import { readFileSync as readFileSync26, renameSync as renameSync5, unlinkSync, writeFileSync as writeFileSync13 } from "node:fs";
 import { dirname as dirname12, join as join31 } from "node:path";
 
-// node_modules/@skill-harness/core/dist/trajectory-events.js
+// packages/core/dist/trajectory-events.js
 var V11_EVENT_KEYS = /* @__PURE__ */ new Set(["execution_id", "parent_execution_id", "task_from_execution_id", "workflow_fact_id", "deadline_at"]);
 var EVENT_KEYS = /* @__PURE__ */ new Set([
   "event_version",
@@ -10289,12 +10289,12 @@ function taskEvaluationAdapter(adapter) {
   };
 }
 
-// node_modules/@skill-harness/adapters/dist/pi.js
+// packages/adapters/dist/pi.js
 import { existsSync as existsSync23, mkdtempSync as mkdtempSync2, readFileSync as readFileSync27, statSync as statSync13 } from "node:fs";
 import { tmpdir as tmpdir2, homedir as homedir4 } from "node:os";
 import { join as join32, resolve as resolve22 } from "node:path";
 
-// node_modules/@skill-harness/adapters/dist/pi-json.js
+// packages/adapters/dist/pi-json.js
 var SKIPPED_TYPE_RE = /^\s*\{\s*"type"\s*:\s*"(?:message_update|tool_execution_update)"/;
 var MAX_STDERR_CHARS = 8e3;
 async function runPiJson(opts) {
@@ -10384,7 +10384,7 @@ async function runPiJson(opts) {
   return { ...parsed, code: result.code, stderr: stderr.text(), providerFailure, observation: result.observation };
 }
 
-// node_modules/@skill-harness/adapters/prices/model-prices.json
+// packages/adapters/prices/model-prices.json
 var model_prices_default = {
   asOf: "2026-10-01",
   currency: "USD",
@@ -10459,7 +10459,7 @@ var model_prices_default = {
   }
 };
 
-// node_modules/@skill-harness/adapters/dist/model-pricing.js
+// packages/adapters/dist/model-pricing.js
 var prices = model_prices_default.models;
 var MILLION = 1e6;
 var finiteAmount = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0;
@@ -10489,7 +10489,7 @@ function priceSubjectUsage(trace) {
   return { ...priced, trace_sha256: traceSha256(priced) };
 }
 
-// node_modules/@skill-harness/adapters/dist/pi.js
+// packages/adapters/dist/pi.js
 var PI_TIMEOUT_MS = envNum("PI_TIMEOUT_MS", 3e5);
 function subjectVersionFailure(version, expected) {
   return piQualificationFailure(version) ?? (expected !== void 0 && version !== expected ? `Pi ${version ?? "unknown"} differs from the run's recorded Pi ${expected ?? "unknown"}; execution refused before spawn` : null);
@@ -10777,12 +10777,12 @@ ${r.stderr.trim()}
   }
 };
 
-// node_modules/@skill-harness/adapters/dist/trajectory.js
+// packages/adapters/dist/trajectory.js
 import { createHash as createHash19 } from "node:crypto";
 import { readFileSync as readFileSync28, readdirSync as readdirSync12 } from "node:fs";
 import { join as join33 } from "node:path";
 
-// node_modules/@skill-harness/adapters/dist/closed-schema.js
+// packages/adapters/dist/closed-schema.js
 var ANNOTATION_KEYWORDS = /* @__PURE__ */ new Set(["$schema", "$id", "title", "description", "$defs"]);
 var SUPPORTED_KEYWORDS = /* @__PURE__ */ new Set([
   ...ANNOTATION_KEYWORDS,
@@ -10818,10 +10818,10 @@ var V3_SUPPORTED_KEYWORDS = /* @__PURE__ */ new Set([
   "maximum"
 ]);
 
-// node_modules/@skill-harness/adapters/dist/pi-daddy-record-v1.js
+// packages/adapters/dist/pi-daddy-record-v1.js
 import { createHash as createHash18 } from "node:crypto";
 
-// node_modules/@skill-harness/adapters/dist/pi-daddy-ledger-v2.js
+// packages/adapters/dist/pi-daddy-ledger-v2.js
 var PI_DADDY_LEDGER_V2_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/mojomanyana/pi-daddy/contracts/ledger/v2/ledger-event.schema.json",
@@ -11456,7 +11456,7 @@ var PI_DADDY_LEDGER_V2_SCHEMA = {
   }
 };
 
-// node_modules/@skill-harness/adapters/dist/pi-daddy-ledger-v3.js
+// packages/adapters/dist/pi-daddy-ledger-v3.js
 var PI_DADDY_LEDGER_V3_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/mojomanyana/pi-daddy/contracts/ledger/v3/ledger-event.schema.json",
@@ -12413,13 +12413,13 @@ var PI_DADDY_LEDGER_V3_SCHEMA = {
   }
 };
 
-// node_modules/@skill-harness/adapters/dist/trajectory.js
+// packages/adapters/dist/trajectory.js
 var V2_REFUSAL_CODES = new Set(PI_DADDY_LEDGER_V2_SCHEMA.$defs.refusalCode.enum);
 var V3_REFUSAL_CODES = new Set(PI_DADDY_LEDGER_V3_SCHEMA.$defs.refusalCode.enum);
 var V2_CORRELATION_MAX_BYTES = 32 * 1024;
 var V2_CORRELATION_MAX_SCOPE_BYTES = 4 * 1024;
 
-// node_modules/@skill-harness/adapters/dist/index.js
+// packages/adapters/dist/index.js
 var ADAPTERS = {
   pi: piAdapter
 };
@@ -12431,7 +12431,7 @@ function getAdapter(name) {
   return a;
 }
 
-// node_modules/@skill-harness/cli/dist/serve.js
+// packages/cli/dist/serve.js
 import { createServer } from "node:http";
 import { readFileSync as readFileSync29, existsSync as existsSync24 } from "node:fs";
 import { join as join34, dirname as dirname13 } from "node:path";
