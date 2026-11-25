@@ -1,6 +1,6 @@
 {
   "name": "@skill-harness/cli",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "skill-harness CLI \u2014 run, grade, review, and lint agent-skill scenarios on the pi harness",
   "type": "module",
   "license": "MIT",
@@ -44,7 +44,7 @@
     "prepack": "node ../../scripts/release-pack.mjs --guard"
   },
   "dependencies": {
-    "@skill-harness/core": "1.0.2",
-    "@skill-harness/adapters": "1.0.2"
+    "@skill-harness/core": "1.0.3",
+    "@skill-harness/adapters": "1.0.3"
   }
 }
