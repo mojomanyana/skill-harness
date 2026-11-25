@@ -1,7 +1,7 @@
 // Source: pi-daddy contracts/task-history/v1/dispatch.ts. SHA-256 6c3f21b255ccc522d84958e579efc00438aaafa592767722583075bd8db0d9e6
 /** Request admission only for new work. An installed host can refuse this
  * dispatch. Stored observations and reused answers never consume an allowance. */
-export type DispatchOwner = "scout" | "harness" | "jev";
+export type DispatchOwner = "scout" | "harness";
 export type CleanupState = "settled" | "not-started" | "unknown";
 export interface DispatchReceipt {
   signal: AbortSignal;

@@ -80,5 +80,5 @@ test("judge counts stay separate and missing token counters are not displayed as
   expect(scorecard([result])).toContain("unknown out / unknown cache-read");
   const costs = summarizeRun(run([result])).accounting.costs;
   expect(costs).toContain("provider-reported totals and price-table estimates stay distinct");
-  expect(costs).toContain("Judge and JEV costs remain separate and unavailable here");
+  expect(costs).toContain("Judge costs remain separate and unavailable here");
 });
