@@ -125,8 +125,8 @@ describe("harvestSessionToSpec", () => {
         scenarioId: maxId,
         prompt: repeatedPrompt,
         editedFiles: ["src/retry.ts"],
-        verifyCommands: ["TOKEN=synthetic-token-value-12345 npm test -- retry"],
-        notes: "First turn retry failure",
+        verifyCommands: ['TOKEN=synthetic-token-value-12345 npm test -- retry \'{"token":"synthetic-review-value"}\''],
+        notes: 'First turn retry failure {"token":"synthetic-review-value"}',
       },
     });
     const second = harvestSessionToSpec({
@@ -144,9 +144,11 @@ describe("harvestSessionToSpec", () => {
     expect(first.specPath).not.toBe(second.specPath);
     expect(first.scenarioId).toBe(maxId);
     expect(second.scenarioId).toBe(maxId);
-    // Redacted in both returned JSON fields AND saved YAML
+    // Redacted in both returned JSON fields AND saved YAML (including quoted JSON keys)
     expect(JSON.stringify(first)).not.toContain("synthetic-token-value-12345");
+    expect(JSON.stringify(first)).not.toContain("synthetic-review-value");
     expect(readFileSync(first.specPath, "utf8")).not.toContain("synthetic-token-value-12345");
+    expect(readFileSync(first.specPath, "utf8")).not.toContain("synthetic-review-value");
 
     const spec1 = loadSpec(first.specPath);
     const spec2 = loadSpec(second.specPath);
