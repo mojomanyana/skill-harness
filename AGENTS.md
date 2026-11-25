@@ -114,8 +114,8 @@ by version X needs version ≥ X to lint (see `PUBLISHING.md`).
 - **`contracts/pi-daddy/ledger-record/v1/`** — the separately pinned current native envelope/body contract. See `docs/PI-DADDY-RECORD-COMPATIBILITY.md`; regenerate with `scripts/vendor-pi-daddy-record-v1-contract.mjs`, never edit its generated TypeScript module by hand. Historical selectors remain frozen.
 - Working on the codebase itself: `npm test` (vitest), `npm run typecheck`; the monorepo is `packages/core` (engine), `packages/adapters` (Pi subject + judge adapter), `packages/cli` (commands + review server), `packages/pi-extension` (the pi extension; its `dist/index.js` is a committed esbuild bundle — regenerate with `npm run build:ext` and commit it whenever the bundled core/cli source changes; a `bundle.test.ts` guard fails if it goes stale).
 
-## Session harvesting & v1.0 invariants
+## Session harvesting & current invariants
 
-- `skill-harness harvest <session.jsonl> --out <dir>` turns real Pi sessions into secret-redacted `specification.yaml` regression scenarios (`packages/core/src/harvest.ts`).
-- `defaultJudge()` reads `models.fast` from `~/.pi/agent/ecosystem.json` when `--judge` is omitted (`packages/core/src/defaults.ts`).
-- Normal subject/judge execution is Pi-only (`--parallel 4` default, Pi 1.6 qualified, Windows `pi.cmd` shim support, contextual deferred Pi extension tools). JEV and `experiments/decision-shadow/` have been permanently removed.
+- `skill-harness harvest <session.jsonl> --out <dir> [--id <id>] [--prompt <text>] [--unique] [--json]` turns real Pi sessions (or an exact classified turn) into secret-redacted, `parseSpec`-validated `specification.yaml` regression scenarios (`packages/core/src/harvest.ts`).
+- `defaultJudge()` reads `models.fast` and `modelFallbacks.fast` from `~/.pi/agent/ecosystem.json` when `--judge` and env overrides are omitted, preferring non-metered providers unless metered judging is explicitly enabled (`packages/core/src/defaults.ts`).
+- Normal subject/judge execution is Pi-only (`--parallel 4` default, Pi 1.6 qualified, Windows `pi.cmd` shim support, contextual deferred Pi extension tools).
