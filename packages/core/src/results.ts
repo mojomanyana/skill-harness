@@ -219,10 +219,8 @@ export interface ResultsFile {
    */
   harness_cli_version?: string;
   /**
-   * Present only when `harness_cli_version` is an unlisted Pi patch accepted as a
-   * later patch of a qualified minor; names the listed release it rides on.
-   * Absent means the exact list applied, as for every record written before the
-   * field existed. Written by `run` and carried verbatim like the version.
+   * Records the exact Pi baseline for a compatible subject patch or newer 1.x minor.
+   * Written by `run` and carried verbatim across reads and regrading.
    */
   harness_cli_qualification?: PiPatchQualification;
   /**
@@ -648,7 +646,7 @@ export function validateResults(raw: unknown): ResultsFile {
   if (!Array.isArray(result.scenarios)) throw new Error("results scenarios missing");
   // A malformed or contradictory flag is refused, never read as an exactly qualified Pi.
   if (result.harness_cli_qualification !== undefined && !validPiPatchFlag(result.harness_cli_version, result.harness_cli_qualification)) {
-    throw new Error("invalid harness_cli_qualification: expected status patch and a qualified_version below harness_cli_version in the same minor");
+    throw new Error("invalid harness_cli_qualification: expected status patch with an earlier qualified baseline for this patch or compatible Pi 1.x minor");
   }
   if (result.schema === 2) return result;
   if (!Array.isArray(result.subject_invocations)) throw new Error("schema v3 delivery observations missing");

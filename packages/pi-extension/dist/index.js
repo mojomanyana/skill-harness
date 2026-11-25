@@ -4017,7 +4017,7 @@ function piQualification(version) {
   if (ran && ran[0] === 1 && ran[1] > maxMinor && process.env.SKILL_HARNESS_STRICT_PI !== "1") {
     return { status: "patch", qualified_version: QUALIFIED_PI_VERSIONS[QUALIFIED_PI_VERSIONS.length - 1] };
   }
-  return { status: "unqualified", reason: `Pi ${version ?? "(version unavailable)"} is unqualified; execution requires qualified Pi ${QUALIFIED_PI_VERSIONS.join(" or ")}, or a later patch of the newest listed release in its minor` };
+  return { status: "unqualified", reason: `Pi ${version ?? "(version unavailable)"} is unqualified; execution requires qualified Pi ${QUALIFIED_PI_VERSIONS.join(" or ")}, or a later patch of the newest listed release in its minor. Subjects also accept newer 1.x minors unless SKILL_HARNESS_STRICT_PI=1` };
 }
 function piQualificationFailure(version) {
   const qualification = piQualification(version);
@@ -4028,7 +4028,11 @@ function validPiPatchFlag(version, flag) {
     return false;
   const { status, qualified_version, ...rest } = flag;
   const ran = releaseParts(version), base = releaseParts(qualified_version);
-  return status === "patch" && Object.keys(rest).length === 0 && ran !== null && base !== null && ran[0] === base[0] && ran[1] === base[1] && ran[2] > base[2];
+  if (status !== "patch" || Object.keys(rest).length || !ran || !base || ran[0] !== base[0])
+    return false;
+  if (ran[1] === base[1])
+    return ran[2] > base[2];
+  return base[0] === 1 && base[1] >= 6 && ran[1] > base[1];
 }
 var SKIPPED = /* @__PURE__ */ new Set(["message_update", "tool_execution_update"]);
 var MAX_DETAILS_CHARS = 2e3;
@@ -4827,7 +4831,7 @@ function validateResults(raw) {
   if (!Array.isArray(result.scenarios))
     throw new Error("results scenarios missing");
   if (result.harness_cli_qualification !== void 0 && !validPiPatchFlag(result.harness_cli_version, result.harness_cli_qualification)) {
-    throw new Error("invalid harness_cli_qualification: expected status patch and a qualified_version below harness_cli_version in the same minor");
+    throw new Error("invalid harness_cli_qualification: expected status patch with an earlier qualified baseline for this patch or compatible Pi 1.x minor");
   }
   if (result.schema === 2)
     return result;
@@ -5216,9 +5220,14 @@ function runSummaryLines(results) {
   const summary = summarizeRun(results);
   const observed = (items) => items.length ? items.map((item) => `${item.provider ?? "unknown"}:${item.model ?? "unknown"}`).join(", ") : "unknown";
   const patch = results.harness_cli_qualification;
+  const qualificationLines = [];
+  if (patch) {
+    const minor = patch.qualified_version.split(".").slice(0, 2).join(".");
+    const relation = results.harness_cli_version?.startsWith(`${minor}.`) ? `patch of qualified ${minor}.x` : "forward-compatible 1.x minor";
+    qualificationLines.push(`Pi ${results.harness_cli_version}: ${relation} (qualified: ${patch.qualified_version})`);
+  }
   return [
-    // Only a flagged patch adds a line; a record without the flag reads exactly as before.
-    ...patch ? [`Pi ${results.harness_cli_version}: patch of qualified ${patch.qualified_version.split(".").slice(0, 2).join(".")}.x (qualified: ${patch.qualified_version})`] : [],
+    ...qualificationLines,
     `Subject requested: ${modelProfileLabel(summary.subject.requested)}; observed: ${observed(summary.subject.observedModels)}; effective thinking: unknown`,
     `Judge requested: ${modelProfileLabel(summary.judge.requested)}; observed: ${observed(summary.judge.observedModels)}; effective thinking: unknown`,
     `Effective outcomes: ${summary.outcomes.passed} PASS, ${summary.outcomes.recordedFailures} FAIL, ${summary.outcomes.executionOrEvidenceErrors} ERROR, ${summary.outcomes.ungraded} UNGRADED, ${summary.outcomes.notMeasured} NOT-MEASURED, ${summary.outcomes.ambiguous} JUDGE-AMBIGUOUS. Additional flags: ${summary.outcomes.suspect} suspect, ${summary.outcomes.overrides} overrides; ${summary.outcomes.recordedExecutionOrEvidenceErrors} recorded execution/evidence errors.`,

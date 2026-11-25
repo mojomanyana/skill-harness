@@ -10,6 +10,12 @@ export const buildOptions = {
   platform: "node",
   target: "node20",
   external: ["@earendil-works/*", "typebox", "node:*"],
+  // Resolve the compiled workspaces consistently with symlinked or materialized npm installs.
+  alias: {
+    "@skill-harness/core": "./packages/core/dist/index.js",
+    "@skill-harness/adapters": "./packages/adapters/dist/index.js",
+    "@skill-harness/cli/serve": "./packages/cli/dist/serve.js",
+  },
 };
 
 // Only run the build when this file is executed directly (`npm run

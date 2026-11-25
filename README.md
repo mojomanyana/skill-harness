@@ -15,15 +15,16 @@ grade movement is two runs already committed to a public repo. Re-record it with
 
 ## Pi qualification
 
-Fresh subject execution supports **exactly Pi 1.0.4, 1.1.0, 1.4.0, 1.5.0 or 1.5.2**. A later patch
-of the newest listed release in its minor also runs, flagged as a patch: Pi 1.5.3 is recorded with
-`harness_cli_qualification` (and `pi_qualification` in each trace) and summarized as *patch of
-qualified 1.5.x (qualified: 1.5.2)*. An unknown, unavailable, prerelease, build-metadata, earlier-patch
-or other version records execution ERROR before starting the
-subject; regrading that saved failure does not call the judge. Qualification must
-be renewed explicitly for a new Pi minor or major. Each subject's actual cwd/PATH-selected
-Pi must equal the recorded run version before spawn. Judges require an exactly qualified
-release until judge-specific patch provenance is retained; patch acceptance is subject-only.
+Run `skill-harness --help` to list the exact Pi releases qualified by your installed
+Harness. Subjects and judges can use any listed release. Subjects can also use a
+later patch of the highest qualified release in its minor, or a newer 1.x minor.
+Set `SKILL_HARNESS_STRICT_PI=1` to disable the newer-minor allowance. Judges
+always require an exact qualified release.
+
+A compatible subject records its baseline in `harness_cli_qualification` and
+in each trace's `pi_qualification`. Each subject's cwd/PATH-selected Pi must
+match the recorded run version. An unsupported version or a failed probe records
+an execution ERROR before the subject starts. Regrading preserves that failure.
 
 Retained results remain readable. The raw-trace parser keeps the original Pi
 0.83.0 capture format for historical inspection, without claiming current

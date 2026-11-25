@@ -2,7 +2,7 @@ import { describe, test, expect, vi, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { HARNESS_VERSION, BAKED_DEFAULT_JUDGE, type HarnessAdapter } from "@skill-harness/core";
+import { HARNESS_VERSION, QUALIFIED_PI_VERSIONS, BAKED_DEFAULT_JUDGE, type HarnessAdapter } from "@skill-harness/core";
 import { main, help, cmdRun, cmdGrade } from "../src/cli.js";
 
 /** Capture console.log output while `fn` runs. */
@@ -140,6 +140,10 @@ describe("removed flags fail before work", () => {
 });
 
 describe("help", () => {
+  test("lists the exact Pi releases supported by this installation", () => {
+    expect(help()).toContain(`Exact Pi releases for subjects and judges: ${QUALIFIED_PI_VERSIONS.join(", ")}`);
+  });
+
   test("names the running version, so a screenshot of it is dateable", () => {
     expect(help()).toContain(HARNESS_VERSION);
   });

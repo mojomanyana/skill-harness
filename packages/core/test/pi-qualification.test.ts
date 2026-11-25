@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,9 +9,8 @@ import { runSummaryLines } from "../src/run-summary.js";
 import { formatScorecard } from "../src/run.js";
 import { parseSpec } from "../src/spec.js";
 
-// Owner decision: a later patch of a qualified minor passes, flagged; a new minor
-// still needs an explicit entry. Cases are written against this list.
-const REFUSAL = "is unqualified; execution requires qualified Pi 1.0.4 or 1.1.0 or 1.4.0 or 1.5.0 or 1.5.2 or 1.6.0, or a later patch of the newest listed release in its minor";
+// Exact releases, later patches and forward-compatible minors have separate coverage.
+const REFUSAL = `is unqualified; execution requires qualified Pi ${QUALIFIED_PI_VERSIONS.join(" or ")}, or a later patch of the newest listed release in its minor. Subjects also accept newer 1.x minors unless SKILL_HARNESS_STRICT_PI=1`;
 const PATCH = { status: "patch" as const, qualified_version: "1.5.2" };
 const NOTE = "Pi 1.5.3: patch of qualified 1.5.x (qualified: 1.5.2)";
 
@@ -20,7 +19,7 @@ describe("Pi qualification rule", () => {
     expect([...QUALIFIED_PI_VERSIONS]).toEqual(["1.0.4", "1.1.0", "1.4.0", "1.5.0", "1.5.2", "1.6.0"]);
   });
 
-  it.each(["1.0.4", "1.1.0", "1.4.0", "1.5.0", "1.5.2", "1.6.0"])("exactly listed %s is qualified", (version) => {
+  it.each(QUALIFIED_PI_VERSIONS)("exactly listed %s is qualified", (version) => {
     expect(piQualification(version)).toEqual({ status: "exact" });
     expect(piQualificationFailure(version)).toBeNull();
   });
@@ -156,6 +155,27 @@ scenarios:
       .toEqual(["── demo · pi · fixture:subject ──", NOTE, SUMMARY_BEFORE[0]]);
   });
 
+  it("round-trips a newer 1.x minor and reopens it under strict mode", () => {
+    const dir = tmp();
+    const qualified = QUALIFIED_PI_VERSIONS.filter(v => v.startsWith("1.")).at(-1)!;
+    const version = `1.${Number(qualified.split(".")[1]) + 1}.0`;
+    const baseline = { status: "patch" as const, qualified_version: qualified };
+    try {
+      vi.stubEnv("SKILL_HARNESS_STRICT_PI", "");
+      expect(piQualification(version)).toEqual(baseline);
+      writeResults(dir, draft({ harness_cli_version: version, harness_cli_qualification: baseline }), ctx);
+      vi.stubEnv("SKILL_HARNESS_STRICT_PI", "1");
+      expect(piQualification(version).status).toBe("unqualified");
+      const read = readResults(dir);
+      expect(read.harness_cli_qualification).toEqual(baseline);
+      const note = `Pi ${version}: forward-compatible 1.x minor (qualified: ${qualified})`;
+      expect(runSummaryLines(read)).toEqual([note, ...SUMMARY_BEFORE]);
+      expect(formatScorecard({ results: read, runDir: dir })).toContain(note);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it.each(["1.5.2", "1.5.3", "0.83.0"])("reads a pre-flag record of Pi %s exactly as before, and a rewrite adds no flag", (version) => {
     const dir = tmp();
     writeFileSync(join(dir, "results.yaml"), recordedBefore(version), "utf8");
@@ -173,11 +193,13 @@ scenarios:
     ["null", null, "1.5.3"],
     ["the same release", PATCH, "1.5.2"],
     ["a lower patch", PATCH, "1.5.1"],
-    ["another minor", PATCH, "1.6.3"],
+    ["another minor before forward compatibility", PATCH, "1.6.3"],
+    ["an earlier minor", { status: "patch", qualified_version: "1.6.0" }, "1.5.9"],
+    ["another major", { status: "patch", qualified_version: "1.6.0" }, "2.0.0"],
     ["a prerelease beside it", PATCH, "1.5.3-beta.1"],
     ["no recorded version", PATCH, undefined],
   ])("refuses a flag with %s on write and on read", (_name, flag, version) => {
-    const message = "invalid harness_cli_qualification: expected status patch and a qualified_version below harness_cli_version in the same minor";
+    const message = "invalid harness_cli_qualification: expected status patch with an earlier qualified baseline for this patch or compatible Pi 1.x minor";
     expect(() => writeResults(tmp(), draft({ harness_cli_version: version, harness_cli_qualification: flag as never }), ctx)).toThrow(message);
     const dir = tmp();
     const stored = recordedBefore(version ?? "x").replace(version === undefined ? "harness_cli_version: x\n" : "", "")

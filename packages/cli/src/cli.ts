@@ -22,7 +22,7 @@ import {
   collectStability, boundaryCells, stabilityNote, PATH_LEGEND,
   restampSkill,
   computeCoverage, formatCoverage,
-  HARNESS_VERSION,
+  HARNESS_VERSION, QUALIFIED_PI_VERSIONS,
   defaultJudge,
   recordedJudgeOrDefault,
   assertJudgeAllowed,
@@ -836,6 +836,7 @@ export function help(): string {
   version  print ${HARNESS_VERSION} and exit (also --version / -v)
 
 defaults: model=${DEFAULT_MODEL}  judge=${defaultJudge()}  mode=green  harness=pi
+  Exact Pi releases for subjects and judges: ${QUALIFIED_PI_VERSIONS.join(", ")}
   green and force are both scored; red is the unscored baseline. green delivery depends on the
   harness version (pi >= 0.83.0 discloses only the skill's description and loads the body on demand),
   --mode force supplies the skill body; --canary checks instructed loading separately from autonomous selection.

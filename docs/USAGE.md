@@ -231,14 +231,15 @@ harness CLI it drove — `pi --version`), and the run banner and `--version` bot
 former. `schema` cannot answer either question: 0.2.1 → 0.3.0 kept `schema: 2` while
 changing what a verdict *means*.
 
-Fresh subject execution supports exact Pi **1.0.4, 1.1.0, 1.4.0, 1.5.0 or 1.5.2**, plus a later patch of the
-newest listed release in its minor, flagged by `harness_cli_qualification` beside `harness_cli_version`. The recorded version is probed once for the run. Each subject probe uses its actual
-working directory and environment, including an arm's `PATH`, and must match that
-recorded version before spawn; an arm cannot silently relabel a patch as an exact release.
-Judges require an exactly qualified Pi release until their own patch provenance is retained.
-Other versions or a failed probe produce a saved execution ERROR before subject
-spawn; saved regrading preserves that failure. Historical result files remain
-readable without claiming the producing Pi version is currently qualified.
+Run `skill-harness --help` to see the exact Pi releases qualified by your
+installed Harness. Judges require an exact release. Subjects can also use later
+patches of the newest qualified release in each minor and, unless
+`SKILL_HARNESS_STRICT_PI=1`, newer 1.x minors. These subjects record their exact
+baseline in `harness_cli_qualification` beside `harness_cli_version`. Each
+subject's working directory and environment (including an arm's `PATH`) must
+select the Pi version recorded for the run. An unsupported version or a failed
+probe saves an execution ERROR before the subject starts. Regrading preserves
+the failure. Historical results remain readable.
 
 `harness_cli_version` exists because of §4e: a pi upgrade changed what green mode
 measures, and the two waves it invalidated are indistinguishable from valid ones in the
