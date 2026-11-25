@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.3 - 2026-11-25
+
+- Removed the final 3 leftover JEV string/type references from `src/` and synchronized Pi extension bundles.
+
 ## 1.0.2 - 2026-11-25
 
 - Read saved results from supported newer Pi subject versions and retain exact judge qualification.
