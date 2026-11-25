@@ -6,7 +6,7 @@
   "license": "MIT",
   "main": "./dist/cli.js",
   "bin": {
-    "skill-harness": "1.0.2"
+    "skill-harness": "dist/cli.js"
   },
   "exports": {
     ".": "./dist/cli.js",
