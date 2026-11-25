@@ -930,11 +930,35 @@ async function dispatch(argv: string[]): Promise<void> {
     case "author": throw new Error("Skill creation uses your current Pi model. Start Pi with skill-harness installed, then use /skill-harness create followed by your idea; it asks one necessary question at a time.");
     case "harvest": {
       const sessionPath = args._[0];
-      if (!sessionPath) throw new Error("usage: skill-harness harvest <session.jsonl> [--out dir] [--name skill]");
+      if (!sessionPath) {
+        throw new Error(
+          "usage: skill-harness harvest <session.jsonl> [--out dir] [--name skill] [--id scenarioId] [--prompt text] [--turn-index N] [--unique] [--json]",
+        );
+      }
       const outDir = resolve(flagStr(args, "out", ".") ?? ".");
       const skillName = flagStr(args, "name");
-      const res = harvestSessionToSpec({ sessionPath, outDir, ...(skillName ? { skillName } : {}) });
-      console.log(`Harvested ${res.skillName} -> ${res.specPath} (${res.editedFiles.length} edited file(s), ${res.verifyCommands.length} verify cmd(s))`);
+      const scenarioId = flagStr(args, "id");
+      const prompt = flagStr(args, "prompt");
+      const turnIndexRaw = flagStr(args, "turn-index");
+      const turnIndex = turnIndexRaw !== undefined ? Number(turnIndexRaw) : undefined;
+      const notes = flagStr(args, "notes");
+      const unique = Boolean(args.flags.unique);
+      const asJson = Boolean(args.flags.json);
+      const res = harvestSessionToSpec({
+        sessionPath,
+        outDir,
+        ...(skillName ? { skillName } : {}),
+        ...(scenarioId ? { scenarioId } : {}),
+        ...(prompt ? { prompt } : {}),
+        ...(turnIndex !== undefined ? { turnIndex } : {}),
+        ...(notes ? { notes } : {}),
+        ...(unique ? { unique } : {}),
+      });
+      if (asJson) {
+        console.log(JSON.stringify(res));
+      } else {
+        console.log(`Harvested ${res.skillName} -> ${res.specPath} (${res.editedFiles.length} edited file(s), ${res.verifyCommands.length} verify cmd(s))`);
+      }
       return;
     }
     case "preflight": return cmdPreflight(args);

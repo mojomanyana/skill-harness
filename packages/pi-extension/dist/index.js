@@ -3808,6 +3808,7 @@ function loadSpec(file) {
 }
 
 // packages/core/dist/harvest.js
+import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync as readFileSync2, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 
@@ -9406,7 +9407,32 @@ function ecosystemFastModel() {
     if (!existsSync19(file))
       return void 0;
     const parsed = JSON.parse(readFileSync18(file, "utf8"));
-    return typeof parsed?.models?.fast === "string" && parsed.models.fast.trim() ? parsed.models.fast.trim() : void 0;
+    const candidates = [];
+    const push = (raw) => {
+      if (typeof raw !== "string")
+        return;
+      const clean = raw.trim();
+      if (!clean || clean === "session" || candidates.includes(clean))
+        return;
+      candidates.push(clean);
+    };
+    push(parsed?.models?.fast);
+    if (Array.isArray(parsed?.modelFallbacks?.fast)) {
+      for (const item of parsed.modelFallbacks.fast)
+        push(item);
+    }
+    if (candidates.length === 0)
+      return void 0;
+    if (!allowMeteredJudge()) {
+      for (const candidate of candidates) {
+        try {
+          if (!isMeteredJudge(parseModelRef(candidate)))
+            return candidate;
+        } catch {
+        }
+      }
+    }
+    return candidates[0];
   } catch {
     return void 0;
   }

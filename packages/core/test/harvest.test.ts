@@ -47,4 +47,65 @@ describe("harvestSessionToSpec", () => {
     expect(parsed.scenarios).toHaveLength(1);
     expect(parsed.scenarios[0].id).toBe("H1");
   });
+
+  it("harvests two distinct turns independently with preserved --id, spaces in path, and redacted verify commands", () => {
+    const dir = mkdtempSync(join(tmpdir(), "sh-harvest-two-turn-"));
+    dirs.push(dir);
+    const session = join(dir, "two-turn session.jsonl");
+    const turn1Prompt = "Fix rate limiter burst bug in src/limiter.ts";
+    const turn2Prompt = "Fix webhook signature check in src/webhook.ts";
+    const lines = [
+      JSON.stringify({ type: "message", message: { role: "user", content: turn1Prompt } }),
+      JSON.stringify({
+        type: "message",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "toolCall", name: "edit", arguments: { path: "src/limiter.ts" } },
+            { type: "toolCall", name: "bash", arguments: { command: "API_TOKEN=sk-secret9876543210abcdef npm test" } },
+          ],
+        },
+      }),
+      JSON.stringify({ type: "message", message: { role: "user", content: turn2Prompt } }),
+      JSON.stringify({
+        type: "message",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "toolCall", name: "edit", arguments: { path: "src/webhook.ts" } },
+            { type: "toolCall", name: "bash", arguments: { command: "vitest run webhook.test.ts" } },
+          ],
+        },
+      }),
+    ];
+    writeFileSync(session, lines.join("\n") + "\n", "utf8");
+
+    const outWithSpaces = join(dir, "harvested evals dir");
+    const first = harvestSessionToSpec({
+      sessionPath: session,
+      outDir: outWithSpaces,
+      scenarioId: "turn-one-limiter",
+      prompt: turn1Prompt,
+    });
+    const second = harvestSessionToSpec({
+      sessionPath: session,
+      outDir: outWithSpaces,
+      scenarioId: "turn-two-webhook",
+      prompt: turn2Prompt,
+    });
+
+    expect(first.specPath).not.toBe(second.specPath);
+    expect(first.specPath).toContain("harvested evals dir");
+
+    const spec1 = loadSpec(first.specPath);
+    const spec2 = loadSpec(second.specPath);
+    expect(spec1.scenarios[0].id).toBe("turn-one-limiter");
+    expect(spec1.scenarios[0].turns).toEqual([turn1Prompt]);
+    expect(spec2.scenarios[0].id).toBe("turn-two-webhook");
+    expect(spec2.scenarios[0].turns).toEqual([turn2Prompt]);
+    expect(spec2.scenarios[0].checklist.join("\n")).toContain("src/webhook.ts");
+
+    const raw1 = readFileSync(first.specPath, "utf8");
+    expect(raw1).not.toContain("sk-secret9876543210abcdef");
+  });
 });
