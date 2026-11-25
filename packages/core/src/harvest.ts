@@ -5,16 +5,31 @@ import yaml from "js-yaml";
 import { redactText } from "./redaction.js";
 import { parseSpec } from "./spec.js";
 
+/** Structured, turn-scoped payload passed directly by orchestrators such as pi-daddy. */
+export interface HarvestTurnInput {
+  readonly scenarioId?: string;
+  readonly skillName?: string;
+  readonly prompt: string;
+  readonly editedFiles?: readonly string[];
+  readonly verifyCommands?: readonly string[];
+  readonly notes?: string;
+  readonly sessionLabel?: string;
+  readonly sawColdReviewBlocker?: boolean;
+  readonly sawThrashHint?: boolean;
+}
+
 export interface HarvestOptions {
-  readonly sessionPath: string;
+  readonly sessionPath?: string;
+  /** Structured turn payload — avoids re-parsing the raw session or mis-matching repeated prompts. */
+  readonly turnInput?: HarvestTurnInput;
   readonly outDir: string;
   readonly skillName?: string;
   readonly scenarioId?: string;
-  /** Exact user prompt of the turn to harvest (overrides selecting the first user prompt). */
+  /** Exact user prompt of the turn to harvest (fallback when harvesting directly from a JSONL). */
   readonly prompt?: string;
   /** 0-based non-slash user turn index to harvest from a multi-turn session JSONL. */
   readonly turnIndex?: number;
-  /** Optional turn-scoped metadata overrides (merged with or replacing session-wide extraction). */
+  /** Optional turn-scoped metadata overrides. */
   readonly editedFiles?: readonly string[];
   readonly verifyCommands?: readonly string[];
   readonly notes?: string;
@@ -39,8 +54,8 @@ interface ParsedTurn {
   sawThrashHint: boolean;
 }
 
-function slug(raw: string): string {
-  return raw.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "harvested-skill";
+function slug(raw: string, maxLen = 48): string {
+  return raw.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, maxLen) || "harvested-skill";
 }
 
 function extractUserText(content: unknown): string {
@@ -132,9 +147,11 @@ function allocateSkillRoot(outDir: string, baseName: string, forceUnique: boolea
       return { dirName: baseName, skillRoot: plain };
     }
   }
-  for (let attempt = 0; attempt < 16; attempt++) {
+  // Always reserve 9 chars (`-` + 8 hex chars) so 48-char bases never truncate away uniqueness.
+  const prefix = slug(baseName, 38);
+  for (let attempt = 0; attempt < 32; attempt++) {
     const suffix = randomBytes(4).toString("hex");
-    const dirName = `${baseName}-${suffix}`;
+    const dirName = `${prefix}-${suffix}`;
     const candidate = join(absOut, dirName);
     if (!existsSync(candidate)) return { dirName, skillRoot: candidate };
   }
@@ -142,26 +159,53 @@ function allocateSkillRoot(outDir: string, baseName: string, forceUnique: boolea
 }
 
 /**
- * Harvest a real Pi session JSONL (or one specific classified turn) into a sanitized,
- * secret-redacted, schema-validated `specification.yaml` regression eval.
+ * Harvest either a structured classified turn (`turnInput`) or a real Pi session JSONL into a
+ * sanitized, secret-redacted, schema-validated `specification.yaml` regression eval.
  */
 export function harvestSessionToSpec(options: HarvestOptions): HarvestResult {
-  const absSession = resolve(options.sessionPath);
-  if (!existsSync(absSession)) throw new Error(`Session file not found: ${absSession}`);
-  const lines = readFileSync(absSession, "utf8").split(/\r?\n/).filter(Boolean);
-  const turns = parseSessionTurns(lines);
-  const selected = selectTurn(turns, options);
+  let selected: ParsedTurn | undefined;
+  let sourceLabel = "session";
 
-  if (!selected?.prompt) throw new Error("No user prompt found in session JSONL");
+  if (options.turnInput) {
+    const t = options.turnInput;
+    if (typeof t.prompt !== "string" || !t.prompt.trim()) {
+      throw new Error("Structured harvest turn payload requires a non-empty prompt");
+    }
+    selected = {
+      prompt: t.prompt,
+      editedFiles: new Set(t.editedFiles ?? []),
+      verifyCommands: [...(t.verifyCommands ?? [])],
+      sawColdReviewBlocker: Boolean(t.sawColdReviewBlocker),
+      sawThrashHint: Boolean(t.sawThrashHint),
+    };
+    sourceLabel = t.sessionLabel?.trim() || "classified-turn";
+  } else {
+    if (!options.sessionPath) throw new Error("Either sessionPath or turnInput is required");
+    const absSession = resolve(options.sessionPath);
+    if (!existsSync(absSession)) throw new Error(`Session file not found: ${absSession}`);
+    const lines = readFileSync(absSession, "utf8").split(/\r?\n/).filter(Boolean);
+    const turns = parseSessionTurns(lines);
+    selected = selectTurn(turns, options);
+    sourceLabel = basename(absSession);
+  }
 
-  const scenarioId = options.scenarioId?.trim() || "H1";
-  const baseSkill = slug(options.skillName ?? (options.scenarioId ? scenarioId : basename(absSession, ".jsonl")));
-  const redactedPrompt = redactText(selected.prompt).slice(0, 4000);
+  if (!selected?.prompt?.trim()) throw new Error("No user prompt found in session JSONL");
+
+  const rawScenarioId = options.scenarioId?.trim() || options.turnInput?.scenarioId?.trim() || "H1";
+  const scenarioId = redactText(rawScenarioId).trim() || "H1";
+  const rawSkill =
+    options.skillName?.trim() ||
+    options.turnInput?.skillName?.trim() ||
+    (options.scenarioId || options.turnInput?.scenarioId ? scenarioId : basename(sourceLabel, ".jsonl"));
+  const baseSkill = slug(redactText(rawSkill), 48);
+
+  const redactedPrompt = redactText(selected.prompt).trim().slice(0, 4000);
   const rawEdits = options.editedFiles?.length ? [...options.editedFiles] : [...selected.editedFiles];
   const rawVerify = options.verifyCommands?.length ? [...options.verifyCommands] : [...selected.verifyCommands];
   const editedList = [...new Set(rawEdits.map((f) => redactText(f).trim()).filter(Boolean))].slice(0, 12);
   const verifyCommands = [...new Set(rawVerify.map((c) => redactText(c).trim()).filter(Boolean))].slice(0, 8);
-  const redactedNotes = options.notes ? redactText(options.notes).trim().slice(0, 400) : "";
+  const rawNotes = options.notes ?? options.turnInput?.notes;
+  const redactedNotes = rawNotes ? redactText(rawNotes).trim().slice(0, 400) : "";
 
   const checklist = [
     "Satisfies every explicit requirement in the user prompt",
@@ -173,7 +217,7 @@ export function harvestSessionToSpec(options: HarvestOptions): HarvestResult {
   ];
 
   const { dirName, skillRoot } = allocateSkillRoot(options.outDir, baseSkill, Boolean(options.unique));
-  const title = redactText(`Harvested (${scenarioId}) from ${basename(absSession)}`).slice(0, 140);
+  const title = redactText(`Harvested (${scenarioId}) from ${sourceLabel}`).slice(0, 140);
   const spec = {
     skill: dirName,
     judge_persona: "rigorous senior engineer grading exact functional correctness, edge cases, and clean verification",

@@ -108,4 +108,56 @@ describe("harvestSessionToSpec", () => {
     const raw1 = readFileSync(first.specPath, "utf8");
     expect(raw1).not.toContain("sk-secret9876543210abcdef");
   });
+
+  it("P1/P2: structured turnInput isolates repeated identical prompts, preserves -- prompts, redacts TOKEN=, and avoids 48-char ID collisions", () => {
+    const dir = mkdtempSync(join(tmpdir(), "sh-harvest-structured-"));
+    dirs.push(dir);
+    const out = join(dir, "evals with spaces");
+
+    // Identical prompt across two turns with different verification commands + synthetic TOKEN=
+    const repeatedPrompt = "--fix-mode retry backoff handling";
+    const maxId = "a".repeat(48);
+
+    const first = harvestSessionToSpec({
+      outDir: out,
+      unique: true,
+      turnInput: {
+        scenarioId: maxId,
+        prompt: repeatedPrompt,
+        editedFiles: ["src/retry.ts"],
+        verifyCommands: ["TOKEN=synthetic-token-value-12345 npm test -- retry"],
+        notes: "First turn retry failure",
+      },
+    });
+    const second = harvestSessionToSpec({
+      outDir: out,
+      unique: true,
+      turnInput: {
+        scenarioId: maxId,
+        prompt: repeatedPrompt,
+        editedFiles: ["src/backoff.ts"],
+        verifyCommands: ["vitest run backoff.test.ts"],
+        notes: "Second turn backoff failure",
+      },
+    });
+
+    expect(first.specPath).not.toBe(second.specPath);
+    expect(first.scenarioId).toBe(maxId);
+    expect(second.scenarioId).toBe(maxId);
+    // Redacted in both returned JSON fields AND saved YAML
+    expect(JSON.stringify(first)).not.toContain("synthetic-token-value-12345");
+    expect(readFileSync(first.specPath, "utf8")).not.toContain("synthetic-token-value-12345");
+
+    const spec1 = loadSpec(first.specPath);
+    const spec2 = loadSpec(second.specPath);
+    expect(spec1.scenarios[0].id).toBe(maxId);
+    expect(spec1.scenarios[0].turns).toEqual([repeatedPrompt]);
+    expect(spec1.scenarios[0].checklist.join("\n")).toContain("npm test -- retry");
+    expect(spec1.scenarios[0].checklist.join("\n")).not.toContain("backoff.test.ts");
+
+    expect(spec2.scenarios[0].id).toBe(maxId);
+    expect(spec2.scenarios[0].turns).toEqual([repeatedPrompt]);
+    expect(spec2.scenarios[0].checklist.join("\n")).toContain("vitest run backoff.test.ts");
+    expect(spec2.scenarios[0].checklist.join("\n")).not.toContain("retry");
+  });
 });

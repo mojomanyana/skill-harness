@@ -6,20 +6,24 @@ export const MAX_VALUE_CHARS = 2000;
 const REDACTED = "[redacted]";
 const SECRET_KEY = /^(.*[-_])?(password|passwd|secret|token|api[-_]?key|apikey|auth|authorization|credential|private[-_]?key|access[-_]?key|session[-_]?key)([-_].*)?$/i;
 const SECRET_VALUE: RegExp[] = [
-  /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
-  /\bBearer\s+[A-Za-z0-9._~+/-]{16,}=*/g,
-  /\bsk-[A-Za-z0-9]{16,}\b/g,
+  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/g,
+  /\bBearer\s+[A-Za-z0-9._~+/-]{12,}=*/gi,
+  /\bBasic\s+[A-Za-z0-9+/=]{12,}/gi,
+  /\bsk-[A-Za-z0-9_-]{12,}\b/g,
   /\bgh[pousr]_[A-Za-z0-9]{16,}\b/g,
+  /\bAIza[0-9A-Za-z_-]{20,}\b/g,
   /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/g,
   /\bAKIA[0-9A-Z]{16}\b/g,
   /\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
+  /\b([A-Z0-9_]*(?:API[_-]?KEY|ACCESS[_-]?KEY|SECRET|TOKEN|PASSWORD|PASSWD|AUTH)[A-Z0-9_]*)\s*([:=])\s*(?:"[^"\r\n]+"|'[^'\r\n]+'|[^\s"'`;]+)/gi,
   /\b([a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^/\s@]+@/gi,
 ];
 
 export function redactText(input: string, homeDir?: string): string {
   let out = input;
   out = out.replace(SECRET_VALUE[SECRET_VALUE.length - 1], `$1${REDACTED}@`);
-  for (const re of SECRET_VALUE.slice(0, -1)) out = out.replace(re, REDACTED);
+  out = out.replace(SECRET_VALUE[SECRET_VALUE.length - 2], `$1$2${REDACTED}`);
+  for (const re of SECRET_VALUE.slice(0, -2)) out = out.replace(re, REDACTED);
   if (homeDir && homeDir.length > 1) out = out.split(homeDir).join("~");
   return out;
 }

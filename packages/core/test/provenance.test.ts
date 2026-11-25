@@ -147,6 +147,15 @@ describe("defaultJudge", () => {
       writeFileSync(join(dir, "ecosystem.json"), JSON.stringify({ models: { fast: "openai/gpt-4.1-mini" } }));
       expect(defaultJudge()).toBe("openai/gpt-4.1-mini");
       expect(() => assertJudgeAllowed(parseModelRef(defaultJudge()), { source: "default" })).toThrow(/metered/i);
+
+      // Comma-separated PI_ECO_MODEL_FAST resolves consistently, preferring non-metered candidate when opt-in is off
+      process.env.PI_ECO_MODEL_FAST = "google/gemini-3.5-flash-lite, openai-codex/gpt-5.6-sol, session";
+      expect(defaultJudge()).toBe("openai-codex/gpt-5.6-sol");
+      expect(() => assertJudgeAllowed(parseModelRef(defaultJudge()), { source: "PI_ECO_MODEL_FAST" })).not.toThrow();
+
+      // With metered opt-in enabled, first entry in comma-separated PI_ECO_MODEL_FAST is selected
+      process.env.SKILL_HARNESS_ALLOW_METERED_JUDGE = "1";
+      expect(defaultJudge()).toBe("google/gemini-3.5-flash-lite");
     } finally {
       if (prevAgent === undefined) delete process.env.PI_CODING_AGENT_DIR;
       else process.env.PI_CODING_AGENT_DIR = prevAgent;
