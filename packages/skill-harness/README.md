@@ -6,12 +6,9 @@ draft the skill and evaluation cases, review judge controls, and inspect results
 Authoring requires Pi with a selected model. All subject and judge calls also
 run through Pi.
 
-Fresh subject execution supports exact **Pi 1.0.4, 1.1.0, 1.4.0, 1.5.0 and 1.5.2**,
-plus later patches of the newest qualified release in each minor, recorded as patches.
-A subject whose cwd/PATH selects a different Pi than the recorded run version is refused
-before spawn. Judges require an exactly qualified release until their own patch provenance
-is retained. Other or unavailable versions produce execution ERROR. Retained results
-remain readable; the historical Pi 0.83.0 parser is not current qualification.
+Run `skill-harness --help` to see the exact Pi releases qualified by your installed
+Harness. Judges require a listed release. See [Pi qualification](https://github.com/mojomanyana/skill-harness#pi-qualification)
+for compatible subject versions, strict mode and how the Harness records the version used.
 
 To use Harness alongside the dashboard and other Pi tools, follow the [Pi ecosystem quickstart](https://github.com/mojomanyana/pi-daddy#start-here).
 
