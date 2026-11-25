@@ -9,7 +9,7 @@
     "pi-package"
   ],
   "bin": {
-    "skill-harness": "1.0.2"
+    "skill-harness": "./bin/skill-harness.js"
   },
   "workspaces": [
     "packages/*"
