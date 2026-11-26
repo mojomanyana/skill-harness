@@ -3808,6 +3808,7 @@ function loadSpec(file) {
 }
 
 // packages/core/dist/harvest.js
+import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync as readFileSync2, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 
@@ -3815,20 +3816,26 @@ import { basename, join, resolve } from "node:path";
 var MAX_VALUE_CHARS = 2e3;
 var REDACTED = "[redacted]";
 var SECRET_KEY = /^(.*[-_])?(password|passwd|secret|token|api[-_]?key|apikey|auth|authorization|credential|private[-_]?key|access[-_]?key|session[-_]?key)([-_].*)?$/i;
+var QUOTED_SECRET_KEY_VALUE = /((["'])[A-Za-z0-9_.-]*(?:api[_-]?key|access[_-]?key|secret|token|password|passwd|auth|credential)[A-Za-z0-9_.-]*\2\s*:\s*)(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*')/gi;
 var SECRET_VALUE = [
-  /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
-  /\bBearer\s+[A-Za-z0-9._~+/-]{16,}=*/g,
-  /\bsk-[A-Za-z0-9]{16,}\b/g,
+  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/g,
+  /\bBearer\s+[A-Za-z0-9._~+/-]{12,}=*/gi,
+  /\bBasic\s+[A-Za-z0-9+/=]{12,}/gi,
+  /\bsk-[A-Za-z0-9_-]{12,}\b/g,
   /\bgh[pousr]_[A-Za-z0-9]{16,}\b/g,
+  /\bAIza[0-9A-Za-z_-]{20,}\b/g,
   /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/g,
   /\bAKIA[0-9A-Z]{16}\b/g,
   /\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
+  /\b([A-Z0-9_]*(?:API[_-]?KEY|ACCESS[_-]?KEY|SECRET|TOKEN|PASSWORD|PASSWD|AUTH|CREDENTIAL)[A-Z0-9_]*)\s*([:=])\s*(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|[^\s"'`;,}\]]+)/gi,
   /\b([a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^/\s@]+@/gi
 ];
 function redactText(input, homeDir) {
   let out = input;
+  out = out.replace(QUOTED_SECRET_KEY_VALUE, (_m, prefix) => `${prefix}"${REDACTED}"`);
   out = out.replace(SECRET_VALUE[SECRET_VALUE.length - 1], `$1${REDACTED}@`);
-  for (const re of SECRET_VALUE.slice(0, -1))
+  out = out.replace(SECRET_VALUE[SECRET_VALUE.length - 2], `$1$2${REDACTED}`);
+  for (const re of SECRET_VALUE.slice(0, -2))
     out = out.replace(re, REDACTED);
   if (homeDir && homeDir.length > 1)
     out = out.split(homeDir).join("~");
@@ -9399,21 +9406,56 @@ import { basename as basename4, dirname as dirname6, isAbsolute as isAbsolute10,
 import { existsSync as existsSync19, readFileSync as readFileSync18 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
 import { join as join24 } from "node:path";
-function ecosystemFastModel() {
+function selectPreferredCandidate(candidates) {
+  if (candidates.length === 0)
+    return void 0;
+  if (!allowMeteredJudge()) {
+    for (const candidate of candidates) {
+      try {
+        if (!isMeteredJudge(parseModelRef(candidate)))
+          return candidate;
+      } catch {
+      }
+    }
+  }
+  return candidates[0];
+}
+function ecosystemFastCandidates() {
+  const candidates = [];
+  const push = (raw) => {
+    if (typeof raw !== "string")
+      return;
+    const clean = raw.trim();
+    if (!clean || clean === "session" || candidates.includes(clean))
+      return;
+    candidates.push(clean);
+  };
+  const envFast = process.env.PI_ECO_MODEL_FAST?.trim();
+  if (envFast) {
+    for (const part of envFast.split(","))
+      push(part);
+  }
   try {
     const dir = process.env.PI_CODING_AGENT_DIR?.trim() || join24(homedir3(), ".pi", "agent");
     const file = join24(dir, "ecosystem.json");
-    if (!existsSync19(file))
-      return void 0;
-    const parsed = JSON.parse(readFileSync18(file, "utf8"));
-    return typeof parsed?.models?.fast === "string" && parsed.models.fast.trim() ? parsed.models.fast.trim() : void 0;
+    if (existsSync19(file)) {
+      const parsed = JSON.parse(readFileSync18(file, "utf8"));
+      push(parsed?.models?.fast);
+      if (Array.isArray(parsed?.modelFallbacks?.fast)) {
+        for (const item of parsed.modelFallbacks.fast)
+          push(item);
+      }
+    }
   } catch {
-    return void 0;
   }
+  return candidates;
+}
+function ecosystemFastModel() {
+  return selectPreferredCandidate(ecosystemFastCandidates());
 }
 var BAKED_DEFAULT_JUDGE = "openai-codex:gpt-5.6-sol";
 function defaultJudge() {
-  return readEnv("JUDGE") ?? readEnv("JUDGE_FAST") ?? process.env.PI_ECO_MODEL_FAST ?? ecosystemFastModel() ?? BAKED_DEFAULT_JUDGE;
+  return readEnv("JUDGE") ?? readEnv("JUDGE_FAST") ?? ecosystemFastModel() ?? BAKED_DEFAULT_JUDGE;
 }
 function recordedJudgeOrDefault(recorded) {
   if (!recorded)

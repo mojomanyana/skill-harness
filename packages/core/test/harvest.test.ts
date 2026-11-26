@@ -47,4 +47,121 @@ describe("harvestSessionToSpec", () => {
     expect(parsed.scenarios).toHaveLength(1);
     expect(parsed.scenarios[0].id).toBe("H1");
   });
+
+  it("harvests two distinct turns independently with preserved --id, spaces in path, and redacted verify commands", () => {
+    const dir = mkdtempSync(join(tmpdir(), "sh-harvest-two-turn-"));
+    dirs.push(dir);
+    const session = join(dir, "two-turn session.jsonl");
+    const turn1Prompt = "Fix rate limiter burst bug in src/limiter.ts";
+    const turn2Prompt = "Fix webhook signature check in src/webhook.ts";
+    const lines = [
+      JSON.stringify({ type: "message", message: { role: "user", content: turn1Prompt } }),
+      JSON.stringify({
+        type: "message",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "toolCall", name: "edit", arguments: { path: "src/limiter.ts" } },
+            { type: "toolCall", name: "bash", arguments: { command: "API_TOKEN=sk-secret9876543210abcdef npm test" } },
+          ],
+        },
+      }),
+      JSON.stringify({ type: "message", message: { role: "user", content: turn2Prompt } }),
+      JSON.stringify({
+        type: "message",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "toolCall", name: "edit", arguments: { path: "src/webhook.ts" } },
+            { type: "toolCall", name: "bash", arguments: { command: "vitest run webhook.test.ts" } },
+          ],
+        },
+      }),
+    ];
+    writeFileSync(session, lines.join("\n") + "\n", "utf8");
+
+    const outWithSpaces = join(dir, "harvested evals dir");
+    const first = harvestSessionToSpec({
+      sessionPath: session,
+      outDir: outWithSpaces,
+      scenarioId: "turn-one-limiter",
+      prompt: turn1Prompt,
+    });
+    const second = harvestSessionToSpec({
+      sessionPath: session,
+      outDir: outWithSpaces,
+      scenarioId: "turn-two-webhook",
+      prompt: turn2Prompt,
+    });
+
+    expect(first.specPath).not.toBe(second.specPath);
+    expect(first.specPath).toContain("harvested evals dir");
+
+    const spec1 = loadSpec(first.specPath);
+    const spec2 = loadSpec(second.specPath);
+    expect(spec1.scenarios[0].id).toBe("turn-one-limiter");
+    expect(spec1.scenarios[0].turns).toEqual([turn1Prompt]);
+    expect(spec2.scenarios[0].id).toBe("turn-two-webhook");
+    expect(spec2.scenarios[0].turns).toEqual([turn2Prompt]);
+    expect(spec2.scenarios[0].checklist.join("\n")).toContain("src/webhook.ts");
+
+    const raw1 = readFileSync(first.specPath, "utf8");
+    expect(raw1).not.toContain("sk-secret9876543210abcdef");
+  });
+
+  it("P1/P2: structured turnInput isolates repeated identical prompts, preserves -- prompts, redacts TOKEN=, and avoids 48-char ID collisions", () => {
+    const dir = mkdtempSync(join(tmpdir(), "sh-harvest-structured-"));
+    dirs.push(dir);
+    const out = join(dir, "evals with spaces");
+
+    // Identical prompt across two turns with different verification commands + synthetic TOKEN=
+    const repeatedPrompt = "--fix-mode retry backoff handling";
+    const maxId = "a".repeat(48);
+
+    const first = harvestSessionToSpec({
+      outDir: out,
+      unique: true,
+      turnInput: {
+        scenarioId: maxId,
+        prompt: repeatedPrompt,
+        editedFiles: ["src/retry.ts"],
+        verifyCommands: [
+          'TOKEN=synthetic-token-value-12345 npm test -- retry \'{"token":"synthetic-review-value","password":"synthetic-esc-head\\"synthetic-esc-tail"}\'',
+        ],
+        notes: 'First turn retry failure {"token":"synthetic-review-value","password":"synthetic-esc-head\\"synthetic-esc-tail"}',
+      },
+    });
+    const second = harvestSessionToSpec({
+      outDir: out,
+      unique: true,
+      turnInput: {
+        scenarioId: maxId,
+        prompt: repeatedPrompt,
+        editedFiles: ["src/backoff.ts"],
+        verifyCommands: ["vitest run backoff.test.ts"],
+        notes: "Second turn backoff failure",
+      },
+    });
+
+    expect(first.specPath).not.toBe(second.specPath);
+    expect(first.scenarioId).toBe(maxId);
+    expect(second.scenarioId).toBe(maxId);
+    // Redacted in both returned JSON fields AND saved YAML (including quoted JSON keys & escaped quotes)
+    for (const needle of ["synthetic-token-value-12345", "synthetic-review-value", "synthetic-esc-head", "synthetic-esc-tail"]) {
+      expect(JSON.stringify(first)).not.toContain(needle);
+      expect(readFileSync(first.specPath, "utf8")).not.toContain(needle);
+    }
+
+    const spec1 = loadSpec(first.specPath);
+    const spec2 = loadSpec(second.specPath);
+    expect(spec1.scenarios[0].id).toBe(maxId);
+    expect(spec1.scenarios[0].turns).toEqual([repeatedPrompt]);
+    expect(spec1.scenarios[0].checklist.join("\n")).toContain("npm test -- retry");
+    expect(spec1.scenarios[0].checklist.join("\n")).not.toContain("backoff.test.ts");
+
+    expect(spec2.scenarios[0].id).toBe(maxId);
+    expect(spec2.scenarios[0].turns).toEqual([repeatedPrompt]);
+    expect(spec2.scenarios[0].checklist.join("\n")).toContain("vitest run backoff.test.ts");
+    expect(spec2.scenarios[0].checklist.join("\n")).not.toContain("retry");
+  });
 });

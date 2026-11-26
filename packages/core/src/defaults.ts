@@ -2,20 +2,58 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseModelRef, type ModelRef } from "./adapters/types.js";
+import { allowMeteredJudge, isMeteredJudge } from "./judge-policy.js";
 import { readEnv } from "./util/env.js";
 
-function ecosystemFastModel(): string | undefined {
+function selectPreferredCandidate(candidates: readonly string[]): string | undefined {
+  if (candidates.length === 0) return undefined;
+  // When metered judging is not explicitly opted in, prefer a non-metered candidate
+  // (such as openai-codex OAuth or a local runtime) if the fallback chain includes one.
+  if (!allowMeteredJudge()) {
+    for (const candidate of candidates) {
+      try {
+        if (!isMeteredJudge(parseModelRef(candidate))) return candidate;
+      } catch {
+        /* skip unparseable candidate */
+      }
+    }
+  }
+  return candidates[0];
+}
+
+function ecosystemFastCandidates(): string[] {
+  const candidates: string[] = [];
+  const push = (raw: unknown) => {
+    if (typeof raw !== "string") return;
+    const clean = raw.trim();
+    if (!clean || clean === "session" || candidates.includes(clean)) return;
+    candidates.push(clean);
+  };
+  const envFast = process.env.PI_ECO_MODEL_FAST?.trim();
+  if (envFast) {
+    for (const part of envFast.split(",")) push(part);
+  }
   try {
     const dir = process.env.PI_CODING_AGENT_DIR?.trim() || join(homedir(), ".pi", "agent");
     const file = join(dir, "ecosystem.json");
-    if (!existsSync(file)) return undefined;
-    const parsed = JSON.parse(readFileSync(file, "utf8")) as { models?: { fast?: unknown } };
-    return typeof parsed?.models?.fast === "string" && parsed.models.fast.trim()
-      ? parsed.models.fast.trim()
-      : undefined;
+    if (existsSync(file)) {
+      const parsed = JSON.parse(readFileSync(file, "utf8")) as {
+        models?: { fast?: unknown };
+        modelFallbacks?: { fast?: unknown };
+      };
+      push(parsed?.models?.fast);
+      if (Array.isArray(parsed?.modelFallbacks?.fast)) {
+        for (const item of parsed.modelFallbacks.fast) push(item);
+      }
+    }
   } catch {
-    return undefined;
+    /* ignore invalid ecosystem.json when computing fallback candidates */
   }
+  return candidates;
+}
+
+function ecosystemFastModel(): string | undefined {
+  return selectPreferredCandidate(ecosystemFastCandidates());
 }
 
 /**
@@ -43,7 +81,7 @@ export const BAKED_DEFAULT_JUDGE = "openai-codex:gpt-5.6-sol";
  * extension) must see an env change without a reload.
  */
 export function defaultJudge(): string {
-  return readEnv("JUDGE") ?? readEnv("JUDGE_FAST") ?? process.env.PI_ECO_MODEL_FAST ?? ecosystemFastModel() ?? BAKED_DEFAULT_JUDGE;
+  return readEnv("JUDGE") ?? readEnv("JUDGE_FAST") ?? ecosystemFastModel() ?? BAKED_DEFAULT_JUDGE;
 }
 
 /**

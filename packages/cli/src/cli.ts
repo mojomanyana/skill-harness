@@ -929,12 +929,47 @@ async function dispatch(argv: string[]): Promise<void> {
     case "create":
     case "author": throw new Error("Skill creation uses your current Pi model. Start Pi with skill-harness installed, then use /skill-harness create followed by your idea; it asks one necessary question at a time.");
     case "harvest": {
+      const turnJsonSource = flagStr(args, "turn-json");
       const sessionPath = args._[0];
-      if (!sessionPath) throw new Error("usage: skill-harness harvest <session.jsonl> [--out dir] [--name skill]");
+      if (!turnJsonSource && !sessionPath) {
+        throw new Error(
+          "usage: skill-harness harvest (<session.jsonl> | --turn-json -|<file>) [--out dir] [--name skill] [--id scenarioId] [--turn-index N] [--unique] [--json]",
+        );
+      }
+      let turnInput: import("@skill-harness/core").HarvestTurnInput | undefined;
+      if (turnJsonSource) {
+        const rawJson = turnJsonSource === "-" ? readFileSync(0, "utf8") : readFileSync(resolve(turnJsonSource), "utf8");
+        const parsed = JSON.parse(rawJson) as unknown;
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          throw new Error("--turn-json must provide a JSON object");
+        }
+        turnInput = parsed as import("@skill-harness/core").HarvestTurnInput;
+      }
       const outDir = resolve(flagStr(args, "out", ".") ?? ".");
       const skillName = flagStr(args, "name");
-      const res = harvestSessionToSpec({ sessionPath, outDir, ...(skillName ? { skillName } : {}) });
-      console.log(`Harvested ${res.skillName} -> ${res.specPath} (${res.editedFiles.length} edited file(s), ${res.verifyCommands.length} verify cmd(s))`);
+      const scenarioId = flagStr(args, "id");
+      const prompt = flagStr(args, "prompt");
+      const turnIndexRaw = flagStr(args, "turn-index");
+      const turnIndex = turnIndexRaw !== undefined ? Number(turnIndexRaw) : undefined;
+      const notes = flagStr(args, "notes");
+      const unique = Boolean(args.flags.unique);
+      const asJson = Boolean(args.flags.json);
+      const res = harvestSessionToSpec({
+        ...(sessionPath ? { sessionPath } : {}),
+        ...(turnInput ? { turnInput } : {}),
+        outDir,
+        ...(skillName ? { skillName } : {}),
+        ...(scenarioId ? { scenarioId } : {}),
+        ...(prompt ? { prompt } : {}),
+        ...(turnIndex !== undefined ? { turnIndex } : {}),
+        ...(notes ? { notes } : {}),
+        ...(unique ? { unique } : {}),
+      });
+      if (asJson) {
+        console.log(JSON.stringify(res));
+      } else {
+        console.log(`Harvested ${res.skillName} -> ${res.specPath} (${res.editedFiles.length} edited file(s), ${res.verifyCommands.length} verify cmd(s))`);
+      }
       return;
     }
     case "preflight": return cmdPreflight(args);

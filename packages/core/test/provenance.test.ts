@@ -1,10 +1,12 @@
 import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import yaml from "js-yaml";
 import { HARNESS_VERSION } from "../src/version.js";
 import { defaultJudge, BAKED_DEFAULT_JUDGE, recordedJudgeOrDefault } from "../src/defaults.js";
+import { assertJudgeAllowed } from "../src/judge-policy.js";
+import { parseModelRef } from "../src/adapters/types.js";
 import { finalizeResults, writeResults, readResults, migrateResults, type ResultsDraft } from "../src/results.js";
 import { __resetEnvWarnings } from "../src/util/env.js";
 
@@ -114,5 +116,54 @@ describe("defaultJudge", () => {
     // The CLI's precedence is flag ?? defaultJudge(); this asserts the seam it relies on.
     const flag: string | undefined = "anthropic:explicit";
     expect(flag ?? defaultJudge()).toBe("anthropic:explicit");
+  });
+
+  test("ecosystem.json Codex OAuth default is accepted without metered opt-in, while metered-only still requires opt-in", () => {
+    const dir = mkdtempSync(join(tmpdir(), "sh-eco-judge-"));
+    const prevAgent = process.env.PI_CODING_AGENT_DIR;
+    const prevAllow = process.env.SKILL_HARNESS_ALLOW_METERED_JUDGE;
+    const prevEco = process.env.PI_ECO_MODEL_FAST;
+    process.env.PI_CODING_AGENT_DIR = dir;
+    delete process.env.SKILL_HARNESS_ALLOW_METERED_JUDGE;
+    delete process.env.PI_ECO_MODEL_FAST;
+    try {
+      // Codex-only ecosystem.json -> accepted without metered opt-in
+      writeFileSync(join(dir, "ecosystem.json"), JSON.stringify({ models: { fast: "openai-codex/gpt-5.6-sol" } }));
+      expect(defaultJudge()).toBe("openai-codex/gpt-5.6-sol");
+      expect(() => assertJudgeAllowed(parseModelRef(defaultJudge()), { source: "default" })).not.toThrow();
+
+      // Metered primary + Codex fallback -> picks non-metered Codex fallback when metered opt-in is off
+      writeFileSync(
+        join(dir, "ecosystem.json"),
+        JSON.stringify({
+          models: { fast: "google/gemini-3.5-flash-lite" },
+          modelFallbacks: { fast: ["openai-codex/gpt-5.6-sol", "session"] },
+        }),
+      );
+      expect(defaultJudge()).toBe("openai-codex/gpt-5.6-sol");
+      expect(() => assertJudgeAllowed(parseModelRef(defaultJudge()), { source: "default" })).not.toThrow();
+
+      // Metered-only ecosystem.json without opt-in -> still refused by assertJudgeAllowed
+      writeFileSync(join(dir, "ecosystem.json"), JSON.stringify({ models: { fast: "openai/gpt-4.1-mini" } }));
+      expect(defaultJudge()).toBe("openai/gpt-4.1-mini");
+      expect(() => assertJudgeAllowed(parseModelRef(defaultJudge()), { source: "default" })).toThrow(/metered/i);
+
+      // Comma-separated PI_ECO_MODEL_FAST resolves consistently, preferring non-metered candidate when opt-in is off
+      process.env.PI_ECO_MODEL_FAST = "google/gemini-3.5-flash-lite, openai-codex/gpt-5.6-sol, session";
+      expect(defaultJudge()).toBe("openai-codex/gpt-5.6-sol");
+      expect(() => assertJudgeAllowed(parseModelRef(defaultJudge()), { source: "PI_ECO_MODEL_FAST" })).not.toThrow();
+
+      // With metered opt-in enabled, first entry in comma-separated PI_ECO_MODEL_FAST is selected
+      process.env.SKILL_HARNESS_ALLOW_METERED_JUDGE = "1";
+      expect(defaultJudge()).toBe("google/gemini-3.5-flash-lite");
+    } finally {
+      if (prevAgent === undefined) delete process.env.PI_CODING_AGENT_DIR;
+      else process.env.PI_CODING_AGENT_DIR = prevAgent;
+      if (prevAllow === undefined) delete process.env.SKILL_HARNESS_ALLOW_METERED_JUDGE;
+      else process.env.SKILL_HARNESS_ALLOW_METERED_JUDGE = prevAllow;
+      if (prevEco === undefined) delete process.env.PI_ECO_MODEL_FAST;
+      else process.env.PI_ECO_MODEL_FAST = prevEco;
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

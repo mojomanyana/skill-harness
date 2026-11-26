@@ -788,13 +788,12 @@ Adding another harness is the one extension point: implement `HarnessAdapter`
 (`packages/core/src/adapters/types.ts`) and register it in
 `packages/adapters/src/index.ts`.
 
-## Session harvesting & ecosystem defaults (v1.0)
+## Session harvesting & ecosystem defaults
 
-`skill-harness harvest <session.jsonl> --out <dir> [--id <scenario-id>]` converts a real Pi session JSONL (such as a failed or rescued coding turn) into a secret-redacted `specification.yaml` regression scenario ready for `skill-harness run`.
+`skill-harness harvest <session.jsonl> --out <dir> [--id <scenario-id>] [--name <skill>] [--prompt <text>] [--turn-index <N>] [--unique] [--json]` converts a real Pi session (or a specific classified turn) into a secret-redacted, schema-validated `specification.yaml` regression scenario ready for `skill-harness run`.
 
-- **Default fast judge via `~/.pi/agent/ecosystem.json`:** `defaultJudge()` automatically resolves `models.fast` from `~/.pi/agent/ecosystem.json` when no explicit `--judge` is supplied.
-- **Parallel-by-default & cross-OS:** CLI defaults to `--parallel 4`, resolves Windows `pi.cmd` shims natively, qualifies Pi `1.6.0` with `provider/model`, and uses contextual deferred tool activation inside Pi (zero extra Turn-1 tools).
-- **No JEV:** The experimental JEV / `decision-shadow` stack was permanently removed in `0.38` / `1.0`.
+- **Default fast judge via `~/.pi/agent/ecosystem.json`:** `defaultJudge()` resolves `models.fast` and `modelFallbacks.fast` from `~/.pi/agent/ecosystem.json` when no explicit `--judge` or env override is set, preferring a non-metered provider (such as `openai-codex` OAuth or local runtimes) unless metered judging is explicitly opted in.
+- **Parallel-by-default & cross-OS:** CLI defaults to `--parallel 4`, resolves Windows `pi.cmd` shims natively, qualifies Pi `1.6.0` (plus forward-compatible 1.x subject minors), and uses contextual deferred tool activation inside Pi.
 
 ## Selected lessons and improvement proposals
 
