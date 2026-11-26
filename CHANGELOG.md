@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.5 - 2026-11-26
+
+- Removed all legacy pre-envelope `pi-daddy` ledger formats (`v1`/`v2`/bare-`v3`) and Herdr schema/adapter references; `pi-daddy-record-v1` is now the sole `pi-daddy` ledger adapter, re-pinned to `pi-daddy@1.1.3` (#154).
+- Updated Pi qualification to require `Pi >= 1.6.1` (`QUALIFIED_PI_VERSIONS = ["1.6.1"]`; previously accepted `1.0.4`–`1.6.0` and legacy `0.83.0`) and updated CI transport qualification to Pi `1.6.1` (#154).
+- Updated publish workflow provenance pin and rebuilt Pi extension bundles (`npm run build:ext`) with zero Herdr bytes.
+
 ## 1.0.4 - 2026-11-25
 
 - Support structured `--turn-json -|<file>`, `--id`, `--unique`, and `--json` in `skill-harness harvest` with `parseSpec` validation and 48-char uniqueness-preserving capture directories.
