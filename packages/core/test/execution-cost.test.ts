@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { mergeTraces, parseTrace, traceSha256 } from "../src/execution-trace.js";
 
 const meta = {
-  piVersion: "1.5.2", subject: { provider: "openrouter", model: "example/model" },
+  piVersion: "1.6.1", subject: { provider: "openrouter", model: "example/model" },
   scenarioId: "A1", mode: "force" as const, rep: 0, turn: 0,
 };
-// Synthetic accounting contrasts, using Pi 1.5.2's documented message_end shape.
+// Synthetic accounting contrasts, using Pi 1.6.1's documented message_end shape.
 // totalFromProvider is the explicit discriminator; cost.total alone is also used
 // for Pi's local catalogue estimates. These controls make no provider calls.
 const message = (cost: unknown) => ({

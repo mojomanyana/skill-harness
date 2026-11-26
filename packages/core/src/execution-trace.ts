@@ -25,13 +25,11 @@ import type { ModelRef, RunMode } from "./adapters/types.js";
  */
 
 /**
- * Preferred historical pin. Fresh execution accepts the explicit fixture-qualified
- * releases below exactly. See `piQualification` for compatible subject versions.
+ * Minimum qualified Pi release. Fresh execution requires Pi >= 1.6.1
+ * (exact 1.6.1, higher 1.6.x patches, or newer 1.x minors unless strict mode is set).
  */
-export const QUALIFIED_PI_VERSION = "1.0.4";
-export const QUALIFIED_PI_VERSIONS = ["1.0.4", "1.1.0", "1.4.0", "1.5.0", "1.5.2", "1.6.0"] as const;
-/** Historical raw captures from this version remain readable; this is not fresh-run qualification. */
-const LEGACY_PI_TRACE_VERSION = "0.83.0";
+export const QUALIFIED_PI_VERSION = "1.6.1";
+export const QUALIFIED_PI_VERSIONS = ["1.6.1"] as const;
 
 /** Plain `major.minor.patch` only: a prerelease, build metadata, prefix or leading zero is not a release. */
 function releaseParts(version: unknown): [number, number, number] | null {
@@ -142,9 +140,9 @@ export function parseTrace(lines: Iterable<string>, meta: TraceMeta): { trace: E
   let completionCounter = 0;
   let malformedLines = 0;
   let sawTerminal = false;
-  const settledContract = meta.piVersion !== LEGACY_PI_TRACE_VERSION;
-  const qualification = settledContract ? piQualification(meta.piVersion) : null;
-  const qualificationFailure = qualification?.status === "unqualified" ? qualification.reason : null;
+  const qualification = piQualification(meta.piVersion);
+  const qualificationFailure = qualification.status === "unqualified" ? qualification.reason : null;
+  const settledContract = true;
   let sawSettled = false;
   let lastStopReason: string | undefined;
   let currentAssistantText = "";

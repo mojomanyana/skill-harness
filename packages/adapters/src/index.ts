@@ -19,5 +19,5 @@ export function getAdapter(name: string): HarnessAdapter {
 
 export { piAdapter };
 export * from "./trajectory.js";
-export * from "./pi-daddy-ledger-v3.js";
+export * from "./pi-daddy-record-v1-contract.js";
 

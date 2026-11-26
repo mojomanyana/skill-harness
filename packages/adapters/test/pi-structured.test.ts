@@ -34,7 +34,7 @@ vi.mock("@skill-harness/core", async (importOriginal) => {
     onPath: () => true,
     exec: vi.fn(async (_command: string, args: string[]) =>
       args.includes("--version")
-        ? { code: 0, stdout: "1.0.4\n", stderr: "" }
+        ? { code: 0, stdout: "1.6.1\n", stderr: "" }
         : { code: 0, stdout: "77\n", stderr: "" }),
   };
 });
@@ -42,8 +42,7 @@ vi.mock("@skill-harness/core", async (importOriginal) => {
 import { piAdapter } from "../src/pi.js";
 
 const FIXTURES = join(__dirname, "fixtures", "pi-json");
-// Synthetic settled variants of retained 0.83.0 records exercise adapter plumbing;
-// actual 1.0.4 capture qualification lives in pi-1.0.4-contract.test.ts.
+// Synthetic settled variants exercise adapter plumbing.
 function settledFixture(name: string): string {
   return readFileSync(join(FIXTURES, name), "utf8") + '{"type":"agent_settled"}\n';
 }

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { parseTrace, piQualificationFailure } from "../src/execution-trace.js";
 import { evaluateTraceGates } from "../src/trace-gates.js";
 
-const meta = { piVersion: "1.0.4", subject: { provider: "fixture", model: "scripted" },
+const meta = { piVersion: "1.6.1", subject: { provider: "fixture", model: "scripted" },
   scenarioId: "settlement", mode: "force" as const, rep: 0, turn: 0 };
 const message = (text: string, stopReason = "stop") => ({ type: "message_end",
   message: { role: "assistant", content: [{ type: "text", text }], stopReason } });
@@ -12,7 +12,7 @@ const start = (id: string) => ({ type: "tool_execution_start", toolCallId: id, t
   args: { tasks: [{ agent: "build", task: "one" }, { agent: "build", task: "two" }] } });
 const end = (id: string) => ({ type: "tool_execution_end", toolCallId: id, isError: false, result: {} });
 
-describe("Pi 1.0.4 settlement and malformed-evidence regressions", () => {
+describe("Pi 1.6.1 settlement and malformed-evidence regressions", () => {
   it("requires settlement even after a final-looking message", () => {
     const before = parse(message("answer"));
     expect(before.isComplete).toBe(false);
@@ -68,28 +68,20 @@ it("does not accept settlement before an outstanding tool completes", () => {
   expect(result.isComplete).toBe(false);
   expect(result.trace.final_status).toBe("incomplete");
 });
-// 1.0.5, 1.1.1, 1.4.1 and 1.5.3 left this list: later patches of a qualified minor are accepted, flagged.
-for (const piVersion of ["1.0.3", "1.0.4-rc.1", "1.1.0-rc.1", "1.2.0", "1.3.0", "1.4.0-rc.1", "1.5.0-rc.1", "1.5.1", "1.5.2-rc.1", "1.5.3-beta.1", "2.0.0", "0.84.1", "unknown", null]) {
-  it(`never downgrades unqualified ${piVersion} to historical parsing`, () => {
+for (const piVersion of ["1.0.4", "1.5.2", "1.6.0", "1.6.1-rc.1", "1.6.2-beta.1", "2.0.0", "0.83.0", "unknown", null]) {
+  it(`rejects unqualified Pi ${piVersion}`, () => {
     const result = parseTrace([JSON.stringify(message("plausible")), JSON.stringify(settled)], { ...meta, piVersion });
     expect(result.trace.final_status).toBe("unqualified");
     expect(result.isComplete).toBe(false);
-    expect(result.trace.capture_errors?.join(" ")).toContain("requires qualified Pi 1.0.4 or 1.1.0");
+    expect(result.trace.capture_errors?.join(" ")).toContain("requires qualified Pi 1.6.1");
   });
 }
-it.each(["1.0.4", "1.1.0", "1.4.0", "1.5.0", "1.5.2"])("requires the same settled event contract on qualified Pi %s", piVersion => {
+it.each(["1.6.1", "1.6.2"])("requires the settled event contract on qualified Pi %s", piVersion => {
   expect(piQualificationFailure(piVersion)).toBeNull();
   expect(parseTrace([JSON.stringify(message("answer"))], { ...meta, piVersion }).isComplete).toBe(false);
   const result = parseTrace([JSON.stringify(message("answer")), JSON.stringify(settled)], { ...meta, piVersion });
   expect(result.isComplete).toBe(true);
   expect(result.trace.final_status).toBe("complete");
-});
-it("retains historical 0.83.0 parsing with exact concatenated visible text", () => {
-  const result = parseTrace([JSON.stringify({ type: "message_end", message: { role: "assistant", stopReason: "stop",
-    content: [{ type: "text", text: "  first" }, { type: "text", text: "second\n\n" }] } })], { ...meta, piVersion: "0.83.0" });
-  expect(result.trace.final_status).toBeUndefined();
-  expect(result.isComplete).toBe(true);
-  expect(result.trace.final_text).toBe("  firstsecond\n\n");
 });
 it("reports a settled length limit precisely rather than missing settlement", () => {
   const result = parse(message("partial", "length"), settled);

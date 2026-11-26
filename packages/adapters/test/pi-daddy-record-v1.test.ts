@@ -5,9 +5,9 @@ import { readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { collectTrajectorySources, normalizePiDaddyRecordLedgerV1, normalizePiDaddyLedgerV3 } from "../src/trajectory.js";
-import { assertSupportedSchema, assertSupportedSchemaV3, validateClosedSchemaV3 } from "../src/closed-schema.js";
-import { PI_DADDY_RECORD_V1_COMMIT, PI_DADDY_RECORD_V1_SCHEMA, PI_DADDY_RECORD_V1_GOVERNANCE_SCHEMA } from "../src/pi-daddy-record-v1-contract.js";
+import { collectTrajectorySources, normalizePiDaddyRecordLedgerV1 } from "../src/trajectory.js";
+import { assertSupportedSchemaV3, validateClosedSchemaV3 } from "../src/closed-schema.js";
+import { PI_DADDY_RECORD_V1_COMMIT, PI_DADDY_RECORD_V1_VERSION, PI_DADDY_RECORD_V1_SCHEMA, PI_DADDY_RECORD_V1_GOVERNANCE_SCHEMA } from "../src/pi-daddy-record-v1-contract.js";
 const root=join(dirname(fileURLToPath(import.meta.url)),"../../..");
 const contract=join(root,"contracts/pi-daddy/ledger-record/v1");
 const fixture=(name:string):Record<string,unknown>=>JSON.parse(readFileSync(join(contract,"fixtures",name+".json"),"utf8"));
@@ -18,17 +18,16 @@ function signed(bodies:Record<string,unknown>[], mutate?:(record:Record<string,u
  let previous:string|null=null;
  return bodies.map((body,index)=>{const record:Record<string,unknown>={v:1,seq:index+1,prev:previous,at:body.ts,kind:body.event==="capability_decision"?"capability":body.event==="child_lifecycle"?"lifecycle":body.event==="workspace_lease"?"lease":"fact",id:"record-"+index,body};mutate?.(record,index);record.digest=hash(stable(record));const line=JSON.stringify(record);previous=hash(line);return line;}).join("\n")+"\n";
 }
-describe("pi-daddy 1.1.2 record-v1 compatibility",()=>{
+describe("pi-daddy 1.1.3 record-v1 compatibility",()=>{
  it("pins all schemas, fixtures and reader source to exact pinned bytes",()=>{
-  const pin=JSON.parse(readFileSync(join(contract,"PINNED.json"),"utf8"));expect(pin.commit).toBe(PI_DADDY_RECORD_V1_COMMIT);expect(pin.version).toBe("1.1.2");
+  const pin=JSON.parse(readFileSync(join(contract,"PINNED.json"),"utf8"));expect(pin.commit).toBe(PI_DADDY_RECORD_V1_COMMIT);expect(pin.version).toBe(PI_DADDY_RECORD_V1_VERSION);expect(PI_DADDY_RECORD_V1_VERSION).toBe("1.1.3");
   for(const [path,artifact] of Object.entries(pin.artifacts) as Array<[string,{sha256:string}]>)expect(hash(readFileSync(join(contract,path),"utf8"))).toBe(artifact.sha256);
   expect(PI_DADDY_RECORD_V1_SCHEMA).toEqual(JSON.parse(readFileSync(join(contract,"record.schema.json"),"utf8")));
   expect(PI_DADDY_RECORD_V1_GOVERNANCE_SCHEMA).toEqual(JSON.parse(readFileSync(join(contract,"governance-event.schema.json"),"utf8")));
  });
- it("accepts untouched producer envelopes and keeps old bare-v3 parsing distinct",()=>{
+ it("accepts untouched producer envelopes",()=>{
   const raw=readFileSync(join(contract,"fixtures/ledger-record.jsonl"),"utf8");
   const actual=normalizePiDaddyRecordLedgerV1(raw);expect(actual.length).toBeGreaterThan(0);expect(actual.every(e=>e.source==="pi-daddy-record-v1")).toBe(true);
-  expect(()=>normalizePiDaddyLedgerV3(raw)).toThrow(/requires explicit ledgerVersion/);
  });
  it.each(["capability-decision","workspace-lease","child-lifecycle","episode-cost-gate","session-config","episode-outcome"])("accepts current producer %s body without field stripping",name=>{
   const body=fixture(name),events=normalizePiDaddyRecordLedgerV1(signed([body]));expect(events).toHaveLength(1);expect(events[0].attributes?.native_event).toBe(body.event);expect(deserializeTrajectoryEvents(events.map(e=>JSON.stringify(e)).join("\n"))).not.toBeNull();
@@ -78,9 +77,6 @@ describe("pi-daddy 1.1.2 record-v1 compatibility",()=>{
    expect(event.attributes).not.toHaveProperty("humanDenied");
    expect(event.attributes).not.toHaveProperty("approvalSource");
    expect(event.attributes).not.toHaveProperty("approvalExpiresAt");
-   const historical = JSON.parse(readFileSync(join(root, "contracts/pi-daddy/ledger/v3/fixtures/capability-decision.json"), "utf8"));
-   historical.approvalSources = { "tool:bash": "auto" };
-   expect(() => normalizePiDaddyLedgerV3(JSON.stringify(historical) + "\n")).toThrow(/approvalSources/);
    body.approvalSources = { "tool:bash": "unrecognized-auto-policy" };
    expect(() => normalizePiDaddyRecordLedgerV1(signed([body]))).toThrow(/approvalSources/);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
@@ -103,9 +99,6 @@ describe("pi-daddy 1.1.2 record-v1 compatibility",()=>{
     attributes: { gateOutcome, blocked: true, approved: [], gatedBlocked: ["tool:bash"] },
    });
    expect(result.events[0].attributes).not.toHaveProperty("humanDenied");
-   const historical = JSON.parse(readFileSync(join(root, "contracts/pi-daddy/ledger/v3/fixtures/capability-decision.json"), "utf8"));
-   historical.gateOutcome = gateOutcome;
-   expect(() => normalizePiDaddyLedgerV3(JSON.stringify(historical) + "\n")).toThrow(/gateOutcome/);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
  });
  it.each(["granted", "unrecognized-outcome"])("rejects unsupported %s approval evidence despite valid record signatures", gateOutcome => {
@@ -160,18 +153,24 @@ describe("pi-daddy 1.1.2 record-v1 compatibility",()=>{
   expect(()=>normalizePiDaddyRecordLedgerV1(signed([body]))).toThrow(/cannot represent this source/);
  });
  it("rejects retired herdr executor and pane fields on current record-v1",()=>{
-  const body=fixture("child-lifecycle");body.executor="herdr";expect(()=>normalizePiDaddyRecordLedgerV1(signed([body]))).toThrow();
-  body.executor="process";body.herdrPaneId="w1:p2";expect(()=>normalizePiDaddyRecordLedgerV1(signed([body]))).toThrow(/undeclared/);
+  const lifecycle=fixture("child-lifecycle");
+  lifecycle.executor="herdr";
+  expect(()=>normalizePiDaddyRecordLedgerV1(signed([lifecycle]))).toThrow(/executor/);
+  lifecycle.executor="process";
+  lifecycle.herdrPaneId="w1:p2";
+  expect(()=>normalizePiDaddyRecordLedgerV1(signed([lifecycle]))).toThrow(/undeclared/);
+  delete lifecycle.herdrPaneId;
+  lifecycle.herdrAgentName="worker-1";
+  expect(()=>normalizePiDaddyRecordLedgerV1(signed([lifecycle]))).toThrow(/undeclared/);
+  const decision=fixture("capability-decision");
+  decision.executor="herdr";
+  expect(()=>normalizePiDaddyRecordLedgerV1(signed([decision]))).toThrow(/executor/);
  });
  it("redacts sensitive free text without weakening body validation",()=>{
   const body=fixture("child-lifecycle");body.reason="Bearer abcdefghijklmnopqrstuvwxyz1234";const [event]=normalizePiDaddyRecordLedgerV1(signed([body]));expect(event.attributes?.reason).toBe("[redacted]");
  });
 });
 describe("current-record schema constructs",()=>{
- it("keeps the frozen v2 keyword profile closed", () => {
-  for (const schema of [{ not: { type: "string" } }, { maximum: Number.MAX_SAFE_INTEGER }])
-   expect(() => assertSupportedSchema(schema, "v2")).toThrow(/unsupported/);
- });
  it("rejects malformed maximum bounds and unsupported neighboring keywords", () => {
   for (const maximum of ["1", null, NaN, Infinity, -Infinity])
    expect(() => assertSupportedSchemaV3({ type: "number", maximum }, "record")).toThrow(/`maximum`.*finite number/);

@@ -1,9 +1,9 @@
 {
   "producer": "pi-daddy",
   "repository": "mojomanyana/pi-daddy",
-  "commit": "d9ca1303115f350b7833bab6ed58bdc2d3bb9d71",
-  "tree": "d60ed687ee2d7f73afede866293d03388aca8673",
-  "version": "1.1.2",
+  "commit": "9c9cdaeadf593983954ad5a2d4de38233afa895c",
+  "tree": "121c55a203d8403984ae4ef193f2aa291e4d52db",
+  "version": "1.1.3",
   "recordVersion": 1,
   "ledgerVersion": 3,
   "artifacts": {
@@ -52,5 +52,5 @@
       "sha256": "7556b087ad4c678ed77b592b600558e61967af2899bdc7432ef00b654a47ce93"
     }
   },
-  "note": "Independent current record pin. Historical ledger v2 and bare-v3 pins remain unchanged. Schemas and producer fixtures are byte exact."
+  "note": "Current pi-daddy record-v1 contract pin. Schemas and producer fixtures are byte exact."
 }

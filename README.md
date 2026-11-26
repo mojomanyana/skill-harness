@@ -26,32 +26,18 @@ in each trace's `pi_qualification`. Each subject's cwd/PATH-selected Pi must
 match the recorded run version. An unsupported version or a failed probe records
 an execution ERROR before the subject starts. Regrading preserves that failure.
 
-Retained results remain readable. The raw-trace parser keeps the original Pi
-0.83.0 capture format for historical inspection, without claiming current
-settlement qualification. Structural capture errors apply to all parsed versions.
-Current structured runs require a settled eligible final, stop on provider or
-execution failure, and preserve exact concatenated visible text (with existing
-redaction). Empty finals are unavailable; a settled output limit is `truncated`.
-The [shared final conformance table](packages/adapters/test/fixtures/pi-1.0.4/final-conformance.json)
-and [producer pin](packages/adapters/test/fixtures/pi-1.0.4/vendor-source.json)
-make the evidence and its limits inspectable.
+Current structured runs require Pi >= 1.6.1 and a settled eligible final, stop
+on provider or execution failure, and preserve exact concatenated visible text
+(with existing redaction). Empty finals are unavailable; a settled output limit
+is `truncated`.
 
-The [Pi 1.5.2 qualification](packages/adapters/test/fixtures/pi-1.5.2/README.md) repeats the native and Harness transport checks with the official 1.5.2 runtime. Session resumption, successful and failed tools, and grading all have retained examples.
-
-The [validation index](docs/VALIDATION-INDEX.md) separates public reproducible checks,
-historical model results and privately retained acceptance evidence. The current-Pi CI
-lane exercises 1.5.2 with scripted local answers; existing older-version fixtures remain.
-
-The [Pi 1.5.0 transport fixtures](packages/adapters/test/fixtures/pi-1.5.0/README.md)
-add native schema-coercion and invalid-argument controls, plus the same settled
-adapter/CLI matrix. These are scripted transport controls, not live model scores.
-
-The [Pi 1.4.0 transport fixtures](packages/adapters/test/fixtures/pi-1.4.0/README.md)
-exercise native red/green/force delivery, explicit extension and tool selection,
-successful and failed calls, terminal errors and length limits, multi-turn resume,
-and the scoring pipeline with a scripted local provider. These checks do not
-qualify subscription authentication, real model quality, arbitrary MCP servers,
-governed child execution or OS isolation.
+The [validation index](docs/VALIDATION-INDEX.md) separates public reproducible
+checks and acceptance scope. The current-Pi CI lane exercises Pi 1.6.1 with
+scripted local answers via `scripts/pi-qualification/capture.mjs` (red/green/force
+delivery, explicit extension and tool selection, JSON Schema coercion, successful
+and failed calls, terminal errors and length limits, multi-turn resume, and the
+scoring pipeline). These checks do not qualify subscription authentication, real
+model quality, arbitrary MCP servers, governed child execution or OS isolation.
 
 ## Quickstart
 

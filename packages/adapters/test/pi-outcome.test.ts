@@ -9,8 +9,8 @@ import {
   runSkillModel, regradeScenario, exec, deserializeTrace, runSummaryLines,
 } from "@skill-harness/core";
 
-const replay = vi.hoisted(() => ({ text: "", code: 0, calls: 0, version: "1.0.4" as string | null,
-  armVersion: "1.5.3" as string | null, nextArmVersion: undefined as string | null | undefined }));
+const replay = vi.hoisted(() => ({ text: "", code: 0, calls: 0, version: "1.6.1" as string | null,
+  armVersion: "1.6.2" as string | null, nextArmVersion: undefined as string | null | undefined }));
 function changeSelectedPiAfterFirstTurn() {
   if (replay.calls === 1 && replay.nextArmVersion !== undefined) replay.armVersion = replay.nextArmVersion;
 }
@@ -44,7 +44,7 @@ vi.mock("@skill-harness/core", async (original) => {
       replay.calls++; changeSelectedPiAfterFirstTurn();
       return { code: replay.code, stdout: "hello\n", stderr: "" };
     }
-    const version = options?.env?.PATH === "/fixture/unqualified-bin" ? "1.0.3"
+    const version = options?.env?.PATH === "/fixture/unqualified-bin" ? "1.6.0"
       : options?.env?.PATH === "/fixture/arm-bin" ? replay.armVersion : replay.version;
     return { code: version === null ? 1 : 0, stdout: version === null ? "" : version + "\n", stderr: "" };
   }),
@@ -71,7 +71,7 @@ function fixture(turns = ["hi"], seeded = false) {
   writeFileSync(specPath, `skill: demo\njudge_persona: strict reviewer\nship_bar:\n  total: 1\n  min_pass: 1\nscenarios:\n  - id: A1\n    title: greeting\n    turns: ${JSON.stringify(turns)}\n    checklist: ['says hello']\n${seeded ? "    mode: seeded\n    fixture: fixture\n" : ""}`);
   return { root, specPath, spec: loadSpec(specPath) };
 }
-beforeEach(() => { replay.text = ""; replay.code = 0; replay.calls = 0; replay.version = "1.0.4"; replay.armVersion = "1.5.3"; replay.nextArmVersion = undefined; });
+beforeEach(() => { replay.text = ""; replay.code = 0; replay.calls = 0; replay.version = "1.6.1"; replay.armVersion = "1.6.2"; replay.nextArmVersion = undefined; });
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 const unavailable = [
@@ -89,7 +89,7 @@ const unavailable = [
   ["missing tool identity", jsonl({ type: "tool_execution_start", toolName: "write" }, message("plausible answer"), settled)],
 ] as const;
 
-describe("Pi 1.0.4 outcomes through ungated execution and saved regrade", () => {
+describe("Pi 1.6.1 outcomes through ungated execution and saved regrade", () => {
   it.each(unavailable)("keeps %s ERROR without invoking the judge", async (_name, text) => {
     replay.text = text;
     const { root, specPath, spec } = fixture();
@@ -103,15 +103,14 @@ describe("Pi 1.0.4 outcomes through ungated execution and saved regrade", () => 
     expect(replay.calls).toBe(1); // known unavailable delivery is not retried as an empty answer
     expect(judge).not.toHaveBeenCalled();
     const transcript = readFileSync(join(summary.runDir, "A1.force.txt"), "utf8");
-    expect(executionFailureFromTranscript(transcript)).toContain("Pi 1.0.4");
+    expect(executionFailureFromTranscript(transcript)).toContain("Pi 1.6.1");
     const regraded = await regradeScenario({ runDir: summary.runDir, spec, scenario: spec.scenarios[0],
       adapter, judge: judgeModel, specDir: dirname(specPath), threshold: 1, mode: "force", expectedReps: 1 });
     expect(regraded.judge_verdict).toBe("ERROR");
     expect(judge).not.toHaveBeenCalled();
   });
 
-  // 1.0.5, 1.4.1 and 1.5.3 left this list: later patches of a qualified minor now run, flagged (below).
-  it.each(["1.0.3", "1.0.4-rc.1", "1.2.0", "1.3.0", "1.4.0-rc.1", "1.5.0-rc.1", "1.5.1", "1.5.2-rc.1", "1.5.3-beta.1", "1.5.3+x", "2.0.0", "0.83.0", "unknown", null])("refuses fresh unqualified Pi %s before a subject call and saved regrade", async (version) => {
+  it.each(["1.0.4", "1.5.2", "1.6.0", "1.6.1-rc.1", "1.6.2-beta.1", "1.6.2+x", "2.0.0", "0.83.0", "unknown", null])("refuses fresh unqualified Pi %s before a subject call and saved regrade", async (version) => {
     replay.version = version;
     replay.text = jsonl(message("plausible answer"), settled);
     const { root, specPath, spec } = fixture();
@@ -131,7 +130,7 @@ describe("Pi 1.0.4 outcomes through ungated execution and saved regrade", () => 
   });
 
   it.each(["error", "stop-then-error"])("preserves actual captured %s as an execution failure", async (name) => {
-    replay.text = readFileSync(new URL(`./fixtures/pi-1.0.4/${name}.jsonl`, import.meta.url), "utf8");
+    replay.text = readFileSync(new URL(`./fixtures/pi-json/${name}.jsonl`, import.meta.url), "utf8");
     const { root } = fixture();
     const result = await piAdapter.runStructured!({ skillDir: root, cwd: root, model: subject,
       mode: "force", turns: ["hi", "later dependent work"] });
@@ -170,11 +169,11 @@ describe("Pi 1.0.4 outcomes through ungated execution and saved regrade", () => 
 });
 
 it.each(["run", "runStructured"] as const)("%s probes the subject's actual arm PATH and cwd before spawning", async (method) => {
-  expect(await piAdapter.version!()).toBe("1.0.4"); // parent environment is qualified
+  expect(await piAdapter.version!()).toBe("1.6.1"); // parent environment is qualified
   const { root } = fixture();
   const result = await piAdapter[method]!({ skillDir: root, cwd: root, model: subject, mode: "force", turns: ["hi"],
     armEnv: { PATH: "/fixture/unqualified-bin" } });
-  expect(executionFailureFromTranscript(typeof result === "string" ? result : result.transcript)).toContain("Pi 1.0.3 is unqualified");
+  expect(executionFailureFromTranscript(typeof result === "string" ? result : result.transcript)).toContain("Pi 1.6.0 is unqualified");
   expect(replay.calls).toBe(0);
   expect(vi.mocked(exec).mock.calls.at(-1)).toEqual(["pi", ["--version"], expect.objectContaining({
     cwd: root, env: expect.objectContaining({ PATH: "/fixture/unqualified-bin" }),
@@ -182,10 +181,10 @@ it.each(["run", "runStructured"] as const)("%s probes the subject's actual arm P
 });
 
 it.each([
-  ["1.5.2", "1.5.3", false, false], ["1.5.2", "1.5.3", true, false],
-  ["1.5.3", "1.5.2", false, false], ["1.5.3", "1.5.2", true, false],
-  ["1.5.2", "1.5.3", false, true], ["1.5.2", "1.5.3", true, true],
-  ["1.5.3", "1.5.2", false, true], ["1.5.3", "1.5.2", true, true],
+  ["1.6.1", "1.6.2", false, false], ["1.6.1", "1.6.2", true, false],
+  ["1.6.2", "1.6.1", false, false], ["1.6.2", "1.6.1", true, false],
+  ["1.6.1", "1.6.2", false, true], ["1.6.1", "1.6.2", true, true],
+  ["1.6.2", "1.6.1", false, true], ["1.6.2", "1.6.1", true, true],
 ] as const)("refuses recorded Pi %s versus arm Pi %s before spawn (structured=%s, seeded=%s)", async (parent, armVersion, structured, seeded) => {
   replay.version = parent; replay.armVersion = armVersion;
   replay.text = jsonl(message("hello"), settled);
@@ -210,10 +209,10 @@ it.each([
 });
 
 it.each([
-  ["1.5.2", "1.5.3", false], ["1.5.2", "1.5.3", true],
-  ["1.5.3", "1.5.2", false], ["1.5.3", "1.5.2", true],
-  ["1.5.2", null, false], ["1.5.2", null, true],
-  ["1.5.2", "2.0.0", false], ["1.5.2", "2.0.0", true],
+  ["1.6.1", "1.6.2", false], ["1.6.1", "1.6.2", true],
+  ["1.6.2", "1.6.1", false], ["1.6.2", "1.6.1", true],
+  ["1.6.1", null, false], ["1.6.1", null, true],
+  ["1.6.1", "2.0.0", false], ["1.6.1", "2.0.0", true],
 ] as const)("stops before turn two when Pi changes from %s to %s (structured=%s)", async (first, second, structured) => {
   replay.version = first; replay.armVersion = first; replay.nextArmVersion = second;
   replay.text = jsonl(message("hello from completed first turn"), settled);
@@ -246,7 +245,7 @@ it.each([
 });
 
 it.each([
-  ["1.5.2", false], ["1.5.2", true], ["1.5.3", false], ["1.5.3", true],
+  ["1.6.1", false], ["1.6.1", true], ["1.6.2", false], ["1.6.2", true],
 ] as const)("completes both turns with matching Pi %s (structured=%s)", async (version, structured) => {
   replay.version = version; replay.armVersion = version;
   replay.text = jsonl(message("hello"), settled);
@@ -265,7 +264,7 @@ it.each([
   const transcript = readFileSync(join(summary.runDir, "A1.force.txt"), "utf8");
   expect(executionFailureFromTranscript(transcript)).toBeNull();
   expect(transcript).toContain(">>> USER (turn 2/2):\nlater turn\n");
-  if (version === "1.5.3") expect(summary.results.harness_cli_qualification).toEqual({ status: "patch", qualified_version: "1.5.2" });
+  if (version === "1.6.2") expect(summary.results.harness_cli_qualification).toEqual({ status: "patch", qualified_version: "1.6.1" });
 });
 
 it("delivered whitespace is available to the judge rather than retried as a missing answer", async () => {
@@ -285,19 +284,19 @@ it("delivered whitespace is available to the judge rather than retried as a miss
 });
 
 it("runs a later patch of a qualified minor and flags it on the results, trace and summary", async () => {
-  replay.version = "1.5.3";
+  replay.version = "1.6.2";
   replay.text = jsonl(message("hello"), settled);
   const { root, specPath, spec } = fixture();
   const judge = vi.fn(async () => JSON.stringify({ verdict: "PASS", reason: "greets", votes: [{ criterion: 1, vote: "PASS", reason: "greets" }] }));
   const summary = await runSkillModel({ spec, specPath, skillDir: root, adapter: { ...piAdapter, judgeStructured: undefined, judge },
     model: subject, modelToken: "fixture:subject", judge: judgeModel, mode: "force", timestamp: "2026-11-17T00:00:00.000Z" });
-  const flag = { status: "patch", qualified_version: "1.5.2" };
+  const flag = { status: "patch", qualified_version: "1.6.1" };
   expect(replay.calls).toBe(1);
   expect(judge).toHaveBeenCalledTimes(1);
   expect(summary.results.scenarios[0].judge_verdict).toBe("PASS");
-  expect(summary.results.harness_cli_version).toBe("1.5.3");
+  expect(summary.results.harness_cli_version).toBe("1.6.2");
   expect(summary.results.harness_cli_qualification).toEqual(flag);
   const trace = deserializeTrace(readFileSync(join(summary.runDir, "A1.force.trace.jsonl"), "utf8"))!;
-  expect(trace).toMatchObject({ pi_version: "1.5.3", pi_qualification: flag, final_status: "complete" });
-  expect(runSummaryLines(summary.results)[0]).toBe("Pi 1.5.3: patch of qualified 1.5.x (qualified: 1.5.2)");
+  expect(trace).toMatchObject({ pi_version: "1.6.2", pi_qualification: flag, final_status: "complete" });
+  expect(runSummaryLines(summary.results)[0]).toBe("Pi 1.6.2: patch of qualified 1.6.x (qualified: 1.6.1)");
 });
