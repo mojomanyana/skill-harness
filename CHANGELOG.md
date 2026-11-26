@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.4 - 2026-11-25
+
+- Support structured `--turn-json -|<file>`, `--id`, `--unique`, and `--json` in `skill-harness harvest` with `parseSpec` validation and 48-char uniqueness-preserving capture directories.
+- Redact `TOKEN=` / env credentials and quoted JSON/JS credentials (including escaped quotes) in `redactText` and harvest output.
+- Parse comma-separated `PI_ECO_MODEL_FAST` and `ecosystem.json` `modelFallbacks.fast` in `defaultJudge()`, preferring non-metered providers unless metered judging is explicitly opted in.
+- Synchronized Pi extension bundles (`npm run build:ext`).
+
 ## 1.0.3 - 2026-11-25
 
 - Removed the final 3 leftover JEV string/type references from `src/` and synchronized Pi extension bundles.
