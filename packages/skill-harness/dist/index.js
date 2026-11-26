@@ -3816,7 +3816,7 @@ import { basename, join, resolve } from "node:path";
 var MAX_VALUE_CHARS = 2e3;
 var REDACTED = "[redacted]";
 var SECRET_KEY = /^(.*[-_])?(password|passwd|secret|token|api[-_]?key|apikey|auth|authorization|credential|private[-_]?key|access[-_]?key|session[-_]?key)([-_].*)?$/i;
-var QUOTED_SECRET_KEY_VALUE = /((["'])[A-Za-z0-9_.-]*(?:api[_-]?key|access[_-]?key|secret|token|password|passwd|auth|credential)[A-Za-z0-9_.-]*\2\s*:\s*)(?:"[^"\r\n]+"|'[^'\r\n]+')/gi;
+var QUOTED_SECRET_KEY_VALUE = /((["'])[A-Za-z0-9_.-]*(?:api[_-]?key|access[_-]?key|secret|token|password|passwd|auth|credential)[A-Za-z0-9_.-]*\2\s*:\s*)(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*')/gi;
 var SECRET_VALUE = [
   /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----/g,
   /\bBearer\s+[A-Za-z0-9._~+/-]{12,}=*/gi,
@@ -3827,7 +3827,7 @@ var SECRET_VALUE = [
   /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/g,
   /\bAKIA[0-9A-Z]{16}\b/g,
   /\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
-  /\b([A-Z0-9_]*(?:API[_-]?KEY|ACCESS[_-]?KEY|SECRET|TOKEN|PASSWORD|PASSWD|AUTH|CREDENTIAL)[A-Z0-9_]*)\s*([:=])\s*(?:"[^"\r\n]+"|'[^'\r\n]+'|[^\s"'`;,}\]]+)/gi,
+  /\b([A-Z0-9_]*(?:API[_-]?KEY|ACCESS[_-]?KEY|SECRET|TOKEN|PASSWORD|PASSWD|AUTH|CREDENTIAL)[A-Z0-9_]*)\s*([:=])\s*(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|[^\s"'`;,}\]]+)/gi,
   /\b([a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^/\s@]+@/gi
 ];
 function redactText(input, homeDir) {
