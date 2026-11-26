@@ -2,10 +2,10 @@
  * A deliberately tiny JSON Schema evaluator, used to validate a native record
  * against a *pinned producer schema document* before any semantic normalization.
  *
- * Why not a general validator: the only schema this has to evaluate is pi-daddy's
- * canonical `ledgerVersion: 2` contract, which uses a small, closed subset of draft
- * 2020-12. Interpreting the producer's own bytes is what makes "unknown top-level
- * field", "bad enum member", "wrong nullability" and "requiredness drift" fail
+ * Why not a general validator: the only schemas this has to evaluate are pi-daddy's
+ * current `record-v1` envelope and governance-event contracts, which use a small, closed
+ * subset of draft 2020-12. Interpreting the producer's own bytes is what makes "unknown
+ * top-level field", "bad enum member", "wrong nullability" and "requiredness drift" fail
  * closed *by construction* rather than by a hand-transcribed rule that can drift.
  *
  * The one thing a subset evaluator must never do is silently ignore a keyword it
@@ -29,15 +29,12 @@ const ANNOTATION_KEYWORDS = new Set(["$schema", "$id", "title", "description", "
 /** Keywords this evaluator implements. Anything else is refused, not ignored. */
 const SUPPORTED_KEYWORDS = new Set([
   ...ANNOTATION_KEYWORDS,
-  // structure
-  "$ref", "oneOf", "type", "properties", "required", "additionalProperties", "items",
-  // value constraints
-  "enum", "const", "minLength", "maxLength", "minimum", "pattern", "format",
-]);
-/** Ledger v3/current record contracts add closed composition, conditionals, arrays and numeric bounds. */
-const V3_SUPPORTED_KEYWORDS = new Set([
-  ...SUPPORTED_KEYWORDS,
-  "allOf", "anyOf", "if", "then", "not", "propertyNames", "minItems", "maxItems", "uniqueItems", "exclusiveMinimum", "maximum",
+  // structure & composition
+  "$ref", "oneOf", "allOf", "anyOf", "if", "then", "not", "type", "properties", "required",
+  "additionalProperties", "propertyNames", "items",
+  // value & array constraints
+  "enum", "const", "minLength", "maxLength", "minimum", "exclusiveMinimum", "maximum",
+  "minItems", "maxItems", "uniqueItems", "pattern", "format",
 ]);
 
 /**
@@ -91,23 +88,13 @@ type Schema = Record<string, unknown>;
  * Called once per document (memoized by the caller) so a contract bump that adds
  * a keyword fails loudly rather than validating less than it claims.
  */
-export function assertSupportedSchema(schema: unknown, label: string, path = "#"): void {
-  assertSchemaSupported(schema, label, path, false);
-}
-
-/** V3-only evaluator profile; the frozen v2 profile above remains unchanged. */
 export function assertSupportedSchemaV3(schema: unknown, label: string, path = "#"): void {
-  assertSchemaSupported(schema, label, path, true);
-}
-
-function assertSchemaSupported(schema: unknown, label: string, path: string, v3: boolean): void {
   if (typeof schema !== "object" || schema === null || Array.isArray(schema)) {
     throw new Error(`${label} is not a JSON Schema object at ${path}`);
   }
   const node = schema as Schema;
-  const supported = v3 ? V3_SUPPORTED_KEYWORDS : SUPPORTED_KEYWORDS;
   for (const keyword of Object.keys(node)) {
-    if (!supported.has(keyword)) {
+    if (!SUPPORTED_KEYWORDS.has(keyword)) {
       throw new Error(`${label} uses unsupported JSON Schema keyword \`${keyword}\` at ${path}; the closed-contract evaluator refuses to validate less than the schema declares`);
     }
     const shape = KEYWORD_SHAPES[keyword];
@@ -133,39 +120,25 @@ function assertSchemaSupported(schema: unknown, label: string, path: string, v3:
       throw new Error(`${label} combines $ref with ${siblings.map((keyword) => `\`${keyword}\``).join(", ")} at ${path}; the closed-contract evaluator would drop the sibling constraint, so it refuses the schema instead`);
     }
   }
-  for (const [name, entry] of Object.entries(object(node.$defs) ?? {})) assertSchemaSupported(entry, label, `${path}/$defs/${name}`, v3);
+  for (const [name, entry] of Object.entries(object(node.$defs) ?? {})) assertSupportedSchemaV3(entry, label, `${path}/$defs/${name}`);
   for (const keyword of ["oneOf", "allOf", "anyOf"] as const) {
     for (const [index, entry] of (Array.isArray(node[keyword]) ? node[keyword] as unknown[] : []).entries()) {
-      assertSchemaSupported(entry, label, `${path}/${keyword}/${index}`, v3);
+      assertSupportedSchemaV3(entry, label, `${path}/${keyword}/${index}`);
     }
   }
-  for (const [name, entry] of Object.entries(object(node.properties) ?? {})) assertSchemaSupported(entry, label, `${path}/properties/${name}`, v3);
+  for (const [name, entry] of Object.entries(object(node.properties) ?? {})) assertSupportedSchemaV3(entry, label, `${path}/properties/${name}`);
   for (const keyword of ["items", "propertyNames", "if", "then", "not"] as const) {
-    if (node[keyword] !== undefined) assertSchemaSupported(node[keyword], label, `${path}/${keyword}`, v3);
+    if (node[keyword] !== undefined) assertSupportedSchemaV3(node[keyword], label, `${path}/${keyword}`);
   }
   if (node.additionalProperties !== undefined && node.additionalProperties !== false && node.additionalProperties !== true) {
-    assertSchemaSupported(node.additionalProperties, label, `${path}/additionalProperties`, v3);
+    assertSupportedSchemaV3(node.additionalProperties, label, `${path}/additionalProperties`);
   }
 }
 
 /**
  * Validate `value` against `schema`. Returns every violation found; an empty
  * array means the instance satisfies the pinned contract.
- *
- * `knownFieldNames` is the set of property names the caller is willing to echo in
- * an "unknown field" message. A name outside it is redacted: an attacker-supplied
- * key is untrusted text, but naming a field the contract *does* know elsewhere is
- * what makes the message actionable.
  */
-export function validateClosedSchema(
-  schema: Schema,
-  value: unknown,
-  options: { knownFieldNames?: ReadonlySet<string> } = {},
-): SchemaViolation[] {
-  return validate(schema, schema, value, "", options.knownFieldNames ?? new Set());
-}
-
-/** Evaluate the additional closed constructs used by the separately pinned v3 schema. */
 export function validateClosedSchemaV3(
   schema: Schema,
   value: unknown,

@@ -109,13 +109,11 @@ by version X needs version ≥ X to lint (see `PUBLISHING.md`).
 - **`SKILL.md`** — the Pi front door (install via `pi install npm:skill-harness`; use the Git URL only to test source); drives the loop conversationally.
 - **`docs/USAGE.md`** — the step-by-step human walkthrough (setup → list → lint → run → review → grade → add-test).
 - **`README.md`** — overview, spec format, results schema.
-- **`contracts/pi-daddy/ledger/v2/`** — the frozen producer contract the compatibility `pi-daddy-v1` selector validates against, including unversioned 0.17 inputs. Never hand-edit generated `packages/adapters/src/pi-daddy-ledger-v2.ts`.
-- **`contracts/pi-daddy/ledger/v3/`** — the separate production-v3 pin used by `pi-daddy-ledger-v3`: byte-exact schema, refusal source, and real-builder fixtures. Re-pin with `scripts/vendor-pi-daddy-ledger-v3-contract.mjs`; verify with `scripts/check-pi-daddy-v3-contract.mjs` and `npm run verify:pi-daddy-v3-contract -- <clean pinned checkout>`. Never hand-edit generated `packages/adapters/src/pi-daddy-ledger-v3.ts`.
-- **`contracts/pi-daddy/ledger-record/v1/`** — the separately pinned current native envelope/body contract. See `docs/PI-DADDY-RECORD-COMPATIBILITY.md`; regenerate with `scripts/vendor-pi-daddy-record-v1-contract.mjs`, never edit its generated TypeScript module by hand. Historical selectors remain frozen.
+- **`contracts/pi-daddy/ledger-record/v1/`** — the pinned current native envelope/body contract (`pi-daddy-record-v1`). See `docs/PI-DADDY-RECORD-COMPATIBILITY.md`; regenerate with `scripts/vendor-pi-daddy-record-v1-contract.mjs`, never edit its generated TypeScript module by hand.
 - Working on the codebase itself: `npm test` (vitest), `npm run typecheck`; the monorepo is `packages/core` (engine), `packages/adapters` (Pi subject + judge adapter), `packages/cli` (commands + review server), `packages/pi-extension` (the pi extension; its `dist/index.js` is a committed esbuild bundle — regenerate with `npm run build:ext` and commit it whenever the bundled core/cli source changes; a `bundle.test.ts` guard fails if it goes stale).
 
 ## Session harvesting & current invariants
 
 - `skill-harness harvest <session.jsonl> --out <dir> [--id <id>] [--prompt <text>] [--unique] [--json]` turns real Pi sessions (or an exact classified turn) into secret-redacted, `parseSpec`-validated `specification.yaml` regression scenarios (`packages/core/src/harvest.ts`).
 - `defaultJudge()` reads `models.fast` and `modelFallbacks.fast` from `~/.pi/agent/ecosystem.json` when `--judge` and env overrides are omitted, preferring non-metered providers unless metered judging is explicitly enabled (`packages/core/src/defaults.ts`).
-- Normal subject/judge execution is Pi-only (`--parallel 4` default, Pi 1.6 qualified, Windows `pi.cmd` shim support, contextual deferred Pi extension tools).
+- Normal subject/judge execution is Pi-only (`--parallel 4` default, Pi >= 1.6.1 qualified, Windows `pi.cmd` shim support, contextual deferred Pi extension tools).

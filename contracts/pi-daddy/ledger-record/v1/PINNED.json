@@ -1,9 +1,9 @@
 {
   "producer": "pi-daddy",
   "repository": "mojomanyana/pi-daddy",
-  "commit": "ce7ea2e00f371f74fe3119e3f9de7aef672462a1",
-  "tree": "0125749505b26245c91b314419b4e848d93087f8",
-  "version": "0.47.0",
+  "commit": "9c9cdaeadf593983954ad5a2d4de38233afa895c",
+  "tree": "121c55a203d8403984ae4ef193f2aa291e4d52db",
+  "version": "1.1.3",
   "recordVersion": 1,
   "ledgerVersion": 3,
   "artifacts": {
@@ -13,11 +13,11 @@
     },
     "governance-event.schema.json": {
       "source": "packages/pi-daddy/contracts/ledger-record/v1/governance-event.schema.json",
-      "sha256": "8e06b73e85f1d201dda32cb5ae3f44b928df2b03ddc07b15a2c20035639f9a5a"
+      "sha256": "99e2e97f950fece8ee64a850114a7897f78fbbd0243adbfac58ba3af0c352143"
     },
     "README.md": {
       "source": "packages/pi-daddy/contracts/ledger-record/v1/README.md",
-      "sha256": "35f7cbc6703ba6c94f6eef59c809c8a251f23a9fd6e585256272eaf5ac49656e"
+      "sha256": "4f1a2c2779892bdd284d5b7dae86bf49a7e900db1ac24c7b1b153f6b8db500fd"
     },
     "fixtures/ledger-record.jsonl": {
       "source": "packages/pi-daddy/contracts/ledger-record/v1/fixtures/ledger-record.jsonl",
@@ -52,5 +52,5 @@
       "sha256": "7556b087ad4c678ed77b592b600558e61967af2899bdc7432ef00b654a47ce93"
     }
   },
-  "note": "Independent current record pin. Historical ledger v2 and bare-v3 pins remain unchanged. Schemas and producer fixtures are byte exact."
+  "note": "Current pi-daddy record-v1 contract pin. Schemas and producer fixtures are byte exact."
 }

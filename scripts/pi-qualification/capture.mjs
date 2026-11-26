@@ -72,7 +72,7 @@ const server = createServer(async (req, res) => {
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const port = server.address().port;
-const guardRelative = '../../packages/adapters/test/fixtures/pi-1.5.0/network-guard.mjs';
+const guardRelative = './network-guard.mjs';
 const guard = resolve(fixtureDir, guardRelative);
 const env = { HOME: home, PATH: `${bin}:${dirname(process.execPath)}:/usr/bin:/bin`,
   PI_CODING_AGENT_DIR: agent, NODE_OPTIONS: `--import=${guard}`, PI_FIXTURE_PORT: String(port), PI_FIXTURE_GUARD_DIR: guards,

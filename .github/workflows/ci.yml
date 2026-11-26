@@ -5,7 +5,7 @@ on:
   pull_request:
 jobs:
   pi-current-transport:
-    name: Pi 1.5.2 scripted transport
+    name: Pi 1.6.1 scripted transport
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -17,106 +17,60 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run build
       - name: Install the exact Pi runtime in isolation
-        run: npm install --prefix "$RUNNER_TEMP/pi152" --no-save --ignore-scripts --no-audit --no-fund @earendil-works/pi-coding-agent@1.5.2
+        run: npm install --prefix "$RUNNER_TEMP/pi161" --no-save --ignore-scripts --no-audit --no-fund @earendil-works/pi-coding-agent@1.6.1
       - name: Exercise native Pi and the Harness adapter with scripted local answers
         shell: bash
         run: |
           set -o pipefail
-          node scripts/pi-qualification/capture.mjs 1.5.2 "$RUNNER_TEMP/pi152" "$GITHUB_WORKSPACE" "$RUNNER_TEMP/pi152-native" native 2>&1 | tee "$RUNNER_TEMP/pi152-native.log"
-          node scripts/pi-qualification/capture.mjs 1.5.2 "$RUNNER_TEMP/pi152" "$GITHUB_WORKSPACE" "$RUNNER_TEMP/pi152-adapter" adapter 2>&1 | tee "$RUNNER_TEMP/pi152-adapter.log"
+          node scripts/pi-qualification/capture.mjs 1.6.1 "$RUNNER_TEMP/pi161" "$GITHUB_WORKSPACE" "$RUNNER_TEMP/pi161-native" native 2>&1 | tee "$RUNNER_TEMP/pi161-native.log"
+          node scripts/pi-qualification/capture.mjs 1.6.1 "$RUNNER_TEMP/pi161" "$GITHUB_WORKSPACE" "$RUNNER_TEMP/pi161-adapter" adapter 2>&1 | tee "$RUNNER_TEMP/pi161-adapter.log"
       - name: Retain qualification summaries and failure logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pi-1.5.2-transport
+          name: pi-1.6.1-transport
           retention-days: 14
           if-no-files-found: ignore
           path: |
-            ${{ runner.temp }}/pi152-native.log
-            ${{ runner.temp }}/pi152-adapter.log
-            ${{ runner.temp }}/pi152-native/qualification.json
-            ${{ runner.temp }}/pi152-native/processes.json
-            ${{ runner.temp }}/pi152-native/network.json
-            ${{ runner.temp }}/pi152-native/*.log
-            ${{ runner.temp }}/pi152-native/*.stderr.txt
-            ${{ runner.temp }}/pi152-adapter/qualification.json
-            ${{ runner.temp }}/pi152-adapter/processes.json
-            ${{ runner.temp }}/pi152-adapter/network.json
-            ${{ runner.temp }}/pi152-adapter/*.log
+            ${{ runner.temp }}/pi161-native.log
+            ${{ runner.temp }}/pi161-adapter.log
+            ${{ runner.temp }}/pi161-native/qualification.json
+            ${{ runner.temp }}/pi161-native/processes.json
+            ${{ runner.temp }}/pi161-native/network.json
+            ${{ runner.temp }}/pi161-native/*.log
+            ${{ runner.temp }}/pi161-native/*.stderr.txt
+            ${{ runner.temp }}/pi161-adapter/qualification.json
+            ${{ runner.temp }}/pi161-adapter/processes.json
+            ${{ runner.temp }}/pi161-adapter/network.json
+            ${{ runner.temp }}/pi161-adapter/*.log
 
-  pi-daddy-contract:
+  pi-daddy-record-v1-contract:
     runs-on: ubuntu-latest
     steps:
       - name: Check out skill-harness
         uses: actions/checkout@v5
         with:
           path: skill-harness
-      - name: Check out immutable pi-daddy contract producer
+      - name: Check out pinned pi-daddy contract producer
         uses: actions/checkout@v5
         with:
           repository: mojomanyana/pi-daddy
-          ref: c364a6717e3d5e369ecd3298b9cbb595eb94d9b2
+          ref: 9c9cdaeadf593983954ad5a2d4de38233afa895c
           path: pi-daddy
-      # pi-daddy's pinned package requires Node >=22.19; Node 24 is also supported
-      # by skill-harness. The ordinary skill-harness suite remains authoritative on 20 below.
       - uses: actions/setup-node@v5
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: |
-            skill-harness/package-lock.json
-            pi-daddy/package-lock.json
+          cache-dependency-path: skill-harness/package-lock.json
       - name: Install skill-harness dependencies
         run: npm ci
         working-directory: skill-harness
-      - name: Install pi-daddy dependencies
-        run: npm ci
-        working-directory: pi-daddy
-      - name: Check deterministic vendored contract generation
-        run: node scripts/vendor-pi-daddy-contract.mjs ../pi-daddy c364a6717e3d5e369ecd3298b9cbb595eb94d9b2 10 --check
-        working-directory: skill-harness
-      - name: Verify real pi-daddy builders against the pinned adapter
-        run: npm run verify:pi-daddy-contract -- ../pi-daddy
-        working-directory: skill-harness
-
-  pi-daddy-ledger-v3-contract:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out skill-harness
-        uses: actions/checkout@v5
-        with:
-          path: skill-harness
-      - name: Check out immutable pi-daddy ledger-v3 producer
-        uses: actions/checkout@v5
-        with:
-          repository: mojomanyana/pi-daddy
-          ref: 4a9524394ca995fd74ed9bbb836dc4e73cda3b8c
-          path: pi-daddy-v3
-      - uses: actions/setup-node@v5
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: |
-            skill-harness/package-lock.json
-            pi-daddy-v3/package-lock.json
-      - name: Install skill-harness dependencies
-        run: npm ci
-        working-directory: skill-harness
-      - name: Install pi-daddy dependencies
-        run: npm ci
-        working-directory: pi-daddy-v3
-      - name: Check deterministic ledger-v3 vendoring
-        run: node scripts/vendor-pi-daddy-ledger-v3-contract.mjs ../pi-daddy-v3 4a9524394ca995fd74ed9bbb836dc4e73cda3b8c --check
-        working-directory: skill-harness
-      - name: Verify real ledger-v3 production builders
-        run: npm run verify:pi-daddy-v3-contract -- ../pi-daddy-v3
-        working-directory: skill-harness
-      - name: Check built ledger-v3 adapter directly
-        run: node scripts/check-pi-daddy-v3-contract.mjs
+      - name: Check deterministic record-v1 contract vendoring
+        run: node scripts/vendor-pi-daddy-record-v1-contract.mjs ../pi-daddy --check
         working-directory: skill-harness
 
   build-test:
-    needs: [pi-daddy-contract, pi-daddy-ledger-v3-contract]
+    needs: [pi-daddy-record-v1-contract]
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -139,7 +93,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: mojomanyana/pi-daddy
-          ref: 4a9524394ca995fd74ed9bbb836dc4e73cda3b8c
+          ref: 9c9cdaeadf593983954ad5a2d4de38233afa895c
           fetch-depth: 0
           path: pi-daddy-provenance
       - uses: actions/setup-node@v5
@@ -156,7 +110,7 @@ jobs:
       - name: Reproduce, install, and smoke-test canonical release archives
         run: npm run smoke:packed
   dogfood-lint:
-    needs: [pi-daddy-contract, pi-daddy-ledger-v3-contract]
+    needs: [pi-daddy-record-v1-contract]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -165,10 +119,6 @@ jobs:
         with:
           skills-root: packages/core/test/fixtures
           skill: all
-      # The smoke spec claims `lint` validates its declared extension path, but the only thing
-      # that ran that lint was the token-spending script — so a repo move broke the pre-publish
-      # gate and you found out by spending. A fresh checkout has no `tests/results/`, so the
-      # staleness findings that fire locally cannot fire here.
       - name: Lint the real-pi smoke spec
         uses: ./
         with:

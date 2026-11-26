@@ -1,18 +1,8 @@
 # Pi-daddy record compatibility
 
-The current source candidate adds the explicit `pi-daddy-record-v1` adapter for
-native `.pi/pi-daddy/grants.jsonl` files. The published harness 0.24.2 predates
-this reader. Do not silently feed a current envelope or projected current body
-to the historical `pi-daddy-ledger-v3` selector.
-
-| Selector | Input contract |
-| --- | --- |
-| `pi-daddy-v1` | Frozen unversioned 0.17 / ledger-v2 compatibility inputs |
-| `pi-daddy-ledger-v3` | Frozen bare ledger-v3 events from the historical producer pin |
-| `pi-daddy-record-v1` | Native record-v1 envelopes and their current governance bodies, pinned separately under `contracts/pi-daddy/ledger-record/v1/PINNED.json` |
-
-The new reader is an exported adapter API and source-collector option. It does
-not add a CLI command, model call, approval authority, or workflow scoring rule.
+`pi-daddy-record-v1` is the sole pi-daddy ledger adapter, reading native
+`.pi/pi-daddy/grants.jsonl` record-v1 envelopes and their current governance
+bodies pinned under `contracts/pi-daddy/ledger-record/v1/PINNED.json`.
 
 ```ts
 import { collectTrajectorySources } from "@skill-harness/adapters";
@@ -35,16 +25,12 @@ execution. It rejects the whole source on damaged or unsupported evidence, inclu
 Producer-valid identities that cannot fit the retained trajectory identity grammar
 also report unavailable evidence. For example, native `workspaceId: "feature/x"`
 is valid for the producer but cannot fit the normalized ID alphabet
-`[A-Za-z0-9._:-]` or its 128-character bound. This patch preserves that existing
-normalized contract rather than silently changing or dropping an identity.
+`[A-Za-z0-9._:-]` or its 128-character bound.
 
 Each native body produces one observation with `source: pi-daddy-record-v1`.
 Lifecycle states map to `child_started`, `child_running`, `child_completed`, or
 `child_failed`. A blocked capability decision maps to `child_spawn_refused`.
-Other body kinds retain their native names. Unlike the historical adapter, this
-reader does not expand one decision into synthetic per-capability grant or
-approval events. Callers selecting this new contract must use its explicit
-observation semantics.
+Other body kinds retain their native names.
 
 Model, thinking, definition, usage, null/zero and native identity fields remain
 in redacted/bounded attributes; execution identities and relevant digests are
@@ -64,4 +50,4 @@ node scripts/vendor-pi-daddy-record-v1-contract.mjs /path/to/pi-daddy --check
 Changing this contract requires a new immutable producer pin, its byte-exact
 schema and fixture artifacts, meaningful negative controls, and regenerated
 extension bundles. Never permit arbitrary unknown fields or rewrite captured
-records to make a contract failure pass. Historical pins remain unchanged.
+records to make a contract failure pass.

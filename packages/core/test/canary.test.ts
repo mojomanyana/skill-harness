@@ -358,19 +358,19 @@ describe("the harness CLI version is on the record", () => {
 
   test("a later patch of a qualified Pi minor is flagged in results.yaml and the journal", async () => {
     const { skillDir, specPath } = skillTree();
-    const { adapter } = scripted(["Hi!"], "1.5.3");
+    const { adapter } = scripted(["Hi!"], "1.6.2");
     const { results, runDir } = await runSkillModel({
       spec: spec(), skillDir, specPath, adapter, model, modelToken: "fireworks:fake",
       judge, mode: "force", timestamp: "2026-08-06T00:00:00Z",
     });
-    const flag = { status: "patch", qualified_version: "1.5.2" };
-    expect(readResults(runDir)).toMatchObject({ harness_cli_version: "1.5.3", harness_cli_qualification: flag });
+    const flag = { status: "patch", qualified_version: "1.6.1" };
+    expect(readResults(runDir)).toMatchObject({ harness_cli_version: "1.6.2", harness_cli_qualification: flag });
     expect(readJournal(runDir).find((e) => e.event === "run-started"))
-      .toMatchObject({ harness_cli_version: "1.5.3", harness_cli_qualification: flag });
-    expect(formatScorecard({ results, runDir })).toContain("\nPi 1.5.3: patch of qualified 1.5.x (qualified: 1.5.2)\n");
+      .toMatchObject({ harness_cli_version: "1.6.2", harness_cli_qualification: flag });
+    expect(formatScorecard({ results, runDir })).toContain("\nPi 1.6.2: patch of qualified 1.6.x (qualified: 1.6.1)\n");
   });
 
-  test.each([["pi", "1.5.2"], ["pi", "1.5.1"], ["pi", "1.6.0"], ["pi", null], ["other", "1.5.3"]])("%s %s records no patch flag", async (name, version) => {
+  test.each([["pi", "1.6.1"], ["pi", "1.6.0"], ["pi", "1.5.2"], ["pi", null], ["other", "1.6.2"]])("%s %s records no patch flag", async (name, version) => {
     const { skillDir, specPath } = skillTree();
     const { adapter } = scripted(["Hi!"], version);
     const { results, runDir } = await runSkillModel({

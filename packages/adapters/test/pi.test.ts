@@ -23,7 +23,7 @@ function fakeSkill(body = "---\nname: s\ndescription: d\n---\n\n## Do the thing\
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  vi.spyOn(piAdapter, "version").mockResolvedValue("1.0.4");
+  vi.spyOn(piAdapter, "version").mockResolvedValue("1.6.1");
   mockedExec.mockReset();
   mockedExec.mockResolvedValue({ code: 0, stdout: "USER: hi\nASSISTANT: ok\nVERDICT: PASS", stderr: "" });
 });
@@ -68,7 +68,7 @@ describe("pi adapter nested-run safety", () => {
   });
 
   it("refuses a patch judge without spawning or claiming unrecorded qualification", async () => {
-    vi.mocked(piAdapter.version!).mockResolvedValue("1.5.3");
+    vi.mocked(piAdapter.version!).mockResolvedValue("1.6.2");
     const out = await piAdapter.judge({ model: { provider: "local", model: "judge" }, prompt: "p", cwd: "/tmp" });
     expect(out).toContain("judge requires an exactly qualified Pi release");
     expect(mockedExec).not.toHaveBeenCalled();
@@ -332,8 +332,7 @@ describe("provider failure in text mode", () => {
 });
 
 describe("plain subject compatibility path qualification", () => {
-  // 1.0.5 left this list: a later patch of a qualified minor now runs (next test).
-  it.each(["1.0.3", "0.83.0", null])("refuses unqualified %s without spending subject calls", async (version) => {
+  it.each(["1.6.0", "1.5.2", "0.83.0", null])("refuses unqualified %s without spending subject calls", async (version) => {
     vi.mocked(piAdapter.version!).mockResolvedValue(version);
     const transcript = await piAdapter.run({ skillDir: fakeSkill(), model: { provider: "fixture", model: "subject" },
       mode: "force", turns: ["hi"], cwd: "/tmp" });
@@ -342,7 +341,7 @@ describe("plain subject compatibility path qualification", () => {
   });
 
   it("runs a later patch of a qualified minor", async () => {
-    vi.mocked(piAdapter.version!).mockResolvedValue("1.0.5");
+    vi.mocked(piAdapter.version!).mockResolvedValue("1.6.2");
     const transcript = await piAdapter.run({ skillDir: fakeSkill(), model: { provider: "fixture", model: "subject" },
       mode: "force", turns: ["hi"], cwd: "/tmp" });
     expect(transcript).not.toContain("unqualified");

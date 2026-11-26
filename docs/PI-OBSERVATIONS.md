@@ -15,14 +15,11 @@ For Pi 1.0.4, a message ending is insufficient to establish completion. The pars
 | `changed_paths` | Workspace observations captured independently of messages. Null means unavailable. |
 | Usage | Subject usage only where reported; judge usage remains unavailable. Cost coverage is partial. |
 
-Failed or unproven Pi 1.0.4 delivery is recorded as an execution failure independently of provider transport diagnostics. A settled error/abort, missing settlement, malformed capture or nonzero process exit produces ERROR before judging, including ungated scenarios. Its harness-owned transcript preamble preserves that status for later grading. Failed dependent turns stop. The existing one-retry policy for empty responses remains unchanged. A successful settled retry supersedes earlier transient transport diagnostics. Legacy version handling remains separate.
+Failed or unproven Pi delivery is recorded as an execution failure independently of provider transport diagnostics. A settled error/abort, missing settlement, malformed capture or nonzero process exit produces ERROR before judging, including ungated scenarios. Its harness-owned transcript preamble preserves that status for later grading. Failed dependent turns stop. The existing one-retry policy for empty responses remains unchanged. A successful settled retry supersedes earlier transient transport diagnostics.
 No child receipt adapter is added until a concrete assertion has a qualified producer with execution identity. The removed generic trajectory assertion language stays removed. Raw private sessions are not uploaded or retained by this adapter. Normalized traces and redacted transcripts use the existing per-run retention rules; reports must distinguish these from raw execution and artifact evidence.
 
 Use the existing saved-evidence operations: stimulus changes need `run`, rubric changes `grade`, policy changes `rescore`, gates changes `regate`. The latter can spend judge tokens on a fail-to-pass transition. Original evidence and human overrides remain intact.
 
-Qualification fixtures under `packages/adapters/test/fixtures/pi-1.0.4/` were captured from the actual Pi 1.0.4
-CLI using an in-process scripted provider, Node 26.7.0 on Linux x64. They cover success, terminal error, nested
-error propagation, automatic retry and a successful-looking boundary followed by an error. Every process exited
-zero. Provenance pins fixture bytes; generated cwd/package path prefixes were sanitized, visible text whitespace
-and Unicode separators were retained. These establish adapter event handling, not remote provider behavior or
-pi-daddy child identity. The capture source lives in pi-daddy's `test-integration/pi-sdk` qualification package.
+Current Pi 1.6.1 scripted transport checks run via `scripts/pi-qualification/capture.mjs` in CI. They exercise
+native red/green/force delivery, explicit extension/tool filtering, JSON Schema coercion, terminal errors,
+length limits, multi-turn resume, and observed process settlement against a loopback scripted provider.

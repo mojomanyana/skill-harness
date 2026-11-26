@@ -15,7 +15,7 @@ const FIXTURES = join(
 );
 
 const META = {
-  piVersion: "0.83.0",
+  piVersion: "1.6.1",
   subject: { provider: "fireworks", model: "gpt-oss-20b" },
   scenarioId: "A1",
   mode: "green" as const,
@@ -24,7 +24,7 @@ const META = {
 };
 
 function fixture(name: string) {
-  return parseTrace(lines(readFileSync(join(FIXTURES, name), "utf8")), META);
+  return parseTrace([...lines(readFileSync(join(FIXTURES, name), "utf8")), '{"type":"agent_settled"}'], META);
 }
 
 describe("parseTrace — transcript", () => {
@@ -134,6 +134,7 @@ describe("parseTrace — cost and latency inputs", () => {
   it("records nulls when pi reports no usage instead of fabricating zero tokens/cost", () => {
     const parsed = parseTrace([
       JSON.stringify({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "done" }], stopReason: "stop" } }),
+      '{"type":"agent_settled"}',
     ], META);
     expect(parsed.isComplete).toBe(true);
     expect(parsed.trace.metrics).toMatchObject({
@@ -162,7 +163,7 @@ describe("parseTrace — robustness", () => {
 
   it("counts malformed lines without discarding the trace", () => {
     const raw = readFileSync(join(FIXTURES, "tool-call.jsonl"), "utf8");
-    const corrupted = `${raw}{"type":"message_end", TRUNCATED`;
+    const corrupted = `${raw}{"type":"agent_settled"}\n{"type":"message_end", TRUNCATED`;
     const res = parseTrace(lines(corrupted), META);
     expect(res.malformedLines).toBe(1);
     expect(res.isComplete).toBe(true);

@@ -40,6 +40,12 @@ Earlier schema snapshots omitted `context:` even though the runtime emitted and 
 validation of existing records; it changes no grant or execution authority. Consumers pinned to older schemas
 must explicitly adopt the corrected contract. The closed field and identifier-tail rules remain unchanged.
 
+## Retry linkage (2026-11-18)
+
+Automatic retry does not change the shared record-v1 contract. Both executions emit ordinary capability and
+lifecycle records; their explicit retry relationship remains in the delegation's result details and retained
+session evidence. Released readers can continue to consume the ledger independently of Daddy updates.
+
 ## Execution identity
 
 Every v3 execution event carries:
@@ -51,8 +57,7 @@ Every v3 execution event carries:
 Consumers join capability, lifecycle, and lease events by `executionId`, never by `childId`. Repeated or concurrent
 calls may reuse a logical position such as `d0.1`; they may never reuse an execution id.
 
-A lifecycle `running` event may include `herdrPaneId` and `herdrAgentName` for navigation. These are runtime
-observations, not enforcement boundaries. `deadlineAt` is immutable within one occurrence and bounds how long a
+`deadlineAt` is immutable within one occurrence and bounds how long a
 non-terminal start can be rendered as live; after it, the truthful state is incomplete.
 
 All timestamp fields share one schema/runtime profile: JSON Schema `date-time` with seconds restricted to `00`–`59`.
