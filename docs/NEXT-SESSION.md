@@ -141,7 +141,7 @@ Astra calibration (12/12 accepted controls and 60/60 criterion votes), exact sav
 judgment reuse without new calls, red/force evaluation, diagnosis and one native
 governed readonly child. The generated skill passed 6/8 force answers and 3/4
 scenarios; its remaining critical editorial failure still blocks readiness.
-This does not qualify autonomous selection, the Herdr UI or whole-host health.
+This does not qualify autonomous selection or whole-host health.
 Reuse matching saved answers before scheduling fresh subject calls. Historical
 releases and scores remain unchanged.
 

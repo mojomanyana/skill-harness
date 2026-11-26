@@ -1,9 +1,9 @@
 {
   "producer": "pi-daddy",
   "repository": "mojomanyana/pi-daddy",
-  "commit": "ce7ea2e00f371f74fe3119e3f9de7aef672462a1",
-  "tree": "0125749505b26245c91b314419b4e848d93087f8",
-  "version": "0.47.0",
+  "commit": "d9ca1303115f350b7833bab6ed58bdc2d3bb9d71",
+  "tree": "d60ed687ee2d7f73afede866293d03388aca8673",
+  "version": "1.1.2",
   "recordVersion": 1,
   "ledgerVersion": 3,
   "artifacts": {
@@ -13,11 +13,11 @@
     },
     "governance-event.schema.json": {
       "source": "packages/pi-daddy/contracts/ledger-record/v1/governance-event.schema.json",
-      "sha256": "8e06b73e85f1d201dda32cb5ae3f44b928df2b03ddc07b15a2c20035639f9a5a"
+      "sha256": "99e2e97f950fece8ee64a850114a7897f78fbbd0243adbfac58ba3af0c352143"
     },
     "README.md": {
       "source": "packages/pi-daddy/contracts/ledger-record/v1/README.md",
-      "sha256": "35f7cbc6703ba6c94f6eef59c809c8a251f23a9fd6e585256272eaf5ac49656e"
+      "sha256": "4f1a2c2779892bdd284d5b7dae86bf49a7e900db1ac24c7b1b153f6b8db500fd"
     },
     "fixtures/ledger-record.jsonl": {
       "source": "packages/pi-daddy/contracts/ledger-record/v1/fixtures/ledger-record.jsonl",

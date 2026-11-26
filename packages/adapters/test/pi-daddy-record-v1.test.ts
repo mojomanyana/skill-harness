@@ -18,9 +18,9 @@ function signed(bodies:Record<string,unknown>[], mutate?:(record:Record<string,u
  let previous:string|null=null;
  return bodies.map((body,index)=>{const record:Record<string,unknown>={v:1,seq:index+1,prev:previous,at:body.ts,kind:body.event==="capability_decision"?"capability":body.event==="child_lifecycle"?"lifecycle":body.event==="workspace_lease"?"lease":"fact",id:"record-"+index,body};mutate?.(record,index);record.digest=hash(stable(record));const line=JSON.stringify(record);previous=hash(line);return line;}).join("\n")+"\n";
 }
-describe("pi-daddy 0.47.0 record-v1 compatibility",()=>{
+describe("pi-daddy 1.1.2 record-v1 compatibility",()=>{
  it("pins all schemas, fixtures and reader source to exact pinned bytes",()=>{
-  const pin=JSON.parse(readFileSync(join(contract,"PINNED.json"),"utf8"));expect(pin.commit).toBe(PI_DADDY_RECORD_V1_COMMIT);expect(pin.version).toBe("0.47.0");
+  const pin=JSON.parse(readFileSync(join(contract,"PINNED.json"),"utf8"));expect(pin.commit).toBe(PI_DADDY_RECORD_V1_COMMIT);expect(pin.version).toBe("1.1.2");
   for(const [path,artifact] of Object.entries(pin.artifacts) as Array<[string,{sha256:string}]>)expect(hash(readFileSync(join(contract,path),"utf8"))).toBe(artifact.sha256);
   expect(PI_DADDY_RECORD_V1_SCHEMA).toEqual(JSON.parse(readFileSync(join(contract,"record.schema.json"),"utf8")));
   expect(PI_DADDY_RECORD_V1_GOVERNANCE_SCHEMA).toEqual(JSON.parse(readFileSync(join(contract,"governance-event.schema.json"),"utf8")));
@@ -158,6 +158,10 @@ describe("pi-daddy 0.47.0 record-v1 compatibility",()=>{
   const body=fixture("workspace-lease");body.workspaceId="feature/x";
   expect(validateClosedSchemaV3(PI_DADDY_RECORD_V1_GOVERNANCE_SCHEMA,body)).toEqual([]);
   expect(()=>normalizePiDaddyRecordLedgerV1(signed([body]))).toThrow(/cannot represent this source/);
+ });
+ it("rejects retired herdr executor and pane fields on current record-v1",()=>{
+  const body=fixture("child-lifecycle");body.executor="herdr";expect(()=>normalizePiDaddyRecordLedgerV1(signed([body]))).toThrow();
+  body.executor="process";body.herdrPaneId="w1:p2";expect(()=>normalizePiDaddyRecordLedgerV1(signed([body]))).toThrow(/undeclared/);
  });
  it("redacts sensitive free text without weakening body validation",()=>{
   const body=fixture("child-lifecycle");body.reason="Bearer abcdefghijklmnopqrstuvwxyz1234";const [event]=normalizePiDaddyRecordLedgerV1(signed([body]));expect(event.attributes?.reason).toBe("[redacted]");
