@@ -30,7 +30,11 @@ export default function (pi: ExtensionAPI): void {
   // Expose eligible Skill Harness tools from Turn 1 in both Standard and Ambitious modes.
   const ensureHarnessToolsActive = () => {
     if (process.env.PI_HARNESS_DEFER_TOOLS === "1") return;
-    activateHarnessTools(pi);
+    try {
+      activateHarnessTools(pi);
+    } catch {
+      // Extension runtime actions may not be initialized in loader-only test harnesses.
+    }
   };
   pi.on("session_start", ensureHarnessToolsActive);
   (pi as unknown as { on(ev: string, fn: () => void): void }).on("before_agent_start", ensureHarnessToolsActive);

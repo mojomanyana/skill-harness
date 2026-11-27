@@ -179,4 +179,65 @@ describe("skillCheckRunTool", () => {
     expect(result.content[0].text).toMatch(/Evaluation gap/);
     expect(result.content[0].text).toMatch(/skill_author|\/skill-harness create/);
   });
+
+  it("emits per-scenario eval-result events so passing scenario B does not clear failing scenario A", async () => {
+    const skillDir = mkdtempSync(join(tmpdir(), "sc-tool-per-scenario-"));
+    mkdirSync(join(skillDir, "tests"), { recursive: true });
+    writeFileSync(join(skillDir, "SKILL.md"), "---\nname: demo-skill\ndescription: Demo.\n---\nBody.\n");
+    writeFileSync(
+      join(skillDir, "tests", "specification.yaml"),
+      `skill: demo-skill\njudge_persona: a judge.\nship_bar: { total: 2, min_pass: 2 }\nscenarios:\n  - id: A1\n    title: trigger A\n    turns: ["Trigger A"]\n    checklist: ["must emit A token"]\n  - id: B1\n    title: trigger B\n    turns: ["Trigger B"]\n    checklist: ["must emit B token"]\n`,
+      "utf8",
+    );
+    const emitted: Array<{ event: string; payload: any }> = [];
+    let registered: any;
+    const pi = {
+      registerTool(def: any) { registered = def; },
+      registerCommand() {},
+      on() {},
+      events: {
+        on() { return () => {}; },
+        emit(event: string, payload: unknown) { emitted.push({ event, payload }); },
+      },
+    };
+    const { registerTool } = await import("../src/tool.js");
+    registerTool(pi as any);
+
+    let aPasses = false;
+    const adapter = {
+      name: "pi",
+      available: async () => true,
+      run: async ({ turns }: { turns: string[] }) => {
+        const prompt = turns.join(" ");
+        if (prompt.includes("Trigger A")) {
+          return aPasses ? "USER: Trigger A\nASSISTANT: A ok" : "USER: Trigger A\nASSISTANT: A bad";
+        }
+        return "USER: Trigger B\nASSISTANT: B ok";
+      },
+      judge: async ({ prompt }: { prompt: string }) =>
+        prompt.includes("A bad")
+          ? '{"votes":[{"criterion":1,"vote":"FAIL","reason":"A token missing"}],"verdict":"FAIL","reason":"A token missing"}'
+          : '{"votes":[{"criterion":1,"vote":"PASS","reason":"matched"}],"verdict":"PASS","reason":"matched"}',
+    } as any;
+
+    await registered.execute("r1", { skill: skillDir, scenarios: ["A1"], coverageScope: "focused", reps: 1 }, new AbortController().signal, undefined, {
+      cwd: skillDir, model: { provider: "google", id: "gemini-flash-latest" }, __adapter: adapter,
+    });
+    await registered.execute("r2", { skill: skillDir, scenarios: ["B1"], coverageScope: "focused", reps: 1 }, new AbortController().signal, undefined, {
+      cwd: skillDir, model: { provider: "google", id: "gemini-flash-latest" }, __adapter: adapter,
+    });
+    aPasses = true;
+    await registered.execute("r3", { skill: skillDir, scenarios: ["A1"], coverageScope: "focused", reps: 1 }, new AbortController().signal, undefined, {
+      cwd: skillDir, model: { provider: "google", id: "gemini-flash-latest" }, __adapter: adapter,
+    });
+
+    const evalEvents = emitted.filter((e) => e.event === "skill-harness:eval-result:v1").map((e) => e.payload);
+    expect(evalEvents).toHaveLength(3);
+    expect(evalEvents[0]).toMatchObject({ skill: "demo-skill", keepTaskOpen: true });
+    expect(evalEvents[0].scenarios.map((s: any) => [s.id, s.verdict])).toEqual([["A1", "FAIL"]]);
+    expect(evalEvents[1]).toMatchObject({ skill: "demo-skill", keepTaskOpen: false });
+    expect(evalEvents[1].scenarios.map((s: any) => [s.id, s.verdict])).toEqual([["B1", "PASS"]]);
+    expect(evalEvents[2]).toMatchObject({ skill: "demo-skill", keepTaskOpen: false });
+    expect(evalEvents[2].scenarios.map((s: any) => [s.id, s.verdict])).toEqual([["A1", "PASS"]]);
+  });
 });

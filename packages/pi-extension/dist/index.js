@@ -12757,7 +12757,10 @@ function index_default(pi) {
   registerTool(pi, dashboard);
   const ensureHarnessToolsActive = () => {
     if (process.env.PI_HARNESS_DEFER_TOOLS === "1") return;
-    activateHarnessTools(pi);
+    try {
+      activateHarnessTools(pi);
+    } catch {
+    }
   };
   pi.on("session_start", ensureHarnessToolsActive);
   pi.on("before_agent_start", ensureHarnessToolsActive);
