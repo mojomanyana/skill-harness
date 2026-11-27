@@ -11190,14 +11190,17 @@ async function runViaExtension(opts) {
   return withEvaluationGuard(async () => {
     const specPath = opts.specPath ?? join35(opts.skillDir, "tests", "specification.yaml");
     const spec = loadSpec(specPath);
-    const modelToken = opts.model ?? DEFAULT_MODEL;
+    const modelToken = opts.model ?? opts.sessionModel ?? DEFAULT_MODEL;
     const model = withThinking(parseModelRef(modelToken), opts.thinking);
-    const judge = withThinking(parseModelRef(opts.judge ?? defaultJudge()), opts.judgeThinking);
+    const judgeToken = opts.judge ?? opts.sessionModel ?? defaultJudge();
+    const judge = withThinking(parseModelRef(judgeToken), opts.judgeThinking);
     assertJudgeAllowed(judge, {
-      source: opts.judge ? "the judge argument" : "the default judge (SKILL_HARNESS_JUDGE or the baked value)"
+      source: opts.judge ? "the judge argument" : opts.sessionModel ? "the active Pi session model" : "the default judge (SKILL_HARNESS_JUDGE or the baked value)",
+      allowMetered: !opts.judge && Boolean(opts.sessionModel)
     });
     const adapter = taskEvaluationAdapter(opts.adapter ?? getAdapter("pi"));
     const mode = opts.mode ?? "green";
+    const reps2 = opts.reps ?? 1;
     const summary = await runSkillModel({
       spec,
       skillDir: opts.skillDir,
@@ -11218,14 +11221,45 @@ async function runViaExtension(opts) {
     });
     const g = summary.results.effective_grade;
     const verdicts = effectiveVerdicts(summary.results.scenarios);
+    const specById = new Map(spec.scenarios.map((s) => [s.id, s]));
+    const resultById = new Map(summary.results.scenarios.map((s) => [s.id, s]));
+    const scenarios = verdicts.map((v) => {
+      const specScenario = specById.get(v.id);
+      const rawScenario = resultById.get(v.id);
+      const repDetail = rawScenario?.rep_judgments?.flatMap((panel) => panel.judgments ?? []).filter((j) => j.verdict !== "PASS").map((j) => j.reason?.trim()).filter((r) => Boolean(r));
+      const uniqueDetail = repDetail ? [...new Set(repDetail)].slice(0, 2).join("; ") : "";
+      const baseReason = rawScenario?.judge_reason?.trim() || rawScenario?.note?.trim() || "";
+      const observed = v.verdict !== "PASS" ? [baseReason, uniqueDetail && !baseReason.includes(uniqueDetail) ? uniqueDetail : ""].filter(Boolean).join(" \u2014 ") || `Verdict ${v.verdict}` : void 0;
+      return {
+        id: v.id,
+        verdict: v.verdict,
+        suspect: v.suspect ?? false,
+        ...v.verdict !== "PASS" && specScenario?.checklist?.length ? { expected: specScenario.checklist } : {},
+        ...observed ? { observed } : {}
+      };
+    });
     const failedTranscripts = verdicts.filter((v) => v.verdict !== "PASS").flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode).map((f) => join35(summary.runDir, f)));
+    const totalSpecCount = spec.scenarios.length;
+    const runCount = scenarios.length;
+    const inferredScope = opts.coverageScope ?? (opts.only?.length && runCount < totalSpecCount ? "focused" : "full");
+    const label = inferredScope === "focused" ? `focused coverage (${runCount}/${totalSpecCount} scenarios)` : inferredScope === "related" ? `related-role coverage (${runCount}/${totalSpecCount} scenarios)` : `full coverage (${runCount}/${totalSpecCount} scenarios)`;
+    const keepTaskOpen = scenarios.some((s) => s.verdict !== "PASS");
     return {
       skill: summary.results.skill,
       model: summary.results.model,
+      reps: reps2,
+      coverage: {
+        scope: inferredScope,
+        label,
+        runCount,
+        totalSpecCount,
+        scenariosRun: scenarios.map((s) => s.id)
+      },
+      keepTaskOpen,
       summary: summarizeRun(summary.results),
       summaryLines: runSummaryLines(summary.results),
       grade: { pct: g.pct, letter: g.letter, ship: g.ship },
-      scenarios: verdicts.map((v) => ({ id: v.id, verdict: v.verdict, suspect: v.suspect ?? false })),
+      scenarios,
       failedTranscripts,
       resultsSha256: writtenResultsDigest(summary.results)
     };
@@ -12271,46 +12305,129 @@ import { Type as Type3 } from "typebox";
 var skillCheckRunTool = {
   name: "skill_check_run",
   label: "Run skill-harness",
-  exposure: "deferred",
-  defaultActive: false,
-  description: "Run a skill's scenarios and return the scorecard (grade, per-scenario verdicts, failed transcripts). Use after editing a skill to validate it.",
-  promptGuidelines: ["Use skill_check_run after editing a skill to validate it against its scenarios."],
+  exposure: "direct",
+  defaultActive: true,
+  description: "Run a skill's scenarios and return the scorecard (exact scenarios run, repetitions, coverage label, per-scenario verdicts, expected vs observed on failures, and failed transcripts). Use after editing a skill to validate directly relevant scenarios in Standard mode, or also related scenarios in Ambitious mode.",
+  promptGuidelines: [
+    "Use skill_check_run after editing a skill to validate affected scenarios. A failed scenario keeps the task open until fixed and rerun, or until an intentional behavior change explains why the evaluation needs updating."
+  ],
   parameters: Type3.Object({
     skill: Type3.Optional(Type3.String({ description: "skill dir/name; defaults to the current project" })),
     specs: Type3.Optional(Type3.String({ description: "Separate evaluation repository root; spec is <root>/<skill-name>/tests/specification.yaml" })),
+    scenarios: Type3.Optional(Type3.Array(Type3.String({ minLength: 1 }), { description: "Run only these scenario IDs (focused or related-role coverage)" })),
+    coverageScope: Type3.Optional(Type3.Union([Type3.Literal("focused"), Type3.Literal("related"), Type3.Literal("full")], {
+      description: "Label coverage accurately: focused (directly relevant scenarios), related (shared change affecting several roles), or full"
+    })),
     thinking: Type3.Optional(Type3.String({ description: "Explicit requested Pi effort: off, minimal, low, medium, high, xhigh or max; effective effort may be unavailable" })),
     judgeThinking: Type3.Optional(Type3.String({ description: "Explicit requested judge effort; changes calibration/reuse identity" })),
-    model: Type3.Optional(Type3.String({ description: "provider:model token under test" })),
-    judge: Type3.Optional(Type3.String({ description: "Independent Pi provider:model judge, chosen when testing starts" })),
+    model: Type3.Optional(Type3.String({ description: "provider:model token under test (defaults to active session model)" })),
+    judge: Type3.Optional(Type3.String({ description: "Independent Pi provider:model judge (defaults to active session model or configured judge)" })),
     reps: Type3.Optional(Type3.Number({ description: "run each scenario N times", minimum: 1, maximum: 20 })),
     mode: Type3.Optional(Type3.String({ description: "red | green | force (green and force are scored; red is the baseline)" })),
     canary: Type3.Optional(Type3.Boolean({ description: "green only: spend one instructed skill-loading/quote probe and stop if inconclusive; does not test autonomous selection" }))
   }),
   async execute(_id, params, signal, onUpdate, ctx) {
-    const { skillDir, specPath } = resolveSkillLocation(ctx.cwd, params.skill, params.specs ?? process.env.SKILL_HARNESS_SPECS);
+    let resolved;
+    try {
+      resolved = resolveSkillLocation(ctx.cwd, params.skill, params.specs ?? process.env.SKILL_HARNESS_SPECS);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (/no tests\/specification\.yaml found/i.test(msg)) {
+        const target = params.skill ?? ctx.cwd;
+        const offer = "No evaluation exists for this changed skill behavior yet. Offer to create one with skill_author or `/skill-harness create`.";
+        const gap = {
+          evaluationGap: true,
+          skill: target,
+          keepTaskOpen: false,
+          message: msg,
+          offer
+        };
+        return {
+          content: [{ type: "text", text: `Evaluation gap for ${target}: ${msg}
+${offer}` }],
+          details: gap
+        };
+      }
+      throw error;
+    }
+    const sessionModel = ctx.model?.provider && ctx.model?.id ? `${ctx.model.provider}:${ctx.model.id}` : void 0;
     const card = await withProcessScope({ signal }, () => runViaExtension({
-      skillDir,
-      specPath,
+      skillDir: resolved.skillDir,
+      specPath: resolved.specPath,
       model: params.model,
+      sessionModel,
       thinking: params.thinking,
       judgeThinking: params.judgeThinking,
       judge: params.judge,
       reps: params.reps,
       mode: params.mode,
       canary: params.canary,
+      only: params.scenarios,
+      coverageScope: params.coverageScope,
       adapter: ctx.__adapter,
       timestamp: (/* @__PURE__ */ new Date()).toISOString(),
       log: (m) => onUpdate?.({ content: [{ type: "text", text: m }] })
     }));
+    const scenarioLines = card.scenarios.map((s) => {
+      const base = `  ${s.id}: ${s.suspect ? "? (suspect)" : s.verdict}`;
+      if (s.verdict === "PASS") return base;
+      const expected = s.expected?.length ? `
+    expected: ${s.expected.join(" | ")}` : "";
+      const observed = s.observed ? `
+    observed: ${s.observed}` : "";
+      return `${base}${expected}${observed}`;
+    });
+    const failureNote = card.keepTaskOpen ? "\nTask remains open: fix the in-scope skill regression and rerun the affected scenario(s), or explain why the evaluation needs updating before modifying it if behavior intentionally changed." : "";
     const summary = `${card.skill} ${card.grade.letter} (${card.grade.pct}%) \u2014 ${card.grade.ship ? "SHIP" : "NOT READY"}
-` + (card.summaryLines?.length ? card.summaryLines.join("\n") + "\n" : "") + card.scenarios.map((s) => `  ${s.id}: ${s.suspect ? "? (suspect)" : s.verdict}`).join("\n") + (card.failedTranscripts.length ? `
+Coverage: ${card.coverage.label} \xB7 reps=${card.reps} \xB7 scenarios=[${card.coverage.scenariosRun.join(", ")}]
+` + (card.summaryLines?.length ? card.summaryLines.join("\n") + "\n" : "") + scenarioLines.join("\n") + (card.failedTranscripts.length ? `
 failed transcripts:
-${card.failedTranscripts.join("\n")}` : "");
-    return { content: [{ type: "text", text: summary }], details: card };
+${card.failedTranscripts.join("\n")}` : "") + failureNote;
+    return { ...card.keepTaskOpen ? { isError: true } : {}, content: [{ type: "text", text: summary }], details: card };
   }
 };
 function registerTool(pi, dashboard) {
-  pi.registerTool(dashboard ? { ...skillCheckRunTool, execute: (...args) => dashboard.run(args[4], () => skillCheckRunTool.execute(...args), (result) => result.details.summary, { id: args[0], digest: (result) => result.details.resultsSha256 }) } : skillCheckRunTool);
+  const wrap = async (...args) => {
+    const out = dashboard ? await dashboard.run(
+      args[4],
+      () => skillCheckRunTool.execute(...args),
+      (result) => "evaluationGap" in result.details ? void 0 : result.details.summary,
+      {
+        id: args[0],
+        digest: (result) => "evaluationGap" in result.details ? void 0 : result.details.resultsSha256
+      }
+    ) : await skillCheckRunTool.execute(...args);
+    try {
+      const details = out.details;
+      if ("evaluationGap" in details) {
+        pi.events?.emit?.("pi-daddy:ecosystem-activity:v1", {
+          producer: "skill-harness",
+          kind: "eval-gap",
+          detail: `Skill Harness \xB7 no evaluation found for ${details.skill} (offer to create one)`
+        });
+      } else {
+        const passed = details.scenarios.filter((s) => s.verdict === "PASS").length;
+        const total = details.scenarios.length;
+        const status = details.keepTaskOpen ? "FAIL (task stays open)" : "PASS";
+        pi.events?.emit?.("skill-harness:eval-result:v1", {
+          version: 1,
+          skill: details.skill,
+          keepTaskOpen: details.keepTaskOpen,
+          reps: details.reps,
+          coverage: details.coverage,
+          scenarios: details.scenarios
+        });
+        pi.events?.emit?.("pi-daddy:ecosystem-activity:v1", {
+          producer: "skill-harness",
+          kind: details.keepTaskOpen ? "eval-failed" : "eval-passed",
+          detail: `Skill Harness \xB7 ${details.skill} ${status} (${passed}/${total}, ${details.coverage.label}, reps=${details.reps})`
+        });
+      }
+    } catch {
+    }
+    return out;
+  };
+  pi.registerTool({ ...skillCheckRunTool, execute: wrap });
 }
 
 // packages/pi-extension/src/dashboard.ts
@@ -12638,12 +12755,12 @@ function index_default(pi) {
   registerAuthoring(pi);
   registerImprovement(pi);
   registerTool(pi, dashboard);
-  const HARNESS_TRIGGER_RE = /\b(skill_author|skill_check_run|skill_improvement|skill-harness)\b/i;
-  pi.on("before_agent_start", (event) => {
-    if (typeof event?.prompt === "string" && HARNESS_TRIGGER_RE.test(event.prompt)) {
-      activateHarnessTools(pi);
-    }
-  });
+  const ensureHarnessToolsActive = () => {
+    if (process.env.PI_HARNESS_DEFER_TOOLS === "1") return;
+    activateHarnessTools(pi);
+  };
+  pi.on("session_start", ensureHarnessToolsActive);
+  pi.on("before_agent_start", ensureHarnessToolsActive);
   pi.on("session_shutdown", async () => {
     removeVersionReporter?.();
     closeReview();

@@ -14,13 +14,30 @@ import {
 import { taskEvaluationAdapter } from "./task-evaluation.js";
 import { getAdapter } from "@skill-harness/adapters";
 
+export interface ScorecardScenario {
+  id: string;
+  verdict: Verdict;
+  suspect: boolean;
+  expected?: string[];
+  observed?: string;
+}
+
 export interface Scorecard {
   summary: ReturnType<typeof summarizeRun>;
   summaryLines: string[];
   skill: string;
   model: string;
+  reps: number;
+  coverage: {
+    scope: "focused" | "related" | "full";
+    label: string;
+    runCount: number;
+    totalSpecCount: number;
+    scenariosRun: string[];
+  };
+  keepTaskOpen: boolean;
   grade: { pct: number; letter: string; ship: boolean };
-  scenarios: { id: string; verdict: Verdict; suspect: boolean }[];
+  scenarios: ScorecardScenario[];
   failedTranscripts: string[];
   resultsSha256?: string;
 }
@@ -92,6 +109,9 @@ export async function runViaExtension(opts: {
   canary?: boolean;
   adapter?: HarnessAdapter;
   judge?: string;
+  /** Active Pi session provider:model used when model/judge are omitted. */
+  sessionModel?: string;
+  coverageScope?: "focused" | "related" | "full";
   /**
    * Run only these scenario ids.
    *
@@ -108,14 +128,21 @@ export async function runViaExtension(opts: {
   return withEvaluationGuard(async () => {
   const specPath = opts.specPath ?? join(opts.skillDir, "tests", "specification.yaml");
   const spec = loadSpec(specPath);
-  const modelToken = opts.model ?? DEFAULT_MODEL;
+  const modelToken = opts.model ?? opts.sessionModel ?? DEFAULT_MODEL;
   const model = withThinking(parseModelRef(modelToken), opts.thinking);
-  const judge = withThinking(parseModelRef(opts.judge ?? defaultJudge()), opts.judgeThinking);
+  const judgeToken = opts.judge ?? opts.sessionModel ?? defaultJudge();
+  const judge = withThinking(parseModelRef(judgeToken), opts.judgeThinking);
   assertJudgeAllowed(judge, {
-    source: opts.judge ? "the judge argument" : "the default judge (SKILL_HARNESS_JUDGE or the baked value)",
+    source: opts.judge
+      ? "the judge argument"
+      : opts.sessionModel
+        ? "the active Pi session model"
+        : "the default judge (SKILL_HARNESS_JUDGE or the baked value)",
+    allowMetered: !opts.judge && Boolean(opts.sessionModel),
   });
   const adapter = taskEvaluationAdapter(opts.adapter ?? getAdapter("pi"));
   const mode = opts.mode ?? "green";
+  const reps = opts.reps ?? 1;
   const summary = await runSkillModel({
     spec, skillDir: opts.skillDir, specPath, adapter, model, modelToken, judge, mode,
     testsDir: dirname(specPath),
@@ -126,15 +153,58 @@ export async function runViaExtension(opts: {
   });
   const g = summary.results.effective_grade;
   const verdicts = effectiveVerdicts(summary.results.scenarios);
+  const specById = new Map(spec.scenarios.map((s) => [s.id, s]));
+  const resultById = new Map(summary.results.scenarios.map((s) => [s.id, s]));
+  const scenarios: ScorecardScenario[] = verdicts.map((v) => {
+    const specScenario = specById.get(v.id);
+    const rawScenario = resultById.get(v.id);
+    const repDetail = rawScenario?.rep_judgments
+      ?.flatMap((panel) => panel.judgments ?? [])
+      .filter((j) => j.verdict !== "PASS")
+      .map((j) => j.reason?.trim())
+      .filter((r): r is string => Boolean(r));
+    const uniqueDetail = repDetail ? [...new Set(repDetail)].slice(0, 2).join("; ") : "";
+    const baseReason = rawScenario?.judge_reason?.trim() || rawScenario?.note?.trim() || "";
+    const observed = v.verdict !== "PASS"
+      ? ([baseReason, uniqueDetail && !baseReason.includes(uniqueDetail) ? uniqueDetail : ""].filter(Boolean).join(" — ") || `Verdict ${v.verdict}`)
+      : undefined;
+    return {
+      id: v.id,
+      verdict: v.verdict,
+      suspect: v.suspect ?? false,
+      ...(v.verdict !== "PASS" && specScenario?.checklist?.length ? { expected: specScenario.checklist } : {}),
+      ...(observed ? { observed } : {}),
+    };
+  });
   const failedTranscripts = verdicts
     .filter((v) => v.verdict !== "PASS")
     .flatMap((v) => findTranscriptFiles(summary.runDir, v.id, summary.results.mode)
       .map((f) => join(summary.runDir, f)));
+  const totalSpecCount = spec.scenarios.length;
+  const runCount = scenarios.length;
+  const inferredScope: "focused" | "related" | "full" =
+    opts.coverageScope ?? (opts.only?.length && runCount < totalSpecCount ? "focused" : "full");
+  const label =
+    inferredScope === "focused"
+      ? `focused coverage (${runCount}/${totalSpecCount} scenarios)`
+      : inferredScope === "related"
+        ? `related-role coverage (${runCount}/${totalSpecCount} scenarios)`
+        : `full coverage (${runCount}/${totalSpecCount} scenarios)`;
+  const keepTaskOpen = scenarios.some((s) => s.verdict !== "PASS");
   return {
     skill: summary.results.skill, model: summary.results.model,
+    reps,
+    coverage: {
+      scope: inferredScope,
+      label,
+      runCount,
+      totalSpecCount,
+      scenariosRun: scenarios.map((s) => s.id),
+    },
+    keepTaskOpen,
     summary: summarizeRun(summary.results), summaryLines: runSummaryLines(summary.results),
     grade: { pct: g.pct, letter: g.letter, ship: g.ship },
-    scenarios: verdicts.map((v) => ({ id: v.id, verdict: v.verdict, suspect: v.suspect ?? false })),
+    scenarios,
     failedTranscripts, resultsSha256: writtenResultsDigest(summary.results),
   };
   });

@@ -27,13 +27,13 @@ export default function (pi: ExtensionAPI): void {
   registerAuthoring(pi);
   registerImprovement(pi);
   registerTool(pi, dashboard);
-  // Contextual deferred tool activation when prompt explicitly asks for skill-harness tools.
-  const HARNESS_TRIGGER_RE = /\b(skill_author|skill_check_run|skill_improvement|skill-harness)\b/i;
-  (pi as unknown as { on(ev: string, fn: (e: { prompt?: string }) => void): void }).on("before_agent_start", (event) => {
-    if (typeof event?.prompt === "string" && HARNESS_TRIGGER_RE.test(event.prompt)) {
-      activateHarnessTools(pi);
-    }
-  });
+  // Expose eligible Skill Harness tools from Turn 1 in both Standard and Ambitious modes.
+  const ensureHarnessToolsActive = () => {
+    if (process.env.PI_HARNESS_DEFER_TOOLS === "1") return;
+    activateHarnessTools(pi);
+  };
+  pi.on("session_start", ensureHarnessToolsActive);
+  (pi as unknown as { on(ev: string, fn: () => void): void }).on("before_agent_start", ensureHarnessToolsActive);
   pi.on("session_shutdown", async () => {
     removeVersionReporter?.();
     closeReview();

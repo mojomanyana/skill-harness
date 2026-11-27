@@ -125,4 +125,58 @@ describe("skillCheckRunTool", () => {
     await expect(handleSkillCheck("run --model local:subject --judge local:judge", commandContext(skillDir), { adapter: fakeAdapter }))
       .resolves.toBeUndefined();
   });
+
+  it("reports focused coverage, repetitions, expected vs observed failures, keepTaskOpen, and session model fallback", async () => {
+    const d = mkdtempSync(join(tmpdir(), "sc-tool-multi-"));
+    mkdirSync(join(d, "sub", "tests"), { recursive: true });
+    writeFileSync(
+      join(d, "sub", "tests", "specification.yaml"),
+      `skill: demo-multi\njudge_persona: a judge.\nship_bar: { total: 2, min_pass: 2 }\nscenarios:\n  - id: A1\n    title: first\n    turns: ["hi"]\n    checklist: ["must include exact citation"]\n  - id: A2\n    title: second\n    turns: ["bye"]\n    checklist: ["must say bye"]\n`,
+      "utf8",
+    );
+    const failAdapter = {
+      name: "pi",
+      available: async () => true,
+      run: async () => "USER: hi\nASSISTANT: vague reply without citation",
+      judge: async () =>
+        '{"votes":[{"criterion":1,"vote":"FAIL","reason":"missing exact citation"}],"verdict":"FAIL","reason":"missing exact citation"}',
+    } as any;
+    const result = await skillCheckRunTool.execute(
+      "focused-fail",
+      { skill: join(d, "sub"), scenarios: ["A1"], reps: 2, mode: "green" },
+      new AbortController().signal,
+      undefined,
+      { cwd: d, model: { provider: "google", id: "gemini-flash-latest" }, __adapter: failAdapter } as any,
+    );
+    expect(result.isError).toBe(true);
+    expect("evaluationGap" in result.details).toBe(false);
+    if (!("evaluationGap" in result.details)) {
+      expect(result.details.keepTaskOpen).toBe(true);
+      expect(result.details.reps).toBe(2);
+      expect(result.details.coverage.scope).toBe("focused");
+      expect(result.details.coverage.label).toBe("focused coverage (1/2 scenarios)");
+      expect(result.details.coverage.scenariosRun).toEqual(["A1"]);
+      expect(result.details.scenarios[0]?.expected).toEqual(["must include exact citation"]);
+      expect(result.details.scenarios[0]?.observed).toMatch(/missing exact citation/);
+    }
+    expect(result.content[0].text).toMatch(/focused coverage \(1\/2 scenarios\)/);
+    expect(result.content[0].text).toMatch(/reps=2/);
+    expect(result.content[0].text).toMatch(/expected: must include exact citation/);
+    expect(result.content[0].text).toMatch(/observed:.*missing exact citation/);
+    expect(result.content[0].text).toMatch(/Task remains open/);
+  });
+
+  it("flags an evaluation gap and offers to create one when no specification exists", async () => {
+    const empty = mkdtempSync(join(tmpdir(), "sc-tool-gap-"));
+    const result = await skillCheckRunTool.execute(
+      "gap-1",
+      { skill: empty },
+      new AbortController().signal,
+      undefined,
+      { cwd: empty } as any,
+    );
+    expect("evaluationGap" in result.details && result.details.evaluationGap).toBe(true);
+    expect(result.content[0].text).toMatch(/Evaluation gap/);
+    expect(result.content[0].text).toMatch(/skill_author|\/skill-harness create/);
+  });
 });
