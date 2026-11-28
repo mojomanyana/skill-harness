@@ -1,7 +1,7 @@
 {
   "name": "skill-harness",
-  "version": "1.0.5",
-  "description": "Create and improve Pi skills \u2014 guided authoring, evaluations, judge calibration and evidence review",
+  "version": "1.1.0",
+  "description": "Create and improve Pi skills — guided authoring, evaluations, judge calibration and evidence review",
   "type": "module",
   "keywords": [
     "agent-skills",
@@ -39,7 +39,7 @@
     "CHANGELOG.md"
   ],
   "dependencies": {
-    "@skill-harness/cli": "1.0.5"
+    "@skill-harness/cli": "1.1.0"
   },
   "peerDependencies": {
     "typebox": "*"
